@@ -56,6 +56,8 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { HighlightedText } from "@/components/ui-ext/HighlightedText";
 
 import { isDemo } from "@/services/customer.service";
+import { LocationLivenessBadge } from "@/components/customer/LocationLiveness";
+import { livenessTone } from "@/lib/location-liveness";
 import { businessTypeIcon } from "@/lib/business-type-icons";
 import { toast } from "sonner";
 import { requireCustomerSession } from "@/lib/authGuards";
@@ -472,12 +474,23 @@ function CustomerHomePage() {
   };
 
   const totalLocations = (locations ?? []).length;
-  const onlineLocations = (locations ?? []).filter((l) => l.status === "online").length;
+  const liveLocations = (locations ?? []).filter((l) => l.liveness.state === "live").length;
+  // Venues whose liveness could not be established. They are NOT counted
+  // as live (we have no evidence) and must not be silently implied to be
+  // down either, so the tile says how many are unaccounted for rather
+  // than letting the reader subtract and draw the wrong conclusion.
+  const undeterminedLocations = (locations ?? []).filter(
+    (l) => l.liveness.state === "unknown",
+  ).length;
   const totalOnlineUsers = (locations ?? []).reduce((sum, l) => sum + (l.onlineUsers ?? 0), 0);
   const heroStats = [
-    { label: "Locations", value: totalLocations },
-    { label: "Online now", value: onlineLocations },
-    { label: "Guests online", value: totalOnlineUsers },
+    { label: "Locations", value: totalLocations, note: null as string | null },
+    {
+      label: "Live now",
+      value: liveLocations,
+      note: undeterminedLocations > 0 ? `${undeterminedLocations} we can't currently check` : null,
+    },
+    { label: "Guests online", value: totalOnlineUsers, note: null as string | null },
   ];
 
   return (
@@ -669,6 +682,7 @@ function CustomerHomePage() {
                         <CountUp target={s.value} />
                       </p>
                       <p className="mt-0.5 text-[11px] text-white/55">{s.label}</p>
+                      {s.note && <p className="mt-0.5 text-[10px] text-amber-300/80">{s.note}</p>}
                     </motion.div>
                   ))}
                 </div>
@@ -811,30 +825,22 @@ function CustomerHomePage() {
             ) : (
               filtered.map((loc, i) => {
                 const LocationIcon = businessTypeIcon(loc.propertyType);
-                const statusDot =
-                  loc.status === "online"
-                    ? "bg-emerald-500"
-                    : loc.status === "degraded"
-                      ? "bg-amber-500"
-                      : "bg-rose-500";
-                const statusPill =
-                  loc.status === "online"
-                    ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
-                    : loc.status === "degraded"
-                      ? "border-amber-500/20 bg-amber-500/10 text-amber-400"
-                      : "border-rose-500/20 bg-rose-500/10 text-rose-400";
-                const statusLabel =
-                  loc.status === "online"
-                    ? "Online"
-                    : loc.status === "degraded"
-                      ? "Degraded"
-                      : "Offline";
+                // Liveness (badge word, colour, and the sentence under the
+                // card) all come from `loc.liveness` now. The three-way
+                // ternary this replaced could only ever say Online /
+                // Degraded / Offline, so "no router has been added here",
+                // "the router has never checked in", "the router has gone
+                // quiet" and "we could not read this venue's routers" all
+                // came out as the same red word "Offline".
+                const tone = livenessTone(loc.liveness.state);
                 const ringColor =
-                  loc.status === "online"
+                  tone === "live"
                     ? "hover:ring-emerald-500/25"
-                    : loc.status === "degraded"
+                    : tone === "warn"
                       ? "hover:ring-amber-500/25"
-                      : "hover:ring-rose-500/25";
+                      : tone === "down"
+                        ? "hover:ring-rose-500/25"
+                        : "hover:ring-white/20";
                 // Compact device-type summary right on the card -- the founder's
                 // ask was for device icons "on the front page," not just inside
                 // the Device health drawer you have to open first. Only shows
@@ -915,16 +921,19 @@ function CustomerHomePage() {
                         </p>
                         <p className="text-[11px] text-white/45">guests online</p>
                       </div>
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold",
-                          statusPill,
-                        )}
-                      >
-                        <span className={cn("h-1.5 w-1.5 rounded-full", statusDot)} />
-                        {statusLabel}
-                      </span>
+                      <LocationLivenessBadge liveness={loc.liveness} surface="dark" />
                     </div>
+
+                    {/* The reason, on the card. A venue owner should never
+                     * have to click through (or ask the founder) to find
+                     * out which of four quite different things is wrong.
+                     * Suppressed for a plainly-live venue -- an all-clear
+                     * needs no paragraph. */}
+                    {loc.liveness.state !== "live" && (
+                      <p className="mt-2 text-[11px] leading-snug text-white/55">
+                        {loc.liveness.summary}
+                      </p>
+                    )}
 
                     {locDeviceCounts.length > 0 && (
                       <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
@@ -982,7 +991,13 @@ function CustomerHomePage() {
                         )}
                         {loc.bandwidth}
                       </span>
-                      <span className="shrink-0">{loc.routerHealth}% health</span>
+                      {/* `null` when there is no percentage to state --
+                       * no routers here, or routers we could not read.
+                       * "0% health" in either case is a measurement
+                       * nobody took. */}
+                      {loc.routerHealth !== null && (
+                        <span className="shrink-0">{loc.routerHealth}% health</span>
+                      )}
                     </div>
 
                     <div className="mt-2.5 flex items-center justify-end text-xs font-medium text-indigo-300 opacity-0 transition-opacity group-hover:opacity-100">

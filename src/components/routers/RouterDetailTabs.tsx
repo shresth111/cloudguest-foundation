@@ -1615,6 +1615,142 @@ function buildWalledGardenIpLines(portalUrl: PortalOverrideConfig): string[] | n
  * real publicly-hosted destination. */
 const HOTSPOT_DNS_NAME = "wifi.wyfyguest.com";
 
+/** The ONE value this generator ever writes to `hsprof1`'s `login-by`, and
+ * the reason there is exactly one writer of it in the whole file.
+ *
+ * **THE DEFECT THIS REPLACES.** Two separate chunks used to set `login-by`
+ * on the same profile. The "Hotspot" chunk set `login-by=http-pap`; a
+ * later "Self-Signed HTTPS Certificate" chunk set
+ * `login-by=https,http-pap` alongside `ssl-certificate=` pointing at a
+ * certificate the ROUTER had generated and signed for itself. Both `set`s
+ * succeeded, in paste order, and the last one won -- so every router this
+ * generator provisioned ended up serving its hotspot login page over TLS
+ * with a certificate no client on earth trusts, for a hostname
+ * (`HOTSPOT_DNS_NAME`) that deliberately resolves only on that router.
+ * Confirmed live, guest-facing: a real Android phone on a freshly
+ * provisioned hEX showed a certificate/security warning the moment the
+ * captive portal opened. Nothing in the generator reported the conflict,
+ * because there is nothing to report -- two `set`s of the same property is
+ * legal RouterOS and silent by construction.
+ *
+ * **WHAT UNTRUSTED TLS ACTUALLY BREAKS -- THREE SYMPTOMS, ONE CAUSE.**
+ * With `https` in `login-by`, RouterOS stops redirecting unauthenticated
+ * guests to `http://<dns-name>/login` and redirects them to
+ * `https://<dns-name>/login` instead, presenting a certificate no guest
+ * device has ever heard of. That single fact produces all of:
+ *
+ *  - **No sign-in popup on Windows or macOS at all.** Every OS decides
+ *    "am I online?" by fetching one plain-HTTP URL and inspecting the
+ *    answer (Windows NCSI wants `connecttest.txt` to say exactly
+ *    `Microsoft Connect Test`; Apple's CNA wants `hotspot-detect.html` to
+ *    say `Success`; Android wants `generate_204` to answer 204/empty).
+ *    The popup is what each does when it gets something ELSE -- normally
+ *    the hotspot's own 302 to the login page. A TLS handshake failure is
+ *    not an HTTP-level answer at all, so the probe dies in transport and
+ *    the OS lands in its plain "no internet" branch: a globe icon and
+ *    nothing to click. Reported live 2026-08-23 from a provisioned hEX,
+ *    Windows and macOS both on a LAN cable.
+ *  - **A visible certificate error on Android**, which is the same
+ *    failure rendered in a browser surface rather than swallowed. This is
+ *    the symptom that got noticed; it is not the worst of the three.
+ *  - **"OTP verifies but no internet", after a successful sign-in.**
+ *    `$(link-login-only)` -- the URL the real portal POSTs the guest's
+ *    credentials to, threaded through `buildPortalUrl` -- inherits its
+ *    scheme from this very property. `src/routes/portal.success.tsx`
+ *    states in its own docstring that this URL "is always a plain-HTTP
+ *    address on the venue's own LAN", and does a top-level form POST to
+ *    it. Turn `https` on and that assumption is false: the POST lands on
+ *    an endpoint whose certificate the browser rejects, the NAS gate
+ *    never opens, and the guest sits on a verified OTP with no internet.
+ *
+ * **A CORRECTION, RECORDED BECAUSE THE WRONG VERSION IS PERSUASIVE.** An
+ * earlier draft of this comment argued that plain HTTP here is free
+ * because "nothing secret ever crosses the hotspot's own page" -- the
+ * page being a spinner and a `location.replace(...)` to the real portal,
+ * with no `<form>` and no `<input>` in it (`PORTAL_OVERRIDE_FILES`, via
+ * `buildPortalRedirectHtml`). The first half is true and worth keeping:
+ * the guest TYPES nothing on the router's page; the phone number and the
+ * OTP are entered on the real portal, a public origin with a real
+ * certificate, over real HTTPS. But the conclusion drawn from it was
+ * wrong. Credentials DO cross the router's own origin afterwards, via the
+ * `$(link-login-only)` POST above. The honest argument is not "nothing
+ * sensitive touches this origin" -- it is that this leg is a LAN-local
+ * POST to the guest's own gateway carrying a hotspot username and a fixed
+ * placeholder password (`HOTSPOT_FALLBACK_PASSWORD`), which is not the
+ * credential that authenticated anybody; the OTP was verified against the
+ * backend over HTTPS long before this POST exists. Untrusted TLS here
+ * does not protect that leg, it destroys it.
+ *
+ * `http-pap` itself is not a security choice either way -- it is the only
+ * `login-by` method RouterOS has that a plain external-portal form POST
+ * can satisfy; see the Hotspot chunk's own comment for the confirmed-live
+ * incident behind it. This constant does not change that. It changes only
+ * that `https` is not bolted on beside it.
+ *
+ * **WHAT THIS IS NOT.** It is not a claim that hotspot HTTPS is wrong in
+ * principle. There IS a real, publicly-trusted Let's Encrypt certificate
+ * for `wifi.wyfyguest.com` -- issued centrally by DNS-01 (which needs no
+ * public A record for the name, only a TXT record in the zone, which is
+ * why the name being router-local is not an obstacle to issuing for it)
+ * and pushed to fleet routers by `cloud-guest-repo/backend/ops/
+ * letsencrypt-hotspot/renew-hotspot-certs.sh`. That script sets
+ * `ssl-certificate=<the real leaf> login-by=https,http-pap` itself, in one
+ * atomic remote command, on the routers listed in its own `ROUTERS`
+ * inventory. That is the correct way for this fleet to have HTTPS on the
+ * hotspot, and this generator deliberately does not compete with it: the
+ * generator never writes `ssl-certificate` at all, so a re-paste can no
+ * longer rebind a router that has the real certificate onto a self-signed
+ * one (which is what the deleted chunk did, unconditionally, on every
+ * re-paste). A re-paste does still return `login-by` to `http-pap` on such
+ * a router; that is a visible downgrade to a working, warning-free HTTP
+ * redirect page, not a breakage, and the renewal script's next rebind
+ * restores it.
+ *
+ * **THE SINGLE-WRITER RULE IS THE FIX, not the value.** Had this property
+ * been written from one place, the second writer could not have existed.
+ * `scripts/test-setup-script-generator.mjs` section 13 now asserts exactly
+ * that over every emitted chunk of every variant: one `set` per
+ * hotspot-profile property, per generated script. Changing the value here
+ * is a one-line edit; adding a second writer anywhere fails the build. */
+const HOTSPOT_LOGIN_BY = "http-pap";
+
+/** A RouterOS regex (used with `~`) matching the hostnames every major OS
+ * fetches to answer "am I really online?" -- Windows NCSI, Apple's Captive
+ * Network Assistant, Android's connectivity check, Firefox's, and the two
+ * Linux desktop ones.
+ *
+ * **THIS IS A DENYLIST, NOT AN ALLOWLIST, AND THE DIRECTION IS THE WHOLE
+ * POINT.** The intuitive reading of "the sign-in popup does not appear" is
+ * that the probe is being blocked and should be let through the walled
+ * garden. That is backwards, and it is the one change that would remove
+ * the popup permanently rather than fix it. Each of these probes exists so
+ * the OS can decide whether it has real internet. Let it through and the
+ * OS gets the genuine success answer it was looking for, concludes the
+ * network is fine, and never offers a sign-in -- while the guest is still
+ * unauthenticated and still has no internet. The popup IS the OS reacting
+ * to the probe being intercepted and answered with a redirect, so the
+ * hotspot must keep intercepting every one of these.
+ *
+ * So this pattern is only ever used to SEARCH for such an entry and report
+ * it as a fault. Nothing in this generator may ever `add` or `set` one of
+ * these names into `/ip hotspot walled-garden` or `/ip dns static`;
+ * `test-setup-script-generator.mjs` section 14 sweeps every emitted
+ * statement for exactly that and fails the build if one appears.
+ *
+ * Deliberately carries no backslash escapes. RouterOS's own string parser
+ * and its regex engine both get a say in this literal, and `.` matching any
+ * character instead of a literal dot costs nothing here -- a false positive
+ * would need a real walled-garden host spelled `captiveXapple`. Anything
+ * that needs escaping in a `~` pattern is left out instead.
+ *
+ * **Known limit, stated rather than papered over:** this can only see the
+ * HOST-based table and static DNS. `/ip hotspot walled-garden ip` holds
+ * addresses, not names, so a resolved probe IP added there is invisible to
+ * this check. There is no reliable way to recognise one, and guessing would
+ * mean shipping a list of third-party IPs that goes stale silently. */
+const CAPTIVE_DETECTION_HOST_PATTERN =
+  "(msftconnecttest|msftncsi|connectivitycheck|detectportal|captive.apple|gstatic|clients3.google|nmcheck|network-test.debian|connectivity-check.ubuntu)";
+
 /** How long a hotspot session may pass ZERO bytes in either direction
  * before RouterOS closes it, set on the built-in `default` user profile.
  *
@@ -4889,7 +5025,12 @@ export function buildRouterSetupScriptChunks(opts: {
       // nested in the profile-creation `:if` above, which only runs for
       // a brand-new profile) so re-running this chunk also fixes a
       // router whose hsprof1 already existed before this line was added.
-      `/ip hotspot profile set [find name="hsprof1"] login-by=http-pap`,
+      //
+      // THE ONLY PLACE IN THIS FILE THAT WRITES `login-by`. It used to be
+      // one of two, and the other one won -- see `HOTSPOT_LOGIN_BY`'s own
+      // docstring for the guest-facing certificate warning that produced,
+      // and for why the value has no `https` in it.
+      `/ip hotspot profile set [find name="hsprof1"] login-by=${HOTSPOT_LOGIN_BY}`,
       // Same "set fixes an already-existing profile" logic as login-by
       // above, for the address-bar-friendly hostname this profile's own
       // redirect now uses -- see HOTSPOT_DNS_NAME's own docstring for why
@@ -4961,6 +5102,36 @@ export function buildRouterSetupScriptChunks(opts: {
         `:if ($hsProf1 = 0) do={ :put "  A zero profile= in particular is silent: the login-by and dns-name" }`,
         `:if ($hsProf1 = 0) do={ :put "  set commands above succeed against nothing and every guest login fails." }`,
         `:if (!$hsOk) do={ :log warning "cloudguest: hotspot chunk verdict FAIL -- pool/dhcp-server/network/hsprof1/hotspot incomplete, or the pool does not lie inside ${lanNetwork}" }`,
+      ].join("; "),
+      // READ `login-by` BACK OFF THE DEVICE, because this is the property
+      // that was silently overwritten by a later chunk for the entire
+      // life of that chunk and nothing anywhere said so. The count above
+      // proves the profile exists; it does not prove what is IN it, and
+      // "the paste printed no error" was never evidence of either.
+      //
+      // `ssl-certificate` is printed beside it deliberately. This
+      // generator no longer writes that property at all, so what shows up
+      // here is whatever is already on the device -- either `none` (a
+      // fresh router, or one this generator built after the self-signed
+      // chunk was deleted), the real Let's Encrypt leaf pushed by
+      // `ops/letsencrypt-hotspot/renew-hotspot-certs.sh`, or the stale
+      // `cloudguest-hotspot-cert` left behind on a router provisioned
+      // before this change. With `login-by=http-pap` a stale binding is
+      // inert -- RouterOS only brings the hotspot's TLS server up when
+      // `login-by` asks for it -- but the operator should be able to SEE
+      // that rather than infer it.
+      [
+        `:local hsLoginByN [:len [/ip hotspot profile find where name="hsprof1"]]`,
+        `:if ($hsLoginByN > 0) do={ :put ("  hsprof1 (" . [:tostr $hsLoginByN] . " matched) login-by=" . [:tostr [/ip hotspot profile get [find name="hsprof1"] login-by]] . " ssl-certificate=" . [:tostr [/ip hotspot profile get [find name="hsprof1"] ssl-certificate]]) }`,
+        `:if ($hsLoginByN > 0) do={ :put "  login-by must read http-pap. If it reads https and ssl-certificate names a" }`,
+        `:if ($hsLoginByN > 0) do={ :put "  cloudguest-* certificate, this router serves its login redirect over TLS with a" }`,
+        `:if ($hsLoginByN > 0) do={ :put "  cert it signed itself: Windows and macOS then show NO sign-in popup at all," }`,
+        `:if ($hsLoginByN > 0) do={ :put "  Android shows a security warning, and the portal's login POST fails after OTP." }`,
+        `:if ($hsLoginByN > 0) do={ :put "  Re-paste this chunk. Do not add https back by hand." }`,
+        `:if ($hsLoginByN = 0) do={ :put ("  FAIL -- hsprof1 count is " . [:tostr $hsLoginByN] . ", so the login-by set above landed on nothing.") }`,
+        `:if ($hsLoginByN = 0) do={ :put "  RouterOS reports success for a set against an empty match, so nothing else will say so." }`,
+        `:if ($hsLoginByN = 0) do={ :put "  Every guest login will be rejected by the hotspot itself. Check /ip hotspot profile print." }`,
+        `:if ($hsLoginByN = 0) do={ :log warning "cloudguest: hsprof1 missing -- login-by was not applied to any hotspot profile" }`,
       ].join("; "),
       // THE LOCAL HOTSPOT USER IS A COMPLETE PORTAL BYPASS, AND THIS
       // GENERATOR USED TO CREATE IT. The line that stood here was
@@ -5083,159 +5254,89 @@ export function buildRouterSetupScriptChunks(opts: {
     chunks.push({ label: "Hotspot", script: lines.join("\n") });
   }
 
-  {
-    // **BOOTSTRAP-ONLY FALLBACK -- not the fleet's real fix.** As of
-    // 2026-08-18 there is now a REAL, publicly-trusted Let's Encrypt
-    // certificate for the hotspot, issued centrally (DNS-01 against
-    // GoDaddy's API from `cloudguest-vm`, `20.219.51.94`) and pushed to
-    // routers by `ops/letsencrypt-hotspot/renew-hotspot-certs.sh` on a
-    // systemd timer -- see `cloud-guest-repo/backend/ops/letsencrypt-hotspot
-    // /README.md` for the full mechanism. That real cert is NOT something
-    // this generator can produce or embed itself: DNS-01 needs a real
-    // DNS-provider API credential and a server that can reach it, neither
-    // of which RouterOS's own scripting environment has or should have
-    // (the entire point of DNS-01 + centralized renewal is that it does
-    // NOT require per-router internet-facing validation). This chunk's
-    // self-signed CA + leaf cert below still runs on every provision,
-    // purely so `hsprof1` never has NO certificate at all (RouterOS's
-    // hotspot HTTPS flatly won't come up with none configured) in the
-    // window between this router being provisioned and it being added to
-    // `renew-hotspot-certs.sh`'s own `ROUTERS` fleet list. Once that
-    // addition happens (a manual, out-of-band step -- see this same
-    // README's "Fleet rollout" section for exactly what it requires per
-    // router), the centralized renewal script overwrites this
-    // self-signed binding with the real cert on its own, and this
-    // chunk's output becomes dead weight left on the device, not
-    // something anyone needs to come back and clean up here.
-    //
-    // Best-effort and SECONDARY to the "Walled Garden IP" chunk above,
-    // which is the actual, confirmed fix for the primary bug (see
-    // `buildWalledGardenIpLines`'s own docstring). Properly
-    // walled-gardened HTTPS traffic to the real portal bypasses the
-    // hotspot's own interception/redirect ENTIRELY -- it never touches
-    // hsprof1's certificate at all, so this chunk is NOT needed for the
-    // primary guest-portal flow to work, and was not required to fix the
-    // confirmed bug. What it's for instead: any *other* HTTPS site a
-    // not-yet-authenticated guest's device tries first (their OS's own
-    // captive-portal-detection probe, a bookmarked HTTPS page, etc.) is
-    // still intercepted by the hotspot's HTTPS redirect, and giving that
-    // interception a real (if self-signed) certificate to present is
-    // strictly better than whatever RouterOS falls back to with none
-    // configured at all. The guest will still see a browser security
-    // warning for any THIRD-PARTY domain either way -- MITM-ing arbitrary
-    // HTTPS without the client trusting this router's own CA is not
-    // solvable at all, by design; only the platform's own domain can ever
-    // be made to work cleanly pre-auth, and that's exactly what Walled
-    // Garden IP above already does.
-    //
-    // Two-step self-signed pattern -- a CA-capable cert that signs
-    // itself, then a separate leaf cert signed BY that CA -- confirmed
-    // live, working, this session: both `/certificate add` calls and both
-    // `/certificate sign` calls completed with no error on a real router
-    // (RouterOS 7.23.3, hEX lite). Signing only happens nested inside the
-    // same not-yet-exists `:if` as its own `add`, never re-attempted
-    // against an already-existing cert on re-paste -- re-signing an
-    // already-signed cert was not tested live, and "already exists, leave
-    // it alone" is exactly as correct and matches every other
-    // not-meant-to-be-refreshed self-heal idiom in this file.
-    //
-    // **UPDATE -- the binding oddity below is now resolved, confirmed
-    // live** (same router/RouterOS version, same-day follow-up). The
-    // earlier attempt (`ssl-certificate=...` alone) silently no-op'd
-    // because two things were missing, both required in the SAME `set`
-    // command: (1) the leaf certificate must be marked `trusted=yes`
-    // explicitly -- signing it by our own CA does not implicitly mark it
-    // trusted, unlike the CA cert itself; (2) `login-by` must include
-    // `https` -- RouterOS's hotspot module appears to only apply/persist
-    // `ssl-certificate` when the profile's own `login-by` actually calls
-    // for an HTTPS challenge, otherwise the property is accepted (no
-    // console error -- it's a real, valid property, confirmed by a
-    // control test against a bogus certificate name correctly erroring)
-    // but silently discarded rather than stored. With both pieces
-    // present, `ssl-certificate=cloudguest-hotspot-leaf` immediately
-    // showed up in `print terse` output as expected. `http-pap` is kept
-    // alongside `https` in `login-by` (not replaced) since it's what the
-    // Hotspot chunk already sets and other flows may still rely on it.
-    // CORRECTION (2026-08-21, confirmed live on a factory-fresh hEX,
-    // RouterOS 7.23.3): the previous `/certificate sign cloudguest-ca
-    // ca=cloudguest-ca` FAILS with `input does not match any value of ca`.
-    // `ca=` names the *signing* authority -- a different, already-signed
-    // certificate carrying the AUTHORITY flag and a private key. A
-    // just-added cert is an unsigned template with no CA capability, so
-    // `ca=<itself>` resolves against nothing. Omitting `ca=` entirely is
-    // what produces a self-signed root.
-    //
-    // The "confirmed live, working, this session" note above was a false
-    // positive: on that test box `cloudguest-ca` already existed from an
-    // earlier manual experiment, so the `:if` guard skipped the whole
-    // block and "both sign calls completed with no error" was trivially
-    // true. It only runs for the first time on a genuinely fresh router.
-    //
-    // Also: one statement per `do={}`, with the guard captured into a
-    // `:local` BEFORE the add so both branches agree. Multi-statement
-    // `do={}` blocks threw a real syntax error on a live router (see the
-    // Heartbeat chunk's own comment), which contradicts
-    // `chunksToSingleLineScript`'s own "`;` is interchangeable with a
-    // newline" docstring.
-    //
-    // The `:local` guard and the two statements that read it are now ONE
-    // `;`-joined line each. They have to be: the RouterOS console runs
-    // each entered line as its own program, so `$needCguestCa` was gone by
-    // the time the next line asked for it. Both `:if`s were a syntax
-    // error, meaning the CA and the leaf were added but NEVER SIGNED -- an
-    // unsigned certificate cannot be bound to the hotspot profile, so this
-    // chunk's whole point silently did not happen on every fresh router.
-    // The `:local` cannot be re-queried away here (unlike elsewhere in
-    // this file): the check is "did this exist BEFORE we added it", and
-    // re-asking after the `add` gives the opposite answer.
-    const lines = [
-      [
-        `:local needCguestCa ([:len [/certificate find where name="cloudguest-ca"]] = 0)`,
-        `:if ($needCguestCa) do={ /certificate add name="cloudguest-ca" common-name="cloudguest-ca" key-usage=key-cert-sign,crl-sign,tls-server }`,
-        `:if ($needCguestCa) do={ /certificate sign cloudguest-ca }`,
-      ].join("; "),
-      `/certificate set [find name="cloudguest-ca"] trusted=yes`,
-      // `/certificate sign` can return before signing actually completes,
-      // so the leaf's `ca=cloudguest-ca` may run against a CA that is not
-      // yet a usable authority -- which fails with the same "input does
-      // not match any value of ca" as the old bug and looks identical.
-      // Three seconds of insurance. Its own line: it binds nothing and
-      // reads nothing, and it must land after the CA is signed.
-      `:delay 3s`,
-      [
-        `:local needCguestLeaf ([:len [/certificate find where name="cloudguest-hotspot-cert"]] = 0)`,
-        `:if ($needCguestLeaf) do={ /certificate add name="cloudguest-hotspot-cert" common-name="${HOTSPOT_DNS_NAME}" key-usage=tls-server }`,
-        `:if ($needCguestLeaf) do={ /certificate sign cloudguest-hotspot-cert ca=cloudguest-ca }`,
-      ].join("; "),
-      `/certificate set [find name="cloudguest-hotspot-cert"] trusted=yes`,
-      `/ip hotspot profile set [find name="hsprof1"] ssl-certificate="cloudguest-hotspot-cert" login-by=https,http-pap dns-name="${HOTSPOT_DNS_NAME}"`,
-      // THREE `set [find ...]` LINES ABOVE, NONE OF WHICH CAN FAIL. That
-      // is not reassurance, it is the trap: `set` against an empty match
-      // succeeds on RouterOS with no output and no error. The two
-      // `/certificate set ... trusted=yes` lines and the profile binding
-      // all depend on an `add` further up having landed -- and on a router
-      // reset with no default configuration this chunk is the first thing
-      // that ever creates either certificate, which is precisely when the
-      // `ca=` self-sign bug recorded above was finally reproduced. Count
-      // the three objects the three `set`s target, and say so.
-      [
-        `:local ctCa [:len [/certificate find where name="cloudguest-ca"]]`,
-        `:local ctLeaf [:len [/certificate find where name="cloudguest-hotspot-cert"]]`,
-        `:local ctProf [:len [/ip hotspot profile find where name="hsprof1"]]`,
-        `:put ("  ca=" . [:tostr $ctCa] . " leaf=" . [:tostr $ctLeaf] . " hsprof1=" . [:tostr $ctProf])`,
-        `:if ($ctCa > 0 && $ctLeaf > 0 && $ctProf > 0) do={ :put "  RESULT: PASS -- both certificates exist and the profile they bind to does too." }`,
-        `:if (!($ctCa > 0 && $ctLeaf > 0 && $ctProf > 0)) do={ :put "  RESULT: FAIL -- a count above is 0, so a set landed on nothing and said nothing." }`,
-        `:if (!($ctCa > 0 && $ctLeaf > 0 && $ctProf > 0)) do={ :put "  Hotspot HTTPS will not come up. Check /certificate print and re-paste." }`,
-        `:if (!($ctCa > 0 && $ctLeaf > 0 && $ctProf > 0)) do={ :log warning "cloudguest: self-signed hotspot certificate chain incomplete after paste" }`,
-      ].join("; "),
-    ];
-    chunks.push({
-      label:
-        "Self-Signed HTTPS Certificate (bootstrap only — replace with the fleet's real Let's Encrypt cert via ops/letsencrypt-hotspot/renew-hotspot-certs.sh once this router is added to that script's fleet list)",
-      script: lines.join("\n"),
-    });
-  }
-
+  // ===================================================================
+  // THE "Self-Signed HTTPS Certificate" CHUNK USED TO BE HERE. IT IS
+  // DELETED, AND THIS IS THE RECORD OF WHY -- because the argument for
+  // keeping it was "it has been there a long time and somebody added it
+  // deliberately", and that turned out to be evidence of nothing.
+  // ===================================================================
+  //
+  // What it did: `/certificate add` + `sign` a `cloudguest-ca` root, then
+  // a `cloudguest-hotspot-cert` leaf signed by it with
+  // `common-name=wifi.wyfyguest.com`, mark both `trusted=yes`, and bind
+  // the leaf onto `hsprof1` with `ssl-certificate=... login-by=https,
+  // http-pap dns-name=...`.
+  //
+  // WHY IT IS GONE, IN THE ORDER THE EVIDENCE ACTUALLY RUNS:
+  //
+  // 1. THAT BINDING WAS THE GUEST-FACING BUG. It was the SECOND writer of
+  //    `login-by` on `hsprof1` and it ran after the Hotspot chunk's
+  //    `login-by=http-pap`, so it won. Every router this generator
+  //    provisioned served its captive-portal page over TLS with a
+  //    certificate the router had signed for itself. Confirmed live on a
+  //    real Android phone against a freshly provisioned hEX: a security
+  //    warning the instant the portal opened. See `HOTSPOT_LOGIN_BY`.
+  //
+  // 2. IT WAS NEVER THE FIX FOR THE INCIDENT IT CITED. This chunk's own
+  //    comment claimed kinship with the confirmed-live "could not
+  //    establish a secure connection" failures of 2026-08-18. Read
+  //    `buildWalledGardenIpLines`'s docstring: that incident was
+  //    unauthenticated HTTPS to the REAL portal being caught by the
+  //    hotspot's own redirect, "which wraps the connection in the
+  //    router's own untrusted self-signed certificate", and it was
+  //    confirmed FIXED by `/ip hotspot walled-garden ip add`. This
+  //    certificate is the thing that wrapped the connection. Removing it
+  //    cannot reintroduce a fault it was on the wrong side of, and the
+  //    walled-garden-IP chunk that really fixed it is untouched.
+  //
+  // 3. ITS OWN STATED REMAINING PURPOSE CONCEDED IT DOES NOT WORK. The
+  //    comment's fallback justification was third-party HTTPS a
+  //    pre-auth device tries first -- and then admitted, correctly,
+  //    "the guest will still see a browser security warning for any
+  //    THIRD-PARTY domain either way". A leaf for `wifi.wyfyguest.com`
+  //    presented for `www.example.com` is a name mismatch. So the choice
+  //    was never "warning vs. no warning", it was "warning vs. a plain
+  //    connection failure", and a connection failure is what every OS's
+  //    captive-portal detector is built to handle. With no `https` in
+  //    `login-by` RouterOS does not stand up a hotspot TLS server to
+  //    intercept with at all.
+  //
+  // 4. NOTHING ELSE ON THE ROUTER REFERENCED EITHER CERTIFICATE. Checked,
+  //    not assumed: no other line in this generator names them; the
+  //    heartbeat's `/tool fetch` validates against RouterOS's own public
+  //    CA store; `/ip service` here only enables the plain API. The
+  //    manual-wizard path never creates them at all and provisions
+  //    `hsprof1` with `login-by=http-pap` and no `ssl-certificate` --
+  //    it was the generator, not the platform, that was the odd one out.
+  //
+  // 5. THE REAL CERTIFICATE DOES NOT NEED THIS ONE AS A PLACEHOLDER.
+  //    `cloud-guest-repo/backend/ops/letsencrypt-hotspot/
+  //    renew-hotspot-certs.sh` imports its OWN Let's Encrypt leaf under
+  //    its own name and rebinds `ssl-certificate=... login-by=https,
+  //    http-pap` in one atomic remote command; its README records that it
+  //    leaves the old self-signed objects untouched and that they may
+  //    simply be removed. The old "so hsprof1 is never left with NO
+  //    certificate" rationale only bites when hotspot HTTPS is being
+  //    turned on, which is now exclusively that script's business.
+  //
+  // 6. A ROUTER-HELD, TRUSTED, CA-CAPABLE KEY IS NOT FREE. `cloudguest-ca`
+  //    was created with `key-cert-sign` and marked `trusted=yes` on a
+  //    fleet whose SSH credential is shared across routers (that script's
+  //    README calls the shared password a known gap). Generating one on
+  //    every provision to sign a leaf nothing uses is cost with no
+  //    benefit left on the other side.
+  //
+  // A router provisioned before this change keeps both certificate
+  // objects; deleting this chunk removes nothing from any device. With
+  // `login-by=http-pap` a leftover binding is inert, and the Hotspot
+  // chunk now prints `ssl-certificate` back so an operator can see it
+  // rather than infer it.
+  //
+  // DELIBERATELY NOT DONE HERE: this generator does not write
+  // `ssl-certificate` at all any more -- not even to clear it. Clearing
+  // it would unbind the real Let's Encrypt leaf on a fleet router on the
+  // next re-paste, which is the same class of silent damage this chunk
+  // was doing.
   if (portalUrl) {
     // Confirmed live: without this, an unauthenticated guest's browser
     // navigating to the real portal (an ordinary external address as far
@@ -5334,6 +5435,69 @@ export function buildRouterSetupScriptChunks(opts: {
     );
     chunks.push({
       label: "Block DNS-over-HTTPS (forces captive portal to actually show)",
+      script: lines.join("\n"),
+    });
+  }
+
+  // THE OS SIGN-IN POPUP: A TRIPWIRE, NOT A CONFIGURATION.
+  //
+  // Every OS decides "am I behind a captive portal?" by fetching one
+  // specific plain-HTTP URL and looking at what comes back. Windows NCSI
+  // wants `connecttest.txt` to contain exactly `Microsoft Connect Test`;
+  // macOS and iOS want `hotspot-detect.html` to contain `Success`;
+  // Android wants `generate_204` to answer 204 with an empty body. The
+  // popup is what each one does when it gets ANYTHING ELSE -- which, on a
+  // correctly configured hotspot, is the hotspot's own 302 to the login
+  // page. Nothing has to be configured to make this happen; the hotspot's
+  // ordinary HTTP interception already does it, and `HOTSPOT_LOGIN_BY`
+  // is what keeps that redirect on a scheme the probes can actually
+  // complete (see that constant's own docstring for the three symptoms
+  // that appear when it is not).
+  //
+  // So there is nothing to ADD here, and that is the point of this chunk.
+  // What it does is check that nobody has added the one thing that would
+  // break it permanently.
+  //
+  // THE WRONG FIX, WHICH LOOKS EXACTLY LIKE THE RIGHT ONE. Faced with "no
+  // sign-in popup", the intuitive move -- and the top answer on every
+  // forum -- is to put the OS detection hosts into the walled garden so
+  // the probes "can get through". That is backwards. A probe that gets
+  // through reaches the real Microsoft/Apple/Google server and gets the
+  // genuine success answer it was looking for; the OS concludes the
+  // network is fine and never offers a sign-in, while the guest is still
+  // unauthenticated with no internet. It is the single change that
+  // converts "popup sometimes missing" into "popup permanently gone", and
+  // it is unrecoverable by any other setting.
+  //
+  // The same applies to `/ip dns static`: an entry answering a probe
+  // hostname with something the OS accepts is the same defeat by another
+  // route.
+  //
+  // This generator never emits either (swept for over every emitted
+  // statement by `test-setup-script-generator.mjs` section 14). This
+  // chunk covers the case the generator cannot: a human, or a previous
+  // owner of the device, having added one by hand. It counts and reports;
+  // it does not delete, because an operator may have added a
+  // walled-garden host deliberately for some other purpose and silently
+  // removing entries is how this file's own local-hotspot-user bug got
+  // interesting.
+  {
+    const lines = [
+      [
+        `:local cdWg [:len [/ip hotspot walled-garden find where dst-host~"${CAPTIVE_DETECTION_HOST_PATTERN}"]]`,
+        `:local cdDns [:len [/ip dns static find where name~"${CAPTIVE_DETECTION_HOST_PATTERN}"]]`,
+        `:put ("  connectivity-check hosts allowed: walled-garden=" . [:tostr $cdWg] . " static-dns=" . [:tostr $cdDns])`,
+        `:if ($cdWg = 0 && $cdDns = 0) do={ :put "  RESULT: PASS -- every OS probe is intercepted, so the sign-in popup can fire." }`,
+        `:if ($cdWg > 0 || $cdDns > 0) do={ :put "  RESULT: FAIL -- a connectivity-check host is being answered instead of intercepted." }`,
+        `:if ($cdWg > 0 || $cdDns > 0) do={ :put "  The OS then gets the success reply it was probing for, decides this network is" }`,
+        `:if ($cdWg > 0 || $cdDns > 0) do={ :put "  online, and NEVER shows a sign-in popup -- while the guest still has no internet." }`,
+        `:if ($cdWg > 0) do={ :put "  Review and remove: /ip hotspot walled-garden print" }`,
+        `:if ($cdDns > 0) do={ :put "  Review and remove: /ip dns static print" }`,
+        `:if ($cdWg > 0 || $cdDns > 0) do={ :log warning "cloudguest: a connectivity-check host is allowed pre-auth -- OS captive-portal popups are disabled by it" }`,
+      ].join("; "),
+    ];
+    chunks.push({
+      label: "Captive-Portal Detection (check only — nothing here should need changing)",
       script: lines.join("\n"),
     });
   }

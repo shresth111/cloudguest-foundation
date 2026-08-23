@@ -4,14 +4,24 @@ import { api } from "@/services/api";
 // that is otherwise plain data-fetching code.
 import { ORGS_STORAGE_KEY, ROLES_STORAGE_KEY } from "@/services/api";
 import type { OrganizationMembership, RoleAssignment } from "@/types/auth";
+import { deriveLocationLiveness } from "@/lib/location-liveness";
+import type { LocationLiveness, RawRouterLiveness } from "@/lib/location-liveness";
 
 /* ── Types ─────────────────────────────────────────────────── */
 
 /** Minimal shape read from `/locations/{id}/routers` and `/guest-sessions`
  * (raw backend snake_case) -- listLocations() hits these directly to enrich
  * the location picker without pulling in router.service.ts/guest.service.ts's
- * full normalization + org-wide fan-out helpers. */
-interface RawRouterStatus {
+ * full normalization + org-wide fan-out helpers.
+ *
+ * `last_seen_at`/`id`/`name` were added when liveness stopped being "count
+ * the rows whose status string is 'online'": `RouterResponse`
+ * (backend `app/domains/router/schemas.py`) has always sent all four, and
+ * `status` alone cannot distinguish a router that has never checked in
+ * from one that has gone quiet -- nor can it detect a router still marked
+ * `online` whose heartbeats stopped weeks ago, since nothing in the
+ * backend ever writes that transition. See `@/lib/location-liveness`. */
+interface RawRouterStatus extends RawRouterLiveness {
   status: string;
 }
 interface RawGuestSessionStatus {
@@ -64,16 +74,34 @@ export interface CustomerLocationSummary {
   id: string;
   name: string;
   city: string;
-  status: "online" | "offline" | "degraded";
+  /**
+   * Coarse tone only, kept for the handful of places that just want a
+   * colour. `"unknown"` is a real member: a location whose routers could
+   * not be read is not offline, and saying so was the defect. Anything
+   * that shows a venue owner *words* must read `liveness` instead --
+   * this field cannot distinguish "no router here" from "the router has
+   * never checked in" from "the router went quiet", which are three
+   * different problems with three different fixes.
+   */
+  status: "online" | "offline" | "degraded" | "unknown";
+  /** The real answer, and why. See `@/lib/location-liveness`. */
+  liveness: LocationLiveness;
   onlineUsers: number;
-  routerHealth: number;
+  /**
+   * `null` -- not `0` -- when there is nothing to compute a percentage
+   * from (no routers, or the routers could not be read). A "0% health"
+   * badge on a venue whose routers simply failed to load is a fabricated
+   * measurement.
+   */
+  routerHealth: number | null;
   bandwidth: string;
   isp: string;
   lastSync: string;
   organizationId: string;
   organizationName: string;
-  routersTotal: number;
-  routersOnline: number;
+  /** `null` when the routers could not be read -- see `routerHealth`. */
+  routersTotal: number | null;
+  routersOnline: number | null;
   sessionsActive: number;
   sessionsTotal: number;
   // Backend `Location.property_type` (see business-type-icons.ts) -- null
@@ -82,6 +110,18 @@ export interface CustomerLocationSummary {
 }
 
 export interface CustomerDashboardData {
+  /**
+   * Why this location is (or is not) live, in a venue owner's words. The
+   * `health` strings below are the same numbers as a badge; this is the
+   * sentence. See `@/lib/location-liveness`.
+   */
+  liveness: LocationLiveness;
+  /**
+   * Display strings for the "Core systems" strip. `systemHealth` and
+   * `routersOnline` read "Unknown" (not "0%" / "0/0") when the routers
+   * could not be read -- a zero here is a measurement, and we do not have
+   * one. `isp` is NOT a real ISP signal: see getDashboard()'s own comment.
+   */
   health: { systemHealth: string; routersOnline: string; isp: string };
   // `slaUptime` is `null` when there's no active ISP link / bucket data
   // yet to compute a real figure from -- see getDashboard()'s own
@@ -89,8 +129,9 @@ export interface CustomerDashboardData {
   kpis: {
     onlineUsers: number;
     activeSessions: number;
-    routersOnline: number;
-    totalRouters: number;
+    /** `null` when the routers could not be read. Never a stand-in zero. */
+    routersOnline: number | null;
+    totalRouters: number | null;
     todayGuests: number;
     avgSession: number;
     peakConcurrent: number;
@@ -296,152 +337,279 @@ export interface CustomerFeatureData {
 // the realistic small-business topology this product actually targets),
 // and ISPs are kept to the two carriers guests will actually recognize
 // (Airtel/Jio) rather than a grab-bag of every regional ISP name.
-const DEMO_LOCATIONS: CustomerLocationSummary[] = [
-  {
-    id: "loc-1",
-    name: "Mumbai HQ",
-    city: "Mumbai",
-    status: "online",
-    onlineUsers: 142,
-    routerHealth: 98,
-    bandwidth: "450 Mbps",
-    isp: "Airtel",
-    lastSync: "Just now",
-    organizationId: "org-1",
-    organizationName: "Acme Corp",
-    routersTotal: 1,
-    routersOnline: 1,
-    sessionsActive: 142,
-    sessionsTotal: 892,
-    propertyType: "office",
-  },
-  {
-    id: "loc-2",
-    name: "Delhi Office",
-    city: "Delhi",
-    status: "online",
-    onlineUsers: 98,
-    routerHealth: 95,
-    bandwidth: "300 Mbps",
-    isp: "Jio",
-    lastSync: "2 min ago",
-    organizationId: "org-1",
-    organizationName: "Acme Corp",
-    routersTotal: 1,
-    routersOnline: 1,
-    sessionsActive: 98,
-    sessionsTotal: 456,
-    propertyType: "office",
-  },
-  {
-    id: "loc-3",
-    name: "Bangalore DC",
-    city: "Bangalore",
-    status: "degraded",
-    onlineUsers: 76,
-    routerHealth: 72,
-    bandwidth: "180 Mbps",
-    isp: "Jio",
-    lastSync: "5 min ago",
-    organizationId: "org-1",
-    organizationName: "Acme Corp",
-    routersTotal: 1,
-    routersOnline: 1,
-    sessionsActive: 76,
-    sessionsTotal: 312,
-    propertyType: "coworking_space",
-  },
-  {
-    id: "loc-4",
-    name: "Chennai Office",
-    city: "Chennai",
-    status: "online",
-    onlineUsers: 54,
-    routerHealth: 99,
-    bandwidth: "250 Mbps",
-    isp: "Airtel",
-    lastSync: "1 min ago",
-    organizationId: "org-1",
-    organizationName: "Acme Corp",
-    routersTotal: 1,
-    routersOnline: 1,
-    sessionsActive: 54,
-    sessionsTotal: 234,
-    propertyType: "cafe",
-  },
-  {
-    id: "loc-5",
-    name: "Hyderabad DC",
-    city: "Hyderabad",
-    status: "offline",
-    onlineUsers: 0,
-    routerHealth: 0,
-    bandwidth: "0 Mbps",
-    isp: "Airtel",
-    lastSync: "15 min ago",
-    organizationId: "org-1",
-    organizationName: "Acme Corp",
-    routersTotal: 1,
-    routersOnline: 0,
-    sessionsActive: 0,
-    sessionsTotal: 0,
-    propertyType: "hotel",
-  },
-  {
-    id: "loc-6",
-    name: "Kolkata Office",
-    city: "Kolkata",
-    status: "online",
-    onlineUsers: 32,
-    routerHealth: 91,
-    bandwidth: "200 Mbps",
-    isp: "Jio",
-    lastSync: "3 min ago",
-    organizationId: "org-1",
-    organizationName: "Acme Corp",
-    routersTotal: 1,
-    routersOnline: 1,
-    sessionsActive: 32,
-    sessionsTotal: 156,
-    propertyType: null,
-  },
-  {
-    id: "loc-7",
-    name: "Pune Office",
-    city: "Pune",
-    status: "online",
-    onlineUsers: 67,
-    routerHealth: 97,
-    bandwidth: "350 Mbps",
-    isp: "Jio",
-    lastSync: "Just now",
-    organizationId: "org-1",
-    organizationName: "Acme Corp",
-    routersTotal: 1,
-    routersOnline: 1,
-    sessionsActive: 67,
-    sessionsTotal: 345,
-    propertyType: "restaurant",
-  },
-  {
-    id: "loc-8",
-    name: "Ahmedabad DC",
-    city: "Ahmedabad",
-    status: "online",
-    onlineUsers: 89,
-    routerHealth: 93,
-    bandwidth: "280 Mbps",
-    isp: "Airtel",
-    lastSync: "4 min ago",
-    organizationId: "org-1",
-    organizationName: "Acme Corp",
-    routersTotal: 1,
-    routersOnline: 1,
-    sessionsActive: 89,
-    sessionsTotal: 423,
-    propertyType: "hospital",
-  },
-];
+//
+// LIVENESS IS DERIVED HERE TOO, not hand-written. Each seed carries the
+// raw router rows the API would have returned, and `demoLocations()` runs
+// them through the same `deriveLocationLiveness()` the real path uses --
+// a fixture that hardcodes its own answer cannot catch a regression in
+// the answer. It also means demo mode is where the states are actually
+// demonstrable, so the seeds deliberately span all five: Bangalore runs
+// two routers with one gone quiet, Hyderabad's single router has gone
+// quiet, Kolkata's was set up but has never checked in (the 2026-08-23
+// defect, reproduced), and Ahmedabad has no router at all yet.
+type DemoLocationSeed = Omit<
+  CustomerLocationSummary,
+  "liveness" | "status" | "routerHealth" | "routersTotal" | "routersOnline"
+> & {
+  /** Raw `/locations/{id}/routers` rows. `null` == the read failed. */
+  demoRouters: RawRouterLiveness[] | null;
+};
+
+/** ISO timestamp `minutes` in the past, relative to the passed clock. */
+function demoAgo(now: Date, minutes: number): string {
+  return new Date(now.getTime() - minutes * 60_000).toISOString();
+}
+
+function demoSeeds(now: Date): DemoLocationSeed[] {
+  return [
+    {
+      id: "loc-1",
+      name: "Mumbai HQ",
+      city: "Mumbai",
+      onlineUsers: 142,
+      bandwidth: "450 Mbps",
+      isp: "Airtel",
+      lastSync: "Just now",
+      organizationId: "org-1",
+      organizationName: "Acme Corp",
+      sessionsActive: 142,
+      sessionsTotal: 892,
+      propertyType: "office",
+      demoRouters: [
+        { id: "r-1", name: "Lobby router", status: "online", last_seen_at: demoAgo(now, 1) },
+      ],
+    },
+    {
+      id: "loc-2",
+      name: "Delhi Office",
+      city: "Delhi",
+      onlineUsers: 98,
+      bandwidth: "300 Mbps",
+      isp: "Jio",
+      lastSync: "2 min ago",
+      organizationId: "org-1",
+      organizationName: "Acme Corp",
+      sessionsActive: 98,
+      sessionsTotal: 456,
+      propertyType: "office",
+      demoRouters: [
+        { id: "r-2", name: "Front desk router", status: "online", last_seen_at: demoAgo(now, 2) },
+      ],
+    },
+    {
+      id: "loc-3",
+      name: "Bangalore DC",
+      city: "Bangalore",
+      onlineUsers: 76,
+      bandwidth: "180 Mbps",
+      isp: "Jio",
+      lastSync: "5 min ago",
+      organizationId: "org-1",
+      organizationName: "Acme Corp",
+      sessionsActive: 76,
+      sessionsTotal: 312,
+      propertyType: "coworking_space",
+      // Two routers, one of them quiet -- the only honest way to be
+      // "partly live". The old fixture claimed "degraded" off 1-of-1
+      // routers online, which the real derivation can never produce.
+      demoRouters: [
+        {
+          id: "r-3a",
+          name: "Ground floor router",
+          status: "online",
+          last_seen_at: demoAgo(now, 1),
+        },
+        {
+          id: "r-3b",
+          name: "First floor router",
+          status: "online",
+          last_seen_at: demoAgo(now, 55),
+        },
+      ],
+    },
+    {
+      id: "loc-4",
+      name: "Chennai Office",
+      city: "Chennai",
+      onlineUsers: 54,
+      bandwidth: "250 Mbps",
+      isp: "Airtel",
+      lastSync: "1 min ago",
+      organizationId: "org-1",
+      organizationName: "Acme Corp",
+      sessionsActive: 54,
+      sessionsTotal: 234,
+      propertyType: "cafe",
+      demoRouters: [
+        { id: "r-4", name: "Counter router", status: "online", last_seen_at: demoAgo(now, 1) },
+      ],
+    },
+    {
+      id: "loc-5",
+      name: "Hyderabad DC",
+      city: "Hyderabad",
+      onlineUsers: 0,
+      bandwidth: "0 Mbps",
+      isp: "Airtel",
+      lastSync: "15 min ago",
+      organizationId: "org-1",
+      organizationName: "Acme Corp",
+      sessionsActive: 0,
+      sessionsTotal: 0,
+      propertyType: "hotel",
+      // Still `online` in the database -- nothing in the backend ever
+      // writes the online->offline transition. The staleness of
+      // `last_seen_at` is the only thing that reveals it.
+      demoRouters: [
+        { id: "r-5", name: "Reception router", status: "online", last_seen_at: demoAgo(now, 190) },
+      ],
+    },
+    {
+      id: "loc-6",
+      name: "Kolkata Office",
+      city: "Kolkata",
+      onlineUsers: 0,
+      bandwidth: "0 Mbps",
+      isp: "Jio",
+      lastSync: "3 min ago",
+      organizationId: "org-1",
+      organizationName: "Acme Corp",
+      sessionsActive: 0,
+      sessionsTotal: 0,
+      propertyType: null,
+      // The real 2026-08-23 shape: enrolled (so `last_seen_at` is set, by
+      // the provisioning-token exchange) but never once heartbeated, so
+      // still sitting at `provisioning`.
+      demoRouters: [
+        {
+          id: "r-6",
+          name: "Lobby router",
+          status: "provisioning",
+          last_seen_at: demoAgo(now, 185),
+        },
+      ],
+    },
+    {
+      id: "loc-7",
+      name: "Pune Office",
+      city: "Pune",
+      onlineUsers: 67,
+      bandwidth: "350 Mbps",
+      isp: "Jio",
+      lastSync: "Just now",
+      organizationId: "org-1",
+      organizationName: "Acme Corp",
+      sessionsActive: 67,
+      sessionsTotal: 345,
+      propertyType: "restaurant",
+      demoRouters: [
+        { id: "r-7", name: "Bar router", status: "online", last_seen_at: demoAgo(now, 0) },
+      ],
+    },
+    {
+      id: "loc-8",
+      name: "Ahmedabad DC",
+      city: "Ahmedabad",
+      onlineUsers: 0,
+      bandwidth: "0 Mbps",
+      isp: "Airtel",
+      lastSync: "4 min ago",
+      organizationId: "org-1",
+      organizationName: "Acme Corp",
+      sessionsActive: 0,
+      sessionsTotal: 0,
+      propertyType: "hospital",
+      // A venue that has been created but never had hardware added.
+      demoRouters: [],
+    },
+  ];
+}
+
+/**
+ * Coarse tone for the few call sites that only want a colour.
+ *
+ * `no-router` and `unknown` deliberately do NOT map onto `"offline"`:
+ * a venue with no hardware yet is not faulty, and a venue whose routers
+ * we failed to read has no known state at all. Collapsing either into
+ * "offline" is precisely the defect this whole module undoes, so the
+ * coarse field carries `"unknown"` rather than quietly picking a side.
+ */
+function coarseStatus(liveness: LocationLiveness): CustomerLocationSummary["status"] {
+  switch (liveness.state) {
+    case "live":
+      return "online";
+    case "partly-live":
+      return "degraded";
+    case "not-live":
+      return "offline";
+    case "no-router":
+    case "unknown":
+      return "unknown";
+  }
+}
+
+/**
+ * Percentage of this location's routers that are checking in, or `null`
+ * when there is nothing real to compute it from -- no routers, or routers
+ * we could not read. `0%` is a measurement; the absence of one is not.
+ */
+function routerHealthPercent(liveness: LocationLiveness): number | null {
+  const { routersOnline, routersTotal } = liveness;
+  if (routersOnline === null || routersTotal === null || routersTotal === 0) return null;
+  return Math.round((routersOnline / routersTotal) * 100);
+}
+
+/**
+ * The two router-derived strings in the dashboard's "Core systems" strip.
+ *
+ * Neither may read as a number when there is no number. A location whose
+ * routers could not be read shows "Unknown", and one with no routers yet
+ * shows "None yet" -- "0%" and "0/0" are both measurements, and in those
+ * two cases nobody took one. This is the same rule `slaUptime` already
+ * follows by going `null` rather than printing a placeholder.
+ */
+function healthStrings(liveness: LocationLiveness): {
+  systemHealth: string;
+  routersOnline: string;
+} {
+  const { routersOnline, routersTotal } = liveness;
+  if (routersOnline === null || routersTotal === null) {
+    return { systemHealth: "Unknown", routersOnline: "Unknown" };
+  }
+  if (routersTotal === 0) {
+    return { systemHealth: "No router yet", routersOnline: "None yet" };
+  }
+  return {
+    systemHealth: `${Math.round((routersOnline / routersTotal) * 100)}%`,
+    routersOnline: `${routersOnline}/${routersTotal}`,
+  };
+}
+
+/** Builds one location summary from a liveness verdict, so the coarse
+ * fields can never disagree with the sentence next to them. */
+function summaryFromLiveness(
+  base: Omit<
+    CustomerLocationSummary,
+    "liveness" | "status" | "routerHealth" | "routersTotal" | "routersOnline"
+  >,
+  liveness: LocationLiveness,
+): CustomerLocationSummary {
+  return {
+    ...base,
+    liveness,
+    status: coarseStatus(liveness),
+    routerHealth: routerHealthPercent(liveness),
+    routersTotal: liveness.routersTotal,
+    routersOnline: liveness.routersOnline,
+  };
+}
+
+function demoLocations(): CustomerLocationSummary[] {
+  const now = new Date();
+  return demoSeeds(now).map(({ demoRouters, ...rest }) =>
+    summaryFromLiveness(rest, deriveLocationLiveness(demoRouters, now)),
+  );
+}
 
 /** Realistic (but fake) guest identities for demo mode -- previously
  * `getUsers()`/`getDashboard()` paired a real-looking name with a generic
@@ -720,7 +888,7 @@ export const customerService = {
    * instead of going through routerService/guestService's expensive fan-out helpers.
    */
   async listLocations(): Promise<CustomerLocationSummary[]> {
-    if (isDemo()) return DEMO_LOCATIONS;
+    if (isDemo()) return demoLocations();
     try {
       // /organizations is the platform-wide admin listing -- an ordinary
       // customer/org-owner session gets a 403 (no organizations.read at
@@ -822,35 +990,42 @@ export const customerService = {
               headers: locationHeaders,
             }),
           ]);
-          const routers = routersR.status === "fulfilled" ? (routersR.value.data?.items ?? []) : [];
+          // `null`, NOT `[]`, when the routers request failed. These are
+          // two completely different facts -- "this venue has no routers"
+          // versus "we could not find out" -- and folding the second into
+          // the first is what let a failed/forbidden read render as the
+          // confident, wrong word "Offline". deriveLocationLiveness()
+          // treats null as `unknown` and refuses to answer.
+          const routers =
+            routersR.status === "fulfilled" ? (routersR.value.data?.items ?? []) : null;
           const sessions =
             sessionsR.status === "fulfilled" ? (sessionsR.value.data?.items ?? []) : [];
-          const onR = routers.filter((r) => r.status === "online").length;
-          const tR = routers.length || 1;
-          // See getDashboard()'s identical guard below -- a location with
-          // zero online routers can't genuinely have online guests, so
-          // don't let a stale "active" session row contradict the
-          // "offline" status this same summary reports.
-          const active = onR === 0 ? 0 : sessions.filter((s) => s.status === "active").length;
-          const summary: CustomerLocationSummary = {
-            id: loc.id,
-            name: loc.name,
-            city: loc.city,
-            status: onR === 0 && tR > 0 ? "offline" : onR < tR ? "degraded" : "online",
-            onlineUsers: active,
-            routerHealth: Math.round((onR / tR) * 100),
-            bandwidth: `${(sessions.reduce((s, se) => s + (se.bytes_downloaded || 0) + (se.bytes_uploaded || 0), 0) / 1e6).toFixed(0)} MB`,
-            isp: "Active",
-            lastSync: "Just now",
-            organizationId: orgId,
-            organizationName: orgName,
-            routersTotal: routers.length,
-            routersOnline: onR,
-            sessionsActive: active,
-            sessionsTotal: sessions.length,
-            propertyType: loc.property_type,
-          };
-          return summary;
+          const liveness = deriveLocationLiveness(routers);
+          // A location with zero online routers can't genuinely have online
+          // guests, so don't let a stale "active" session row contradict
+          // the status this same summary reports. Deliberately keyed off
+          // "we know nothing is checking in" rather than "routersOnline is
+          // falsy": when liveness is `unknown` we have no grounds to zero
+          // a real session count either, so the honest figure stands.
+          const nothingIsUp = liveness.routersOnline === 0;
+          const active = nothingIsUp ? 0 : sessions.filter((s) => s.status === "active").length;
+          return summaryFromLiveness(
+            {
+              id: loc.id,
+              name: loc.name,
+              city: loc.city,
+              onlineUsers: active,
+              bandwidth: `${(sessions.reduce((s, se) => s + (se.bytes_downloaded || 0) + (se.bytes_uploaded || 0), 0) / 1e6).toFixed(0)} MB`,
+              isp: "Active",
+              lastSync: "Just now",
+              organizationId: orgId,
+              organizationName: orgName,
+              sessionsActive: active,
+              sessionsTotal: sessions.length,
+              propertyType: loc.property_type,
+            },
+            liveness,
+          );
         }),
       );
       const results = enriched
@@ -868,15 +1043,16 @@ export const customerService = {
   /* ── Executive Dashboard ───────────────────────────────── */
   async getDashboard(locationId: string): Promise<DashboardDataResult> {
     if (isDemo()) {
-      // Each location has its own single router and ISP (see DEMO_LOCATIONS)
+      // Each location has its own routers and ISP (see demoSeeds())
       // -- this dashboard used to return one hardcoded Mumbai-shaped snapshot
       // ("4/4" routers, Tata Communications) no matter which location was
       // open, so switching locations never changed the "Core systems" strip.
-      const loc = DEMO_LOCATIONS.find((l) => l.id === locationId) ?? DEMO_LOCATIONS[0];
+      const all = demoLocations();
+      const loc = all.find((l) => l.id === locationId) ?? all[0];
       return {
+        liveness: loc.liveness,
         health: {
-          systemHealth: loc.status === "offline" ? "0%" : `${loc.routerHealth}%`,
-          routersOnline: `${loc.routersOnline}/${loc.routersTotal}`,
+          ...healthStrings(loc.liveness),
           isp: loc.isp,
         },
         kpis: {
@@ -1010,7 +1186,9 @@ export const customerService = {
         { params: { page_size: 100 }, ...orgHeaders },
       ),
     ]);
-    const routers = rR.status === "fulfilled" ? (rR.value.data?.items ?? []) : [];
+    // `null`, not `[]`, on failure -- see listLocations()'s identical
+    // comment. A failed routers read is not a report of zero routers.
+    const routers = rR.status === "fulfilled" ? (rR.value.data?.items ?? []) : null;
     const sessions = sR.status === "fulfilled" ? (sR.value.data?.items ?? []) : [];
     const alerts = aR.status === "fulfilled" ? (aR.value.data?.items ?? []) : [];
     const health = hR.status === "fulfilled" ? (hR.value.data ?? null) : null;
@@ -1068,8 +1246,7 @@ export const customerService = {
         }
       }
     }
-    const onR = routers.filter((r) => r.status === "online").length;
-    const tR = routers.length || 1;
+    const liveness = deriveLocationLiveness(routers);
     const hourly = new Array(24).fill(0);
     sessions.forEach((s) => {
       if (s.started_at) hourly[new Date(s.started_at).getHours()]++;
@@ -1083,21 +1260,30 @@ export const customerService = {
     // every router at this location is offline, no guest can genuinely
     // still be online through it -- a stale "active" session row left
     // over from before the router dropped shouldn't make the dashboard
-    // contradict its own "Offline" status pill, so floor both to 0 in
-    // that case rather than trusting a session row that's outlived its
-    // router.
-    const activeSessionCount = onR === 0 ? 0 : sessions.filter((s) => s.status === "active").length;
+    // contradict its own status pill, so floor both to 0 in that case
+    // rather than trusting a session row that's outlived its router.
+    // Keyed off "we know nothing is checking in" -- when liveness is
+    // `unknown` there are no grounds to zero a real count either.
+    const activeSessionCount =
+      liveness.routersOnline === 0 ? 0 : sessions.filter((s) => s.status === "active").length;
     return {
+      liveness,
       health: {
-        systemHealth: `${Math.round((onR / tR) * 100)}%`,
-        routersOnline: `${onR}/${routers.length}`,
+        ...healthStrings(liveness),
+        // NOT a real ISP signal: this is `/dashboard/organization`
+        // answering at all, which says nothing whatsoever about any
+        // uplink's health. Left as-is deliberately (fixing it needs the
+        // per-link `/isp/links` read this method does not do), but see
+        // WanStatusCard on the same page for the real per-uplink status,
+        // and the strip renders this pill without a status icon so it
+        // cannot pass itself off as a green check.
         isp: health ? "Active" : "Unknown",
       },
       kpis: {
         onlineUsers: activeSessionCount,
         activeSessions: activeSessionCount,
-        routersOnline: onR,
-        totalRouters: routers.length,
+        routersOnline: liveness.routersOnline,
+        totalRouters: liveness.routersTotal,
         todayGuests: sessions.filter((s) => s.started_at?.startsWith(today)).length,
         avgSession:
           sessions.length > 0

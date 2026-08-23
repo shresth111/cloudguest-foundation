@@ -490,6 +490,137 @@
  *    locally-redefined constant of the same name would have satisfied
  *    any one of them alone.)
  */
+/*
+ * SECTION 13 -- TWO CHUNKS, ONE PROPERTY (added 2026-08-23)
+ * --------------------------------------------------------
+ * A defect every guard above was structurally blind to, because each of
+ * them judges ONE LINE and this one lived in the relationship between two
+ * lines that were each individually perfect.
+ *
+ * The "Hotspot" chunk set `login-by=http-pap` on `hsprof1`. A later
+ * "Self-Signed HTTPS Certificate" chunk set `login-by=https,http-pap` on
+ * the same profile, with `ssl-certificate=` naming a certificate the
+ * ROUTER had generated and signed for itself. RouterOS applied both, in
+ * paste order, and the later one won. Every router this generator ever
+ * provisioned therefore served its captive-portal page over TLS with a
+ * certificate nothing trusts. Confirmed live, guest-facing: a real
+ * Android phone on a freshly provisioned hEX showed a security warning
+ * the instant the portal opened -- the first thing a paying venue's guest
+ * sees, and where they stop.
+ *
+ * Section 1 passed it (no variable crossed a line). Section 2 passed it
+ * (one statement per `do={}`). Sections 10.2-10.7 passed it -- BOTH
+ * chunks counted their objects and printed a verdict. A guard that asks
+ * "is this line correct" cannot see two correct lines disagreeing.
+ *
+ * So 13.1 asserts the relationship: within one generated script, a
+ * hotspot-profile property may be written by exactly ONE `set`. That is
+ * what makes the defect unrepresentable rather than merely absent, and it
+ * is what the next chunk with an opinion about `login-by` will run into.
+ * The certificate chunk itself is deleted (the generator tombstone
+ * records the six-point argument, including that the incident its comment
+ * claimed kinship with was fixed by `buildWalledGardenIpLines`, and that
+ * this certificate is what that incident's own docstring names as the
+ * thing wrapping guest connections). 13.2 keeps it from coming back and
+ * states the invariant as the PAIRING -- an imported, publicly-trusted
+ * certificate with hotspot HTTPS stays legal, a router-signed one does
+ * not. 13.4 pins the argument the whole section rests on against the
+ * emitted HTML: the hotspot's own page has no field on it, so plain HTTP
+ * there costs nothing.
+ *
+ * Thirteen mutations of the REAL generator and of these guards, all
+ * caught:
+ *
+ *   the deleted self-signed certificate chunk reintroduced verbatim ..... 86
+ *   a second chunk writing login-by, with the SAME value ................. 4
+ *   HOTSPOT_LOGIN_BY changed to https,http-pap ......................... 17
+ *   HOTSPOT_LOGIN_BY reverted to RouterOS's cookie,http-chap ........... 17
+ *   ssl-certificate= bolted onto the surviving login-by set ............ 17
+ *   the read-back pinned to a literal instead of a device `get` ......... 2
+ *   the read-back's count binding removed ............................... 2
+ *   a form + input field added to the portal redirect page .............. 5
+ *   the portal redirect pointed at http:// instead of https:// .......... 5
+ *   the read-back stops naming the guest-facing consequence ............. 1
+ *   the write parser blinded to `do={}` bodies and the user-profile menu   3
+ *   the pairing guard's certificate half made unmatchable ............... 1
+ *   the pairing guard made over-strict (any /certificate, either half) ... 2
+ *
+ * ONE MUTATION SURVIVED ON THE FIRST PASS, and it was a real hole rather
+ * than a confirmation -- the fourth time this file has been bitten by the
+ * same shape. Relaxing 13.1's value test from `=== "http-pap"` to
+ * `.includes("http-pap")` let `login-by=https,http-pap` ship green,
+ * because 13.2's pairing guard is false once the generator stops creating
+ * certificates: the profile would still ask RouterOS to stand up a TLS
+ * server, against whatever certificate the device happens to carry --
+ * which on any already-provisioned router is the stale self-signed one,
+ * i.e. the original bug, restored, by a change that looks like a
+ * loosening of a test rather than a change to the script. The value test
+ * is exact and says so at its own site.
+ *
+ * SECTION 14 -- THE OS SIGN-IN POPUP (added 2026-08-23)
+ * ----------------------------------------------------
+ * The same live report as section 13, seen from the other end. On the
+ * founder's provisioned hEX, Windows and macOS on a LAN cable showed NO
+ * "sign in to network" popup at all; Android showed a certificate error.
+ * All three are the same cause section 13 removes -- with `https` in
+ * `login-by` and a self-signed leaf bound, RouterOS aims the redirect at
+ * `https://wifi.wyfyguest.com/login` and every OS probe dies in the TLS
+ * handshake rather than receiving a redirect. Windows/macOS report a
+ * transport failure as plain "no internet" with nothing to click; Android
+ * renders it, which is why it alone showed something visible. The quiet
+ * platforms were the majority.
+ *
+ * Section 14 guards the OTHER way to break that popup, which is the one a
+ * future engineer reaches for BECAUSE section 13's fix is invisible to
+ * them: putting the OS detection hosts into the walled garden so the
+ * probes "get through". That is backwards and unrecoverable -- a probe
+ * that gets through receives the genuine success answer, so the OS
+ * concludes the network is fine and never offers a sign-in, while the
+ * guest is still unauthenticated. The generator also now emits a
+ * "Captive-Portal Detection" tripwire chunk that counts such entries on
+ * the device and reports them, adding and removing nothing.
+ *
+ * The predicate is STATEMENT-scoped, not line- or chunk-scoped, because
+ * the tripwire legitimately names every detection host inside a `find`.
+ * A hostname-only guard would ban the check that enforces the rule. Sweep
+ * and self-checks share ONE predicate, for the reason recorded four times
+ * above.
+ *
+ * Twelve mutations, all caught:
+ *
+ *   each of seven "wrong fixes" a future engineer reaches for ........... 7
+ *     (NCSI / Apple CNA / Android / Firefox into the host walled garden,
+ *      an existing row re-pointed at a probe host, the NCSI DNS probe
+ *      answered by /ip dns static, a probe host allowed by name through
+ *      the IP-level walled garden -- one check each, and each is the
+ *      literal line that would ship)
+ *   the tripwire chunk deleted ......................................... 11
+ *   the tripwire's static-DNS count dropped ............................. 2
+ *   the tripwire turned from a check into a fix (an `add`) .............. 3
+ *   the write-detector narrowed so `set` no longer counts ............... 2
+ *   the detection-token list emptied of Apple ........................... 1
+ *   the guard made line-scoped instead of statement-scoped .............. 1
+ *   `dns-name` pointed at the public portal domain ..................... 17
+ *
+ * SECTIONS 13 AND 14 WERE DEVELOPED ON TWO BRANCHES AND MERGED. Section
+ * 13's design (delete the self-signed certificate chunk; one writer for
+ * `login-by`, value `http-pap`, unconditionally) replaced an earlier
+ * design that kept the certificate chunk and added a THIRD `login-by`
+ * write to conditionally repair it. That was rejected for three reasons
+ * worth recording, because each is a live hazard rather than a taste:
+ * (1) its unconditional `ssl-certificate=` write rebinds a router that
+ * already carries the fleet's real Let's Encrypt leaf back onto the
+ * self-signed one, whereupon its own condition reads "self-signed" and
+ * disables HTTPS -- and `renew-hotspot-certs.sh` only re-binds on an
+ * actual renewal (~30 days before expiry), so the damage stands for up to
+ * two months; (2) the repair lived in a LATER chunk than the bad write,
+ * so it holds only if every chunk is pasted, in order, on a device whose
+ * paste path is the confirmed reason this file is chunked at all; and
+ * (3) leaving `https` on wherever a real certificate happens to be
+ * present makes guest sign-in depend on certificate freshness, turning a
+ * silent renewal failure into fleet-wide "OTP verifies but no internet".
+ * `http-pap` works regardless of certificate state.
+ */
 import { build } from "esbuild";
 import { mkdtempSync, writeFileSync, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -2282,11 +2413,19 @@ const COUNTED = [
     "hsProf1",
     "the unconditional `set [find name=hsprof1]` lines succeed against an empty match",
   ],
+  // The "Self-Signed HTTPS Certificate" chunk used to be counted here, on
+  // `ctLeaf`. That chunk is gone -- see section 13 and the tombstone
+  // comment in the generator for why -- so its three checks are replaced,
+  // not dropped, by the three below over the read-back that took its
+  // place. Coverage of the property that actually broke went UP: the old
+  // checks proved a certificate existed, these prove `login-by` is what
+  // the script believes it is.
   [
-    "the certificate chunk counts what its three set [find] lines target",
-    bareChunk(BARE_PPPOE, "Self-Signed HTTPS Certificate"),
-    "ctLeaf",
-    "three `set [find ...]` lines that cannot fail is the trap, not the reassurance",
+    "the Hotspot chunk reads login-by back off the device after setting it",
+    bareChunk(BARE_PPPOE, "Hotspot"),
+    "hsLoginByN",
+    "`set [find name=hsprof1] login-by=...` against an empty match succeeds silently, and a " +
+      "second writer overwriting it succeeds just as silently -- the value is the only evidence",
   ],
   [
     "the RADIUS chunk reads hsprof1 back after wiring use-radius into it",
@@ -2318,7 +2457,6 @@ for (const [what, script] of [
   ["LAN Ports", bareChunk(BARE_PPPOE, "LAN Ports")],
   ["Hotspot", bareChunk(BARE_PPPOE, "Hotspot")],
   ["WAN + Bridge", bareChunk(BARE_PPPOE, "WAN + Bridge")],
-  ["Self-Signed HTTPS Certificate", bareChunk(BARE_PPPOE, "Self-Signed HTTPS Certificate")],
   ["RADIUS", bareChunk(BARE_PPPOE, "RADIUS")],
 ]) {
   check(
@@ -2656,7 +2794,12 @@ check(
 // something that slips in.
 
 const KNOWN_MENUS = new Set([
-  "/certificate",
+  // `/certificate` was here until the self-signed hotspot certificate
+  // chunk was deleted (section 13). Removing it from this list is not
+  // housekeeping: the "no dead entries" check below is what forces the
+  // list to keep describing the script, and leaving `/certificate` in
+  // would pre-authorise the exact menu whose return this section exists
+  // to make loud.
   "/file",
   "/interface",
   "/interface bridge",
@@ -4313,6 +4456,409 @@ console.log("\n-- 13.5 a stale STATIC WAN address does not survive a re-paste --
   }
 }
 
+// =====================================================================
+// 14. ONE WRITER PER HOTSPOT-PROFILE PROPERTY, AND NO ROUTER-SIGNED TLS
+//     IN FRONT OF A GUEST
+// =====================================================================
+// The defect: TWO chunks set `login-by` on the same `hsprof1`. The
+// "Hotspot" chunk set `login-by=http-pap`; a later "Self-Signed HTTPS
+// Certificate" chunk set `login-by=https,http-pap` with
+// `ssl-certificate=` pointing at a cert the router had signed for itself.
+// Both succeeded, in paste order, and the later one won -- so every
+// router this generator provisioned served its captive-portal page over
+// TLS with a certificate nothing trusts. Confirmed live, guest-facing: a
+// real Android phone on a freshly provisioned hEX showed a security
+// warning the instant the portal opened.
+//
+// NOTHING IN THIS SUITE COULD SEE IT, and that is the interesting part.
+// Section 1 was happy (no variable crossed a line). Section 2 was happy
+// (one statement per `do={}`). Sections 10.2-10.7 were happy -- BOTH
+// chunks dutifully counted their objects and printed a verdict. Every
+// guard here is about what one line means; this defect was in the
+// relationship between two lines that were each individually perfect.
+//
+// So the guard is the relationship: within one generated script, a
+// hotspot-profile property may be written by exactly ONE `set`. That is
+// the property that makes the defect unrepresentable, and it is stronger
+// than pinning the value -- pinning `http-pap` stops today's bug, while
+// single-writer stops the NEXT chunk that decides it also has an opinion.
+//
+// Both are asserted anyway, because the value carries a guest-facing
+// claim that deserves its own name in a failure message: the hotspot's
+// own page collects nothing (it is a spinner and a `location.replace` to
+// the real portal, over real HTTPS, with a real certificate), so plain
+// HTTP there costs nothing -- and an untrusted certificate there costs a
+// great deal, because it is a full-page interstitial between a venue's
+// guest and sign-in, and the guests who get past it are the ones who
+// learned to click through certificate warnings on public WiFi. 13.4
+// asserts the "collects nothing" half against the emitted HTML rather
+// than trusting this paragraph, so the day someone puts a field on that
+// page, this argument fails loudly instead of silently becoming false.
+
+console.log("\n-- one writer per hotspot-profile property, and no self-signed TLS --");
+
+/** Every `/ip hotspot profile set` / `/ip hotspot user profile set` write
+ * in a script, as `{ menu, prop, value, line }`. Shared by the sweep and
+ * by its own self-checks -- this file has been bitten three times by a
+ * self-check that kept a private copy of the sweep's regex and therefore
+ * could not see the sweep being mutated. */
+const HOTSPOT_SET = /\/ip hotspot(?: user)? profile set\s+\[[^\]]*\]([^;\n}]*)/g;
+const PROP_ASSIGN = /([a-z][a-z0-9-]*)=("[^"]*"|\S+)/g;
+const hotspotProfileWrites = (script) => {
+  const out = [];
+  for (const line of script.split("\n")) {
+    if (line.trimStart().startsWith("#")) continue;
+    for (const m of line.matchAll(HOTSPOT_SET)) {
+      const menu = m[0].includes("user profile")
+        ? "/ip hotspot user profile"
+        : "/ip hotspot profile";
+      for (const p of m[1].matchAll(PROP_ASSIGN)) {
+        out.push({ menu, prop: p[1], value: p[2].replace(/^"|"$/g, ""), line });
+      }
+    }
+  }
+  return out;
+};
+
+/** One full paste per variant -- the invariant is about the whole script a
+ * technician runs, not about one chunk. `pasteables` de-duplicates chunk
+ * BODIES across variants, which is exactly wrong for a question of the
+ * form "how many times does this script write this property". */
+const FULL_SCRIPTS = VARIANTS.map(([variant, opts]) => [
+  variant,
+  buildRouterSetupScriptChunks(opts)
+    .map((c) => c.script)
+    .join("\n"),
+]);
+
+check(
+  "13: the whole-script sweep really has every variant in it",
+  FULL_SCRIPTS.length === VARIANTS.length && FULL_SCRIPTS.every(([, s]) => s.length > 2000),
+  "a variant produced no script, so the sweep below is asserting over nothing",
+);
+
+// ---------------------------------------------------------------------
+// 13.1 ONE WRITER PER PROPERTY.
+// ---------------------------------------------------------------------
+for (const [variant, script] of FULL_SCRIPTS) {
+  const writes = hotspotProfileWrites(script);
+  const byProp = new Map();
+  for (const w of writes) {
+    const key = `${w.menu} ${w.prop}`;
+    byProp.set(key, [...(byProp.get(key) ?? []), w.line]);
+  }
+  const doubled = [...byProp].filter(([, lines]) => lines.length > 1);
+
+  check(
+    `${variant}: no hotspot-profile property is written by more than one set`,
+    doubled.length === 0,
+    `${doubled.length} property/properties written twice: ` +
+      doubled
+        .map(([key, lines]) => `${key} (${lines.length}x)\n        ${lines.join("\n        ")}`)
+        .join("\n      ") +
+      `\n      RouterOS applies both, in paste order, and the last one wins -- with no error, no ` +
+      `output and nothing on the device to show the earlier value ever existed. This is the ` +
+      `exact shape that shipped hotspot HTTPS with a self-signed certificate to every guest.`,
+  );
+
+  // ZERO WRITES IS CORRECT IN EXACTLY ONE CASE, AND IT MUST BE THAT CASE.
+  // When the LAN address/prefix pair cannot describe a usable subnet, the
+  // Hotspot chunk refuses to emit anything at all -- so there is no
+  // `hsprof1` for `login-by` to land on, and writing it anyway would be
+  // the `set [find]`-against-an-empty-match shape this whole section
+  // exists to stop. Rather than relax the count to `<= 1`, which would
+  // also pass if the line simply went missing on a NORMAL router, the
+  // expected count is derived from whether the refusal is present. A
+  // silently dropped `login-by` on a /24 still fails, loudly.
+  const hotspotRefused = /HOTSPOT \+ DHCP: NOTHING WAS GENERATED/.test(script);
+  const expectedLoginByWrites = hotspotRefused ? 0 : 1;
+
+  if (hotspotRefused) {
+    check(
+      `${variant}: the refusing hotspot chunk says why, and creates nothing`,
+      /RESULT: FAIL -- [^"]+\./.test(script) &&
+        /:log warning "cloudguest: hotspot chunk not generated/.test(script) &&
+        !/\/ip pool add\b/.test(script) &&
+        !/\/ip hotspot profile add\b/.test(script),
+      "a chunk that refuses must name the reason on screen AND in the log, and must not " +
+        "half-create the objects it declined to configure -- a pool with no hotspot in front " +
+        "of it is an open LAN handing out addresses to anyone who plugs in",
+    );
+  }
+
+  check(
+    `${variant}: login-by is written, exactly once, and the value is http-pap`,
+    (byProp.get("/ip hotspot profile login-by") ?? []).length === expectedLoginByWrites &&
+      // EXACT match, not `includes`. Measured: relaxing this to
+      // `.includes("http-pap")` lets `login-by=https,http-pap` ship green,
+      // and 13.2's pairing guard does NOT cover it -- the generator no
+      // longer creates a certificate, so "https + a router-signed cert"
+      // is false while the profile still asks RouterOS to stand up a TLS
+      // server against whatever cert the device happens to carry (on an
+      // already-provisioned router: the stale self-signed one, i.e. the
+      // original bug, restored). Same "somewhere, not everywhere" hole
+      // this file's header records three times already.
+      writes.filter((w) => w.prop === "login-by").every((w) => w.value === "http-pap"),
+    `login-by writes: ${JSON.stringify(writes.filter((w) => w.prop === "login-by").map((w) => w.value))}, ` +
+      `expected ${expectedLoginByWrites} (hotspot chunk ${hotspotRefused ? "refused" : "generated"}). ` +
+      `Exactly one write, of exactly http-pap. http-pap is the only method a plain external-portal ` +
+      `form POST can satisfy (RouterOS's own cookie,http-chap default silently rejects every ` +
+      `guest); adding https beside it turns the hotspot's own redirect page into a TLS endpoint, ` +
+      `which is only safe with a publicly-trusted certificate -- something this generator cannot ` +
+      `produce and must not pretend to.`,
+  );
+}
+
+// INJECTED -- the two mutations this section exists to catch, as fixtures,
+// so the guard is proven to fire without needing the real generator to be
+// broken first.
+{
+  const TWO_WRITERS =
+    `/ip hotspot profile set [find name="hsprof1"] login-by=http-pap\n` +
+    `/ip hotspot profile set [find name="hsprof1"] login-by=https,http-pap dns-name="wifi.wyfyguest.com"`;
+  const counted = hotspotProfileWrites(TWO_WRITERS).filter((w) => w.prop === "login-by");
+  check(
+    "INJECTED: a second chunk writing login-by is seen as a second writer",
+    counted.length === 2,
+    `the sweep found ${counted.length} login-by write(s) in a script that has two -- the ` +
+      `single-writer guard cannot fire at all, so it protects nothing`,
+  );
+  check(
+    "INJECTED: ...and the exact shape that shipped is caught by the value guard too",
+    counted.some((w) => w.value.includes("https")),
+    "the parser does not read `login-by=https,http-pap` as an https value",
+  );
+  // `login-by` is an UNORDERED set on RouterOS -- `https,http-pap` and
+  // `http-pap,https` are the same fact, and `analyse.ts` already says so
+  // in its own docstring. An exact-match value guard rejects both for
+  // free, but only if it really is exact; assert both spellings so a
+  // future loosening to a prefix/`startsWith` test cannot pass on one
+  // ordering while shipping the other.
+  for (const spelling of ["https,http-pap", "http-pap,https"]) {
+    check(
+      `INJECTED: ...and rejects login-by=${spelling}, whichever way round it is written`,
+      hotspotProfileWrites(
+        `/ip hotspot profile set [find name="hsprof1"] login-by=${spelling}`,
+      ).every((w) => w.value !== "http-pap"),
+      `${spelling} is accepted as if it were plain http-pap -- RouterOS treats login-by as an ` +
+        `unordered set, so a guard blind to one ordering is blind to the defect`,
+    );
+  }
+  check(
+    "INJECTED: a reverted login-by=cookie,http-chap is caught by the value guard",
+    hotspotProfileWrites(
+      `/ip hotspot profile set [find name="hsprof1"] login-by=cookie,http-chap`,
+    ).every((w) => w.value !== "http-pap"),
+    "the guard would accept RouterOS's own default, which silently rejects every guest login",
+  );
+  // ANTI-OVER-STRICTNESS. Several properties in ONE set is legal and is
+  // what the RADIUS chunk does; a guard that banned it would be switched
+  // off by the next person rather than obeyed.
+  const LEGAL =
+    `/ip hotspot profile set [find name="hsprof1"] login-by=http-pap\n` +
+    `/ip hotspot profile set [find name="hsprof1"] dns-name="wifi.wyfyguest.com"\n` +
+    `/ip hotspot profile set [find name="hsprof1"] use-radius=yes radius-accounting=yes\n` +
+    `:if ([:len [/ip hotspot user profile find where name="default"]] > 0) do={ /ip hotspot user profile set [find where name="default"] shared-users=5 }`;
+  const legalWrites = hotspotProfileWrites(LEGAL);
+  check(
+    "...and does NOT fire on several distinct properties, one write each",
+    legalWrites.length === 5 && new Set(legalWrites.map((w) => `${w.menu} ${w.prop}`)).size === 5,
+    `parsed ${JSON.stringify(legalWrites.map((w) => `${w.menu} ${w.prop}=${w.value}`))} -- the ` +
+      `guard either misses a write or invents a collision between distinct properties`,
+  );
+  check(
+    "...and keeps `/ip hotspot user profile` distinct from `/ip hotspot profile`",
+    legalWrites.some((w) => w.menu === "/ip hotspot user profile" && w.prop === "shared-users"),
+    "the two menus are different objects; collapsing them would report false collisions and " +
+      "hide real ones",
+  );
+  check(
+    "...and reads a write out of an `:if (...) do={ ... }` wrapper, not just a bare line",
+    hotspotProfileWrites(
+      `:if ([:len [/ip hotspot profile find where name="hsprof1"]] > 0) do={ /ip hotspot profile set [find name="hsprof1"] login-by=https }`,
+    ).length === 1,
+    "a second writer hidden inside a guard would be invisible, which is the cheapest way to " +
+      "reintroduce this defect while passing the sweep",
+  );
+}
+
+// ---------------------------------------------------------------------
+// 13.2 NO CERTIFICATE THIS SCRIPT SIGNED ITSELF EVER FACES A GUEST.
+// ---------------------------------------------------------------------
+// Stated as the RELATIONSHIP, not as a ban on either half. Importing a
+// real, publicly-trusted certificate would be legitimate; enabling
+// hotspot HTTPS against one would be legitimate. What is never
+// legitimate is enabling hotspot HTTPS against a certificate generated on
+// the router, because no client on earth trusts it and the whole point of
+// the page behind it is to be the first thing a guest sees.
+const selfSignedTlsIn = (script) => {
+  const httpsLoginBy = hotspotProfileWrites(script).some(
+    (w) => w.prop === "login-by" && w.value.includes("https"),
+  );
+  const routerSignedCert = /\/certificate\s+(?:add|sign)\b/.test(script);
+  return httpsLoginBy && routerSignedCert;
+};
+
+for (const [variant, script] of FULL_SCRIPTS) {
+  check(
+    `${variant}: hotspot HTTPS is never enabled against a certificate this script created`,
+    !selfSignedTlsIn(script),
+    "`login-by=https` plus `/certificate add`/`sign` in the same paste is the confirmed-live " +
+      "Android certificate warning: the router signs a leaf for a hostname only it resolves, " +
+      "then serves the captive-portal page with it. A self-signed cert on a captive portal is " +
+      "worse than none -- it is a full-page interstitial in front of sign-in, and it teaches " +
+      "guests to click through security warnings.",
+  );
+
+  check(
+    `${variant}: the generator never writes ssl-certificate onto a hotspot profile`,
+    !hotspotProfileWrites(script).some((w) => w.prop === "ssl-certificate"),
+    "the only certificate this fleet can safely serve is the Let's Encrypt leaf pushed " +
+      "out-of-band by ops/letsencrypt-hotspot/renew-hotspot-certs.sh. A `set ssl-certificate=` " +
+      "here either binds a self-signed cert (the bug) or, on a router that already has the real " +
+      "one, silently rebinds it away from it on the next re-paste.",
+  );
+
+  check(
+    `${variant}: the script creates no certificate on the router at all`,
+    !/\/certificate\s+(?:add|sign|import)\b/.test(script),
+    "a router-generated CA marked trusted=yes, with a signing key, on a fleet that shares one " +
+      "SSH credential, is a real cost -- and with no ssl-certificate binding left there is " +
+      "nothing on the other side of it. Nothing else in this generator or on the device " +
+      "references those objects (checked, not assumed).",
+  );
+}
+
+// INJECTED -- reintroducing the deleted chunk, in the exact form it
+// shipped in.
+{
+  const REINTRODUCED =
+    `:local needCguestCa ([:len [/certificate find where name="cloudguest-ca"]] = 0); ` +
+    `:if ($needCguestCa) do={ /certificate add name="cloudguest-ca" common-name="cloudguest-ca" key-usage=key-cert-sign,crl-sign,tls-server }; ` +
+    `:if ($needCguestCa) do={ /certificate sign cloudguest-ca }\n` +
+    `/ip hotspot profile set [find name="hsprof1"] ssl-certificate="cloudguest-hotspot-cert" login-by=https,http-pap dns-name="wifi.wyfyguest.com"`;
+  check(
+    "INJECTED: the deleted self-signed certificate chunk is caught if it comes back",
+    selfSignedTlsIn(REINTRODUCED),
+    "the pairing guard is blind to the exact text that shipped the guest-facing warning",
+  );
+  check(
+    "INJECTED: ...and its ssl-certificate binding is caught on its own",
+    hotspotProfileWrites(REINTRODUCED).some((w) => w.prop === "ssl-certificate"),
+    "the ssl-certificate guard cannot see a binding, so a re-paste could still rebind a fleet " +
+      "router away from its real Let's Encrypt leaf",
+  );
+  // ANTI-OVER-STRICTNESS, in both directions.
+  check(
+    "...and the pairing guard does NOT fire on hotspot HTTPS with an IMPORTED certificate",
+    !selfSignedTlsIn(
+      `/certificate import file-name=fullchain.pem passphrase=""\n` +
+        `/ip hotspot profile set [find name="hsprof1"] login-by=https,http-pap`,
+    ),
+    "the renewal script's own legitimate shape must stay expressible -- a guard that bans real " +
+      "TLS as well as fake TLS is a guard someone deletes",
+  );
+  check(
+    "...and does NOT fire on a certificate created with no hotspot HTTPS behind it",
+    !selfSignedTlsIn(`/certificate add name="x" common-name="y"`),
+    "the fault is the pairing, not either half; over-reaching here would ban a future, " +
+      "unrelated use of /certificate and make the guard the thing that gets removed",
+  );
+}
+
+// ---------------------------------------------------------------------
+// 13.3 THE READ-BACK EXISTS, AND IT READS THE VALUE OFF THE DEVICE.
+// ---------------------------------------------------------------------
+// Same lesson section 7's year-backstop and section 6's resolver-count
+// mutations both taught: asserting that a chunk PRINTS something is not
+// asserting that it LEARNED it. A read-back pinned to a literal is a
+// chunk that reports `login-by=http-pap` on a router where it is
+// `https,http-pap`.
+{
+  const hotspot = bareChunk(BARE_PPPOE, "Hotspot");
+  check(
+    "13.3: the Hotspot chunk reads login-by back with a real `get`, not a literal",
+    /\[:tostr \[\/ip hotspot profile get \[find name="hsprof1"\] login-by\]\]/.test(hotspot),
+    "printing the value the script INTENDED tells the operator nothing about the value the " +
+      "router HAS -- and a second writer anywhere would leave that report confidently wrong",
+  );
+  check(
+    "13.3: ...and reads ssl-certificate back beside it",
+    /\[:tostr \[\/ip hotspot profile get \[find name="hsprof1"\] ssl-certificate\]\]/.test(hotspot),
+    "a router provisioned before this change still carries the self-signed binding; with " +
+      "login-by=http-pap it is inert, but the operator should be able to SEE that, not infer it",
+  );
+  check(
+    "13.3: ...and the read-back names the guest-facing consequence, not just the value",
+    /security warning/.test(hotspot) && /http-pap/.test(hotspot),
+    "a bare `login-by=<value>` line means nothing to the technician holding the router; the " +
+      "output has to say what a wrong value does to a guest",
+  );
+}
+
+// ---------------------------------------------------------------------
+// 13.4 THE GUEST TYPES NOTHING ON THE ROUTER'S PAGE -- BUT SOMETHING IS
+//      POSTED TO IT LATER, AND THE FIRST DRAFT OF THIS SECTION GOT THAT
+//      WRONG.
+// ---------------------------------------------------------------------
+// The claim these checks pin down is narrow and it is worth stating
+// exactly, because a wider version of it was written here first and was
+// false: **the guest ENTERS nothing into the page RouterOS serves.** Every
+// file this script installs is a spinner and a `location.replace(...)` to
+// the real portal -- no `<form>`, no `<input>` -- so the phone number and
+// the OTP are typed on a public origin with a real certificate.
+//
+// WHAT THE EARLIER VERSION SAID, AND WHY IT WAS WRONG. It concluded from
+// the above that "nothing secret ever crosses the hotspot's own origin",
+// and therefore that TLS there protects nothing. The first half does not
+// imply the second. `src/routes/portal.success.tsx` does a top-level form
+// POST of `username`/`password` BACK to `$(link-login-only)`, which is on
+// the router's own origin and whose scheme is inherited from `login-by`.
+// So that origin does carry a credential POST. The conclusion survived
+// only because it was right for a different reason -- the posted password
+// is `HOTSPOT_FALLBACK_PASSWORD`, a fixed placeholder that authenticated
+// nobody (the OTP was verified against the backend over HTTPS long
+// before), and untrusted TLS on that leg does not protect it, it destroys
+// it: the browser rejects the certificate, the POST never lands, the NAS
+// gate never opens. See `HOTSPOT_LOGIN_BY`'s docstring for the full
+// three-symptom account.
+//
+// The checks below are unchanged by that correction and are still worth
+// having: if a field ever appears on the router's own page, the narrow
+// claim stops being true too, and the right response is still not to
+// re-enable self-signed HTTPS.
+{
+  const pages = buildRouterSetupScriptChunks({
+    ...BASE,
+    wans: [DHCP_WAN],
+    portalUrl: PORTAL,
+  }).filter((c) => c.label.startsWith("Portal Redirect Page"));
+
+  check(
+    "13.4: every stock hotspot page really is overwritten",
+    pages.length >= 5,
+    `only ${pages.length} portal redirect page(s) emitted -- login.html, rlogin.html, ` +
+      `alogin.html, status.html and logout.html are all reachable pre-auth`,
+  );
+  for (const page of pages) {
+    check(
+      `13.4: ${page.label} collects no input from the guest`,
+      !/<form|<input|type=\\?"password|type=\\?"tel/i.test(page.script),
+      "a field here means the guest is typing a credential into the router's own origin, " +
+        "rather than into the real portal which has a real certificate. The fix if this ever " +
+        "fires is NOT to re-enable self-signed HTTPS -- that breaks the OS probes and the " +
+        "post-sign-in POST as well; it is to keep the field on the portal.",
+    );
+    check(
+      `13.4: ${page.label} hands the guest to the real portal over https://`,
+      /location\.replace\(\\"https:\/\//.test(page.script),
+      "the redirect target is where the phone number and OTP are actually typed, so it is the " +
+        "one leg that genuinely must be TLS -- and it is TLS to a public origin with a real " +
+        "certificate, not to the router",
+    );
+  }
+}
+
 console.log("\n-- 13.6 a mistyped LAN port names the LAN, not the WAN --");
 
 {
@@ -4794,6 +5340,306 @@ console.log("\n-- 13.10 the hotspot password field that fed nothing --");
     })(),
     "the backend port and the wizard both build these options objects; a stray property must be " +
       "inert, not fatal, and must never reach the device",
+  );
+}
+
+// =====================================================================
+// 15. THE OS SIGN-IN POPUP: INTERCEPT THE PROBE, NEVER ALLOW IT
+// =====================================================================
+// Reported live 2026-08-23 from a provisioned hEX: a Windows laptop and a
+// MacBook, both on a LAN cable, got a DHCP lease and could reach the
+// captive portal by typing an address into a browser -- but NEITHER
+// showed an automatic "sign in to network" popup. Android, on the same
+// router, showed a certificate error.
+//
+// One cause produces all three, and section 13 removes it: the generator
+// was leaving `login-by=https,http-pap` on `hsprof1` with a self-signed
+// leaf bound, so RouterOS aimed the redirect at
+// `https://wifi.wyfyguest.com/login` and every probe died in the TLS
+// handshake instead of receiving a redirect. Windows and macOS report
+// that as "no internet" with nothing to click; Android renders it, which
+// is why it alone showed a visible error. Section 13 is what keeps the
+// redirect on a scheme the probes can complete.
+//
+// THIS section is about the OTHER way to break the same popup -- the one
+// a future engineer will reach for precisely BECAUSE section 13's fix is
+// invisible to them.
+//
+// THE WRONG FIX IS THE INTUITIVE ONE, AND IT IS UNRECOVERABLE. Every
+// forum answer to "no captive portal popup" says to put the detection
+// hosts in the walled garden so the probes "get through". A probe that
+// gets through reaches the real Microsoft/Apple/Google server, gets the
+// genuine success answer, and the OS concludes the network is fine --
+// so it never offers a sign-in, while the guest is still unauthenticated
+// with no internet. That converts an intermittent popup into a
+// permanently absent one, and no other setting can undo it. Confirmed
+// before changing anything: no such entry exists in this generator
+// today. This section is what keeps it that way.
+//
+// The predicate below is deliberately about STATEMENTS, not lines and not
+// whole chunks. The tripwire chunk the generator now emits legitimately
+// NAMES every one of these hosts -- inside a `find where dst-host~"..."`
+// whose entire purpose is to detect a hand-added entry and report it. A
+// guard that matched on the hostname alone would ban the check that
+// enforces it. What is forbidden is an `add`/`set` INTO the walled garden
+// or static DNS that carries one of these names; a `find` or a `print` is
+// a read. Sweep and self-checks share one predicate -- this file has been
+// bitten four separate times by a self-check that exercised a private
+// copy of the regex the sweep actually used, and section 13's own
+// `includes`-vs-`===` hole was the fourth.
+
+console.log("\n-- the OS sign-in popup --");
+
+/** Every hostname an OS fetches to answer "am I really online?". */
+const RE_DETECTION_TOKEN =
+  /(msftconnecttest|msftncsi|connectivitycheck|detectportal|captive\.apple|gstatic|clients3\.google|nmcheck|network-test\.debian|connectivity-check\.ubuntu)/i;
+
+/** A write that would let a host past the hotspot BEFORE the guest logs
+ * in: an `add`/`set` into either walled-garden table, or into static DNS.
+ * `find`, `print` and `remove` are not writes of that kind. */
+const RE_PREAUTH_ALLOW_WRITE = /\/ip (?:hotspot walled-garden(?: ip)?|dns static)\s+(?:add|set)\b/;
+
+/** THE guard. One statement, both properties. Shared by the sweep, by
+ * every INJECTED self-check and by every anti-over-strictness check
+ * below -- there is no second copy anywhere in this file. */
+const allowsDetectionHost = (statement) =>
+  RE_PREAUTH_ALLOW_WRITE.test(statement) && RE_DETECTION_TOKEN.test(statement);
+
+/** A chunk's statements. A chunk is `;`-joined onto entered lines, and
+ * the console executes statement by statement, so that is the unit a
+ * "this command allows that host" question is actually about. */
+const statementsOf = (script) =>
+  script
+    .split("\n")
+    .flatMap((line) => line.split(";"))
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+// --- 14.1 the sweep --------------------------------------------------
+{
+  const offenders = [];
+  for (const [label, script] of pasteables) {
+    for (const statement of statementsOf(script)) {
+      if (allowsDetectionHost(statement)) offenders.push(`${label}: ${statement}`);
+    }
+  }
+  check(
+    "no emitted statement lets an OS connectivity-check host past the hotspot",
+    offenders.length === 0,
+    `${offenders.length} statement(s) allow a detection probe pre-auth. This is the one change ` +
+      `that removes the sign-in popup PERMANENTLY: the OS gets the real success answer it was ` +
+      `probing for, concludes the network is fine, and never offers a sign-in -- while the guest ` +
+      `is still unauthenticated. The probe must be INTERCEPTED and answered with a redirect, ` +
+      `which is what the hotspot already does when nothing allows it through.\n      ` +
+      offenders.slice(0, 8).join("\n      "),
+  );
+}
+
+// --- 14.2 INJECTED: the guard fires on the exact wrong fix -----------
+// Each of these is the literal line a future engineer reaches for. If the
+// guard is blind to any of them it is decoration.
+const WRONG_FIXES = [
+  [
+    "Windows NCSI added to the host walled garden",
+    `:if ([:len [/ip hotspot walled-garden find where comment="ncsi"]] = 0) do={ /ip hotspot walled-garden add dst-host="www.msftconnecttest.com" action=allow comment="ncsi" }`,
+  ],
+  [
+    "Apple CNA added to the host walled garden",
+    `/ip hotspot walled-garden add dst-host="captive.apple.com" action=allow comment="cna"`,
+  ],
+  [
+    "Android's probe added to the host walled garden",
+    `/ip hotspot walled-garden add dst-host="connectivitycheck.gstatic.com" action=allow`,
+  ],
+  [
+    "Firefox's probe added to the host walled garden",
+    `/ip hotspot walled-garden add dst-host="detectportal.firefox.com" action=allow`,
+  ],
+  [
+    "an existing walled-garden row RE-POINTED at a probe host",
+    `/ip hotspot walled-garden set [find comment="cloudguest-portal"] dst-host="www.msftconnecttest.com"`,
+  ],
+  [
+    "the NCSI DNS probe answered by a static DNS entry",
+    `/ip dns static add name="dns.msftncsi.com" address=131.107.255.255`,
+  ],
+  [
+    "a probe host allowed through the IP-level walled garden by name",
+    `/ip hotspot walled-garden ip add action=accept dst-address=1.2.3.4 comment="msftconnecttest"`,
+  ],
+];
+for (const [what, statement] of WRONG_FIXES) {
+  check(
+    `INJECTED: the popup guard fires on ${what}`,
+    allowsDetectionHost(statement),
+    "the guard is blind to the specific wrong fix it exists to prevent",
+  );
+}
+
+// --- 14.3 ANTI-OVER-STRICTNESS ---------------------------------------
+// Taken FROM THE REAL EMITTED CHUNK, not hand-copied. The tripwire names
+// every detection host on purpose; if the guard fired on it, the only way
+// to get a green build would be to delete the check that enforces the
+// rule -- which is exactly how a guard gets switched off.
+{
+  const tripwires = pasteables.filter(([label]) => /Captive-Portal Detection/.test(label));
+  check(
+    "the generator emits a captive-portal detection tripwire chunk",
+    tripwires.length > 0,
+    "no chunk labelled 'Captive-Portal Detection' -- the on-device check for a hand-added " +
+      "walled-garden probe host is gone",
+  );
+  const tripwireStatements = tripwires.flatMap(([, script]) => statementsOf(script));
+  check(
+    "...and the tripwire really does name the detection hosts it searches for",
+    tripwireStatements.some((s) => RE_DETECTION_TOKEN.test(s)),
+    "the tripwire no longer mentions any probe hostname, so it cannot be searching for one -- " +
+      "this check exists so the anti-over-strictness check below cannot pass vacuously",
+  );
+  check(
+    "...and the popup guard does NOT fire on it, because a `find` is a read",
+    tripwireStatements.every((s) => !allowsDetectionHost(s)),
+    `the guard bans its own on-device enforcement: ${JSON.stringify(
+      tripwireStatements.filter(allowsDetectionHost),
+    )}`,
+  );
+}
+check(
+  "...and does NOT fire on the real portal's own walled-garden entry",
+  !allowsDetectionHost(
+    `/ip hotspot walled-garden add dst-host="portal.wyfyguest.com" action=allow comment="cloudguest-portal"`,
+  ),
+  "the guard bans the entry that lets guests reach the portal at all",
+);
+check(
+  "...and does NOT fire on a bare read of the walled garden",
+  !allowsDetectionHost(
+    `:local cdWg [:len [/ip hotspot walled-garden find where dst-host~"(msftconnecttest|gstatic)"]]`,
+  ),
+  "a `find` is reported as an allow",
+);
+check(
+  "...and does NOT fire on an add of an unrelated host",
+  !allowsDetectionHost(`/ip hotspot walled-garden add dst-host="example.com" action=allow`),
+  "an ordinary walled-garden entry is reported as a detection host",
+);
+
+// THE SCOPING ITSELF, WHICH NOTHING ELSE HERE EXERCISES. Every check
+// above hands the predicate ONE statement, so all of them pass
+// identically whether `statementsOf` splits on `;` or not -- measured:
+// collapsing it to line-scoping produced ZERO red checks. The scoping is
+// the whole design of this guard and it was untested.
+//
+// The two halves of a false positive have to be on the SAME ENTERED LINE
+// to matter, because that is the only thing `;`-joining changes. This
+// fixture is exactly that: a legitimate portal walled-garden `add`
+// `;`-joined onto a `find` that names probe hosts -- the shape the
+// tripwire chunk would take if it ever grew a sibling statement, and the
+// shape any future chunk mixing a read and a write would take. Under
+// statement scoping neither half fires. Under line scoping the line
+// carries both a write and a detection token and the guard reports the
+// generator's own portal entry as the wrong fix -- a false positive on a
+// load-bearing line, which is how a guard gets switched off rather than
+// obeyed.
+{
+  const MIXED_LINE =
+    `:local cdWg [:len [/ip hotspot walled-garden find where dst-host~"(msftconnecttest|gstatic)"]]; ` +
+    `/ip hotspot walled-garden add dst-host="portal.wyfyguest.com" action=allow comment="cloudguest-portal"`;
+  check(
+    "...and the guard is STATEMENT-scoped: a read of probe hosts `;`-joined to a legitimate add is clean",
+    statementsOf(MIXED_LINE).every((s) => !allowsDetectionHost(s)),
+    "the predicate is being applied to whole entered lines rather than to statements. A line " +
+      "that reads the probe hosts and separately adds the portal's own walled-garden entry then " +
+      "reports as the forbidden wrong fix -- a false positive on a line this generator needs, " +
+      "which is how a guard gets deleted instead of satisfied.",
+  );
+  check(
+    "...and that fixture really would trip a line-scoped guard, so the check above is not vacuous",
+    allowsDetectionHost(MIXED_LINE),
+    "the fixture does not carry both a pre-auth write and a detection token on one line, so it " +
+      "cannot distinguish statement scoping from line scoping and proves nothing",
+  );
+}
+
+// --- 14.4 the local redirect name is never the public portal name ----
+// Already load-bearing elsewhere in this file's source, and it belongs to
+// this section too: `dns-name` makes RouterOS answer that name with the
+// ROUTER's own address for every connected guest, absolutely, so pointing
+// it at the real portal domain sends every guest to the little on-router
+// redirect page instead of the actual sign-in app -- a loop, confirmed
+// live. It is also a detection-path property: the probe's redirect target
+// is built from this name.
+for (const [label, script] of pasteables) {
+  if (!/dns-name=/.test(script)) continue;
+  const names = [...script.matchAll(/dns-name="([^"]*)"/g)].map((m) => m[1]);
+  check(
+    `${label}: the hotspot's local dns-name is never the public portal domain`,
+    names.every((n) => n !== "portal.wyfyguest.com"),
+    `${JSON.stringify(names)} -- RouterOS answers this name with the router's own LAN IP for ` +
+      "every connected guest, so the real portal would become unreachable and sign-in would " +
+      "loop back to the on-router redirect page",
+  );
+}
+
+// --- 14.5 the tripwire obeys the same "never infer success" rule -----
+// Section 10's discipline: a chunk that checks something must bind a
+// count, print it, and take a named branch on the fault -- because an
+// empty `find` is indistinguishable from a healthy device otherwise.
+//
+// THE LOOP BELOW IS DELIBERATELY NOT `if (!match) continue`, and that is
+// a correction to how this section was first written. In the filtered
+// form, deleting the tripwire chunk from the generator made all five of
+// these checks silently NOT RUN -- the suite stayed green and only the
+// check-floor in ci-gated-test.sh would have noticed the coverage
+// vanishing. Measured, not theorised: that mutation produced 2 red
+// checks instead of 7. The chunk is now looked up once, its count is
+// pinned, and the five checks run against what that lookup returned --
+// so removing the chunk FAILS these checks rather than deleting them.
+// Fifth instance in this file of a guard that could be defeated by
+// removing the thing it guards; see the header.
+const TRIPWIRE_CHUNKS = pasteables.filter(([label]) => /Captive-Portal Detection/.test(label));
+check(
+  "14.5: exactly one captive-portal tripwire chunk body is emitted, so the checks below run",
+  TRIPWIRE_CHUNKS.length === 1,
+  `${TRIPWIRE_CHUNKS.length} tripwire chunk bodies found. Zero means the five checks below ` +
+    `would silently not run at all -- the coverage-shrink failure this suite's own gate exists ` +
+    `for. More than one means two chunks disagree about what the check is.`,
+);
+for (const [label, script] of TRIPWIRE_CHUNKS.length
+  ? TRIPWIRE_CHUNKS
+  : [["MISSING captive-portal tripwire chunk", ""]]) {
+  check(
+    `${label}: binds a count for both places a probe host can be allowed`,
+    /:local cdWg \[:len \[\/ip hotspot walled-garden find/.test(script) &&
+      /:local cdDns \[:len \[\/ip dns static find/.test(script),
+    "the tripwire does not count both the walled garden and static DNS, so one of the two ways " +
+      "to defeat captive-portal detection is invisible to it",
+  );
+  check(
+    `${label}: prints both counts rather than only reporting a verdict`,
+    /:put \(.*cdWg.*cdDns/s.test(script),
+    "the numbers are not shown, so a technician cannot tell a healthy device from one the " +
+      "check silently skipped",
+  );
+  check(
+    `${label}: takes a named PASS branch on zero and a named FAIL branch on non-zero`,
+    /\$cdWg = 0 && \$cdDns = 0\) do=\{ :put "  RESULT: PASS/.test(script) &&
+      /\$cdWg > 0 \|\| \$cdDns > 0\) do=\{ :put "  RESULT: FAIL/.test(script),
+    "without both branches the chunk is silent in at least one state, which is the exact " +
+      "failure mode every other section of this suite exists to prevent",
+  );
+  check(
+    `${label}: logs the fault as well as printing it`,
+    /:log warning "cloudguest: a connectivity-check host is allowed pre-auth/.test(script),
+    "a technician who scrolled past the paste output has no record of it",
+  );
+  check(
+    `${label}: adds nothing and removes nothing`,
+    !/\/ip hotspot walled-garden(?: ip)? (?:add|set|remove)\b/.test(script) &&
+      !/\/ip dns static (?:add|set|remove)\b/.test(script),
+    "this chunk is a check. An operator may have added a walled-garden host deliberately, and " +
+      "silently deleting entries is how this file's own local-hotspot-user bug became " +
+      "interesting -- it must report, not act",
   );
 }
 
