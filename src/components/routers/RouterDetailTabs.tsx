@@ -3177,7 +3177,25 @@ export function buildRouterSetupScriptChunks(opts: {
       lines.push(
         [
           ...stmts,
-          `:if (!(${gwOk})) do={ :log warning "cloudguest: WAN${n} gateway did not resolve (still \\"" . $wan${n}Gw . "\\") -- no default route added for this WAN; re-paste this chunk once the link is up" }`,
+          // PARENTHESISED. A concatenation passed as a command ARGUMENT
+          // must be wrapped in `( ... )` on RouterOS: without them the
+          // console parses `:log warning "<string>"` as a complete command
+          // and then hits `. $wan1Gw . "..."` as a second, meaningless
+          // command on the same statement -- a hard `syntax error` that
+          // aborts THE WHOLE `;`-joined line. Confirmed live on the
+          // founder's hEX (2026-08-23): the WAN Routing chunk returned
+          // nothing but `error`, so the gateway poll, the plain default
+          // route and every routing-mark'd route below it never ran. The
+          // router was left with no default route at all -- the exact
+          // "no gateway-health signal" state this chunk exists to prevent.
+          //
+          // This was the ONLY unparenthesised concatenation the generator
+          // emitted; every other `:put`/`:log`/`:error` that concatenates
+          // (wanExistenceCheckLines, the clock verdict, the heartbeat's
+          // three fault traces, every count line) already had them. One
+          // site, missed once -- which is precisely why it is now swept
+          // for rather than left to review. See section 11.
+          `:if (!(${gwOk})) do={ :log warning ("cloudguest: WAN${n} gateway did not resolve (still \\"" . $wan${n}Gw . "\\") -- no default route added for this WAN; re-paste this chunk once the link is up") }`,
           // Adopt-don't-duplicate: checked by OUR OWN comment first (the
           // normal, healthy-re-run case), but if that's missing this also
           // checks for ANY other route already sitting at this exact
