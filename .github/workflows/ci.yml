@@ -367,8 +367,14 @@ jobs:
       # The two floors sections 6-9 were developed against (210 and 340)
       # were raised on separate branches and merged here; neither survives
       # on its own, because the sections are disjoint and the suite now runs
-      # both. Floor raised 160 -> 395 -> 435 -> 450 -> 1400, observed
-      # green at 1453 on 2026-08-23. The jump is section 12 -- every
+      # both. Floor raised 160 -> 395 -> 435 -> 450 -> 1400 -> 1530,
+      # observed green at 1588 on 2026-08-23. The 1530 step is sections 13
+      # and 14: one writer per hotspot-profile property with no
+      # router-signed TLS in front of a guest (13), and intercept-the-probe
+      # -never-allow-it for OS captive-portal detection (14). It also
+      # retires the three checks that counted the deleted self-signed
+      # certificate chunk and replaces them with three over the login-by
+      # read-back that took its place. The earlier jump is section 12 -- every
       # default-route lookup in every chunk rather than the heartbeat's
       # alone, the RouterOS 7 `routing-table=` vocabulary that replaced a
       # v6 spelling which matched nothing without erroring, the failover
@@ -379,7 +385,7 @@ jobs:
       - name: setup script generator
         run: |
           ./scripts/ci-gated-test.sh \
-            "setup-script-generator" 1400 \
+            "setup-script-generator" 1530 \
             "setup-script-generator: all checks passed" \
             bun run test:setup-script
 
