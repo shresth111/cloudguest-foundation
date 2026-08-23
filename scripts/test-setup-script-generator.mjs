@@ -217,6 +217,114 @@
  *   the place-before guard stops requiring the length test ............. 1
  *   the existence-test predicate stops recognising `] = 0` ............. 1
  *
+ * SECTION 12 -- THE UPLINK IS DISCOVERED IN THE WAN CHUNKS TOO
+ * ------------------------------------------------------------
+ * Section 3 proved the HEARTBEAT derives its uplink from the routing
+ * table. It proved nothing about the chunks that BUILD that uplink's
+ * routes, and those were still working from a different set of facts: the
+ * port typed into "WAN N interface", and a `/ip dhcp-client` lookup keyed
+ * on it. "WAN1"/"WAN2" are logical labels of this platform's own; no
+ * interface on any device has to be called WAN1, WAN2, ether1 or ether2.
+ * Section 12 sweeps EVERY default-route lookup in EVERY chunk, not the
+ * heartbeat's alone, and the variant matrix gained seven interface shapes
+ * that the ether1/ether2 fixtures never exercised: a renamed port, a VLAN,
+ * an SFP, DHCP-on-ether5 beside PPPoE-on-pppoe-out1, static-on-ISP-Airtel
+ * beside DHCP-on-vlan100, four WANs of mixed modes, and a gateway field
+ * containing a `"`.
+ *
+ * THE `routing-mark=""` DEFECT, which is the reason half of this section
+ * exists. Measured on the founder's hEX lite (RouterOS 7.23.3,
+ * factory-software 6.44.6):
+ *
+ *     :put [:len [/ip route find where routing-table="main"]]  ->  1
+ *     :put [:len [/ip route find where routing-mark=""]]       ->  0
+ *
+ * `routing-mark=` is RouterOS 6 vocabulary for a route's table. On v7 it
+ * does not error -- it is accepted as an unknown filter and SILENTLY
+ * MATCHES AN EMPTY SET. Every default-route lookup this generator emitted
+ * returned nothing on every router in the fleet, and nothing anywhere
+ * said so. A guard that greps for a token would have passed on all 28
+ * sites, because the token was there; it was the meaning that was dead.
+ * So this section checks two dimensions: that the qualifier is on EVERY
+ * relevant lookup, and that every lookup BINDS A COUNT AND BRANCHES ON
+ * ZERO -- which is what makes the next rename loud instead of silent.
+ * That second property matters more than the rename.
+ *
+ * 12.10 runs the failover sequence END TO END against a selector PARSED
+ * OUT OF the emitted heartbeat -- its filter tokens and its distance
+ * ordering, not a reimplementation -- so WAN1-up, WAN1-dead, WAN2-active,
+ * WAN1-restored each assert a concrete answer. It verifies the emitted
+ * filter and ordering. It does NOT verify that RouterOS reads those
+ * tokens the way this harness does; that is an inference, and it is
+ * exactly the inference that was wrong about `routing-mark`.
+ *
+ * Twenty-eight mutations of the REAL generator (and of this suite's own
+ * classifier), all caught:
+ *
+ *   `active=yes` dropped from ONE lookup, the gateway sweep only ....... 32
+ *   `routing-mark=""` dropped from ONE lookup, the iface sweep only .... 51
+ *   `ether1` hardcoded back into the DHCP gateway lookup ................ 5
+ *   the adoption-lookup classifier made over-strict (never matches) .... 33
+ *   the adoption-lookup classifier made over-loose (always matches) .... 19
+ *   `active=yes` ADDED to the adoption find (the exception deleted) .... 16
+ *   the per-WAN faults collapsed into one generic message .............. 50
+ *   the final real-interface verification dropped ...................... 16
+ *   the live-uplink report keyed on the first configured port again .... 30
+ *   the ascending-distance sweep replaced by an unordered find ......... 65
+ *   the static gateway interpolated raw again (no escaping) ............. 1
+ *   the WAN chunk given its own copy of the discovery, drifted ......... 16
+ *   one `/ip route add` loses its zero-count guard ..................... 17
+ *   the multi-WAN fallback stops matching its own interface ............. 6
+ *   the PPPoE gateway polled exactly once again ......................... 4
+ *   the bounded retry made unbounded (a fixed sleep) ................... 13
+ *   the live-uplink report's three faults collapsed into one ........... 32
+ *   the v6 `routing-mark` spelling put back on ONE lookup .............. 33
+ *   the heartbeat pinned to WAN1's routing table ....................... 51
+ *   `public_ip_address` sent unconditionally (the "" overwrite) ........ 17
+ *   `ether2` hardcoded into the WAN interface-list membership .......... 13
+ *   interface verification narrowed to `/interface ethernet` ........... 33
+ *   the forced-name `:error` abort restored ............................ 17
+ *   the discovered-uplink NAT keyed on any masquerade rule .............. 2
+ *   a mark-routing rule moved to `chain=output` ........................ 10
+ *   the `to_wan<N>` routing-table preamble dropped ...................... 6
+ *   `check-gateway=ping` dropped from the plain routes .................. 2
+ *   every plain route given `distance=1` ................................ 1
+ *
+ * TWO MORE SURVIVED ON THE FIRST PASS, and both were real holes:
+ *  - keying the discovered-uplink NAT lookup on `chain=srcnat
+ *    action=masquerade` instead of on this generator's own comment. That
+ *    find matches a USER'S masquerade rule just as well as ours, and the
+ *    statement after it is a `set`. Nothing checked that NAT lookups are
+ *    comment-tagged. They are now, in both directions: what may be found,
+ *    and what may be modified.
+ *  - giving every plain route `distance=1`. The check used `includes`, so
+ *    the mode-specific line still carried the right distance somewhere in
+ *    the chunk while the fallback line wrote them all at 1. Two defaults
+ *    at the same distance means failback order is not a decision this
+ *    script made. The check now walks every route write per WAN. Same
+ *    "somewhere, not everywhere" shape as the qualifier holes.
+ *
+ * TWO INITIALLY SURVIVED, and both were real holes in the GUARDS rather
+ * than confirmations -- the same shape this file has now been bitten by
+ * three times.
+ *
+ *  - Adding `active=yes` to the adoption find survived because the check
+ *    COUNTED adoption-shaped lookups. The mutated find stopped being
+ *    adoption-shaped, moved into the "discovery" bucket, and passed there
+ *    on its new qualifiers, while the remaining fallback adoptions still
+ *    met the count. The check now names each of the two finds every WAN
+ *    must have, by its exact variable.
+ *  - Collapsing the per-WAN A/B/C messages into one generic sentence
+ *    survived because the check tested the CHUNK, and the chunk's own
+ *    live-uplink report still carried all three. The check now enumerates
+ *    every reporting site -- each WAN's fallback line and the chunk tail --
+ *    and requires the distinction at each one separately.
+ *
+ * Both anti-over-strictness self-checks were proven to bite by mutating
+ * the classifier itself in each direction (rows 4 and 5 above): too strict
+ * and the documented exception cannot be expressed, so the guard gets
+ * switched off; too loose and it exempts every lookup in the file.
+ *
  *   (three initially slipped through, and two were real holes in the
  *    GUARDS rather than confirmations. The place-before and unguarded-add
  *    checks each kept a PRIVATE COPY of the regex their self-check tested,
@@ -496,6 +604,79 @@ const VARIANTS = [
     "wireguard whose endpoint host is already an address",
     { ...BASE, wans: [DHCP_WAN], wireguard: { ...WG, serverEndpointHost: WG_LITERAL_HOST } },
   ],
+  // ---- the interface shapes "WAN1 is ether1" never covered ------------
+  // "WAN1"/"WAN2" are LOGICAL labels of this platform's own. Nothing on
+  // the device has to be called any of `WAN1`, `WAN2`, `ether1`, `ether2`
+  // for a generated script to be correct, and every shape below is a real
+  // one a venue router turns up with. They are in the MAIN variant sweep,
+  // not a private list, so the console-scope guard, the `do={}` guard, the
+  // validator and the idempotency guard all see them too.
+  [
+    "renamed WAN interface, static", // `/interface set name=ISP-Airtel`
+    {
+      ...BASE,
+      wans: [
+        { iface: "ISP-Airtel", mode: "static", ip: "1.2.3.4", cidr: "24", gateway: "1.2.3.1" },
+      ],
+    },
+  ],
+  ["VLAN WAN interface, DHCP", { ...BASE, wans: [{ iface: "vlan100", mode: "dhcp" }] }],
+  ["SFP WAN interface, DHCP", { ...BASE, wans: [{ iface: "sfp-sfpplus1", mode: "dhcp" }] }],
+  [
+    // The founder's own first example, verbatim: logical WAN1 -> ether5 ->
+    // DHCP, logical WAN2 -> pppoe-out1 -> PPPoE. Neither logical label
+    // matches its interface, and the PPPoE one is a name RouterOS would
+    // itself have auto-generated for a pppoe-client.
+    "logical WAN1 on ether5/DHCP, logical WAN2 on pppoe-out1/PPPoE",
+    {
+      ...BASE,
+      wans: [
+        { iface: "ether5", mode: "dhcp" },
+        { iface: "pppoe-out1", mode: "pppoe", pppoeUsername: "u", pppoePassword: "p" },
+      ],
+      wanRoutingMode: "load_balance",
+    },
+  ],
+  [
+    // The founder's second example: logical WAN1 -> ISP-Airtel -> static,
+    // logical WAN2 -> vlan100 -> DHCP.
+    "logical WAN1 on ISP-Airtel/static, logical WAN2 on vlan100/DHCP",
+    {
+      ...BASE,
+      wans: [
+        { iface: "ISP-Airtel", mode: "static", ip: "1.2.3.4", cidr: "24", gateway: "1.2.3.1" },
+        { iface: "vlan100", mode: "dhcp" },
+      ],
+      wanRoutingMode: "load_balance",
+    },
+  ],
+  [
+    // MORE THAN TWO WANS, every mode at once, on interface names of every
+    // shape. The crossover-backup ring and the PCC index split both have
+    // to stay coherent past the two-WAN case they were written for.
+    "four WANs, mixed modes, mixed interface shapes",
+    {
+      ...BASE,
+      wans: [
+        { iface: "ether5", mode: "dhcp" },
+        { iface: "ISP-Airtel", mode: "static", ip: "1.2.3.4", cidr: "24", gateway: "1.2.3.1" },
+        { iface: "vlan100", mode: "pppoe", pppoeUsername: "u", pppoePassword: "p" },
+        { iface: "sfp-sfpplus1", mode: "dhcp" },
+      ],
+      wanRoutingMode: "load_balance",
+    },
+  ],
+  [
+    // A static WAN whose gateway carries characters that close a RouterOS
+    // double-quoted string. This used to be interpolated raw.
+    "static WAN with a quote-bearing gateway field",
+    {
+      ...BASE,
+      wans: [
+        { iface: `ISP"weird`, mode: "static", ip: "1.2.3.4", cidr: "24", gateway: `1.2.3.1"x` },
+      ],
+    },
+  ],
 ];
 
 /** Every chunk this generator can put in front of a technician, labelled
@@ -513,8 +694,7 @@ const pasteables = [];
   }
 }
 
-// =====================================================================
-// 1. THE CONSOLE-SCOPE GUARD
+// ==============================================================// 1. THE CONSOLE-SCOPE GUARD
 // =====================================================================
 // Identical rule to `test-output-analyser.mjs` and
 // `test-manual-wizard-engine.mjs`, deliberately: a variable REFERENCED on
@@ -887,16 +1067,16 @@ for (const [variant, opts] of VARIANTS) {
         defaultRouteLookups.filter((t) => !t.includes("active=yes")),
       )}`,
   );
-  // This generator itself creates routing-mark'd default routes per WAN in
+  // This generator itself creates routes in per-WAN routing TABLES in
   // load-balance mode, so an unqualified find returns several and "the
   // first" would be whichever mark sorted first.
   check(
-    `${variant}: EVERY default-route lookup reads the MAIN table, not a routing-mark'd copy`,
+    `${variant}: EVERY default-route lookup reads the MAIN table (v7 routing-table=), not a marked copy`,
     defaultRouteLookups.length > 0 &&
-      defaultRouteLookups.every((t) => t.includes(`routing-mark=""`)),
+      defaultRouteLookups.every((t) => t.includes(`routing-table="main"`)),
     "the heartbeat is router-originated traffic and is routed by the main table; the marked " +
       `copies belong to LAN traffic. Unqualified: ${JSON.stringify(
-        defaultRouteLookups.filter((t) => !t.includes(`routing-mark=""`)),
+        defaultRouteLookups.filter((t) => !t.includes(`routing-table="main"`)),
       )}`,
   );
   check(
@@ -2329,9 +2509,16 @@ const KNOWN_MENUS = new Set([
   "/ip route",
   "/ip service",
   "/radius",
+  // RouterOS 7 only. A route may not enter a routing table that has not
+  // been declared here first, and on v6 this menu does not exist at all --
+  // which is one of the things the generator's own version banner warns
+  // about, since a `find` against a missing menu is another silent empty
+  // match.
+  "/routing table",
   "/system clock",
   "/system identity",
   "/system ntp client",
+  "/system resource",
   "/system scheduler",
   "/tool",
   "/user",
@@ -2437,6 +2624,899 @@ const MAX_DELAY_S = 60;
     worst[0] <= MAX_DELAY_S,
     `${worst[1]} can block for ${worst[0]}s with no output. A technician reads a frozen ` +
       `terminal as a hang and power-cycles the router mid-provision.`,
+  );
+}
+
+// =====================================================================
+// 12. THE UPLINK IS DISCOVERED, NOT ASSUMED -- IN THE WAN CONFIGURATION
+//     CHUNKS, NOT ONLY IN THE HEARTBEAT
+// =====================================================================
+// Section 3 above proved the HEARTBEAT derives the uplink from the routing
+// table. It said nothing about the chunks that BUILD that uplink's routes,
+// and those were still working from a different set of facts: the port
+// typed into "WAN N interface", and a `/ip dhcp-client` lookup keyed on
+// it. Both are assumptions about where a WAN lives, and both are wrong on
+// a router that is nonetheless perfectly online -- a renamed port, a VLAN
+// or SFP sub-interface, an ISP that moved, a static gateway left blank.
+//
+// The rule this section enforces:
+//
+//   "WAN1"/"WAN2" ARE LOGICAL LABELS OF THIS PLATFORM'S OWN. No interface
+//   on the device has to be called WAN1, WAN2, ether1 or ether2. The only
+//   authority on which interface is carrying the internet is the
+//   lowest-distance ACTIVE default route in the MAIN routing table.
+//
+// EVERY LOOKUP, NOT SOMEWHERE. Section 3's own history is the reason this
+// is written as a sweep over every occurrence rather than a substring
+// test: an earlier version of that guard asserted the qualifiers appeared
+// SOMEWHERE, and a mutation that stripped them from the counting lookup
+// while leaving them on the selecting one went undetected. That hole has
+// now been found twice in this file. So this walks every default-route
+// lookup in every chunk of every variant, and the ONE deliberate exception
+// (the duplicate-slot adoption find, which must NOT filter on `active`)
+// is recognised by its exact shape, asserted to exist, and asserted to
+// still carry `routing-mark=""`. Neither the rule nor its exception can
+// disappear quietly.
+
+console.log("\n-- the uplink is discovered from the routing table, for every WAN shape --");
+
+/** A default-route lookup, as it appears in a generated chunk: everything
+ * between `dst-address="0.0.0.0/0"` and the `]` that closes the find.
+ * One level of RouterOS escaping is undone first so the scheduler's stored
+ * copy (where the quotes arrive as `\"`) is counted too, not skipped. */
+const defaultRouteLookupsIn = (text) =>
+  [...text.replace(/\\(.)/g, "$1").matchAll(/dst-address="0\.0\.0\.0\/0"([^\]]*)/g)].map(
+    (m) => m[1],
+  );
+
+/** THE ONE EXCEPTION, recognised by shape rather than by position: the
+ * "is this dst-address+gateway slot already occupied" find. RouterOS's own
+ * duplicate-route check is on dst-address+gateway alone, and an INACTIVE
+ * route occupies the slot exactly as much as an active one does, so
+ * filtering this one on `active=yes` would skip the adopt branch, fall
+ * into the add branch, and turn a silent no-op into "failure: already have
+ * such route" mid-paste. It still has to carry `routing-mark=""`, or it
+ * would adopt one of this generator's own routing-mark'd copies. */
+const IS_SLOT_ADOPTION_LOOKUP = (tail) => /^ gateway=\$\w+ routing-table="main"$/.test(tail);
+
+/** Everything else. These are the lookups that answer "which uplink is
+ * live", and an Inactive route or a routing-mark'd copy is a wrong answer
+ * to that question, not a partial one. */
+const IS_UPLINK_DISCOVERY_LOOKUP = (tail) => !IS_SLOT_ADOPTION_LOOKUP(tail);
+
+// The classifier is a guard in its own right, so it is proven to bite
+// before it is trusted -- both directions. An over-strict classifier
+// (everything is "discovery") would make the exception impossible to
+// express and get switched off; an over-loose one (everything is
+// "adoption") would exempt every lookup in the file.
+check(
+  "INJECTED: the lookup classifier recognises the adoption find it must exempt",
+  IS_SLOT_ADOPTION_LOOKUP(` gateway=$wan1Gw routing-table="main"`) &&
+    IS_SLOT_ADOPTION_LOOKUP(` gateway=$w2fGw routing-table="main"`),
+  "the exemption no longer matches the shape it exists for, so the real adoption find would be " +
+    "reported as an unqualified discovery lookup and this guard would be switched off",
+);
+check(
+  "INJECTED: ...and does NOT exempt an unqualified discovery lookup",
+  IS_UPLINK_DISCOVERY_LOOKUP(` routing-table="main"`) &&
+    IS_UPLINK_DISCOVERY_LOOKUP(` active=yes routing-table="main" distance=$hbDist`) &&
+    IS_UPLINK_DISCOVERY_LOOKUP(``),
+  "the exemption is wide enough to swallow a real discovery lookup, which is how `active=yes` " +
+    "gets dropped from the sweep that selects the uplink without anything failing",
+);
+check(
+  "INJECTED: ...and does not exempt an adoption-shaped find that lost its main-table filter",
+  !IS_SLOT_ADOPTION_LOOKUP(` gateway=$wan1Gw`) &&
+    !IS_SLOT_ADOPTION_LOOKUP(` gateway=$wan1Gw active=yes`),
+  "an adoption find with no main-table filter would adopt this generator's own marked routes",
+);
+
+for (const [variant, opts] of VARIANTS) {
+  const chunks = buildRouterSetupScriptChunks(opts);
+  const text = allText(chunks);
+  const wanRouting = chunkByLabel(chunks, "WAN Routing");
+  const wanRoutingText = allText(wanRouting);
+  const lookups = defaultRouteLookupsIn(text);
+  const discovery = lookups.filter(IS_UPLINK_DISCOVERY_LOOKUP);
+  const adoption = lookups.filter(IS_SLOT_ADOPTION_LOOKUP);
+
+  // ---- 12.1 every discovery lookup, in every chunk -------------------
+  check(
+    `${variant}: EVERY default-route lookup in the WHOLE script requires active=yes`,
+    discovery.length > 0 && discovery.every((t) => t.includes("active=yes")),
+    "RouterOS keeps an unreachable default route in the table and flags it Inactive rather than " +
+      "removing it, so an unqualified lookup calls a dead uplink healthy. Unqualified: " +
+      JSON.stringify(discovery.filter((t) => !t.includes("active=yes"))),
+  );
+  check(
+    `${variant}: EVERY default-route lookup in the WHOLE script reads the MAIN table`,
+    lookups.length > 0 && lookups.every((t) => t.includes(`routing-table="main"`)),
+    "this generator itself creates routing-mark'd default routes per WAN, so an unqualified find " +
+      "returns routes from several tables at once. Unqualified: " +
+      JSON.stringify(lookups.filter((t) => !t.includes(`routing-table="main"`))),
+  );
+  // The exception has to keep existing, or a future edit that "fixes" it
+  // by adding `active=yes` would pass 11.1 while reintroducing a hard
+  // mid-paste error on any router carrying a foreign default route.
+  if (!opts.basicConfigOnly) {
+    // NAMED, not counted. Counting survived a mutation that added
+    // `active=yes` to the mode-specific adoption find: the mutated find
+    // stopped being adoption-shaped, moved into the "discovery" bucket
+    // where it passed 11.1 on its new qualifiers, and the remaining
+    // fallback adoptions still met the count. That is the same
+    // "asserted somewhere rather than on every one" hole this file has
+    // now been bitten by three times. So each of the two adoption finds
+    // every WAN must have is required BY ITS EXACT VARIABLE.
+    const missingAdoptions = opts.wans.flatMap((_, i) => {
+      const n = i + 1;
+      return [`$wan${n}Gw`, `$w${n}fGw`].filter(
+        (v) => !adoption.includes(` gateway=${v} routing-table="main"`),
+      );
+    });
+    check(
+      `${variant}: every WAN's duplicate-slot adoption find exists and stays unfiltered on active`,
+      missingAdoptions.length === 0,
+      `${JSON.stringify(missingAdoptions)} has no ` +
+        `\`dst-address="0.0.0.0/0" gateway=<var> routing-table="main"\` find. Either it was deleted, or ` +
+        "it grew an `active=yes` it must not have: an INACTIVE route occupies the " +
+        "dst-address+gateway slot just as much as an active one, so filtering it out skips the " +
+        'adopt branch and turns a silent no-op into "failure: already have such route" mid-paste',
+    );
+  }
+  // Complementary sweep, keyed on the command rather than on the
+  // dst-address literal: catches a lookup written without the quotes that
+  // 11.1's regex keys on.
+  const routeFinds = [...text.replace(/\\(.)/g, "$1").matchAll(/\/ip route find where([^\]]*)/g)]
+    .map((m) => m[1])
+    .filter((t) => !/comment[=~]/.test(t));
+  check(
+    `${variant}: every non-comment /ip route find is either qualified or the adoption find`,
+    routeFinds.length > 0 &&
+      routeFinds.every(
+        (t) =>
+          (t.includes("active=yes") && t.includes(`routing-table="main"`)) ||
+          /gateway=\$\w+ routing-table="main"/.test(t),
+      ),
+    `unqualified: ${JSON.stringify(
+      routeFinds.filter(
+        (t) =>
+          !(
+            (t.includes("active=yes") && t.includes(`routing-table="main"`)) ||
+            /gateway=\$\w+ routing-table="main"/.test(t)
+          ),
+      ),
+    )}`,
+  );
+
+  // ---- 12.2 no interface name is assumed -----------------------------
+  const wanNames = opts.wans.map((w) => w.iface);
+  const lanNames = opts.lanIfs ?? [];
+  const named = new Set([...wanNames, ...lanNames]);
+  const leaked = [...new Set(text.match(/\bether\d+\b/g) ?? [])].filter((n) => !named.has(n));
+  check(
+    `${variant}: no ether<N> name appears that the caller did not supply`,
+    leaked.length === 0,
+    `${JSON.stringify(leaked)} is baked in -- that is the "WAN1 is ether1" assumption, wherever ` +
+      "it has moved to",
+  );
+  check(
+    `${variant}: never forces a WAN1/WAN2 interface NAME onto the device`,
+    !/(interface|name)=\\?"WAN[0-9]\\?"/.test(text),
+    'a find or add keyed on an interface literally named "WAN1"/"WAN2" -- those are this ' +
+      "platform's logical labels, not names any router has to carry",
+  );
+  check(
+    `${variant}: never renames one of the user's interfaces`,
+    !/\/interface[a-z ]* set \[find [^\]]*\] [^;\n]*\bname=/.test(text),
+    "renaming a WAN port is the exact confirmed-live incident WAN_RENAME_WARNING_HEADER exists " +
+      "to warn against, and this generator must never do it either",
+  );
+
+  if (opts.basicConfigOnly) continue;
+
+  // ---- 12.3 the routing chunk resolves the uplink the same way -------
+  check(
+    `${variant}: the WAN Routing chunk resolves the uplink from the routing table at all`,
+    /:for w\dfDist from=1 to=255 do=\{/.test(wanRoutingText),
+    "the WAN configuration chunk still trusts only the port it was told about",
+  );
+  check(
+    `${variant}: ...by ASCENDING distance, so the lowest-distance route wins`,
+    /distance=\$w\dfDist\]/.test(wanRoutingText) &&
+      /distance=\$w\dfGwDist\]/.test(wanRoutingText) &&
+      /distance=\$wanChkDist\]/.test(wanRoutingText),
+    "no explicit ascending sweep -- which route is chosen would depend on find order",
+  );
+  check(
+    `${variant}: ...handling immediate-gw, gateway-as-interface-name and ARP, each guarded`,
+    /immediate-gw/.test(wanRoutingText) &&
+      /\/ip arp get \[find where address=/.test(wanRoutingText) &&
+      (wanRoutingText.match(/on-error=/g) ?? []).length >= 3,
+    "one of the three resolution paths is missing, or one of them is unguarded -- an unguarded " +
+      "one aborts the rest of the entered line",
+  );
+  check(
+    `${variant}: ...and the result is VERIFIED to be a real interface before it is used`,
+    (
+      wanRoutingText.match(
+        /!\(\[:len \[\/interface find where name=\$\w+\]\] > 0\)\) do=\{ :set \w+ ""/g,
+      ) ?? []
+    ).length >= 2,
+    "a name that survived immediate-gw/gateway/ARP but matches no interface would be used as " +
+      "though it were real -- every resolution here is an inference and must degrade to " +
+      '"unresolved", never to a plausible wrong name',
+  );
+
+  // ---- 12.3b a multi-WAN fallback must match ITS OWN interface --------
+  // The discovered uplink belongs to exactly one WAN. Handing its gateway
+  // to a different WAN builds a route that sends WAN2's marked traffic out
+  // of WAN1, which is worse than having no route: it looks configured and
+  // silently misroutes. A single-WAN router is the one deliberate
+  // exception -- there is no other WAN to confuse it with, and "the
+  // configured name is not the one the device uses" is the case the
+  // fallback exists for -- so it is asserted to warn about the mismatch
+  // instead of absorbing it.
+  {
+    const wanEff = opts.wans.map((w, i) =>
+      w.mode === "pppoe" ? `cloudguest-pppoe-wan${i + 1}` : w.iface,
+    );
+    if (opts.wans.length > 1) {
+      const unmatched = opts.wans
+        .map((_, i) => i + 1)
+        .filter(
+          (n) =>
+            !wanRoutingText.includes(`$w${n}fIf = "${wanEff[n - 1].replace(/(["\\])/g, "\\$1")}"`),
+        );
+      check(
+        `${variant}: each WAN's routing-table fallback matches ITS OWN interface, not just any`,
+        unmatched.length === 0,
+        `WAN(s) ${JSON.stringify(unmatched)} take the discovered gateway without checking the ` +
+          "discovered interface is theirs -- on a multi-WAN router that builds a default route " +
+          "for one WAN out of another WAN's next hop",
+      );
+    } else {
+      check(
+        `${variant}: a single-WAN fallback warns when the device's uplink is not the configured one`,
+        /is configured as .* but the live default route leaves via/.test(wanRoutingText),
+        "the mismatch is absorbed silently, so the form staying wrong is invisible",
+      );
+    }
+  }
+
+  // ---- 12.3c retries are bounded, shared, and guarded -----------------
+  // "Wait for the link" is genuinely required -- a DHCP lease and a PPPoE
+  // session both bind asynchronously, and reading either the instant the
+  // client is added returns nothing. What is not acceptable is an
+  // unbounded wait, or a different hand-written ladder per call site.
+  {
+    const delays = [...wanRoutingText.matchAll(/:delay (\d+)([smh])/g)].map(
+      (m) => Number(m[1]) * { s: 1, m: 60, h: 3600 }[m[2]],
+    );
+    const totalWaitPerWan = delays.reduce((a, b) => a + b, 0) / Math.max(opts.wans.length, 1);
+    check(
+      `${variant}: every wait is bounded, and the total per WAN stays in the tens of seconds`,
+      delays.length > 0 ? totalWaitPerWan > 0 && totalWaitPerWan <= 90 : true,
+      `${totalWaitPerWan}s of waiting per WAN -- a lease that has not bound in half a minute is a ` +
+        "fault to report, not something to keep a technician standing at a router for",
+    );
+    check(
+      `${variant}: every retry re-tests the guard rather than retrying blind`,
+      [...wanRoutingText.matchAll(/:if \(([^)]*)\) do=\{ :delay/g)].every((m) =>
+        /\[:len \$\w+\] = 0/.test(m[1]),
+      ),
+      "a wait that is not conditional on the value still being unresolved is a fixed sleep, " +
+        "which costs the technician the full delay on every healthy paste",
+    );
+    // An asynchronous source that is polled exactly once is a source that
+    // is usually read too early. PPPoE shipped that way.
+    if (opts.wans.some((w) => w.mode === "dhcp")) {
+      check(
+        `${variant}: a DHCP WAN's gateway is polled more than once`,
+        (wanRoutingText.match(/\/ip dhcp-client get \[find where interface=/g) ?? []).length >
+          opts.wans.filter((w) => w.mode === "dhcp").length,
+        "one attempt against an asynchronous lease is a read that lands before the lease exists",
+      );
+    }
+    if (opts.wans.some((w) => w.mode === "pppoe")) {
+      check(
+        `${variant}: a PPPoE WAN's gateway is polled more than once`,
+        (wanRoutingText.match(/\/interface pppoe-client monitor \[find name=/g) ?? []).length >
+          opts.wans.filter((w) => w.mode === "pppoe").length,
+        "PPPoE negotiation is asynchronous exactly the way a DHCP lease is; a single attempt is " +
+          'why this branch used to end in "re-paste this chunk once connected"',
+      );
+    }
+  }
+
+  // ---- 12.4 the uplink discovery is ONE program, not two --------------
+  // The heartbeat and the WAN configuration chunks must not be able to
+  // disagree about what "the uplink" is. They share a builder; this proves
+  // the emitted text is genuinely identical once the variable prefix is
+  // normalised away, which is the only thing that can prove it.
+  const sweeps = [
+    ...text
+      .replace(/\\(.)/g, "$1")
+      .matchAll(/:for (\w+?)Dist from=1 to=255 do=\{[^\n]*?immediate-gw[^\n]*?\} \} \} \}/g),
+  ];
+  const normalisedSweeps = new Set(
+    sweeps.map((m) => m[0].split(m[1]).join("<P>")).map((s) => s.trim()),
+  );
+  check(
+    `${variant}: the heartbeat and the WAN chunks run the SAME discovery program`,
+    sweeps.length >= 2 && normalisedSweeps.size === 1,
+    `${sweeps.length} sweep(s), ${normalisedSweeps.size} distinct once the variable prefix is ` +
+      "normalised -- two copies that have drifted mean one chunk builds routes for an uplink the " +
+      `other does not report. Variants: ${JSON.stringify([...normalisedSweeps])}`,
+  );
+
+  // ---- 12.5 three faults, three sentences ----------------------------
+  // A/B/C must stay distinguishable in the WAN configuration chunk, not
+  // only in the heartbeat. Collapsed into one message, a technician is
+  // sent to the wrong place: A is cabling/ISP, B is a RouterOS
+  // version/link-type problem where routing may be fine, C is a link that
+  // is up and unconfigured.
+  const FAULT_A = "cloudguest: no active default route found in main routing table";
+  const FAULT_B = "cloudguest: active default route found but WAN interface could not be resolved";
+  const FAULT_C = /resolved but carries no usable address or gateway/;
+  // PER REPORTING SITE, not per chunk. Checking the chunk as a whole
+  // survived a mutation that collapsed the per-WAN faults into one generic
+  // message, because the chunk's own live-uplink report still carried all
+  // three and the substring test could not tell them apart. Every place
+  // that reports "this WAN has no gateway" is enumerated and checked on its
+  // own -- one site losing the distinction is the whole failure.
+  const reportingSites = [
+    ...opts.wans.map((_, i) => [
+      `WAN${i + 1}'s own fallback line`,
+      wanRoutingText
+        .split("\n")
+        .filter((l) => new RegExp(`\\$w${i + 1}f(If|Gw|DefCount|Have)\\b`).test(l))
+        .join("\n"),
+    ]),
+    [
+      "the chunk's live-uplink report",
+      wanRoutingText
+        .split("\n")
+        .filter((l) => l.includes("wanChk"))
+        .join("\n"),
+    ],
+  ];
+  for (const [site, siteText] of reportingSites) {
+    check(
+      `${variant}: ${site} reports fault A ("no active default route") in its own words`,
+      siteText.includes(FAULT_A),
+      "missing -- A is a dead link, cable or ISP",
+    );
+    check(
+      `${variant}: ${site} reports fault B ("route found, interface unresolved") in its own words`,
+      siteText.includes(FAULT_B) || /could not be resolved/.test(siteText),
+      "missing -- B means routing may be fine and the RouterOS version/link type is the problem",
+    );
+    check(
+      `${variant}: ${site} reports fault C ("interface up, nothing usable on it") in its own words`,
+      FAULT_C.test(siteText),
+      "missing -- C is a link that is up and unconfigured, the one usually fixable on the spot",
+    );
+    check(
+      `${variant}: ${site} keeps the three faults as three DIFFERENT sentences`,
+      new Set([...siteText.matchAll(/:log warning \(?"(cloudguest[^"]*)"/g)].map((m) => m[1]))
+        .size >= 3,
+      "the faults have been collapsed into one generic message at this site, which is the same " +
+        "information loss as collapsing them into an empty string",
+    );
+  }
+  // A route built from an unchecked variable is the `gateway=0.0.0.0`
+  // incident: `"0.0.0.0" != ""` is TRUE, RouterOS accepts the route, and
+  // then silently flags it Inactive while every ping says "no route to
+  // host" on a router whose WAN is healthy. Every statement that puts a
+  // variable into `gateway=` must therefore test that same variable for
+  // BOTH empty and zero, on its own entered statement -- a guard on a
+  // different statement is a guard on a different program.
+  {
+    const gatewayUses = wanRoutingText
+      .split("\n")
+      .flatMap((l) => l.split("; "))
+      .filter((s) => /\/ip route (add|set)[^;]*gateway=\$/.test(s));
+    // FOLLOWS ONE LEVEL OF INDIRECTION. The fallback line hoists its
+    // guard into a boolean (`$w1fUse`) because writing the literal test
+    // out six times put the line over the paste-size budget. A check that
+    // only looked for the literal test would report that hoist as an
+    // unguarded route -- and, worse, would push the next person to
+    // un-hoist it and blow the budget. So a statement guarded on a
+    // boolean is accepted only if that boolean's own `:set`, ON THE SAME
+    // ENTERED LINE, is itself conditioned on both gateway tests. A
+    // boolean set unconditionally, or set under a weaker condition, still
+    // fails.
+    const guardsGateway = (cond, v) =>
+      cond.includes(`$${v} != ""`) && cond.includes(`$${v} != "0.0.0.0"`);
+    const unchecked = gatewayUses.filter((stmt) => {
+      const v = stmt.match(/gateway=\$(\w+)/)?.[1];
+      if (guardsGateway(stmt, v)) return false;
+      const line = wanRoutingText.split("\n").find((l) => l.includes(stmt)) ?? "";
+      const flags = [...stmt.matchAll(/\$(\w+) = true/g)].map((m) => m[1]);
+      return !flags.some((flag) =>
+        line
+          .split("; ")
+          .filter((t) => new RegExp(`do=\\{ :set ${flag} true \\}`).test(t))
+          .some((setter) => guardsGateway(setter, v)),
+      );
+    });
+    check(
+      `${variant}: every route built from a resolved gateway tests it for empty AND for 0.0.0.0`,
+      gatewayUses.length > 0 && unchecked.length === 0,
+      `${unchecked.length} statement(s) build a route from an unchecked variable: ` +
+        `${JSON.stringify(unchecked.map((s) => s.slice(0, 120)))} -- "0.0.0.0" != "" is TRUE, and ` +
+        "RouterOS accepts a zero gateway and then flags the route Inactive with no error",
+    );
+  }
+
+  // ---- 12.6 failover: the dead WAN is not reported forever ------------
+  // The report of what is actually live must not be keyed on any WAN's
+  // position in the list. If WAN1 dies and WAN2 becomes the lowest-distance
+  // usable active default, a re-paste has to say WAN2's real interface and
+  // WAN2's real address.
+  const liveReport = wanRoutingText
+    .split("\n")
+    .filter((l) => l.includes("wanChk"))
+    .join("\n");
+  check(
+    `${variant}: the live-uplink report names no configured WAN interface`,
+    liveReport.length > 0 && !wanNames.some((nm) => liveReport.includes(`"${nm}"`)),
+    `the report is keyed on one of ${JSON.stringify(wanNames)} -- it would keep naming the WAN ` +
+      "that was configured first even after that WAN has died",
+  );
+  check(
+    `${variant}: the live-uplink report reads the address off the DISCOVERED interface`,
+    /\/ip address find where interface=\$wanChkIf/.test(liveReport),
+    "the address is read off a named port rather than off whatever is actually carrying traffic",
+  );
+  check(
+    `${variant}: the live-uplink report carries all three faults too`,
+    liveReport.includes(FAULT_A) &&
+      liveReport.includes("could not be resolved") &&
+      /carries no usable address or gateway/.test(liveReport),
+    "the report collapses a dead router, an unresolvable interface and an unconfigured link " +
+      "into one line",
+  );
+
+  // ---- 12.7 logical WAN ids stay separate from physical interfaces ----
+  if (opts.wans.length > 1 && (opts.wanRoutingMode ?? "load_balance") === "load_balance") {
+    const mangle = allText(chunkByLabel(chunks, "Mangle"));
+    check(
+      `${variant}: PCC/mangle rules use LOGICAL wan<N>_conn / to_wan<N> identifiers`,
+      /connection-mark="wan1_conn"/.test(mangle) && /new-routing-mark="to_wan1"/.test(mangle),
+      "the logical routing identifiers are gone, so the routes and the marks cannot line up",
+    );
+    check(
+      `${variant}: every routing-mark'd route's gateway is a RESOLVED variable, never a literal`,
+      [...wanRoutingText.matchAll(/\/ip route add [^;\n]*routing-table="to_wan\d+"[^;\n]*/g)].every(
+        (m) => /gateway=\$\w+/.test(m[0]),
+      ),
+      "a routing-mark'd route is being built from a generation-time literal instead of the " +
+        "gateway actually resolved on the device",
+    );
+    check(
+      `${variant}: the crossover backup ring closes, for any number of WANs`,
+      opts.wans.every((_, i) => {
+        const n = i + 1;
+        const next = ((i + 1) % opts.wans.length) + 1;
+        return wanRoutingText.includes(`cloudguest-backup-wan${next}-via-wan${n}`);
+      }),
+      "the failover ring is broken past the two-WAN case it was written for, so at least one " +
+        "WAN has no backup route",
+    );
+    // Only asserted for the even split -- a weighted plan GCD-reduces to
+    // its own denominator on purpose (see `buildWeightedPccPlan`), so
+    // pinning the WAN count there would be asserting the wrong thing.
+    if (!opts.wans.some((w) => typeof w.weight === "number")) {
+      const denominators = [
+        ...new Set(
+          [...mangle.matchAll(/per-connection-classifier=both-addresses-and-ports:(\d+)\//g)].map(
+            (m) => Number(m[1]),
+          ),
+        ),
+      ];
+      check(
+        `${variant}: the PCC split's denominator is exactly the number of WANs configured`,
+        denominators.length === 1 && denominators[0] === opts.wans.length,
+        `denominator(s) ${JSON.stringify(denominators)} for ${opts.wans.length} WAN(s) -- a ` +
+          "denominator that does not match the WAN count sends a share of guest traffic into a " +
+          "connection mark no route was ever built for, which black-holes it",
+      );
+    }
+  }
+
+  // ---- 12.8 idempotent, and never destructive ------------------------
+  const rerun = allText(buildRouterSetupScriptChunks(opts));
+  check(
+    `${variant}: generating twice produces byte-identical text`,
+    rerun === text,
+    "the generator is not pure, so what a technician pasted and what this suite checked can differ",
+  );
+  const routeAdds = [...wanRoutingText.matchAll(/[^;\n]*\/ip route add[^;\n]*/g)].map((m) => m[0]);
+  check(
+    `${variant}: every /ip route add is guarded by a zero-count test on its own entered line`,
+    routeAdds.length > 0 && routeAdds.every((s) => /\[:len [^\]]*\][^;]*= 0/.test(s)),
+    `unguarded: ${JSON.stringify(routeAdds.filter((s) => !/\[:len [^\]]*\][^;]*= 0/.test(s)))} -- ` +
+      'a second paste would throw "already have such route"',
+  );
+  check(
+    `${variant}: the WAN chunks remove only cloudguest-owned or explicitly-foreign objects`,
+    [...wanRoutingText.matchAll(/\/ip route remove[^;\n]*/g)].length === 0 ||
+      /comment~"\^cloudguest-/.test(wanRoutingText),
+    "a route removal that is not scoped to this generator's own comments would delete a user's " +
+      "own routing configuration",
+  );
+}
+
+// ---------------------------------------------------------------------
+// 12.9 ROUTER-ORIGINATED TRAFFIC IS NEVER BOUND TO A WAN.
+// ---------------------------------------------------------------------
+// The heartbeat is the router speaking on its own behalf. If it is ever
+// pinned to WAN1 -- by a routing mark, a routing table, a source address,
+// or an interface name -- then a router whose WAN1 has died stops
+// reporting in and shows OFFLINE in Master console while its guests browse
+// happily over WAN2. Nothing on the device would say why.
+//
+// The policy is: leave it unmarked, so the MAIN table routes it, so the
+// lowest-distance ACTIVE default route carries it, so it follows whichever
+// WAN is alive with no reprovisioning. These checks pin that policy from
+// both ends -- what the fetch must not carry, and what the mangle rules
+// must not be able to do to it.
+
+console.log("\n-- router-originated traffic follows the live WAN, not a configured one --");
+
+for (const [variant, opts] of VARIANTS) {
+  const chunks = buildRouterSetupScriptChunks(opts);
+  const hb = allText(chunks.filter((c) => c.label.startsWith("Heartbeat")));
+  const hbUnescaped = hb.replace(/\\(.)/g, "$1");
+  const mangle = allText(chunkByLabel(chunks, "Mangle"));
+  const fetches = [...hbUnescaped.matchAll(/\/tool fetch[^;\n]*/g)].map((m) => m[0]);
+
+  check(
+    `${variant}: the heartbeat fetch carries no routing mark, table or source address`,
+    fetches.length > 0 &&
+      fetches.every(
+        (f) => !/routing-mark/.test(f) && !/routing-table/.test(f) && !/src-address/.test(f),
+      ),
+    `pinned fetch(es): ${JSON.stringify(fetches.filter((f) => /routing-mark|routing-table|src-address/.test(f)))} -- ` +
+      "a heartbeat pinned to a table cannot follow a failover, and a router whose WAN1 died would " +
+      "show offline while its guests are online",
+  );
+  check(
+    `${variant}: the heartbeat names no WAN interface and no to_wan<N> table anywhere`,
+    !/to_wan\d/.test(hbUnescaped) &&
+      !opts.wans.some((w) => hbUnescaped.includes(`"${w.iface}"`)) &&
+      !/wan\d_conn/.test(hbUnescaped),
+    "the heartbeat is bound to a specific WAN, so it reports the WAN that was configured first " +
+      "rather than the one that is actually carrying traffic",
+  );
+  // Router-originated packets start at `output`. They never traverse
+  // `prerouting`. So a mark-routing rule confined to prerouting cannot
+  // reach them -- and an output-chain rule would be exactly how it could.
+  check(
+    `${variant}: this generator emits no chain=output mangle rule, in any mode`,
+    !/mangle add[^;\n]*chain=output/.test(mangle),
+    "an output-chain mangle rule is the one thing that could mark router-originated traffic into " +
+      "a to_wan<N> table, and a heartbeat marked into a dead WAN's table never arrives",
+  );
+  const markRouting = [...mangle.matchAll(/[^;\n]*action=mark-routing[^;\n]*/g)].map((m) => m[0]);
+  check(
+    `${variant}: every mark-routing rule is confined to chain=prerouting`,
+    markRouting.every((r) => /chain=prerouting/.test(r)),
+    `${JSON.stringify(markRouting.filter((r) => !/chain=prerouting/.test(r)))} could mark traffic ` +
+      "the router itself originated",
+  );
+  const pcc = [...mangle.matchAll(/[^;\n]*per-connection-classifier[^;\n]*/g)].map((m) => m[0]);
+  if (pcc.length > 0) {
+    check(
+      `${variant}: every PCC rule is pinned to the LAN bridge, so it only ever sees guest traffic`,
+      pcc.every((r) => r.includes(`in-interface="${opts.lanBridge}"`)),
+      "a PCC rule with no in-interface can classify traffic that did not come from a guest",
+    );
+  }
+}
+
+// ---------------------------------------------------------------------
+// 12.10 THE FAILOVER SEQUENCE, RUN END TO END.
+// ---------------------------------------------------------------------
+// Everything above is structural. This one actually EXECUTES the uplink
+// selection the generator emits, against a routing table that changes
+// underneath it, and asserts the answer at each step.
+//
+// WHAT IS AND IS NOT BEING TESTED, PLAINLY. The selector below is not a
+// reimplementation of the algorithm -- it is PARSED OUT OF THE EMITTED
+// SCRIPT: the filter tokens and the distance range are read from the
+// `:for ... :foreach ... find where ...` sweep the generator actually
+// produces, and the fixtures are matched against those tokens. So it
+// verifies the emitted filter and the emitted ordering. It does NOT verify
+// that RouterOS interprets those tokens the way this harness does; that is
+// an inference, and it is exactly the inference that was wrong about
+// `routing-mark=""`. What makes the inference safe to hold is that the
+// fixture keys are the property names measured on the founder's v7 device,
+// so a generator that goes back to v6 vocabulary matches nothing here for
+// the same reason it matches nothing there.
+
+console.log("\n-- WAN1 dies, WAN2 takes over, WAN1 returns: run against the emitted selector --");
+
+/** Reads the emitted sweep and returns a function that picks the winning
+ * route from a fixture table exactly as the emitted filter and ordering
+ * would. Returns null if no sweep could be parsed -- which is itself a
+ * failure, not a skip. */
+function uplinkSelectorFrom(text) {
+  const m = text
+    .replace(/\\(.)/g, "$1")
+    .match(/:for (\w+?)Dist from=(\d+) to=(\d+) do=\{.*?find where (.*?) distance=\$\1Dist\]/);
+  if (!m) return null;
+  const [, , from, to, filter] = m;
+  // Values may be quoted (`routing-table="main"`) or bare (`active=yes`).
+  // An earlier version only matched the quoted form, so `active=yes` was
+  // silently dropped from the fixture filter and the failover steps passed
+  // an INACTIVE route -- the guard could not see the one property the
+  // whole test is about. Both forms now.
+  const conds = [...filter.matchAll(/([a-z-]+)=(?:"([^"]*)"|([^\s\]]+))/g)].map((c) => [
+    c[1],
+    c[2] !== undefined ? c[2] : c[3],
+  ]);
+  return (routes) => {
+    for (let d = Number(from); d <= Number(to); d++) {
+      const hit = routes.find(
+        (r) => r.distance === d && conds.every(([k, v]) => String(r[k]) === v),
+      );
+      if (hit) return hit;
+    }
+    return null;
+  };
+}
+
+{
+  // Two WANs, failover-only: WAN1's plain route is distance=1, WAN2's is
+  // distance=2, both check-gateway=ping, both in the main table. Plus the
+  // marked copies a load-balance provisioning would leave behind, which
+  // main-table discovery must ignore.
+  const FAILOVER_OPTS = {
+    ...BASE,
+    wans: [
+      { iface: "ether5", mode: "dhcp" },
+      { iface: "ISP-Airtel", mode: "static", ip: "1.2.3.4", cidr: "24", gateway: "1.2.3.1" },
+    ],
+    wanRoutingMode: "failover_only",
+  };
+  const chunks = buildRouterSetupScriptChunks(FAILOVER_OPTS);
+  const hbText = allText(chunks.filter((c) => c.label.startsWith("Heartbeat")));
+  const select = uplinkSelectorFrom(hbText);
+
+  check(
+    "failover: a selector could be parsed out of the emitted heartbeat at all",
+    select !== null,
+    "no `:for <p>Dist ... :foreach ... find where ... distance=$<p>Dist]` sweep in the heartbeat -- " +
+      "the uplink is not being selected by ascending distance over a filtered find",
+  );
+
+  const route = (o) => ({
+    "dst-address": "0.0.0.0/0",
+    active: "yes",
+    "routing-table": "main",
+    ...o,
+  });
+  // The routing-marked copies. A load-balance provisioning of this same
+  // router leaves these behind, they are active in their own tables, and
+  // discovery must never pick one: they are the traffic policy for GUESTS,
+  // not for the router itself.
+  const MARKED = [
+    route({ "routing-table": "to_wan1", distance: 1, gw: "10.0.1.1", iface: "ether5" }),
+    route({ "routing-table": "to_wan2", distance: 2, gw: "1.2.3.1", iface: "ISP-Airtel" }),
+  ];
+  const WAN1_UP = route({ distance: 1, gw: "10.0.1.1", iface: "ether5" });
+  const WAN1_DOWN = route({ distance: 1, gw: "10.0.1.1", iface: "ether5", active: "no" });
+  const WAN2_UP = route({ distance: 2, gw: "1.2.3.1", iface: "ISP-Airtel" });
+
+  if (select) {
+    // Step 1 -- both WANs up. WAN1 is distance=1, so it carries the router.
+    check(
+      "failover step 1: WAN1 active -> the heartbeat goes out over WAN1",
+      select([WAN1_UP, WAN2_UP, ...MARKED])?.iface === "ether5",
+      "the lowest-distance active main-table default route is not being chosen",
+    );
+    // Step 2 -- WAN1's gateway stops answering. `check-gateway=ping` is
+    // what flags its route Inactive; nothing else on the router changes,
+    // and in particular nothing is regenerated or re-pasted.
+    check(
+      "failover step 2: WAN1 dies -> its route is no longer usable and is not chosen",
+      select([WAN1_DOWN, WAN2_UP, ...MARKED])?.iface !== "ether5",
+      "an INACTIVE default route is still being selected -- RouterOS keeps unreachable default " +
+        "routes in the table and flags them Inactive rather than removing them, so this is the " +
+        "difference between failing over and reporting a dead WAN forever",
+    );
+    check(
+      "failover step 3: WAN2 becomes the active default -> the heartbeat goes out over WAN2",
+      select([WAN1_DOWN, WAN2_UP, ...MARKED])?.iface === "ISP-Airtel",
+      "the second WAN is not picked up when the first dies",
+    );
+    // Step 4 -- and the address reported is WAN2's, because the address is
+    // read off the interface the selection produced, not off a named port.
+    check(
+      "failover step 4: the address reported is read off the interface the SELECTION produced",
+      /\/ip address find where interface=\$hbIf/.test(hbText.replace(/\\(.)/g, "$1")),
+      "the address is read off a fixed name, so it would keep reporting the dead WAN's address",
+    );
+    // Step 5 -- WAN1 comes back. Its distance=1 route goes active again and
+    // is once more the lowest-distance active default, so traffic fails
+    // back on its own.
+    check(
+      "failover step 5: WAN1 restored -> traffic fails back to it, no intervention",
+      select([WAN1_UP, WAN2_UP, ...MARKED])?.iface === "ether5",
+      "failback does not happen, so a restored primary WAN is never used again",
+    );
+    // The marked copies must never win, at any step.
+    check(
+      "failover: a routing-marked copy is never selected, even when it is the lowest distance",
+      select(MARKED) === null,
+      "discovery is picking up a to_wan<N> route -- that is the GUEST traffic policy, and using " +
+        "it for the router's own traffic is how a heartbeat ends up pinned to a dead WAN",
+    );
+    // And the whole sequence requires no regeneration: the scheduler's
+    // stored copy re-runs this same selection every 5 minutes.
+    check(
+      "failover: no reprovisioning is needed at any step -- the scheduler re-selects every run",
+      /interval=5m/.test(hbText) && /start-time=startup/.test(hbText),
+      "the recurring copy does not re-run, so the failover would only be noticed on a manual visit",
+    );
+  }
+
+  // What makes step 2 possible on a real device.
+  const routing = allText(chunkByLabel(chunks, "WAN Routing"));
+  const plainAdds = [
+    ...routing.matchAll(/\/ip route add[^;\n]*cloudguest-plain-wan\d+[^;\n]*/g),
+  ].map((m) => m[0]);
+  check(
+    "failover: every plain default route carries check-gateway=ping",
+    plainAdds.length > 0 && plainAdds.every((r) => r.includes("check-gateway=ping")),
+    "without check-gateway RouterOS never marks a dead WAN's route Inactive, so nothing ever " +
+      "fails over and the ISP-health signal has nothing to read either",
+  );
+  // EVERY statement that writes a plain route, not "at least one". A
+  // mutation that gave the FALLBACK line's route distance=1 for every WAN
+  // survived an "includes" check, because the mode-specific line still
+  // carried the right distance somewhere in the chunk -- so a router that
+  // came up via the fallback path would have had two distance=1 defaults
+  // and no defined failback order. Same "somewhere, not everywhere" hole
+  // as the qualifier checks.
+  {
+    const misordered = FAILOVER_OPTS.wans.flatMap((_, i) => {
+      const n = i + 1;
+      const writes = [
+        ...routing.matchAll(
+          new RegExp(`[^;\\n]*/ip route (?:add|set)[^;\\n]*cloudguest-plain-wan${n}"[^;\\n]*`, "g"),
+        ),
+      ].map((m) => m[0]);
+      return writes.length === 0
+        ? [`WAN${n}: no route write at all`]
+        : writes
+            .filter((w) => !w.includes(`distance=${n} `))
+            .map((w) => `WAN${n}: ${w.slice(0, 90)}`);
+    });
+    check(
+      "failover: EVERY write of a plain route carries that WAN's own distance, so failback is defined",
+      misordered.length === 0,
+      `${JSON.stringify(misordered)} -- two WANs at the same distance means which one wins is not ` +
+        "a decision this script made, and a restored primary may never be preferred again",
+    );
+  }
+}
+
+// ---------------------------------------------------------------------
+// 12.11 A SILENT EMPTY MATCH MUST BE IMPOSSIBLE TO SHIP AGAIN.
+// ---------------------------------------------------------------------
+// `routing-mark=""` did not error on RouterOS 7. It was accepted as an
+// unknown filter and matched nothing, so every default-route lookup in the
+// generated script returned empty on every router in the fleet and nothing
+// anywhere said so. Renaming the token fixes the instance. What fixes the
+// CLASS is that every default-route lookup binds a count and branches on
+// zero, so the next rename is loud.
+
+console.log("\n-- every default-route lookup is counted, and zero is reported --");
+
+for (const [variant, opts] of VARIANTS) {
+  const chunks = buildRouterSetupScriptChunks(opts);
+  const text = allText(chunks).replace(/\\(.)/g, "$1");
+  // Every line that binds a `<p>DefCount` must also, on that same line,
+  // branch on it being zero and say something. A count nobody reads is
+  // not a guard.
+  const countLines = text.split("\n").filter((l) => /:local (\w+)DefCount /.test(l));
+  check(
+    `${variant}: every default-route count is bound on a line that also branches on zero`,
+    countLines.length > 0 &&
+      countLines.every((l) => {
+        const v = l.match(/:local (\w+DefCount) /)[1];
+        return new RegExp(`\\$${v} = 0\\)[^;]*do=\\{[^;]*:(log|put)`).test(l);
+      }),
+    "a lookup binds a count that nothing branches on, so an empty match -- whether from a dead " +
+      "uplink or from a filter name this RouterOS version does not know -- is indistinguishable " +
+      "from a working router",
+  );
+  // The dead v6 token must not come back anywhere except the version
+  // banner that exists to explain it.
+  const strayV6 = text
+    .split("\n")
+    .filter((l) => /routing-mark=/.test(l) && !/new-routing-mark=/.test(l))
+    .filter((l) => !/On RouterOS 6 the property is/.test(l));
+  check(
+    `${variant}: the RouterOS 6 routing-mark= spelling appears nowhere on a route`,
+    strayV6.length === 0,
+    "`routing-mark=` on /ip route does not error on v7 -- it matches nothing, silently. Measured " +
+      `on the founder's hEX at 7.23.3. Offending line(s): ${JSON.stringify(strayV6.map((l) => l.slice(0, 90)))}`,
+  );
+  if (
+    !opts.basicConfigOnly &&
+    opts.wans.length > 1 &&
+    (opts.wanRoutingMode ?? "load_balance") === "load_balance"
+  ) {
+    check(
+      `${variant}: every to_wan<N> table is declared before a route is put into it`,
+      opts.wans.every((_, i) => text.includes(`/routing table add name="to_wan${i + 1}" fib`)),
+      "RouterOS 7 refuses a route into a routing table that does not exist, so the load-balancing " +
+        "routes would simply never be created",
+    );
+  }
+}
+
+// ---------------------------------------------------------------------
+// 12.12 THE GENERATOR NEVER FORCES A NAME ONTO A CUSTOMER'S ROUTER.
+// ---------------------------------------------------------------------
+// It must not abort because an interface is not called what the form says,
+// must not rename anything, and must not require WAN1/WAN2/ether1/ether2.
+
+console.log("\n-- nothing is renamed, nothing is required to be called anything --");
+
+for (const [variant, opts] of VARIANTS) {
+  const text = allText(buildRouterSetupScriptChunks(opts));
+  check(
+    `${variant}: a WAN interface name that does not exist does not abort the script`,
+    !/:error \([^)]*WAN interface/.test(text),
+    "the script :errors out when the configured name is not on the device -- but the name being " +
+      "wrong is exactly the case routing-table discovery now handles, so aborting throws away the " +
+      "recovery instead of using it",
+  );
+  check(
+    `${variant}: ...and says so out loud rather than continuing silently`,
+    /no interface on this device is named/.test(text),
+    "removing the abort must not also remove the signal; a mismatch a technician never hears about " +
+      "is the failure mode this whole file exists to prevent",
+  );
+  // Wyfy may manage only what Wyfy tagged. A `find` on `chain=srcnat
+  // action=masquerade` matches a user's own masquerade rule just as well
+  // as this generator's, and the statement that follows such a find is a
+  // `set` -- so an untagged find is how a script silently re-points
+  // somebody else's NAT rule at an interface they never chose.
+  {
+    const natFinds = [...text.matchAll(/\/ip firewall nat find where([^\]]*)/g)].map((m) => m[1]);
+    check(
+      `${variant}: every NAT lookup is keyed on a cloudguest- comment or on an exact rule identity`,
+      natFinds.length > 0 &&
+        natFinds.every((f) => /comment="cloudguest-/.test(f) || /out-interface="/.test(f)),
+      `untagged NAT lookup(s): ${JSON.stringify(natFinds.filter((f) => !(/comment="cloudguest-/.test(f) || /out-interface="/.test(f))))} ` +
+        "-- a find that matches any masquerade rule will find a user's own, and the next statement " +
+        "modifies what it found",
+    );
+    const natWrites = [...text.matchAll(/[^;\n]*\/ip firewall nat (?:set|remove)[^;\n]*/g)].map(
+      (m) => m[0],
+    );
+    check(
+      `${variant}: no NAT rule is modified or removed unless this generator owns it`,
+      natWrites.every((w) => /cloudguest-/.test(w) || /\$\w*Nat\b/.test(w)),
+      `${JSON.stringify(natWrites.filter((w) => !(/cloudguest-/.test(w) || /\$\w*Nat\b/.test(w))))} ` +
+        "touches a NAT rule this generator did not create",
+    );
+  }
+
+  // The final interface verification must accept a PPPoE virtual
+  // interface. Narrowing it to /interface ethernet would reject one --
+  // an over-strict guard that silently discards a perfectly real uplink.
+  check(
+    `${variant}: the interface verification uses the generic /interface menu, not /interface ethernet`,
+    !/\/interface ethernet find where name=\$/.test(text),
+    "a PPPoE session's virtual interface, a VLAN and a bridge are all real interfaces that are " +
+      "not under /interface ethernet -- verifying there would discard a live uplink as unreal",
   );
 }
 

@@ -1708,7 +1708,339 @@ const WIREGUARD_LEGACY_INTERFACE_NAME = "wg-cloudguest";
  * small, because each retry adds two statements to an already long
  * single-paste line. */
 const WAN_DHCP_GW_POLL_ATTEMPTS = 6;
-const WAN_DHCP_GW_POLL_DELAY = "5s";
+const WAN_DHCP_GW_POLL_DELAY_S = 5;
+const WAN_DHCP_GW_POLL_DELAY = `${WAN_DHCP_GW_POLL_DELAY_S}s`;
+
+/** How long the whole "WAN Routing" chunk may spend WAITING, across every
+ * WAN in it. Each WAN with an asynchronous source (DHCP, PPPoE) takes a
+ * share; a single-WAN router gets the lot and is unaffected by this
+ * existing. It is a chunk-wide budget rather than a per-WAN one because
+ * the cost a technician pays is the chunk's total: `/import` never pauses
+ * and nothing is printed while a `:delay` runs, so a four-WAN paste with
+ * a full ladder each is over a minute of dead terminal, which gets read as
+ * a hang and power-cycled mid-provision. Kept under the suite's own 60s
+ * per-chunk ceiling with room to spare. */
+const WAN_GW_POLL_BUDGET_S = 45;
+
+/** RouterOS 7's name for a route's routing table, and the filter that
+ * selects the MAIN one.
+ *
+ * MEASURED, NOT ASSUMED. On the founder's hEX lite (RouterOS 7.23.3
+ * stable, `factory-software: 6.44.6` -- so it shipped on v6 and was
+ * upgraded):
+ *
+ *     :put [:len [/ip route find where routing-table="main"]]  ->  1
+ *     :put [:len [/ip route find where routing-mark=""]]       ->  0
+ *
+ * The v6 spelling this generator used everywhere does NOT error on v7. It
+ * is taken as an unknown filter and silently matches an empty set, so
+ * every default-route lookup in the generated script returned nothing on
+ * every router in the fleet, and nothing anywhere reported it. That is the
+ * exact failure class this generator exists to eliminate.
+ *
+ * ONE PATH, v7, DELIBERATELY -- and it says so out loud on anything else.
+ * A v6/v7 fork would double every route statement in lines that are
+ * already at the paste-size budget, and there is exactly one device
+ * available to test against, which is on v7: a fork would ship one tested
+ * path and one imagined one. So the generator emits v7 vocabulary only,
+ * and `buildRouterOsVersionCheckStatements` below reads the version off
+ * the device and prints an unmissable banner naming what will not work if
+ * the major version is anything other than 7 -- including the case where
+ * the version cannot be read at all. The UNKNOWN case is loud, which is
+ * the property that matters; silently guessing a branch is what this whole
+ * change is about not doing.
+ *
+ * `new-routing-mark=` on `/ip firewall mangle` is a DIFFERENT property and
+ * keeps its name on v7 -- only `/ip route`'s own property was renamed. The
+ * mangle chunk is deliberately untouched. */
+const ROUTE_MAIN_TABLE_FILTER = `routing-table="main"`;
+
+/** Comments that tag the two objects this generator binds to the interface
+ * it DISCOVERED, as opposed to the one the operator typed into the form.
+ * Everything Wyfy manages on a router is comment-tagged, and these two are
+ * the tags for "we found the real uplink and pointed our own rule at it".
+ * They are also the only handle used to find those objects again on a
+ * re-run: a user's own masquerade or interface-list member carries neither
+ * tag and is therefore never read, re-pointed or removed. */
+const DISCOVERED_WAN_LIST_COMMENT = "cloudguest-wanlist-live";
+const DISCOVERED_NAT_COMMENT = "cloudguest-nat-live";
+/** The property name used when CREATING a route in a non-main table. Same
+ * v7 rename as `ROUTE_MAIN_TABLE_FILTER`; see its docstring. On v7 the
+ * table must also exist first -- see `routingTablePreambleLines`. */
+const ROUTE_TABLE_PROPERTY = `routing-table`;
+
+/** v7 will not accept a route into a routing table that has not been
+ * declared, so every `to_wan<N>` table this generator routes into is
+ * created first. Idempotent by explicit count, and the count is branched
+ * on zero: `/routing table add` on an existing name errors, and a `find`
+ * against a menu a RouterOS version does not have returns empty in
+ * silence, so "we made it" is never inferred -- it is counted and stated.
+ *
+ * The tables are NOT removed anywhere, including by the failover-only
+ * cleanup that removes this generator's marked routes. An empty routing
+ * table costs nothing, and a name a previous operator might also be using
+ * is not this script's to delete. */
+function routingTablePreambleLines(tableNames: string[]): string[] {
+  return tableNames.flatMap((name) => [
+    `:if ([:len [/routing table find where name="${name}"]] = 0) do={ :do { /routing table add name="${name}" fib } on-error={ :log warning "cloudguest: could not create routing table ${name} -- on RouterOS 7 a route cannot enter a table that does not exist, so this WAN's load-balancing routes will not be created. Check /routing table print" } }`,
+    `:if ([:len [/routing table find where name="${name}"]] = 0) do={ :put "*** WARNING: routing table ${name} does not exist after trying to create it. Load balancing will not work. See /log print. ***" }`,
+  ]);
+}
+
+/** Reads the RouterOS major version off the device and says, unmissably,
+ * what will not work if it is not 7.
+ *
+ * This is not a fork. The generator emits v7 vocabulary only (see
+ * `ROUTE_MAIN_TABLE_FILTER`), and this exists so that a router which is
+ * NOT v7 -- or whose version cannot be read at all -- produces a banner a
+ * technician cannot page past, instead of a script that appears to work
+ * while every route lookup in it matches nothing. Both the wrong-version
+ * and the unknown-version cases take the loud branch; only a confirmed
+ * "7" is quiet.
+ *
+ * Every `:local` is bound and read on the one line the caller joins, and
+ * `[:find]` returning nothing would make `:pick` error, so the major
+ * version parse is wrapped rather than trusted. */
+function buildRouterOsVersionCheckStatements(): string[] {
+  return [
+    `:local rosVer ""`,
+    `:do { :set rosVer [:tostr [/system resource get version]] } on-error={ :set rosVer "" }`,
+    `:local rosMajor ""`,
+    `:do { :set rosMajor [:pick $rosVer 0 [:find $rosVer "."]] } on-error={ :set rosMajor "" }`,
+    `:if ($rosMajor = "7") do={ :log info ("cloudguest: RouterOS " . $rosVer . " -- using routing-table= route syntax") }`,
+    `:if ($rosMajor != "7") do={ :put ("*** WARNING: this script uses RouterOS 7 route syntax (routing-table=). This device reports version \\"" . $rosVer . "\\". ***") }`,
+    `:if ($rosMajor != "7") do={ :put "*** On RouterOS 6 the property is routing-mark=, and a find using the wrong one MATCHES NOTHING WITHOUT ERRORING. ***" }`,
+    `:if ($rosMajor != "7") do={ :put "*** Do not trust this chunk's output on this device. Check /ip route print by hand and report the version. ***" }`,
+    `:if ($rosMajor != "7") do={ :log warning ("cloudguest: RouterOS major version is \\"" . $rosMajor . "\\", not 7 -- this script's route lookups may match nothing silently on this device") }`,
+  ];
+}
+
+/** How long a PPPoE WAN is given to finish negotiating before its gateway
+ * is declared unresolved. Same shape and the same reason as
+ * `WAN_DHCP_GW_POLL_ATTEMPTS` above -- PPPoE dial-up is asynchronous in
+ * exactly the way a DHCP lease is, and reading `remote-address` off a
+ * session that is still in `dialing`/`authenticating` returns nothing
+ * usable. Before this existed the PPPoE branch made exactly ONE attempt
+ * and then told the technician to "re-paste this chunk once connected",
+ * which on a chunk-by-chunk paste is the difference between a WAN that
+ * configures itself and one that needs a second visit. */
+const WAN_PPPOE_GW_POLL_ATTEMPTS = 6;
+const WAN_PPPOE_GW_POLL_DELAY_S = 5;
+const WAN_PPPOE_GW_POLL_DELAY = `${WAN_PPPOE_GW_POLL_DELAY_S}s`;
+
+/** The one bounded retry primitive this generator has. Emits
+ * `attempts - 1` wait/retry pairs after an initial attempt the caller has
+ * already pushed, so the total is `attempts` tries `delay` apart.
+ *
+ * WHY IT IS UNROLLED AND WHY IT IS SHARED
+ * ---------------------------------------
+ * Unrolled because a `:for` loop cannot express "attempt, and only wait if
+ * that did not work" while keeping every `do={}` body to exactly one
+ * statement, which is a hard rule in this file after a `;`-chained pair
+ * inside an inline `do={}` threw a real syntax error on a live router (see
+ * the Heartbeat chunk's own comment).
+ *
+ * Shared because the same ladder was previously written out by hand in
+ * three separate places (the DHCP gateway poll, the NTP sync poll, and
+ * -- missing entirely -- the PPPoE gateway poll). Three copies of a retry
+ * block is three places for the bound to drift, and the third one being
+ * absent is how a PPPoE WAN ended up with a single attempt and a "come
+ * back later" log line. Every retry in this generator now goes through
+ * here, so the shape is one thing, bounded by construction, and every
+ * `do={}` body it emits holds exactly one statement.
+ *
+ * `unresolved` is re-evaluated on the device before every wait and before
+ * every retry -- it is a guard, not a loop counter, so the ladder costs
+ * nothing but a few string comparisons once the value has been read. */
+function buildBoundedRetryLadder(opts: {
+  /** The RouterOS statement that tries once. Re-emitted verbatim. */
+  attempt: string;
+  /** RouterOS boolean expression: true while the value is still not usable. */
+  unresolved: string;
+  /** Total attempts INCLUDING the caller's own first one. */
+  attempts: number;
+  /** RouterOS time literal, e.g. `"5s"`. */
+  delay: string;
+  /** Extra precondition ANDed onto the retry (not the wait) -- for a
+   * source that may not exist to be read at all, e.g. a pppoe-client
+   * interface the addressing chunk has not created yet. Folded into the
+   * SAME `:if` rather than nested inside the retry's own body: one
+   * statement per `do={}` body is the rule, and a nested `:if` inside an
+   * `:if` body is a deeper shape than anything this file has proven on
+   * this hardware. */
+  attemptPrecondition?: string;
+}): string[] {
+  const { attempt, unresolved, attempts, delay, attemptPrecondition } = opts;
+  const retryWhen = attemptPrecondition
+    ? `(${unresolved}) && ${attemptPrecondition}`
+    : `${unresolved}`;
+  const stmts: string[] = [];
+  for (let retry = 1; retry < attempts; retry++) {
+    stmts.push(`:if (${unresolved}) do={ :delay ${delay} }`);
+    stmts.push(`:if (${retryWhen}) do={ ${attempt} }`);
+  }
+  return stmts;
+}
+
+/** Work out, live on the device, which interface is actually carrying this
+ * router's internet traffic -- and, optionally, what its next hop is.
+ * Emitted as a list of statements the caller `;`-joins onto ONE entered
+ * line, because the RouterOS console runs each entered line as its own
+ * program and a `:local` declared on one line does not exist on the next.
+ *
+ * THIS IS THE ONLY PLACE THAT ANSWERS "WHICH WAN IS UP".
+ * -----------------------------------------------------
+ * It used to exist once, inside `buildHeartbeatStatements`. The WAN
+ * configuration chunks answered the same question a completely different
+ * way -- by trusting the port typed into "WAN N interface" and reading
+ * `/ip dhcp-client` on it -- so a router could have its heartbeat
+ * correctly reporting the live uplink while the routing chunk that built
+ * that uplink's routes had assumed a different interface entirely. One
+ * builder, one set of qualifiers, one definition of "the uplink".
+ *
+ * WHAT IT DOES, IN ORDER
+ * ----------------------
+ *  1. Count the ACTIVE default routes in the MAIN table
+ *     (`$<p>DefCount`). Both qualifiers are load-bearing and neither is
+ *     stylistic:
+ *      - `active=yes`: RouterOS keeps an unreachable default route in the
+ *        table and flags it Inactive rather than removing it, so an
+ *        unqualified count says "1 route, looks healthy" about a router
+ *        whose every ping says `no route to host`.
+ *      - `routing-table="main"`: THIS GENERATOR ITSELF adds a
+ *        `routing-table="to_wan<N>"` default route per WAN plus a
+ *        `distance=2` crossover backup per WAN in load-balance mode. Those
+ *        live in their own routing tables and are active there
+ *        simultaneously, so an unqualified find returns a handful of
+ *        routes across several tables and "the first one" is whichever
+ *        table happened to sort first. The router's own traffic is routed
+ *        by the main table; the main table's own active default route is
+ *        the only correct answer.
+ *
+ *        `routing-table=`, NOT `routing-mark=`. This is RouterOS 7
+ *        vocabulary and the difference is not cosmetic. Measured on the
+ *        founder's hEX lite, RouterOS 7.23.3, factory-software 6.44.6:
+ *
+ *          :put [:len [/ip route find where routing-table="main"]]  -> 1
+ *          :put [:len [/ip route find where routing-mark=""]]       -> 0
+ *
+ *        The v6 spelling does not error on v7. It is accepted as an
+ *        unknown filter and SILENTLY MATCHES AN EMPTY SET -- which is this
+ *        project's entire recurring failure shape, sitting inside the one
+ *        function whose job is to eliminate it. Every `find` that used it
+ *        returned nothing on every v7 router in the fleet, and nothing
+ *        anywhere said so. `/ip route print` on the same device confirms
+ *        the vocabulary: the column header reads `ROUTING-TABLE`, value
+ *        `main`.
+ *
+ *        WHICH IS WHY THE COUNT IS NOT OPTIONAL. Renaming the token fixes
+ *        today's instance; it does nothing about the next rename. So this
+ *        builder always binds `$<p>DefCount` from the SAME filter the
+ *        sweep uses and always emits a zero branch that says out loud that
+ *        the filter matched nothing and names a stale filter name as one
+ *        of the two possible reasons. A future RouterOS that renames
+ *        something else fails visibly instead of quietly answering "no
+ *        uplink" on a healthy router.
+ *  2. Sweep distances 1..255 ASCENDING and take the first active main-table
+ *     default route found -- the lowest-distance one, which is the route
+ *     RouterOS itself prefers. An explicit ascending sweep rather than
+ *     "whatever the find returns first", so the choice cannot silently
+ *     depend on route order.
+ *  3. Resolve that route to a real outgoing interface, three guarded paths
+ *     in order, because RouterOS exposes this differently by version and
+ *     by link type:
+ *      a. `immediate-gw`, documented in RouterOS 7 as `address%interface`
+ *         -- split on the `%`. (Inferred from MikroTik's v7 documentation
+ *         of that property; NOT verified on this fleet's hardware.)
+ *      b. the route's plain `gateway`, when that already NAMES an
+ *         interface -- which is what a point-to-point link like PPPoE
+ *         produces.
+ *      c. an `/ip arp` lookup of the gateway address, which is how a
+ *         device that exposes no `immediate-gw` still answers the
+ *         question: the router is by definition ARPing its own live next
+ *         hop.
+ *  4. VERIFY THE RESULT IS A REAL INTERFACE. Anything that survives all
+ *     three paths must still match `/interface find where name=...` or it
+ *     is discarded back to `""`. Every inference above therefore degrades
+ *     to "not resolved" -- a state the caller reports as a distinct fault
+ *     -- rather than to a plausible-looking wrong interface name.
+ *  5. Optionally (`withGateway`) resolve `$<p>Gw`, the next hop of the same
+ *     lowest-distance active main-table default route.
+ *
+ * THE GATEWAY IS A SECOND SWEEP, NOT A SECOND STATEMENT
+ * -----------------------------------------------------
+ * Capturing the route id in step 2 and reading both properties off it
+ * afterwards would need two statements inside the innermost `do={}`, which
+ * this hardware has rejected. Guarding the sweep on `[:typeof $id] = "str"`
+ * instead would work only if a RouterOS internal id reports a type other
+ * than `str`, and if that inference were wrong the sweep would silently
+ * select the HIGHEST-distance route instead of the lowest -- a quiet wrong
+ * answer, which is the one outcome this file will not ship. So the gateway
+ * is read by a second sweep using the byte-identical qualified find in the
+ * byte-identical ascending order, which selects the same route unless the
+ * routing table changes between the two statements. If it does change, both
+ * halves still come from an active main-table default route, and the
+ * caller's interface-match guard is what rejects a mismatched pair -- the
+ * failure is "no route added, and a log line saying so", never a route
+ * built out of two different uplinks.
+ *
+ * VARIABLE NAMING. Every local is prefixed, so several copies of this can
+ * coexist on one entered line (the "WAN Routing" chunk emits one per WAN)
+ * without colliding. */
+function buildUplinkDiscoveryStatements(
+  prefix: string,
+  opts?: { withGateway?: boolean },
+): string[] {
+  const p = prefix;
+  // Both qualifiers, on every default-route lookup this function emits.
+  // Written once, interpolated everywhere, so a future edit cannot drop
+  // them from one lookup and leave them on another -- the exact hole a
+  // mutation pass found in this suite's own guards twice already.
+  const qualified = `/ip route find where dst-address="0.0.0.0/0" active=yes ${ROUTE_MAIN_TABLE_FILTER}`;
+  const ifExists = `[:len [/interface find where name=$${p}If]] > 0`;
+  const stmts = [
+    `:local ${p}If ""`,
+    // COUNTED FROM THE SAME FILTER THE SWEEP USES. A `find` whose filter
+    // name RouterOS no longer recognises returns an empty set without
+    // erroring -- confirmed on v7 with the v6 `routing-mark=` spelling --
+    // so "0 routes" and "this script is speaking the wrong dialect" are
+    // indistinguishable from the value alone. THE ZERO BRANCH IS PART OF
+    // THIS BUILDER'S CONTRACT, not an optional extra: every caller must
+    // branch on `$<p>DefCount = 0` and say so out loud, naming a stale
+    // filter name as one of the two possible causes. Section 12 of
+    // `scripts/test-setup-script-generator.mjs` fails the build if any
+    // call site binds the count without branching on zero.
+    `:local ${p}DefCount [:len [${qualified}]]`,
+    // THE ZERO BRANCH IS EMITTED HERE, not left to the caller. A caller
+    // that binds the count and forgets to read it is exactly how a silent
+    // empty match ships, and one of them (the WAN-list/NAT line) did
+    // forget, which this suite caught. Terse on purpose -- it is paid for
+    // on every line that discovers an uplink, including the heartbeat's,
+    // which is also stored escaped inside the scheduler. Callers add their
+    // own, longer, situation-specific fault A on top.
+    `:if ($${p}DefCount = 0) do={ :log warning "cloudguest: 0 active main-table default routes -- no uplink, or a filter name this RouterOS build rejects" }`,
+    `:for ${p}Dist from=1 to=255 do={ :if ($${p}If = "") do={ :foreach ${p}R in=[${qualified} distance=$${p}Dist] do={ :if ($${p}If = "") do={ :do { :set ${p}If [:tostr [/ip route get $${p}R immediate-gw]] } on-error={ :do { :set ${p}If [:tostr [/ip route get $${p}R gateway]] } on-error={ :set ${p}If "" } } } } } }`,
+    `:if ([:typeof [:find $${p}If "%"]] != "nil") do={ :set ${p}If [:pick $${p}If ([:find $${p}If "%"] + 1) [:len $${p}If]] }`,
+    `:if ($${p}If != "" && !(${ifExists})) do={ :do { :set ${p}If [:tostr [/ip arp get [find where address=$${p}If] interface]] } on-error={ :set ${p}If "" } }`,
+    `:if ($${p}If != "" && !(${ifExists})) do={ :set ${p}If "" }`,
+  ];
+  if (opts?.withGateway) {
+    stmts.push(
+      `:local ${p}Gw ""`,
+      `:for ${p}GwDist from=1 to=255 do={ :if ($${p}Gw = "") do={ :foreach ${p}GwR in=[${qualified} distance=$${p}GwDist] do={ :if ($${p}Gw = "") do={ :do { :set ${p}Gw [:tostr [/ip route get $${p}GwR gateway]] } on-error={ :set ${p}Gw "" } } } } }`,
+    );
+  }
+  return stmts;
+}
+
+/** RouterOS boolean: `$<p>Gw` holds something that can actually be used as
+ * a gateway. `"0.0.0.0" != ""` is TRUE, and a zero gateway is exactly what
+ * `/ip route add` accepts and then silently flags Inactive -- this file has
+ * been burned by that once already, so the zero case is rejected by name
+ * rather than by an emptiness test. */
+function gatewayUsableExpr(varName: string): string {
+  return `$${varName} != "" && $${varName} != "0.0.0.0"`;
+}
 
 /** The hEX (and every other RouterOS box this fleet uses) has NO
  * battery-backed clock. A fresh unit, and any unit that has been
@@ -1835,8 +2167,9 @@ function wanExistenceCheckLines(wanIfNameExprs: string[]): string[] {
   wanIfNameExprs.forEach((expr) => {
     const missing = `[:len [/interface find where name=${expr}]] = 0`;
     lines.push(
-      `:if (${missing}) do={ :put ("*** ERROR: WAN interface \\"" . ${expr} . "\\" was not found on this device. Did you rename it? Re-check /interface print and re-generate this script with the CURRENT name -- do NOT rename the interface to match the script. Aborting before touching bridge/NAT config. ***") }`,
-      `:if (${missing}) do={ :error ("cloudguest-setup: WAN interface " . ${expr} . " not found") }`,
+      `:if (${missing}) do={ :put ("*** NOTE: no interface on this device is named \\"" . ${expr} . "\\". Nothing is being renamed and nothing is aborting -- the WAN Routing chunk resolves the live uplink from the routing table instead. ***") }`,
+      `:if (${missing}) do={ :put "*** If this router is online, that is fine. If it is not, check /interface print and re-generate with the real name. ***" }`,
+      `:if (${missing}) do={ :log warning ("cloudguest: configured WAN interface " . ${expr} . " does not exist on this device -- continuing, and resolving the real uplink from the active default route instead") }`,
     );
   });
   return lines;
@@ -1890,12 +2223,17 @@ function buildClockNtpChunk(): RouterSetupScriptChunk {
   const verdictStatements: string[] = [`:local clkStatus "unreadable"`, readStatus];
   // Unrolled try/wait ladder, not a `:for` loop -- a loop cannot express
   // "attempt, and only wait if it did not work" with one statement per
-  // `do={}` body. Identical idiom to the DHCP-gateway poll in the "WAN
-  // Routing" chunk; see WAN_DHCP_GW_POLL_ATTEMPTS' own docstring.
-  for (let retry = 1; retry < CLOCK_NTP_POLL_ATTEMPTS; retry++) {
-    verdictStatements.push(`:if (${notSynced}) do={ :delay ${CLOCK_NTP_POLL_DELAY} }`);
-    verdictStatements.push(`:if (${notSynced}) do={ ${readStatus} }`);
-  }
+  // `do={}` body. The SAME primitive as the DHCP and PPPoE gateway polls
+  // in the "WAN Routing" chunk, not a third hand-written copy of the same
+  // shape; see `buildBoundedRetryLadder`'s own docstring.
+  verdictStatements.push(
+    ...buildBoundedRetryLadder({
+      attempt: readStatus,
+      unresolved: notSynced,
+      attempts: CLOCK_NTP_POLL_ATTEMPTS,
+      delay: CLOCK_NTP_POLL_DELAY,
+    }),
+  );
   verdictStatements.push(
     `:local clkDate [:tostr [/system clock get date]]`,
     `:local clkYear 0`,
@@ -2460,6 +2798,42 @@ function buildHeartbeatStatements(opts: {
   wireguard?: WireguardPeerInfo;
 }): string {
   const { apiBase, agentCredential, wireguard } = opts;
+  // ROUTER-ORIGINATED TRAFFIC IS DELIBERATELY UNMARKED.
+  // ---------------------------------------------------
+  // This is the policy for everything this router sends on its own behalf
+  // -- this heartbeat, DNS, NTP, the WireGuard handshake -- and it is a
+  // decision, not an omission.
+  //
+  // The `/tool fetch` below carries no `routing-mark`, no `routing-table`,
+  // and no source address. It is therefore routed by the MAIN table, and
+  // the main table's lowest-distance ACTIVE default route is whichever WAN
+  // is alive right now. That single fact is the whole failover story: when
+  // WAN1's gateway stops answering, `check-gateway=ping` flags WAN1's
+  // distance=1 route Inactive, WAN2's distance=2 route becomes the
+  // lowest-distance active default, and the NEXT heartbeat -- five minutes
+  // later, from the scheduler, with no reprovisioning, no regeneration and
+  // no reboot -- goes out over WAN2 and reports WAN2's address. When WAN1
+  // comes back its distance=1 route goes active again and the traffic
+  // fails back on its own, for the same reason and with the same
+  // no-intervention property.
+  //
+  // In PCC (load-balance) mode the generator DOES create `to_wan<N>`
+  // tables and mark traffic into them, and marking this fetch into one of
+  // them would be a real hazard: a heartbeat marked `to_wan1` on a router
+  // whose WAN1 is dead is a heartbeat that never arrives, and the platform
+  // would show the router offline while its guests browse happily over
+  // WAN2. It cannot happen here, by construction rather than by care:
+  //  - the only `action=mark-routing` rule this generator emits is in
+  //    `chain=prerouting`, and router-originated packets never traverse
+  //    prerouting -- they start at `output`;
+  //  - this generator emits NO `chain=output` mangle rule at all, in any
+  //    mode;
+  //  - the PCC connection-marking rules are additionally pinned to
+  //    `in-interface=<lanBridge>`, so they only ever see guest traffic.
+  // `scripts/test-setup-script-generator.mjs` pins all three, plus the
+  // absence of any mark/table/src-address on this fetch, so the policy
+  // cannot be regressed by an edit that looks locally reasonable.
+  //
   // JSON quotes are escaped one level here (`\"`), which is correct as-is
   // for the directly-pasted copy; the scheduler's stored copy has a second
   // level applied to this whole string by its own
@@ -2493,16 +2867,16 @@ function buildHeartbeatStatements(opts: {
   // same "unmarked route only" reason. If it ever matches nothing, the
   // "no active default route" warning below fires and no address is sent:
   // a visible fault, never a wrong address.
-  const mainDefaults = `[/ip route find where dst-address="0.0.0.0/0" active=yes routing-mark=""]`;
-  const ifExists = `[:len [/interface find where name=$hbIf]] > 0`;
+  //
+  // The sweep, the three resolution paths and the real-interface check are
+  // NOT written out here any more: they are
+  // `buildUplinkDiscoveryStatements`, shared byte-for-byte with the "WAN
+  // Routing" chunk, so the chunk that BUILDS the uplink's routes and the
+  // chunk that REPORTS the uplink cannot drift about what "the uplink"
+  // means. This call is what binds `$hbIf` and `$hbDefCount` below.
   return [
     // -- 1. which interface is carrying the default route ---------------
-    `:local hbIf ""`,
-    `:local hbDefCount [:len ${mainDefaults}]`,
-    `:for hbDist from=1 to=255 do={ :if ($hbIf = "") do={ :foreach hbR in=[/ip route find where dst-address="0.0.0.0/0" active=yes routing-mark="" distance=$hbDist] do={ :if ($hbIf = "") do={ :do { :set hbIf [:tostr [/ip route get $hbR immediate-gw]] } on-error={ :do { :set hbIf [:tostr [/ip route get $hbR gateway]] } on-error={ :set hbIf "" } } } } } }`,
-    `:if ([:typeof [:find $hbIf "%"]] != "nil") do={ :set hbIf [:pick $hbIf ([:find $hbIf "%"] + 1) [:len $hbIf]] }`,
-    `:if ($hbIf != "" && !(${ifExists})) do={ :do { :set hbIf [:tostr [/ip arp get [find where address=$hbIf] interface]] } on-error={ :set hbIf "" } }`,
-    `:if ($hbIf != "" && !(${ifExists})) do={ :set hbIf "" }`,
+    ...buildUplinkDiscoveryStatements("hb"),
     // -- 2. say what was chosen, and flag a WAN-list disagreement -------
     `:if ($hbDefCount > 1 && $hbIf != "") do={ :log info ("cloudguest-hb: " . $hbDefCount . " active default routes, using lowest distance via " . $hbIf) }`,
     // Reported anyway rather than suppressed: the route is what actually
@@ -3104,6 +3478,35 @@ export function buildRouterSetupScriptChunks(opts: {
   // own single default route) by hand.
   if (!basicConfigOnly) {
     const lines: string[] = [];
+    // FIRST: say which RouterOS dialect this chunk is speaking, and check
+    // the device agrees. Everything below uses v7's `routing-table=`, and
+    // the v6 spelling it replaced does not error on v7 -- it matches
+    // nothing, silently (see `ROUTE_MAIN_TABLE_FILTER`). The reverse is
+    // just as silent, so a device that is not v7 gets a banner rather than
+    // a script that reports success having matched nothing.
+    lines.push(buildRouterOsVersionCheckStatements().join("; "));
+    // SECOND: on v7 a route cannot enter a routing table that has not been
+    // declared, so every `to_wan<N>` table the load-balancing routes below
+    // use is created before any of them is added.
+    if (wans.length > 1 && wanRoutingMode === "load_balance") {
+      lines.push(...routingTablePreambleLines(wans.map((_, idx) => `to_wan${idx + 1}`)));
+    }
+    // Each WAN that has to WAIT for an asynchronous source (a DHCP lease,
+    // a PPPoE session) gets a share of one chunk-wide patience budget
+    // rather than its own full ladder. A single-WAN router is unaffected
+    // -- it gets the whole budget, exactly as before. What this stops is
+    // four WANs stacking four full ladders into one paste and freezing the
+    // technician's terminal for over a minute, which reads as a hang and
+    // gets the router power-cycled mid-provision.
+    const pollingWans = wans.filter((w) => w.mode !== "static").length;
+    const pollAttempts = (max: number, delaySeconds: number) =>
+      Math.max(
+        2,
+        Math.min(
+          max,
+          1 + Math.floor(WAN_GW_POLL_BUDGET_S / (delaySeconds * Math.max(pollingWans, 1))),
+        ),
+      );
     // ONE LINE PER WAN, `;`-joined -- not a multi-line block, and not two
     // passes (resolve every gateway, then build every route) the way this
     // used to be written.
@@ -3127,14 +3530,42 @@ export function buildRouterSetupScriptChunks(opts: {
     wans.forEach((wan, idx) => {
       const n = idx + 1;
       const iface = escapeForRouterOsString(wan.iface);
+      const effIface = wanEffectiveIfs[idx];
       const stmts: string[] = [];
       if (wan.mode === "static") {
-        stmts.push(`:local wan${n}Gw "${wan.gateway}"`);
+        // ESCAPED, not interpolated raw. `wan.gateway` is free text typed
+        // into an operator-facing form (see `RouterSetupScriptAdvanced`);
+        // a stray `"` or `\` in it used to close this RouterOS string
+        // literal early and corrupt the rest of an already very long
+        // single-paste line -- the same reason `lanBridge` and every
+        // `iface` above go through `escapeForRouterOsString`. An omitted
+        // gateway lands here as `""`, which fails `gwOk` below and falls
+        // through to the routing-table resolution like any other
+        // unresolved WAN, instead of emitting the literal string
+        // "undefined" as a gateway.
+        stmts.push(`:local wan${n}Gw "${escapeForRouterOsString(wan.gateway ?? "")}"`);
       } else if (wan.mode === "pppoe") {
-        const pppoeIface = wanEffectiveIfs[idx];
+        const pppoeIface = effIface;
+        // PPPoE dial-up is asynchronous in exactly the way a DHCP lease
+        // is: `remote-address` on a session still in `dialing`/
+        // `authenticating` is not there to read. This used to make ONE
+        // attempt and then log "re-paste this chunk once connected",
+        // which meant a PPPoE WAN pasted at normal speed routinely got no
+        // default route at all on the first pass. Same bounded ladder as
+        // DHCP below, same primitive.
+        const pppoeExists = `[:len [/interface pppoe-client find where name="${pppoeIface}"]] > 0`;
+        const attempt = `:do { :set wan${n}Gw ([/interface pppoe-client monitor [find name="${pppoeIface}"] once as-value]->"remote-address") } on-error={ :set wan${n}Gw "" }`;
+        const unresolved = `[:len $wan${n}Gw] = 0 || $wan${n}Gw = "0.0.0.0"`;
         stmts.push(`:local wan${n}Gw ""`);
+        stmts.push(`:if (${pppoeExists}) do={ ${attempt} }`);
         stmts.push(
-          `:if ([:len [/interface pppoe-client find where name="${pppoeIface}"]] > 0) do={ :do { :set wan${n}Gw ([/interface pppoe-client monitor [find name="${pppoeIface}"] once as-value]->"remote-address") } on-error={ :log warning "cloudguest: PPPoE WAN${n} gateway not resolved yet (still negotiating) -- re-paste this chunk once connected" } }`,
+          ...buildBoundedRetryLadder({
+            attempt,
+            unresolved,
+            attempts: pollAttempts(WAN_PPPOE_GW_POLL_ATTEMPTS, WAN_PPPOE_GW_POLL_DELAY_S),
+            delay: WAN_PPPOE_GW_POLL_DELAY,
+            attemptPrecondition: pppoeExists,
+          }),
         );
       } else {
         // Confirmed live on a factory-fresh hEX (2026-08-21): reading the
@@ -3151,29 +3582,55 @@ export function buildRouterSetupScriptChunks(opts: {
         // precise shape that threw a live syntax error on a real router
         // (Heartbeat chunk's comment), so it could never have run either.
         // A loop cannot express "attempt, and only wait if it did not work"
-        // with one statement per body, so the retries are written out. Each
-        // statement is a shape already proven on this hardware, and the
-        // total wait (${WAN_DHCP_GW_POLL_ATTEMPTS} attempts,
-        // ${WAN_DHCP_GW_POLL_DELAY} apart) is the same order as the 30x1s
-        // the loop intended.
+        // with one statement per body, so the retries are written out --
+        // once, in `buildBoundedRetryLadder`, shared with the PPPoE branch
+        // above and the NTP poll in the clock chunk rather than copied a
+        // third time. Each statement is a shape already proven on this
+        // hardware, and the total wait (${WAN_DHCP_GW_POLL_ATTEMPTS}
+        // attempts, ${WAN_DHCP_GW_POLL_DELAY} apart) is the same order as
+        // the 30x1s the loop intended.
+        //
+        // `/ip dhcp-client` is the FIRST source consulted for a DHCP WAN,
+        // not the only one. It is the right first source -- this
+        // generator's own dhcp-client carries `add-default-route=no`, so
+        // on a first paste there is no default route in the table yet to
+        // learn a gateway from, and the lease is the only place the answer
+        // exists. But it is a source about a NAMED PORT, and a named port
+        // is an assumption: a technician who runs this WAN's DHCP on a
+        // VLAN sub-interface, or who renamed the port, or who brought the
+        // link up some other way entirely, has a perfectly working uplink
+        // that this find matches nothing on. When that happens the routing
+        // table below is consulted instead, and it is authoritative for
+        // every WAN mode alike.
         const attempt = `:do { :set wan${n}Gw [:tostr [/ip dhcp-client get [find where interface="${iface}"] gateway]] } on-error={ :set wan${n}Gw "" }`;
         const unresolved = `[:len $wan${n}Gw] = 0 || $wan${n}Gw = "0.0.0.0"`;
         stmts.push(`:local wan${n}Gw ""`);
         stmts.push(attempt);
-        for (let retry = 1; retry < WAN_DHCP_GW_POLL_ATTEMPTS; retry++) {
-          stmts.push(`:if (${unresolved}) do={ :delay ${WAN_DHCP_GW_POLL_DELAY} }`);
-          stmts.push(`:if (${unresolved}) do={ ${attempt} }`);
-        }
+        stmts.push(
+          ...buildBoundedRetryLadder({
+            attempt,
+            unresolved,
+            attempts: pollAttempts(WAN_DHCP_GW_POLL_ATTEMPTS, WAN_DHCP_GW_POLL_DELAY_S),
+            delay: WAN_DHCP_GW_POLL_DELAY,
+          }),
+        );
       }
       // `"0.0.0.0" != ""` is TRUE, so the previous guard passed a zero
       // gateway into `/ip route add` -- RouterOS accepts it and silently
       // flags the route Inactive. Reject it explicitly.
-      const gwOk = `$wan${n}Gw != "" && $wan${n}Gw != "0.0.0.0"`;
+      const gwOk = gatewayUsableExpr(`wan${n}Gw`);
       // Nothing used to be said when a gateway failed to resolve: the whole
       // `:if (gwOk) do={...}` block was simply skipped, leaving a WAN with
       // no default route and no trace anywhere that it had been attempted.
       // Same "a silent skip is not a report" posture as the Heartbeat
       // chunk's fetch wrappers.
+      //
+      // This line is the RAW VALUE, alongside the three diagnoses above,
+      // not instead of them -- it says what the variable actually held
+      // when it was rejected (`""`, `0.0.0.0`, something unexpected),
+      // which none of A/B/C carries. It is deliberately not a generic
+      // substitute for them: strip A/B/C and this alone tells a technician
+      // nothing about where to look.
       lines.push(
         [
           ...stmts,
@@ -3195,7 +3652,7 @@ export function buildRouterSetupScriptChunks(opts: {
           // three fault traces, every count line) already had them. One
           // site, missed once -- which is precisely why it is now swept
           // for rather than left to review. See section 11.
-          `:if (!(${gwOk})) do={ :log warning ("cloudguest: WAN${n} gateway did not resolve (still \\"" . $wan${n}Gw . "\\") -- no default route added for this WAN; re-paste this chunk once the link is up") }`,
+          `:if (!(${gwOk})) do={ :log warning ("cloudguest: WAN${n} gateway did not resolve (value \\"" . $wan${n}Gw . "\\") -- no route added; re-paste once the link is up") }`,
           // Adopt-don't-duplicate: checked by OUR OWN comment first (the
           // normal, healthy-re-run case), but if that's missing this also
           // checks for ANY other route already sitting at this exact
@@ -3223,40 +3680,220 @@ export function buildRouterSetupScriptChunks(opts: {
           // WAN's own routing-mark'd load-balance/failover routes below,
           // which share this exact dst-address+gateway by design and would
           // otherwise get wrongly mistaken for the plain route on a re-run.
-          `:if (${gwOk} && [:len $plainRoute${n}] = 0) do={ :set plainRoute${n} [/ip route find where dst-address="0.0.0.0/0" gateway=$wan${n}Gw routing-mark=""] }`,
+          //
+          // AND NO `active=yes` HERE, DELIBERATELY -- the one default-route
+          // lookup in this generator that does not carry it. Every other
+          // one is asking "which uplink is live", where an Inactive route
+          // is a trap. This one is asking the opposite question: "is this
+          // dst-address+gateway SLOT already occupied", because RouterOS's
+          // duplicate-route check is on dst-address+gateway alone and
+          // `/ip route add` onto an occupied slot throws "failure: already
+          // have such route". An Inactive route occupies the slot exactly
+          // as much as an active one does -- a foreign dhcp-client's
+          // auto-route on a WAN whose link is momentarily down is the
+          // realistic case -- so filtering it out here would skip the
+          // adopt branch, fall into the add branch, and turn a silent
+          // no-op into a hard error mid-paste. `routing-mark=""` is
+          // required and present; `active=yes` would be actively wrong.
+          // `scripts/test-setup-script-generator.mjs` pins this: it
+          // requires both qualifiers on every default-route lookup EXCEPT
+          // this exact shape, and separately requires this shape to exist,
+          // so neither the rule nor its one exception can quietly go away.
+          `:if (${gwOk} && [:len $plainRoute${n}] = 0) do={ :set plainRoute${n} [/ip route find where dst-address="0.0.0.0/0" gateway=$wan${n}Gw ${ROUTE_MAIN_TABLE_FILTER}] }`,
           `:if (${gwOk} && [:len $plainRoute${n}] = 0) do={ /ip route add dst-address=0.0.0.0/0 gateway=$wan${n}Gw distance=${n} check-gateway=ping comment="cloudguest-plain-wan${n}" }`,
-          `:if (${gwOk} && [:len $plainRoute${n}] > 0) do={ /ip route set $plainRoute${n} gateway=$wan${n}Gw distance=${n} check-gateway=ping comment="cloudguest-plain-wan${n}" }`,
-          // The routing-mark'd routes below are what the PCC mangle chunk
-          // marks LAN-originated connections into -- meaningless (and never
-          // generated) in failover-only mode, which relies purely on the
-          // plain distance-ordered route above and RouterOS's own
-          // lowest-active-distance selection for the entire failover
-          // mechanism, no routing-mark of any kind.
-          ...(wans.length > 1 && wanRoutingMode === "load_balance"
-            ? (() => {
-                // This WAN's own preferred (distance=1) routing-mark'd route
-                // -- what the PCC mangle rules below send this WAN's share of
-                // LAN-originated connections into. Crossover backup: the
-                // *next* WAN's mark also gets a distance=2 route via this
-                // WAN's gateway -- a ring (wan1 backs up wan2, wan2 backs up
-                // wan3, ..., last WAN backs up wan1), not every pair
-                // combination, so this stays one route per WAN regardless of
-                // how many WANs there are instead of growing
-                // combinatorially. Two WANs is the common case and
-                // degenerates to exactly mutual backup.
-                const nextN = ((idx + 1) % wans.length) + 1;
-                const own = `[:len [/ip route find where comment="cloudguest-route-wan${n}"]]`;
-                const backup = `[:len [/ip route find where comment="cloudguest-backup-wan${nextN}-via-wan${n}"]]`;
-                return [
-                  `:if (${gwOk} && ${own} = 0) do={ /ip route add dst-address=0.0.0.0/0 gateway=$wan${n}Gw routing-mark="to_wan${n}" distance=1 check-gateway=ping comment="cloudguest-route-wan${n}" }`,
-                  `:if (${gwOk} && ${own} > 0) do={ /ip route set [find comment="cloudguest-route-wan${n}"] gateway=$wan${n}Gw }`,
-                  `:if (${gwOk} && ${backup} = 0) do={ /ip route add dst-address=0.0.0.0/0 gateway=$wan${n}Gw routing-mark="to_wan${nextN}" distance=2 check-gateway=ping comment="cloudguest-backup-wan${nextN}-via-wan${n}" }`,
-                  `:if (${gwOk} && ${backup} > 0) do={ /ip route set [find comment="cloudguest-backup-wan${nextN}-via-wan${n}"] gateway=$wan${n}Gw }`,
-                ];
-              })()
-            : []),
+          // Wrapped for the same reason as the fallback line's own adopt
+          // branch below: the foreign route this exists to adopt is, in the
+          // motivating case, RouterOS's own DHCP-client auto-route, and
+          // that one is DYNAMIC. `/ip route set` on a dynamic entry is
+          // refused, which unwrapped aborts the rest of this line mid-paste
+          // -- taking the routing-mark'd routes after it down with it. The
+          // router keeps the default route it already had either way; what
+          // is lost is `check-gateway=ping`, and that is what the message
+          // names.
+          `:if (${gwOk} && [:len $plainRoute${n}] > 0) do={ :do { /ip route set $plainRoute${n} gateway=$wan${n}Gw distance=${n} check-gateway=ping comment="cloudguest-plain-wan${n}" } on-error={ :log warning "cloudguest: WAN${n} default route cannot be modified (likely dynamic, from RouterOS's own DHCP client). Internet works; check-gateway=ping is unset, so ISP health has nothing to read" } }`,
         ].join("; "),
       );
+
+      // ---- SECOND LINE: the routing table, for every WAN mode alike ----
+      //
+      // A SEPARATE ENTERED LINE, deliberately, for two reasons.
+      //
+      // 1. SCOPE. Nothing here reads `$wan<N>Gw`; it resolves its own
+      //    value from the device. So it does not need to sit on the line
+      //    that binds that variable, and it must not -- folding it in took
+      //    the DHCP WAN's line from 3.1KB to 5.8KB, nearly double the
+      //    longest line this generator has ever emitted, in a file whose
+      //    entire chunking discipline exists because WinBox's terminal was
+      //    confirmed live to drop characters out of a long paste. Split,
+      //    both lines stay under the size that has been shipping.
+      // 2. IT IS A DIFFERENT QUESTION. The line above asks the source this
+      //    WAN's MODE implies -- the DHCP lease on a named port, the
+      //    pppoe-client with a known name, a gateway the operator typed
+      //    in. Every one of those is an assumption about where this WAN
+      //    lives, and every one can be wrong on a router that is
+      //    nonetheless perfectly online: a renamed port, a VLAN or SFP
+      //    sub-interface the form never knew about, an ISP that moved, a
+      //    static gateway mistyped or left blank. This line asks the
+      //    device instead. If there is an ACTIVE default route in the MAIN
+      //    table then that route IS how this router reaches the internet
+      //    right now, and its next hop IS a usable gateway -- no
+      //    assumption involved. It is `buildUplinkDiscoveryStatements`,
+      //    the same builder and therefore literally the same qualified
+      //    lookups the Heartbeat chunk uses, so "the uplink" cannot mean
+      //    two different things in two chunks of one script.
+      //
+      // ONLY WHEN THE LINE ABOVE PRODUCED NOTHING. The trigger is
+      // `[:len [find where comment="cloudguest-plain-wan<N>"]] = 0` -- a
+      // fact read off the device, not a variable carried across a line
+      // boundary (which would not survive) . So this never fights the line
+      // above, never re-points a route that one just set correctly, and is
+      // a no-op on every healthy re-run.
+      //
+      // MATCHED BY INTERFACE, NOT ADOPTED BLIND. On a multi-WAN router the
+      // discovered uplink belongs to exactly ONE of the WANs; handing its
+      // gateway to a different WAN would build a route that sends WAN2's
+      // marked traffic out of WAN1, which is worse than no route at all.
+      // So multi-WAN takes it only when the discovered interface IS this
+      // WAN's own effective interface. A single-WAN router is the one
+      // deliberate exception: there is no other WAN to confuse it with,
+      // "the configured name is not what the device uses" is precisely the
+      // case this exists for, and the disagreement is logged as a warning
+      // rather than absorbed, because the technician needs to know the
+      // form does not match the hardware.
+      {
+        const p = `w${n}f`;
+        const disc = `$${p}If`;
+        const discGw = `$${p}Gw`;
+        const discGwOk = gatewayUsableExpr(`${p}Gw`);
+        const matchesThisWan = `${disc} = "${effIface}"`;
+        // Single WAN: any resolved uplink is this router's uplink.
+        const match = wans.length === 1 ? `${disc} != ""` : matchesThisWan;
+        const noRouteYet = `$${p}Have = 0`;
+        // HOISTED INTO A BOOLEAN, once, and read six times. The literal
+        // guard is ~70 characters and every statement below has to restate
+        // it (one statement per `do={}` body, and a `:local` does not
+        // survive to the next entered line -- so it must be restated, and
+        // it must be restated ON THIS LINE). Written out six times it put
+        // this line over the paste-size budget the suite enforces, in a
+        // file whose whole chunking discipline exists because WinBox
+        // mangles long pastes. `:set` on the same line is a use, not a
+        // binding, so the `:local` still sits here with its readers.
+        const useIt = `$${p}Use = true`;
+        const useItRaw = `${noRouteYet} && ${match} && ${discGwOk}`;
+        // `set` deliberately does NOT restate `dst-address` -- the route was
+        // found BY its dst-address, and re-setting a key field on an
+        // existing route is a change this hardware has never been asked to
+        // make.
+        const routeProps = `gateway=${discGw} distance=${n} check-gateway=ping comment="cloudguest-plain-wan${n}"`;
+        const fallbackStmts: string[] = [
+          ...buildUplinkDiscoveryStatements(p, { withGateway: true }),
+          `:local ${p}Have [:len [/ip route find where comment="cloudguest-plain-wan${n}"]]`,
+          // ADOPT, DON'T ADD-AND-ERROR. The gateway here came OUT of an
+          // existing default route, so a route at this exact
+          // dst-address+gateway always exists -- and RouterOS's own
+          // duplicate check is on dst-address+gateway alone, so a blind
+          // `/ip route add` would throw "failure: already have such route"
+          // every single time. The existing unmarked route is re-tagged as
+          // ours instead, which is what gives it `check-gateway=ping` and
+          // therefore gives the dashboard's ISP-health signal something to
+          // read. `:local` bound unconditionally (a conditional binding is
+          // not a binding) and only filled in when there is a gateway to
+          // look one up by; `[:len ""]` is 0, so the add branch below is
+          // still correct if it never gets filled.
+          // Same `routing-mark=""`-yes / `active=yes`-no reasoning as the
+          // adoption find on the line above -- see that comment.
+          `:local ${p}Use false`,
+          `:if (${useItRaw}) do={ :set ${p}Use true }`,
+          `:local ${p}Slot ""`,
+          `:if (${useIt}) do={ :set ${p}Slot [/ip route find where dst-address="0.0.0.0/0" gateway=${discGw} ${ROUTE_MAIN_TABLE_FILTER}] }`,
+          `:if (${useIt}) do={ :log info ("cloudguest: WAN${n} gateway " . ${discGw} . " taken from the live route on " . ${disc} . " (${wan.mode} lookup found none)") }`,
+          `:if (${useIt} && [:len $${p}Slot] = 0) do={ /ip route add dst-address=0.0.0.0/0 ${routeProps} }`,
+          // WRAPPED, because the route being adopted here is very often
+          // DYNAMIC. The gateway came out of a live default route, and the
+          // realistic way a live default route exists that this generator
+          // did not create is RouterOS's own dhcp-client auto-route
+          // (`add-default-route=yes`, the factory default) -- which is a
+          // dynamic entry, and `/ip route set` on a dynamic entry is
+          // refused. Unwrapped that is a hard error that aborts the rest of
+          // this line mid-paste. Wrapped, the router keeps the working
+          // default route it already had and the technician gets told the
+          // one thing that is actually lost: `check-gateway=ping`, which is
+          // what the dashboard's ISP-health and bandwidth signals read.
+          // (`set` refusing a dynamic route is inferred from RouterOS's
+          // general treatment of dynamic entries, not verified on this
+          // fleet -- so it is written to degrade to a named warning whether
+          // the inference is right or wrong.)
+          `:if (${useIt} && [:len $${p}Slot] > 0) do={ :do { /ip route set $${p}Slot ${routeProps} } on-error={ :log warning ("cloudguest: WAN${n} route via " . ${disc} . " cannot be modified (likely dynamic, from RouterOS's own DHCP client). Internet works; check-gateway=ping is not set, so ISP health/bandwidth have nothing to read") } }`,
+        ];
+        if (wans.length === 1) {
+          fallbackStmts.push(
+            `:if (${noRouteYet} && ${disc} != "" && !(${matchesThisWan}) && ${discGwOk}) do={ :log warning ("cloudguest: WAN1 is configured as \\"${effIface}\\" but the live default route leaves via " . ${disc} . " -- used the live route; re-generate with the real name") }`,
+          );
+        }
+        // ---- three faults that must not collapse into one --------------
+        //
+        // "no gateway" is three different situations to whoever is standing
+        // at the router, and one generic message sends them to the wrong
+        // place. Three distinct sentences, so `/log print` alone says which:
+        //  A. nothing is routing at all -- cable, link, or ISP.
+        //  B. something IS routing, but the interface behind it could not
+        //     be named (immediate-gw, gateway-as-name and ARP all failed)
+        //     -- a RouterOS-version/link-type problem, not connectivity.
+        //  C. the interface is real and known and still has no usable next
+        //     hop -- a link that is up and unconfigured, the one of the
+        //     three that is usually fixable on the spot.
+        fallbackStmts.push(
+          `:if (${noRouteYet} && $${p}DefCount = 0) do={ :log warning "cloudguest: no active default route found in main routing table -- WAN${n} has no gateway, no route added" }`,
+          `:if (${noRouteYet} && $${p}DefCount > 0 && ${disc} = "") do={ :log warning "cloudguest: active default route found but WAN interface could not be resolved -- WAN${n} has no route" }`,
+          `:if (${noRouteYet} && ${disc} != "" && !(${discGwOk})) do={ :log warning ("cloudguest: WAN interface " . ${disc} . " resolved but carries no usable address or gateway -- WAN${n} has no route") }`,
+        );
+        lines.push(fallbackStmts.join("; "));
+      }
+
+      // ---- THIRD LINE: this WAN's routing-table'd load-balance routes ---
+      //
+      // DERIVED FROM THE PLAIN ROUTE, not from `$wan<N>Gw`. That is what
+      // makes this its own line and it is the better design regardless of
+      // line length: the plain route is the single record of what this
+      // WAN's gateway actually turned out to be, whichever of the two
+      // lines above established it -- the mode-specific source, or the
+      // routing table. Reading it back means the marked routes CANNOT
+      // disagree with the plain one, and it replaces two duplicate copies
+      // of this block (one per line above) with one.
+      //
+      // Load-balance only. Failover-only mode routes entirely on the plain
+      // distance-ordered routes and RouterOS's own lowest-active-distance
+      // selection, and creates no marked routes at all -- see the cleanup
+      // just below, which removes any left by a previous load-balance
+      // provisioning of the same router.
+      if (wans.length > 1 && wanRoutingMode === "load_balance") {
+        // This WAN's own preferred (distance=1) route in its own table --
+        // what the PCC mangle rules send this WAN's share of LAN
+        // connections into. Crossover backup: the NEXT WAN's table also
+        // gets a distance=2 route via this WAN's gateway -- a ring (wan1
+        // backs up wan2, ..., last backs up wan1), not every pair, so this
+        // stays one route per WAN however many WANs there are instead of
+        // growing combinatorially. Two WANs degenerates to mutual backup.
+        const nextN = ((idx + 1) % wans.length) + 1;
+        const g = `w${n}m`;
+        const gwOkM = gatewayUsableExpr(`${g}Gw`);
+        const own = `[:len [/ip route find where comment="cloudguest-route-wan${n}"]]`;
+        const backup = `[:len [/ip route find where comment="cloudguest-backup-wan${nextN}-via-wan${n}"]]`;
+        lines.push(
+          [
+            `:local ${g}Plain [/ip route find where comment="cloudguest-plain-wan${n}"]`,
+            `:local ${g}Gw ""`,
+            // `get` on a multi-element find errors; our own comment matches
+            // at most one, but the read is wrapped rather than assumed.
+            `:if ([:len $${g}Plain] > 0) do={ :do { :set ${g}Gw [:tostr [/ip route get $${g}Plain gateway]] } on-error={ :set ${g}Gw "" } }`,
+            `:if (!(${gwOkM})) do={ :log warning "cloudguest: WAN${n} has no usable plain default route, so its load-balancing routes were not created -- guest traffic assigned to this WAN by the mangle rules would have nowhere to go. Fix this WAN's gateway and re-paste this chunk" }`,
+            `:if (${gwOkM} && ${own} = 0) do={ /ip route add dst-address=0.0.0.0/0 gateway=$${g}Gw ${ROUTE_TABLE_PROPERTY}="to_wan${n}" distance=1 check-gateway=ping comment="cloudguest-route-wan${n}" }`,
+            `:if (${gwOkM} && ${own} > 0) do={ /ip route set [find comment="cloudguest-route-wan${n}"] gateway=$${g}Gw }`,
+            `:if (${gwOkM} && ${backup} = 0) do={ /ip route add dst-address=0.0.0.0/0 gateway=$${g}Gw ${ROUTE_TABLE_PROPERTY}="to_wan${nextN}" distance=2 check-gateway=ping comment="cloudguest-backup-wan${nextN}-via-wan${n}" }`,
+            `:if (${gwOkM} && ${backup} > 0) do={ /ip route set [find comment="cloudguest-backup-wan${nextN}-via-wan${n}"] gateway=$${g}Gw }`,
+          ].join("; "),
+        );
+      }
     });
     if (wans.length > 1 && wanRoutingMode === "failover_only") {
       // Cleans up routing-mark'd routes a *previous* load-balance
@@ -3271,6 +3908,93 @@ export function buildRouterSetupScriptChunks(opts: {
       );
       lines.push(
         `:foreach r in=[/ip route find where comment~"^cloudguest-backup-wan"] do={ /ip route remove $r }`,
+      );
+    }
+    // ---- what this router's uplink ACTUALLY is, now that routing is set --
+    //
+    // Everything above is per-WAN and speaks in this generator's own
+    // logical labels ("WAN1", "WAN2"). This last line asks the device the
+    // one question the technician actually has -- WHICH INTERFACE IS
+    // CARRYING THE INTERNET, AND ON WHAT ADDRESS -- and answers it from the
+    // routing table, using the same builder, the same qualified lookups and
+    // the same three-way resolution the Heartbeat chunk uses. If the two
+    // ever disagreed, one of them would be lying; sharing the builder is
+    // what makes disagreeing impossible.
+    //
+    // This is also what makes FAILOVER legible. On a re-paste after WAN1
+    // has died, the lowest-distance ACTIVE main-table default route is
+    // WAN2's, so this prints WAN2's real interface and WAN2's real address
+    // -- not "WAN1", which is merely the link that was configured first.
+    // The three faults get the same three distinct sentences the per-WAN
+    // block above uses, for the same reason: they send a technician to
+    // three different places.
+    {
+      const p = "wanChk";
+      const ifResolved = `$${p}If != ""`;
+      lines.push(
+        [
+          ...buildUplinkDiscoveryStatements(p, { withGateway: true }),
+          // Same `:foreach` + first-wins as the Heartbeat chunk, and for
+          // the same reason: `/ip address get` on a multi-element find
+          // errors, and an uplink carrying two addresses is ordinary, not a
+          // fault -- erroring there would be reported as "no address",
+          // which is a lie.
+          `:local ${p}Ip ""`,
+          `:if (${ifResolved}) do={ :foreach ${p}A in=[/ip address find where interface=$${p}If] do={ :if ($${p}Ip = "") do={ :set ${p}Ip [:pick [/ip address get $${p}A address] 0 [:find [/ip address get $${p}A address] "/"]] } } }`,
+          `:put "  ------------------------------------------------"`,
+          `:if (${ifResolved} && $${p}Ip != "") do={ :put ("  LIVE UPLINK: " . $${p}If . "  address " . $${p}Ip . "  gateway " . $${p}Gw) }`,
+          `:if (${ifResolved} && $${p}Ip != "") do={ :log info ("cloudguest: live uplink is " . $${p}If . " (address " . $${p}Ip . ", gateway " . $${p}Gw . ", " . [:tostr $${p}DefCount] . " active default route(s))") }`,
+          `:if ($${p}DefCount = 0) do={ :put "  LIVE UPLINK: none -- no active default route found in main routing table" }`,
+          `:if ($${p}DefCount = 0) do={ :log warning "cloudguest: no active default route found in main routing table -- this router cannot reach the internet; check cabling, the ISP link, and re-paste this chunk" }`,
+          `:if ($${p}DefCount > 0 && $${p}If = "") do={ :put "  LIVE UPLINK: unresolved -- a default route is active but its interface could not be named" }`,
+          `:if ($${p}DefCount > 0 && $${p}If = "") do={ :log warning "cloudguest: active default route found but WAN interface could not be resolved (immediate-gw, gateway-as-name and ARP all failed) -- routing may still work; report this router's RouterOS version" }`,
+          `:if (${ifResolved} && $${p}Ip = "") do={ :put ("  LIVE UPLINK: " . $${p}If . " -- interface resolved but it carries NO usable address") }`,
+          `:if (${ifResolved} && $${p}Ip = "") do={ :log warning ("cloudguest: WAN interface " . $${p}If . " resolved but carries no usable address or gateway -- a different fault from having no uplink at all") }`,
+        ].join("; "),
+      );
+      // ---- bind the Wyfy-managed objects to the DISCOVERED interface ---
+      //
+      // A SECOND LINE, because this one changes configuration rather than
+      // reporting it, and because both together are past the paste-size
+      // budget. It re-runs the same discovery (a `:local` does not survive
+      // to the next entered line, and this is the same builder, so the two
+      // lines cannot disagree about which interface they mean).
+      //
+      // WHY THIS EXISTS AT ALL. "WAN + Bridge" adds the WAN interface-list
+      // membership and the NAT masquerade against the interface NAME the
+      // operator typed into the form. That name can be wrong -- a renamed
+      // port, a VLAN or SFP sub-interface, an ISP that moved -- and when it
+      // is, the router ends up with a masquerade rule pointing at an
+      // interface carrying no traffic and a WAN list that does not contain
+      // the real uplink, which breaks the firewall's own
+      // `in-interface-list=WAN` matching. Previously this was a warning
+      // telling the technician to re-generate the script. Now the actually
+      // live interface is added, so the router is correct on this paste.
+      //
+      // EVERY OBJECT HERE IS WYFY-MANAGED AND COMMENT-TAGGED. Nothing is
+      // removed, nothing not carrying this generator's own comment is read
+      // or written, and every add is gated on an explicit count so a
+      // re-run updates rather than duplicates. A user's own NAT rules and
+      // their own interface-list members are never touched.
+      lines.push(
+        [
+          ...buildUplinkDiscoveryStatements(p, { withGateway: true }),
+          // Interface-list membership. Add only if this exact interface is
+          // not already a member -- so a WAN whose configured name was
+          // right is a no-op here, and no membership is ever duplicated.
+          `:local ${p}InList 0`,
+          `:if (${ifResolved}) do={ :set ${p}InList [:len [/interface list member find where interface=$${p}If list="WAN"]] }`,
+          `:if (${ifResolved} && $${p}InList = 0) do={ /interface list member add list="WAN" interface=$${p}If comment="${DISCOVERED_WAN_LIST_COMMENT}" }`,
+          `:if (${ifResolved} && $${p}InList = 0) do={ :log info ("cloudguest: added live uplink " . $${p}If . " to the WAN interface list -- the configured WAN port name is not the interface this router actually uses") }`,
+          // NAT masquerade for the live uplink, keyed on THIS generator's
+          // own comment so a re-run updates the one rule it owns and never
+          // reads, moves or removes a rule anyone else added.
+          `:local ${p}Nat [/ip firewall nat find where comment="${DISCOVERED_NAT_COMMENT}"]`,
+          `:if (${ifResolved} && [:len $${p}Nat] = 0) do={ /ip firewall nat add chain=srcnat out-interface=$${p}If action=masquerade comment="${DISCOVERED_NAT_COMMENT}" }`,
+          `:if (${ifResolved} && [:len $${p}Nat] > 0) do={ :do { /ip firewall nat set $${p}Nat chain=srcnat out-interface=$${p}If action=masquerade } on-error={ :log warning ("cloudguest: could not re-point the Wyfy-managed masquerade at " . $${p}If . " -- guests may not get NAT over the live uplink. Check /ip firewall nat print") } }`,
+          `:if (!(${ifResolved})) do={ :log warning "cloudguest: no uplink interface resolved, so the Wyfy-managed WAN list membership and masquerade were left exactly as they are -- nothing was guessed" }`,
+          `:put "  ------------------------------------------------"`,
+        ].join("; "),
       );
     }
     // MANDATORY for the dashboard's Bandwidth Utilization widget and the
