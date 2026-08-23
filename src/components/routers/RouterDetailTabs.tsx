@@ -5083,6 +5083,52 @@ export function buildRouterSetupScriptChunks(opts: {
       // leases but no gateway or DNS.
       `:if ([:len [/ip dhcp-server find where interface="${lanBridge}"]] = 0) do={ /ip dhcp-server add name="hotspot-dhcp" interface="${lanBridge}" address-pool="hotspot-pool" disabled=no }`,
       `:if ([:len [/ip dhcp-server network find where address="${lanNetwork}"]] = 0) do={ /ip dhcp-server network add address=${lanNetwork} gateway=${lanIp} dns-server=${lanIp} }`,
+      // DHCP OPTION 114 -- RFC 8910, the Captive-Portal URI.
+      //
+      // Everything else in this script relies on the guest's device GUESSING
+      // that a portal exists: it fetches its own probe URL, the hotspot
+      // intercepts it, the redirect is read as "captive". That works on
+      // Wi-Fi and is unreliable on a cable -- macOS does not open its
+      // Captive Network Assistant for an Ethernet interface at all, so a
+      // laptop plugged in with a patch lead gets an address, gets no popup,
+      // and looks broken until someone types the address by hand.
+      // Confirmed live 2026-08-23 on exactly that: browser-typed worked,
+      // nothing appeared on its own.
+      //
+      // Option 114 removes the guessing. The lease itself says "this
+      // network has a captive portal, here it is". Windows 11, macOS 13+,
+      // iOS 14+ and Android all read it, and they read it on wired links
+      // too. It is additive: a device that ignores 114 still hits the
+      // probe-interception path exactly as before, so this can only help.
+      //
+      // The URL is the hotspot's own `dns-name`, not the cloud portal --
+      // the same reasoning HOTSPOT_DNS_NAME's docstring gives at length.
+      // The device must land on THIS router's redirect page, which then
+      // sends it to the real portal with the session parameters attached.
+      // Pointing 114 straight at the cloud portal would skip that and the
+      // guest would arrive with no session to log into.
+      //
+      // ADD-OR-UPDATE, not add-if-missing: the value embeds the hotspot
+      // hostname, and an option left over from an earlier run with a
+      // different one is worse than none -- the device would be sent
+      // somewhere this router does not answer.
+      `:if ([:len [/ip dhcp-server option find where name="cloudguest-captive-portal"]] = 0) do={ /ip dhcp-server option add name="cloudguest-captive-portal" code=114 value="'http://${HOTSPOT_DNS_NAME}/'" } else={ /ip dhcp-server option set [find name="cloudguest-captive-portal"] code=114 value="'http://${HOTSPOT_DNS_NAME}/'" }`,
+      // Attached through an option SET rather than directly, because
+      // `/ip dhcp-server network` takes `dhcp-option` as a list and a bare
+      // assignment would discard anything already there.
+      `:if ([:len [/ip dhcp-server option sets find where name="cloudguest-opts"]] = 0) do={ /ip dhcp-server option sets add name="cloudguest-opts" options=cloudguest-captive-portal } else={ /ip dhcp-server option sets set [find name="cloudguest-opts"] options=cloudguest-captive-portal }`,
+      `:if ([:len [/ip dhcp-server network find where address="${lanNetwork}"]] > 0) do={ /ip dhcp-server network set [find where address="${lanNetwork}"] dhcp-option-set=cloudguest-opts }`,
+      // Read back. Every line above is an `:if`, and `set [find ...]`
+      // against an empty match succeeds silently -- the failure this file
+      // has been bitten by six times. A guest with no option 114 is not
+      // broken, only back to guessing, so this reports rather than fails.
+      [
+        `:local optN [:len [/ip dhcp-server option find where name="cloudguest-captive-portal"]]`,
+        `:local setN [:len [/ip dhcp-server network find where address="${lanNetwork}" and dhcp-option-set="cloudguest-opts"]]`,
+        `:if (($optN > 0) && ($setN > 0)) do={ :put "  Captive-portal DHCP option (114) is set and attached -- wired clients get the portal without guessing." }`,
+        `:if ($optN = 0) do={ :put "  NOTE: DHCP option 114 was not created. Guests still reach the portal by probe interception; a cabled laptop may need the address typed by hand." }`,
+        `:if (($optN > 0) && ($setN = 0)) do={ :put "  NOTE: DHCP option 114 exists but is not attached to this network, so it will not be handed out." }`,
+      ].join("; "),
       // Uses RouterOS's own *stock* hotspot template ("hotspot", not a
       // custom-uploaded one) -- present with all its supporting CSS/error/
       // logout pages on every fresh device out of the box. A previous,
