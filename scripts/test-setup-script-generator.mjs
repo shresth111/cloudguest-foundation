@@ -4684,16 +4684,29 @@ for (const [variant, script] of FULL_SCRIPTS) {
     "without it a cabled client has nothing but probe interception to go on, and macOS " +
       "does not act on that for an Ethernet interface",
   );
-  // POINTS AT THE ROUTER, NOT THE CLOUD PORTAL. The device must land on
-  // THIS router's redirect page, which then forwards to the real portal
-  // with the session parameters attached. Sending it straight to the cloud
-  // portal produces a guest with no session to log into -- the same
-  // confusion HOTSPOT_DNS_NAME's docstring records from a live failure.
+  // IT POINTS AT THE RFC 8908 API, NOT AT A PAGE. This was written wrong
+  // the first time and the check went with it, so both are pinned now.
+  // Option 114 does not carry "the portal's address" -- it carries the
+  // address of an API that answers that question in JSON. Pointed at an
+  // HTML page, a conforming client fetches it, fails to parse it as
+  // `application/captive+json`, and ignores the option entirely, which is
+  // indistinguishable from option 114 not working at all.
   check(
-    `${variant}: option 114 points at the hotspot's own name, not the cloud portal`,
-    new RegExp(`code=114 value="'http://${HOTSPOT_DNS_NAME_RE}/'"`).test(script) &&
-      !/code=114 value="'https?:\/\/portal\./.test(script),
-    "it must send the device to this router's redirect page, which carries the session " +
+    `${variant}: option 114 points at the RFC 8908 API, not at a page`,
+    /code=114 value="'https?:\/\/[^']*\/captive-portal\/rfc8908\?portal_url=/.test(script),
+    "an HTML page there is silently ignored by every conforming client",
+  );
+  // AND THE PORTAL IT NAMES IS STILL THIS ROUTER. The JSON's
+  // `user-portal-url` is where the device actually goes, and it must be the
+  // router's own redirect page -- that is what carries the
+  // $(mac)/$(link-login-only) substitution the portal needs. Sending the
+  // device straight to the cloud portal gives it a session it cannot log
+  // into; see HOTSPOT_DNS_NAME's docstring for the live failure.
+  check(
+    `${variant}: the portal_url it hands back is this router, not the cloud portal`,
+    new RegExp(`portal_url=http://${HOTSPOT_DNS_NAME_RE}/'"`).test(script) &&
+      !/portal_url=https?:\/\/portal\./.test(script),
+    "the device must land on this router's redirect page, which carries the session " +
       "parameters the portal needs",
   );
   // ADD-OR-UPDATE. The value embeds the hostname; one left over from an

@@ -5101,18 +5101,39 @@ export function buildRouterSetupScriptChunks(opts: {
       // too. It is additive: a device that ignores 114 still hits the
       // probe-interception path exactly as before, so this can only help.
       //
-      // The URL is the hotspot's own `dns-name`, not the cloud portal --
-      // the same reasoning HOTSPOT_DNS_NAME's docstring gives at length.
-      // The device must land on THIS router's redirect page, which then
-      // sends it to the real portal with the session parameters attached.
-      // Pointing 114 straight at the cloud portal would skip that and the
-      // guest would arrive with no session to log into.
+      // IT POINTS AT THE RFC 8908 API, NOT AT A PAGE. This was wrong when
+      // first written, and the mistake is worth keeping visible: option 114
+      // does not carry "the portal's address", it carries the address of a
+      // Captive Portal API that ANSWERS that question in JSON:
+      //
+      //     {"captive": true, "user-portal-url": "http://wifi.wyfyguest.com/"}
+      //
+      // Pointed at an HTML page instead, a conforming client fetches it,
+      // fails to parse it as `application/captive+json`, and silently
+      // ignores the whole option -- which looks exactly like option 114 not
+      // working at all.
+      //
+      // The backend already serves this at `/captive-portal/rfc8908`, and
+      // that endpoint's own docstring says it exists to be reached "via the
+      // RFC 8910 DHCP Option 114 URI the Setup Script's DHCP Option 114
+      // chunk configures". It was built for this and nothing pointed at it.
+      //
+      // `portal_url` is still the hotspot's own `dns-name`, and that part
+      // was always right: the JSON's `user-portal-url` is where the device
+      // is actually sent, and it must be THIS router's redirect page, which
+      // carries the $(mac)/$(link-login-only) substitution the portal needs.
+      // Sending the device straight to the cloud portal would give it a
+      // session it has no way to log into -- see HOTSPOT_DNS_NAME.
+      //
+      // Reachable before login: the walled-garden IP rule accepts the
+      // platform's own address, which is the same box this API is served
+      // from, so the fetch succeeds while the guest is still unauthenticated.
       //
       // ADD-OR-UPDATE, not add-if-missing: the value embeds the hotspot
       // hostname, and an option left over from an earlier run with a
       // different one is worse than none -- the device would be sent
       // somewhere this router does not answer.
-      `:if ([:len [/ip dhcp-server option find where name="cloudguest-captive-portal"]] = 0) do={ /ip dhcp-server option add name="cloudguest-captive-portal" code=114 value="'http://${HOTSPOT_DNS_NAME}/'" } else={ /ip dhcp-server option set [find name="cloudguest-captive-portal"] code=114 value="'http://${HOTSPOT_DNS_NAME}/'" }`,
+      `:if ([:len [/ip dhcp-server option find where name="cloudguest-captive-portal"]] = 0) do={ /ip dhcp-server option add name="cloudguest-captive-portal" code=114 value="'${apiBase}/captive-portal/rfc8908?portal_url=http://${HOTSPOT_DNS_NAME}/'" } else={ /ip dhcp-server option set [find name="cloudguest-captive-portal"] code=114 value="'${apiBase}/captive-portal/rfc8908?portal_url=http://${HOTSPOT_DNS_NAME}/'" }`,
       // Attached through an option SET rather than directly, because
       // `/ip dhcp-server network` takes `dhcp-option` as a list and a bare
       // assignment would discard anything already there.
