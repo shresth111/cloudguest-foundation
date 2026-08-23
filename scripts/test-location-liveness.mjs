@@ -556,5 +556,63 @@ check(
   feature.includes("<LocationLivenessExplainer"),
 );
 
+// =====================================================================
+// THE MASTER CONSOLE, which had the same defect in its own code path.
+// =====================================================================
+// It shared nothing with the customer surface -- its own three-way
+// `displayStatus` collapse, its own `timeAgo` -- and it trusted
+// `r.status === "online"` with no staleness check at all. On the one
+// screen whose entire job is telling an operator which routers need
+// attention, a router that died weeks ago read as Online, indefinitely.
+//
+// Source-level, because this is a route component with no exported
+// derivation to call. Each check is written so that reverting the fix
+// makes it fail, and each was mutation-verified that way.
+const master = readFileSync(join(ROOT, "src/routes/master.routers.tsx"), "utf8");
+
+check(
+  "master-console-derives-liveness-instead-of-reading-status",
+  /import \{[^}]*deriveRouterLiveness[^}]*\} from "@\/lib\/location-liveness"/.test(master),
+  "the fleet list must share the customer surface's derivation, not grow a second one",
+);
+// THE EXACT SHAPE THAT WAS WRONG. Not "does the file mention staleness"
+// -- an import satisfies that, which is how a check in the setup-script
+// suite passed against a hardcoded string. This looks for the comparison
+// itself, anywhere outside a comment.
+check(
+  "master-console-no-longer-treats-status-online-as-liveness",
+  !master
+    .split("\n")
+    .filter((l) => !l.trimStart().startsWith("//") && !l.trimStart().startsWith("*"))
+    .some((l) => /r\.status === "online"/.test(l)),
+  'r.status === "online" is not evidence of life: nothing in the backend ever writes it back',
+);
+check(
+  "master-console-badge-does-not-print-the-raw-backend-status",
+  !/label=\{statusLabel\(r\)\}/.test(master) && /label=\{statusBadge\(r\)\.label\}/.test(master),
+  "the badge printed r.status verbatim, so a dead router rendered the literal word online",
+);
+// UNKNOWN MUST NOT BORROW THE DEAD ROUTER'S COLOUR. Painting an
+// unreadable router red sends an operator to a site that may be fine --
+// the mirror of the fault this whole file exists for.
+check(
+  "master-console-unknown-is-not-painted-as-offline",
+  /unknown: \{ label: "Can't tell", tone: "normal" \}/.test(master),
+  "unknown is not offline",
+);
+// AGE NEEDS A MOVING CLOCK. Without one, a page left open on a wall
+// display freezes every router at whatever it was when the query last
+// resolved, and a router that went quiet an hour ago still reads Live.
+check(
+  "master-console-recomputes-liveness-as-time-passes",
+  /setInterval\(\(\) => setNow\(new Date\(\)\), 60_000\)/.test(master),
+  "liveness here is an age, so it has to be recomputed, not frozen at fetch time",
+);
+check(
+  "master-console-summary-counts-move-with-the-clock",
+  /\}, \[routers, now\]\);/.test(master),
+  "the summary tiles memoised on [routers] alone would keep the stale counts",
+);
+
 console.log(failures === 0 ? "\nall checks passed" : `\n${failures} check(s) failed`);
 process.exit(failures === 0 ? 0 : 1);

@@ -57,6 +57,7 @@ import { isDemo } from "@/services/customer.service";
 import { useRouters, useUpdateRouterVendor } from "@/hooks/useRouters";
 import type { AppError } from "@/services/api";
 import type { RouterDevice } from "@/types/router";
+import { deriveRouterLiveness, lastContactLabel } from "@/lib/location-liveness";
 
 export const Route = createFileRoute("/master/routers")({
   // Same pattern as master.customers.tsx's `open` -- MasterSearch (the
@@ -100,30 +101,58 @@ const FLEET_LIST_QUERY = {
   locationId: "all",
 };
 
-/** Real router.status values collapse to this table's 3-way filter --
- * "degraded" covers everything that isn't cleanly online or fully offline
- * (provisioning, suspended, an unhealthy health check, etc.). */
-function displayStatus(r: RouterDevice): "online" | "degraded" | "offline" {
-  if (r.status === "offline" || r.status === "decommissioned") return "offline";
-  if (r.status === "online" && r.healthStatus !== "unhealthy") return "online";
+/**
+ * This table's 3-way filter, derived the same way the customer dashboard
+ * derives it -- through `deriveRouterLiveness`, not from `r.status` alone.
+ *
+ * WHY THIS CANNOT READ `r.status === "online"` AND STOP THERE. `online` is
+ * written by exactly one thing, `RouterService.heartbeat`, and NOTHING in
+ * the backend ever writes it back to `offline` when the heartbeats stop --
+ * there is no such beat task. `offline` is written in one place only:
+ * reinstating a suspended router. So the previous version of this function
+ * reported a router that died weeks ago as Online, indefinitely, on the
+ * one screen whose whole job is to tell an operator which routers need
+ * attention. Liveness has to come from `last_seen_at` staleness.
+ *
+ * `unknown` deliberately lands in `degraded` rather than `online`: this
+ * filter has no fourth bucket, and the one thing an unreadable router must
+ * never do is sit in the group an operator scrolls past.
+ */
+function displayStatus(r: RouterDevice, now: Date): "online" | "degraded" | "offline" {
+  const live = deriveRouterLiveness(
+    { id: r.id, name: r.name, status: r.status, last_seen_at: r.lastSeenAt },
+    now,
+  );
+  // An unhealthy health check still demotes a router that is otherwise
+  // live. It is independent evidence, and it was the one honest signal the
+  // old implementation had.
+  if (live.status === "pass") return r.healthStatus === "unhealthy" ? "degraded" : "online";
+  if (live.state === "setup-not-started" || live.state === "went-silent") return "offline";
   return "degraded";
 }
 
-function timeAgo(iso: string | null): string {
-  // Honestly still means "no check-in has ever been recorded" -- every real
-  // router on this platform is in this state today, since none has yet
-  // completed the router-agent enrollment/heartbeat flow (confirmed against
-  // real data: 0 rows in `heartbeat_logs`, every real `Router` row has a
-  // NULL `last_seen_at`). "Awaiting first check-in" reads as the expected,
-  // pre-connection state a freshly-provisioned router sits in rather than
-  // as a dead/broken one -- without inventing a check-in that never
-  // happened.
-  if (!iso) return "Awaiting first check-in";
-  const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-  if (m < 1) return "Just now";
-  if (m < 60) return `${m}m ago`;
-  if (m < 1440) return `${Math.floor(m / 60)}h ago`;
-  return `${Math.floor(m / 1440)}d ago`;
+/**
+ * What the router's timestamp actually means, rather than what it looks
+ * like. `lastContactLabel` distinguishes a heartbeat from the enrolment
+ * handshake, because `RouterService.check_in` -- the provisioning-token
+ * exchange -- stamps `last_seen_at` too, and the only transition OUT of
+ * `provisioning` is a heartbeat. So on a provisioning router the timestamp
+ * is by construction the enrolment, and calling it a check-in is the most
+ * misleading thing this column could say.
+ *
+ * The previous comment here recorded that every real router had a NULL
+ * `last_seen_at` and printed "Awaiting first check-in" for all of them.
+ * That stopped being true the moment a router enrolled: the founder's hEX
+ * carried a 3-hour-old timestamp having never once sent a heartbeat.
+ */
+function contactLabel(r: RouterDevice, now: Date): string {
+  return lastContactLabel(
+    deriveRouterLiveness(
+      { id: r.id, name: r.name, status: r.status, last_seen_at: r.lastSeenAt },
+      now,
+    ),
+    now,
+  );
 }
 
 function ControlButton({
@@ -167,6 +196,18 @@ function RouterFleetScreen() {
   const [rebootTarget, setRebootTarget] = useState<RouterDevice | null>(null);
   const [rebooting, setRebooting] = useState(false);
   const demo = isDemo();
+
+  // A TICKING CLOCK, NOT A RENDER-TIME `new Date()`. Liveness here is an
+  // AGE, so a page left open on a wall display would otherwise freeze every
+  // router at whatever it was when the query last resolved -- a router that
+  // went quiet an hour ago would still read Live. One minute is finer than
+  // the 5/15-minute thresholds it feeds, so a transition is never more than
+  // a minute late, and it re-renders a list, not a fetch.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(t);
+  }, []);
 
   const fleetQuery = useRouters(FLEET_LIST_QUERY);
   const updateVendor = useUpdateRouterVendor();
@@ -217,7 +258,7 @@ function RouterFleetScreen() {
   const rows = useMemo(
     () =>
       routers
-        .filter((r) => (filter === "all" ? true : displayStatus(r) === filter))
+        .filter((r) => (filter === "all" ? true : displayStatus(r, now) === filter))
         .filter(
           (r) =>
             !q ||
@@ -225,7 +266,7 @@ function RouterFleetScreen() {
               .toLowerCase()
               .includes(q.toLowerCase()),
         ),
-    [routers, filter, q],
+    [routers, filter, q, now],
   );
 
   const summary = useMemo(() => {
@@ -233,13 +274,13 @@ function RouterFleetScreen() {
     let degraded = 0;
     let offline = 0;
     for (const r of routers) {
-      const s = displayStatus(r);
+      const s = displayStatus(r, now);
       if (s === "online") online++;
       else if (s === "degraded") degraded++;
       else offline++;
     }
     return { total: routers.length, online, degraded, offline };
-  }, [routers]);
+  }, [routers, now]);
 
   const advancedRouter = useMemo(
     () => (advancedId ? (routers.find((r) => r.id === advancedId) ?? null) : null),
@@ -256,8 +297,30 @@ function RouterFleetScreen() {
   }
 
   const act = (msg: string) => toast.success(msg);
-  const statusLabel = (r: RouterDevice) =>
-    r.status === "pending_provisioning" ? "Awaiting check-in" : r.status;
+  // THE BADGE PRINTED THE RAW BACKEND STATUS, so a router that died weeks
+  // ago rendered the literal word "online" -- the same lie as the filter
+  // above, in the one cell an operator actually reads. It now says what is
+  // true of the device, and `tone` follows the same verdict rather than
+  // being decided separately (they disagreed: a router could read "online"
+  // in grey-green while the summary counted it as offline).
+  const LIVENESS_BADGE: Record<string, { label: string; tone: string }> = {
+    online: { label: "Live", tone: "online" },
+    "heartbeat-late": { label: "Check-in late", tone: "warning" },
+    "went-silent": { label: "Gone quiet", tone: "offline" },
+    "setup-not-started": { label: "Never checked in", tone: "offline" },
+    suspended: { label: "Suspended", tone: "suspended" },
+    retired: { label: "Retired", tone: "normal" },
+    // Not "offline". An unreadable router is not a dead one, and painting
+    // it red sends an operator to a site that may be perfectly fine.
+    unknown: { label: "Can't tell", tone: "normal" },
+  };
+  const statusBadge = (r: RouterDevice) => {
+    const live = deriveRouterLiveness(
+      { id: r.id, name: r.name, status: r.status, last_seen_at: r.lastSeenAt },
+      now,
+    );
+    return LIVENESS_BADGE[live.state] ?? { label: r.status, tone: "normal" };
+  };
 
   return (
     <MasterShell title="Router Fleet">
@@ -359,12 +422,9 @@ function RouterFleetScreen() {
                     <MTd>
                       <span className="font-mono text-xs">{r.routerOsVersion ?? "—"}</span>
                     </MTd>
-                    <MTd className="text-xs text-muted-foreground">{timeAgo(r.lastSeenAt)}</MTd>
+                    <MTd className="text-xs text-muted-foreground">{contactLabel(r, now)}</MTd>
                     <MTd>
-                      <MTag
-                        label={statusLabel(r)}
-                        tone={r.status === "pending_provisioning" ? "pending" : undefined}
-                      />
+                      <MTag label={statusBadge(r).label} tone={statusBadge(r).tone} />
                     </MTd>
                     {!demo && (
                       <MTd className="text-right">
@@ -445,13 +505,11 @@ function RouterFleetScreen() {
                   <div className="grid grid-cols-3 gap-2">
                     <div className="rounded-lg border border-border p-2.5 text-center">
                       <p className="text-[11px] font-medium text-muted-foreground">Status</p>
-                      <p className="text-lg font-semibold capitalize">{statusLabel(sel)}</p>
+                      <p className="text-lg font-semibold">{statusBadge(sel).label}</p>
                     </div>
                     <div className="rounded-lg border border-border p-2.5 text-center">
                       <p className="text-[11px] font-medium text-muted-foreground">Last seen</p>
-                      <p className="text-lg font-semibold tabular-nums">
-                        {timeAgo(sel.lastSeenAt)}
-                      </p>
+                      <p className="text-lg font-semibold tabular-nums">{contactLabel(sel, now)}</p>
                     </div>
                     <div className="rounded-lg border border-border p-2.5 text-center">
                       <p className="text-[11px] font-medium text-muted-foreground">RouterOS</p>
