@@ -25,6 +25,11 @@ name: CI
 #                         then section 13, the seven field defects of
 #                         2026-08-23 plus six non-/24 LAN variants in the
 #                         main sweep, 1453 -> 2000, floor 1400 -> 1950)
+#   test:api-paths            5 checks -- the Fleet Wizard's WAN endpoint
+#                             404'd from the day it shipped because the
+#                             frontend path was missing the backend
+#                             router's /network-config prefix, and the
+#                             docs recorded it without the prefix too
 #   test:discovery-preflight  19 checks (in package.json since 2026-08-22
 #                         but gated nowhere until 2026-08-23 -- it has been
 #                         passing this whole time and proving nothing,
@@ -503,3 +508,7 @@ jobs:
           ./scripts/ci-gated-test.sh \
             "discovery-preflight" 19 "all checks passed" \
             bun run test:discovery-preflight
+
+          "$RUNNER" \
+            "api-paths" 5 "all checks passed" \
+            bun run test:api-paths

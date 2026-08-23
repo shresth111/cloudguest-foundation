@@ -482,8 +482,19 @@ export const routerFleetWizardService = {
     lanBridge = "bridge1",
     organizationId?: string,
   ): Promise<FleetBasicWanPreview> {
+    // `/network-config` PREFIX, WHICH THIS CALL NEVER HAD. The route lives
+    // on `app/domains/network_config/router.py`, whose APIRouter is created
+    // with `prefix="/network-config"`. Without it both of these calls 404'd
+    // from the day they shipped -- the Fleet Wizard's WAN Apply step has
+    // never once reached the backend.
+    //
+    // That is also WHY the backend renderer drifted four PRs behind this
+    // one without anybody noticing: nothing was consuming it. The docs
+    // (`docs/router_fleet/README.md`) recorded the path without the prefix
+    // too, so the docs and this file agreed with each other and disagreed
+    // with the code -- which is the only reason it read as correct.
     const { data } = await api.get<BackendBasicWanPreview>(
-      `/routers/${routerId}/wan/basic/preview`,
+      `/network-config/routers/${routerId}/wan/basic/preview`,
       { ...orgHeaders(organizationId), params: { lan_bridge: lanBridge } },
     );
     return {
@@ -499,7 +510,7 @@ export const routerFleetWizardService = {
     organizationId?: string,
   ): Promise<FleetBasicWanApplyResult> {
     const { data } = await api.post<BackendBasicWanApplyResult>(
-      `/routers/${routerId}/wan/basic/apply`,
+      `/network-config/routers/${routerId}/wan/basic/apply`,
       {
         lan_bridge: args.lanBridge ?? "bridge1",
         static_addresses: (args.staticAddresses ?? []).map((s) => ({
