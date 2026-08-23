@@ -24,6 +24,8 @@ import {
   chunksToRouterOsScript,
   chunksToSingleLineScript,
   validateSetupScriptChunks,
+  SETUP_SCRIPT_VALIDATOR_CHECKS,
+  SETUP_SCRIPT_VALIDATOR_LIMITS,
   GUEST_PORTAL_PUBLIC_BASE,
 } from "@/components/routers/RouterDetailTabs";
 import type { RouterSetupScriptValidationResult } from "@/components/routers/RouterDetailTabs";
@@ -240,38 +242,15 @@ function isValidCidr(value: string): boolean {
   return n >= 1 && n <= 32;
 }
 
-/** Every hotspot login this generator has ever shipped as a *placeholder*
- * default (`welcome123`, still the field's own placeholder text) plus the
- * handful of passwords real people reach for first when asked to "just
- * type something" -- the QA report's own finding: a shippable default
- * with zero warning. Not exhaustive password-strength checking (that's a
- * much bigger job); this only catches "you typed the well-known default
- * or something equally guessable," which is the actual reported gap. */
-const KNOWN_WEAK_HOTSPOT_PASSWORDS = new Set([
-  "welcome123",
-  "password",
-  "password123",
-  "guest",
-  "guest123",
-  "12345678",
-  "123456789",
-  "admin",
-  "admin123",
-  "changeme",
-]);
-
-/** Readable random password -- avoids visually ambiguous characters
- * (0/O, 1/l/I) since this may end up read aloud or hand-typed by guest-
- * facing staff, unlike `generateApiSecret`'s pure hex (never seen by a
- * human, only pasted). Pre-fills the hotspot password field so a fresh
- * script never ships the old `welcome123` default un-warned -- see
- * `KNOWN_WEAK_HOTSPOT_PASSWORDS` for the inline warning if someone types
- * a guessable value in anyway. */
-function generateHotspotPassword(): string {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-  const bytes = crypto.getRandomValues(new Uint8Array(10));
-  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
-}
+/* `KNOWN_WEAK_HOTSPOT_PASSWORDS` and `generateHotspotPassword` stood here
+ * and are gone with the "Hotspot password" field they served -- see that
+ * field's removal comment in `RouterSetupScriptPanel`. Both existed only
+ * to make a value safe that nothing ever read: `hsPass` was collected by
+ * the form, passed nowhere, and could only ever have configured the local
+ * `/ip hotspot user` account that this generator now deliberately
+ * REMOVES, because RouterOS resolves a local user before it asks RADIUS
+ * and that account is a complete portal bypass. A strong password on an
+ * account that must not exist is not an improvement on a weak one. */
 
 function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
   const generate = useGenerateProvisioningToken();
@@ -343,10 +322,10 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
     lanIp: "192.168.88.1",
     lanCidr: "24",
     dnsServers: "8.8.8.8,1.1.1.1",
+    // No `hsPass`. See the form field's own comment below: it was read by
+    // nothing, and the only object it could have configured is the local
+    // hotspot account this generator exists to delete.
     hsUser: "guest",
-    // Pre-filled random, not the old "welcome123" default -- see
-    // generateHotspotPassword's own docstring.
-    hsPass: generateHotspotPassword(),
   }));
 
   function set<K extends keyof typeof form>(key: K, value: string) {
@@ -1087,29 +1066,39 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
             />
           </div>
         )}
+        {/* THE "Hotspot password" FIELD THAT SAT HERE IS GONE, NOT WIRED
+            UP. It was read by nothing: `buildRouterSetupScriptChunks` has
+            never destructured `hsPass`, so every character typed into it
+            went into React state and stopped there. The right fix is
+            removal rather than wiring, and it is not a close call -- the
+            only thing a hotspot password could configure is a LOCAL
+            `/ip hotspot user`, and this generator deliberately REMOVES
+            that account and reports any other one as a defect. RouterOS
+            resolves a hotspot login against its local user list BEFORE it
+            ever asks RADIUS, so a local account is a complete portal
+            bypass: online with no OTP, no guest_sessions row, no consent
+            capture, no data cap and no accounting. See the Hotspot chunk's
+            own comment in RouterDetailTabs.tsx. Wiring this field up would
+            have re-created, from the panel, the exact bypass the generator
+            was changed to delete.
+
+            `hsUser` stays, and is no longer described as a login: it is
+            the name the generator searches for and removes. */}
         <div>
-          <label className="mb-1 block text-[11px] text-muted-foreground">Hotspot username</label>
+          <label className="mb-1 block text-[11px] text-muted-foreground">
+            Local hotspot account to remove
+          </label>
           <input
             className={inputCls}
             value={form.hsUser}
             onChange={(e) => set("hsUser", e.target.value)}
             placeholder="guest"
           />
-        </div>
-        <div>
-          <label className="mb-1 block text-[11px] text-muted-foreground">Hotspot password</label>
-          <input
-            className={inputCls}
-            value={form.hsPass}
-            onChange={(e) => set("hsPass", e.target.value)}
-            placeholder="welcome123"
-          />
-          {KNOWN_WEAK_HOTSPOT_PASSWORDS.has(form.hsPass.trim().toLowerCase()) && (
-            <p className="mt-1 flex items-center gap-1 text-[11px] text-amber-600">
-              <AlertTriangle className="h-3 w-3" /> This is a well-known default -- pick something
-              less guessable.
-            </p>
-          )}
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Not a login this script creates. RouterOS checks local hotspot users before RADIUS, so
+            any local account is a full portal bypass — the script deletes one by this name and
+            reports any others it finds. Every real guest signs in through the portal via RADIUS.
+          </p>
         </div>
       </div>
 
@@ -1232,7 +1221,19 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
               — no terminal paste at all, so nothing to corrupt. <strong>Copy (1 line)</strong>{" "}
               below is still one giant paste under the hood -- on a real config it usually ends up
               several times longer than any single chunk above, which is exactly the kind of paste
-              that's corrupted terminals before. Prefer Download .rsc if you have any doubt.
+              that's corrupted terminals before. It is also{" "}
+              <strong>all-or-nothing in one specific way</strong>: RouterOS runs a pasted line until
+              it hits an error, prints one message, and{" "}
+              <strong>silently discards every chunk after that point</strong> — which is how a
+              router ended up serving guests perfectly while showing offline in Master console for
+              days, because the Heartbeat chunk never ran. The one-line script therefore prints{" "}
+              <code className="rounded bg-background px-1 py-0.5">### cloudguest n/N START</code>{" "}
+              and <code className="rounded bg-background px-1 py-0.5">DONE</code> markers around
+              each chunk; when it finishes, the <strong>last line must read</strong>{" "}
+              <code className="rounded bg-background px-1 py-0.5">### cloudguest COMPLETE</code>. If
+              the last marker is a START, that chunk is where it stopped and nothing below it ran.
+              Pasting chunk by chunk above avoids the question entirely — you see each result before
+              committing to the next. Prefer that, or Download .rsc, if you have any doubt.
             </p>
             <div className="flex shrink-0 gap-1.5">
               <button
@@ -1248,13 +1249,17 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
                   // since in practice there is no realistic "small enough"
                   // case -- see chunksToSingleLineScript's own docstring.
                   const proceed = window.confirm(
-                    `This paste is ${oneLine.length.toLocaleString()} characters on one line -- several times longer than any single chunk above, and this is exactly the kind of paste that has corrupted WinBox/WebFig terminals before (a corrupted hotspot/portal command silently drops the guest sign-in page, with no error shown).\n\nDownload .rsc has no such risk -- it's a real file upload, no terminal paste at all.\n\nCopy the one-line version anyway?`,
+                    `This paste is ${oneLine.length.toLocaleString()} characters on ONE line.\n\n` +
+                      `ONE ERROR ANYWHERE ABORTS EVERYTHING AFTER IT. RouterOS runs the line until it hits a problem, prints a single message like "expected end of command (line 1 column 1464)", and silently discards every remaining chunk. That happened on 2026-08-23: the Heartbeat chunk never ran, the scheduler was never created, and the router showed offline in Master console for days while serving guests perfectly.\n\n` +
+                      `HOW TO TELL: the script prints "### cloudguest <n>/<N> START <chunk>" and "... DONE <chunk>" around every chunk. When it finishes, the LAST line must read "### cloudguest COMPLETE". If the last marker you see is a START, that chunk is where it stopped and nothing below it ran.\n\n` +
+                      `It is also several times longer than any single chunk above, which is the kind of paste that has corrupted WinBox/WebFig terminals before.\n\n` +
+                      `Chunk-by-chunk above, or Download .rsc, are both safer: you see each result before committing to the next.\n\nCopy the one-line version anyway?`,
                   );
                   if (!proceed) return;
                   const ok = await copyToClipboard(oneLine);
                   if (ok)
                     toast.success(
-                      "Copied full script as one line -- verify the hotspot page after pasting",
+                      'Copied as one line -- after pasting, check the last line reads "### cloudguest COMPLETE"',
                     );
                   else toast.error("Couldn't copy automatically -- try Download .rsc instead.");
                 }}
@@ -1277,7 +1282,14 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
                     0,
                   );
                   if (errorCount === 0 && warningCount === 0)
-                    toast.success("Validated -- no issues found");
+                    // NOT "Validated". See the result panel's own comment
+                    // and `SETUP_SCRIPT_VALIDATOR_LIMITS`: this toast is
+                    // the only thing some operators read, and the word
+                    // "validated" is what a 3,000-character paste into a
+                    // live router got authorised by on 2026-08-23.
+                    toast.success(
+                      `No known failure shape found (${SETUP_SCRIPT_VALIDATOR_CHECKS.length} checked) -- this is not proof it will run`,
+                    );
                   else if (errorCount > 0)
                     toast.error(
                       `Validation found ${errorCount} error(s), ${warningCount} warning(s) -- see details below`,
@@ -1288,9 +1300,9 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
                     );
                 }}
                 className="flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-[11px] font-medium hover:bg-accent"
-                title="Check this script for syntax issues (unbalanced brackets/quotes, unescaped $variables, corrupted lines) before pasting or downloading -- runs entirely in your browser, no device needed"
+                title="Scan this script's text for the known RouterOS failure shapes this project has been burned by (unbalanced brackets/quotes, an unparenthesised concatenation, a multi-statement do={} body, a variable read on a line that did not bind it, an unescaped $var in on-event, paste corruption). It is not a RouterOS parser and not a test on a device -- a clean result is not proof the script will run."
               >
-                <ShieldCheck className="h-3 w-3" /> Validate
+                <ShieldCheck className="h-3 w-3" /> Check known faults
               </button>
               <button
                 type="button"
@@ -1347,8 +1359,21 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
                   <div className="flex items-center gap-1.5 font-medium">
                     {errorCount === 0 && warningCount === 0 ? (
                       <>
-                        <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" /> All{" "}
-                        {validation.length} pieces passed validation -- no issues found.
+                        {/* Deliberately NOT the two phrases that used to
+                            stand here -- an absolute "no issues" claim and
+                            a bare "validated" verdict. Confirmed live
+                            2026-08-23: this said exactly that, and the
+                            operator pasted
+                            3,000 characters into a live router on the
+                            strength of it. The script was invalid
+                            RouterOS -- an unparenthesised concatenation,
+                            which balances perfectly -- and died partway,
+                            silently discarding the Heartbeat chunk. The
+                            verdict now states what was actually checked,
+                            with the full list underneath. */}
+                        <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" /> None of the{" "}
+                        {SETUP_SCRIPT_VALIDATOR_CHECKS.length} known failure shapes were found in
+                        any of the {validation.length} pieces.
                       </>
                     ) : (
                       <>
@@ -1385,10 +1410,26 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
                         ))}
                     </ul>
                   )}
-                  <p className="mt-1.5 text-muted-foreground">
-                    This checks the script's own text for syntax problems -- it does not run
-                    anything on a real device.
-                  </p>
+                  {/* WHAT IT CHECKED, AND WHAT IT DID NOT. Rendered on
+                      every result, pass or fail, and never collapsed
+                      behind a toggle: the scope is the finding. See
+                      `SETUP_SCRIPT_VALIDATOR_LIMITS`. */}
+                  <p className="mt-2 text-muted-foreground">{SETUP_SCRIPT_VALIDATOR_LIMITS}</p>
+                  <p className="mt-1.5 font-medium text-foreground">What was checked:</p>
+                  <ul className="mt-0.5 ml-4 list-disc text-muted-foreground">
+                    {SETUP_SCRIPT_VALIDATOR_CHECKS.map((c) => (
+                      <li key={c}>{c}</li>
+                    ))}
+                  </ul>
+                  {errorCount === 0 && warningCount === 0 && (
+                    <p className="mt-1.5 text-muted-foreground">
+                      If you are about to use <strong>Copy (1 line)</strong>: this result cannot
+                      tell you the flattened paste will run to the end. Read the{" "}
+                      <code className="rounded bg-background px-1 py-0.5">### cloudguest</code>{" "}
+                      markers in the terminal afterwards — the last one must say{" "}
+                      <strong>COMPLETE</strong>.
+                    </p>
+                  )}
                 </div>
               );
             })()}

@@ -36,9 +36,15 @@ export type RotatingSecret = "agent" | "wireguard" | "radius" | "api";
  *              the key-rotation repair described here.)
  *   RADIUS     `:if ([:len [/radius find where address="..."]] = 0)
  *              do={ add secret=NEW } else={ /radius set [find ...]
- *              disabled=no }`. The `else` branch exists but only clears
- *              `disabled`; it NEVER writes `secret=`. So an existing entry
- *              keeps the old shared secret and every reply is a reject.
+ *              secret=NEW disabled=no }`. The `else` branch used to clear
+ *              `disabled` and nothing else -- an existing entry kept the
+ *              old shared secret and every reply was a reject, silently,
+ *              because RouterOS reports a secret mismatch as a timeout
+ *              rather than as a mismatch. It writes `secret=` as of
+ *              2026-08-23, so this one IS repairable now. The suite
+ *              asserts the two halves together: the `else` branch writing
+ *              `secret=` and `repairableByRepaste: true` move as a pair,
+ *              in either direction.
  *   Agent      Embedded literally in the Heartbeat chunk's
  *              `http-header-field="...X-Agent-Credential: ..."`, and the
  *              scheduler chunk does `/system scheduler remove
@@ -50,8 +56,8 @@ export type RotatingSecret = "agent" | "wireguard" | "radius" | "api";
  *              every Generate (only when the router has no credentials
  *              yet, or the operator explicitly ticks the box).
  *
- * If a future change gives the WireGuard or RADIUS chunk a real update
- * path, flip `repairableByRepaste` here and the dialog, the banner and
+ * If a future change gives the WireGuard chunk a real update path, flip
+ * `repairableByRepaste` here and the dialog, the banner and
  * `scripts/test-setup-script-generator.mjs`'s guard all follow. */
 export const SECRET_REPAIR: Record<
   RotatingSecret,
@@ -69,8 +75,8 @@ export const SECRET_REPAIR: Record<
   },
   radius: {
     label: "the RADIUS shared secret",
-    repairableByRepaste: false,
-    why: "the RADIUS chunk's else-branch only clears `disabled`, it never writes `secret=`, so re-pasting is a silent no-op -- the device keeps the old secret and every RADIUS reply is a reject. Remove the /radius entry for the hub address on the device first",
+    repairableByRepaste: true,
+    why: "the RADIUS chunk's else-branch writes `secret=` as well as clearing `disabled`, so re-pasting that chunk does fix an entry that already exists at the hub address",
   },
   api: {
     label: "the RouterOS API password",

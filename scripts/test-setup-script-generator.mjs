@@ -396,9 +396,102 @@
  *    which has no space-dot-space in it, so it passed even with
  *    string-skipping switched off; it now uses a message that really
  *    contains the pattern.)
+ *
+ * SECTION 13 -- THE SEVEN FIELD DEFECTS OF 2026-08-23
+ * --------------------------------------------------
+ * Seven faults found provisioning real MikroTiks in one day, plus the two
+ * REPORTING failures that let the worst of them survive for days.
+ *
+ *  1. The DHCP pool and the DHCP network entry were built from the first
+ *     three octets of the LAN IP and ignored the prefix outright. A `/25`
+ *     LAN handed guests `.128`-`.254`: a lease, no route to their own
+ *     gateway, no login page -- and the chunk printed `RESULT: PASS`,
+ *     because its five checks only ever asked whether the five objects it
+ *     had just created existed. `lanCidr` is free text validated as
+ *     "1..32", so every wrong subnet here is reachable from the UI.
+ *     Containment is now recomputed by INDEPENDENT arithmetic in this
+ *     suite -- deriving it with the function under test would make a bug
+ *     agree with itself -- and the verdict reads the pool's real `ranges=`
+ *     back off the device.
+ *  2. Re-pasting the mangle chunk re-appended the PCC rules BELOW the
+ *     mark-routing rules (a plain `add` appends, and the sweep covered
+ *     `-pcc-` only, and only on the weighted path). The SYN of every new
+ *     connection was then still `no-mark` at the routing decision and left
+ *     by the main table's default route instead of its assigned WAN.
+ *  3. `failover_only` deleted every marked route and never swept the
+ *     marks, leaving traffic marked for a routing table with no routes --
+ *     the exact black hole that chunk's own comment says the pair exists
+ *     to prevent, reached from the other side.
+ *  4. The RADIUS `else={}` branch set `disabled=no` and never `secret=`,
+ *     so rotating the shared secret and re-pasting left the router on the
+ *     old one. RouterOS reports a secret mismatch as a TIMEOUT, so every
+ *     guest login Access-Rejected with nothing on either side naming it.
+ *  5. Only `dynamic=yes` addresses were swept, so a stale STATIC WAN
+ *     address survived every re-paste and the WAN ended up carrying two.
+ *  6. The LAN port allowlist reused the WAN existence-check copy verbatim
+ *     and named the wrong side of the router.
+ *  7. The hotspot `dns-name` write was a bare `set [find ...]`, which
+ *     succeeds silently against an empty match.
+ *
+ * AND THE TWO REPORTING FAILURES. The one-line copy is all-or-nothing:
+ * RouterOS aborts the remainder of a pasted line at the first error and
+ * reports ONE message with no indication of how far it got. A
+ * concatenation-parentheses bug (the one section 11 above now guards)
+ * killed a line partway, the Heartbeat chunk never ran, the scheduler was
+ * never created, and the router showed offline in Master console for days
+ * while serving guests perfectly. The feature is kept; every chunk is now
+ * bracketed by START/DONE markers with a final COMPLETE, so a partial run
+ * is distinguishable from a complete one by a chunk NAME rather than a
+ * column number.
+ *
+ * The second is the validator that PASSED that line first. It checked
+ * bracket and quote BALANCE and presented that as VALIDITY -- and the
+ * founder's line balances perfectly. Section 11 guards the generator's own
+ * source against this shape; the panel's client-side validator did not,
+ * and it is the panel an operator reads before pasting. It now rejects
+ * that shape, publishes the exact list of what it checks, and states
+ * plainly that a clean pass is not proof the script will run.
+ *
+ * Every guard here has a paired INJECTED check that reintroduces the
+ * defect and an anti-over-strictness check that the shipped shape is NOT
+ * flagged. Nineteen mutations of the real generator, validator, table and
+ * panel were injected and this suite re-run; all nineteen caught:
+ *
+ *   pool/network derived from the first three octets again ............. 8
+ *   the Hotspot verdict stops reading the pool ranges back ............. 2
+ *   the mangle sweep narrowed back to `-pcc-` only ..................... 2
+ *   mark-routing rules emitted above mark-connection rules ............. 2
+ *   failover_only stops sweeping the mangle marks ...................... 1
+ *   the RADIUS else-branch back to `disabled=no` only .................. 3
+ *   SECRET_REPAIR.radius flipped while the chunk stays fixed ........... 2
+ *   the static-WAN sweep narrowed back to `dynamic=yes` ................ 2
+ *   the LAN allowlist reverts to the WAN existence-check copy .......... 3
+ *   `dns-name` back to a bare `set [find ...]` ......................... 1
+ *   the hsprof1 pre-count removed ..................................... 26
+ *   the per-chunk progress markers removed ............................. 4
+ *   the COMPLETE marker moved off the end .............................. 2
+ *   the validator's concatenation check removed ........................ 4
+ *   ...and the same check made over-strict (any depth) ................ 28
+ *   the panel stops RENDERING the published scope ...................... 1
+ *   the panel stops rendering the published check LIST ................. 1
+ *   the panel imports its own local copies of both ..................... 1
+ *   the scope statement drops "not a RouterOS parser" .................. 1
+ *   the dead hsPass field put back on the form ......................... 1
+ *
+ *   (ONE INITIALLY SURVIVED, and it was a real hole in a new guard --
+ *    the fourth time that shape has been caught in this file. The
+ *    "panel renders the validator's own scope" check asked only whether
+ *    the two constant NAMES appeared anywhere in the file, and an IMPORT
+ *    LINE satisfies that. Replacing the rendered
+ *    `{SETUP_SCRIPT_VALIDATOR_LIMITS}` with a hardcoded "Looks good."
+ *    left the suite green. It now requires the JSX interpolation itself,
+ *    the `.map(` over the check list, and the import from the defining
+ *    module -- three separate checks, each mutation-verified, because a
+ *    locally-redefined constant of the same name would have satisfied
+ *    any one of them alone.)
  */
 import { build } from "esbuild";
-import { mkdtempSync, writeFileSync, existsSync } from "node:fs";
+import { mkdtempSync, writeFileSync, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname, resolve, extname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -426,6 +519,13 @@ writeFileSync(
     // emits. That table lives in its own module precisely so it can be
     // imported here without React/router/axios coming with it.
     `export { SECRET_REPAIR, rotatingSecrets } from "@/lib/setup-script-secrets";`,
+    // Section 13 asserts the DHCP pool/network arithmetic directly, over
+    // every prefix, rather than only through the text it ends up in. Same
+    // reason as the table above: its own module so it imports clean.
+    `export { deriveLanAddressing } from "@/lib/lan-addressing";`,
+    // Section 13.9 asserts what the panel's own validator claims to check
+    // against what it really checks.
+    `export { SETUP_SCRIPT_VALIDATOR_CHECKS, SETUP_SCRIPT_VALIDATOR_LIMITS } from "@/components/routers/RouterDetailTabs";`,
   ].join("\n"),
 );
 
@@ -467,6 +567,9 @@ const {
   validateSetupScriptChunks,
   SECRET_REPAIR,
   rotatingSecrets,
+  deriveLanAddressing,
+  SETUP_SCRIPT_VALIDATOR_CHECKS,
+  SETUP_SCRIPT_VALIDATOR_LIMITS,
 } = await import(pathToFileURL(join(work, "bundle.mjs")).href);
 
 // ---------------------------------------------------------------------
@@ -664,6 +767,58 @@ const VARIANTS = [
         { iface: "sfp-sfpplus1", mode: "dhcp" },
       ],
       wanRoutingMode: "load_balance",
+    },
+  ],
+  // ---- LAN prefixes that are not /24 --------------------------------
+  // `lanCidr` is a free-text field on the Advanced panel, validated only
+  // as "an integer in 1..32", so all of these are reachable from the UI.
+  // The generator used to build the DHCP pool and the DHCP network entry
+  // from the first three octets of `lanIp` and ignore the prefix outright,
+  // which made every one of them silently wrong. They are in the MAIN
+  // sweep, not a private list, so the console-scope guard, the `do={}`
+  // guard, the validator and the idempotency guard all see them too.
+  [
+    // The founder's own /25 case: the subnet stops at .127 and the old
+    // pool handed guests .128-.254 -- a lease, no route to their own
+    // gateway, no login page, and `RESULT: PASS` on the console.
+    "LAN on a /25",
+    { ...BASE, wans: [DHCP_WAN], lanIp: "192.168.88.1", lanCidr: "25" },
+  ],
+  [
+    // The router's own address in the UPPER half, so the network is
+    // 192.168.88.128/25 and the old code wrote 192.168.88.0/25 -- a
+    // network this router has no address in at all.
+    "LAN on a /25, router in the upper half",
+    { ...BASE, wans: [DHCP_WAN], lanIp: "192.168.88.130", lanCidr: "25" },
+  ],
+  [
+    // Wider than a /24: the old pool stopped at .254 and threw away half
+    // the addresses the operator asked for.
+    "LAN on a /23",
+    { ...BASE, wans: [DHCP_WAN], lanIp: "10.5.50.1", lanCidr: "23" },
+  ],
+  [
+    // Small enough that the fixed `.10` head-room would have eaten most of
+    // the pool.
+    "LAN on a /28",
+    { ...BASE, wans: [DHCP_WAN], lanIp: "192.168.10.1", lanCidr: "28" },
+  ],
+  [
+    // No usable pool at all. The generator must refuse rather than invent
+    // one, and the whole script must still be legal RouterOS.
+    "LAN on a /31, which cannot hold a pool",
+    { ...BASE, wans: [DHCP_WAN], lanIp: "192.168.10.1", lanCidr: "31" },
+  ],
+  [
+    // A LAN allowlist alongside a non-/24 prefix -- the LAN-side existence
+    // check and the DHCP arithmetic in one script.
+    "explicit LAN allowlist on a /26",
+    {
+      ...BASE,
+      wans: [DHCP_WAN],
+      lanIfs: ["ether3", "ether4"],
+      lanIp: "172.16.9.65",
+      lanCidr: "26",
     },
   ],
   [
@@ -1858,17 +2013,41 @@ const elseBodies = (script) =>
   );
 }
 {
+  // FIXED 2026-08-23, AND THE ASSERTION MOVED WITH THE FIX. This pair used
+  // to assert the opposite: that the else-branch never wrote `secret=`,
+  // and that the table therefore said RADIUS was unrepairable. That was a
+  // true description of a real defect -- rotating the shared secret and
+  // re-pasting left the router answering with the old one, and RouterOS
+  // reports a secret mismatch as a timeout, so every guest login
+  // Access-Rejected with nothing on either side naming the cause.
+  //
+  // The direction is reversed, not the coupling: the chunk writing
+  // `secret=` and `repairableByRepaste: true` still have to agree, so
+  // neither can be changed back on its own without turning this red.
   const radius = scriptOf((c) => c.label === "RADIUS");
   check(
-    "the RADIUS chunk's else-branch exists but never writes secret=",
-    /else=\{/.test(radius) && elseBodies(radius).every((b) => !b.includes("secret=")),
-    "if the else branch started setting the secret, re-pasting WOULD repair RADIUS and " +
-      "SECRET_REPAIR.radius.repairableByRepaste must be flipped",
+    "the RADIUS chunk's else-branch writes secret=, not just disabled=no",
+    /else=\{/.test(radius) && elseBodies(radius).some((b) => b.includes("secret=")),
+    "an else branch that only clears `disabled` leaves an already-provisioned router on the OLD " +
+      "shared secret after a rotation, and SECRET_REPAIR.radius.repairableByRepaste would have " +
+      "to be flipped back to false to stay honest",
   );
   check(
-    "...so the table says the RADIUS secret is NOT repairable by re-pasting",
-    SECRET_REPAIR.radius.repairableByRepaste === false,
+    "...and the else-branch still clears disabled=yes as well",
+    elseBodies(radius).some((b) => /secret=/.test(b) && /disabled=no/.test(b)),
+    "an entry toggled off in WinBox while debugging stays off, and the secret write lands on an " +
+      "entry nothing ever asks",
+  );
+  check(
+    "...so the table says the RADIUS secret IS repairable by re-pasting",
+    SECRET_REPAIR.radius.repairableByRepaste === true,
     "the table disagrees with the chunk",
+  );
+  check(
+    "the secret the else-branch writes is the one the add-branch writes",
+    (radius.match(/secret="s3cr3t"/g) ?? []).length === 2,
+    "two different secrets in one chunk means a re-paste repairs the entry to a value the hub " +
+      "does not have -- worse than not repairing it, because it looks like it worked",
   );
 }
 {
@@ -3517,6 +3696,1104 @@ for (const [variant, opts] of VARIANTS) {
     !/\/interface ethernet find where name=\$/.test(text),
     "a PPPoE session's virtual interface, a VLAN and a bridge are all real interfaces that are " +
       "not under /interface ethernet -- verifying there would discard a live uplink as unreal",
+  );
+}
+
+// =====================================================================
+// 13. THE SEVEN FIELD DEFECTS OF 2026-08-23
+// =====================================================================
+// Seven faults found while provisioning real MikroTiks, plus the two
+// reporting failures that made the worst of them survivable for days.
+// Not one of them is visible to `tsc`, `eslint` or the build: every value
+// is a `string` and every bug is in what the string MEANS to RouterOS, or
+// in what the panel told the operator it had checked.
+//
+// Each subsection asserts the fix AND injects the defect back to prove
+// the assertion can fail. A guard that cannot be shown to fail is not a
+// guard -- three were found in exactly that state on 2026-08-23.
+
+console.log("\n-- 13.1 the DHCP pool is derived from the CIDR --");
+
+{
+  // INDEPENDENT ARITHMETIC, ON PURPOSE. If this recomputed containment
+  // with `deriveLanAddressing` itself, a bug in that function would agree
+  // with itself and pass. This is a second implementation, written from
+  // the definition of a subnet rather than from the code under test.
+  const ipToInt = (ip) => ip.split(".").reduce((acc, o) => acc * 256 + Number(o), 0);
+  const inSubnet = (ip, network) => {
+    const [net, prefix] = network.split("/");
+    const size = 2 ** (32 - Number(prefix));
+    const base = ipToInt(net);
+    const n = ipToInt(ip);
+    return n >= base && n < base + size;
+  };
+  const isNetworkAddress = (network) => {
+    const [net, prefix] = network.split("/");
+    const size = 2 ** (32 - Number(prefix));
+    return ipToInt(net) % size === 0;
+  };
+
+  // ---- the arithmetic itself, over every reachable prefix -------------
+  check(
+    "a /24 with the historic .1 router address still produces the historic pool",
+    JSON.stringify(deriveLanAddressing("192.168.88.1", "24")) ===
+      JSON.stringify({
+        ok: true,
+        network: "192.168.88.0/24",
+        poolStart: "192.168.88.10",
+        poolEnd: "192.168.88.254",
+        poolSize: 245,
+      }),
+    `the shipped default must not move: ${JSON.stringify(deriveLanAddressing("192.168.88.1", "24"))}`,
+  );
+  check(
+    "a /25 stops the pool at the end of the ROUTER'S OWN subnet",
+    deriveLanAddressing("192.168.88.1", "25").poolEnd === "192.168.88.126",
+    `guests handed .128-.254 on a /25 lease fine and cannot reach their own gateway: ${JSON.stringify(deriveLanAddressing("192.168.88.1", "25"))}`,
+  );
+  check(
+    "a /25 with the router in the UPPER half uses the upper network",
+    deriveLanAddressing("192.168.88.130", "25").network === "192.168.88.128/25",
+    `192.168.88.0/25 is a network this router has no address in at all: ${JSON.stringify(deriveLanAddressing("192.168.88.130", "25"))}`,
+  );
+  check(
+    "a /23 does not throw away the half of the range above .255",
+    deriveLanAddressing("10.5.50.1", "23").poolEnd === "10.5.51.254",
+    `the old octet-sliced pool stopped at 10.5.50.254: ${JSON.stringify(deriveLanAddressing("10.5.50.1", "23"))}`,
+  );
+  check(
+    "a /28 drops the .10 head-room rather than eating the whole pool",
+    deriveLanAddressing("192.168.10.1", "28").poolStart === "192.168.10.2",
+    `a fixed +9 offset on a 14-host subnet leaves almost nothing: ${JSON.stringify(deriveLanAddressing("192.168.10.1", "28"))}`,
+  );
+  check(
+    "the router's own address is never inside the pool it hands out",
+    ["24", "23", "25", "26", "28", "30"].every((p) => {
+      for (const ip of ["192.168.88.1", "192.168.88.100", "192.168.88.130", "192.168.88.200"]) {
+        const r = deriveLanAddressing(ip, p);
+        if (!r.ok) continue;
+        if (ipToInt(ip) >= ipToInt(r.poolStart) && ipToInt(ip) <= ipToInt(r.poolEnd)) return false;
+      }
+      return true;
+    }),
+    "a DHCP server that can lease its own gateway's address is its own outage",
+  );
+  check(
+    "every prefix from /1 to /30 either yields a pool inside its own network or is refused with a reason",
+    (() => {
+      for (let p = 1; p <= 30; p++) {
+        for (const ip of ["10.5.50.1", "192.168.88.130", "172.16.9.65", "128.66.1.1"]) {
+          const r = deriveLanAddressing(ip, String(p));
+          // A /30 whose router sits on the last host address genuinely has
+          // no room left; that is a refusal, not a wrong answer.
+          if (!r.ok) {
+            if (typeof r.reason !== "string" || r.reason.length < 20) return false;
+            continue;
+          }
+          if (!isNetworkAddress(r.network)) return false;
+          if (!inSubnet(r.poolStart, r.network) || !inSubnet(r.poolEnd, r.network)) return false;
+          if (!inSubnet(ip, r.network)) return false;
+        }
+      }
+      return true;
+    })(),
+    "the pool, the router and the network entry must all describe one subnet",
+  );
+  check(
+    "...and every prefix from /1 to /28 with a .1 router really does produce a pool",
+    (() => {
+      for (let p = 1; p <= 28; p++)
+        if (!deriveLanAddressing("10.5.50.1", String(p)).ok) return false;
+      return true;
+    })(),
+    "the previous check would pass vacuously if the function refused everything",
+  );
+  check(
+    "a 128.x LAN is not mangled by JS signed 32-bit bitwise arithmetic",
+    deriveLanAddressing("128.66.1.130", "25").network === "128.66.1.128/25",
+    `the top bit set makes an unshifted mask negative and inverts every comparison: ${JSON.stringify(deriveLanAddressing("128.66.1.130", "25"))}`,
+  );
+  check(
+    "/31 and /32 are REFUSED with a reason, not silently given a pool",
+    ["31", "32"].every((p) => {
+      const r = deriveLanAddressing("192.168.10.1", p);
+      return r.ok === false && typeof r.reason === "string" && r.reason.length > 20;
+    }),
+    "inventing a /24-shaped pool for a prefix that cannot hold one is the original defect",
+  );
+  check(
+    "a CIDR outside 1..32 is REFUSED, not coerced",
+    ["0", "33", "", "24.5", "abc", "/24", "２４", "0x18"].every(
+      (p) => deriveLanAddressing("192.168.88.1", p).ok === false,
+    ),
+    "`lanCidr` is a free-text field -- everything it can hold has to land somewhere defined",
+  );
+  check(
+    "a LAN IP that is the network or broadcast address is REFUSED",
+    deriveLanAddressing("192.168.88.0", "24").ok === false &&
+      deriveLanAddressing("192.168.88.255", "24").ok === false,
+    "neither is a usable host address, and a router configured with one has no working LAN at all",
+  );
+  check(
+    "a malformed LAN IP is REFUSED, not parsed as far as it goes",
+    ["192.168.88", "192.168.88.1.1", "192.168.88.256", "1.2.3.x", ""].every(
+      (ip) => deriveLanAddressing(ip, "24").ok === false,
+    ),
+    "`NaN` octets would sail through the bit arithmetic and produce a confident wrong subnet",
+  );
+
+  // ---- and what actually lands in the emitted chunk -------------------
+  const hotspotChunks = [];
+  for (const [variant, opts] of VARIANTS) {
+    const c = buildRouterSetupScriptChunks(opts).find((x) => x.label.startsWith("Hotspot"));
+    if (c) hotspotChunks.push([variant, opts, c]);
+  }
+  check(
+    "every variant produces exactly one Hotspot chunk",
+    hotspotChunks.length === VARIANTS.length,
+    `${hotspotChunks.length} of ${VARIANTS.length} -- a variant lost its Hotspot chunk entirely`,
+  );
+
+  const containmentOffenders = [];
+  for (const [variant, opts, chunk] of hotspotChunks) {
+    if (chunk.label.includes("NOT GENERATED")) continue;
+    const pool = chunk.script.match(/ranges=(\d+\.\d+\.\d+\.\d+)-(\d+\.\d+\.\d+\.\d+)/);
+    const net = chunk.script.match(/network add address=(\d+\.\d+\.\d+\.\d+\/\d+)/);
+    if (!pool || !net) {
+      containmentOffenders.push(`${variant}: no pool range or no dhcp network line`);
+      continue;
+    }
+    if (!isNetworkAddress(net[1]))
+      containmentOffenders.push(`${variant}: ${net[1]} is not a network address`);
+    if (!inSubnet(opts.lanIp, net[1]))
+      containmentOffenders.push(`${variant}: the router's own ${opts.lanIp} is not in ${net[1]}`);
+    if (!inSubnet(pool[1], net[1]) || !inSubnet(pool[2], net[1]))
+      containmentOffenders.push(`${variant}: pool ${pool[1]}-${pool[2]} escapes ${net[1]}`);
+    if (net[1].split("/")[1] !== String(opts.lanCidr))
+      containmentOffenders.push(`${variant}: network prefix ignores lanCidr=${opts.lanCidr}`);
+  }
+  check(
+    "no emitted DHCP pool hands out an address outside the LAN's own network",
+    containmentOffenders.length === 0,
+    `${containmentOffenders.length} offender(s): ${containmentOffenders.slice(0, 6).join(" | ")}`,
+  );
+
+  // INJECTED: the derivation this replaced.
+  {
+    const base3 = (ip) => ip.split(".").slice(0, 3).join(".");
+    const oldPool = (ip) => [`${base3(ip)}.10`, `${base3(ip)}.254`];
+    const oldNet = (ip, cidr) => `${base3(ip)}.0/${cidr}`;
+    const caught = [
+      ["192.168.88.1", "25"],
+      ["192.168.88.130", "25"],
+    ].every(([ip, cidr]) => {
+      const net = oldNet(ip, cidr);
+      const [s, e] = oldPool(ip);
+      return !inSubnet(s, net) || !inSubnet(e, net) || !inSubnet(ip, net);
+    });
+    check(
+      "INJECTED: the containment test rejects the octet-slicing derivation it replaced",
+      caught,
+      "the test agrees with the bug, so it would not have caught it",
+    );
+  }
+  check(
+    "INJECTED: ...and the containment test does NOT reject a correct /24",
+    inSubnet("192.168.88.10", "192.168.88.0/24") &&
+      inSubnet("192.168.88.254", "192.168.88.0/24") &&
+      isNetworkAddress("192.168.88.0/24"),
+    "over-strictness would ban the shipped default",
+  );
+
+  // ---- the refusal path ----------------------------------------------
+  {
+    const refused = buildRouterSetupScriptChunks({
+      ...BASE,
+      wans: [DHCP_WAN],
+      lanIp: "192.168.10.1",
+      lanCidr: "31",
+    }).find((c) => c.label.startsWith("Hotspot"));
+    check(
+      "an unusable LAN prefix names itself in the CHUNK LABEL, before the operator opens it",
+      /NOT GENERATED/.test(refused.label),
+      `the chunk list must not read as ordinary: "${refused.label}"`,
+    );
+    check(
+      "...and the refusal chunk creates NOTHING",
+      !/ add /.test(refused.script) && !/ set /.test(refused.script),
+      "a half-configured hotspot is worse than an un-pasted one",
+    );
+    check(
+      "...and says RESULT: FAIL with the reason and a next step",
+      /RESULT: FAIL/.test(refused.script) &&
+        /re-generate/i.test(refused.script) &&
+        /:log warning/.test(refused.script),
+      "a refusal with no reason and no next step is a dead end",
+    );
+  }
+}
+
+console.log("\n-- 13.1b the Hotspot verdict can actually FAIL --");
+
+{
+  const hs = REGEN_CHUNKS.find((c) => c.label === "Hotspot").script;
+  const verdict = hs.split("\n").find((l) => /RESULT: PASS -- every object/.test(l));
+  check(
+    "the Hotspot chunk still prints a single PASS/FAIL verdict",
+    Boolean(verdict),
+    "the verdict line disappeared rather than being fixed",
+  );
+  check(
+    "the verdict reads the pool's ACTUAL ranges back off the device",
+    /\/ip pool get \[find name="hotspot-pool"\] ranges/.test(verdict),
+    "a verdict built only from `does this object exist` is fixed by the `add` lines above it -- " +
+      "that is why a /25 router with no working guest WiFi printed RESULT: PASS",
+  );
+  check(
+    "...and compares them to the range this script actually intended",
+    /\$hsRanges = "\d+\.\d+\.\d+\.\d+-\d+\.\d+\.\d+\.\d+"/.test(verdict),
+    "reading a value back and not comparing it is decoration",
+  );
+  check(
+    "...and requires EXACTLY ONE dhcp network for this LAN's gateway",
+    /hsNetGw = 1/.test(verdict) && /gateway=/.test(verdict),
+    "a leftover network entry from an earlier prefix wins by longest match and is invisible",
+  );
+  check(
+    "the chunk removes a dhcp network entry left behind by a DIFFERENT prefix",
+    /:foreach dn in=\[\/ip dhcp-server network find where gateway=[^\]]*\] do=\{ :if \(\[\/ip dhcp-server network get \$dn address\] != /.test(
+      hs,
+    ),
+    "add-if-missing never sees the old entry, so nothing ever removes it",
+  );
+  check(
+    "...and only ever touches entries whose gateway is THIS router's LAN address",
+    !/\/ip dhcp-server network remove \[find\]/.test(hs) &&
+      (hs.match(/\/ip dhcp-server network remove/g) ?? []).every(() => true) &&
+      /find where gateway=/.test(hs),
+    "an unqualified sweep would delete a network entry serving another interface",
+  );
+  check(
+    "the pool's ranges are re-SET on a router that already has the pool",
+    /:if \(\[:len \[\/ip pool find where name="hotspot-pool"\]\] > 0\) do=\{ \/ip pool set \[find name="hotspot-pool"\] ranges=/.test(
+      hs,
+    ),
+    "add-if-missing alone leaves a corrected prefix's old ranges in place forever",
+  );
+
+  // INJECTED: the verdict as it stood -- five existence counts, all of
+  // them made true by the five `add` lines above them.
+  {
+    const oldVerdict =
+      ':local hsPool [:len [/ip pool find where name="hotspot-pool"]]; ' +
+      ':local hsNet [:len [/ip dhcp-server network find where address="192.168.88.0/24"]]; ' +
+      ':if ($hsPool > 0 && $hsNet > 0) do={ :put "  RESULT: PASS -- every object this chunk creates exists." }';
+    const readsBack = /\/ip pool get \[find name="hotspot-pool"\] ranges/.test(oldVerdict);
+    check(
+      "INJECTED: the read-back guard fires on the existence-count-only verdict it replaced",
+      readsBack === false,
+      "the guard is blind to the verdict that printed PASS at a broken router",
+    );
+  }
+  check(
+    "INJECTED: ...and does NOT fire on the verdict actually shipped",
+    /\/ip pool get \[find name="hotspot-pool"\] ranges/.test(verdict),
+    "the guard bans the fix it exists to require",
+  );
+}
+
+console.log("\n-- 13.2 mangle ordering survives a re-paste --");
+
+{
+  const mangleVariants = VARIANTS.map(([variant, opts]) => [
+    variant,
+    buildRouterSetupScriptChunks(opts).find((c) => c.label.startsWith("Basic Mangle Rules")),
+  ]).filter(([, c]) => c);
+
+  check(
+    "the sweep sees both the even-split and the weighted mangle chunk",
+    mangleVariants.length >= 5 &&
+      mangleVariants.some(([, c]) => c.label.includes("weighted")) &&
+      mangleVariants.some(([, c]) => !c.label.includes("weighted")),
+    `only ${mangleVariants.length} mangle chunk(s), and both paths must be in scope -- the old ` +
+      "sweep ran on the weighted path ONLY, which is half of why this defect existed",
+  );
+
+  /** Index of the first line matching, or -1. */
+  const lineIndex = (script, re) => script.split("\n").findIndex((l) => re.test(l));
+  /** Index of the LAST line matching, or -1. */
+  const lastLineIndex = (script, re) => {
+    const lines = script.split("\n");
+    for (let i = lines.length - 1; i >= 0; i--) if (re.test(lines[i])) return i;
+    return -1;
+  };
+  const RE_SWEEP =
+    /:foreach \w+ in=\[\/ip firewall mangle find where comment~"\^cloudguest-mangle-"\] do=\{ \/ip firewall mangle remove/;
+  const RE_MARK_CONN_ADD = /\/ip firewall mangle add [^\n]*action=mark-connection/;
+  const RE_MARK_ROUTE_ADD = /\/ip firewall mangle add [^\n]*action=mark-routing/;
+
+  const orderOffenders = [];
+  const sweepOffenders = [];
+  for (const [variant, chunk] of mangleVariants) {
+    const s = chunk.script;
+    if (!RE_SWEEP.test(s)) {
+      sweepOffenders.push(`${variant}: no unconditional cloudguest-mangle- sweep`);
+      continue;
+    }
+    const sweepAt = lineIndex(s, RE_SWEEP);
+    const firstConn = lineIndex(s, RE_MARK_CONN_ADD);
+    const lastConn = lastLineIndex(s, RE_MARK_CONN_ADD);
+    const firstRoute = lineIndex(s, RE_MARK_ROUTE_ADD);
+    if (sweepAt > firstConn)
+      sweepOffenders.push(`${variant}: the sweep runs AFTER the first add, so it deletes it`);
+    if (firstRoute === -1 || lastConn === -1)
+      orderOffenders.push(`${variant}: missing a mark-connection or mark-routing add`);
+    else if (lastConn > firstRoute)
+      orderOffenders.push(
+        `${variant}: a mark-routing add (line ${firstRoute + 1}) precedes a mark-connection add (line ${lastConn + 1})`,
+      );
+  }
+  check(
+    "every mangle chunk sweeps ALL of its own rules before adding any, in both paths",
+    sweepOffenders.length === 0,
+    `${sweepOffenders.length}: ${sweepOffenders.join(" | ")}. A plain \`add\` APPENDS, so re-adding ` +
+      "PCC rules while leaving the mark-routing rules in place puts them below the rules that " +
+      "depend on them -- the SYN of every new connection is then still no-mark at the routing " +
+      "decision and leaves by the wrong WAN",
+  );
+  check(
+    "every mark-routing rule is emitted BELOW every mark-connection rule",
+    orderOffenders.length === 0,
+    `${orderOffenders.length}: ${orderOffenders.join(" | ")}`,
+  );
+  check(
+    "the sweep matches the whole cloudguest-mangle- family, not just -pcc-",
+    mangleVariants.every(
+      ([, c]) =>
+        !/comment~"\^cloudguest-mangle-pcc-wan"\] do=\{ \/ip firewall mangle remove/.test(c.script),
+    ),
+    "a sweep covering only `-pcc-` leaves the mark-routing rules in place, which is exactly how " +
+      "the re-paste inverted the order",
+  );
+  check(
+    "the sweep removes ONLY rules this generator owns",
+    mangleVariants.every(
+      ([, c]) =>
+        (c.script.match(/\/ip firewall mangle remove/g) ?? []).length > 0 &&
+        c.script
+          .split("\n")
+          .filter((l) => /\/ip firewall mangle remove/.test(l))
+          .every((l) => /comment~"\^cloudguest-mangle-/.test(l)),
+    ),
+    "an unqualified mangle sweep would delete a hand-written rule an operator relies on",
+  );
+  check(
+    "the chunk verifies the ordering on the device and can print FAIL",
+    mangleVariants.every(
+      ([, c]) =>
+        /RESULT: FAIL -- the load-balancing mangle rules are wrong or out of order/.test(
+          c.script,
+        ) &&
+        /mark-routing rule is ABOVE a mark-connection rule/.test(c.script) &&
+        /:log warning "cloudguest: multi-WAN mangle rules missing or mis-ordered/.test(c.script),
+    ),
+    "ordering restored by construction and never read back is an assumption, not a check",
+  );
+  check(
+    "...and the ordering read-back degrades to `not verified` instead of aborting the line",
+    mangleVariants.every(
+      ([, c]) =>
+        /on-error=\{ :set mgOrderKnown false \}/.test(c.script) &&
+        /Rule ORDER could not be read on this RouterOS version/.test(c.script),
+    ),
+    "`:find` over an array of internal ids is the one shape here not confirmed on this hardware; " +
+      "an unguarded error would take the whole `;`-joined line down, and on a single-line paste " +
+      "that aborts every chunk after it",
+  );
+
+  // INJECTED: both halves of the original defect.
+  {
+    // REGEN_CHUNKS is a single-WAN build and has no mangle chunk at all,
+    // so the shipped-shape half of this pair is built here explicitly.
+    const swept = buildRouterSetupScriptChunks({
+      ...BASE,
+      wans: [DHCP_WAN, { iface: "ether2", mode: "dhcp" }],
+      wanRoutingMode: "load_balance",
+    }).find((c) => c.label.startsWith("Basic Mangle Rules"));
+    const brokenSweep = buildRouterSetupScriptChunks({
+      ...BASE,
+      wans: [DHCP_WAN, { iface: "ether2", mode: "dhcp" }],
+      wanRoutingMode: "load_balance",
+    })
+      .find((c) => c.label.startsWith("Basic Mangle Rules"))
+      .script.replace('comment~"^cloudguest-mangle-"', 'comment~"^cloudguest-mangle-pcc-wan"');
+    check(
+      "INJECTED: the sweep guard fires when the sweep is narrowed back to -pcc- only",
+      !RE_SWEEP.test(brokenSweep),
+      "the guard is blind to the narrowed sweep that caused the defect",
+    );
+    const reordered = buildRouterSetupScriptChunks({
+      ...BASE,
+      wans: [DHCP_WAN, { iface: "ether2", mode: "dhcp" }],
+      wanRoutingMode: "load_balance",
+    }).find((c) => c.label.startsWith("Basic Mangle Rules")).script;
+    const lines = reordered.split("\n");
+    const routeLine = lines.find((l) => RE_MARK_ROUTE_ADD.test(l));
+    const connLine = lines.findIndex((l) => RE_MARK_CONN_ADD.test(l));
+    const mutated = [
+      ...lines.slice(0, connLine),
+      routeLine,
+      ...lines.slice(connLine).filter((l) => l !== routeLine),
+    ].join("\n");
+    check(
+      "INJECTED: the ordering guard fires when a mark-routing add is moved above a mark-connection add",
+      lastLineIndex(mutated, RE_MARK_CONN_ADD) > lineIndex(mutated, RE_MARK_ROUTE_ADD),
+      "the guard is blind to the exact rule order that kills ~30% of new connections",
+    );
+    check(
+      "INJECTED: ...and does NOT fire on the order actually shipped",
+      Boolean(swept) &&
+        lastLineIndex(swept.script, RE_MARK_CONN_ADD) < lineIndex(swept.script, RE_MARK_ROUTE_ADD),
+      "the guard bans the fix it exists to require",
+    );
+  }
+}
+
+console.log("\n-- 13.3 failover-only sweeps the marks, not just the routes --");
+
+{
+  const failover = buildRouterSetupScriptChunks({
+    ...BASE,
+    wans: [DHCP_WAN, { iface: "ether2", mode: "dhcp" }, { iface: "ether3", mode: "dhcp" }],
+    wanRoutingMode: "failover_only",
+  });
+  const routing = failover.find((c) => c.label.startsWith("WAN Routing")).script;
+
+  check(
+    "a failover-only script generates no mangle chunk at all (unchanged)",
+    !failover.some((c) => c.label.startsWith("Basic Mangle Rules")),
+    "if it did, this cleanup would be fighting it",
+  );
+  check(
+    "the failover-only cleanup still removes the routing-mark'd routes",
+    /comment~"\^cloudguest-route-wan"\] do=\{ \/ip route remove/.test(routing) &&
+      /comment~"\^cloudguest-backup-wan"\] do=\{ \/ip route remove/.test(routing),
+    "the existing half of the cleanup was removed rather than completed",
+  );
+  check(
+    "...AND sweeps the mangle marks that pointed at them",
+    /:foreach \w+ in=\[\/ip firewall mangle find where comment~"\^cloudguest-mangle-"\] do=\{ \/ip firewall mangle remove/.test(
+      routing,
+    ),
+    "deleting every to_wan<N> route while leaving the rules that mark traffic INTO those tables " +
+      "is the exact black hole this chunk's own comment says the pair exists to prevent: guests " +
+      "get an address and the portal, and nothing past this router",
+  );
+  check(
+    "...and only removes mangle rules this generator owns",
+    routing
+      .split("\n")
+      .filter((l) => /\/ip firewall mangle remove/.test(l))
+      .every((l) => /comment~"\^cloudguest-mangle-/.test(l)),
+    "an unqualified sweep in a failover script would delete a hand-written rule",
+  );
+  check(
+    "...and reads the result back with a PASS/FAIL rather than assuming it",
+    /failover-only: load-balancing mangle rules left=/.test(routing) &&
+      /RESULT: FAIL -- a load-balancing leftover survived this failover-only paste/.test(routing) &&
+      /:log warning "cloudguest: failover-only paste left load-balancing mangle marks/.test(
+        routing,
+      ),
+    "a leftover marking rule is invisible on the router: traffic is marked, routed nowhere, and " +
+      "logged nowhere",
+  );
+  check(
+    "the leftover count is keyed on this generator's own comment, not on a version-specific property",
+    /find where comment~"\^cloudguest-\(route\|backup\)-wan"/.test(routing) &&
+      !/find where routing-table~/.test(routing) &&
+      !/find where routing-mark~/.test(routing),
+    "`routing-table` is v7 and `routing-mark` is v6; a `find where` on a property a route does " +
+      "not carry is not a shape this generator has confirmed",
+  );
+  check(
+    "a LOAD-BALANCE script does not carry the failover-only cleanup",
+    !/failover-only: load-balancing mangle rules left=/.test(
+      buildRouterSetupScriptChunks({
+        ...BASE,
+        wans: [DHCP_WAN, { iface: "ether2", mode: "dhcp" }],
+        wanRoutingMode: "load_balance",
+      }).find((c) => c.label.startsWith("WAN Routing")).script,
+    ),
+    "it would delete the mangle rules the very next chunk creates",
+  );
+
+  // INJECTED
+  {
+    const withoutSweep = routing.replace(
+      /:foreach \w+ in=\[\/ip firewall mangle find where comment~"\^cloudguest-mangle-"\] do=\{ \/ip firewall mangle remove \$\w+ \}/,
+      "",
+    );
+    check(
+      "INJECTED: the guard fires when the mangle sweep is removed from the failover cleanup",
+      !/\/ip firewall mangle find where comment~"\^cloudguest-mangle-"\] do=\{ \/ip firewall mangle remove/.test(
+        withoutSweep,
+      ),
+      "the guard is blind to the black hole it exists for",
+    );
+  }
+}
+
+console.log("\n-- 13.5 a stale STATIC WAN address does not survive a re-paste --");
+
+{
+  const staticWan = buildRouterSetupScriptChunks({
+    ...BASE,
+    wans: [STATIC_WAN],
+  }).find((c) => c.label.startsWith("WAN Addressing")).script;
+
+  check(
+    "the static branch still clears a dangling DHCP-leased address (unchanged)",
+    /:foreach \w+ in=\[\/ip address find where interface="ether1" dynamic=yes\] do=\{ \/ip address remove/.test(
+      staticWan,
+    ),
+    "the existing half of the sweep was replaced rather than extended",
+  );
+  check(
+    "...AND clears the STATIC address this generator itself left last time",
+    /:foreach \w+ in=\[\/ip address find where interface="ether1" comment="cloudguest-addr-wan1"\] do=\{ :if \(\[\/ip address get \$\w+ address\] != "1\.2\.3\.4\/24"\) do=\{ \/ip address remove/.test(
+      staticWan,
+    ),
+    "`dynamic=yes` never matches a static address, so changing a WAN's IP and re-pasting laid the " +
+      "new one down BESIDE the old one -- two addresses on one WAN, forever, with nothing " +
+      "reporting it",
+  );
+  check(
+    "...and only ever removes an address carrying this generator's own comment",
+    staticWan
+      .split("\n")
+      .filter((l) => /\/ip address remove/.test(l))
+      .every((l) => /dynamic=yes/.test(l) || /comment="cloudguest-addr-wan\d+"/.test(l)),
+    "an operator's own static address on a WAN is not this script's to delete",
+  );
+  check(
+    "...and does not remove the address it is about to add (no-op on a healthy re-run)",
+    /!= "1\.2\.3\.4\/24"/.test(staticWan),
+    "an unconditional remove-then-add drops the WAN for the width of the paste",
+  );
+  check(
+    "an address count is REPORTED, so a foreign second address is visible without being deleted",
+    /WARNING: WAN1 \(ether1\) carries/.test(staticWan) &&
+      /:log warning "cloudguest: WAN1 \(ether1\) does not carry exactly one address/.test(
+        staticWan,
+      ),
+    "reported, not removed -- the same discipline as the local hotspot user sweep",
+  );
+  check(
+    "a DHCP WAN does not get a static-address sweep it has no use for",
+    !/comment="cloudguest-addr-wan1"/.test(
+      buildRouterSetupScriptChunks({ ...BASE, wans: [DHCP_WAN] }).find((c) =>
+        c.label.startsWith("WAN Addressing"),
+      ).script,
+    ),
+    "the static branch's cleanup leaking into the dhcp branch would remove nothing and confuse " +
+      "anyone reading the script",
+  );
+
+  // INJECTED
+  {
+    const dynamicOnly = staticWan.replace(
+      /:foreach \w+ in=\[\/ip address find where interface="ether1" comment="cloudguest-addr-wan1"\][^\n]*\n/,
+      "",
+    );
+    check(
+      "INJECTED: the guard fires when the sweep is narrowed back to dynamic=yes only",
+      !/comment="cloudguest-addr-wan1"\] do=\{ :if/.test(dynamicOnly),
+      "the guard is blind to the sweep that let a stale static address survive forever",
+    );
+  }
+}
+
+console.log("\n-- 13.6 a mistyped LAN port names the LAN, not the WAN --");
+
+{
+  const withLan = buildRouterSetupScriptChunks({
+    ...BASE,
+    wans: [DHCP_WAN],
+    lanIfs: ["ether3", "ether4"],
+  });
+  const lanChunk = withLan.find((c) => c.label.startsWith("LAN Interfaces")).script;
+  const wanChunk = withLan.find((c) => c.label === "WAN + Bridge").script;
+
+  check(
+    "the LAN allowlist chunk still checks that each named LAN port exists",
+    /:if \(\[:len \[\/interface find where name="ether3"\]\] = 0\)/.test(lanChunk),
+    "the existence check was removed rather than corrected",
+  );
+  check(
+    "the LAN chunk never calls a missing LAN port a WAN interface",
+    !/WAN interface/.test(lanChunk) && !/WAN Routing chunk/.test(lanChunk),
+    "a mistyped LAN port used to report `configured WAN interface ether7 does not exist` and " +
+      "point at the WAN Routing chunk -- both false, and it sent the operator to the one side of " +
+      "the router that was working",
+  );
+  check(
+    "...and says LAN, in the log line as well as on screen",
+    /:log warning \("cloudguest: configured LAN interface "/.test(lanChunk),
+    "the log is what gets read after the fact, when the terminal scrollback is gone",
+  );
+  check(
+    "...and names the real consequence: it never joins the guest bridge, and nothing recovers it",
+    /will NOT be added to the guest bridge/.test(lanChunk) &&
+      /no guest gets an address at all/.test(lanChunk),
+    "the WAN copy promised a recovery path that does not exist on this side",
+  );
+  check(
+    "the WAN chunk still says WAN, and still points at the uplink discovery",
+    /:log warning \("cloudguest: configured WAN interface "/.test(wanChunk) &&
+      /WAN Routing chunk resolves the live uplink/.test(wanChunk),
+    "fixing the LAN copy must not silently rewrite the WAN copy, which is correct as it stands",
+  );
+  check(
+    "neither chunk aborts on a missing interface",
+    !/:error/.test(lanChunk) && !/:error/.test(wanChunk),
+    "PR #132 made this a NOTE rather than an abort on purpose; a LAN typo must not stop a paste " +
+      "that is otherwise fine",
+  );
+}
+
+console.log("\n-- 13.7 nothing sets a property on a hotspot profile that may not exist --");
+
+{
+  const hs = REGEN_CHUNKS.find((c) => c.label === "Hotspot").script;
+  const lines = hs.split("\n");
+  const firstProfileSet = lines.findIndex((l) =>
+    /\/ip hotspot profile set \[find name="hsprof1"\]/.test(l),
+  );
+  const preCount = lines.findIndex((l) =>
+    /:local hsProfPre \[:len \[\/ip hotspot profile find where name="hsprof1"\]\]/.test(l),
+  );
+
+  check(
+    "an explicit hsprof1 COUNT is emitted before the first profile property write",
+    preCount !== -1 && firstProfileSet !== -1 && preCount < firstProfileSet,
+    `count at line ${preCount + 1}, first set at line ${firstProfileSet + 1} -- ` +
+      "`set [find ...]` against an empty match SUCCEEDS on RouterOS, so an hsprof1 that was never " +
+      "created takes every property write with it and reports nothing",
+  );
+  check(
+    "...and that count is BRANCHED ON ZERO, on screen and in the log",
+    /:if \(\$hsProfPre = 0\) do=\{ :put "  FAIL -- hotspot profile hsprof1 does not exist/.test(
+      hs,
+    ) &&
+      /:if \(\$hsProfPre = 0\) do=\{ :log warning "cloudguest: hsprof1 missing before the hotspot profile property writes/.test(
+        hs,
+      ),
+    "printing a count nobody branches on is the same silence in a longer form",
+  );
+  check(
+    "the dns-name write is itself gated on a non-zero count",
+    /:if \(\$hsDnsProf > 0\) do=\{ \/ip hotspot profile set \[find name="hsprof1"\] dns-name=/.test(
+      hs,
+    ),
+    "a bare `set` still returns success against nothing, which reads as `it recovered` right " +
+      "after a warning",
+  );
+  check(
+    "...and says so when it did not run",
+    /dns-name=[^ ]+ was NOT set -- no hotspot profile named hsprof1/.test(hs),
+    "a skipped write that says nothing is indistinguishable from one that landed",
+  );
+  // COORDINATION, ASSERTED. The `login-by=` line is owned by the
+  // self-signed-certificate / `login-by=https` work happening in parallel.
+  // This section deliberately does not touch it, and the guard above is
+  // written to cover it WITHOUT editing it -- a count that precedes every
+  // property write covers whatever that line ends up saying.
+  check(
+    "the hsprof1 count precedes the login-by write too, without that line being edited",
+    (() => {
+      const loginBy = lines.findIndex((l) =>
+        /\/ip hotspot profile set \[find name="hsprof1"\] login-by=/.test(l),
+      );
+      return loginBy === -1 || preCount < loginBy;
+    })(),
+    "the guard has to cover a line another engineer is editing, which is exactly why it is a " +
+      "separate preceding line rather than a wrapper around each write",
+  );
+  check(
+    "the RADIUS chunk's own hsprof1 read-back is still there (unchanged)",
+    /:local rdProf \[:len \[\/ip hotspot profile find where name="hsprof1"\]\]/.test(
+      scriptOf((c) => c.label === "RADIUS"),
+    ),
+    "the two chunks guard the same object independently on purpose -- either can be pasted first",
+  );
+
+  // INJECTED
+  {
+    const bare = hs.replace(/:local hsProfPre[^\n]*\n/, "");
+    const bareLines = bare.split("\n");
+    check(
+      "INJECTED: the guard fires when the pre-count is removed and the sets go back to bare",
+      bareLines.findIndex((l) =>
+        /:local hsProfPre \[:len \[\/ip hotspot profile find where name="hsprof1"\]\]/.test(l),
+      ) === -1,
+      "the guard is blind to the unguarded shape it exists for",
+    );
+  }
+}
+
+console.log("\n-- 13.8 the one-line paste says how far it got --");
+
+{
+  const chunks = REGEN_CHUNKS;
+  const oneLine = chunksToSingleLineScript(chunks);
+  const markers = [...oneLine.matchAll(/### cloudguest ([^"]*)/g)].map((m) => m[1]);
+
+  check(
+    "every chunk is bracketed by a START and a DONE marker",
+    chunks.every(
+      (c, i) =>
+        oneLine.includes(`### cloudguest ${i + 1}/${chunks.length} START `) &&
+        oneLine.includes(`### cloudguest ${i + 1}/${chunks.length} DONE `),
+    ),
+    "RouterOS reports ONE error for the whole line and no indication of how far it got; without " +
+      "a marker per chunk a partial run is indistinguishable from a complete one",
+  );
+  check(
+    "the markers carry the chunk's own label, not just a number",
+    chunks.every((c, i) =>
+      oneLine.includes(`### cloudguest ${i + 1}/${chunks.length} START ${c.label}`),
+    ),
+    "`column 1464` is not something an operator can map back to a chunk; a chunk name is",
+  );
+  check(
+    "a final COMPLETE marker is the LAST thing the line prints",
+    /:put "### cloudguest COMPLETE[^"]*"$/.test(oneLine),
+    "the operator needs one unambiguous thing to look for at the end; if it is not last, an " +
+      "abort after it would still look complete",
+  );
+  check(
+    "...and it says plainly that ending anywhere else means it stopped early",
+    /A run that ends anywhere else stopped early/.test(oneLine),
+    "a marker whose meaning has to be inferred does not survive a night shift",
+  );
+  check(
+    "the markers are real `:put` statements, not `#` comments",
+    markers.length > 0 &&
+      oneLine.split("; ").every((stmt) => !stmt.trimStart().startsWith("#")) &&
+      (oneLine.match(/### cloudguest/g) ?? []).every(() => true) &&
+      (oneLine.match(/:put "### cloudguest/g) ?? []).length === markers.length,
+    "`#` comments are stripped by this very function, and a comment prints nothing anyway -- the " +
+      "whole point is output the operator can read back",
+  );
+  check(
+    "the marker count is exactly 2 per chunk plus one COMPLETE",
+    markers.length === chunks.length * 2 + 1,
+    `${markers.length} markers for ${chunks.length} chunks -- a duplicated or missing marker ` +
+      "makes the position report wrong, which is worse than absent",
+  );
+  check(
+    "a chunk label containing a quote cannot break the marker it is embedded in",
+    (() => {
+      const line = chunksToSingleLineScript([
+        { label: 'Weird "quoted" label', script: ':put "x"' },
+      ]);
+      const issues = validateSetupScriptChunks([{ label: "one-line", script: line }]);
+      return issues[0].issues.length === 0;
+    })(),
+    "the label is interpolated into a RouterOS double-quoted string and has to be escaped there",
+  );
+  check(
+    "the flattened script with markers is still free of every shape the validator checks",
+    validateSetupScriptChunks([{ label: "flattened", script: oneLine }])[0].issues.length === 0,
+    "adding the markers must not itself introduce a fault into the paste they exist to report on",
+  );
+  check(
+    "the flattened script still carries no `#` comment (which would swallow the rest of the line)",
+    !/(^|; )#/.test(oneLine),
+    "a `#` at statement position runs to end-of-line and eats every statement after it",
+  );
+  check(
+    "the markers cost a negligible fraction of the paste",
+    oneLine.length - chunks.reduce((n, c) => n + c.script.length, 0) < oneLine.length * 0.2,
+    "a size increase big enough to matter would trade one paste risk for another",
+  );
+
+  // INJECTED
+  {
+    const stripped = oneLine
+      .split("; ")
+      .filter((stmt) => !stmt.startsWith(':put "### cloudguest'))
+      .join("; ");
+    check(
+      "INJECTED: the marker guard fires on the marker-free flattening it replaced",
+      !stripped.includes("### cloudguest"),
+      "the guard is blind to the version that gave the operator nothing to read",
+    );
+    const truncated = oneLine.slice(0, oneLine.indexOf("### cloudguest 3/"));
+    check(
+      "INJECTED: a paste that dies partway does NOT print COMPLETE",
+      !truncated.includes("COMPLETE"),
+      "if a truncated run could still show COMPLETE the marker would be worse than nothing",
+    );
+  }
+}
+
+console.log("\n-- 13.9 the validator is honest about what it checks --");
+
+{
+  // The exact line that aborted a live paste at column 1464 on
+  // 2026-08-23. Every bracket and every quote in it balances.
+  const FOUNDERS_LINE =
+    ':log warning "cloudguest: WAN1 gateway did not resolve (still \\"" . $wan1Gw . "\\") -- the route was not added"';
+  const PARENTHESISED =
+    ':log warning ("cloudguest: WAN1 gateway did not resolve (still \\"" . $wan1Gw . "\\") -- the route was not added")';
+
+  const issuesFor = (script) => validateSetupScriptChunks([{ label: "t", script }])[0].issues;
+  const errorsFor = (script) => issuesFor(script).filter((i) => i.severity === "error");
+
+  check(
+    "the balance check alone would have passed the line that aborted a live paste",
+    (() => {
+      let depth = 0;
+      let str = false;
+      for (let i = 0; i < FOUNDERS_LINE.length; i++) {
+        const c = FOUNDERS_LINE[i];
+        if (str) {
+          if (c === "\\") i++;
+          else if (c === '"') str = false;
+          continue;
+        }
+        if (c === '"') str = true;
+        else if ("([{".includes(c)) depth++;
+        else if (")]}".includes(c)) depth--;
+      }
+      return depth === 0 && !str;
+    })(),
+    "if this line did not balance, the incident would have been a bracket bug and the validator " +
+      "would already have caught it -- the whole point is that balance and validity are " +
+      "different questions",
+  );
+  check(
+    "the validator now REJECTS the unparenthesised concatenation",
+    errorsFor(FOUNDERS_LINE).some((i) => /concatenation without parentheses/.test(i.message)),
+    "this is a known, live, twice-confirmed failure and it must never pass validation again",
+  );
+  check(
+    "...and its message names the consequence for the one-line copy",
+    errorsFor(FOUNDERS_LINE).some((i) => /discards every chunk after this one/.test(i.message)),
+    "validate-then-copy-all-then-paste is the sequence that maximises the damage; the message " +
+      "has to close that loop",
+  );
+  check(
+    "...and ACCEPTS the correctly parenthesised form",
+    errorsFor(`:local wan1Gw ""; ${PARENTHESISED}`).length === 0,
+    "over-strictness matters as much as blindness: a validator that cries wolf gets clicked past, " +
+      "which is how it ends up trusted for the wrong questions",
+  );
+  check(
+    "...and is not fooled by a `.` that is only ever text inside a message",
+    errorsFor(':put "8.8.8.8 did not respond. Check the WAN cable."').length === 0,
+    "dotted addresses and ordinary full stops appear in almost every :put this generator emits",
+  );
+  check(
+    "...and accepts a bracketed argument with a nested concatenation",
+    errorsFor(':local n 1; :local m 2; :put ("  x=" . [:tostr $n] . " y=" . [:tostr $m])')
+      .length === 0 &&
+      errorsFor(':local a 1; :if ($a > 0) do={ :put ("  n=" . [:tostr $a]) }').length === 0,
+    "the shipped idiom throughout this generator",
+  );
+  check(
+    "...and catches the same shape on :put and :error, not only :log",
+    errorsFor(':local b 1; :put "a" . $b').length === 1 &&
+      errorsFor(':local b 1; :error "a" . $b').length === 1,
+    "one command covered and the others not is a guard with a hole in the middle",
+  );
+  check(
+    "...and catches it inside a do={} body, where most of this generator's output lives",
+    errorsFor(':local x 0; :if ($x = 0) do={ :log warning "a" . $x }').some((i) =>
+      /concatenation without parentheses/.test(i.message),
+    ),
+    "nearly every line this generator emits is a guarded statement, not a bare command",
+  );
+  check(
+    "the validator rejects a multi-statement do={} body",
+    errorsFor(':local x 0; :if ($x = 0) do={ :put "a"; :put "b" }').some((i) =>
+      /holds 2 statements/.test(i.message),
+    ),
+    "a `;`-chained body threw a real syntax error on this hardware",
+  );
+  check(
+    "...and accepts a single-statement body containing a nested block",
+    errorsFor(
+      ':foreach r in=[/ip address find] do={ :if ([/ip address get $r address] != "1.2.3.4/24") do={ /ip address remove $r } }',
+    ).length === 0,
+    "the nested-guard idiom this generator uses for every ownership-checked sweep",
+  );
+  check(
+    "the validator rejects a variable read on a line that did not bind it",
+    errorsFor(':local a 1\n:put ("x" . $a)').some((i) =>
+      /does not bind it on that same line/.test(i.message),
+    ),
+    "the RouterOS console runs each entered line as its own program; this is the defect class " +
+      "PRs #125/#126 fixed in two sibling modules",
+  );
+  check(
+    "...and accepts the same two statements legally flattened onto one line",
+    errorsFor(':local a 1; :put ("x" . $a)').length === 0,
+    "if the guard fired here it would ban the very fix it exists to enforce",
+  );
+  check(
+    "...and understands a :foreach loop variable as a binding",
+    errorsFor(":foreach p in=[/interface bridge port find] do={ /interface bridge port remove $p }")
+      .length === 0,
+    "the generator's own no-state replacement idiom",
+  );
+
+  // ---- and it does not cry wolf on the real thing --------------------
+  {
+    const noisy = [];
+    for (const [variant, opts] of VARIANTS) {
+      for (const r of validateSetupScriptChunks(buildRouterSetupScriptChunks(opts))) {
+        if (r.issues.length > 0)
+          noisy.push(`${variant} :: ${r.label}: ${r.issues.map((i) => i.message).join("; ")}`);
+      }
+    }
+    check(
+      "the validator reports NOTHING against any script this generator actually emits",
+      noisy.length === 0,
+      `${noisy.length} false positive(s): ${noisy.slice(0, 4).join(" | ")}. A validator that ` +
+        "fires on correct output is a validator people learn to ignore",
+    );
+  }
+
+  // ---- the honesty half ----------------------------------------------
+  check(
+    "the validator publishes the exact list of what it looks for",
+    Array.isArray(SETUP_SCRIPT_VALIDATOR_CHECKS) && SETUP_SCRIPT_VALIDATOR_CHECKS.length >= 6,
+    "the gap between what it checks and what an operator hears when it passes IS the incident",
+  );
+  check(
+    "...and the list names the concatenation fault and the incident it comes from",
+    SETUP_SCRIPT_VALIDATOR_CHECKS.some((c) => /concatenation/.test(c) && /2026-08-23/.test(c)),
+    "an entry with no incident behind it is a claim, not a check",
+  );
+  check(
+    "...and states plainly that it is not a RouterOS parser and not a test on a device",
+    /not a RouterOS parser/.test(SETUP_SCRIPT_VALIDATOR_LIMITS) &&
+      /not a test on a device/.test(SETUP_SCRIPT_VALIDATOR_LIMITS),
+    "a clean pass must not read as `this will run` -- an operator pasted 3,000 characters into a " +
+      "live router on the strength of the word `Validated`",
+  );
+  check(
+    "...and says what a clean pass DOES mean, in so many words",
+    /nothing more/.test(SETUP_SCRIPT_VALIDATOR_LIMITS),
+    "stating the limit without stating the meaning leaves the operator to fill in the gap, which " +
+      "is how it went wrong the first time",
+  );
+
+  // ---- the panel is wired to that honesty ----------------------------
+  {
+    const panel = readFileSync(
+      resolve(ROOT, "src/components/routers/RouterSetupScriptAdvanced.tsx"),
+      "utf8",
+    );
+    // RENDERED, not merely IMPORTED. The first version of this check
+    // asked only whether the two names appeared anywhere in the file --
+    // and an import line satisfies that. Replacing the rendered
+    // `{SETUP_SCRIPT_VALIDATOR_LIMITS}` with a hardcoded "Looks good."
+    // left the suite green. Caught by mutating it (M15); the check now
+    // requires the JSX interpolation itself.
+    check(
+      "the panel RENDERS the validator's own scope statement, not a hand-written copy",
+      /\{SETUP_SCRIPT_VALIDATOR_LIMITS\}/.test(panel),
+      "a second copy of the scope in JSX is a copy that goes stale, which is how the claim became " +
+        "untrue in the first place",
+    );
+    check(
+      "...and renders the check list from the same exported constant",
+      /SETUP_SCRIPT_VALIDATOR_CHECKS\.map\(/.test(panel),
+      "a hand-typed list beside a real one is the same staleness in a longer form",
+    );
+    check(
+      "...and both are imported from the module that defines the validator",
+      /SETUP_SCRIPT_VALIDATOR_CHECKS,\s*\n\s*SETUP_SCRIPT_VALIDATOR_LIMITS,/.test(panel),
+      "rendering a locally-redefined constant of the same name would satisfy the two checks above",
+    );
+    check(
+      'the clean-pass verdict no longer says "no issues found" or "passed validation"',
+      !/no issues found/.test(panel) && !/passed validation/.test(panel),
+      "those are the exact words a 3,000-character paste into a live router was authorised by",
+    );
+    check(
+      "the clean-pass toast does not claim the script will run",
+      /this is not proof it will run/.test(panel),
+      "the toast is the only thing some operators read",
+    );
+    check(
+      "a clean pass points at the one-line markers rather than ending the conversation",
+      /### cloudguest/.test(panel) && /COMPLETE/.test(panel),
+      "validate-then-copy-all-then-paste is the sequence that maximises the damage; fixing the " +
+        "reporting on one end and not the other leaves the trap half-open",
+    );
+    check(
+      "the one-line copy warns that one error aborts everything after it",
+      /ABORTS EVERYTHING AFTER IT/.test(panel) &&
+        /silently discards every remaining chunk/.test(panel),
+      "the old warning only mentioned terminal corruption, which is a different failure",
+    );
+    check(
+      "...and the copy feature itself is still there",
+      /chunksToSingleLineScript\(chunks\)/.test(panel) && /Copy \(1 line\)/.test(panel),
+      "the ask was to fix the reporting, not remove the convenience",
+    );
+  }
+}
+
+console.log("\n-- 13.10 the hotspot password field that fed nothing --");
+
+{
+  const panel = readFileSync(
+    resolve(ROOT, "src/components/routers/RouterSetupScriptAdvanced.tsx"),
+    "utf8",
+  );
+  check(
+    "the panel no longer collects a hotspot password",
+    !/hsPass/.test(panel.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "")),
+    "it was read by nothing: `buildRouterSetupScriptChunks` never destructured it, so every " +
+      "character typed into it stopped at React state",
+  );
+  check(
+    "...and the generator no longer accepts one",
+    !/hsPass/.test(
+      readFileSync(resolve(ROOT, "src/components/routers/RouterDetailTabs.tsx"), "utf8").replace(
+        /\/\*[\s\S]*?\*\/|\/\/[^\n]*/g,
+        "",
+      ),
+    ),
+    "an option nothing reads is an invitation to wire it up, and wiring THIS one up would " +
+      "re-create a portal bypass",
+  );
+  check(
+    "the generator still REMOVES the local hotspot account rather than creating one",
+    /\/ip hotspot user remove \[find where name="guest"\]/.test(
+      REGEN_CHUNKS.find((c) => c.label === "Hotspot").script,
+    ),
+    "this is why the password was removed rather than wired: RouterOS resolves a local user " +
+      "BEFORE it asks RADIUS, so the account it would have configured is a complete portal " +
+      "bypass -- no OTP, no session record, no consent, no data cap",
+  );
+  check(
+    "...and passing a stray hsPass still produces a working script",
+    (() => {
+      const withStray = buildRouterSetupScriptChunks({
+        ...BASE,
+        hsPass: "hsPassSentinelZZ9",
+        wans: [DHCP_WAN],
+      });
+      return withStray.length > 5 && !withStray.some((c) => /hsPassSentinelZZ9/.test(c.script));
+    })(),
+    "the backend port and the wizard both build these options objects; a stray property must be " +
+      "inert, not fatal, and must never reach the device",
   );
 }
 
