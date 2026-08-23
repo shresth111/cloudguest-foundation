@@ -4540,6 +4540,67 @@ check(
 // ---------------------------------------------------------------------
 // 13.1 ONE WRITER PER PROPERTY.
 // ---------------------------------------------------------------------
+// ---------------------------------------------------------------------
+// 13.9 THE RESOLVER SWITCH IS NOT A PREFERENCE.
+// ---------------------------------------------------------------------
+// Confirmed live 2026-08-23 on the founder's hEX. Everything the guest
+// flow needs was correct on the device -- `login-by=http-pap`,
+// `dns-name=wifi.wyfyguest.com`, the static DNS record, both walled-garden
+// entries, `use-radius=yes`, hotspot running on the bridge -- and no
+// sign-in page ever popped up. `/ip dns` had `allow-remote-requests: no`.
+//
+// The router answered DNS for nobody, so the static record was unreachable
+// and, worse, the guest's captive-portal probe got no answer to intercept:
+// the phone concluded the network was fine and stayed silent. The portal
+// only appeared if the guest typed the LAN IP by hand.
+//
+// The line WAS emitted -- bundled with `servers=`, and the pair fell away
+// together in `basicConfigOnly`. They are not the same kind of setting.
+// `servers=` chooses WHICH upstream resolvers this router uses, which a
+// technician may reasonably want to set by hand. `allow-remote-requests`
+// decides WHETHER this router answers the devices behind it, and the
+// hotspot chunk hard-depends on it in every mode.
+//
+// There was no check of any kind on this before today, in any mode, which
+// is how it could be dropped silently.
+for (const [variant, script] of FULL_SCRIPTS) {
+  check(
+    `${variant}: the router is told to answer DNS for the devices behind it`,
+    /\/ip dns set [^\n]*allow-remote-requests=yes/.test(script),
+    "without `allow-remote-requests=yes` the hotspot's own dns-name and static record resolve " +
+      "for nobody, and the guest's captive-portal probe gets no answer to intercept -- so no " +
+      "sign-in page appears at all and the phone reports the network as working",
+  );
+  // EVERY variant, including basicConfigOnly -- that is the whole point.
+  // A check that only ran on the full-config variants would have passed
+  // against the exact script that shipped this bug.
+  check(
+    `${variant}: it is never turned off again later in the same script`,
+    !/allow-remote-requests=no/.test(script),
+    "a later chunk setting it back to `no` would undo this silently, and RouterOS reports " +
+      "success either way",
+  );
+}
+
+// The pairing that caused it: `servers=` may legitimately be absent in
+// basic mode, but the switch may not travel with it.
+{
+  const basic = FULL_SCRIPTS.filter(([v]) => /basicConfigOnly/.test(v));
+  check(
+    "basic mode still turns the resolver on (the mode this bug shipped in)",
+    basic.length > 0 &&
+      basic.every(([, sc]) => /\/ip dns set [^\n]*allow-remote-requests=yes/.test(sc)),
+    `${basic.length} basicConfigOnly variant(s) checked -- if this is 0 the check is vacuous ` +
+      "and proves nothing",
+  );
+  check(
+    "basic mode still leaves the upstream servers to the technician",
+    basic.length > 0 && basic.every(([, sc]) => !/\/ip dns set servers=/.test(sc)),
+    "basic mode exists so a technician can set the router's own upstream DNS by hand; " +
+      "unconditionally writing `servers=` would take that back",
+  );
+}
+
 for (const [variant, script] of FULL_SCRIPTS) {
   const writes = hotspotProfileWrites(script);
   const byProp = new Map();
