@@ -324,15 +324,53 @@ jobs:
       # those four were real holes it found (a self-check testing its own
       # private copy of the regex the sweep used), not confirmations.
       #
+      # Section 11 (added 2026-08-23) is a whole-script RouterOS syntax QA
+      # pass, prompted by a live failure: the founder pasted the WAN
+      # Routing chunk into a real hEX and the console answered `error`.
+      #
+      # A concatenation used as a command ARGUMENT must be parenthesised.
+      # This shipped without them:
+      #   :log warning "cloudguest: WAN1 gateway ... \"" . $wan1Gw . "\" ..."
+      # RouterOS reads `:log warning "<string>"` as a complete command and
+      # then meets `. $wan1Gw . "..."` as a second, meaningless one. It is a
+      # hard syntax error, and because a chunk is `;`-joined onto ONE
+      # entered line it aborted the WHOLE line -- the gateway poll, the
+      # plain default route and every routing-mark'd route never ran, so
+      # the router was left with no default route at all. Sections 1 and 2
+      # were both blind to it: no variable crosses a line and the `do={}`
+      # body holds one statement. Malformed argument syntax is a third
+      # thing, and it is now swept for across every emitted line.
+      #
+      # Three more whole-script properties are budgeted here, because each
+      # is a real constraint that nothing was measuring: every `/...`
+      # command path must be a known RouterOS menu (a `/ip pppoe-client`
+      # for `/interface pppoe-client` typo is invisible otherwise -- on a
+      # `find` it matches nothing forever and every `set` against it
+      # succeeds); no emitted line may exceed 3300 chars (WinBox mangles
+      # long pastes, which is why this generator chunks at all -- the
+      # longest today is 3125, in the very chunk that just failed); and no
+      # chunk may block the console for more than 60s (the DHCP-gateway and
+      # NTP polls block on purpose, and a technician reads a frozen
+      # terminal as a hang and power-cycles mid-provision -- two WANs
+      # already reach 50s).
+      #
+      # Eleven mutations were injected and this suite re-run, all caught.
+      # Two of them were real holes in the new guards rather than
+      # confirmations -- the same "self-check exercises a different code
+      # path than the sweep" shape section 10 was caught by twice, plus an
+      # anti-over-strictness check whose sample string did not actually
+      # contain the pattern it claimed to. Predicates are shared between
+      # sweep and self-check throughout.
+      #
       # The two floors sections 6-9 were developed against (210 and 340)
       # were raised on separate branches and merged here; neither survives
       # on its own, because the sections are disjoint and the suite now runs
-      # both. Floor raised 160 -> 395 -> 435, observed green at
-      # 458 on 2026-08-23.
+      # both. Floor raised 160 -> 395 -> 435 -> 450, observed green at
+      # 469 on 2026-08-23.
       - name: setup script generator
         run: |
           ./scripts/ci-gated-test.sh \
-            "setup-script-generator" 435 \
+            "setup-script-generator" 450 \
             "setup-script-generator: all checks passed" \
             bun run test:setup-script
 

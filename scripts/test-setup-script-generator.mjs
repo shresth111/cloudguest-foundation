@@ -228,6 +228,66 @@
  *    remaining two still reported the zero case. The mutation was
  *    sharpened to remove all three, and a separate check now pins the
  *    branch to naming the number rather than saying something vague.)
+ *
+ * THE PARENTHESIS (section 11, added 2026-08-23)
+ * ---------------------------------------------
+ * A whole-script RouterOS syntax QA pass, prompted by a live failure. The
+ * founder pasted the "WAN Routing" chunk into a real hEX and the console
+ * answered with nothing but `error`.
+ *
+ * A concatenation used as a command ARGUMENT must be parenthesised. This
+ * shipped without them:
+ *
+ *   :log warning "cloudguest: WAN1 gateway ... (still \"" . $wan1Gw . "\") ..."
+ *
+ * RouterOS parses `:log warning "<string>"` as a complete command and then
+ * meets `. $wan1Gw . "..."` as a second, meaningless command in the same
+ * statement. Because a chunk is `;`-joined onto ONE entered line, the
+ * error aborted the ENTIRE line: the DHCP gateway poll, the plain default
+ * route and every routing-mark'd route below it never ran. The router was
+ * left with no default route -- the exact "no gateway-health signal" state
+ * the chunk exists to prevent, reached by a syntax error instead of a
+ * logic one.
+ *
+ * Sections 1 and 2 were both blind to it. No variable crosses a line, and
+ * the `do={}` body holds exactly one statement. Malformed ARGUMENT syntax
+ * is a third failure class. It was the only such site in the generator --
+ * every other concatenating `:put`/`:log`/`:error` already had parens --
+ * so one site, missed once, and now swept for.
+ *
+ * Three further whole-script budgets are pinned here, each a real
+ * constraint that nothing was measuring: every `/...` path must be a known
+ * RouterOS menu (`/ip pppoe-client` for `/interface pppoe-client` is
+ * invisible to every other guard and silently matches nothing forever); no
+ * emitted line over 3300 chars (WinBox mangles long pastes -- the reason
+ * this generator chunks at all; longest today is 3125, in the chunk that
+ * just failed); no chunk blocking the console over 60s (the polls block on
+ * purpose, and a frozen terminal gets read as a hang and power-cycled --
+ * two WANs already reach 50s).
+ *
+ * Eleven mutations injected, all eleven caught:
+ *
+ *   the parens come off the line that errored on the hEX ............... 1
+ *   a different chunk loses its parens (heartbeat fault trace) ......... 1
+ *   a :put count line loses its parens ................................. 1
+ *   /interface pppoe-client mistyped as /ip pppoe-client ............... 3
+ *   /ip hotspot user profile mistyped as /ip hotspot userprofile ....... 2
+ *   the DHCP gateway poll grows past the console-freeze budget ......... 2
+ *   the line-length budget stops reflecting the real longest line ...... 1
+ *   concat guard stops requiring the leading paren ..................... 1
+ *   concat guard stops skipping string contents (over-strict) .......... 1
+ *   the menu allowlist silently swallows anything ...................... 1
+ *   the menu extractor stops matching command paths .................... 2
+ *
+ *   (two initially slipped through and both were real holes in the new
+ *    GUARDS. The menu check accumulated offenders inline while its
+ *    self-check re-derived the answer separately, so mutating the sweep
+ *    changed nothing the self-check saw -- the third time that exact shape
+ *    has been caught in this file, and the predicate is now shared. And
+ *    the concat guard's anti-over-strictness sample was `"print. Then"`,
+ *    which has no space-dot-space in it, so it passed even with
+ *    string-skipping switched off; it now uses a message that really
+ *    contains the pattern.)
  */
 import { build } from "esbuild";
 import { mkdtempSync, writeFileSync, existsSync } from "node:fs";
@@ -2091,6 +2151,292 @@ check(
     !BARE_PPPOE.some((c) => /comment[=~]"?defconf/.test(c.script)),
     "defconf-commented rules do not exist on a router reset with no default configuration, so " +
       "any find keyed on them is empty and every set against it succeeds while doing nothing",
+  );
+}
+
+// =====================================================================
+// 11. RouterOS SYNTAX QA OVER EVERY EMITTED LINE
+// =====================================================================
+// A full-script QA pass over the advanced module, prompted by a live
+// failure: the founder pasted the "WAN Routing" chunk into a real hEX and
+// the console answered with nothing but `error`.
+//
+// THE DEFECT. A concatenation passed as a command ARGUMENT must be
+// wrapped in parentheses on RouterOS. This shipped:
+//
+//   :log warning "cloudguest: WAN1 gateway ... (still \"" . $wan1Gw . "\") ..."
+//
+// The console parses `:log warning "<string>"` as a complete command and
+// then meets `. $wan1Gw . "..."` as a second, meaningless command inside
+// the same statement. That is a hard syntax error, and because this
+// generator `;`-joins a whole chunk onto ONE entered line, the error
+// aborts the ENTIRE line: the DHCP gateway poll, the plain default route,
+// and every routing-mark'd route below it never ran. The router was left
+// with no default route at all -- the precise "no gateway-health signal"
+// state the chunk exists to prevent, reached by a syntax error rather
+// than a logic error.
+//
+// Neither existing guard could see it. It is not a variable crossing a
+// line (section 1) and not a multi-statement body (section 2); the
+// `do={}` here holds exactly one statement. It is malformed ARGUMENT
+// syntax, a third thing.
+//
+// It was the ONLY unparenthesised concatenation in the generator -- every
+// other one already had parens. One site, missed once. So it is swept for
+// now instead of being left to review, along with three other whole-script
+// properties the same QA pass measured.
+
+console.log("\n-- RouterOS syntax QA over every emitted line --");
+
+/** Strips double-quoted string contents from a line, so a `.`, `/` or
+ * `;` that is only ever text inside a `:put` message is never mistaken
+ * for syntax. Same skip-strings discipline as `doBodies`. */
+const stripStrings = (line) => {
+  let out = "";
+  let inStr = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inStr) {
+      if (c === "\\") i++;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') {
+      inStr = true;
+      out += '""';
+      continue;
+    }
+    out += c;
+  }
+  return out;
+};
+
+// ---------------------------------------------------------------------
+// 11.1 A CONCATENATION IS AN EXPRESSION, AND AN ARGUMENT MUST BE WRAPPED.
+// ---------------------------------------------------------------------
+
+/** Command arguments that concatenate, and whether they are parenthesised.
+ * Deliberately runs against the RAW line, not the stripped one: the
+ * argument text itself is what has to be inspected. The `.` test uses
+ * surrounding spaces, which is how this generator always spells
+ * concatenation and which cannot collide with a dotted IP or a filename. */
+const CONCAT_ARG = /(:put|:log\s+(?:info|warning|error)|:error)\s+([^;}]+)/g;
+const concatOffenders = (script) => {
+  const bad = [];
+  for (const line of script.split("\n")) {
+    if (line.trimStart().startsWith("#")) continue;
+    for (const m of line.matchAll(CONCAT_ARG)) {
+      const arg = m[2].trim();
+      if (!/\s\.\s/.test(stripStrings(arg))) continue;
+      if (arg.startsWith("(")) continue;
+      bad.push(`${m[1]} ${arg.slice(0, 120)}`);
+    }
+  }
+  return bad;
+};
+
+{
+  const offenders = [];
+  for (const [label, script] of pasteables) {
+    for (const o of concatOffenders(script)) offenders.push(`${label}: ${o}`);
+  }
+  check(
+    "QA: every concatenated command argument is parenthesised",
+    offenders.length === 0,
+    `${offenders.length} unparenthesised concatenation(s). RouterOS parses the command as ` +
+      `complete at the end of the first string and then chokes on the trailing ". $var .", ` +
+      `which aborts the WHOLE ;-joined line -- confirmed live on the founder's hEX, where it ` +
+      `left the router with no default route.\n      ` +
+      offenders.slice(0, 8).join("\n      "),
+  );
+}
+
+// The guard is pointed at the exact text that failed on the device, and
+// at the corrected form, so it cannot quietly stop being able to tell
+// them apart.
+check(
+  "INJECTED: the guard fires on the exact line that errored on the hEX",
+  concatOffenders(
+    `:if (!($wan1Gw != "" && $wan1Gw != "0.0.0.0")) do={ :log warning "cloudguest: WAN1 gateway did not resolve (still \\"" . $wan1Gw . "\\") -- no default route added for this WAN; re-paste this chunk once the link is up" }`,
+  ).length === 1,
+  "the guard is blind to the shape it was written for",
+);
+check(
+  "...and does NOT fire on the parenthesised form that replaced it",
+  concatOffenders(
+    `:if (!($wan1Gw != "" && $wan1Gw != "0.0.0.0")) do={ :log warning ("cloudguest: WAN1 gateway did not resolve (still \\"" . $wan1Gw . "\\") -- no default route added for this WAN; re-paste this chunk once the link is up") }`,
+  ).length === 0,
+  "the guard bans the fix, which is how a guard gets switched off",
+);
+check(
+  "...and does NOT fire on a plain string argument with no concatenation",
+  concatOffenders(`:if ($lanPortsN = 0) do={ :put "  RESULT: FAIL -- NOTHING is bridged in." }`)
+    .length === 0,
+  "over-strict: an ordinary literal message is reported as an offender",
+);
+// ANTI-OVER-STRICTNESS, and it has to use a message that really does
+// contain a space-dot-space, or it proves nothing: the first version of
+// this check used "print. Then", which has no leading space and so passed
+// even with string-skipping switched off. A guard that cannot be shown to
+// fail is not a guard, and that applies to the self-checks too.
+check(
+  "...and is not fooled by a space-dot-space that is only ever text inside a message",
+  concatOffenders(`:put "  Pool ranges read as 10.5.50.10 . 10.5.50.254 in some MikroTik docs."`)
+    .length === 0,
+  "the guard reads a literal message as a concatenation, so it would ban ordinary output text",
+);
+
+// ---------------------------------------------------------------------
+// 11.2 EVERY COMMAND PATH IS A REAL RouterOS MENU.
+// ---------------------------------------------------------------------
+// `/ip pppoe-client` does not exist -- it is `/interface pppoe-client`.
+// A path typo is invisible to every other guard here and produces either
+// a syntax error or, on a `find`, an empty match that every `set` then
+// succeeds against silently. The allowlist is the set this generator
+// touches today; adding a menu is a deliberate edit to this list, not
+// something that slips in.
+
+const KNOWN_MENUS = new Set([
+  "/certificate",
+  "/file",
+  "/interface",
+  "/interface bridge",
+  "/interface bridge port",
+  "/interface ethernet",
+  "/interface list",
+  "/interface list member",
+  "/interface pppoe-client",
+  "/interface wireguard",
+  "/interface wireguard peers",
+  "/ip address",
+  "/ip arp",
+  "/ip dhcp-client",
+  "/ip dhcp-server",
+  "/ip dhcp-server network",
+  "/ip dns",
+  "/ip dns static",
+  "/ip firewall address-list",
+  "/ip firewall filter",
+  "/ip firewall mangle",
+  "/ip firewall nat",
+  "/ip hotspot",
+  "/ip hotspot profile",
+  "/ip hotspot user",
+  "/ip hotspot user profile",
+  "/ip hotspot walled-garden",
+  "/ip hotspot walled-garden ip",
+  "/ip pool",
+  "/ip route",
+  "/ip service",
+  "/radius",
+  "/system clock",
+  "/system identity",
+  "/system ntp client",
+  "/system scheduler",
+  "/tool",
+  "/user",
+]);
+
+const MENU_VERB =
+  /(\/[a-z][a-z0-9-]*(?:\s+[a-z][a-z0-9-]*)*?)\s+(add|set|remove|find|get|print|monitor|sign|move|fetch|enable|disable|export)\b/g;
+const menusIn = (script) => {
+  const found = new Set();
+  for (const line of script.split("\n")) {
+    if (line.trimStart().startsWith("#")) continue;
+    for (const m of stripStrings(line).matchAll(MENU_VERB)) found.add(m[1]);
+  }
+  return found;
+};
+
+/** ONE predicate for "paths this script uses that are not known menus",
+ * shared by the sweep and by its own self-checks. Kept shared on purpose:
+ * an earlier version had the sweep accumulate offenders inline while the
+ * self-check re-derived the answer its own way, so mutating the sweep
+ * changed nothing the self-check could see. Two guards in this file had
+ * already been caught by exactly that. */
+const unknownMenusIn = (script) => [...menusIn(script)].filter((m) => !KNOWN_MENUS.has(m));
+
+{
+  const unknown = new Map();
+  for (const [label, script] of pasteables) {
+    for (const menu of unknownMenusIn(script)) unknown.set(menu, label);
+  }
+  check(
+    "QA: every command path is a known RouterOS menu",
+    unknown.size === 0,
+    `${unknown.size} unrecognised path(s): ` +
+      [...unknown].map(([m, l]) => `${m} (${l})`).join(", ") +
+      `. Either it is a typo -- /ip pppoe-client for /interface pppoe-client is the shape to ` +
+      `watch, and on a find it silently matches nothing forever -- or it is a real new menu, ` +
+      `in which case add it to KNOWN_MENUS deliberately.`,
+  );
+  check(
+    "INJECTED: the menu guard catches the /ip pppoe-client typo",
+    unknownMenusIn(
+      `:if ([:len [/ip pppoe-client find where interface="ether1"]] = 0) do={ :put "x" }`,
+    ).length === 1,
+    "the guard cannot see a wrong menu path, so it protects nothing",
+  );
+  check(
+    "...and passes the real /interface pppoe-client path",
+    unknownMenusIn(
+      `:if ([:len [/interface pppoe-client find where interface="ether1"]] = 0) do={ :put "x" }`,
+    ).length === 0,
+    "the guard rejects a correct path",
+  );
+  check(
+    "QA: the allowlist has no dead entries left behind by a removed chunk",
+    [...KNOWN_MENUS].every((m) => pasteables.some(([, s]) => menusIn(s).has(m))),
+    "a menu in the list that nothing emits means a chunk was deleted and the list was not " +
+      "updated -- the list stops describing the script and starts being decoration",
+  );
+}
+
+// ---------------------------------------------------------------------
+// 11.3 THE PASTE STAYS INSIDE WHAT WinBox HAS SURVIVED.
+// ---------------------------------------------------------------------
+// This file's entire chunking discipline exists because WinBox's terminal
+// was confirmed live to drop/mangle characters on a very long paste. The
+// longest line this generator emits is the WAN Routing chunk's, at ~3.1KB
+// -- and that is the chunk that just failed on the founder's router. The
+// failure was the parens, not the length, but a budget that nothing
+// measures is a budget that grows until it is the length.
+
+const MAX_LINE = 3300;
+{
+  const longest = pasteables
+    .flatMap(([label, s]) => s.split("\n").map((l) => [l.length, label]))
+    .sort((a, b) => b[0] - a[0])[0];
+  check(
+    `QA: no emitted line exceeds ${MAX_LINE} chars (longest is ${longest[0]})`,
+    longest[0] <= MAX_LINE,
+    `${longest[1]} emits a ${longest[0]}-char line. WinBox's terminal mangles long pastes -- ` +
+      `that is why this generator chunks at all. Split the chunk rather than raising this.`,
+  );
+}
+
+// ---------------------------------------------------------------------
+// 11.4 A CHUNK MAY NOT SILENTLY FREEZE THE TERMINAL.
+// ---------------------------------------------------------------------
+// The DHCP gateway poll and the NTP poll both block the console on
+// purpose -- `/import` never pauses, and waiting is the whole fix for the
+// lease-not-bound-yet defect. But a technician staring at a frozen
+// terminal with no output decides it has hung and reboots. Two WANs
+// already put WAN Routing at 50s; three would be 75. Budgeted.
+
+const MAX_DELAY_S = 60;
+{
+  const worst = pasteables
+    .map(([label, s]) => [
+      [...s.matchAll(/:delay\s+(\d+)s/g)].reduce((a, m) => a + Number(m[1]), 0),
+      label,
+    ])
+    .sort((a, b) => b[0] - a[0])[0];
+  check(
+    `QA: no chunk blocks the console for more than ${MAX_DELAY_S}s (worst is ${worst[0]}s)`,
+    worst[0] <= MAX_DELAY_S,
+    `${worst[1]} can block for ${worst[0]}s with no output. A technician reads a frozen ` +
+      `terminal as a hang and power-cycles the router mid-provision.`,
   );
 }
 
