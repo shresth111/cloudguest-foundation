@@ -16,12 +16,20 @@ name: CI
 #   test:output-analyser  116 checks
 #   test:a11y ........... sentinel only
 #   test:manual-wizard .. 113 checks
-#   test:setup-script ... 1453 checks (added 2026-08-23; was 169 before the
+#   test:setup-script ... 2000 checks (added 2026-08-23; was 169 before the
 #                         five silent failures (section 6) and the three
 #                         fresh-router sections (7-9) landed, floor 160 ->
 #                         395 -> 435 -> 450; then section 12, "the uplink is
 #                         discovered not assumed", plus seven WAN interface
-#                         shapes added to the variant sweep, 469 -> 1453)
+#                         shapes added to the variant sweep, 469 -> 1453;
+#                         then section 13, the seven field defects of
+#                         2026-08-23 plus six non-/24 LAN variants in the
+#                         main sweep, 1453 -> 2000, floor 1400 -> 1950)
+#   test:discovery-preflight  19 checks (in package.json since 2026-08-22
+#                         but gated nowhere until 2026-08-23 -- it has been
+#                         passing this whole time and proving nothing,
+#                         which is the same "nothing runs it" state that
+#                         let test:portal-cna rot on origin/main)
 
 on:
   push:
@@ -382,10 +390,75 @@ jobs:
       # router-originated-traffic policy -- plus seven new WAN interface
       # shapes in the variant sweep, which every earlier section also
       # runs against.
+      #
+      # SECTION 13 (2026-08-23) adds the seven defects found provisioning
+      # real MikroTiks that day, plus the two reporting failures that made
+      # the worst of them survivable for days:
+      #   - the DHCP pool and network entry were built from the first three
+      #     octets of the LAN IP and ignored the prefix, so a /25 handed
+      #     guests .128-.254 -- a lease, no route to their own gateway, no
+      #     login page -- and the chunk printed RESULT: PASS. Gated on
+      #     containment recomputed by INDEPENDENT arithmetic in the suite
+      #     (not by the function under test, which would agree with its own
+      #     bug), on every prefix /1../30, and on the verdict reading the
+      #     pool's ranges back off the device rather than asking only
+      #     whether five objects exist.
+      #   - re-pasting the mangle chunk re-appended the PCC rules BELOW the
+      #     mark-routing rules, so the SYN of each new connection was still
+      #     no-mark at the routing decision and left by the wrong WAN.
+      #     Gated on the sweep covering the whole cloudguest-mangle- family
+      #     in both the weighted and even-split paths, and on every
+      #     mark-routing add being emitted below every mark-connection add.
+      #   - failover_only deleted the marked routes and never swept the
+      #     marks, leaving traffic marked for a routing table with no
+      #     routes in it.
+      #   - the RADIUS else-branch never wrote `secret=`, so rotating the
+      #     shared secret and re-pasting left the router on the old one and
+      #     every guest login Access-Rejected. The chunk and
+      #     SECRET_REPAIR.radius.repairableByRepaste are asserted together,
+      #     in both directions, so neither can move alone.
+      #   - only `dynamic=yes` addresses were swept, so a stale STATIC WAN
+      #     address survived every re-paste.
+      #   - the LAN port allowlist reused the WAN existence-check copy
+      #     verbatim and named the wrong side of the router.
+      #   - the hotspot `dns-name` set was a bare `set [find ...]`, which
+      #     succeeds silently against an empty match.
+      #   - the one-line copy is all-or-nothing: RouterOS aborts the
+      #     remainder of a line at the first error and reports one message
+      #     with no indication of how far it got. That is how a router
+      #     served guests perfectly while showing offline for days -- the
+      #     Heartbeat chunk never ran. Gated on a START/DONE marker per
+      #     chunk and a final COMPLETE marker.
+      #   - and the validator that passed the line which caused it. It
+      #     checked bracket/quote BALANCE and presented that as VALIDITY.
+      #     Gated on it rejecting the exact line that aborted the live
+      #     paste, on it NOT flagging the parenthesised form (over-
+      #     strictness gets a validator clicked past, which is how it ends
+      #     up trusted for the wrong question), on it reporting nothing
+      #     against any script this generator really emits, and on the
+      #     panel rendering the validator's own published scope rather than
+      #     a hand-written claim that can go stale.
+      #
+      # Every guard in section 13 has a paired INJECTED check that
+      # reintroduces the defect and asserts the guard fires, plus an
+      # anti-over-strictness check that the shipped shape is NOT flagged.
+      # Nine source-level mutations were injected into the real generator
+      # and validator and this suite re-run; all nine were caught. See the
+      # script header.
+      #
+      # Floor raised 1400 -> 1950, observed green at 2000 on 2026-08-23.
+      # Six non-/24 LAN variants were added to the MAIN sweep (a /25 with
+      # the router in each half, /23, /28, /26 with a LAN allowlist, and a
+      # /31 that cannot hold a pool at all), so every earlier section runs
+      # against them too -- that is most of the jump.
       - name: setup script generator
         run: |
           ./scripts/ci-gated-test.sh \
+<<<<<<< HEAD
+            "setup-script-generator" 1950 \
+=======
             "setup-script-generator" 1530 \
+>>>>>>> origin/main
             "setup-script-generator: all checks passed" \
             bun run test:setup-script
 
@@ -397,3 +470,36 @@ jobs:
             "a11y-invariants" 0 \
             "Portal accessibility invariants: all checks passed." \
             bun run test:a11y
+
+      # --- Fleet wizard Discovery pre-flight ----------------------------
+      #
+      # THE ONE THAT WAS WRITTEN, PASSING, AND GATED BY NOTHING. This
+      # existed in package.json from 2026-08-22 and was never added here,
+      # so for a day it was a test suite in the same state
+      # `ci-gated-test.sh` was written because of: green, unread, and
+      # protecting nothing. Wired in on 2026-08-23 with the same three
+      # gates as every suite above.
+      #
+      # It locks down the reported-live "Could not connect to device at
+      # '10.20.0.64' for discovery: timed out" incident, where the Discover
+      # button was enabled for a router whose preconditions could not
+      # possibly hold, and the status strip rendered "WireGuard: Reachable"
+      # off `router.status === "online"` -- which is the WAN heartbeat and
+      # says nothing about the tunnel. The operator was actively told the
+      # tunnel was fine.
+      #
+      # Both load-bearing directions are asserted and both are mutation-
+      # verified in the script's own header: an unrecognised backend status
+      # must degrade to `unknown` rather than `pass`, and `unknown` must
+      # never render as a clean bill of health. It also checks the
+      # source-level wiring, since a correct predicate connected to nothing
+      # is the same bug in a disguise.
+      #
+      # Floor 19, observed green at 19 on 2026-08-23. Set at the observed
+      # count rather than below it: unlike the i18n suites this one does
+      # not scale with content, so any drop is an assertion disappearing.
+      - name: fleet wizard discovery pre-flight
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "discovery-preflight" 19 "all checks passed" \
+            bun run test:discovery-preflight
