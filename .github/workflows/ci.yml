@@ -16,10 +16,12 @@ name: CI
 #   test:output-analyser  116 checks
 #   test:a11y ........... sentinel only
 #   test:manual-wizard .. 113 checks
-#   test:setup-script ... 415 checks (added 2026-08-23; was 169 before the
+#   test:setup-script ... 1453 checks (added 2026-08-23; was 169 before the
 #                         five silent failures (section 6) and the three
 #                         fresh-router sections (7-9) landed, floor 160 ->
-#                         395)
+#                         395 -> 435 -> 450; then section 12, "the uplink is
+#                         discovered not assumed", plus seven WAN interface
+#                         shapes added to the variant sweep, 469 -> 1453)
 
 on:
   push:
@@ -365,12 +367,19 @@ jobs:
       # The two floors sections 6-9 were developed against (210 and 340)
       # were raised on separate branches and merged here; neither survives
       # on its own, because the sections are disjoint and the suite now runs
-      # both. Floor raised 160 -> 395 -> 435 -> 450, observed green at
-      # 469 on 2026-08-23.
+      # both. Floor raised 160 -> 395 -> 435 -> 450 -> 1400, observed
+      # green at 1453 on 2026-08-23. The jump is section 12 -- every
+      # default-route lookup in every chunk rather than the heartbeat's
+      # alone, the RouterOS 7 `routing-table=` vocabulary that replaced a
+      # v6 spelling which matched nothing without erroring, the failover
+      # sequence run end to end against the emitted selector, and the
+      # router-originated-traffic policy -- plus seven new WAN interface
+      # shapes in the variant sweep, which every earlier section also
+      # runs against.
       - name: setup script generator
         run: |
           ./scripts/ci-gated-test.sh \
-            "setup-script-generator" 450 \
+            "setup-script-generator" 1400 \
             "setup-script-generator: all checks passed" \
             bun run test:setup-script
 
