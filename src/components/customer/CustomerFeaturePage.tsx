@@ -27,6 +27,10 @@ import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
 import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
 import { CustomerHeader } from "@/components/customer/CustomerHeader";
+import {
+  LocationLivenessBadge,
+  LocationLivenessExplainer,
+} from "@/components/customer/LocationLiveness";
 import { CUSTOMER_NAVS, customerFeatureHref } from "@/lib/customerNav";
 import { AgentsPage } from "@/components/features/AgentsPage";
 import { CampaignsPage } from "@/components/features/CampaignsPage";
@@ -660,8 +664,15 @@ function DashboardView({ locationId, masked }: { locationId: string; masked: boo
               <span className="font-semibold">{h.value}</span>
             </span>
           ))}
+          <LocationLivenessBadge liveness={data.liveness} />
         </div>
       </div>
+
+      {/* Same explainer the main dashboard shows -- this page renders the
+       * identical getDashboard() payload, so a venue owner who lands here
+       * must get the identical answer to "why is this not live", not the
+       * bare numbers. Renders nothing when the venue is plainly live. */}
+      <LocationLivenessExplainer liveness={data.liveness} />
 
       {/* Real charts, real data -- usersTrend/deviceDistribution/
        * hourlySessions all come from the same getDashboard() response

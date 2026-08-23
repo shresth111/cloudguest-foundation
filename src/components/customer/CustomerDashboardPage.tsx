@@ -46,6 +46,17 @@ import {
   useDataMasking,
 } from "@/hooks/useCustomerDashboard";
 import { isDemo } from "@/services/customer.service";
+import {
+  LocationLivenessBadge,
+  LocationLivenessExplainer,
+} from "@/components/customer/LocationLiveness";
+import {
+  livenessTone,
+  locationLivenessIsReassuring,
+  CHECKING_LIVENESS,
+  UNKNOWN_LIVENESS,
+} from "@/lib/location-liveness";
+import type { LocationLiveness, LivenessTone } from "@/lib/location-liveness";
 import { useMyBillingDashboard } from "@/hooks/useBilling";
 import {
   AreaChart,
@@ -107,6 +118,24 @@ import { BackgroundBoxes } from "@/components/aceternity/background-boxes";
 // "never green as a decorative/brand accent" rule (semantic status green
 // elsewhere is a different, intentional thing).
 const DEVICE_COLORS = ["#4338ca", "#0891b2", "#c026d3", "#c2410c", "#6d28d9"];
+
+/** Narrow-viewport fallback for the header's liveness badge. `neutral`
+ * ("no router yet" / "can't tell") gets a slate dot, not the red one the
+ * old ternary's else-branch handed it. */
+/** Icon tint for the "Core systems" strip. Emerald is earned, not default. */
+const CORE_ICON: Record<LivenessTone, string> = {
+  live: "text-emerald-500",
+  warn: "text-amber-500",
+  down: "text-destructive",
+  neutral: "text-muted-foreground",
+};
+
+const HEADER_DOT: Record<LivenessTone, string> = {
+  live: "bg-emerald-400",
+  warn: "bg-amber-400",
+  down: "bg-rose-400",
+  neutral: "bg-white/40",
+};
 
 /** Operator-voice lines, not fabricated testimonials -- same pattern used
  * on the Select Location page's hero, scoped here so the hero's secondary
@@ -1590,6 +1619,16 @@ export function CustomerDashboardPage() {
     return () => clearInterval(t);
   }, []);
 
+  // The header renders above the `isLoading ? ... : d ? ...` split, so it
+  // needs an answer in all three of those states. Two of them are not
+  // "offline":
+  //  - still loading -> "Checking…", not a red dot;
+  //  - loaded but no liveness on the object (a location summary persisted
+  //    by an older build of this app, read back out of zustand's
+  //    localStorage) -> "Can't tell", not a colour chosen by an else.
+  const headerLiveness: LocationLiveness =
+    d?.liveness ?? activeLocation?.liveness ?? (isLoading ? CHECKING_LIVENESS : UNKNOWN_LIVENESS);
+
   if (activeLocationId !== locationId) {
     if (locationsLoading)
       return (
@@ -1665,19 +1704,29 @@ export function CustomerDashboardPage() {
               <p className="truncate text-sm font-semibold">
                 {activeLocation?.name ?? "Dashboard"}
               </p>
+              {/* Was a three-way ternary over `activeLocation?.status`
+               * whose else-branch was a red dot -- so a location that had
+               * simply not loaded yet, or whose routers could not be read,
+               * rendered as a confident "offline", and the label beside it
+               * was the raw backend enum word `capitalize`d.
+               *
+               * Reads the live dashboard query's own verdict rather than
+               * the persisted store: `activeLocation` comes out of a
+               * zustand `persist` store, so a summary written before this
+               * field existed has no `liveness` at all -- which must show
+               * as "can't tell", never as a colour picked by an else. */}
+              <LocationLivenessBadge
+                liveness={headerLiveness}
+                surface="dark"
+                className="hidden sm:inline-flex"
+              />
               <span
+                aria-hidden
                 className={cn(
-                  "h-2 w-2 rounded-full",
-                  activeLocation?.status === "online"
-                    ? "bg-emerald-400"
-                    : activeLocation?.status === "degraded"
-                      ? "bg-amber-400"
-                      : "bg-rose-400",
+                  "h-2 w-2 rounded-full sm:hidden",
+                  HEADER_DOT[livenessTone(headerLiveness.state)],
                 )}
               />
-              <span className="hidden text-xs capitalize text-white/60 sm:inline">
-                {activeLocation?.status}
-              </span>
             </div>
           }
           locationId={locationId}
@@ -1859,23 +1908,56 @@ export function CustomerDashboardPage() {
                  * light card (same treatment as the chart cards below it)
                  * so the hero itself stays short instead of the health
                  * checks adding another full row of dark-surface height. */}
-                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl px-5 py-3 premium-card">
-                  <p className="shrink-0 text-xs font-medium text-muted-foreground">
-                    Core systems, checked continuously
-                  </p>
-                  <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-                    {[
-                      { icon: CheckCircle, label: "System", value: d.health.systemHealth },
-                      { icon: Router, label: "Routers", value: d.health.routersOnline },
-                      { icon: Activity, label: "ISP", value: d.health.isp },
-                    ].map((item) => (
-                      <span key={item.label} className="inline-flex items-center gap-1.5 text-sm">
-                        <item.icon className="h-3.5 w-3.5 text-emerald-500" />
-                        <span className="text-muted-foreground">{item.label}</span>
-                        <span className="font-semibold text-foreground">{item.value}</span>
+                {/* The two icons that used to be hard-coded
+                 * `text-emerald-500` regardless of value now read off the
+                 * real verdict, so "Routers 0/1" can no longer sit behind
+                 * a green tick. The ISP pill keeps NO status icon at all:
+                 * `d.health.isp` is derived from `/dashboard/organization`
+                 * answering, not from any uplink's health (see
+                 * getDashboard()), and a green tick on it would be the
+                 * same fabricated reassurance as the "WireGuard:
+                 * Reachable" stat the fleet wizard had to remove. */}
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl px-5 py-3 premium-card">
+                    <p className="shrink-0 text-xs font-medium text-muted-foreground">
+                      Core systems, checked continuously
+                    </p>
+                    <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+                      <span className="inline-flex items-center gap-1.5 text-sm">
+                        <CheckCircle
+                          aria-hidden
+                          className={cn("h-3.5 w-3.5", CORE_ICON[livenessTone(d.liveness.state)])}
+                        />
+                        <span className="text-muted-foreground">System</span>
+                        <span className="font-semibold text-foreground">
+                          {d.health.systemHealth}
+                        </span>
                       </span>
-                    ))}
+                      <span className="inline-flex items-center gap-1.5 text-sm">
+                        <Router
+                          aria-hidden
+                          className={cn("h-3.5 w-3.5", CORE_ICON[livenessTone(d.liveness.state)])}
+                        />
+                        <span className="text-muted-foreground">Routers</span>
+                        <span className="font-semibold text-foreground">
+                          {d.health.routersOnline}
+                        </span>
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 text-sm">
+                        <Activity aria-hidden className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="text-muted-foreground">ISP</span>
+                        <span className="font-semibold text-foreground">{d.health.isp}</span>
+                      </span>
+                      {locationLivenessIsReassuring(d.liveness) && (
+                        <LocationLivenessBadge liveness={d.liveness} />
+                      )}
+                    </div>
                   </div>
+
+                  {/* Which precondition is unmet, in the operator's words,
+                   * plus when we last actually heard from the router.
+                   * Renders nothing when the venue is plainly live. */}
+                  <LocationLivenessExplainer liveness={d.liveness} />
                 </div>
 
                 {/* Charts */}

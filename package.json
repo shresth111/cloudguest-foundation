@@ -21,6 +21,7 @@
     "test:plan-editor": "node scripts/test-plan-editor-feedback.mjs",
     "test:setup-script": "node scripts/test-setup-script-generator.mjs",
     "test:discovery-preflight": "node scripts/test-discovery-preflight.mjs",
+    "test:location-liveness": "node scripts/test-location-liveness.mjs",
     "format": "prettier --write .",
     "measure:portal-contrast": "node scripts/measure-portal-contrast.mjs"
   },
