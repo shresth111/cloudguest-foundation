@@ -4563,6 +4563,94 @@ check(
 //
 // There was no check of any kind on this before today, in any mode, which
 // is how it could be dropped silently.
+// ---------------------------------------------------------------------
+// 13.10 A SCRIPT THAT IS MISSING SOMETHING SAYS SO.
+// ---------------------------------------------------------------------
+// Confirmed live 2026-08-23. The RADIUS bridge returned 502 because a
+// stale hand-written stanza already claimed the tunnel address the
+// allocator had just handed out. The panel caught it, showed a toast, and
+// generated the script WITHOUT the RADIUS chunk. The operator pasted all
+// of it, the router came up, the hotspot served pages -- and `/radius` on
+// the device was empty, so every guest login would have failed with
+// nothing on either side naming the cause.
+//
+// The toast was gone in seconds. What remained was a script that looked
+// complete: 22 chunks instead of 23, and not one line in it mentioning
+// what was absent. A shorter script is indistinguishable from a whole one.
+{
+  const gaps = [
+    { what: "RADIUS", why: "the RADIUS bridge could not be reached" },
+    { what: "WireGuard tunnel", why: "the hub refused the allocation" },
+  ];
+  const withGaps = buildRouterSetupScriptChunks({
+    ...BASE,
+    wans: [DHCP_WAN],
+    notProvisioned: gaps,
+  });
+  const clean = buildRouterSetupScriptChunks({ ...BASE, wans: [DHCP_WAN] });
+
+  check(
+    "a complete script carries no incomplete-script warning",
+    !clean.some((c) => /INCOMPLETE SCRIPT/.test(c.label)),
+    "the warning must appear only when something is actually missing, or it is noise " +
+      "that gets scrolled past on every healthy paste",
+  );
+
+  const warn = withGaps.find((c) => /INCOMPLETE SCRIPT/.test(c.label));
+  check("a script with gaps carries the warning", Boolean(warn), "no warning chunk was emitted");
+
+  // FIRST, NOT LAST. An operator pastes top to bottom and stops reading
+  // once it is going well; a warning at the end is read after the router
+  // is already half-configured.
+  check(
+    "the warning is the very first chunk",
+    withGaps.length > 0 && /INCOMPLETE SCRIPT/.test(withGaps[0].label),
+    `first chunk was ${withGaps[0]?.label}`,
+  );
+
+  check(
+    "the label names what is missing, so it is visible in the chunk list",
+    /RADIUS/.test(warn?.label ?? "") && /WireGuard/.test(warn?.label ?? ""),
+    warn?.label,
+  );
+
+  // NAMES THE CONSEQUENCE, not just the gap. "RADIUS is missing" cannot be
+  // weighed by someone who does not know it means no guest can log in.
+  check(
+    "it says what a missing RADIUS actually costs",
+    /reject EVERY guest login/.test(warn?.script ?? ""),
+    "a gap without its consequence reads as a warning worth ignoring",
+  );
+  check(
+    "it says what a missing tunnel actually costs",
+    /never reach the platform/.test(warn?.script ?? ""),
+    "same reasoning as RADIUS above",
+  );
+  check(
+    "it carries the reason the panel was given, verbatim",
+    /the RADIUS bridge could not be reached/.test(warn?.script ?? ""),
+    "the operator cannot fix a cause the script will not name",
+  );
+  // LOGGED AS WELL AS PRINTED. A technician who scrolled past the paste
+  // output has no record of it otherwise -- the same reasoning every other
+  // check in this file uses for its own `:log warning`.
+  check(
+    "it logs as well as prints",
+    (warn?.script.match(/:log warning "cloudguest: generated script is missing/g) ?? []).length ===
+      gaps.length,
+    "one log line per gap",
+  );
+  // AND IT CONFIGURES NOTHING. A chunk that warns and also mutates is a
+  // chunk an operator cannot safely skip.
+  check(
+    "the warning chunk changes nothing on the device",
+    !/\/(ip|interface|system|radius|certificate|user)\s/.test(
+      (warn?.script ?? "").replace(/:put "[^"]*"/g, "").replace(/:log warning "[^"]*"/g, ""),
+    ),
+    "it must be safe to read and skip; it exists to be read, not to act",
+  );
+}
+
 for (const [variant, script] of FULL_SCRIPTS) {
   check(
     `${variant}: the router is told to answer DNS for the devices behind it`,

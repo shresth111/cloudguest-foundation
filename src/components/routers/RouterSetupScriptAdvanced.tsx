@@ -522,6 +522,15 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
       // Allocates a fresh keypair + the next free tunnel IP server-side --
       // this dashboard never generates or sees a WireGuard private key
       // it didn't just mint for this specific router.
+      // WHAT COULD NOT BE PROVISIONED, carried into the generator so the
+      // SCRIPT can say so. A toast is gone in five seconds and the script
+      // that follows looks complete -- 22 chunks instead of 23, with nothing
+      // in it naming the gap. Confirmed live 2026-08-23: the RADIUS bridge
+      // 502'd, the operator pasted the whole script, and the missing RADIUS
+      // was found only by reading `/radius` on the device and finding it
+      // empty. Guests would have failed every login with nothing anywhere
+      // saying why.
+      const notProvisioned: { what: string; why: string }[] = [];
       let wireguard: import("@/components/routers/RouterDetailTabs").WireguardPeerInfo | undefined;
       if (enableWireguard) {
         // Routed through the backend, not fetch()'d directly against the
@@ -592,9 +601,10 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           };
         } catch (err) {
           wireguard = undefined;
+          const why = (err as AppError).message || "the WireGuard hub could not be reached";
+          notProvisioned.push({ what: "WireGuard tunnel", why });
           toast.error(
-            (err as AppError).message ||
-              "Couldn't reach the WireGuard hub -- script generated without a tunnel. Everything else is still included.",
+            `Couldn't reach the WireGuard hub -- script generated without a tunnel. ${why}`,
           );
         }
       }
@@ -620,9 +630,10 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           };
         } catch (err) {
           radius = undefined;
+          const why = (err as AppError).message || "the RADIUS bridge could not be reached";
+          notProvisioned.push({ what: "RADIUS", why });
           toast.error(
-            (err as AppError).message ||
-              "Couldn't reach the RADIUS server -- script generated without RADIUS. Everything else is still included.",
+            `Couldn't reach the RADIUS server -- script generated without RADIUS. ${why}`,
           );
         }
       }
@@ -696,6 +707,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           enableFirewall,
           wireguard,
           radius,
+          notProvisioned,
           apiAccess,
           identity: router.locationName,
           // GUEST_PORTAL_PUBLIC_BASE, not window.location.origin -- see

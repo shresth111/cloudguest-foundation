@@ -3547,6 +3547,16 @@ export function buildRouterSetupScriptChunks(opts: {
    * for confirming a technician's manual WAN setup actually works as it
    * is for confirming this generator's own. */
   basicConfigOnly?: boolean;
+  /** Things the panel tried to provision and could not -- a hub bridge that
+   * refused, a RADIUS registration that 502'd. Passed in so the SCRIPT can
+   * announce the gap instead of quietly being shorter.
+   *
+   * Silence was the real defect. When the RADIUS bridge failed the panel
+   * showed a toast and generated 22 chunks instead of 23; the operator
+   * pasted all of them, the router came up, the hotspot served, and every
+   * guest login would have failed because `/radius` was empty. Nothing in
+   * the script mentioned it. Confirmed live 2026-08-23. */
+  notProvisioned?: { what: string; why: string }[];
 }): RouterSetupScriptChunk[] {
   const {
     apiBase,
@@ -3566,6 +3576,7 @@ export function buildRouterSetupScriptChunks(opts: {
     portalUrl,
     wanRoutingMode = "load_balance",
     basicConfigOnly = false,
+    notProvisioned = [],
   } = opts;
   // Escaped once up front -- `lanBridge` is an operator-editable free-text
   // field (see master.routers.tsx's own input for it) interpolated into
@@ -3611,6 +3622,52 @@ export function buildRouterSetupScriptChunks(opts: {
   // one; nothing else in this generator depends on these three values.
   const lan = deriveLanAddressing(lanIp, lanCidr);
   const chunks: RouterSetupScriptChunk[] = [];
+
+  // FIRST CHUNK, NOT LAST, and only when something is actually missing.
+  // An operator pastes top to bottom and stops reading once it is going
+  // well; a warning at the end is read after the damage is done. This one
+  // is the first thing on screen and the first thing the terminal prints.
+  //
+  // It configures NOTHING. It exists because the alternative -- a script
+  // that is simply one chunk shorter -- is indistinguishable from a
+  // complete one, and that is how a router reached a venue with an empty
+  // `/radius` and a hotspot that rejected every guest.
+  if (notProvisioned.length > 0) {
+    const lines = [
+      `:put "===================================================="`,
+      `:put "  THIS SCRIPT IS INCOMPLETE -- READ BEFORE PASTING"`,
+      `:put "===================================================="`,
+    ];
+    for (const gap of notProvisioned) {
+      lines.push(`:put "  MISSING: ${escapeForRouterOsString(gap.what)}"`);
+      lines.push(`:put "    why: ${escapeForRouterOsString(gap.why)}"`);
+      // What it actually costs, per subsystem -- an operator cannot weigh
+      // "RADIUS is missing" without knowing that it means no guest can log
+      // in at all.
+      if (/radius/i.test(gap.what)) {
+        lines.push(
+          `:put "    effect: the hotspot will reject EVERY guest login. RouterOS reports"`,
+        );
+        lines.push(`:put "            no error for this -- the guest just sees the sign-in fail."`);
+      }
+      if (/wireguard|tunnel/i.test(gap.what)) {
+        lines.push(`:put "    effect: this router will never reach the platform. No heartbeat,"`);
+        lines.push(
+          `:put "            no Discovery, and it stays 'provisioning' on the dashboard."`,
+        );
+      }
+      lines.push(
+        `:log warning "cloudguest: generated script is missing ${escapeForRouterOsString(gap.what)} -- ${escapeForRouterOsString(gap.why)}"`,
+      );
+    }
+    lines.push(`:put "  Fix the cause, press Generate again, and use the NEW script."`);
+    lines.push(`:put "  Pasting this one leaves the router half-configured."`);
+    lines.push(`:put "===================================================="`);
+    chunks.push({
+      label: `INCOMPLETE SCRIPT -- ${notProvisioned.map((g) => g.what).join(" and ")} missing`,
+      script: lines.join("\n"),
+    });
+  }
 
   {
     const lines: string[] = [];
