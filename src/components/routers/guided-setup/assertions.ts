@@ -530,11 +530,26 @@ export const ASSERTIONS: Record<string, OutputAssertion> = {
     identify: { kind: "banner", banner: "HOTSPOT AUDIT" },
     rules: [
       {
-        // Membership, not equality: `https,http-pap` and `http-pap,https`
-        // are the same fact and RouterOS does not promise an order.
+        // CHECKED BEFORE THE PASS RULE, AND IT HAS TO BE. `memberOf
+        // http-pap` is satisfied by `https,http-pap` too, so on its own it
+        // called the exact value that shipped the guest-facing certificate
+        // warning a PASS. Membership answers "is http-pap among them"; it
+        // cannot answer "and nothing else that hurts". That is the same
+        // somewhere-not-everywhere shape this codebase has now recorded
+        // seven times, and here it meant the guided flow would walk an
+        // operator past a broken router and tell them it was fine.
+        when: { op: "memberOf", ref: { from: "label", label: "login-by" }, value: "https" },
+        verdict: "FAIL",
+        why: "login-by me https hai. Router apne self-signed certificate se TLS khada karta hai jise koi browser trust nahi karta -- guest ko portal se pehle full-screen security warning milti hai. Aur hotspot ka `$(link-login-only)` apna scheme isi property se leta hai, to OTP bhi usi untrusted endpoint par POST hota hai aur gate kabhi khulta nahi.",
+        fix: "login-by me https bhi hai (jaise https,http-pap)",
+      },
+      {
+        // Membership, not equality, for http-pap itself: RouterOS does not
+        // promise an order, and `http-pap,cookie` is still a working portal.
+        // The https case is already excluded by the rule above.
         when: { op: "memberOf", ref: { from: "label", label: "login-by" }, value: "http-pap" },
         verdict: "PASS",
-        why: "login-by me http-pap hai -- portal ka form router accept karega.",
+        why: "login-by me http-pap hai aur https nahi -- portal ka form router accept karega, aur guest ko koi certificate warning nahi milegi.",
       },
       {
         when: { op: "present", ref: { from: "label", label: "login-by" } },
@@ -850,6 +865,50 @@ export const ASSERTIONS: Record<string, OutputAssertion> = {
   // -------------------------------------------------------------------
   // Phase 6 -- tunnel and RADIUS
   // -------------------------------------------------------------------
+  "hb-scheduler": {
+    identify: { kind: "banner", banner: "HEARTBEAT" },
+    requires: [{ from: "result" }],
+    rules: [
+      {
+        // ABSENCE FIRST, AND IT IS NOT A PASS. `sched count` is printed
+        // unconditionally, so if the label is missing the operator pasted
+        // something else or the block was truncated -- neither of which is
+        // evidence that a scheduler exists.
+        when: { op: "absent", ref: { from: "label", label: "sched count" } },
+        verdict: "INCOMPLETE",
+        why: "`sched count` wali line output me nahi mili -- lagta hai poora HEARTBEAT block paste nahi hua. Block dobara chalao aur puri output paste karo.",
+      },
+      {
+        when: { op: "textIs", ref: { from: "label", label: "sched count" }, value: "0" },
+        verdict: "FAIL",
+        why: "Router pe koi cloudguest scheduler nahi hai. Heartbeat kabhi nahi jayega, aur Master console me ye router hamesha `provisioning` me hi baitha rahega -- chahe WAN, hotspot aur tunnel sab theek ho. Provisioning se bahar sirf heartbeat nikalta hai.",
+        fix: "RESULT: FAIL -- koi cloudguest scheduler nahi hai, heartbeat kabhi nahi jayega",
+      },
+      {
+        // BOTH CONDITIONS, NOT JUST THE COUNT. A scheduler that exists but
+        // will never fire is the same outcome as no scheduler at all, and
+        // it is the shape a wrong clock produces -- `start-time=startup`
+        // is set against whatever date the router believes.
+        when: {
+          op: "all",
+          of: [
+            { op: "textIs", ref: { from: "result" }, value: "PASS" },
+            { op: "present", ref: { from: "label", label: "next-run" } },
+          ],
+        },
+        verdict: "PASS",
+        why: "Scheduler maujood hai aur uska next-run set hai -- heartbeat jayega aur router dashboard pe live dikhega.",
+      },
+      {
+        when: { op: "absent", ref: { from: "label", label: "next-run" } },
+        verdict: "FAIL",
+        why: "Scheduler to bana hai par uska next-run khaali hai -- ye kabhi chalega nahi. Aam wajah router ki ghadi hai: scheduler ka start-time galat date pe bharta hai.",
+        fix: "sched count 0 se zyada hai par next-run blank hai",
+      },
+    ],
+    fallback: "Heartbeat scheduler ki halat padhi nahi ja saki. HEARTBEAT block dobara chalao.",
+  },
+
   "tunnel-up": {
     identify: { kind: "banner", banner: "TUNNEL + RADIUS" },
     requires: [{ from: "result" }],

@@ -162,7 +162,11 @@
           "failFix": {
             "0": {
               "whenLabel": "login-by: cookie,http-chap दिखा रहा है",
-              "note": "ये RouterOS का default है और portal का form इससे satisfy नहीं कर सकता। Guest सही OTP डालेगा, कुछ नहीं होगा, और router के log में भी कुछ नहीं आएगा।"
+              "note": "cookie,http-chap RouterOS का default है और portal का form इससे satisfy नहीं कर सकता -- CHAP को challenge/response चाहिए जो guest page कभी मांगता ही नहीं। Guest सही OTP डालेगा, कुछ नहीं होगा, और router के log में भी कुछ नहीं आएगा। सिर्फ http-pap set करो, https मत जोड़ो।"
+            },
+            "1": {
+              "whenLabel": "login-by me https bhi hai (jaise https,http-pap)",
+              "note": "https guest के phone पर certificate warning लाता है -- router अपने self-signed cert से TLS खड़ा करता है जिसे कोई browser नहीं मानता। Guest को portal दिखने से पहले full-screen security warning मिलती है, और OTP भी उसी untrusted endpoint पर जाता है तो gate खुलता ही नहीं। http-pap अकेला चाहिए।"
             }
           }
         },
@@ -261,6 +265,9 @@
         },
         "1": {
           "label": "Tunnel और RADIUS ज़िंदा है?"
+        },
+        "2": {
+          "label": "Heartbeat scheduler बना है या नहीं (dashboard live इसी से होता है)"
         }
       },
       "checks": {
@@ -276,6 +283,21 @@
             "1": {
               "whenLabel": "RESULT: FAIL -- कोई RADIUS entry नहीं है",
               "note": "Master console का RADIUS chunk paste नहीं हुआ। ध्यान रखो: RADIUS के लिए WireGuard पहले चाहिए, इसलिए दोनों chunks order में paste करो।"
+            }
+          }
+        },
+        "hb-scheduler": {
+          "label": "Heartbeat scheduler मौजूद है (Master console में router live इसी से दिखता है)",
+          "commandLabel": "(ऊपर वाला HEARTBEAT block चलाओ)",
+          "expectLabel": "RESULT: PASS -- scheduler maujood hai",
+          "failFix": {
+            "0": {
+              "whenLabel": "RESULT: FAIL -- koi cloudguest scheduler nahi hai, heartbeat kabhi nahi jayega",
+              "note": "Heartbeat chunk paste हुआ ही नहीं, या paste बीच में मर गया। Single-line paste में एक syntax error उसके बाद का सब कुछ चुपचाप छोड़ देता है और RouterOS फिर भी success दिखाता है। Generated script के आख़िर में `### cloudguest` markers देखो -- आख़िरी line COMPLETE होनी चाहिए। अगर `START 9/14` पे रुकी है तो वहीं से आगे दोबारा paste करो। ये chunk छोड़ना मतलब router काम करेगा पर dashboard पे हमेशा provisioning दिखेगा।"
+            },
+            "1": {
+              "whenLabel": "sched count 0 से ज़्यादा है पर next-run blank है",
+              "note": "Scheduler बना तो है पर चलेगा नहीं। सबसे आम वजह router की घड़ी है -- Phase 2 का date check दोबारा देखो। hEX में battery वाली घड़ी नहीं होती, power जाने पे date ग़लत हो जाती है और scheduler का start-time उसी ग़लत date पे भरता है।"
             }
           }
         },
@@ -965,12 +987,15 @@
       "fallback": "login-by की value पढ़ी नहीं जा सकी।",
       "rules": {
         "0": {
-          "why": "login-by में http-pap है -- portal का form router accept करेगा।"
+          "why": "login-by में https है। Router अपने self-signed certificate से TLS खड़ा करता है जिसे कोई browser trust नहीं करता -- guest को portal से पहले full-screen security warning मिलती है। और hotspot का `$(link-login-only)` अपना scheme इसी property से लेता है, तो OTP भी उसी untrusted endpoint पर POST होता है और gate कभी खुलता नहीं।"
         },
         "1": {
-          "why": "login-by में http-pap नहीं है। Guest सही OTP डालेगा, कुछ नहीं होगा, और router के log में भी कुछ नहीं आएगा।"
+          "why": "login-by में http-pap है और https नहीं -- portal का form router accept करेगा, और guest को कोई certificate warning नहीं मिलेगी।"
         },
         "2": {
+          "why": "login-by में http-pap नहीं है। Guest सही OTP डालेगा, कुछ नहीं होगा, और router के log में भी कुछ नहीं आएगा।"
+        },
+        "3": {
           "why": "`login-by` वाली line output में नहीं मिली -- audit block `hsprof1` नाम का profile ढूंढता है। पूरा audit output paste करो।"
         }
       }
@@ -1075,6 +1100,23 @@
         },
         "5": {
           "why": "login.html नाम की कोई file router पे नहीं है।"
+        }
+      }
+    },
+    "hb-scheduler": {
+      "fallback": "Heartbeat scheduler की हालत पढ़ी नहीं जा सकी। HEARTBEAT block दोबारा चलाओ।",
+      "rules": {
+        "0": {
+          "why": "`sched count` वाली line output में नहीं मिली -- लगता है पूरा HEARTBEAT block paste नहीं हुआ। Block दोबारा चलाओ और पूरी output paste करो।"
+        },
+        "1": {
+          "why": "Router पे कोई cloudguest scheduler नहीं है। Heartbeat कभी नहीं जाएगा, और Master console में ये router हमेशा `provisioning` में ही बैठा रहेगा -- चाहे WAN, hotspot और tunnel सब ठीक हों। Provisioning से बाहर सिर्फ़ heartbeat निकालता है।"
+        },
+        "2": {
+          "why": "Scheduler मौजूद है और उसका next-run set है -- heartbeat जाएगा और router dashboard पे live दिखेगा।"
+        },
+        "3": {
+          "why": "Scheduler तो बना है पर उसका next-run ख़ाली है, ये कभी चलेगा नहीं। आम वजह router की घड़ी है: scheduler का start-time ग़लत date पे भरता है।"
         }
       }
     },

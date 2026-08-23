@@ -354,8 +354,32 @@ export const PHASES: Phase[] = [
         failFix: [
           {
             when: "login-by: cookie,http-chap dikha raha hai",
-            command: '/ip hotspot profile set [find name="hsprof1"] login-by=https,http-pap',
-            note: "Ye RouterOS ka default hai aur portal ka form isse satisfy nahi kar sakta. Guest sahi OTP daalega, kuch nahi hoga, aur router ke log me bhi kuch nahi aayega.",
+            // NO `https`. This line used to read `login-by=https,http-pap`,
+            // which repaired the CHAP fault and introduced a worse one: it
+            // asks RouterOS to stand up a TLS server on the hotspot's own
+            // redirect page, using whatever certificate the device happens
+            // to carry. The generator no longer creates one, so on an
+            // already-provisioned router that is the stale self-signed cert
+            // -- a full-screen security warning on the guest's phone before
+            // the portal is ever seen. It also decided the scheme of
+            // `$(link-login-only)`, so the portal posted the OTP to that
+            // same untrusted endpoint and the gate never opened.
+            //
+            // COUNT-GATED, not a bare `set [find ...]`. `set` against an
+            // empty match SUCCEEDS on RouterOS and prints nothing, so on a
+            // router with no `hsprof1` the operator sees a clean prompt and
+            // concludes it worked. One entered line, one statement per
+            // `do={}` -- the console runs each entered line as its own
+            // program, so `:local` does not survive to the next line.
+            command:
+              ':local p [:len [/ip hotspot profile find where name="hsprof1"]]; :if ($p > 0) do={ /ip hotspot profile set [find name="hsprof1"] login-by=http-pap }; :if ($p = 0) do={ :put "FAIL -- hsprof1 naam ka koi hotspot profile nahi hai, kuch set nahi hua." }',
+            note: "cookie,http-chap RouterOS ka default hai aur portal ka form isse satisfy nahi kar sakta -- CHAP ko challenge/response chahiye jo guest page kabhi maangta hi nahi. Guest sahi OTP daalega, kuch nahi hoga, aur router ke log me bhi kuch nahi aayega. Sirf http-pap set karo, https mat jodo.",
+          },
+          {
+            when: "login-by me https bhi hai (jaise https,http-pap)",
+            command:
+              ':local p [:len [/ip hotspot profile find where name="hsprof1"]]; :if ($p > 0) do={ /ip hotspot profile set [find name="hsprof1"] login-by=http-pap }; :if ($p = 0) do={ :put "FAIL -- hsprof1 naam ka koi hotspot profile nahi hai, kuch set nahi hua." }',
+            note: "https guest ke phone par certificate warning laata hai -- router apne self-signed cert se TLS khada karta hai jise koi browser nahi maanta. Guest ko portal dikhne se pehle full-screen security warning milti hai, aur OTP bhi usi untrusted endpoint par jaata hai to gate khulta hi nahi. http-pap akela chahiye.",
           },
         ],
       },
@@ -503,6 +527,25 @@ export const PHASES: Phase[] = [
 :local h ""; :foreach r in=[/radius find] do={ :set h [/radius get $r address] }; :put ("radius server  : " . $h); :if ($h = "") do={ :put "RESULT: FAIL -- koi RADIUS entry nahi hai" }; :if ($h != "") do={ :if ([/ping $h count=4] > 0) do={ :put "RESULT: PASS -- hub tak pahunch gaye" } else={ :put "RESULT: FAIL -- tunnel down hai" } }
 :put "===================="`,
       },
+      {
+        // THE CHECK THAT WAS MISSING WHEN IT MATTERED. A router can pass
+        // every other check in this flow -- WAN up, hotspot serving, tunnel
+        // handshaking, RADIUS answering -- and still sit in Master console
+        // as `provisioning` with no IPs, because the ONLY thing that moves
+        // a router out of provisioning is a heartbeat, and the only thing
+        // that sends one is this scheduler.
+        //
+        // That is exactly what happened on the first hEX: the single-line
+        // paste hit a syntax error partway through, every chunk after it
+        // silently never ran, the Heartbeat chunk was one of them, and
+        // nothing anywhere said so. The flow mentioned the scheduler only
+        // as a reason a wrong clock hurts -- it never once asked whether it
+        // existed.
+        label: "Heartbeat scheduler bana hai ya nahi (dashboard live isi se hota hai)",
+        script: `:put "==== HEARTBEAT ===="
+:local s [/system scheduler find where name~"cloudguest"]; :put ("sched count    : " . [:tostr [:len $s]]); :foreach x in=$s do={ :put ("  name         : " . [/system scheduler get $x name]); :put ("  interval     : " . [:tostr [/system scheduler get $x interval]]); :put ("  next-run     : " . [:tostr [/system scheduler get $x next-run]]) }; :if ([:len $s] = 0) do={ :put "RESULT: FAIL -- koi cloudguest scheduler nahi hai, heartbeat kabhi nahi jayega" }; :if ([:len $s] > 0) do={ :put "RESULT: PASS -- scheduler maujood hai" }
+:put "===================="`,
+      },
     ],
     checks: [
       {
@@ -519,6 +562,22 @@ export const PHASES: Phase[] = [
           {
             when: "RESULT: FAIL -- koi RADIUS entry nahi hai",
             note: "Master console ka RADIUS chunk paste nahi hua. Dhyan rakho: RADIUS ke liye WireGuard pehle chahiye, isliye dono chunks order me paste karo.",
+          },
+        ],
+      },
+      {
+        id: "hb-scheduler",
+        label: "Heartbeat scheduler maujood hai (Master console me router live isi se dikhta hai)",
+        command: "(upar wala HEARTBEAT block chalao)",
+        expect: "RESULT: PASS -- scheduler maujood hai",
+        failFix: [
+          {
+            when: "RESULT: FAIL -- koi cloudguest scheduler nahi hai, heartbeat kabhi nahi jayega",
+            note: "Heartbeat chunk paste hua hi nahi, ya paste beech me mar gaya. Single-line paste me ek syntax error uske baad ka SAB kuch chup-chaap chhod deta hai aur RouterOS phir bhi success dikhata hai. Generated script ke aakhir me `### cloudguest` markers dekho -- aakhri line COMPLETE honi chahiye. Agar `START 9/14` pe ruki hai to wahin se aage dobara paste karo. Ye chunk chhodna matlab router kaam karega par dashboard pe hamesha provisioning dikhega.",
+          },
+          {
+            when: "sched count 0 se zyada hai par next-run blank hai",
+            note: "Scheduler bana to hai par chalega nahi. Sabse aam wajah router ki ghadi hai -- Phase 2 ka date check dobara dekho. hEX me battery wali ghadi nahi hoti, power jane pe date galat ho jaati hai aur scheduler ka start-time usi galat date pe bharta hai.",
           },
         ],
       },

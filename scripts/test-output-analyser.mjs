@@ -693,7 +693,7 @@ check(
 const hotspotAudit = (o) =>
   `==== HOTSPOT AUDIT ====
 server       : hotspot1  interface=bridge  idle-timeout=${o.idle ?? "00:05:00"}
-login-by     : ${o.loginBy ?? "https,http-pap"}
+login-by     : ${o.loginBy ?? "http-pap"}
 dns-name     : wifi.wyfyguest.com
 use-radius   : true
 shared-users : ${o.shared ?? 5}
@@ -717,14 +717,39 @@ check(
   "5m rejected while 00:05:00 passed",
 );
 check(
-  "login-by order does not matter (https,http-pap)",
+  "login-by=http-pap alone is PASS",
   verdict("hs-loginby", hotspotAudit({})) === "PASS",
+  verdict("hs-loginby", hotspotAudit({})),
+);
+// ORDER STILL DOES NOT MATTER -- but it is demonstrated with a member that
+// is harmless, because the pair it used to be demonstrated with is not.
+// Both of these checks read `https,http-pap` / `http-pap,https` and
+// asserted PASS, and the fixture's own healthy default WAS `https,http-pap`
+// -- so the suite's definition of a correct router was the value that
+// shipped a full-screen certificate warning to every guest.
+check(
+  "login-by order does not matter (cookie,http-pap)",
+  verdict("hs-loginby", hotspotAudit({ loginBy: "cookie,http-pap" })) === "PASS",
   "ordered list rejected",
 );
 check(
-  "login-by order does not matter (http-pap,https)",
-  verdict("hs-loginby", hotspotAudit({ loginBy: "http-pap,https" })) === "PASS",
+  "login-by order does not matter (http-pap,cookie)",
+  verdict("hs-loginby", hotspotAudit({ loginBy: "http-pap,cookie" })) === "PASS",
   "reordered list rejected",
+);
+// THE REGRESSION GUARD. `memberOf http-pap` is satisfied by
+// `https,http-pap`, so on its own it called the broken value correct.
+// Both orders, because the whole point of the rule above is that RouterOS
+// does not promise one.
+check(
+  "login-by=https,http-pap is FAIL -- http-pap being present is not enough",
+  verdict("hs-loginby", hotspotAudit({ loginBy: "https,http-pap" })) === "FAIL",
+  verdict("hs-loginby", hotspotAudit({ loginBy: "https,http-pap" })),
+);
+check(
+  "login-by=http-pap,https is FAIL in the other order too",
+  verdict("hs-loginby", hotspotAudit({ loginBy: "http-pap,https" })) === "FAIL",
+  verdict("hs-loginby", hotspotAudit({ loginBy: "http-pap,https" })),
 );
 check(
   "login-by=cookie,http-chap is FAIL",
@@ -949,6 +974,69 @@ check(
     "a blank radius server line selects the no-entry branch",
     pickedFix("tunnel-up", NO_RADIUS) === "RESULT: FAIL -- koi RADIUS entry nahi hai",
     `picked: ${pickedFix("tunnel-up", NO_RADIUS)}`,
+  );
+}
+
+{
+  // THE HEARTBEAT SCHEDULER. The first hEX passed every other check in
+  // this flow and still sat in Master console as `provisioning`, because
+  // the single-line paste died before the Heartbeat chunk and nothing
+  // anywhere said so. `sched=0` was discoverable on the device the whole
+  // time; no check asked for it.
+  const hb = (o = {}) =>
+    [
+      "==== HEARTBEAT ====",
+      `sched count    : ${o.count ?? "1"}`,
+      ...(o.count === "0"
+        ? []
+        : [
+            "  name         : cloudguest-heartbeat",
+            "  interval     : 00:05:00",
+            `  next-run     : ${o.nextRun ?? "aug/23/2026 06:35:00"}`,
+          ]),
+      o.count === "0"
+        ? "RESULT: FAIL -- koi cloudguest scheduler nahi hai, heartbeat kabhi nahi jayega"
+        : "RESULT: PASS -- scheduler maujood hai",
+      "====================",
+    ].join("\n");
+
+  check(
+    "a scheduler with a next-run is PASS",
+    verdict("hb-scheduler", hb()) === "PASS",
+    verdict("hb-scheduler", hb()),
+  );
+  check(
+    "sched count 0 is FAIL -- this is the founder's router",
+    verdict("hb-scheduler", hb({ count: "0" })) === "FAIL",
+    verdict("hb-scheduler", hb({ count: "0" })),
+  );
+  check(
+    "sched count 0 selects the never-pasted branch",
+    pickedFix("hb-scheduler", hb({ count: "0" })) ===
+      "RESULT: FAIL -- koi cloudguest scheduler nahi hai, heartbeat kabhi nahi jayega",
+    `picked: ${pickedFix("hb-scheduler", hb({ count: "0" }))}`,
+  );
+  // A SCHEDULER THAT EXISTS BUT WILL NEVER FIRE IS NOT A PASS. Same
+  // outcome as no scheduler at all, and it is what a wrong clock produces
+  // -- which the hEX has after every power cut, having no battery.
+  const stalled = hb().replace(/  next-run     : .*/, "  next-run     : ");
+  check(
+    "a scheduler with a blank next-run is FAIL, not PASS",
+    verdict("hb-scheduler", stalled) === "FAIL",
+    verdict("hb-scheduler", stalled),
+  );
+  check(
+    "a blank next-run selects the clock branch, not the never-pasted one",
+    pickedFix("hb-scheduler", stalled) === "sched count 0 se zyada hai par next-run blank hai",
+    `picked: ${pickedFix("hb-scheduler", stalled)}`,
+  );
+  // MISSING EVIDENCE IS NOT A PASS. The count line is printed
+  // unconditionally, so its absence means the block was not run or not
+  // fully pasted -- neither of which is proof a scheduler exists.
+  check(
+    "output with no sched count line is INCOMPLETE, never PASS",
+    verdict("hb-scheduler", "==== HEARTBEAT ====\n====================") === "INCOMPLETE",
+    verdict("hb-scheduler", "==== HEARTBEAT ====\n===================="),
   );
 }
 

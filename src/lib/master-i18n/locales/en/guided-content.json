@@ -162,7 +162,11 @@
           "failFix": {
             "0": {
               "whenLabel": "shows login-by: cookie,http-chap",
-              "note": "That is the RouterOS default, and the portal's form cannot satisfy it. The guest will enter the right OTP, nothing will happen, and nothing will appear in the router's log either."
+              "note": "cookie,http-chap is the RouterOS default, and the portal's form cannot satisfy it -- CHAP needs a challenge/response the guest page never fetches. The guest will enter the right OTP, nothing will happen, and nothing will appear in the router's log either. Set http-pap only; do not add https."
+            },
+            "1": {
+              "whenLabel": "login-by also contains https (e.g. https,http-pap)",
+              "note": "https puts a certificate warning on the guest's phone -- the router stands up TLS with its own self-signed certificate, which no browser trusts. The guest gets a full-screen security warning before ever seeing the portal, and the OTP is posted to that same untrusted endpoint, so the gate never opens. http-pap has to stand alone."
             }
           }
         },
@@ -261,6 +265,9 @@
         },
         "1": {
           "label": "Are the tunnel and RADIUS alive?"
+        },
+        "2": {
+          "label": "Does the heartbeat scheduler exist? (this is what makes the dashboard go live)"
         }
       },
       "checks": {
@@ -276,6 +283,21 @@
             "1": {
               "whenLabel": "RESULT: FAIL -- there is no RADIUS entry",
               "note": "The Master console's RADIUS chunk was never pasted. Note the order: RADIUS needs WireGuard first, so paste the two chunks in order."
+            }
+          }
+        },
+        "hb-scheduler": {
+          "label": "The heartbeat scheduler exists (this is what makes the router show as live in Master console)",
+          "commandLabel": "(run the HEARTBEAT block above)",
+          "expectLabel": "RESULT: PASS -- scheduler maujood hai",
+          "failFix": {
+            "0": {
+              "whenLabel": "RESULT: FAIL -- koi cloudguest scheduler nahi hai, heartbeat kabhi nahi jayega",
+              "note": "The Heartbeat chunk was never pasted, or the paste died partway. In a single-line paste one syntax error silently abandons EVERYTHING after it, and RouterOS still reports success. Look at the `### cloudguest` markers at the end of the generated script -- the last line should be COMPLETE. If it stopped at `START 9/14`, paste again from there. Skipping this chunk means the router works but the dashboard shows provisioning forever."
+            },
+            "1": {
+              "whenLabel": "sched count is above 0 but next-run is blank",
+              "note": "The scheduler exists but will never fire. The usual cause is the router's clock -- go back to the date check in Phase 2. The hEX has no battery-backed clock, so the date is wrong after every power cut and the scheduler's start-time is filled in against that wrong date."
             }
           }
         },
@@ -965,12 +987,15 @@
       "fallback": "The login-by value could not be read.",
       "rules": {
         "0": {
-          "why": "login-by contains http-pap -- the router will accept the portal's form."
+          "why": "login-by contains https. The router stands up TLS with its own self-signed certificate, which no browser trusts -- the guest gets a full-screen security warning before the portal. And the hotspot's `$(link-login-only)` takes its scheme from this same property, so the OTP is posted to that untrusted endpoint too and the gate never opens."
         },
         "1": {
-          "why": "login-by does not contain http-pap. The guest will enter the right OTP, nothing will happen, and nothing will appear in the router's log either."
+          "why": "login-by contains http-pap and not https -- the router will accept the portal's form, and the guest gets no certificate warning."
         },
         "2": {
+          "why": "login-by does not contain http-pap. The guest will enter the right OTP, nothing will happen, and nothing will appear in the router's log either."
+        },
+        "3": {
           "why": "No `login-by` line was found in the output -- the audit block looks for a profile named `hsprof1`. Paste the whole audit output."
         }
       }
@@ -1075,6 +1100,23 @@
         },
         "5": {
           "why": "There is no file named login.html on the router."
+        }
+      }
+    },
+    "hb-scheduler": {
+      "fallback": "The state of the heartbeat scheduler could not be read. Run the HEARTBEAT block again.",
+      "rules": {
+        "0": {
+          "why": "The `sched count` line was not found in the output -- it looks like the whole HEARTBEAT block was not pasted. Run the block again and paste all of the output."
+        },
+        "1": {
+          "why": "There is no cloudguest scheduler on this router. No heartbeat will ever be sent, and this router will sit in Master console as `provisioning` forever -- even with WAN, hotspot and tunnel all working. A heartbeat is the only thing that moves a router out of provisioning."
+        },
+        "2": {
+          "why": "The scheduler exists and its next-run is set -- the heartbeat will be sent and the router will show as live on the dashboard."
+        },
+        "3": {
+          "why": "The scheduler exists but its next-run is empty, so it will never run. The usual cause is the router's clock: the scheduler's start-time is filled in against the wrong date."
         }
       }
     },
