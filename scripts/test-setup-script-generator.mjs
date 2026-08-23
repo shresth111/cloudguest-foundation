@@ -2793,6 +2793,8 @@ check(
 // touches today; adding a menu is a deliberate edit to this list, not
 // something that slips in.
 
+const HOTSPOT_DNS_NAME_RE = "wifi\\.wyfyguest\\.com";
+
 const KNOWN_MENUS = new Set([
   // `/certificate` was here until the self-signed hotspot certificate
   // chunk was deleted (section 13). Removing it from this list is not
@@ -2815,6 +2817,15 @@ const KNOWN_MENUS = new Set([
   "/ip dhcp-client",
   "/ip dhcp-server",
   "/ip dhcp-server network",
+  // RFC 8910's Captive-Portal URI, added deliberately -- this check caught
+  // both of them the moment they appeared, which is what it is for.
+  // VERIFIED ON REAL HARDWARE before being listed, not assumed: both menus
+  // enumerate on the founder's hEX lite running RouterOS 7.23.3. The
+  // failure this list exists to stop is `/ip pppoe-client` for
+  // `/interface pppoe-client` -- a path that does not exist matches nothing
+  // on a `find`, forever, in silence.
+  "/ip dhcp-server option",
+  "/ip dhcp-server option sets",
   "/ip dns",
   "/ip dns static",
   "/ip firewall address-list",
@@ -4648,6 +4659,66 @@ check(
       (warn?.script ?? "").replace(/:put "[^"]*"/g, "").replace(/:log warning "[^"]*"/g, ""),
     ),
     "it must be safe to read and skip; it exists to be read, not to act",
+  );
+}
+
+// ---------------------------------------------------------------------
+// 13.11 THE LEASE ITSELF SAYS THERE IS A PORTAL (RFC 8910, option 114).
+// ---------------------------------------------------------------------
+// Everything else in this script relies on the guest's device GUESSING
+// that a portal exists: it fetches its own probe URL, the hotspot
+// intercepts it, the redirect is read as "captive". That works on Wi-Fi
+// and is unreliable on a cable -- macOS does not open its Captive Network
+// Assistant for an Ethernet interface at all. Confirmed live 2026-08-23:
+// a cabled laptop got an address, got no popup, and reached the portal
+// only when the address was typed by hand.
+//
+// Option 114 removes the guessing. It is additive -- a device that ignores
+// it still hits the probe-interception path exactly as before.
+for (const [variant, script] of FULL_SCRIPTS) {
+  if (/HOTSPOT \+ DHCP: NOTHING WAS GENERATED/.test(script)) continue;
+
+  check(
+    `${variant}: the DHCP lease advertises the captive portal (option 114)`,
+    /\/ip dhcp-server option add name="cloudguest-captive-portal" code=114/.test(script),
+    "without it a cabled client has nothing but probe interception to go on, and macOS " +
+      "does not act on that for an Ethernet interface",
+  );
+  // POINTS AT THE ROUTER, NOT THE CLOUD PORTAL. The device must land on
+  // THIS router's redirect page, which then forwards to the real portal
+  // with the session parameters attached. Sending it straight to the cloud
+  // portal produces a guest with no session to log into -- the same
+  // confusion HOTSPOT_DNS_NAME's docstring records from a live failure.
+  check(
+    `${variant}: option 114 points at the hotspot's own name, not the cloud portal`,
+    new RegExp(`code=114 value="'http://${HOTSPOT_DNS_NAME_RE}/'"`).test(script) &&
+      !/code=114 value="'https?:\/\/portal\./.test(script),
+    "it must send the device to this router's redirect page, which carries the session " +
+      "parameters the portal needs",
+  );
+  // ADD-OR-UPDATE. The value embeds the hostname; one left over from an
+  // earlier run with a different name would send devices somewhere this
+  // router does not answer, and add-if-missing would never correct it.
+  check(
+    `${variant}: a stale option 114 is corrected, not left in place`,
+    /else=\{ \/ip dhcp-server option set \[find name="cloudguest-captive-portal"\] code=114/.test(
+      script,
+    ),
+    "add-if-missing would leave a wrong URL on the device for ever",
+  );
+  check(
+    `${variant}: the option is actually attached to this network`,
+    /dhcp-option-set=cloudguest-opts/.test(script),
+    "an option that exists but is attached to nothing is never handed out -- and RouterOS " +
+      "reports success either way",
+  );
+  // REPORTS, DOES NOT FAIL. A guest without option 114 is not broken, only
+  // back to guessing, so this must not read as a fatal error.
+  check(
+    `${variant}: it says so when the option did not land`,
+    /NOTE: DHCP option 114 was not created/.test(script) &&
+      /exists but is not attached/.test(script),
+    "both halves can fail independently and `set [find ...]` succeeds against an empty match",
   );
 }
 
