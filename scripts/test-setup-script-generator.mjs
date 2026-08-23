@@ -4648,26 +4648,51 @@ for (const [variant, script] of FULL_SCRIPTS) {
   }
 
   check(
-    `${variant}: login-by is written, exactly once, and the value is http-pap`,
+    `${variant}: login-by is written exactly once, and defaults to http-pap`,
     (byProp.get("/ip hotspot profile login-by") ?? []).length === expectedLoginByWrites &&
-      // EXACT match, not `includes`. Measured: relaxing this to
-      // `.includes("http-pap")` lets `login-by=https,http-pap` ship green,
-      // and 13.2's pairing guard does NOT cover it -- the generator no
-      // longer creates a certificate, so "https + a router-signed cert"
-      // is false while the profile still asks RouterOS to stand up a TLS
-      // server against whatever cert the device happens to carry (on an
-      // already-provisioned router: the stale self-signed one, i.e. the
-      // original bug, restored). Same "somewhere, not everywhere" hole
-      // this file's header records three times already.
-      writes.filter((w) => w.prop === "login-by").every((w) => w.value === "http-pap"),
+      // The value is now chosen ON THE DEVICE, so this asserts the LOGIC
+      // rather than a literal. Every write must be the variable -- a bare
+      // literal here would mean someone reintroduced an unconditional
+      // value, in either direction.
+      writes.filter((w) => w.prop === "login-by").every((w) => w.value === "$hsLoginBy"),
     `login-by writes: ${JSON.stringify(writes.filter((w) => w.prop === "login-by").map((w) => w.value))}, ` +
       `expected ${expectedLoginByWrites} (hotspot chunk ${hotspotRefused ? "refused" : "generated"}). ` +
-      `Exactly one write, of exactly http-pap. http-pap is the only method a plain external-portal ` +
-      `form POST can satisfy (RouterOS's own cookie,http-chap default silently rejects every ` +
-      `guest); adding https beside it turns the hotspot's own redirect page into a TLS endpoint, ` +
-      `which is only safe with a publicly-trusted certificate -- something this generator cannot ` +
-      `produce and must not pretend to.`,
+      `One write, and its value must come from the on-device decision, not a literal.`,
   );
+
+  if (!hotspotRefused) {
+    // THE DEFAULT IS THE SAFE ONE. If the binding line ever flipped to
+    // `https` as its starting value, every router without a trusted
+    // certificate would stand up TLS against whatever it happens to carry
+    // -- the original guest-facing warning, re-entered.
+    check(
+      `${variant}: the default value is plain http-pap, with no https in it`,
+      /:local hsLoginBy "http-pap"/.test(script),
+      "the starting value must be the one that is safe on a router with no certificate at all",
+    );
+    // THE UPGRADE IS GATED ON THE BINDING, NOT ON A CERT EXISTING. A cert
+    // object sitting unbound on the device would let `https` serve TLS
+    // against whatever RouterOS picks. Reading `ssl-certificate` off the
+    // profile means this can only PRESERVE a binding the renewal script
+    // made -- it can never create one.
+    check(
+      `${variant}: https is only kept when the profile already carries the fleet certificate`,
+      /:local hsBound \[:len \[\/ip hotspot profile find where name="hsprof1" and ssl-certificate~"wyfy-hotspot-fleet"\]\]/.test(
+        script,
+      ) && /:if \(\$hsBound > 0\) do=\{ :set hsLoginBy "https,http-pap" \}/.test(script),
+      "gating on `[/certificate find ...]` instead would enable TLS against an unbound or " +
+        "foreign certificate, which is the bug this file deleted a whole chunk to remove",
+    );
+    // AND THE GENERATOR STILL NEVER BINDS ONE. This is the invariant that
+    // stops a re-paste rebinding a router onto a self-signed certificate;
+    // recognising a binding must not become writing one.
+    check(
+      `${variant}: the generator still never writes ssl-certificate`,
+      !writes.some((w) => w.prop === "ssl-certificate"),
+      "recognising the fleet certificate must not turn into binding one -- only " +
+        "/opt/wyfy/renew-hotspot-certs.sh may bind it",
+    );
+  }
 }
 
 // INJECTED -- the two mutations this section exists to catch, as fixtures,
