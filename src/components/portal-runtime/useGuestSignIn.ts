@@ -126,8 +126,26 @@ export function useGuestSignIn() {
   // The last case is deliberate and matches v5 §3.2's rule about the
   // welcome message: a row with nothing real in it is not rendered.
   const heading = customHeadline || venueName || t("welcomeBare");
-  const eyebrowIsVenueName = !!(customHeadline && venueName);
-  const eyebrow = eyebrowIsVenueName ? venueName : venueName ? t("welcomeEyebrow") : undefined;
+  // A venue that writes its own name into its custom headline (confirmed
+  // live: "Welcome to shiv chock" typed verbatim as splashHeadline) already
+  // carries full identity in that one line -- the eyebrow's job above is
+  // only to restore identity a headline would otherwise have deleted, not
+  // to repeat one it already states. Case-insensitive substring, not an
+  // exact-string match: the same redundancy shows up whether the venue
+  // wrote "Welcome to X", "X welcomes you", or just "X" as their headline.
+  const headlineAlreadyNamesVenue = !!(
+    customHeadline &&
+    venueName &&
+    customHeadline.toLowerCase().includes(venueName.toLowerCase())
+  );
+  const eyebrowIsVenueName = !!(customHeadline && venueName) && !headlineAlreadyNamesVenue;
+  const eyebrow = headlineAlreadyNamesVenue
+    ? undefined
+    : eyebrowIsVenueName
+      ? venueName
+      : venueName
+        ? t("welcomeEyebrow")
+        : undefined;
   // captive-portal-v5-design-spec.md §3.2: no fallback string here anymore
   // -- `t("signInSubtext")` was a hardcoded filler line ("Sign in for
   // complimentary WiFi access...") rendered whenever a venue hadn't
