@@ -366,25 +366,26 @@
 }
 
 /**
- * Master (Super Admin) theme -- Clean Enterprise: Inter throughout, a
- * blue/indigo brand (#2a78d6, from the shared sequential blue ramp) on a
- * near-white slate canvas, soft rounded corners and subtle 1px borders --
- * a Stripe/Linear-like operator console. Applied to /master/* via
- * MasterShell, independent of the light/dark toggle. Every Tailwind
- * utility bound to the theme vars (bg-primary, bg-card, border-border,
- * bg-sidebar, ...) re-themes automatically.
+ * Master (Super Admin) theme -- restyled to match the customer dashboard's
+ * violet brand (#6C4EFF) and softer corner radius, so the two consoles read
+ * as one product. Applied to /master/* via MasterShell, independent of the
+ * light/dark toggle. Every Tailwind utility bound to the theme vars
+ * (bg-primary, bg-card, border-border, ...) re-themes automatically.
  */
 .master-theme {
   color: var(--foreground);
-  --radius: 0.625rem;
+  /* Matched to the customer dashboard's own look (CustomerDashboardPage's
+     inline --primary/--ring override and the root :root --radius) so the
+     two consoles read as one product. */
+  --radius: 0.875rem;
   --background: oklch(0.981 0.004 255);
   --foreground: oklch(0.21 0.03 258);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.21 0.03 258);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.21 0.03 258);
-  --primary: oklch(0.52 0.19 260);
-  --primary-foreground: oklch(0.99 0.002 255);
+  --primary: #6C4EFF;
+  --primary-foreground: #ffffff;
   --secondary: oklch(0.955 0.008 258);
   --secondary-foreground: oklch(0.28 0.03 258);
   --muted: oklch(0.96 0.006 258);
@@ -395,7 +396,7 @@
   --destructive-foreground: oklch(0.99 0.002 255);
   --border: oklch(0.9 0.008 258);
   --input: oklch(0.9 0.008 258);
-  --ring: oklch(0.52 0.19 260);
+  --ring: #6366f1;
   --brand: oklch(0.52 0.19 260);
   --brand-foreground: oklch(0.99 0.002 255);
   --chart-1: oklch(0.52 0.19 260);

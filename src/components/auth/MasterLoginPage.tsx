@@ -54,12 +54,12 @@ import type { AppError } from "@/services/api";
 // document.body), so it can't pick up that class's scoped --primary. Same
 // fix login.tsx already applies to its own portalled dialogs -- pin just
 // the accent vars this dialog actually uses to `.master-theme`'s light
-// values, matching this page's "Clean Enterprise" indigo/blue rather than
-// falling back to whatever the base app's un-scoped theme happens to be.
+// values (the same violet as the customer dashboard) rather than falling
+// back to whatever the base app's un-scoped theme happens to be.
 const MASTER_DIALOG_VARS = {
-  "--primary": "oklch(0.52 0.19 260)",
-  "--primary-foreground": "oklch(0.99 0.002 255)",
-  "--ring": "oklch(0.52 0.19 260)",
+  "--primary": "#6C4EFF",
+  "--primary-foreground": "#ffffff",
+  "--ring": "#6366f1",
 } as React.CSSProperties;
 
 /**
@@ -108,8 +108,9 @@ function CountUp({ target, decimals = 0 }: { target: number; decimals?: number }
  * illustration -- this is the operator's oversight view, not a guest
  * connecting to a network, so infrastructure is the subject, not a person.
  * Same flat line-art + soft glow language as that illustration, re-tinted
- * to this console's indigo/blue-only palette (no green/teal accents here,
- * matching the rest of this codebase's decorative-color rule).
+ * to this console's violet palette, matching the customer dashboard's own
+ * accent (no green/teal accents here, matching the rest of this codebase's
+ * decorative-color rule).
  *
  * Purely decorative -- aria-hidden. The sweep and sonar pings loop, so both
  * collapse to a single static frame under reduced motion; the one-time
@@ -158,7 +159,7 @@ function ControlTowerIllustration() {
           cx={tower.x}
           cy={tower.y}
           r="6"
-          stroke="#818cf8"
+          stroke="#a78bfa"
           strokeOpacity="0.6"
           strokeWidth="1.5"
           style={{ transformOrigin: `${tower.x}px ${tower.y}px` }}
@@ -197,7 +198,7 @@ function ControlTowerIllustration() {
         cx={tower.x}
         cy={tower.y}
         r="7"
-        fill="oklch(0.19 0.03 260)"
+        fill="#1e1b4b"
         stroke="white"
         strokeOpacity="0.7"
         strokeWidth="1.5"
@@ -207,7 +208,7 @@ function ControlTowerIllustration() {
         y1={tower.y}
         x2={tower.x + 22}
         y2={tower.y}
-        stroke="#a5b4fc"
+        stroke="#c4b5fd"
         strokeWidth="2"
         strokeLinecap="round"
         style={{ transformOrigin: `${tower.x}px ${tower.y}px` }}
@@ -270,7 +271,7 @@ function ControlTowerIllustration() {
             cx="13"
             cy="0"
             r="2.4"
-            fill="#a5b4fc"
+            fill="#c4b5fd"
             animate={shouldReduceMotion ? { opacity: 0.9 } : { opacity: [0.4, 1, 0.4] }}
             transition={
               shouldReduceMotion
@@ -380,7 +381,7 @@ export function MasterLoginPage({ redirectTo }: { redirectTo?: string } = {}) {
     <div className="master-theme">
       <div className="flex min-h-screen bg-background">
         {/* Left: operator hero */}
-        <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-gradient-to-br from-[oklch(0.24_0.05_260)] via-[oklch(0.19_0.045_260)] to-[oklch(0.14_0.035_260)] p-12 text-white lg:flex">
+        <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-gradient-to-br from-[#241f5c] via-[#1e1b4b] to-[#14122e] p-12 text-white lg:flex">
           <div
             aria-hidden
             className="aurora-grid pointer-events-none absolute inset-0 opacity-[0.09]"
@@ -391,8 +392,8 @@ export function MasterLoginPage({ redirectTo }: { redirectTo?: string } = {}) {
               maskImage: "radial-gradient(80% 80% at 50% 30%, black, transparent 75%)",
             }}
           />
-          <div className="aurora-blob-1 pointer-events-none absolute -right-24 -top-24 h-[26rem] w-[26rem] rounded-full bg-[oklch(0.55_0.19_260/0.35)] blur-[100px]" />
-          <div className="aurora-blob-2 pointer-events-none absolute -bottom-32 -left-24 h-[24rem] w-[24rem] rounded-full bg-[oklch(0.45_0.15_240/0.3)] blur-[100px]" />
+          <div className="aurora-blob-1 pointer-events-none absolute -right-24 -top-24 h-[26rem] w-[26rem] rounded-full bg-[#6C4EFF]/35 blur-[100px]" />
+          <div className="aurora-blob-2 pointer-events-none absolute -bottom-32 -left-24 h-[24rem] w-[24rem] rounded-full bg-[#8B5CF6]/30 blur-[100px]" />
 
           <motion.div
             className="relative z-10 flex items-center gap-3"
@@ -416,7 +417,7 @@ export function MasterLoginPage({ redirectTo }: { redirectTo?: string } = {}) {
             transition={{ duration: 0.6, delay: 0.15, ease: "easeOut" }}
           >
             <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-white/70">
-              <ShieldCheck className="h-3.5 w-3.5 text-[#818cf8]" /> Platform operator access
+              <ShieldCheck className="h-3.5 w-3.5 text-[#a78bfa]" /> Platform operator access
             </span>
             <h2 className="text-[2.35rem] font-bold leading-[1.15] tracking-tight">
               Every tenant, every router, one console.
@@ -433,7 +434,7 @@ export function MasterLoginPage({ redirectTo }: { redirectTo?: string } = {}) {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 0.35 + i * 0.1, ease: "easeOut" }}
                 >
-                  <s.icon className="mb-1.5 h-4 w-4 text-[#818cf8]" />
+                  <s.icon className="mb-1.5 h-4 w-4 text-[#a78bfa]" />
                   <p className="text-xl font-semibold tabular-nums">
                     <CountUp target={s.v} decimals={s.decimals} />
                     {s.suffix}

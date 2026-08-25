@@ -233,29 +233,27 @@ export function MasterShell({ title, children }: { title: string; children: Reac
         )}
 
         {/* Sidebar -- grouped nav + chip icons + left-indicator active
-            state, same visual language as the customer console's
-            CustomerSidebar (see src/components/customer/CustomerSidebar.tsx),
-            built from Master's own "Clean Enterprise" tokens (border/
-            bg-sidebar/bg-primary) rather than the customer surface's
-            dark-indigo gradient -- the two chrome systems are deliberately
-            kept visually distinct (see MasterKit.tsx's own module comment)
-            even while sharing this structural pattern. Collapsible to an
-            icon rail on desktop; always full-width on the mobile overlay. */}
+            state, now the SAME dark violet-gradient chrome as the customer
+            console's CustomerSidebar (see
+            src/components/customer/CustomerSidebar.tsx), copied class for
+            class so the two consoles share one visual language. Collapsible
+            to an icon rail on desktop; always full-width on the mobile
+            overlay. */}
         <aside
           className={cn(
-            "fixed inset-y-0 left-0 z-50 flex flex-col border-r border-border bg-sidebar text-sidebar-foreground transition-all lg:static",
+            "fixed inset-y-0 left-0 z-50 flex flex-col border-r border-white/10 bg-gradient-to-b from-[#1e1b4b] to-[#181530] text-white transition-all lg:static",
             expanded ? "w-64" : "lg:w-[72px]",
             mobile ? "w-64 translate-x-0" : "-translate-x-full lg:translate-x-0",
           )}
         >
-          <div className="flex h-16 shrink-0 items-center gap-3 border-b border-border px-5">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary shadow-sm">
+          <div className="flex h-16 shrink-0 items-center gap-3 border-b border-white/10 px-5">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6] shadow-sm">
               <img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" />
             </div>
             {(expanded || mobile) && (
               <div className="leading-tight">
                 <p className="text-sm font-semibold tracking-tight">Wyfy Guest</p>
-                <p className="text-[11px] font-medium text-muted-foreground">Master Console</p>
+                <p className="text-[11px] font-medium text-white/45">Master Console</p>
               </div>
             )}
             <button className="ml-auto lg:hidden" onClick={() => setMobile(false)}>
@@ -266,7 +264,7 @@ export function MasterShell({ title, children }: { title: string; children: Reac
             {groups.map((g) => (
               <div key={g.label} className="space-y-1">
                 {(expanded || mobile) && (
-                  <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-white/35">
                     {g.label}
                   </p>
                 )}
@@ -282,8 +280,8 @@ export function MasterShell({ title, children }: { title: string; children: Reac
                       className={cn(
                         "group relative flex items-center gap-3 rounded-lg border-l-[3px] px-2.5 py-2.5 text-[13px] font-medium transition-all duration-150",
                         active
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-transparent text-muted-foreground hover:bg-accent hover:text-foreground",
+                          ? "border-[#6C4EFF] bg-gradient-to-r from-[#6C4EFF]/25 via-[#6C4EFF]/10 to-transparent text-white shadow-[0_1px_0_0_rgba(255,255,255,0.04)_inset,0_4px_14px_-4px_rgba(108,78,255,0.55)]"
+                          : "border-transparent text-white/60 hover:bg-white/[0.06] hover:text-white",
                         !expanded && !mobile && "justify-center px-0",
                       )}
                     >
@@ -291,8 +289,8 @@ export function MasterShell({ title, children }: { title: string; children: Reac
                         className={cn(
                           "flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors duration-150",
                           active
-                            ? "bg-primary/15 text-primary"
-                            : "bg-muted text-muted-foreground group-hover:bg-accent-foreground/10 group-hover:text-foreground",
+                            ? "bg-white/15 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)]"
+                            : "bg-white/5 text-white/60 group-hover:bg-white/10 group-hover:text-white",
                         )}
                       >
                         <Icon className="h-4 w-4 shrink-0" />
@@ -304,17 +302,17 @@ export function MasterShell({ title, children }: { title: string; children: Reac
               </div>
             ))}
           </nav>
-          <div className="border-t border-border px-5 py-3 text-[11px] font-medium text-muted-foreground">
+          <div className="border-t border-white/10 px-5 py-3 text-[11px] font-medium text-white/50">
             {expanded || mobile ? (
               "Platform Operator"
             ) : (
               <span className="sr-only">Platform Operator</span>
             )}
           </div>
-          <div className="hidden border-t border-border p-2 lg:block">
+          <div className="hidden border-t border-white/10 p-2 lg:block">
             <button
               onClick={() => setCollapsed((c) => !c)}
-              className="flex w-full items-center justify-center rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+              className="flex w-full items-center justify-center rounded-lg px-3 py-2 text-xs text-white/50 hover:bg-white/10 hover:text-white"
               aria-label={expanded ? "Collapse sidebar" : "Expand sidebar"}
             >
               {expanded ? (

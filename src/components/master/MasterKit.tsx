@@ -1,7 +1,7 @@
 /**
- * Clean Enterprise primitives for the Master (Super Admin) dashboard:
- * rounded corners, subtle 1px borders, soft shadows, Inter. Kept separate
- * from the Aurora Teal console primitives so the two surfaces never bleed.
+ * Primitives for the Master (Super Admin) dashboard, restyled to match the
+ * customer dashboard's premium-card look (soft ambient shadow + hover lift,
+ * gradient icon chips) so the two surfaces read as one product.
  */
 import type { ComponentType, ReactNode } from "react";
 import { X, ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
@@ -180,7 +180,7 @@ export interface MEmptyStateProps {
  */
 export function MEmptyState({ icon: Icon, title, description, action }: MEmptyStateProps) {
   return (
-    <div className="relative overflow-hidden rounded-xl border border-border bg-card p-10 text-center">
+    <div className="relative overflow-hidden rounded-xl premium-card p-10 text-center">
       <span aria-hidden className="m-empty-sparkle pointer-events-none absolute inset-0" />
       <div className="relative flex flex-col items-center gap-3">
         {Icon && (
@@ -248,11 +248,11 @@ const M_STAT_ACCENT: Record<MStatTone, string> = {
 };
 
 const M_STAT_ICON_BG: Record<MStatTone, string> = {
-  default: "bg-primary/10 text-primary",
-  success: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-  warning: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-  danger: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
-  info: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
+  default: "bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6] text-white",
+  success: "bg-gradient-to-br from-emerald-500 to-emerald-400 text-white",
+  warning: "bg-gradient-to-br from-amber-500 to-amber-400 text-white",
+  danger: "bg-gradient-to-br from-rose-500 to-rose-400 text-white",
+  info: "bg-gradient-to-br from-sky-500 to-sky-400 text-white",
 };
 
 const M_STAT_TREND_TONE: Record<MStatTrend, string> = {
@@ -314,7 +314,7 @@ export function MStat({
   return (
     <div
       className={cn(
-        "group relative overflow-hidden rounded-xl border border-border bg-card p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md",
+        "group relative overflow-hidden rounded-xl premium-card premium-card-hover p-4",
         accent && "ring-1 ring-primary/30",
         beam && "m-stat-beam",
       )}
@@ -509,7 +509,7 @@ export function MTable({
   skeletonRows?: number;
 }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
+    <div className="overflow-x-auto rounded-xl premium-card">
       <table className="w-full min-w-[640px] border-collapse text-sm">
         <thead>
           <tr className="border-b border-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
