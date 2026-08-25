@@ -459,11 +459,7 @@ jobs:
       - name: setup script generator
         run: |
           ./scripts/ci-gated-test.sh \
-<<<<<<< HEAD
             "setup-script-generator" 1950 \
-=======
-            "setup-script-generator" 1530 \
->>>>>>> origin/main
             "setup-script-generator: all checks passed" \
             bun run test:setup-script
 
