@@ -1,6 +1,5 @@
 import { useId } from "react";
 import { Link } from "@tanstack/react-router";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
@@ -59,33 +58,6 @@ export function PasswordSignInForm(sign: UseGuestSignInReturn) {
           className={`${PG_INPUT} mt-1`}
         />
       </div>
-      {/* captive-portal-v5-design-spec.md UX §4b: dropped the `rounded-xl
-       * bg-slate-50 p-3` wrapper -- see OtpForm's identical checkbox for
-       * the full reasoning; same fix, same legal text, applied here too
-       * since both tabs render this row. */}
-      <label className="flex items-start gap-2.5 text-[13px] leading-snug text-[var(--pg-ink-muted)]">
-        <Checkbox
-          checked={sign.termsAccepted}
-          onCheckedChange={(v) => sign.setTermsAccepted(!!v)}
-          className="mt-0.5 border-[var(--pg-ink-faint)] data-[state=checked]:border-[var(--pr-primary,#6366f1)] data-[state=checked]:bg-[var(--pr-primary,#6366f1)]"
-        />
-        <span>
-          {t("agreeToThe")}{" "}
-          {sign.requiresTermsLink ? (
-            <Link
-              to="/portal/terms"
-              search={sign.portalSearch}
-              className="font-medium text-[var(--pr-primary,#6366f1)] underline underline-offset-2 hover:opacity-80"
-            >
-              {t("termsAcceptableUsePolicy")}
-            </Link>
-          ) : (
-            <span className="font-medium text-[var(--pg-ink)]">
-              {t("termsAcceptableUsePolicy")}
-            </span>
-          )}
-        </span>
-      </label>
       <AlertBanner message={sign.passwordError} />
       <button
         type="button"
@@ -95,6 +67,25 @@ export function PasswordSignInForm(sign: UseGuestSignInReturn) {
       >
         {sign.loginPasswordPending ? t("signingInLabel") : t("signInConnect")}
       </button>
+      {/* Consent is now implied by continuing -- no checkbox, matching the
+       * reference design's "By clicking Continue, you agree to..."
+       * pattern. Same legal text/link as before (reused verbatim), now
+       * below the button rather than an opt-in row above it. See OtpForm's
+       * identical TermsNotice for the same reasoning. */}
+      <p className="text-center text-[13px] leading-snug text-[var(--pg-ink-muted)]">
+        {t("agreeToThe")}{" "}
+        {sign.requiresTermsLink ? (
+          <Link
+            to="/portal/terms"
+            search={sign.portalSearch}
+            className="font-medium text-[var(--pr-primary,#6366f1)] underline underline-offset-2 hover:opacity-80"
+          >
+            {t("termsAcceptableUsePolicy")}
+          </Link>
+        ) : (
+          <span className="font-medium text-[var(--pg-ink)]">{t("termsAcceptableUsePolicy")}</span>
+        )}
+      </p>
       {sign.hasOtp && (
         <button
           type="button"

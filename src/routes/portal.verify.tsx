@@ -12,7 +12,6 @@ import {
 } from "@/components/portal-runtime/PortalShell";
 import { AlertBanner, PG_PRIMARY_BTN } from "@/components/portal-runtime/PortalGuestUi";
 import { OtpCodeInput } from "@/components/portal-runtime/AuthFields";
-import { Checkbox } from "@/components/ui/checkbox";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { scriptClassOf } from "@/lib/portal-script";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
@@ -46,8 +45,6 @@ function VerifyPage() {
     deviceIp,
     config,
     setSession,
-    termsAccepted,
-    setTermsAccepted,
     setGuestIdentifier,
   } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/verify" });
@@ -92,7 +89,9 @@ function VerifyPage() {
       // See PortalRuntimeState.guestIdentifier's docstring -- the NAS's
       // own RADIUS Authorize checks this exact value, not a hardcoded one.
       setGuestIdentifier(otpTarget?.trim());
-      if (requiresTerms && termsAccepted) {
+      // Consent is now implied by continuing (no checkbox) whenever there
+      // is real terms/privacy content to consent to -- see requiresTerms.
+      if (requiresTerms) {
         portalRuntimeService
           .recordConsent({ guestId: session.guestId, captivePortalConfigId: config?.id })
           .catch(() => undefined);
@@ -205,7 +204,7 @@ function VerifyPage() {
             noValidate
             onSubmit={(e) => {
               e.preventDefault();
-              if (code.length !== 6 || login.isPending || (requiresTerms && !termsAccepted)) return;
+              if (code.length !== 6 || login.isPending) return;
               login.mutate(code);
             }}
             className="space-y-4"
@@ -215,30 +214,23 @@ function VerifyPage() {
              * dependency's internal default. */}
             <OtpCodeInput value={code} onChange={setCode} autoFocus autoComplete="one-time-code" />
 
-            {requiresTerms && (
-              // Shared terms-row recipe (redesign spec §3.3) -- the
-              // `bg-slate-50` wash v5 §4b removed from the primary path's
-              // two copies goes here too; type-scale-responsive pg-meta
-              // instead of a raw 13px.
-              <label className="flex items-start gap-2.5 text-left pg-meta font-medium text-[var(--pg-ink-muted)]">
-                <Checkbox
-                  checked={termsAccepted}
-                  onCheckedChange={(v) => setTermsAccepted(!!v)}
-                  className="mt-0.5 border-[var(--pg-ink-faint)] data-[state=checked]:border-[var(--pr-primary,#6366f1)] data-[state=checked]:bg-[var(--pr-primary,#6366f1)]"
-                />
-                <span>{t("agreeTerms")}</span>
-              </label>
-            )}
-
             <AlertBanner message={error} />
 
             <button
               type="submit"
-              disabled={code.length !== 6 || login.isPending || (requiresTerms && !termsAccepted)}
+              disabled={code.length !== 6 || login.isPending}
               className={PG_PRIMARY_BTN}
             >
               {login.isPending ? t("verifyingLabel") : t("verifyOtpConnect")}
             </button>
+            {/* Consent is now implied by continuing -- no checkbox, matching
+             * the reference design's "By clicking Continue, you agree
+             * to..." pattern. Same legal text as before (reused verbatim). */}
+            {requiresTerms && (
+              <p className="text-center pg-meta font-medium text-[var(--pg-ink-muted)]">
+                {t("agreeTerms")}
+              </p>
+            )}
             <div className="flex items-center justify-center gap-2 pg-meta">
               {cooldown > 0 ? (
                 <span className="font-normal text-[var(--pg-ink-faint)]">

@@ -45,8 +45,6 @@ export function useGuestSignIn() {
     selectedMethod,
     setSelectedMethod,
     setSession,
-    termsAccepted,
-    setTermsAccepted,
     previewMode,
     setGuestIdentifier,
     t,
@@ -287,11 +285,12 @@ export function useGuestSignIn() {
     // if so, this device should default to the Registered-user tab next
     // time as well.
     if (session.hasPassword) markDeviceHasPassword();
-    if (termsAccepted) {
-      portalRuntimeService
-        .recordConsent({ guestId: session.guestId, captivePortalConfigId: config?.id })
-        .catch(() => undefined);
-    }
+    // Consent is now implied by continuing (no checkbox -- see
+    // requiresTermsLink's own call sites), so every successful login
+    // records it, unconditionally.
+    portalRuntimeService
+      .recordConsent({ guestId: session.guestId, captivePortalConfigId: config?.id })
+      .catch(() => undefined);
     // Real navigation target: the brief "connecting" transitional screen,
     // which fires the real hotspot-login POST and lands the guest on
     // /portal/session once it completes -- see portal.success.tsx's own
@@ -329,10 +328,6 @@ export function useGuestSignIn() {
             : t("errValidMobile")
           : t("errValidEmail"),
       );
-      return;
-    }
-    if (!termsAccepted) {
-      setOtpError(t("errAcceptTerms"));
       return;
     }
     setOtpError(null);
@@ -379,10 +374,6 @@ export function useGuestSignIn() {
   const onSignInPassword = () => {
     if (!identifier.trim() || !password) {
       setPasswordError(t("errPhoneEmailPassword"));
-      return;
-    }
-    if (!termsAccepted) {
-      setPasswordError(t("errAcceptTerms"));
       return;
     }
     if (previewMode) {
@@ -464,8 +455,6 @@ export function useGuestSignIn() {
     subtext,
     previewMode,
     requiresTermsLink,
-    termsAccepted,
-    setTermsAccepted,
     // method availability
     hasOtp,
     hasPassword,

@@ -1,5 +1,4 @@
 import { Link } from "@tanstack/react-router";
-import { Checkbox } from "@/components/ui/checkbox";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { AlertBanner, PG_PRIMARY_BTN } from "./PortalGuestUi";
 import { PhoneNumberFields, EmailField, OtpCodeInput } from "./AuthFields";
@@ -52,37 +51,26 @@ import type { UseGuestSignInReturn } from "./useGuestSignIn";
 export function OtpForm(sign: UseGuestSignInReturn) {
   const { t } = usePortalRuntime();
 
-  // captive-portal-v5-design-spec.md UX §4b: dropped the `rounded-xl
-  // bg-slate-50 p-3` wrapper -- a card-within-a-card inside the already-
-  // bounded PortalCard. The legal text is required; the dedicated
-  // background/padding/radius nested inside it wasn't, and reads as
-  // exactly the "boxes within boxes" bulk this section's brief calls out.
-  // Same legal text, same checkbox, materially less visual "boxiness."
-  const TermsCheckbox = (
-    // Shared terms-row recipe (redesign spec §3.3): token colors only --
-    // geometry and copy untouched (welcome-card internals are #108's
-    // shipped look; slate-600/13px was its documented a11y debt).
-    <label className="flex items-start gap-2.5 text-[13px] leading-snug text-[var(--pg-ink-muted)]">
-      <Checkbox
-        checked={sign.termsAccepted}
-        onCheckedChange={(v) => sign.setTermsAccepted(!!v)}
-        className="mt-0.5 border-[var(--pg-ink-faint)] data-[state=checked]:border-[var(--pr-primary,#6366f1)] data-[state=checked]:bg-[var(--pr-primary,#6366f1)]"
-      />
-      <span>
-        {t("agreeToThe")}{" "}
-        {sign.requiresTermsLink ? (
-          <Link
-            to="/portal/terms"
-            search={sign.portalSearch}
-            className="font-medium text-[var(--pr-primary,#6366f1)] underline underline-offset-2 hover:opacity-80"
-          >
-            {t("termsAcceptableUsePolicy")}
-          </Link>
-        ) : (
-          <span className="font-medium text-[var(--pg-ink)]">{t("termsAcceptableUsePolicy")}</span>
-        )}
-      </span>
-    </label>
+  // Consent is now implied by continuing -- no checkbox to tick, matching
+  // the reference design's "By clicking Continue, you agree to..." pattern.
+  // Same legal text/link as before (reused verbatim, not retranslated), now
+  // a plain non-interactive statement below the submit button rather than
+  // an opt-in row above it.
+  const TermsNotice = (
+    <p className="text-center text-[13px] leading-snug text-[var(--pg-ink-muted)]">
+      {t("agreeToThe")}{" "}
+      {sign.requiresTermsLink ? (
+        <Link
+          to="/portal/terms"
+          search={sign.portalSearch}
+          className="font-medium text-[var(--pr-primary,#6366f1)] underline underline-offset-2 hover:opacity-80"
+        >
+          {t("termsAcceptableUsePolicy")}
+        </Link>
+      ) : (
+        <span className="font-medium text-[var(--pg-ink)]">{t("termsAcceptableUsePolicy")}</span>
+      )}
+    </p>
   );
 
   const StepProgress = ({ n }: { n: 1 | 2 }) => (
@@ -137,11 +125,11 @@ export function OtpForm(sign: UseGuestSignInReturn) {
         ) : (
           <EmailField label={t("emailAddress")} email={sign.email} onEmailChange={sign.setEmail} />
         )}
-        {TermsCheckbox}
         <AlertBanner message={sign.otpError} />
         <button type="submit" disabled={sign.sendOtpPending} className={PG_PRIMARY_BTN}>
           {sign.sendOtpPending ? t("sendingLabel") : t("sendOtp")}
         </button>
+        {TermsNotice}
       </form>
     );
   }

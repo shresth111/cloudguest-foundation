@@ -110,6 +110,82 @@ function safeRemove(key: string): void {
   }
 }
 
+/** How long the runtime-ids cookie below lives. A guest's stay at a venue,
+ * not a browsing session: long enough to cover an evening at a cafe or a
+ * night in a hotel room, short enough that a device carried to a DIFFERENT
+ * venue cannot be told about the old one for days. Correctness does not
+ * actually depend on the length -- `persistRuntimeIds` overwrites all three
+ * IDs together the moment a real link supplies new ones -- so this is a
+ * cap on how stale a *last-resort* fallback can be, nothing more. */
+const RUNTIME_IDS_COOKIE_MAX_AGE_SECONDS = 12 * 60 * 60;
+
+/** THE SECOND CHANNEL, AND WHY THE FIRST ONE WAS NOT ENOUGH.
+ *
+ * `sessionStorage` above has two gaps that `IncompletePortalLinkError`
+ * (src/routes/portal.tsx) fell straight through, and a guest hits them
+ * AFTER a completely successful sign-in:
+ *
+ *  1. Inside iOS's Captive Network Assistant, Web Storage access THROWS,
+ *     so `persistRuntimeIds` never stored anything in the first place --
+ *     the fallback is empty in the single environment this portal most
+ *     often runs in. Same root cause as PR #121's false "your session has
+ *     expired" screen, one level up: there, the recovery was a live
+ *     MAC-keyed session lookup; here there is nothing to look up, because
+ *     without these three IDs this app does not know which venue it is.
+ *  2. `sessionStorage` is scoped to ONE TAB. An OS captive-portal re-probe
+ *     that reopens the portal in a fresh tab, or a guest returning via a
+ *     remembered/bare URL, starts with an empty store even on a browser
+ *     where storage works perfectly.
+ *
+ * A cookie closes both: it is not Web Storage (so the CNA's private-mode
+ * behaviour does not apply to it), and it is scoped to the origin rather
+ * than to the tab. It is only ever a FALLBACK -- a real NAS/QR link always
+ * carries the IDs on the URL, and the URL always wins (see
+ * `PortalRuntimeLayout`).
+ *
+ * Deliberately limited to these three IDs, not extended to `session` /
+ * `guestIdentifier`: those identify a PERSON (a verified phone/email) and
+ * have their own live-lookup recovery path; an organization/location/router
+ * UUID identifies a venue this device is standing in. `SameSite=Lax` and
+ * no `HttpOnly` (this is read by this same page's JS, never by the API),
+ * and `Secure` only when the page really is on https -- a local/dev http
+ * origin silently drops a `Secure` cookie, which would have made this
+ * fallback quietly untestable outside production. */
+function safeCookieGet(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  try {
+    const all = document.cookie;
+    if (!all) return null;
+    for (const part of all.split(";")) {
+      const eq = part.indexOf("=");
+      if (eq < 0) continue;
+      if (part.slice(0, eq).trim() !== name) continue;
+      return decodeURIComponent(part.slice(eq + 1).trim());
+    }
+    return null;
+  } catch {
+    // Cookies fully blocked, or a value that is not valid percent-encoding
+    // (`decodeURIComponent` throws on a stray `%`). Same contract as
+    // `safeGet`: degrade to "nothing was persisted", never to an exception
+    // on the guest path.
+    return null;
+  }
+}
+
+function safeCookieSet(name: string, value: string, maxAgeSeconds: number): void {
+  if (typeof document === "undefined") return;
+  try {
+    const secure =
+      typeof window !== "undefined" && window.location?.protocol === "https:" ? "; Secure" : "";
+    document.cookie =
+      `${name}=${encodeURIComponent(value)}; Max-Age=${maxAgeSeconds}` +
+      `; Path=/; SameSite=Lax${secure}`;
+  } catch {
+    // As above -- persistence here is an optimization, never a
+    // precondition.
+  }
+}
+
 /** The three IDs `src/routes/portal.tsx`'s search schema treats as required
  * (organizationId/locationId/routerId) -- see that file's own
  * `IncompletePortalLinkError` doc comment for the full "why". Unlike that
@@ -140,18 +216,43 @@ interface PersistedRuntimeIds {
   routerId: string;
 }
 
-function loadPersistedRuntimeIds(): PersistedRuntimeIds | undefined {
-  const raw = safeGet(RUNTIME_IDS_STORAGE_KEY);
+function parsePersistedRuntimeIds(raw: string | null): PersistedRuntimeIds | undefined {
   if (!raw) return undefined;
+  let parsed: unknown;
   try {
-    return JSON.parse(raw) as PersistedRuntimeIds;
+    parsed = JSON.parse(raw);
   } catch {
     return undefined;
   }
+  // All three or none. A partial value is worse than no value here: two
+  // real IDs and one missing renders the same "this link looks incomplete"
+  // screen as an empty URL, while *looking* like the fallback worked.
+  const ids = parsed as Partial<PersistedRuntimeIds> | null;
+  if (!ids || !ids.organizationId || !ids.locationId || !ids.routerId) return undefined;
+  return {
+    organizationId: ids.organizationId,
+    locationId: ids.locationId,
+    routerId: ids.routerId,
+  };
+}
+
+function loadPersistedRuntimeIds(): PersistedRuntimeIds | undefined {
+  // sessionStorage first purely because it is the tighter scope (this tab,
+  // this browsing session) and therefore the more recent of the two when
+  // both are readable; the cookie is what survives the two cases
+  // sessionStorage cannot -- see `safeCookieGet`'s docstring.
+  return (
+    parsePersistedRuntimeIds(safeGet(RUNTIME_IDS_STORAGE_KEY)) ??
+    parsePersistedRuntimeIds(safeCookieGet(RUNTIME_IDS_STORAGE_KEY))
+  );
 }
 
 function persistRuntimeIds(ids: PersistedRuntimeIds) {
-  safeSet(RUNTIME_IDS_STORAGE_KEY, JSON.stringify(ids));
+  const raw = JSON.stringify(ids);
+  // Both channels, unconditionally: neither can report whether the other
+  // worked, and on the browsers that matter most exactly one of them does.
+  safeSet(RUNTIME_IDS_STORAGE_KEY, raw);
+  safeCookieSet(RUNTIME_IDS_STORAGE_KEY, raw, RUNTIME_IDS_COOKIE_MAX_AGE_SECONDS);
 }
 
 function loadPersistedSession(): RuntimeSession | undefined {
@@ -271,8 +372,6 @@ interface PortalRuntimeState {
   setOtpTarget: (v?: string) => void;
   session?: RuntimeSession;
   setSession: (s?: RuntimeSession) => void;
-  termsAccepted: boolean;
-  setTermsAccepted: (v: boolean) => void;
   /** The real identifier (phone/email, normalized the same way the login
    * call itself sent it) this guest just proved ownership of via OTP/
    * password/voucher -- NOT the same thing as `session.guestId` (an
@@ -382,7 +481,6 @@ export function PortalRuntimeProvider({
   const [session, setSessionState] = useState<RuntimeSession | undefined>(() =>
     loadPersistedSession(),
   );
-  const [termsAccepted, setTermsAccepted] = useState(false);
   const [guestIdentifier, setGuestIdentifierState] = useState<string | undefined>(() =>
     loadPersistedIdentifier(),
   );
@@ -593,8 +691,6 @@ export function PortalRuntimeProvider({
       setOtpTarget,
       session,
       setSession,
-      termsAccepted,
-      setTermsAccepted,
       guestIdentifier,
       setGuestIdentifier,
     }),
@@ -618,7 +714,6 @@ export function PortalRuntimeProvider({
       otpTarget,
       session,
       setSession,
-      termsAccepted,
       guestIdentifier,
       setGuestIdentifier,
     ],
