@@ -1121,7 +1121,12 @@
   .pg-display { font-size: calc(3.125rem * var(--pg-type-scale, 1)); } /* 50px @ 16px root */
 }
 @utility pg-title {
-  font-size: calc(1.625rem * var(--pg-type-scale, 1)); /* 26px @ 16px root */
+  /* 26px -> 28px: a bolder, more confident headline weight, one step off
+     the type ramp (2.625rem/42px pg-display's own step down is 1.625rem;
+     1.75rem sits between it and pg-subtitle's 1.25rem/20px). Same weight,
+     tracking, and script-aware line-height overrides below -- units-only
+     change, not a new scale. */
+  font-size: calc(1.75rem * var(--pg-type-scale, 1)); /* 28px @ 16px root */
   line-height: 1.15;
   font-weight: 700;
   /* v7 Parts 2 & 3, brand alignment: was -0.015em. wyfyguest.com's hero h1

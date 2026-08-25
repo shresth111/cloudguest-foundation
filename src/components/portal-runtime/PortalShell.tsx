@@ -125,7 +125,29 @@ function BrandPanel({
     // captive-portal-v5-design-spec.md §3.1: brought in line with the
     // merged sign-in card's own `p-5` so the two read as one visual
     // family instead of two independently-tuned components.
-    return <div className={cn("max-w-lg p-5", GUEST_LEGIBILITY_CARD_CLASS)}>{content}</div>;
+    return (
+      <div className={cn("relative max-w-lg overflow-hidden p-5", GUEST_LEGIBILITY_CARD_CLASS)}>
+        {/* Purely decorative: two soft, slow-drifting color blobs clipped
+         * to this card's own rounded-[20px] boundary by the wrapper's
+         * `overflow-hidden` -- never bleeding onto the photo beside it,
+         * so this stays additive to the card and doesn't touch §0.1 item
+         * 1's "coverage area is the fixed quantity" rule. Same
+         * `aurora-blob-*` keyframes (styles.css) already used on the
+         * sign-in page, already reduced-motion-guarded there -- no new
+         * animation path to guard here. Tinted from the venue's own
+         * `--pr-primary` plus the portal's fixed brand accent, not a new
+         * color, and `aria-hidden` since it carries no information. */}
+        <div
+          aria-hidden
+          className="aurora-blob-1 pointer-events-none absolute -right-12 -top-16 h-72 w-72 rounded-full bg-[var(--pr-primary,#6366f1)]/25 blur-[60px]"
+        />
+        <div
+          aria-hidden
+          className="aurora-blob-2 pointer-events-none absolute -bottom-20 -left-8 h-64 w-64 rounded-full bg-[var(--pg-brand-accent)]/20 blur-[60px]"
+        />
+        <div className="relative">{content}</div>
+      </div>
+    );
   }
   return <div className="max-w-lg">{content}</div>;
 }
@@ -862,9 +884,17 @@ export function PortalCard({ children, className }: { children: ReactNode; class
         className,
       )}
       style={{
+        // Wider, softer ambient shadow than before (same hairline, larger
+        // blur/spread) -- reads as a card genuinely floating above the
+        // page rather than merely outlined, matching the ambient-shadow
+        // language already validated on the master console's own cards
+        // (styles.css's --shadow-soft/--shadow-glow). The strongEdge
+        // escalation (v7 §1.4 C3, for a bright/low-contrast photo) is
+        // untouched -- this only deepens both states' shadow, never their
+        // trigger condition.
         boxShadow: strongEdge
-          ? "0 1px 2px rgba(30,27,75,0.10), 0 12px 32px -10px rgba(30,27,75,0.45)"
-          : "0 1px 2px rgba(30,27,75,0.06), 0 8px 24px -12px rgba(30,27,75,0.18)",
+          ? "0 1px 2px rgba(30,27,75,0.10), 0 20px 48px -14px rgba(30,27,75,0.5)"
+          : "0 1px 2px rgba(30,27,75,0.06), 0 16px 40px -16px rgba(30,27,75,0.22)",
       }}
     >
       {children}
