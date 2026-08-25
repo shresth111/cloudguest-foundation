@@ -416,7 +416,7 @@ const DHCP_CLIENT_PRINT = `Flags: X - disabled, I - invalid, D - dynamic
 
 const WG_HOST_PRINT = `Flags: X - disabled, D - dynamic
  #   ACTION  SRC-ADDRESS  DST-HOST                 DST-PORT  PATH
- 0   allow                portal.wyfyguest.com`;
+ 0   allow                auth.wyfyguest.com`;
 
 const WG_IP_PRINT = `Flags: X - disabled, D - dynamic
  #   ACTION  SRC-ADDRESS  DST-ADDRESS      PROTOCOL  DST-PORT

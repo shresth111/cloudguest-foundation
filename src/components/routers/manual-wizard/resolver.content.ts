@@ -926,7 +926,7 @@ export const RESOLVER: ResolverEntry[] = [
               {
                 command: `/ip dns set servers=8.8.8.8,1.1.1.1 allow-remote-requests=yes
 :put ("servers=" . [:tostr [/ip dns get servers]])
-:local t ""; :do { :set t [:tostr [:resolve "portal.wyfyguest.com"]] } on-error={ :set t "" }; :put ("resolves-to=" . $t)`,
+:local t ""; :do { :set t [:tostr [:resolve "auth.wyfyguest.com"]] } on-error={ :set t "" }; :put ("resolves-to=" . $t)`,
                 note: "Sets two well-known public name servers and immediately tries a lookup, printing the answer. If the answer line is empty the change did not help and the problem is upstream of this router.",
                 destructive: false,
                 confidence: "field",

@@ -570,7 +570,7 @@ export const PROTECTED_TOKENS: Lit[] = [
   "none",
   // hostnames and addresses
   "wifi.wyfyguest.com",
-  "portal.wyfyguest.com",
+  "auth.wyfyguest.com",
   "hub.wyfyguest.com",
   "10.5.50.1",
   "10.20.0.1",

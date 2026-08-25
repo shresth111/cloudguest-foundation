@@ -1795,7 +1795,7 @@ const HOTSPOT_IDLE_TIMEOUT = "30m";
 
 /** The real, publicly-hosted guest portal's own domain -- a genuine GoDaddy
  * DNS A record pointing at this platform's cloud backend (confirmed live:
- * `dig portal.wyfyguest.com` resolves publicly, and the backend serves a
+ * `dig auth.wyfyguest.com` resolves publicly, and the backend serves a
  * real TLS cert for it, provisioned via the same nginx/certbot setup as
  * `app.wyfyguest.com`). This is what a guest's browser actually lands on
  * after the local `HOTSPOT_DNS_NAME` redirect page hands off -- see that
@@ -1811,7 +1811,7 @@ const HOTSPOT_IDLE_TIMEOUT = "30m";
  * Hardcoding the real, stable, guest-facing domain here means every
  * future-generated script points at the correct destination regardless of
  * whatever URL Master console happens to be served from that day. */
-export const GUEST_PORTAL_PUBLIC_BASE = "https://portal.wyfyguest.com";
+export const GUEST_PORTAL_PUBLIC_BASE = "https://auth.wyfyguest.com";
 
 /** The RouterOS interface name for this router's own WireGuard tunnel back
  * to its hub. **The backend owns this name; this constant only mirrors

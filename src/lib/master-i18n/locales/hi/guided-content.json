@@ -1067,16 +1067,16 @@
       "fallback": "walled-garden list पढ़ी नहीं जा सकी।",
       "rules": {
         "0": {
-          "why": "HTTP वाली list में portal.wyfyguest.com allow है।"
+          "why": "HTTP वाली list में auth.wyfyguest.com allow है।"
         },
         "1": {
-          "why": "portal.wyfyguest.com की entry तो है पर उसका action allow नहीं है।"
+          "why": "auth.wyfyguest.com की entry तो है पर उसका action allow नहीं है।"
         },
         "2": {
           "why": "HTTP वाली walled-garden list खाली है। दोनों list अलग चीज़ हैं -- ये वाली http के लिए चाहिए।"
         },
         "3": {
-          "why": "List में entries तो हैं पर portal.wyfyguest.com वाली नहीं है।"
+          "why": "List में entries तो हैं पर auth.wyfyguest.com वाली नहीं है।"
         }
       }
     },

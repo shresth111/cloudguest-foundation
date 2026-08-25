@@ -1067,16 +1067,16 @@
       "fallback": "The walled-garden list could not be read.",
       "rules": {
         "0": {
-          "why": "portal.wyfyguest.com is allowed in the HTTP list."
+          "why": "auth.wyfyguest.com is allowed in the HTTP list."
         },
         "1": {
-          "why": "There is an entry for portal.wyfyguest.com but its action is not allow."
+          "why": "There is an entry for auth.wyfyguest.com but its action is not allow."
         },
         "2": {
           "why": "The HTTP walled-garden list is empty. The two lists are different things -- this one is the one http needs."
         },
         "3": {
-          "why": "There are entries in the list but none for portal.wyfyguest.com."
+          "why": "There are entries in the list but none for auth.wyfyguest.com."
         }
       }
     },

@@ -274,7 +274,7 @@ export const PHASES: Phase[] = [
       {
         label: "Internet + DNS dono ek saath test karo",
         script: `:put "==== INTERNET GATE ===="
-:local pingOk false; :local dnsOk false; :if ([/ping 8.8.8.8 count=4] > 0) do={ :set pingOk true }; :do { :set dnsOk ([:len [:resolve "portal.wyfyguest.com"]] > 0) } on-error={ :set dnsOk false }; :put ("ping 8.8.8.8            : " . [:tostr $pingOk]); :put ("resolve portal.wyfy...  : " . [:tostr $dnsOk]); :put "===================="; :if (($pingOk) && ($dnsOk)) do={ :put "RESULT: PASS -- aage badho" } else={ :put "RESULT: FAIL -- niche wala fix chalao" }`,
+:local pingOk false; :local dnsOk false; :if ([/ping 8.8.8.8 count=4] > 0) do={ :set pingOk true }; :do { :set dnsOk ([:len [:resolve "auth.wyfyguest.com"]] > 0) } on-error={ :set dnsOk false }; :put ("ping 8.8.8.8            : " . [:tostr $pingOk]); :put ("resolve auth.wyfy...    : " . [:tostr $dnsOk]); :put "===================="; :if (($pingOk) && ($dnsOk)) do={ :put "RESULT: PASS -- aage badho" } else={ :put "RESULT: FAIL -- niche wala fix chalao" }`,
       },
     ],
     checks: [
@@ -426,7 +426,7 @@ export const PHASES: Phase[] = [
       {
         label: "Walled garden — dono list set karo (ye khud FAIL bolega)",
         script: `:put "==== WALLED GARDEN ===="
-:local host "portal.wyfyguest.com"; :local pip ""; :do { :set pip [:resolve $host] } on-error={ :put "resolve fail hua" }; :put ("resolved     : " . $pip); :if ($pip != "") do={ :if ([:len [/ip hotspot walled-garden find where comment="cloudguest-portal"]] = 0) do={ /ip hotspot walled-garden add dst-host=$host action=allow comment="cloudguest-portal" }; :local e [/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"]; :if ([:len $e] = 0) do={ /ip hotspot walled-garden ip add action=accept dst-address=$pip comment="cloudguest-portal-https" } else={ /ip hotspot walled-garden ip set $e dst-address=$pip } }; :put "===================="; :if ($pip != "") do={ :put "RESULT: PASS -- dono list set ho gayi" } else={ :put "RESULT: FAIL -- DNS ne portal ka IP nahi diya, kuch set nahi hua" }`,
+:local host "auth.wyfyguest.com"; :local pip ""; :do { :set pip [:resolve $host] } on-error={ :put "resolve fail hua" }; :put ("resolved     : " . $pip); :if ($pip != "") do={ :if ([:len [/ip hotspot walled-garden find where comment="cloudguest-portal"]] = 0) do={ /ip hotspot walled-garden add dst-host=$host action=allow comment="cloudguest-portal" }; :local e [/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"]; :if ([:len $e] = 0) do={ /ip hotspot walled-garden ip add action=accept dst-address=$pip comment="cloudguest-portal-https" } else={ /ip hotspot walled-garden ip set $e dst-address=$pip } }; :put "===================="; :if ($pip != "") do={ :put "RESULT: PASS -- dono list set ho gayi" } else={ :put "RESULT: FAIL -- DNS ne portal ka IP nahi diya, kuch set nahi hua" }`,
       },
       {
         label: "Portal files kahan hain aur sahi hain?",
@@ -457,12 +457,12 @@ export const PHASES: Phase[] = [
         id: "wg-host",
         label: "HTTP wali list bhi set hai",
         command: "/ip hotspot walled-garden print",
-        expect: "dst-host=portal.wyfyguest.com, action=allow",
+        expect: "dst-host=auth.wyfyguest.com, action=allow",
         failFix: [
           {
             when: "khaali hai",
             command:
-              '/ip hotspot walled-garden add dst-host=portal.wyfyguest.com action=allow comment="cloudguest-portal"',
+              '/ip hotspot walled-garden add dst-host=auth.wyfyguest.com action=allow comment="cloudguest-portal"',
             note: "Dono list alag alag cheez hain — HTTP wali sirf http ke liye, IP wali https ke liye. Dono chahiye.",
           },
         ],

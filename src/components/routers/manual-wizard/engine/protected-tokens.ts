@@ -118,7 +118,7 @@ export const TOKEN_TIERS: Record<Lit, TokenTier> = {
 
   // --- hostnames and addresses ------------------------------------------
   "wifi.wyfyguest.com": "literal",
-  "portal.wyfyguest.com": "literal",
+  "auth.wyfyguest.com": "literal",
   "hub.wyfyguest.com": "literal",
   "10.5.50.1": "literal",
   "10.20.0.1": "literal",

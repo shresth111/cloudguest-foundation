@@ -58,7 +58,7 @@ import type { OutputAssertion } from "./analyse";
  * resolving `portal.wyfyguest.com`.
  */
 const PORTAL_IP = "40.80.86.193";
-const PORTAL_HOST = "portal.wyfyguest.com";
+const PORTAL_HOST = "auth.wyfyguest.com";
 /** The WireGuard tunnel subnet the RADIUS server must be reachable on. */
 const TUNNEL_SUBNET = "10.20.0.0/24";
 

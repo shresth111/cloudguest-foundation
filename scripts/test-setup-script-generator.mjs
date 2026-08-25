@@ -747,7 +747,7 @@ const WG = {
 };
 
 const PORTAL = {
-  frontendBase: "https://portal.wyfyguest.com",
+  frontendBase: "https://auth.wyfyguest.com",
   organizationId: "org-1",
   locationId: "loc-1",
   routerId: "rtr-1",
@@ -5765,7 +5765,7 @@ for (const [what, statement] of WRONG_FIXES) {
 check(
   "...and does NOT fire on the real portal's own walled-garden entry",
   !allowsDetectionHost(
-    `/ip hotspot walled-garden add dst-host="portal.wyfyguest.com" action=allow comment="cloudguest-portal"`,
+    `/ip hotspot walled-garden add dst-host="auth.wyfyguest.com" action=allow comment="cloudguest-portal"`,
   ),
   "the guard bans the entry that lets guests reach the portal at all",
 );
@@ -5802,7 +5802,7 @@ check(
 {
   const MIXED_LINE =
     `:local cdWg [:len [/ip hotspot walled-garden find where dst-host~"(msftconnecttest|gstatic)"]]; ` +
-    `/ip hotspot walled-garden add dst-host="portal.wyfyguest.com" action=allow comment="cloudguest-portal"`;
+    `/ip hotspot walled-garden add dst-host="auth.wyfyguest.com" action=allow comment="cloudguest-portal"`;
   check(
     "...and the guard is STATEMENT-scoped: a read of probe hosts `;`-joined to a legitimate add is clean",
     statementsOf(MIXED_LINE).every((s) => !allowsDetectionHost(s)),
@@ -5832,7 +5832,7 @@ for (const [label, script] of pasteables) {
   const names = [...script.matchAll(/dns-name="([^"]*)"/g)].map((m) => m[1]);
   check(
     `${label}: the hotspot's local dns-name is never the public portal domain`,
-    names.every((n) => n !== "portal.wyfyguest.com"),
+    names.every((n) => n !== "auth.wyfyguest.com"),
     `${JSON.stringify(names)} -- RouterOS answers this name with the router's own LAN IP for ` +
       "every connected guest, so the real portal would become unreachable and sign-in would " +
       "loop back to the on-router redirect page",

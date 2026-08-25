@@ -894,7 +894,7 @@ export const STEPS_PART2: ManualStep[] = [
 :local dyn ""; :do { :set dyn [:tostr [/ip dns get dynamic-servers]] } on-error={ :set dyn "" }; :put ("dynamic-servers=" . $dyn)
 :put ("allow-remote-requests=" . [:tostr [/ip dns get allow-remote-requests]])
 :put ("cache-size=" . [:tostr [/ip dns get cache-size]])
-:local pip ""; :do { :set pip [:tostr [:resolve "portal.wyfyguest.com"]] } on-error={ :set pip "" }; :put ("portal-ip=" . $pip)
+:local pip ""; :do { :set pip [:tostr [:resolve "auth.wyfyguest.com"]] } on-error={ :set pip "" }; :put ("portal-ip=" . $pip)
 :local hip ""; :do { :set hip [:tostr [:resolve "hub.wyfyguest.com"]] } on-error={ :set hip "" }; :put ("hub-ip=" . $hip)
 :put ("wan-list-count=" . [:tostr [:len [/interface list find where name="WAN"]]])
 :put ("wan-list-members=" . [:tostr [:len [/interface list member find where list="WAN"]]])
@@ -1162,9 +1162,9 @@ export const STEPS_PART2: ManualStep[] = [
 :put "WYFY-BEGIN step05"
 :put ("ping-8888=" . [:tostr [/ping 8.8.8.8 count=4]])
 :put ("ping-1111=" . [:tostr [/ping 1.1.1.1 count=4]])
-:local pip ""; :do { :set pip [:tostr [:resolve "portal.wyfyguest.com"]] } on-error={ :set pip "" }; :put ("portal-ip=" . $pip); :if ($pip != "") do={ :put ("ping-portal=" . [:tostr [/ping $pip count=4]]) }
+:local pip ""; :do { :set pip [:tostr [:resolve "auth.wyfyguest.com"]] } on-error={ :set pip "" }; :put ("portal-ip=" . $pip); :if ($pip != "") do={ :put ("ping-portal=" . [:tostr [/ping $pip count=4]]) }
 :foreach f in=[/file find where name="wyfy-https-probe.tmp"] do={ /file remove $f }
-:do { /tool fetch url="https://portal.wyfyguest.com/" dst-path="wyfy-https-probe.tmp" } on-error={ :put "fetch-threw=yes" }
+:do { /tool fetch url="https://auth.wyfyguest.com/" dst-path="wyfy-https-probe.tmp" } on-error={ :put "fetch-threw=yes" }
 :put ("https-file-count=" . [:tostr [:len [/file find where name="wyfy-https-probe.tmp"]]])
 :foreach f in=[/file find where name="wyfy-https-probe.tmp"] do={ :put ("https-bytes=" . [:tostr [/file get $f size]]) }
 :foreach f in=[/file find where name="wyfy-https-probe.tmp"] do={ /file remove $f }

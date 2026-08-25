@@ -21,7 +21,7 @@
  *   name="bridge"`; confirm on any box with `/interface bridge print`),
  *   router LAN IP `10.5.50.1`, guest pool
  *   `10.5.50.10-10.5.50.254`, hotspot profile `hsprof1`, hotspot dns-name
- *   `wifi.wyfyguest.com`, portal `portal.wyfyguest.com`, WireGuard
+ *   `wifi.wyfyguest.com`, portal `auth.wyfyguest.com`, WireGuard
  *   interface `wg-cloudguest`, hub tunnel IP `10.20.0.1`, hub endpoint
  *   `20.219.72.235:51820`.
  */
@@ -203,7 +203,7 @@ export const SYMPTOMS: Symptom[] = [
         tell: "`servers:` line khaali hai (kuch bhi nahi likha uske aage).",
         cause:
           "Router ke paas koi upstream resolver hai hi nahi. Hamara DHCP client `use-peer-dns=no` ke saath chalta hai (jaan-boojh kar), isliye ISP ke DNS apne aap kabhi nahi aate -- aur DHCP server guests ko `10.5.50.1` yaani router khud deta hai. Router kuch resolve nahi kar sakta, to guest bhi kuch resolve nahi kar sakta.",
-        fix: '/ip dns set servers=8.8.8.8,1.1.1.1 allow-remote-requests=yes\n/ip dns cache flush\n:put [:resolve "portal.wyfyguest.com"]',
+        fix: '/ip dns set servers=8.8.8.8,1.1.1.1 allow-remote-requests=yes\n/ip dns cache flush\n:put [:resolve "auth.wyfyguest.com"]',
         note: "Yeh poore setup ka sabse zyada dohraaya jaane wala failure hai. `allow-remote-requests=yes` zaroori hai warna guests router se poochh hi nahi paayenge. Fix ke baad `walled-garden-https-entry-missing` bhi zaroor check karo -- kharab DNS ne shayad wahan bhi entry nahi banne di.",
       },
       {
@@ -238,14 +238,14 @@ export const SYMPTOMS: Symptom[] = [
         tell: '`comment="cloudguest-portal-https"` wali koi line hai hi nahi.',
         cause:
           "Yeh entry paste ke waqt on-device `:resolve` se banti hai, aur uska `on-error` sirf log me warning likhta hai. Matlab paste ke waqt DNS kharab tha -> entry bani hi nahi, koi error dikha hi nahi. HTTPS portal ke liye guest ke paas koi raasta nahi bachta.",
-        fix: '/ip dns set servers=8.8.8.8,1.1.1.1 allow-remote-requests=yes\n:global portalIp [:resolve "portal.wyfyguest.com"]\n/ip hotspot walled-garden ip add action=accept dst-address=$portalIp comment="cloudguest-portal-https"\n/ip hotspot walled-garden ip print detail',
+        fix: '/ip dns set servers=8.8.8.8,1.1.1.1 allow-remote-requests=yes\n:global portalIp [:resolve "auth.wyfyguest.com"]\n/ip hotspot walled-garden ip add action=accept dst-address=$portalIp comment="cloudguest-portal-https"\n/ip hotspot walled-garden ip print detail',
         note: 'Yeh EK failure poore guest portal ko pahunch se bahar kar deta hai, aur router par aur sab kuch "green" dikhta hai. Pehle DNS theek karo, phir yeh chalao -- ulta karoge to entry phir nahi banegi. Ya Walled Garden chunk dobara paste kar do, ab woh khud resolve kar lega.',
       },
       {
         tell: '`comment="cloudguest-portal-https"` hai par `dst-address=` me purani/galat IP hai.',
         cause:
           "Portal ka IP badal gaya hai (host ya CDN move hua) aur device par purani IP pinned hai.",
-        fix: ':global portalIp [:resolve "portal.wyfyguest.com"]\n/ip hotspot walled-garden ip set [find comment="cloudguest-portal-https"] dst-address=$portalIp',
+        fix: ':global portalIp [:resolve "auth.wyfyguest.com"]\n/ip hotspot walled-garden ip set [find comment="cloudguest-portal-https"] dst-address=$portalIp',
         note: "Walled Garden chunk dobara paste karne se bhi yeh update ho jaata hai -- woh add-if-missing nahi, set-if-present hai. Confirm karo ki nayi IP `:resolve` wali IP se match karti hai.",
       },
       {
@@ -260,13 +260,13 @@ export const SYMPTOMS: Symptom[] = [
     id: "portal-never-loads",
     seen: "Guest WiFi se juda hai par portal page bilkul nahi aata -- na login page, na error, bas spinner ya timeout.",
     surface: "phone",
-    probe: '/tool fetch url="https://portal.wyfyguest.com" mode=https output=none',
+    probe: '/tool fetch url="https://auth.wyfyguest.com" mode=https output=none',
     causes: [
       {
         tell: "`status: finished` / `downloaded: ...KiB` -- router khud portal tak pahunch gaya.",
         cause:
           "Router ka WAN aur DNS dono theek hain. Matlab guest ka raasta band hai -- walled-garden ki HTTPS entry missing hai.",
-        fix: '/ip hotspot walled-garden ip print detail\n# `cloudguest-portal-https` dhoondo; nahi mile to:\n:global portalIp [:resolve "portal.wyfyguest.com"]\n/ip hotspot walled-garden ip add action=accept dst-address=$portalIp comment="cloudguest-portal-https"',
+        fix: '/ip hotspot walled-garden ip print detail\n# `cloudguest-portal-https` dhoondo; nahi mile to:\n:global portalIp [:resolve "auth.wyfyguest.com"]\n/ip hotspot walled-garden ip add action=accept dst-address=$portalIp comment="cloudguest-portal-https"',
         note: "Yeh sabse zyada time khaane wala lookalike hai -- router se sab kaam karta hai, guest ke liye kuch nahi. Poori detail `walled-garden-https-entry-missing` me hai.",
       },
       {

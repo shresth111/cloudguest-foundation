@@ -355,7 +355,7 @@ export const STEPS_PART5: ManualStep[] = [
       {
         label:
           "Let guests reach the portal before they log in. Both lists are needed — one covers plain traffic, the other encrypted.",
-        script: `:local pip ""; :do { :set pip [:tostr [:resolve "portal.wyfyguest.com"]] } on-error={ :set pip "" }; :put ("portal-ip=" . $pip); :local h [/ip hotspot walled-garden find where comment="cloudguest-portal"]; :if ([:len $h] = 0) do={ /ip hotspot walled-garden add dst-host="portal.wyfyguest.com" action=allow comment="cloudguest-portal" }; :local i [/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"]; :if ($pip != "" && [:len $i] = 0) do={ /ip hotspot walled-garden ip add action=accept dst-address=$pip comment="cloudguest-portal-https" }; :if ($pip != "" && [:len $i] > 0) do={ /ip hotspot walled-garden ip set $i dst-address=$pip }
+        script: `:local pip ""; :do { :set pip [:tostr [:resolve "auth.wyfyguest.com"]] } on-error={ :set pip "" }; :put ("portal-ip=" . $pip); :local h [/ip hotspot walled-garden find where comment="cloudguest-portal"]; :if ([:len $h] = 0) do={ /ip hotspot walled-garden add dst-host="auth.wyfyguest.com" action=allow comment="cloudguest-portal" }; :local i [/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"]; :if ($pip != "" && [:len $i] = 0) do={ /ip hotspot walled-garden ip add action=accept dst-address=$pip comment="cloudguest-portal-https" }; :if ($pip != "" && [:len $i] > 0) do={ /ip hotspot walled-garden ip set $i dst-address=$pip }
 :put ("host-list-count=" . [:tostr [:len [/ip hotspot walled-garden find where comment="cloudguest-portal"]]])
 :put ("ip-list-count=" . [:tostr [:len [/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"]]])`,
         oncePerRouter: false,
@@ -376,11 +376,11 @@ export const STEPS_PART5: ManualStep[] = [
 :put ("plain-prefix-count=" . [:tostr [:len [/file find where name="hotspot/login.html"]]])
 :put ("login-file-count=" . [:tostr [:len [/file find where name~"login.html"]]])
 :foreach f in=[/file find where name~"login.html"] do={ :put ("login-file=" . [/file get $f name] . ";size=" . [:tostr [/file get $f size]]) }
-:local lc ""; :do { :set lc [:tostr [/file get [find where name~"login.html"] contents]] } on-error={ :set lc "" }; :put ("login-has-portal-url=" . [:tostr ([:typeof [:find $lc "portal.wyfyguest.com"]] != "nothing")]); :put ("login-has-link-token=" . [:tostr ([:typeof [:find $lc "link-login-only"]] != "nothing")])
+:local lc ""; :do { :set lc [:tostr [/file get [find where name~"login.html"] contents]] } on-error={ :set lc "" }; :put ("login-has-portal-url=" . [:tostr ([:typeof [:find $lc "auth.wyfyguest.com"]] != "nothing")]); :put ("login-has-link-token=" . [:tostr ([:typeof [:find $lc "link-login-only"]] != "nothing")])
 :put ("wg-host-count=" . [:tostr [:len [/ip hotspot walled-garden find where comment="cloudguest-portal"]]])
 :put ("wg-ip-count=" . [:tostr [:len [/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"]]])
 :foreach w in=[/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"] do={ :put ("wg-ip=" . [:tostr [/ip hotspot walled-garden ip get $w dst-address]]) }
-:local pip ""; :do { :set pip [:tostr [:resolve "portal.wyfyguest.com"]] } on-error={ :set pip "" }; :put ("portal-resolves-to=" . $pip)
+:local pip ""; :do { :set pip [:tostr [:resolve "auth.wyfyguest.com"]] } on-error={ :set pip "" }; :put ("portal-resolves-to=" . $pip)
 :put ("hotspot-dns-static-count=" . [:tostr [:len [/ip dns static find where name="wifi.wyfyguest.com"]]])
 :put "WYFY-END step16"
 :put "===================="`,
@@ -741,7 +741,7 @@ export const STEPS_PART5: ManualStep[] = [
         lookFor: "Whether any row exists. An empty listing here is the fault.",
         fix: [
           {
-            command: `:local pip ""; :do { :set pip [:tostr [:resolve "portal.wyfyguest.com"]] } on-error={ :set pip "" }; :put ("portal-ip=" . $pip); :local i [/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"]; :put ("existing-count=" . [:tostr [:len $i]]); :if ($pip != "" && [:len $i] = 0) do={ /ip hotspot walled-garden ip add action=accept dst-address=$pip comment="cloudguest-portal-https" }; :if ($pip != "" && [:len $i] > 0) do={ /ip hotspot walled-garden ip set $i dst-address=$pip }
+            command: `:local pip ""; :do { :set pip [:tostr [:resolve "auth.wyfyguest.com"]] } on-error={ :set pip "" }; :put ("portal-ip=" . $pip); :local i [/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"]; :put ("existing-count=" . [:tostr [:len $i]]); :if ($pip != "" && [:len $i] = 0) do={ /ip hotspot walled-garden ip add action=accept dst-address=$pip comment="cloudguest-portal-https" }; :if ($pip != "" && [:len $i] > 0) do={ /ip hotspot walled-garden ip set $i dst-address=$pip }
 :put ("after-count=" . [:tostr [:len [/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"]]])`,
             note: "Looks the portal up and allows its address through. It prints the address it resolved first — if that line is empty, name lookup is broken and nothing was written, so fix step 4 before trying again.",
             destructive: false,
@@ -772,7 +772,7 @@ export const STEPS_PART5: ManualStep[] = [
           "The address allowed through is not the address the portal resolves to now. The portal moved and this router was never updated. Guests cannot open the portal, and the configuration looks complete.",
         fix: [
           {
-            command: `:local pip ""; :do { :set pip [:tostr [:resolve "portal.wyfyguest.com"]] } on-error={ :set pip "" }; :put ("portal-ip=" . $pip); :local i [/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"]; :put ("matching-count=" . [:tostr [:len $i]]); :if ($pip != "" && [:len $i] > 0) do={ /ip hotspot walled-garden ip set $i dst-address=$pip }
+            command: `:local pip ""; :do { :set pip [:tostr [:resolve "auth.wyfyguest.com"]] } on-error={ :set pip "" }; :put ("portal-ip=" . $pip); :local i [/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"]; :put ("matching-count=" . [:tostr [:len $i]]); :if ($pip != "" && [:len $i] > 0) do={ /ip hotspot walled-garden ip set $i dst-address=$pip }
 :put ("after=" . [:tostr [/ip hotspot walled-garden ip get [find where comment="cloudguest-portal-https"] dst-address]])`,
             note: "Updates the existing entry rather than adding a second one, and prints the value afterwards.",
             destructive: false,
@@ -789,7 +789,7 @@ export const STEPS_PART5: ManualStep[] = [
           "The plain-traffic entry is missing. The encrypted one covers most real traffic, so guests will usually still get through, but some devices' own connectivity checks use plain traffic and will report no internet.",
         fix: [
           {
-            command: `:local h [/ip hotspot walled-garden find where comment="cloudguest-portal"]; :put ("existing-count=" . [:tostr [:len $h]]); :if ([:len $h] = 0) do={ /ip hotspot walled-garden add dst-host="portal.wyfyguest.com" action=allow comment="cloudguest-portal" }
+            command: `:local h [/ip hotspot walled-garden find where comment="cloudguest-portal"]; :put ("existing-count=" . [:tostr [:len $h]]); :if ([:len $h] = 0) do={ /ip hotspot walled-garden add dst-host="auth.wyfyguest.com" action=allow comment="cloudguest-portal" }
 :put ("after-count=" . [:tostr [:len [/ip hotspot walled-garden find where comment="cloudguest-portal"]]])`,
             note: "Adds the plain-traffic entry. The two lists are separate mechanisms and both are needed.",
             destructive: false,

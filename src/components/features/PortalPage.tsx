@@ -931,7 +931,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
               >
                 <QrCode className="h-16 w-16" style={{ color: primary }} />
               </div>
-              <p className="text-xs text-muted-foreground">portal.wyfyguest.com</p>
+              <p className="text-xs text-muted-foreground">auth.wyfyguest.com</p>
               <Button
                 variant="outline"
                 size="sm"

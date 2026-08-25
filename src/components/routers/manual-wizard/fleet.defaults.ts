@@ -59,7 +59,7 @@ export const FLEET_DEFAULTS = {
   hotspotDnsName: "wifi.wyfyguest.com" as Lit,
   hotspotHtmlDirectory: "hotspot" as Lit,
 
-  portalHost: "portal.wyfyguest.com" as Lit,
+  portalHost: "auth.wyfyguest.com" as Lit,
   /** Expected A record for `portalHost`. A different answer is a WARNING
    * (ISP DNS hijack, or the portal genuinely moved), never a silent PASS.
    *
@@ -67,10 +67,10 @@ export const FLEET_DEFAULTS = {
    * deallocated during the 2026-08-21/22 migration and no longer answers. The
    * stale value made this check fire a WARNING on a perfectly healthy router
    * and send the operator hunting an ISP hijack that was not happening.
-   * `portal.`, `app.` and `master.wyfyguest.com` all resolve here — one VM,
-   * three names — so this address moves whenever the app VM moves. */
+   * `auth.`, `portal.`, `app.` and `master.wyfyguest.com` all resolve here —
+   * one VM, four names — so this address moves whenever the app VM moves. */
   portalIp: "40.80.86.193" as Lit,
-  portalBase: "https://portal.wyfyguest.com" as Lit,
+  portalBase: "https://auth.wyfyguest.com" as Lit,
 
   /** WireGuard interface name emitted by the FRONTEND generator. */
   wgInterface: "wg-cloudguest" as Lit,
