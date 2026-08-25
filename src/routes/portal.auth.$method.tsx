@@ -9,6 +9,7 @@ import {
   PortalTextPlate,
 } from "@/components/portal-runtime/PortalShell";
 import { PortalDefaultBrandBadge } from "@/components/portal-runtime/PortalDefaultBrandBadge";
+import { VenueLogo } from "@/components/portal-runtime/VenueLogo";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { scriptClassOf } from "@/lib/portal-script";
 import { otherAuthMethods } from "@/lib/portal-auth-methods";
@@ -191,14 +192,7 @@ function AuthMethodPage() {
         <div className="mx-auto flex w-fit max-w-full flex-col items-center text-center">
           <PortalTextPlate className="flex flex-col items-center">
             {config?.logoUrl ? (
-              <img
-                src={config.logoUrl}
-                alt=""
-                // Height-constrained, width free -- see GuestSignInCard.tsx's
-                // full note on why a fixed-width box silently shrinks every
-                // horizontal venue lockup.
-                className="h-16 w-auto max-w-[200px] object-contain drop-shadow sm:h-20 sm:max-w-[240px] md:h-24 md:max-w-[280px]"
-              />
+              <VenueLogo logoUrl={config.logoUrl} size="md" />
             ) : (
               // The real Wyfy Guest mark, not the retired lucide-Wifi
               // gradient badge -- same default-brand treatment #108 gave

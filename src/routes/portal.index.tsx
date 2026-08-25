@@ -6,6 +6,7 @@ import { RefreshCw, Wifi } from "lucide-react";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { PortalShell, PortalTextPlate } from "@/components/portal-runtime/PortalShell";
 import { PortalConnectingState } from "@/components/portal-runtime/PortalGuestUi";
+import { VenueLogo } from "@/components/portal-runtime/VenueLogo";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
 import { buildSessionUrl } from "@/lib/portal-session-url";
 
@@ -320,16 +321,7 @@ function PortalLoading() {
        * per-dot `animate={{opacity:[...]}}` loop. */}
       <div className="flex flex-1 flex-col items-center justify-center gap-6 text-center">
         {config?.logoUrl ? (
-          <img
-            src={config.logoUrl}
-            alt={config.name}
-            // Height-constrained, width free -- see GuestSignInCard.tsx's
-            // full note. A fixed `w-24` box rendered a 5:1 venue lockup at
-            // 96 x 19 CSS px; this is the same one-class fix at the same
-            // defect, and it is here rather than only on the sign-in card
-            // because a guest sees this screen first.
-            className="h-24 w-auto max-w-[280px] object-contain drop-shadow-lg sm:h-32 sm:max-w-[320px] md:h-36 md:max-w-[360px]"
-          />
+          <VenueLogo logoUrl={config.logoUrl} alt={config.name} size="lg" />
         ) : (
           // Flat single-color fill in the venue's own --pr-primary, not a
           // --pr-primary/--pr-accent gradient -- same reasoning as
