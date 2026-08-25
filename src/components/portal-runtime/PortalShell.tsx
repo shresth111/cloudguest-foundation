@@ -879,7 +879,7 @@ export function PortalCard({ children, className }: { children: ReactNode; class
   return (
     <div
       className={cn(
-        "pg-surface-card rounded-[20px] border bg-[var(--pg-surface)] p-5",
+        "pg-surface-card rounded-[20px] border bg-[var(--pg-surface)] p-4",
         strongEdge ? "border-[#64748B]" : "border-[var(--pg-border)]",
         className,
       )}

@@ -46,7 +46,7 @@ export function GuestSignInCard() {
   const sign = useGuestSignIn();
 
   return (
-    <div className="flex flex-1 flex-col gap-4">
+    <div className="flex flex-1 flex-col gap-3">
       <PortalCard className="relative">
         <ConnectingOverlay
           active={sign.isSigningIn}
@@ -176,7 +176,7 @@ export function GuestSignInCard() {
           </p>
         ) : (
           <>
-            <div className="mt-4">
+            <div className="mt-3.5">
               <AuthTabSwitcher {...sign} />
             </div>
 
