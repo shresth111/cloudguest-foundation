@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
-import { AlertBanner, PG_INPUT, PG_PRIMARY_BTN } from "./PortalGuestUi";
+import { AlertBanner, PG_INPUT, PG_PRIMARY_BTN, SecurityTip } from "./PortalGuestUi";
 import { PG_FIELD_LABEL } from "./AuthFields";
 import type { UseGuestSignInReturn } from "./useGuestSignIn";
 
@@ -95,6 +95,7 @@ export function PasswordSignInForm(sign: UseGuestSignInReturn) {
           {t("forgotUseOtp")}
         </button>
       )}
+      <SecurityTip />
     </div>
   );
 }

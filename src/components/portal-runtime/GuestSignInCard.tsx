@@ -53,7 +53,14 @@ export function GuestSignInCard() {
           label={sign.verifyOtpPending ? t("verifyingCode") : t("signingIn")}
         />
 
-        <div className="flex flex-col items-center text-center">
+        {/* A distinct logo "header zone" -- its own vertical rhythm and a
+         * full-bleed hairline separating it from the form below, rather
+         * than the mark sharing the same flow/padding as the heading and
+         * fields. Negative margins cancel PortalCard's own `p-4` for just
+         * this zone so the divider spans the card's true edge-to-edge
+         * width, then restore comparable side padding so the logo itself
+         * isn't flush against the corners. */}
+        <div className="-mx-4 -mt-4 mb-4 border-b border-[var(--pg-border)] px-4 pb-4 pt-5 text-center">
           {/* Real per-location logo always wins when configured -- keeps
            * rendering as a plain `<img>` exactly as before, since an
            * arbitrary uploaded logo has its own aspect ratio/colors that
@@ -73,6 +80,8 @@ export function GuestSignInCard() {
               className="h-12 w-12 sm:h-14 sm:w-14 md:h-16 md:w-16"
             />
           )}
+        </div>
+        <div className="flex flex-col items-center text-center">
           {/* v7 Part 2. The courtesy line, demoted out of the headline --
            * see `useGuestSignIn`'s own comment for the two variants this
            * slot carries and why `splashHeadline` no longer deletes the

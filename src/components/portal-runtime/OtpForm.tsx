@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
-import { AlertBanner, PG_PRIMARY_BTN } from "./PortalGuestUi";
+import { AlertBanner, PG_PRIMARY_BTN, SecurityTip } from "./PortalGuestUi";
 import { PhoneNumberFields, EmailField, OtpCodeInput } from "./AuthFields";
 import type { UseGuestSignInReturn } from "./useGuestSignIn";
 
@@ -130,6 +130,7 @@ export function OtpForm(sign: UseGuestSignInReturn) {
           {sign.sendOtpPending ? t("sendingLabel") : t("sendOtp")}
         </button>
         {TermsNotice}
+        <SecurityTip />
       </form>
     );
   }
@@ -191,6 +192,7 @@ export function OtpForm(sign: UseGuestSignInReturn) {
           {t("changeNumberLabel")}
         </button>
       </div>
+      <SecurityTip />
     </form>
   );
 }

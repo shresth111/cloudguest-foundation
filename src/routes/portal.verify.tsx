@@ -10,7 +10,11 @@ import {
   GUEST_LEGIBILITY_CARD_CLASS,
   PortalTextPlate,
 } from "@/components/portal-runtime/PortalShell";
-import { AlertBanner, PG_PRIMARY_BTN } from "@/components/portal-runtime/PortalGuestUi";
+import {
+  AlertBanner,
+  PG_PRIMARY_BTN,
+  SecurityTip,
+} from "@/components/portal-runtime/PortalGuestUi";
 import { OtpCodeInput } from "@/components/portal-runtime/AuthFields";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { scriptClassOf } from "@/lib/portal-script";
@@ -247,6 +251,7 @@ function VerifyPage() {
                 </button>
               )}
             </div>
+            <SecurityTip />
           </form>
         </PortalCard>
       </div>

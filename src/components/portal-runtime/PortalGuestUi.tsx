@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Loader2, ShieldAlert } from "lucide-react";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 
 /**
@@ -41,6 +41,29 @@ export function AlertBanner({ message }: { message?: string | null }) {
     >
       <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
       <span>{message}</span>
+    </div>
+  );
+}
+
+/**
+ * A short safety reminder shown once per sign-in screen (phone/email entry,
+ * OTP code entry, password entry) -- a real, original security tip about
+ * this platform's own auth methods (never a fixed color/venue concern),
+ * not fixed marketing copy. Sits below the primary action, separated by a
+ * hairline the same way the terms notice already is, echoing a reference
+ * competitor design's "Caution!" placement without copying its wording.
+ * Amber/warning tone is semantic (matches this app's own warning color
+ * elsewhere) rather than tied to venue or Wyfy brand color, the same
+ * reasoning `AlertBanner`'s fixed red already follows.
+ */
+export function SecurityTip() {
+  const { t } = usePortalRuntime();
+  return (
+    <div className="mt-1 border-t border-[var(--pg-border)] pt-3 text-center">
+      <p className="flex items-center justify-center gap-1.5 pg-meta font-semibold text-amber-700">
+        <ShieldAlert className="h-3.5 w-3.5" /> {t("securityTipLabel")}
+      </p>
+      <p className="mt-1 pg-meta text-[var(--pg-ink-muted)]">{t("securityTipBody")}</p>
     </div>
   );
 }
