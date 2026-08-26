@@ -103,10 +103,16 @@ export function OtpForm(sign: UseGuestSignInReturn) {
     // v7 §8.2: "show progress honestly". Two steps, named as two steps --
     // not a progress bar, which would have to invent a completion
     // percentage for a flow whose second step is bounded by how fast an
-    // SMS arrives.
-    <p className="pg-meta text-[var(--pg-ink-muted,#475569)]">
+    // SMS arrives. A small pill, not a bare line of gray text sitting
+    // directly above the field's own label -- direct feedback that two
+    // stacked plain-text lines (this, then "Email address"/"Mobile
+    // number") read as unfinished. Same violet-tinted chip language as
+    // the "Guest network" pill on the desktop BrandPanel, at pill/meta
+    // scale rather than that one's micro/uppercase treatment, since this
+    // reads as a status, not a section label.
+    <span className="inline-flex w-fit items-center rounded-full bg-[var(--pg-brand-accent)]/10 px-2.5 py-1 pg-meta font-semibold text-[var(--pg-brand-accent)]">
       {t("stepProgressTemplate").replace("{n}", String(n)).replace("{total}", "2")}
-    </p>
+    </span>
   );
 
   if (sign.phase === "phone") {
