@@ -10,7 +10,6 @@ import { LanguageSwitcher } from "./LanguageSwitcher";
 import { A11yMenu } from "./A11yMenu";
 import { DEFAULT_PORTAL_LOGO_SRC } from "./PortalGuestUi";
 import { PortalFootnoteMark } from "./PortalDefaultBrandBadge";
-import { PortalNoPhotoPattern } from "./PortalNoPhotoPattern";
 
 /** The product name, deliberately NOT translated and deliberately not a
  * per-language string: it is a proper noun, and the whole point of §3 P5 is
@@ -335,27 +334,12 @@ function GuestBackdrop({
     : "pointer-events-none fixed inset-0";
 
   if (!backgroundImageUrl || !plan) {
-    // captive-portal-v5-design-spec.md, Visual Assets §2b: the no-photo
-    // case used to render nothing at all here (confirmed live -- a real
-    // org with no background image configured shows a completely bare
-    // `--pg-canvas` field). `PortalNoPhotoPattern` is deliberately not a
-    // reintroduction of the old blurred-glow "AmbientGlow" mistake --
-    // it's flat, hairline, ~4-10%-opacity geometry built from the
-    // marketing site's own signal-arc motif, not a colored glow -- see
-    // that component's own doc comment. `pointer-events-none`/absolute so
-    // it never intercepts input or affects layout.
-    // Wrapped rather than given the attribute directly, so that
-    // `PortalNoPhotoPattern` (owned elsewhere) needs no prop-forwarding
-    // change to participate in the `forced-colors`/`prefers-contrast`
-    // drop-the-decoration rules.
-    return (
-      <>
-        <div aria-hidden data-pg-backdrop className={layerCls}>
-          <PortalNoPhotoPattern />
-        </div>
-        {children}
-      </>
-    );
+    // captive-portal-v5-design-spec.md, Visual Assets §2b: a real org with
+    // no background image configured shows a completely bare `--pg-canvas`
+    // field -- no decorative arc/mesh motif. `PortalNoPhotoPattern` used to
+    // render here; removed per direct feedback that the pattern read as
+    // visual noise on the no-photo default, not as a considered surface.
+    return <>{children}</>;
   }
   return (
     <>
