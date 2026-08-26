@@ -157,12 +157,23 @@ export function OtpForm(sign: UseGuestSignInReturn) {
         ) : (
           <EmailField label={t("emailAddress")} email={sign.email} onEmailChange={sign.setEmail} />
         )}
-        {DataConsentCheckbox}
+        {/* Both disclosures as one tightly-grouped fine-print cluster,
+         * `space-y-2` (tighter than this form's own `space-y-3`) rather
+         * than sitting on opposite sides of the button: direct feedback
+         * that the checkbox above the button and this sentence below it
+         * read as the button being sandwiched between two separate legal
+         * asides, adding to an already text-heavy screen. Grouping them
+         * -- both read before the tap, matching how informed consent is
+         * supposed to work -- leaves the button as the last, cleanest
+         * thing before it. */}
+        <div className="space-y-2">
+          {DataConsentCheckbox}
+          {TermsNotice}
+        </div>
         <AlertBanner message={sign.otpError} />
         <button type="submit" disabled={sign.sendOtpPending} className={PG_PRIMARY_BTN}>
           {sign.sendOtpPending ? t("sendingLabel") : t("sendOtp")}
         </button>
-        {TermsNotice}
         <SecurityTip />
       </form>
     );
