@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ShieldCheck, Lock, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   PortalShell,
@@ -8,6 +8,33 @@ import {
   PortalTextPlate,
 } from "@/components/portal-runtime/PortalShell";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
+
+/** Which of the two sections this page ever renders gets which mark --
+ * keyed on the section's own (English, not yet i18n-wired -- pre-existing,
+ * unrelated to this pass) title string, not on position, so the org-
+ * supplied branch and DEFAULT_SECTIONS stay in sync automatically. A
+ * violet icon badge distinguishes "rules of the road" from "what happens
+ * to your data" at a glance, on what was previously two visually
+ * identical white cards a guest had to actually read the heading of to
+ * tell apart. */
+const SECTION_ICONS: Record<string, LucideIcon> = {
+  "Terms of service": ShieldCheck,
+  "Privacy policy": Lock,
+};
+
+function SectionCardTitle({ title }: { title: string }) {
+  const Icon = SECTION_ICONS[title];
+  return (
+    <div className="-mx-4 -mt-4 mb-3 flex items-center gap-2.5 border-b border-[var(--pg-border)] px-4 pb-3 pt-4">
+      {Icon && (
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--pg-brand-accent)]/10 text-[var(--pg-brand-accent)]">
+          <Icon className="h-4 w-4" aria-hidden="true" />
+        </span>
+      )}
+      <p className="pg-body font-semibold text-[var(--pg-ink)]">{title}</p>
+    </div>
+  );
+}
 
 export const Route = createFileRoute("/portal/terms")({
   component: TermsPage,
@@ -158,8 +185,8 @@ function TermsPage() {
           {sections.length === 0
             ? DEFAULT_SECTIONS.map((s) => (
                 <PortalCard key={s.title}>
-                  <p className="pg-body font-semibold text-[var(--pg-ink)]">{s.title}</p>
-                  <div className="mt-2 space-y-3">
+                  <SectionCardTitle title={s.title} />
+                  <div className="space-y-3">
                     {s.groups.map((g) => (
                       <div key={g.heading}>
                         {/* pg-micro/ink-faint, not slate-400 (2.56:1 --
@@ -178,12 +205,12 @@ function TermsPage() {
               ))
             : sections.map((s) => (
                 <PortalCard key={s.title}>
-                  <p className="pg-body font-semibold text-[var(--pg-ink)]">{s.title}</p>
+                  <SectionCardTitle title={s.title} />
                   {s.text && (
                     // `whitespace-pre-line`: org-supplied prose may carry
                     // the admin's own paragraph breaks -- render them
                     // instead of collapsing the document to one block.
-                    <p className="mt-2 whitespace-pre-line pg-meta font-normal leading-relaxed text-[var(--pg-ink-muted)]">
+                    <p className="whitespace-pre-line pg-meta font-normal leading-relaxed text-[var(--pg-ink-muted)]">
                       {s.text}
                     </p>
                   )}
