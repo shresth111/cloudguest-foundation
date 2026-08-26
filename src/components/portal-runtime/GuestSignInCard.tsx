@@ -199,12 +199,23 @@ export function GuestSignInCard() {
           </p>
         ) : (
           <>
+            {/* `mt-3.5` used to sit on its own wrapper around JUST the
+             * tab switcher -- fine while `showTabs` was effectively
+             * "does this venue offer both methods", but now that a
+             * first-time device on such a venue sees no switcher at all
+             * (see `useGuestSignIn`'s `showTabs`), that wrapper rendered
+             * as an empty div whose margin was the only thing left in
+             * it: a purposeless gap between the subtext above and the
+             * step pill below, unbalancing the two real gaps around it.
+             * One consistent margin on the switcher-and-form block
+             * together fixes that for both states -- the switcher (when
+             * shown) keeps its own `mb-4` separating it from the form
+             * beneath, unaffected. */}
             <div className="mt-3.5">
               <AuthTabSwitcher {...sign} />
+              {sign.tab === "otp" && sign.hasOtp && <OtpForm {...sign} />}
+              {sign.tab === "password" && sign.hasPassword && <PasswordSignInForm {...sign} />}
             </div>
-
-            {sign.tab === "otp" && sign.hasOtp && <OtpForm {...sign} />}
-            {sign.tab === "password" && sign.hasPassword && <PasswordSignInForm {...sign} />}
 
             <AuthMoreOptions {...sign} />
           </>
