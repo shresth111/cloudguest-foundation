@@ -16,6 +16,7 @@ import { ThemeProvider } from "@/context/ThemeContext";
 import { PlatformBrandingProvider } from "@/context/PlatformBrandingContext";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ImpersonationBanner } from "@/components/impersonation/ImpersonationBanner";
 
 // NOTE (deliberately not imported here): `@/lib/i18n` used to be pulled in
 // at this module's top level, and its instance handed to an
@@ -322,6 +323,11 @@ function RootComponent() {
           <AuthProvider>
             <AuthRouterContextSync />
             <TooltipProvider delayDuration={200}>
+              {/* Rendered here, ahead of every routed page's own chrome, so
+                  it is always the topmost sticky element -- see its own
+                  doc comment for why this single spot is enough to cover
+                  every surface an impersonated session can reach. */}
+              <ImpersonationBanner />
               <Outlet />
               <Toaster position="top-right" richColors closeButton />
             </TooltipProvider>

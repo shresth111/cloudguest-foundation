@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Search, Plus, MapPin, CreditCard, Ban, CheckCircle, Mail, Phone } from "lucide-react";
-import { MasterShell } from "@/components/master/MasterShell";
+import { Search, Plus, MapPin, CreditCard, Ban, CheckCircle, Mail, Phone, Eye } from "lucide-react";
+import { MasterShell, useOperatorCaps } from "@/components/master/MasterShell";
 import {
   MPageShell,
   MSectionHeader,
@@ -16,11 +16,26 @@ import {
   MTr,
   MDrawer,
 } from "@/components/master/MasterKit";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { organizationService } from "@/services/organization.service";
 import { locationService } from "@/services/location.service";
 import { billingService } from "@/services/billing.service";
+import { rbacService } from "@/services/rbac.service";
+import { impersonationService } from "@/services/impersonation.service";
+import { useAuth } from "@/context/AuthContext";
 import { PlatformLocationWizard } from "@/components/locations/PlatformLocationWizard";
 import { businessTypeIcon } from "@/lib/business-type-icons";
+import type { AppError } from "@/services/api";
 import type { PropertyType } from "@/types/location";
 import type { Organization, OrgStatus } from "@/types/organization";
 
@@ -49,6 +64,8 @@ interface Enriched extends Organization {
 
 function CustomersScreen() {
   const navigate = useNavigate();
+  const auth = useAuth();
+  const caps = useOperatorCaps();
   const { open: openOrgId } = Route.useSearch();
   const [filter, setFilter] = useState<Filter>("all");
   const [q, setQ] = useState("");
@@ -62,6 +79,13 @@ function CustomersScreen() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rows, setRows] = useState<Enriched[]>([]);
+  // "View as this customer" (impersonation) confirm dialog -- kept
+  // separate from `selected`/the drawer's own open state so closing the
+  // drawer underneath it (e.g. after a successful start) doesn't need to
+  // race this dialog's own close.
+  const [impersonateOpen, setImpersonateOpen] = useState(false);
+  const [impersonateReason, setImpersonateReason] = useState("");
+  const [impersonateBusy, setImpersonateBusy] = useState(false);
 
   async function refetch() {
     setLoading(true);
@@ -135,6 +159,56 @@ function CustomersScreen() {
       toast.error("Could not update customer status.");
     } finally {
       setBusyId(null);
+    }
+  }
+
+  // There is no dedicated "primary contact user id" field on `Organization`
+  // (or on `Location` -- only `ProvisionLocationResult`, a one-time
+  // provisioning response, ever carries `ownerUserId`) for the impersonate
+  // endpoint's own `POST /users/{user_id}/impersonate` shape to key off of.
+  // What every org DOES already have is `contactEmail`, and the account
+  // PlatformLocationWizard provisions as a new customer's owner is created
+  // with that same address -- so the org's own user roster (GET /users,
+  // scoped by X-Organization-Id, same call master.operators.tsx's sibling
+  // page makes for the platform roster) is searched for a member whose
+  // email matches it. This is a heuristic standing in for a real
+  // "primary contact user id" the backend doesn't expose today, not a
+  // guess invented for this feature alone.
+  async function resolveImpersonationTarget(org: Enriched) {
+    const { items } = await rbacService.listUsers(
+      { page: 1, pageSize: 5, search: org.contactEmail },
+      org.id,
+    );
+    return items.find((u) => u.email.toLowerCase() === org.contactEmail.toLowerCase()) ?? null;
+  }
+
+  async function handleConfirmImpersonate() {
+    if (!selected) return;
+    setImpersonateBusy(true);
+    try {
+      const targetUser = await resolveImpersonationTarget(selected);
+      if (!targetUser) {
+        toast.error(`Could not find ${selected.name}'s primary contact account.`);
+        return;
+      }
+      const session = await impersonationService.impersonate(
+        targetUser.id,
+        impersonateReason.trim() || null,
+      );
+      await auth.beginImpersonation({
+        accessToken: session.accessToken,
+        expiresAt: session.expiresAt,
+        targetUser: session.targetUser,
+        organization: { id: selected.id, name: selected.name, slug: selected.slug },
+      });
+      setImpersonateOpen(false);
+      setImpersonateReason("");
+      setSelected(null);
+      navigate({ to: "/", replace: true });
+    } catch (err) {
+      toast.error((err as AppError).message || "Could not start a session as this customer.");
+    } finally {
+      setImpersonateBusy(false);
     }
   }
 
@@ -264,6 +338,18 @@ function CustomersScreen() {
                   {selected.status === "suspended" ? <CheckCircle /> : <Ban />}
                   {selected.status === "suspended" ? "Reactivate" : "Suspend"}
                 </MButton>
+                {/* Gated on the same `impersonate` capability key every
+                    other capability-gated master-console action uses (see
+                    MasterShell's CAP_PERMISSIONS / useOperatorCaps) -- today
+                    that's `users.manage`, per that map's own doc comment.
+                    A 403 from POST /users/{id}/impersonate is still the
+                    real backstop; this only decides whether the button is
+                    worth showing. */}
+                {caps.has("impersonate") && (
+                  <MButton variant="outline" onClick={() => setImpersonateOpen(true)}>
+                    <Eye /> View as this customer
+                  </MButton>
+                )}
               </div>
             )
           }
@@ -327,6 +413,59 @@ function CustomersScreen() {
           onProvisioned={() => refetch()}
           initialOrganizationId={wizardOrgId}
         />
+
+        {/* "View as this customer" confirmation -- separate from the
+            drawer's own open state (see `impersonateOpen`'s declaration)
+            so it can outlive the drawer closing underneath it once a
+            session actually starts. */}
+        <AlertDialog
+          open={impersonateOpen}
+          onOpenChange={(o) => {
+            if (!o) {
+              setImpersonateOpen(false);
+              setImpersonateReason("");
+            }
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>View dashboard as {selected?.name}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This starts a 30-minute logged session signed in as this customer's own account.
+                Everything it does is recorded against your staff account, and a banner naming both
+                identities stays on screen for as long as it's active. It ends automatically at 30
+                minutes, or any time you choose to end it early.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="px-1 pb-1">
+              <label
+                htmlFor="impersonate-reason"
+                className="mb-1.5 block text-xs font-medium text-muted-foreground"
+              >
+                Reason (optional)
+              </label>
+              <Textarea
+                id="impersonate-reason"
+                value={impersonateReason}
+                onChange={(e) => setImpersonateReason(e.target.value)}
+                placeholder="e.g. Investigating a support ticket about…"
+                rows={2}
+              />
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={impersonateBusy}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={impersonateBusy}
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleConfirmImpersonate();
+                }}
+              >
+                {impersonateBusy ? "Starting…" : "Continue"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </MPageShell>
     </MasterShell>
   );
