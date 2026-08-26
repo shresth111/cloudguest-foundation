@@ -1121,12 +1121,17 @@
   .pg-display { font-size: calc(3.125rem * var(--pg-type-scale, 1)); } /* 50px @ 16px root */
 }
 @utility pg-title {
-  /* 26px -> 28px: a bolder, more confident headline weight, one step off
-     the type ramp (2.625rem/42px pg-display's own step down is 1.625rem;
-     1.75rem sits between it and pg-subtitle's 1.25rem/20px). Same weight,
-     tracking, and script-aware line-height overrides below -- units-only
+  /* Mobile-first: 24px on the phone widths this surface is designed for
+     first (§3.5), stepping up to the 26px -> 28px "bolder, more confident
+     headline" size (one step off the type ramp -- 2.625rem/42px pg-
+     display's own step down is 1.625rem; 1.75rem sits between it and
+     pg-subtitle's 1.25rem/20px) from sm: up. Direct feedback: the 28px
+     size read as too large on a real phone screen, where this heading
+     sits above a subtext line and a two-tab switcher with comparatively
+     little vertical room to spend. Same weight, tracking, and
+     script-aware line-height overrides below at every size -- units-only
      change, not a new scale. */
-  font-size: calc(1.75rem * var(--pg-type-scale, 1)); /* 28px @ 16px root */
+  font-size: calc(1.5rem * var(--pg-type-scale, 1)); /* 24px @ 16px root */
   line-height: 1.15;
   font-weight: 700;
   /* v7 Parts 2 & 3, brand alignment: was -0.015em. wyfyguest.com's hero h1
@@ -1146,6 +1151,13 @@
    * the typeface itself is not matched at all. */
   letter-spacing: -0.02em;
   font-family: var(--pg-display-font-family, inherit);
+}
+/* sm: (640px+) bump to the fuller 28px size -- same plain-media-query
+   pattern pg-display uses for its own xl: bump above, for the same
+   reason: this targets the utility definition itself, not a consumer of
+   it, which is not what Tailwind's `@variant` nesting does. */
+@media (min-width: 640px) {
+  .pg-title { font-size: calc(1.75rem * var(--pg-type-scale, 1)); } /* 28px @ 16px root */
 }
 @utility pg-subtitle {
   font-size: calc(1.25rem * var(--pg-type-scale, 1)); /* 20px @ 16px root */
