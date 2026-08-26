@@ -102,13 +102,30 @@ export function OtpForm(sign: UseGuestSignInReturn) {
   // page also toggling the checkbox. Kept as a real `htmlFor`/`id` pair
   // rather than wrapping, so tapping the descriptive text still toggles
   // the box exactly as before.
+  // Direct follow-up feedback, two fixes together:
+  //  - Alignment: this row was `items-start` with no `justify-center`,
+  //    so the checkbox sat flush at the container's LEFT edge while
+  //    `TermsNotice` right below/above it is `text-center` -- two
+  //    disclosures in the same tight cluster with different horizontal
+  //    anchors read as misaligned even though each was internally
+  //    correct. `justify-center` centers the checkbox+text as one
+  //    block, matching the Terms line's own centering, while the text
+  //    inside that block stays left-set (centering multi-line text next
+  //    to a checkbox, rather than the block itself, is what actually
+  //    looks broken once it wraps).
+  //  - Size: `text-[12px]`, one step below `TermsNotice`'s `text-[13px]`
+  //    -- the longer, more detailed DPDP disclosure reads as secondary
+  //    to the shorter contract-acceptance line, not competing with it at
+  //    equal weight. The checkbox itself keeps its own fixed size
+  //    (Checkbox's default, ~16px) -- a tap target shouldn't shrink with
+  //    the text next to it.
   const DataConsentCheckbox = (
-    <div className="flex items-start gap-2.5 text-[13px] leading-snug text-[var(--pg-ink-muted)]">
+    <div className="flex items-start justify-center gap-2 text-[12px] leading-snug text-[var(--pg-ink-muted)]">
       <Checkbox
         id={dataConsentId}
         checked={sign.dataConsentAccepted}
         onCheckedChange={(v) => sign.setDataConsentAccepted(!!v)}
-        className="mt-0.5 border-[var(--pg-ink-faint)] data-[state=checked]:border-[var(--pr-primary,#6366f1)] data-[state=checked]:bg-[var(--pr-primary,#6366f1)]"
+        className="mt-0.5 shrink-0 border-[var(--pg-ink-faint)] data-[state=checked]:border-[var(--pr-primary,#6366f1)] data-[state=checked]:bg-[var(--pr-primary,#6366f1)]"
       />
       <span>
         <label htmlFor={dataConsentId} className="cursor-pointer">
