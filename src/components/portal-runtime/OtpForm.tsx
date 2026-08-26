@@ -132,11 +132,14 @@ export function OtpForm(sign: UseGuestSignInReturn) {
     // SMS arrives. A small pill, not a bare line of gray text sitting
     // directly above the field's own label -- direct feedback that two
     // stacked plain-text lines (this, then "Email address"/"Mobile
-    // number") read as unfinished. Same violet-tinted chip language as
-    // the "Guest network" pill on the desktop BrandPanel, at pill/meta
-    // scale rather than that one's micro/uppercase treatment, since this
-    // reads as a status, not a section label.
-    <span className="inline-flex w-fit items-center rounded-full bg-[var(--pg-brand-accent)]/10 px-2.5 py-1 pg-meta font-semibold text-[var(--pg-brand-accent)]">
+    // number") read as unfinished. Direct follow-up feedback: the first
+    // pass's full-saturation brand-accent fill/text and `font-semibold`
+    // pulled more visual weight than a step indicator should have next
+    // to plain gray surrounding text -- toned down to a neutral hairline
+    // pill (same family as the "Guest network" pill's own border-only
+    // treatment) with muted text at regular weight, still legible as a
+    // status chip without out-competing the content around it.
+    <span className="inline-flex w-fit items-center rounded-full border border-[var(--pg-border)] bg-[var(--pg-surface)] px-2.5 py-1 pg-meta font-medium text-[var(--pg-ink-muted)]">
       {t("stepProgressTemplate").replace("{n}", String(n)).replace("{total}", "2")}
     </span>
   );
