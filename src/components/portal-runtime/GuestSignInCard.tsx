@@ -59,8 +59,19 @@ export function GuestSignInCard() {
          * fields. Negative margins cancel PortalCard's own `p-4` for just
          * this zone so the divider spans the card's true edge-to-edge
          * width, then restore comparable side padding so the logo itself
-         * isn't flush against the corners. */}
-        <div className="-mx-4 -mt-4 mb-4 border-b border-[var(--pg-border)] px-4 pb-4 pt-5 text-center">
+         * isn't flush against the corners.
+         *
+         * `flex justify-center`, not `text-center`: Tailwind's preflight
+         * sets `img`/`svg` to `display: block`, and `text-align` only ever
+         * centers inline content -- a block-level element with no auto
+         * margins just sits flush left regardless of the wrapper's
+         * `text-align`. That left every uploaded venue logo (a plain
+         * `<img>`) pinned to the left edge of this zone instead of
+         * centered under the hairline. A tinted violet wash (the site's
+         * own `--pg-brand-accent`, at a wash-level opacity so an arbitrary
+         * logo still reads clearly on top of it) replaces the previously
+         * flat white zone, matching wyfyguest.com's own violet identity. */}
+        <div className="-mx-4 -mt-4 mb-4 flex justify-center border-b border-[var(--pg-border)] bg-gradient-to-b from-[var(--pg-brand-accent)]/[0.07] to-transparent px-4 pb-4 pt-5">
           {/* Real per-location logo always wins when configured -- keeps
            * rendering as a plain `<img>` exactly as before, since an
            * arbitrary uploaded logo has its own aspect ratio/colors that
