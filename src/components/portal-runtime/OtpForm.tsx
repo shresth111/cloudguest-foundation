@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { Checkbox } from "@/components/ui/checkbox";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { AlertBanner, PG_PRIMARY_BTN, SecurityTip } from "./PortalGuestUi";
 import { PhoneNumberFields, EmailField, OtpCodeInput } from "./AuthFields";
@@ -73,6 +74,31 @@ export function OtpForm(sign: UseGuestSignInReturn) {
     </p>
   );
 
+  // DPDP Act 2023 §6: a real, unticked-by-default, actively-tapped
+  // checkbox -- distinct from `TermsNotice` above, which stays implied
+  // consent (that one is contract acceptance, not personal-data consent;
+  // see `dataConsentAccepted`'s own doc comment in PortalRuntimeContext
+  // for why the two are legally different questions that only look
+  // similar). Only ever shown here, on the phone/email entry screen: this
+  // is the one moment this identifier is actually collected and
+  // transmitted, and the DPDP standard for consent -- "free, specific,
+  // informed, unconditional, unambiguous, given through clear affirmative
+  // action" -- explicitly rejects inferring it from a bundled "continue"
+  // tap. `PasswordSignInForm` never repeats this: reaching that tab at all
+  // already requires this exact consent to have been given once, back
+  // when this device first went through OTP (see `useGuestSignIn`'s
+  // `showTabs`), and DPDP asks for consent per purpose, not per login.
+  const DataConsentCheckbox = (
+    <label className="flex items-start gap-2.5 text-[13px] leading-snug text-[var(--pg-ink-muted)]">
+      <Checkbox
+        checked={sign.dataConsentAccepted}
+        onCheckedChange={(v) => sign.setDataConsentAccepted(!!v)}
+        className="mt-0.5 border-[var(--pg-ink-faint)] data-[state=checked]:border-[var(--pr-primary,#6366f1)] data-[state=checked]:bg-[var(--pr-primary,#6366f1)]"
+      />
+      <span>{t("dataConsentLabel")}</span>
+    </label>
+  );
+
   const StepProgress = ({ n }: { n: 1 | 2 }) => (
     // v7 §8.2: "show progress honestly". Two steps, named as two steps --
     // not a progress bar, which would have to invent a completion
@@ -125,6 +151,7 @@ export function OtpForm(sign: UseGuestSignInReturn) {
         ) : (
           <EmailField label={t("emailAddress")} email={sign.email} onEmailChange={sign.setEmail} />
         )}
+        {DataConsentCheckbox}
         <AlertBanner message={sign.otpError} />
         <button type="submit" disabled={sign.sendOtpPending} className={PG_PRIMARY_BTN}>
           {sign.sendOtpPending ? t("sendingLabel") : t("sendOtp")}

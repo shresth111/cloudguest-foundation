@@ -119,6 +119,8 @@ const EN: Dict = {
   noMethodsAvailable: "No sign-in methods are available. Please contact reception.",
   agreeToThe: "I agree to the",
   termsAcceptableUsePolicy: "Terms & Acceptable Use Policy",
+  dataConsentLabel:
+    "I consent to my phone number/email, device details and session data being collected to sign me in and secure this network.",
   otpTabSms: "Text me a code",
   otpTabEmail: "Email me a code",
   otpTabWhatsapp: "WhatsApp me a code",
@@ -151,6 +153,7 @@ const EN: Dict = {
   errValidEmail: "Enter a valid email address",
   errEnterCode: "Enter the 6-digit code",
   errAcceptTerms: "Please accept the Terms & Acceptable Use Policy to continue.",
+  errAcceptDataConsent: "Please consent to the data collection above to continue.",
   errPhoneEmailPassword: "Enter your phone/email and password",
 
   // Closes portal.success.tsx's gap (v4 §6.1 -- the timeout/retry escape
@@ -360,6 +363,8 @@ const HI: Dict = {
   noMethodsAvailable: "कोई साइन-इन तरीका उपलब्ध नहीं है। कृपया रिसेप्शन से संपर्क करें।",
   agreeToThe: "मैं सहमत हूं",
   termsAcceptableUsePolicy: "शर्तें और उपयोग नीति",
+  dataConsentLabel:
+    "मैं सहमत हूं कि साइन इन करने और इस नेटवर्क को सुरक्षित रखने के लिए मेरा फ़ोन नंबर/ईमेल, डिवाइस विवरण और सेशन डेटा एकत्र किया जाए।",
   otpTabSms: "मुझे कोड मैसेज करें",
   otpTabEmail: "मुझे कोड ईमेल करें",
   otpTabWhatsapp: "मुझे व्हाट्सऐप पर कोड भेजें",
@@ -392,6 +397,7 @@ const HI: Dict = {
   errValidEmail: "एक मान्य ईमेल पता दर्ज करें",
   errEnterCode: "6 अंकों का कोड दर्ज करें",
   errAcceptTerms: "जारी रखने के लिए कृपया शर्तें और उपयोग नीति स्वीकार करें।",
+  errAcceptDataConsent: "जारी रखने के लिए कृपया ऊपर दिए गए डेटा संग्रहण हेतु सहमति दें।",
   errPhoneEmailPassword: "अपना फ़ोन/ईमेल और पासवर्ड दर्ज करें",
 
   // Closes portal.success.tsx's gap.
@@ -591,6 +597,8 @@ const BN: Dict = {
   noMethodsAvailable: "কোনও sign-in পদ্ধতি চালু নেই। রিসেপশনে যোগাযোগ করুন।",
   agreeToThe: "আমি মেনে নিচ্ছি",
   termsAcceptableUsePolicy: "শর্তাবলি ও গ্রহণযোগ্য ব্যবহার নীতি",
+  dataConsentLabel:
+    "সাইন ইন করতে এবং এই নেটওয়ার্ক সুরক্ষিত রাখতে আমার ফোন নম্বর/ইমেল, ডিভাইসের তথ্য এবং সেশন ডেটা সংগ্রহ করা হবে -- এতে আমি সম্মত।",
   otpTabSms: "SMS-এ কোড পাঠান",
   otpTabEmail: "ইমেলে কোড পাঠান",
   otpTabWhatsapp: "WhatsApp-এ কোড পাঠান",
@@ -623,6 +631,7 @@ const BN: Dict = {
   errValidEmail: "সঠিক ইমেল ঠিকানা লিখুন",
   errEnterCode: "6 অঙ্কের কোড লিখুন",
   errAcceptTerms: "এগোতে শর্তাবলি ও গ্রহণযোগ্য ব্যবহার নীতি মেনে নিন।",
+  errAcceptDataConsent: "এগোতে অনুগ্রহ করে উপরের ডেটা সংগ্রহে সম্মতি দিন।",
   errPhoneEmailPassword: "আপনার ফোন/ইমেল আর পাসওয়ার্ড লিখুন",
 
   // Closes portal.success.tsx's gap.
@@ -783,6 +792,8 @@ const MR: Dict = {
   noMethodsAvailable: "Sign in करण्याचा कोणताही मार्ग उपलब्ध नाही. कृपया Reception शी संपर्क साधा.",
   agreeToThe: "मी सहमत आहे",
   termsAcceptableUsePolicy: "Terms आणि Acceptable Use Policy",
+  dataConsentLabel:
+    "साइन इन करण्यासाठी आणि हे नेटवर्क सुरक्षित ठेवण्यासाठी माझा फोन नंबर/ईमेल, डिव्हाइस तपशील आणि सेशन डेटा गोळा केला जाईल -- यासाठी मी सहमत आहे.",
   otpTabSms: "मला code SMS करा",
   otpTabEmail: "मला code email करा",
   otpTabWhatsapp: "मला WhatsApp वर code पाठवा",
@@ -815,6 +826,7 @@ const MR: Dict = {
   errValidEmail: "योग्य email पत्ता टाका",
   errEnterCode: "6 अंकी code टाका",
   errAcceptTerms: "पुढे जाण्यासाठी कृपया Terms & Acceptable Use Policy मान्य करा.",
+  errAcceptDataConsent: "पुढे जाण्यासाठी कृपया वरील डेटा संकलनास सहमती द्या.",
   errPhoneEmailPassword: "तुमचा फोन/email आणि password टाका",
 
   // Closes portal.success.tsx's gap.
@@ -977,6 +989,8 @@ const TE: Dict = {
   noMethodsAvailable: "సైన్-ఇన్ పద్ధతులేవీ అందుబాటులో లేవు. దయచేసి రిసెప్షన్‌ను సంప్రదించండి.",
   agreeToThe: "నేను అంగీకరిస్తున్నాను:",
   termsAcceptableUsePolicy: "నిబంధనలు, వినియోగ విధానం",
+  dataConsentLabel:
+    "సైన్ ఇన్ చేయడానికి మరియు ఈ నెట్‌వర్క్‌ను సురక్షితంగా ఉంచడానికి నా ఫోన్ నంబర్/ఇమెయిల్, డివైస్ వివరాలు మరియు సెషన్ డేటాను సేకరించడానికి నేను అంగీకరిస్తున్నాను.",
   otpTabSms: "SMSలో కోడ్ పంపండి",
   otpTabEmail: "ఈమెయిల్‌లో కోడ్ పంపండి",
   otpTabWhatsapp: "WhatsAppలో కోడ్ పంపండి",
@@ -1009,6 +1023,7 @@ const TE: Dict = {
   errValidEmail: "సరైన ఈమెయిల్ చిరునామా ఇవ్వండి",
   errEnterCode: "6 అంకెల కోడ్ ఇవ్వండి",
   errAcceptTerms: "కొనసాగడానికి నిబంధనలు, వినియోగ విధానాన్ని అంగీకరించండి.",
+  errAcceptDataConsent: "కొనసాగడానికి దయచేసి పై డేటా సేకరణకు అంగీకరించండి.",
   errPhoneEmailPassword: "మీ ఫోన్/ఈమెయిల్, పాస్‌వర్డ్ ఇవ్వండి",
 
   // Closes portal.success.tsx's gap.
@@ -1171,6 +1186,8 @@ const TA: Dict = {
   noMethodsAvailable: "நுழைவு முறைகள் எதுவும் இல்லை. வரவேற்பைத் தொடர்பு கொள்ளுங்கள்.",
   agreeToThe: "நான் ஏற்கிறேன்:",
   termsAcceptableUsePolicy: "விதிமுறைகள், ஏற்கத்தக்க பயன்பாட்டுக் கொள்கை",
+  dataConsentLabel:
+    "உள்நுழைவதற்கும் இந்த நெட்வொர்க்கைப் பாதுகாப்பாக வைத்திருப்பதற்கும் எனது தொலைபேசி எண்/மின்னஞ்சல், சாதன விவரங்கள் மற்றும் அமர்வு தரவு சேகரிக்கப்படுவதற்கு நான் ஒப்புக்கொள்கிறேன்.",
   otpTabSms: "SMS-இல் அனுப்பு",
   otpTabEmail: "மின்னஞ்சலில் அனுப்பு",
   otpTabWhatsapp: "WhatsApp-இல் அனுப்பு",
@@ -1203,6 +1220,7 @@ const TA: Dict = {
   errValidEmail: "சரியான மின்னஞ்சல் முகவரியை உள்ளிடுங்கள்",
   errEnterCode: "6 இலக்கக் குறியீட்டை உள்ளிடுங்கள்",
   errAcceptTerms: "தொடர, விதிமுறைகளையும் ஏற்கத்தக்க பயன்பாட்டுக் கொள்கையையும் ஏற்கவும்.",
+  errAcceptDataConsent: "தொடர, மேலே உள்ள தரவு சேகரிப்புக்கு ஒப்புதல் தரவும்.",
   errPhoneEmailPassword: "உங்கள் தொலைபேசி/மின்னஞ்சல் மற்றும் கடவுச்சொல்லை உள்ளிடுங்கள்",
 
   // Closes portal.success.tsx's gap.
@@ -1365,6 +1383,8 @@ const GU: Dict = {
   noMethodsAvailable: "કોઈ sign-in રીત ઉપલબ્ધ નથી. કૃપા કરીને reception નો સંપર્ક કરો.",
   agreeToThe: "હું સંમત છું",
   termsAcceptableUsePolicy: "શરતો અને વપરાશ નીતિ",
+  dataConsentLabel:
+    "સાઇન ઇન કરવા અને આ નેટવર્કને સુરક્ષિત રાખવા માટે મારો ફોન નંબર/ઇમેઇલ, ડિવાઇસ વિગતો અને સેશન ડેટા એકત્ર કરવામાં આવે તે માટે હું સંમતિ આપું છું.",
   otpTabSms: "મને SMS થી કોડ મોકલો",
   otpTabEmail: "મને email થી કોડ મોકલો",
   otpTabWhatsapp: "મને WhatsApp થી કોડ મોકલો",
@@ -1397,6 +1417,7 @@ const GU: Dict = {
   errValidEmail: "માન્ય email સરનામું નાખો",
   errEnterCode: "6 અંકનો કોડ નાખો",
   errAcceptTerms: "આગળ વધવા માટે શરતો અને વપરાશ નીતિ સ્વીકારો.",
+  errAcceptDataConsent: "આગળ વધવા માટે કૃપા કરી ઉપરના ડેટા સંગ્રહ માટે સંમતિ આપો.",
   errPhoneEmailPassword: "તમારો ફોન/email અને પાસવર્ડ નાખો",
 
   // Closes portal.success.tsx's gap.
@@ -1557,6 +1578,8 @@ const KN: Dict = {
   noMethodsAvailable: "ಯಾವ sign-in ವಿಧಾನವೂ ಲಭ್ಯವಿಲ್ಲ. ದಯವಿಟ್ಟು reception ಸಂಪರ್ಕಿಸಿ.",
   agreeToThe: "ನಾನು ಒಪ್ಪುತ್ತೇನೆ:",
   termsAcceptableUsePolicy: "ನಿಯಮಗಳು ಮತ್ತು ಬಳಕೆಯ ನೀತಿ",
+  dataConsentLabel:
+    "ಸೈನ್ ಇನ್ ಮಾಡಲು ಮತ್ತು ಈ ನೆಟ್‌ವರ್ಕ್ ಅನ್ನು ಸುರಕ್ಷಿತವಾಗಿಡಲು ನನ್ನ ಫೋನ್ ನಂಬರ್/ಇಮೇಲ್, ಡಿವೈಸ್ ವಿವರಗಳು ಮತ್ತು ಸೆಷನ್ ಡೇಟಾವನ್ನು ಸಂಗ್ರಹಿಸಲು ನಾನು ಒಪ್ಪುತ್ತೇನೆ.",
   otpTabSms: "SMS ನಲ್ಲಿ ಕೋಡ್ ಕಳಿಸಿ",
   otpTabEmail: "ಇಮೇಲ್‌ನಲ್ಲಿ ಕೋಡ್ ಕಳಿಸಿ",
   otpTabWhatsapp: "WhatsApp ನಲ್ಲಿ ಕೋಡ್ ಕಳಿಸಿ",
@@ -1589,6 +1612,7 @@ const KN: Dict = {
   errValidEmail: "ಸರಿಯಾದ ಇಮೇಲ್ ವಿಳಾಸ ಬರೆಯಿರಿ",
   errEnterCode: "6 ಅಂಕಿಯ ಕೋಡ್ ಬರೆಯಿರಿ",
   errAcceptTerms: "ಮುಂದುವರಿಯಲು ದಯವಿಟ್ಟು ನಿಯಮಗಳು ಮತ್ತು ಬಳಕೆಯ ನೀತಿ ಒಪ್ಪಿಕೊಳ್ಳಿ.",
+  errAcceptDataConsent: "ಮುಂದುವರಿಯಲು ದಯವಿಟ್ಟು ಮೇಲಿನ ಡೇಟಾ ಸಂಗ್ರಹಣೆಗೆ ಒಪ್ಪಿಗೆ ನೀಡಿ.",
   errPhoneEmailPassword: "ನಿಮ್ಮ ಫೋನ್/ಇಮೇಲ್ ಮತ್ತು password ಬರೆಯಿರಿ",
 
   // Closes portal.success.tsx's gap.
@@ -1751,6 +1775,8 @@ const ML: Dict = {
   noMethodsAvailable: "sign-in രീതികളൊന്നും ലഭ്യമല്ല. ദയവായി റിസപ്ഷനിൽ ബന്ധപ്പെടൂ.",
   agreeToThe: "ഞാൻ അംഗീകരിക്കുന്നു",
   termsAcceptableUsePolicy: "നിബന്ധനകളും ഉപയോഗ നയവും",
+  dataConsentLabel:
+    "സൈൻ ഇൻ ചെയ്യാനും ഈ നെറ്റ്‌വർക്ക് സുരക്ഷിതമാക്കാനും എന്റെ ഫോൺ നമ്പർ/ഇമെയിൽ, ഡിവൈസ് വിവരങ്ങൾ, സെഷൻ ഡാറ്റ എന്നിവ ശേഖരിക്കുന്നതിന് ഞാൻ സമ്മതിക്കുന്നു.",
   otpTabSms: "SMS-ൽ കോഡ് അയയ്ക്കൂ",
   otpTabEmail: "ഇമെയിലിൽ കോഡ് അയയ്ക്കൂ",
   otpTabWhatsapp: "WhatsApp-ൽ കോഡ് അയയ്ക്കൂ",
@@ -1783,6 +1809,7 @@ const ML: Dict = {
   errValidEmail: "ശരിയായ ഇമെയിൽ വിലാസം നൽകൂ",
   errEnterCode: "6 അക്ക കോഡ് നൽകൂ",
   errAcceptTerms: "തുടരാൻ നിബന്ധനകളും ഉപയോഗ നയവും അംഗീകരിക്കൂ.",
+  errAcceptDataConsent: "തുടരാൻ മുകളിലുള്ള ഡാറ്റ ശേഖരണത്തിന് സമ്മതം നൽകുക.",
   errPhoneEmailPassword: "നിങ്ങളുടെ ഫോൺ/ഇമെയിലും password-ഉം നൽകൂ",
 
   // Closes portal.success.tsx's gap.
@@ -1945,6 +1972,8 @@ const PA: Dict = {
   noMethodsAvailable: "Sign in ਦਾ ਕੋਈ ਤਰੀਕਾ ਚਾਲੂ ਨਹੀਂ ਹੈ। ਰਿਸੈਪਸ਼ਨ ਨਾਲ ਸੰਪਰਕ ਕਰੋ।",
   agreeToThe: "ਮੈਂ ਸਹਿਮਤ ਹਾਂ",
   termsAcceptableUsePolicy: "ਸ਼ਰਤਾਂ ਤੇ ਵਰਤੋਂ ਦੀ ਨੀਤੀ",
+  dataConsentLabel:
+    "ਮੈਂ ਸਹਿਮਤ ਹਾਂ ਕਿ ਸਾਈਨ ਇਨ ਕਰਨ ਅਤੇ ਇਸ ਨੈੱਟਵਰਕ ਨੂੰ ਸੁਰੱਖਿਅਤ ਰੱਖਣ ਲਈ ਮੇਰਾ ਫ਼ੋਨ ਨੰਬਰ/ਈਮੇਲ, ਡਿਵਾਈਸ ਵੇਰਵੇ ਅਤੇ ਸੈਸ਼ਨ ਡਾਟਾ ਇਕੱਠਾ ਕੀਤਾ ਜਾਵੇ।",
   otpTabSms: "ਮੈਨੂੰ SMS ’ਤੇ code ਭੇਜੋ",
   otpTabEmail: "ਮੈਨੂੰ ਈਮੇਲ ’ਤੇ code ਭੇਜੋ",
   otpTabWhatsapp: "ਮੈਨੂੰ WhatsApp ’ਤੇ code ਭੇਜੋ",
@@ -1977,6 +2006,7 @@ const PA: Dict = {
   errValidEmail: "ਸਹੀ ਈਮੇਲ ਪਤਾ ਭਰੋ",
   errEnterCode: "6 ਅੰਕਾਂ ਦਾ code ਭਰੋ",
   errAcceptTerms: "ਜਾਰੀ ਰੱਖਣ ਲਈ ਸ਼ਰਤਾਂ ਤੇ ਵਰਤੋਂ ਦੀ ਨੀਤੀ ਮੰਨੋ।",
+  errAcceptDataConsent: "ਜਾਰੀ ਰੱਖਣ ਲਈ ਕਿਰਪਾ ਕਰਕੇ ਉਪਰੋਕਤ ਡਾਟਾ ਇਕੱਠਾ ਕਰਨ ਲਈ ਸਹਿਮਤੀ ਦਿਓ।",
   errPhoneEmailPassword: "ਆਪਣਾ ਫ਼ੋਨ/ਈਮੇਲ ਤੇ ਪਾਸਵਰਡ ਭਰੋ",
 
   // Closes portal.success.tsx's gap.

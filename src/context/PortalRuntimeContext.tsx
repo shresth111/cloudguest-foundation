@@ -388,6 +388,25 @@ interface PortalRuntimeState {
    * back), since that's exactly when it's needed. */
   guestIdentifier?: string;
   setGuestIdentifier: (v?: string) => void;
+
+  /** DPDP Act 2023 §6-driven, and distinct from `requiresTermsLink`'s
+   * implied-consent sentence: that sentence covers accepting the Terms &
+   * Acceptable Use Policy (contract formation, where a "by continuing you
+   * agree" clickwrap tied to a real submit action is standard practice),
+   * NOT consent to the personal-data collection this same submit is about
+   * to trigger (phone/email for OTP delivery, MAC/IP, session data --
+   * DEFAULT_SECTIONS in portal.terms.tsx names exactly this set). DPDP's
+   * consent standard is "free, specific, informed, unconditional,
+   * unambiguous, given through clear affirmative action" and explicitly
+   * rejects inferring it from inaction or from a bundled acceptance of
+   * general terms -- so this is a real, separate, unticked-by-default
+   * checkbox a guest must actively tap, not folded into the terms text.
+   * Plain component state, not sessionStorage-backed: unlike `session`/
+   * `guestIdentifier` this never needs to survive the real top-level
+   * navigation to the NAS, and a guest returning to this screen on a new
+   * visit should see it unticked again rather than a stale prior answer. */
+  dataConsentAccepted: boolean;
+  setDataConsentAccepted: (v: boolean) => void;
 }
 
 const Ctx = createContext<PortalRuntimeState | null>(null);
@@ -484,6 +503,7 @@ export function PortalRuntimeProvider({
   const [guestIdentifier, setGuestIdentifierState] = useState<string | undefined>(() =>
     loadPersistedIdentifier(),
   );
+  const [dataConsentAccepted, setDataConsentAccepted] = useState(false);
 
   const setSession = useCallback((s: RuntimeSession | undefined) => {
     setSessionState(s);
@@ -693,6 +713,8 @@ export function PortalRuntimeProvider({
       setSession,
       guestIdentifier,
       setGuestIdentifier,
+      dataConsentAccepted,
+      setDataConsentAccepted,
     }),
     [
       organizationId,
@@ -716,6 +738,7 @@ export function PortalRuntimeProvider({
       setSession,
       guestIdentifier,
       setGuestIdentifier,
+      dataConsentAccepted,
     ],
   );
 

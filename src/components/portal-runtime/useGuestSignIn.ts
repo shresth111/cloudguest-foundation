@@ -48,6 +48,8 @@ export function useGuestSignIn() {
     previewMode,
     setGuestIdentifier,
     t,
+    dataConsentAccepted,
+    setDataConsentAccepted,
   } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/welcome" });
   const portalSearch = { organizationId, locationId, routerId };
@@ -330,6 +332,16 @@ export function useGuestSignIn() {
       );
       return;
     }
+    // DPDP Act 2023 §6: consent to *collecting* this identifier (about to
+    // be transmitted for OTP delivery) is a separate question from
+    // agreeing to the Terms & Acceptable Use Policy `requiresTermsLink`
+    // gates elsewhere -- see `dataConsentAccepted`'s own doc comment in
+    // PortalRuntimeContext. Checked here, not earlier, so a guest sees the
+    // real validation error first if the identifier itself is invalid.
+    if (!dataConsentAccepted) {
+      setOtpError(t("errAcceptDataConsent"));
+      return;
+    }
     setOtpError(null);
     if (previewMode) {
       toast.info("Preview mode — connect a real device to test sign-in.");
@@ -419,7 +431,25 @@ export function useGuestSignIn() {
   // switch channel is now shown instead -- small icon-tabs, deliberately
   // NOT the tier-1 pill's own treatment, so it never implies a false
   // parity between "channel" and "method" (see AuthTabSwitcher.tsx).
-  const showTabs = hasOtp && hasPassword;
+  // "OTP once, then phone/email + password from then on" (see the `tab`
+  // lazy initializer above) was only ever half-enforced: `deviceHasPassword()`
+  // picked the *default* tab, but the switcher itself still rendered for
+  // EVERY guest whenever a venue enabled both methods -- including a
+  // genuinely first-time guest on a brand-new device, who cannot possibly
+  // have a password yet (the backend's `set_guest_password` only ever
+  // accepts a session_id from a just-completed, still-active OTP login,
+  // started within the last few minutes -- see that endpoint's own
+  // docstring; there is no other path to create one). That guest saw a
+  // password tab that could only ever fail for them. Gating the switcher
+  // itself on the same device flag, not just the initial selection, means
+  // a first-time device gets the single OTP form with nothing to pick
+  // between, and only a device that has actually set a password once
+  // graduates to seeing -- and defaulting to -- both tabs. A guest who
+  // forgets that password is still one tap away from OTP, either via this
+  // now-visible tab or `PasswordSignInForm`'s own "Forgot? Use OTP
+  // instead" link -- this only changes what a device with NO password
+  // history is offered, never what one WITH a password can still reach.
+  const showTabs = hasOtp && hasPassword && deviceHasPassword();
   const showChannelSwitcher = !showTabs && hasOtp && enabledOtpChannels.length >= 2;
   const noMethods = !hasOtp && !hasPassword && !hasVoucher;
 
@@ -455,6 +485,8 @@ export function useGuestSignIn() {
     subtext,
     previewMode,
     requiresTermsLink,
+    dataConsentAccepted,
+    setDataConsentAccepted,
     // method availability
     hasOtp,
     hasPassword,
