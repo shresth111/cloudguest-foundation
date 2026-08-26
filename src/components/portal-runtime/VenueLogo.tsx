@@ -54,18 +54,20 @@ export function VenueLogo({
    * art can lose all contrast against whatever happens to sit behind it
    * -- our new violet-tinted header wash included.
    *
-   * `framed` swaps the bare image for the exact same circular white plate
-   * `PortalDefaultBrandBadge` already uses for the NO-logo case (soft
-   * radial highlight, 1px ring, matching shadow) -- so every venue's own
-   * upload, whatever its shape or palette, sits on a fixed-size,
-   * guaranteed-light-neutral surface instead of floating directly on the
-   * zone behind it. `object-contain` inside that fixed box is what turns
-   * "constrain height, let width run away" into "always fit, never
-   * smear, never disappear" for every aspect ratio at once -- a square
-   * mark centers with even padding, a wide lockup shrinks to the plate's
-   * width, a tall one shrinks to its height, and a light-on-transparent
-   * upload gets the same white backing the dark-on-transparent case never
-   * needed but is never hurt by either.
+   * `framed` swaps the bare image for a white plate in the same material
+   * as `PortalDefaultBrandBadge`'s NO-logo case (soft radial highlight,
+   * 1px ring, matching shadow) -- rounded-square rather than that badge's
+   * own circle, see the render branch's own comment for why a true
+   * circle is unsafe for an arbitrary externally-uploaded shape. Every
+   * venue's own upload, whatever its shape or palette, sits on a
+   * fixed-size, guaranteed-light-neutral surface instead of floating
+   * directly on the zone behind it. `object-contain` inside that fixed
+   * box is what turns "constrain height, let width run away" into
+   * "always fit, never smear, never disappear" for every aspect ratio at
+   * once -- a square mark centers with even padding, a wide lockup
+   * shrinks to the plate's width, a tall one shrinks to its height, and
+   * a light-on-transparent upload gets the same white backing the
+   * dark-on-transparent case never needed but is never hurt by either.
    *
    * Opt-in, not the default: the other two call sites (`portal.auth.
    * $method`, `portal.index`) render on their own already-legible
@@ -77,9 +79,24 @@ export function VenueLogo({
 }) {
   if (framed) {
     return (
+      // `rounded-2xl` (this card family's own `rounded-[20px]` radius),
+      // NOT `rounded-full`: a true circle clips content in the box's
+      // corners, and `object-contain` only guarantees the image fits the
+      // SQUARE box, not the circle inscribed inside it. A wide lockup
+      // scales to a full-width band centered vertically -- at the box's
+      // left/right edges that band touches the circle's boundary at
+      // exactly one point (dead center) and is outside it everywhere
+      // else, so the logo's own left/right extremities were being cut off
+      // by the mask despite "fitting" -- the exact failure mode `framed`
+      // exists to prevent, just moved from the layout math to the mask
+      // shape. A rounded square only clips a small radius at each corner,
+      // which a wide/tall band never reaches at all (it isn't near any
+      // corner) and a near-square mark loses at most a few pixels off
+      // each corner -- the same trade-off every rounded app-icon frame
+      // makes, and never a cut into the logo's actual width or height.
       <span
         className={cn(
-          "relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#e0e7ff] shadow-sm",
+          "relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[#e0e7ff] shadow-sm",
           "bg-[radial-gradient(circle_at_35%_30%,#ffffff_0%,#eef2ff_100%)]",
           PLATE_SIZE_CLASSES[size],
           className,
