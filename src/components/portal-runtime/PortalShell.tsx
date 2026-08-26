@@ -612,7 +612,13 @@ export function PortalShell({
             // actually at risk, changes nothing on a 390x844 or a desktop,
             // and keeps the safe-area inset intact. Recovers 38px at 640px
             // tall and 40px at 667px.
-            "relative z-10 mx-auto flex w-full max-w-[420px] flex-col pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pb-[calc(2rem+env(safe-area-inset-bottom))] pt-[calc(12vh+env(safe-area-inset-top))] [@media(max-height:720px)]:pt-[calc(6vh+env(safe-area-inset-top))] sm:max-w-[460px] md:max-w-[520px]",
+            // Bottom breathing room bumped 2rem -> 3rem: with the top band
+            // fixed at a protected `12vh` (see this block's own history
+            // above), the bottom was the only side of the "card floating on
+            // its own canvas" look left to open up -- matching the more
+            // generous top/bottom margins in the reference design without
+            // touching the fold-safety value.
+            "relative z-10 mx-auto flex w-full max-w-[420px] flex-col pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pb-[calc(3rem+env(safe-area-inset-bottom))] pt-[calc(12vh+env(safe-area-inset-top))] [@media(max-height:720px)]:pt-[calc(6vh+env(safe-area-inset-top))] sm:max-w-[460px] md:max-w-[520px]",
             // See this component's own top-level comment on `constrained` --
             // these `lg:` classes assume this element's width tracks the
             // real browser viewport, which isn't true inside the Portal
