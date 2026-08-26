@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { Link } from "@tanstack/react-router";
 import { Checkbox } from "@/components/ui/checkbox";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
@@ -51,6 +52,7 @@ import type { UseGuestSignInReturn } from "./useGuestSignIn";
  */
 export function OtpForm(sign: UseGuestSignInReturn) {
   const { t } = usePortalRuntime();
+  const dataConsentId = useId();
 
   // Consent is now implied by continuing -- no checkbox to tick, matching
   // the reference design's "By clicking Continue, you agree to..." pattern.
@@ -88,15 +90,39 @@ export function OtpForm(sign: UseGuestSignInReturn) {
   // already requires this exact consent to have been given once, back
   // when this device first went through OTP (see `useGuestSignIn`'s
   // `showTabs`), and DPDP asks for consent per purpose, not per login.
+  // Shortened from a single long descriptive sentence to a tight label
+  // plus a link out to this same page's own Privacy policy card, which
+  // already carries the full "what/why/who/how long" detail -- direct
+  // feedback that the original wording was the longest line on an
+  // already text-dense screen. The `Link` is a SIBLING of the `<label>`,
+  // not nested inside it: a native `<label>` forwards any click inside
+  // it to its associated control, and a nested `<a>` has no spec-level
+  // exemption from that the way a nested checkbox/radio does -- putting
+  // the link inside the label risks a tap meant only to open the detail
+  // page also toggling the checkbox. Kept as a real `htmlFor`/`id` pair
+  // rather than wrapping, so tapping the descriptive text still toggles
+  // the box exactly as before.
   const DataConsentCheckbox = (
-    <label className="flex items-start gap-2.5 text-[13px] leading-snug text-[var(--pg-ink-muted)]">
+    <div className="flex items-start gap-2.5 text-[13px] leading-snug text-[var(--pg-ink-muted)]">
       <Checkbox
+        id={dataConsentId}
         checked={sign.dataConsentAccepted}
         onCheckedChange={(v) => sign.setDataConsentAccepted(!!v)}
         className="mt-0.5 border-[var(--pg-ink-faint)] data-[state=checked]:border-[var(--pr-primary,#6366f1)] data-[state=checked]:bg-[var(--pr-primary,#6366f1)]"
       />
-      <span>{t("dataConsentLabel")}</span>
-    </label>
+      <span>
+        <label htmlFor={dataConsentId} className="cursor-pointer">
+          {t("dataConsentLabel")}
+        </label>{" "}
+        <Link
+          to="/portal/terms"
+          search={sign.portalSearch}
+          className="font-medium text-[var(--pr-primary,#6366f1)] underline underline-offset-2 hover:opacity-80"
+        >
+          {t("dataConsentLearnMore")}
+        </Link>
+      </span>
+    </div>
   );
 
   const StepProgress = ({ n }: { n: 1 | 2 }) => (
