@@ -1202,6 +1202,23 @@ export interface WireguardPeerInfo {
    * verb, so every allocation is permanent and unreclaimable. */
   routerPrivateKey: string | null;
   serverPublicKey: string;
+  /** THE PUBLIC KEY THE PLATFORM HAS REGISTERED FOR THIS ROUTER -- the
+   * device's own identity as the hub understands it, not the hub's key
+   * (that is `serverPublicKey`).
+   *
+   * Needs nothing new from the backend: `public_key` is already on
+   * `WireGuardPeerResponse`, the base of the `WireGuardTunnelCreateResponse`
+   * that `allocate-external` returns, and it is populated on both the
+   * allocate path and the reuse path. The frontend simply never declared it.
+   *
+   * Exists so `buildTunnelIdentityCheckChunk` can compare what the DEVICE
+   * holds against what the PLATFORM believes, at paste time, before anything
+   * is changed. `register_external_radius_nas` binds this router's FreeRADIUS
+   * `client{}` stanza to the tunnel IP that accompanies this key, so a device
+   * carrying a different one is an unknown client whose every Access-Request
+   * is dropped with no reply. Until this existed there was nothing on the
+   * router that could say so. */
+  peerPublicKey: string;
   routerTunnelIp: string;
   serverEndpointHost: string;
   /** OPTIONAL raw-address fallback for `serverEndpointHost`, used only when
@@ -1311,9 +1328,58 @@ function buildPortalUrl(portalUrl: PortalOverrideConfig): string {
  * for). `location.replace` (not `.href`) so this page never enters the
  * guest's browser history -- back-navigation lands them on the real portal
  * or wherever they were, never back on this intermediate page. */
-function buildPortalRedirectHtml(url: string, page: { title: string; body: string }): string {
+/** The on-disk identity stamp written into every hotspot page this script
+ * overrides, and into `/system note`.
+ *
+ * THE FAILURE THIS EXISTS FOR, confirmed live 2026-08-27 at "huda city
+ * center". The device was serving `login.html` carrying
+ * `organizationId=af85f1eb...`, `locationId=7510a5ed...`,
+ * `routerId=01c9171e...` -- all three hard-deleted from the platform hours
+ * earlier, when the router was re-enrolled under a different tenant. The
+ * portal was asked to resolve a location that no longer existed, fell back to
+ * an organization that also no longer existed, and returned 404 on EVERY
+ * guest load while the phone's rfc8908 probes came through fine. The guest
+ * saw a spinner, then nothing.
+ *
+ * The proximate cause was mundane -- the newer `.rsc` never imported (it hit
+ * the filename-with-spaces bug), so the previous run's files simply stayed.
+ * The DEFECT is that nothing anywhere noticed: hotspot bound, profile
+ * correct, RADIUS present, tunnel up, clock right, every check passing, and
+ * no check at all comparing what is ON DISK against what the platform now
+ * believes. A device re-provisioned into a different tenant is not
+ * hypothetical here; it is what happened.
+ *
+ * A marker makes that check a string comparison against known-good rather
+ * than URL parsing -- the same `CGBOOT`-style identification the backend's
+ * bootstrap renderer already uses for the tunnel's rows. It is an HTML
+ * comment, so it is invisible to guests, and it contains only UUIDs and an
+ * ISO timestamp -- no `"`, `\`, or `$` -- so it survives
+ * `escapeForRouterOsString` untouched and is safe as a `:find` needle.
+ *
+ * `g=` IS PRINTED, NEVER COMPARED. It changes on every Generate by design;
+ * comparing it would make every check fail. The three ids are what get
+ * compared, and they are compared INDIVIDUALLY rather than as one URL: the
+ * whole-URL form would break fleet-wide on any future change to
+ * `buildPortalUrl`'s parameter list or order, and it could not say WHICH id
+ * was wrong -- a bad `routerId` means these pages came from another device,
+ * while a bad `organizationId`/`locationId` means this device was re-enrolled
+ * under another tenant. Those need different answers. */
+function portalMarker(p: PortalOverrideConfig, generatedAt: string): string {
+  return `cloudguest-portal r=${p.routerId} o=${p.organizationId} l=${p.locationId} g=${generatedAt}`;
+}
+
+function buildPortalRedirectHtml(
+  url: string,
+  page: { title: string; body: string },
+  marker: string,
+): string {
   return [
     "<!DOCTYPE html>",
+    // See `portalMarker`: this is the only durable record on the device of
+    // WHICH TENANT this page was generated for, and the only thing a check
+    // can read back. First line after the doctype so a human opening the file
+    // sees it immediately.
+    `<!-- ${marker} -->`,
     '<html><head><meta charset="utf-8">',
     `<script>location.replace("${url}");</script>`,
     `<meta http-equiv="refresh" content="0;url=${url}">`,
@@ -1429,11 +1495,13 @@ function portalFileMatchPattern(file: string): string {
  * WinBox-paste-reliability reason as everything else in that function). */
 function buildPortalOverrideFileSetLines(
   portalUrl: PortalOverrideConfig,
+  generatedAt: string,
 ): { label: string; line: string }[] {
   const url = buildPortalUrl(portalUrl);
+  const marker = portalMarker(portalUrl, generatedAt);
   return PORTAL_OVERRIDE_FILES.map((page) => {
     const pattern = portalFileMatchPattern(page.file);
-    const contents = escapeForRouterOsString(buildPortalRedirectHtml(url, page));
+    const contents = escapeForRouterOsString(buildPortalRedirectHtml(url, page, marker));
     // ONE entered line. `$pfHits` is bound and consumed inside it, because
     // the RouterOS console runs each entered line as its own program, and
     // every `do={}` body below holds exactly one statement.
@@ -1461,15 +1529,80 @@ function buildPortalOverrideFileSetLines(
   });
 }
 
-/** Lets an unauthenticated guest's browser actually reach the real portal
- * at all -- without this, the hotspot's own captive-portal interception
- * blocks it exactly like any other pre-auth destination (see
- * `PORTAL_OVERRIDE_FILES`' own note on rlogin.html). Returns `null` if
- * `frontendBase` isn't a parseable URL (nothing sensible to wall in). IP
- * literal vs. real hostname decides `dst-address` (IP-level walled garden)
- * vs. `dst-host` (host-based) -- using the wrong one silently does nothing,
- * RouterOS won't reject a malformed `dst-address` the way you'd hope. */
-function buildWalledGardenLine(portalUrl: PortalOverrideConfig): string | null {
+/** Both walled-garden mechanisms, written together, with a verdict that can
+ * actually fail.
+ *
+ * MikroTik hotspot has TWO separate, independent walled gardens and they are
+ * NOT interchangeable. `/ip hotspot walled-garden` (host-based) matches the
+ * Host header at the HTTP-proxy layer -- a layer that does not exist for TLS
+ * -- so it can only ever bypass authentication for PLAIN HTTP.
+ * `/ip hotspot walled-garden ip` (address-based, firewall/NAT layer) acts
+ * before the port-443 hotspot redirect fires and is the ONLY mechanism that
+ * can bypass authentication for HTTPS. `GUEST_PORTAL_PUBLIC_BASE` is always
+ * HTTPS, so the host-based entry ALONE IS NOT A PARTIAL FIX -- it is no fix.
+ *
+ * CONFIRMED TWICE, on real hardware:
+ *  - 2026-08-18, fleet-wide (router "WYFY-GUEST"): firewall hit-counters
+ *    showed 1,965 HTTPS hits against 30 HTTP hits on the hotspot's own
+ *    redirect rules -- ~98% of real guest traffic. With only the host-based
+ *    entry, nearly every guest's first attempt to reach the portal was caught
+ *    by the hotspot's own unauthenticated-HTTPS redirect and wrapped in the
+ *    router's untrusted self-signed certificate. Fixed live by hand with
+ *    `/ip hotspot walled-garden ip add action=accept dst-address=<ip>`.
+ *  - 2026-08-27, "huda city center": `/ip hotspot walled-garden` held
+ *    `auth.wyfyguest.com` at HITS: 0 -- it had never matched anything, because
+ *    the hostname it keys on is inside TLS -- while
+ *    `/ip hotspot walled-garden ip` was empty and Safari reported "couldn't
+ *    establish a secure connection".
+ *
+ * WHY ONE CHUNK AND NOT TWO. This replaces `buildWalledGardenLine` +
+ * `buildWalledGardenIpLines`, which emitted two adjacent chunks with
+ * near-identical labels and -- the part that actually mattered -- were THE
+ * ONLY TWO CHUNKS IN THE ENTIRE SCRIPT THAT PRINTED NOTHING AT ALL. No PASS,
+ * no FAIL, no count. On a failed `:resolve` the address-based half degraded
+ * to a `:log warning` nobody reads and a clean prompt that read as success.
+ * Two silent chunks are also two chances to paste one and not the other. They
+ * are one feature, so they are now one chunk with one verdict -- and the
+ * verdict keys on the ADDRESS-BASED entry specifically, because a check that
+ * counted entries would have printed PASS on huda while no guest on that
+ * network could load the portal at all.
+ *
+ * THE `:resolve` STAYS ON THE DEVICE, deliberately. A generate-time literal
+ * would go stale the instant the backend's DNS record changed, with no signal
+ * to an already-provisioned router -- and this repo has already paid that
+ * bill: `20.219.72.235` was exactly such a literal, it was baked into
+ * `endpoint-address=` on 64 field routers, and when the hub's subscription
+ * died those routers became unreachable and needed physical visits (the
+ * backend even carries a regression test asserting that literal never
+ * reappears in its source). A backend-supplied address is the same mistake
+ * one layer up. The price of resolving on the device is that this only
+ * re-resolves when a human re-pastes, which means THE PORTAL MUST KEEP
+ * RESOLVING TO ONE STABLE ADDRESS. A rotating A-record set, a load balancer
+ * with changing IPs, or a CDN in front would wall in whichever address this
+ * router happened to get and block the rest -- a portal that works for some
+ * guests and not others, intermittently, which is materially worse to debug
+ * than a clean failure. That constraint is real, it is currently invisible
+ * anywhere but this comment, and it needs to be known by whoever next
+ * changes that DNS record.
+ *
+ * `[:typeof $portalIp] = "ip"`, NOT `[:len $portalIp] > 0`. `:local portalIp
+ * ""` creates a STRING; `:set portalIp [:resolve ...]` rebinds it to
+ * RouterOS's own `ip` type. `:len` over a non-string is not a character count
+ * and is not reliably defined -- if it throws, the entered line aborts AFTER
+ * the `:do {} on-error={}` has already caught nothing, so neither the add nor
+ * the set ever runs, silently, on every device in the fleet. That is a live
+ * suspect for huda's empty ip table (`:put [:typeof [:resolve "..."]]` on the
+ * bench settles it), and `:typeof` is the correct guard either way, which is
+ * why this does not wait for the answer.
+ *
+ * SHAPE. Two entered lines: writes, then verdict. `$portalIp`/`$pgOk` are
+ * bound and read within the first, because the RouterOS console runs each
+ * ENTERED LINE as its own program; the verdict re-reads both tables from the
+ * device rather than carrying variables across that boundary. Every `do={}`
+ * body holds exactly one statement -- a `;`-chained inline body threw a real
+ * syntax error on this hardware. Returns `null` when `frontendBase` is not a
+ * parseable URL (nothing sensible to wall in). */
+function buildWalledGardenLines(portalUrl: PortalOverrideConfig): string[] | null {
   const portalHost = (() => {
     try {
       return new URL(portalUrl.frontendBase).hostname;
@@ -1478,119 +1611,52 @@ function buildWalledGardenLine(portalUrl: PortalOverrideConfig): string | null {
     }
   })();
   if (!portalHost) return null;
+  const h = escapeForRouterOsString(portalHost);
   const isIpLiteral = /^\d{1,3}(\.\d{1,3}){3}$/.test(portalHost);
-  return isIpLiteral
-    ? `:if ([:len [/ip hotspot walled-garden ip find where comment="cloudguest-portal"]] = 0) do={ /ip hotspot walled-garden ip add dst-address=${portalHost} action=accept comment="cloudguest-portal" }`
-    : `:if ([:len [/ip hotspot walled-garden find where comment="cloudguest-portal"]] = 0) do={ /ip hotspot walled-garden add dst-host="${portalHost}" action=allow comment="cloudguest-portal" }`;
-}
-
-/** THE actual fix for a confirmed, severe, fleet-wide bug (field-diagnosed
- * live 2026-08-18, router "WYFY-GUEST"): MikroTik hotspot has TWO separate,
- * independent walled-garden mechanisms, and `buildWalledGardenLine` above
- * only ever populates one of them. `/ip hotspot walled-garden` (host-based,
- * what that function adds) works by inspecting the Host header at the
- * HTTP-proxy layer -- a layer that simply doesn't exist for TLS-encrypted
- * HTTPS traffic, so it can only ever bypass authentication for *plain HTTP*
- * requests. `/ip hotspot walled-garden ip` (IP-address-based, firewall/
- * NAT-layer) is the ONLY mechanism that can bypass authentication for
- * HTTPS, since it acts before the port-443 hotspot redirect fires at all.
- *
- * Confirmed live via firewall hit-counters on a real router: ~98% of real
- * guest traffic today is HTTPS (1,965 HTTPS hits vs. 30 HTTP hits on the
- * hotspot's own redirect rules) -- meaning that, with only the host-based
- * entry in place, the vast majority of guests' very first attempt to reach
- * the real portal (`GUEST_PORTAL_PUBLIC_BASE`, always HTTPS) gets caught by
- * the hotspot's own unauthenticated-HTTPS-redirect instead of passing
- * through -- which wraps the connection in the router's own untrusted
- * self-signed certificate -- producing exactly the "could not establish a
- * secure connection" / "a problem occurred, the webpage couldn't be loaded"
- * errors real guests hit, with the captive portal effectively broken for
- * most real-world devices, not an edge case. Confirmed FIXED live on that
- * same router by manually running `/ip hotspot walled-garden ip add
- * action=accept dst-address=<resolved portal IP>
- * comment="cloudguest-portal-https"`. This function generates the
- * repeatable, self-healing equivalent of that manual fix.
- *
- * `walled-garden ip` needs a real IP address -- unlike the host-based table
- * above, there is no hostname form of this one. The portal's IP is a real
- * DNS A record on this platform's own backend (see
- * `GUEST_PORTAL_PUBLIC_BASE`'s own docstring), not a fixed address baked
- * into this platform, so it can't just be resolved once here at
- * script-GENERATION time and hardcoded as a literal the way e.g.
- * `WAN_RENAME_WARNING_HEADER` bakes in a name -- that would silently go
- * stale the instant the backend's DNS record ever changed, with no signal
- * to an already-provisioned router that anything broke. Instead this
- * resolves the hostname ON THE ROUTER ITSELF, at script-RUN time, via
- * RouterOS's own `:resolve` -- the same primitive the "WAN Connectivity
- * Check" chunk above already uses for its own DNS probe, including the same
- * `:do {} on-error={}` guard (`:resolve` throws on failure -- NXDOMAIN, no
- * DNS reachable yet this early in provisioning, etc. -- and an uncaught
- * throw here would abort the rest of this paste) -- and then ADD-OR-UPDATE
- * (not just add-if-missing) the walled-garden-ip entry with whatever
- * address comes back, every time this chunk is (re-)pasted, matching the
- * "safe to re-paste, self-heals" idiom used everywhere else in this file
- * (e.g. `HOTSPOT_DNS_NAME`'s own static-DNS entry a few lines up: `:if (...
- * = 0) do={ add } else={ set }`).
- *
- * **Known limitation, deliberately not solved here**: this only re-resolves
- * when a human re-pastes this chunk. If the backend's DNS record for the
- * portal ever changes in between, this on-device entry goes stale until the
- * next re-paste -- there is no automatic re-resolve, unlike WAN1's own IP
- * (which the Heartbeat chunk below already re-resolves on its own 5-minute
- * schedule). Deliberately NOT wired into that scheduler here: WAN1's IP is
- * expected to change routinely (DHCP renewal is normal, ordinary operation),
- * while the portal's DNS record is expected to be effectively static (a
- * production A record on this platform's own backend, changed rarely if
- * ever) -- piggybacking a rarely-needed re-resolve onto a 5-minute scheduler
- * that already does something else (report to master) trades a small,
- * real-but-rare staleness window for a permanently-running extra `:resolve`
- * + `/ip hotspot walled-garden ip set` on every device in the fleet, every 5
- * minutes, forever. If the portal's DNS record does change, re-pasting this
- * one chunk (cheap, already how every other self-heal in this file is
- * recovered from) fixes every affected router. Left as a candidate for a
- * dedicated periodic refresh if this specific staleness window ever
- * actually bites in production -- not added preemptively.
- *
- * Returns `null` under the same "not a parseable URL" condition
- * `buildWalledGardenLine` already handles. An IP-literal `frontendBase` (the
- * same rare case that function special-cases) skips `:resolve` entirely --
- * there's nothing to resolve, the literal IS the address -- and so skips its
- * `on-error` guard too, since a literal assignment can't fail the way a
- * live DNS lookup can.
- *
- * **Emitted as ONE `;`-joined line, not a block.** `$portalIp` is bound by
- * the first statement and read by the last -- and the RouterOS console
- * runs EACH ENTERED LINE as its own program, so the previous multi-line
- * form declared `:local portalIp` on one line and then referenced a
- * variable that no longer existed on the next two. Those lines were a
- * syntax error on a real device; the `:resolve` never landed anywhere and
- * the walled-garden entry was never added or updated, silently, which is
- * the exact HTTPS-portal breakage this function exists to fix. Every
- * `do={}` body below still holds exactly one statement (the separate,
- * independently-confirmed rule -- see `wanExistenceCheckLines`), which is
- * why the add and the update are two guarded statements rather than one
- * `:if`/`else={}` pair with multi-statement bodies. */
-function buildWalledGardenIpLines(portalUrl: PortalOverrideConfig): string[] | null {
-  const portalHost = (() => {
-    try {
-      return new URL(portalUrl.frontendBase).hostname;
-    } catch {
-      return "";
-    }
-  })();
-  if (!portalHost) return null;
-  const portalHostEsc = escapeForRouterOsString(portalHost);
-  const isIpLiteral = /^\d{1,3}(\.\d{1,3}){3}$/.test(portalHost);
+  // A literal IS an address: nothing to resolve, so no `:resolve` and no
+  // `on-error` guard (a literal assignment cannot fail the way a live DNS
+  // lookup can). A bare dotted quad binds as RouterOS's own `ip` type, so
+  // the `[:typeof $portalIp] = "ip"` gate below is satisfied identically on
+  // both paths -- one gate, not two.
   const resolved = isIpLiteral
-    ? `:local portalIp "${portalHostEsc}"`
-    : `:local portalIp ""; :do { :set portalIp [:resolve "${portalHostEsc}"] } on-error={ :log warning "cloudguest: could not resolve ${portalHostEsc} for HTTPS walled-garden -- guest portal may be unreachable over HTTPS for new devices until this resolves; re-paste this chunk once DNS is healthy" }`;
-  const existing = `[/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"]`;
+    ? `:local portalIp ${portalHost}`
+    : `:local portalIp ""; :do { :set portalIp [:resolve "${h}"] } on-error={ :set portalIp "" }`;
   return [
     [
       resolved,
-      `:local existingPortalGardenIp ${existing}`,
-      `:if ([:len $portalIp] > 0 && [:len $existingPortalGardenIp] = 0) do={ /ip hotspot walled-garden ip add action=accept dst-address=$portalIp comment="cloudguest-portal-https" }`,
-      `:if ([:len $portalIp] > 0 && [:len $existingPortalGardenIp] > 0) do={ /ip hotspot walled-garden ip set $existingPortalGardenIp dst-address=$portalIp }`,
+      `:local pgOk ([:typeof $portalIp] = "ip")`,
+      // -- HOST-BASED (plain HTTP + the OS captive-portal probe). Add-or-set,
+      //    so a changed portal hostname converges instead of leaving a stale
+      //    entry sitting beside a new one, both matching, neither correct.
+      `:if ([:len [/ip hotspot walled-garden find where comment="cloudguest-portal"]] = 0) do={ /ip hotspot walled-garden add dst-host="${h}" action=allow comment="cloudguest-portal" }`,
+      `:if ([:len [/ip hotspot walled-garden find where comment="cloudguest-portal"]] > 0) do={ /ip hotspot walled-garden set [find where comment="cloudguest-portal"] dst-host="${h}" action=allow disabled=no }`,
+      // -- ADDRESS-BASED (the only one that can pass HTTPS).
+      `:if ($pgOk && [:len [/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"]] = 0) do={ /ip hotspot walled-garden ip add action=accept dst-address=$portalIp comment="cloudguest-portal-https" }`,
+      `:if ($pgOk && [:len [/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"]] > 0) do={ /ip hotspot walled-garden ip set [find where comment="cloudguest-portal-https"] action=accept dst-address=$portalIp disabled=no }`,
+    ].join("; "),
+    // -- VERDICT, on its own entered line: it re-reads both tables from the
+    //    device rather than trusting the variables above, which is the whole
+    //    point -- every `add`/`set` here is guarded, and a guarded command
+    //    that does not fire is indistinguishable from one that succeeded.
+    [
+      `:local pgHost [:len [/ip hotspot walled-garden find where comment="cloudguest-portal" disabled=no]]`,
+      `:local pgIp [:len [/ip hotspot walled-garden ip find where comment="cloudguest-portal-https" disabled=no]]`,
+      `:put ("  host-based entry (HTTP only)=" . [:tostr $pgHost] . "   address-based entry (HTTPS)=" . [:tostr $pgIp])`,
+      `:if ($pgIp > 0 && $pgHost > 0) do={ :put "  RESULT: PASS -- guests can reach the portal over both HTTP and HTTPS." }`,
+      `:if ($pgIp > 0 && $pgHost = 0) do={ :put "  RESULT: PARTIAL -- HTTPS passes; the plain-HTTP/probe entry is missing." }`,
+      `:if ($pgIp = 0) do={ :put "  RESULT: FAIL -- NO address-based walled-garden entry exists on this router." }`,
+      `:if ($pgIp = 0) do={ :put "  The portal is HTTPS-only. The host-based entry matches the Host header," }`,
+      `:if ($pgIp = 0) do={ :put "  which is inside TLS and the hotspot never sees it, so that entry will sit" }`,
+      `:if ($pgIp = 0) do={ :put "  at HITS: 0 forever. Every guest gets this router's own self-signed" }`,
+      `:if ($pgIp = 0) do={ :put "  certificate instead of the portal: SECURE CONNECTION FAILED." }`,
+      `:if ($pgIp = 0) do={ :put "  Most likely cause: ${h} did not resolve on THIS router." }`,
+      `:if ($pgIp = 0) do={ :put "  Check /ip dns on this router, confirm the name resolves here, and re-paste." }`,
+      `:if ($pgIp = 0) do={ :log warning "cloudguest: no address-based walled-garden entry -- the HTTPS portal is unreachable for every guest" }`,
+      // HARD STOP, same discipline as the Clock/NTP and WAN checks. A router
+      // with a hotspot and no HTTPS walled garden is the worst outcome
+      // available: it intercepts, it serves login.html, and then every guest
+      // hits a certificate error. It looks provisioned and it serves no one.
+      `:if ($pgIp = 0) do={ :error "cloudguest-portal: STOPPING -- no HTTPS walled-garden entry, so the portal is unreachable for every guest. Fix DNS on this router and re-paste this chunk." }`,
     ].join("; "),
   ];
 }
@@ -1863,6 +1929,17 @@ const WIREGUARD_INTERFACE_NAME = "wg-cloudguard";
  * there as a second, dead tunnel. The WireGuard chunk counts it and says
  * so out loud instead of silently adding a sibling next to it. */
 const WIREGUARD_LEGACY_INTERFACE_NAME = "wg-cloudguest";
+
+/** The `comment=` this generator stamps on the `/radius` entry it owns.
+ *
+ * Marker-based identification, not shape-based: `find where address=...`
+ * cannot distinguish an entry this script created from one that merely sits
+ * at the same address, which makes it impossible to adopt safely, impossible
+ * to converge `address=` when the hub moves, and impossible to tell an
+ * operator's own RADIUS server from ours when deciding what may be touched.
+ * Same discipline as the backend's `_BOOTSTRAP_MGMT_TAG` ("CGBOOT") on the
+ * tunnel's own rows, and as `cloudguest-portal*` on the walled garden. */
+const RADIUS_MARKER = "cloudguest-radius";
 
 /** How many times the "WAN Routing" chunk asks a DHCP WAN for its gateway
  * before giving up, and how long it waits between attempts. Written out as
@@ -2653,6 +2730,211 @@ function buildWireguardPeerLines(
     `:if ($wgGo = true && !(${noPeerYet})) do={ :log info "cloudguest-wg: existing hub peer updated in place to the platform's current key/endpoint" }`,
   );
   return [stmts.join("; ")];
+}
+
+/** Compares the tunnel identity the DEVICE holds against the identity the
+ * PLATFORM has registered -- at paste time, before anything is changed.
+ *
+ * THE FAILURE THIS EXISTS FOR, confirmed live 2026-08-27 at "huda city
+ * center". The device was healthy on 10.20.0.6 with public key `7hu3t0FJ...`,
+ * handshaking, 2476 bytes received. The platform tracked 10.20.0.8 with a
+ * completely different key, `status=pending`, never handshaked,
+ * `rotation_count=6`. `register_external_radius_nas` binds the router's
+ * FreeRADIUS `client{}` stanza to the tunnel IP THE PLATFORM holds, so every
+ * Access-Request arrived from an address the hub had no client for and was
+ * dropped as an unknown client: no reply, nothing logged, a perfectly correct
+ * shared secret, a live tunnel, and every guest login failing. Every other
+ * check on that router passed. NOTHING ANYWHERE SAID THE TWO ENDS DISAGREED.
+ *
+ * WHY IT CAN BE CHECKED AT ALL. The device knows its own public key and
+ * tunnel address; this script is generated with what the platform expects
+ * (`peerPublicKey` / `routerTunnelIp`); so the comparison is a string
+ * compare on the router. It needs no hub call and no backend change.
+ *
+ * THE TWO OUTCOMES ARE GENUINELY DIFFERENT, and only one is repairable:
+ *  - This script CARRIES a private key (a fresh allocation, or an explicit
+ *    rotation): the WireGuard chunk below re-keys the device onto the
+ *    platform's identity, so a mismatch is a warning and the run continues.
+ *  - This script carries NO private key (the platform reused an existing
+ *    peer -- see `routerPrivateKey`): there is no way to move this device
+ *    onto the platform's identity, because that key was generated on the hub
+ *    and never retained by anyone. Continuing would rebuild every downstream
+ *    object around an identity the hub will not accept, and would point
+ *    `/radius src-address=` at an address this router does not hold. So it
+ *    `:error`s, and names rotation as the only exit. That abort is the thing
+ *    that would have stopped huda's second `.rsc` before it touched the
+ *    device, and it is what makes the RADIUS chunk's `src-address=` safe to
+ *    write at all.
+ *
+ * SHAPE, all forced by RouterOS rather than chosen. `get` THROWS on an empty
+ * `[find]`, so every read is wrapped in `:do {} on-error={}` and takes
+ * `[:pick ... 0]` (a `find where` returns an array) -- the same idiom the
+ * backend's own remote-bootstrap block uses. Every `$id*` is bound and read
+ * on ONE entered line, because the console runs each entered line as its own
+ * program. Every `do={}` body holds exactly one statement. `[:len $idHaveKey]`
+ * is a legitimate character count here because `public-key` is a string --
+ * unlike `[:len]` over `:resolve`'s `ip`-typed value, which is the unsound
+ * form deliberately avoided in `buildWalledGardenLines`.
+ *
+ * The legacy `wg-cloudguest` interface is READ AND REPORTED, never removed:
+ * it can be the only path an operator is connected over, and this chunk runs
+ * on devices reached exactly that way. */
+function buildTunnelIdentityCheckChunk(wireguard: WireguardPeerInfo): RouterSetupScriptChunk {
+  const iface = WIREGUARD_INTERFACE_NAME;
+  const legacy = WIREGUARD_LEGACY_INTERFACE_NAME;
+  // A comparison against a key the platform did not send is not a check, it
+  // is a guaranteed FAIL -- and one that would abort every paste on the
+  // no-private-key path. `public_key` is a required field on the backend
+  // response, so an empty one means something upstream is wrong; this reports
+  // that and compares only the tunnel address, rather than inventing a verdict
+  // it has no grounds for.
+  const wantKey = escapeForRouterOsString(wireguard.peerPublicKey ?? "");
+  const haveWantKey = Boolean(wireguard.peerPublicKey);
+  const wantAddr = `${wireguard.routerTunnelIp}/24`;
+  const canRekey = Boolean(wireguard.routerPrivateKey);
+  return {
+    label: "Tunnel Identity Check (confirm PASS or NEW before continuing)",
+    script: [
+      `:put "===================================================="`,
+      `:put "  TUNNEL IDENTITY CHECK"`,
+      [
+        `:local idWantKey "${wantKey}"`,
+        `:local idWantAddr "${wantAddr}"`,
+        `:local idHaveKey ""`,
+        `:local idHaveAddr ""`,
+        `:local idLegacyKey ""`,
+        `:do { :set idHaveKey [/interface wireguard get [:pick [/interface wireguard find where name="${iface}"] 0] public-key] } on-error={ :set idHaveKey "" }`,
+        `:do { :set idHaveAddr [:tostr [/ip address get [:pick [/ip address find where interface="${iface}"] 0] address]] } on-error={ :set idHaveAddr "" }`,
+        `:do { :set idLegacyKey [/interface wireguard get [:pick [/interface wireguard find where name="${legacy}"] 0] public-key] } on-error={ :set idLegacyKey "" }`,
+        `:local idOk (${haveWantKey ? "$idHaveKey = $idWantKey && " : ""}$idHaveAddr = $idWantAddr)`,
+        ...(haveWantKey
+          ? []
+          : [
+              `:put "  NOTE: the platform sent no public key for this router, so only the"`,
+              `:put "  tunnel address is compared below. Report this -- it is a platform fault."`,
+            ]),
+        `:put ("  platform expects: key " . $idWantKey . "  at " . $idWantAddr)`,
+        `:put ("  this device has:  key " . $idHaveKey . "  at " . $idHaveAddr)`,
+        `:if ([:len $idLegacyKey] > 0) do={ :put ("  legacy ${legacy} is ALSO present here, key " . $idLegacyKey) }`,
+        `:if ([:len $idHaveKey] = 0) do={ :put "  RESULT: NEW -- no ${iface} tunnel here yet. The WireGuard chunk will build one." }`,
+        `:if ([:len $idHaveKey] > 0 && $idOk) do={ :put "  RESULT: PASS -- this device holds the identity the platform has registered." }`,
+        `:if ([:len $idHaveKey] > 0 && !$idOk) do={ :put "  RESULT: FAIL -- IDENTITY MISMATCH." }`,
+        `:if ([:len $idHaveKey] > 0 && !$idOk) do={ :put "  The hub keys this router's FreeRADIUS client entry to the address the" }`,
+        `:if ([:len $idHaveKey] > 0 && !$idOk) do={ :put "  PLATFORM holds. Packets from the address above are dropped as an unknown" }`,
+        `:if ([:len $idHaveKey] > 0 && !$idOk) do={ :put "  client: no reply, nothing logged, shared secret irrelevant. Guests cannot log in." }`,
+        `:if ([:len $idHaveKey] > 0 && !$idOk) do={ :log warning ("cloudguest-wg: identity mismatch -- device " . $idHaveKey . " at " . $idHaveAddr . "; platform " . $idWantKey . " at " . $idWantAddr) }`,
+        ...(canRekey
+          ? [
+              `:if ([:len $idHaveKey] > 0 && !$idOk) do={ :put "  This script CARRIES a private key, so the WireGuard chunk below re-keys this device onto the platform identity. Carry on." }`,
+            ]
+          : [
+              `:if ([:len $idHaveKey] > 0 && !$idOk) do={ :error "cloudguest-wg: STOPPING -- identity mismatch, and this script carries no private key because the platform reused an existing peer. That key was generated on the hub and never retained, so this device cannot be moved onto it. Press Generate again with Rotate the WireGuard tunnel ticked, and use the NEW script." }`,
+            ]),
+      ].join("; "),
+      `:put "===================================================="`,
+    ].join("\n"),
+  };
+}
+
+/** Reads the deployed `login.html` back off the device and compares its
+ * embedded ids to the ones this script was generated with.
+ *
+ * See `portalMarker` for the confirmed-live failure this exists for (huda
+ * city center, 2026-08-27: a router serving a deleted tenant's portal link,
+ * 404 on every guest load, every other check passing).
+ *
+ * WHAT THIS IS AND IS NOT. The file-write chunks are already
+ * unconditional-converge with their own PASS/FAIL -- they overwrite whatever
+ * is on disk on every paste and print the match count. There is no
+ * add-if-missing defect there. The failure was that THE SCRIPT NEVER RAN, so
+ * a paste-time check does not by itself make this impossible; it makes it
+ * loud where it was silent, and it gives a technician standing at a suspect
+ * router one thing to paste. The half that makes it genuinely impossible is
+ * the platform noticing on its own -- see the `/system note` stamp in the
+ * Portal Redirect Page chunks and the backend note beside it.
+ *
+ * GRANULARITY: three ids, compared individually, not the whole URL. See
+ * `portalMarker`'s own docstring.
+ *
+ * `[:typeof [:find ...]] != "nothing"`, NOT `[:len [:find ...]] > 0`.
+ * `:find` returns the position, or `nothing` when the needle is absent, and
+ * `:len` over `nothing` is not a valid test of that -- the same class of
+ * unsound guard as `[:len]` over `:resolve`'s `ip` value in
+ * `buildWalledGardenLines`. `[:len $piC]` a few lines down IS legitimate,
+ * because `/file get ... contents` really is a string.
+ *
+ * `/file get [find] contents` on a ~700-byte page (what
+ * `buildPortalRedirectHtml` produces) is well inside RouterOS's limits;
+ * `get` throws on an empty `[find]`, hence `:pick ... 0` and the `:do {}
+ * on-error={}` wrapper. */
+function buildPortalIdentityCheckChunk(
+  portalUrl: PortalOverrideConfig,
+  generatedAt: string,
+): RouterSetupScriptChunk {
+  const pat = portalFileMatchPattern("login.html");
+  const mk = escapeForRouterOsString(portalMarker(portalUrl, generatedAt));
+  const r = portalUrl.routerId;
+  const o = portalUrl.organizationId;
+  const l = portalUrl.locationId;
+  return {
+    label: "Portal Identity Check (confirm PASS before handing the venue over)",
+    script: [
+      `:put "===================================================="`,
+      `:put "  PORTAL IDENTITY CHECK"`,
+      [
+        `:local piC ""`,
+        `:do { :set piC [/file get [:pick [/file find where name~"${pat}"] 0] contents] } on-error={ :set piC "" }`,
+        `:local piN [:len [/file find where name~"${pat}"]]`,
+        `:local piHasR ([:typeof [:find $piC "routerId=${r}"]] != "nothing")`,
+        `:local piHasO ([:typeof [:find $piC "organizationId=${o}"]] != "nothing")`,
+        `:local piHasL ([:typeof [:find $piC "locationId=${l}"]] != "nothing")`,
+        `:local piMk [:find $piC "cloudguest-portal r="]`,
+        `:local piOk ($piN > 0 && $piHasR && $piHasO && $piHasL)`,
+        `:put ("  login.html copies on this device: " . [:tostr $piN])`,
+        `:put ("  platform expects: ${mk}")`,
+        `:if ([:typeof $piMk] != "nothing") do={ :put ("  on disk:          " . [:pick $piC $piMk ($piMk + 140)]) }`,
+        `:if ([:typeof $piMk] = "nothing") do={ :put "  on disk:          no cloudguest marker (these pages predate it, or are not ours)" }`,
+        `:if ([:len $piC] = 0) do={ :put "  RESULT: FAIL -- could not read login.html on this device at all." }`,
+        `:if ($piOk) do={ :put "  RESULT: PASS -- the deployed pages carry this router's current ids." }`,
+        `:if ([:len $piC] > 0 && !$piOk) do={ :put "  RESULT: FAIL -- THIS DEVICE IS SERVING ANOTHER TENANT'S PORTAL LINK." }`,
+        `:if ([:len $piC] > 0 && !$piHasL) do={ :put "  locationId on disk is not the one this script was generated for." }`,
+        `:if ([:len $piC] > 0 && !$piHasO) do={ :put "  organizationId on disk is not the one this script was generated for." }`,
+        `:if ([:len $piC] > 0 && !$piHasR) do={ :put "  routerId on disk is not this router -- these pages came from another device." }`,
+        `:if ([:len $piC] > 0 && !$piOk) do={ :put "  Those ids may name records that no longer exist. The portal answers 404 on" }`,
+        `:if ([:len $piC] > 0 && !$piOk) do={ :put "  every guest load: the guest sees a spinner, then nothing. Meanwhile every" }`,
+        `:if ([:len $piC] > 0 && !$piOk) do={ :put "  other check on this router passes, which is exactly how this went unseen." }`,
+        `:if (!$piOk) do={ :log warning "cloudguest-portal: deployed hotspot pages carry ids that are not this router's -- every guest load 404s" }`,
+        `:if (!$piOk) do={ :error "cloudguest-portal: STOPPING -- this device is not serving this venue's portal. Paste all five Portal Redirect Page chunks, then re-paste this one." }`,
+      ].join("; "),
+      // The other four pages, shallowly: only that each carries the CURRENT
+      // locationId. `/file set [find ...]` writes every match identically, so
+      // a divergence between them can only come from a previous run using a
+      // different match pattern -- rare, but silent, and cheap to rule out.
+      //
+      // The `.` is left UNESCAPED, matching the `/login.html` pattern this
+      // file has used in production all along (`portalFileMatchPattern`): a
+      // regex `.` matches any character, which is harmless across this fixed
+      // set of names, and `\.` inside a RouterOS double-quoted string is not
+      // a documented escape -- the parser's treatment of an unknown one is
+      // exactly the kind of thing that fails silently on one board and not
+      // another.
+      //
+      // The alternation regex is one `~` match rather than four separate
+      // `find`s purely to keep this to one entered line. If `~` turns out not
+      // to accept POSIX alternation on some board, the fallback is four lines
+      // each using `portalFileMatchPattern`, which is already proven in
+      // production.
+      [
+        `:local piL "locationId=${l}"`,
+        `:local piStale 0`,
+        `:foreach f in=[/file find where name~"/(rlogin|alogin|status|logout).html"] do={ :if ([:typeof [:find [/file get $f contents] $piL]] = "nothing") do={ :set piStale ($piStale + 1) } }`,
+        `:if ($piStale = 0) do={ :put "  rlogin/alogin/status/logout: all carry this venue's locationId." }`,
+        `:if ($piStale > 0) do={ :put ("  WARNING: " . [:tostr $piStale] . " other hotspot page(s) still carry a different locationId.") }`,
+        `:if ($piStale > 0) do={ :log warning "cloudguest-portal: some hotspot pages still carry another location's id" }`,
+      ].join("; "),
+      `:put "===================================================="`,
+    ].join("\n"),
+  };
 }
 
 export interface RouterSetupScriptChunk {
@@ -3528,6 +3810,11 @@ function buildHeartbeatStatements(opts: {
  * particular still do, against whatever interface name the technician
  * already set up). */
 export function buildRouterSetupScriptChunks(opts: {
+  /** ISO-8601 stamp baked into the portal pages' `cloudguest-portal` marker
+   * and into `/system note`, so the device carries a readable record of WHICH
+   * generation last landed on it. Defaults to now; accepted as an argument so
+   * the generator stays a pure function of its inputs for tests. */
+  generatedAt?: string;
   apiBase: string;
   agentCredential: string;
   wans: WanEntry[];
@@ -3561,7 +3848,30 @@ export function buildRouterSetupScriptChunks(opts: {
    * that has never done anything. */
   enableFirewall: boolean;
   wireguard?: WireguardPeerInfo;
-  radius?: { serverAddress: string; sharedSecret: string };
+  radius?: {
+    serverAddress: string;
+    sharedSecret: string;
+    /** THIS ROUTER'S OWN TUNNEL IP, written to `/radius src-address=`.
+     *
+     * The backend's `network_config/renderers.py` module docstring calls
+     * this "the one field this whole feature lives or dies on", and its own
+     * `render_radius_client` has always emitted it -- this generator never
+     * did. FreeRADIUS matches an incoming Access-Request against its client
+     * list BY SOURCE IP (confirmed live: the hub's `clients.conf` keys each
+     * entry by `ipaddr`). A MikroTik with an unset `src-address` sources
+     * RADIUS from whichever interface the routing table picks for the
+     * destination -- typically the WAN, an address the hub has never heard
+     * of -- and FreeRADIUS then drops the request with no reply, nothing
+     * logged, and a perfectly correct shared secret. The least debuggable
+     * failure this platform can produce, and the one huda city center spent
+     * an evening on.
+     *
+     * Only ever the tunnel IP the PLATFORM has allocated. The chunk refuses
+     * to write it if the router does not actually hold that address -- see
+     * the `rdSrcOk` guard, and `buildTunnelIdentityCheckChunk` for the
+     * paste-time check that stops a diverged device reaching this at all. */
+    srcAddress: string;
+  };
   apiAccess?: { username: string; secret: string };
   /** RouterOS's own device identity (shown in the CLI prompt, e.g.
    * `[admin@gurgaon-branch] >`) -- set to the location name so a field
@@ -3669,6 +3979,7 @@ export function buildRouterSetupScriptChunks(opts: {
     apiAccess,
     identity,
     portalUrl,
+    generatedAt = new Date().toISOString(),
     wanRoutingMode = "load_balance",
     basicConfigOnly = false,
     notProvisioned = [],
@@ -5412,7 +5723,34 @@ export function buildRouterSetupScriptChunks(opts: {
         `:if ($hsDnsProf = 0) do={ :log warning "cloudguest: dns-name not set -- hsprof1 does not exist" }`,
       ].join("; "),
       `:if ([:len [/ip dns static find where name="${HOTSPOT_DNS_NAME}"]] = 0) do={ /ip dns static add name="${HOTSPOT_DNS_NAME}" address=${lanIp} comment="cloudguest-hotspot-dns-name" } else={ /ip dns static set [find name="${HOTSPOT_DNS_NAME}"] address=${lanIp} }`,
-      `:if ([:len [/ip hotspot find where interface="${lanBridge}"]] = 0) do={ /ip hotspot add name="hotspot1" interface="${lanBridge}" address-pool="hotspot-pool" profile="hsprof1" disabled=no }`,
+      // CONVERGE THE SERVER BIND, not merely its existence.
+      //
+      // Add-if-missing on `interface=` could never repair three states, each
+      // of which breaks every guest login while the old verdict printed PASS:
+      //   - `disabled=yes`, e.g. someone toggled it off in WinBox while
+      //     debugging and never toggled it back;
+      //   - `profile=default` instead of `hsprof1`, which is the worst of the
+      //     three -- the RADIUS chunk's `use-radius=yes` then lands on a
+      //     profile nothing is bound to, so the hotspot never asks RADIUS
+      //     anything and every login fails with the entry looking perfect;
+      //   - `address-pool=` repointed at a pool outside the LAN prefix.
+      //
+      // Keyed on `interface=` because the binding is what matters, and
+      // deliberately NOT writing `name=` on an existing server: renaming an
+      // object an operator named themselves buys nothing and `name` is not
+      // load-bearing here.
+      `:if ([:len [/ip hotspot find where interface="${lanBridge}"]] = 0) do={ /ip hotspot add name="hotspot1" interface="${lanBridge}" address-pool="hotspot-pool" profile="hsprof1" disabled=no comment="cloudguest-hotspot" }`,
+      `:if ([:len [/ip hotspot find where interface="${lanBridge}"]] > 0) do={ /ip hotspot set [find where interface="${lanBridge}"] address-pool="hotspot-pool" profile="hsprof1" disabled=no comment="cloudguest-hotspot" }`,
+      // `hotspot-address` on an ALREADY-EXISTING profile. The `add` above only
+      // sets it on a brand-new one, so a router whose LAN IP has since changed
+      // kept redirecting guests at an address that is no longer on the device.
+      // Same count-gated shape as the `dns-name` write above, for the same
+      // reason: `set [find ...]` against an empty match succeeds silently.
+      [
+        `:local hsAddrProf [:len [/ip hotspot profile find where name="hsprof1"]]`,
+        `:if ($hsAddrProf > 0) do={ /ip hotspot profile set [find name="hsprof1"] hotspot-address=${lanIp} }`,
+        `:if ($hsAddrProf = 0) do={ :log warning "cloudguest: hotspot-address not set -- hsprof1 does not exist" }`,
+      ].join("; "),
       // FIVE OBJECTS THIS CHUNK CREATES, FIVE COUNTS READ BACK. On a
       // router reset with the default configuration, several of these
       // already exist in some form and the `add`s are no-ops. On a router
@@ -5451,7 +5789,13 @@ export function buildRouterSetupScriptChunks(opts: {
         `:local hsNet [:len [/ip dhcp-server network find where address="${lanNetwork}"]]`,
         `:local hsNetGw [:len [/ip dhcp-server network find where gateway=${lanIp}]]`,
         `:local hsProf1 [:len [/ip hotspot profile find where name="hsprof1"]]`,
-        `:local hsSrv [:len [/ip hotspot find where interface="${lanBridge}"]]`,
+        // NOT a bare presence count. A hotspot server that exists but is
+        // disabled, or bound to the wrong profile, serves no one -- and the
+        // presence-only form scored those states as PASS, which is exactly
+        // the "check that cannot fail" this same block warns about two
+        // comments above. The convergence lines above make all three true;
+        // this is what proves they did.
+        `:local hsSrv [:len [/ip hotspot find where interface="${lanBridge}" profile="hsprof1" disabled=no]]`,
         `:local hsOk ($hsPool = 1 && $hsRanges = "${poolRanges}" && $hsDhcp > 0 && $hsNet = 1 && $hsNetGw = 1 && $hsProf1 > 0 && $hsSrv > 0)`,
         `:put ("  pool=" . [:tostr $hsPool] . " dhcp-server=" . [:tostr $hsDhcp] . " dhcp-network=" . [:tostr $hsNet] . " profile=" . [:tostr $hsProf1] . " hotspot=" . [:tostr $hsSrv])`,
         `:put ("  pool ranges=" . $hsRanges . "   expected=${poolRanges}   (inside ${lanNetwork})")`,
@@ -5643,7 +5987,7 @@ export function buildRouterSetupScriptChunks(opts: {
   // 2. IT WAS NEVER THE FIX FOR THE INCIDENT IT CITED. This chunk's own
   //    comment claimed kinship with the confirmed-live "could not
   //    establish a secure connection" failures of 2026-08-18. Read
-  //    `buildWalledGardenIpLines`'s docstring: that incident was
+  //    `buildWalledGardenLines`'s docstring: that incident was
   //    unauthenticated HTTPS to the REAL portal being caught by the
   //    hotspot's own redirect, "which wraps the connection in the
   //    router's own untrusted self-signed certificate", and it was
@@ -5705,27 +6049,20 @@ export function buildRouterSetupScriptChunks(opts: {
     // navigating to the real portal (an ordinary external address as far
     // as the hotspot is concerned) is silently blocked -- that's the whole
     // point of a captive portal, the platform's own server is no
-    // exception unless explicitly walled off. See `buildWalledGardenLine`'s
-    // own docstring for the IP-literal-vs-hostname distinction.
-    const walledGarden = buildWalledGardenLine(portalUrl);
+    // exception unless explicitly walled off.
+    //
+    // ONE chunk, not the two this replaces. See `buildWalledGardenLines`'
+    // own docstring: the host-based and address-based tables are one
+    // feature, the address-based half is the only one that can pass HTTPS,
+    // and as two chunks they were the only two in the whole script that
+    // printed nothing at all -- which is how huda city center ran for
+    // hours with an empty `walled-garden ip` table and a host entry at
+    // HITS: 0 while every guest got a certificate error.
+    const walledGarden = buildWalledGardenLines(portalUrl);
     if (walledGarden) {
       chunks.push({
-        label: "Walled Garden (let unauthenticated guests reach the portal)",
-        script: walledGarden,
-      });
-    }
-
-    // Separate chunk, deliberately not folded into the one above: the
-    // host-based entry alone only covers plain HTTP -- see
-    // `buildWalledGardenIpLines`'s own docstring for the confirmed,
-    // severe, fleet-wide bug this fixes (the vast majority of real guest
-    // traffic is HTTPS, and without this, that traffic never reaches the
-    // real portal at all). Both are needed together, not either/or.
-    const walledGardenIp = buildWalledGardenIpLines(portalUrl);
-    if (walledGardenIp) {
-      chunks.push({
-        label: "Walled Garden IP (let unauthenticated guests reach the portal over HTTPS)",
-        script: walledGardenIp.join("\n"),
+        label: "Walled Garden (let unauthenticated guests reach the portal, HTTP + HTTPS)",
+        script: walledGarden.join("\n"),
       });
     }
 
@@ -5741,9 +6078,53 @@ export function buildRouterSetupScriptChunks(opts: {
     // this function -- see `PORTAL_OVERRIDE_FILES` for exactly which stock
     // pages this covers and why (login/rlogin for a not-yet-authenticated
     // guest, alogin/status/logout for an already-authenticated one).
-    buildPortalOverrideFileSetLines(portalUrl).forEach(({ label, line }) => {
+    buildPortalOverrideFileSetLines(portalUrl, generatedAt).forEach(({ label, line }) => {
       chunks.push({ label: `Portal Redirect Page (${label})`, script: line });
     });
+
+    // THE RUN STAMP. `/system note` is a single settable string this platform
+    // otherwise never touches, and it is the cheapest honest answer to "which
+    // generation last completed on this device".
+    //
+    // It exists because of the gap underneath huda city center: a `.rsc` that
+    // fails to import leaves the PREVIOUS run 100% intact, with no signal on
+    // the device or on the platform. The one-line paste path already ends with
+    // `### cloudguest COMPLETE` precisely so a truncated run is visible; the
+    // `.rsc` path had no equivalent, so a router could serve a deleted
+    // tenant's portal for hours while every check passed.
+    //
+    // WHAT IT PROVES, EXACTLY: that THIS chunk ran with THESE ids. It does not
+    // prove the files on disk contain them -- those two diverge only when
+    // `/file set` matched zero files, which the chunks above already report as
+    // FAIL and log. That is a real limitation, stated rather than papered
+    // over, and it is why the Portal Identity Check below reads the FILE.
+    //
+    // FOR THE BACKEND (not done here, deliberately -- this is the frontend
+    // half): the heartbeat scheduler already reads a device value at runtime
+    // and interpolates it into its JSON body (`$hbIp`, the live WAN IP), so
+    // adding `:local hbNote [/system note get note]` and one more field is
+    // structurally the same, proven work. With the platform comparing that
+    // field against its own record, a router serving the wrong tenant is
+    // flagged on the dashboard within 5 minutes with nobody at the venue --
+    // which is the difference between this being diagnosable and being
+    // impossible.
+    chunks.push({
+      label: "Portal Stamp (records which generation this device is running)",
+      script: [
+        `/system note set note="${escapeForRouterOsString(portalMarker(portalUrl, generatedAt))}" show-at-login=no`,
+        [
+          `:local pnN [:len [/system note find where note~"cloudguest-portal r="]]`,
+          `:if ($pnN > 0) do={ :put "  Run stamp written. Read it back any time with: /system note print" }`,
+          `:if ($pnN = 0) do={ :put "  NOTE: the run stamp was not written -- /system note may be unavailable on this board." }`,
+          `:if ($pnN = 0) do={ :log warning "cloudguest: /system note run stamp not written" }`,
+        ].join("; "),
+      ].join("\n"),
+    });
+
+    // LAST in the portal group, so it verifies what the chunks above just
+    // wrote -- and self-contained, because its real value is as a standalone
+    // paste on any router someone suspects. See its own docstring.
+    chunks.push(buildPortalIdentityCheckChunk(portalUrl, generatedAt));
   }
 
   // Confirmed live: an unauthenticated guest's browser can silently bypass
@@ -6057,6 +6438,12 @@ export function buildRouterSetupScriptChunks(opts: {
   }
 
   if (wireguard) {
+    // BEFORE the tunnel chunk, deliberately: it reports what is on the device
+    // as it stands, and (when this script carries no key to re-key with)
+    // refuses to let the run continue onto a device the hub will not accept.
+    // See `buildTunnelIdentityCheckChunk`'s own docstring for huda city
+    // center, where the two ends disagreed for hours with nothing to say so.
+    chunks.push(buildTunnelIdentityCheckChunk(wireguard));
     const noPeerYet = `[:len [/interface wireguard peers find where interface="${WIREGUARD_INTERFACE_NAME}"]] = 0`;
     const peerArgs =
       `interface="${WIREGUARD_INTERFACE_NAME}" public-key="${wireguard.serverPublicKey}" ` +
@@ -6141,7 +6528,23 @@ export function buildRouterSetupScriptChunks(opts: {
       //
       // Scoped to addresses on THIS interface only, so a venue that
       // happens to use an overlapping range on a LAN port is untouched.
-      `:if ([:len [/ip address find where interface="${WIREGUARD_INTERFACE_NAME}" address!="${wireguard.routerTunnelIp}/24"]] > 0) do={ /ip address set [find where interface="${WIREGUARD_INTERFACE_NAME}" address!="${wireguard.routerTunnelIp}/24"] address="${wireguard.routerTunnelIp}/24" }`,
+      // REMOVE-THEN-ADD, not `set` on the whole non-matching set.
+      //
+      // `set [find where interface=X address!=WANT] address=WANT` is correct
+      // only when exactly one row matches. With TWO wrong addresses it writes
+      // the same value to both and RouterOS errors `already have such
+      // address`, aborting the entered line; with the right address already
+      // present alongside a wrong one it collides the same way. Both states
+      // are reachable on a router that has been re-provisioned more than once,
+      // which is precisely the population this convergence exists for.
+      //
+      // The `:foreach` + `remove` + `add`-if-missing shape is the one this
+      // file already uses for WAN addressing (`cloudguest-addr-wan<n>`), and
+      // it is safe for the same reason: scoped to THIS interface only, so a
+      // venue that happens to use an overlapping range on a LAN port is never
+      // touched. Nothing else on the device owns an address on the tunnel.
+      `:foreach wgAddrRow in=[/ip address find where interface="${WIREGUARD_INTERFACE_NAME}"] do={ :if ([:tostr [/ip address get $wgAddrRow address]] != "${wireguard.routerTunnelIp}/24") do={ /ip address remove $wgAddrRow } }`,
+      `:if ([:len [/ip address find where interface="${WIREGUARD_INTERFACE_NAME}" address="${wireguard.routerTunnelIp}/24"]] = 0) do={ /ip address add address="${wireguard.routerTunnelIp}/24" interface="${WIREGUARD_INTERFACE_NAME}" }`,
       // Never infer success from the absence of an error: all three lines
       // above are `:if ... do={ add }`, which do nothing at all -- silently,
       // and with a zero exit -- if the `find` was non-empty for a reason
@@ -6268,8 +6671,60 @@ export function buildRouterSetupScriptChunks(opts: {
       // it is `true` precisely because this branch now writes the secret,
       // and `scripts/test-setup-script-generator.mjs` asserts the two
       // together so neither can drift from the other.
-      `:if ([:len [/radius find where address="${radius.serverAddress}"]] = 0) do={ /radius add service=hotspot address="${radius.serverAddress}" secret="${escapeForRouterOsString(radius.sharedSecret)}" timeout=3s } else={ /radius set [find where address="${radius.serverAddress}"] secret="${escapeForRouterOsString(radius.sharedSecret)}" disabled=no }`,
-      `/ip hotspot profile set [find name="hsprof1"] use-radius=yes radius-accounting=yes`,
+      // REFUSE TO WRITE AN src-address THIS ROUTER DOES NOT HOLD.
+      //
+      // `src-address=` pointing at an address that is not on the box makes
+      // RouterOS source nothing at all -- strictly worse than leaving it
+      // unset, because the failure moves from "wrong source IP" to "no
+      // packet". The WireGuard chunk runs BEFORE this one and converges the
+      // tunnel address, so reaching here without it means that chunk failed,
+      // was skipped, or the device is on an identity the platform does not
+      // know about. All three are fatal to guest login and all three used to
+      // be silent. Say which, and stop.
+      [
+        `:local rdSrcOk [:len [/ip address find where address="${radius.srcAddress}/24" interface="${WIREGUARD_INTERFACE_NAME}"]]`,
+        `:if ($rdSrcOk = 0) do={ :put "  FAIL -- this router does not hold ${radius.srcAddress} on ${WIREGUARD_INTERFACE_NAME}." }`,
+        `:if ($rdSrcOk = 0) do={ :put "  RADIUS would be pinned to an address that is not here, and send nothing." }`,
+        `:if ($rdSrcOk = 0) do={ :log warning "cloudguest-radius: ${radius.srcAddress} is not on ${WIREGUARD_INTERFACE_NAME} -- refusing to write src-address" }`,
+        `:if ($rdSrcOk = 0) do={ :error "cloudguest-radius: STOPPING -- ${radius.srcAddress} is not on ${WIREGUARD_INTERFACE_NAME}. Paste the WireGuard Tunnel chunk, confirm its PASS, then re-paste this one." }`,
+      ].join("; "),
+      // ADOPT, CREATE, CONVERGE -- three guarded statements keyed on a
+      // MARKER, not on a shape.
+      //
+      // `find where address=...` cannot tell OUR entry from one that merely
+      // happens to sit at the same address, which means it can neither adopt
+      // safely nor converge `address=` itself when the hub moves. The comment
+      // is the same `CGBOOT`-style identification the backend's bootstrap
+      // renderer already uses for the tunnel's own rows.
+      //
+      // Line 1 adopts an entry this generator created before the marker
+      // existed, so a re-paste heals a fleet router instead of adding a
+      // second `/radius` beside the first (RouterOS tries servers IN ORDER;
+      // a stale one first makes every login wait out its timeout).
+      `:if ([:len [/radius find where comment="${RADIUS_MARKER}"]] = 0 && [:len [/radius find where address="${radius.serverAddress}"]] > 0) do={ /radius set [find where address="${radius.serverAddress}"] comment="${RADIUS_MARKER}" }`,
+      `:if ([:len [/radius find where comment="${RADIUS_MARKER}"]] = 0) do={ /radius add service=hotspot address="${radius.serverAddress}" secret="${escapeForRouterOsString(radius.sharedSecret)}" src-address=${radius.srcAddress} timeout=3s comment="${RADIUS_MARKER}" }`,
+      // EVERY FIELD, UNCONDITIONALLY. The `else={}` branch this replaces wrote
+      // `secret=` and `disabled=no` and nothing else, so three separate things
+      // could never be repaired by a re-paste on an already-provisioned router:
+      //   - `service=` -- an entry narrowed to e.g. `ppp` passes the `find`,
+      //     gets its secret updated, and is still invisible to the hotspot.
+      //   - `timeout=` -- RouterOS's own default is 300ms, confirmed live to be
+      //     far too aggressive for a WireGuard-tunnelled path. Every router
+      //     provisioned before `timeout=3s` was added kept 300ms forever.
+      //   - `address=` -- a hub that moves could never be followed.
+      // Re-writing a field that already matches costs a healthy re-paste
+      // nothing, which is the whole argument for writing all of them.
+      `:if ([:len [/radius find where comment="${RADIUS_MARKER}"]] > 0) do={ /radius set [find where comment="${RADIUS_MARKER}"] service=hotspot address="${radius.serverAddress}" secret="${escapeForRouterOsString(radius.sharedSecret)}" src-address=${radius.srcAddress} timeout=3s disabled=no }`,
+      // COUNT-GATED, not a bare `set [find ...]`. The read-back below already
+      // reports a missing hsprof1, but reporting is not the same as not doing
+      // it: an ungated `set` against an empty match returns success, so the
+      // console shows a warning and then a clean prompt, which reads as "it
+      // recovered". Same shape as the `dns-name` write in the Hotspot chunk.
+      [
+        `:local rdUseProf [:len [/ip hotspot profile find where name="hsprof1"]]`,
+        `:if ($rdUseProf > 0) do={ /ip hotspot profile set [find name="hsprof1"] use-radius=yes radius-accounting=yes }`,
+        `:if ($rdUseProf = 0) do={ :log warning "cloudguest: use-radius not applied -- hsprof1 does not exist" }`,
+      ].join("; "),
       // The self-heal `add` above is supposed to guarantee the `set` on the
       // line before this one has something to land on. "Supposed to" is
       // exactly the assumption this file keeps getting caught by: `set
@@ -6279,14 +6734,33 @@ export function buildRouterSetupScriptChunks(opts: {
       // the router ends up with a `/radius` entry configured and a hotspot
       // that never asks it anything -- guests fail every login and the
       // console printed nothing at all. Read the count back, both ways.
+      // READ BACK THE CONTENT, NOT THE PRESENCE. A check that only asked
+      // "does a /radius entry exist" would have printed PASS on every router
+      // this chunk has ever mis-configured: the entry existed, at the right
+      // address, with the right secret, and guests still could not log in
+      // because nothing was sourcing from the address the hub had registered.
+      // `src-address` is read off the object itself, not inferred.
       [
         `:local rdProf [:len [/ip hotspot profile find where name="hsprof1"]]`,
-        `:if ($rdProf > 0) do={ :put ("  RADIUS wired into hotspot profile hsprof1 (" . [:tostr $rdProf] . " profile matched).") }`,
-        `:if ($rdProf = 0) do={ :put "  FAIL -- no hotspot profile named hsprof1 exists on this router." }`,
-        `:if ($rdProf = 0) do={ :put "  use-radius/radius-accounting were NOT applied -- that set matched nothing" }`,
-        `:if ($rdProf = 0) do={ :put "  and RouterOS reported success anyway. No guest will ever authenticate." }`,
-        `:if ($rdProf = 0) do={ :put "  Paste the Hotspot chunk first, then re-paste this one." }`,
-        `:if ($rdProf = 0) do={ :log warning "cloudguest: hsprof1 missing -- use-radius was not applied to any hotspot profile" }`,
+        `:local rdN [:len [/radius find where comment="${RADIUS_MARKER}" address="${radius.serverAddress}" disabled=no]]`,
+        `:local rdSrcNow ""`,
+        `:do { :set rdSrcNow [:tostr [/radius get [:pick [/radius find where comment="${RADIUS_MARKER}"] 0] src-address]] } on-error={ :set rdSrcNow "" }`,
+        `:local rdUse [:len [/ip hotspot profile find where name="hsprof1" use-radius=yes]]`,
+        `:local rdOther [:len [/radius find where comment!="${RADIUS_MARKER}"]]`,
+        `:local rdOk ($rdN > 0 && $rdSrcNow = "${radius.srcAddress}" && $rdUse > 0)`,
+        `:put ("  radius entry=" . [:tostr $rdN] . "   src-address=" . $rdSrcNow . " (expected ${radius.srcAddress})")`,
+        `:put ("  hsprof1 profiles=" . [:tostr $rdProf] . "   of which use-radius=yes: " . [:tostr $rdUse])`,
+        `:if ($rdOk) do={ :put "  RESULT: PASS -- registered, enabled, sourcing from this router's tunnel IP, and the hotspot asks it." }`,
+        `:if (!$rdOk) do={ :put "  RESULT: FAIL -- a value above is wrong. No guest will authenticate." }`,
+        `:if ($rdProf = 0) do={ :put "  No hotspot profile named hsprof1 exists: use-radius landed on nothing" }`,
+        `:if ($rdProf = 0) do={ :put "  and RouterOS reported success anyway. Paste the Hotspot chunk, then re-paste this one." }`,
+        `:if ($rdN = 0) do={ :put "  No enabled /radius entry carries the ${RADIUS_MARKER} marker at ${radius.serverAddress}." }`,
+        `:if ($rdSrcNow != "${radius.srcAddress}") do={ :put "  src-address is not this router's tunnel IP, so the hub sees an unknown client:" }`,
+        `:if ($rdSrcNow != "${radius.srcAddress}") do={ :put "  the request is dropped with no reply and nothing logged, secret irrelevant." }`,
+        `:if (!$rdOk) do={ :log warning "cloudguest: RADIUS chunk verdict FAIL -- entry/src-address/use-radius incomplete" }`,
+        // Report, never remove: another entry may be the venue operator's own,
+        // and this script does not own objects it did not create.
+        `:if ($rdOther > 0) do={ :put ("  NOTE: " . [:tostr $rdOther] . " other /radius entr(y/ies) exist here. RouterOS tries servers IN ORDER -- a dead one first makes every login wait out its timeout.") }`,
       ].join("; "),
     ];
     chunks.push({ label: "RADIUS", script: lines.join("\n") });

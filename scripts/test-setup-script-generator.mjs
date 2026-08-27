@@ -715,6 +715,11 @@ const {
 // chunk that will break.
 
 const BASE = {
+  // Pinned so `generating twice produces byte-identical text` still means
+  // something. `generatedAt` is a declared input to the generator precisely
+  // so the portal marker's timestamp is not hidden nondeterminism -- see
+  // `portalMarker`.
+  generatedAt: "2026-08-28T00:00:00.000Z",
   apiBase: "https://master.wyfyguest.com/api/v1",
   agentCredential: "cred-abc123",
   lanBridge: "bridge-guest",
@@ -741,6 +746,11 @@ const BANNED_HUB_LITERAL = "20.219.72.235";
 const WG = {
   routerPrivateKey: "PRIVKEY",
   serverPublicKey: "PUBKEY",
+  // What the PLATFORM has registered for this router, fed to the Tunnel
+  // Identity Check. Deliberately different from `serverPublicKey`: they are
+  // two different keys and conflating them is exactly the confusion the
+  // check exists to end.
+  peerPublicKey: "PEERPUBKEY",
   routerTunnelIp: "10.20.0.5",
   serverEndpointHost: "vpn.wyfyguest.com",
   serverEndpointPort: "13231",
@@ -810,7 +820,7 @@ const VARIANTS = [
       wans: [DHCP_WAN],
       lanIfs: ["ether3", "ether4"],
       wireguard: WG,
-      radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t" },
+      radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t", srcAddress: "10.20.0.5" },
       apiAccess: { username: "cloudguest", secret: "pw" },
       identity: "gurgaon-branch",
       portalUrl: PORTAL,
@@ -824,7 +834,7 @@ const VARIANTS = [
       enableFirewall: false,
       basicConfigOnly: true,
       wireguard: WG,
-      radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t" },
+      radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t", srcAddress: "10.20.0.5" },
       portalUrl: { ...PORTAL, frontendBase: "https://192.168.1.9" },
     },
   ],
@@ -2113,7 +2123,7 @@ const REGEN_CHUNKS = buildRouterSetupScriptChunks({
   ...BASE,
   wans: [DHCP_WAN],
   wireguard: WG,
-  radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t" },
+  radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t", srcAddress: "10.20.0.5" },
   apiAccess: { username: "cloudguest-api", secret: "pw" },
 });
 const scriptOf = (pred) =>
@@ -2159,8 +2169,10 @@ const elseBodies = (script) =>
     "the peer carries the hub's rotating public key; an add-only chunk cannot converge it",
   );
   check(
-    "...and updates an EXISTING tunnel address when the platform reallocated it",
-    /\/ip address set \[find where interface=/.test(wg),
+    "...and converges an EXISTING tunnel address when the platform reallocated it",
+    /:foreach wgAddrRow in=\[\/ip address find where interface=/.test(wg) &&
+      /\/ip address remove \$wgAddrRow/.test(wg) &&
+      /\/ip address add address=/.test(wg),
     "register_external_radius_nas binds the FreeRADIUS client stanza to the tunnel IP the PLATFORM " +
       "holds -- a device left on the previous address is an unknown client and its RADIUS packets " +
       "are dropped with no reply and nothing logged",
@@ -2191,7 +2203,8 @@ const elseBodies = (script) =>
     check(
       "...but still converges the peer and the tunnel address",
       /\/interface wireguard peers set \[find where interface=/.test(reused) &&
-        /\/ip address set \[find where interface=/.test(reused),
+        /:foreach wgAddrRow in=\[\/ip address find where interface=/.test(reused) &&
+        /\/ip address remove \$wgAddrRow/.test(reused),
       "reuse must still repair everything it CAN, or a re-paste fixes nothing at all",
     );
     check(
@@ -2232,18 +2245,44 @@ const elseBodies = (script) =>
   // `secret=` and `repairableByRepaste: true` still have to agree, so
   // neither can be changed back on its own without turning this red.
   const radius = scriptOf((c) => c.label === "RADIUS");
+  // The `else={}` branch this used to assert is gone, replaced by a
+  // marker-keyed converge `set` that writes strictly MORE than it did. The
+  // coupling is unchanged: it is still the `secret=` write that makes
+  // SECRET_REPAIR.radius.repairableByRepaste honest, so neither can move
+  // without turning this red.
+  const rdConverge =
+    radius
+      .split("\n")
+      .find((l) => /\/radius set \[find where comment="cloudguest-radius"\]/.test(l)) ?? "";
   check(
-    "the RADIUS chunk's else-branch writes secret=, not just disabled=no",
-    /else=\{/.test(radius) && elseBodies(radius).some((b) => b.includes("secret=")),
-    "an else branch that only clears `disabled` leaves an already-provisioned router on the OLD " +
+    "the RADIUS chunk converges an EXISTING entry with secret=, not just disabled=no",
+    /secret=/.test(rdConverge),
+    "a branch that only clears `disabled` leaves an already-provisioned router on the OLD " +
       "shared secret after a rotation, and SECRET_REPAIR.radius.repairableByRepaste would have " +
       "to be flipped back to false to stay honest",
   );
   check(
-    "...and the else-branch still clears disabled=yes as well",
-    elseBodies(radius).some((b) => /secret=/.test(b) && /disabled=no/.test(b)),
+    "...and still clears disabled=yes as well",
+    /disabled=no/.test(rdConverge),
     "an entry toggled off in WinBox while debugging stays off, and the secret write lands on an " +
       "entry nothing ever asks",
+  );
+  check(
+    "...and writes service=, timeout= and src-address= too",
+    /service=hotspot/.test(rdConverge) &&
+      /timeout=3s/.test(rdConverge) &&
+      /src-address=/.test(rdConverge),
+    "each of these was unrepairable by re-paste before: an entry narrowed to service=ppp is " +
+      "invisible to the hotspot; a router provisioned before timeout=3s keeps RouterOS's 300ms " +
+      "default forever over a tunnelled path; and an unset src-address makes FreeRADIUS drop " +
+      "every request as an unknown client, with no reply and nothing logged",
+  );
+  check(
+    "...and the entry is identified by a marker, not by its address",
+    /\/radius add .*comment="cloudguest-radius"/.test(radius) &&
+      /\/radius set \[find where address=.*\] comment="cloudguest-radius"/.test(radius),
+    "`find where address=` cannot tell this generator's entry from an operator's own at the same " +
+      "address, so it can neither adopt safely nor converge `address=` when the hub moves",
   );
   check(
     "...so the table says the RADIUS secret IS repairable by re-pasting",
@@ -2353,7 +2392,7 @@ const BARE_PPPOE = buildRouterSetupScriptChunks({
   ...BASE,
   wans: [PPPOE_WAN],
   wireguard: WG,
-  radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t" },
+  radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t", srcAddress: "10.20.0.5" },
   portalUrl: PORTAL,
 });
 const bareChunk = (chunks, needle) => {
@@ -2872,6 +2911,10 @@ check(
 const HOTSPOT_DNS_NAME_RE = "wifi\\.wyfyguest\\.com";
 
 const KNOWN_MENUS = new Set([
+  // The run stamp the portal chunks write -- a single settable string this
+  // platform otherwise never touches, carrying which generation last landed
+  // on the device. See the "Portal Stamp" chunk.
+  "/system note",
   // `/certificate` was here until the self-signed hotspot certificate
   // chunk was deleted (section 13). Removing it from this list is not
   // housekeeping: the "no dead entries" check below is what forces the
