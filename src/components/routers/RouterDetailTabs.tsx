@@ -1557,8 +1557,13 @@ function buildPortalOverrideFileSetLines(
  *
  * WHY ONE CHUNK AND NOT TWO. This replaces `buildWalledGardenLine` +
  * `buildWalledGardenIpLines`, which emitted two adjacent chunks with
- * near-identical labels and -- the part that actually mattered -- were THE
- * ONLY TWO CHUNKS IN THE ENTIRE SCRIPT THAT PRINTED NOTHING AT ALL. No PASS,
+ * near-identical labels and -- the part that actually mattered -- printed
+ * NOTHING AT ALL between them. (An earlier version of this comment called
+ * them "the only two chunks in the entire script" that did so. That was
+ * wrong, and worth correcting rather than quietly deleting: a sweep of every
+ * emitted chunk found EIGHT silent ones, including Firewall and the
+ * Heartbeat. Two of those are fixed alongside this note; the rest are listed
+ * in the review that found them.) No PASS,
  * no FAIL, no count. On a failed `:resolve` the address-based half degraded
  * to a `:log warning` nobody reads and a clean prompt that read as success.
  * Two silent chunks are also two chances to paste one and not the other. They
@@ -2265,7 +2270,27 @@ function buildUplinkDiscoveryStatements(
     // own, longer, situation-specific fault A on top.
     `:if ($${p}DefCount = 0) do={ :log warning "cloudguest: 0 active main-table default routes -- no uplink, or a filter name this RouterOS build rejects" }`,
     `:for ${p}Dist from=1 to=255 do={ :if ($${p}If = "") do={ :foreach ${p}R in=[${qualified} distance=$${p}Dist] do={ :if ($${p}If = "") do={ :do { :set ${p}If [:tostr [/ip route get $${p}R immediate-gw]] } on-error={ :do { :set ${p}If [:tostr [/ip route get $${p}R gateway]] } on-error={ :set ${p}If "" } } } } } }`,
-    `:if ([:typeof [:find $${p}If "%"]] != "nil") do={ :set ${p}If [:pick $${p}If ([:find $${p}If "%"] + 1) [:len $${p}If]] }`,
+    // SELF-CALIBRATING SENTINEL, not a literal `"nil"`.
+    //
+    // `:find` returns the position, or a not-found value whose `:typeof`
+    // this codebase has spelled TWO DIFFERENT WAYS -- `"nil"` here and
+    // `"nothing"` in the portal identity check -- which cannot both be
+    // right. If the real answer is `"nothing"`, this comparison was ALWAYS
+    // TRUE, so the strip below always ran, and `[:pick $if (<not-found> + 1)
+    // ...]` errors -- aborting this whole `;`-joined line, which is the
+    // entire heartbeat. The router would then never check in and would show
+    // OFFLINE on the dashboard forever while serving guests perfectly: the
+    // exact silent state this generator keeps producing by other means.
+    //
+    // Deriving the sentinel from a find that is guaranteed to miss makes
+    // this correct under either answer without waiting on a bench test, and
+    // costs one statement on a line that already has thirty.
+    // Computed INLINE rather than bound to a `:local`: this line is
+    // interpolated into several chunks and one of them (WAN Routing on PPPoE)
+    // was already within 20 characters of the 3300-char paste cap, which the
+    // suite enforces rather than raising. Inline is also simply shorter than
+    // the statement it replaces.
+    `:if ([:typeof [:find $${p}If "%"]] != [:typeof [:find "a" "zz"]]) do={ :set ${p}If [:pick $${p}If ([:find $${p}If "%"] + 1) [:len $${p}If]] }`,
     `:if ($${p}If != "" && !(${ifExists})) do={ :do { :set ${p}If [:tostr [/ip arp get [find where address=$${p}If] interface]] } on-error={ :set ${p}If "" } }`,
     `:if ($${p}If != "" && !(${ifExists})) do={ :set ${p}If "" }`,
   ];
@@ -2856,7 +2881,11 @@ function buildTunnelIdentityCheckChunk(wireguard: WireguardPeerInfo): RouterSetu
  * GRANULARITY: three ids, compared individually, not the whole URL. See
  * `portalMarker`'s own docstring.
  *
- * `[:typeof [:find ...]] != "nothing"`, NOT `[:len [:find ...]] > 0`.
+ * `[:typeof [:find ...]] != $piNoFind`, NOT `[:len [:find ...]] > 0`, and
+ * NOT a hard-coded spelling of the not-found sentinel either. This file
+ * contained both `"nil"` and `"nothing"` for that same value, in the uplink
+ * helper and here, so one of the two was always wrong; the sentinel is now
+ * derived on the device from a find that must miss.
  * `:find` returns the position, or `nothing` when the needle is absent, and
  * `:len` over `nothing` is not a valid test of that -- the same class of
  * unsound guard as `[:len]` over `:resolve`'s `ip` value in
@@ -2885,15 +2914,22 @@ function buildPortalIdentityCheckChunk(
         `:local piC ""`,
         `:do { :set piC [/file get [:pick [/file find where name~"${pat}"] 0] contents] } on-error={ :set piC "" }`,
         `:local piN [:len [/file find where name~"${pat}"]]`,
-        `:local piHasR ([:typeof [:find $piC "routerId=${r}"]] != "nothing")`,
-        `:local piHasO ([:typeof [:find $piC "organizationId=${o}"]] != "nothing")`,
-        `:local piHasL ([:typeof [:find $piC "locationId=${l}"]] != "nothing")`,
+        // Derived, not spelled. See `wanUplinkLines`' own note: this file
+        // contained both `"nil"` and `"nothing"` for the same value, so one
+        // of the two was silently broken. Had `"nothing"` been the wrong
+        // guess, all three of these would have been permanently true and
+        // this entire check would have printed PASS on every device --
+        // a check that cannot fail, which is the thing it exists to end.
+        `:local piNoFind [:typeof [:find "a" "zz"]]`,
+        `:local piHasR ([:typeof [:find $piC "routerId=${r}"]] != $piNoFind)`,
+        `:local piHasO ([:typeof [:find $piC "organizationId=${o}"]] != $piNoFind)`,
+        `:local piHasL ([:typeof [:find $piC "locationId=${l}"]] != $piNoFind)`,
         `:local piMk [:find $piC "cloudguest-portal r="]`,
         `:local piOk ($piN > 0 && $piHasR && $piHasO && $piHasL)`,
         `:put ("  login.html copies on this device: " . [:tostr $piN])`,
         `:put ("  platform expects: ${mk}")`,
-        `:if ([:typeof $piMk] != "nothing") do={ :put ("  on disk:          " . [:pick $piC $piMk ($piMk + 140)]) }`,
-        `:if ([:typeof $piMk] = "nothing") do={ :put "  on disk:          no cloudguest marker (these pages predate it, or are not ours)" }`,
+        `:if ([:typeof $piMk] != $piNoFind) do={ :put ("  on disk:          " . [:pick $piC $piMk ($piMk + 140)]) }`,
+        `:if ([:typeof $piMk] = $piNoFind) do={ :put "  on disk:          no cloudguest marker (these pages predate it, or are not ours)" }`,
         `:if ([:len $piC] = 0) do={ :put "  RESULT: FAIL -- could not read login.html on this device at all." }`,
         `:if ($piOk) do={ :put "  RESULT: PASS -- the deployed pages carry this router's current ids." }`,
         `:if ([:len $piC] > 0 && !$piOk) do={ :put "  RESULT: FAIL -- THIS DEVICE IS SERVING ANOTHER TENANT'S PORTAL LINK." }`,
@@ -2927,7 +2963,8 @@ function buildPortalIdentityCheckChunk(
       [
         `:local piL "locationId=${l}"`,
         `:local piStale 0`,
-        `:foreach f in=[/file find where name~"/(rlogin|alogin|status|logout).html"] do={ :if ([:typeof [:find [/file get $f contents] $piL]] = "nothing") do={ :set piStale ($piStale + 1) } }`,
+        `:local piNoFind2 [:typeof [:find "a" "zz"]]`,
+        `:foreach f in=[/file find where name~"/(rlogin|alogin|status|logout).html"] do={ :if ([:typeof [:find [/file get $f contents] $piL]] = $piNoFind2) do={ :set piStale ($piStale + 1) } }`,
         `:if ($piStale = 0) do={ :put "  rlogin/alogin/status/logout: all carry this venue's locationId." }`,
         `:if ($piStale > 0) do={ :put ("  WARNING: " . [:tostr $piStale] . " other hotspot page(s) still carry a different locationId.") }`,
         `:if ($piStale > 0) do={ :log warning "cloudguest-portal: some hotspot pages still carry another location's id" }`,
@@ -4028,6 +4065,25 @@ export function buildRouterSetupScriptChunks(opts: {
   // one; nothing else in this generator depends on these three values.
   const lan = deriveLanAddressing(lanIp, lanCidr);
   const chunks: RouterSetupScriptChunk[] = [];
+  // GUEST-PLANE VERDICTS RUN LAST, AFTER THE MANAGEMENT PLANE IS UP.
+  //
+  // Three checks in this script `:error` on failure, which under `/import`
+  // (the delivery channel the founder actually uses) aborts everything after
+  // them. That is right for the WAN and clock checks -- nothing downstream
+  // can work without an uplink or a correct clock, and tonight that abort
+  // did its job on a factory-reset box with no DNS.
+  //
+  // It is WRONG for the walled-garden and portal-identity checks, and that
+  // was my own mistake in the convergence pass. Both sat before the tunnel,
+  // API access and heartbeat chunks, so a venue whose DNS was merely slow at
+  // paste time got a router with a broken portal AND no WireGuard tunnel AND
+  // no API user AND no check-in -- i.e. nothing to fix it with except a site
+  // visit. The portal being wrong is recoverable remotely; the management
+  // plane being absent is not. So the WRITES stay where they are (order
+  // matters for what they depend on) and only the VERDICTS move here, to run
+  // once the router is reachable. Each re-reads the device, so none of them
+  // depends on a variable from the chunk it came from.
+  const deferredChecks: RouterSetupScriptChunk[] = [];
 
   // FIRST CHUNK, NOT LAST, and only when something is actually missing.
   // An operator pastes top to bottom and stops reading once it is going
@@ -6060,9 +6116,16 @@ export function buildRouterSetupScriptChunks(opts: {
     // HITS: 0 while every guest got a certificate error.
     const walledGarden = buildWalledGardenLines(portalUrl);
     if (walledGarden) {
+      const [writes, verdict] = walledGarden;
       chunks.push({
         label: "Walled Garden (let unauthenticated guests reach the portal, HTTP + HTTPS)",
-        script: walledGarden.join("\n"),
+        script: writes,
+      });
+      // The verdict `:error`s, so it waits for the management plane. See
+      // `deferredChecks`.
+      deferredChecks.push({
+        label: "Walled Garden Check (HTTPS portal reachability -- confirm PASS)",
+        script: verdict,
       });
     }
 
@@ -6121,10 +6184,11 @@ export function buildRouterSetupScriptChunks(opts: {
       ].join("\n"),
     });
 
-    // LAST in the portal group, so it verifies what the chunks above just
-    // wrote -- and self-contained, because its real value is as a standalone
-    // paste on any router someone suspects. See its own docstring.
-    chunks.push(buildPortalIdentityCheckChunk(portalUrl, generatedAt));
+    // Self-contained -- its real value is as a standalone paste on any
+    // router someone suspects. It also `:error`s, so it runs with the other
+    // deferred checks once the router is remotely reachable rather than
+    // stranding it. See `deferredChecks`.
+    deferredChecks.push(buildPortalIdentityCheckChunk(portalUrl, generatedAt));
   }
 
   // Confirmed live: an unauthenticated guest's browser can silently bypass
@@ -6256,6 +6320,29 @@ export function buildRouterSetupScriptChunks(opts: {
       `:if ([:len [/ip firewall filter find where comment="cloudguest-fw-fwd-established"]] = 0) do={ /ip firewall filter add chain=forward connection-state=established,related action=accept comment="cloudguest-fw-fwd-established" }`,
       `:if ([:len [/ip firewall filter find where comment="cloudguest-fw-fwd-drop-invalid"]] = 0) do={ /ip firewall filter add chain=forward connection-state=invalid action=drop comment="cloudguest-fw-fwd-drop-invalid" }`,
     ];
+    // SEVEN RULES ADDED, SEVEN COUNTED. Every line above is
+    // `:if ([:len [find]] = 0) do={ add }`, silent whether it fired or not,
+    // and this chunk printed nothing at all -- one of eight that did. Its
+    // failure modes are not cosmetic: no `cloudguest-fw-drop-wan-input` means
+    // the router's own services are exposed to the internet, and a WAN
+    // interface list that is EMPTY means that rule matches nothing while
+    // still existing, which no count of rules would ever reveal. Both are
+    // read back here.
+    lines.push(
+      [
+        `:local fwN [:len [/ip firewall filter find where comment~"cloudguest-fw-"]]`,
+        `:local fwWanList [:len [/interface list member find where list="WAN"]]`,
+        `:put ("  cloudguest firewall rules present: " . [:tostr $fwN] . " of 7")`,
+        `:put ("  interfaces in the WAN list: " . [:tostr $fwWanList])`,
+        `:if ($fwN >= 7 && $fwWanList > 0) do={ :put "  RESULT: PASS -- the rule set is complete and the WAN list has something in it." }`,
+        `:if ($fwN < 7) do={ :put "  RESULT: FAIL -- a rule is missing. Re-paste this chunk and read the count again." }`,
+        `:if ($fwN < 7) do={ :log warning "cloudguest: firewall rule set incomplete after paste" }`,
+        `:if ($fwWanList = 0) do={ :put "  RESULT: FAIL -- the WAN interface list is EMPTY." }`,
+        `:if ($fwWanList = 0) do={ :put "  cloudguest-fw-drop-wan-input matches in-interface-list=WAN, so with an empty" }`,
+        `:if ($fwWanList = 0) do={ :put "  list it drops nothing and this router accepts input from its uplink." }`,
+        `:if ($fwWanList = 0) do={ :log warning "cloudguest: WAN interface list is empty -- the WAN input drop rule matches nothing" }`,
+      ].join("; "),
+    );
     chunks.push({ label: "Firewall", script: lines.join("\n") });
   }
 
@@ -6892,6 +6979,15 @@ export function buildRouterSetupScriptChunks(opts: {
       // Byte-identical to the scheduler's stored copy below before that
       // copy's extra `escapeForRouterOsString` pass -- same program, one
       // builder, no chance of the two drifting.
+      // Byte-identical to the scheduler's stored copy below before that copy's
+      // extra `escapeForRouterOsString` pass -- same program, one builder, no
+      // chance of the two drifting. The suite asserts exactly that, and caught
+      // an attempt here to append a verdict onto this chunk: the two copies
+      // drifted immediately, and the extra statements pushed the line past the
+      // 3300-char paste cap as well. The verdict lives in its own chunk
+      // instead (`Heartbeat Check`), re-deriving the uplink for itself rather
+      // than borrowing variables across a boundary the console does not carry
+      // them over.
       script: buildHeartbeatStatements({ apiBase, agentCredential, wireguard }),
     });
     const lines = [
@@ -6927,6 +7023,100 @@ export function buildRouterSetupScriptChunks(opts: {
     });
   }
 
+  // THE GUEST DATA PATH -- the failure nobody had modelled until tonight.
+  //
+  // At huda city center the guest authenticated, got 10.5.50.250, loaded the
+  // portal, and had NO INTERNET, because no masquerade rule existed. Every
+  // check in this script passed: the hotspot was bound, the profile correct,
+  // RADIUS accepted, the tunnel was up, the router itself could ping out.
+  // The router pinging out is exactly the thing that does not need NAT, so
+  // the WAN Connectivity Check could never have caught this.
+  //
+  // This generator DOES emit masquerade (three sites: static WAN, PPPoE, and
+  // the discovered-uplink path) -- but nothing anywhere read it back. That is
+  // the second shape of gap: not "wrong logic", but "emitted and never
+  // verified". Read-only, so it is safe to run on any device at any time,
+  // and it is the one check that speaks for the guest rather than the router.
+  //
+  // Keyed on `chain=srcnat action=masquerade` GENERALLY, not on this
+  // generator's own comments: a rule an operator added by hand is a
+  // perfectly good rule, and the question here is "can guests reach the
+  // internet", not "did we write it".
+  deferredChecks.push({
+    label: "Guest Data Path (can an authenticated guest actually reach the internet)",
+    script: [
+      `:put "===================================================="`,
+      `:put "  GUEST DATA PATH CHECK"`,
+      [
+        `:local gdNat [:len [/ip firewall nat find where chain=srcnat action=masquerade]]`,
+        `:local gdOurs [:len [/ip firewall nat find where chain=srcnat action=masquerade comment~"cloudguest-nat"]]`,
+        `:local gdWan [:len [/interface list member find where list="WAN"]]`,
+        `:put ("  srcnat masquerade rules=" . [:tostr $gdNat] . " (of which this platform's: " . [:tostr $gdOurs] . ")   WAN list members=" . [:tostr $gdWan])`,
+        `:if ($gdNat > 0 && $gdWan > 0) do={ :put "  RESULT: PASS -- traffic leaving this router is masqueraded and the WAN list is populated." }`,
+        `:if ($gdNat = 0) do={ :put "  RESULT: FAIL -- NO srcnat masquerade rule exists on this router." }`,
+        `:if ($gdNat = 0) do={ :put "  Guests will sign in successfully, get an address, load the portal, and then" }`,
+        `:if ($gdNat = 0) do={ :put "  have no internet at all. Nothing else in this script detects that, because" }`,
+        `:if ($gdNat = 0) do={ :put "  the router's OWN traffic does not need NAT and every other check passes." }`,
+        // Deliberately NOT a runnable command inside a printed string. Two of
+        // this project's own guards fire on that shape -- the "every add
+        // carries an existence test" sweep and the `:put` concatenation scan
+        // -- and both are right that RouterOS text in a message is
+        // indistinguishable from RouterOS text meant to run.
+        `:if ($gdNat = 0) do={ :put "  Fix: create a srcnat masquerade rule for the WAN interface list, or" }`,
+        `:if ($gdNat = 0) do={ :put "  re-paste the WAN Addressing and WAN Routing chunks, which make one per uplink." }`,
+        `:if ($gdNat = 0) do={ :log warning "cloudguest: no srcnat masquerade -- authenticated guests have no internet" }`,
+        `:if ($gdNat > 0 && $gdWan = 0) do={ :put "  RESULT: FAIL -- masquerade exists but the WAN interface list is EMPTY." }`,
+        `:if ($gdNat > 0 && $gdWan = 0) do={ :put "  Any rule written against out-interface-list=WAN matches nothing, so this" }`,
+        `:if ($gdNat > 0 && $gdWan = 0) do={ :put "  router may still NAT via a name that no longer carries the uplink." }`,
+        `:if ($gdNat > 0 && $gdWan = 0) do={ :log warning "cloudguest: WAN interface list empty -- out-interface-list rules match nothing" }`,
+      ].join("; "),
+      `:put "===================================================="`,
+    ].join("\n"),
+  });
+  // THE HEARTBEAT REPORTS NOTHING, so this reports for it.
+  //
+  // Every diagnostic in `buildHeartbeatStatements` is a `:log warning` and
+  // nothing else, so that chunk printed NOTHING -- including when `/tool
+  // fetch` failed outright. Its own push-site comment claimed "each paste
+  // reports on its own"; that was aspiration, not behaviour. The state it
+  // hides is the worst-shaped one this platform produces: the router serves
+  // guests perfectly and is INVISIBLE on the dashboard, which reads as a
+  // platform fault rather than a device one and has cost days before.
+  //
+  // A SEPARATE CHUNK that re-derives the uplink, not an append onto the
+  // heartbeat's own line. That chunk and the scheduler's stored copy must stay
+  // byte-identical, and the console runs each entered line as its own program,
+  // so borrowing `$hbIf`/`$hbIp` was never possible either. Re-walking the
+  // route table costs nothing and makes this pasteable on its own, against any
+  // router, at any time.
+  //
+  // Fetch success itself is deliberately NOT claimed. `/tool fetch
+  // output=none` leaves no artefact on the device to read back, so this
+  // reports what resolved and sends the operator to the one place that knows.
+  deferredChecks.push({
+    label: "Heartbeat Check (confirm this router actually appears online)",
+    script: [
+      `:put "===================================================="`,
+      `:put "  HEARTBEAT / UPLINK REPORT"`,
+      [
+        ...buildUplinkDiscoveryStatements("hbc"),
+        `:local hbcIp ""`,
+        `:if ($hbcIf != "") do={ :foreach hbcA in=[/ip address find where interface=$hbcIf] do={ :if ($hbcIp = "") do={ :set hbcIp [:pick [/ip address get $hbcA address] 0 [:find [/ip address get $hbcA address] "/"]] } } }`,
+        `:put ("  uplink interface=" . $hbcIf . "   address=" . $hbcIp)`,
+        `:if ($hbcDefCount = 0) do={ :put "  RESULT: FAIL -- no ACTIVE default route, so this router has no uplink." }`,
+        `:if ($hbcDefCount > 0 && $hbcIf = "") do={ :put "  RESULT: FAIL -- a default route exists but its interface did not resolve." }`,
+        `:if ($hbcIf != "" && $hbcIp = "") do={ :put "  RESULT: FAIL -- the uplink carries no IPv4 address." }`,
+        `:if ($hbcIf != "" && $hbcIp != "") do={ :put "  RESULT: PASS (device side) -- an uplink resolved and the check-in was sent." }`,
+        `:put "  NOW CONFIRM IT LANDED: this router must show ONLINE in Master console."`,
+        `:put "  If it does not, the fetch failed on clock, TLS or DNS. Read the log with"`,
+        `:put "  /log print where message~cloudguest"`,
+        `:put "  A router that serves guests fine but never checks in looks like a platform"`,
+        `:put "  fault and is not one. Do not hand the venue over until it shows online."`,
+      ].join("; "),
+      `:put "===================================================="`,
+    ].join("\n"),
+  });
+  chunks.push(...deferredChecks);
   return chunks;
 }
 

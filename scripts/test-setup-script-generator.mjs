@@ -1333,10 +1333,20 @@ for (const [variant, opts] of VARIANTS) {
   const all = hb.map((c) => c.script).join("\n");
   const wanNames = opts.wans.map((w) => w.iface);
 
+  // Identified BY ROLE, not by counting labels that happen to start with
+  // "Heartbeat". The count form broke the moment a third, read-only
+  // "Heartbeat Check" chunk was added -- and it broke in the unhelpful
+  // direction, flagging a new report as if the scheduler had gone missing.
+  // These two are the ones that ACT; the report chunk is deliberately still
+  // inside `hb` so the never-name-a-WAN-port assertion below covers it too.
+  const hbImmediate = hb.filter((c) => c.label.startsWith("Heartbeat (check in now"));
+  const hbScheduler = hb.filter((c) => c.label.startsWith("Heartbeat Scheduler"));
   check(
     `${variant}: emits an immediate check-in AND a scheduler, as separate pastes`,
-    hb.length === 2,
-    `found ${hb.length} heartbeat chunk(s): ${hb.map((c) => c.label).join(", ")}`,
+    hbImmediate.length === 1 && hbScheduler.length === 1,
+    `found ${hbImmediate.length} immediate + ${hbScheduler.length} scheduler in: ${hb
+      .map((c) => c.label)
+      .join(", ")}`,
   );
   // The actual regression. Every one of these names used to be baked into
   // the address lookup, so a router whose uplink was on any other port
@@ -3940,12 +3950,23 @@ for (const [variant, opts] of VARIANTS) {
   // as this generator's, and the statement that follows such a find is a
   // `set` -- so an untagged find is how a script silently re-points
   // somebody else's NAT rule at an interface they never chose.
+  //
+  // NARROWED, deliberately: the hazard is the SET, not the find. A lookup
+  // wrapped in `[:len [ ... ]]` is a count -- it yields a number, it can
+  // re-point nothing, and forbidding it would forbid the one question worth
+  // asking on behalf of a guest: "is there ANY masquerade rule on this
+  // router." An operator's own hand-written masquerade is a perfectly good
+  // rule and must count toward that answer; huda city center had none at all,
+  // authenticated guests reached the internet not at all, and every tagged
+  // lookup in this script would have reported everything fine. So counts are
+  // exempt and modifying lookups are not.
   {
-    const natFinds = [...text.matchAll(/\/ip firewall nat find where([^\]]*)/g)].map((m) => m[1]);
+    const natFinds = [...text.matchAll(/\/ip firewall nat find where([^\]]*)/g)]
+      .filter((m) => !/\[:len \[\s*$/.test(text.slice(Math.max(0, m.index - 8), m.index)))
+      .map((m) => m[1]);
     check(
-      `${variant}: every NAT lookup is keyed on a cloudguest- comment or on an exact rule identity`,
-      natFinds.length > 0 &&
-        natFinds.every((f) => /comment="cloudguest-/.test(f) || /out-interface="/.test(f)),
+      `${variant}: every NAT lookup that is not a pure count is keyed on a cloudguest- comment or an exact rule identity`,
+      natFinds.every((f) => /comment="cloudguest-/.test(f) || /out-interface="/.test(f)),
       `untagged NAT lookup(s): ${JSON.stringify(natFinds.filter((f) => !(/comment="cloudguest-/.test(f) || /out-interface="/.test(f))))} ` +
         "-- a find that matches any masquerade rule will find a user's own, and the next statement " +
         "modifies what it found",
