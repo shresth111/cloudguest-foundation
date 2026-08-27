@@ -41,9 +41,18 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  # cd.yml calls this instead of restating tsc, eslint and the eleven
+  # ci-gated-test.sh suites. The gates stay defined once, here, and a deploy
+  # cannot pass a version of them that has drifted from the one PRs run.
+  workflow_call:
 
+# github.workflow is the TOP-LEVEL caller's name, so a direct CI run groups
+# under "CI-..." and the copy cd.yml calls groups under "CD-...". Without that
+# discriminator a push to main starts both, they land in the same group, and
+# cancel-in-progress makes them cancel each other -- which looks exactly like
+# a flaky CI failure and is not one.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
