@@ -1,6 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
+import { AppLoadingIndicator } from "@/components/AppLoadingIndicator";
 import type { RouterAuthContext } from "@/context/AuthContext";
 
 export const getRouter = () => {
@@ -35,6 +36,23 @@ export const getRouter = () => {
     // be shown at all, so a client-side navigation keeps rendering the
     // previous page for up to a second rather than flashing anything.
     defaultPendingMinMs: 0,
+    // The other half of the same problem, and the half that survived the fix
+    // above. `defaultPendingMinMs: 0` removed the GUARANTEED >=500ms of blank,
+    // but not the blank itself: with no pending component defined anywhere,
+    // what a pending match renders is still `null`, for however long the match
+    // actually takes. When auth is slow -- and it is, because the access token
+    // is 15min and refresh is reactive-only, so a cold load fires its queries
+    // with a stale token, takes a wall of 401s, refreshes, and retries -- that
+    // window is long enough to see. Hence the reports of a blank master
+    // console that "loads after a while".
+    //
+    // Note this alone would NOT fix a cold load, because `pendingMs` (1000ms)
+    // means this component cannot appear for the first second -- exactly the
+    // window a cold load lives in. The cold-load half is fixed in
+    // `__root.tsx`, by not removing `#initial-loader` until the matched route
+    // has actually rendered. The two changes cover different windows and both
+    // are required; neither is redundant with the other.
+    defaultPendingComponent: () => <AppLoadingIndicator />,
   });
 
   return router;

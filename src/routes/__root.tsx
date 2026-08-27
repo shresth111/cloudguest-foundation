@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -17,6 +18,7 @@ import { PlatformBrandingProvider } from "@/context/PlatformBrandingContext";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ImpersonationBanner } from "@/components/impersonation/ImpersonationBanner";
+import { AppLoadingIndicator } from "@/components/AppLoadingIndicator";
 
 // NOTE (deliberately not imported here): `@/lib/i18n` used to be pulled in
 // at this module's top level, and its instance handed to an
@@ -209,33 +211,11 @@ export const Route = createRootRouteWithContext<{
 // often on slow first-hop mobile data) would otherwise show for as long as
 // the JS bundle takes to arrive. `RootComponent`'s own mount effect removes
 // this node once real content is ready to take over.
+// Shares its markup with the router's `defaultPendingComponent` on purpose --
+// see `AppLoadingIndicator`'s own comment. A cold load can show this one and
+// then that one back to back, and they must be indistinguishable.
 function InitialLoader() {
-  return (
-    <div
-      id="initial-loader"
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 9999,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "#f8fafc",
-      }}
-    >
-      <div
-        style={{
-          width: 32,
-          height: 32,
-          borderRadius: "9999px",
-          border: "3px solid rgba(79,70,229,0.15)",
-          borderTopColor: "#4f46e5",
-          animation: "initial-loader-spin 0.7s linear infinite",
-        }}
-      />
-      <style>{"@keyframes initial-loader-spin{to{transform:rotate(360deg)}}"}</style>
-    </div>
-  );
+  return <AppLoadingIndicator id="initial-loader" />;
 }
 
 // Loads the Google Fonts stylesheet AFTER first paint, off the main
@@ -309,12 +289,34 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   // The static InitialLoader in RootShell has no removal logic of its own
-  // -- it's plain HTML rendered before React exists to remove it. Once this
-  // component actually mounts, real content is ready, so the loader's job
-  // is done.
+  // -- it's plain HTML rendered before React exists to remove it.
+  //
+  // This used to remove it on mount, on the reasoning that "once this
+  // component mounts, real content is ready". That reasoning is wrong, and
+  // it is the cold-load half of the blank-master-console reports.
+  // RootComponent mounting is not the matched route having rendered: every
+  // authenticated surface is `ssr: false`, so its match starts out PENDING
+  // on the client, and a pending match with no pending component renders
+  // `null`. So the old sequence was: boot spinner -> spinner removed on
+  // mount -> `<Outlet/>` renders nothing -> blank white for as long as the
+  // match takes -> page. The router's `defaultPendingComponent` cannot
+  // cover this window either, because `pendingMs` (1000ms) forbids showing
+  // it for the first second -- which is most of a cold load.
+  //
+  // So: hold the loader until the router is actually idle. `status` is
+  // `'pending'` while a match is resolving and `isLoading` while loaders
+  // run; waiting on both means we hand over to real content rather than to
+  // a void. `?.remove()` is already null-safe, and once the node is gone
+  // later runs are no-ops, so this staying subscribed past the first
+  // navigation costs nothing.
+  const routerSettling = useRouterState({
+    select: (s) => s.status === "pending" || s.isLoading,
+  });
+
   useEffect(() => {
+    if (routerSettling) return;
     document.getElementById("initial-loader")?.remove();
-  }, []);
+  }, [routerSettling]);
 
   return (
     <QueryClientProvider client={queryClient}>
