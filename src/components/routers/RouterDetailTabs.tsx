@@ -1188,7 +1188,19 @@ function ProvisioningTokenCard({ routerId }: { routerId: string }) {
  * DHCP client) needs no such assumption and is what's implemented for
  * every WAN count. */
 export interface WireguardPeerInfo {
-  routerPrivateKey: string;
+  /** NULL when the platform reused this router's existing peer rather
+   * than allocating a new one. An agent-allocated peer's private key was
+   * generated on the hub and never held by this platform (it is stored as
+   * `EXTERNALLY_MANAGED_KEY_SENTINEL`), so there is nothing to write --
+   * and nothing that needs writing, because the device already has the
+   * matching key. The chunk omits its `private-key=` lines entirely in
+   * that case rather than writing a placeholder over a working interface,
+   * which would break the very tunnel it is meant to repair.
+   *
+   * See the backend's `allocate_external_wireguard_peer`: reuse is now the
+   * default because `ops/hub-agents/wg_agent.py` has no delete or update
+   * verb, so every allocation is permanent and unreclaimable. */
+  routerPrivateKey: string | null;
   serverPublicKey: string;
   routerTunnelIp: string;
   serverEndpointHost: string;
@@ -2461,7 +2473,34 @@ function buildClockNtpChunk(): RouterSetupScriptChunk {
     `:do { /system ntp client set enabled=yes servers=${serverList} } on-error={ :do { /system ntp client set enabled=yes primary-ntp=${CLOCK_NTP_SERVERS[0]} secondary-ntp=${CLOCK_NTP_SERVERS[1]} } on-error={ :log warning "cloudguest-clock: the NTP client would accept neither the RouterOS 7 (servers=) nor the RouterOS 6 (primary-ntp=) syntax -- configure NTP by hand in WinBox under System > NTP Client" } }`,
     `:put "===================================================="`,
     `:put "  CLOCK / NTP CHECK"`,
-    verdictStatements.join("; "),
+    // The `:error` is appended INSIDE this `;`-joined line, not placed on
+    // one of its own: `$clkVerdict` is bound by the statements above it and
+    // the RouterOS console runs each ENTERED LINE as its own program, so a
+    // separate line would read an unbound variable -- the generator's own
+    // validator catches exactly this, and did.
+    [
+      ...verdictStatements,
+      // HARD STOP, not just a printed verdict.
+      //
+      // This chunk's own FAIL text explains that a wrong clock fails TLS,
+      // which fails `/tool fetch`, which means the heartbeat never arrives
+      // and the router shows OFFLINE forever while guests are served fine.
+      // Every downstream chunk that talks to the platform (Heartbeat,
+      // Heartbeat Scheduler, and the portal-page fetches) depends on this
+      // being true, so continuing past a FAIL only produces that exact
+      // silent state.
+      //
+      // The two delivery channels behave differently, and BOTH are correct:
+      //   - pasting chunk by chunk: `:error` ends THIS chunk loudly, in red.
+      //     The operator fixes DNS/UDP 123 and re-pastes this one chunk.
+      //     Later chunks are separate pastes and are unaffected, so nothing
+      //     is lost.
+      //   - `/import` of the .rsc, or the one-line paste: `:error` aborts the
+      //     WHOLE run at this point, which is the entire reason it is here --
+      //     a half-configured router that is honestly incomplete beats a
+      //     fully-configured one that is permanently invisible.
+      `:if ($clkVerdict != "PASS") do={ :error "cloudguest-clock: STOPPING -- the clock is not NTP-synchronised. Fix time sync, then re-run. (Pasting chunk by chunk? Fix it and re-paste just this chunk.)" }`,
+    ].join("; "),
     `:put "===================================================="`,
   ];
   return {
@@ -2539,8 +2578,14 @@ function buildWireguardPeerLines(
   // "why is this an address and not a name" is exactly the question the
   // comment exists to answer.
   if (looksLikeIpv4(wireguard.serverEndpointHost)) {
+    const rawCmt = `cloudguest-wg-hub: RAW ADDRESS ${host} -- the platform issued no hostname for the hub. If the hub moves, this peer must be rebuilt by hand.`;
     return [
-      `:if (${noPeerYet}) do={ /interface wireguard peers add ${peerArgs} endpoint-address="${host}" comment="cloudguest-wg-hub: RAW ADDRESS ${host} -- the platform issued no hostname for the hub. If the hub moves, this peer must be rebuilt by hand." }`,
+      `:if (${noPeerYet}) do={ /interface wireguard peers add ${peerArgs} endpoint-address="${host}" comment="${rawCmt}" }`,
+      // Same update branch as the hostname path below -- an address-only
+      // endpoint still carries a rotating public key, so an existing peer
+      // must be converged onto the platform's current one rather than left
+      // holding a key the hub no longer accepts.
+      `:if (!(${noPeerYet})) do={ /interface wireguard peers set [find where interface="${escapeForRouterOsString(WIREGUARD_INTERFACE_NAME)}"] ${peerArgs} endpoint-address="${host}" comment="${rawCmt}" }`,
     ];
   }
   const fallback = wireguard.serverEndpointAddress?.trim();
@@ -2563,9 +2608,9 @@ function buildWireguardPeerLines(
       `:if ($wgDnsOk = false) do={ :put ("  created against " . $wgEp . " instead. The tunnel should come up") }`,
       `:if ($wgDnsOk = false) do={ :put "  now, but that address can change without warning and this" }`,
       `:if ($wgDnsOk = false) do={ :put "  router would then be unreachable with no way in but a site visit." }`,
-      `:if ($wgDnsOk = false) do={ :put "  FIX THIS VENUE'S DNS, then delete this peer in WinBox" }`,
-      `:if ($wgDnsOk = false) do={ :put "  (WireGuard > Peers) and RE-PASTE this chunk. Re-pasting alone" }`,
-      `:if ($wgDnsOk = false) do={ :put "  does nothing -- this chunk only adds a peer if none exists." }`,
+      `:if ($wgDnsOk = false) do={ :put "  FIX THIS VENUE'S DNS, then RE-PASTE this chunk. As of 2026-08-27" }`,
+      `:if ($wgDnsOk = false) do={ :put "  this chunk UPDATES an existing peer as well as adding a missing" }`,
+      `:if ($wgDnsOk = false) do={ :put "  one, so re-pasting is enough -- nothing needs deleting by hand." }`,
       `:if ($wgDnsOk = false) do={ :log warning ("cloudguest-wg: " . $wgHost . " did not resolve -- peer built against the raw address " . $wgEp . "; fix DNS, delete the peer and re-paste the WireGuard chunk") }`,
     );
   } else {
@@ -2574,9 +2619,9 @@ function buildWireguardPeerLines(
       `:if ($wgDnsOk = false) do={ :put ("  " . $wgHost . " did not resolve on this router.") }`,
       `:if ($wgDnsOk = false) do={ :put "  RouterOS resolves a peer's endpoint-address ONCE, when the peer" }`,
       `:if ($wgDnsOk = false) do={ :put "  is created. Creating one now would leave it pointing at nothing" }`,
-      `:if ($wgDnsOk = false) do={ :put "  forever, and this chunk only adds a peer if none exists -- so" }`,
-      `:if ($wgDnsOk = false) do={ :put "  re-pasting later would silently repair nothing. NO PEER WAS" }`,
-      `:if ($wgDnsOk = false) do={ :put "  CREATED, on purpose, so that re-pasting DOES work." }`,
+      `:if ($wgDnsOk = false) do={ :put "  forever. NO PEER WAS CREATED, on purpose: a peer built now" }`,
+      `:if ($wgDnsOk = false) do={ :put "  would be pinned to an unresolvable name, and re-pasting" }`,
+      `:if ($wgDnsOk = false) do={ :put "  updates a peer rather than rebuilding it from scratch." }`,
       `:if ($wgDnsOk = false) do={ :put "  Master console has no raw hub address to fall back to." }`,
       `:if ($wgDnsOk = false) do={ :put "  Fix this venue's DNS (check /ip dns and the upstream resolver)," }`,
       `:if ($wgDnsOk = false) do={ :put "  then re-paste THIS chunk. Nothing needs undoing first." }`,
@@ -2586,6 +2631,26 @@ function buildWireguardPeerLines(
   stmts.push(
     `:if ($wgDnsOk = true) do={ :log info ("cloudguest-wg: " . $wgHost . " resolved on this device -- peer endpoint set by hostname") }`,
     `:if ($wgGo = true && ${noPeerYet}) do={ /interface wireguard peers add ${peerArgs} endpoint-address=$wgEp comment=$wgCmt }`,
+    // THE UPDATE BRANCH -- the half that did not exist until 2026-08-27.
+    //
+    // Until now this chunk only ever ADDED a peer. Every Generate rotates
+    // the keypair and allocates a new tunnel IP server-side, so a router
+    // that had been provisioned once and then re-generated ended up with
+    // the platform holding one identity and the device holding another,
+    // and re-pasting was a silent no-op: `noPeerYet` was false, so nothing
+    // ran and nothing said so. `SECRET_REPAIR.wireguard.repairableByRepaste`
+    // was `false` for exactly this reason, and the documented recovery was
+    // "delete the interface and peer on the device by hand" -- i.e. a site
+    // visit for a router whose only management path is the tunnel being
+    // repaired. Confirmed live on router 01c9171e: hub holding three peers
+    // (10.20.0.2/.3/.4), handshake only on .3, platform tracking .4.
+    //
+    // `set` on the whole `[find where interface=...]` set, not on one
+    // peer: the correct steady state is exactly one hub peer on this
+    // interface, and a device that has somehow accumulated several must
+    // converge all of them rather than leave a stale one alongside.
+    `:if ($wgGo = true && !(${noPeerYet})) do={ /interface wireguard peers set [find where interface="${escapeForRouterOsString(WIREGUARD_INTERFACE_NAME)}"] ${peerArgs} endpoint-address=$wgEp comment=$wgCmt }`,
+    `:if ($wgGo = true && !(${noPeerYet})) do={ :log info "cloudguest-wg: existing hub peer updated in place to the platform's current key/endpoint" }`,
   );
   return [stmts.join("; ")];
 }
@@ -2642,6 +2707,36 @@ export function chunksToRouterOsScript(
     `# Upload via WebFig/WinBox Files, then run: /import file=<this-filename>.rsc`,
     "",
   ];
+  // THE .rsc IS ITS OWN DELIVERY CHANNEL, AND IT IS THE ONE THAT BIT FIRST.
+  //
+  // A downloaded file has no toast, no banner and no panel around it: the
+  // operator saves it, walks to the venue, uploads it and runs `/import`.
+  // Confirmed live 2026-08-27 -- the operator's first attempt was a
+  // downloaded .rsc that simply had no RADIUS in it, and there was nothing
+  // in the file to say so. The `INCOMPLETE SCRIPT` chunk was present as
+  // `:put` lines somewhere in the middle, which is invisible when you are
+  // reading a file rather than watching a terminal, and `/import` prints
+  // them past far too fast to catch.
+  //
+  // So the gap is restated at the very top of the file, in `#` comments --
+  // the first thing anyone opening it sees, and the one part of a .rsc
+  // that survives being read in a text editor as plainly as it survives
+  // `/import`.
+  const incomplete = chunks.filter((c) => c.label.startsWith("INCOMPLETE SCRIPT"));
+  if (incomplete.length > 0) {
+    lines.push(
+      `# ====================================================`,
+      `# !! THIS SCRIPT IS INCOMPLETE -- READ BEFORE IMPORTING`,
+      `# ====================================================`,
+      ...incomplete.map((c) => `# !! ${c.label}`),
+      `# !! The missing pieces, and what each costs, are spelled out in`,
+      `# !! section 1 below. Importing this file leaves the router`,
+      `# !! half-configured. Fix the cause, press Generate again, and`,
+      `# !! download a NEW .rsc.`,
+      `# ====================================================`,
+      "",
+    );
+  }
   chunks.forEach((chunk, i) => {
     lines.push(`# --- ${i + 1}. ${chunk.label} ---`, chunk.script, "");
   });
@@ -3656,6 +3751,11 @@ export function buildRouterSetupScriptChunks(opts: {
           `:put "            no Discovery, and it stays 'provisioning' on the dashboard."`,
         );
       }
+      if (/api access|device console/i.test(gap.what)) {
+        lines.push(`:put "    effect: Device Console stays locked for this router -- no remote"`);
+        lines.push(`:put "            command, config push or reboot from the dashboard. Guest"`);
+        lines.push(`:put "            WiFi is unaffected, so nothing else will look wrong."`);
+      }
       lines.push(
         `:log warning "cloudguest: generated script is missing ${escapeForRouterOsString(gap.what)} -- ${escapeForRouterOsString(gap.why)}"`,
       );
@@ -3663,6 +3763,29 @@ export function buildRouterSetupScriptChunks(opts: {
     lines.push(`:put "  Fix the cause, press Generate again, and use the NEW script."`);
     lines.push(`:put "  Pasting this one leaves the router half-configured."`);
     lines.push(`:put "===================================================="`);
+    // AND THEN STOP. Everything above this is `:put`, which is exactly
+    // enough for a technician watching a terminal and exactly nothing for
+    // the `/import` path -- output scrolls past unread and the run
+    // continues into WAN, hotspot and firewall regardless.
+    //
+    // That is not hypothetical: the operator's first attempt on
+    // 2026-08-27 was a downloaded .rsc with no RADIUS chunk in it, and
+    // nothing about running it said so. A router provisioned with
+    // silently-absent RADIUS is worse than one not provisioned at all --
+    // it looks finished, it serves a captive portal, and every guest
+    // login fails with no error anywhere that names the cause.
+    //
+    // This chunk configures nothing, so aborting costs nothing. Both
+    // delivery channels get the behaviour they need from the one line:
+    // `/import` and the one-line paste stop here, before anything is
+    // touched; a technician pasting chunk by chunk sees a red error on a
+    // chunk that was never going to change the device, and simply moves
+    // on to the next chunk if they have decided to proceed anyway.
+    lines.push(
+      `:error "cloudguest: STOPPING -- this script is INCOMPLETE (${notProvisioned
+        .map((g) => escapeForRouterOsString(g.what))
+        .join(", ")} missing). Fix the cause, press Generate again, and use the NEW script."`,
+    );
     chunks.push({
       label: `INCOMPLETE SCRIPT -- ${notProvisioned.map((g) => g.what).join(" and ")} missing`,
       script: lines.join("\n"),
@@ -4214,6 +4337,36 @@ export function buildRouterSetupScriptChunks(opts: {
           // site, missed once -- which is precisely why it is now swept
           // for rather than left to review. See section 11.
           `:if (!(${gwOk})) do={ :log warning ("cloudguest: WAN${n} gateway did not resolve (value \\"" . $wan${n}Gw . "\\") -- no route added; re-paste once the link is up") }`,
+          // STOP HERE, on this WAN's own line, rather than letting the run
+          // continue to the connectivity check two chunks later.
+          //
+          // THE /import DHCP RACE. `/import file-name=...` never pauses
+          // between statements. Chunk-by-chunk pasting hides this entirely
+          // -- human typing delay between one paste and the next is more
+          // than enough for a DHCP lease to bind -- which is exactly why
+          // this only ever bites the downloaded-.rsc path, the one a
+          // technician reaches for when they want the job to be reliable.
+          //
+          // The bounded ladder above already polls for the lease
+          // (${WAN_DHCP_GW_POLL_ATTEMPTS} attempts, ${WAN_DHCP_GW_POLL_DELAY} apart), so
+          // reaching this line means the lease genuinely never bound
+          // within that window, not that we asked too early. Continuing
+          // past it produces the confirmed field state: `/ip route` holding
+          // `0.0.0.0/0` via `0.0.0.0` flagged `Is` (Inactive), every ping
+          // answering "no route to host", and -- because the run carries on
+          // -- a fully built hotspot on a box with no internet at all.
+          //
+          // The connectivity check downstream would also catch this now
+          // that it `:error`s, but it reports the SYMPTOM ("ping failed").
+          // This reports the CAUSE, naming the interface and the value
+          // actually read, at the point it happened. `gwOk` is bound on
+          // this same `;`-joined line, so this must stay on it.
+          // Deliberately terse. The `:log warning` immediately above already
+          // records the raw value and the re-paste hint, and this generator
+          // caps an entered line because WinBox's
+          // terminal mangles long pastes -- the suite fails the build rather
+          // than let that cap be raised. Cause and next step, nothing more.
+          `:if (!(${gwOk})) do={ :error "cloudguest: STOPPING -- WAN${n} (${iface}) got no DHCP gateway. Fix the uplink and re-run." }`,
           // Adopt-don't-duplicate: checked by OUR OWN comment first (the
           // normal, healthy-re-run case), but if that's missing this also
           // checks for ANY other route already sitting at this exact
@@ -4982,6 +5135,21 @@ export function buildRouterSetupScriptChunks(opts: {
         `:if (${verdictBad} && $dnsCount = 0) do={ :put "  mode), then re-paste this chunk. The WAN itself may be perfectly fine." }`,
         `:if (${verdictBad} && $dnsCount > 0) do={ :put ("  Configured DNS servers: " . [:tostr $dnsCount] . " -- so a resolver IS set and is not answering.") }`,
         `:if (${verdictBad}) do={ :log warning ("cloudguest: WAN connectivity check FAILED (ping=" . $pingLabel . " dns=" . $dnsLabel . ")") }`,
+        // Inside the `;`-joined line for the same reason as the Clock + NTP
+        // chunk's `:error`: `$pingOk`/`$dnsOk` are bound by the statements
+        // above and would be gone on a fresh entered line.
+        // HARD STOP -- same reasoning as the Clock + NTP chunk's own
+        // `:error` (see there for why the paste and `/import` channels want
+        // different behaviour and both get it from this one line).
+        //
+        // Specific to this check: with no working uplink, the clock cannot
+        // sync, `/tool fetch` cannot reach the platform, the portal pages
+        // cannot be fetched and the heartbeat cannot register. A hotspot
+        // configured on a box with no internet is the worst outcome
+        // available -- it serves a captive portal that can never
+        // authenticate anyone, which reads to venue staff as "the WiFi is
+        // broken" rather than "the uplink was never plugged in".
+        `:if (${verdictBad}) do={ :error "cloudguest: STOPPING -- no working WAN uplink (see the ping/DNS lines above). Fix the uplink, then re-run. (Pasting chunk by chunk? Fix it and re-paste just this chunk.)" }`,
       ].join("; "),
       `:put "===================================================="`,
     ];
@@ -5917,7 +6085,36 @@ export function buildRouterSetupScriptChunks(opts: {
         `:if ($wgLegacy > 0) do={ :log warning "cloudguest: legacy ${WIREGUARD_LEGACY_INTERFACE_NAME} interface still present alongside ${WIREGUARD_INTERFACE_NAME}" }`,
         `:if ($wgLegacy = 0) do={ :put "  No legacy ${WIREGUARD_LEGACY_INTERFACE_NAME} interface on this device (expected)." }`,
       ].join("; "),
-      `:if ([:len [/interface wireguard find where name="${WIREGUARD_INTERFACE_NAME}"]] = 0) do={ /interface wireguard add name="${WIREGUARD_INTERFACE_NAME}" private-key="${wireguard.routerPrivateKey}" listen-port=13231 }`,
+      // Both private-key lines are conditional on the platform actually
+      // HAVING a key to write. When the peer was reused there is none --
+      // see `routerPrivateKey`'s own docstring. The interface is still
+      // created if missing (a device that has lost it needs one), but with
+      // no key: that is a visible, diagnosable half-state, whereas writing
+      // a sentinel string would silently break a working tunnel.
+      ...(wireguard.routerPrivateKey
+        ? [
+            `:if ([:len [/interface wireguard find where name="${WIREGUARD_INTERFACE_NAME}"]] = 0) do={ /interface wireguard add name="${WIREGUARD_INTERFACE_NAME}" private-key="${wireguard.routerPrivateKey}" listen-port=13231 }`,
+          ]
+        : [
+            `:if ([:len [/interface wireguard find where name="${WIREGUARD_INTERFACE_NAME}"]] = 0) do={ :put "  NOTE: no ${WIREGUARD_INTERFACE_NAME} interface here, and this script carries no private key" }`,
+            `:if ([:len [/interface wireguard find where name="${WIREGUARD_INTERFACE_NAME}"]] = 0) do={ :put "  (the platform reused an existing tunnel). Re-generate with Rotate ticked." }`,
+            `:if ([:len [/interface wireguard find where name="${WIREGUARD_INTERFACE_NAME}"]] = 0) do={ :log warning "cloudguest-wg: reused tunnel but the device has no interface -- re-generate with rotation" }`,
+          ]),
+      // The private key half of the update path (see
+      // `buildWireguardPeerLines`' own update branch for the peer half).
+      // Every Generate mints a NEW keypair server-side; without this line
+      // an already-provisioned router kept its old private key forever
+      // while the hub had been told to expect the new public key, so the
+      // handshake could never complete and re-pasting repaired nothing.
+      ...(wireguard.routerPrivateKey
+        ? [
+            `:if ([:len [/interface wireguard find where name="${WIREGUARD_INTERFACE_NAME}"]] > 0) do={ /interface wireguard set [find where name="${WIREGUARD_INTERFACE_NAME}"] private-key="${wireguard.routerPrivateKey}" listen-port=13231 }`,
+          ]
+        : [
+            // Listen-port is still asserted -- it is not secret material and
+            // an existing interface on the wrong port cannot handshake.
+            `:if ([:len [/interface wireguard find where name="${WIREGUARD_INTERFACE_NAME}"]] > 0) do={ /interface wireguard set [find where name="${WIREGUARD_INTERFACE_NAME}"] listen-port=13231 }`,
+          ]),
       // NOT a bare `:if (noPeerYet) do={ ...peers add endpoint-address=<host> }`.
       // RouterOS resolves `endpoint-address` once, at creation, and never
       // again, so a peer built while venue DNS is down points at nothing
@@ -5931,6 +6128,20 @@ export function buildRouterSetupScriptChunks(opts: {
       // function's own docstring.
       ...buildWireguardPeerLines(wireguard, noPeerYet, peerArgs),
       `:if ([:len [/ip address find where interface="${WIREGUARD_INTERFACE_NAME}"]] = 0) do={ /ip address add address="${wireguard.routerTunnelIp}/24" interface="${WIREGUARD_INTERFACE_NAME}" }`,
+      // The tunnel-address half of the update path. The server allocates a
+      // fresh tunnel IP on every Generate, so this is the line that made
+      // the platform and the device disagree about which address this
+      // router answers on -- and it is load-bearing well beyond WireGuard:
+      // `register_external_radius_nas` binds the router's FreeRADIUS
+      // `client{}` stanza to the tunnel IP the PLATFORM holds. A device
+      // still on the previous address sources its RADIUS packets from an
+      // IP the hub has no client for, and FreeRADIUS drops them as an
+      // unknown client -- silently, with no reply and nothing logged
+      // against the router. That is why re-pasting has to converge this.
+      //
+      // Scoped to addresses on THIS interface only, so a venue that
+      // happens to use an overlapping range on a LAN port is untouched.
+      `:if ([:len [/ip address find where interface="${WIREGUARD_INTERFACE_NAME}" address!="${wireguard.routerTunnelIp}/24"]] > 0) do={ /ip address set [find where interface="${WIREGUARD_INTERFACE_NAME}" address!="${wireguard.routerTunnelIp}/24"] address="${wireguard.routerTunnelIp}/24" }`,
       // Never infer success from the absence of an error: all three lines
       // above are `:if ... do={ add }`, which do nothing at all -- silently,
       // and with a zero exit -- if the `find` was non-empty for a reason
