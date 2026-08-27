@@ -261,8 +261,84 @@ function attachOrganizationHeader(config: InternalAxiosRequestConfig, token: str
   if (organizationId) config.headers.set?.(ORG_HEADER, organizationId);
 }
 
-api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = safeLocalGet(TOKEN_STORAGE_KEY);
+/**
+ * How long before a token's real `exp` we start treating it as already
+ * spent. Covers clock skew between the browser and the API, plus the
+ * flight time of a request that passes the check and then arrives after
+ * expiry -- both of which would otherwise land as a 401 we could have
+ * avoided.
+ */
+const TOKEN_STALE_SKEW_MS = 60_000;
+
+/**
+ * Reads a JWT's `exp` without pulling in `@/lib/jwt`.
+ *
+ * That module imports `TOKEN_STORAGE_KEY` from THIS one, so importing it
+ * back here would close an ESM cycle in the module that every request goes
+ * through. Duplicating ~6 lines is the cheaper trade. Same contract as
+ * `decodeJwtPayload`: never throws -- a malformed or foreign token reads as
+ * "no expiry information".
+ */
+function readTokenExpiryMs(token: string): number | null {
+  try {
+    const segment = token.split(".")[1];
+    if (!segment) return null;
+    const base64 = segment.replace(/-/g, "+").replace(/_/g, "/");
+    const exp = (JSON.parse(atob(base64)) as { exp?: unknown }).exp;
+    return typeof exp === "number" ? exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A token with no readable `exp` returns false: we cannot reason about it,
+ * so we leave it alone and let the 401 path handle it as before. Only a
+ * token we can positively prove is spent gets refreshed ahead of time.
+ */
+function isTokenSpent(token: string): boolean {
+  const expiresAt = readTokenExpiryMs(token);
+  if (expiresAt === null) return false;
+  return expiresAt - Date.now() <= TOKEN_STALE_SKEW_MS;
+}
+
+// `/auth/refresh` is issued with the bare `axios`, not this instance, so it
+// cannot recurse through here -- but `/auth/login` does come through, and a
+// login request must never wait on a refresh of the very session it is
+// about to replace.
+const NO_PROACTIVE_REFRESH_PATHS = ["/auth/refresh", "/auth/login"];
+
+/**
+ * Refresh BEFORE the request, not after a 401.
+ *
+ * The access token lives 15 minutes; refresh used to be purely reactive, so
+ * the first render after any idle period fired its whole query fan-out with
+ * a token already known to be spent, took a wall of parallel 401s, refreshed
+ * once, and retried everything. Real logs showed 8 of 8 master-dashboard
+ * visits opening with that burst -- and when the refresh itself failed, four
+ * separate requests each independently bounced the user to /session-expired.
+ *
+ * Checking `exp` here removes the burst at its source rather than recovering
+ * from it: the parallel requests all reach this interceptor, all see the same
+ * spent token, and all await the SAME `refreshAccessToken()` promise, so one
+ * refresh happens and every request leaves with a live token.
+ *
+ * If the refresh fails we deliberately fall through and send the stale token
+ * anyway. The 401 handler below owns session teardown, and duplicating that
+ * decision here would mean two places racing to tear down one session.
+ */
+api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
+  let token = safeLocalGet(TOKEN_STORAGE_KEY);
+
+  if (
+    token &&
+    token !== DEMO_ACCESS_TOKEN &&
+    isTokenSpent(token) &&
+    !NO_PROACTIVE_REFRESH_PATHS.some((p) => config.url?.includes(p))
+  ) {
+    token = (await refreshAccessToken()) ?? safeLocalGet(TOKEN_STORAGE_KEY);
+  }
+
   if (token) {
     config.headers.set?.("Authorization", `Bearer ${token}`);
     attachOrganizationHeader(config, token);
@@ -292,9 +368,23 @@ function clearSession() {
 // visibly makes no sense and was reported live as exactly that URL.
 const NO_SESSION_TO_EXPIRE_PREFIXES = ["/session-expired", "/login", "/master-login"];
 
+/**
+ * One expired session is one navigation.
+ *
+ * `window.location.replace()` does not stop JS: the page keeps running while
+ * the browser tears it down, so every other in-flight request that 401s in
+ * that window calls this too. Observed live as four consecutive
+ * `GET /session-expired?redirect=%2Fmaster` hits from a single expiry, three
+ * of them cancelled (499) -- and the last one to win the race is the one
+ * whose `?redirect=` the user actually gets back.
+ */
+let sessionExpiredNavigationStarted = false;
+
 function goToSessionExpired() {
   if (typeof window === "undefined") return;
+  if (sessionExpiredNavigationStarted) return;
   if (NO_SESSION_TO_EXPIRE_PREFIXES.some((p) => window.location.pathname.startsWith(p))) return;
+  sessionExpiredNavigationStarted = true;
   const redirect = encodeURIComponent(window.location.pathname + window.location.search);
   window.location.replace(`/session-expired?redirect=${redirect}`);
 }
@@ -353,7 +443,19 @@ api.interceptors.response.use(
       !isRefreshCall &&
       !isLoginCall
     ) {
-      const newToken = await refreshAccessToken();
+      // Someone else may already have refreshed while this request was in
+      // flight. Refresh tokens are single-use and rotate server-side
+      // (`auth/service.py` overwrites `refresh_token_jti`), so spending a
+      // second one here would 401 the racer and tear down a session that is
+      // in fact perfectly healthy. If storage no longer holds the token this
+      // request actually sent, a newer one exists -- just use it.
+      const sentToken = String(
+        (config.headers as Record<string, unknown> | undefined)?.Authorization ?? "",
+      ).replace(/^Bearer /, "");
+      const storedToken = safeLocalGet(TOKEN_STORAGE_KEY);
+      const alreadyRefreshed = Boolean(storedToken) && storedToken !== sentToken;
+
+      const newToken = alreadyRefreshed ? storedToken : await refreshAccessToken();
       if (newToken) {
         config._retried = true;
         config.headers = config.headers ?? {};
