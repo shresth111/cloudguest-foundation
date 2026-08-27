@@ -19,8 +19,11 @@ name: CD
 # The box is a 2 vCPU m6i.large with ~1 GB free RAM while serving live
 # traffic; a bun/vite build next to uvicorn and two celery workers is a
 # latency incident. And the checkout under ~/deploy/cloudguest-foundation is
-# dirty (confirmed 2026-08-27), so "git pull and build" would ship whatever a
-# human left in the working tree.
+# can be dirty, so "git pull and build" would ship whatever a human left in
+# the working tree. (It was dirty when this was written and is clean again
+# now -- see the CORRECTION in deploy/remote-deploy.sh. The durable reason is
+# the backend's `.env`, which lives only on the box and which a
+# `git checkout -f` deploy would delete.)
 #
 # VITE_API_BASE_URL
 # -----------------
@@ -146,8 +149,20 @@ jobs:
       # @lovable.dev config defaults to "cloudflare-module", which produces a
       # Worker bundle that `node .output/server/index.mjs` cannot run. The
       # Dockerfile pins the preset -- this proves it took.
+      #
+      # Deliberately NOT gated on steps.exists.outputs.found. This step used to
+      # carry `if: steps.exists.outputs.found == 'false'`, which opened a hole:
+      # docker/build-push-action PUSHES as part of the build, so an image whose
+      # smoke test then FAILED is already in ECR under that SHA. Re-running the
+      # workflow for that SHA found it, skipped the build AND skipped this
+      # check, and shipped a known-bad image with nothing left to catch it but
+      # the on-box health gate.
+      #
+      # Running it unconditionally costs one `docker pull` on the reuse path
+      # (the ECR login above already authenticated the runner) and makes the
+      # rollback path prove the artifact starts, rather than assuming it does
+      # because it once got as far as being pushed.
       - name: Smoke-test the image serves HTTP
-        if: steps.exists.outputs.found == 'false'
         run: |
           set -euo pipefail
           docker run -d --name smoke -p 13000:3000 "${{ steps.meta.outputs.image }}"
