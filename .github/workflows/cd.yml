@@ -1,0 +1,299 @@
+name: CD
+
+# Continuous deployment of the frontend container to the app server,
+# i-0cf9b79511abe6000 in ap-south-1. It serves app./portal./master./auth.
+# wyfyguest.com behind the host-level nginx, which proxies everything that is
+# not /api/ to 127.0.0.1:3000.
+#
+# HOW A GITHUB RUNNER REACHES A BOX THAT HAS NO INBOUND SSH
+# ---------------------------------------------------------
+# GitHub OIDC -> an AWS IAM role -> SSM SendCommand. No long-lived AWS key on
+# the runner, and nothing new opened inbound: the SSM agent polls OUT to
+# Systems Manager, so port 22 stays shut to the internet. An SSH key in a
+# GitHub secret was rejected -- GitHub-hosted runners have dynamic egress, so
+# it would mean opening 22 to effectively the whole internet on a box that
+# terminates four production hostnames.
+#
+# WHY THE IMAGE IS BUILT HERE AND NOT ON THE BOX
+# ----------------------------------------------
+# The box is a 2 vCPU m6i.large with ~1 GB free RAM while serving live
+# traffic; a bun/vite build next to uvicorn and two celery workers is a
+# latency incident. And the checkout under ~/deploy/cloudguest-foundation is
+# dirty (confirmed 2026-08-27), so "git pull and build" would ship whatever a
+# human left in the working tree.
+#
+# VITE_API_BASE_URL
+# -----------------
+# Vite inlines import.meta.env.VITE_* AT BUILD TIME -- it cannot be a runtime
+# `-e`. It is passed as a build arg here, which is the same place the box's
+# old compose `build.args` set it, so the value that ships is unchanged. It
+# is deliberately the relative "/api/v1": the bundle runs in the visitor's
+# browser and this stack answers on four different hostnames, each of whose
+# nginx server blocks proxies /api/ to the same backend. An absolute value
+# works on exactly one of them and silently breaks login and OTP on the rest.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Commit SHA to deploy (blank = build and deploy this ref). Use an older SHA to roll back."
+        required: false
+        default: ""
+
+# Never cancel a deploy in flight: a half-applied `docker compose up` is worse
+# than a queued one. Deploys serialise instead.
+concurrency:
+  group: cd-frontend
+  cancel-in-progress: false
+
+permissions:
+  id-token: write   # required to mint the OIDC token
+  contents: read
+
+env:
+  AWS_REGION: ap-south-1
+  ECR_REPOSITORY: wyfy/frontend
+  INSTANCE_ID: i-0cf9b79511abe6000
+  VITE_API_BASE_URL: /api/v1
+
+jobs:
+  # Gate on the existing CI rather than restating it. ci.yml gained an
+  # `on.workflow_call` trigger for this, so tsc, eslint and all eleven
+  # ci-gated-test.sh suites stay defined in exactly one place -- including
+  # the setup-script and output-analyser floors, which are the only thing
+  # standing between a bad generator change and a bricked router in the field.
+  ci:
+    name: CI
+    if: github.event.inputs.image_tag == ''
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    name: Build and push to ECR
+    needs: ci
+    if: always() && (needs.ci.result == 'success' || github.event.inputs.image_tag != '')
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.image_tag || github.sha }}
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Resolve image ref
+        id: meta
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          SHA="${{ github.event.inputs.image_tag || github.sha }}"
+          echo "image=$REGISTRY/$ECR_REPOSITORY:$SHA" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      # A workflow_dispatch rollback names a SHA that was already built and
+      # pushed. Rebuilding it would be slower and, if a base image moved,
+      # would not even produce the same artifact -- so reuse it if it exists.
+      - name: Reuse the existing image if this SHA is already in ECR
+        id: exists
+        run: |
+          if aws ecr describe-images --region "$AWS_REGION" \
+               --repository-name "$ECR_REPOSITORY" \
+               --image-ids imageTag="${{ steps.meta.outputs.sha }}" >/dev/null 2>&1; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::${{ steps.meta.outputs.image }} already exists; skipping build."
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Buildx
+        if: steps.exists.outputs.found == 'false'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        if: steps.exists.outputs.found == 'false'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          # linux/amd64 only. The instance is x86_64 (m6i.large) and a
+          # multi-arch build would double build time for a layer nothing pulls.
+          platforms: linux/amd64
+          build-args: |
+            VITE_API_BASE_URL=${{ env.VITE_API_BASE_URL }}
+          tags: |
+            ${{ steps.meta.outputs.image }}
+            ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:main
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The Dockerfile's builder stage runs `bun run build` and asserts
+      # nothing about the result. The nitro preset is the specific way this
+      # image has been wrong while building green: without NITRO_PRESET the
+      # @lovable.dev config defaults to "cloudflare-module", which produces a
+      # Worker bundle that `node .output/server/index.mjs` cannot run. The
+      # Dockerfile pins the preset -- this proves it took.
+      - name: Smoke-test the image serves HTTP
+        if: steps.exists.outputs.found == 'false'
+        run: |
+          set -euo pipefail
+          docker run -d --name smoke -p 13000:3000 "${{ steps.meta.outputs.image }}"
+          for i in $(seq 1 30); do
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:13000/ || echo 000)
+            [ "$CODE" = "200" ] && { echo "smoke ok: HTTP 200"; docker rm -f smoke >/dev/null; exit 0; }
+            sleep 2
+          done
+          echo "::error::the image never served HTTP 200 on :3000"
+          docker logs smoke || true
+          docker rm -f smoke >/dev/null || true
+          exit 1
+
+  deploy:
+    name: Deploy to app server
+    needs: build
+    runs-on: ubuntu-latest
+    # Attach required reviewers / a wait timer to this environment in repo
+    # settings if frontend deploys should need a human. Leaving it with no
+    # protection rules makes this fully continuous; the environment exists so
+    # that is a setting rather than a rewrite.
+    environment:
+      name: production
+      url: https://app.wyfyguest.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Fail with a sentence a human can act on, rather than with a 60-second
+      # SendCommand timeout, when the instance is not registered with SSM.
+      # (It was not, on 2026-08-27: the agent runs, but wyfy-app-ec2-role had
+      # no ssm:UpdateInstanceInformation. See the enable-list.)
+      - name: Check the instance is registered with SSM
+        run: |
+          COUNT=$(aws ssm describe-instance-information \
+            --region "$AWS_REGION" \
+            --filters "Key=InstanceIds,Values=$INSTANCE_ID" \
+            --query 'length(InstanceInformationList)' --output text)
+          if [ "$COUNT" != "1" ]; then
+            echo "::error::$INSTANCE_ID is not registered with SSM."
+            echo "The agent is installed and running on the box; what it needs is"
+            echo "AmazonSSMManagedInstanceCore attached to wyfy-app-ec2-role."
+            exit 1
+          fi
+
+      - name: Send deploy command
+        id: send
+        env:
+          IMAGE: ${{ needs.build.outputs.image }}
+        run: |
+          set -euo pipefail
+          # The script is shipped inside the command payload rather than kept
+          # on the box, so the version that runs is always the version in this
+          # commit and there is no bootstrap step to forget. base64 keeps the
+          # quoting out of the JSON entirely.
+          SCRIPT_B64=$(base64 -w0 deploy/remote-deploy.sh)
+
+          # Runs as ubuntu, not root: ~/deploy and everything in it is
+          # ubuntu-owned, and a root-written .deploy.env would break the next
+          # deploy. ubuntu is already in the docker group.
+          jq -n --arg b64 "$SCRIPT_B64" --arg image "$IMAGE" '{
+            commands: [
+              "set -euo pipefail",
+              ("echo \($b64) | base64 -d > /tmp/remote-deploy.sh"),
+              "chmod 0755 /tmp/remote-deploy.sh",
+              ("sudo -u ubuntu -H env AWS_REGION=ap-south-1 /tmp/remote-deploy.sh frontend \($image)"),
+              "rm -f /tmp/remote-deploy.sh"
+            ]
+          }' > params.json
+
+          CMD_ID=$(aws ssm send-command \
+            --region "$AWS_REGION" \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "CD frontend ${GITHUB_SHA:0:7}" \
+            --timeout-seconds 600 \
+            --parameters file://params.json \
+            --query 'Command.CommandId' --output text)
+          echo "command_id=$CMD_ID" >> "$GITHUB_OUTPUT"
+          echo "SSM command: $CMD_ID"
+
+      - name: Wait for the deploy to finish
+        env:
+          CMD_ID: ${{ steps.send.outputs.command_id }}
+        run: |
+          set -uo pipefail
+          # 15s of grace: get-command-invocation 400s with InvocationDoesNotExist
+          # for a moment after send-command returns.
+          sleep 15
+          DEADLINE=$(( SECONDS + 900 ))
+          STATUS=Pending
+          while [ "$SECONDS" -lt "$DEADLINE" ]; do
+            STATUS=$(aws ssm get-command-invocation --region "$AWS_REGION" \
+              --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
+              --query 'Status' --output text 2>/dev/null || echo Pending)
+            case "$STATUS" in
+              Pending|InProgress|Delayed) sleep 10 ;;
+              *) break ;;
+            esac
+          done
+
+          echo "----- stdout -----"
+          aws ssm get-command-invocation --region "$AWS_REGION" \
+            --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
+            --query 'StandardOutputContent' --output text || true
+          echo "----- stderr -----"
+          aws ssm get-command-invocation --region "$AWS_REGION" \
+            --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
+            --query 'StandardErrorContent' --output text || true
+
+          # get-command-invocation truncates at 24,000 characters. If a deploy
+          # is being debugged from a truncated log, add an S3 output config to
+          # send-command above rather than guessing.
+          echo "----- status: $STATUS -----"
+          [ "$STATUS" = "Success" ] || exit 1
+
+      # Independent of the box's own healthcheck: proves the deployed bundle
+      # is reachable through the real nginx on the real hostname over real
+      # TLS. The container reporting healthy and the site being up are not the
+      # same claim -- the container healthcheck curls 127.0.0.1:3000 from
+      # inside itself and knows nothing about nginx or the certificate.
+      - name: Verify through the public endpoints
+        run: |
+          set -euo pipefail
+          FAILED=0
+          for HOST in app.wyfyguest.com portal.wyfyguest.com master.wyfyguest.com; do
+            OK=0
+            for i in 1 2 3 4 5 6; do
+              CODE=$(curl -s -o /dev/null -w '%{http_code}' \
+                "https://$HOST/?cb=$(date +%s)" || echo 000)
+              [ "$CODE" = "200" ] && { OK=1; break; }
+              sleep 10
+            done
+            if [ "$OK" = "1" ]; then echo "$HOST -> 200"; else
+              echo "::error::$HOST did not return 200 after the deploy."
+              FAILED=1
+            fi
+          done
+          if [ "$FAILED" = "1" ]; then
+            echo "The container passed its own healthcheck, so suspect nginx or TLS"
+            echo "rather than the image. The previous image is still in ECR:"
+            echo "  gh workflow run cd.yml -f image_tag=<previous-sha>"
+            exit 1
+          fi
