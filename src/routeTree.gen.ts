@@ -73,6 +73,7 @@ import { Route as MasterOperatorsRouteImport } from './routes/master.operators'
 import { Route as MasterNasRouteImport } from './routes/master.nas'
 import { Route as MasterLocationsRouteImport } from './routes/master.locations'
 import { Route as MasterHealthRouteImport } from './routes/master.health'
+import { Route as MasterFleetHealthRouteImport } from './routes/master.fleet-health'
 import { Route as MasterDemoRequestsRouteImport } from './routes/master.demo-requests'
 import { Route as MasterCustomersRouteImport } from './routes/master.customers'
 import { Route as MasterConsoleRouteImport } from './routes/master.console'
@@ -507,6 +508,11 @@ const MasterLocationsRoute = MasterLocationsRouteImport.update({
 const MasterHealthRoute = MasterHealthRouteImport.update({
   id: '/health',
   path: '/health',
+  getParentRoute: () => MasterRoute,
+} as any)
+const MasterFleetHealthRoute = MasterFleetHealthRouteImport.update({
+  id: '/fleet-health',
+  path: '/fleet-health',
   getParentRoute: () => MasterRoute,
 } as any)
 const MasterDemoRequestsRoute = MasterDemoRequestsRouteImport.update({
@@ -1232,6 +1238,7 @@ export interface FileRoutesByFullPath {
   '/master/console': typeof MasterConsoleRoute
   '/master/customers': typeof MasterCustomersRoute
   '/master/demo-requests': typeof MasterDemoRequestsRoute
+  '/master/fleet-health': typeof MasterFleetHealthRoute
   '/master/health': typeof MasterHealthRoute
   '/master/locations': typeof MasterLocationsRoute
   '/master/nas': typeof MasterNasRoute
@@ -1409,6 +1416,7 @@ export interface FileRoutesByTo {
   '/master/console': typeof MasterConsoleRoute
   '/master/customers': typeof MasterCustomersRoute
   '/master/demo-requests': typeof MasterDemoRequestsRoute
+  '/master/fleet-health': typeof MasterFleetHealthRoute
   '/master/health': typeof MasterHealthRoute
   '/master/locations': typeof MasterLocationsRoute
   '/master/nas': typeof MasterNasRoute
@@ -1590,6 +1598,7 @@ export interface FileRoutesById {
   '/master/console': typeof MasterConsoleRoute
   '/master/customers': typeof MasterCustomersRoute
   '/master/demo-requests': typeof MasterDemoRequestsRoute
+  '/master/fleet-health': typeof MasterFleetHealthRoute
   '/master/health': typeof MasterHealthRoute
   '/master/locations': typeof MasterLocationsRoute
   '/master/nas': typeof MasterNasRoute
@@ -1773,6 +1782,7 @@ export interface FileRouteTypes {
     | '/master/console'
     | '/master/customers'
     | '/master/demo-requests'
+    | '/master/fleet-health'
     | '/master/health'
     | '/master/locations'
     | '/master/nas'
@@ -1950,6 +1960,7 @@ export interface FileRouteTypes {
     | '/master/console'
     | '/master/customers'
     | '/master/demo-requests'
+    | '/master/fleet-health'
     | '/master/health'
     | '/master/locations'
     | '/master/nas'
@@ -2130,6 +2141,7 @@ export interface FileRouteTypes {
     | '/master/console'
     | '/master/customers'
     | '/master/demo-requests'
+    | '/master/fleet-health'
     | '/master/health'
     | '/master/locations'
     | '/master/nas'
@@ -2755,6 +2767,13 @@ declare module '@tanstack/react-router' {
       path: '/health'
       fullPath: '/master/health'
       preLoaderRoute: typeof MasterHealthRouteImport
+      parentRoute: typeof MasterRoute
+    }
+    '/master/fleet-health': {
+      id: '/master/fleet-health'
+      path: '/fleet-health'
+      fullPath: '/master/fleet-health'
+      preLoaderRoute: typeof MasterFleetHealthRouteImport
       parentRoute: typeof MasterRoute
     }
     '/master/demo-requests': {
@@ -3852,6 +3871,7 @@ interface MasterRouteChildren {
   MasterConsoleRoute: typeof MasterConsoleRoute
   MasterCustomersRoute: typeof MasterCustomersRoute
   MasterDemoRequestsRoute: typeof MasterDemoRequestsRoute
+  MasterFleetHealthRoute: typeof MasterFleetHealthRoute
   MasterHealthRoute: typeof MasterHealthRoute
   MasterLocationsRoute: typeof MasterLocationsRoute
   MasterNasRoute: typeof MasterNasRoute
@@ -3871,6 +3891,7 @@ const MasterRouteChildren: MasterRouteChildren = {
   MasterConsoleRoute: MasterConsoleRoute,
   MasterCustomersRoute: MasterCustomersRoute,
   MasterDemoRequestsRoute: MasterDemoRequestsRoute,
+  MasterFleetHealthRoute: MasterFleetHealthRoute,
   MasterHealthRoute: MasterHealthRoute,
   MasterLocationsRoute: MasterLocationsRoute,
   MasterNasRoute: MasterNasRoute,
