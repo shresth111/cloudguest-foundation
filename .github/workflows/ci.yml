@@ -505,6 +505,26 @@ jobs:
             "discovery-preflight" 19 "all checks passed" \
             bun run test:discovery-preflight
 
-          "$RUNNER" \
+      # --- Fleet wizard API paths ---------------------------------------
+      #
+      # The suite the header above has always listed at "5 checks", which
+      # until now ran nowhere: it was appended to the step above as
+      # `"$RUNNER" ...`, and $RUNNER is set by nothing. An unset variable
+      # expands to the empty string, bash reports "command not found", and
+      # the step exits 127 -- so this job has been RED on every push to
+      # main since it landed, and the whole `tests` job with it. The
+      # discovery-preflight suite on the line above it did run and pass;
+      # everything after the 127 did not.
+      #
+      # Given its own step, with the same three gates as every suite here.
+      # It is the regression test for the Fleet Wizard's WAN endpoint
+      # 404'ing from the day it shipped -- the frontend path was missing
+      # the backend router's /network-config prefix, and the docs recorded
+      # it without the prefix too, so the docs could not catch it either.
+      #
+      # Floor 5, observed green at 5.
+      - name: fleet wizard API paths
+        run: |
+          ./scripts/ci-gated-test.sh \
             "api-paths" 5 "all checks passed" \
             bun run test:api-paths
