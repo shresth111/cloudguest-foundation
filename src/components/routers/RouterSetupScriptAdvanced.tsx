@@ -36,6 +36,7 @@ import api, { getAbsoluteApiBase } from "@/services/api";
 import type { AppError } from "@/services/api";
 import type { RouterDevice } from "@/types/router";
 import { copyToClipboard } from "@/lib/utils";
+import { routerRscFilename } from "@/lib/rsc-filename";
 import { SECRET_REPAIR, rotatingSecrets } from "@/lib/setup-script-secrets";
 import type { RotatingSecret } from "@/lib/setup-script-secrets";
 
@@ -1330,7 +1331,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
               Heartbeat. Or skip pasting entirely: download the <strong>.rsc</strong> file below,
               upload it once via WebFig's <strong>Files</strong> tab, then run{" "}
               <code className="rounded bg-background px-1 py-0.5">
-                /import file=&lt;name&gt;.rsc
+                /import file={routerRscFilename(router.locationName, router.id)}
               </code>{" "}
               — no terminal paste at all, so nothing to corrupt. <strong>Copy (1 line)</strong>{" "}
               below is still one giant paste under the hood -- on a real config it usually ends up
@@ -1426,10 +1427,11 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement("a");
                   a.href = url;
-                  a.download = `mikrotik-${router.locationName || router.id}.rsc`;
+                  const filename = routerRscFilename(router.locationName, router.id);
+                  a.download = filename;
                   a.click();
                   URL.revokeObjectURL(url);
-                  toast.success("Downloaded .rsc -- upload via WebFig Files, then /import it");
+                  toast.success(`Downloaded ${filename} -- upload via WebFig Files, then /import it`);
                 }}
                 className="flex items-center gap-1 rounded-lg border border-primary bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/20"
                 title="Download a plain RouterOS script -- upload via WebFig Files, then run /import file=... (no terminal paste needed)"
