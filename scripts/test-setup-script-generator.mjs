@@ -644,6 +644,7 @@ writeFileSync(
   [
     `export { buildRouterSetupScriptChunks } from "@/components/routers/RouterDetailTabs";`,
     `export { chunksToSingleLineScript } from "@/components/routers/RouterDetailTabs";`,
+    `export { chunksToRouterOsScript } from "@/components/routers/RouterDetailTabs";`,
     `export { validateSetupScriptChunks } from "@/components/routers/RouterDetailTabs";`,
     // Sections 8 below assert the Master-console panel's "what a
     // re-Generate breaks" table against what the generator ACTUALLY
@@ -695,6 +696,7 @@ await build({
 const {
   buildRouterSetupScriptChunks,
   chunksToSingleLineScript,
+  chunksToRouterOsScript,
   validateSetupScriptChunks,
   SECRET_REPAIR,
   rotatingSecrets,
@@ -713,6 +715,11 @@ const {
 // chunk that will break.
 
 const BASE = {
+  // Pinned so `generating twice produces byte-identical text` still means
+  // something. `generatedAt` is a declared input to the generator precisely
+  // so the portal marker's timestamp is not hidden nondeterminism -- see
+  // `portalMarker`.
+  generatedAt: "2026-08-28T00:00:00.000Z",
   apiBase: "https://master.wyfyguest.com/api/v1",
   agentCredential: "cred-abc123",
   lanBridge: "bridge-guest",
@@ -739,6 +746,11 @@ const BANNED_HUB_LITERAL = "20.219.72.235";
 const WG = {
   routerPrivateKey: "PRIVKEY",
   serverPublicKey: "PUBKEY",
+  // What the PLATFORM has registered for this router, fed to the Tunnel
+  // Identity Check. Deliberately different from `serverPublicKey`: they are
+  // two different keys and conflating them is exactly the confusion the
+  // check exists to end.
+  peerPublicKey: "PEERPUBKEY",
   routerTunnelIp: "10.20.0.5",
   serverEndpointHost: "vpn.wyfyguest.com",
   serverEndpointPort: "13231",
@@ -808,7 +820,7 @@ const VARIANTS = [
       wans: [DHCP_WAN],
       lanIfs: ["ether3", "ether4"],
       wireguard: WG,
-      radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t" },
+      radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t", srcAddress: "10.20.0.5" },
       apiAccess: { username: "cloudguest", secret: "pw" },
       identity: "gurgaon-branch",
       portalUrl: PORTAL,
@@ -822,7 +834,7 @@ const VARIANTS = [
       enableFirewall: false,
       basicConfigOnly: true,
       wireguard: WG,
-      radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t" },
+      radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t", srcAddress: "10.20.0.5" },
       portalUrl: { ...PORTAL, frontendBase: "https://192.168.1.9" },
     },
   ],
@@ -2111,7 +2123,7 @@ const REGEN_CHUNKS = buildRouterSetupScriptChunks({
   ...BASE,
   wans: [DHCP_WAN],
   wireguard: WG,
-  radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t" },
+  radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t", srcAddress: "10.20.0.5" },
   apiAccess: { username: "cloudguest-api", secret: "pw" },
 });
 const scriptOf = (pred) =>
@@ -2125,22 +2137,99 @@ const elseBodies = (script) =>
   [...script.matchAll(/else=\{((?:[^{}]|\{[^{}]*\})*)\}/g)].map((m) => m[1]);
 
 {
+  // FIXED 2026-08-27, AND THE ASSERTIONS MOVED WITH THE FIX -- same shape
+  // as the RADIUS pair just below. This block used to assert the opposite:
+  // that the chunk had NO update branch and that the table therefore said
+  // the keypair was unrepairable. That was a true description of a real
+  // defect, and it cost a live router: every Generate mints a new keypair
+  // AND a new tunnel IP server-side, so an already-provisioned device
+  // silently kept its old identity while the hub was told to expect the
+  // new one. Router 01c9171e ended up with three peers on the hub
+  // (10.20.0.2/.3/.4), a handshake only on .3, and the platform tracking
+  // .4 -- unrepairable except by a site visit, because the only management
+  // path was the tunnel being repaired.
+  //
+  // Deliberately NOT testing for `else=`, which is what the previous
+  // version used as its proxy for "has an update branch". The WireGuard
+  // chunk cannot use `else={}`: its add and update paths are gated on
+  // different predicates (`$wgGo` and the DNS-resolution ladder), so they
+  // are separate `:if` statements. Asserting the proxy rather than the
+  // behaviour is how a chunk could grow a real update path and still be
+  // reported as having none -- exactly the failure mode this suite exists
+  // to prevent. So: assert the three writes themselves.
   const wg = scriptOf((c) => c.label === "WireGuard Tunnel");
   check(
-    "the WireGuard chunk really has NO update branch",
-    !/else=/.test(wg),
-    "if it grew one, SECRET_REPAIR.wireguard.repairableByRepaste must be flipped to true -- " +
-      "the dialog and banner would otherwise be telling the operator a lie",
+    "the WireGuard chunk updates an EXISTING interface's private key",
+    /\/interface wireguard set \[find where name=/.test(wg) && /private-key=/.test(wg),
+    "without this a re-paste leaves the device on its old private key and the tunnel never handshakes",
   );
   check(
-    "...so the table says the WireGuard keypair is NOT repairable by re-pasting",
-    SECRET_REPAIR.wireguard.repairableByRepaste === false,
+    "...and updates an EXISTING hub peer's public key and endpoint",
+    /\/interface wireguard peers set \[find where interface=/.test(wg),
+    "the peer carries the hub's rotating public key; an add-only chunk cannot converge it",
+  );
+  check(
+    "...and converges an EXISTING tunnel address when the platform reallocated it",
+    /:foreach wgAddrRow in=\[\/ip address find where interface=/.test(wg) &&
+      /\/ip address remove \$wgAddrRow/.test(wg) &&
+      /\/ip address add address=/.test(wg),
+    "register_external_radius_nas binds the FreeRADIUS client stanza to the tunnel IP the PLATFORM " +
+      "holds -- a device left on the previous address is an unknown client and its RADIUS packets " +
+      "are dropped with no reply and nothing logged",
+  );
+  check(
+    "...so the table says the WireGuard keypair IS repairable by re-pasting",
+    SECRET_REPAIR.wireguard.repairableByRepaste === true,
     "the table disagrees with the chunk",
   );
+  // REUSED PEER: the platform deliberately allocated nothing, so it has no
+  // private key to give. `ops/hub-agents/wg_agent.py` exposes only POST
+  // (always allocates) and GET -- no delete, no update -- so every
+  // allocation is permanent and unreclaimable, and reuse is now the
+  // default. Writing a placeholder key over a working interface would
+  // break the very tunnel this chunk exists to maintain.
+  {
+    const reused =
+      buildRouterSetupScriptChunks({
+        ...BASE,
+        wans: [DHCP_WAN],
+        wireguard: { ...WG, routerPrivateKey: null },
+      }).find((c) => c.label === "WireGuard Tunnel")?.script ?? "";
+    check(
+      "a reused peer writes NO private-key anywhere",
+      !/private-key=/.test(reused),
+      "the device already holds the right key; overwriting it breaks the tunnel being repaired",
+    );
+    check(
+      "...but still converges the peer and the tunnel address",
+      /\/interface wireguard peers set \[find where interface=/.test(reused) &&
+        /:foreach wgAddrRow in=\[\/ip address find where interface=/.test(reused) &&
+        /\/ip address remove \$wgAddrRow/.test(reused),
+      "reuse must still repair everything it CAN, or a re-paste fixes nothing at all",
+    );
+    check(
+      "...and says so on-device if the interface is missing entirely",
+      /this script carries no private key/.test(reused),
+      "a reflashed device reusing a peer needs to be told to re-generate with rotation",
+    );
+    // And the normal path is unchanged.
+    const fresh =
+      buildRouterSetupScriptChunks({
+        ...BASE,
+        wans: [DHCP_WAN],
+        wireguard: WG,
+      }).find((c) => c.label === "WireGuard Tunnel")?.script ?? "";
+    check(
+      "a freshly allocated peer still writes its private key",
+      /private-key=/.test(fresh),
+      "reuse handling must not disarm the first-provision path",
+    );
+  }
+
   check(
-    "...and says what to remove on the device instead",
-    /wg-cloudguard/.test(SECRET_REPAIR.wireguard.why),
-    'a "cannot be repaired" with no next step just moves the dead end',
+    "...and the table's reason names the mechanism rather than a manual workaround",
+    /private-key|peers set|ip address set/.test(SECRET_REPAIR.wireguard.why),
+    "the reason string is shown verbatim in the regenerate dialog; it has to describe what actually repairs it",
   );
 }
 {
@@ -2156,18 +2245,44 @@ const elseBodies = (script) =>
   // `secret=` and `repairableByRepaste: true` still have to agree, so
   // neither can be changed back on its own without turning this red.
   const radius = scriptOf((c) => c.label === "RADIUS");
+  // The `else={}` branch this used to assert is gone, replaced by a
+  // marker-keyed converge `set` that writes strictly MORE than it did. The
+  // coupling is unchanged: it is still the `secret=` write that makes
+  // SECRET_REPAIR.radius.repairableByRepaste honest, so neither can move
+  // without turning this red.
+  const rdConverge =
+    radius
+      .split("\n")
+      .find((l) => /\/radius set \[find where comment="cloudguest-radius"\]/.test(l)) ?? "";
   check(
-    "the RADIUS chunk's else-branch writes secret=, not just disabled=no",
-    /else=\{/.test(radius) && elseBodies(radius).some((b) => b.includes("secret=")),
-    "an else branch that only clears `disabled` leaves an already-provisioned router on the OLD " +
+    "the RADIUS chunk converges an EXISTING entry with secret=, not just disabled=no",
+    /secret=/.test(rdConverge),
+    "a branch that only clears `disabled` leaves an already-provisioned router on the OLD " +
       "shared secret after a rotation, and SECRET_REPAIR.radius.repairableByRepaste would have " +
       "to be flipped back to false to stay honest",
   );
   check(
-    "...and the else-branch still clears disabled=yes as well",
-    elseBodies(radius).some((b) => /secret=/.test(b) && /disabled=no/.test(b)),
+    "...and still clears disabled=yes as well",
+    /disabled=no/.test(rdConverge),
     "an entry toggled off in WinBox while debugging stays off, and the secret write lands on an " +
       "entry nothing ever asks",
+  );
+  check(
+    "...and writes service=, timeout= and src-address= too",
+    /service=hotspot/.test(rdConverge) &&
+      /timeout=3s/.test(rdConverge) &&
+      /src-address=/.test(rdConverge),
+    "each of these was unrepairable by re-paste before: an entry narrowed to service=ppp is " +
+      "invisible to the hotspot; a router provisioned before timeout=3s keeps RouterOS's 300ms " +
+      "default forever over a tunnelled path; and an unset src-address makes FreeRADIUS drop " +
+      "every request as an unknown client, with no reply and nothing logged",
+  );
+  check(
+    "...and the entry is identified by a marker, not by its address",
+    /\/radius add .*comment="cloudguest-radius"/.test(radius) &&
+      /\/radius set \[find where address=.*\] comment="cloudguest-radius"/.test(radius),
+    "`find where address=` cannot tell this generator's entry from an operator's own at the same " +
+      "address, so it can neither adopt safely nor converge `address=` when the hub moves",
   );
   check(
     "...so the table says the RADIUS secret IS repairable by re-pasting",
@@ -2277,7 +2392,7 @@ const BARE_PPPOE = buildRouterSetupScriptChunks({
   ...BASE,
   wans: [PPPOE_WAN],
   wireguard: WG,
-  radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t" },
+  radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t", srcAddress: "10.20.0.5" },
   portalUrl: PORTAL,
 });
 const bareChunk = (chunks, needle) => {
@@ -2796,6 +2911,10 @@ check(
 const HOTSPOT_DNS_NAME_RE = "wifi\\.wyfyguest\\.com";
 
 const KNOWN_MENUS = new Set([
+  // The run stamp the portal chunks write -- a single settable string this
+  // platform otherwise never touches, carrying which generation last landed
+  // on the device. See the "Portal Stamp" chunk.
+  "/system note",
   // `/certificate` was here until the self-signed hotspot certificate
   // chunk was deleted (section 13). Removing it from this list is not
   // housekeeping: the "no dead entries" check below is what forces the
@@ -4610,6 +4729,45 @@ check(
   const warn = withGaps.find((c) => /INCOMPLETE SCRIPT/.test(c.label));
   check("a script with gaps carries the warning", Boolean(warn), "no warning chunk was emitted");
 
+  // THE .rsc IS A SEPARATE DELIVERY CHANNEL, AND IT IS THE ONE THAT BIT
+  // FIRST. Confirmed live 2026-08-27: the operator's first attempt was a
+  // DOWNLOADED .rsc with no RADIUS in it. A file has no toast and no
+  // banner around it -- it is saved, carried to the venue, uploaded and
+  // `/import`ed. The warning chunk's `:put` lines are real, but they sit
+  // in the middle of the file and scroll past during an import.
+  //
+  // So the gap has to be restated in `#` comments at the TOP of the file,
+  // where it is the first thing anyone opening it reads.
+  {
+    const rsc = chunksToRouterOsScript(withGaps, "lobby router");
+    const head = rsc.split("\n").slice(0, 14).join("\n");
+    check(
+      "a .rsc built from an incomplete script says so in its header",
+      /THIS SCRIPT IS INCOMPLETE/.test(head),
+      "a downloaded file has no toast and no banner -- the header is the only thing read before it runs",
+    );
+    check(
+      "...naming the missing subsystems in the header itself",
+      /RADIUS/.test(head) && /WireGuard/.test(head),
+      "an operator must be able to tell WHAT is missing without reading the whole file",
+    );
+    check(
+      "...and only ever as RouterOS comments, so the file still imports",
+      rsc
+        .split("\n")
+        .slice(0, 14)
+        .filter((l) => l.trim() !== "")
+        .every((l) => l.trimStart().startsWith("#")),
+      "a non-comment line in the header would be executed by /import",
+    );
+    const cleanRsc = chunksToRouterOsScript(clean, "lobby router");
+    check(
+      "a .rsc built from a COMPLETE script carries no such header",
+      !/THIS SCRIPT IS INCOMPLETE/.test(cleanRsc),
+      "a banner on every healthy download is noise that gets ignored on the one that matters",
+    );
+  }
+
   // FIRST, NOT LAST. An operator pastes top to bottom and stops reading
   // once it is going well; a warning at the end is read after the router
   // is already half-configured.
@@ -4637,6 +4795,31 @@ check(
     /never reach the platform/.test(warn?.script ?? ""),
     "same reasoning as RADIUS above",
   );
+  // ADDED 2026-08-27. A failed API-credential PUT used to produce a toast
+  // and NOTHING else -- no `notProvisioned` entry, so no banner, so the
+  // "API Access" chunk simply vanished and the script still looked whole.
+  // That is the identical defect class that hid the missing RADIUS, left
+  // unfixed in the same function. The panel now pushes a gap for it, so
+  // the banner has to be able to describe it.
+  {
+    const apiGap = buildRouterSetupScriptChunks({
+      ...BASE,
+      wans: [DHCP_WAN],
+      notProvisioned: [
+        { what: "API Access (Device Console)", why: "the platform could not record them" },
+      ],
+    }).find((c) => /INCOMPLETE SCRIPT/.test(c.label));
+    check(
+      "it says what missing API access actually costs",
+      /Device Console stays locked/.test(apiGap?.script ?? ""),
+      "a gap without its consequence reads as a warning worth ignoring",
+    );
+    check(
+      "...and notes that guest WiFi still works, so nothing else looks wrong",
+      /Guest/.test(apiGap?.script ?? "") && /unaffected/.test(apiGap?.script ?? ""),
+      "this is the one gap with no user-visible symptom -- that is exactly why it needs saying",
+    );
+  }
   check(
     "it carries the reason the panel was given, verbatim",
     /the RADIUS bridge could not be reached/.test(warn?.script ?? ""),
@@ -4651,6 +4834,56 @@ check(
       gaps.length,
     "one log line per gap",
   );
+  // ---- THE /import PATH MUST NOT SILENTLY HALF-SUCCEED ----------------
+  //
+  // The operator provisions from a downloaded .rsc. `/import` never pauses
+  // and never stops for a `:put`, so every precondition this generator
+  // "checks" was, on that path, decorative: the run sailed past a missing
+  // RADIUS chunk, past a dead uplink and past an unsynced clock, and built
+  // a hotspot anyway. These four assert the aborts that make the file
+  // either work or stop loudly -- the acceptance criterion for that path.
+  check(
+    "the incomplete-script chunk ABORTS, so /import cannot run past it",
+    /:error /.test(warn?.script ?? ""),
+    "under /import a `:put` scrolls past unread and the run continues into WAN/hotspot/firewall",
+  );
+  check(
+    "...and its abort names what was missing",
+    /:error "[^"]*RADIUS/.test(warn?.script ?? ""),
+    "a bare stop tells the operator nothing they can act on",
+  );
+  {
+    const full = buildRouterSetupScriptChunks({ ...BASE, wans: [DHCP_WAN] });
+    const byLabel = (re) => full.find((c) => re.test(c.label))?.script ?? "";
+    check(
+      "the WAN connectivity check aborts on FAIL",
+      /:error /.test(byLabel(/WAN Connectivity Check/)),
+      "otherwise /import builds a hotspot on a box with no internet -- the confirmed field state",
+    );
+    check(
+      "the clock/NTP check aborts on FAIL",
+      /:error /.test(byLabel(/Clock \+ NTP/)),
+      "a wrong clock fails TLS, so every platform call is rejected before it is sent and the " +
+        "router shows OFFLINE forever while its WiFi works",
+    );
+    // THE /import DHCP RACE. Chunk-by-chunk pasting hides this completely:
+    // the human delay between pastes is more than enough for a lease to
+    // bind. `/import` reads the gateway microseconds after adding the
+    // client, gets nothing, and leaves 0.0.0.0/0 via 0.0.0.0 flagged
+    // Inactive with every ping answering "no route to host".
+    const routing = byLabel(/WAN Routing/);
+    check(
+      "a DHCP WAN polls for its lease rather than reading the gateway once",
+      /:delay /.test(routing),
+      "reading immediately after adding the dhcp-client is the /import race itself",
+    );
+    check(
+      "...and aborts if the lease never binds, instead of leaving an Inactive default route",
+      /:error /.test(routing),
+      "continuing produces 0.0.0.0/0 via 0.0.0.0 (flags Is) and a fully built hotspot with no uplink",
+    );
+  }
+
   // AND IT CONFIGURES NOTHING. A chunk that warns and also mutates is a
   // chunk an operator cannot safely skip.
   check(

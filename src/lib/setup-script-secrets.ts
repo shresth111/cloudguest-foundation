@@ -23,11 +23,26 @@ export type RotatingSecret = "agent" | "wireguard" | "radius" | "api";
  * Every claim here was checked against the emitted chunk in
  * `buildRouterSetupScriptChunks`, not assumed, on 2026-08-23:
  *
- *   WireGuard  `:if ([:len [/interface wireguard find where
- *              name="wg-cloudguard"]] = 0) do={ add private-key=NEW }`
- *              and the same add-if-missing shape for the peer. NO `else`.
- *              A device that already has the interface keeps the OLD key
- *              and RouterOS reports nothing -- every command "succeeded".
+ *   WireGuard  Add-if-missing PLUS a real update branch, as of
+ *              2026-08-27. Three separate pieces of identity rotate on
+ *              every Generate and all three are now converged by a
+ *              re-paste: `/interface wireguard set [find ...]
+ *              private-key=NEW`, `/interface wireguard peers set [find
+ *              where interface=...] public-key=NEW endpoint-address=...`,
+ *              and `/ip address set [find where interface=... address!=
+ *              NEW] address=NEW` for the tunnel IP.
+ *              Before that it was add-only with NO `else`: a device that
+ *              already had the interface kept the OLD key and RouterOS
+ *              reported nothing -- every command "succeeded". That is what
+ *              left router 01c9171e with the hub holding three peers
+ *              (10.20.0.2/.3/.4), a handshake only on .3, and the platform
+ *              tracking .4.
+ *              The tunnel IP matters beyond WireGuard:
+ *              `register_external_radius_nas` binds the router's
+ *              FreeRADIUS `client{}` stanza to the tunnel IP the PLATFORM
+ *              holds, so a device left on an older address is an unknown
+ *              client to the hub and its RADIUS packets are dropped
+ *              without a reply.
  *              (`wg-cloudguard` is the authoritative name -- it is what the
  *              backend's `network_config/renderers.py` uses. Routers
  *              provisioned before that fix carry a `wg-cloudguest`
@@ -70,8 +85,8 @@ export const SECRET_REPAIR: Record<
   },
   wireguard: {
     label: "the WireGuard keypair",
-    repairableByRepaste: false,
-    why: "the WireGuard chunk only adds an interface/peer if none exists and has no update branch, so re-pasting is a silent no-op -- the device keeps the old key and the tunnel never handshakes. Delete the wg-cloudguard interface and peer on the device first",
+    repairableByRepaste: true,
+    why: "the WireGuard chunk now writes all three halves on a re-paste -- `/interface wireguard set ... private-key=`, `/interface wireguard peers set ... public-key=/endpoint-address=`, and `/ip address set ...` for the tunnel IP -- so re-pasting converges a device that already has an older identity",
   },
   radius: {
     label: "the RADIUS shared secret",

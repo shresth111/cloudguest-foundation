@@ -29,11 +29,14 @@ import {
   GUEST_PORTAL_PUBLIC_BASE,
 } from "@/components/routers/RouterDetailTabs";
 import type { RouterSetupScriptValidationResult } from "@/components/routers/RouterDetailTabs";
-import { useGenerateProvisioningToken } from "@/hooks/useRouters";
+import { useQueryClient } from "@tanstack/react-query";
+import { useGenerateProvisioningToken, routerKeys } from "@/hooks/useRouters";
+import { nasKeys } from "@/hooks/useNas";
 import api, { getAbsoluteApiBase } from "@/services/api";
 import type { AppError } from "@/services/api";
 import type { RouterDevice } from "@/types/router";
 import { copyToClipboard } from "@/lib/utils";
+import { routerRscFilename } from "@/lib/rsc-filename";
 import { SECRET_REPAIR, rotatingSecrets } from "@/lib/setup-script-secrets";
 import type { RotatingSecret } from "@/lib/setup-script-secrets";
 
@@ -253,6 +256,26 @@ function isValidCidr(value: string): boolean {
  * account that must not exist is not an improvement on a weak one. */
 
 function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
+  // EVERY server call in `onGenerate` below is a raw `api.post`/`api.put`,
+  // not a react-query mutation -- so nothing invalidated the caches those
+  // writes invalidate, and the rest of the console kept rendering
+  // pre-rotation state indefinitely.
+  //
+  // Confirmed live 2026-08-27, reported by the operator as "the RADIUS
+  // config that appears is the OLD one, and the tunnel that appears is the
+  // OLD one": `allocate-external` had moved this router's peer to
+  // 10.20.0.4 server-side, while the WireGuard tab -- reading
+  // `routerKeys.wireguardPeer` via `useWireGuardPeer` -- still showed
+  // 10.20.0.3, because only `useCreateWireGuardPeer`/`useRotate...`/
+  // `useRevoke...` invalidate that key (see hooks/useRouters.ts) and this
+  // panel uses none of them.
+  //
+  // `router.hasApiCredentials` is the one with teeth: it is read straight
+  // back into `mintApiSecret` on the NEXT Generate, so a stale `false`
+  // makes the panel mint and PUT a second API password for a router that
+  // already had one -- the exact 2026-08-21 "login failure for user
+  // cloudguest-api" failure, re-entered through the cache.
+  const queryClient = useQueryClient();
   const generate = useGenerateProvisioningToken();
   const [busy, setBusy] = useState(false);
   const [chunks, setChunks] = useState<
@@ -295,6 +318,13 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
   // is only ever correct right after the `cloudguest-api` user has been
   // removed from the device. See the mint block in `onGenerate`.
   const [rotateApiSecret, setRotateApiSecret] = useState(false);
+  // Off by default, same explicit-opt-in shape as `rotateApiSecret`, and
+  // for a sharper reason: `ops/hub-agents/wg_agent.py` has only POST
+  // (which always allocates) and GET. No delete, no update. So a rotation
+  // is IRREVERSIBLE -- the superseded peer stays on the hub forever,
+  // holding a tunnel IP that `next_free_ip()` will never hand out again.
+  // Correct only when the device has genuinely lost its WireGuard config.
+  const [rotateWireguard, setRotateWireguard] = useState(false);
   // Only shown/meaningful with 2+ ISPs -- see buildRouterSetupScriptChunks's
   // own WanRoutingMode docstring for why failover-only is a real,
   // structurally simpler alternative, not a stripped-down load-balance.
@@ -545,7 +575,21 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
         // clear toast instead of aborting generation entirely.
         try {
           const wg = await api.post<{
-            peer_private_key: string;
+            /** Null when `reused` is true -- the backend deliberately did
+             * NOT allocate a new peer. See the generator's
+             * `routerPrivateKey` docstring and the backend's
+             * `allocate_external_wireguard_peer`. */
+            peer_private_key: string | null;
+            /** The peer's own public key, as the PLATFORM has it recorded.
+             * Already on the wire -- `WireGuardPeerResponse` (the base of
+             * `WireGuardTunnelCreateResponse`) has carried it all along, and
+             * both the allocate path and the reuse path populate it; this
+             * type simply never declared it. Feeds
+             * `buildTunnelIdentityCheckChunk`, which is the only thing on the
+             * router able to notice that the device and the platform hold two
+             * different identities. No backend change was needed. */
+            public_key: string;
+            reused?: boolean;
             hub_public_key: string;
             tunnel_ip_address: string;
             hub_endpoint_host: string;
@@ -588,10 +632,20 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
             hub_endpoint_port: number;
             tunnel_network_cidr: string;
             hub_tunnel_ip_address: string;
-          }>(`/routers/${router.id}/wireguard-peer/allocate-external`);
+          }>(
+            `/routers/${router.id}/wireguard-peer/allocate-external` +
+              // Reuse by default. `ops/hub-agents/wg_agent.py` exposes only
+              // POST (always allocates) and GET -- no delete, no update --
+              // so every allocation is PERMANENT and unreclaimable, and
+              // clicking Generate used to burn one each time. Router
+              // 01c9171e reached 10.20.0.5 while its device was still on
+              // .3, and the orphans outlived the router's own DB rows.
+              (rotateWireguard ? "?rotate=true" : ""),
+          );
           wireguard = {
             routerPrivateKey: wg.data.peer_private_key,
             serverPublicKey: wg.data.hub_public_key,
+            peerPublicKey: wg.data.public_key,
             routerTunnelIp: wg.data.tunnel_ip_address,
             serverEndpointHost: wg.data.hub_endpoint_host,
             serverEndpointAddress: wg.data.hub_endpoint_address,
@@ -599,6 +653,14 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
             tunnelSubnet: wg.data.tunnel_network_cidr,
             hubTunnelIpAddress: wg.data.hub_tunnel_ip_address,
           };
+          if (wg.data.reused) {
+            toast.info(
+              "Existing WireGuard tunnel reused -- no new peer was allocated on the hub. " +
+                'The script has no "private-key" line because the device already has the ' +
+                "right key. If this router has been reflashed, tick “Rotate the WireGuard " +
+                "tunnel” and generate again.",
+            );
+          }
         } catch (err) {
           wireguard = undefined;
           const why = (err as AppError).message || "the WireGuard hub could not be reached";
@@ -614,7 +676,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
       // per-client blocks in FreeRADIUS, not one shared identifier for
       // every router. Needs the tunnel IP WireGuard just allocated, so
       // RADIUS implies WireGuard (enforced by the checkbox below).
-      let radius: { serverAddress: string; sharedSecret: string } | undefined;
+      let radius: { serverAddress: string; sharedSecret: string; srcAddress: string } | undefined;
       if (enableRadius && wireguard) {
         // Same CORS problem, same fix -- routed through the backend
         // instead of fetch()'d directly against the FreeRADIUS bridge.
@@ -627,6 +689,11 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           radius = {
             serverAddress: wireguard.hubTunnelIpAddress,
             sharedSecret: nas.data.shared_secret,
+            // The address FreeRADIUS keys this router's `client{}` stanza to
+            // -- `register_external_radius_nas` binds it to the tunnel IP the
+            // PLATFORM holds, so this is the one the device must source from.
+            // See `RouterSetupScriptChunkOptions.radius.srcAddress`.
+            srcAddress: wireguard.routerTunnelIp,
           };
         } catch (err) {
           radius = undefined;
@@ -681,9 +748,18 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           });
           apiAccess = { username: API_ACCESS_USERNAME, secret: apiSecret };
         } catch (err) {
+          // MUST feed `notProvisioned`, exactly like the WireGuard and
+          // RADIUS failures above. Without this push the "API Access"
+          // chunk simply vanishes from the generated script and the script
+          // still *looks* complete -- which is precisely how the RADIUS
+          // omission went unnoticed on 2026-08-27 until someone happened to
+          // read the chunk list and count. A toast is not a signal: it is
+          // gone in seconds, it is not present in the script the operator
+          // pastes an hour later, and it leaves nothing on the device.
+          const why = (err as AppError).message || "the platform could not record them";
+          notProvisioned.push({ what: "API Access (Device Console)", why });
           toast.error(
-            (err as AppError).message ||
-              "Could not record API credentials -- Device Console will stay locked for this router until they're set.",
+            `Could not record API credentials -- Device Console will stay locked for this router until they're set. ${why}`,
           );
         }
       } else {
@@ -691,6 +767,27 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           'API password unchanged -- this router already has one, so no "API Access" chunk is in this script. Device Console keeps working.',
         );
       }
+
+      // Unconditional, and BEFORE the script is handed over: by this point
+      // the server state this router is described by has moved, whether or
+      // not every individual call succeeded (an `allocate-external` that
+      // worked still moved the peer even if `register-external` then
+      // failed). Invalidating only on the all-succeeded path would leave
+      // exactly the partial-failure case -- the one that actually happens --
+      // rendering stale.
+      //
+      // Awaited so the operator cannot read a pre-rotation tunnel IP off
+      // the WireGuard tab in the moment between "Script ready" and the
+      // refetch landing; that half-second is precisely when they are
+      // cross-checking the script against the panel.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: routerKeys.wireguardPeer(router.id) }),
+        queryClient.invalidateQueries({ queryKey: routerKeys.detail(router.id) }),
+        // The list feeds the fleet table's status/credential columns, and
+        // `RouterDevice.hasApiCredentials` is read back out of it.
+        queryClient.invalidateQueries({ queryKey: routerKeys.all }),
+        queryClient.invalidateQueries({ queryKey: nasKeys.all }),
+      ]);
 
       setChunks(
         buildRouterSetupScriptChunks({
@@ -738,6 +835,17 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
       // box ticked would make the NEXT Generate rotate again silently --
       // which is the exact behaviour this whole change removes.
       setRotateApiSecret(false);
+      // AND THE WIREGUARD ONE. `rotateApiSecret` was reset here from the
+      // start; `rotateWireguard` never was, so a box ticked once for a
+      // genuine recovery stayed ticked and every subsequent Generate burned
+      // another permanent hub peer -- `ops/hub-agents/wg_agent.py` has no
+      // delete verb, so an allocation is unreclaimable and
+      // `next_free_ip()` scans live kernel state, meaning orphans consume
+      // the /24 forever. One router reached 10.20.0.8 with the device still
+      // on .6, and the hub is at ten peers tonight. Rotation must be a
+      // deliberate act each time it happens, which means the tick has to
+      // expire with the script it produced.
+      setRotateWireguard(false);
       toast.success("Script ready");
     } catch (err) {
       toast.error((err as AppError).message || "Failed to generate setup script");
@@ -1152,6 +1260,27 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
             device.
           </p>
         )}
+        {enableWireguard && (
+          <label className="flex items-start gap-2 pl-6 text-xs text-foreground">
+            <input
+              type="checkbox"
+              checked={rotateWireguard}
+              onChange={(e) => setRotateWireguard(e.target.checked)}
+              className="mt-0.5 h-3.5 w-3.5 rounded border-input"
+            />
+            <span>
+              Rotate the WireGuard tunnel (allocate a brand-new peer)
+              <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                Leave this OFF. Without it the platform reuses this router&rsquo;s existing tunnel
+                and allocates nothing. Rotating is <strong>irreversible</strong>: the hub agent has
+                no delete or update command, so the peer it replaces stays on the hub forever,
+                holding a tunnel IP that can never be reissued. One router already accumulated four
+                orphans this way. Tick it only if the device has genuinely lost its WireGuard config
+                &mdash; a reflash, or straight after Guided Setup&rsquo;s recovery phase.
+              </span>
+            </span>
+          </label>
+        )}
         <label className="flex items-center gap-2 text-xs text-foreground">
           <input
             type="checkbox"
@@ -1228,7 +1357,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
               Heartbeat. Or skip pasting entirely: download the <strong>.rsc</strong> file below,
               upload it once via WebFig's <strong>Files</strong> tab, then run{" "}
               <code className="rounded bg-background px-1 py-0.5">
-                /import file=&lt;name&gt;.rsc
+                /import file={routerRscFilename(router.locationName, router.id)}
               </code>{" "}
               — no terminal paste at all, so nothing to corrupt. <strong>Copy (1 line)</strong>{" "}
               below is still one giant paste under the hood -- on a real config it usually ends up
@@ -1324,10 +1453,13 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement("a");
                   a.href = url;
-                  a.download = `mikrotik-${router.locationName || router.id}.rsc`;
+                  const filename = routerRscFilename(router.locationName, router.id);
+                  a.download = filename;
                   a.click();
                   URL.revokeObjectURL(url);
-                  toast.success("Downloaded .rsc -- upload via WebFig Files, then /import it");
+                  toast.success(
+                    `Downloaded ${filename} -- upload via WebFig Files, then /import it`,
+                  );
                 }}
                 className="flex items-center gap-1 rounded-lg border border-primary bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/20"
                 title="Download a plain RouterOS script -- upload via WebFig Files, then run /import file=... (no terminal paste needed)"

@@ -12,6 +12,7 @@
  *     is nothing for WinBox/WebFig to corrupt on a long paste -- a
  *     corrupted hotspot line drops the guest sign-in page silently.
  */
+import { rscSlug } from "@/lib/rsc-filename";
 import { stepNumber } from "./progress";
 import type { Phase } from "./types";
 
@@ -40,11 +41,11 @@ export function downloadRsc(filename: string, contents: string): void {
   URL.revokeObjectURL(url);
 }
 
-/** Filesystem-safe, recognisable on a laptop full of downloads. */
+/** Filesystem-safe, recognisable on a laptop full of downloads -- and
+ * safe as a bare `/import file=` parameter, which is the part that
+ * actually bites: see `@/lib/rsc-filename` for the live failure that
+ * shares this slug rule with the Advanced panel. */
 export function rscFilename(routerName: string, phase: Phase): string {
-  const slug = (routerName || "router")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
+  const slug = rscSlug(routerName || "router");
   return `wyfy-${slug || "router"}-${stepNumber(phase)}-${phase.id}.rsc`;
 }
