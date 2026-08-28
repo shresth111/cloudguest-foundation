@@ -2856,12 +2856,22 @@ function buildTunnelIdentityCheckChunk(wireguard: WireguardPeerInfo): RouterSetu
  * GRANULARITY: three ids, compared individually, not the whole URL. See
  * `portalMarker`'s own docstring.
  *
- * `[:typeof [:find ...]] != "nothing"`, NOT `[:len [:find ...]] > 0`.
- * `:find` returns the position, or `nothing` when the needle is absent, and
- * `:len` over `nothing` is not a valid test of that -- the same class of
- * unsound guard as `[:len]` over `:resolve`'s `ip` value in
+ * `[:typeof [:find ...]] != "nil"`, NOT `[:len [:find ...]] > 0`.
+ * `:find` returns the position, or a not-found value when the needle is
+ * absent, and `:len` over that is not a valid test of it -- the same class
+ * of unsound guard as `[:len]` over `:resolve`'s `ip` value in
  * `buildWalledGardenLines`. `[:len $piC]` a few lines down IS legitimate,
  * because `/file get ... contents` really is a string.
+ *
+ * THE TYPENAME IS `"nil"`, MEASURED, NOT GUESSED. This shipped as
+ * `"nothing"` and was wrong, which made all three comparisons below
+ * PERMANENTLY TRUE -- the check printed PASS on every device, including the
+ * one whose pages carried a deleted tenant's ids, which is the exact failure
+ * it was written to catch. Confirmed on RouterOS 7.23.3, hEX:
+ *     :put [:typeof [:find "abc" "z"]]
+ *     nil
+ * The uplink helper above already used `"nil"` correctly, so the file
+ * disagreed with itself; one spelling now, and this is it.
  *
  * `/file get [find] contents` on a ~700-byte page (what
  * `buildPortalRedirectHtml` produces) is well inside RouterOS's limits;
@@ -2885,15 +2895,15 @@ function buildPortalIdentityCheckChunk(
         `:local piC ""`,
         `:do { :set piC [/file get [:pick [/file find where name~"${pat}"] 0] contents] } on-error={ :set piC "" }`,
         `:local piN [:len [/file find where name~"${pat}"]]`,
-        `:local piHasR ([:typeof [:find $piC "routerId=${r}"]] != "nothing")`,
-        `:local piHasO ([:typeof [:find $piC "organizationId=${o}"]] != "nothing")`,
-        `:local piHasL ([:typeof [:find $piC "locationId=${l}"]] != "nothing")`,
+        `:local piHasR ([:typeof [:find $piC "routerId=${r}"]] != "nil")`,
+        `:local piHasO ([:typeof [:find $piC "organizationId=${o}"]] != "nil")`,
+        `:local piHasL ([:typeof [:find $piC "locationId=${l}"]] != "nil")`,
         `:local piMk [:find $piC "cloudguest-portal r="]`,
         `:local piOk ($piN > 0 && $piHasR && $piHasO && $piHasL)`,
         `:put ("  login.html copies on this device: " . [:tostr $piN])`,
         `:put ("  platform expects: ${mk}")`,
-        `:if ([:typeof $piMk] != "nothing") do={ :put ("  on disk:          " . [:pick $piC $piMk ($piMk + 140)]) }`,
-        `:if ([:typeof $piMk] = "nothing") do={ :put "  on disk:          no cloudguest marker (these pages predate it, or are not ours)" }`,
+        `:if ([:typeof $piMk] != "nil") do={ :put ("  on disk:          " . [:pick $piC $piMk ($piMk + 140)]) }`,
+        `:if ([:typeof $piMk] = "nil") do={ :put "  on disk:          no cloudguest marker (these pages predate it, or are not ours)" }`,
         `:if ([:len $piC] = 0) do={ :put "  RESULT: FAIL -- could not read login.html on this device at all." }`,
         `:if ($piOk) do={ :put "  RESULT: PASS -- the deployed pages carry this router's current ids." }`,
         `:if ([:len $piC] > 0 && !$piOk) do={ :put "  RESULT: FAIL -- THIS DEVICE IS SERVING ANOTHER TENANT'S PORTAL LINK." }`,
@@ -2927,7 +2937,7 @@ function buildPortalIdentityCheckChunk(
       [
         `:local piL "locationId=${l}"`,
         `:local piStale 0`,
-        `:foreach f in=[/file find where name~"/(rlogin|alogin|status|logout).html"] do={ :if ([:typeof [:find [/file get $f contents] $piL]] = "nothing") do={ :set piStale ($piStale + 1) } }`,
+        `:foreach f in=[/file find where name~"/(rlogin|alogin|status|logout).html"] do={ :if ([:typeof [:find [/file get $f contents] $piL]] = "nil") do={ :set piStale ($piStale + 1) } }`,
         `:if ($piStale = 0) do={ :put "  rlogin/alogin/status/logout: all carry this venue's locationId." }`,
         `:if ($piStale > 0) do={ :put ("  WARNING: " . [:tostr $piStale] . " other hotspot page(s) still carry a different locationId.") }`,
         `:if ($piStale > 0) do={ :log warning "cloudguest-portal: some hotspot pages still carry another location's id" }`,
@@ -6113,10 +6123,24 @@ export function buildRouterSetupScriptChunks(opts: {
       script: [
         `/system note set note="${escapeForRouterOsString(portalMarker(portalUrl, generatedAt))}" show-at-login=no`,
         [
-          `:local pnN [:len [/system note find where note~"cloudguest-portal r="]]`,
-          `:if ($pnN > 0) do={ :put "  Run stamp written. Read it back any time with: /system note print" }`,
-          `:if ($pnN = 0) do={ :put "  NOTE: the run stamp was not written -- /system note may be unavailable on this board." }`,
-          `:if ($pnN = 0) do={ :log warning "cloudguest: /system note run stamp not written" }`,
+          // `get`, NOT `find`. `/system note` is a single-record settings
+          // menu -- like `/system identity` or `/ip dns` -- and `find` is not
+          // a command there. Confirmed on RouterOS 7.23.3, hEX:
+          //     :put [:len [/system note find]]
+          //     bad command name find (line 1 column 26)
+          //
+          // That is a PARSE error, so `:do/on-error` cannot catch it, and it
+          // kills the whole entered line. On the chunk-paste path that is one
+          // red line. Under `/import` and the one-line paste it aborts
+          // EVERYTHING AFTER THIS CHUNK -- Portal Identity, Firewall, Router
+          // Identity, API Access, Tunnel Identity, WireGuard, RADIUS,
+          // Heartbeat and the Heartbeat Scheduler. The entire management and
+          // authentication plane, on a router that looks provisioned.
+          `:local pnV ""`,
+          `:do { :set pnV [/system note get note] } on-error={ :set pnV "" }`,
+          `:if ([:typeof [:find $pnV "cloudguest-portal r="]] != "nil") do={ :put "  Run stamp written. Read it back any time with: /system note print" }`,
+          `:if ([:typeof [:find $pnV "cloudguest-portal r="]] = "nil") do={ :put "  NOTE: the run stamp was not written -- /system note may be unavailable on this board." }`,
+          `:if ([:typeof [:find $pnV "cloudguest-portal r="]] = "nil") do={ :log warning "cloudguest: /system note run stamp not written" }`,
         ].join("; "),
       ].join("\n"),
     });
