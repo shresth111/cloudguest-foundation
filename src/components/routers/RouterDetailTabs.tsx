@@ -3879,7 +3879,26 @@ function buildAuthorizedMacStatements(opts: { apiBase: string; agentCredential: 
     // ADD only where NO binding exists -- not "none of ours". A MAC an
     // operator already bypassed by hand must not collect a duplicate row
     // on every tick.
-    `:if ($amOk = 1) do={ :foreach amM in=$amMacs do={ :if ([:len [/ip hotspot ip-binding find where mac-address=$amM]] = 0) do={ /ip hotspot ip-binding add mac-address=$amM type=bypassed comment="${AUTHORIZED_MAC_COMMENT}" } } }`,
+    //
+    // AND NEVER for a MAC that is CURRENTLY a live authenticated hotspot
+    // session (`/ip hotspot active`). This is the self-inflicted teardown
+    // this platform saw live on router 10.5.50.1 (huda city center):
+    //   22:48:34 hotspot: <mac> (10.5.50.240): logged in       <- RADIUS OK
+    //   22:48:35 hotspot: logged out: host removed: ip binding changed
+    // Adding a `type=bypassed` ip-binding for a MAC that RouterOS is
+    // already tracking as an authenticated hotspot host makes RouterOS
+    // reconcile the two -- a bypassed MAC is by definition NOT a managed
+    // hotspot client -- by REMOVING the live host ("ip binding changed").
+    // That kills the working session one tick after it succeeds; the phone
+    // (worst on iOS, which also rotates its MAC) then sees "no internet"
+    // and flaps DHCP. A MAC that is already `active` is already through the
+    // gate and needs no bypass at all, so skipping it is a pure no-op for
+    // the healthy path. The bypass is still added for a MAC that is
+    // authorized in the backend but NOT active on the device -- the
+    // gate-stuck case (`/ip hotspot active` empty despite a live session)
+    // this sync was built to close, and clean reconnect-without-re-login --
+    // because those MACs have no live host for the add to tear down.
+    `:if ($amOk = 1) do={ :foreach amM in=$amMacs do={ :if ([:len [/ip hotspot ip-binding find where mac-address=$amM]] = 0 && [:len [/ip hotspot active find where mac-address=$amM]] = 0) do={ /ip hotspot ip-binding add mac-address=$amM type=bypassed comment="${AUTHORIZED_MAC_COMMENT}" } } }`,
   ].join("; ");
 }
 

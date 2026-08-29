@@ -2962,6 +2962,12 @@ const KNOWN_MENUS = new Set([
   "/ip firewall mangle",
   "/ip firewall nat",
   "/ip hotspot",
+  // The list of currently authenticated hotspot sessions. The authorized-
+  // MAC sync reads it so it never adds a `type=bypassed` ip-binding for a
+  // MAC that RouterOS is already tracking as a live host -- doing so makes
+  // RouterOS tear that host down ("logged out: host removed: ip binding
+  // changed"), the self-inflicted teardown confirmed live on 10.5.50.1.
+  "/ip hotspot active",
   // Added deliberately, per this check's own instruction, for the
   // heartbeat's authorized-MAC sync. This is the menu that actually opens
   // the NAS gate for a guest who has already verified an OTP: without a
