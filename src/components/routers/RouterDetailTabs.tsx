@@ -3348,6 +3348,21 @@ function buildWeightedPccPlan(
  * A new JSON field would not help: `AgentHeartbeatRequest` is a plain
  * pydantic `BaseModel`, so unknown keys are silently dropped; the device
  * log is the only place a reason can actually be recorded. */
+/** `comment=` on every `/ip hotspot ip-binding` row the heartbeat's
+ * authorized-MAC sync owns.
+ *
+ * Load-bearing in both directions. The sync REMOVES only rows carrying it,
+ * so an operator's own manual bypass -- this platform has already seen a
+ * venue AP bypassed by hand on a live router -- is never deleted out from
+ * under them. And it ADDS only where no binding exists at all, so a MAC
+ * somebody already bypassed manually does not collect a duplicate row on
+ * every five-minute tick.
+ *
+ * Same `cloudguest-<thing>` shape as the NAT/walled-garden markers the
+ * backend renderer uses for exactly the same "find my own rows, touch
+ * nothing else" reason. */
+const AUTHORIZED_MAC_COMMENT = "cloudguest-authmac";
+
 function buildHeartbeatStatements(opts: {
   apiBase: string;
   agentCredential: string;
@@ -3467,6 +3482,65 @@ function buildHeartbeatStatements(opts: {
     // `/log print` that a technician (or this platform's remote support)
     // can find later. One statement in each of `:do {}` and `on-error={}`.
     `:do { /tool fetch url="${apiBase}/agent/heartbeat" http-method=post http-header-field="Content-Type: application/json,X-Agent-Credential: ${agentCredential}" http-data=$hbJson output=none } on-error={ :log warning "cloudguest-hb: /tool fetch to master failed (timeout/DNS/WAN down) -- see the WAN Connectivity Check chunk" }`,
+  ].join("; ");
+}
+
+/** Opens the NAS gate for guests who have already signed in.
+ *
+ * ## The gap this closes
+ *
+ * A guest verifies an OTP, the backend really creates a `GuestSession`,
+ * the portal really says "You're connected" -- and the hotspot gate stays
+ * shut, because nothing ever told the router. Confirmed live on router
+ * 21e13913 (2026-08-29): an `active` session carrying a real device MAC,
+ * `GET /agent/authorized-macs` correctly returning that MAC, `run-count=475`
+ * on the heartbeat scheduler, and on the device `/ip hotspot active` empty
+ * with the `hs-auth` NAT chain at 0 bytes.
+ *
+ * The endpoint had been built and worked. It simply had no consumer
+ * anywhere in either repo -- `render_mac_authorization_entry`'s docstring
+ * in the backend already described this sync as something the heartbeat
+ * "already uses", and it did not exist. This is that consumer.
+ *
+ * ## Its own chunk, and its own scheduler, deliberately
+ *
+ * Not folded into `buildHeartbeatStatements`. Two reasons, both enforced
+ * by the generator's own test suite rather than taste: the heartbeat
+ * scheduler's single `on-event` line is already near the 3300-char paste
+ * ceiling WinBox mangles past, and the agent credential is asserted to
+ * appear exactly twice across the Heartbeat chunks. A second `/tool fetch`
+ * in there breaks both.
+ *
+ * Separate is also the better failure story: a broken MAC sync must not
+ * stop the router reporting that it is alive.
+ *
+ * Every `do={ }` body holds EXACTLY ONE statement -- a `;`-chained body is
+ * a real syntax error on this hardware, which the validator refuses. */
+function buildAuthorizedMacStatements(opts: { apiBase: string; agentCredential: string }): string {
+  const { apiBase, agentCredential } = opts;
+  return [
+    `:local amData ""`,
+    `:do { :set amData ([/tool fetch url="${apiBase}/agent/authorized-macs" http-header-field="X-Agent-Credential: ${agentCredential}" output=user as-value]->"data") } on-error={ :log warning "cloudguest-am: authorized-MAC fetch failed" }`,
+    `:local amBad 0`,
+    `:local amMacs [:toarray ""]`,
+    `:if ($amData != "") do={ :do { :set amMacs ([:deserialize from=json value=$amData]->"mac_addresses") } on-error={ :set amBad 1 } }`,
+    `:if ($amBad = 1) do={ :log warning "cloudguest-am: authorized-MAC reply unparseable" }`,
+    // Only a real, parsed reply may change bindings. An EMPTY list is a
+    // legitimate answer -- nobody is signed in -- and must still run the
+    // removal pass below. Treating "no MACs" as "do nothing" is exactly
+    // what would leave a guest bypassed forever after they disconnect.
+    `:local amOk 0`,
+    `:if ($amData != "" && $amBad = 0) do={ :set amOk 1 }`,
+    // REMOVE FIRST, and only rows carrying this platform's own comment.
+    // One OTP must not buy permanent free internet. Scoping the remove to
+    // the comment is what keeps an operator's manual bindings safe -- a
+    // live router in this fleet has one for the venue's own AP, and
+    // deleting that would strand the hardware.
+    `:if ($amOk = 1) do={ :foreach amB in=[/ip hotspot ip-binding find where comment="${AUTHORIZED_MAC_COMMENT}"] do={ :if ([:typeof [:find $amMacs [/ip hotspot ip-binding get $amB mac-address]]] = "nothing") do={ /ip hotspot ip-binding remove $amB } } }`,
+    // ADD only where NO binding exists -- not "none of ours". A MAC an
+    // operator already bypassed by hand must not collect a duplicate row
+    // on every tick.
+    `:if ($amOk = 1) do={ :foreach amM in=$amMacs do={ :if ([:len [/ip hotspot ip-binding find where mac-address=$amM]] = 0) do={ /ip hotspot ip-binding add mac-address=$amM type=bypassed comment="${AUTHORIZED_MAC_COMMENT}" } } }`,
   ].join("; ");
 }
 
@@ -6450,6 +6524,23 @@ export function buildRouterSetupScriptChunks(opts: {
     chunks.push({
       label: "Heartbeat Scheduler (re-checks the live uplink every 5 minutes)",
       script: lines.join("\n"),
+    });
+    // Its own scheduler, on its own line, for the reasons in
+    // `buildAuthorizedMacStatements`' docstring. Removed-and-re-added like
+    // the heartbeat's so a re-paste replaces a stale agent credential
+    // instead of leaving the old one running forever.
+    chunks.push({
+      label: "Guest Access Sync (opens the gate for guests who signed in)",
+      script: [
+        // Run once, right now, before arming the timer -- the same
+        // "check in now, then schedule it" shape the heartbeat above
+        // uses. A technician standing at the venue should not have to
+        // wait a full interval to see whether this works, and any guest
+        // already signed in gets their gate opened immediately.
+        buildAuthorizedMacStatements({ apiBase, agentCredential }),
+        `:local existingAmSched [/system scheduler find name="cloudguest-authmac-sched"]; :if ([:len $existingAmSched] > 0) do={ /system scheduler remove $existingAmSched }`,
+        `/system scheduler add name="cloudguest-authmac-sched" interval=1m start-time=startup on-event="${escapeForRouterOsString(buildAuthorizedMacStatements({ apiBase, agentCredential }))}"`,
+      ].join("\n"),
     });
   }
 

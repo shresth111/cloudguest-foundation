@@ -2909,6 +2909,13 @@ const KNOWN_MENUS = new Set([
   "/ip firewall mangle",
   "/ip firewall nat",
   "/ip hotspot",
+  // Added deliberately, per this check's own instruction, for the
+  // heartbeat's authorized-MAC sync. This is the menu that actually opens
+  // the NAS gate for a guest who has already verified an OTP: without a
+  // consumer for `GET /agent/authorized-macs`, the backend created a real
+  // session, the portal said "You're connected", and `/ip hotspot active`
+  // on the device stayed empty.
+  "/ip hotspot ip-binding",
   "/ip hotspot profile",
   "/ip hotspot user",
   "/ip hotspot user profile",
