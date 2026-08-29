@@ -580,6 +580,15 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
              * `routerPrivateKey` docstring and the backend's
              * `allocate_external_wireguard_peer`. */
             peer_private_key: string | null;
+            /** The peer's own public key, as the PLATFORM has it recorded.
+             * Already on the wire -- `WireGuardPeerResponse` (the base of
+             * `WireGuardTunnelCreateResponse`) has carried it all along, and
+             * both the allocate path and the reuse path populate it; this
+             * type simply never declared it. Feeds
+             * `buildTunnelIdentityCheckChunk`, which is the only thing on the
+             * router able to notice that the device and the platform hold two
+             * different identities. No backend change was needed. */
+            public_key: string;
             reused?: boolean;
             hub_public_key: string;
             tunnel_ip_address: string;
@@ -636,6 +645,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           wireguard = {
             routerPrivateKey: wg.data.peer_private_key,
             serverPublicKey: wg.data.hub_public_key,
+            peerPublicKey: wg.data.public_key,
             routerTunnelIp: wg.data.tunnel_ip_address,
             serverEndpointHost: wg.data.hub_endpoint_host,
             serverEndpointAddress: wg.data.hub_endpoint_address,
@@ -666,7 +676,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
       // per-client blocks in FreeRADIUS, not one shared identifier for
       // every router. Needs the tunnel IP WireGuard just allocated, so
       // RADIUS implies WireGuard (enforced by the checkbox below).
-      let radius: { serverAddress: string; sharedSecret: string } | undefined;
+      let radius: { serverAddress: string; sharedSecret: string; srcAddress: string } | undefined;
       if (enableRadius && wireguard) {
         // Same CORS problem, same fix -- routed through the backend
         // instead of fetch()'d directly against the FreeRADIUS bridge.
@@ -679,6 +689,11 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           radius = {
             serverAddress: wireguard.hubTunnelIpAddress,
             sharedSecret: nas.data.shared_secret,
+            // The address FreeRADIUS keys this router's `client{}` stanza to
+            // -- `register_external_radius_nas` binds it to the tunnel IP the
+            // PLATFORM holds, so this is the one the device must source from.
+            // See `RouterSetupScriptChunkOptions.radius.srcAddress`.
+            srcAddress: wireguard.routerTunnelIp,
           };
         } catch (err) {
           radius = undefined;
@@ -820,6 +835,17 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
       // box ticked would make the NEXT Generate rotate again silently --
       // which is the exact behaviour this whole change removes.
       setRotateApiSecret(false);
+      // AND THE WIREGUARD ONE. `rotateApiSecret` was reset here from the
+      // start; `rotateWireguard` never was, so a box ticked once for a
+      // genuine recovery stayed ticked and every subsequent Generate burned
+      // another permanent hub peer -- `ops/hub-agents/wg_agent.py` has no
+      // delete verb, so an allocation is unreclaimable and
+      // `next_free_ip()` scans live kernel state, meaning orphans consume
+      // the /24 forever. One router reached 10.20.0.8 with the device still
+      // on .6, and the hub is at ten peers tonight. Rotation must be a
+      // deliberate act each time it happens, which means the tick has to
+      // expire with the script it produced.
+      setRotateWireguard(false);
       toast.success("Script ready");
     } catch (err) {
       toast.error((err as AppError).message || "Failed to generate setup script");
@@ -1431,7 +1457,9 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
                   a.download = filename;
                   a.click();
                   URL.revokeObjectURL(url);
-                  toast.success(`Downloaded ${filename} -- upload via WebFig Files, then /import it`);
+                  toast.success(
+                    `Downloaded ${filename} -- upload via WebFig Files, then /import it`,
+                  );
                 }}
                 className="flex items-center gap-1 rounded-lg border border-primary bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/20"
                 title="Download a plain RouterOS script -- upload via WebFig Files, then run /import file=... (no terminal paste needed)"

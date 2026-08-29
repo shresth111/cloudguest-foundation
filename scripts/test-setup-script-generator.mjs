@@ -715,6 +715,11 @@ const {
 // chunk that will break.
 
 const BASE = {
+  // Pinned so `generating twice produces byte-identical text` still means
+  // something. `generatedAt` is a declared input to the generator precisely
+  // so the portal marker's timestamp is not hidden nondeterminism -- see
+  // `portalMarker`.
+  generatedAt: "2026-08-28T00:00:00.000Z",
   apiBase: "https://master.wyfyguest.com/api/v1",
   agentCredential: "cred-abc123",
   lanBridge: "bridge-guest",
@@ -741,6 +746,11 @@ const BANNED_HUB_LITERAL = "20.219.72.235";
 const WG = {
   routerPrivateKey: "PRIVKEY",
   serverPublicKey: "PUBKEY",
+  // What the PLATFORM has registered for this router, fed to the Tunnel
+  // Identity Check. Deliberately different from `serverPublicKey`: they are
+  // two different keys and conflating them is exactly the confusion the
+  // check exists to end.
+  peerPublicKey: "PEERPUBKEY",
   routerTunnelIp: "10.20.0.5",
   serverEndpointHost: "vpn.wyfyguest.com",
   serverEndpointPort: "13231",
@@ -810,7 +820,7 @@ const VARIANTS = [
       wans: [DHCP_WAN],
       lanIfs: ["ether3", "ether4"],
       wireguard: WG,
-      radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t" },
+      radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t", srcAddress: "10.20.0.5" },
       apiAccess: { username: "cloudguest", secret: "pw" },
       identity: "gurgaon-branch",
       portalUrl: PORTAL,
@@ -824,7 +834,7 @@ const VARIANTS = [
       enableFirewall: false,
       basicConfigOnly: true,
       wireguard: WG,
-      radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t" },
+      radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t", srcAddress: "10.20.0.5" },
       portalUrl: { ...PORTAL, frontendBase: "https://192.168.1.9" },
     },
   ],
@@ -1323,10 +1333,20 @@ for (const [variant, opts] of VARIANTS) {
   const all = hb.map((c) => c.script).join("\n");
   const wanNames = opts.wans.map((w) => w.iface);
 
+  // Identified BY ROLE, not by counting labels that happen to start with
+  // "Heartbeat". The count form broke the moment a third, read-only
+  // "Heartbeat Check" chunk was added -- and it broke in the unhelpful
+  // direction, flagging a new report as if the scheduler had gone missing.
+  // These two are the ones that ACT; the report chunk is deliberately still
+  // inside `hb` so the never-name-a-WAN-port assertion below covers it too.
+  const hbImmediate = hb.filter((c) => c.label.startsWith("Heartbeat (check in now"));
+  const hbScheduler = hb.filter((c) => c.label.startsWith("Heartbeat Scheduler"));
   check(
     `${variant}: emits an immediate check-in AND a scheduler, as separate pastes`,
-    hb.length === 2,
-    `found ${hb.length} heartbeat chunk(s): ${hb.map((c) => c.label).join(", ")}`,
+    hbImmediate.length === 1 && hbScheduler.length === 1,
+    `found ${hbImmediate.length} immediate + ${hbScheduler.length} scheduler in: ${hb
+      .map((c) => c.label)
+      .join(", ")}`,
   );
   // The actual regression. Every one of these names used to be baked into
   // the address lookup, so a router whose uplink was on any other port
@@ -2113,7 +2133,7 @@ const REGEN_CHUNKS = buildRouterSetupScriptChunks({
   ...BASE,
   wans: [DHCP_WAN],
   wireguard: WG,
-  radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t" },
+  radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t", srcAddress: "10.20.0.5" },
   apiAccess: { username: "cloudguest-api", secret: "pw" },
 });
 const scriptOf = (pred) =>
@@ -2159,8 +2179,10 @@ const elseBodies = (script) =>
     "the peer carries the hub's rotating public key; an add-only chunk cannot converge it",
   );
   check(
-    "...and updates an EXISTING tunnel address when the platform reallocated it",
-    /\/ip address set \[find where interface=/.test(wg),
+    "...and converges an EXISTING tunnel address when the platform reallocated it",
+    /:foreach wgAddrRow in=\[\/ip address find where interface=/.test(wg) &&
+      /\/ip address remove \$wgAddrRow/.test(wg) &&
+      /\/ip address add address=/.test(wg),
     "register_external_radius_nas binds the FreeRADIUS client stanza to the tunnel IP the PLATFORM " +
       "holds -- a device left on the previous address is an unknown client and its RADIUS packets " +
       "are dropped with no reply and nothing logged",
@@ -2191,7 +2213,8 @@ const elseBodies = (script) =>
     check(
       "...but still converges the peer and the tunnel address",
       /\/interface wireguard peers set \[find where interface=/.test(reused) &&
-        /\/ip address set \[find where interface=/.test(reused),
+        /:foreach wgAddrRow in=\[\/ip address find where interface=/.test(reused) &&
+        /\/ip address remove \$wgAddrRow/.test(reused),
       "reuse must still repair everything it CAN, or a re-paste fixes nothing at all",
     );
     check(
@@ -2232,18 +2255,44 @@ const elseBodies = (script) =>
   // `secret=` and `repairableByRepaste: true` still have to agree, so
   // neither can be changed back on its own without turning this red.
   const radius = scriptOf((c) => c.label === "RADIUS");
+  // The `else={}` branch this used to assert is gone, replaced by a
+  // marker-keyed converge `set` that writes strictly MORE than it did. The
+  // coupling is unchanged: it is still the `secret=` write that makes
+  // SECRET_REPAIR.radius.repairableByRepaste honest, so neither can move
+  // without turning this red.
+  const rdConverge =
+    radius
+      .split("\n")
+      .find((l) => /\/radius set \[find where comment="cloudguest-radius"\]/.test(l)) ?? "";
   check(
-    "the RADIUS chunk's else-branch writes secret=, not just disabled=no",
-    /else=\{/.test(radius) && elseBodies(radius).some((b) => b.includes("secret=")),
-    "an else branch that only clears `disabled` leaves an already-provisioned router on the OLD " +
+    "the RADIUS chunk converges an EXISTING entry with secret=, not just disabled=no",
+    /secret=/.test(rdConverge),
+    "a branch that only clears `disabled` leaves an already-provisioned router on the OLD " +
       "shared secret after a rotation, and SECRET_REPAIR.radius.repairableByRepaste would have " +
       "to be flipped back to false to stay honest",
   );
   check(
-    "...and the else-branch still clears disabled=yes as well",
-    elseBodies(radius).some((b) => /secret=/.test(b) && /disabled=no/.test(b)),
+    "...and still clears disabled=yes as well",
+    /disabled=no/.test(rdConverge),
     "an entry toggled off in WinBox while debugging stays off, and the secret write lands on an " +
       "entry nothing ever asks",
+  );
+  check(
+    "...and writes service=, timeout= and src-address= too",
+    /service=hotspot/.test(rdConverge) &&
+      /timeout=3s/.test(rdConverge) &&
+      /src-address=/.test(rdConverge),
+    "each of these was unrepairable by re-paste before: an entry narrowed to service=ppp is " +
+      "invisible to the hotspot; a router provisioned before timeout=3s keeps RouterOS's 300ms " +
+      "default forever over a tunnelled path; and an unset src-address makes FreeRADIUS drop " +
+      "every request as an unknown client, with no reply and nothing logged",
+  );
+  check(
+    "...and the entry is identified by a marker, not by its address",
+    /\/radius add .*comment="cloudguest-radius"/.test(radius) &&
+      /\/radius set \[find where address=.*\] comment="cloudguest-radius"/.test(radius),
+    "`find where address=` cannot tell this generator's entry from an operator's own at the same " +
+      "address, so it can neither adopt safely nor converge `address=` when the hub moves",
   );
   check(
     "...so the table says the RADIUS secret IS repairable by re-pasting",
@@ -2353,7 +2402,7 @@ const BARE_PPPOE = buildRouterSetupScriptChunks({
   ...BASE,
   wans: [PPPOE_WAN],
   wireguard: WG,
-  radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t" },
+  radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t", srcAddress: "10.20.0.5" },
   portalUrl: PORTAL,
 });
 const bareChunk = (chunks, needle) => {
@@ -2872,6 +2921,10 @@ check(
 const HOTSPOT_DNS_NAME_RE = "wifi\\.wyfyguest\\.com";
 
 const KNOWN_MENUS = new Set([
+  // The run stamp the portal chunks write -- a single settable string this
+  // platform otherwise never touches, carrying which generation last landed
+  // on the device. See the "Portal Stamp" chunk.
+  "/system note",
   // `/certificate` was here until the self-signed hotspot certificate
   // chunk was deleted (section 13). Removing it from this list is not
   // housekeeping: the "no dead entries" check below is what forces the
@@ -3904,12 +3957,23 @@ for (const [variant, opts] of VARIANTS) {
   // as this generator's, and the statement that follows such a find is a
   // `set` -- so an untagged find is how a script silently re-points
   // somebody else's NAT rule at an interface they never chose.
+  //
+  // NARROWED, deliberately: the hazard is the SET, not the find. A lookup
+  // wrapped in `[:len [ ... ]]` is a count -- it yields a number, it can
+  // re-point nothing, and forbidding it would forbid the one question worth
+  // asking on behalf of a guest: "is there ANY masquerade rule on this
+  // router." An operator's own hand-written masquerade is a perfectly good
+  // rule and must count toward that answer; huda city center had none at all,
+  // authenticated guests reached the internet not at all, and every tagged
+  // lookup in this script would have reported everything fine. So counts are
+  // exempt and modifying lookups are not.
   {
-    const natFinds = [...text.matchAll(/\/ip firewall nat find where([^\]]*)/g)].map((m) => m[1]);
+    const natFinds = [...text.matchAll(/\/ip firewall nat find where([^\]]*)/g)]
+      .filter((m) => !/\[:len \[\s*$/.test(text.slice(Math.max(0, m.index - 8), m.index)))
+      .map((m) => m[1]);
     check(
-      `${variant}: every NAT lookup is keyed on a cloudguest- comment or on an exact rule identity`,
-      natFinds.length > 0 &&
-        natFinds.every((f) => /comment="cloudguest-/.test(f) || /out-interface="/.test(f)),
+      `${variant}: every NAT lookup that is not a pure count is keyed on a cloudguest- comment or an exact rule identity`,
+      natFinds.every((f) => /comment="cloudguest-/.test(f) || /out-interface="/.test(f)),
       `untagged NAT lookup(s): ${JSON.stringify(natFinds.filter((f) => !(/comment="cloudguest-/.test(f) || /out-interface="/.test(f))))} ` +
         "-- a find that matches any masquerade rule will find a user's own, and the next statement " +
         "modifies what it found",

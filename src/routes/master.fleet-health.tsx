@@ -99,8 +99,8 @@ function FleetHealthScreen() {
         />
 
         <p className="text-sm text-muted-foreground">
-          Live comparison of what this platform has on record against what the WireGuard hub
-          itself reports right now -- not the database alone.
+          Live comparison of what this platform has on record against what the WireGuard hub itself
+          reports right now -- not the database alone.
         </p>
 
         {!loading && status && (
@@ -118,8 +118,20 @@ function FleetHealthScreen() {
         )}
 
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <MStat label="Connected" value={String(connected)} icon={Wifi} tone="success" loading={loading} />
-          <MStat label="Stale" value={String(stale)} icon={Clock} tone="warning" loading={loading} />
+          <MStat
+            label="Connected"
+            value={String(connected)}
+            icon={Wifi}
+            tone="success"
+            loading={loading}
+          />
+          <MStat
+            label="Stale"
+            value={String(stale)}
+            icon={Clock}
+            tone="warning"
+            loading={loading}
+          />
           <MStat
             label="Untracked (ghost peers)"
             value={String(untracked)}
@@ -163,10 +175,7 @@ function FleetHealthScreen() {
                 const tag = STATUS_TAG[peer.status];
                 const isGhost = peer.status === "untracked_connected";
                 return (
-                  <MTr
-                    key={peer.publicKey}
-                    className={isGhost ? "bg-rose-500/5" : undefined}
-                  >
+                  <MTr key={peer.publicKey} className={isGhost ? "bg-rose-500/5" : undefined}>
                     <MTd>
                       {peer.routerName ?? (
                         <span className="italic text-muted-foreground">Unknown router</span>

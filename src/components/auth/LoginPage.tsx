@@ -97,7 +97,7 @@ function HeroWifiIllustration() {
     <svg
       aria-hidden="true"
       viewBox="0 0 480 210"
-      className="h-auto w-full max-w-[360px] text-white"
+      className="h-auto w-full max-w-[360px] [@media(max-height:800px)]:max-w-[248px] text-white"
       fill="none"
     >
       <defs>
@@ -365,7 +365,38 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
         {/* Left: brand hero -- same dark indigo/violet/fuchsia treatment as
          * the customer dashboard's hero band, for one consistent visual
          * identity across the product instead of a flat single-hue fill. */}
-        <div className="relative hidden w-1/2 lg:flex flex-col justify-between bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#4c1d95] p-12 text-white overflow-hidden">
+        {/* The `[@media(max-height:800px)]:` utilities on this column and in
+         * its children trim its vertical footprint on short viewports.
+         *
+         * Untrimmed this column needs ~730px, and being the taller of the
+         * two it sets the whole page's height. That is fine on the 1440x900
+         * MacBook Airs this was built on (~812px of usable viewport) and
+         * wrong on the Windows laptops customers actually use: 1366x768
+         * leaves ~625px and 1536x864 ~721px once browser chrome and the
+         * taskbar are subtracted. Below ~730px this column's
+         * `justify-between` free space goes negative, so every gap in it
+         * collapses to zero (the logo lockup ends up sitting directly on the
+         * headline), the illustration and copyright fall past the fold, and
+         * the login page picks up a vertical scrollbar it should never have.
+         *
+         * A HEIGHT query, not a width one, because height is the axis that
+         * actually varies here: 1920x1080 is the widest of the common
+         * Windows sizes and the only one that was never broken, while
+         * 1366x768 is both narrow and short. Same inline arbitrary-variant
+         * form PortalShell.tsx already uses for its own `max-height:720px`
+         * adjustment -- `@custom-variant` cannot express this: on Tailwind
+         * 4.2.4 an `@media` at-rule passed to it (in either the shorthand or
+         * the `@slot` block form) emits the utilities with no media query at
+         * all, which would apply this trim at every height. Confirmed by
+         * grepping the built stylesheet.
+         *
+         * 800px threshold, so the two machines that matter land on opposite
+         * sides of it: it fires for both broken Windows sizes and stays off
+         * for a 1440x900 MacBook (~812px) and 1920x1080 (~937px), leaving
+         * what the team reviews on their own screens unchanged. It also sits
+         * above the ~730px the untrimmed column needs, so there is no band
+         * where the trim is off but the layout already overflows. */}
+        <div className="relative hidden w-1/2 lg:flex flex-col justify-between bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#4c1d95] p-12 [@media(max-height:800px)]:px-10 [@media(max-height:800px)]:py-8 text-white overflow-hidden">
           {/* Backdrop glow -- same static treatment as AuthLayout.tsx and
            * master-login.tsx, restoring one consistent backdrop across all
            * auth-adjacent hero panels. Previously an Aceternity Aurora
@@ -423,19 +454,19 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
           </motion.div>
 
           <motion.div
-            className="relative z-10 max-w-md space-y-6"
+            className="relative z-10 max-w-md space-y-6 [@media(max-height:800px)]:space-y-4"
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.15, ease: "easeOut" }}
           >
-            <h2 className="text-4xl font-bold leading-tight tracking-tight">
+            <h2 className="text-4xl [@media(max-height:800px)]:text-3xl font-bold leading-tight tracking-tight">
               Your network across every location. One dashboard. Zero blind spots.
             </h2>
             <p className="text-base text-white/80 leading-relaxed">
               Provision networks, onboard guests, track analytics, and monitor every location in
               real-time — with role-based access built for global teams.
             </p>
-            <div className="flex gap-6 pt-4">
+            <div className="flex gap-6 pt-4 [@media(max-height:800px)]:pt-1">
               {STATS.map((s, i) => (
                 <motion.div
                   key={s.l}
@@ -482,9 +513,18 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
          * visitor got a near-black panel with a teal/cyan primary color that
          * read as "black and green" and clashed with the deliberately dark
          * indigo/violet hero on the left -- this form should look the same,
-         * clean and light, for every visitor. */}
+         * clean and light, for every visitor.
+         *
+         * The short-viewport padding here is asymmetric on purpose. The
+         * "Made in India" strip at the bottom of this column is
+         * `absolute bottom-4`, so it is not part of what this column
+         * centres -- and once the page stops scrolling it becomes visible at
+         * the same time as the card's own "Powered by" row, ~15px below it,
+         * which reads as cramped. The heavier bottom padding shifts the
+         * centring box up far enough to separate the two; only the top
+         * padding shrinks, which is what keeps this column short. */}
         <div
-          className="relative flex w-full lg:w-1/2 items-center justify-center bg-white px-6 py-12 text-slate-900"
+          className="relative flex w-full lg:w-1/2 items-center justify-center bg-white px-6 py-12 [@media(max-height:800px)]:pt-8 [@media(max-height:800px)]:pb-16 text-slate-900"
           style={
             {
               "--background": "oklch(0.984 0.005 220)",
@@ -525,7 +565,7 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
               </div>
               <p className="text-lg font-extrabold tracking-tight">Wyfy Guest</p>
             </div>
-            <div className="mb-8">
+            <div className="mb-8 [@media(max-height:800px)]:mb-5">
               <h1 className="text-2xl font-bold tracking-tight">Sign in</h1>
               <p className="mt-1 text-sm text-muted-foreground">Access your network dashboard.</p>
             </div>
@@ -533,7 +573,7 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
             {/* Role Selector -- exposed as a real radiogroup so keyboard and
               screen-reader users get "Owner, selected, 1 of 2" instead of two
               unrelated buttons. */}
-            <div className="mb-6">
+            <div className="mb-6 [@media(max-height:800px)]:mb-4">
               <p id="role-label" className="text-sm font-medium mb-3">
                 I'm signing in as
               </p>
@@ -594,7 +634,11 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
               </div>
             </div>
 
-            <form onSubmit={handleSubmit} noValidate className="space-y-5">
+            <form
+              onSubmit={handleSubmit}
+              noValidate
+              className="space-y-5 [@media(max-height:800px)]:space-y-4"
+            >
               <div className="space-y-2">
                 <Label htmlFor="email">Email address</Label>
                 <Input
@@ -716,7 +760,7 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
               runs on Azure (the app VM) and AWS (S3-compatible storage for
               uploads/backups), not a decorative claim. */}
             <motion.div
-              className="mt-8 flex items-center justify-center gap-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
+              className="mt-8 [@media(max-height:800px)]:mt-6 flex items-center justify-center gap-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.6, delay: 0.5 }}
