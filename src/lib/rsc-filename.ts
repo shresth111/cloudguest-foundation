@@ -36,7 +36,10 @@ export function rscSlug(name: string): string {
  * `mikrotik-.rsc` would be worse than an unmemorable but valid one. The id
  * is already `[a-f0-9-]`, so it needs no further cleaning.
  */
-export function routerRscFilename(locationName: string | null | undefined, routerId: string): string {
+export function routerRscFilename(
+  locationName: string | null | undefined,
+  routerId: string,
+): string {
   const slug = rscSlug(locationName ?? "");
   return `mikrotik-${slug || routerId}.rsc`;
 }
