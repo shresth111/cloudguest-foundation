@@ -381,7 +381,12 @@ export function MasterLoginPage({ redirectTo }: { redirectTo?: string } = {}) {
     <div className="master-theme">
       <div className="flex min-h-screen bg-background">
         {/* Left: operator hero */}
-        <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-gradient-to-br from-[#241f5c] via-[#1e1b4b] to-[#14122e] p-12 text-white lg:flex">
+        {/* Same short-viewport trim as the customer LoginPage -- this hero
+         * is a milder case of the identical defect (it needed ~646px, so it
+         * overflowed 1366x768's ~625px by 21px and collapsed its own
+         * `justify-between` gaps), so it gets the smaller half of the same
+         * treatment rather than a separate one. */}
+        <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-gradient-to-br from-[#241f5c] via-[#1e1b4b] to-[#14122e] p-12 [@media(max-height:800px)]:px-10 [@media(max-height:800px)]:py-8 text-white lg:flex">
           <div
             aria-hidden
             className="aurora-grid pointer-events-none absolute inset-0 opacity-[0.09]"
@@ -411,7 +416,7 @@ export function MasterLoginPage({ redirectTo }: { redirectTo?: string } = {}) {
           </motion.div>
 
           <motion.div
-            className="relative z-10 max-w-md space-y-6"
+            className="relative z-10 max-w-md space-y-6 [@media(max-height:800px)]:space-y-4"
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.15, ease: "easeOut" }}
@@ -464,7 +469,7 @@ export function MasterLoginPage({ redirectTo }: { redirectTo?: string } = {}) {
         </div>
 
         {/* Right: sign-in form */}
-        <div className="relative flex w-full items-center justify-center px-6 py-12 lg:w-1/2">
+        <div className="relative flex w-full items-center justify-center px-6 py-12 [@media(max-height:800px)]:py-8 lg:w-1/2">
           <motion.div
             className="w-full max-w-sm"
             initial={{ opacity: 0, y: 20 }}
