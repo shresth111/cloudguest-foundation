@@ -52,6 +52,35 @@ const HOTSPOT_RESUBMIT_COOLDOWN_MS = 10_000;
 // which *does* have an active session under that exact identifier.
 const HOTSPOT_FALLBACK_PASSWORD = "welcome123";
 
+// Apple's captive-detection success URL. iOS/iPadOS opens its Captive
+// Network Assistant (CNA) websheet the moment it joins a Wi-Fi it thinks is
+// captive, and it only marks the network "online" -- dismissing the sheet
+// and releasing every non-CNA app's traffic -- once its probe to this exact
+// HTTP URL returns Apple's fixed `...<TITLE>Success</TITLE>...Success...`
+// body. HTTP, never HTTPS: the CNA probes the plain-HTTP endpoint (RouterOS
+// serves that body itself through an open gate). Confirmed live: an iPhone
+// authenticated on the NAS (a MacBook on the same setup reached full
+// internet) but iOS kept every connection pinned to the portal host because
+// the CNA, left sitting in this heavy React SPA, never re-probed and so
+// never transitioned out of the captive state. macOS's captive handling is
+// far less aggressive, which is why MacBooks were unaffected.
+const APPLE_CAPTIVE_SUCCESS_URL = "http://captive.apple.com/hotspot-detect.html";
+
+/** True for iOS/iPadOS clients whose Captive Network Assistant needs to be
+ * pointed back at Apple's own detection URL to close -- see
+ * `APPLE_CAPTIVE_SUCCESS_URL`. Scoped deliberately narrow so the confirmed-
+ * working desktop/MacBook flow is left exactly as it was: a real MacBook
+ * reports the same "Macintosh" UA as an iPadOS 13+ Safari, and the one
+ * signal that still separates them is a touch screen (`maxTouchPoints`),
+ * which a MacBook reports as 0. Classic iPhone/iPod/older-iPad UAs are
+ * matched directly. */
+function isAppleCaptiveClient(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  if (/iPad|iPhone|iPod/.test(ua)) return true;
+  return /Macintosh/.test(ua) && navigator.maxTouchPoints > 1;
+}
+
 /** Submits username/password to RouterOS's `$(link-login-only)` URL.
  *
  * Real incident #1: this used to POST via a hidden iframe so the guest
@@ -181,6 +210,26 @@ function SuccessPage() {
     if (!session || !hotspotLoginUrl || !guestIdentifier || hotspotLoginSubmitted.current) return;
     hotspotLoginSubmitted.current = true;
 
+    // Where RouterOS sends the browser once its own hotspot-login processing
+    // finishes (its `dst` field). This is the ONE moment the redirect can
+    // safely fire: the NAS only ever honours `dst` *after* it has authorized
+    // the login and opened the gate, so ordering ("gate open before iOS
+    // re-probes") is guaranteed by the NAS itself -- not by a fragile
+    // client-side delay we'd have to guess at.
+    //
+    // For iOS/iPadOS, `dst` is Apple's captive-detection URL rather than the
+    // real `/portal/session` page: landing the CNA websheet back in this
+    // heavy SPA is exactly what kept the sheet from ever re-probing (the
+    // confirmed root cause). Pointed at `captive.apple.com` through the now-
+    // open gate, the CNA gets Apple's "Success" body, marks the network
+    // online, dismisses, and releases all app traffic -- the guest then opens
+    // their own browser with full internet. The backend session already
+    // exists, so nothing about `/portal/session` is needed inside the sheet.
+    // Every other client keeps the unchanged `/portal/session` hand-off.
+    const dst = isAppleCaptiveClient()
+      ? APPLE_CAPTIVE_SUCCESS_URL
+      : buildSessionUrl(organizationId, locationId, routerId, language, deviceMac);
+
     // Real incident, live captive-portal "flick flick" flash: a remount
     // landing back here within HOTSPOT_RESUBMIT_COOLDOWN_MS of this exact
     // identifier's last real submit (see PortalRuntimeContext's
@@ -207,9 +256,7 @@ function SuccessPage() {
       // carrying a new `link-login-only`, which comes back through
       // `portal.index.tsx` and re-enters this page with a real
       // `hotspotLoginUrl` to submit. Self-correcting either way.
-      window.location.assign(
-        buildSessionUrl(organizationId, locationId, routerId, language, deviceMac),
-      );
+      window.location.assign(dst);
       return;
     }
 
@@ -227,11 +274,7 @@ function SuccessPage() {
     // `safeSet`: even if that guard is ever lost, the worst outcome here
     // is a redundant (harmless) duplicate POST, never a guest with no
     // internet.
-    submitHotspotLogin(
-      hotspotLoginUrl,
-      guestIdentifier,
-      buildSessionUrl(organizationId, locationId, routerId, language, deviceMac),
-    );
+    submitHotspotLogin(hotspotLoginUrl, guestIdentifier, dst);
     persistHotspotSubmit({ identifier: guestIdentifier, at: Date.now() });
   }
 
