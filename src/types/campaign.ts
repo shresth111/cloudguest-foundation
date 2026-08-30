@@ -102,6 +102,13 @@ export interface CampaignAsset {
   clickUrl: string | null;
   altText: string | null;
   locale: string | null;
+  // Banner & Discounts promo copy -- a text banner with a redeemable
+  // coupon, rendered as a coupon card rather than only a tappable image
+  // (backend campaign_assets.headline/subtext/coupon_code/coupon_expires_at).
+  headline: string | null;
+  subtext: string | null;
+  couponCode: string | null;
+  couponExpiresAt: string | null;
 }
 
 export interface CreateCampaignAssetPayload {
@@ -109,6 +116,10 @@ export interface CreateCampaignAssetPayload {
   clickUrl?: string | null;
   altText?: string | null;
   locale?: string | null;
+  headline?: string | null;
+  subtext?: string | null;
+  couponCode?: string | null;
+  couponExpiresAt?: string | null;
 }
 
 // ============================================================================
@@ -131,6 +142,12 @@ export interface NextCampaignAsset {
   imageUrl: string | null;
   clickUrl: string | null;
   altText: string | null;
+  // Banner & Discounts promo copy the captive portal renders as a coupon
+  // card. Null for a plain image/redirect banner.
+  headline: string | null;
+  subtext: string | null;
+  couponCode: string | null;
+  couponExpiresAt: string | null;
 }
 
 export interface NextCampaign {
