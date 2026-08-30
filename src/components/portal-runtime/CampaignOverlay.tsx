@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { ArrowRight, MessageSquareText, Star, X } from "lucide-react";
+import { ArrowRight, Check, Copy, MessageSquareText, Star, TicketPercent, X } from "lucide-react";
 import { PortalShell, PortalCard } from "@/components/portal-runtime/PortalShell";
 import { PG_PRIMARY_BTN } from "@/components/portal-runtime/PortalGuestUi";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -27,7 +27,11 @@ const BANNER_AUTO_ADVANCE_MS = 15_000;
  * a missing field. */
 export function campaignHasRenderableContent(campaign: NextCampaign): boolean {
   if (campaign.campaignType === "survey") return campaign.questions.length > 0;
-  return !!(campaign.asset?.imageUrl || campaign.asset?.clickUrl);
+  const asset = campaign.asset;
+  // A banner is renderable as a tappable image, a bare click-through, or --
+  // for a "Banner & Discounts" campaign -- as a text/coupon card with a
+  // headline and/or a coupon code (no image or link required).
+  return !!(asset?.imageUrl || asset?.clickUrl || asset?.headline || asset?.couponCode);
 }
 
 function isAnswerFilled(value: CampaignAnswerValue | undefined): boolean {
@@ -208,6 +212,33 @@ export function CampaignOverlay({ campaign, sessionId, onDone }: Props) {
     finish({ wasSkipped: false, wasClicked: !!campaign.asset?.clickUrl });
   };
 
+  // "Banner & Discounts" promo copy: a headline/subtext and/or a redeemable
+  // coupon code the guest can read and copy, rendered as a coupon card
+  // rather than only a tappable image (see NextCampaignAsset).
+  const asset = campaign.asset;
+  const bannerHasPromo = !!(asset?.headline || asset?.subtext || asset?.couponCode);
+  const [couponCopied, setCouponCopied] = useState(false);
+  const copyCoupon = async () => {
+    if (!asset?.couponCode) return;
+    try {
+      await navigator.clipboard.writeText(asset.couponCode);
+      setCouponCopied(true);
+      setTimeout(() => setCouponCopied(false), 2000);
+    } catch {
+      // Clipboard blocked (insecure context / permissions) -- the code is
+      // shown on screen regardless, so a guest can still read and type it.
+    }
+  };
+  const validUntil = asset?.couponExpiresAt ? new Date(asset.couponExpiresAt) : null;
+  const validUntilLabel =
+    validUntil && !Number.isNaN(validUntil.getTime())
+      ? validUntil.toLocaleDateString(undefined, {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        })
+      : null;
+
   return (
     <PortalShell>
       {/* v4 §5: this used to run its own `framer-motion` fade+rise
@@ -270,18 +301,61 @@ export function CampaignOverlay({ campaign, sessionId, onDone }: Props) {
         ) : (
           <>
             <PortalCard className="overflow-hidden p-0">
-              {campaign.asset?.imageUrl ? (
+              {asset?.imageUrl && (
                 <button type="button" onClick={openBanner} className="block w-full">
                   <img
-                    src={campaign.asset.imageUrl}
-                    alt={campaign.asset.altText ?? ""}
+                    src={asset.imageUrl}
+                    alt={asset.altText ?? ""}
                     className="w-full object-cover"
                   />
                 </button>
-              ) : (
-                <div className="p-8 text-center">
-                  <p className="text-sm text-slate-500">{t("sponsorMessage")}</p>
+              )}
+              {bannerHasPromo ? (
+                <div className="flex flex-col items-center gap-4 px-6 py-8 text-center">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700">
+                    <TicketPercent className="h-3.5 w-3.5" />
+                    {t("offer")}
+                  </span>
+                  {asset?.headline && (
+                    <h2 className="text-xl font-bold tracking-tight text-slate-900">
+                      {asset.headline}
+                    </h2>
+                  )}
+                  {asset?.subtext && (
+                    <p className="text-sm leading-relaxed text-slate-600">{asset.subtext}</p>
+                  )}
+                  {asset?.couponCode && (
+                    <button
+                      type="button"
+                      onClick={copyCoupon}
+                      aria-label={`${t("useCode")} ${asset.couponCode}`}
+                      className="group inline-flex items-center gap-3 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 px-5 py-3 transition hover:border-amber-400 hover:bg-amber-100/70"
+                    >
+                      <span className="font-mono text-lg font-bold tracking-[0.2em] text-amber-800">
+                        {asset.couponCode}
+                      </span>
+                      {couponCopied ? (
+                        <Check className="h-4 w-4 text-emerald-600" />
+                      ) : (
+                        <Copy className="h-4 w-4 text-amber-500 transition group-hover:text-amber-700" />
+                      )}
+                    </button>
+                  )}
+                  {couponCopied && (
+                    <p className="text-xs font-medium text-emerald-600">{t("couponCopied")}</p>
+                  )}
+                  {validUntilLabel && (
+                    <p className="text-xs text-slate-400">
+                      {t("validUntil")} {validUntilLabel}
+                    </p>
+                  )}
                 </div>
+              ) : (
+                !asset?.imageUrl && (
+                  <div className="p-8 text-center">
+                    <p className="text-sm text-slate-500">{t("sponsorMessage")}</p>
+                  </div>
+                )
               )}
             </PortalCard>
             <button type="button" onClick={openBanner} className={PG_PRIMARY_BTN}>

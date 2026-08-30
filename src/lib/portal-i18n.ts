@@ -76,6 +76,13 @@ const EN: Dict = {
   sponsorMessage: "A sponsor has a message for you.",
   continueCta: "Continue",
   answerPlaceholder: "Type your answer…",
+  // Banner & Discounts coupon card (CampaignOverlay). Non-EN locales fall
+  // back to these via translate()'s DICTS.en fallback -- see portal-i18n's
+  // own translate().
+  offer: "Offer",
+  useCode: "Use code",
+  couponCopied: "Copied to clipboard",
+  validUntil: "Valid until",
 
   // Closes portal.closed.tsx's gap.
   closedTitleDefault: "Currently closed",

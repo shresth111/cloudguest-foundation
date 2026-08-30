@@ -56,6 +56,10 @@ interface BackendCampaignAsset {
   click_url: string | null;
   alt_text: string | null;
   locale: string | null;
+  headline: string | null;
+  subtext: string | null;
+  coupon_code: string | null;
+  coupon_expires_at: string | null;
 }
 
 function toAsset(a: BackendCampaignAsset): CampaignAsset {
@@ -66,6 +70,10 @@ function toAsset(a: BackendCampaignAsset): CampaignAsset {
     clickUrl: a.click_url,
     altText: a.alt_text,
     locale: a.locale,
+    headline: a.headline,
+    subtext: a.subtext,
+    couponCode: a.coupon_code,
+    couponExpiresAt: a.coupon_expires_at,
   };
 }
 
@@ -330,6 +338,10 @@ export const campaignService = {
         click_url: payload.clickUrl ?? null,
         alt_text: payload.altText ?? null,
         locale: payload.locale ?? null,
+        headline: payload.headline ?? null,
+        subtext: payload.subtext ?? null,
+        coupon_code: payload.couponCode ?? null,
+        coupon_expires_at: payload.couponExpiresAt ?? null,
       },
       { headers: { "X-Organization-Id": orgId } },
     );

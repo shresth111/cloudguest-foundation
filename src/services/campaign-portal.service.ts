@@ -30,6 +30,10 @@ interface BackendNextCampaignAsset {
   image_url: string | null;
   click_url: string | null;
   alt_text: string | null;
+  headline: string | null;
+  subtext: string | null;
+  coupon_code: string | null;
+  coupon_expires_at: string | null;
 }
 
 interface BackendNextCampaign {
@@ -58,6 +62,10 @@ function toNextCampaign(data: BackendNextCampaign): NextCampaign {
           imageUrl: data.asset.image_url,
           clickUrl: data.asset.click_url,
           altText: data.asset.alt_text,
+          headline: data.asset.headline,
+          subtext: data.asset.subtext,
+          couponCode: data.asset.coupon_code,
+          couponExpiresAt: data.asset.coupon_expires_at,
         }
       : null,
   };

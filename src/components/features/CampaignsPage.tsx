@@ -19,6 +19,7 @@ import {
   Eye,
   Wifi,
   ExternalLink,
+  TicketPercent,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -271,7 +272,14 @@ function CampaignReachIllustration() {
 
 const emptyForm = { name: "", type: "SURVEY", businessUnit: "", startDate: "", endDate: "" };
 const emptyFilters = { search: "", businessUnit: "", type: "", startDate: "" };
-const emptyAssetForm = { imageUrl: "", clickUrl: "" };
+const emptyAssetForm = {
+  imageUrl: "",
+  clickUrl: "",
+  headline: "",
+  subtext: "",
+  couponCode: "",
+  couponExpiresAt: "",
+};
 
 // The only statuses a given current status may legally move to next --
 // mirrors the backend's own CAMPAIGN_STATUS_TRANSITIONS. Anything outside
@@ -335,9 +343,13 @@ const demoAssetSeed = (campaignId: string): CampaignAsset[] => [
     id: `${campaignId}-demo-asset`,
     campaignId,
     imageUrl: null,
-    clickUrl: "https://wyfyguest.com/promo",
+    clickUrl: null,
     altText: "Flat 20% off this weekend",
     locale: null,
+    headline: "Flat 20% off this weekend",
+    subtext: "Show this coupon at checkout to redeem your discount.",
+    couponCode: "SAVE20",
+    couponExpiresAt: "2026-12-31T23:59:59Z",
   },
 ];
 
@@ -662,10 +674,21 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
 
   const addPreviewAsset = async () => {
     if (!previewFor) return;
-    if (!assetForm.imageUrl.trim() && !assetForm.clickUrl.trim()) {
-      toast.error("Add an image URL or a click-through URL.");
+    // A banner is renderable as an image, a bare click-through, or a
+    // text/coupon promo (headline and/or coupon code) -- the same "at least
+    // one renderable source" rule the backend enforces.
+    if (
+      !assetForm.imageUrl.trim() &&
+      !assetForm.clickUrl.trim() &&
+      !assetForm.headline.trim() &&
+      !assetForm.couponCode.trim()
+    ) {
+      toast.error("Add an image, a link, a headline, or a coupon code.");
       return;
     }
+    const couponExpiresAtIso = assetForm.couponExpiresAt
+      ? new Date(assetForm.couponExpiresAt).toISOString()
+      : null;
     if (demo) {
       setPreviewAssets([
         {
@@ -675,6 +698,10 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
           clickUrl: assetForm.clickUrl || null,
           altText: null,
           locale: null,
+          headline: assetForm.headline || null,
+          subtext: assetForm.subtext || null,
+          couponCode: assetForm.couponCode || null,
+          couponExpiresAt: couponExpiresAtIso,
         },
       ]);
       setAssetForm(emptyAssetForm);
@@ -685,6 +712,10 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
       const created = await campaignService.addAsset(previewFor.id, {
         imageUrl: assetForm.imageUrl || null,
         clickUrl: assetForm.clickUrl || null,
+        headline: assetForm.headline || null,
+        subtext: assetForm.subtext || null,
+        couponCode: assetForm.couponCode || null,
+        couponExpiresAt: couponExpiresAtIso,
       });
       setPreviewAssets([...previewAssets, created]);
       setAssetForm(emptyAssetForm);
@@ -1312,7 +1343,8 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
               {previewFor.type === "SURVEY"
                 ? "The real questions this campaign will ask, exactly as configured in Manage Questions."
                 : "The real banner content this campaign will show."}{" "}
-              Preview only — campaigns aren't wired into the live guest login flow yet.
+              This is exactly what an active campaign shows a guest connecting through the captive
+              portal — it renders live in the guest login flow.
             </p>
 
             {/* Device mockup -- same phone-frame + indigo gradient look as
@@ -1404,6 +1436,52 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
                           </div>
                         </div>
                       )
+                    ) : previewAssets[0]?.headline || previewAssets[0]?.couponCode ? (
+                      <div className="space-y-2">
+                        {previewAssets[0].imageUrl && (
+                          <div className="overflow-hidden rounded-xl border border-slate-200">
+                            <img
+                              src={previewAssets[0].imageUrl}
+                              alt={previewAssets[0].altText ?? ""}
+                              className="w-full object-cover"
+                            />
+                          </div>
+                        )}
+                        <div className="flex flex-col items-center gap-2 rounded-xl bg-amber-50 px-3 py-4 text-center">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-700">
+                            <TicketPercent className="h-3 w-3" />
+                            Offer
+                          </span>
+                          {previewAssets[0].headline && (
+                            <p className="text-[12px] font-bold text-slate-900">
+                              {previewAssets[0].headline}
+                            </p>
+                          )}
+                          {previewAssets[0].subtext && (
+                            <p className="text-[10px] text-slate-600">{previewAssets[0].subtext}</p>
+                          )}
+                          {previewAssets[0].couponCode && (
+                            <span className="rounded-lg border-2 border-dashed border-amber-300 bg-white px-3 py-1 font-mono text-[12px] font-bold tracking-[0.15em] text-amber-800">
+                              {previewAssets[0].couponCode}
+                            </span>
+                          )}
+                          {previewAssets[0].couponExpiresAt && (
+                            <p className="text-[9px] text-slate-400">
+                              Valid until{" "}
+                              {new Date(previewAssets[0].couponExpiresAt).toLocaleDateString(
+                                undefined,
+                                { year: "numeric", month: "short", day: "numeric" },
+                              )}
+                            </p>
+                          )}
+                        </div>
+                        <div
+                          className="rounded-lg py-1.5 text-center text-[10px] font-semibold text-white"
+                          style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)" }}
+                        >
+                          Continue
+                        </div>
+                      </div>
                     ) : previewAssets[0]?.imageUrl ? (
                       <div className="space-y-2">
                         <div className="overflow-hidden rounded-xl border border-slate-200">
@@ -1446,10 +1524,39 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
             {previewFor.type !== "SURVEY" && !previewLoading && !previewAssets[0] && (
               <div className="mt-4 space-y-2 border-t pt-4">
                 <Label className="text-xs">Add this campaign's banner</Label>
+                <p className="text-[11px] text-muted-foreground">
+                  Provide a promo headline and coupon code, an image, a link — or any combination.
+                  Guests see this the moment they connect.
+                </p>
+                <Input
+                  value={assetForm.headline}
+                  onChange={(e) => setAssetForm({ ...assetForm, headline: e.target.value })}
+                  placeholder="Headline (e.g. Flat 20% off this weekend)"
+                />
+                <Input
+                  value={assetForm.subtext}
+                  onChange={(e) => setAssetForm({ ...assetForm, subtext: e.target.value })}
+                  placeholder="Subtext (e.g. Show this coupon at checkout)"
+                />
+                <div className="flex gap-2">
+                  <Input
+                    value={assetForm.couponCode}
+                    onChange={(e) => setAssetForm({ ...assetForm, couponCode: e.target.value })}
+                    placeholder="Coupon code (e.g. SAVE20)"
+                  />
+                  <Input
+                    type="date"
+                    value={assetForm.couponExpiresAt}
+                    onChange={(e) =>
+                      setAssetForm({ ...assetForm, couponExpiresAt: e.target.value })
+                    }
+                    aria-label="Coupon valid until"
+                  />
+                </div>
                 <Input
                   value={assetForm.imageUrl}
                   onChange={(e) => setAssetForm({ ...assetForm, imageUrl: e.target.value })}
-                  placeholder="Image URL (e.g. https://…/banner.png)"
+                  placeholder="Image URL (optional, e.g. https://…/banner.png)"
                 />
                 <Input
                   value={assetForm.clickUrl}
