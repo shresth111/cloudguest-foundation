@@ -189,7 +189,7 @@ function safeLocalGetJson<T>(key: string): T | null {
  * `X-Organization-Id` does not mean "no scope" -- it means PLATFORM-WIDE
  * scope, and a good deal of the master console depends on exactly that:
  * `master.health.tsx`, `master.audit.tsx`, `master.operators.tsx`,
- * `master.settings.tsx`, `queue.service.ts` and
+ * `queue.service.ts` and
  * `router-provisioning.service.ts`'s enrollment queue all deliberately
  * send no org header so they see every organization at once. Attaching one
  * for those users would silently narrow the master console to a single

@@ -11,7 +11,6 @@ import {
   Activity,
   LifeBuoy,
   ScrollText,
-  Settings,
   Sun,
   Moon,
   LogOut,
@@ -71,7 +70,6 @@ export const MASTER_NAV: MasterNavItem[] = [
   { to: "/master/quotations", label: "Quotations", icon: FileText, cap: "quotations" },
   { to: "/master/audit", label: "Audit Logs", icon: ScrollText, cap: "audit" },
   { to: "/master/operators", label: "Team & Access", icon: Users, cap: "operators" },
-  { to: "/master/settings", label: "Platform Settings", icon: Settings, cap: "settings" },
 ];
 
 /** Purely presentational grouping of `MASTER_NAV`'s items for the sidebar
@@ -114,7 +112,6 @@ const MASTER_NAV_GROUPS: { label: string; items: string[] }[] = [
       "/master/quotations",
       "/master/audit",
       "/master/operators",
-      "/master/settings",
     ],
   },
 ];
@@ -186,22 +183,6 @@ const CAP_PERMISSIONS: Record<string, string[]> = {
    * own MODULE_ACTIONS comment reasons about Super-Admin-exclusivity,
    * applied here via grant analysis instead of a dedicated module. */
   operators: ["users.manage"],
-  /** `/master/settings` ("Platform Settings"). Gated on `system_settings.read`
-   * -- which the page now genuinely exercises: its "New-customer defaults"
-   * card reads/writes `GET`/`PUT /system-settings` (gated backend-side on
-   * `system_settings.read`/`.update` at GLOBAL scope, see
-   * `app/domains/system_settings/router.py`). Before that card existed the
-   * page's only real data call was `GET /roles`, so this gate pointed at a
-   * capability the page never used -- an operator holding `system_settings.read`
-   * but not `roles.read` saw the nav item and then hit a 403-shaped empty
-   * roles card, and vice-versa. Keeping `system_settings.read` (rather than
-   * loosening to `roles.read`) is now the correct, consistent choice: the
-   * editable platform config *is* the reason this page is "Platform Settings",
-   * and its read is `system_settings.read`. The operator-roles and feature-
-   * catalog cards render their own error/empty states if a narrower operator
-   * lacks `roles.read`/reaches an empty catalog, so the page degrades
-   * gracefully rather than gating the whole route on every sub-call. */
-  settings: ["system_settings.read"],
   "billing.edit": ["billing.update", "billing.manage"],
   "router.control": ["routers.execute", "routers.manage"],
   "nas.generate": ["radius.execute", "radius.manage"],
