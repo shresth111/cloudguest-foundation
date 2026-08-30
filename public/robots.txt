@@ -1,0 +1,13 @@
+# Wyfy Guest APP / PORTAL surfaces (app.wyfyguest.com, auth.wyfyguest.com,
+# master.wyfyguest.com, portal.wyfyguest.com). These are the product's
+# authenticated dashboards, admin console, sign-in screens, and per-guest
+# captive portals -- none are search targets, and none should be indexed.
+#
+# Public marketing/SEO lives on the SEPARATE wyfyguest.com Astro site, which
+# ships its own allow-all robots.txt + sitemap. Do not point a sitemap here.
+#
+# robots.txt is per-host, so this file only governs the host it is served
+# from; it is a belt-and-suspenders companion to the site-wide
+# <meta name="robots" content="noindex, nofollow"> set in src/routes/__root.tsx.
+User-agent: *
+Disallow: /

@@ -172,6 +172,17 @@ export const Route = createRootRouteWithContext<{
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
+      // Site-wide crawl block. Everything served from this app is an app
+      // surface -- the customer dashboard, the master/platform-admin portal,
+      // the auth screens, and the per-guest captive portal -- none of which
+      // is a search target, and several of which (auth, tenant-scoped
+      // dashboards, guest portals keyed to a specific venue link) should
+      // never appear in a public index. Marketing/SEO lives entirely on the
+      // separate wyfyguest.com Astro site. Declared once at the root so a
+      // new route is noindex by default rather than leaking in the day
+      // someone forgets to add it; individual routes (login, forgot-password)
+      // still carry their own explicit noindex, which is fine -- same value.
+      { name: "robots", content: "noindex, nofollow" },
       { title: "WyFy" },
       {
         name: "description",
