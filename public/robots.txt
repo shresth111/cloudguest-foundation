@@ -6,8 +6,27 @@
 # Public marketing/SEO lives on the SEPARATE wyfyguest.com Astro site, which
 # ships its own allow-all robots.txt + sitemap. Do not point a sitemap here.
 #
-# robots.txt is per-host, so this file only governs the host it is served
-# from; it is a belt-and-suspenders companion to the site-wide
-# <meta name="robots" content="noindex, nofollow"> set in src/routes/__root.tsx.
+# --------------------------------------------------------------------------
+# WHY THIS FILE ALLOWS CRAWLING (and does NOT Disallow):
+#
+# Every response from this app carries <meta name="robots" content="noindex,
+# nofollow"> in its SSR'd <head> (set once at the root in
+# src/routes/__root.tsx, present in the initial HTML on every path). THAT is
+# what keeps these pages out of the index.
+#
+# A blanket `Disallow: /` here is actively COUNTERPRODUCTIVE for any URL
+# Google has ALREADY indexed: Disallow blocks the crawl, so Googlebot never
+# re-fetches the page, never sees the noindex, and the stale URL lingers in
+# the index as a bare "no info available" result -- exactly the symptom we
+# are trying to clear.
+#
+# So crawling is DELIBERATELY allowed: Googlebot fetches each page, reads the
+# noindex meta, and drops it from the index. Do not point a sitemap here --
+# we are not soliciting indexing, only permitting the crawl that lets the
+# noindex be honored.
+#
+# Once these hosts are fully de-indexed, a `Disallow: /` can be reinstated to
+# save crawl budget (the noindex meta stays regardless). Until then: allow.
+# --------------------------------------------------------------------------
 User-agent: *
-Disallow: /
+Allow: /
