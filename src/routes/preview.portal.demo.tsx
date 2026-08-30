@@ -7,7 +7,7 @@ import { customerFeatureHref } from "@/lib/customerNav";
 import { DEMO_PORTAL_PREVIEW_STORAGE_KEY } from "@/lib/portal-preview-storage";
 import { PortalRuntimeProvider } from "@/context/PortalRuntimeContext";
 import { PortalShell } from "@/components/portal-runtime/PortalShell";
-import { GuestSignInCard } from "@/components/portal-runtime/GuestSignInCard";
+import { DemoPortalFlow } from "@/components/portal-runtime/DemoPortalFlow";
 import type { RuntimePortalConfig } from "@/types/portal-runtime";
 
 /**
@@ -26,10 +26,17 @@ import type { RuntimePortalConfig } from "@/types/portal-runtime";
  * before `window.open` -- and feeds it to the same real
  * PortalRuntimeProvider/PortalShell/GuestSignInCard tree the real preview
  * (and PortalPage's own embedded "Live Preview" card) already render, via
- * `previewMode`/`presetConfig`. This can never drift from what a real
- * guest sign-in screen actually renders, same guarantee the real preview
- * route documents -- it's just fed from localStorage instead of a
- * network fetch.
+ * `presetConfig`. This can never drift from what a real guest sign-in
+ * screen actually renders, same guarantee the real preview route documents
+ * -- it's just fed from localStorage instead of a network fetch.
+ *
+ * Unlike the operator preview (`preview.portal.$locationId.tsx`), which
+ * sets `previewMode` (every sign-in action short-circuits with a "connect a
+ * real device" toast), this route sets `demoMode` and renders
+ * `<DemoPortalFlow>`: a prospect can actually run the whole sign-in
+ * (identifier -> OTP -> "You're connected") as a believable DUMMY flow --
+ * no backend, no SMS/RADIUS, no NAS POST, no navigation out of this route.
+ * See `PortalRuntimeState.demoMode` and `useGuestSignIn`'s demo branches.
  *
  * localStorage, not sessionStorage: this route is opened via
  * `window.open(url, "_blank", "noopener,noreferrer")`, and `noopener`
@@ -141,12 +148,12 @@ function DemoPortalPreviewPage() {
                   organizationId="demo"
                   locationId="demo"
                   routerId="preview"
-                  previewMode
+                  demoMode
                   presetConfig={config}
                   presetConfigLoading={false}
                 >
                   <PortalShell constrained>
-                    <GuestSignInCard />
+                    <DemoPortalFlow />
                   </PortalShell>
                 </PortalRuntimeProvider>
               </div>
