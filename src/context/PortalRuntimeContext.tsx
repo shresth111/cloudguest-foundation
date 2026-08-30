@@ -359,6 +359,17 @@ interface PortalRuntimeState {
    * router/device behind it -- GuestSignInCard checks this before calling
    * any real login endpoint, showing a "preview mode" notice instead. */
   previewMode: boolean;
+  /** True only for the prospect-facing DEMO portal
+   * (src/routes/preview.portal.demo.tsx). Distinct from `previewMode`: where
+   * `previewMode` short-circuits every sign-in action with a "connect a real
+   * device" notice (an operator confirming visuals, no working flow), a
+   * `demoMode` sign-in runs a believable DUMMY end-to-end flow entirely
+   * client-side -- identifier -> OTP -> a fake in-memory RuntimeSession set
+   * via `setSession`, landing on a self-contained "You're connected" screen.
+   * No network, no SMS/RADIUS, no NAS POST, no navigation. `useGuestSignIn`
+   * checks this BEFORE the `previewMode` guards so a demo advances the state
+   * machine instead of toasting. The two flags are never set together. */
+  demoMode: boolean;
   language: RuntimeLanguage;
   setLanguage: (l: RuntimeLanguage) => void;
   t: (key: string) => string;
@@ -428,6 +439,10 @@ interface Props {
   /** Preview-mode support (src/routes/preview.portal.$locationId.tsx) --
    * see PortalRuntimeState.previewMode's own docstring. */
   previewMode?: boolean;
+  /** Demo-mode support (src/routes/preview.portal.demo.tsx) -- see
+   * PortalRuntimeState.demoMode's own docstring. Distinct from `previewMode`
+   * and never set alongside it. */
+  demoMode?: boolean;
   /** When provided (even `null`), used as the resolved config directly
    * instead of this provider's own `GET /captive-portal/resolve` fetch --
    * lets a caller that already has a richer, org-branding-merged version
@@ -447,6 +462,7 @@ export function PortalRuntimeProvider({
   destinationUrl,
   hotspotLoginUrl,
   previewMode = false,
+  demoMode = false,
   presetConfig,
   presetConfigLoading,
   children,
@@ -695,6 +711,7 @@ export function PortalRuntimeProvider({
       destinationUrl,
       hotspotLoginUrl,
       previewMode,
+      demoMode,
       config,
       isLoading,
       error: error as Error | undefined,
@@ -725,6 +742,7 @@ export function PortalRuntimeProvider({
       destinationUrl,
       hotspotLoginUrl,
       previewMode,
+      demoMode,
       config,
       isLoading,
       error,

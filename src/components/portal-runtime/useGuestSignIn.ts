@@ -14,6 +14,7 @@ import {
   normalizeNationalPhone,
 } from "@/lib/portal-locale";
 import { useOtpResendCooldown } from "@/lib/portal-otp-cooldown";
+import { DEMO_OTP_CODE, buildDemoSession } from "@/lib/portal-demo";
 import type { RuntimeAuthMethod, RuntimeSession } from "@/types/portal-runtime";
 import type { AppError } from "@/services/api";
 
@@ -46,6 +47,7 @@ export function useGuestSignIn() {
     setSelectedMethod,
     setSession,
     previewMode,
+    demoMode,
     setGuestIdentifier,
     t,
     dataConsentAccepted,
@@ -184,6 +186,11 @@ export function useGuestSignIn() {
   const [target, setTarget] = useState("");
   const [code, setCode] = useState("");
   const [otpError, setOtpError] = useState<string | null>(null);
+  // demoMode only (src/routes/preview.portal.demo.tsx): a short fake
+  // "sending"/"verifying" spinner so the DUMMY flow feels like the real one
+  // to a prospect, without any network call behind it. Ignored entirely by
+  // the real guest path and by previewMode.
+  const [demoBusy, setDemoBusy] = useState(false);
   // v4 UX §6.4: server-driven cooldown, shared with the legacy
   // /portal/verify page -- see this hook's own docstring for the "why".
   const { cooldown: resendCooldown, applyServerCooldown, resetCooldown } = useOtpResendCooldown();
@@ -343,6 +350,21 @@ export function useGuestSignIn() {
       return;
     }
     setOtpError(null);
+    // DEMO: skip the network requestOtp entirely. Show a brief fake spinner,
+    // then advance the real state machine to the code screen with the demo
+    // code pre-filled. Placed BEFORE the previewMode guard on purpose --
+    // demoMode drives a working dummy flow, previewMode only toasts.
+    if (demoMode) {
+      setDemoBusy(true);
+      window.setTimeout(() => {
+        setDemoBusy(false);
+        setTarget(id);
+        setCode(DEMO_OTP_CODE);
+        setPhase("code");
+        resetCooldown();
+      }, 700);
+      return;
+    }
     if (previewMode) {
       toast.info("Preview mode — connect a real device to test sign-in.");
       return;
@@ -351,6 +373,13 @@ export function useGuestSignIn() {
   };
 
   const onResendOtp = () => {
+    // DEMO: no network -- just re-arm the cooldown and acknowledge. The demo
+    // code already sits in the field, so there is nothing to actually resend.
+    if (demoMode) {
+      resetCooldown();
+      toast.info("Code re-sent (demo)");
+      return;
+    }
     if (previewMode) {
       toast.info("Preview mode — connect a real device to test sign-in.");
       return;
@@ -361,6 +390,23 @@ export function useGuestSignIn() {
   const onVerifyOtp = () => {
     if (code.length !== 6) {
       setOtpError(t("errEnterCode"));
+      return;
+    }
+    // DEMO: accept ANY 6-digit code. Show a brief fake "verifying" spinner,
+    // then set a fake in-memory session (no loginWithOtp, no recordConsent,
+    // no navigate) -- DemoPortalFlow swaps to the connected screen once the
+    // session is set. Placed BEFORE the previewMode guard, after the
+    // length guard, exactly as the spec requires.
+    if (demoMode) {
+      setOtpError(null);
+      setDemoBusy(true);
+      const channelMethod = authMethodForChannel(otpChannel);
+      window.setTimeout(() => {
+        setDemoBusy(false);
+        setSelectedMethod(channelMethod);
+        setGuestIdentifier(target.trim());
+        setSession(buildDemoSession(target.trim(), channelMethod));
+      }, 700);
       return;
     }
     if (previewMode) {
@@ -386,6 +432,20 @@ export function useGuestSignIn() {
   const onSignInPassword = () => {
     if (!identifier.trim() || !password) {
       setPasswordError(t("errPhoneEmailPassword"));
+      return;
+    }
+    // DEMO: same treatment as OTP -- a brief fake spinner, then a fake
+    // session, landing on the same connected screen. No loginWithPassword,
+    // no navigate. Before the previewMode guard.
+    if (demoMode) {
+      setPasswordError(null);
+      setDemoBusy(true);
+      window.setTimeout(() => {
+        setDemoBusy(false);
+        setSelectedMethod("username_password");
+        setGuestIdentifier(identifier.trim());
+        setSession(buildDemoSession(identifier.trim(), "username_password"));
+      }, 700);
       return;
     }
     if (previewMode) {
@@ -475,6 +535,15 @@ export function useGuestSignIn() {
   const showVoucherFallback = hasVoucher && (hasOtp || hasPassword);
   const hasMoreSignInOptions = otherMethodLinks.length > 0 || showVoucherFallback;
 
+  // Fold the demo's fake spinner (`demoBusy`) into the same pending flags the
+  // real mutations drive, scoped to the action actually in flight so the
+  // demo "send" shows only the button spinner while "verify"/"password" show
+  // the full ConnectingOverlay -- identical to the real flow's feel.
+  const sendOtpPending = sendOtp.isPending || (demoBusy && tab === "otp" && phase === "phone");
+  const verifyOtpPending = verifyOtp.isPending || (demoBusy && tab === "otp" && phase === "code");
+  const loginPasswordPending = loginPassword.isPending || (demoBusy && tab === "password");
+  const isSigningIn = verifyOtpPending || loginPasswordPending;
+
   return {
     // config / copy
     config,
@@ -521,8 +590,8 @@ export function useGuestSignIn() {
     setCode,
     otpError,
     resendCooldown,
-    sendOtpPending: sendOtp.isPending,
-    verifyOtpPending: verifyOtp.isPending,
+    sendOtpPending,
+    verifyOtpPending,
     onSendOtp,
     onVerifyOtp,
     onChangeNumber,
@@ -533,10 +602,10 @@ export function useGuestSignIn() {
     password,
     setPassword,
     passwordError,
-    loginPasswordPending: loginPassword.isPending,
+    loginPasswordPending,
     onSignInPassword,
     // shared "connecting" overlay driver
-    isSigningIn: verifyOtp.isPending || loginPassword.isPending,
+    isSigningIn,
   };
 }
 
