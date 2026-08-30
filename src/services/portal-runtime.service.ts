@@ -5,6 +5,8 @@ import {
   toBackgroundMetric,
   resolveLanguageSelection,
   toGuestFontChoice,
+  toPortalContentMode,
+  toPortalSurvey,
   type RuntimeAuthMethod,
   type RuntimePortalConfig,
   type RuntimeSession,
@@ -30,6 +32,14 @@ interface BackendCaptivePortalConfig {
   splash_headline: string | null;
   splash_welcome_message: string | null;
   redirect_url: string | null;
+  // Content modes -- all optional so an older backend (pre-migration 0098)
+  // whose resolve response omits them still parses; `toRuntimeConfig`
+  // resolves an absent `content_mode` to `"login"`, the pre-feature render.
+  content_mode?: string | null;
+  content_heading?: string | null;
+  content_body?: string | null;
+  content_image_url?: string | null;
+  content_survey?: unknown;
   otp_sms_enabled: boolean;
   otp_email_enabled: boolean;
   otp_whatsapp_enabled: boolean;
@@ -166,6 +176,13 @@ function toRuntimeConfig(c: BackendCaptivePortalConfig): RuntimePortalConfig {
     splashHeadline: c.splash_headline,
     splashWelcomeMessage: c.splash_welcome_message,
     redirectUrl: c.redirect_url,
+    // Absent (old backend) resolves to "login" -- byte-identical to today's
+    // sign-in-only render, so this maps safely ahead of the backend column.
+    contentMode: toPortalContentMode(c.content_mode),
+    contentHeading: c.content_heading ?? null,
+    contentBody: c.content_body ?? null,
+    contentImageUrl: c.content_image_url ?? null,
+    survey: toPortalSurvey(c.content_survey),
     otpSmsEnabled: c.otp_sms_enabled,
     otpEmailEnabled: c.otp_email_enabled,
     otpWhatsappEnabled: c.otp_whatsapp_enabled,

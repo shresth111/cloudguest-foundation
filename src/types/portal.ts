@@ -1,6 +1,8 @@
 import {
   RUNTIME_LANGUAGE_LABEL,
   type GuestFontChoice,
+  type PortalContentMode,
+  type PortalSurvey,
   type RuntimeLanguage,
 } from "@/types/portal-runtime";
 
@@ -138,6 +140,24 @@ export interface PortalVersion {
   notes?: string;
 }
 
+/** The captive portal's content mode + its per-mode source fields -- mirrors
+ * the backend `content_*` columns (see `constants.PortalContentMode`). The
+ * guest-facing runtime shape lives in `types/portal-runtime.ts`
+ * (`RuntimePortalConfig`); this is the dashboard-facing editing shape. */
+export interface PortalContent {
+  mode: PortalContentMode;
+  /** Heading shown above image/text/survey content (empty string = none). */
+  heading: string;
+  /** Body copy for `mode === "text"` (empty string = none). */
+  body: string;
+  /** Foreground content image for `mode === "image"` (empty string = none).
+   * The redirect destination for `mode === "redirect"` reuses
+   * `login.redirectUrl`, not a field here. */
+  imageUrl: string;
+  /** Survey definition for `mode === "survey"`, or null. */
+  survey: PortalSurvey | null;
+}
+
 export interface Portal {
   id: string;
   name: string;
@@ -156,6 +176,7 @@ export interface Portal {
   branding: PortalBranding;
   login: PortalLoginSettings;
   consent: PortalConsent;
+  content: PortalContent;
   seo: PortalSeo;
   ads: PortalAd[];
   components: PortalComponent[];

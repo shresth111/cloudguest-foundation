@@ -221,6 +221,72 @@ export function toBackgroundMetric(v: number | null | undefined): number | null 
     : null;
 }
 
+/** The captive portal's primary content presentation -- backend
+ * `content_mode` / `constants.PortalContentMode`. `login` (the default and
+ * every existing venue's state) renders only the sign-in card, exactly as
+ * before this feature existed; the other four are rendered by
+ * `PortalContentBlock` above the sign-in card (image/text/survey) or, for
+ * `redirect`, by routing the guest to the existing `/portal/redirect`
+ * countdown screen. */
+export const PORTAL_CONTENT_MODES = ["login", "image", "text", "redirect", "survey"] as const;
+export type PortalContentMode = (typeof PORTAL_CONTENT_MODES)[number];
+
+/** Fail-safe-to-`"login"` coercion, same shape as `toGuestFontChoice`: an
+ * absent, stale, or unknown backend value renders the ordinary sign-in card
+ * rather than a blank screen, so this frontend is correct both before and
+ * after the backend column ships (an old resolve response with no
+ * `content_mode` field resolves here identically to one that says
+ * `"login"`). */
+export function toPortalContentMode(v: string | null | undefined): PortalContentMode {
+  return v && (PORTAL_CONTENT_MODES as readonly string[]).includes(v)
+    ? (v as PortalContentMode)
+    : "login";
+}
+
+/** One question in a `content_mode === "survey"` portal. `rating` renders a
+ * 1-5 scale, `choice` a single-select of `options`, `text` a short free-text
+ * field. The shape is owned here (the backend stores the survey JSON
+ * verbatim), and `PortalContentBlock` degrades unknown `type`s to `text`. */
+export interface PortalSurveyQuestion {
+  id: string;
+  label: string;
+  type: "rating" | "choice" | "text";
+  options?: string[];
+}
+
+export interface PortalSurvey {
+  questions: PortalSurveyQuestion[];
+  submitLabel?: string | null;
+}
+
+/** Narrows the raw backend `content_survey` JSON (typed `unknown` -- it is a
+ * free-form JSONB column) to a `PortalSurvey`, dropping anything malformed.
+ * Returns `null` (not an empty survey) when there is no usable question, so
+ * `PortalContentBlock` can fall back to the sign-in card rather than render
+ * an empty form. */
+export function toPortalSurvey(raw: unknown): PortalSurvey | null {
+  if (!raw || typeof raw !== "object") return null;
+  const source = raw as { questions?: unknown; submitLabel?: unknown };
+  if (!Array.isArray(source.questions)) return null;
+  const questions: PortalSurveyQuestion[] = [];
+  for (const q of source.questions) {
+    if (!q || typeof q !== "object") continue;
+    const item = q as { id?: unknown; label?: unknown; type?: unknown; options?: unknown };
+    if (typeof item.id !== "string" || typeof item.label !== "string") continue;
+    const type =
+      item.type === "rating" || item.type === "choice" || item.type === "text" ? item.type : "text";
+    const options = Array.isArray(item.options)
+      ? item.options.filter((o): o is string => typeof o === "string")
+      : undefined;
+    questions.push({ id: item.id, label: item.label, type, options });
+  }
+  if (!questions.length) return null;
+  return {
+    questions,
+    submitLabel: typeof source.submitLabel === "string" ? source.submitLabel : null,
+  };
+}
+
 export interface RuntimePortalConfig {
   id: string;
   name: string;
@@ -240,6 +306,21 @@ export interface RuntimePortalConfig {
   splashHeadline: string | null;
   splashWelcomeMessage: string | null;
   redirectUrl: string | null;
+  /** What the portal presents as its primary content before/instead of the
+   * sign-in form -- see `PortalContentMode`. `"login"` (the default) leaves
+   * the guest experience exactly as it was before this field existed. */
+  contentMode: PortalContentMode;
+  /** `content_mode` "image"/"text"/"survey": optional heading above the
+   * content block. */
+  contentHeading: string | null;
+  /** `content_mode` "text": the body copy shown under the heading. */
+  contentBody: string | null;
+  /** `content_mode` "image": the foreground content image (the promo/menu/
+   * event graphic), distinct from `backgroundImageUrl` (the backdrop). */
+  contentImageUrl: string | null;
+  /** `content_mode` "survey": the survey definition, or `null` when the
+   * chosen mode is not survey / no valid survey is configured. */
+  survey: PortalSurvey | null;
   otpSmsEnabled: boolean;
   otpEmailEnabled: boolean;
   otpWhatsappEnabled: boolean;

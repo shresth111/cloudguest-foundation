@@ -1,5 +1,10 @@
 import { api } from "@/services/api";
-import { clampBackgroundOverlayStrength, toGuestFontChoice } from "@/types/portal-runtime";
+import {
+  clampBackgroundOverlayStrength,
+  toGuestFontChoice,
+  toPortalContentMode,
+  toPortalSurvey,
+} from "@/types/portal-runtime";
 import type {
   Portal,
   PortalAd,
@@ -54,6 +59,13 @@ interface BackendCaptivePortalConfig {
   splash_headline: string | null;
   splash_welcome_message: string | null;
   redirect_url: string | null;
+  // Optional so a pre-migration-0098 backend response still parses -- see
+  // toPortal, which coerces an absent content_mode to "login".
+  content_mode?: string | null;
+  content_heading?: string | null;
+  content_body?: string | null;
+  content_image_url?: string | null;
+  content_survey?: unknown;
   otp_sms_enabled: boolean;
   otp_email_enabled: boolean;
   otp_whatsapp_enabled: boolean;
@@ -407,6 +419,13 @@ function toPortal(
       termsUrl: c.terms_and_conditions_url ?? "",
       privacyUrl: c.privacy_policy_url ?? "",
     },
+    content: {
+      mode: toPortalContentMode(c.content_mode),
+      heading: c.content_heading ?? "",
+      body: c.content_body ?? "",
+      imageUrl: c.content_image_url ?? "",
+      survey: toPortalSurvey(c.content_survey),
+    },
     seo: {
       pageTitle: c.splash_headline ?? c.name,
       metaDescription: c.splash_welcome_message ?? "",
@@ -563,6 +582,11 @@ export const portalService = {
         splash_headline: input.seo?.pageTitle ?? null,
         splash_welcome_message: input.seo?.metaDescription ?? null,
         redirect_url: input.login?.redirectUrl || null,
+        content_mode: input.content?.mode ?? "login",
+        content_heading: input.content?.heading || null,
+        content_body: input.content?.body || null,
+        content_image_url: input.content?.imageUrl || null,
+        content_survey: input.content?.survey ?? null,
         guest_font_choice: input.branding?.fontChoice ?? "system",
         background_overlay_strength: input.branding?.backgroundOverlayStrength ?? 55,
         ...flags,
@@ -593,6 +617,12 @@ export const portalService = {
     if (patch.seo?.metaDescription !== undefined)
       body.splash_welcome_message = patch.seo.metaDescription || null;
     if (patch.login?.redirectUrl !== undefined) body.redirect_url = patch.login.redirectUrl || null;
+    if (patch.content?.mode !== undefined) body.content_mode = patch.content.mode;
+    if (patch.content?.heading !== undefined) body.content_heading = patch.content.heading || null;
+    if (patch.content?.body !== undefined) body.content_body = patch.content.body || null;
+    if (patch.content?.imageUrl !== undefined)
+      body.content_image_url = patch.content.imageUrl || null;
+    if (patch.content?.survey !== undefined) body.content_survey = patch.content.survey ?? null;
     if (patch.loginMethods !== undefined) Object.assign(body, loginMethodFlags(patch.loginMethods));
     // captive-portal-v6-design-spec.md §1.3/§3.5/§4.4 -- the real fix for
     // this whitelist's exact gap: the old admin font picker silently lost
