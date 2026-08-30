@@ -225,10 +225,10 @@ export function toBackgroundMetric(v: number | null | undefined): number | null 
  * `content_mode` / `constants.PortalContentMode`. `login` (the default and
  * every existing venue's state) renders only the sign-in card, exactly as
  * before this feature existed; the other four are rendered by
- * `PortalContentBlock` above the sign-in card (image/text/survey) or, for
+ * `PortalContentBlock` above the sign-in card (image/text) or, for
  * `redirect`, by routing the guest to the existing `/portal/redirect`
  * countdown screen. */
-export const PORTAL_CONTENT_MODES = ["login", "image", "text", "redirect", "survey"] as const;
+export const PORTAL_CONTENT_MODES = ["login", "image", "text", "redirect"] as const;
 export type PortalContentMode = (typeof PORTAL_CONTENT_MODES)[number];
 
 /** Fail-safe-to-`"login"` coercion, same shape as `toGuestFontChoice`: an
@@ -243,10 +243,13 @@ export function toPortalContentMode(v: string | null | undefined): PortalContent
     : "login";
 }
 
-/** One question in a `content_mode === "survey"` portal. `rating` renders a
- * 1-5 scale, `choice` a single-select of `options`, `text` a short free-text
- * field. The shape is owned here (the backend stores the survey JSON
- * verbatim), and `PortalContentBlock` degrades unknown `type`s to `text`. */
+/** LEGACY. One question in the retired `content_mode` survey. Guest surveys
+ * are now driven solely by the Campaigns domain (a "Survey & Feedback"
+ * campaign, rendered by `CampaignOverlay`); the `content_mode` survey no
+ * longer renders on any guest surface. This shape is kept only so a resolve
+ * response that still carries a `content_survey` column parses without
+ * throwing. `rating` renders a 1-5 scale, `choice` a single-select of
+ * `options`, `text` a short free-text field. */
 export interface PortalSurveyQuestion {
   id: string;
   label: string;
@@ -310,7 +313,7 @@ export interface RuntimePortalConfig {
    * sign-in form -- see `PortalContentMode`. `"login"` (the default) leaves
    * the guest experience exactly as it was before this field existed. */
   contentMode: PortalContentMode;
-  /** `content_mode` "image"/"text"/"survey": optional heading above the
+  /** `content_mode` "image"/"text": optional heading above the
    * content block. */
   contentHeading: string | null;
   /** `content_mode` "text": the body copy shown under the heading. */
@@ -318,8 +321,10 @@ export interface RuntimePortalConfig {
   /** `content_mode` "image": the foreground content image (the promo/menu/
    * event graphic), distinct from `backgroundImageUrl` (the backdrop). */
   contentImageUrl: string | null;
-  /** `content_mode` "survey": the survey definition, or `null` when the
-   * chosen mode is not survey / no valid survey is configured. */
+  /** LEGACY, no longer rendered on any guest surface -- guest surveys are
+   * now Campaigns-only (see `PortalSurvey`). Retained so an older resolve
+   * response's `content_survey` column still parses; always ignored by the
+   * runtime. */
   survey: PortalSurvey | null;
   otpSmsEnabled: boolean;
   otpEmailEnabled: boolean;
@@ -402,8 +407,8 @@ export interface RuntimePortalConfig {
   locationCountry: string | null;
 }
 
-/** Whether a config presents a *gating* intro step -- an `image`/`text`/
- * `survey` content mode with real content behind it -- that the guest portal
+/** Whether a config presents a *gating* intro step -- an `image`/`text`
+ * content mode with real content behind it -- that the guest portal
  * shows as step 1, BEFORE the sign-in card. `login` (no content) and
  * `redirect` (rendered alongside the sign-in card, never gating) return
  * false, so those modes -- and every venue that never opted into a content
@@ -421,8 +426,6 @@ export function hasGatingContentStep(config: RuntimePortalConfig | null | undefi
       return Boolean(config.contentImageUrl);
     case "text":
       return Boolean(config.contentBody || config.contentHeading);
-    case "survey":
-      return Boolean(config.survey);
     default:
       return false;
   }
