@@ -24,7 +24,9 @@ export function ErrorMaintenancePage() {
         </Button>
         <Button
           variant="outline"
-          onClick={() => window.open("https://status.cloudguest.io", "_blank")}
+          onClick={() =>
+            window.open("https://status.cloudguest.io", "_blank", "noopener,noreferrer")
+          }
         >
           Status page
         </Button>

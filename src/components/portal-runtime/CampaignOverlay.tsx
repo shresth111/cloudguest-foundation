@@ -218,10 +218,18 @@ export function CampaignOverlay({ campaign, sessionId, onDone, constrained = fal
   const skip = () => finish({ wasSkipped: true, wasClicked: false });
 
   const openBanner = () => {
-    if (campaign.asset?.clickUrl) {
-      window.open(campaign.asset.clickUrl, "_blank", "noopener,noreferrer");
+    // `clickUrl` is operator-authored free text shown to GUESTS -- guard its
+    // scheme before handing it to a navigation sink, exactly as
+    // PortalContentBlock's RedirectContent and /portal/redirect already do.
+    // Only http/https may open: a `javascript:`/`data:` value passed to
+    // window.open() can execute script, so restricting the scheme is what
+    // keeps a malicious/compromised campaign from running code at guests.
+    const clickUrl = campaign.asset?.clickUrl;
+    const safeClickUrl = clickUrl && /^https?:\/\//i.test(clickUrl) ? clickUrl : null;
+    if (safeClickUrl) {
+      window.open(safeClickUrl, "_blank", "noopener,noreferrer");
     }
-    finish({ wasSkipped: false, wasClicked: !!campaign.asset?.clickUrl });
+    finish({ wasSkipped: false, wasClicked: !!safeClickUrl });
   };
 
   // "Banner & Discounts" promo copy: a headline/subtext and/or a redeemable
