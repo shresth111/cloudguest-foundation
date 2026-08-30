@@ -10,6 +10,7 @@ import { useGuestSignIn } from "./useGuestSignIn";
 import { AuthTabSwitcher, AuthMoreOptions } from "./AuthTabSwitcher";
 import { OtpForm } from "./OtpForm";
 import { PasswordSignInForm } from "./PasswordSignInForm";
+import { PortalContentBlock } from "./PortalContentBlock";
 
 /**
  * The guest sign-in card: centered logo mark, "Welcome to [venue]"
@@ -47,6 +48,11 @@ export function GuestSignInCard() {
 
   return (
     <div className="flex flex-1 flex-col gap-3">
+      {/* The venue's configured content mode (image/text/redirect/survey),
+       * rendered above the sign-in card. Renders nothing for the default
+       * "login" mode -- see PortalContentBlock -- so this is a no-op for
+       * every venue that has not opted into a content mode. */}
+      <PortalContentBlock />
       <PortalCard className="relative">
         <ConnectingOverlay
           active={sign.isSigningIn}

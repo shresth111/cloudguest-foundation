@@ -43,7 +43,30 @@ import { PortalShell } from "@/components/portal-runtime/PortalShell";
 import { GuestSignInCard } from "@/components/portal-runtime/GuestSignInCard";
 import { DEMO_PORTAL_PREVIEW_STORAGE_KEY } from "@/lib/portal-preview-storage";
 import type { PortalLanguage, PortalLoginMethod } from "@/types/portal";
-import { resolveLanguageSelection, type RuntimePortalConfig } from "@/types/portal-runtime";
+import {
+  resolveLanguageSelection,
+  type PortalContentMode,
+  type PortalSurvey,
+  type RuntimePortalConfig,
+} from "@/types/portal-runtime";
+
+// A ready-made survey used to preview "survey" content mode from the
+// dashboard: the operator flips the mode to Survey and immediately sees a
+// real, working survey render in the Live Preview, rather than an empty
+// form they must hand-author JSON for first. The seeder ships a per-venue
+// survey of the same shape; this is only the dashboard's editing default.
+const DEMO_PORTAL_SURVEY: PortalSurvey = {
+  questions: [
+    {
+      id: "visit",
+      label: "What brings you in today?",
+      type: "choice",
+      options: ["Work", "Meeting", "Leisure", "Just passing through"],
+    },
+    { id: "rating", label: "How is your visit so far?", type: "rating" },
+  ],
+  submitLabel: "Submit & connect",
+};
 
 const SWATCHES = [
   "#1B57F5",
@@ -163,6 +186,21 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   // and leaves it over.
   const [savedSplash, setSavedSplash] = useState({ headline: "", msg: "" });
   const [authMethods, setAuthMethods] = useState<string[]>(["mobile_otp", "voucher"]);
+  // Content mode + its per-mode source fields (see PortalContentBlock /
+  // constants.PortalContentMode). "login" (default) leaves the sign-in
+  // screen exactly as it is; the other four each feed the Live Preview
+  // below live, on every edit. `contentSurvey` holds the survey rendered in
+  // "survey" mode -- seeded from DEMO_PORTAL_SURVEY so the operator sees a
+  // working survey the moment they pick that mode.
+  const [contentMode, setContentMode] = useState<PortalContentMode>("login");
+  const [contentHeading, setContentHeading] = useState("");
+  const [contentBody, setContentBody] = useState("");
+  const [contentImageUrl, setContentImageUrl] = useState("");
+  const [contentSurvey, setContentSurvey] = useState<PortalSurvey | null>(null);
+  // The organization's login-screen background (app.domains.branding),
+  // loaded as a blob URL for real accounts so it shows in the Live Preview
+  // exactly as a guest sees it. Null in demo mode / when no image is set.
+  const [bgImage, setBgImage] = useState<string | null>(null);
   const [form, setForm] = useState({
     theme: "enterprise",
     font: "inter",
@@ -215,12 +253,29 @@ export function PortalPage({ locationId }: { locationId?: string }) {
     }
   };
 
+  // The org's login-screen background, loaded the same authenticated-blob
+  // way BrandAssetPage/usePortalPreview already do (an <img>/CSS bg can't
+  // attach the headers /branding/background-image/raw needs). Feeds the Live
+  // Preview so an operator sees the real backdrop a guest gets, not a blank.
+  const loadBackground = async (org: string) => {
+    const branding = await brandAssetService.getBranding(org);
+    if (!branding?.hasBackgroundImage) {
+      setBgImage(null);
+      return;
+    }
+    const blobUrl = await brandAssetService.fetchBackgroundImageBlobUrl(org);
+    setBgImage(blobUrl);
+  };
+
   const loadPortal = async () => {
     if (demo) return;
     const org = await resolveOrgId();
     setOrgId(org);
     loadLogo(org).catch(() => {
       // Leave the logo preview empty -- not fatal to the rest of the page.
+    });
+    loadBackground(org).catch(() => {
+      // Leave the background preview empty -- not fatal to the rest of the page.
     });
     const res = await portalService.list({
       organizationId: org,
@@ -259,6 +314,13 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       terms: p.consent.termsUrl || f.terms,
     }));
     setAuthMethods(p.loginMethods);
+    setContentMode(p.content.mode);
+    setContentHeading(p.content.heading);
+    setContentBody(p.content.body);
+    setContentImageUrl(p.content.imageUrl);
+    // Fall back to the demo survey only when the venue is in survey mode with
+    // nothing authored yet, so the preview still renders a working survey.
+    setContentSurvey(p.content.survey ?? (p.content.mode === "survey" ? DEMO_PORTAL_SURVEY : null));
   };
 
   useEffect(() => {
@@ -277,6 +339,14 @@ export function PortalPage({ locationId }: { locationId?: string }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logo]);
+
+  // Same blob-URL cleanup for the background image (always a real blob when
+  // set -- fetchBackgroundImageBlobUrl only ever returns one).
+  useEffect(() => {
+    return () => {
+      if (bgImage) URL.revokeObjectURL(bgImage);
+    };
+  }, [bgImage]);
 
   // Shared by the "Preview Portal" button (top of the page) and the
   // external-link icon on the Live Preview card's own header below --
@@ -346,7 +416,9 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       name: "",
       theme: "light",
       logoUrl: logo,
-      backgroundImageUrl: null,
+      // The org's real login-screen background (loaded above), so the Live
+      // Preview shows the actual backdrop a guest sees rather than a blank.
+      backgroundImageUrl: bgImage,
       primaryColor: primary,
       secondaryColor: primary,
       // This page's "Languages" field is free text and can contain anything,
@@ -366,6 +438,13 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       splashHeadline: headline || null,
       splashWelcomeMessage: msg || null,
       redirectUrl: form.redirectUrl || null,
+      // Content mode + its source fields -- every edit rebuilds this memo and
+      // re-renders PortalContentBlock in the preview immediately (task 4).
+      contentMode,
+      contentHeading: contentHeading || null,
+      contentBody: contentBody || null,
+      contentImageUrl: contentImageUrl || null,
+      survey: contentMode === "survey" ? (contentSurvey ?? DEMO_PORTAL_SURVEY) : contentSurvey,
       otpSmsEnabled: authMethods.includes("mobile_otp"),
       otpEmailEnabled: authMethods.includes("email_otp"),
       otpWhatsappEnabled: authMethods.includes("whatsapp_otp"),
@@ -398,7 +477,23 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       poweredByEnabled: true,
       locationCountry: null,
     }),
-    [portalId, logo, primary, form.lang, form.terms, form.redirectUrl, headline, msg, authMethods],
+    [
+      portalId,
+      logo,
+      bgImage,
+      primary,
+      form.lang,
+      form.terms,
+      form.redirectUrl,
+      headline,
+      msg,
+      authMethods,
+      contentMode,
+      contentHeading,
+      contentBody,
+      contentImageUrl,
+      contentSurvey,
+    ],
   );
 
   // Real upload, backed by app.domains.branding's MinIO/S3-compatible
@@ -502,6 +597,13 @@ export function PortalPage({ locationId }: { locationId?: string }) {
         login: { redirectUrl: form.redirectUrl },
         loginMethods: authMethods as PortalLoginMethod[],
         seo: { pageTitle: headline, metaDescription: msg },
+        content: {
+          mode: contentMode,
+          heading: contentHeading,
+          body: contentBody,
+          imageUrl: contentImageUrl,
+          survey: contentMode === "survey" ? (contentSurvey ?? DEMO_PORTAL_SURVEY) : contentSurvey,
+        },
         // Real bug: this field was missing from the patch entirely, so the
         // "Languages" input above -- which does round-trip on load (line
         // ~166) and does drive the Live Preview in real time (langList
@@ -753,6 +855,88 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                   className="h-9"
                 />
               </div>
+            </div>
+
+            {/* Content mode -- what the portal shows above the sign-in card.
+              Every change here re-renders the Live Preview instantly via
+              livePreviewConfig. */}
+            <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
+              <div className="space-y-1.5">
+                <Label>Portal Content Mode</Label>
+                <Select
+                  value={contentMode}
+                  onValueChange={(v) => setContentMode(v as PortalContentMode)}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="login">Sign-in only (default)</SelectItem>
+                    <SelectItem value="image">Show an image</SelectItem>
+                    <SelectItem value="text">Show text</SelectItem>
+                    <SelectItem value="redirect">Redirect to a URL</SelectItem>
+                    <SelectItem value="survey">Show a survey</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Choose what guests see above the sign-in card. Watch the Live Preview update as
+                  you change it.
+                </p>
+              </div>
+
+              {(contentMode === "image" || contentMode === "text" || contentMode === "survey") && (
+                <div className="space-y-1.5">
+                  <Label>Content Heading</Label>
+                  <Input
+                    value={contentHeading}
+                    onChange={(e) => setContentHeading(e.target.value)}
+                    placeholder="e.g. Today's specials"
+                    className="h-9"
+                  />
+                </div>
+              )}
+
+              {contentMode === "image" && (
+                <div className="space-y-1.5">
+                  <Label>Content Image URL</Label>
+                  <Input
+                    value={contentImageUrl}
+                    onChange={(e) => setContentImageUrl(e.target.value)}
+                    placeholder="/demo/portal/content/cafe-promo.svg"
+                    className="h-9"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    A promo, menu, or event graphic shown to guests. Paste an image URL or use one
+                    of the bundled demo images under <code>/demo/portal/</code>.
+                  </p>
+                </div>
+              )}
+
+              {contentMode === "text" && (
+                <div className="space-y-1.5">
+                  <Label>Content Text</Label>
+                  <Textarea
+                    rows={4}
+                    value={contentBody}
+                    onChange={(e) => setContentBody(e.target.value)}
+                    placeholder="Welcome! Here's what you need to know..."
+                  />
+                </div>
+              )}
+
+              {contentMode === "redirect" && (
+                <p className="text-xs text-muted-foreground">
+                  Guests are sent to the <span className="font-medium">Redirect URL</span> set
+                  above. The preview shows the destination and a Continue button.
+                </p>
+              )}
+
+              {contentMode === "survey" && (
+                <p className="text-xs text-muted-foreground">
+                  A short guest survey is shown before connecting. The bundled starter survey is
+                  used here; the demo seed ships a tailored survey per venue.
+                </p>
+              )}
             </div>
 
             <div className="space-y-1.5">

@@ -260,6 +260,13 @@ function PortalPreviewPage() {
           splashHeadline: null,
           splashWelcomeMessage: null,
           redirectUrl: null,
+          // "branding-only" -- no captive_portal_configs row, so no content
+          // mode is configured; "login" is the sign-in-only default.
+          contentMode: "login",
+          contentHeading: null,
+          contentBody: null,
+          contentImageUrl: null,
+          survey: null,
           otpSmsEnabled: false,
           otpEmailEnabled: false,
           otpWhatsappEnabled: false,

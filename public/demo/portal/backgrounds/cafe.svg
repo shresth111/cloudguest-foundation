@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1600" viewBox="0 0 1200 1600" role="img" aria-label="Warm cafe background">
+  <defs>
+    <linearGradient id="c" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7c3f1d"/>
+      <stop offset="0.55" stop-color="#b5651d"/>
+      <stop offset="1" stop-color="#e0a066"/>
+    </linearGradient>
+    <radialGradient id="g" cx="0.3" cy="0.2" r="0.9">
+      <stop offset="0" stop-color="#ffd9a0" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#ffd9a0" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="1600" fill="url(#c)"/>
+  <rect width="1200" height="1600" fill="url(#g)"/>
+  <g fill="#ffffff" opacity="0.08">
+    <circle cx="240" cy="320" r="160"/>
+    <circle cx="980" cy="1180" r="220"/>
+    <circle cx="620" cy="760" r="90"/>
+  </g>
+</svg>

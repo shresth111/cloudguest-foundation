@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1600" viewBox="0 0 1200 1600" role="img" aria-label="Wyfy Guest brand background">
+  <defs>
+    <linearGradient id="d" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1e1b4b"/>
+      <stop offset="0.6" stop-color="#312e81"/>
+      <stop offset="1" stop-color="#4c1d95"/>
+    </linearGradient>
+    <radialGradient id="dg" cx="0.75" cy="0.2" r="0.9">
+      <stop offset="0" stop-color="#a855f7" stop-opacity="0.4"/>
+      <stop offset="1" stop-color="#a855f7" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="1600" fill="url(#d)"/>
+  <rect width="1200" height="1600" fill="url(#dg)"/>
+  <g fill="#22d3ee" opacity="0.10">
+    <circle cx="260" cy="380" r="160"/>
+    <circle cx="980" cy="1220" r="220"/>
+  </g>
+</svg>
