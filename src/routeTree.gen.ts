@@ -66,7 +66,6 @@ import { Route as PortalExpiredRouteImport } from './routes/portal.expired'
 import { Route as PortalClosedRouteImport } from './routes/portal.closed'
 import { Route as PortalAuthRouteImport } from './routes/portal.auth'
 import { Route as MasterTicketsRouteImport } from './routes/master.tickets'
-import { Route as MasterSettingsRouteImport } from './routes/master.settings'
 import { Route as MasterRoutersRouteImport } from './routes/master.routers'
 import { Route as MasterQuotationsRouteImport } from './routes/master.quotations'
 import { Route as MasterOperatorsRouteImport } from './routes/master.operators'
@@ -473,11 +472,6 @@ const PortalAuthRoute = PortalAuthRouteImport.update({
 const MasterTicketsRoute = MasterTicketsRouteImport.update({
   id: '/tickets',
   path: '/tickets',
-  getParentRoute: () => MasterRoute,
-} as any)
-const MasterSettingsRoute = MasterSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
   getParentRoute: () => MasterRoute,
 } as any)
 const MasterRoutersRoute = MasterRoutersRouteImport.update({
@@ -1245,7 +1239,6 @@ export interface FileRoutesByFullPath {
   '/master/operators': typeof MasterOperatorsRoute
   '/master/quotations': typeof MasterQuotationsRoute
   '/master/routers': typeof MasterRoutersRouteWithChildren
-  '/master/settings': typeof MasterSettingsRoute
   '/master/tickets': typeof MasterTicketsRoute
   '/portal/auth': typeof PortalAuthRouteWithChildren
   '/portal/closed': typeof PortalClosedRoute
@@ -1423,7 +1416,6 @@ export interface FileRoutesByTo {
   '/master/operators': typeof MasterOperatorsRoute
   '/master/quotations': typeof MasterQuotationsRoute
   '/master/routers': typeof MasterRoutersRouteWithChildren
-  '/master/settings': typeof MasterSettingsRoute
   '/master/tickets': typeof MasterTicketsRoute
   '/portal/closed': typeof PortalClosedRoute
   '/portal/expired': typeof PortalExpiredRoute
@@ -1605,7 +1597,6 @@ export interface FileRoutesById {
   '/master/operators': typeof MasterOperatorsRoute
   '/master/quotations': typeof MasterQuotationsRoute
   '/master/routers': typeof MasterRoutersRouteWithChildren
-  '/master/settings': typeof MasterSettingsRoute
   '/master/tickets': typeof MasterTicketsRoute
   '/portal/auth': typeof PortalAuthRouteWithChildren
   '/portal/closed': typeof PortalClosedRoute
@@ -1789,7 +1780,6 @@ export interface FileRouteTypes {
     | '/master/operators'
     | '/master/quotations'
     | '/master/routers'
-    | '/master/settings'
     | '/master/tickets'
     | '/portal/auth'
     | '/portal/closed'
@@ -1967,7 +1957,6 @@ export interface FileRouteTypes {
     | '/master/operators'
     | '/master/quotations'
     | '/master/routers'
-    | '/master/settings'
     | '/master/tickets'
     | '/portal/closed'
     | '/portal/expired'
@@ -2148,7 +2137,6 @@ export interface FileRouteTypes {
     | '/master/operators'
     | '/master/quotations'
     | '/master/routers'
-    | '/master/settings'
     | '/master/tickets'
     | '/portal/auth'
     | '/portal/closed'
@@ -2718,13 +2706,6 @@ declare module '@tanstack/react-router' {
       path: '/tickets'
       fullPath: '/master/tickets'
       preLoaderRoute: typeof MasterTicketsRouteImport
-      parentRoute: typeof MasterRoute
-    }
-    '/master/settings': {
-      id: '/master/settings'
-      path: '/settings'
-      fullPath: '/master/settings'
-      preLoaderRoute: typeof MasterSettingsRouteImport
       parentRoute: typeof MasterRoute
     }
     '/master/routers': {
@@ -3878,7 +3859,6 @@ interface MasterRouteChildren {
   MasterOperatorsRoute: typeof MasterOperatorsRoute
   MasterQuotationsRoute: typeof MasterQuotationsRoute
   MasterRoutersRoute: typeof MasterRoutersRouteWithChildren
-  MasterSettingsRoute: typeof MasterSettingsRoute
   MasterTicketsRoute: typeof MasterTicketsRoute
   MasterIndexRoute: typeof MasterIndexRoute
 }
@@ -3898,7 +3878,6 @@ const MasterRouteChildren: MasterRouteChildren = {
   MasterOperatorsRoute: MasterOperatorsRoute,
   MasterQuotationsRoute: MasterQuotationsRoute,
   MasterRoutersRoute: MasterRoutersRouteWithChildren,
-  MasterSettingsRoute: MasterSettingsRoute,
   MasterTicketsRoute: MasterTicketsRoute,
   MasterIndexRoute: MasterIndexRoute,
 }
