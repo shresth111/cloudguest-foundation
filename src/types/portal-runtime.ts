@@ -402,6 +402,32 @@ export interface RuntimePortalConfig {
   locationCountry: string | null;
 }
 
+/** Whether a config presents a *gating* intro step -- an `image`/`text`/
+ * `survey` content mode with real content behind it -- that the guest portal
+ * shows as step 1, BEFORE the sign-in card. `login` (no content) and
+ * `redirect` (rendered alongside the sign-in card, never gating) return
+ * false, so those modes -- and every venue that never opted into a content
+ * mode -- go straight to the sign-in card. The per-mode "is there real
+ * content" predicate is deliberately identical to `PortalContentBlock`'s own
+ * step-1 render guards, so the flow's gate (`GuestSignInCard`) and its render
+ * (`PortalContentBlock`) can never disagree about whether a step-1 exists.
+ * Lives here, next to `PortalContentMode`/`toPortalSurvey`, rather than in the
+ * component, because it is pure config logic (no JSX) and `GuestSignInCard`
+ * and `PortalContentBlock` both need it. */
+export function hasGatingContentStep(config: RuntimePortalConfig | null | undefined): boolean {
+  if (!config) return false;
+  switch (config.contentMode) {
+    case "image":
+      return Boolean(config.contentImageUrl);
+    case "text":
+      return Boolean(config.contentBody || config.contentHeading);
+    case "survey":
+      return Boolean(config.survey);
+    default:
+      return false;
+  }
+}
+
 /** The real `GuestSessionResponse` (plus a couple of login-response-only
  * fields) -- returned once, at login. There is no guest-facing endpoint to
  * refresh this later, so it's persisted client-side (sessionStorage) rather

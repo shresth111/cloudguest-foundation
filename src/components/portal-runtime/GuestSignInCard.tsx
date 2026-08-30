@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { KeyRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { scriptClassOf } from "@/lib/portal-script";
@@ -11,6 +12,7 @@ import { AuthTabSwitcher, AuthMoreOptions } from "./AuthTabSwitcher";
 import { OtpForm } from "./OtpForm";
 import { PasswordSignInForm } from "./PasswordSignInForm";
 import { PortalContentBlock } from "./PortalContentBlock";
+import { hasGatingContentStep } from "@/types/portal-runtime";
 
 /**
  * The guest sign-in card: centered logo mark, "Welcome to [venue]"
@@ -46,12 +48,42 @@ export function GuestSignInCard() {
   const { config, t } = usePortalRuntime();
   const sign = useGuestSignIn();
 
+  // The two-step flow's local state (this is the "runtime component" that
+  // owns it -- and the single component every portal surface renders, so the
+  // real portal, the dashboard Live Preview and the /preview routes all get
+  // the same flow for free). `continued` gates step 1 (the venue's intro
+  // content) from step 2 (this sign-in card). `surveyAnswers` is lifted here
+  // rather than into the survey card so a guest's answers survive the step
+  // transition -- the survey is non-networked, so this in-memory state is the
+  // only place they live, and unmounting the survey on step 2 must not reset
+  // them. `hasGatingContentStep` returns false for `login` (no intro) and
+  // `redirect` (rendered alongside the card, never gating), so those two
+  // modes -- and every venue that never opted into a content mode -- skip
+  // straight to the sign-in card exactly as before.
+  const [continued, setContinued] = useState(false);
+  const [surveyAnswers, setSurveyAnswers] = useState<Record<string, string>>({});
+  const showContentStep = hasGatingContentStep(config) && !continued;
+
+  // STEP 1: the venue's intro content (image/text/survey) with a "Continue"
+  // action. The sign-in fields are deliberately NOT mounted here.
+  if (showContentStep) {
+    return (
+      <div className="flex flex-1 flex-col gap-3">
+        <PortalContentBlock
+          onContinue={() => setContinued(true)}
+          surveyAnswers={surveyAnswers}
+          onSurveyAnswer={(id, value) => setSurveyAnswers((prev) => ({ ...prev, [id]: value }))}
+        />
+      </div>
+    );
+  }
+
+  // STEP 2 (and the default for login/redirect): the sign-in card. The
+  // survey/image/text intro is NOT shown again here -- `PortalContentBlock`
+  // with no `onContinue` renders only `redirect` (unchanged: it sits above
+  // the card and leaves it reachable) and `null` for every other mode.
   return (
     <div className="flex flex-1 flex-col gap-3">
-      {/* The venue's configured content mode (image/text/redirect/survey),
-       * rendered above the sign-in card. Renders nothing for the default
-       * "login" mode -- see PortalContentBlock -- so this is a no-op for
-       * every venue that has not opted into a content mode. */}
       <PortalContentBlock />
       <PortalCard className="relative">
         <ConnectingOverlay
