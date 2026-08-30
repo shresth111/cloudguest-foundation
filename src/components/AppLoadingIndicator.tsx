@@ -25,7 +25,14 @@ export function AppLoadingIndicator({ id }: { id?: string }) {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "#f8fafc",
+        // Theme-aware, via a custom property set on <html> by the pre-paint
+        // theme script in __root.tsx (before any stylesheet is guaranteed to
+        // have loaded -- so a bare `var(--background)` or a themed class would
+        // not resolve here). Hardcoding a light `#f8fafc` used to flash a
+        // full-screen white panel at every dark-mode user during boot and on
+        // pending navigations, ahead of the dark content behind it. The
+        // fallback keeps the old light value if the script never ran.
+        background: "var(--app-loader-bg, #f8fafc)",
       }}
     >
       <div

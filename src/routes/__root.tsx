@@ -280,11 +280,56 @@ const LOAD_FONTS_SCRIPT = `(function(){
   document.head.appendChild(l);
 })();`;
 
+// Applies the persisted/preferred theme to <html> SYNCHRONOUSLY, in <head>,
+// before the browser paints a single frame -- the classic anti-FOUC guard.
+//
+// Without it the app has a genuine flash-of-white for every dark-mode user on
+// every cold load: `ThemeContext` initialises to `"light"` and only adds the
+// `.dark` class in a post-mount effect, so the very first paint -- the boot
+// loader, then the app shell -- renders with the light `:root` palette and
+// then snaps to dark once React has hydrated and that effect has run. That is
+// exactly the "blank white screen, then it flashes, then the content appears"
+// report: the white is the un-themed first paint, the flash is the theme
+// correcting. Two independent surfaces show it -- the `InitialLoader` /
+// `defaultPendingComponent` overlay, and the dashboard behind it -- so both
+// are covered here at once.
+//
+// The logic is byte-for-byte the same decision `ThemeContext` makes
+// (`localStorage["cloudguest_theme"]`, else `prefers-color-scheme`), so the
+// provider's own effect is a confirming no-op rather than a second, visible
+// correction. `--app-loader-bg` is read by `AppLoadingIndicator` (an inline-
+// styled overlay that can paint before the main stylesheet arrives, so it
+// cannot rely on a themed class or `var(--background)`); a plain custom
+// property set on the element resolves with no stylesheet at all. Everything
+// is wrapped so a storage SecurityError (iOS Captive Network Assistant, see
+// ThemeContext's own note) degrades to the OS default instead of throwing
+// before the app can boot. `<html>` carries `suppressHydrationWarning`
+// because this script mutates its class/style attributes out from under
+// React -- deliberately, and only on attributes no SSR'd markup depends on
+// (the sole theme-dependent component, ThemeToggle, lives in ssr:false chrome
+// and never renders on the server).
+const THEME_INIT_SCRIPT = `(function(){
+  try {
+    var t = null;
+    try { t = localStorage.getItem("cloudguest_theme"); } catch (e) {}
+    if (t !== "light" && t !== "dark") {
+      t = (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
+    }
+    var el = document.documentElement;
+    if (t === "dark") el.classList.add("dark"); else el.classList.remove("dark");
+    el.style.colorScheme = t;
+    el.style.setProperty("--app-loader-bg", t === "dark" ? "#0f1116" : "#f8fafc");
+  } catch (e) {}
+})();`;
+
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />
+        {/* Must run before the body paints -- so it is emitted in <head>,
+            ahead of everything, not appended after mount. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body>
         <InitialLoader />
