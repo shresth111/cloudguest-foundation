@@ -46,27 +46,8 @@ import type { PortalLanguage, PortalLoginMethod } from "@/types/portal";
 import {
   resolveLanguageSelection,
   type PortalContentMode,
-  type PortalSurvey,
   type RuntimePortalConfig,
 } from "@/types/portal-runtime";
-
-// A ready-made survey used to preview "survey" content mode from the
-// dashboard: the operator flips the mode to Survey and immediately sees a
-// real, working survey render in the Live Preview, rather than an empty
-// form they must hand-author JSON for first. The seeder ships a per-venue
-// survey of the same shape; this is only the dashboard's editing default.
-const DEMO_PORTAL_SURVEY: PortalSurvey = {
-  questions: [
-    {
-      id: "visit",
-      label: "What brings you in today?",
-      type: "choice",
-      options: ["Work", "Meeting", "Leisure", "Just passing through"],
-    },
-    { id: "rating", label: "How is your visit so far?", type: "rating" },
-  ],
-  submitLabel: "Submit & connect",
-};
 
 const SWATCHES = [
   "#1B57F5",
@@ -188,15 +169,14 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   const [authMethods, setAuthMethods] = useState<string[]>(["mobile_otp", "voucher"]);
   // Content mode + its per-mode source fields (see PortalContentBlock /
   // constants.PortalContentMode). "login" (default) leaves the sign-in
-  // screen exactly as it is; the other four each feed the Live Preview
-  // below live, on every edit. `contentSurvey` holds the survey rendered in
-  // "survey" mode -- seeded from DEMO_PORTAL_SURVEY so the operator sees a
-  // working survey the moment they pick that mode.
+  // screen exactly as it is; image/text/redirect each feed the Live Preview
+  // below live, on every edit. Guest surveys are Campaigns-only now (a
+  // "Survey & Feedback" campaign), so "survey" is no longer a content mode
+  // here -- a legacy row still in that mode is coerced to "login" on load.
   const [contentMode, setContentMode] = useState<PortalContentMode>("login");
   const [contentHeading, setContentHeading] = useState("");
   const [contentBody, setContentBody] = useState("");
   const [contentImageUrl, setContentImageUrl] = useState("");
-  const [contentSurvey, setContentSurvey] = useState<PortalSurvey | null>(null);
   // The organization's login-screen background (app.domains.branding),
   // loaded as a blob URL for real accounts so it shows in the Live Preview
   // exactly as a guest sees it. Null in demo mode / when no image is set.
@@ -314,13 +294,14 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       terms: p.consent.termsUrl || f.terms,
     }));
     setAuthMethods(p.loginMethods);
+    // "survey" is a retired content mode (guest surveys are Campaigns-only
+    // now); `portalService` already coerces a legacy `content_mode: "survey"`
+    // row to "login" via `toPortalContentMode`, so `p.content.mode` is always
+    // one of the live modes here and never lands the editor in a dead state.
     setContentMode(p.content.mode);
     setContentHeading(p.content.heading);
     setContentBody(p.content.body);
     setContentImageUrl(p.content.imageUrl);
-    // Fall back to the demo survey only when the venue is in survey mode with
-    // nothing authored yet, so the preview still renders a working survey.
-    setContentSurvey(p.content.survey ?? (p.content.mode === "survey" ? DEMO_PORTAL_SURVEY : null));
   };
 
   useEffect(() => {
@@ -444,7 +425,8 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       contentHeading: contentHeading || null,
       contentBody: contentBody || null,
       contentImageUrl: contentImageUrl || null,
-      survey: contentMode === "survey" ? (contentSurvey ?? DEMO_PORTAL_SURVEY) : contentSurvey,
+      // Surveys are Campaigns-only now; the content-mode survey is retired.
+      survey: null,
       otpSmsEnabled: authMethods.includes("mobile_otp"),
       otpEmailEnabled: authMethods.includes("email_otp"),
       otpWhatsappEnabled: authMethods.includes("whatsapp_otp"),
@@ -492,7 +474,6 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       contentHeading,
       contentBody,
       contentImageUrl,
-      contentSurvey,
     ],
   );
 
@@ -602,7 +583,8 @@ export function PortalPage({ locationId }: { locationId?: string }) {
           heading: contentHeading,
           body: contentBody,
           imageUrl: contentImageUrl,
-          survey: contentMode === "survey" ? (contentSurvey ?? DEMO_PORTAL_SURVEY) : contentSurvey,
+          // Surveys are Campaigns-only now; never persist a content-mode survey.
+          survey: null,
         },
         // Real bug: this field was missing from the patch entirely, so the
         // "Languages" input above -- which does round-trip on load (line
@@ -875,7 +857,6 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                     <SelectItem value="image">Show an image</SelectItem>
                     <SelectItem value="text">Show text</SelectItem>
                     <SelectItem value="redirect">Redirect to a URL</SelectItem>
-                    <SelectItem value="survey">Show a survey</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
@@ -884,7 +865,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                 </p>
               </div>
 
-              {(contentMode === "image" || contentMode === "text" || contentMode === "survey") && (
+              {(contentMode === "image" || contentMode === "text") && (
                 <div className="space-y-1.5">
                   <Label>Content Heading</Label>
                   <Input
@@ -928,13 +909,6 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                 <p className="text-xs text-muted-foreground">
                   Guests are sent to the <span className="font-medium">Redirect URL</span> set
                   above. The preview shows the destination and a Continue button.
-                </p>
-              )}
-
-              {contentMode === "survey" && (
-                <p className="text-xs text-muted-foreground">
-                  A short guest survey is shown before connecting. The bundled starter survey is
-                  used here; the demo seed ships a tailored survey per venue.
                 </p>
               )}
             </div>

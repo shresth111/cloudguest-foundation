@@ -141,6 +141,11 @@ interface Props {
    * auto-advance timer elapsed) -- the caller reveals whatever it would
    * have shown next. */
   onDone: () => void;
+  /** Threaded to `PortalShell` for the admin Portal Preview, which renders
+   * this inside a fixed-size bezel and must keep the backdrop `absolute`
+   * (not viewport-`fixed`, which would escape the bezel). Defaults to the
+   * real guest surface's full-viewport shell. */
+  constrained?: boolean;
 }
 
 /**
@@ -152,8 +157,8 @@ interface Props {
  * eligible campaign is being shown -- see that file's own comment on why
  * this never delays the real hotspot-login POST underneath it.
  */
-export function CampaignOverlay({ campaign, sessionId, onDone }: Props) {
-  const { t } = usePortalRuntime();
+export function CampaignOverlay({ campaign, sessionId, onDone, constrained = false }: Props) {
+  const { t, previewMode } = usePortalRuntime();
   const [answers, setAnswers] = useState<Record<string, CampaignAnswerValue>>({});
   const finished = useRef(false);
 
@@ -162,19 +167,26 @@ export function CampaignOverlay({ campaign, sessionId, onDone }: Props) {
     finished.current = true;
     // Best-effort telemetry -- a failed impression/response write should
     // never trap a guest on this screen (they already got real value, or
-    // explicitly chose to skip; see this file's own module docstring).
-    campaignPortalService
-      .recordImpression(campaign.campaignId, { guestSessionId: sessionId, ...outcome })
-      .catch(() => undefined);
+    // explicitly chose to skip; see this file's own module docstring). The
+    // operator Portal Preview has no real guest session behind it, so it
+    // never records an impression -- it is a content preview, not a real
+    // guest whose engagement should count.
+    if (!previewMode) {
+      campaignPortalService
+        .recordImpression(campaign.campaignId, { guestSessionId: sessionId, ...outcome })
+        .catch(() => undefined);
+    }
     onDone();
   };
 
   const submitSurvey = useMutation({
     mutationFn: () =>
-      campaignPortalService.submitResponse(campaign.campaignId, {
-        guestSessionId: sessionId,
-        answers,
-      }),
+      previewMode
+        ? Promise.resolve()
+        : campaignPortalService.submitResponse(campaign.campaignId, {
+            guestSessionId: sessionId,
+            answers,
+          }),
     onSuccess: () => finish({ wasSkipped: false, wasClicked: false }),
     // A submission that genuinely fails server-side (expired mid-fill,
     // network drop) still shouldn't strand a guest waiting for their
@@ -240,7 +252,7 @@ export function CampaignOverlay({ campaign, sessionId, onDone }: Props) {
       : null;
 
   return (
-    <PortalShell>
+    <PortalShell constrained={constrained}>
       {/* v4 §5: this used to run its own `framer-motion` fade+rise
        * (opacity 0->1, y 10->0) on top of PortalShell's own CSS-only
        * `pg-enter` fade+rise, already applied to the <main> this content

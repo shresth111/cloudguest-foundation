@@ -6,9 +6,12 @@ import type {
   CampaignListQuery,
   CampaignListResult,
   CampaignQuestion,
+  CampaignType,
   CreateCampaignAssetPayload,
   CreateCampaignPayload,
   CreateCampaignQuestionPayload,
+  NextCampaign,
+  QuestionAnswerType,
   UpdateCampaignPayload,
   UpdateCampaignQuestionPayload,
 } from "@/types/campaign";
@@ -346,6 +349,89 @@ export const campaignService = {
       { headers: { "X-Organization-Id": orgId } },
     );
     return toAsset(data);
+  },
+
+  /**
+   * Resolves the campaign the operator Portal Preview should render for a
+   * location, as the guest-facing `NextCampaign` shape `CampaignOverlay`
+   * consumes -- so the preview shows the *campaign-driven* portal (a Survey &
+   * Feedback campaign as the two-step feedback -> continue -> sign-in flow, a
+   * Banner & Discounts campaign as its coupon/banner card), which is now the
+   * single source of what a guest sees beyond the sign-in card.
+   *
+   * This is a PREVIEW-ONLY approximation of the real guest resolution: the
+   * live guest portal resolves its campaign through the unauthenticated,
+   * session-keyed `campaignPortalService.getNextCampaign` (post-login, on
+   * `portal.session.tsx`) -- an endpoint that needs a real `GuestSession` the
+   * preview has no way to mint. So the preview instead reads the location's
+   * campaigns through this authenticated admin client and picks the first
+   * ACTIVE one, loading its questions (survey) or assets (banner). It
+   * deliberately does NOT reimplement the backend's full eligibility rules
+   * (display-rule cadence, target-network match, per-guest impression
+   * history); it is a faithful *content* preview, not a per-guest simulator.
+   *
+   * `orgId` is passed explicitly (not the caller's own via
+   * `resolveOrganizationId`) because a Master operator previews locations in
+   * organizations they do not belong to. Returns `null` when nothing is
+   * active (the preview then shows the plain sign-in card).
+   */
+  async resolveActivePreviewCampaign(
+    orgId: string,
+    locationId: string,
+  ): Promise<NextCampaign | null> {
+    const headers = { "X-Organization-Id": orgId };
+    const { data } = await api.get<BackendCampaignListResponse>("/campaigns", {
+      params: { location_id: locationId, page: 1, page_size: 100 },
+      headers,
+    });
+    const active = data.items.find((c) => c.status === "active");
+    if (!active) return null;
+
+    const base = {
+      campaignId: active.id,
+      campaignType: active.campaign_type as CampaignType,
+      isSkippable: active.is_skippable,
+    };
+
+    if (active.campaign_type === "survey") {
+      const { data: questions } = await api.get<BackendCampaignQuestion[]>(
+        `/campaigns/${active.id}/questions`,
+        { headers },
+      );
+      return {
+        ...base,
+        questions: questions.map((q) => ({
+          id: q.id,
+          orderIndex: q.order_index,
+          questionText: q.question_text,
+          answerType: q.answer_type as QuestionAnswerType,
+          options: q.options,
+          isRequired: q.is_required,
+        })),
+        asset: null,
+      };
+    }
+
+    const { data: assets } = await api.get<BackendCampaignAsset[]>(
+      `/campaigns/${active.id}/assets`,
+      { headers },
+    );
+    const a = assets[0] ?? null;
+    return {
+      ...base,
+      questions: [],
+      asset: a
+        ? {
+            imageUrl: a.image_url,
+            clickUrl: a.click_url,
+            altText: a.alt_text,
+            headline: a.headline,
+            subtext: a.subtext,
+            couponCode: a.coupon_code,
+            couponExpiresAt: a.coupon_expires_at,
+          }
+        : null,
+    };
   },
 };
 

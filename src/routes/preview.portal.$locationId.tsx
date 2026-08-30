@@ -1,5 +1,6 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { z } from "zod";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { motion, useReducedMotion } from "framer-motion";
@@ -22,6 +23,11 @@ import { customerFeatureHref } from "@/lib/customerNav";
 import { PortalRuntimeProvider } from "@/context/PortalRuntimeContext";
 import { PortalShell } from "@/components/portal-runtime/PortalShell";
 import { GuestSignInCard } from "@/components/portal-runtime/GuestSignInCard";
+import {
+  CampaignOverlay,
+  campaignHasRenderableContent,
+} from "@/components/portal-runtime/CampaignOverlay";
+import { campaignService } from "@/services/campaign.service";
 import type { RuntimePortalConfig } from "@/types/portal-runtime";
 
 /**
@@ -227,6 +233,26 @@ function PortalPreviewPage() {
     queryFn: () => fetchLocationSummary(locationId, organizationId),
     retry: false,
   });
+
+  // Campaigns are the single source of what a guest sees beyond the sign-in
+  // card, so the preview leads with this location's currently-active campaign
+  // (a Survey & Feedback campaign as the two-step feedback -> continue ->
+  // sign-in flow, a Banner & Discounts campaign as its coupon/banner) exactly
+  // as `CampaignOverlay` renders it for a real guest, then falls through to
+  // the sign-in card. `resolveActivePreviewCampaign` is a content preview,
+  // not a per-guest simulation -- see its own docstring for why the real
+  // guest resolution (session-keyed, post-login) can't run here. Any failure
+  // (no active campaign, a 403, an empty content set) degrades silently to
+  // the plain sign-in card below.
+  const campaignQuery = useQuery({
+    queryKey: ["portal-preview-campaign", organizationId, locationId],
+    queryFn: () => campaignService.resolveActivePreviewCampaign(organizationId, locationId),
+    retry: false,
+  });
+  const [campaignDone, setCampaignDone] = useState(false);
+  const activeCampaign = campaignQuery.data ?? null;
+  const showCampaign =
+    !!activeCampaign && campaignHasRenderableContent(activeCampaign) && !campaignDone;
 
   const banner = BANNER_COPY[preview.configSource];
   const TypeIcon = businessTypeIcon(locationQuery.data?.propertyType);
@@ -474,9 +500,22 @@ function PortalPreviewPage() {
                   presetConfig={mergedConfig}
                   presetConfigLoading={false}
                 >
-                  <PortalShell constrained>
-                    <GuestSignInCard />
-                  </PortalShell>
+                  {showCampaign ? (
+                    // `CampaignOverlay` brings its own `PortalShell` (passed
+                    // `constrained` so its backdrop stays inside this bezel
+                    // rather than escaping to the viewport); on done it hands
+                    // the screen to the sign-in card below.
+                    <CampaignOverlay
+                      campaign={activeCampaign}
+                      sessionId="preview"
+                      constrained
+                      onDone={() => setCampaignDone(true)}
+                    />
+                  ) : (
+                    <PortalShell constrained>
+                      <GuestSignInCard />
+                    </PortalShell>
+                  )}
                 </PortalRuntimeProvider>
               )}
             </div>
