@@ -1,64 +1,121 @@
-import { useState } from "react";
-import { CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { scriptClassOf } from "@/lib/portal-script";
 import { PortalCard } from "@/components/portal-runtime/PortalShell";
-import {
-  PG_PRIMARY_BTN,
-  PG_SECONDARY_BTN,
-  PG_INPUT,
-} from "@/components/portal-runtime/PortalGuestUi";
+import { PG_PRIMARY_BTN, PG_INPUT } from "@/components/portal-runtime/PortalGuestUi";
 import { GlyphRedirect } from "@/components/portal-runtime/PortalGlyphs";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import type { PortalSurvey } from "@/types/portal-runtime";
 
 /**
  * Renders a captive portal's configured *content mode* -- the venue-authored
- * block shown above the sign-in card when `config.contentMode` is anything
- * other than `"login"`. One component, one switch, so every surface that
- * already renders `GuestSignInCard` (the real `/portal/welcome` route, the
- * dashboard's embedded Live Preview, and the full-page `/preview/portal/*`
- * routes) picks up all four modes with no per-surface wiring -- and the
- * dashboard's live-rebuilt `livePreviewConfig` re-renders this on every
- * keystroke exactly as it does the sign-in card.
+ * block shown instead of / before the sign-in card when `config.contentMode`
+ * is anything other than `"login"`.
  *
- * `"login"` renders `null`: the default mode, and every existing venue's
- * mode, is "show only the sign-in card", so this component adds nothing to
- * that path -- the portal is byte-identical to before content modes existed.
+ * TWO-STEP FLOW. The intro content modes (`image`/`text`/`survey`) are a
+ * *first step* the guest completes before the sign-in card, not a block
+ * crowded on top of it: the venue's content shows with a single "Continue"
+ * action, and only after that does the real sign-in card appear. That step
+ * state is owned one level up, by `GuestSignInCard` (the single component
+ * every portal surface renders -- the real `/portal/welcome` route, the
+ * dashboard's embedded Live Preview, and the `/preview/portal/*` routes), so
+ * every surface gets the same two-step flow with no per-surface wiring, and
+ * `GuestSignInCard` (not this component) decides which step is on screen.
+ *
+ * This component therefore renders in one of two roles, selected by whether
+ * it is handed an `onContinue`:
+ *   - **Step 1 (gating intro):** `onContinue` is provided. Renders the
+ *     `image`/`text`/`survey` content plus a "Continue" button that calls
+ *     `onContinue` to advance to the sign-in card. Renders `null` for
+ *     `login` (nothing to show) and `redirect` (see below).
+ *   - **Alongside sign-in:** `onContinue` is omitted. Renders `only`
+ *     `redirect` (the one mode that is not a gating pre-step: it leads with a
+ *     "continue to our site" action but leaves the sign-in card reachable
+ *     right below it, exactly as before). Renders `null` for every other
+ *     mode -- crucially it does NOT re-render the survey/image/text on the
+ *     sign-in step.
+ *
+ * `"login"` renders `null` in both roles: the default mode, and every
+ * existing venue's mode, is "show only the sign-in card", so this component
+ * adds nothing to that path -- the portal is byte-identical to before content
+ * modes existed.
  *
  * Each non-login mode degrades to `null` (i.e. the sign-in card alone) when
- * its source column is empty, so a mode selected in the dashboard before its
- * content is filled in never renders a broken/empty block. The sign-in card
- * itself is always still shown below this: a captive portal's job is to get
- * the guest online, so the content block augments the login rather than
- * replacing it -- `redirect` mode is the one that leads with a "continue"
- * action, and even it leaves the card reachable below.
+ * its source column is empty -- `hasGatingContentStep` (in
+ * `@/types/portal-runtime`, the gate `GuestSignInCard` uses to decide whether
+ * a step-1 exists) shares the exact same per-mode "is there real content"
+ * predicate, so the gate and this render can never disagree.
  */
-export function PortalContentBlock() {
-  const { config } = usePortalRuntime();
+export function PortalContentBlock({
+  onContinue,
+  surveyAnswers,
+  onSurveyAnswer,
+}: {
+  /** When provided, this is the step-1 gating render (intro content + a
+   * Continue button that calls this). When omitted, only `redirect` renders,
+   * alongside the sign-in card. */
+  onContinue?: () => void;
+  /** Survey answers, lifted to `GuestSignInCard` so they survive the step
+   * transition (the survey is non-networked -- answers live only in React
+   * state, and must not reset when the guest advances to sign-in). */
+  surveyAnswers?: Record<string, string>;
+  onSurveyAnswer?: (id: string, value: string) => void;
+} = {}) {
+  const { config, t } = usePortalRuntime();
   if (!config) return null;
 
+  // Alongside-sign-in role: only `redirect` renders here. Everything else --
+  // including the intro modes, which have already had their turn on step 1 --
+  // is `null` so the survey/image/text never re-appears above the sign-in
+  // card on step 2.
+  if (!onContinue) {
+    return config.contentMode === "redirect" && config.redirectUrl ? (
+      <RedirectContent heading={config.contentHeading} url={config.redirectUrl} />
+    ) : null;
+  }
+
+  // Step-1 gating role: the venue's intro content, then a single Continue
+  // action. The per-mode content guards mirror `hasGatingContentStep`
+  // exactly, so a mode that reports a step here always yields real content.
+  let content: React.ReactNode = null;
   switch (config.contentMode) {
     case "image":
-      return config.contentImageUrl ? (
+      content = config.contentImageUrl ? (
         <ImageContent heading={config.contentHeading} imageUrl={config.contentImageUrl} />
       ) : null;
+      break;
     case "text":
-      return config.contentBody || config.contentHeading ? (
-        <TextContent heading={config.contentHeading} body={config.contentBody} />
-      ) : null;
-    case "redirect":
-      return config.redirectUrl ? (
-        <RedirectContent heading={config.contentHeading} url={config.redirectUrl} />
-      ) : null;
+      content =
+        config.contentBody || config.contentHeading ? (
+          <TextContent heading={config.contentHeading} body={config.contentBody} />
+        ) : null;
+      break;
     case "survey":
-      return config.survey ? (
-        <SurveyContent heading={config.contentHeading} survey={config.survey} />
+      content = config.survey ? (
+        <SurveyContent
+          heading={config.contentHeading}
+          survey={config.survey}
+          answers={surveyAnswers ?? {}}
+          onAnswer={onSurveyAnswer ?? (() => {})}
+        />
       ) : null;
-    case "login":
+      break;
     default:
-      return null;
+      content = null;
   }
+
+  if (!content) return null;
+
+  return (
+    <div className="flex flex-col gap-3">
+      {content}
+      {/* The step's forward action -- advances to the sign-in card WITHOUT
+       * connecting. Deliberately "Continue", never a "submit & connect"
+       * label: the survey/intro is step 1, the actual sign-in is step 2. */}
+      <button type="button" onClick={onContinue} className={PG_PRIMARY_BTN}>
+        {t("continueCta")}
+      </button>
+    </div>
+  );
 }
 
 /** Optional heading shared by every mode -- `pg-subtitle`, script-aware
@@ -150,22 +207,22 @@ function RedirectContent({ heading, url }: { heading: string | null; url: string
   );
 }
 
-function SurveyContent({ heading, survey }: { heading: string | null; survey: PortalSurvey }) {
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [submitted, setSubmitted] = useState(false);
-
-  if (submitted) {
-    return (
-      <PortalCard className="flex flex-col items-center gap-2 text-center">
-        <CheckCircle2 className="h-8 w-8 text-[var(--pr-primary,#6366f1)]" />
-        <p className="pg-subtitle text-[var(--pg-ink)]">Thanks for your feedback!</p>
-        <p className="pg-meta text-[var(--pg-ink-muted)]">Connect below to get online.</p>
-      </PortalCard>
-    );
-  }
-
-  const setAnswer = (id: string, value: string) => setAnswers((a) => ({ ...a, [id]: value }));
-
+function SurveyContent({
+  heading,
+  survey,
+  answers,
+  onAnswer,
+}: {
+  heading: string | null;
+  survey: PortalSurvey;
+  answers: Record<string, string>;
+  onAnswer: (id: string, value: string) => void;
+}) {
+  // Purely presentational: the answer state is owned by `GuestSignInCard`
+  // (passed in as `answers`/`onAnswer`) so it survives the step-1 -> step-2
+  // transition. The survey is deliberately non-networked -- there is no
+  // submit here; the step's Continue button (rendered by `PortalContentBlock`
+  // below this card) advances to sign-in.
   return (
     <PortalCard className="space-y-4">
       <ContentHeading text={heading ?? "Before you connect"} />
@@ -187,7 +244,7 @@ function SurveyContent({ heading, survey }: { heading: string | null; survey: Po
                     key={n}
                     type="button"
                     aria-pressed={active}
-                    onClick={() => setAnswer(q.id, value)}
+                    onClick={() => onAnswer(q.id, value)}
                     className={cn(
                       "grid h-10 flex-1 place-items-center rounded-xl border pg-body font-semibold transition-colors",
                       active
@@ -209,7 +266,7 @@ function SurveyContent({ heading, survey }: { heading: string | null; survey: Po
                     key={opt}
                     type="button"
                     aria-pressed={active}
-                    onClick={() => setAnswer(q.id, opt)}
+                    onClick={() => onAnswer(q.id, opt)}
                     className={cn(
                       "rounded-full border px-3.5 py-1.5 pg-meta font-medium transition-colors",
                       active
@@ -226,16 +283,13 @@ function SurveyContent({ heading, survey }: { heading: string | null; survey: Po
             <input
               type="text"
               value={answers[q.id] ?? ""}
-              onChange={(e) => setAnswer(q.id, e.target.value)}
+              onChange={(e) => onAnswer(q.id, e.target.value)}
               placeholder="Type your answer"
               className={cn(PG_INPUT, "w-full")}
             />
           )}
         </div>
       ))}
-      <button type="button" onClick={() => setSubmitted(true)} className={PG_SECONDARY_BTN}>
-        {survey.submitLabel || "Submit feedback"}
-      </button>
     </PortalCard>
   );
 }
