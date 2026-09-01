@@ -537,3 +537,23 @@ jobs:
           ./scripts/ci-gated-test.sh \
             "api-paths" 5 "all checks passed" \
             bun run test:api-paths
+
+      # Device health & interface traffic. The customer-facing numbers here
+      # are all DIFFERENCES between two cumulative IF-MIB octet counters,
+      # so the derivation is the entire feature and it fails silently
+      # rather than loudly. The load-bearing guards: a counter reset (a
+      # device reboot) must render as a GAP, never as an abs() spike
+      # placed at exactly the moment the device was least healthy; a
+      # missing reading must never become a 0 that reads as "idle"; and
+      # the router-API rows interleaved into the same table on a different
+      # cadence must be skipped, not zeroed. Also gates the naming
+      # discipline (docs/ipdr-logs-syslog-spec.md §5 -- this is not
+      # "SNMP logs") and that no SNMP credential or config field reaches
+      # any customer-facing module.
+      #
+      # Floor 40, observed green at 40.
+      - name: device health and interface traffic
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "device-health" 40 "all checks passed" \
+            bun run test:device-health
