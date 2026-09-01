@@ -64,21 +64,38 @@ export function useGenerateProvisioningToken() {
   });
 }
 
-export function useCreateWireGuardPeer() {
+/** Allocates (or reuses) this router's WireGuard peer THROUGH THE HUB
+ * BRIDGE -- `POST /routers/{id}/wireguard-peer/allocate-external`.
+ *
+ * Replaces `useCreateWireGuardPeer`/`useRotateWireGuardPeer`, which are gone
+ * (2026-09-01). Those posted to `/routers/{id}/wireguard-peer` and
+ * `.../wireguard-peer/rotate`, the paths where the PLATFORM generates the
+ * keypair -- and the backend refuses both with `HubCannotLearnPlatformKeyError`
+ * because the hub agent has no verb to be told a public key it did not
+ * generate itself, so the tunnel would never establish. See
+ * `routerService.allocateWireGuardPeerFromHub`'s docstring.
+ *
+ * `rotate: true` asks for a NEW peer instead of reusing the existing one.
+ * Every non-reused allocation is permanent and unreclaimable on the hub
+ * (no delete verb), so the caller should treat it as destructive and
+ * confirm it. */
+export function useAllocateWireGuardPeer() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (routerId: string) => routerService.createWireGuardPeer(routerId),
-    onSuccess: (_data, routerId) =>
-      qc.invalidateQueries({ queryKey: routerKeys.wireguardPeer(routerId) }),
-  });
-}
-
-export function useRotateWireGuardPeer() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (routerId: string) => routerService.rotateWireGuardPeer(routerId),
-    onSuccess: (_data, routerId) =>
-      qc.invalidateQueries({ queryKey: routerKeys.wireguardPeer(routerId) }),
+    mutationFn: ({ routerId, rotate }: { routerId: string; rotate?: boolean }) =>
+      routerService.allocateWireGuardPeerFromHub(routerId, { rotate }),
+    // Same invalidation set RouterSetupScriptAdvanced uses after this exact
+    // call: allocate-external can move the peer's tunnel IP, and the WireGuard
+    // tab (`wireguardPeer`), the detail header and the fleet list all render
+    // from it. Skipping any of them leaves the console showing pre-allocation
+    // state indefinitely -- the confirmed 2026-08-27 "the tunnel that appears
+    // is the OLD one" report.
+    onSuccess: (_data, { routerId }) =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: routerKeys.wireguardPeer(routerId) }),
+        qc.invalidateQueries({ queryKey: routerKeys.detail(routerId) }),
+        qc.invalidateQueries({ queryKey: routerKeys.all }),
+      ]),
   });
 }
 
