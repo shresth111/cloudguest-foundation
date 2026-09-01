@@ -46,7 +46,6 @@ import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog
 import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
 import AssistantWidget from "@/components/features/AssistantWidget";
 import TicketsPage from "@/components/features/TicketsPage";
-import BrandAssetPage from "@/components/features/BrandAssetPage";
 import { HowItWorksView } from "@/components/customer/HowItWorksPage";
 import { NetworkHardwareView } from "@/components/customer/BasicFeatureViews";
 import {
@@ -267,15 +266,12 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
             {feature === "how-it-works" && <HowItWorksView />}
             {feature === "alerts" && <AlertsView />}
             {feature === "business-hours" && <OpenHoursView locationId={locationId} />}
-            {feature === "background-image" && (
-              <BrandAssetPage
-                title="Background Image"
-                description="Set a customized background image on the login screen for a complete branding experience."
-                tableTitle="Current Background Images"
-                tableSubtitle="This shows you a quick snapshot of all the Background Images setup."
-                aspect="wide"
-              />
-            )}
+            {/* "background-image" no longer renders here -- the login-screen
+                backdrop is uploaded from Portal -> Design (PortalPage.tsx),
+                beside the logo and headline it has to stay legible against.
+                Unlike "audit" above, old links don't need a fallback branch:
+                /background-image redirects to /guest-portal at beforeLoad,
+                so nothing reaches this switch with that id. */}
             {feature === "notification" && <NotificationView />}
             {feature === "isp-details" && <IspDetailsView locationId={locationId} />}
             {feature === "admin-logs" && <AdminLogsView locationId={locationId} />}

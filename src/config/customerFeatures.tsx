@@ -16,7 +16,6 @@ import UserReports from "@/components/features/UserReports";
 import NetworkActivityLog from "@/components/features/NetworkActivityLog";
 import { AgentsPage } from "@/components/features/AgentsPage";
 import TicketsPage from "@/components/features/TicketsPage";
-import BrandAssetPage from "@/components/features/BrandAssetPage";
 import {
   AlertsView,
   OpenHoursView,
@@ -97,16 +96,6 @@ export function renderFeature(
       return <AlertsView />;
     case "business-hours":
       return <OpenHoursView locationId={ctx.locationId} />;
-    case "background-image":
-      return (
-        <BrandAssetPage
-          title="Background Image"
-          description="Set a customized background image on the login screen for a complete branding experience."
-          tableTitle="Current Background Images"
-          tableSubtitle="This shows you a quick snapshot of all the Background Images setup."
-          aspect="wide"
-        />
-      );
     case "notification":
       return <NotificationView />;
     case "isp-details":

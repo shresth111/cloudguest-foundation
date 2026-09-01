@@ -16,9 +16,7 @@ import { cn } from "@/lib/utils";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { brandAssetService } from "@/services/brand-asset.service";
 import type { AppError } from "@/services/api";
-
-const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
-const ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+import { BRAND_ASSET_ACCEPT_ATTR, brandAssetRejectionReason } from "@/lib/brand-asset-limits";
 
 const DEMO_UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
 const inputCls =
@@ -247,12 +245,12 @@ function RealBrandAssetPage({
   const [dragActive, setDragActive] = useState(false);
 
   const pickFile = (f: File | null) => {
-    if (f && !ACCEPTED_TYPES.includes(f.type)) {
-      toast.error("Use a PNG, JPEG, WEBP, or GIF file.");
-      return;
-    }
-    if (f && f.size > MAX_UPLOAD_BYTES) {
-      toast.error(`That file is ${(f.size / 1024 / 1024).toFixed(1)} MB — the limit is 5 MB.`);
+    // Same two rejections as before, now shared with PortalPage.tsx's own
+    // background-image control so the two can't drift from each other or
+    // from the backend's ceilings -- see @/lib/brand-asset-limits.
+    const reason = f && brandAssetRejectionReason(f);
+    if (reason) {
+      toast.error(reason);
       return;
     }
     setFile(f);
@@ -326,7 +324,7 @@ function RealBrandAssetPage({
             <input
               ref={fileInputRef}
               type="file"
-              accept={ACCEPTED_TYPES.join(",")}
+              accept={BRAND_ASSET_ACCEPT_ATTR}
               className="hidden"
               onChange={handleFile}
             />

@@ -71,7 +71,10 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
       // facing open/closed states, see OperationsFeatures.tsx's
       // OpenHoursView and portal.closed.tsx).
       { id: "business-hours", label: "Open Hours", icon: Sun },
-      { id: "background-image", label: "Background Image", icon: Palette },
+      // "Background Image" removed -- folded into the Portal feature
+      // (Portal -> Design). See customerNav.ts's note for why. Dropping it
+      // here also drops its now-meaningless Staff Access permission toggle,
+      // which reads off this catalog.
     ],
   },
   {
