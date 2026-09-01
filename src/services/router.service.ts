@@ -427,6 +427,28 @@ export const routerService = {
     return toRouter(data, loc?.name ?? "", loc?.organizationName ?? "");
   },
 
+  /**
+   * Registration, then -- only if the operator filled in the optional
+   * "API Access" step -- the credential push.
+   *
+   * Two calls, not one, because `POST /locations/{id}/routers` no longer
+   * accepts `api_username`/`api_secret` at all. That endpoint is gated on
+   * `routers.create` at ORGANIZATION scope, which `organization-owner` (the
+   * role every provisioned venue owner holds) has in full, so a credential
+   * field on its request schema was settable by a venue owner. The backend
+   * moved both fields onto `PUT /platform/routers/{id}/management-access`,
+   * which is GLOBAL-scope-only.
+   *
+   * This wizard is only ever rendered from `/routers` and `/master/routers`,
+   * both of which already require a global-scope role assignment
+   * (`_authenticated.tsx`'s `isOperator` gate and `master.tsx`'s), so the
+   * second call is reachable by every caller that can reach the first.
+   *
+   * The credential push is deliberately NOT swallowed: if it fails, the
+   * router exists but the platform holds no credential for it, and the
+   * operator has to know that rather than find out when the control plane
+   * later cannot reach the device.
+   */
   async create(payload: CreateRouterPayload): Promise<RouterDevice> {
     const locations = await fetchAllLocations();
     const loc = locations.find((l) => l.id === payload.locationId);
@@ -440,12 +462,16 @@ export const routerService = {
         vendor: payload.vendor,
         management_ip_address: payload.managementIpAddress,
         public_ip_address: payload.publicIpAddress,
-        api_username: payload.apiUsername,
-        api_secret: payload.apiSecret,
         settings: payload.settings ?? {},
       },
       { headers: { "X-Organization-Id": loc?.organizationId } },
     );
+    if (payload.apiUsername || payload.apiSecret) {
+      await api.put(`/platform/routers/${data.id}/management-access`, {
+        ...(payload.apiUsername ? { api_username: payload.apiUsername } : {}),
+        ...(payload.apiSecret ? { api_secret: payload.apiSecret } : {}),
+      });
+    }
     return toRouter(data, loc?.name ?? "", loc?.organizationName ?? "");
   },
 

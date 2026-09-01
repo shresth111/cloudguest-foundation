@@ -77,11 +77,16 @@ export interface RouterEnrollmentListResult {
   hasPrevious: boolean;
 }
 
+/** `apiUsername`/`apiSecret` are deliberately absent: approving an
+ * enrollment no longer sets the platform's RouterOS management credential
+ * (the backend's `RouterEnrollmentApproveRequest` dropped both fields --
+ * `router_provisioning.approve` is held at ORGANIZATION scope by every
+ * provisioned venue owner). Set them afterwards with
+ * `PUT /platform/routers/{routerId}/management-access`, using the
+ * `routerId` the approve call returns. */
 export interface ApproveEnrollmentPayload {
   locationId: string;
   name: string;
   managementIpAddress?: string;
   publicIpAddress?: string;
-  apiUsername?: string;
-  apiSecret?: string;
 }
