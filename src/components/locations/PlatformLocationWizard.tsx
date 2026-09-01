@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
+  AlertTriangle,
   Building2,
   Check,
   ChevronLeft,
@@ -208,6 +209,15 @@ export function PlatformLocationWizard({
   const [state, setState] = useState<WizardState>(DEFAULT_STATE);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [result, setResult] = useState<ProvisionLocationResult | null>(null);
+  // A PERSISTENT failure, not just the toast. The backend's provisioning
+  // failures carry the one fact the operator has to act on -- whether the
+  // customer they just tried to create now exists -- and a sonner toast
+  // that disappears after a few seconds is not where that belongs. See
+  // `RouterTunnelProvisioningFailedError` on the backend: a hub-bridge
+  // failure rolls the whole customer back, and an operator who missed the
+  // toast would otherwise be left staring at an unchanged Review step with
+  // no idea whether to retry or go hunting for a half-built account.
+  const [failure, setFailure] = useState<string | null>(null);
   const provision = useProvisionLocation();
 
   // Re-seed on every open (not just mount) -- the dialog instance is reused
@@ -256,6 +266,7 @@ export function PlatformLocationWizard({
     setState(DEFAULT_STATE);
     setErrors({});
     setResult(null);
+    setFailure(null);
   }
 
   function set<K extends keyof WizardState>(k: K, v: WizardState[K]) {
@@ -338,13 +349,16 @@ export function PlatformLocationWizard({
           limitValue: v.limitValue,
         })),
     };
+    setFailure(null);
     try {
       const r = await provision.mutateAsync(payload);
       setResult(r);
       toast.success(`${r.locationName} provisioned`);
       onProvisioned?.(r.locationId);
     } catch (err) {
-      toast.error((err as unknown as AppError).message || "Provisioning failed");
+      const message = (err as unknown as AppError).message || "Provisioning failed";
+      toast.error(message);
+      setFailure(message);
     }
   }
 
@@ -441,6 +455,7 @@ export function PlatformLocationWizard({
                     plans={planOptions}
                     result={result}
                     provisioning={provision.isPending}
+                    failure={failure}
                   />
                 )}
               </div>
@@ -1041,12 +1056,14 @@ function ReviewStep({
   plans,
   result,
   provisioning,
+  failure,
 }: {
   state: WizardState;
   orgs: Array<{ id: string; name: string }>;
   plans: BackendPlan[];
   result: ProvisionLocationResult | null;
   provisioning: boolean;
+  failure: string | null;
 }) {
   const orgLabel =
     state.org.mode === "existing"
@@ -1130,6 +1147,21 @@ function ReviewStep({
         />
       </div>
       {provisioning && <p className="mt-4 text-sm text-muted-foreground">Provisioning…</p>}
+      {failure && !provisioning && (
+        <div
+          role="alert"
+          className="mt-4 flex gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-destructive">Provisioning failed</p>
+            {/* The backend message verbatim -- it is the only thing that says
+                whether anything was saved, and paraphrasing it here would
+                mean maintaining that answer in two places. */}
+            <p className="text-sm text-muted-foreground">{failure}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
