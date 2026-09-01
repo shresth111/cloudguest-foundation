@@ -286,6 +286,12 @@ function PortalPreviewPage() {
           splashHeadline: null,
           splashWelcomeMessage: null,
           redirectUrl: null,
+          // "branding-only" -- no captive_portal_configs row, so no venue
+          // has authored a post-login page. Note this preview renders the
+          // SIGN-IN screen only; it has no post-login step to show one on
+          // even when a real config carries one. See PortalPage.tsx's
+          // post-login editor, which previews it inline instead.
+          postLoginHtml: null,
           // "branding-only" -- no captive_portal_configs row, so no content
           // mode is configured; "login" is the sign-in-only default.
           contentMode: "login",

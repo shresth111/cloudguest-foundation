@@ -95,6 +95,17 @@ export interface PortalLoginSettings {
   idleTimeoutMinutes: number;
   deviceLimit: number;
   redirectUrl: string;
+  /** Venue-authored HTML for the post-login page (`post_login_html`), or ""
+   * for none -- the editing-shape counterpart of
+   * `RuntimePortalConfig.postLoginHtml`. Empty string rather than `null`,
+   * matching every other free-text field in this group, so a controlled
+   * `<textarea>` binds to it directly; `portal.service.ts` maps ""/whitespace
+   * back to a real SQL `NULL` on write.
+   *
+   * Sits on `login` next to `redirectUrl` because these two are the same
+   * decision -- what happens after a successful sign-in -- and a venue can
+   * set either, both, or neither. */
+  postLoginHtml: string;
   successPage: string;
   failurePage: string;
   autoLogin: boolean;

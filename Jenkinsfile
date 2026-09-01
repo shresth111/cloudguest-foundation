@@ -137,6 +137,16 @@ pipeline {
             "manual-wizard-engine" 100 \
             "manual-wizard-engine: all checks passed" \
             bun run test:manual-wizard
+
+          ./scripts/ci-gated-test.sh \
+            "post-login-html-roundtrip" 21 \
+            "All post-login HTML round-trip checks passed." \
+            bun run test:post-login-roundtrip
+
+          ./scripts/ci-gated-test.sh \
+            "post-login-html-sandbox" 9 \
+            "All post-login HTML sandbox checks passed." \
+            bun run test:post-login-sandbox
         '''
       }
     }
