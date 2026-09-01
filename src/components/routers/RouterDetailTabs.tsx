@@ -5907,8 +5907,21 @@ export function buildRouterSetupScriptChunks(opts: {
       // deliberately NOT writing `name=` on an existing server: renaming an
       // object an operator named themselves buys nothing and `name` is not
       // load-bearing here.
-      `:if ([:len [/ip hotspot find where interface="${lanBridge}"]] = 0) do={ /ip hotspot add name="hotspot1" interface="${lanBridge}" address-pool="hotspot-pool" profile="hsprof1" disabled=no comment="cloudguest-hotspot" }`,
-      `:if ([:len [/ip hotspot find where interface="${lanBridge}"]] > 0) do={ /ip hotspot set [find where interface="${lanBridge}"] address-pool="hotspot-pool" profile="hsprof1" disabled=no comment="cloudguest-hotspot" }`,
+      // NO `comment=` on either of these. The `/ip hotspot` SERVER menu has
+      // no comment property -- RouterOS rejects the whole statement with
+      // `bad parameter comment` and, because this ships as an /import file,
+      // the error ABORTS the rest of the script. Confirmed live on a hEX
+      // running RouterOS 7.23.3 on 2026-09-01: the import died here at line
+      // 75 col 183, so hotspot, RADIUS, WireGuard and heartbeat never ran and
+      // the router looked half-provisioned for reasons nothing explained.
+      //
+      // Nothing is lost by dropping it: both statements key off
+      // `interface=`, not the comment, and no other chunk looks for
+      // "cloudguest-hotspot". Other menus here DO take comments
+      // (walled-garden, firewall filter, dhcp-client, radius, ip-binding) --
+      // this is a per-menu quirk, not a rule about /import.
+      `:if ([:len [/ip hotspot find where interface="${lanBridge}"]] = 0) do={ /ip hotspot add name="hotspot1" interface="${lanBridge}" address-pool="hotspot-pool" profile="hsprof1" disabled=no }`,
+      `:if ([:len [/ip hotspot find where interface="${lanBridge}"]] > 0) do={ /ip hotspot set [find where interface="${lanBridge}"] address-pool="hotspot-pool" profile="hsprof1" disabled=no }`,
       // `hotspot-address` on an ALREADY-EXISTING profile. The `add` above only
       // sets it on a brand-new one, so a router whose LAN IP has since changed
       // kept redirecting guests at an address that is no longer on the device.
