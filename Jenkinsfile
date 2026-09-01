@@ -147,6 +147,10 @@ pipeline {
             "post-login-html-sandbox" 9 \
             "All post-login HTML sandbox checks passed." \
             bun run test:post-login-sandbox
+
+          ./scripts/ci-gated-test.sh \
+            "location-liveness" 105 "all checks passed" \
+            bun run test:location-liveness
         '''
       }
     }

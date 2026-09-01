@@ -30,6 +30,9 @@ name: CI
 #                             frontend path was missing the backend
 #                             router's /network-config prefix, and the
 #                             docs recorded it without the prefix too
+#   test:location-liveness    105 checks (in package.json since it was
+#                         written, gated nowhere until 2026-09-02 -- the
+#                         same "nothing runs it" state as the two below)
 #   test:discovery-preflight  19 checks (in package.json since 2026-08-22
 #                         but gated nowhere until 2026-08-23 -- it has been
 #                         passing this whole time and proving nothing,
@@ -557,3 +560,23 @@ jobs:
           ./scripts/ci-gated-test.sh \
             "device-health" 40 "all checks passed" \
             bun run test:device-health
+
+      # In package.json since it was written, gated nowhere until now: it
+      # has been passing this whole time and proving nothing, the exact
+      # state this file's header already records for test:portal-cna (which
+      # rotted on origin/main) and test:discovery-preflight. Found while
+      # auditing the router endpoints for the credential-scope fix.
+      #
+      # What it actually protects: liveness is DERIVED from `last_seen_at`
+      # against the clock, not stored, so it silently drifts rather than
+      # breaking loudly -- an "unknown" router must not be painted as
+      # offline, and the master console's summary counts have to move as
+      # time passes. Both are the kind of wrong that looks perfectly
+      # plausible on screen.
+      #
+      # Floor 105, observed green at 105.
+      - name: location liveness
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "location-liveness" 105 "all checks passed" \
+            bun run test:location-liveness
