@@ -47,10 +47,17 @@ function isSafeRedirectTarget(candidate: string): boolean {
  * THE VENUE'S OWN POST-LOGIN PAGE (`config.postLoginHtml`) renders here too,
  * and the two are independent inputs, not alternatives:
  *
- *   html + url   -> the venue's page AND the existing countdown / "Continue
- *                   now" affordance, unchanged. The auto-redirect still
- *                   fires; a venue that wants its page READ rather than
- *                   glimpsed should clear the Redirect URL.
+ *   html + url   -> the venue's page, and a "Continue now" button. NO
+ *                   countdown and NO auto-redirect: a venue authors a page
+ *                   to be READ, and a five-second timer that yanks it away
+ *                   makes authoring one pointless. The redirect target is
+ *                   still honoured -- it just becomes the guest's decision
+ *                   instead of a timer's. The countdown plate itself is
+ *                   dropped in this case rather than reworded, because all
+ *                   three of its strings ("Redirecting you shortly…",
+ *                   "You'll be sent to {host} shortly.", "Continuing in
+ *                   {n}s") assert an automatic navigation that no longer
+ *                   happens, and they exist in ten languages.
  *   html, no url -> the venue's page, and the guest STAYS here. No countdown,
  *                   no navigation sink at all.
  *   no html, url -> byte-identical to before this feature existed.
@@ -73,6 +80,10 @@ function RedirectPage() {
   // `undefined` -> `null` -> no page, i.e. the pre-feature behaviour.
   const rawPostLoginHtml = config?.postLoginHtml ?? null;
   const postLoginHtml = hasPostLoginHtml(rawPostLoginHtml) ? rawPostLoginHtml : null;
+  // The timer runs only when there is nothing of the venue's own to read.
+  // With a post-login page present the redirect target is still honoured,
+  // but as a button the guest presses -- see this component's own doc block.
+  const autoRedirect = Boolean(url) && !postLoginHtml;
 
   useEffect(() => {
     // `&& !postLoginHtml` is the whole change to this effect: with a
@@ -85,16 +96,16 @@ function RedirectPage() {
   }, [url, postLoginHtml, navigate]);
 
   useEffect(() => {
-    if (!url || remaining <= 0) return;
+    if (!autoRedirect || remaining <= 0) return;
     const id = setInterval(() => setRemaining((r) => r - 1), 1000);
     return () => clearInterval(id);
-  }, [url, remaining]);
+  }, [autoRedirect, remaining]);
 
   useEffect(() => {
-    if (url && remaining <= 0) {
+    if (autoRedirect && remaining <= 0 && url) {
       window.location.href = url;
     }
-  }, [url, remaining]);
+  }, [autoRedirect, url, remaining]);
 
   if (!url && !postLoginHtml) return null;
 
@@ -112,16 +123,19 @@ function RedirectPage() {
            * So: viewport-relative, with a floor for short landscape phones,
            * and the content scrolls inside. When there is also a countdown
            * block underneath, the frame gives up roughly a third of its
-           * height to it rather than pushing it off screen -- on a 667px
-           * iPhone SE viewport 44vh leaves the plate and the "Continue now"
-           * button fully visible without scrolling the page itself. */
+           * height to it rather than pushing it off screen. What sits below
+           * is now only the "Continue now" button, not the whole countdown
+           * plate (that plate cannot render whenever this frame does -- see
+           * `autoRedirect`), so the frame reclaims most of the height the
+           * plate used to need: on a 667px iPhone SE viewport 58vh leaves
+           * the button fully visible without scrolling the page itself. */
           <PostLoginHtmlFrame
             html={postLoginHtml}
             title={t("postLoginPageLabel")}
-            className={url ? "h-[44vh] min-h-[200px]" : "h-[68vh] min-h-[320px]"}
+            className={url ? "h-[58vh] min-h-[260px]" : "h-[68vh] min-h-[320px]"}
           />
         )}
-        {url && <RedirectAffordance url={url} remaining={remaining} />}
+        {url && <RedirectAffordance url={url} remaining={autoRedirect ? remaining : null} />}
       </div>
     </PortalShell>
   );
@@ -133,8 +147,29 @@ function RedirectPage() {
  * verbatim so that path is unchanged when there is no venue HTML, and so it
  * can simply be omitted when there is HTML but no redirect target.
  */
-function RedirectAffordance({ url, remaining }: { url: string; remaining: number }) {
+function RedirectAffordance({ url, remaining }: { url: string; remaining: number | null }) {
   const { t } = usePortalRuntime();
+
+  // `remaining === null` means no timer is running (the venue has its own
+  // post-login page). Everything above the button -- the icon, the
+  // "Redirecting you shortly…" heading, the "You'll be sent to {host}"
+  // notice, the countdown line -- describes an automatic navigation, so it
+  // is dropped rather than reworded: the page the guest is looking at is
+  // the venue's, and the only honest thing left to offer is the way out.
+  // The destination stays discoverable through the anchor's `title`.
+  if (remaining === null) {
+    return (
+      <a
+        href={url}
+        title={url}
+        target="_blank"
+        rel="noreferrer"
+        className={`${PG_PRIMARY_BTN} flex items-center justify-center`}
+      >
+        {t("continueNowLabel")}
+      </a>
+    );
+  }
 
   // The guest-decision-relevant part of the destination is its host; the
   // full URL (often a wall of %2F-encoded router state) moves to the

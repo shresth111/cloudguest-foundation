@@ -1105,8 +1105,9 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                 {form.redirectUrl.trim() ? (
                   <>
                     Because a <span className="font-medium">Redirect URL</span> is also set, guests
-                    see this page <span className="font-medium">and</span> the countdown that sends
-                    them on to it.
+                    see this page with a <span className="font-medium">Continue</span> button to it.
+                    They are not sent on automatically, so the page stays up until they choose to
+                    leave.
                   </>
                 ) : (
                   <>
