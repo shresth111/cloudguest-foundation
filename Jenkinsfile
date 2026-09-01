@@ -139,7 +139,7 @@ pipeline {
             bun run test:manual-wizard
 
           ./scripts/ci-gated-test.sh \
-            "post-login-html-roundtrip" 13 \
+            "post-login-html-roundtrip" 21 \
             "All post-login HTML round-trip checks passed." \
             bun run test:post-login-roundtrip
 

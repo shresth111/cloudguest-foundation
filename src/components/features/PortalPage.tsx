@@ -42,6 +42,7 @@ import {
   POST_LOGIN_HTML_MAX_BYTES,
   hasPostLoginHtml,
   postLoginHtmlByteLength,
+  postLoginHtmlLimitErrorMessage,
   postLoginHtmlOverLimit,
 } from "@/lib/post-login-html";
 import { PostLoginHtmlFrame } from "@/components/portal-runtime/PostLoginHtmlFrame";
@@ -737,26 +738,60 @@ export function PortalPage({ locationId }: { locationId?: string }) {
         languages: resolveLanguageSelection(langList[0], langList)
           .supportedLanguages as PortalLanguage[],
       };
+      let saved;
       if (portalId) {
-        await portalService.update(portalId, patch, orgId);
+        saved = await portalService.update(portalId, patch, orgId);
       } else {
-        const created = await portalService.create({
+        saved = await portalService.create({
           name: "Guest Portal",
           organizationId: orgId,
           locationId: locationId ?? "",
           ...patch,
         });
-        setPortalId(created.id);
+        setPortalId(saved.id);
       }
       setSavedSplash({ headline, msg });
       toast.success("Portal configuration saved");
+
+      // Repaint the post-login editor from the STORED, SANITIZED value the
+      // save returned. The backend sanitizes on write and echoes back what it
+      // actually kept, so this is the one moment a venue can be shown what
+      // was stripped -- leaving the textarea holding markup that is not in
+      // the database would be a quiet lie, and the venue would only discover
+      // it on the next reload with no explanation attached.
+      //
+      // `sent` is what update()/create() actually put on the wire (trimmed),
+      // so trailing whitespace alone never reads as "the sanitizer changed
+      // something".
+      const sent = postLoginHtml.trim();
+      const stored = saved.login.postLoginHtml;
+      if (sent && !stored) {
+        // Ambiguous, and the two readings call for opposite actions: either
+        // the sanitizer rejected the whole document (a paste that was
+        // nothing but a <script>, say), or this backend has no
+        // `post_login_html` column yet and every response omits it. Blanking
+        // the editor would destroy the venue's work in the second case, so
+        // this branch never writes -- it only warns.
+        toast.warning(
+          "The post-login page came back empty from the server. Nothing of it was stored — check that the markup is more than just scripts, and try again.",
+        );
+      } else if (stored !== postLoginHtml) {
+        setPostLoginHtml(stored);
+        setPreviewHtml(stored);
+        if (stored !== sent) {
+          toast.info(
+            "Some markup was removed or rewritten for safety. The editor now shows exactly what was saved.",
+          );
+        }
+      }
     } catch (err) {
       // The disabled Save above makes the over-limit 400 unreachable from
       // THIS tab, but an older tab (predating the limits) can still race a
       // save through -- surface the backend's own max_length/actual_length
       // envelope instead of a generic failure toast.
       toast.error(
-        splashLimitErrorMessage(err) ??
+        postLoginHtmlLimitErrorMessage(err) ??
+          splashLimitErrorMessage(err) ??
           (axios.isAxiosError(err)
             ? toAppError(err).message
             : "Could not save — check the connection and try again."),
@@ -1091,7 +1126,9 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                 guests&apos; safety this page is displayed in a sandbox, so{" "}
                 <code>&lt;script&gt;</code> tags, analytics snippets, chat widgets and inline{" "}
                 <code>onclick</code> handlers are ignored. HTML, CSS, images and links all work —
-                links open in a new tab.
+                links open in a new tab. Saving also runs the page through a safety filter, so the
+                editor may come back slightly changed from what you pasted; that version is what
+                guests get.
               </p>
               {hasPostLoginHtml(previewHtml) && (
                 <div className="space-y-1.5">

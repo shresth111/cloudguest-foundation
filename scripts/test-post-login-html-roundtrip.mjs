@@ -93,7 +93,25 @@ globalThis.__BACKEND = {
   /** Drop post_login_html from the stored row AND refuse to store it --
    * simulates the pre-migration backend the frontend must tolerate. */
   columnMissing: false,
+  /** Mirror the real backend's write-time sanitizer closely enough to test
+   * the contract that matters to the client: it STORES A DIFFERENT STRING
+   * than the one sent, and every response (including this save's own echo)
+   * returns the stored one. Drops <script> blocks, and forces
+   * rel/target onto anchors -- which is also why it can GROW the value. */
+  sanitize: false,
 };
+
+function sanitizeHtml(value) {
+  if (typeof value !== "string") return value;
+  // Built with new RegExp and no backslash escapes on purpose: this whole
+  // stub lives inside a JS template literal, where a bare \\b or \\s is
+  // consumed as a string escape before esbuild ever sees the regex.
+  const scriptRe = new RegExp("<script[^>]*>[^]*?</script>", "gi");
+  const anchorRe = new RegExp("<a +href=", "gi");
+  return value
+    .replace(scriptRe, "")
+    .replace(anchorRe, '<a rel="noopener noreferrer" target="_blank" href=');
+}
 
 function respond(url) {
   if (url.startsWith("/captive-portal-configs/")) return { data: { ...visibleRow() } };
@@ -123,7 +141,8 @@ export const api = {
     // Merge only what was actually SENT -- the whole point of the test.
     for (const [k, v] of Object.entries(body ?? {})) {
       if (globalThis.__BACKEND.columnMissing && k === "post_login_html") continue;
-      globalThis.__BACKEND.row[k] = v;
+      globalThis.__BACKEND.row[k] =
+        k === "post_login_html" && globalThis.__BACKEND.sanitize ? sanitizeHtml(v) : v;
     }
     return { data: { ...visibleRow() } };
   },
@@ -172,6 +191,18 @@ await build({
   ],
   logLevel: "silent",
 });
+
+async function buildOne(entry, outfile) {
+  await build({
+    entryPoints: [entry],
+    outfile,
+    bundle: true,
+    format: "esm",
+    platform: "neutral",
+    logLevel: "silent",
+  });
+  return outfile;
+}
 
 function guessExt(p) {
   // Every `@/...` import portal.service.ts pulls in is a .ts module.
@@ -303,6 +334,76 @@ check(
   "and the rest of the row is unaffected by the gap",
   preMigration.login.redirectUrl === "https://example.com/welcome",
   JSON.stringify(preMigration.login.redirectUrl),
+);
+
+// --- 8. The sanitized echo: the save's OWN response carries the stored,
+//        sanitized value, and that is what the editor repaints from. If this
+//        ever stopped holding, PortalPage's repaint would silently show the
+//        venue markup that is not in the database.
+B.columnMissing = false;
+B.sanitize = true;
+const DIRTY = '<a href="/menu">Menu</a><script>steal()</script>';
+const echoed = await portalService.update("cfg-1", { login: { postLoginHtml: DIRTY } }, "org-1");
+check(
+  "the save response returns the SANITIZED value, not what was sent",
+  echoed.login.postLoginHtml !== DIRTY && echoed.login.postLoginHtml.length > 0,
+  JSON.stringify(echoed.login.postLoginHtml),
+);
+check(
+  "the sanitized echo dropped the script",
+  !echoed.login.postLoginHtml.includes("<script"),
+  JSON.stringify(echoed.login.postLoginHtml),
+);
+check(
+  'the sanitized echo forced target="_blank" on the anchor (why allow-popups is required)',
+  echoed.login.postLoginHtml.includes('target="_blank"'),
+  JSON.stringify(echoed.login.postLoginHtml),
+);
+check(
+  "a later get() agrees with the echo (no drift between the two reads)",
+  (await portalService.get("cfg-1", "org-1")).login.postLoginHtml === echoed.login.postLoginHtml,
+  "echo and reload disagreed",
+);
+B.sanitize = false;
+
+// --- 9. The limits module: bytes, the exact cap, and the 400 envelope ----
+const limits = await import(
+  pathToFileURL(await buildOne(join(ROOT, "src/lib/post-login-html.ts"), join(work, "limits.mjs")))
+    .href
+);
+check(
+  "the cap is exactly the backend's 65536",
+  limits.POST_LOGIN_HTML_MAX_BYTES === 65536,
+  String(limits.POST_LOGIN_HTML_MAX_BYTES),
+);
+check(
+  "the counter counts UTF-8 BYTES, not characters",
+  limits.postLoginHtmlByteLength("नमस्ते") === 18 &&
+    limits.postLoginHtmlByteLength("\u{1F600}") === 4,
+  `got ${limits.postLoginHtmlByteLength("नमस्ते")} and ${limits.postLoginHtmlByteLength("\u{1F600}")}`,
+);
+check(
+  "the 400 envelope {field, max_bytes, actual_bytes} is recognized",
+  /70,000/.test(
+    limits.postLoginHtmlLimitErrorMessage({
+      status: 400,
+      data: { field: "post_login_html", max_bytes: 65536, actual_bytes: 70000 },
+    }) ?? "",
+  ),
+  JSON.stringify(
+    limits.postLoginHtmlLimitErrorMessage({
+      status: 400,
+      data: { field: "post_login_html", max_bytes: 65536, actual_bytes: 70000 },
+    }),
+  ),
+);
+check(
+  "and the splash envelope is left alone (the two helpers do not collide)",
+  limits.postLoginHtmlLimitErrorMessage({
+    status: 400,
+    data: { field: "splash_headline", max_length: 26, actual_length: 40 },
+  }) === null,
+  "post-login helper claimed a splash error",
 );
 
 if (failures.length) {

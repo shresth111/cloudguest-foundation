@@ -52,6 +52,36 @@ export function postLoginHtmlByteLength(value: string): number {
   return value.length;
 }
 
+/**
+ * Recognizes the backend's over-size 400 and turns it into a specific,
+ * actionable message. Returns `null` for anything else so callers fall
+ * through to their normal error path.
+ *
+ * Envelope is `data: { field, max_bytes, actual_bytes }` -- deliberately
+ * BYTES, mirroring but not identical to `SplashTextTooLongError`'s
+ * `{ field, max_length, actual_length }`. `splashLimitErrorMessage` reads the
+ * `_length` keys and returns `null` for this one, so the two helpers do not
+ * collide and both have to be tried.
+ *
+ * The client-side gate in the editor should make this unreachable, but two
+ * real paths still get here: an older tab that predates the counter, and --
+ * more interestingly -- a page that is under the cap as typed but over it
+ * once STORED. The sanitizer forces `rel="noopener noreferrer"` and
+ * `target="_blank"` onto every anchor it keeps, which ADDS roughly 40 bytes
+ * per link, so a link-heavy page sitting just under 65536 can be rejected on
+ * a measurement the client cannot reproduce. Surfacing the server's own
+ * numbers is the only honest answer there.
+ */
+export function postLoginHtmlLimitErrorMessage(err: unknown): string | null {
+  if (!err || typeof err !== "object") return null;
+  const { status, data } = err as { status?: unknown; data?: unknown };
+  if (status !== 400 || !data || typeof data !== "object") return null;
+  const { field, max_bytes, actual_bytes } = data as Record<string, unknown>;
+  if (field !== "post_login_html") return null;
+  if (typeof max_bytes !== "number" || typeof actual_bytes !== "number") return null;
+  return `The post-login page is ${actual_bytes.toLocaleString()} bytes once saved — the limit is ${max_bytes.toLocaleString()}. Shorten it and save again.`;
+}
+
 /** True when this value would be REJECTED by the backend's 64 KiB cap.
  *
  * No grandfathering clause (contrast `splashOverLimitBlocked`): the cap is
@@ -98,7 +128,21 @@ export function hasPostLoginHtml(value: string | null | undefined): value is str
  *   `allow-popups`          -- a link in the venue's HTML is the whole point
  *                              of the feature (menu, booking page, wifi
  *                              terms). Without this token a `target="_blank"`
- *                              link is silently blocked.
+ *                              link is silently blocked -- and note this is
+ *                              not a hypothetical shape: the server-side
+ *                              sanitizer FORCES `target="_blank"` (plus
+ *                              `rel="noopener noreferrer"`) onto every
+ *                              anchor it keeps, and does not allowlist
+ *                              `target` itself, so `_top` is unexpressible.
+ *                              Every stored link is therefore a `_blank`
+ *                              link, and without this token EVERY link in
+ *                              every venue page would be inert. Granting it
+ *                              is a deliberate choice, not an omission; the
+ *                              alternative considered and rejected was
+ *                              shipping dead links and documenting them.
+ *                              `allow-top-navigation` is NOT the answer and
+ *                              is never granted: it would let a venue's page
+ *                              move the guest off the portal entirely.
  *   `allow-popups-to-escape-sandbox`
  *                           -- the tab that link opens is a normal tab, not
  *                              a second sandboxed opaque-origin document.
@@ -120,11 +164,19 @@ export const POST_LOGIN_HTML_SANDBOX = "allow-popups allow-popups-to-escape-sand
  *
  *   - `<base target="_blank">`. A link with no `target` inside the frame
  *      navigates THE FRAME, which on a captive portal is a dead end: the
- *      venue's site would load inside a 60vh box, inside iOS's Captive
+ *      venue's site would load inside a 44vh box, inside iOS's Captive
  *      Network Assistant websheet, with no back affordance and no address
  *      bar. Defaulting to a new tab is the only outcome that behaves. A
  *      venue that writes an explicit `target` on a link still wins, since a
  *      link's own attribute overrides `<base>`.
+ *
+ *      This is REDUNDANT on the guest path -- the sanitizer already stamps
+ *      `target="_blank"` on every stored anchor -- and load-bearing on the
+ *      authoring path, which is why it stays. The editor previews the
+ *      venue's RAW paste, before the server has ever seen it, so without
+ *      this a bare `<a href>` would navigate the frame in the preview and
+ *      open a tab for the guest. The preview would be lying about the one
+ *      behaviour venues are most likely to test.
  *   - A minimal readable default style. `srcdoc` starts from the UA
  *      stylesheet on a transparent canvas; without this a venue's plain
  *      `<p>` renders at the UA default with an 8px body margin and no
