@@ -5,11 +5,14 @@ import { resolveOrgId } from "@/services/ticket.service";
  * Real client for the backend's org-scoped `GET/PUT /branding` +
  * `POST/DELETE /branding/background-image` +
  * `GET /branding/background-image/raw` endpoints
- * (backend/app/domains/branding). Backs the customer dashboard's
- * "Background Image" page (src/components/features/BrandAssetPage.tsx) --
- * previously that page only ever called `URL.createObjectURL` on the
- * chosen file and never talked to the backend, so nothing persisted past
- * a refresh.
+ * (backend/app/domains/branding). Backs the login-screen logo and
+ * background-image controls on the customer dashboard's Portal page
+ * (src/components/features/PortalPage.tsx) and the Portal Preview route.
+ *
+ * These used to live on a standalone "Background Image" page
+ * (`BrandAssetPage.tsx`), removed once the controls moved into Portal ->
+ * Design -- if you are following an old comment or commit that points at
+ * that file, this module is where its backend contract went.
  *
  * `background_image_url` from the backend is a same-API proxy *path*
  * (`/branding/background-image/raw`), not a directly-linkable image URL --
@@ -19,8 +22,13 @@ import { resolveOrgId } from "@/services/ticket.service";
  * that path needs, so this fetches the bytes itself (same auth as every
  * other branding call) and hands back a local blob URL to render instead.
  *
- * One background image per organization (no per-location concept exists
- * in the `brandings` table -- see BrandAssetPage.tsx's own note on this).
+ * **One background image (and one logo) per organization.** There is no
+ * per-location concept on the backend at all: `brandings` is one row per
+ * organization, because the login screen doesn't know which location a
+ * guest belongs to until *after* they've connected. Every location in an
+ * organization therefore shares the same backdrop, and any UI offering a
+ * per-location picker would be lying. This is the note several other
+ * files still defer to.
  */
 
 interface BackendBranding {
@@ -56,7 +64,7 @@ export interface OrgBranding {
   // which falls back to these organization-level branding fields when a
   // location has no captive_portal_configs row of its own -- the backend
   // response already carries them, `toOrgBranding` just wasn't mapping
-  // them yet since BrandAssetPage.tsx (the only other caller) never
+  // them yet since the background-image UI (the only other caller) never
   // needed them.
   //
   // Either the authenticated `GET /branding/logo/raw` proxy path (an
@@ -91,7 +99,7 @@ function toOrgBranding(b: BackendBranding): OrgBranding {
 /**
  * `organizationId` is optional and defaults to the caller's own org
  * (`resolveOrgId()`, i.e. "/me/organizations") -- the shape every existing
- * call site (BrandAssetPage.tsx) relies on. Passing it explicitly lets a
+ * call site (PortalPage.tsx) relies on. Passing it explicitly lets a
  * caller resolve a *different* organization's branding -- e.g. the Portal
  * Preview page, reached both by an org owner (whose own org is implicit
  * anyway) and by a Master-console operator previewing an arbitrary
@@ -118,7 +126,7 @@ export const brandAssetService = {
 
   /** Fetches the actual background image bytes and returns a local blob
    * URL ready to use as an `<img src>` -- caller owns the URL's lifetime
-   * and must `URL.revokeObjectURL` it when done (see BrandAssetPage.tsx's
+   * and must `URL.revokeObjectURL` it when done (see PortalPage.tsx's
    * cleanup effect). Returns `null` on any failure (e.g. no image set)
    * rather than throwing -- this backs a passive preview render, not a
    * user-initiated action that needs its own error toast. */

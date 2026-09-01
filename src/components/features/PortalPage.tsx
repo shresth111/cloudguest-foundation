@@ -211,13 +211,13 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   // the org's default (or newest) only when this location truly has none.
   // The logo itself now lives on the real, object-storage-backed
   // org-level branding (app.domains.branding, POST/GET/DELETE
-  // /branding/logo -- same MinIO/S3-compatible storage
-  // BrandAssetPage.tsx's Background Image already uses), not
+  // /branding/logo -- the same MinIO/S3-compatible storage the
+  // background image below uses), not
   // captive_portal_configs.logo_url -- a plain text column with no
   // upload endpoint at all. Shared org-wide, same reasoning as
-  // Background Image: "the login screen doesn't know which location a
+  // background image: "the login screen doesn't know which location a
   // guest belongs to until after they've connected" (see
-  // BrandAssetPage.tsx's own note).
+  // brand-asset.service.ts's own note).
   const loadLogo = async (org: string) => {
     const branding = await brandAssetService.getBranding(org);
     if (!branding?.logoUrl) {
@@ -236,7 +236,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   };
 
   // The org's login-screen background, loaded the same authenticated-blob
-  // way BrandAssetPage/usePortalPreview already do (an <img>/CSS bg can't
+  // way usePortalPreview already does (an <img>/CSS bg can't
   // attach the headers /branding/background-image/raw needs). Feeds the Live
   // Preview so an operator sees the real backdrop a guest gets, not a blank.
   const loadBackground = async (org: string) => {
@@ -315,7 +315,8 @@ export function PortalPage({ locationId }: { locationId?: string }) {
 
   // Blob URLs are never revoked by the browser on their own -- revoke the
   // previous one whenever a new one replaces it (including on unmount).
-  // Mirrors BrandAssetPage.tsx's identical cleanup effect.
+  // Same contract fetchLogoBlobUrl/fetchBackgroundImageBlobUrl document:
+  // the caller owns the blob URL's lifetime.
   useEffect(() => {
     return () => {
       if (logoIsUploaded && logo) URL.revokeObjectURL(logo);
@@ -485,8 +486,8 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   // blob: URL that `saveConfig` never even included in its patch, so
   // nothing was ever persisted and the logo silently reverted on every
   // reload. Bug report: "portal logo default nhi hai" (no default after
-  // refresh). Uploads immediately (like BrandAssetPage.tsx's Background
-  // Image), not deferred to "Save Configuration" below.
+  // refresh). Uploads immediately, like the background image below, not
+  // deferred to "Save Configuration".
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -560,12 +561,12 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   // where an operator is already choosing the headline, brand colour and
   // logo, and it is the only surface with the Live Preview that shows
   // what the backdrop actually does to that text. Same org-scoped
-  // endpoints BrandAssetPage.tsx uses (POST/DELETE
-  // /branding/background-image, app.domains.branding's MinIO/S3-compatible
-  // storage), so the two surfaces edit one and the same image: there is
-  // exactly one background per organization, not one per location -- the
-  // login screen doesn't know which location a guest belongs to until
-  // after they've connected (BrandAssetPage.tsx's own note).
+  // endpoints the retired standalone "Background Image" page used
+  // (POST/DELETE /branding/background-image, app.domains.branding's
+  // MinIO/S3-compatible storage): there is exactly one background per
+  // organization, not one per location -- the login screen doesn't know
+  // which location a guest belongs to until after they've connected (see
+  // brand-asset.service.ts's own note).
   //
   // Uploads immediately on pick, like the logo above -- it is not part of
   // the "Save Configuration" patch, because the bytes live on the branding

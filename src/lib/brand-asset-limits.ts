@@ -11,10 +11,10 @@
  * ends in a 413 into an instant, readable message. The backend still
  * rejects anything that gets past this.
  *
- * Lives in `lib/` rather than in either component because two separate
- * surfaces now upload the same assets against the same limits: the
- * standalone Background Image page (`BrandAssetPage.tsx`) and the Portal
- * page's own Design tab (`PortalPage.tsx`).
+ * Lives in `lib/` rather than inline because both org-level asset
+ * uploads -- the logo and the login-screen background, on the Portal
+ * page's Design tab (`PortalPage.tsx`) -- share one set of limits, and
+ * any future upload surface should share it too rather than restate it.
  */
 
 export const BRAND_ASSET_MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
