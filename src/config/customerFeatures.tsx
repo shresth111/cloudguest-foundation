@@ -38,6 +38,7 @@ import {
   BasicAuditView,
   NetworkHardwareView,
 } from "@/components/customer/BasicFeatureViews";
+import { DeviceHealthTrafficView } from "@/components/customer/DeviceHealthTrafficView";
 
 export {
   FEATURE_GROUPS,
@@ -67,6 +68,10 @@ export function renderFeature(
       return (
         <div className="space-y-4">
           <NetworkHardwareView locationId={ctx.locationId} />
+          {/* Same surface as the owner's /devices page. This path passes
+              no locationId, and the view renders its own honest "pick a
+              venue" state rather than an empty chart. */}
+          <DeviceHealthTrafficView locationId={ctx.locationId} />
           <BasicDevicesView />
         </div>
       );

@@ -48,6 +48,7 @@ import AssistantWidget from "@/components/features/AssistantWidget";
 import TicketsPage from "@/components/features/TicketsPage";
 import { HowItWorksView } from "@/components/customer/HowItWorksPage";
 import { NetworkHardwareView } from "@/components/customer/BasicFeatureViews";
+import { DeviceHealthTrafficView } from "@/components/customer/DeviceHealthTrafficView";
 import {
   maskEmail,
   maskMac,
@@ -251,6 +252,9 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
             {feature === "devices" && (
               <div className="space-y-4">
                 <NetworkHardwareView locationId={locationId} />
+                {/* The venue's own network hardware and how it has been
+                    performing, above the guest devices connected to it. */}
+                <DeviceHealthTrafficView locationId={locationId} />
                 <DevicesView locationId={locationId} masked={masked} />
               </div>
             )}
