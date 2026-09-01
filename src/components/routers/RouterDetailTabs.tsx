@@ -60,10 +60,9 @@ import { PEER_STATUS_LABEL } from "@/types/router";
 import { deriveLanAddressing } from "@/lib/lan-addressing";
 import { RouterStatusBadge, HealthStatusBadge } from "./RouterStatusBadge";
 import {
-  useCreateWireGuardPeer,
+  useAllocateWireGuardPeer,
   useGenerateProvisioningToken,
   useRevokeWireGuardPeer,
-  useRotateWireGuardPeer,
   useWireGuardPeer,
 } from "@/hooks/useRouters";
 import { useAuditList } from "@/hooks/useAudit";
@@ -100,7 +99,7 @@ import {
 } from "@/hooks/useRouterProvisioning";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import type { AppError } from "@/services/api";
-import type { WireGuardTunnelSecrets } from "@/types/router";
+import type { WireGuardTunnelAllocation } from "@/types/router";
 
 interface Props {
   router: RouterDevice;
@@ -7264,12 +7263,70 @@ export function buildRouterSetupScriptChunks(opts: {
   return chunks;
 }
 
+/** Turns a failed hub allocation into something an operator can act on.
+ *
+ * "Failed to create tunnel" was the entire previous error surface, and it
+ * was worse than useless here: the two failures that actually happen --
+ * the hub bridge being unreachable, and the backend refusing a
+ * platform-generated keypair -- have completely different responses, and
+ * the backend already spells each of them out. THE BACKEND'S OWN MESSAGE IS
+ * ALWAYS PREFERRED. This only frames it, and only invents text when there
+ * genuinely is none.
+ *
+ * Note on where these messages come from: `HubBridgeUnavailableError`
+ * subclasses `CloudGuestError`, not `WireGuardError`, so it flows through
+ * the shared `cloudguest_error_handler` and its `message` reaches
+ * `AppError.message` intact -- but code catching `WireGuardError` will not
+ * see it. That is a real, separate backend trap; see the note on
+ * `hub_reconciliation/tasks.py`. */
+function describeHubAllocationFailure(err: unknown, action: string): string {
+  const e = err as AppError | undefined;
+  const detail = e?.message?.trim();
+
+  // No response at all -- the browser never got one. Nothing was allocated,
+  // so this is safe to retry, and saying so matters: the operator's instinct
+  // on a failed allocate is to click again, and on THIS endpoint clicking
+  // again is normally the expensive thing to do.
+  if (e?.status === null || e?.code === "network_error") {
+    return `Couldn't ${action}: this console could not reach the platform at all, so nothing was allocated. Retry is safe.`;
+  }
+  // The backend's own 502 for the hub bridge -- `allocate_external_wireguard_peer`
+  // raises it both when httpx cannot connect AND when the bridge answers a
+  // real >=400, and in the latter case `detail` is the bridge's own words,
+  // the only description of the failure that exists anywhere (the agent's
+  // `log_message` is a deliberate no-op, so nothing reaches the hub's
+  // journal either).
+  if (e?.status === 502 || e?.status === 503 || e?.status === 504) {
+    return (
+      detail ||
+      "The WireGuard hub bridge could not be reached and gave no reason. The tunnel was not allocated."
+    );
+  }
+  // 409 here is almost certainly `HubCannotLearnPlatformKeyError`, i.e. a
+  // caller that reached a platform-generates-the-keypair endpoint. This tab
+  // no longer has a path there, so if it appears, something else does.
+  if (e?.status === 409 && detail) {
+    return `${detail} (This console should no longer be able to reach that path -- please report it.)`;
+  }
+  if (e?.status === 403) {
+    return (
+      detail ||
+      "Your account does not hold the platform-wide `wireguard.create` permission this action needs."
+    );
+  }
+  return detail || `Couldn't ${action}, and the platform gave no reason.`;
+}
+
 function WireGuardTab({ routerId }: { routerId: string }) {
   const { data: rawPeer, isLoading, isError, refetch } = useWireGuardPeer(routerId);
-  const create = useCreateWireGuardPeer();
-  const rotate = useRotateWireGuardPeer();
+  // ONE mutation for both buttons, because there is now only one endpoint.
+  // See `useAllocateWireGuardPeer` and `routerService.allocateWireGuardPeerFromHub`:
+  // `POST /routers/{id}/wireguard-peer/allocate-external` is the only path
+  // that produces a keypair BOTH SIDES know, because the hub mints it.
+  const allocate = useAllocateWireGuardPeer();
   const revoke = useRevokeWireGuardPeer();
-  const [secrets, setSecrets] = useState<WireGuardTunnelSecrets | null>(null);
+  const [allocation, setAllocation] = useState<WireGuardTunnelAllocation | null>(null);
+  const [confirmReallocate, setConfirmReallocate] = useState(false);
 
   // A revoked peer row is never deleted server-side (its tunnel IP is just
   // freed for reuse) -- GET keeps returning it with status "revoked" rather
@@ -7277,28 +7334,39 @@ function WireGuardTab({ routerId }: { routerId: string }) {
   // key/rotation data with live Rotate/Revoke actions.
   const peer = rawPeer && rawPeer.status !== "revoked" ? rawPeer : null;
 
-  async function handleCreate() {
+  /** `rotate=false` (the Create button) asks the backend to hand back this
+   * router's existing peer if it has a usable one, and only allocate when it
+   * genuinely has none. `rotate=true` (Re-allocate) asks for a new one --
+   * but the backend still refuses to allocate over a device the hub reports
+   * handshaking right now, and adopts that live identity instead, returning
+   * `reused: true`. Both outcomes are success; which one happened is what
+   * the toast has to say honestly, because they mean different things for
+   * the setup script the operator is about to paste. */
+  async function handleAllocate(rotate: boolean) {
+    const action = rotate ? "re-allocate the tunnel" : "create the tunnel";
     try {
-      const s = await create.mutateAsync(routerId);
-      setSecrets(s);
-      toast.success("Tunnel created");
+      const result = await allocate.mutateAsync({ routerId, rotate });
+      setAllocation(result);
+      if (result.reused) {
+        toast.info(
+          rotate
+            ? `No new peer was allocated. The hub reports this router already connected on ${result.tunnelIpAddress}, so the platform adopted that identity instead -- a device cannot be made to change the key it already imported by anything done server-side. If it has genuinely been reflashed, wait for its handshake to go stale (5 minutes) and try again.`
+            : `This router already had a usable tunnel on ${result.tunnelIpAddress} -- it was returned as-is and no new peer was allocated on the hub.`,
+        );
+      } else {
+        toast.success(
+          `New tunnel allocated on the hub: ${result.tunnelIpAddress}. This peer is permanent -- the hub agent has no removal verb.`,
+        );
+      }
     } catch (err) {
-      toast.error((err as unknown as AppError).message || "Failed to create tunnel");
+      toast.error(describeHubAllocationFailure(err, action));
     }
   }
-  async function handleRotate() {
-    try {
-      const s = await rotate.mutateAsync(routerId);
-      setSecrets(s);
-      toast.success("Tunnel rotated");
-    } catch (err) {
-      toast.error((err as unknown as AppError).message || "Failed to rotate tunnel");
-    }
-  }
+
   async function handleRevoke() {
     try {
       await revoke.mutateAsync(routerId);
-      setSecrets(null);
+      setAllocation(null);
       toast.success("Tunnel revoked");
     } catch (err) {
       toast.error((err as unknown as AppError).message || "Failed to revoke tunnel");
@@ -7310,23 +7378,51 @@ function WireGuardTab({ routerId }: { routerId: string }) {
 
   return (
     <div className="space-y-4">
-      {secrets && (
+      {allocation && (
         <Card className="rounded-2xl border-primary/40 bg-primary/5">
           <CardHeader>
-            <CardTitle className="text-base">New tunnel keys — shown once</CardTitle>
+            <CardTitle className="text-base">
+              {allocation.reused
+                ? "Existing tunnel reused — no new peer allocated"
+                : "New tunnel keys — shown once"}
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <KeyRow label="Peer private key" value={secrets.peerPrivateKey} />
-            <KeyRow label="Hub public key" value={secrets.hubPublicKey} />
+            {/* NULL on every reuse/adoption. The private key of a
+                hub-allocated peer is generated ON THE HUB and never held by
+                this platform (it is stored as the documented
+                EXTERNALLY_MANAGED_KEY_SENTINEL), so there is nothing to show
+                -- and nothing that needs showing, because the device already
+                holds the matching key. Rendering a placeholder here, or a
+                `private-key=` line in a script built from it, would overwrite
+                a working interface with a key the hub has never heard of. */}
+            {allocation.peerPrivateKey ? (
+              <KeyRow label="Peer private key" value={allocation.peerPrivateKey} />
+            ) : (
+              <p className="rounded-lg bg-background/70 px-3 py-2 text-xs text-muted-foreground">
+                No private key — and none is needed. This peer's keypair was generated on the hub
+                and has never been held by this platform; the device already has the matching key.
+                Do not write a <code>private-key=</code> line for this interface.
+              </p>
+            )}
+            <KeyRow label="Peer public key" value={allocation.publicKey} />
+            <KeyRow label="Hub public key" value={allocation.hubPublicKey} />
             <KeyRow
               label="Hub endpoint"
-              value={`${secrets.hubEndpointHost}:${secrets.hubEndpointPort}`}
+              value={`${allocation.hubEndpointHost}:${allocation.hubEndpointPort}`}
             />
-            <KeyRow label="Tunnel network" value={secrets.tunnelNetworkCidr} />
-            <KeyRow label="Tunnel IP" value={secrets.tunnelIpAddress} />
+            <KeyRow label="Tunnel network" value={allocation.tunnelNetworkCidr} />
+            <KeyRow label="Tunnel IP (this router)" value={allocation.tunnelIpAddress} />
+            {/* The hub's address INSIDE the tunnel, not its public one. This
+                is what a `/radius add address=` line must point at: at least
+                one real site's ISP silently drops outbound RADIUS UDP
+                (1812/1813) to the hub's public IP but never touches
+                WireGuard's own port. */}
+            <KeyRow label="Hub tunnel IP (for RADIUS)" value={allocation.hubTunnelIpAddress} />
             <p className="text-xs text-muted-foreground">
-              Configure the device's local WireGuard interface with these values now — they will not
-              be shown again.
+              {allocation.peerPrivateKey
+                ? "Configure the device's local WireGuard interface with these values now — the private key will not be shown again."
+                : "These are the values this router's interface should already match. Nothing here is newly secret."}
             </p>
           </CardContent>
         </Card>
@@ -7337,19 +7433,27 @@ function WireGuardTab({ routerId }: { routerId: string }) {
           <div>
             <CardTitle className="text-base">Management tunnel</CardTitle>
             <p className="text-sm text-muted-foreground">
-              One WireGuard peer per router, connecting it to the CloudGuest control plane.
+              One WireGuard peer per router, connecting it to the Wyfy Guest control plane. The
+              keypair is minted on the hub, never here — that is the only way both ends can know it.
             </p>
           </div>
           {peer ? (
             <div className="flex gap-2">
+              {/* "Re-allocate", not "Rotate", and it asks first. Rotation is
+                  still meaningful under hub allocation -- a reflashed device
+                  has genuinely lost its key and needs a new peer -- but it is
+                  not the cheap, reversible operation the old label implied.
+                  `ops/hub-agents/wg_agent.py` has no delete and no update
+                  verb, so a peer this replaces stays on the hub forever,
+                  holding its tunnel address out of the /24. */}
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleRotate}
-                disabled={rotate.isPending}
+                onClick={() => setConfirmReallocate(true)}
+                disabled={allocate.isPending}
               >
                 <RotateCw className="h-4 w-4" />
-                <span className="ml-2">Rotate</span>
+                <span className="ml-2">Re-allocate</span>
               </Button>
               <Button
                 variant="destructive"
@@ -7362,7 +7466,7 @@ function WireGuardTab({ routerId }: { routerId: string }) {
               </Button>
             </div>
           ) : (
-            <Button size="sm" onClick={handleCreate} disabled={create.isPending}>
+            <Button size="sm" onClick={() => handleAllocate(false)} disabled={allocate.isPending}>
               Create tunnel
             </Button>
           )}
@@ -7391,6 +7495,21 @@ function WireGuardTab({ routerId }: { routerId: string }) {
       </Card>
 
       {peer && <RemoteAccessCard routerId={routerId} />}
+
+      <ConfirmDialog
+        open={confirmReallocate}
+        onOpenChange={setConfirmReallocate}
+        title="Allocate a new peer for this router?"
+        description={
+          "This asks the hub to mint a brand new keypair and tunnel IP. The peer it replaces cannot be removed -- the hub agent has no delete verb -- so the old one stays on the hub forever, holding its address out of the tunnel subnet. The device will also stop reaching RADIUS until it is reconfigured with the new values, because its FreeRADIUS client stanza is keyed on the tunnel IP. If the hub reports this router handshaking right now, the platform will refuse and adopt the live identity instead."
+        }
+        confirmLabel="Allocate new peer"
+        destructive
+        onConfirm={() => {
+          setConfirmReallocate(false);
+          void handleAllocate(true);
+        }}
+      />
     </div>
   );
 }
