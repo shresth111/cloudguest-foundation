@@ -1,5 +1,7 @@
 import { Link } from "@tanstack/react-router";
+import type { ReactNode } from "react";
 import { ChevronDown, Ticket } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import type { UseGuestSignInReturn } from "./useGuestSignIn";
@@ -118,6 +120,63 @@ export function AuthTabSwitcher(sign: UseGuestSignInReturn) {
  * both belong *below* the active form, not above it like tiers 1-2, so
  * this is a separate component `GuestSignInCard` renders at the end of
  * its card rather than a second concern folded into `AuthTabSwitcher`. */
+/**
+ * The one voucher affordance, in the one place that has to decide whether
+ * it is a real navigation or not.
+ *
+ * Voucher redemption is the only sign-in method that does NOT live in
+ * `useGuestSignIn` -- it is a whole separate ROUTE (`/portal/auth/voucher`,
+ * rendering `AuthMethodForms`' own `VoucherForm`), reached by a real
+ * router `<Link>`. That link therefore bypasses every `previewMode`/
+ * `demoMode` guard `useGuestSignIn` owns: following it out of the operator
+ * Portal Preview (or the guest walkthrough) lands on the LIVE guest portal
+ * for that venue's real organization/location, where `loginWithVoucher`
+ * would create a real `GuestSession` against them. A preview that can be
+ * clicked into a real login two taps from the sign-in card is not a
+ * preview, so on a simulated surface this renders as an inert control with
+ * an honest note instead of a link.
+ *
+ * Real guests are entirely unaffected -- neither flag is ever set for them.
+ */
+function VoucherAffordance({
+  sign,
+  label,
+  className,
+  children,
+}: {
+  sign: UseGuestSignInReturn;
+  /** Accessible label used for the inert control's toast. */
+  label: string;
+  className: string;
+  children: ReactNode;
+}) {
+  const { previewMode, demoMode } = usePortalRuntime();
+  if (previewMode || demoMode) {
+    return (
+      <button
+        type="button"
+        aria-label={label}
+        onClick={() =>
+          toast.info("Voucher sign-in opens the live guest portal, so it is left out of previews.")
+        }
+        className={className}
+      >
+        {children}
+      </button>
+    );
+  }
+  return (
+    <Link
+      to="/portal/auth/$method"
+      params={{ method: "voucher" }}
+      search={sign.portalSearch}
+      className={className}
+    >
+      {children}
+    </Link>
+  );
+}
+
 export function AuthMoreOptions(sign: UseGuestSignInReturn) {
   const { t } = usePortalRuntime();
   return (
@@ -125,14 +184,13 @@ export function AuthMoreOptions(sign: UseGuestSignInReturn) {
       {!sign.hasOtp && !sign.hasPassword && sign.hasVoucher && (
         <p className="py-2 text-center text-xs text-[var(--pg-ink-muted)]">
           {t("voucherFallbackPrefix")}{" "}
-          <Link
-            to="/portal/auth/$method"
-            params={{ method: "voucher" }}
-            search={sign.portalSearch}
+          <VoucherAffordance
+            sign={sign}
+            label={t("redeemVoucherLink")}
             className="font-medium text-[var(--pr-primary,#6366f1)] hover:underline"
           >
             {t("redeemVoucherLink")}
-          </Link>
+          </VoucherAffordance>
           .
         </p>
       )}
@@ -170,14 +228,13 @@ export function AuthMoreOptions(sign: UseGuestSignInReturn) {
               </button>
             ))}
             {sign.showVoucherFallback && (
-              <Link
-                to="/portal/auth/$method"
-                params={{ method: "voucher" }}
-                search={sign.portalSearch}
+              <VoucherAffordance
+                sign={sign}
+                label={t("haveVoucherUseInstead")}
                 className="inline-flex min-h-6 items-center gap-1.5 px-2 py-1 pg-meta text-[var(--pg-ink-muted)] hover:text-[var(--pr-primary,#6366f1)] hover:underline"
               >
                 <Ticket className="h-3.5 w-3.5" /> {t("haveVoucherUseInstead")}
-              </Link>
+              </VoucherAffordance>
             )}
           </div>
         </details>

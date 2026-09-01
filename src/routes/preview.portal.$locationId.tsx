@@ -12,6 +12,10 @@ import {
   CheckCircle2,
   Loader2,
   MonitorSmartphone,
+  PlayCircle,
+  RotateCcw,
+  Sparkles,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,6 +27,7 @@ import { customerFeatureHref } from "@/lib/customerNav";
 import { PortalRuntimeProvider } from "@/context/PortalRuntimeContext";
 import { PortalShell } from "@/components/portal-runtime/PortalShell";
 import { GuestSignInCard } from "@/components/portal-runtime/GuestSignInCard";
+import { DemoPortalFlow } from "@/components/portal-runtime/DemoPortalFlow";
 import {
   CampaignOverlay,
   campaignHasRenderableContent,
@@ -43,7 +48,37 @@ import type { RuntimePortalConfig } from "@/types/portal-runtime";
  * summary cards (login-method badges, an industry-reference writeup,
  * branding/legal fields), which was more "admin dashboard panel" than
  * "preview": (see git history if that data is wanted again elsewhere,
- * e.g. on the real Portal Configuration page instead of here).
+ * e.g. on the real Portal Configuration page instead of here). That decision
+ * still stands: the walkthrough below is strictly OPT-IN, and the whole of
+ * what it adds to this page's chrome is one header button (two while it is
+ * running) plus a "this is a demonstration" strip on the bezel. The landing
+ * state is the same minimal preview it has always been -- no second column
+ * came back.
+ *
+ * THE GUEST WALKTHROUGH (`?walkthrough=true`, or the "Run guest walkthrough"
+ * button). The static preview stops at the sign-in screen, which is only the
+ * first of four things a venue actually bought: it never shows the campaign
+ * they built, or the post-login page they authored, actually firing. For a
+ * sales/onboarding demo ("this is what your guests experience, and this is
+ * what turns on once they are in") that is half the story. Turning the
+ * walkthrough on swaps this provider from `previewMode` to `demoMode` and
+ * hands the screen to `DemoPortalFlow` -- THE one simulated-journey engine,
+ * shared with `/preview/portal/demo`, not a second copy -- which runs
+ * sign-in (incl. the content/intro step) -> dummy OTP -> connected ->
+ * campaign -> the venue's post-login page, all from THIS location's own
+ * resolved config and its own real active campaign.
+ *
+ * NOTHING IT DOES REACHES A BACKEND. `demoMode` short-circuits every login
+ * call in `useGuestSignIn` before the network (no `requestOtp`, so no SMS/
+ * email is sent; no `loginWithOtp`/`loginWithPassword`, so no `GuestSession`
+ * row; no `recordConsent`); the fake session never navigates to
+ * `/portal/success`, which is the only place the NAS hotspot POST is fired;
+ * and `CampaignOverlay` suppresses its impression and survey-response writes
+ * under `demoMode` exactly as it already did under `previewMode` (see its own
+ * `isSimulated`), so running this demo five times for five prospects cannot
+ * move a single number on the venue's Campaigns page. The only side effect
+ * anywhere is this browser tab's own `sessionStorage`, which `DemoPortalFlow`
+ * clears on both mount and unmount.
  *
  * Deliberately a TOP-LEVEL route, not nested under `_authenticated` --
  * that layout wraps every child in the full customer/master dashboard
@@ -70,7 +105,19 @@ import type { RuntimePortalConfig } from "@/types/portal-runtime";
  * operator previewing an arbitrary customer's location has none.
  */
 
-const searchSchema = z.object({ organizationId: z.string().min(1) });
+const searchSchema = z.object({
+  organizationId: z.string().min(1),
+  /** Opt-in guest walkthrough (see this module's own docstring). A search
+   * param rather than plain component state purely so an operator can
+   * bookmark/share the walkthrough itself for a demo -- absent is the
+   * default, i.e. the plain static preview stays the landing state for
+   * every existing link (`PortalPage.tsx`'s "Preview Portal" button and the
+   * Master console's Locations directory both still open it unchanged).
+   * `.catch(undefined)` because this is the one param a human might hand-
+   * edit: a `?walkthrough=yes` must degrade to the static preview, never
+   * throw this whole route's search validation and blank the page. */
+  walkthrough: z.boolean().optional().catch(undefined),
+});
 
 export const Route = createFileRoute("/preview/portal/$locationId")({
   ssr: false,
@@ -209,7 +256,23 @@ function PreviewBroadcastIllustration() {
 
 function PortalPreviewPage() {
   const { locationId } = Route.useParams();
-  const { organizationId } = Route.useSearch();
+  const { organizationId, walkthrough: walkthroughParam } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const walkthrough = walkthroughParam === true;
+  // Bumped by "Restart" -- keyed into the PortalRuntimeProvider below so a
+  // restart genuinely rebuilds the whole runtime (language, selected method,
+  // OTP phase, the fake session) rather than only resetting whichever pieces
+  // this file happens to remember to clear.
+  const [runId, setRunId] = useState(0);
+  const setWalkthrough = (on: boolean) => {
+    setRunId((n) => n + 1);
+    // `replace` so toggling the demo on and off a few times in front of a
+    // prospect does not bury the page they came from under history entries.
+    navigate({
+      search: (prev) => ({ ...prev, walkthrough: on ? true : undefined }),
+      replace: true,
+    });
+  };
   // "Back to Portal Settings" used to hardcode `to="/locations"` -- a route
   // that isn't either caller's actual settings page (it's
   // `_authenticated/locations.index.tsx`, an unrelated org-wide "Location
@@ -235,7 +298,15 @@ function PortalPreviewPage() {
   });
 
   // Campaigns are the single source of what a guest sees beyond the sign-in
-  // card, so the preview leads with this location's currently-active campaign
+  // card. One query, two consumers: the WALKTHROUGH hands this resolved
+  // campaign to `DemoPortalFlow`, which shows it where a real guest actually
+  // meets it -- AFTER sign-in, the way `portal.session.tsx` does. The STATIC
+  // preview's own ordering below is deliberately left exactly as it was
+  // (campaign first, then the sign-in card): it is a content preview of
+  // "what else is configured", never a claim about sequence, and the
+  // walkthrough is now the surface that answers the sequence question.
+  //
+  // So: the static preview leads with this location's currently-active campaign
   // (a Survey & Feedback campaign as the two-step feedback -> continue ->
   // sign-in flow, a Banner & Discounts campaign as its coupon/banner) exactly
   // as `CampaignOverlay` renders it for a real guest, then falls through to
@@ -287,10 +358,11 @@ function PortalPreviewPage() {
           splashWelcomeMessage: null,
           redirectUrl: null,
           // "branding-only" -- no captive_portal_configs row, so no venue
-          // has authored a post-login page. Note this preview renders the
-          // SIGN-IN screen only; it has no post-login step to show one on
-          // even when a real config carries one. See PortalPage.tsx's
-          // post-login editor, which previews it inline instead.
+          // has authored a post-login page. A location that DOES have a real
+          // config keeps whatever it stored, and the walkthrough's step 4
+          // renders it in the real `PostLoginHtmlFrame` (see
+          // `DemoPortalFlow`); PortalPage.tsx's post-login editor previews
+          // the same HTML inline while it is being written.
           postLoginHtml: null,
           // "branding-only" -- no captive_portal_configs row, so no content
           // mode is configured; "login" is the sign-in-only default.
@@ -417,8 +489,44 @@ function PortalPreviewPage() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <PreviewBroadcastIllustration />
+              {/* The whole opt-in. Two buttons while a walkthrough is
+                  running (restart it for the next prospect / drop back to the
+                  plain preview), one when it is not -- deliberately the only
+                  thing this feature adds to the page's chrome, see the
+                  module docstring on why this route stays minimal. */}
+              {walkthrough ? (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setRunId((n) => n + 1)}
+                    className="gap-1.5 border-white/20 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    Restart walkthrough
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setWalkthrough(false)}
+                    className="gap-1.5 text-white/80 hover:bg-white/10 hover:text-white"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Exit
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  size="sm"
+                  onClick={() => setWalkthrough(true)}
+                  className="gap-1.5 bg-white text-[#312e81] hover:bg-white/90"
+                >
+                  <PlayCircle className="h-3.5 w-3.5" />
+                  Run guest walkthrough
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -476,6 +584,19 @@ function PortalPreviewPage() {
               literal illustration competing with the real portal content
               inside. */}
           <div className="rounded-t-2xl border-8 border-b-0 border-[#1e1b4b] bg-[#1e1b4b] p-2 shadow-2xl">
+            {/* "It should be obvious on screen that this is a demonstration
+                rather than a live guest session." Deliberately INSIDE the
+                bezel, above the screen, rather than overlaid on the portal
+                content: it stays visible in every step (including the
+                campaign overlay and the venue's own post-login page, which
+                each take the whole screen area) without covering any of the
+                thing the operator is trying to show. */}
+            {walkthrough && (
+              <div className="mb-2 flex items-center justify-center gap-1.5 rounded-md bg-amber-400/15 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-200">
+                <Sparkles className="h-3 w-3 shrink-0" />
+                Demonstration &middot; not a live guest session
+              </div>
+            )}
             {/* A minimum height, not a fixed/capped one -- a strict 16:10
                 ratio (and later a fixed 600px) at this width could still
                 come out shorter than some guest-flow states need (the
@@ -499,14 +620,43 @@ function PortalPreviewPage() {
                 </div>
               ) : (
                 <PortalRuntimeProvider
+                  // A restart (and each toggle of the walkthrough) rebuilds
+                  // the entire runtime rather than trying to reset it in
+                  // place -- the state that has to go back to zero is spread
+                  // across this provider AND `useGuestSignIn`'s own local
+                  // phase/field state, and only a remount reliably clears
+                  // both. The static preview's key never changes, so its
+                  // behaviour is untouched.
+                  key={walkthrough ? `walkthrough-${runId}` : "static"}
                   organizationId={organizationId}
                   locationId={locationId}
                   routerId="preview"
-                  previewMode
+                  // Exactly one of these is ever set (they are documented as
+                  // never being set together). `previewMode` = the static
+                  // preview: every sign-in action short-circuits with a
+                  // "connect a real device" toast. `demoMode` = the
+                  // walkthrough: the same actions run a believable DUMMY
+                  // client-side flow instead, with no network behind any of
+                  // them. Either way no real login endpoint is ever called.
+                  previewMode={!walkthrough}
+                  demoMode={walkthrough}
                   presetConfig={mergedConfig}
                   presetConfigLoading={false}
                 >
-                  {showCampaign ? (
+                  {walkthrough ? (
+                    // The shared simulated-journey engine, fed THIS venue's
+                    // own real material: its resolved config (already in the
+                    // provider above, so branding/login methods/content step
+                    // all come from it), its own currently-active campaign,
+                    // and its own post-login page and redirect target.
+                    // `DemoPortalFlow` owns the `PortalShell` for its steps.
+                    <DemoPortalFlow
+                      constrained
+                      campaign={activeCampaign}
+                      postLoginHtml={mergedConfig?.postLoginHtml ?? null}
+                      redirectUrl={mergedConfig?.redirectUrl ?? null}
+                    />
+                  ) : showCampaign ? (
                     // `CampaignOverlay` brings its own `PortalShell` (passed
                     // `constrained` so its backdrop stays inside this bezel
                     // rather than escaping to the viewport); on done it hands
@@ -531,8 +681,9 @@ function PortalPreviewPage() {
         </div>
 
         <p className="mt-6 text-center text-xs text-muted-foreground">
-          A live look at your real guest sign-in screen -- what's shown here is the exact same
-          experience a guest's own device renders.
+          {walkthrough
+            ? "A walkthrough of the whole guest journey, driven by this location's own configuration. Nothing here is real: no code is sent, no session is created, and nothing is recorded against this venue."
+            : "A live look at your real guest sign-in screen -- what's shown here is the exact same experience a guest's own device renders."}
         </p>
       </div>
     </div>

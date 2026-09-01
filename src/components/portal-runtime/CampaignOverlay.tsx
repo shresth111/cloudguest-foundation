@@ -158,9 +158,25 @@ interface Props {
  * this never delays the real hotspot-login POST underneath it.
  */
 export function CampaignOverlay({ campaign, sessionId, onDone, constrained = false }: Props) {
-  const { t, previewMode } = usePortalRuntime();
+  const { t, previewMode, demoMode } = usePortalRuntime();
   const [answers, setAnswers] = useState<Record<string, CampaignAnswerValue>>({});
   const finished = useRef(false);
+
+  /**
+   * True on every simulated surface -- the static operator Portal Preview
+   * (`previewMode`) AND the guest walkthrough / demo portal (`demoMode`,
+   * see `DemoPortalFlow`). BOTH must be checked, not just `previewMode`.
+   *
+   * `sessionId` on either surface is the literal string "preview"/
+   * "demo-session", never a real `GuestSession.id`, and both writes below
+   * go to the UNAUTHENTICATED `/portal/campaigns/*` endpoints -- so an
+   * impression or a survey response fired from here would either be
+   * rejected on an id that does not exist or, worse, land as a real row
+   * against this venue's own campaign and skew the impression/response
+   * counts its Campaigns page reports. A walkthrough an operator runs
+   * three times for three prospects must not read as three guests.
+   */
+  const isSimulated = previewMode || demoMode;
 
   const finish = (outcome: { wasSkipped: boolean; wasClicked: boolean }) => {
     if (finished.current) return;
@@ -168,10 +184,10 @@ export function CampaignOverlay({ campaign, sessionId, onDone, constrained = fal
     // Best-effort telemetry -- a failed impression/response write should
     // never trap a guest on this screen (they already got real value, or
     // explicitly chose to skip; see this file's own module docstring). The
-    // operator Portal Preview has no real guest session behind it, so it
-    // never records an impression -- it is a content preview, not a real
-    // guest whose engagement should count.
-    if (!previewMode) {
+    // operator Portal Preview / walkthrough has no real guest session
+    // behind it, so it never records an impression -- it is a content
+    // preview, not a real guest whose engagement should count.
+    if (!isSimulated) {
       campaignPortalService
         .recordImpression(campaign.campaignId, { guestSessionId: sessionId, ...outcome })
         .catch(() => undefined);
@@ -181,7 +197,7 @@ export function CampaignOverlay({ campaign, sessionId, onDone, constrained = fal
 
   const submitSurvey = useMutation({
     mutationFn: () =>
-      previewMode
+      isSimulated
         ? Promise.resolve()
         : campaignPortalService.submitResponse(campaign.campaignId, {
             guestSessionId: sessionId,

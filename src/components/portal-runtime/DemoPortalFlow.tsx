@@ -1,33 +1,89 @@
-import { useEffect, useRef } from "react";
-import { Laptop, RotateCcw, Sparkles } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ExternalLink, Laptop, RotateCcw, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { PortalCard, PortalTextPlate } from "@/components/portal-runtime/PortalShell";
-import { PG_SECONDARY_BTN } from "@/components/portal-runtime/PortalGuestUi";
+import { PortalShell, PortalCard, PortalTextPlate } from "@/components/portal-runtime/PortalShell";
+import { PG_PRIMARY_BTN, PG_SECONDARY_BTN } from "@/components/portal-runtime/PortalGuestUi";
 import { GuestSignInCard } from "@/components/portal-runtime/GuestSignInCard";
+import {
+  CampaignOverlay,
+  campaignHasRenderableContent,
+} from "@/components/portal-runtime/CampaignOverlay";
+import { PostLoginHtmlFrame } from "@/components/portal-runtime/PostLoginHtmlFrame";
+import { hasPostLoginHtml } from "@/lib/post-login-html";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
+import type { NextCampaign } from "@/types/campaign";
 
 /**
- * The DEMO portal's flow container (src/routes/preview.portal.demo.tsx, gated
- * on `PortalRuntimeState.demoMode`).
+ * THE ONE walkthrough engine for every simulated guest journey in this app,
+ * gated on `PortalRuntimeState.demoMode`. Two surfaces render it, and there
+ * is deliberately no second copy of this state machine anywhere:
  *
- * It reads the runtime's `session` and swaps between the two demo screens,
- * keeping everything inside the demo route's OWN provider -- it never touches
- * a real `/portal/*` route:
- *   - No fake session yet -> render the real `GuestSignInCard`, which already
- *     owns the survey/image/text two-step (PR #154) and, in `demoMode`, runs
- *     the DUMMY OTP/password flow (see `useGuestSignIn`). So a demo config in
- *     survey mode still shows step 1 (survey + Continue) -> step 2 (sign-in)
- *     -> dummy OTP, exactly like a real guest, before landing here.
- *   - Fake session set (any 6-digit code / any password accepted) -> the
- *     self-contained `DemoConnectedCard` below. No navigation, no queries, no
- *     NAS POST.
+ *   - `/preview/portal/demo` (src/routes/preview.portal.demo.tsx) -- the
+ *     prospect-facing demo, fed a localStorage snapshot of an unsaved config.
+ *     Passes no campaign/post-login props: a demo session has no real
+ *     campaigns or post-login page to light up.
+ *   - `/preview/portal/$locationId` (src/routes/preview.portal.$locationId.tsx)
+ *     -- a REAL customer's own preview, when the operator opts into "Run guest
+ *     walkthrough". Passes that location's real active campaign and its real
+ *     `config.postLoginHtml`/`redirectUrl`, so the walkthrough shows what
+ *     *this venue's* guests get, not a generic demo seed.
+ *
+ * It reads the runtime's `session` and steps through the same arc a real
+ * guest takes, keeping everything inside the caller's OWN provider -- it
+ * never touches a real `/portal/*` route and never writes a row anywhere:
+ *
+ *   1. SIGN IN -- the real `GuestSignInCard`, which already owns the
+ *      content/intro two-step (`contentMode` image/text/redirect ->
+ *      Continue -> sign-in) and, in `demoMode`, runs the DUMMY OTP/password
+ *      flow (see `useGuestSignIn`): no `requestOtp`, no `loginWithOtp`, no
+ *      `recordConsent`, no navigation.
+ *   2. CAMPAIGN -- the real `CampaignOverlay`, if the caller handed one over.
+ *      Placed AFTER sign-in, not before it, because that is where a real
+ *      guest meets it (`portal.session.tsx` resolves it post-login from a
+ *      real session id). `CampaignOverlay` suppresses its impression and
+ *      survey-response writes under `demoMode` -- see its `isSimulated`.
+ *   3. CONNECTED -- the self-contained `DemoConnectedCard` below, from the
+ *      fake in-memory session. No query, no NAS POST, no navigation.
+ *   4. POST-LOGIN -- the venue's own `postLoginHtml` in the real
+ *      `PostLoginHtmlFrame`, plus its `redirectUrl` as an explicit link.
+ *      Deliberately NOT `/portal/redirect` itself: that route auto-navigates
+ *      `window.location.href` to the venue's URL on a five-second timer,
+ *      which would yank the operator's dashboard tab away mid-demo. The
+ *      frame and the affordance are the real components; only the timer is
+ *      dropped.
+ *
+ * Every step is restartable from the connected/post-login card ("Start
+ * over"), and each carries an on-screen note that this is a demonstration.
  */
-export function DemoPortalFlow() {
+export function DemoPortalFlow({
+  campaign = null,
+  postLoginHtml = null,
+  redirectUrl = null,
+  constrained = false,
+}: {
+  /** This location's real currently-active campaign, as
+   * `campaignService.resolveActivePreviewCampaign` resolves it. `null` (the
+   * default) simply skips step 2. */
+  campaign?: NextCampaign | null;
+  /** The venue's real `config.postLoginHtml`. `null`/blank skips the frame. */
+  postLoginHtml?: string | null;
+  /** The venue's real `config.redirectUrl` (or a `dst`). `null` skips the
+   * "Continue" affordance. With neither this nor `postLoginHtml`, step 4
+   * does not exist and the walkthrough rests on the connected card. */
+  redirectUrl?: string | null;
+  /** Threaded to `PortalShell`/`CampaignOverlay` so their backdrops stay
+   * `absolute` inside a preview bezel instead of escaping to the viewport.
+   * This component owns the shell for its own steps because `CampaignOverlay`
+   * brings its own -- a caller must NOT wrap this in a second `PortalShell`. */
+  constrained?: boolean;
+} = {}) {
   const { session, setSession, setGuestIdentifier } = usePortalRuntime();
+  const [campaignDone, setCampaignDone] = useState(false);
+  const [atPostLogin, setAtPostLogin] = useState(false);
 
-  // Always begin a demo at the sign-in step. `setSession` persists to
-  // sessionStorage, so a fake session left by a previous demo run in this
-  // browser would otherwise open the demo straight onto the connected screen.
+  // Always begin a walkthrough at the sign-in step. `setSession` persists to
+  // sessionStorage, so a fake session left by a previous run in this browser
+  // would otherwise open straight onto the connected screen.
   // One-shot on mount only -- a session the prospect sets during THIS run
   // (after mount) is untouched, so this never fights the live flow.
   const didInit = useRef(false);
@@ -41,8 +97,73 @@ export function DemoPortalFlow() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (session) return <DemoConnectedCard />;
-  return <GuestSignInCard />;
+  // ...and leave nothing behind on the way out. The fake session is written
+  // to the SAME `cloudguest_portal_session` key the real guest portal reads
+  // (`/portal/*` is the same origin as this dashboard), so a walkthrough that
+  // exits without clearing it leaves a "demo-session" sitting in this tab for
+  // `/portal/session` to pick up. Storage-only side effect -- nothing here
+  // ever reached a backend to begin with.
+  useEffect(() => {
+    return () => {
+      setSession(undefined);
+      setGuestIdentifier(undefined);
+    };
+  }, [setSession, setGuestIdentifier]);
+
+  const restart = () => {
+    setSession(undefined);
+    setGuestIdentifier(undefined);
+    setCampaignDone(false);
+    setAtPostLogin(false);
+  };
+
+  // Same "an admin created a SURVEY with zero questions / a BANNER with no
+  // asset" guard `portal.session.tsx` applies before mounting the overlay.
+  const showCampaign = !!campaign && campaignHasRenderableContent(campaign) && !campaignDone;
+  const venueHtml = hasPostLoginHtml(postLoginHtml) ? postLoginHtml : null;
+  const safeRedirectUrl =
+    redirectUrl && /^https?:\/\//i.test(redirectUrl.trim()) ? redirectUrl.trim() : null;
+  const hasPostLoginStep = !!venueHtml || !!safeRedirectUrl;
+
+  if (!session) {
+    return (
+      <PortalShell constrained={constrained}>
+        <GuestSignInCard />
+      </PortalShell>
+    );
+  }
+
+  if (showCampaign && campaign) {
+    // `CampaignOverlay` brings its own `PortalShell`.
+    return (
+      <CampaignOverlay
+        campaign={campaign}
+        // Never a real `GuestSession.id` -- and never sent anywhere either,
+        // since `demoMode` suppresses both campaign writes. See its
+        // `isSimulated`.
+        sessionId="demo-session"
+        constrained={constrained}
+        onDone={() => setCampaignDone(true)}
+      />
+    );
+  }
+
+  if (atPostLogin && hasPostLoginStep) {
+    return (
+      <PortalShell constrained={constrained}>
+        <DemoPostLoginCard html={venueHtml} url={safeRedirectUrl} onRestart={restart} />
+      </PortalShell>
+    );
+  }
+
+  return (
+    <PortalShell constrained={constrained}>
+      <DemoConnectedCard
+        onContinue={hasPostLoginStep ? () => setAtPostLogin(true) : undefined}
+        onRestart={restart}
+      />
+    </PortalShell>
+  );
 }
 
 /** A demo-only "you're connected" illustration -- a lightweight sibling of
@@ -97,21 +218,49 @@ function DemoConnectedIllustration({ className }: { className?: string }) {
   );
 }
 
-/**
- * The demo's self-contained "You're connected" screen. Deliberately reuses
- * the visual language of `portal.session.tsx` (the real resting page) --
- * `PortalTextPlate` hero, `PortalCard` rows -- but renders entirely from the
- * fake in-memory session, with no `useQuery`, no navigation, and no
- * hotspot/NAS POST. A "Start over" affordance clears the fake session and
- * returns the demo to step 1.
- */
-function DemoConnectedCard() {
-  const { t, session, setSession, setGuestIdentifier } = usePortalRuntime();
+/** The one honest "this was a demo" note, shared by every resting step of
+ * the walkthrough. Not a real guest-facing string, so it is plain copy
+ * rather than a translated key. */
+function DemoNotice({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex items-start gap-2.5 rounded-2xl border border-[var(--pg-border)] bg-[color-mix(in_srgb,var(--pr-primary,#6366f1)_5%,var(--pg-surface,#fff))] p-3.5">
+      <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[var(--pr-primary,#6366f1)]" />
+      <p className="pg-meta text-[var(--pg-ink-muted)]">{children}</p>
+    </div>
+  );
+}
 
-  const startOver = () => {
-    setSession(undefined);
-    setGuestIdentifier(undefined);
-  };
+function StartOverButton({ onRestart }: { onRestart: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onRestart}
+      className={cn(PG_SECONDARY_BTN, "flex items-center justify-center gap-2")}
+    >
+      <RotateCcw className="h-4 w-4" /> Start over
+    </button>
+  );
+}
+
+/**
+ * The walkthrough's self-contained "You're connected" screen. Deliberately
+ * reuses the visual language of `portal.session.tsx` (the real resting page)
+ * -- `PortalTextPlate` hero, `PortalCard` rows -- but renders entirely from
+ * the fake in-memory session, with no `useQuery`, no navigation, and no
+ * hotspot/NAS POST.
+ *
+ * `onContinue` mirrors that real page's own `continueUrl` button (which
+ * navigates a guest to `/portal/redirect`): present only when the venue
+ * actually has a post-login page and/or a redirect target configured.
+ */
+function DemoConnectedCard({
+  onContinue,
+  onRestart,
+}: {
+  onContinue?: () => void;
+  onRestart: () => void;
+}) {
+  const { t, session } = usePortalRuntime();
 
   return (
     <div className="flex flex-1 flex-col gap-5">
@@ -140,23 +289,92 @@ function DemoConnectedCard() {
       </PortalCard>
 
       {/* An honest "this was a demo" note -- a prospect should never think a
-       * real connection was made. Not a real guest-facing string, so it is
-       * plain copy rather than a translated key. */}
-      <div className="flex items-start gap-2.5 rounded-2xl border border-[var(--pg-border)] bg-[color-mix(in_srgb,var(--pr-primary,#6366f1)_5%,var(--pg-surface,#fff))] p-3.5">
-        <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[var(--pr-primary,#6366f1)]" />
-        <p className="pg-meta text-[var(--pg-ink-muted)]">
-          This is a demo of the guest sign-in flow. No code was actually sent and no device was
-          connected to any network.
-        </p>
-      </div>
+       * real connection was made. */}
+      <DemoNotice>
+        This is a demonstration of the guest sign-in flow. No code was actually sent, no session was
+        created, and no device was connected to any network.
+      </DemoNotice>
 
-      <button
-        type="button"
-        onClick={startOver}
-        className={cn(PG_SECONDARY_BTN, "flex items-center justify-center gap-2")}
-      >
-        <RotateCcw className="h-4 w-4" /> Start over
-      </button>
+      {onContinue && (
+        <button type="button" onClick={onContinue} className={PG_PRIMARY_BTN}>
+          {t("continue")}
+        </button>
+      )}
+
+      <StartOverButton onRestart={onRestart} />
+    </div>
+  );
+}
+
+/**
+ * Step 4 -- what the venue itself has configured to appear once a guest is
+ * through: their own authored page (`config.postLoginHtml`) and/or their
+ * configured post-login destination (`config.redirectUrl`).
+ *
+ * `PostLoginHtmlFrame` is the REAL component `/portal/redirect` uses, with
+ * the same script-less opaque-origin sandbox -- the venue's HTML never
+ * touches this document, which matters just as much on a dashboard-side
+ * preview as it does on the guest surface.
+ *
+ * The destination is an ordinary `target="_blank"` anchor, exactly as
+ * `/portal/redirect` renders it when a post-login page is present. What is
+ * NOT reproduced is that route's five-second `window.location.href` timer:
+ * on the guest surface it moves a captive-portal sheet along, but here it
+ * would navigate the operator's own dashboard tab away to the venue's
+ * website in the middle of a demo. The caption says so rather than pretending
+ * the timer does not exist.
+ */
+function DemoPostLoginCard({
+  html,
+  url,
+  onRestart,
+}: {
+  html: string | null;
+  url: string | null;
+  onRestart: () => void;
+}) {
+  const { t } = usePortalRuntime();
+
+  let host = url ?? "";
+  if (url) {
+    try {
+      host = new URL(url).hostname;
+    } catch {
+      /* keep the raw value -- `url` already passed the http(s) scheme test */
+    }
+  }
+
+  return (
+    <div className="flex flex-1 flex-col gap-5">
+      {html && (
+        <PostLoginHtmlFrame
+          html={html}
+          title={t("postLoginPageLabel")}
+          className={url ? "h-[52vh] min-h-[240px]" : "h-[62vh] min-h-[300px]"}
+        />
+      )}
+
+      {url && (
+        <a
+          href={url}
+          title={url}
+          target="_blank"
+          rel="noreferrer"
+          className={`${PG_PRIMARY_BTN} flex items-center justify-center gap-2`}
+        >
+          {t("continueNowLabel")} <ExternalLink className="h-4 w-4" />
+        </a>
+      )}
+
+      <DemoNotice>
+        {html
+          ? "This is the page you published for guests to see after they sign in."
+          : "After signing in, guests are sent on to your configured destination."}
+        {url ? ` In a real session they continue to ${host}.` : ""} Still a demonstration -- no
+        session was created and nothing was recorded.
+      </DemoNotice>
+
+      <StartOverButton onRestart={onRestart} />
     </div>
   );
 }
