@@ -124,8 +124,7 @@ check(
 // the string.
 {
   const files = ["src/services/router.service.ts", "src/hooks/useRouters.ts"];
-  const forbidden =
-    /api\.post[^\n]*`\/routers\/\$\{[^}]+\}\/wireguard-peer(\/rotate)?`/g;
+  const forbidden = /api\.post[^\n]*`\/routers\/\$\{[^}]+\}\/wireguard-peer(\/rotate)?`/g;
   for (const file of files) {
     const src = readFileSync(join(ROOT, file), "utf8");
     const hits = [...src.matchAll(forbidden)];
