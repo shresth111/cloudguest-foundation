@@ -32,6 +32,7 @@ import { resolveOrgId } from "@/services/customer.service";
 import { brandAssetService } from "@/services/brand-asset.service";
 import { toAppError } from "@/services/api";
 import { SplashCharCounter } from "@/components/portals/SplashCharCounter";
+import { PortalBackgroundImage } from "@/components/portals/PortalBackgroundImage";
 import {
   SPLASH_HEADLINE_MAX,
   SPLASH_WELCOME_MAX,
@@ -230,12 +231,12 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   // The logo itself now lives on the real, object-storage-backed
   // org-level branding (app.domains.branding, POST/GET/DELETE
   // /branding/logo -- same MinIO/S3-compatible storage
-  // BrandAssetPage.tsx's Background Image already uses), not
+  // the Background Image section below already uses), not
   // captive_portal_configs.logo_url -- a plain text column with no
   // upload endpoint at all. Shared org-wide, same reasoning as
   // Background Image: "the login screen doesn't know which location a
   // guest belongs to until after they've connected" (see
-  // BrandAssetPage.tsx's own note).
+  // PortalBackgroundImage.tsx's own note).
   const loadLogo = async (org: string) => {
     const branding = await brandAssetService.getBranding(org);
     if (!branding?.logoUrl) {
@@ -254,9 +255,10 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   };
 
   // The org's login-screen background, loaded the same authenticated-blob
-  // way BrandAssetPage/usePortalPreview already do (an <img>/CSS bg can't
-  // attach the headers /branding/background-image/raw needs). Feeds the Live
-  // Preview so an operator sees the real backdrop a guest gets, not a blank.
+  // way PortalBackgroundImage/usePortalPreview already do (an <img>/CSS bg
+  // can't attach the headers /branding/background-image/raw needs). Feeds
+  // the Live Preview so an operator sees the real backdrop a guest gets,
+  // not a blank.
   const loadBackground = async (org: string) => {
     const branding = await brandAssetService.getBranding(org);
     if (!branding?.hasBackgroundImage) {
@@ -265,6 +267,18 @@ export function PortalPage({ locationId }: { locationId?: string }) {
     }
     const blobUrl = await brandAssetService.fetchBackgroundImageBlobUrl(org);
     setBgImage(blobUrl);
+  };
+
+  // Re-read the org's background after the Background Image section below
+  // uploads or removes one, so the Live Preview's backdrop matches what a
+  // guest would now get without a manual refresh. Demo has no real org to
+  // re-read -- that section keeps its own local-only preview instead, same
+  // as the logo's demo branch above.
+  const reloadBackground = () => {
+    if (demo || !orgId) return;
+    loadBackground(orgId).catch(() => {
+      // Leave the previous backdrop in place -- not fatal to the page.
+    });
   };
 
   const loadPortal = async () => {
@@ -332,7 +346,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
 
   // Blob URLs are never revoked by the browser on their own -- revoke the
   // previous one whenever a new one replaces it (including on unmount).
-  // Mirrors BrandAssetPage.tsx's identical cleanup effect.
+  // Mirrors PortalBackgroundImage.tsx's identical cleanup effect.
   useEffect(() => {
     return () => {
       if (logoIsUploaded && logo) URL.revokeObjectURL(logo);
@@ -502,8 +516,9 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   // blob: URL that `saveConfig` never even included in its patch, so
   // nothing was ever persisted and the logo silently reverted on every
   // reload. Bug report: "portal logo default nhi hai" (no default after
-  // refresh). Uploads immediately (like BrandAssetPage.tsx's Background
-  // Image), not deferred to "Save Configuration" below.
+  // refresh). Uploads immediately, not deferred to "Save Configuration"
+  // below -- unlike the Background Image section further down, which keeps
+  // the explicit pick-then-Upload step it had as its own page.
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -811,6 +826,19 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                 Background Image.
               </p>
             </div>
+
+            {/* Background Image -- moved here from its own top-level
+              "Background Image" nav item under Access & Policy, which was
+              the wrong home for it: it's a portal *appearance* setting on
+              the same org-level branding record the Portal Logo above
+              writes to (app.domains.branding), and it only ever changes
+              what a guest sees on the sign-in screen. Sitting here it's
+              also next to the Live Preview that actually renders it --
+              `reloadBackground` re-reads the saved image into
+              `livePreviewConfig.backgroundImageUrl` as soon as one is
+              uploaded or removed. The old /background-image route
+              redirects to this page (see src/routes/background-image.tsx). */}
+            <PortalBackgroundImage onChange={reloadBackground} />
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">

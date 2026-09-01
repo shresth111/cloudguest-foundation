@@ -71,7 +71,12 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
       // facing open/closed states, see OperationsFeatures.tsx's
       // OpenHoursView and portal.closed.tsx).
       { id: "business-hours", label: "Open Hours", icon: Sun },
-      { id: "background-image", label: "Background Image", icon: Palette },
+      // "background-image" is no longer a separate grantable feature -- the
+      // background image is now a section of the Portal page's own
+      // configuration card (see PortalBackgroundImage.tsx), covered by the
+      // "portal" grant above. Nothing to migrate: it was owner-only in the
+      // sidebar (customerNav.ts) so granting it to an agent never had an
+      // effect, and no seeded role listed it.
     ],
   },
   {

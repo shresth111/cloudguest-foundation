@@ -84,7 +84,10 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
       // Renamed from "Business Hours" (same id/route/data) -- see
       // customerFeatureCatalog.ts's own note.
       { id: "business-hours", label: "Open Hours", icon: Sun, roles: ["owner"] },
-      { id: "background-image", label: "Background Image", icon: Palette, roles: ["owner"] },
+      // "Background Image" used to sit here as its own item -- it's a
+      // portal appearance setting, not an access-policy one, so it's now a
+      // section of the Portal page's own configuration card (see
+      // PortalBackgroundImage.tsx). /background-image redirects there.
     ],
   },
   {

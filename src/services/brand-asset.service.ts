@@ -6,7 +6,8 @@ import { resolveOrgId } from "@/services/ticket.service";
  * `POST/DELETE /branding/background-image` +
  * `GET /branding/background-image/raw` endpoints
  * (backend/app/domains/branding). Backs the customer dashboard's
- * "Background Image" page (src/components/features/BrandAssetPage.tsx) --
+ * Portal page's "Background Image" section
+ * (src/components/portals/PortalBackgroundImage.tsx) --
  * previously that page only ever called `URL.createObjectURL` on the
  * chosen file and never talked to the backend, so nothing persisted past
  * a refresh.
@@ -20,7 +21,8 @@ import { resolveOrgId } from "@/services/ticket.service";
  * other branding call) and hands back a local blob URL to render instead.
  *
  * One background image per organization (no per-location concept exists
- * in the `brandings` table -- see BrandAssetPage.tsx's own note on this).
+ * in the `brandings` table -- see PortalBackgroundImage.tsx's own note on
+ * this).
  */
 
 interface BackendBranding {
@@ -56,7 +58,7 @@ export interface OrgBranding {
   // which falls back to these organization-level branding fields when a
   // location has no captive_portal_configs row of its own -- the backend
   // response already carries them, `toOrgBranding` just wasn't mapping
-  // them yet since BrandAssetPage.tsx (the only other caller) never
+  // them yet since PortalBackgroundImage.tsx (the only other caller) never
   // needed them.
   //
   // Either the authenticated `GET /branding/logo/raw` proxy path (an
@@ -91,7 +93,8 @@ function toOrgBranding(b: BackendBranding): OrgBranding {
 /**
  * `organizationId` is optional and defaults to the caller's own org
  * (`resolveOrgId()`, i.e. "/me/organizations") -- the shape every existing
- * call site (BrandAssetPage.tsx) relies on. Passing it explicitly lets a
+ * call site (PortalBackgroundImage.tsx) relies on. Passing it explicitly
+ * lets a
  * caller resolve a *different* organization's branding -- e.g. the Portal
  * Preview page, reached both by an org owner (whose own org is implicit
  * anyway) and by a Master-console operator previewing an arbitrary
@@ -118,7 +121,8 @@ export const brandAssetService = {
 
   /** Fetches the actual background image bytes and returns a local blob
    * URL ready to use as an `<img src>` -- caller owns the URL's lifetime
-   * and must `URL.revokeObjectURL` it when done (see BrandAssetPage.tsx's
+   * and must `URL.revokeObjectURL` it when done (see
+   * PortalBackgroundImage.tsx's
    * cleanup effect). Returns `null` on any failure (e.g. no image set)
    * rather than throwing -- this backs a passive preview render, not a
    * user-initiated action that needs its own error toast. */

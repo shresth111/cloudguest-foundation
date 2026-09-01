@@ -19,7 +19,7 @@ import type { RuntimePortalConfig } from "@/types/portal-runtime";
  *    text/splash copy -- reused as-is here, not reimplemented, so this
  *    preview can never drift from what a guest actually gets asked.
  *  - `brandings` (app.domains.branding), one row per organization (no
- *    per-location concept -- see BrandAssetPage.tsx's own note). Holds
+ *    per-location concept -- see PortalBackgroundImage.tsx's own note). Holds
  *    the org's logo/background image/colors, entirely independent of
  *    whether anyone has ever created a captive_portal_configs row.
  *
@@ -72,7 +72,7 @@ export function usePortalPreview(organizationId: string, locationId: string): Po
     retry: false,
   });
 
-  // Mirrors BrandAssetPage.tsx's own plain-effect pattern for the same
+  // Mirrors PortalBackgroundImage.tsx's own plain-effect pattern for the same
   // endpoint: the image bytes need an authenticated fetch (an <img> tag
   // can't attach the headers /branding/background-image/raw needs), so
   // they're fetched separately as a blob URL, only once `hasBackgroundImage`

@@ -63,7 +63,7 @@ const GROUPS: HowItWorksGroup[] = [
       },
       {
         heading: "Portal",
-        copy: "Design exactly what a guest sees on the sign-in screen: the headline and welcome message, your brand color and logo, the overall look and font, which languages to offer, and which sign-in methods are available (OTP by mobile, email, or WhatsApp, a voucher code, or social login). Changes show up in a live preview instantly, so you can see exactly what a guest will see before you save.",
+        copy: "Design exactly what a guest sees on the sign-in screen: the headline and welcome message, your brand color and logo, the overall look and font, which languages to offer, and which sign-in methods are available (OTP by mobile, email, or WhatsApp, a voucher code, or social login). This is also where you upload the background image that sits behind the sign-in screen, so that first impression feels fully branded to your venue instead of generic. Changes show up in a live preview instantly, so you can see exactly what a guest will see before you save.",
       },
       {
         heading: "Vouchers",
@@ -92,10 +92,6 @@ const GROUPS: HowItWorksGroup[] = [
       {
         heading: "Open Hours",
         copy: "Set a weekly schedule for when guests are allowed to sign in to your WiFi — pick the days and hours it's open, and write a message guests see if they try to connect while you're closed. An “Enforce” toggle turns the whole schedule on or off, and the page shows you a live “Open now / Closed now” status.",
-      },
-      {
-        heading: "Background Image",
-        copy: "Upload a custom background image to appear behind the sign-in screen guests see when they first connect — a simple way to make that first impression feel fully branded to your venue instead of generic.",
       },
     ],
   },
