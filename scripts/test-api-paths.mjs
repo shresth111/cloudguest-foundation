@@ -92,5 +92,60 @@ check(
   "this is the exact string that 404'd",
 );
 
+// =====================================================================
+// NOTHING MAY POST TO THE PLATFORM-GENERATES-THE-KEYPAIR TUNNEL PATHS
+// =====================================================================
+// A different shape of the same failure as the /wan/basic one above: not a
+// path that 404s, but a path that answers 201 and writes a tunnel which
+// cannot exist.
+//
+// `POST /routers/{id}/wireguard-peer` and `POST
+// /routers/{id}/wireguard-peer/rotate` make the keypair on the PLATFORM
+// side. `ops/hub-agents/wg_agent.py` exposes only `POST /wg/peer` (which
+// mints its own keypair and returns it) and `GET /wg/peers` -- there is no
+// verb that accepts a public key the caller already holds. So a
+// platform-generated key exists in exactly one place, this platform's
+// database, while the hub goes on expecting the previous one, and the
+// tunnel it describes can never handshake. The device pulls a private key
+// that works and the only symptom is a tunnel that is silently down.
+// Confirmed live on router 21e13913: three console "Generate" clicks each
+// wrote a keypair no WireGuard implementation anywhere held.
+//
+// The backend now refuses both with `HubCannotLearnPlatformKeyError` (409),
+// so today this is belt-and-braces. It stays because that guard "lifts
+// automatically the moment the hub gains a registration verb" (see the
+// exception's own docstring) -- and on that day the wrong call would start
+// SUCCEEDING again silently, which is the state this whole incident was.
+// The only correct path is `.../wireguard-peer/allocate-external`, where
+// the hub mints the keypair and both sides therefore know it.
+//
+// GET and DELETE on `/routers/{id}/wireguard-peer` are perfectly fine --
+// different handlers entirely -- so this checks the POST call sites, not
+// the string.
+{
+  const files = ["src/services/router.service.ts", "src/hooks/useRouters.ts"];
+  const forbidden = /api\.post[^\n]*`\/routers\/\$\{[^}]+\}\/wireguard-peer(\/rotate)?`/g;
+  for (const file of files) {
+    const src = readFileSync(join(ROOT, file), "utf8");
+    const hits = [...src.matchAll(forbidden)];
+    check(
+      `${file}: no POST to the platform-keypair tunnel paths`,
+      hits.length === 0,
+      `${hits.length} call(s): ${hits.map((m) => m[0]).join(", ")}\n       ` +
+        "use /routers/{id}/wireguard-peer/allocate-external -- the hub agent has no " +
+        "verb to be told a public key it did not generate itself.",
+    );
+  }
+  // And the replacement must actually be there. A check that only forbids
+  // is satisfied by deleting the feature.
+  check(
+    "src/services/router.service.ts: allocate-external is the path that IS called",
+    /wireguard-peer\/allocate-external/.test(
+      readFileSync(join(ROOT, "src/services/router.service.ts"), "utf8"),
+    ),
+    "the hub-bridge allocation call was renamed or removed",
+  );
+}
+
 console.log(failures === 0 ? "\nall checks passed" : `\n${failures} check(s) failed`);
 process.exit(failures === 0 ? 0 : 1);

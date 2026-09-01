@@ -9,7 +9,7 @@ import type {
   RouterListResult,
   RouterStatus,
   WireGuardPeer,
-  WireGuardTunnelSecrets,
+  WireGuardTunnelAllocation,
 } from "@/types/router";
 
 // Same demo-session gap already fixed in location.service.ts/
@@ -121,12 +121,20 @@ interface BackendWireGuardPeer {
   updated_at: string;
 }
 
-interface BackendWireGuardTunnelSecrets extends BackendWireGuardPeer {
-  peer_private_key: string;
+/** `app/domains/wireguard/schemas.py::WireGuardTunnelCreateResponse`,
+ * verified field-by-field against the backend on 2026-09-01. `reused` and
+ * `hub_tunnel_ip_address` are NOT optional there (both have concrete
+ * defaults and are populated on every branch of
+ * `allocate_external_wireguard_peer`); `peer_private_key` really is
+ * nullable, and is null on both reuse branches. */
+interface BackendWireGuardTunnelAllocation extends BackendWireGuardPeer {
+  peer_private_key: string | null;
+  reused: boolean;
   hub_public_key: string;
   hub_endpoint_host: string;
   hub_endpoint_port: number;
   tunnel_network_cidr: string;
+  hub_tunnel_ip_address: string;
   persistent_keepalive_seconds: number;
 }
 
@@ -172,14 +180,16 @@ function toWireGuardPeer(p: BackendWireGuardPeer): WireGuardPeer {
   };
 }
 
-function toWireGuardSecrets(p: BackendWireGuardTunnelSecrets): WireGuardTunnelSecrets {
+function toWireGuardAllocation(p: BackendWireGuardTunnelAllocation): WireGuardTunnelAllocation {
   return {
     ...toWireGuardPeer(p),
-    peerPrivateKey: p.peer_private_key,
+    peerPrivateKey: p.peer_private_key ?? null,
+    reused: p.reused === true,
     hubPublicKey: p.hub_public_key,
     hubEndpointHost: p.hub_endpoint_host,
     hubEndpointPort: p.hub_endpoint_port,
     tunnelNetworkCidr: p.tunnel_network_cidr,
+    hubTunnelIpAddress: p.hub_tunnel_ip_address,
     persistentKeepaliveSeconds: p.persistent_keepalive_seconds,
   };
 }
@@ -466,18 +476,62 @@ export const routerService = {
     }
   },
 
-  async createWireGuardPeer(routerId: string): Promise<WireGuardTunnelSecrets> {
-    const { data } = await api.post<BackendWireGuardTunnelSecrets>(
-      `/routers/${routerId}/wireguard-peer`,
-    );
-    return toWireGuardSecrets(data);
-  },
+  /* REMOVED, DELIBERATELY, 2026-09-01: `createWireGuardPeer` (POST
+   * `/routers/{id}/wireguard-peer`) and `rotateWireGuardPeer` (POST
+   * `/routers/{id}/wireguard-peer/rotate`).
+   *
+   * Both called the backend's PLATFORM-GENERATES-THE-KEYPAIR path, which
+   * `app/domains/wireguard/service.py` now refuses outright with
+   * `HubCannotLearnPlatformKeyError` (409) -- `create_tunnel` at :1908,
+   * `rotate_tunnel` at :2148. The refusal is correct and must not be worked
+   * around: `ops/hub-agents/wg_agent.py` exposes only `POST /wg/peer` (which
+   * mints its OWN keypair and returns it) and `GET /wg/peers`. There is no
+   * verb that accepts a public key the caller already holds, so a keypair
+   * generated on the platform side exists in exactly one place -- the
+   * platform's database -- while the hub goes on expecting the previous key.
+   * The tunnel it describes can never handshake, and nothing downstream
+   * notices: the device pulls a private key that works, and the only symptom
+   * is a tunnel that is silently, permanently down. Confirmed live on router
+   * 21e13913 (see that exception's docstring).
+   *
+   * They are removed rather than left deprecated so no future caller can
+   * fall back into them by autocomplete. The one correct way to give a
+   * router a tunnel from this console is `allocateWireGuardPeerFromHub`
+   * below -- the hub mints the keypair, so both sides know it by
+   * construction. */
 
-  async rotateWireGuardPeer(routerId: string): Promise<WireGuardTunnelSecrets> {
-    const { data } = await api.post<BackendWireGuardTunnelSecrets>(
-      `/routers/${routerId}/wireguard-peer/rotate`,
+  /** THE ONLY WAY TO GIVE A ROUTER A WIREGUARD TUNNEL from this console.
+   *
+   * `POST /routers/{id}/wireguard-peer/allocate-external` -- the backend
+   * calls the hub's agent bridge server-side (the bridge is a bare
+   * `http.server.BaseHTTPRequestHandler` with no CORS/OPTIONS support, so a
+   * browser `fetch()` at it always fails), registers what the hub minted,
+   * and returns the same "everything needed to configure the device" bundle.
+   * Same shape `RouterSetupScriptAdvanced` has been using since 2026-08-23.
+   *
+   * REUSE IS THE DEFAULT AND THAT IS LOAD-BEARING. `wg_agent.py` has no
+   * delete and no update verb (a DELETE answers `501 Unsupported method`),
+   * so every allocation that does not reuse leaks a peer on the hub
+   * permanently: it keeps its `allowed_ips`, and `next_free_ip()` scans live
+   * kernel state, so it consumes an address out of the /24 forever. Router
+   * 01c9171e reached 10.20.0.5 while its device was still on .3.
+   *
+   * `rotate` asks for a fresh keypair instead of reuse. It is NOT sufficient
+   * on its own: the backend independently refuses to allocate over a device
+   * the hub reports handshaking right now (it adopts that live identity
+   * instead and returns `reused: true`), because no server-side action can
+   * make a device change the key it already imported. `force` overrides even
+   * that and is destructive and unreclaimable -- this console deliberately
+   * never sends it; see the WireGuard tab's own comment. */
+  async allocateWireGuardPeerFromHub(
+    routerId: string,
+    options: { rotate?: boolean } = {},
+  ): Promise<WireGuardTunnelAllocation> {
+    const query = options.rotate ? "?rotate=true" : "";
+    const { data } = await api.post<BackendWireGuardTunnelAllocation>(
+      `/routers/${routerId}/wireguard-peer/allocate-external${query}`,
     );
-    return toWireGuardSecrets(data);
+    return toWireGuardAllocation(data);
   },
 
   async revokeWireGuardPeer(routerId: string): Promise<void> {
