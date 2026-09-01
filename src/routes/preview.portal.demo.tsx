@@ -6,7 +6,6 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { customerFeatureHref } from "@/lib/customerNav";
 import { DEMO_PORTAL_PREVIEW_STORAGE_KEY } from "@/lib/portal-preview-storage";
 import { PortalRuntimeProvider } from "@/context/PortalRuntimeContext";
-import { PortalShell } from "@/components/portal-runtime/PortalShell";
 import { DemoPortalFlow } from "@/components/portal-runtime/DemoPortalFlow";
 import type { RuntimePortalConfig } from "@/types/portal-runtime";
 
@@ -152,9 +151,17 @@ function DemoPortalPreviewPage() {
                   presetConfig={config}
                   presetConfigLoading={false}
                 >
-                  <PortalShell constrained>
-                    <DemoPortalFlow />
-                  </PortalShell>
+                  {/* `DemoPortalFlow` owns its own `PortalShell` now (the
+                      campaign step brings a different one) -- wrapping it in a
+                      second shell here would nest two backdrops. The venue's
+                      own post-login page and redirect target ride along from
+                      the same unsaved snapshot, so the demo runs the same
+                      four-step arc the real preview's walkthrough does. */}
+                  <DemoPortalFlow
+                    constrained
+                    postLoginHtml={config.postLoginHtml}
+                    redirectUrl={config.redirectUrl}
+                  />
                 </PortalRuntimeProvider>
               </div>
             </div>
