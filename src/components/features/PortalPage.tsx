@@ -42,6 +42,7 @@ import { PortalRuntimeProvider } from "@/context/PortalRuntimeContext";
 import { PortalShell } from "@/components/portal-runtime/PortalShell";
 import { GuestSignInCard } from "@/components/portal-runtime/GuestSignInCard";
 import { DEMO_PORTAL_PREVIEW_STORAGE_KEY } from "@/lib/portal-preview-storage";
+import { BRAND_ASSET_ACCEPT_ATTR, brandAssetRejectionReason } from "@/lib/brand-asset-limits";
 import type { PortalLanguage, PortalLoginMethod } from "@/types/portal";
 import {
   resolveLanguageSelection,
@@ -194,6 +195,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   // below) -- false for a plain hotlinkable URL or no logo at all.
   const [logoIsUploaded, setLogoIsUploaded] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingBg, setUploadingBg] = useState(false);
   const [portalId, setPortalId] = useState<string | null>(null);
   const [orgId, setOrgId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -209,13 +211,13 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   // the org's default (or newest) only when this location truly has none.
   // The logo itself now lives on the real, object-storage-backed
   // org-level branding (app.domains.branding, POST/GET/DELETE
-  // /branding/logo -- same MinIO/S3-compatible storage
-  // BrandAssetPage.tsx's Background Image already uses), not
+  // /branding/logo -- the same MinIO/S3-compatible storage the
+  // background image below uses), not
   // captive_portal_configs.logo_url -- a plain text column with no
   // upload endpoint at all. Shared org-wide, same reasoning as
-  // Background Image: "the login screen doesn't know which location a
+  // background image: "the login screen doesn't know which location a
   // guest belongs to until after they've connected" (see
-  // BrandAssetPage.tsx's own note).
+  // brand-asset.service.ts's own note).
   const loadLogo = async (org: string) => {
     const branding = await brandAssetService.getBranding(org);
     if (!branding?.logoUrl) {
@@ -234,7 +236,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   };
 
   // The org's login-screen background, loaded the same authenticated-blob
-  // way BrandAssetPage/usePortalPreview already do (an <img>/CSS bg can't
+  // way usePortalPreview already does (an <img>/CSS bg can't
   // attach the headers /branding/background-image/raw needs). Feeds the Live
   // Preview so an operator sees the real backdrop a guest gets, not a blank.
   const loadBackground = async (org: string) => {
@@ -313,7 +315,8 @@ export function PortalPage({ locationId }: { locationId?: string }) {
 
   // Blob URLs are never revoked by the browser on their own -- revoke the
   // previous one whenever a new one replaces it (including on unmount).
-  // Mirrors BrandAssetPage.tsx's identical cleanup effect.
+  // Same contract fetchLogoBlobUrl/fetchBackgroundImageBlobUrl document:
+  // the caller owns the blob URL's lifetime.
   useEffect(() => {
     return () => {
       if (logoIsUploaded && logo) URL.revokeObjectURL(logo);
@@ -483,12 +486,20 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   // blob: URL that `saveConfig` never even included in its patch, so
   // nothing was ever persisted and the logo silently reverted on every
   // reload. Bug report: "portal logo default nhi hai" (no default after
-  // refresh). Uploads immediately (like BrandAssetPage.tsx's Background
-  // Image), not deferred to "Save Configuration" below.
+  // refresh). Uploads immediately, like the background image below, not
+  // deferred to "Save Configuration".
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
+    // Fail fast on the two rejections the backend would issue anyway --
+    // the `accept` attribute above is a filter, not a guarantee (drag-drop
+    // and "All Files" in the OS picker both walk straight past it).
+    const rejection = brandAssetRejectionReason(file);
+    if (rejection) {
+      toast.error(rejection);
+      return;
+    }
     if (demo) {
       // No real backend exists to talk to for a demo session (same
       // fallback pattern as master.locations.tsx's DEMO_LOCATIONS) --
@@ -542,6 +553,80 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       );
     } finally {
       setUploadingLogo(false);
+    }
+  };
+
+  // The login-screen background image, editable right here rather than
+  // only on the separate "Background Image" page -- the Portal tab is
+  // where an operator is already choosing the headline, brand colour and
+  // logo, and it is the only surface with the Live Preview that shows
+  // what the backdrop actually does to that text. Same org-scoped
+  // endpoints the retired standalone "Background Image" page used
+  // (POST/DELETE /branding/background-image, app.domains.branding's
+  // MinIO/S3-compatible storage): there is exactly one background per
+  // organization, not one per location -- the login screen doesn't know
+  // which location a guest belongs to until after they've connected (see
+  // brand-asset.service.ts's own note).
+  //
+  // Uploads immediately on pick, like the logo above -- it is not part of
+  // the "Save Configuration" patch, because the bytes live on the branding
+  // row, not on captive_portal_configs.
+  const handleBackgroundUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const rejection = brandAssetRejectionReason(file);
+    if (rejection) {
+      toast.error(rejection);
+      return;
+    }
+    if (demo) {
+      // No backend to talk to in a demo session -- a local, un-persisted
+      // preview is all a demo can offer (same fallback as the logo above).
+      setBgImage(URL.createObjectURL(file));
+      toast.success("Background image uploaded");
+      return;
+    }
+    if (!orgId) return;
+    setUploadingBg(true);
+    try {
+      await brandAssetService.uploadBackgroundImage(file);
+      await loadBackground(orgId);
+      toast.success("Background image uploaded");
+    } catch (err) {
+      // Surface the backend's own message when there was a real response
+      // -- a 402 here means the plan doesn't include 'white_label', which
+      // a generic "check the connection" would hide (see handleLogoUpload).
+      toast.error(
+        axios.isAxiosError(err)
+          ? toAppError(err).message
+          : "Could not upload the background image — check the connection and try again.",
+      );
+    } finally {
+      setUploadingBg(false);
+    }
+  };
+
+  const handleRemoveBackground = async () => {
+    if (demo) {
+      setBgImage(null);
+      toast.success("Background image removed");
+      return;
+    }
+    if (!orgId) return;
+    setUploadingBg(true);
+    try {
+      await brandAssetService.deleteBackgroundImage();
+      await loadBackground(orgId);
+      toast.success("Background image removed");
+    } catch (err) {
+      toast.error(
+        axios.isAxiosError(err)
+          ? toAppError(err).message
+          : "Could not remove the background image — check the connection and try again.",
+      );
+    } finally {
+      setUploadingBg(false);
     }
   };
 
@@ -768,7 +853,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                   </span>
                   <input
                     type="file"
-                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    accept={BRAND_ASSET_ACCEPT_ATTR}
                     className="hidden"
                     disabled={uploadingLogo}
                     onChange={handleLogoUpload}
@@ -791,6 +876,57 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                 upload a square image, 256×256px, PNG with a transparent background, for a sharp,
                 clean result. Shared across every location in this organization, same as the
                 Background Image.
+              </p>
+            </div>
+
+            <div>
+              <Label className="mb-2 block">Background Image</Label>
+              <div className="flex items-center gap-3">
+                <div className="flex h-14 w-24 shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-muted/40">
+                  {uploadingBg ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  ) : bgImage ? (
+                    <img
+                      src={bgImage}
+                      alt="Portal background"
+                      className="h-full w-full object-cover"
+                      onError={() => setBgImage(null)}
+                    />
+                  ) : (
+                    <ImageUp className="h-5 w-5 text-muted-foreground" />
+                  )}
+                </div>
+                <label className="cursor-pointer">
+                  <span className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+                    <ImageUp className="h-3.5 w-3.5" />
+                    {bgImage ? "Replace image" : "Upload image"}
+                  </span>
+                  <input
+                    type="file"
+                    accept={BRAND_ASSET_ACCEPT_ATTR}
+                    className="hidden"
+                    disabled={uploadingBg}
+                    onChange={handleBackgroundUpload}
+                  />
+                </label>
+                {bgImage && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveBackground}
+                    disabled={uploadingBg}
+                    className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-destructive/50 hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Remove
+                  </button>
+                )}
+              </div>
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Fills the whole sign-in screen behind the card, on phones held upright — upload a
+                tall portrait photo, at least 1170×2532px, PNG/JPEG/WEBP/GIF up to 5 MB. Keep the
+                middle of the frame free of anything important: the sign-in card sits over it. Like
+                the logo, this is shared across every location in this organization. The Live
+                Preview on the right updates as soon as the upload finishes.
               </p>
             </div>
 

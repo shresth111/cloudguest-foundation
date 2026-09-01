@@ -84,7 +84,12 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
       // Renamed from "Business Hours" (same id/route/data) -- see
       // customerFeatureCatalog.ts's own note.
       { id: "business-hours", label: "Open Hours", icon: Sun, roles: ["owner"] },
-      { id: "background-image", label: "Background Image", icon: Palette, roles: ["owner"] },
+      // "Background Image" used to sit here. Removed: the login-screen
+      // backdrop is now uploaded from Portal -> Design, next to the logo
+      // and the headline it has to stay legible against, with the Live
+      // Preview right there (PortalPage.tsx). Keeping a second entry point
+      // for the same single org-level image only made it look like two
+      // separate settings. /background-image redirects to Portal.
     ],
   },
   {
