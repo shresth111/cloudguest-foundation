@@ -742,7 +742,13 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
       if (mintApiSecret) {
         const apiSecret = generateApiSecret();
         try {
-          await api.put(`/routers/${router.id}`, {
+          // `PUT /routers/{id}` no longer accepts either field: they are
+          // gated behind the GLOBAL-scope-only
+          // `/platform/routers/{id}/management-access` route, because
+          // `routers.update` is held at ORGANIZATION scope by every
+          // provisioned venue owner. This panel only ever renders inside
+          // the Master console, which already requires a global-scope role.
+          await api.put(`/platform/routers/${router.id}/management-access`, {
             api_username: API_ACCESS_USERNAME,
             api_secret: apiSecret,
           });
