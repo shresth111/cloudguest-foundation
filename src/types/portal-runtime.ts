@@ -309,6 +309,21 @@ export interface RuntimePortalConfig {
   splashHeadline: string | null;
   splashWelcomeMessage: string | null;
   redirectUrl: string | null;
+  /** Venue-authored HTML shown on `/portal/redirect` AFTER a successful
+   * sign-in, sanitized server-side on write and capped at 64 KiB
+   * (`src/lib/post-login-html.ts`). `null`/empty means the post-login page
+   * behaves exactly as it did before this field existed.
+   *
+   * This is the POST-login surface and is deliberately not a
+   * `PortalContentMode` -- that enum is the pre-login system. A venue can
+   * set both, and `postLoginHtml` composes with `redirectUrl` rather than
+   * replacing it: with both set the guest sees this HTML *and* keeps the
+   * countdown / "Continue now" affordance.
+   *
+   * Rendered only through `PostLoginHtmlFrame` (a script-less,
+   * opaque-origin `srcdoc` iframe), never `dangerouslySetInnerHTML` -- see
+   * that component and `POST_LOGIN_HTML_SANDBOX`. */
+  postLoginHtml: string | null;
   /** What the portal presents as its primary content before/instead of the
    * sign-in form -- see `PortalContentMode`. `"login"` (the default) leaves
    * the guest experience exactly as it was before this field existed. */

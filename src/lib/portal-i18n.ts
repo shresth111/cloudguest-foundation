@@ -259,6 +259,17 @@ const EN: Dict = {
   nudgeTeamTitle: "Have a team code?",
   nudgeTeamSubtitle: "Join your group's shared data and quota",
   noExpiryLabel: "No expiry set",
+  // ===== post-login page (venue-authored HTML on /portal/redirect).
+  // Kept as one additive block, all ten languages, so a parallel workstream
+  // rewriting this file has exactly one place to merge.
+  //
+  // The ONLY string this feature needs: the accessible name of the sandboxed
+  // iframe the venue's own HTML renders in. Everything visible inside that
+  // frame is the venue's own copy in whatever language they wrote it, so
+  // there is nothing else here to translate -- but this one is read aloud by
+  // a screen reader, so leaving it English in nine dictionaries would be the
+  // exact gap the redesign block below was created to close.
+  postLoginPageLabel: "Message from the venue",
   ipUnknownLabel: "IP unknown",
   disconnectingLabel: "Disconnecting…",
   // ---- end portal-redesign block ---------------------------------------
@@ -470,6 +481,8 @@ const HI: Dict = {
   nudgeTeamTitle: "टीम कोड है?",
   nudgeTeamSubtitle: "अपने समूह के साझा डेटा और कोटा से जुड़ें",
   noExpiryLabel: "कोई समय-सीमा नहीं",
+  // ===== post-login page -- see the EN block. Same single key.
+  postLoginPageLabel: "वेन्यू की ओर से संदेश",
   ipUnknownLabel: "IP अज्ञात",
   disconnectingLabel: "डिस्कनेक्ट किया जा रहा है…",
   // ---- end portal-redesign block ---------------------------------------
@@ -682,6 +695,8 @@ const BN: Dict = {
   nudgeTeamTitle: "Team কোড আছে?",
   nudgeTeamSubtitle: "আপনার দলের শেয়ার করা ডেটা ও কোটায় যোগ দিন",
   noExpiryLabel: "কোনো মেয়াদ নেই",
+  // ===== post-login page -- see the EN block. Same single key.
+  postLoginPageLabel: "এখানকার তরফ থেকে বার্তা",
   ipUnknownLabel: "IP অজানা",
   disconnectingLabel: "Disconnect করা হচ্ছে…",
   // ---- end portal-redesign block ---------------------------------------
@@ -879,6 +894,8 @@ const MR: Dict = {
   nudgeTeamTitle: "Team कोड आहे?",
   nudgeTeamSubtitle: "तुमच्या गटाच्या शेअर केलेल्या डेटा व कोट्यात सामील व्हा",
   noExpiryLabel: "मुदत नाही",
+  // ===== post-login page -- see the EN block. Same single key.
+  postLoginPageLabel: "इथल्या ठिकाणाचा संदेश",
   ipUnknownLabel: "IP माहीत नाही",
   disconnectingLabel: "Disconnect करत आहोत…",
   // ---- end portal-redesign block ---------------------------------------
@@ -1076,6 +1093,8 @@ const TE: Dict = {
   nudgeTeamTitle: "టీమ్ కోడ్ ఉందా?",
   nudgeTeamSubtitle: "మీ బృందపు షేర్డ్ డేటా, కోటాలో చేరండి",
   noExpiryLabel: "గడువు లేదు",
+  // ===== post-login page -- see the EN block. Same single key.
+  postLoginPageLabel: "ఇక్కడి నుంచి సందేశం",
   ipUnknownLabel: "IP తెలియదు",
   disconnectingLabel: "డిస్‌కనెక్ట్ చేస్తున్నాం…",
   // ---- end portal-redesign block ---------------------------------------
@@ -1276,6 +1295,8 @@ const TA: Dict = {
   nudgeTeamTitle: "குழு குறியீடு உள்ளதா?",
   nudgeTeamSubtitle: "உங்கள் குழுவின் பகிர்ந்த தரவு மற்றும் ஒதுக்கீட்டில் சேருங்கள்",
   noExpiryLabel: "காலக்கெடு இல்லை",
+  // ===== post-login page -- see the EN block. Same single key.
+  postLoginPageLabel: "இந்த இடத்தின் செய்தி",
   ipUnknownLabel: "IP தெரியவில்லை",
   disconnectingLabel: "துண்டிக்கிறோம்…",
   // ---- end portal-redesign block ---------------------------------------
@@ -1471,6 +1492,8 @@ const GU: Dict = {
   nudgeTeamTitle: "Team કોડ છે?",
   nudgeTeamSubtitle: "તમારા ગ્રુપના શેર કરેલા ડેટા અને ક્વોટામાં જોડાઓ",
   noExpiryLabel: "કોઈ મુદત નથી",
+  // ===== post-login page -- see the EN block. Same single key.
+  postLoginPageLabel: "અહીંના તરફથી સંદેશ",
   ipUnknownLabel: "IP અજાણ",
   disconnectingLabel: "Disconnect કરીએ છીએ…",
   // ---- end portal-redesign block ---------------------------------------
@@ -1667,6 +1690,8 @@ const KN: Dict = {
   nudgeTeamTitle: "Team ಕೋಡ್ ಇದೆಯೇ?",
   nudgeTeamSubtitle: "ನಿಮ್ಮ ಗುಂಪಿನ ಹಂಚಿದ ಡೇಟಾ ಮತ್ತು ಕೋಟಾಗೆ ಸೇರಿ",
   noExpiryLabel: "ಅವಧಿ ಇಲ್ಲ",
+  // ===== post-login page -- see the EN block. Same single key.
+  postLoginPageLabel: "ಇಲ್ಲಿಂದ ಸಂದೇಶ",
   ipUnknownLabel: "IP ಗೊತ್ತಿಲ್ಲ",
   disconnectingLabel: "Disconnect ಮಾಡುತ್ತಿದ್ದೇವೆ…",
   // ---- end portal-redesign block ---------------------------------------
@@ -1865,6 +1890,8 @@ const ML: Dict = {
   nudgeTeamTitle: "Team കോഡ് ഉണ്ടോ?",
   nudgeTeamSubtitle: "നിങ്ങളുടെ സംഘത്തിന്റെ പങ്കിട്ട ഡേറ്റയിലും ക്വോട്ടയിലും ചേരൂ",
   noExpiryLabel: "കാലാവധി ഇല്ല",
+  // ===== post-login page -- see the EN block. Same single key.
+  postLoginPageLabel: "സ്ഥാപനത്തിൽ നിന്നുള്ള സന്ദേശം",
   ipUnknownLabel: "IP അറിയില്ല",
   disconnectingLabel: "വിച്ഛേദിക്കുന്നു…",
   // ---- end portal-redesign block ---------------------------------------
@@ -2061,6 +2088,8 @@ const PA: Dict = {
   nudgeTeamTitle: "Team ਕੋਡ ਹੈ?",
   nudgeTeamSubtitle: "ਆਪਣੇ ਗਰੁੱਪ ਦੇ ਸਾਂਝੇ ਡਾਟੇ ਤੇ ਕੋਟੇ ਵਿੱਚ ਸ਼ਾਮਲ ਹੋਵੋ",
   noExpiryLabel: "ਕੋਈ ਮਿਆਦ ਨਹੀਂ",
+  // ===== post-login page -- see the EN block. Same single key.
+  postLoginPageLabel: "ਇੱਥੋਂ ਦਾ ਸੁਨੇਹਾ",
   ipUnknownLabel: "IP ਅਣਜਾਣ",
   disconnectingLabel: "Disconnect ਕੀਤਾ ਜਾ ਰਿਹਾ ਹੈ…",
   // ---- end portal-redesign block ---------------------------------------

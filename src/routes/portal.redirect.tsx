@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { PortalShell, PortalTextPlate } from "@/components/portal-runtime/PortalShell";
 import { PG_PRIMARY_BTN } from "@/components/portal-runtime/PortalGuestUi";
 import { GlyphRedirect } from "@/components/portal-runtime/PortalGlyphs";
+import { PostLoginHtmlFrame } from "@/components/portal-runtime/PostLoginHtmlFrame";
+import { hasPostLoginHtml } from "@/lib/post-login-html";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 
 export const Route = createFileRoute("/portal/redirect")({
@@ -41,6 +43,22 @@ function isSafeRedirectTarget(candidate: string): boolean {
  * same light shell/card/button language as the rest of the redesigned
  * flow now, so a guest going success -> redirect never sees the visual
  * seam this used to have.
+ *
+ * THE VENUE'S OWN POST-LOGIN PAGE (`config.postLoginHtml`) renders here too,
+ * and the two are independent inputs, not alternatives:
+ *
+ *   html + url   -> the venue's page AND the existing countdown / "Continue
+ *                   now" affordance, unchanged. The auto-redirect still
+ *                   fires; a venue that wants its page READ rather than
+ *                   glimpsed should clear the Redirect URL.
+ *   html, no url -> the venue's page, and the guest STAYS here. No countdown,
+ *                   no navigation sink at all.
+ *   no html, url -> byte-identical to before this feature existed.
+ *   neither      -> byte-identical: straight on to /portal/success.
+ *
+ * The HTML never touches this document. It goes into a script-less,
+ * opaque-origin `srcdoc` iframe (`PostLoginHtmlFrame`) because this route is
+ * same-origin with the OTP and phone-number screens -- see that component.
  */
 function RedirectPage() {
   const { config, t, destinationUrl } = usePortalRuntime();
@@ -48,12 +66,23 @@ function RedirectPage() {
   const [remaining, setRemaining] = useState(5);
   const rawUrl = destinationUrl || config?.redirectUrl;
   const url = rawUrl && isSafeRedirectTarget(rawUrl) ? rawUrl : undefined;
+  // Collapsed to `string | null` right here, through the same predicate the
+  // editor's preview uses, so every branch below is a plain truthiness test
+  // and no surface can disagree about whether a venue "has" a post-login
+  // page. An older backend with no `post_login_html` column at all reads as
+  // `undefined` -> `null` -> no page, i.e. the pre-feature behaviour.
+  const rawPostLoginHtml = config?.postLoginHtml ?? null;
+  const postLoginHtml = hasPostLoginHtml(rawPostLoginHtml) ? rawPostLoginHtml : null;
 
   useEffect(() => {
-    if (!url) {
+    // `&& !postLoginHtml` is the whole change to this effect: with a
+    // post-login page and no redirect target there IS something to show, so
+    // bouncing to /portal/success would throw the venue's page away. With no
+    // page it still bounces exactly as before.
+    if (!url && !postLoginHtml) {
       navigate({ to: "/portal/success", replace: true, search: (prev) => prev });
     }
-  }, [url, navigate]);
+  }, [url, postLoginHtml, navigate]);
 
   useEffect(() => {
     if (!url || remaining <= 0) return;
@@ -67,7 +96,45 @@ function RedirectPage() {
     }
   }, [url, remaining]);
 
-  if (!url) return null;
+  if (!url && !postLoginHtml) return null;
+
+  return (
+    <PortalShell>
+      <div className="flex flex-1 flex-col justify-center gap-5">
+        {postLoginHtml && (
+          /* The venue's own page, first: it is the thing they authored for
+           * this moment, and burying it under the countdown plate would make
+           * a venue with both set wonder whether it saved at all.
+           *
+           * The height is fixed because it HAS to be -- auto-sizing an
+           * iframe to its content requires script inside the frame, which is
+           * the one capability the sandbox refuses (see PostLoginHtmlFrame).
+           * So: viewport-relative, with a floor for short landscape phones,
+           * and the content scrolls inside. When there is also a countdown
+           * block underneath, the frame gives up roughly a third of its
+           * height to it rather than pushing it off screen -- on a 667px
+           * iPhone SE viewport 44vh leaves the plate and the "Continue now"
+           * button fully visible without scrolling the page itself. */
+          <PostLoginHtmlFrame
+            html={postLoginHtml}
+            title={t("postLoginPageLabel")}
+            className={url ? "h-[44vh] min-h-[200px]" : "h-[68vh] min-h-[320px]"}
+          />
+        )}
+        {url && <RedirectAffordance url={url} remaining={remaining} />}
+      </div>
+    </PortalShell>
+  );
+}
+
+/**
+ * The countdown plate and the "Continue now" button -- everything this page
+ * showed before the post-login page existed, moved into its own component
+ * verbatim so that path is unchanged when there is no venue HTML, and so it
+ * can simply be omitted when there is HTML but no redirect target.
+ */
+function RedirectAffordance({ url, remaining }: { url: string; remaining: number }) {
+  const { t } = usePortalRuntime();
 
   // The guest-decision-relevant part of the destination is its host; the
   // full URL (often a wall of %2F-encoded router state) moves to the
@@ -84,62 +151,60 @@ function RedirectPage() {
   const [countPre, countPost] = t("redirectCountdownTemplate").split("{n}");
 
   return (
-    <PortalShell>
-      <div className="flex flex-1 flex-col justify-center gap-5">
-        {/* captive-portal-v7-design-spec.md §1.1 (L1). The plate is
-         * `PortalTextPlate` -- the one seam that owns "is there a photo",
-         * the bounded `w-fit` sizing that is deliberately NOT a wash over
-         * the whole content column (§0.1 item 1's twice-shipped mistake),
-         * and §1.4 C5's refusal rule. Its own doc comment carries the
-         * reasoning this used to copy per route.
-         *
-         * The wrapper `<div>` is this route's layout box, not the plate,
-         * and has to stay: with no photo the plate renders its children
-         * bare, so without this box they would drop straight into the
-         * column's `gap-5` and lose `text-center`. */}
-        <div className="mx-auto w-fit max-w-full text-center">
-          <PortalTextPlate>
-            {/* Flat venue-primary tile (contrast-safe foreground via
-             * accessibleForeground()'s `--pr-primary-foreground`), not the
-             * retired indigo gradient + glow. GlyphRedirect is the brand
-             * set's "arrow leaving an open frame". */}
-            <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-[var(--pr-primary,#6366f1)] text-[color:var(--pr-primary-foreground,#ffffff)] shadow-[0_2px_8px_-2px_rgba(30,27,75,0.18)]">
-              <GlyphRedirect className="h-7 w-7" />
-            </div>
-            <h1 className="pg-subtitle mt-5 text-[var(--pg-ink)]">{t("redirecting")}</h1>
-            {/* `--pg-ink-muted`, not the hardcoded `text-slate-500` it replaces: v7
-             * §1.5 retuned that token #64748B -> #475569, and a slate class does
-             * not follow it. 3.36:1 -> 5.36:1 against this plate's own worst
-             * composite (`--pg-surface` at 85% over a near-black photo region);
-             * full derivation in styles.css's own `--pg-ink-muted` note. Backing
-             * the block and leaving its subtitle at 3.36:1 would only have half-
-             * fixed L1, whose own wording is "an unbacked <h1> *and subtitle*". */}
-            <p className="mt-1.5 pg-meta text-[var(--pg-ink-muted)]">
-              {noticePre}
-              <span className="font-semibold text-[var(--pg-ink)]">{host}</span>
-              {noticePost}
-            </p>
-            {/* One honest countdown line folded into the plate -- replaces
-             * the dedicated card whose content was a bare number over a
-             * 2.56:1 slate-400 "SECONDS" caption. The number keeps
-             * emphasis + tabular-nums so it does not jitter as it ticks. */}
-            <p className="mt-3 pg-meta text-[var(--pg-ink-faint)]" aria-live="off">
-              {countPre}
-              <span className="font-semibold tabular-nums text-[var(--pg-ink)]">{remaining}</span>
-              {countPost}
-            </p>
-          </PortalTextPlate>
-        </div>
-        <a
-          href={url}
-          title={url}
-          target="_blank"
-          rel="noreferrer"
-          className={`${PG_PRIMARY_BTN} flex items-center justify-center`}
-        >
-          {t("continueNowLabel")}
-        </a>
+    <>
+      {/* captive-portal-v7-design-spec.md §1.1 (L1). The plate is
+       * `PortalTextPlate` -- the one seam that owns "is there a photo",
+       * the bounded `w-fit` sizing that is deliberately NOT a wash over
+       * the whole content column (§0.1 item 1's twice-shipped mistake),
+       * and §1.4 C5's refusal rule. Its own doc comment carries the
+       * reasoning this used to copy per route.
+       *
+       * The wrapper `<div>` is this route's layout box, not the plate,
+       * and has to stay: with no photo the plate renders its children
+       * bare, so without this box they would drop straight into the
+       * column's `gap-5` and lose `text-center`. */}
+      <div className="mx-auto w-fit max-w-full text-center">
+        <PortalTextPlate>
+          {/* Flat venue-primary tile (contrast-safe foreground via
+           * accessibleForeground()'s `--pr-primary-foreground`), not the
+           * retired indigo gradient + glow. GlyphRedirect is the brand
+           * set's "arrow leaving an open frame". */}
+          <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-[var(--pr-primary,#6366f1)] text-[color:var(--pr-primary-foreground,#ffffff)] shadow-[0_2px_8px_-2px_rgba(30,27,75,0.18)]">
+            <GlyphRedirect className="h-7 w-7" />
+          </div>
+          <h1 className="pg-subtitle mt-5 text-[var(--pg-ink)]">{t("redirecting")}</h1>
+          {/* `--pg-ink-muted`, not the hardcoded `text-slate-500` it replaces: v7
+           * §1.5 retuned that token #64748B -> #475569, and a slate class does
+           * not follow it. 3.36:1 -> 5.36:1 against this plate's own worst
+           * composite (`--pg-surface` at 85% over a near-black photo region);
+           * full derivation in styles.css's own `--pg-ink-muted` note. Backing
+           * the block and leaving its subtitle at 3.36:1 would only have half-
+           * fixed L1, whose own wording is "an unbacked <h1> *and subtitle*". */}
+          <p className="mt-1.5 pg-meta text-[var(--pg-ink-muted)]">
+            {noticePre}
+            <span className="font-semibold text-[var(--pg-ink)]">{host}</span>
+            {noticePost}
+          </p>
+          {/* One honest countdown line folded into the plate -- replaces
+           * the dedicated card whose content was a bare number over a
+           * 2.56:1 slate-400 "SECONDS" caption. The number keeps
+           * emphasis + tabular-nums so it does not jitter as it ticks. */}
+          <p className="mt-3 pg-meta text-[var(--pg-ink-faint)]" aria-live="off">
+            {countPre}
+            <span className="font-semibold tabular-nums text-[var(--pg-ink)]">{remaining}</span>
+            {countPost}
+          </p>
+        </PortalTextPlate>
       </div>
-    </PortalShell>
+      <a
+        href={url}
+        title={url}
+        target="_blank"
+        rel="noreferrer"
+        className={`${PG_PRIMARY_BTN} flex items-center justify-center`}
+      >
+        {t("continueNowLabel")}
+      </a>
+    </>
   );
 }

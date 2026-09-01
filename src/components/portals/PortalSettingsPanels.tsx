@@ -36,6 +36,12 @@ export function PortalLoginSettingsPanel({ portal }: { portal: Portal }) {
       login: {
         ...values,
         redirectUrl: values.redirectUrl ?? "",
+        // This panel is the OTHER portals builder (/portals/$portalId), not
+        // the customer dashboard's Portal -> Design where the post-login page
+        // is authored -- it has no editor for `postLoginHtml` and must not
+        // silently blank it. `update` sends whatever is in this object, so
+        // the loaded value is passed straight back through unchanged.
+        postLoginHtml: portal.login.postLoginHtml,
         successPage: values.successPage ?? "",
         failurePage: values.failurePage ?? "",
       },

@@ -32,6 +32,12 @@ interface BackendCaptivePortalConfig {
   splash_headline: string | null;
   splash_welcome_message: string | null;
   redirect_url: string | null;
+  /** Venue-authored post-login page -- `Text`, nullable, 64 KiB, sanitized
+   * server-side on write. OPTIONAL here on purpose: the backend PR that adds
+   * the column is a separate repo (`cloud-guest-repo/backend`) and may not be
+   * merged when this ships, so an absent field must read as `null` and give
+   * the pre-feature `/portal/redirect` byte-for-byte. */
+  post_login_html?: string | null;
   // Content modes -- all optional so an older backend (pre-migration 0098)
   // whose resolve response omits them still parses; `toRuntimeConfig`
   // resolves an absent `content_mode` to `"login"`, the pre-feature render.
@@ -176,6 +182,11 @@ function toRuntimeConfig(c: BackendCaptivePortalConfig): RuntimePortalConfig {
     splashHeadline: c.splash_headline,
     splashWelcomeMessage: c.splash_welcome_message,
     redirectUrl: c.redirect_url,
+    // Absent (backend column not merged yet) resolves to null, which
+    // `/portal/redirect` treats as "no post-login page" -- the pre-feature
+    // render. `?? null` rather than a bare read so `undefined` never reaches
+    // `hasPostLoginHtml`'s consumers as a third state.
+    postLoginHtml: c.post_login_html ?? null,
     // Absent (old backend) resolves to "login" -- byte-identical to today's
     // sign-in-only render, so this maps safely ahead of the backend column.
     contentMode: toPortalContentMode(c.content_mode),
