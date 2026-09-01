@@ -38,6 +38,14 @@ import {
   splashLimitErrorMessage,
   splashOverLimitBlocked,
 } from "@/lib/splash-limits";
+import {
+  POST_LOGIN_HTML_MAX_BYTES,
+  hasPostLoginHtml,
+  postLoginHtmlByteLength,
+  postLoginHtmlLimitErrorMessage,
+  postLoginHtmlOverLimit,
+} from "@/lib/post-login-html";
+import { PostLoginHtmlFrame } from "@/components/portal-runtime/PostLoginHtmlFrame";
 import { PortalRuntimeProvider } from "@/context/PortalRuntimeContext";
 import { PortalShell } from "@/components/portal-runtime/PortalShell";
 import { GuestSignInCard } from "@/components/portal-runtime/GuestSignInCard";
@@ -178,6 +186,20 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   const [contentHeading, setContentHeading] = useState("");
   const [contentBody, setContentBody] = useState("");
   const [contentImageUrl, setContentImageUrl] = useState("");
+  // The venue's own POST-login page (`login.postLoginHtml` /
+  // `post_login_html`) -- what a guest sees after a successful sign-in,
+  // instead of only being bounced to `redirectUrl`. Deliberately NOT one of
+  // the content modes above: those are the pre-login surface and this is the
+  // post-login one, and a venue can set both. "" means "no post-login page",
+  // which leaves `/portal/redirect` exactly as it was before this existed.
+  const [postLoginHtml, setPostLoginHtml] = useState("");
+  // What the preview iframe below is actually showing, trailing the textarea
+  // by a beat. Changing an iframe's `srcdoc` RELOADS the document, so binding
+  // it straight to `postLoginHtml` would tear down and re-parse the whole
+  // page on every keystroke -- visible flicker, and up to 64 KB of re-parse
+  // per character on a big page. Everything else on this screen still
+  // updates instantly; only this one input has a reload behind it.
+  const [previewHtml, setPreviewHtml] = useState("");
   // The organization's login-screen background (app.domains.branding),
   // loaded as a blob URL for real accounts so it shows in the Live Preview
   // exactly as a guest sees it. Null in demo mode / when no image is set.
@@ -304,6 +326,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
     setContentHeading(p.content.heading);
     setContentBody(p.content.body);
     setContentImageUrl(p.content.imageUrl);
+    setPostLoginHtml(p.login.postLoginHtml || "");
   };
 
   useEffect(() => {
@@ -312,6 +335,14 @@ export function PortalPage({ locationId }: { locationId?: string }) {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demo, locationId]);
+
+  // See `previewHtml` above. 350ms is the usual "stopped typing" threshold --
+  // long enough that a burst of typing costs one reload, short enough that
+  // the preview never feels detached from the field.
+  useEffect(() => {
+    const id = setTimeout(() => setPreviewHtml(postLoginHtml), 350);
+    return () => clearTimeout(id);
+  }, [postLoginHtml]);
 
   // Blob URLs are never revoked by the browser on their own -- revoke the
   // previous one whenever a new one replaces it (including on unmount).
@@ -422,6 +453,12 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       splashHeadline: headline || null,
       splashWelcomeMessage: msg || null,
       redirectUrl: form.redirectUrl || null,
+      // Post-login page. Carried on the runtime config so the shareable
+      // /preview/portal/demo tab (which serializes this exact object) stays
+      // in sync -- note that neither preview route renders a post-login
+      // surface today; the authoring preview under the editor below is what
+      // actually shows this. See the editor block's own comment.
+      postLoginHtml: postLoginHtml || null,
       // Content mode + its source fields -- every edit rebuilds this memo and
       // re-renders PortalContentBlock in the preview immediately (task 4).
       contentMode,
@@ -477,6 +514,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       contentHeading,
       contentBody,
       contentImageUrl,
+      postLoginHtml,
     ],
   );
 
@@ -642,10 +680,20 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   const msgBlocked = splashOverLimitBlocked(msg, SPLASH_WELCOME_MAX, savedSplash.msg);
   const splashBlocked = headlineBlocked || msgBlocked;
 
+  // The post-login page's own gate. Same principle as the splash limits
+  // above -- refuse at authoring time with a visible reason rather than
+  // letting the backend's 64 KiB cap come back as an opaque 400 after the
+  // venue has typed a whole page. No grandfathering clause here (unlike
+  // splash): the cap is enforced on write, so no stored row can already be
+  // over it. See src/lib/post-login-html.ts.
+  const postLoginBytes = postLoginHtmlByteLength(postLoginHtml);
+  const postLoginBlocked = postLoginHtmlOverLimit(postLoginHtml);
+  const saveBlocked = splashBlocked || postLoginBlocked;
+
   const saveConfig = async () => {
     // The Save button is disabled while blocked; this guard just keeps the
     // rule airtight if another code path ever calls saveConfig directly.
-    if (splashBlocked) return;
+    if (saveBlocked) return;
     if (demo) {
       toast.success("Portal configuration saved");
       return;
@@ -660,7 +708,12 @@ export function PortalPage({ locationId }: { locationId?: string }) {
         // immediately-persisted org-level upload above, not a
         // captive_portal_configs.logo_url string field.
         branding: { primaryColor: primary },
-        login: { redirectUrl: form.redirectUrl },
+        // Both post-login destinations travel together: the external URL and
+        // the venue's own page. `portal.service.ts` maps BOTH directions for
+        // `postLoginHtml` (toPortal on read, create()/update() on write) --
+        // a field mapped on read only is silently dropped here, which is the
+        // bug `fontFamily` shipped with.
+        login: { redirectUrl: form.redirectUrl, postLoginHtml },
         loginMethods: authMethods as PortalLoginMethod[],
         seo: { pageTitle: headline, metaDescription: msg },
         content: {
@@ -685,26 +738,60 @@ export function PortalPage({ locationId }: { locationId?: string }) {
         languages: resolveLanguageSelection(langList[0], langList)
           .supportedLanguages as PortalLanguage[],
       };
+      let saved;
       if (portalId) {
-        await portalService.update(portalId, patch, orgId);
+        saved = await portalService.update(portalId, patch, orgId);
       } else {
-        const created = await portalService.create({
+        saved = await portalService.create({
           name: "Guest Portal",
           organizationId: orgId,
           locationId: locationId ?? "",
           ...patch,
         });
-        setPortalId(created.id);
+        setPortalId(saved.id);
       }
       setSavedSplash({ headline, msg });
       toast.success("Portal configuration saved");
+
+      // Repaint the post-login editor from the STORED, SANITIZED value the
+      // save returned. The backend sanitizes on write and echoes back what it
+      // actually kept, so this is the one moment a venue can be shown what
+      // was stripped -- leaving the textarea holding markup that is not in
+      // the database would be a quiet lie, and the venue would only discover
+      // it on the next reload with no explanation attached.
+      //
+      // `sent` is what update()/create() actually put on the wire (trimmed),
+      // so trailing whitespace alone never reads as "the sanitizer changed
+      // something".
+      const sent = postLoginHtml.trim();
+      const stored = saved.login.postLoginHtml;
+      if (sent && !stored) {
+        // Ambiguous, and the two readings call for opposite actions: either
+        // the sanitizer rejected the whole document (a paste that was
+        // nothing but a <script>, say), or this backend has no
+        // `post_login_html` column yet and every response omits it. Blanking
+        // the editor would destroy the venue's work in the second case, so
+        // this branch never writes -- it only warns.
+        toast.warning(
+          "The post-login page came back empty from the server. Nothing of it was stored — check that the markup is more than just scripts, and try again.",
+        );
+      } else if (stored !== postLoginHtml) {
+        setPostLoginHtml(stored);
+        setPreviewHtml(stored);
+        if (stored !== sent) {
+          toast.info(
+            "Some markup was removed or rewritten for safety. The editor now shows exactly what was saved.",
+          );
+        }
+      }
     } catch (err) {
       // The disabled Save above makes the over-limit 400 unreachable from
       // THIS tab, but an older tab (predating the limits) can still race a
       // save through -- surface the backend's own max_length/actual_length
       // envelope instead of a generic failure toast.
       toast.error(
-        splashLimitErrorMessage(err) ??
+        postLoginHtmlLimitErrorMessage(err) ??
+          splashLimitErrorMessage(err) ??
           (axios.isAxiosError(err)
             ? toAppError(err).message
             : "Could not save — check the connection and try again."),
@@ -975,6 +1062,98 @@ export function PortalPage({ locationId }: { locationId?: string }) {
               </div>
             </div>
 
+            {/* Post-login page. Sits directly under Redirect URL because the
+              two are the same decision -- what a guest sees the moment they
+              are online -- and because a venue that sets both needs to see
+              that they COMPOSE, not that one wins (the note under the
+              textarea says so, and the preview under it shows it).
+
+              Plain monospace <Textarea>, not a code editor: a code-editor
+              dependency is ~200KB of the customer dashboard's bundle to
+              syntax-highlight a field most venues will paste into once. */}
+            <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Label htmlFor="post-login-html">Post-login page (HTML)</Label>
+                {/* Bytes, not characters -- the backend column's cap is a
+                  byte cap, and one Devanagari code point is 3 bytes. A
+                  character count would tell a Hindi-writing venue they had
+                  3x the room they actually have. */}
+                <span
+                  aria-live="polite"
+                  className={`text-xs tabular-nums ${
+                    postLoginBlocked ? "font-medium text-destructive" : "text-muted-foreground"
+                  }`}
+                >
+                  {postLoginBytes.toLocaleString()} / {POST_LOGIN_HTML_MAX_BYTES.toLocaleString()}{" "}
+                  bytes
+                </span>
+              </div>
+              <Textarea
+                id="post-login-html"
+                rows={8}
+                spellCheck={false}
+                value={postLoginHtml}
+                onChange={(e) => setPostLoginHtml(e.target.value)}
+                placeholder={
+                  "<h2>Welcome!</h2>\n<p>Show your booking at the desk for a free coffee.</p>"
+                }
+                className="font-mono text-xs"
+              />
+              <p className="text-xs text-muted-foreground">
+                Shown to guests right after they sign in. Leave it empty to keep today&apos;s
+                behaviour.{" "}
+                {form.redirectUrl.trim() ? (
+                  <>
+                    Because a <span className="font-medium">Redirect URL</span> is also set, guests
+                    see this page with a <span className="font-medium">Continue</span> button to it.
+                    They are not sent on automatically, so the page stays up until they choose to
+                    leave.
+                  </>
+                ) : (
+                  <>
+                    With no <span className="font-medium">Redirect URL</span> set, this page is
+                    where guests stay.
+                  </>
+                )}
+              </p>
+              {/* The one thing a venue WILL get wrong if we don't say it.
+                This page runs on the same origin as the OTP screen, so the
+                HTML is rendered in a sandboxed frame with scripts disabled
+                -- an analytics or chat-widget snippet pasted here does
+                nothing at all, silently. Saying so here is cheaper than the
+                bug report. */}
+              <p className="text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">Scripts will not run.</span> For your
+                guests&apos; safety this page is displayed in a sandbox, so{" "}
+                <code>&lt;script&gt;</code> tags, analytics snippets, chat widgets and inline{" "}
+                <code>onclick</code> handlers are ignored. HTML, CSS, images and links all work —
+                links open in a new tab. Saving also runs the page through a safety filter, so the
+                editor may come back slightly changed from what you pasted; that version is what
+                guests get.
+              </p>
+              {hasPostLoginHtml(previewHtml) && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium">Preview</p>
+                  {/* The SAME component, with the SAME sandbox, that
+                    /portal/redirect renders for a real guest -- not a
+                    lookalike. That is the whole point: whatever gets
+                    silently dropped in this box is exactly what gets
+                    dropped on the guest's phone. */}
+                  <PostLoginHtmlFrame
+                    html={previewHtml}
+                    title="Post-login page preview"
+                    className="h-64 bg-white"
+                  />
+                </div>
+              )}
+              {postLoginBlocked && (
+                <p className="text-xs text-destructive" role="alert">
+                  This page is {postLoginBytes.toLocaleString()} bytes — the limit is{" "}
+                  {POST_LOGIN_HTML_MAX_BYTES.toLocaleString()}. Shorten it to save.
+                </p>
+              )}
+            </div>
+
             {/* Content mode -- what the portal shows above the sign-in card.
               Every change here re-renders the Live Preview instantly via
               livePreviewConfig. */}
@@ -1077,7 +1256,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
               />
             </div>
             <div className="space-y-1.5">
-              <Button className="w-full sm:w-auto" onClick={saveConfig} disabled={splashBlocked}>
+              <Button className="w-full sm:w-auto" onClick={saveConfig} disabled={saveBlocked}>
                 Save Configuration
               </Button>
               {splashBlocked && (
@@ -1087,6 +1266,16 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                     : headlineBlocked
                       ? `The headline is over the ${SPLASH_HEADLINE_MAX}-character limit — shorten it to save.`
                       : `The welcome message is over the ${SPLASH_WELCOME_MAX}-character limit — shorten it to save.`}
+                </p>
+              )}
+              {/* The post-login field has its own inline error next to the
+                counter, but it is far enough up the form to be off screen
+                from here -- repeat the reason at the disabled button rather
+                than leaving it looking broken. */}
+              {postLoginBlocked && (
+                <p className="text-xs text-destructive" role="alert">
+                  The post-login page is over the {POST_LOGIN_HTML_MAX_BYTES.toLocaleString()}-byte
+                  limit — shorten it to save.
                 </p>
               )}
             </div>

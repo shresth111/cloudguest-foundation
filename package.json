@@ -15,6 +15,8 @@
     "test:manual-wizard": "node scripts/test-manual-wizard-engine.mjs",
     "test:portal-cna": "node scripts/test-portal-cna-storage-safety.mjs",
     "test:signin-fields": "node scripts/test-portal-signin-fields.mjs",
+    "test:post-login-roundtrip": "node scripts/test-post-login-html-roundtrip.mjs",
+    "test:post-login-sandbox": "node scripts/test-post-login-html-sandbox.mjs",
     "test:guided-i18n": "node scripts/check-guided-i18n.mjs",
     "test:guided-i18n-state": "node scripts/test-guided-i18n-state.mjs",
     "test:guided-i18n-switch": "node scripts/test-guided-i18n-switch.mjs",

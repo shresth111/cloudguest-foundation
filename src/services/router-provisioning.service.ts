@@ -236,8 +236,6 @@ export const routerProvisioningService = {
         name: payload.name,
         management_ip_address: payload.managementIpAddress ?? null,
         public_ip_address: payload.publicIpAddress ?? null,
-        api_username: payload.apiUsername ?? null,
-        api_secret: payload.apiSecret ?? null,
       },
     );
     return { enrollment: toEnrollment(data.enrollment), routerId: data.router_id };

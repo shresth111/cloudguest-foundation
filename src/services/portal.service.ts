@@ -59,6 +59,11 @@ interface BackendCaptivePortalConfig {
   splash_headline: string | null;
   splash_welcome_message: string | null;
   redirect_url: string | null;
+  /** Venue-authored post-login page -- `Text`, nullable, 64 KiB, sanitized
+   * server-side on write. Optional until the backend PR (separate repo)
+   * lands: `toPortal` reads an absent field as "", and `update`'s whitelist
+   * below only sends it when the editor actually set a value. */
+  post_login_html?: string | null;
   // Optional so a pre-migration-0098 backend response still parses -- see
   // toPortal, which coerces an absent content_mode to "login".
   content_mode?: string | null;
@@ -406,6 +411,11 @@ function toPortal(
       idleTimeoutMinutes: 15,
       deviceLimit: 3,
       redirectUrl: c.redirect_url ?? "",
+      // READ half of the post-login page. The WRITE half is in create() and
+      // update() below -- BOTH are required. A field mapped here and not
+      // there is silently dropped on save with a success toast, which is
+      // exactly how `fontFamily` shipped as a live control bound to nothing.
+      postLoginHtml: c.post_login_html ?? "",
       successPage: "",
       failurePage: "",
       autoLogin: true,
@@ -582,6 +592,9 @@ export const portalService = {
         splash_headline: input.seo?.pageTitle ?? null,
         splash_welcome_message: input.seo?.metaDescription ?? null,
         redirect_url: input.login?.redirectUrl || null,
+        // WRITE half (create). `|| null` -- an empty or whitespace-only
+        // textarea must clear the column, not store "" or " \n".
+        post_login_html: input.login?.postLoginHtml?.trim() || null,
         content_mode: input.content?.mode ?? "login",
         content_heading: input.content?.heading || null,
         content_body: input.content?.body || null,
@@ -617,6 +630,15 @@ export const portalService = {
     if (patch.seo?.metaDescription !== undefined)
       body.splash_welcome_message = patch.seo.metaDescription || null;
     if (patch.login?.redirectUrl !== undefined) body.redirect_url = patch.login.redirectUrl || null;
+    // WRITE half (update) of the post-login page -- THIS IS THE LINE THE
+    // `fontFamily` BUG WAS MISSING. `toPortal` above maps `post_login_html`
+    // on the way in, and without this the editor would render a saved value,
+    // accept an edit, show the success toast, and silently discard it. Kept
+    // adjacent to `redirect_url` so the pair stays visibly one feature.
+    // `|| null` (over a trimmed value) so clearing the textarea clears the
+    // column rather than storing an empty string.
+    if (patch.login?.postLoginHtml !== undefined)
+      body.post_login_html = patch.login.postLoginHtml.trim() || null;
     if (patch.content?.mode !== undefined) body.content_mode = patch.content.mode;
     if (patch.content?.heading !== undefined) body.content_heading = patch.content.heading || null;
     if (patch.content?.body !== undefined) body.content_body = patch.content.body || null;
