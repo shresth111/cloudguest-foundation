@@ -16,7 +16,10 @@ name: CI
 #   test:output-analyser  116 checks
 #   test:a11y ........... sentinel only
 #   test:manual-wizard .. 113 checks
-#   test:setup-script ... 3081 checks, all green (was 2000; section 15 --
+#   test:setup-script ... 3279 checks, all green (was 3081; sections 15.1b
+#                         and 16 -- the /import `:put` hedge and the typed
+#                         acknowledgement on a partial provision -- landed
+#                         2026-09-02, floor 3070 -> 3265; was 2000; section 15 --
 #                         the .rsc delivery channel -- landed 2026-09-02
 #                         with 122 deliberately RED, and the generator fix
 #                         in the same PR turned every one of them green;
@@ -550,13 +553,65 @@ jobs:
       # emitted one, and an INJECTED check matched `COMPLETE` as a
       # substring of `INCOMPLETE`).
       #
-      # FLOOR: 3070, against 3081 observed green. Tight on purpose --
+      # SECTION 15.1b AND SECTION 16 (2026-09-02) -- THE TWO RESIDUAL
+      # RISKS LEFT OPEN WHEN SECTION 15 LANDED.
+      #
+      #  1. THE MARKERS RESTED ON AN UNMEASURED ASSUMPTION. Every progress
+      #     marker in both channels was a `:put`, and whether `/import`
+      #     echoes `:put` output to the terminal at all was never tested on
+      #     hardware -- the spec logs it as AC-4.5 ("resolve this on real
+      #     hardware before implementing AC-4.1") and nobody did. If it
+      #     does not echo, the operator reads nothing and the whole fix for
+      #     "the script executed, RADIUS wasn't there" is void with no
+      #     symptom. Markers now go to BOTH `:put` and `:log info`, so the
+      #     question no longer decides whether they work, and the `/log`
+      #     route is also the better record when `:put` DOES echo (a
+      #     30-chunk import scrolls a WinBox buffer).
+      #
+      #     15.1's "the renderer invents no executable statements" guard
+      #     was NOT loosened to allow the second sink. Its marker exemption
+      #     was `line.includes("### cloudguest")` -- a hole with a password,
+      #     which graded `/system reboot # ### cloudguest` as a legal
+      #     marker. It is now (a) a strict single-statement shape and (b)
+      #     set-equality against `progressMarkerStatements`, the renderers'
+      #     own enumeration. The exemption got narrower while the exempted
+      #     set got bigger.
+      #
+      #     15.1b is new and pins the third edge nothing asserted: the .rsc
+      #     and the flattened paste are the same statement list, in order.
+      #     That property was measured by hand and never gated, which is
+      #     exactly how the .rsc went a month with no markers while the
+      #     paste had 65.
+      #
+      #  2. A DELIBERATELY-PARTIAL PROVISION WAS TRUSTED, NOT GATED.
+      #     Section 16. Three things said "this script has no RADIUS" and
+      #     none of them stopped anything, so the state was reachable by
+      #     not noticing. A partial provision now requires a TYPED
+      #     acknowledgement at the deselect -- the consequence, "NO GUEST
+      #     LOGIN", not the subsystem name -- and `deliberate: true`
+      #     without one demotes the gap to a failure, which `:error`s. The
+      #     gate is at the deselect and not at Generate or Download
+      #     deliberately: a fourth dismissible warning is what three
+      #     dismissible warnings produce.
+      #
+      # 198 checks added. 25 source-level mutations were injected into the
+      # real generator and the real panel and this suite re-run; the first
+      # pass left 2 alive (the `.rsc` header's /log instruction, matched
+      # anywhere in the file rather than in the header -- an unrelated
+      # chunk already prints that string -- and the deselect gate's phrase
+      # comparison, which was source-grepped and could be replaced with
+      # "accept anything" while every grep still matched). Both were
+      # fixed: the header check is scoped to the `#` prologue, and the
+      # grading is now a pure exported function this suite CALLS. All 25
+      # caught on the second pass.
+      #
+      # FLOOR: 3265, against 3279 observed green. Tight on purpose --
       # deleting one assertion block fails the build -- with just enough
       # slack that correcting a single vacuous check does not.
       - name: setup script generator
         run: |
           ./scripts/ci-gated-test.sh \
-            "setup-script-generator" 3070 \
+            "setup-script-generator" 3265 \
             "setup-script-generator: all checks passed" \
             bun run test:setup-script
 

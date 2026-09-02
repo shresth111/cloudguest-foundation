@@ -27,6 +27,9 @@ import {
   SETUP_SCRIPT_VALIDATOR_CHECKS,
   SETUP_SCRIPT_VALIDATOR_LIMITS,
   GUEST_PORTAL_PUBLIC_BASE,
+  DESELECT_PHRASE,
+  DESELECT_CONSEQUENCE,
+  deselectAcknowledgement,
 } from "@/components/routers/RouterDetailTabs";
 import type { RouterSetupScriptValidationResult } from "@/components/routers/RouterDetailTabs";
 import { useQueryClient } from "@tanstack/react-query";
@@ -255,6 +258,75 @@ function isValidCidr(value: string): boolean {
  * and that account is a complete portal bypass. A strong password on an
  * account that must not exist is not an improvement on a weak one. */
 
+/** THE ONE GATE ON A PARTIAL PROVISION, AND WHY IT IS A TYPED PHRASE.
+ *
+ * Before this, a partial script was reachable by NOT DOING ANYTHING to
+ * three warnings: an amber panel above the Generate button, a `# !!`
+ * header in the downloaded `.rsc`, and a last line that names the gap.
+ * All three are correct, all three are still here, and none of them ever
+ * stopped anything. A venue whose RADIUS is missing has no guest login at
+ * all, so the cost of an accidental partial is total -- and "the operator
+ * failed to notice three warnings" is not a decision anybody made.
+ *
+ * FOUR THINGS WERE WEIGHED. Recorded because the wrong one is tempting:
+ *
+ *  1. A confirm at DOWNLOAD. Rejected. It is a fourth dismissible thing,
+ *     which is the exact failure that produced this seam (three
+ *     dismissible warnings), and it only covers one of four ways the
+ *     script leaves the panel -- the chunk copies and the one-line copy
+ *     configure the same router and would have walked straight past it.
+ *  2. A confirm at GENERATE. Rejected for the same reason plus a worse
+ *     one: Generate is clicked repeatedly (secret rotation, a WAN edit),
+ *     so a gate there is seen five times a session and becomes muscle
+ *     memory inside one sitting. That is how the regenerate confirm's
+ *     value gets spent, and that dialog is load-bearing.
+ *  3. Making the DESELECT itself the deliberate act. TAKEN. It happens
+ *     exactly once, at the only moment the decision is actually being
+ *     made and is still free to reverse, and it covers every downstream
+ *     channel by construction because a partial state cannot exist
+ *     without passing through it. Both boxes default ON, so this is the
+ *     ONLY route from a full script to a partial one.
+ *  4. Making the generated script `:error` on a deliberate gap. Rejected
+ *     -- see `SetupScriptGap`. It is the reasoning already recorded for
+ *     the non-aborting ending, and it is right: a script that refuses to
+ *     run a configuration somebody scoped on purpose teaches its operator
+ *     to page past the banner, and that banner is what catches the case
+ *     nobody chose. What the script DOES refuse is a gap that claims to
+ *     be a choice and carries no acknowledgement.
+ *
+ * A TYPED PHRASE, NOT A CONFIRM, and the phrase is the CONSEQUENCE rather
+ * than the subsystem name. "Type NO GUEST LOGIN" cannot be satisfied by
+ * the reflex that satisfies an OK button, and it cannot be satisfied
+ * without reading it. Requiring the operator to spell out the outcome is
+ * the whole mechanism; requiring them to type "RADIUS" would not be.
+ *
+ * FAIL-SAFE IN THE RIGHT DIRECTION. `prompt` returns null when cancelled
+ * -- and also when a browser suppresses dialogs entirely -- and null
+ * leaves the box TICKED. The failure mode of this gate is a full
+ * provision. */
+/** Asks, then grades. The GRADING lives in `RouterDetailTabs` next to
+ * `SetupScriptGap` -- see `deselectAcknowledgement` -- because the
+ * generator suite can call a pure function and can only grep a
+ * component. This half is the prompt; that half is the decision. */
+function confirmDeselect(which: "radius" | "wireguard"): string | null {
+  const phrase = DESELECT_PHRASE[which];
+  return deselectAcknowledgement(
+    which,
+    window.prompt(
+      [
+        `You are about to generate a script that does NOT configure ${which === "radius" ? "RADIUS" : "the WireGuard tunnel"}.`,
+        ``,
+        DESELECT_CONSEQUENCE[which],
+        ``,
+        `Nothing has failed -- this is a choice, and it is a choice the script will record. It will not stop by itself, so this is the last thing between it and a venue.`,
+        ``,
+        `If that is what you want, type exactly:  ${phrase}`,
+      ].join("\n"),
+      "",
+    ),
+  );
+}
+
 function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
   // EVERY server call in `onGenerate` below is a raw `api.post`/`api.put`,
   // not a react-query mutation -- so nothing invalidated the caches those
@@ -340,6 +412,10 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
   // script.
   const [enableWireguard, setEnableWireguard] = useState(true);
   const [enableRadius, setEnableRadius] = useState(true);
+  // WHAT THE OPERATOR TYPED TO SWITCH EACH ONE OFF, KEPT SO THE SCRIPT
+  // CAN CARRY IT. Empty means "still on", and it is the ONLY way this
+  // component can reach a deselected state -- see `confirmDeselect`.
+  const [deselectAck, setDeselectAck] = useState<{ wireguard?: string; radius?: string }>({});
   // Off by default and deliberately sticky-free: rotating the API password
   // is only ever correct right after the `cloudguest-api` user has been
   // removed from the device. See the mint block in `onGenerate`.
@@ -586,7 +662,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
       // was found only by reading `/radius` on the device and finding it
       // empty. Guests would have failed every login with nothing anywhere
       // saying why.
-      const notProvisioned: { what: string; why: string; deliberate?: boolean }[] = [];
+      const notProvisioned: import("@/components/routers/RouterDetailTabs").SetupScriptGap[] = [];
       // A SUBSYSTEM LEFT OUT ON PURPOSE IS STILL A SUBSYSTEM LEFT OUT.
       //
       // This array used to be fed only from `catch` blocks, so it recorded
@@ -600,11 +676,22 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
       //
       // Flagged `deliberate` so the generator prints the banner without
       // aborting: see `notProvisioned`'s docstring in RouterDetailTabs.
+      //
+      // `acknowledgement` is what the operator TYPED at `confirmDeselect`
+      // to reach this state, and it is not optional on the `deliberate`
+      // branch (`SetupScriptGap` is a union, so this does not compile
+      // without it). `?? ""` is not a shrug: an empty string demotes the
+      // gap to a FAILURE in the generator, which `:error`s. So if this
+      // component ever reaches a deselected state without a typed
+      // acknowledgement -- a state restored from somewhere, a future
+      // caller, a refactor that forgets -- the script stops instead of
+      // half-provisioning a venue.
       if (!enableWireguard) {
         notProvisioned.push({
           what: "WireGuard tunnel",
           why: 'the "Also create a WireGuard tunnel" box was not ticked when this script was generated',
           deliberate: true,
+          acknowledgement: deselectAck.wireguard ?? "",
         });
       }
       if (!enableRadius) {
@@ -612,6 +699,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           what: "RADIUS",
           why: 'the "Also enable RADIUS" box was not ticked when this script was generated',
           deliberate: true,
+          acknowledgement: deselectAck.radius ?? "",
         });
       }
       let wireguard: import("@/components/routers/RouterDetailTabs").WireguardPeerInfo | undefined;
@@ -1344,8 +1432,29 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
             type="checkbox"
             checked={enableWireguard}
             onChange={(e) => {
-              setEnableWireguard(e.target.checked);
-              if (!e.target.checked) setEnableRadius(false);
+              // Re-ticking is free -- it moves toward a full provision.
+              // Unticking is the act that has to be deliberate, and
+              // unticking WireGuard takes RADIUS with it, so it needs
+              // BOTH acknowledgements when RADIUS was on: the operator is
+              // switching off two subsystems, and being asked about one
+              // of them would let the more expensive one ride along
+              // unread. That is the coupling bug in miniature.
+              if (e.target.checked) {
+                setEnableWireguard(true);
+                setDeselectAck((a) => ({ ...a, wireguard: undefined }));
+                return;
+              }
+              const wgAck = confirmDeselect("wireguard");
+              if (wgAck === null) return;
+              let radiusAck = deselectAck.radius;
+              if (enableRadius) {
+                const got = confirmDeselect("radius");
+                if (got === null) return;
+                radiusAck = got;
+              }
+              setEnableWireguard(false);
+              setEnableRadius(false);
+              setDeselectAck({ wireguard: wgAck, radius: radiusAck });
             }}
             className="h-3.5 w-3.5 rounded border-input"
           />
@@ -1393,8 +1502,16 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
             type="checkbox"
             checked={enableRadius}
             onChange={(e) => {
-              setEnableRadius(e.target.checked);
-              if (e.target.checked) setEnableWireguard(true);
+              if (e.target.checked) {
+                setEnableRadius(true);
+                setEnableWireguard(true);
+                setDeselectAck({});
+                return;
+              }
+              const ack = confirmDeselect("radius");
+              if (ack === null) return;
+              setEnableRadius(false);
+              setDeselectAck((a) => ({ ...a, radius: ack }));
             }}
             className="h-3.5 w-3.5 rounded border-input"
           />
@@ -1479,6 +1596,26 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
             import will still run to the end — nothing has failed, this is a choice. Tick the boxes
             above for a full provision.
           </p>
+          {/* THIS PANEL IS NOT THE GATE, AND SAYING SO IS THE POINT.
+           *
+           * It is one of three warnings that never stopped anything. The
+           * gate is the typed phrase at the checkbox (`confirmDeselect`),
+           * which has already happened by the time this renders -- this
+           * line exists to show the operator that their own words are now
+           * riding in the artifact, so the record is visible before the
+           * click rather than discovered in a file at a rack. */}
+          {(deselectAck.radius || deselectAck.wireguard) && (
+            <p className="text-muted-foreground">
+              Recorded in this script and in its <code>.rsc</code> header:{" "}
+              {[
+                deselectAck.radius && `RADIUS off — you typed “${deselectAck.radius}”`,
+                deselectAck.wireguard && `WireGuard off — you typed “${deselectAck.wireguard}”`,
+              ]
+                .filter(Boolean)
+                .join("; ")}
+              .
+            </p>
+          )}
         </div>
       )}
 
@@ -1511,10 +1648,24 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
               <code className="rounded bg-background px-1 py-0.5">
                 /import file={routerRscFilename(router.locationName, router.id)}
               </code>{" "}
-              — no terminal paste at all, so nothing to corrupt. <strong>Copy (1 line)</strong>{" "}
-              below is still one giant paste under the hood -- on a real config it usually ends up
-              several times longer than any single chunk above, which is exactly the kind of paste
-              that's corrupted terminals before. It is also{" "}
+              — no terminal paste at all, so nothing to corrupt. The <code>.rsc</code> prints the
+              same{" "}
+              <code className="rounded bg-background px-1 py-0.5">### cloudguest n/N START</code> /{" "}
+              <code className="rounded bg-background px-1 py-0.5">DONE</code> markers as the
+              one-line copy, so the same rule applies: the <strong>last line must read</strong>{" "}
+              <code className="rounded bg-background px-1 py-0.5">### cloudguest COMPLETE</code>,
+              and a trailing START names the chunk it died in. Read it back with{" "}
+              <code className="rounded bg-background px-1 py-0.5">
+                /log print where message~&quot;### cloudguest&quot;
+              </code>{" "}
+              rather than off the terminal — every marker is written to the log as well as printed,
+              because <strong>nobody here has confirmed on hardware</strong> that{" "}
+              <code>/import</code> echoes <code>:put</code> output at all, and the log also survives
+              a 30-chunk import scrolling the terminal buffer. The file&rsquo;s own <code>#</code>{" "}
+              header carries this instruction too, since it is read without this panel around it.{" "}
+              <strong>Copy (1 line)</strong> below is still one giant paste under the hood -- on a
+              real config it usually ends up several times longer than any single chunk above, which
+              is exactly the kind of paste that's corrupted terminals before. It is also{" "}
               <strong>all-or-nothing in one specific way</strong>: RouterOS runs a pasted line until
               it hits an error, prints one message, and{" "}
               <strong>silently discards every chunk after that point</strong> — which is how a
