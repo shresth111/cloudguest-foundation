@@ -1,3 +1,5 @@
+export type DhcpDevicePushStatus = "pending" | "active" | "failed";
+
 export interface DhcpPool {
   id: string;
   routerId: string;
@@ -12,6 +14,14 @@ export interface DhcpPool {
   dnsSecondary: string | null;
   leaseTimeSeconds: number;
   isEnabled: boolean;
+  /** Whether a real `/ip pool` + `/ip dhcp-server` + `/ip dhcp-server
+   * network` triple for this pool exists on the router right now.
+   * Deliberately separate from `isEnabled`, which is only intent: a pool
+   * can be enabled and never have reached a device. */
+  devicePushStatus: DhcpDevicePushStatus;
+  /** Raw device error from the last failed push, shown verbatim. */
+  devicePushError: string | null;
+  devicePushedAt: string | null;
   createdAt: string;
 }
 

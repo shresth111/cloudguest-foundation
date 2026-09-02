@@ -1,6 +1,17 @@
 import { useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Plus, Search, Trash2, Pencil, Share2, ShieldCheck, ShieldOff, Server } from "lucide-react";
+import {
+  Plus,
+  Search,
+  Trash2,
+  Pencil,
+  Share2,
+  ShieldCheck,
+  ShieldOff,
+  Server,
+  UploadCloud,
+  Loader2,
+} from "lucide-react";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -46,17 +57,20 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { StatCard, SectionHeader } from "@/components/ui-ext";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import {
   useDhcpPools,
   useCreateDhcpPool,
   useUpdateDhcpPool,
   useDeleteDhcpPool,
+  usePushDhcpPool,
 } from "@/hooks/useDhcp";
 import { routerService } from "@/services/router.service";
 import { isDemo, resolveOrgId } from "@/services/customer.service";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import type { AppError } from "@/services/api";
-import type { DhcpPool } from "@/types/dhcp";
+import type { DhcpPool, DhcpDevicePushStatus } from "@/types/dhcp";
 
 const PAGE_SIZE = 25;
 
@@ -148,6 +162,53 @@ function DhcpIllustration() {
   );
 }
 
+const DEVICE_PUSH_LABEL: Record<DhcpDevicePushStatus, string> = {
+  active: "Applied",
+  pending: "Not yet applied",
+  failed: "Couldn't apply",
+};
+
+const DEVICE_PUSH_STYLES: Record<DhcpDevicePushStatus, string> = {
+  active: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400",
+  pending: "bg-zinc-500/10 text-zinc-600 border-zinc-500/20 dark:text-zinc-400",
+  failed: "bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400",
+};
+
+/** Whether this pool actually exists on the router.
+ *
+ * Worth its own column rather than folding into "Status": `isEnabled` is
+ * intent, this is fact, and until the domain had a device push every pool
+ * ever created sat permanently unapplied while the UI said "Enabled" --
+ * and a guest joining that network received no address at all, because no
+ * `/ip dhcp-server` had ever been created to answer them.
+ *
+ * A failed push shows the router's own words rather than a generic
+ * message: "already have such item" or a policy denial tells an operator
+ * what to do, and summarising device errors is how the silence started.
+ */
+function DevicePushBadge({ pool }: { pool: DhcpPool }) {
+  const badge = (
+    <Badge
+      variant="outline"
+      className={cn("rounded-full font-medium", DEVICE_PUSH_STYLES[pool.devicePushStatus])}
+    >
+      <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
+      {DEVICE_PUSH_LABEL[pool.devicePushStatus]}
+    </Badge>
+  );
+  if (pool.devicePushStatus !== "failed" || !pool.devicePushError) return badge;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex cursor-default">{badge}</span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs">
+        Couldn&apos;t apply this pool to your router: {pool.devicePushError}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
   const [page, setPage] = useState(1);
   const [routerFilter, setRouterFilter] = useState<string>("all");
@@ -198,6 +259,20 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
     { enabled: locationId ? demoFlag || !!scopedOrgId : true },
   );
   const del = useDeleteDhcpPool();
+  const push = usePushDhcpPool();
+
+  function handlePush(pool: DhcpPool) {
+    push.mutate(
+      { id: pool.id, organizationId: locationId ? scopedOrgId : undefined },
+      {
+        onSuccess: () => toast.success(`${pool.name} applied to the router`),
+        onError: (err) =>
+          toast.error(
+            (err as unknown as AppError)?.message || `Couldn't apply ${pool.name} to the router`,
+          ),
+      },
+    );
+  }
   const { data: routers = { rows: [], total: 0 } } = useQuery({
     queryKey: ["dhcp", "router-options", locationId],
     queryFn: async () => {
@@ -257,7 +332,7 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
         description={
           locationId
             ? "The pool of IP addresses your router hands out to guest devices, plus their gateway, DNS and how long each address is held."
-            : "Per-router DHCP address pools, gateway, DNS and lease time. Device push happens through a separate configuration pipeline."
+            : "Per-router DHCP address pools, gateway, DNS and lease time. Apply a pool to send it to the router."
         }
         illustration={<DhcpIllustration />}
         actions={
@@ -323,14 +398,15 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
                 <TableHead>DNS</TableHead>
                 <TableHead>Lease</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="w-[80px]" />
+                <TableHead>On router</TableHead>
+                <TableHead className="w-[160px]" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading && (
                 <TableRow>
                   <TableCell
-                    colSpan={8}
+                    colSpan={9}
                     className="py-10 text-center text-sm text-muted-foreground"
                   >
                     Loading…
@@ -340,7 +416,7 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
               {!isLoading && rows.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={8}
+                    colSpan={9}
                     className="py-10 text-center text-sm text-muted-foreground"
                   >
                     No DHCP pools match your filters.
@@ -374,13 +450,37 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                      <Button size="icon" variant="ghost" onClick={() => setEditing(p)}>
-                        <Pencil className="h-3.5 w-3.5" />
+                    <DevicePushBadge pool={p} />
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-1">
+                      {/* Always visible, unlike the hover-revealed edit/delete
+                          pair: this is the step that actually reaches the
+                          hardware, and a pool sitting at "Not yet applied" is
+                          the thing an operator most needs to notice -- it is
+                          the difference between a guest getting an address and
+                          getting nothing. */}
+                      <Button
+                        size="sm"
+                        variant={p.devicePushStatus === "active" ? "ghost" : "outline"}
+                        disabled={push.isPending}
+                        onClick={() => handlePush(p)}
+                      >
+                        {push.isPending && push.variables?.id === p.id ? (
+                          <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <UploadCloud className="mr-1 h-3.5 w-3.5" />
+                        )}
+                        {p.devicePushStatus === "active" ? "Re-apply" : "Apply"}
                       </Button>
-                      <Button size="icon" variant="ghost" onClick={() => setConfirmDelete(p)}>
-                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                      </Button>
+                      <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                        <Button size="icon" variant="ghost" onClick={() => setEditing(p)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button size="icon" variant="ghost" onClick={() => setConfirmDelete(p)}>
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        </Button>
+                      </div>
                     </div>
                   </TableCell>
                 </TableRow>
