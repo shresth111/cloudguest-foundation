@@ -46,9 +46,10 @@ import { cn } from "@/lib/utils";
 
 const CHART_COLORS = ["#6366f1", "#22c55e", "#f59e0b", "#ef4444", "#06b6d4", "#a855f7"];
 
-function kFmt(n: number) {
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  return `${n}`;
+/** The backend's session payload carries no guest identifier, so fall back to
+ *  a short, stable reference rather than rendering an empty line. */
+function guestLabel(s: { guestIdentifier: string | null; guestId: string }): string {
+  return s.guestIdentifier?.trim() || `Guest ${s.guestId.slice(0, 8)}`;
 }
 
 function startOfToday(): number {
@@ -65,7 +66,7 @@ function startOfToday(): number {
  * fabricated, and each degrades to an honest "—" (not a fake number) if
  * its query hasn't resolved yet or the org has none.
  */
-function useOwnerKpis(organizationId: string | undefined) {
+function useOwnerKpis(organizationId: string | undefined, organizationName: string | undefined) {
   const usersQ = useQuery({
     queryKey: ["workspace-kpi", "users", organizationId],
     queryFn: () => rbacService.listUsers({ page: 1, pageSize: 1 }),
@@ -74,14 +75,20 @@ function useOwnerKpis(organizationId: string | undefined) {
 
   const campaignsQ = useQuery({
     queryKey: ["workspace-kpi", "campaigns", organizationId],
-    queryFn: () => campaignService.list({ page: 1, pageSize: 100 }),
+    queryFn: () => campaignService.listAll(),
     enabled: !!organizationId,
   });
 
+  // GET /billing/dashboard/me, not /billing/dashboard/super-admin. The
+  // super-admin snapshot is billing.read at GLOBAL scope, so it 403s for
+  // every real venue owner (leaving this tile permanently "—" and retrying
+  // three times per mount) and, for a global-scope operator, fans out across
+  // every organization on the platform from a customer-facing page.
   const billingQ = useQuery({
     queryKey: ["workspace-kpi", "billing", organizationId],
-    queryFn: () => billingService.getSnapshot(),
+    queryFn: () => billingService.getMyBillingDashboard(organizationId!, organizationName ?? ""),
     enabled: !!organizationId,
+    retry: false,
   });
 
   const alertsQ = useQuery({
@@ -96,32 +103,38 @@ function useOwnerKpis(organizationId: string | undefined) {
     enabled: !!organizationId,
   });
 
-  const activeCampaigns = campaignsQ.data?.rows.filter((c) => c.status === "active").length;
-  const activeSubscription = billingQ.data?.subscriptions.find(
-    (s) => s.organizationId === organizationId && s.status === "active",
-  );
+  const activeCampaigns = campaignsQ.data?.filter((c) => c.status === "active").length;
   const openAlerts = alertsQ.data?.totalItems;
 
   return {
     isLoading: usersQ.isLoading || campaignsQ.isLoading || billingQ.isLoading || alertsQ.isLoading,
     totalUsers: usersQ.data?.totalItems,
     activeCampaigns,
-    activeLicense: activeSubscription?.planName,
+    activeLicense: billingQ.data?.plan.name,
     openAlerts,
+    // A failed KPI request has to be distinguishable from one still in
+    // flight -- otherwise a 403 leaves the tile shimmering forever.
+    usersFailed: usersQ.isError,
+    campaignsFailed: campaignsQ.isError,
+    licenseFailed: billingQ.isError,
+    alertsFailed: alertsQ.isError,
   };
 }
 
 export function DashboardWidgets() {
   const { customer, locations, activeLocation, activeLocationId } = useWorkspace();
-  const { aggregated, scope } = useWorkspaceScope();
-  const owner = useOwnerKpis(customer?.organizationId);
+  const { aggregated, scope, isError: scopeFailed, refetchFailed } = useWorkspaceScope();
+  const owner = useOwnerKpis(customer?.organizationId, customer?.organizationName);
 
   const onlineRouters = aggregated.routers.filter((r) => r.status === "online").length;
   const offlineRouters = aggregated.routers.length - onlineRouters;
   const todayGuests = aggregated.guestSessions.filter(
     (g) => new Date(g.startedAt).getTime() >= startOfToday(),
   );
-  const newGuestsToday = new Set(todayGuests.map((g) => g.guestIdentifier)).size;
+  // Key on guestId. The session payload carries no identifier, so keying on
+  // guestIdentifier collapsed every row into one empty string and made this
+  // tile read 1 for any venue with a session today and 0 otherwise.
+  const newGuestsToday = new Set(todayGuests.map((g) => g.guestId)).size;
 
   // A real, derived signal -- not a fabricated score. Router online-ratio
   // plus open-alert count, the only two real health inputs this workspace
@@ -143,8 +156,8 @@ export function DashboardWidgets() {
     tone: StatTone;
   }> = [
     {
-      label: "Total locations",
-      value: locations.length,
+      label: activeLocationId === "all" ? "Total locations" : "Location",
+      value: activeLocationId === "all" ? locations.length : (activeLocation?.name ?? "—"),
       hint: `${customer?.organizationName ?? "your org"}`,
       icon: MapPin,
       tone: "primary",
@@ -172,22 +185,22 @@ export function DashboardWidgets() {
     },
     {
       label: "Total users",
-      value: owner.totalUsers,
-      hint: "Organization staff",
+      value: owner.usersFailed ? "—" : owner.totalUsers,
+      hint: "Organization staff · org-wide",
       icon: ShieldCheck,
       tone: "default",
     },
     {
       label: "Active campaigns",
-      value: owner.activeCampaigns,
-      hint: "Currently running",
+      value: owner.campaignsFailed ? "—" : owner.activeCampaigns,
+      hint: "Currently running · org-wide",
       icon: Megaphone,
       tone: "warning",
     },
     {
       label: "License",
-      value: owner.activeLicense ?? "—",
-      hint: "Active plan",
+      value: owner.licenseFailed ? "—" : (owner.activeLicense ?? "—"),
+      hint: "Active plan · org-wide",
       icon: Ticket,
       tone: "info",
     },
@@ -200,13 +213,36 @@ export function DashboardWidgets() {
     },
   ];
 
-  const sessionTrend = Array.from({ length: 12 }, (_, i) => ({
-    hour: `${i * 2}:00`,
-    sessions:
-      Math.round(
-        (aggregated.analytics.totalSessions / 24) * (0.6 + Math.sin(i / 2) * 0.4 + i * 0.05),
-      ) || 20,
-  }));
+  // A real histogram of the sessions in scope, bucketed by the hour they
+  // started. This replaces a sine wave applied to an all-time session total,
+  // which floored at a fabricated 20 per bucket and so drew a busy chart for
+  // a venue that had never had a guest.
+  const sessionTrend = (() => {
+    const now = new Date();
+    const buckets = Array.from({ length: 12 }, (_, i) => {
+      const end = new Date(now.getTime() - (11 - i) * 2 * 60 * 60 * 1000);
+      return {
+        hour: `${String(end.getHours()).padStart(2, "0")}:00`,
+        from: end.getTime() - 2 * 60 * 60 * 1000,
+        to: end.getTime(),
+        sessions: 0,
+      };
+    });
+    for (const s of aggregated.guestSessions) {
+      const t = new Date(s.startedAt).getTime();
+      const b = buckets.find((x) => t > x.from && t <= x.to);
+      if (b) b.sessions += 1;
+    }
+    return buckets.map(({ hour, sessions }) => ({ hour, sessions }));
+  })();
+  const sessionTrendEmpty = sessionTrend.every((b) => b.sessions === 0);
+
+  // "Recent" has to mean recent: the aggregate concatenates locations in scope
+  // order, so the first six rows were whichever location loaded first, in
+  // whatever order the API returned them.
+  const recentSessions = [...aggregated.guestSessions]
+    .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
+    .slice(0, 6);
 
   const perLocation = scope.map((s) => ({
     name: s.name.length > 14 ? s.name.slice(0, 14) + "…" : s.name,
@@ -227,6 +263,20 @@ export function DashboardWidgets() {
         title="Dashboard overview"
         description="Unified view of your locations, guests, routers, and revenue."
       />
+
+      {/* Some locations failed to load. Every total below is then a partial
+          view, so say so rather than presenting the reduced numbers as the
+          real ones -- which is what a silently-empty result used to do. */}
+      {scopeFailed ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3">
+          <p className="text-sm">
+            Some locations couldn&apos;t be loaded, so the figures below are incomplete.
+          </p>
+          <Button size="sm" variant="outline" onClick={() => refetchFailed()}>
+            Retry
+          </Button>
+        </div>
+      ) : null}
 
       {/* KPI */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -325,27 +375,33 @@ export function DashboardWidgets() {
             </Badge>
           </CardHeader>
           <CardContent className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={sessionTrend}>
-                <defs>
-                  <linearGradient id="gSessions" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#6366f1" stopOpacity={0.5} />
-                    <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                <XAxis dataKey="hour" fontSize={11} />
-                <YAxis fontSize={11} />
-                <Tooltip />
-                <Area
-                  type="monotone"
-                  dataKey="sessions"
-                  stroke="#6366f1"
-                  strokeWidth={2}
-                  fill="url(#gSessions)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            {sessionTrendEmpty ? (
+              <div className="flex h-full items-center justify-center text-center text-sm text-muted-foreground">
+                No guest sessions started in the last 24 hours.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={sessionTrend}>
+                  <defs>
+                    <linearGradient id="gSessions" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#6366f1" stopOpacity={0.5} />
+                      <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                  <XAxis dataKey="hour" fontSize={11} />
+                  <YAxis fontSize={11} allowDecimals={false} />
+                  <Tooltip />
+                  <Area
+                    type="monotone"
+                    dataKey="sessions"
+                    stroke="#6366f1"
+                    strokeWidth={2}
+                    fill="url(#gSessions)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
 
@@ -400,13 +456,13 @@ export function DashboardWidgets() {
             <CardTitle className="text-base">Recent activity</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {aggregated.guestSessions.slice(0, 6).map((g) => (
+            {recentSessions.map((g) => (
               <div
                 key={g.id}
                 className="flex items-center justify-between rounded-md border p-3 text-sm"
               >
                 <div>
-                  <p className="font-medium">{g.guestIdentifier}</p>
+                  <p className="font-medium">{guestLabel(g)}</p>
                   <p className="text-xs text-muted-foreground capitalize">
                     {g.authMethod.replace(/_/g, " ")} · {g.ipAddress ?? "—"}
                   </p>

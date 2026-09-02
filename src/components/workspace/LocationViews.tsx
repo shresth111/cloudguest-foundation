@@ -118,11 +118,25 @@ export function LocationTree() {
                   <ItemIcon className="h-4 w-4 opacity-70" /> {l.name}
                 </button>
                 <ul className="ml-6 mt-1 space-y-0.5 text-xs text-muted-foreground">
-                  <li className="flex items-center gap-2">
-                    <RouterIcon className="h-3 w-3" /> Routers
+                  <li>
+                    <Link
+                      to="/workspace/locations/$locationId"
+                      params={{ locationId: l.id }}
+                      search={{ tab: "routers" as const }}
+                      className="flex items-center gap-2 rounded px-1 py-0.5 hover:bg-muted hover:text-foreground"
+                    >
+                      <RouterIcon className="h-3 w-3" /> Routers
+                    </Link>
                   </li>
-                  <li className="flex items-center gap-2">
-                    <Users className="h-3 w-3" /> Guests
+                  <li>
+                    <Link
+                      to="/workspace/locations/$locationId"
+                      params={{ locationId: l.id }}
+                      search={{ tab: "guests" as const }}
+                      className="flex items-center gap-2 rounded px-1 py-0.5 hover:bg-muted hover:text-foreground"
+                    >
+                      <Users className="h-3 w-3" /> Guests
+                    </Link>
                   </li>
                 </ul>
               </li>

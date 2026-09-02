@@ -21,19 +21,39 @@ export const Route = createFileRoute("/_authenticated/workspace/agent")({
 
 /**
  * A deliberately smaller dashboard than workspace/index.tsx's full
- * DashboardWidgets -- each section below is wrapped in <Can/> and only
- * renders when the signed-in agent's real, backend-assigned permissions
- * allow it. Nothing here is a separate/fake permission system: the Owner
- * grants an agent access by creating/assigning a role with specific
- * permissions in the real Roles & Permissions console (/rbac); this page
- * just reflects whatever that grants.
+ * DashboardWidgets -- each section below is wrapped in <Can/>.
+ *
+ * A word of warning about what those gates actually check, because this
+ * docstring used to claim the opposite. `usePermissions` resolves modules
+ * from `BASE_BY_ROLE` in permissions.service.ts -- a hardcoded map keyed on
+ * `legacyRoleBucket(roles)`. Real RBAC grants are only consulted to
+ * *downgrade* that map (`modulesDeniedByReal`), and only for the modules
+ * listed in `MODULE_PERMISSION_PREFIX`, which does not include
+ * `guests-live` or `voucher-master` -- two of the gates on this page. So an
+ * Owner who creates a custom role in /rbac granting an agent guest access
+ * changes nothing here, and a support_engineer is hardcoded to lack it
+ * regardless of what was actually granted. These gates are presentational
+ * until that map is replaced by real permission keys; server-side
+ * authorization is unaffected either way.
  */
 function AgentDashboardPage() {
   const { customer, activeLocation, locations } = useWorkspace();
   const { aggregated } = useWorkspaceScope();
-  const { modules } = usePermissions();
+  const { modules, isLoading: permissionsLoading } = usePermissions();
 
-  const visibleCount = Object.values(modules).filter((m) => m?.view).length;
+  // Count only the modules this page actually gates on. Counting every
+  // module app-wide meant the "no features assigned" card could never
+  // appear once permissions resolved (every allowed bucket has `dashboard`),
+  // so a user with genuinely none of these got a blank page -- while it
+  // *did* flash on every load, when `modules` was still {}.
+  const GATED_MODULES = [
+    "guests-live",
+    "routers",
+    "monitoring",
+    "voucher-master",
+    "notifications",
+  ] as const;
+  const visibleCount = GATED_MODULES.filter((id) => modules[id]?.view).length;
   const location = activeLocation ?? locations[0];
 
   return (
@@ -109,7 +129,7 @@ function AgentDashboardPage() {
         </Can>
       </div>
 
-      {visibleCount === 0 && (
+      {!permissionsLoading && visibleCount === 0 && (
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center gap-2 p-10 text-center">
             <Sparkles className="h-6 w-6 text-muted-foreground" />

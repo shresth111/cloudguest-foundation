@@ -50,6 +50,23 @@ export function useUpdateRouterStatus() {
   });
 }
 
+/**
+ * Real `/system reboot` on the device. Every connected guest drops, so every
+ * call site must put a confirm step in front of this. Invalidates the
+ * workspace tree too -- the customer dashboard reads routers from
+ * `["workspace","locationResources",id]`, not from `routerKeys`.
+ */
+export function useRebootRouter() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (routerId: string) => routerService.reboot(routerId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: routerKeys.all });
+      qc.invalidateQueries({ queryKey: ["workspace"] });
+    },
+  });
+}
+
 export function useDeleteRouters() {
   const qc = useQueryClient();
   return useMutation({

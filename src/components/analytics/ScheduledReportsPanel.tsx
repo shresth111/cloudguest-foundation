@@ -26,6 +26,7 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
 import type { AppError } from "@/services/api";
@@ -35,30 +36,47 @@ import {
   useScheduledReports,
   useToggleScheduledReport,
 } from "@/hooks/useAnalytics";
-import type { ReportFormat, ReportType } from "@/types/analytics";
+import type { ReportFormat, ReportType, ScheduledReport } from "@/types/analytics";
 
-// Only these six -- scheduling "audit"/"billing"/"monitoring" always fails:
+// Only these four. "audit"/"billing"/"monitoring" are absent because
 // analyticsService.createScheduledReport() has no backend ReportType to map
 // them to (see that function's own comment in analytics.service.ts) and
-// throws, which previously surfaced here as a generic, unexplained "Failed
-// to create scheduled report" toast for every single attempt. Mirrors
+// throws, which surfaced as a generic, unexplained "Failed to create
+// scheduled report" toast for every single attempt. Mirrors
 // ReportCenter.tsx's identical on-demand-report screen, which never offers
 // those three as a "Download" option for the same reason.
-const SCHEDULABLE_REPORT_TYPES = [
-  "guest",
-  "router",
-  "network",
-  "organization",
-  "location",
-  "revenue",
-] as const;
+//
+// "revenue" and "location" are absent for a different and worse reason:
+// both could be *created* and neither could ever *run*. A scheduled revenue
+// report resolves to BusinessAnalyticsService,
+// which calls scope.require_global() -- the Beat runner passes the
+// schedule's own organization_id, so it raises on every run. A scheduled
+// location report needs template.config["location_id"], and this dialog has
+// no location picker, so it raises MissingReportParametersError on every
+// run. Both failures are caught and logged per-schedule and the panel shows
+// no run status, so they presented as healthy "Enabled" rows forever.
+const SCHEDULABLE_REPORT_TYPES = ["guest", "router", "network", "organization"] as const;
 
 const schema = z.object({
   name: z.string().min(2, "Report name is required"),
   type: z.enum(SCHEDULABLE_REPORT_TYPES),
   frequency: z.enum(["daily", "weekly", "monthly"]),
   format: z.enum(["pdf", "excel", "csv"]),
-  recipients: z.string().min(3, "Add at least one email"),
+  // A bare min(3) accepted "abc", which both sides persist happily (the
+  // backend types recipients as list[str], not EmailStr) and delivery then
+  // fails silently forever.
+  recipients: z
+    .string()
+    .min(3, "Add at least one email")
+    .refine(
+      (v) =>
+        v
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .every((s) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s)),
+      "Enter valid email addresses, separated by commas",
+    ),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -69,6 +87,7 @@ export function ScheduledReportsPanel() {
   const remove = useDeleteScheduledReport();
   const create = useCreateScheduledReport();
   const [open, setOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<ScheduledReport | null>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -162,7 +181,7 @@ export function ScheduledReportsPanel() {
               <div className="space-y-1.5">
                 <Label>Recipients</Label>
                 <Input
-                  placeholder="ops@cloudguest.io, cfo@cloudguest.io"
+                  placeholder="ops@wyfyguest.com, cfo@wyfyguest.com"
                   {...form.register("recipients")}
                 />
                 {form.formState.errors.recipients && (
@@ -242,17 +261,28 @@ export function ScheduledReportsPanel() {
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Switch
                       checked={r.enabled}
-                      onCheckedChange={(v) => toggle.mutate({ id: r.id, enabled: v })}
+                      disabled={toggle.isPending}
+                      onCheckedChange={(v) =>
+                        toggle.mutate(
+                          { id: r.id, enabled: v },
+                          {
+                            onError: (err) =>
+                              toast.error(
+                                (err as unknown as AppError)?.message ||
+                                  `Couldn't ${v ? "enable" : "pause"} this schedule`,
+                              ),
+                          },
+                        )
+                      }
                     />
                     {r.enabled ? "Enabled" : "Paused"}
                   </div>
                   <Button
                     size="icon"
                     variant="ghost"
-                    onClick={() => {
-                      remove.mutate(r.id);
-                      toast.success("Schedule removed");
-                    }}
+                    aria-label={`Delete ${r.name}`}
+                    disabled={remove.isPending}
+                    onClick={() => setPendingDelete(r)}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -262,6 +292,25 @@ export function ScheduledReportsPanel() {
           </div>
         )}
       </CardContent>
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        onOpenChange={(open) => !open && setPendingDelete(null)}
+        title={pendingDelete ? `Delete "${pendingDelete.name}"?` : "Delete schedule?"}
+        description="This schedule stops running and its recipients stop receiving the report. Reports already delivered are unaffected."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={async () => {
+          if (!pendingDelete) return;
+          try {
+            await remove.mutateAsync(pendingDelete.id);
+            toast.success("Schedule removed");
+            setPendingDelete(null);
+          } catch (err) {
+            toast.error((err as unknown as AppError)?.message || "Couldn't remove this schedule");
+          }
+        }}
+      />
     </Card>
   );
 }

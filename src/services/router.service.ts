@@ -389,6 +389,23 @@ export const routerService = {
     let rows =
       q.locationId && q.locationId !== "all"
         ? await (async () => {
+            // When the caller already knows the organization, go straight to
+            // the location's routers. The lookup below exists only to
+            // recover organizationId/name from the location id, and it runs
+            // the platform-wide GET /organizations + a locations call per
+            // org -- so a customer dashboard showing N locations paid for
+            // that whole fan-out N times over, once per location card, to
+            // learn something it already had in hand.
+            if (q.organizationId && q.organizationId !== "all") {
+              const { data } = await api.get<BackendListResponse<BackendRouter>>(
+                `/locations/${q.locationId}/routers`,
+                {
+                  params: { page_size: 100 },
+                  headers: { "X-Organization-Id": q.organizationId },
+                },
+              );
+              return data.items.map((r) => toRouter(r, "", ""));
+            }
             const locations = await fetchAllLocations();
             const loc = locations.find((l) => l.id === q.locationId);
             const { data } = await api.get<BackendListResponse<BackendRouter>>(

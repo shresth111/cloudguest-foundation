@@ -18,11 +18,17 @@ export interface LocationRouterSummary {
 
 export interface LocationGuestSessionSummary {
   id: string;
-  guestIdentifier: string;
+  /** The guest this session belongs to. This -- not guestIdentifier -- is
+   *  what a unique-guest count must key on: the backend's session payload
+   *  carries no identifier, so guestIdentifier is null for every row. */
+  guestId: string;
+  guestIdentifier: string | null;
   ipAddress: string | null;
   authMethod: GuestAuthMethod;
   status: GuestSessionStatus;
   startedAt: string;
+  /** Decimal megabytes (bytes / 1e6), matching how transfer volume is
+   *  quoted on the rest of this surface -- not MiB. */
   dataMb: number;
 }
 
@@ -46,29 +52,41 @@ export const locationResourcesKeys = {
   forLocation: (id: string) => ["workspace", "locationResources", id] as const,
 };
 
-async function fetchLocationResources(locationId: string): Promise<LocationResources> {
+async function fetchLocationResources(
+  locationId: string,
+  organizationId?: string,
+): Promise<LocationResources> {
   const [routersResult, sessionsResult] = await Promise.allSettled([
-    routerService.list({ locationId, page: 1, pageSize: 100 }),
-    guestService.listSessions({ locationId, page: 1, pageSize: 100 }),
+    routerService.list({ locationId, organizationId, page: 1, pageSize: 100 }),
+    guestService.listSessions({ locationId, organizationId, page: 1, pageSize: 100 }),
   ]);
 
-  const routers =
-    routersResult.status === "fulfilled"
-      ? routersResult.value.rows.map((r) => ({
-          id: r.id,
-          name: r.name,
-          model: r.model,
-          serialNumber: r.serialNumber,
-          routerOsVersion: r.routerOsVersion,
-          status: r.status,
-          publicIpAddress: r.publicIpAddress,
-          lastSeenAt: r.lastSeenAt,
-        }))
-      : [];
+  // A rejected half used to be flattened to [], which made "this location has
+  // no routers" and "the routers request failed" render identically -- no
+  // banner, no retry, and a System health tile that reported Healthy for a
+  // fleet the API could not reach. Surface it instead; the query's error state
+  // is what the UI branches on.
+  if (routersResult.status === "rejected" && sessionsResult.status === "rejected") {
+    throw routersResult.reason;
+  }
+  if (routersResult.status === "rejected") throw routersResult.reason;
+  if (sessionsResult.status === "rejected") throw sessionsResult.reason;
 
-  const sessionRows = sessionsResult.status === "fulfilled" ? sessionsResult.value.rows : [];
+  const routers = routersResult.value.rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    model: r.model,
+    serialNumber: r.serialNumber,
+    routerOsVersion: r.routerOsVersion,
+    status: r.status,
+    publicIpAddress: r.publicIpAddress,
+    lastSeenAt: r.lastSeenAt,
+  }));
+
+  const sessionRows = sessionsResult.value.rows;
   const guestSessions = sessionRows.map((s) => ({
     id: s.id,
+    guestId: s.guestId,
     guestIdentifier: s.guestIdentifier,
     ipAddress: s.ipAddress,
     authMethod: s.authMethod,
@@ -82,17 +100,17 @@ async function fetchLocationResources(locationId: string): Promise<LocationResou
     guestSessions,
     analytics: {
       activeSessions: guestSessions.filter((s) => s.status === "active").length,
-      totalSessions:
-        sessionsResult.status === "fulfilled" ? sessionsResult.value.total : guestSessions.length,
+      totalSessions: sessionsResult.value.total,
       dataConsumedGb: guestSessions.reduce((sum, s) => sum + s.dataMb, 0) / 1000,
     },
   };
 }
 
 export function useLocationResources(locationId: string) {
+  const { customer } = useWorkspace();
   return useQuery({
     queryKey: locationResourcesKeys.forLocation(locationId),
-    queryFn: () => fetchLocationResources(locationId),
+    queryFn: () => fetchLocationResources(locationId, customer?.id),
     enabled: !!locationId,
   });
 }
@@ -104,12 +122,18 @@ export interface ScopedLocation {
   siteType: string;
   resources: LocationResources | undefined;
   isLoading: boolean;
+  isError: boolean;
 }
 
 /** Resolve the workspace scope to a list of locations (all or a single active one)
  *  with resources fetched via TanStack Query. */
 export function useWorkspaceScope(): {
   isLoading: boolean;
+  /** True when at least one location's resources failed to load. The
+   *  aggregate below is then a partial view, not a complete one -- callers
+   *  must say so rather than presenting the reduced totals as final. */
+  isError: boolean;
+  refetchFailed: () => void;
   scope: ScopedLocation[];
   aggregated: LocationResources;
 } {
@@ -120,7 +144,7 @@ export function useWorkspaceScope(): {
   const queries = useQueries({
     queries: scoped.map((l) => ({
       queryKey: locationResourcesKeys.forLocation(l.id),
-      queryFn: () => fetchLocationResources(l.id),
+      queryFn: () => fetchLocationResources(l.id, customer?.id),
       enabled: !!customer,
     })),
   });
@@ -132,9 +156,16 @@ export function useWorkspaceScope(): {
     siteType: l.siteType,
     resources: queries[i]?.data,
     isLoading: queries[i]?.isLoading ?? false,
+    isError: queries[i]?.isError ?? false,
   }));
 
   const isLoading = queries.some((q) => q.isLoading);
+  const isError = queries.some((q) => q.isError);
+  const refetchFailed = () => {
+    queries.forEach((q) => {
+      if (q.isError) q.refetch();
+    });
+  };
 
   const aggregated: LocationResources = scope.reduce<LocationResources>(
     (acc, s) => ({
@@ -149,5 +180,5 @@ export function useWorkspaceScope(): {
     { ...EMPTY_RESOURCES, routers: [], guestSessions: [] },
   );
 
-  return { isLoading, scope, aggregated };
+  return { isLoading, isError, refetchFailed, scope, aggregated };
 }

@@ -37,7 +37,10 @@ export interface Guest {
 export interface GuestSession {
   id: string;
   guestId: string;
-  guestIdentifier: string;
+  /** Absent from the backend's guest-session payload -- GuestSessionResponse
+   *  carries guest_id only. Null until that response grows the field; render
+   *  a fallback rather than an empty string. */
+  guestIdentifier: string | null;
   deviceId: string | null;
   userAgent: string | null;
   routerId: string;
@@ -65,6 +68,14 @@ export interface SessionListQuery {
   search?: string;
   status?: GuestSessionStatus | "all";
   locationId?: string | "all";
+  /**
+   * When set, the listing goes straight to /guest-sessions with
+   * X-Organization-Id and uses the endpoint's own server-side location,
+   * status and pagination filters. Without it the service has to fan out
+   * across every organization (GLOBAL scope only) and filter client-side,
+   * which silently caps every derived count at one 100-row page per org.
+   */
+  organizationId?: string;
   page: number;
   pageSize: number;
 }

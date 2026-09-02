@@ -85,6 +85,33 @@ export interface CreateLocationPayload {
   settings?: Record<string, unknown>;
 }
 
+/**
+ * Every field the backend's LocationUpdateRequest accepts. `organizationId`
+ * and `status` are deliberately absent: a location's organization is
+ * immutable after creation, and status moves through the dedicated
+ * suspend/activate/archive endpoints.
+ */
+export type UpdateLocationPayload = Partial<
+  Pick<
+    CreateLocationPayload,
+    | "name"
+    | "slug"
+    | "addressLine1"
+    | "addressLine2"
+    | "city"
+    | "stateProvince"
+    | "postalCode"
+    | "country"
+    | "timezone"
+    | "latitude"
+    | "longitude"
+    | "contactName"
+    | "contactPhone"
+    | "contactEmail"
+    | "settings"
+  >
+>;
+
 export interface ProvisionLocationPayload {
   existingOrganizationId?: string;
   newOrganization?: {

@@ -16,7 +16,13 @@ export interface ExistingCustomer {
   organizationId: string;
   organizationName: string;
   subscription: {
-    plan: "trial" | "starter" | "professional" | "enterprise" | "custom";
+    /** `null` when the organization row carries no subscription_tier. This
+     *  used to default to "trial", which labelled a paying customer whose
+     *  tier was simply unset as trial across the whole workspace chrome.
+     *  The authoritative plan is the licensed one shown on
+     *  /workspace/billing (GET /billing/dashboard/me); this field is the
+     *  organization's own free-text tier and is only a hint. */
+    plan: "trial" | "starter" | "professional" | "enterprise" | "custom" | null;
     billingCycle: "monthly" | "quarterly" | "yearly";
     status: "active" | "trial" | "expired";
     expiryDate: string;
@@ -34,6 +40,12 @@ export interface ExistingCustomer {
 
 interface WorkspaceContextValue {
   isLoading: boolean;
+  /** True when the workspace query failed. Distinguishes a server error
+   *  from an account that genuinely has no workspace -- rendering the
+   *  latter's message for the former told the user their account was
+   *  unprovisioned every time the API hiccuped. */
+  isError: boolean;
+  refetch: () => void;
   customer: ExistingCustomer | null;
   locations: ExistingCustomer["locations"];
   activeLocationId: string; // "all" or location id
@@ -67,6 +79,38 @@ interface BackendLocation {
 
 interface BackendLocationList {
   items: BackendLocation[];
+  total_items: number;
+  total_pages: number;
+}
+
+/**
+ * The backend caps page_size at 100 on this endpoint, so a single request
+ * silently truncated an organization with more than 100 locations -- and
+ * every count derived from the list (the header badge, "Total locations",
+ * the tree, the grid) was quietly wrong with nothing on screen saying so.
+ * Page through instead. Bounded so a pathological total can't spin.
+ */
+const LOCATION_PAGE_SIZE = 100;
+const MAX_LOCATION_PAGES = 20;
+
+async function fetchAllOrgLocations(organizationId: string): Promise<BackendLocation[]> {
+  const headers = { "X-Organization-Id": organizationId };
+  const { data: first } = await api.get<BackendLocationList>(
+    `/organizations/${organizationId}/locations`,
+    { params: { page: 1, page_size: LOCATION_PAGE_SIZE }, headers },
+  );
+  const totalPages = Math.min(first.total_pages ?? 1, MAX_LOCATION_PAGES);
+  if (totalPages <= 1) return first.items;
+
+  const rest = await Promise.all(
+    Array.from({ length: totalPages - 1 }, (_, i) =>
+      api.get<BackendLocationList>(`/organizations/${organizationId}/locations`, {
+        params: { page: i + 2, page_size: LOCATION_PAGE_SIZE },
+        headers,
+      }),
+    ),
+  );
+  return [...first.items, ...rest.flatMap((r) => r.data.items)];
 }
 
 interface BackendSubscription {
@@ -104,18 +148,15 @@ async function fetchActiveCustomer(
   isPrimaryContact: boolean,
   currentUser: { name: string; email: string },
 ): Promise<ExistingCustomer> {
-  const [{ data: org }, { data: locationList }, subscription] = await Promise.all([
+  const [{ data: org }, locationItems, subscription] = await Promise.all([
     api.get<BackendOrganization>(`/organizations/${organizationId}`, {
       headers: { "X-Organization-Id": organizationId },
     }),
-    api.get<BackendLocationList>(`/organizations/${organizationId}/locations`, {
-      params: { page_size: 100 },
-      headers: { "X-Organization-Id": organizationId },
-    }),
+    fetchAllOrgLocations(organizationId),
     fetchOrgSubscription(organizationId),
   ]);
 
-  const locations = locationList.items.map((loc) => ({
+  const locations = locationItems.map((loc) => ({
     id: loc.id,
     name: loc.name,
     siteType: toSiteType(loc.property_type),
@@ -131,12 +172,15 @@ async function fetchActiveCustomer(
     organizationId: org.id,
     organizationName: org.name,
     subscription: {
-      // `plan` still reads the organization's own `subscription_tier`
-      // field. `billingCycle`/`status`/`expiryDate` now come from the real
-      // Billing domain (GET /subscriptions/{organization_id}) when a
-      // subscription row exists; otherwise fall back to the org-status-only
-      // guess this always used before that endpoint was wired here.
-      plan: (org.subscription_tier as ExistingCustomer["subscription"]["plan"]) || "trial",
+      // `plan` reads the organization's own `subscription_tier`, a nullable
+      // free-text String(50) on the org row -- not the licensed plan. It is
+      // deliberately not defaulted: a paying customer whose tier was never
+      // set was previously labelled "trial" everywhere the chrome shows a
+      // plan badge, while /workspace/billing showed their real plan.
+      // `billingCycle`/`status`/`expiryDate` come from the real Billing
+      // domain (GET /subscriptions/{organization_id}) when a subscription
+      // row exists; otherwise fall back to the org-status-only guess.
+      plan: (org.subscription_tier as ExistingCustomer["subscription"]["plan"]) || null,
       billingCycle: subscription
         ? subscription.billing_cycle === "yearly"
           ? "yearly"
@@ -166,7 +210,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { user, organizations } = useAuth();
   const activeOrg = organizations[0] ?? null;
 
-  const { data: customer, isLoading } = useQuery({
+  const {
+    data: customer,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ["workspace", "customer", activeOrg?.organizationId],
     queryFn: () =>
       fetchActiveCustomer(activeOrg!.organizationId, activeOrg!.isPrimaryContact, {
@@ -176,26 +225,39 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     enabled: !!activeOrg,
   });
 
-  const [activeLocationId, setActiveLocationIdState] = useState<string>("all");
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
+  // Read the stored selection in the initialiser, not in an effect. Starting
+  // at "all" and correcting afterwards rendered "All locations" on every
+  // load, fired the full N-location fan-out for it, then refetched
+  // everything again for the single stored location.
+  const [activeLocationId, setActiveLocationIdState] = useState<string>(() => {
     try {
-      const stored = localStorage.getItem(ACTIVE_LOC_KEY);
-      if (stored) setActiveLocationIdState(stored);
+      return localStorage.getItem(ACTIVE_LOC_KEY) || "all";
     } catch {
-      /* ignore */
+      return "all";
     }
-  }, []);
+  });
 
   // If the stored id no longer belongs to the customer, fall back to "all".
   useEffect(() => {
     if (!customer) return;
     if (activeLocationId === "all") return;
     const belongs = customer.locations.some((l) => l.id === activeLocationId);
-    if (!belongs) setActiveLocationIdState("all");
-  }, [customer, activeLocationId]);
-
-  const queryClient = useQueryClient();
+    if (!belongs) {
+      setActiveLocationIdState("all");
+      // Clear the stale key too. Leaving it behind meant usePermissions --
+      // which reads it straight out of localStorage for its query key --
+      // kept resolving permissions against a location the tenant no longer
+      // owns while the header showed "All locations".
+      try {
+        localStorage.removeItem(ACTIVE_LOC_KEY);
+      } catch {
+        /* ignore */
+      }
+      queryClient.invalidateQueries({ queryKey: ["permissions"] });
+    }
+  }, [customer, activeLocationId, queryClient]);
 
   const setActiveLocationId = (id: string) => {
     setActiveLocationIdState(id);
@@ -227,13 +289,15 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     const activeLocation = locs.find((l) => l.id === activeLocationId) ?? null;
     return {
       isLoading,
+      isError,
+      refetch,
       customer: customer ?? null,
       locations: locs,
       activeLocationId,
       activeLocation,
       setActiveLocationId,
     };
-  }, [customer, activeLocationId, isLoading]);
+  }, [customer, activeLocationId, isLoading, isError, refetch]);
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
 }
