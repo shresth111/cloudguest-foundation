@@ -7409,12 +7409,15 @@ for (const [label, script] of pasteables) {
     check(
       `a script with no ${gap.what} says so, without being told`,
       gap.emitted(text) || declaresGap(chunks, gap.what),
-      `this script configures a hotspot and never configures ${gap.what}, and nothing in it ` +
-        `says so. ${gap.cost}. The INCOMPLETE SCRIPT chunk exists for exactly this and is ` +
-        `driven by \`notProvisioned\`, which is appended only from catch blocks -- so it ` +
-        `fires when a backend call FAILED and never when the subsystem was simply not asked ` +
-        `for. Whether a subsystem is missing is a property of the emitted script; it has to ` +
-        `be derived from the emitted script`,
+      `this script configures a hotspot and never configures ${gap.what}, and nothing IN THE ` +
+        `SCRIPT says so. ${gap.cost}. ` +
+        `NOTE FOR THE ROUTER WORK: the panel-side half of this is fixed -- both subsystems ` +
+        `now default ON and a deselected one is recorded as a \`deliberate\` gap. What this ` +
+        `check still wants is the BACKSTOP: \`notProvisioned\` is supplied by the CALLER, so ` +
+        `the guarantee holds only for callers that remember. Whether a subsystem is missing ` +
+        `is a property of \`opts\`, and deriving it inside the generator makes the class ` +
+        `unrepresentable at every call site rather than at the one that exists today -- ` +
+        `which is what the previous four fixes each did for one instance`,
     );
   }
 
@@ -7442,7 +7445,8 @@ for (const [label, script] of pasteables) {
       "the operator saves this file, carries it to the venue, uploads it and imports it. It " +
         "runs to COMPLETE, every chunk prints PASS, the router checks in and shows green in " +
         "Master console, and no guest can sign in. The header is the only place that can " +
-        "still be read at that point",
+        "still be read at that point. Follows from the check above: the header is rendered " +
+        "from the INCOMPLETE chunks, so a gap the generator did not derive cannot reach it",
     );
   }
 
