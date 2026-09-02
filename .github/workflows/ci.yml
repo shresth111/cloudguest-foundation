@@ -39,6 +39,9 @@ name: CI
 #                             frontend path was missing the backend
 #                             router's /network-config prefix, and the
 #                             docs recorded it without the prefix too
+#   test:voucher-walkthrough  51 checks (added 2026-09-02 -- the guest
+#                         walkthrough's voucher step, and the real voucher
+#                         sign-in it must leave alone)
 #   test:post-login-roundtrip 21 checks -- gated in the Jenkinsfile from the
 #                         day it shipped and in NO GitHub Actions step, i.e.
 #                         on nothing that can block a merge, until 2026-09-02
@@ -643,6 +646,49 @@ jobs:
             "device-health" 40 "all checks passed" \
             bun run test:device-health
 
+      # --- Guest walkthrough: the voucher step ---------------------------
+      #
+      # Voucher is the one sign-in method whose submit does not live in
+      # `useGuestSignIn`, so it never inherited that hook's demo/preview
+      # short-circuits. It is a separate ROUTE, reached by a real router
+      # `<Link>`, and following that link out of a preview lands on the
+      # LIVE guest portal for that venue -- where `loginWithVoucher`
+      # creates a REAL `GuestSession` against a real customer, from a
+      # screen everyone present believes is a demonstration. That is the
+      # worst thing this surface can do, and neither tsc nor eslint nor a
+      # grep can see it.
+      #
+      # So this suite drives the REAL `DemoPortalFlow`/`GuestSignInCard`/
+      # `VoucherForm` in a real Chromium (reusing the Chromium installed
+      # above for test:signin-fields -- no new CI infrastructure) and
+      # asserts BOTH directions:
+      #   - a walkthrough voucher sign-in makes no `loginWithVoucher`
+      #     call, no other service call, no navigation (which is what
+      #     keeps /portal/success, the only NAS hotspot POST, out of
+      #     reach), and no fetch/XHR/beacon of any kind -- the last of
+      #     those wrapped in the page itself, so a request by a route
+      #     nothing here anticipated still fails the build;
+      #   - a REAL guest's submit still calls `loginWithVoucher` exactly
+      #     once, with exactly the identifier/code/org/location/router it
+      #     always did. "The demo is safe" is trivially satisfiable by
+      #     breaking the real path, so the real path is asserted too.
+      # Plus the honesty of the two screens involved: the step must say
+      # any code is accepted and that nothing is redeemed or marked used,
+      # and must never claim a voucher was validated.
+      #
+      # Five mutations of the real source were injected and this suite
+      # re-run; all five caught, in both directions. See the script header
+      # for the table.
+      #
+      # Floor 51, observed green at 51. Set at the observed count rather
+      # than below it: this suite does not scale with content, so any drop
+      # is an assertion disappearing.
+      - name: guest walkthrough voucher step
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "voucher-walkthrough" 51 \
+            "voucher-walkthrough: all checks passed" \
+            bun run test:voucher-walkthrough
       # In package.json since it was written, gated nowhere until now: it
       # has been passing this whole time and proving nothing, the exact
       # state this file's header already records for test:portal-cna (which

@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { KeyRound } from "lucide-react";
+import { ArrowLeft, KeyRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { scriptClassOf } from "@/lib/portal-script";
 import { PortalTextPlate, PortalCard } from "@/components/portal-runtime/PortalShell";
-import { ConnectingOverlay, DEFAULT_PORTAL_LOGO_SRC } from "./PortalGuestUi";
+import { ConnectingOverlay, DemoNotice, PG_SECONDARY_BTN } from "./PortalGuestUi";
 import { PortalDefaultBrandBadge } from "./PortalDefaultBrandBadge";
 import { VenueLogo } from "./VenueLogo";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
@@ -12,6 +12,7 @@ import { AuthTabSwitcher, AuthMoreOptions } from "./AuthTabSwitcher";
 import { OtpForm } from "./OtpForm";
 import { PasswordSignInForm } from "./PasswordSignInForm";
 import { PortalContentBlock } from "./PortalContentBlock";
+import { VoucherForm } from "./AuthMethodForms";
 import { hasGatingContentStep } from "@/types/portal-runtime";
 
 /**
@@ -33,6 +34,13 @@ import { hasGatingContentStep } from "@/types/portal-runtime";
  * (the legacy `/portal/auth/$method`+`/portal/verify` forms sharing the
  * same field pieces, see AuthFields.tsx).
  *
+ * One more branch joins those on a SIMULATED surface only: under
+ * `demoMode` the voucher affordance opens the real `VoucherForm` inline
+ * here instead of linking out to `/portal/auth/voucher` -- see the
+ * `sign.showVoucherForm` branch below. It is the only way a voucher-only
+ * venue's guest walkthrough can get past its first screen, and it is
+ * unreachable for a real guest.
+ *
  * captive-portal-v5-design-spec.md §3.1/§5.1: the header (logo/heading/
  * subtext) used to wrap in its own `GUEST_LEGIBILITY_CARD_CLASS` panel,
  * separate from `PortalCard`'s form panel below it -- confirmed live as
@@ -45,7 +53,7 @@ import { hasGatingContentStep } from "@/types/portal-runtime";
  * components that happen to share a class name.
  */
 export function GuestSignInCard() {
-  const { config, t } = usePortalRuntime();
+  const { config, t, organizationId, locationId, routerId } = usePortalRuntime();
   const sign = useGuestSignIn();
 
   // The two-step flow's local state (this is the "runtime component" that
@@ -228,6 +236,46 @@ export function GuestSignInCard() {
           <p className="py-6 text-center pg-meta text-[var(--pg-ink-muted)]">
             {t("noMethodsAvailable")}
           </p>
+        ) : sign.showVoucherForm ? (
+          /* THE WALKTHROUGH'S VOUCHER STEP -- `demoMode` only (see
+           * `useGuestSignIn`'s voucher-step block, which owns this flag,
+           * and `AuthTabSwitcher`'s `VoucherAffordance`, which opens it).
+           *
+           * A voucher-only venue has no OTP and no password, so before
+           * this the guest walkthrough could not get past its own first
+           * screen for them: the only affordance on the card was a link
+           * to a different route, and following that link out of a
+           * preview is precisely what must not happen. The fields open
+           * HERE instead -- same card, same provider, no navigation --
+           * and the form is the real `VoucherForm` from
+           * `AuthMethodForms`, not a lookalike, so the operator is
+           * demonstrating the fields their guests actually fill in.
+           *
+           * `/portal/auth/voucher` is untouched by this and stays the
+           * only way a REAL guest redeems a voucher. */
+          <div className="mt-3.5 flex flex-col gap-3.5">
+            {/* Above the fields, not below them: "any code works" is
+             * guidance for the person about to type one, and the claim
+             * this screen must never make -- that a real voucher was
+             * validated or consumed -- is easiest to make by silence. */}
+            <DemoNotice>
+              Demonstration only. Any code is accepted here — nothing is checked against a real
+              voucher, and no voucher is redeemed or marked as used.
+            </DemoNotice>
+            <VoucherForm
+              organizationId={organizationId}
+              locationId={locationId}
+              routerId={routerId}
+              onLoggedIn={sign.onVoucherStepLoggedIn}
+            />
+            <button
+              type="button"
+              onClick={sign.onCloseVoucherStep}
+              className={cn(PG_SECONDARY_BTN, "flex items-center justify-center gap-2")}
+            >
+              <ArrowLeft className="h-4 w-4" /> {t("backLabel")}
+            </button>
+          </div>
         ) : (
           <>
             {/* `mt-3.5` used to sit on its own wrapper around JUST the
@@ -279,7 +327,22 @@ export function GuestSignInCard() {
        * the platform's) did nothing to the smallest text on the screen --
        * precisely the text that needed it most. `pg-micro` is the same 11px
        * at the default scale, so this is not a visual change. */}
-      {sign.tab === "password" && (
+      {/* `sign.tab === "password"` alone was not the same question as "a
+       * password form is on screen", and the difference is visible to real
+       * guests today. `useGuestSignIn`'s `tab` initializer ends
+       * `return hasOtp ? "otp" : "password"` -- a bare fallback -- so a
+       * VOUCHER-ONLY venue (no OTP, no password) sits on `tab === "password"`
+       * with `hasPassword` false, renders no password form at all, and still
+       * got this "your browser can save this password" note underneath the
+       * card. A venue with no method enabled at all did the same, under the
+       * "no sign-in methods available" message. Gating on the flag that
+       * actually decides whether the form renders (the same
+       * `sign.tab === "password" && sign.hasPassword` two lines above)
+       * removes the note from exactly those configurations and changes
+       * nothing for any venue that has a password method -- and it must not
+       * show over the walkthrough's voucher step either, which replaces the
+       * form block entirely. */}
+      {sign.tab === "password" && sign.hasPassword && !sign.showVoucherForm && (
         <PortalTextPlate shape="pill">
           <p className="flex items-center justify-center gap-1.5 text-center pg-micro text-[var(--pg-ink-faint)]">
             <KeyRound className="h-3 w-3 shrink-0" /> {t("savedPasswordsNote")}

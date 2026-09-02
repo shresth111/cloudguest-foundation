@@ -429,6 +429,57 @@ export function useGuestSignIn() {
     setOtpError(null);
   };
 
+  // ---- Voucher, on a walkthrough only --------------------------------
+  //
+  // WHY VOUCHER IS THE ODD ONE OUT, AND WHY THIS IS A STEP RATHER THAN A
+  // TAB.
+  //
+  // Every other method's fields are owned by this hook and rendered by
+  // `GuestSignInCard`. Voucher's are not: they live on a separate ROUTE
+  // (`/portal/auth/voucher`), which a real guest reaches by a real router
+  // `<Link>` from the affordance in `AuthMoreOptions`. That link is what
+  // `AuthTabSwitcher`'s `VoucherAffordance` refuses to render on a
+  // simulated surface -- following it out of a preview lands on the LIVE
+  // guest portal for that venue and can create a REAL `GuestSession`
+  // against them.
+  //
+  // That refusal is correct and stays. Its cost was that a VOUCHER-ONLY
+  // venue had no runnable walkthrough at all: with no OTP and no password
+  // there is no other way past the sign-in screen, so the demo of the
+  // whole guest journey stopped on its first step -- for exactly the
+  // venues whose journey is most worth showing.
+  //
+  // So on `demoMode` the affordance opens the real `VoucherForm` INLINE,
+  // inside this same card and this same provider, with no navigation of
+  // any kind. Nothing about the real route changes, and nothing about
+  // what a real guest sees changes: `demoMode` is never set for them.
+  // Deliberately NOT a fourth `tab`: the tab pill is the venue's own
+  // configured method choice and this is a demo affordance, so it is a
+  // step the operator opens and closes rather than a permanent control
+  // that would appear to be part of the venue's configuration.
+  const [voucherStepOpen, setVoucherStepOpen] = useState(false);
+  const showVoucherForm = demoMode && voucherStepOpen;
+  const onOpenVoucherStep = () => setVoucherStepOpen(true);
+  const onCloseVoucherStep = () => setVoucherStepOpen(false);
+
+  /** `VoucherForm`'s `onLoggedIn`, for the walkthrough only -- the session
+   * it hands over is `buildDemoSession`'s fake in-memory one (see that
+   * form's own `onSubmit`: under `demoMode` the mutation is never
+   * reached). The 700ms is the same fake spinner the demo OTP/password
+   * branches above use, so the walkthrough's last method feels like its
+   * others; there is no network behind it to wait for. No
+   * `recordConsent`, no `navigate` -- `DemoPortalFlow` swaps to the
+   * connected screen the moment the session lands, exactly as it does for
+   * a demo OTP. */
+  const onVoucherStepLoggedIn = (session: RuntimeSession) => {
+    setDemoBusy(true);
+    window.setTimeout(() => {
+      setDemoBusy(false);
+      setSelectedMethod("voucher");
+      setSession(session);
+    }, 700);
+  };
+
   const onSignInPassword = () => {
     if (!identifier.trim() || !password) {
       setPasswordError(t("errPhoneEmailPassword"));
@@ -539,10 +590,19 @@ export function useGuestSignIn() {
   // real mutations drive, scoped to the action actually in flight so the
   // demo "send" shows only the button spinner while "verify"/"password" show
   // the full ConnectingOverlay -- identical to the real flow's feel.
-  const sendOtpPending = sendOtp.isPending || (demoBusy && tab === "otp" && phase === "phone");
-  const verifyOtpPending = verifyOtp.isPending || (demoBusy && tab === "otp" && phase === "code");
-  const loginPasswordPending = loginPassword.isPending || (demoBusy && tab === "password");
-  const isSigningIn = verifyOtpPending || loginPasswordPending;
+  // ...and the voucher step, which replaces the tab/form block entirely
+  // while it is open, gets the same treatment -- and is excluded from the
+  // tab-keyed flags, since a voucher-only venue's `tab` is the bare
+  // "password" fallback (there is no OTP method to default to) and would
+  // otherwise claim the demo spinner for a form that is not on screen.
+  const voucherStepPending = showVoucherForm && demoBusy;
+  const sendOtpPending =
+    sendOtp.isPending || (demoBusy && !showVoucherForm && tab === "otp" && phase === "phone");
+  const verifyOtpPending =
+    verifyOtp.isPending || (demoBusy && !showVoucherForm && tab === "otp" && phase === "code");
+  const loginPasswordPending =
+    loginPassword.isPending || (demoBusy && !showVoucherForm && tab === "password");
+  const isSigningIn = verifyOtpPending || loginPasswordPending || voucherStepPending;
 
   return {
     // config / copy
@@ -578,6 +638,11 @@ export function useGuestSignIn() {
     otherMethodLinks,
     showVoucherFallback,
     hasMoreSignInOptions,
+    // voucher step (walkthrough only -- see the block above)
+    showVoucherForm,
+    onOpenVoucherStep,
+    onCloseVoucherStep,
+    onVoucherStepLoggedIn,
     // OTP tab state
     phase,
     dialCode,

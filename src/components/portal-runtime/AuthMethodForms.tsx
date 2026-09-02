@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
 import { friendlyGuestAuthError } from "@/lib/portal-guest-errors";
+import { buildDemoSession } from "@/lib/portal-demo";
 import {
   defaultCountryCode,
   nationalNumberMaxLength,
@@ -35,6 +36,12 @@ import type { AppError } from "@/services/api";
  * hand-authored copy of the same JSX (UX v4 §3.2/§3.8's audit finding).
  * `PasswordForm`/`VoucherForm` are unchanged -- v4 §6.8 only asked for
  * the phone/email/code fields to stop being duplicated.
+ *
+ * `VoucherForm` has a THIRD caller now: `GuestSignInCard` renders it
+ * inline, without navigating, when the guest walkthrough (`demoMode`) is
+ * running -- see that file's voucher demo step and this form's own
+ * `onSubmit`. The route above is untouched by that, and so is what a real
+ * guest sees on it.
  */
 
 type PhoneFormProps = {
@@ -279,7 +286,7 @@ export function VoucherForm({
   routerId: string;
   onLoggedIn: (session: RuntimeSession) => void;
 }) {
-  const { t, setGuestIdentifier, deviceMac, deviceIp } = usePortalRuntime();
+  const { t, setGuestIdentifier, deviceMac, deviceIp, previewMode, demoMode } = usePortalRuntime();
   const form = useForm<z.infer<typeof voucherLoginSchema>>({
     resolver: zodResolver(voucherLoginSchema),
     defaultValues: { identifier: "", code: "" },
@@ -303,12 +310,64 @@ export function VoucherForm({
     },
     onError: (e: AppError) => toast.error(friendlyGuestAuthError(e, "voucher")),
   });
+
+  /**
+   * THE ONE `loginWithVoucher` CALL SITE, AND ITS SIMULATED-SURFACE BRANCH.
+   *
+   * Voucher is the only sign-in method whose submit does not live in
+   * `useGuestSignIn`, so it never inherited that hook's `demoMode`/
+   * `previewMode` short-circuits -- which is why a voucher-only venue had
+   * no runnable guest walkthrough at all: the walkthrough's very first
+   * step was its last one. The branch below is the exact shape
+   * `useGuestSignIn` already uses for OTP and password (see its
+   * `onVerifyOtp`/`onSignInPassword`), applied at the only place that can
+   * reach the voucher mutation:
+   *
+   *   - `demoMode` (the guest walkthrough / demo portal) runs the DUMMY
+   *     flow: ANY code the operator types is accepted -- exactly as any
+   *     6-digit code is accepted for the demo OTP -- and the screen moves
+   *     on from a fake in-memory `buildDemoSession`. Nothing is validated,
+   *     nothing is redeemed, and NO voucher row is touched, because the
+   *     mutation is never reached. The screen that renders this form says
+   *     so in as many words (see `GuestSignInCard`'s voucher demo step);
+   *     this branch must never be made to look like a real redemption.
+   *   - `previewMode` (the static Portal Preview) toasts, the same as
+   *     every other sign-in action on that surface. Nothing renders this
+   *     form under `previewMode` today -- the affordance there is inert
+   *     (see `AuthTabSwitcher`'s `VoucherAffordance`) -- so this arm is
+   *     belt-and-braces: the "no real login from a simulated surface"
+   *     invariant is enforced HERE, at the call site, rather than resting
+   *     on every future caller remembering it.
+   *
+   * ORDER MATTERS and matches `useGuestSignIn` exactly: `demoMode` first
+   * (a working dummy flow), `previewMode` second (a toast). Both flags are
+   * false for a real guest, so the real path below is byte-for-byte the
+   * `login.mutate(v)` it has always been -- zod validation still runs
+   * first, unchanged, for every surface.
+   */
+  const onSubmit = (v: z.infer<typeof voucherLoginSchema>) => {
+    if (demoMode) {
+      // Mirrors the real `onSuccess` above so the walkthrough's connected
+      // screen shows what a real one would -- minus the network, minus the
+      // session row. `setGuestIdentifier` is this tab's own sessionStorage
+      // and nothing else (`DemoPortalFlow` clears it on mount AND unmount).
+      setGuestIdentifier(v.identifier.trim());
+      onLoggedIn(buildDemoSession(v.identifier.trim(), "voucher"));
+      return;
+    }
+    if (previewMode) {
+      toast.info("Preview mode — connect a real device to test sign-in.");
+      return;
+    }
+    login.mutate(v);
+  };
+
   // v7 §7.2 -- see PasswordForm above.
   const fieldId = useId();
   const identifierId = `${fieldId}-identifier`;
   const codeId = `${fieldId}-code`;
   return (
-    <form onSubmit={form.handleSubmit((v) => login.mutate(v))} className="space-y-3">
+    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
       <Label htmlFor={identifierId} className={PG_FIELD_LABEL}>
         {t("mobileOrEmailLabel")}
       </Label>
