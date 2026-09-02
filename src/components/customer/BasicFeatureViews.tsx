@@ -52,6 +52,7 @@ import { StatCard } from "@/components/ui-ext/StatCard";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { FLOORS, DEVICE_TYPES, formatSince, type DeviceType } from "@/stores/deviceStore";
+import { DEVICE_TYPE_META, normalizeMac } from "@/lib/device-presentation";
 import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
 import { maskEmail, maskMac, maskPhone } from "@/components/features/HeaderControls";
 import { toAppError } from "@/services/api";
@@ -340,16 +341,11 @@ export function BasicDevicesView() {
  * (an owner scanning a mixed list of APs/printers/cameras couldn't tell
  * types apart by color before -- only by the small text label next to
  * the name). Hue choice is otherwise arbitrary; kept distinct per type. */
-export const DEVICE_TYPE_META: Record<
-  DeviceType,
-  { icon: typeof Wifi; gradient: string; text: string }
-> = {
-  "Access Point": { icon: Wifi, gradient: "from-sky-500 to-cyan-500", text: "text-sky-500" },
-  Printer: { icon: Printer, gradient: "from-amber-500 to-orange-500", text: "text-amber-500" },
-  Router: { icon: Router, gradient: "from-indigo-500 to-violet-500", text: "text-indigo-500" },
-  Camera: { icon: Camera, gradient: "from-rose-500 to-pink-500", text: "text-rose-500" },
-  Other: { icon: HardDrive, gradient: "from-slate-500 to-slate-600", text: "text-slate-500" },
-};
+// Moved to @/lib/device-presentation -- three other modules imported these
+// two for a constant and a pure function, and each import pulled this whole
+// 800-line module into the pre-login bundle graph. Imported back for this
+// module's own use, and re-exported so existing callers keep working.
+export { DEVICE_TYPE_META, normalizeMac };
 
 const emptyHardwareForm = {
   name: "",
@@ -359,17 +355,6 @@ const emptyHardwareForm = {
 };
 
 const STRICT_MAC_RE = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
-
-/** Normalizes any commonly-pasted MAC format (dashes, dots, no separators,
- * mixed case, stray whitespace -- e.g. what a router's own MAC is shown as
- * elsewhere in this app, "CB-D1-76-EC-90-3E") into the canonical
- * "AA:BB:CC:DD:EE:FF" form. Returns null if it can't be salvaged into 12
- * hex digits. */
-export function normalizeMac(raw: string): string | null {
-  const hex = raw.trim().replace(/[^0-9A-Fa-f]/g, "");
-  if (hex.length !== 12) return null;
-  return (hex.match(/.{2}/g) ?? []).join(":").toUpperCase();
-}
 
 /** Manual setup for network hardware (Access Points, Printers, etc), scoped
  * to whichever location's dashboard this is rendered inside -- a device

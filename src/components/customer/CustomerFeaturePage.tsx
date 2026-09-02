@@ -48,7 +48,10 @@ import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
 import AssistantWidget from "@/components/features/AssistantWidget";
 import TicketsPage from "@/components/features/TicketsPage";
 import { HowItWorksView } from "@/components/customer/HowItWorksPage";
-import { NetworkHardwareView } from "@/components/customer/BasicFeatureViews";
+const NetworkHardwareView = lazyView(
+  () => import("@/components/customer/BasicFeatureViews"),
+  "NetworkHardwareView",
+);
 import { DeviceHealthTrafficView } from "@/components/customer/DeviceHealthTrafficView";
 import {
   maskEmail,
@@ -253,31 +256,12 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
             views this shell renders. */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 pb-24 overflow-y-auto">
           <div className="mx-auto max-w-7xl">
-            {feature === "dashboard" && <DashboardView locationId={locationId} masked={masked} />}
-            {feature === "users" && <UsersView locationId={locationId} masked={masked} />}
-            {feature === "reports" && <UserReports masked={masked} />}
-            {feature === "campaigns" && <CampaignsPage locationId={locationId} />}
-            {feature === "portal" && <PortalPage locationId={locationId} />}
-            {feature === "vouchers" && <VouchersPage locationId={locationId} />}
-            {feature === "policies" && <PoliciesHub locationId={locationId} />}
-            {feature === "whitelist" && <WhiteList locationId={locationId} />}
-            {feature === "devices" && (
-              <div className="space-y-4">
-                <NetworkHardwareView locationId={locationId} />
-                {/* The venue's own network hardware and how it has been
-                    performing, above the guest devices connected to it. */}
-                <DeviceHealthTrafficView locationId={locationId} />
-                <DevicesView locationId={locationId} masked={masked} />
-              </div>
-            )}
-            {feature === "teams" && <ManageTeamsPage locationId={locationId} />}
-            {feature === "agents" && <AgentsPage locationId={locationId} />}
-            {feature === "advanced" && <AdvancedPage />}
-            {/* Every branch below is a lazily-loaded view (see the OPS
-                imports at the top of this file), so they need one Suspense
-                boundary. Placed around the whole group rather than per
-                branch: only one matches at a time, and a single fallback
-                keeps the page from flickering between them. */}
+            {/* Every branch below can be a lazily-loaded view, so the whole
+                group sits behind one boundary. Only one branch matches at a
+                time, and a single fallback keeps the page from flickering
+                between them. It has to wrap the *whole* group: an earlier
+                version started halfway down and left the views above it
+                uncovered, which would have thrown on first render. */}
             <Suspense
               fallback={
                 <div className="flex min-h-[240px] items-center justify-center">
@@ -285,6 +269,26 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                 </div>
               }
             >
+              {feature === "dashboard" && <DashboardView locationId={locationId} masked={masked} />}
+              {feature === "users" && <UsersView locationId={locationId} masked={masked} />}
+              {feature === "reports" && <UserReports masked={masked} />}
+              {feature === "campaigns" && <CampaignsPage locationId={locationId} />}
+              {feature === "portal" && <PortalPage locationId={locationId} />}
+              {feature === "vouchers" && <VouchersPage locationId={locationId} />}
+              {feature === "policies" && <PoliciesHub locationId={locationId} />}
+              {feature === "whitelist" && <WhiteList locationId={locationId} />}
+              {feature === "devices" && (
+                <div className="space-y-4">
+                  <NetworkHardwareView locationId={locationId} />
+                  {/* The venue's own network hardware and how it has been
+                    performing, above the guest devices connected to it. */}
+                  <DeviceHealthTrafficView locationId={locationId} />
+                  <DevicesView locationId={locationId} masked={masked} />
+                </div>
+              )}
+              {feature === "teams" && <ManageTeamsPage locationId={locationId} />}
+              {feature === "agents" && <AgentsPage locationId={locationId} />}
+              {feature === "advanced" && <AdvancedPage />}
               {/* "audit" no longer has its own nav entry (merged into Admin
                 Logs' Account Activity section) -- keep old bookmarks/links
                 to /customer/:id/audit landing somewhere real instead of the

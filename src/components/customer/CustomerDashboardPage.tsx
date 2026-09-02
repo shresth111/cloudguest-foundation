@@ -80,7 +80,7 @@ import type { IspLink, IspHealthCheck, IspSpeedTestResult } from "@/types/isp";
 import { IspProviderIcon } from "@/components/icons/isp";
 import { DEVICE_TYPES, formatSince } from "@/stores/deviceStore";
 import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
-import { DEVICE_TYPE_META } from "@/components/customer/BasicFeatureViews";
+import { DEVICE_TYPE_META } from "@/lib/device-presentation";
 import { BlurFade } from "@/components/magicui/blur-fade";
 import { BackgroundBoxes } from "@/components/aceternity/background-boxes";
 

@@ -143,7 +143,7 @@ import type { AppError } from "@/services/api";
 import { humanizeApiError } from "@/lib/errorMessages";
 import { cn } from "@/lib/utils";
 import { getCustomerLoginRole } from "@/lib/customerNav";
-import { normalizeMac } from "@/components/customer/BasicFeatureViews";
+import { normalizeMac } from "@/lib/device-presentation";
 import { IspProviderIcon } from "@/components/icons/isp";
 
 function timeAgo(d: string): string {
