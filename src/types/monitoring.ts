@@ -464,6 +464,11 @@ export type UpdateAlertRulePayload = Partial<CreateAlertRulePayload>;
 export interface AlertListQuery {
   organizationId?: string;
   routerId?: string;
+  /** Real server-side filter on Alert.location_id. Without it a caller
+   *  wanting one venue's alerts had to over-fetch the organization's first
+   *  page and narrow client-side, so a venue whose alerts fell past row 100
+   *  reported zero. */
+  locationId?: string;
   status?: AlertStatus;
   severity?: AlertSeverity;
   page: number;
