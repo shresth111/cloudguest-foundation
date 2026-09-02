@@ -49,13 +49,15 @@ import type { RuntimePortalConfig } from "@/types/portal-runtime";
  * branding/legal fields), which was more "admin dashboard panel" than
  * "preview": (see git history if that data is wanted again elsewhere,
  * e.g. on the real Portal Configuration page instead of here). That decision
- * still stands: the walkthrough below is strictly OPT-IN, and the whole of
+ * still stands in shape, though the walkthrough below is now the DEFAULT
+ * rather than opt-in (see `searchSchema.walkthrough`), and the whole of
  * what it adds to this page's chrome is one header button (two while it is
  * running) plus a "this is a demonstration" strip on the bezel. The landing
  * state is the same minimal preview it has always been -- no second column
  * came back.
  *
- * THE GUEST WALKTHROUGH (`?walkthrough=true`, or the "Run guest walkthrough"
+ * THE GUEST WALKTHROUGH (on by default; `?walkthrough=false` or the "Static
+ * preview""
  * button). The static preview stops at the sign-in screen, which is only the
  * first of four things a venue actually bought: it never shows the campaign
  * they built, or the post-login page they authored, actually firing. For a
@@ -107,15 +109,26 @@ import type { RuntimePortalConfig } from "@/types/portal-runtime";
 
 const searchSchema = z.object({
   organizationId: z.string().min(1),
-  /** Opt-in guest walkthrough (see this module's own docstring). A search
-   * param rather than plain component state purely so an operator can
-   * bookmark/share the walkthrough itself for a demo -- absent is the
-   * default, i.e. the plain static preview stays the landing state for
-   * every existing link (`PortalPage.tsx`'s "Preview Portal" button and the
-   * Master console's Locations directory both still open it unchanged).
-   * `.catch(undefined)` because this is the one param a human might hand-
-   * edit: a `?walkthrough=yes` must degrade to the static preview, never
-   * throw this whole route's search validation and blank the page. */
+  /** The guest walkthrough. **Absent means ON** -- only an explicit
+   * `?walkthrough=false` gives the plain static preview.
+   *
+   * This was shipped opt-in and that was wrong. The page exists to answer
+   * "what will my guests see", and the static state answered it by showing
+   * a sign-in card that, when touched, toasted "Preview mode -- connect a
+   * real device to test sign-in." An operator demoing to a customer read
+   * that as the product not working, and the thing that does work sat
+   * behind a button nobody had a reason to press. Reported from a real
+   * demo.
+   *
+   * Defaulting it on costs nothing visually: step 1 of the walkthrough IS
+   * the same sign-in card the static preview rendered. The only difference
+   * is that touching it now goes somewhere.
+   *
+   * Still a search param rather than component state so an operator can
+   * bookmark or share a demo link. `.catch(undefined)` because this is the
+   * one param a human might hand-edit: a `?walkthrough=yes` must fall back
+   * to the default rather than throw this route's search validation and
+   * blank the page mid-demo. */
   walkthrough: z.boolean().optional().catch(undefined),
 });
 
@@ -258,7 +271,9 @@ function PortalPreviewPage() {
   const { locationId } = Route.useParams();
   const { organizationId, walkthrough: walkthroughParam } = Route.useSearch();
   const navigate = Route.useNavigate();
-  const walkthrough = walkthroughParam === true;
+  // Absent = on. Only an explicit `?walkthrough=false` opts out -- see the
+  // search schema's own note for why this default was inverted.
+  const walkthrough = walkthroughParam !== false;
   // Bumped by "Restart" -- keyed into the PortalRuntimeProvider below so a
   // restart genuinely rebuilds the whole runtime (language, selected method,
   // OTP phase, the fake session) rather than only resetting whichever pieces
@@ -269,7 +284,7 @@ function PortalPreviewPage() {
     // `replace` so toggling the demo on and off a few times in front of a
     // prospect does not bury the page they came from under history entries.
     navigate({
-      search: (prev) => ({ ...prev, walkthrough: on ? true : undefined }),
+      search: (prev) => ({ ...prev, walkthrough: on ? undefined : false }),
       replace: true,
     });
   };
@@ -514,7 +529,7 @@ function PortalPreviewPage() {
                     className="gap-1.5 text-white/80 hover:bg-white/10 hover:text-white"
                   >
                     <X className="h-3.5 w-3.5" />
-                    Exit
+                    Static preview
                   </Button>
                 </>
               ) : (

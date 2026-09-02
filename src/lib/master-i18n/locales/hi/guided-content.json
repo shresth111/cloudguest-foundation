@@ -635,8 +635,8 @@
         },
         "2": {
           "tell": "दो interfaces दिख रहे हैं: `wg-cloudguest` और `wg-cloudguard`.",
-          "cause": "Frontend chunk `wg-cloudguest` बनाता है, backend bootstrap `wg-cloudguard` -- दोनों रास्ते चल गए। Firewall rule एक नाम से बंधी है, traffic दूसरे से जा रहा है।",
-          "note": "जो भी tunnel पर असली `last-handshake=` दिख रहा हो उसे रखो, दूसरा हटा दो। Firewall rule का `in-interface=` बचे हुए tunnel के नाम से match होना चाहिए।"
+          "cause": "`wg-cloudguard` सही नाम है (generator और backend दोनों यही बनाते हैं)। `wg-cloudguest` पुराना नाम है -- इस fix से पहले provision हुए routers पर बचा रह जाता है। दोनों मौजूद हैं, और firewall rule सिर्फ़ एक नाम से बंधी है, तो traffic दूसरे से जा सकता है।",
+          "note": "पहले `print detail` चलाओ और देखो कि असली `last-handshake=` किस पर है। आम तौर पर `wg-cloudguard` रखना है और पुराना `wg-cloudguest` हटाना है। अगर handshake उल्टा `wg-cloudguest` पर दिखे, तो कुछ मत हटाओ -- वो router पुराने नाम पर चल रहा है, उसे Advanced panel से दोबारा provision करो। Firewall rule का `in-interface=` बचे हुए tunnel के नाम से match होना चाहिए।"
         },
         "3": {
           "tell": "`last-handshake=1m30s` type recent value दिख रही है।",

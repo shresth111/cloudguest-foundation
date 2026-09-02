@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Copy, KeyRound, Power, RotateCw, Trash2 } from "lucide-react";
+import { ArrowLeft, KeyRound, Power, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,13 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { ErrorState } from "@/components/common/ErrorState";
 import { PageSkeleton } from "@/components/common/LoadingSkeleton";
-import {
-  useActivateNas,
-  useDeleteNas,
-  useDisableNas,
-  useNas,
-  useRegenerateNasSecret,
-} from "@/hooks/useNas";
+import { useActivateNas, useDeleteNas, useDisableNas, useNas } from "@/hooks/useNas";
 import { NAS_STATUS_LABEL } from "@/types/nas";
 import type { AppError } from "@/services/api";
 
@@ -55,7 +49,6 @@ function NasDetailPage() {
   const { data: nas, isLoading, isError, refetch } = useNas(nasId);
   const activate = useActivateNas();
   const disable = useDisableNas();
-  const regenerate = useRegenerateNasSecret();
   const remove = useDeleteNas();
 
   const [confirm, setConfirm] = useState<null | {
@@ -66,7 +59,6 @@ function NasDetailPage() {
   }>(null);
   const [disableReasonOpen, setDisableReasonOpen] = useState(false);
   const [reason, setReason] = useState("");
-  const [reveal, setReveal] = useState<string | null>(null);
 
   if (isLoading) return <PageSkeleton />;
   if (isError) return <ErrorState onRetry={() => refetch()} />;
@@ -100,16 +92,6 @@ function NasDetailPage() {
       setReason("");
     } catch (err) {
       toast.error((err as unknown as AppError).message || "Failed to disable NAS");
-    }
-  }
-
-  async function handleRegenerate() {
-    try {
-      const result = await regenerate.mutateAsync(nasId);
-      setReveal(result.sharedSecret);
-      toast.success("Secret regenerated");
-    } catch (err) {
-      toast.error((err as unknown as AppError).message || "Failed to regenerate secret");
     }
   }
 
@@ -148,33 +130,6 @@ function NasDetailPage() {
         </p>
       </div>
 
-      {reveal && (
-        <Card className="rounded-2xl border-primary/40 bg-primary/5">
-          <CardHeader>
-            <CardTitle className="text-base">New shared secret — shown once</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between gap-3 rounded-lg bg-background/70 px-3 py-2">
-              <code className="text-sm">{reveal}</code>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => {
-                  navigator.clipboard.writeText(reveal);
-                  toast.success("Copied");
-                }}
-              >
-                <Copy className="h-4 w-4" />
-              </Button>
-            </div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Configure the router's RADIUS client with this secret now — it will not be shown
-              again.
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="rounded-2xl border-border/70">
           <CardHeader>
@@ -209,51 +164,61 @@ function NasDetailPage() {
         </Card>
       </div>
 
+      {/* NO "REGENERATE SECRET" BUTTON HERE, deliberately (2026-09-02).
+          It used to sit in this row, one click, no confirmation, reporting
+          success -- and it took the venue's own guest WiFi down. Rotating
+          the RADIUS shared secret changes the platform's record and the
+          FreeRADIUS hub's copy but cannot change the router's, because
+          there is no write path from here to a RouterOS RADIUS client. The
+          old secret keeps being rejected until an engineer re-pastes the
+          RADIUS chunk over WinBox, which is not something a venue owner can
+          do from a dashboard. It now lives in the Master console behind a
+          GLOBAL-scoped route, the same place SNMP and router credentials
+          went for the same reason. */}
       <Card className="rounded-2xl border-border/70">
         <CardHeader>
           <CardTitle className="text-base">Actions</CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          {canActivate && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleActivate}
-              disabled={activate.isPending}
-            >
-              <Power className="h-4 w-4" /> <span className="ml-2">Activate</span>
-            </Button>
-          )}
-          {canDisable && (
-            <Button size="sm" variant="outline" onClick={() => setDisableReasonOpen(true)}>
-              <Power className="h-4 w-4" /> <span className="ml-2">Disable</span>
-            </Button>
-          )}
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleRegenerate}
-            disabled={regenerate.isPending}
-          >
-            <RotateCw className="h-4 w-4" /> <span className="ml-2">Regenerate secret</span>
-          </Button>
-          {canDelete && (
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={() =>
-                setConfirm({
-                  title: `Delete ${nas.nasCode ?? nas.nasIdentifier}?`,
-                  description:
-                    "This permanently removes the NAS registration. This cannot be undone.",
-                  destructive: true,
-                  onConfirm: handleDelete,
-                })
-              }
-            >
-              <Trash2 className="h-4 w-4" /> <span className="ml-2">Delete</span>
-            </Button>
-          )}
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Rotating this NAS's RADIUS shared secret is done by Wyfy support, not from here: the new
+            secret has to be written onto the router on site, and guest WiFi stays down until it is.
+            Raise a support ticket if you need one rotated.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {canActivate && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleActivate}
+                disabled={activate.isPending}
+              >
+                <Power className="h-4 w-4" /> <span className="ml-2">Activate</span>
+              </Button>
+            )}
+            {canDisable && (
+              <Button size="sm" variant="outline" onClick={() => setDisableReasonOpen(true)}>
+                <Power className="h-4 w-4" /> <span className="ml-2">Disable</span>
+              </Button>
+            )}
+            {canDelete && (
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() =>
+                  setConfirm({
+                    title: `Delete ${nas.nasCode ?? nas.nasIdentifier}?`,
+                    description:
+                      "This permanently removes the NAS registration. This cannot be undone.",
+                    destructive: true,
+                    onConfirm: handleDelete,
+                  })
+                }
+              >
+                <Trash2 className="h-4 w-4" /> <span className="ml-2">Delete</span>
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
 

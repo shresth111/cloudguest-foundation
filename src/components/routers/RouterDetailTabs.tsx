@@ -221,7 +221,13 @@ export function RouterDetailTabs({ router, initialTab = "overview" }: Props) {
           description="This tab used an older, DHCP-only script builder with no WireGuard/RADIUS options and a real, confirmed WinBox terminal paste-corruption bug on long pastes -- Master Console's Setup Script panel is the current, fixed, fully-capable version. Open this router there to generate it."
           action={{
             label: "Open in Master Console",
-            onClick: () => navigate({ to: "/master/routers", search: { open: router.id } }),
+            // `advanced`, not `open`. `open` lands on the fleet list with the
+            // browse drawer selected -- one more click from a button whose
+            // label promises the script panel, and the operator who followed
+            // it is the one who most needs to arrive there. `advanced` is the
+            // param that renders `RouterSetupScriptAdvanced` directly, and it
+            // is now the fleet's only provisioning entry point.
+            onClick: () => navigate({ to: "/master/routers", search: { advanced: router.id } }),
           }}
         />
       </TabsContent>
@@ -2600,7 +2606,7 @@ function buildClockNtpChunk(): RouterSetupScriptChunk {
       //     WHOLE run at this point, which is the entire reason it is here --
       //     a half-configured router that is honestly incomplete beats a
       //     fully-configured one that is permanently invisible.
-      `:if ($clkVerdict != "PASS") do={ :error "cloudguest-clock: STOPPING -- the clock is not NTP-synchronised. Fix time sync, then re-run. (Pasting chunk by chunk? Fix it and re-paste just this chunk.)" }`,
+      `:if ($clkVerdict != "PASS") do={ :error "cloudguest-clock: STOPPING -- the clock is not NTP-synchronised. IF YOU RAN THIS AS AN /import FILE, THE FILE ENDS HERE: RADIUS, the WireGuard tunnel, the API user and the heartbeat below this point did NOT run, however finished the router looks. Fix time sync (this router needs outbound UDP/123), then import the SAME file again -- every chunk is idempotent. (Pasting chunk by chunk? Fix it and re-paste just this chunk.)" }`,
     ].join("; "),
     `:put "===================================================="`,
   ];
@@ -3064,20 +3070,91 @@ export function chunksToRouterOsScript(
   if (incomplete.length > 0) {
     lines.push(
       `# ====================================================`,
-      `# !! THIS SCRIPT IS INCOMPLETE -- READ BEFORE IMPORTING`,
+      // Same words the device itself prints from section 1, so the file's
+      // header and the terminal cannot tell the reader two different
+      // stories about the same script.
+      incomplete.every((c) => c.label.includes("(by choice)"))
+        ? `# !! THIS SCRIPT IS PARTIAL BY CHOICE -- READ BEFORE IMPORTING`
+        : `# !! THIS SCRIPT IS INCOMPLETE -- READ BEFORE IMPORTING`,
       `# ====================================================`,
       ...incomplete.map((c) => `# !! ${c.label}`),
       `# !! The missing pieces, and what each costs, are spelled out in`,
       `# !! section 1 below. Importing this file leaves the router`,
-      `# !! half-configured. Fix the cause, press Generate again, and`,
-      `# !! download a NEW .rsc.`,
+      // A file that is short BY CHOICE imports to the end and configures a
+      // router that is genuinely missing those subsystems -- telling its
+      // reader to "fix the cause" would send them looking for a fault that
+      // does not exist. What they need instead is the one fact that makes
+      // the omission recoverable: it is a checkbox, not an outage.
+      ...(incomplete.every((c) => c.label.includes("(by choice)"))
+        ? [
+            `# !! half-configured -- deliberately: these were switched OFF in`,
+            `# !! the Advanced panel before this file was generated. Nothing`,
+            `# !! failed. Tick them and press Generate again for a full one.`,
+          ]
+        : [
+            `# !! half-configured. Fix the cause, press Generate again, and`,
+            `# !! download a NEW .rsc.`,
+          ]),
       `# ====================================================`,
       "",
     );
   }
+  // PROGRESS MARKERS, THE SAME ONES THE ONE-LINE PASTE HAS HAD ALL ALONG.
+  //
+  // `/import` ABORTS ON THE FIRST ERROR AND DOES NOT SAY WHICH CHUNK IT WAS
+  // IN. Confirmed live on a hEX (RouterOS 7.23.3, 2026-09-01): a `comment=`
+  // on `/ip hotspot` -- a menu that has no such property -- killed the
+  // import at "line 75 column 183", so Hotspot, RADIUS, WireGuard and
+  // Heartbeat never ran. RouterOS reports a FILE line/column and nothing
+  // else; mapping that back to a chunk means opening the .rsc in an editor,
+  // at a venue, and counting. The founder's report of this session -- "the
+  // script executed, RADIUS wasn't there and it didn't run" -- is that same
+  // shape, and the reason it was hard to diagnose is that the file's own
+  // output gave no way to tell a run that stopped at chunk 10 from one that
+  // completed.
+  //
+  // `chunksToSingleLineScript` solved this for the flattened paste in
+  // August and the .rsc never got it, which is the asymmetry that matters
+  // most: the .rsc is the channel the founder actually uses. Same prefix,
+  // same `START <n>/<N>` / `DONE <n>/<N>` / `COMPLETE` vocabulary, so the
+  // two delivery channels report identically and an operator only has to
+  // learn one thing:
+  //
+  //  - last line `COMPLETE`             -> every chunk ran.
+  //  - last line `START 10/32 Hotspot`  -> chunk 10 is where it died, by
+  //    NAME. Chunks 11-32 (RADIUS, WireGuard, Heartbeat) did not run.
+  //  - last line `DONE 10/32` with no `START 11/32` -> the file was
+  //    truncated between chunks rather than erroring.
+  //
+  // These are plain top-level `:put`s of a double-quoted literal, which is
+  // exactly what the rest of this generator already trusts in both
+  // channels: nothing to parse, nothing to escape at run time, and no
+  // dependence on any variable. They are deliberately NOT `#` comments --
+  // a comment prints nothing, and output an operator can read back is the
+  // entire point. The `# --- N. label ---` comments stay as well: they are
+  // what makes RouterOS's own "line 75" mappable when someone does open the
+  // file.
+  //
+  // The label goes through `escapeForRouterOsString` for the same reason it
+  // does in the single-line builder: it is operator-influenced text (a WAN
+  // count, a portal filename) inside a double-quoted RouterOS string.
+  const total = chunks.length;
   chunks.forEach((chunk, i) => {
-    lines.push(`# --- ${i + 1}. ${chunk.label} ---`, chunk.script, "");
+    const n = i + 1;
+    const label = escapeForRouterOsString(chunk.label);
+    lines.push(
+      `# --- ${n}. ${chunk.label} ---`,
+      `:put "${SINGLE_LINE_MARKER_PREFIX} ${n}/${total} START ${label}"`,
+      chunk.script,
+      `:put "${SINGLE_LINE_MARKER_PREFIX} ${n}/${total} DONE ${label}"`,
+      "",
+    );
   });
+  // THE ONLY POSITIVE PROOF THE FILE RAN TO THE END. Without it, "no error
+  // scrolled past" is the only evidence of success available to someone
+  // watching an import, and that is precisely the evidence that was wrong
+  // every time this went wrong.
+  lines.push(chunksToCompletionMarkerLine(chunks), "");
   return lines.join("\n");
 }
 
@@ -3157,6 +3234,47 @@ export function chunksToRouterOsScript(
  * whole point is output an operator can read back. */
 export const SINGLE_LINE_MARKER_PREFIX = "### cloudguest";
 
+/** THE LAST LINE OF THE FILE, AND THE ONLY ONE ANYONE PROMISES TO READ.
+ *
+ * Both channels end with a `COMPLETE` sentinel, and the field runbook is
+ * one sentence long: import it, read the last line. That instruction is
+ * only safe if the last line can tell the difference between the two ways
+ * a run ends well-formed:
+ *
+ *   - every chunk ran and the router is fully provisioned;
+ *   - every chunk ran and the router is missing a whole subsystem,
+ *     because the script was generated without one.
+ *
+ * A DELIBERATE gap does not `:error` -- on purpose, so that a warning
+ * somebody meant to see does not become a warning everyone learns to click
+ * past -- which means it reaches this line and, until this function
+ * existed, printed the identical `COMPLETE -- all N chunk(s) ran` as a
+ * complete provision. That is the original defect wearing a sentinel: a
+ * script that quietly did less than the operator believed, with a green
+ * light at the end of it. The banner at the top says so, but the top of an
+ * `/import` has scrolled off by then, and "read the last line" is the
+ * instruction that actually gets followed at a rack.
+ *
+ * So the gap rides on the last line too. Derived from the chunk list
+ * itself -- the same `INCOMPLETE SCRIPT` label the `.rsc` header keys off
+ * -- so the two channels and the file header cannot disagree, and a chunk
+ * count that changes cannot leave this behind. */
+function chunksToCompletionMarkerLine(chunks: RouterSetupScriptChunk[]): string {
+  const total = chunks.length;
+  const head = `${SINGLE_LINE_MARKER_PREFIX} COMPLETE -- all ${total} chunk(s) ran`;
+  const gapChunk = chunks.find((c) => c.label.startsWith("INCOMPLETE SCRIPT"));
+  if (!gapChunk) {
+    return `:put "${head}. A run that ends anywhere else stopped early."`;
+  }
+  // The label already carries the subsystem names and the "(by choice)"
+  // distinction; reusing it rather than re-deriving keeps this line, the
+  // section-1 banner and the `.rsc` header telling one story.
+  const what = escapeForRouterOsString(
+    gapChunk.label.replace(/^INCOMPLETE SCRIPT(?: \(by choice\))? -- /, ""),
+  );
+  return `:put "${head}, BUT THIS SCRIPT WAS NOT A FULL PROVISION: ${what}. This router is NOT finished -- see section 1 at the top of this run. A run that ends anywhere else stopped early."`;
+}
+
 export function chunksToSingleLineScript(chunks: RouterSetupScriptChunk[]): string {
   const total = chunks.length;
   const commandLines = chunks.flatMap((chunk, i) => {
@@ -3172,9 +3290,7 @@ export function chunksToSingleLineScript(chunks: RouterSetupScriptChunk[]): stri
       `:put "${SINGLE_LINE_MARKER_PREFIX} ${n}/${total} DONE ${label}"`,
     ];
   });
-  commandLines.push(
-    `:put "${SINGLE_LINE_MARKER_PREFIX} COMPLETE -- all ${total} chunk(s) ran. A run that ends anywhere else stopped early."`,
-  );
+  commandLines.push(chunksToCompletionMarkerLine(chunks));
 
   let out = "";
   for (const line of commandLines) {
@@ -4109,8 +4225,22 @@ export function buildRouterSetupScriptChunks(opts: {
    * showed a toast and generated 22 chunks instead of 23; the operator
    * pasted all of them, the router came up, the hotspot served, and every
    * guest login would have failed because `/radius` was empty. Nothing in
-   * the script mentioned it. Confirmed live 2026-08-23. */
-  notProvisioned?: { what: string; why: string }[];
+   * the script mentioned it. Confirmed live 2026-08-23.
+   *
+   * `deliberate: true` means the operator CHOSE to leave this subsystem out
+   * (an unticked box in the Advanced panel) rather than the platform having
+   * tried and failed. Both still get named in the banner and in the
+   * downloaded `.rsc`'s header, because the thing that actually hurt was
+   * never "we failed" -- it was a script quietly one chunk shorter than the
+   * operator believed, which is the state a DESELECTED subsystem produced
+   * too and which nothing recorded, because this array was only ever
+   * appended to from a `catch` and an unticked box is not a caught error.
+   * What differs is the ending: a FAILURE `:error`s (fix the cause,
+   * regenerate, use the new file); a DELIBERATE omission does not, because
+   * there is no cause to fix and refusing to run a script somebody
+   * configured on purpose only teaches them to page past the banner. A
+   * mixed list takes the failure ending -- there is a real fault in it. */
+  notProvisioned?: { what: string; why: string; deliberate?: boolean }[];
 }): RouterSetupScriptChunk[] {
   const {
     apiBase,
@@ -4197,6 +4327,58 @@ export function buildRouterSetupScriptChunks(opts: {
   // depends on a variable from the chunk it came from.
   const deferredChecks: RouterSetupScriptChunk[] = [];
 
+  // THE BACKSTOP: A GAP IS A PROPERTY OF THE SCRIPT, NOT OF THE CALLER'S
+  // MEMORY.
+  //
+  // `notProvisioned` is handed in by the caller, and that is exactly how
+  // this failure survived four fixes: the panel remembered to report the
+  // cases somebody had already been bitten by (a throw from the allocate
+  // call, a throw from the RADIUS bridge) and had no way to report the one
+  // nobody had thought of yet -- an unticked checkbox. The panel now
+  // reports that one too, but it reports it because a person edited a
+  // second file, and the next omission will be missed the same way this one
+  // was. So the generator derives the gaps itself, from `opts`, and the
+  // caller's list becomes an ENRICHMENT of that rather than the source of
+  // it: whether `/radius add` is in the emitted script does not depend on
+  // WHY `opts.radius` is undefined.
+  //
+  // `lan.ok` is the "this script builds a hotspot" test, and it is the same
+  // one the Hotspot chunk itself branches on a few hundred lines below --
+  // an unusable LAN prefix means no hotspot is emitted at all, and a script
+  // that builds no hotspot is not missing RADIUS, it is a different
+  // artifact (the `basicConfigOnly` WAN-repair flow, say). Only a script
+  // that DOES stand up a guest network and then cannot authenticate,
+  // reach the platform, or serve the venue's own pages has a gap worth
+  // stopping for.
+  //
+  // Caller entries WIN on collision, and that is the whole point of the
+  // merge order: the caller knows the cause ("the box was not ticked", "the
+  // bridge returned 502") and the `deliberate` flag that decides whether
+  // this script `:error`s. A derived-only entry means no caller claimed
+  // this gap at all, which is a bug in the caller -- so it is NOT
+  // `deliberate`, and it stops the import. Loud is correct there: the
+  // alternative is the silence that started all of this.
+  const derivedGaps: { what: string; why: string; deliberate?: boolean }[] = lan.ok
+    ? [
+        !wireguard && {
+          what: "WireGuard tunnel",
+          why: "no WireGuard peer was supplied to the generator, so this script builds no tunnel -- the router has no path to the platform a venue firewall cannot close, and RADIUS has no address to source from",
+        },
+        !radius && {
+          what: "RADIUS",
+          why: "no RADIUS registration was supplied to the generator, so this script writes no /radius entry -- the hotspot comes up, the portal loads, and every guest login is Access-Rejected with nothing on the router or the hub naming the cause",
+        },
+        !portalUrl && {
+          what: "portal redirect pages",
+          why: "no portal URL was supplied to the generator, so the stock MikroTik login page is left in place -- guests are asked for a RouterOS username on a network the venue is paying to brand",
+        },
+      ].filter((g): g is { what: string; why: string } => g !== false)
+    : [];
+  const gaps = [
+    ...notProvisioned,
+    ...derivedGaps.filter((d) => !notProvisioned.some((n) => n.what === d.what)),
+  ];
+
   // FIRST CHUNK, NOT LAST, and only when something is actually missing.
   // An operator pastes top to bottom and stops reading once it is going
   // well; a warning at the end is read after the damage is done. This one
@@ -4206,13 +4388,21 @@ export function buildRouterSetupScriptChunks(opts: {
   // that is simply one chunk shorter -- is indistinguishable from a
   // complete one, and that is how a router reached a venue with an empty
   // `/radius` and a hotspot that rejected every guest.
-  if (notProvisioned.length > 0) {
+  if (gaps.length > 0) {
+    // A list that is ENTIRELY deliberate omissions still gets the banner
+    // (the operator needs to see, at the venue, that this file was never
+    // going to configure RADIUS) but not the `:error`: nothing failed, and
+    // there is nothing to go and fix. Any genuine failure in the list makes
+    // the whole thing fatal again -- see `notProvisioned`'s own docstring.
+    const allDeliberate = gaps.every((g) => g.deliberate === true);
     const lines = [
       `:put "===================================================="`,
-      `:put "  THIS SCRIPT IS INCOMPLETE -- READ BEFORE PASTING"`,
+      allDeliberate
+        ? `:put "  THIS SCRIPT IS PARTIAL BY CHOICE -- READ BEFORE PASTING"`
+        : `:put "  THIS SCRIPT IS INCOMPLETE -- READ BEFORE PASTING"`,
       `:put "===================================================="`,
     ];
-    for (const gap of notProvisioned) {
+    for (const gap of gaps) {
       lines.push(`:put "  MISSING: ${escapeForRouterOsString(gap.what)}"`);
       lines.push(`:put "    why: ${escapeForRouterOsString(gap.why)}"`);
       // What it actually costs, per subsystem -- an operator cannot weigh
@@ -4239,8 +4429,15 @@ export function buildRouterSetupScriptChunks(opts: {
         `:log warning "cloudguest: generated script is missing ${escapeForRouterOsString(gap.what)} -- ${escapeForRouterOsString(gap.why)}"`,
       );
     }
-    lines.push(`:put "  Fix the cause, press Generate again, and use the NEW script."`);
-    lines.push(`:put "  Pasting this one leaves the router half-configured."`);
+    if (allDeliberate) {
+      lines.push(`:put "  Nothing failed -- these were switched OFF in the Advanced panel before"`);
+      lines.push(`:put "  this script was generated, so it was never going to configure them."`);
+      lines.push(`:put "  This run continues. If that is not what you wanted, tick the boxes and"`);
+      lines.push(`:put "  press Generate again."`);
+    } else {
+      lines.push(`:put "  Fix the cause, press Generate again, and use the NEW script."`);
+      lines.push(`:put "  Pasting this one leaves the router half-configured."`);
+    }
     lines.push(`:put "===================================================="`);
     // AND THEN STOP. Everything above this is `:put`, which is exactly
     // enough for a technician watching a terminal and exactly nothing for
@@ -4260,13 +4457,31 @@ export function buildRouterSetupScriptChunks(opts: {
     // touched; a technician pasting chunk by chunk sees a red error on a
     // chunk that was never going to change the device, and simply moves
     // on to the next chunk if they have decided to proceed anyway.
-    lines.push(
-      `:error "cloudguest: STOPPING -- this script is INCOMPLETE (${notProvisioned
-        .map((g) => escapeForRouterOsString(g.what))
-        .join(", ")} missing). Fix the cause, press Generate again, and use the NEW script."`,
-    );
+    //
+    // ...UNLESS THE GAP IS THE OPERATOR'S OWN DECISION. Then there is no
+    // cause to fix and stopping would be theatre: the banner has already
+    // said, on the device and in the file's header, exactly what this
+    // script does not configure and what that costs. Aborting a run
+    // somebody deliberately scoped is how a warning becomes something
+    // people learn to click past, which would cost us the one above.
+    if (!allDeliberate) {
+      lines.push(
+        `:error "cloudguest: STOPPING -- this script is INCOMPLETE (${gaps
+          .map((g) => escapeForRouterOsString(g.what))
+          .join(
+            ", ",
+          )} missing). Under /import this ends the file HERE -- nothing below this line ran, and nothing on this router was changed by this script. Fix the cause, press Generate again, and import the NEW file."`,
+      );
+    }
     chunks.push({
-      label: `INCOMPLETE SCRIPT -- ${notProvisioned.map((g) => g.what).join(" and ")} missing`,
+      // Keeps the `INCOMPLETE SCRIPT` prefix in both cases on purpose:
+      // `chunksToRouterOsScript` keys the downloaded `.rsc`'s header off
+      // exactly that prefix, and a deliberately-partial file needs that
+      // header just as much -- more, arguably, since it is the one that
+      // will not stop by itself.
+      label: allDeliberate
+        ? `INCOMPLETE SCRIPT (by choice) -- ${gaps.map((g) => g.what).join(" and ")} not included`
+        : `INCOMPLETE SCRIPT -- ${gaps.map((g) => g.what).join(" and ")} missing`,
       script: lines.join("\n"),
     });
   }
@@ -4845,7 +5060,7 @@ export function buildRouterSetupScriptChunks(opts: {
           // caps an entered line because WinBox's
           // terminal mangles long pastes -- the suite fails the build rather
           // than let that cap be raised. Cause and next step, nothing more.
-          `:if (!(${gwOk})) do={ :error "cloudguest: STOPPING -- WAN${n} (${iface}) got no DHCP gateway. Fix the uplink and re-run." }`,
+          `:if (!(${gwOk})) do={ :error "cloudguest: STOPPING -- WAN${n} (${iface}) got no DHCP gateway. Under /import the file ENDS HERE: nothing below ran. Fix the uplink, then import again." }`,
           // Adopt-don't-duplicate: checked by OUR OWN comment first (the
           // normal, healthy-re-run case), but if that's missing this also
           // checks for ANY other route already sitting at this exact
@@ -5628,7 +5843,7 @@ export function buildRouterSetupScriptChunks(opts: {
         // available -- it serves a captive portal that can never
         // authenticate anyone, which reads to venue staff as "the WiFi is
         // broken" rather than "the uplink was never plugged in".
-        `:if (${verdictBad}) do={ :error "cloudguest: STOPPING -- no working WAN uplink (see the ping/DNS lines above). Fix the uplink, then re-run. (Pasting chunk by chunk? Fix it and re-paste just this chunk.)" }`,
+        `:if (${verdictBad}) do={ :error "cloudguest: STOPPING -- no working WAN uplink (see the ping/DNS lines above). IF YOU RAN THIS AS AN /import FILE, THE FILE ENDS HERE: RADIUS, the WireGuard tunnel, the API user and the heartbeat below this point did NOT run, however finished the router looks. Fix the uplink, then import the SAME file again -- every chunk is idempotent. (Pasting chunk by chunk? Fix it and re-paste just this chunk.)" }`,
       ].join("; "),
       `:put "===================================================="`,
     ];
@@ -6444,7 +6659,15 @@ export function buildRouterSetupScriptChunks(opts: {
       ].join("; "),
     ];
     chunks.push({
-      label: "Captive-Portal Detection (check only — nothing here should need changing)",
+      // `--`, not an em dash. Chunk labels are no longer only UI text and
+      // `#` comments: both delivery channels now `:put` them back as
+      // RouterOS string literals (the flattened paste has since August, the
+      // .rsc as of this change), and this was the ONE non-ASCII byte in the
+      // entire generated script. Every other label in this generator
+      // already spells it `--`. Nothing about UTF-8 in a RouterOS string is
+      // known to be broken -- this is simply not the file to find out in,
+      // and the fix costs a character.
+      label: "Captive-Portal Detection (check only -- nothing here should need changing)",
       script: lines.join("\n"),
     });
   }
@@ -7272,7 +7495,36 @@ export function buildRouterSetupScriptChunks(opts: {
       `:put "===================================================="`,
     ].join("\n"),
   });
-  chunks.push(...deferredChecks);
+  // WITHIN THE DEFERRED BLOCK: EVERY READ-ONLY REPORT FIRST, EVERY HARD
+  // STOP LAST.
+  //
+  // Two of these four checks `:error` (Walled Garden, Portal Identity) and
+  // two are pure read-back with nothing that can abort (Guest Data Path,
+  // Heartbeat Check). In source order the two aborting ones came first, so
+  // under `/import` -- where an `:error` ends the run -- a venue whose
+  // portal DNS was merely slow at import time lost the two verdicts that
+  // answer the questions the operator is standing there to answer: "can a
+  // guest actually reach the internet" and "does this router appear online".
+  // Both are free to run and both are exactly what someone needs in order
+  // to decide what the portal failure even means.
+  //
+  // This is the same argument that moved these four to the end of the
+  // script in the first place (see `deferredChecks`' own comment above): a
+  // stop must not cost information that was already paid for. Applied one
+  // level down, it says the stops go last. The partition is stable, so the
+  // relative order inside each half is unchanged, and it is derived from
+  // the chunk text rather than from a hand-kept list -- a check that gains
+  // or loses an `:error` later moves on its own instead of silently
+  // landing in the wrong half.
+  // `\b`, not `":error "`. A substring test with a trailing space silently
+  // misses `:error"..."` -- legal RouterOS, and one keystroke away -- which
+  // would put a chunk that CAN stop the import into the "cannot abort" half
+  // and undo this partition without failing anything. Same predicate shape
+  // the suite's own ABORT_POLICY sweep uses, so the two cannot disagree
+  // about what "this chunk can abort" means.
+  const canAbort = (c: RouterSetupScriptChunk) => /:error\b/.test(c.script);
+  chunks.push(...deferredChecks.filter((c) => !canAbort(c)));
+  chunks.push(...deferredChecks.filter(canAbort));
   return chunks;
 }
 

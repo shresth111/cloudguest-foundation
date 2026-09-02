@@ -16,7 +16,16 @@ name: CI
 #   test:output-analyser  116 checks
 #   test:a11y ........... sentinel only
 #   test:manual-wizard .. 113 checks
-#   test:setup-script ... 2000 checks (added 2026-08-23; was 169 before the
+#   test:setup-script ... 3081 checks, all green (was 2000; section 15 --
+#                         the .rsc delivery channel -- landed 2026-09-02
+#                         with 122 deliberately RED, and the generator fix
+#                         in the same PR turned every one of them green;
+#                         sections 15.9 and 15.10 were then added by the
+#                         integration to cover the two behaviours the fix
+#                         introduced and nothing tested: the COMPLETE
+#                         sentinel on a partial run, and which of the three
+#                         kinds of gap is allowed to abort an /import).
+#                         And 169 before the
 #                         five silent failures (section 6) and the three
 #                         fresh-router sections (7-9) landed, floor 160 ->
 #                         395 -> 435 -> 450; then section 12, "the uplink is
@@ -33,6 +42,13 @@ name: CI
 #   test:voucher-walkthrough  51 checks (added 2026-09-02 -- the guest
 #                         walkthrough's voucher step, and the real voucher
 #                         sign-in it must leave alone)
+#   test:post-login-roundtrip 21 checks -- gated in the Jenkinsfile from the
+#                         day it shipped and in NO GitHub Actions step, i.e.
+#                         on nothing that can block a merge, until 2026-09-02
+#   test:post-login-sandbox   9 checks (same story; drives real Chromium)
+#   test:location-liveness    105 checks (in package.json since it was
+#                         written, gated nowhere until 2026-09-02 -- the
+#                         same "nothing runs it" state as the two below)
 #   test:discovery-preflight  19 checks (in package.json since 2026-08-22
 #                         but gated nowhere until 2026-08-23 -- it has been
 #                         passing this whole time and proving nothing,
@@ -468,10 +484,79 @@ jobs:
       # the router in each half, /23, /28, /26 with a LAN allowlist, and a
       # /31 that cannot hold a pool at all), so every earlier section runs
       # against them too -- that is most of the jump.
+      #
+      # SECTION 15 (2026-09-02) -- THE .rsc IS A DELIVERY CHANNEL, NOT A
+      # VIEW. Added after the same report for the FIFTH time: "a problem I
+      # have had fixed many times already -- I configured using the .rsc
+      # file, the script executed, RADIUS wasn't there and it didn't run."
+      #
+      # Sections 1-14 all assert over `chunk.script`. The DOWNLOADED FILE,
+      # which is how the founder provisions, had four checks against it,
+      # all about one header. The channel with the most reported failures
+      # had the least coverage, and every whole-script guard in the suite
+      # was transferring to it by assumption.
+      #
+      # 602 checks were added, 122 of them RED against origin/main at
+      # f99c02b. Each red one was a finding, not a broken test, and the
+      # generator work in this same PR closed all 122:
+      #
+      #   115  the .rsc carried NO progress markers. Measured: 65 in
+      #        `chunksToSingleLineScript`'s output and 0 in
+      #        `chunksToRouterOsScript`'s, for the same script. /import
+      #        aborts at the first error and reports ONE message with no
+      #        indication of how far it got -- which is exactly what
+      #        section 13 fixed for the one-line paste and never fixed
+      #        here. It is why four separate fixes each addressed
+      #        whichever statement happened to be found: the operator
+      #        could report THAT it stopped and never WHERE.
+      #     5  a default Generate silently omitted whole subsystems.
+      #        `enableWireguard` and `enableRadius` both defaulted to false
+      #        and `notProvisioned` -- the array driving the loud
+      #        INCOMPLETE SCRIPT chunk and its :error -- was appended only
+      #        from catch blocks. An unticked checkbox is not a caught
+      #        error, so the script emitted 28 chunks instead of 32,
+      #        imported perfectly, printed RESULT: PASS everywhere, created
+      #        the heartbeat scheduler so the router showed GREEN in Master
+      #        console -- and /radius was empty. 15.8 now requires the gap
+      #        to be DERIVED from `opts` inside the generator, so a caller
+      #        that forgets cannot reproduce it.
+      #     2  an :error above the RADIUS chunk stops the whole /import,
+      #        and every one of those messages was written for someone
+      #        pasting chunk by chunk ("re-run", "re-paste just this
+      #        chunk"). In a file there are no chunks on screen.
+      #
+      # ADDED BY THE INTEGRATION, covering behaviour the fix introduced
+      # that nothing asserted (both were confirmed to fail against the fix
+      # branch before the code that satisfies them was written):
+      #
+      #   15.9   a DELIBERATE gap does not :error -- by design -- so it
+      #          runs to the end and printed the same "COMPLETE -- all N
+      #          chunk(s) ran" a full provision does. The field runbook is
+      #          "import it, read the last line"; that line now names the
+      #          gap, in both channels, from one shared builder.
+      #   15.10  the three endings (chose it / it failed / nobody said and
+      #          the generator derived it) are a product decision and none
+      #          of them was pinned. Six mutations of the generator were
+      #          injected against them; all six caught.
+      #
+      # Seventeen mutations of the real generator were injected before
+      # landing and the suite re-run; all seventeen caught. FOUR survived
+      # the first pass and all four were real holes in the NEW guards
+      # rather than confirmations -- the sixth time that shape has been
+      # caught in this file. See the script header for the table and for
+      # the three pre-existing checks section 15 corrected (13.10's
+      # "complete" fixture was a script missing three subsystems, its
+      # log-line count was graded against the caller's list rather than the
+      # emitted one, and an INJECTED check matched `COMPLETE` as a
+      # substring of `INCOMPLETE`).
+      #
+      # FLOOR: 3070, against 3081 observed green. Tight on purpose --
+      # deleting one assertion block fails the build -- with just enough
+      # slack that correcting a single vacuous check does not.
       - name: setup script generator
         run: |
           ./scripts/ci-gated-test.sh \
-            "setup-script-generator" 1950 \
+            "setup-script-generator" 3070 \
             "setup-script-generator: all checks passed" \
             bun run test:setup-script
 
@@ -604,3 +689,56 @@ jobs:
             "voucher-walkthrough" 51 \
             "voucher-walkthrough: all checks passed" \
             bun run test:voucher-walkthrough
+      # In package.json since it was written, gated nowhere until now: it
+      # has been passing this whole time and proving nothing, the exact
+      # state this file's header already records for test:portal-cna (which
+      # rotted on origin/main) and test:discovery-preflight. Found while
+      # auditing the router endpoints for the credential-scope fix.
+      #
+      # What it actually protects: liveness is DERIVED from `last_seen_at`
+      # against the clock, not stored, so it silently drifts rather than
+      # breaking loudly -- an "unknown" router must not be painted as
+      # offline, and the master console's summary counts have to move as
+      # time passes. Both are the kind of wrong that looks perfectly
+      # plausible on screen.
+      #
+      # Floor 105, observed green at 105.
+      - name: location liveness
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "location-liveness" 105 "all checks passed" \
+            bun run test:location-liveness
+
+      # Same "gated nowhere" state, found the same way. Both of these were
+      # wired into the Jenkinsfile when they shipped and into no GitHub
+      # Actions step at all -- and it is this workflow, not Jenkins, that
+      # gates a pull request. So 30 checks have been running on nothing that
+      # can block a merge.
+      #
+      # The round-trip suite is the one that matters most: portal.service.ts
+      # has a write-path serialization whitelist, and a field mapped on read
+      # but missing there is silently discarded on save. That has already
+      # shipped as a real bug in that exact file (`fontFamily` was a live UI
+      # control bound to a dropped field -- every choice thrown away on save,
+      # unnoticed). The suite was verified to fail correctly: deleting the
+      # update() write line turns 9 of its checks red.
+      #
+      # The sandbox suite drives real Chromium (installed above) to prove the
+      # venue-authored post-login HTML cannot run script and cannot reach the
+      # parent -- that page is same-origin with the OTP and phone-number
+      # screens, so this is a security boundary, not a rendering detail.
+      #
+      # Floors 21 and 9, both observed green at exactly that.
+      - name: post-login HTML round-trip
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "post-login-html-roundtrip" 21 \
+            "All post-login HTML round-trip checks passed." \
+            bun run test:post-login-roundtrip
+
+      - name: post-login HTML sandbox
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "post-login-html-sandbox" 9 \
+            "All post-login HTML sandbox checks passed." \
+            bun run test:post-login-sandbox
