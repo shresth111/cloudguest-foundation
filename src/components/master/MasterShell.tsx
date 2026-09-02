@@ -23,7 +23,6 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Users,
-  Radio,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -51,12 +50,6 @@ export const MASTER_NAV: MasterNavItem[] = [
   { to: "/master/billing", label: "Subscriptions & Billing", icon: CreditCard, cap: "billing" },
   { to: "/master/nas", label: "NAS / RADIUS", icon: Server, cap: "nas" },
   { to: "/master/routers", label: "Router Fleet", icon: Router, cap: "routers" },
-  {
-    to: "/master/fleet-health",
-    label: "Fleet Reconnection",
-    icon: Radio,
-    cap: "fleet-health",
-  },
   { to: "/master/console", label: "Device Console", icon: TerminalSquare, cap: "console" },
   { to: "/master/analytics", label: "Global Analytics", icon: LineChart, cap: "analytics" },
   { to: "/master/health", label: "System Health", icon: Activity, cap: "health" },
@@ -95,13 +88,7 @@ const MASTER_NAV_GROUPS: { label: string; items: string[] }[] = [
   },
   {
     label: "Infrastructure",
-    items: [
-      "/master/nas",
-      "/master/routers",
-      "/master/fleet-health",
-      "/master/console",
-      "/master/health",
-    ],
+    items: ["/master/nas", "/master/routers", "/master/console", "/master/health"],
   },
   {
     label: "Operations",
@@ -146,14 +133,6 @@ const CAP_PERMISSIONS: Record<string, string[]> = {
   billing: ["billing.read"],
   nas: ["radius.read"],
   routers: ["routers.read"],
-  /** `/master/fleet-health` -- compares the platform's own WireGuard
-   * peer table against the hub's own live `wg show` state. Gated on
-   * `wireguard.read`, the exact permission
-   * `GET /wireguard/fleet-status` itself requires at GLOBAL scope (see
-   * that route's own comment in app/domains/wireguard/router.py) --
-   * matching the backend's real check here, not guessing at a nearby
-   * one, is what keeps the nav item and the API 403 in sync. */
-  "fleet-health": ["wireguard.read"],
   console: ["device_console.read", "device_console.execute"],
   analytics: ["analytics.read", "analytics.view"],
   health: ["monitoring.read", "monitoring.view"],
