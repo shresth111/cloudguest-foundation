@@ -319,8 +319,19 @@ check(
 );
 check(
   "wired-into-the-render-registry",
+  // The guarantee is that the registry *renders* this view, not how the
+  // module reaches it. The registry loads its feature pages lazily now (one
+  // static import there put the whole feature set, OperationsFeatures
+  // included, into the graph the browser fetches before first paint), so
+  // accept either form: a static `import { DeviceHealthTrafficView }` or a
+  // deferred `lazyView(..., "DeviceHealthTrafficView")`. Asserting the
+  // import *syntax* rather than the wiring would fail on a change that
+  // keeps the guarantee perfectly intact -- as it just did.
   /DeviceHealthTrafficView locationId=\{ctx\.locationId\}/.test(featureRegistry) &&
-    /import \{ DeviceHealthTrafficView \}/.test(featureRegistry),
+    (/import \{ DeviceHealthTrafficView \}/.test(featureRegistry) ||
+      /lazyView\(\s*\(\) => import\("@\/components\/customer\/DeviceHealthTrafficView"\),\s*"DeviceHealthTrafficView",?\s*\)/.test(
+        featureRegistry,
+      )),
   "path A: the /agent staff dashboard",
 );
 
