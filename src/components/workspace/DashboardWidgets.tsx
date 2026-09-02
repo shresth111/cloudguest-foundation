@@ -161,8 +161,8 @@ export function DashboardWidgets() {
     tone: StatTone;
   }> = [
     {
-      label: "Total locations",
-      value: locations.length,
+      label: activeLocationId === "all" ? "Total locations" : "Location",
+      value: activeLocationId === "all" ? locations.length : (activeLocation?.name ?? "—"),
       hint: `${customer?.organizationName ?? "your org"}`,
       icon: MapPin,
       tone: "primary",
@@ -191,21 +191,21 @@ export function DashboardWidgets() {
     {
       label: "Total users",
       value: owner.usersFailed ? "—" : owner.totalUsers,
-      hint: "Organization staff",
+      hint: "Organization staff · org-wide",
       icon: ShieldCheck,
       tone: "default",
     },
     {
       label: "Active campaigns",
       value: owner.campaignsFailed ? "—" : owner.activeCampaigns,
-      hint: "Currently running",
+      hint: "Currently running · org-wide",
       icon: Megaphone,
       tone: "warning",
     },
     {
       label: "License",
-      value: owner.activeLicense ?? "—",
-      hint: "Active plan",
+      value: owner.licenseFailed ? "—" : (owner.activeLicense ?? "—"),
+      hint: "Active plan · org-wide",
       icon: Ticket,
       tone: "info",
     },

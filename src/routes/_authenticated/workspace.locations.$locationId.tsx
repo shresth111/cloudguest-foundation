@@ -969,18 +969,6 @@ function PortalTab({
       <div className="space-y-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Portal status</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <Kpi label="Status" value="Live" icon={ShieldCheck} tone="positive" />
-            <Kpi label="URL" value="portal.cg.io" icon={Wifi} />
-            <Kpi label="Languages" value="5" icon={FileText} />
-            <Kpi label="Conversions" value="72%" icon={BarChart3} tone="positive" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
             <CardTitle className="text-base">Customization</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
@@ -1079,7 +1067,7 @@ function PortalTab({
                 </Button>
               </div>
               <p className="text-[10px] text-muted-foreground">
-                Powered by CloudGuest · {location.name}
+                Powered by Wyfy Guest · {location.name}
               </p>
             </div>
           </div>

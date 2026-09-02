@@ -187,26 +187,39 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     enabled: !!activeOrg,
   });
 
-  const [activeLocationId, setActiveLocationIdState] = useState<string>("all");
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
+  // Read the stored selection in the initialiser, not in an effect. Starting
+  // at "all" and correcting afterwards rendered "All locations" on every
+  // load, fired the full N-location fan-out for it, then refetched
+  // everything again for the single stored location.
+  const [activeLocationId, setActiveLocationIdState] = useState<string>(() => {
     try {
-      const stored = localStorage.getItem(ACTIVE_LOC_KEY);
-      if (stored) setActiveLocationIdState(stored);
+      return localStorage.getItem(ACTIVE_LOC_KEY) || "all";
     } catch {
-      /* ignore */
+      return "all";
     }
-  }, []);
+  });
 
   // If the stored id no longer belongs to the customer, fall back to "all".
   useEffect(() => {
     if (!customer) return;
     if (activeLocationId === "all") return;
     const belongs = customer.locations.some((l) => l.id === activeLocationId);
-    if (!belongs) setActiveLocationIdState("all");
-  }, [customer, activeLocationId]);
-
-  const queryClient = useQueryClient();
+    if (!belongs) {
+      setActiveLocationIdState("all");
+      // Clear the stale key too. Leaving it behind meant usePermissions --
+      // which reads it straight out of localStorage for its query key --
+      // kept resolving permissions against a location the tenant no longer
+      // owns while the header showed "All locations".
+      try {
+        localStorage.removeItem(ACTIVE_LOC_KEY);
+      } catch {
+        /* ignore */
+      }
+      queryClient.invalidateQueries({ queryKey: ["permissions"] });
+    }
+  }, [customer, activeLocationId, queryClient]);
 
   const setActiveLocationId = (id: string) => {
     setActiveLocationIdState(id);
