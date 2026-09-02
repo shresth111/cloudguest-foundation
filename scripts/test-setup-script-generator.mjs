@@ -634,7 +634,8 @@
  * most reported failures was the one with the least coverage, and every
  * whole-script guard in this file was transferring to it by assumption.
  *
- * TWO REAL DEFECTS, both red on origin/main at f99c02b:
+ * TWO REAL DEFECTS, both red on origin/main at f99c02b and both fixed by
+ * the generator work that landed in the same PR as this section:
  *
  * 1. THE .rsc CANNOT TELL A CLEAN RUN FROM AN ABORTED ONE. Measured: 65
  *    progress markers in `chunksToSingleLineScript`'s output, 0 in
@@ -730,6 +731,48 @@
  * The moment any chunk mentioned an incomplete script, a truncated run
  * read as complete -- on precisely the script where that costs the most.
  * It now matches the marker, not the substring.
+ *
+ * SECTIONS 15.9 AND 15.10 -- WHAT THE FIX ITSELF THEN NEEDED (integration
+ * pass, 2026-09-02)
+ * ----------------------------------------------------------------------
+ * Closing 15.8 introduced two behaviours that nothing in this file
+ * asserted, which is the same state section 15 was written to end.
+ *
+ *  - 15.9. A gap the operator CHOSE deliberately does not `:error` -- that
+ *    is the right call (aborting a run somebody scoped on purpose teaches
+ *    them to page past the banner) and it has a consequence: the file runs
+ *    to the end and reaches the COMPLETE sentinel 15.2 just added. It
+ *    printed the identical "COMPLETE -- all N chunk(s) ran" a full
+ *    provision prints. N differs; nobody counts N. The field runbook is
+ *    one sentence -- import it, read the last line -- so that line was
+ *    about to say "finished" over a router with an empty `/radius`, which
+ *    is the original defect wearing a green light. Both channels now build
+ *    that line from one shared function, and 15.9 pins that they end with
+ *    the same sentence.
+ *  - 15.10. The three endings (the operator chose it / something failed /
+ *    nobody reported it and the generator derived it from `opts`) are each
+ *    a weighed product decision and none of them was pinned by anything.
+ *    Six further mutations were injected against 15.9 and 15.10 and all
+ *    six were caught: derived gaps removed; the COMPLETE line made
+ *    unconditional again; the two channels' endings diverged; a derived
+ *    gap flagged `deliberate` so it stops aborting; a deliberate gap made
+ *    to abort; a mixed list taking the gentler ending.
+ *
+ * TWO FURTHER PRE-EXISTING WEAKNESSES were corrected in the same pass:
+ *
+ *  - 13.10's "it logs as well as prints" counted `:log warning` lines
+ *    against the CALLER's `notProvisioned` array. Once the generator
+ *    derives its own gaps those are two different numbers, and the fixture
+ *    was one subsystem short of complete besides -- the same fixture
+ *    problem 13.10's `clean` had. Its fixture is now complete apart from
+ *    the two gaps it declares.
+ *  - 15.3's abort-message check asked whether the word "import" appeared
+ *    ANYWHERE in an aborting chunk, which a comment or an unrelated `:put`
+ *    three statements away would have satisfied while the message RouterOS
+ *    actually shows still said "re-paste just this chunk". It now extracts
+ *    the `:error` message itself and grades that, with a companion check
+ *    that the extraction found any messages at all -- the extraction
+ *    silently matching nothing is the same "cannot fail" shape.
  */
 import { build } from "esbuild";
 import { mkdtempSync, writeFileSync, existsSync, readFileSync } from "node:fs";
@@ -4863,8 +4906,16 @@ check(
     { what: "WireGuard tunnel", why: "the hub refused the allocation" },
   ];
   const withGaps = buildRouterSetupScriptChunks({
+    // `portalUrl` and the rest of a real Generate are present so that the
+    // ONLY gaps in this fixture are the two the caller declared. Without
+    // it the generator now derives a third (no portal redirect pages) and
+    // every count below silently means something other than what it says
+    // -- the same "the fixture is not what the check claims" shape 13.10's
+    // own `clean` fixture was corrected for a few lines up.
     ...BASE,
     wans: [DHCP_WAN],
+    portalUrl: PORTAL,
+    apiAccess: { username: "cloudguest", secret: "pw" },
     notProvisioned: gaps,
   });
   // A GENUINELY complete script. This fixture used to be
@@ -6687,7 +6738,29 @@ for (const { variant, chunks } of RSC_CASES) {
   const radiusIdx = chunks.findIndex((c) => c.label === RADIUS_LABEL);
   if (radiusIdx >= 0) {
     const upstreamAborts = chunks.slice(0, radiusIdx).filter((c) => /:error\b/.test(c.script));
-    const silent = upstreamAborts.filter((c) => !/\bimport\b/i.test(c.script));
+    // GRADED ON THE `:error` MESSAGE, NOT ON THE CHUNK. The first version
+    // of this check asked whether the word "import" appeared ANYWHERE in
+    // the chunk's script, which a comment, a `:put` or an unrelated
+    // sentence three statements away would have satisfied -- the chunk
+    // would have gone green while the message RouterOS actually shows on
+    // an abort still said "re-paste just this chunk". The message is the
+    // only text the operator sees when the file dies, so it is the only
+    // text worth grading.
+    const abortMessages = (script) =>
+      [...script.matchAll(/:error\s+"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1]);
+    check(
+      `${variant}: 15.3 can actually see the abort messages it grades`,
+      upstreamAborts.every((c) => abortMessages(c.script).length > 0),
+      `${upstreamAborts
+        .filter((c) => abortMessages(c.script).length === 0)
+        .map((c) => c.label)
+        .join(", ")} carries an :error this scan cannot extract, so the check below passes ` +
+        `it by never looking at it -- the "a guard that cannot fail" shape this file has ` +
+        `been bitten by six times`,
+    );
+    const silent = upstreamAborts.filter((c) =>
+      abortMessages(c.script).some((m) => !/\bimport\b/i.test(m)),
+    );
     check(
       `${variant}: an abort above RADIUS says the rest of the FILE did not run`,
       silent.length === 0,
@@ -7480,6 +7553,269 @@ for (const [label, script] of pasteables) {
       "an entry whose `without` override does not actually remove the subsystem tests " +
         "nothing -- it records an incident without preventing it, which is the state " +
         "test:location-liveness sat in",
+    );
+  }
+}
+
+// ---------------------------------------------------------------------
+// 15.9 A PARTIAL PROVISION MUST NOT END ON THE SAME LINE AS A FULL ONE.
+// ---------------------------------------------------------------------
+// 15.2 gets a COMPLETE sentinel onto the end of the .rsc, and the field
+// runbook that goes with it is one sentence: import it, read the last
+// line. That instruction is only safe if the last line can tell apart the
+// TWO ways a run ends well-formed.
+//
+// A gap the operator chose (an unticked box) deliberately does NOT
+// `:error` -- see `notProvisioned`'s docstring in the generator: aborting a
+// run somebody scoped on purpose is how a banner becomes something people
+// learn to page past. The consequence is that a deliberately-partial file
+// runs every chunk it contains and reaches the sentinel, and until this
+// section existed it printed the identical `COMPLETE -- all N chunk(s)
+// ran` a full provision does. N differs; nobody counts N.
+//
+// That is the original defect wearing a green light: a script that quietly
+// did less than the operator believed, ending on a line that says it
+// finished. The section-1 banner does say so, but by the end of an
+// `/import` the top of the run has scrolled off, and "read the last line"
+// is the instruction that actually gets followed at a rack at 11pm.
+{
+  const FULL = {
+    ...BASE,
+    wans: [DHCP_WAN],
+    portalUrl: PORTAL,
+    wireguard: WG,
+    radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t", srcAddress: "10.20.0.5" },
+    apiAccess: { username: "cloudguest", secret: "pw" },
+  };
+  const full = buildRouterSetupScriptChunks(FULL);
+  // The founder's exact case, post-fix: RADIUS deselected on purpose, so
+  // the banner fires and the run is allowed to finish.
+  const byChoice = buildRouterSetupScriptChunks({
+    ...FULL,
+    radius: undefined,
+    notProvisioned: [
+      {
+        what: "RADIUS",
+        why: 'the "Also enable RADIUS" box was not ticked when this script was generated',
+        deliberate: true,
+      },
+    ],
+  });
+
+  const lastExecutable = (text) => {
+    const ls = executableLines(text);
+    return ls[ls.length - 1] ?? "";
+  };
+  const fullLast = lastExecutable(chunksToRouterOsScript(full, "lobby router"));
+  const choiceLast = lastExecutable(chunksToRouterOsScript(byChoice, "lobby router"));
+
+  // FIXTURE GUARDS. Both of these have been wrong in this file before --
+  // 13.10's "complete" fixture was a script missing three subsystems, and
+  // an injected check matched COMPLETE as a substring of INCOMPLETE. If
+  // the by-choice fixture aborted at chunk 1 it would never reach the
+  // sentinel and everything below would pass by never running.
+  check(
+    "15.9's full fixture really is a complete provision",
+    !full.some((c) => /INCOMPLETE SCRIPT/.test(c.label)),
+    "if the 'complete' fixture already had a gap, the anti-noise half below would be vacuous",
+  );
+  check(
+    "15.9's by-choice fixture really does declare a gap AND run to the end",
+    byChoice.some((c) => /INCOMPLETE SCRIPT/.test(c.label)) &&
+      !byChoice.some((c) => /INCOMPLETE SCRIPT/.test(c.label) && /:error\s/.test(c.script)),
+    "a fixture that aborts at chunk 1 never reaches the last line, so every check below " +
+      "would pass without testing anything",
+  );
+  check(
+    "15.9 is reading the COMPLETE sentinel, not some other trailing line",
+    isMarkerLine(fullLast) &&
+      isMarkerLine(choiceLast) &&
+      // `INCOMPLETE` contains `COMPLETE`. An injected check in this file
+      // matched exactly that and could never have failed.
+      /\bCOMPLETE\b/.test(fullLast.replace(/INCOMPLETE/g, "")) &&
+      /\bCOMPLETE\b/.test(choiceLast.replace(/INCOMPLETE/g, "")),
+    "if the last executable line were anything else, the two comparisons below would be " +
+      "comparing the wrong strings",
+  );
+
+  check(
+    "a deliberately-partial run NAMES the missing subsystem on its last line",
+    /RADIUS/.test(choiceLast),
+    "the operator was told to read the last line. On this file that line said COMPLETE and " +
+      "the router had no /radius entry -- which is the founder's report end to end, reached " +
+      "with nothing having failed. The last line has to carry the gap or the runbook is a lie",
+  );
+  check(
+    "...and says outright that the router is not finished",
+    /\bNOT\b/.test(choiceLast.replace(/INCOMPLETE/g, "")),
+    "naming RADIUS is not enough on its own -- 'COMPLETE ... RADIUS' reads to a tired " +
+      "technician as 'RADIUS done'. The line has to negate",
+  );
+  check(
+    "a full provision's last line carries no gap warning",
+    !/RADIUS/.test(fullLast) && !/NOT A FULL PROVISION/.test(fullLast),
+    "a warning printed on every healthy import is a warning nobody reads on the one import " +
+      "that needed it -- the same reason the section-1 banner is conditional",
+  );
+  check(
+    "the two endings are not the same sentence",
+    fullLast.replace(/all \d+ chunk/, "all N chunk") !==
+      choiceLast.replace(/all \d+ chunk/, "all N chunk"),
+    "the chunk COUNT differing is not a difference an operator can act on: nobody knows " +
+      "whether this router's full script was 31 chunks or 32",
+  );
+
+  // BOTH CHANNELS, ONE SENTENCE. The .rsc and the flattened paste now
+  // share a builder; this is what keeps them shared. A divergence here is
+  // exactly the shape that left the .rsc with no markers at all for a
+  // month while the one-line paste had them.
+  for (const [name, chunks, expected] of [
+    ["a full provision", full, fullLast],
+    ["a deliberately-partial provision", byChoice, choiceLast],
+  ]) {
+    check(
+      `both delivery channels end ${name} with the SAME sentence`,
+      chunksToSingleLineScript(chunks).endsWith(expected),
+      "two channels with two different last lines means the runbook has to describe both, " +
+        "and the one nobody wrote down is the one that fails",
+    );
+  }
+}
+
+// ---------------------------------------------------------------------
+// 15.10 THE THREE ENDINGS OF AN INCOMPLETE SCRIPT ARE A PRODUCT DECISION.
+// ---------------------------------------------------------------------
+// The generator now distinguishes three cases, and every one of them was
+// arrived at by someone weighing a specific failure. None of them was
+// pinned by anything until this section, which meant the whole design
+// could be reverted by a well-meaning edit and every suite would stay
+// green.
+//
+//   1. THE OPERATOR CHOSE IT (`deliberate: true`). Banner, no `:error`.
+//      Aborting a run somebody deliberately scoped is how a warning
+//      becomes something people learn to page past -- and the banner it
+//      would cost us is the one that catches case 3.
+//   2. SOMETHING FAILED. Banner AND `:error`. There is a cause to fix, the
+//      script in hand cannot be repaired by re-pasting, and the file must
+//      not run. A MIXED list takes this ending: a real fault is in it.
+//   3. NOBODY SAID ANYTHING and the generator worked it out from `opts`.
+//      Banner AND `:error`, because a caller that emitted a hotspot with
+//      no RADIUS and did not report it is a BUG in the caller, not a
+//      choice by an operator -- and the failure being silent is the entire
+//      history of this file. Loud is the only safe default for a gap whose
+//      provenance is unknown.
+{
+  const FULL_1510 = {
+    ...BASE,
+    wans: [DHCP_WAN],
+    portalUrl: PORTAL,
+    wireguard: WG,
+    radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t", srcAddress: "10.20.0.5" },
+    apiAccess: { username: "cloudguest", secret: "pw" },
+  };
+  const DELIBERATE = {
+    what: "RADIUS",
+    why: 'the "Also enable RADIUS" box was not ticked when this script was generated',
+    deliberate: true,
+  };
+  const FAILED = { what: "RADIUS", why: "the RADIUS bridge could not be reached" };
+
+  const banner = (chunks) => chunks.find((c) => /INCOMPLETE SCRIPT/.test(c.label));
+  const aborts = (chunk) => /:error\s/.test(chunk?.script ?? "");
+
+  const cases = [
+    {
+      name: "chose to leave RADIUS out",
+      chunks: buildRouterSetupScriptChunks({
+        ...FULL_1510,
+        radius: undefined,
+        notProvisioned: [DELIBERATE],
+      }),
+      shouldAbort: false,
+      byChoiceLabel: true,
+      because:
+        "a script somebody deliberately scoped must still RUN. Refusing to import it teaches " +
+        "the operator that this banner is noise, and the next one is the one that matters",
+    },
+    {
+      name: "RADIUS registration failed",
+      chunks: buildRouterSetupScriptChunks({
+        ...FULL_1510,
+        radius: undefined,
+        notProvisioned: [FAILED],
+      }),
+      shouldAbort: true,
+      byChoiceLabel: false,
+      because:
+        "there is a cause to fix and the script in hand cannot be repaired by re-pasting. " +
+        "Importing it anyway is the 2026-08-23 incident: a hotspot serving a venue with an " +
+        "empty /radius and nothing saying so",
+    },
+    {
+      name: "one deliberate gap and one failure",
+      chunks: buildRouterSetupScriptChunks({
+        ...FULL_1510,
+        radius: undefined,
+        wireguard: undefined,
+        notProvisioned: [
+          { ...DELIBERATE, what: "RADIUS" },
+          { what: "WireGuard tunnel", why: "the hub refused the allocation" },
+        ],
+      }),
+      shouldAbort: true,
+      byChoiceLabel: false,
+      because:
+        "a mixed list contains a real fault. Taking the gentler ending because one entry was " +
+        "deliberate would let a failed allocation import silently, which is the whole defect",
+    },
+    {
+      name: "nobody reported the gap and the generator derived it",
+      // NO `notProvisioned` AT ALL. This is the founder's original case as
+      // it reaches the generator: the panel never called, because an
+      // unticked checkbox is not a caught exception.
+      chunks: buildRouterSetupScriptChunks({ ...FULL_1510, radius: undefined }),
+      shouldAbort: true,
+      byChoiceLabel: false,
+      because:
+        "a caller that emitted a hotspot with no RADIUS and reported nothing is a caller with " +
+        "a bug, and the gap's provenance is unknown -- the one thing that must not happen is " +
+        "the silent ending. If this goes green while `deliberate` is assumed, the backstop " +
+        "added for exactly this case stops backstopping",
+    },
+  ];
+
+  for (const c of cases) {
+    const b = banner(c.chunks);
+    // FIXTURE GUARD FIRST: no banner means every assertion below is about
+    // `undefined` and passes by never looking at anything.
+    check(
+      `15.10 (${c.name}): a banner chunk exists to grade`,
+      Boolean(b),
+      "without a banner chunk the abort assertions below are vacuous",
+    );
+    check(
+      `15.10 (${c.name}): the script ${c.shouldAbort ? "stops" : "runs on"}`,
+      aborts(b) === c.shouldAbort,
+      c.because,
+    );
+    check(
+      `15.10 (${c.name}): the label ${c.byChoiceLabel ? "says" : "does not say"} "(by choice)"`,
+      /\(by choice\)/.test(b?.label ?? "") === c.byChoiceLabel,
+      "the label is what `chunksToRouterOsScript` keys the downloaded file's header off, so " +
+        "a label that lies about the reason makes the header lie too -- and the header is " +
+        "the only part of a .rsc read before it runs",
+    );
+    // AND THE HEADER, which is the .rsc's own half of the same decision.
+    const head = chunksToRouterOsScript(c.chunks, "lobby router").split("\n").slice(0, 18);
+    check(
+      `15.10 (${c.name}): the .rsc header tells the same story as the banner`,
+      head.some((l) =>
+        c.byChoiceLabel
+          ? /PARTIAL BY CHOICE/.test(l)
+          : /THIS SCRIPT IS INCOMPLETE/.test(l) && !/PARTIAL BY CHOICE/.test(l),
+      ),
+      "the file's header and the terminal output are read by the same person minutes apart. " +
+        "Two different stories about one script is how 'it said PASS everywhere' happened",
     );
   }
 }

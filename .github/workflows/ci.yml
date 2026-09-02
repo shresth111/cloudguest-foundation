@@ -16,11 +16,16 @@ name: CI
 #   test:output-analyser  116 checks
 #   test:a11y ........... sentinel only
 #   test:manual-wizard .. 113 checks
-#   test:setup-script ... 3050 checks (2928 green + 122 RED -- see the
-#                         step's own comment: section 15, added 2026-09-02,
-#                         lands with the .rsc channel's real defects
-#                         unfixed and each red check is a finding).
-#                         Was 2000; and 169 before the
+#   test:setup-script ... 3081 checks, all green (was 2000; section 15 --
+#                         the .rsc delivery channel -- landed 2026-09-02
+#                         with 122 deliberately RED, and the generator fix
+#                         in the same PR turned every one of them green;
+#                         sections 15.9 and 15.10 were then added by the
+#                         integration to cover the two behaviours the fix
+#                         introduced and nothing tested: the COMPLETE
+#                         sentinel on a partial run, and which of the three
+#                         kinds of gap is allowed to abort an /import).
+#                         And 169 before the
 #                         five silent failures (section 6) and the three
 #                         fresh-router sections (7-9) landed, floor 160 ->
 #                         395 -> 435 -> 450; then section 12, "the uplink is
@@ -481,11 +486,11 @@ jobs:
       # had the least coverage, and every whole-script guard in the suite
       # was transferring to it by assumption.
       #
-      # THIS STEP IS EXPECTED TO BE RED WHEN IT LANDS. 122 of the 602 new
-      # checks fail against origin/main at f99c02b, and each red one is a
-      # finding handed to the router work, not a broken test:
+      # 602 checks were added, 122 of them RED against origin/main at
+      # f99c02b. Each red one was a finding, not a broken test, and the
+      # generator work in this same PR closed all 122:
       #
-      #   115  the .rsc carries NO progress markers. Measured: 65 in
+      #   115  the .rsc carried NO progress markers. Measured: 65 in
       #        `chunksToSingleLineScript`'s output and 0 in
       #        `chunksToRouterOsScript`'s, for the same script. /import
       #        aborts at the first error and reports ONE message with no
@@ -494,44 +499,54 @@ jobs:
       #        here. It is why four separate fixes each addressed
       #        whichever statement happened to be found: the operator
       #        could report THAT it stopped and never WHERE.
-      #     5  a default Generate silently omits whole subsystems.
-      #        `enableWireguard` and `enableRadius` both default to false
-      #        (RouterSetupScriptAdvanced.tsx:315-316) and
-      #        `notProvisioned` -- the array driving the loud INCOMPLETE
-      #        SCRIPT chunk and its :error -- is appended only from catch
-      #        blocks. An unticked checkbox is not a caught error, so the
-      #        script emits 28 chunks instead of 32, imports perfectly,
-      #        prints RESULT: PASS everywhere, creates the heartbeat
-      #        scheduler so the router shows GREEN in Master console --
-      #        and /radius is empty. Nothing aborted; nothing was asked to
-      #        configure RADIUS. Section 15.8 requires the gap to be
-      #        DERIVED from the emitted script.
+      #     5  a default Generate silently omitted whole subsystems.
+      #        `enableWireguard` and `enableRadius` both defaulted to false
+      #        and `notProvisioned` -- the array driving the loud
+      #        INCOMPLETE SCRIPT chunk and its :error -- was appended only
+      #        from catch blocks. An unticked checkbox is not a caught
+      #        error, so the script emitted 28 chunks instead of 32,
+      #        imported perfectly, printed RESULT: PASS everywhere, created
+      #        the heartbeat scheduler so the router showed GREEN in Master
+      #        console -- and /radius was empty. 15.8 now requires the gap
+      #        to be DERIVED from `opts` inside the generator, so a caller
+      #        that forgets cannot reproduce it.
       #     2  an :error above the RADIUS chunk stops the whole /import,
-      #        and every one of those messages is written for someone
+      #        and every one of those messages was written for someone
       #        pasting chunk by chunk ("re-run", "re-paste just this
       #        chunk"). In a file there are no chunks on screen.
       #
-      # All 122 were confirmed SATISFIABLE before landing: a prototype of
-      # the three fixes turned every one of them green.
+      # ADDED BY THE INTEGRATION, covering behaviour the fix introduced
+      # that nothing asserted (both were confirmed to fail against the fix
+      # branch before the code that satisfies them was written):
       #
-      # Seventeen mutations of the real generator were injected and the
-      # suite re-run; all seventeen caught. FOUR survived the first pass
-      # and all four were real holes in the NEW guards rather than
-      # confirmations -- the sixth time that shape has been caught in this
-      # file. See the script header for the table and for the two
-      # pre-existing checks section 15 corrected (13.10's "complete"
-      # fixture was a script missing three subsystems, and an INJECTED
-      # check matched `COMPLETE` as a substring of `INCOMPLETE`).
+      #   15.9   a DELIBERATE gap does not :error -- by design -- so it
+      #          runs to the end and printed the same "COMPLETE -- all N
+      #          chunk(s) ran" a full provision does. The field runbook is
+      #          "import it, read the last line"; that line now names the
+      #          gap, in both channels, from one shared builder.
+      #   15.10  the three endings (chose it / it failed / nobody said and
+      #          the generator derived it) are a product decision and none
+      #          of them was pinned. Six mutations of the generator were
+      #          injected against them; all six caught.
       #
-      # FLOOR: 2900. Observed 2928 green + 122 red on origin/main at
-      # f99c02b; 3050 checks run in total. Set below the currently-green
-      # count on purpose, because the count MOVES when the generator fix
-      # lands (the prototype ran 3047 green). Raise it to ~3040 in the
-      # same PR that turns this step green -- floor 1950 -> 2900.
+      # Seventeen mutations of the real generator were injected before
+      # landing and the suite re-run; all seventeen caught. FOUR survived
+      # the first pass and all four were real holes in the NEW guards
+      # rather than confirmations -- the sixth time that shape has been
+      # caught in this file. See the script header for the table and for
+      # the three pre-existing checks section 15 corrected (13.10's
+      # "complete" fixture was a script missing three subsystems, its
+      # log-line count was graded against the caller's list rather than the
+      # emitted one, and an INJECTED check matched `COMPLETE` as a
+      # substring of `INCOMPLETE`).
+      #
+      # FLOOR: 3070, against 3081 observed green. Tight on purpose --
+      # deleting one assertion block fails the build -- with just enough
+      # slack that correcting a single vacuous check does not.
       - name: setup script generator
         run: |
           ./scripts/ci-gated-test.sh \
-            "setup-script-generator" 2900 \
+            "setup-script-generator" 3070 \
             "setup-script-generator: all checks passed" \
             bun run test:setup-script
 

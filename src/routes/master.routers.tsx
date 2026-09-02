@@ -63,8 +63,16 @@ export const Route = createFileRoute("/master/routers")({
   // this list's own local-state drawer (`sel` below), so it hands in the
   // router id here and this auto-selects it once the real fleet has loaded.
   // `advanced` (legacy alias `setup`) swaps the whole page into the
-  // full-width legacy script generator for that router instead of the
-  // lightweight browse drawer -- shareable/bookmarkable deep links.
+  // full-width setup script generator for that router instead of the
+  // lightweight browse drawer -- shareable/bookmarkable deep links. It is
+  // also where the retired `/master/routers/guided/$id` and
+  // `/master/routers/setup/$id` routes now land, and where the customer
+  // dashboard's "Setup Script has moved" button points.
+  //
+  // Not "legacy": this panel is the fleet's ONLY provisioning entry point
+  // as of the Router Fleet cleanup. Calling it legacy in three places is
+  // part of what sent operators to a wizard that cannot finish on a fresh
+  // box.
   validateSearch: z.object({
     open: z.string().optional(),
     setup: z.string().optional(),
