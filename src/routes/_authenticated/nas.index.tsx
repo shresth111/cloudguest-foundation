@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Eye, Power, Router as RouterIcon, Search, Trash2 } from "lucide-react";
+import { Eye, Router as RouterIcon, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageShell, SectionHeader } from "@/components/ui-ext";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
-import { useActivateNas, useAllNas, useDeleteNas, useDisableNas } from "@/hooks/useNas";
+import { useAllNas, useDeleteNas } from "@/hooks/useNas";
 import { NAS_STATUS_LABEL, type NasStatus } from "@/types/nas";
 import type { AppError } from "@/services/api";
 
@@ -36,8 +36,6 @@ const STATUS_VARIANT: Record<NasStatus, "default" | "secondary" | "destructive" 
 function NasManagementPage() {
   const [search, setSearch] = useState("");
   const nas = useAllNas();
-  const activate = useActivateNas();
-  const disable = useDisableNas();
   const remove = useDeleteNas();
   const [confirm, setConfirm] = useState<null | {
     title: string;
@@ -56,24 +54,6 @@ function NasManagementPage() {
       ),
     );
   }, [nas.data, search]);
-
-  async function handleActivate(nasId: string) {
-    try {
-      await activate.mutateAsync(nasId);
-      toast.success("NAS activated");
-    } catch (err) {
-      toast.error((err as unknown as AppError).message || "Failed to activate NAS");
-    }
-  }
-
-  async function handleDisable(nasId: string) {
-    try {
-      await disable.mutateAsync({ nasId });
-      toast.success("NAS disabled");
-    } catch (err) {
-      toast.error((err as unknown as AppError).message || "Failed to disable NAS");
-    }
-  }
 
   async function handleDelete(nasId: string) {
     try {
@@ -176,28 +156,13 @@ function NasManagementPage() {
                             <Eye className="h-4 w-4" />
                           </Link>
                         </Button>
-                        {(n.status === "pending" ||
-                          n.status === "disabled" ||
-                          n.status === "suspended") && (
-                          <Button size="icon" variant="ghost" onClick={() => handleActivate(n.id)}>
-                            <Power className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {(n.status === "pending" || n.status === "active") && (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() =>
-                              setConfirm({
-                                title: `Disable ${n.nasCode ?? n.nasIdentifier}?`,
-                                description: "Guest authentication through this NAS will stop.",
-                                onConfirm: () => handleDisable(n.id),
-                              })
-                            }
-                          >
-                            <Power className="h-4 w-4" />
-                          </Button>
-                        )}
+                        {/* NO ACTIVATE / DISABLE ICONS (2026-09-02). Two
+                            unlabelled power buttons, one of which stopped
+                            every guest login at that venue the moment it was
+                            clicked -- a pure database flag on the backend, so
+                            instant, and invisible to the guest and the router
+                            alike. Both routes are Master-console-only now; see
+                            the note in hooks/useNas.ts. */}
                         {n.status !== "deleted" && (
                           <Button
                             size="icon"

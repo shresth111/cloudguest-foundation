@@ -258,12 +258,31 @@ export const nasService = {
     return toNasClient(data, loc?.name ?? "", loc?.organizationName ?? "");
   },
 
+  /**
+   * Platform-only, and the path says so -- same move as `regenerateSecret`
+   * below, one pass later (2026-09-02).
+   *
+   * Moved from `/radius/nas/{id}/activate`. Also the only way out of
+   * `suspended`, the status reserved for a platform-imposed hold, which on
+   * the old org-scoped route was a venue owner clearing the platform's hold
+   * on their own venue.
+   */
   async activate(nasId: string): Promise<void> {
-    await api.post(`/radius/nas/${nasId}/activate`);
+    await api.post(`/platform/radius/nas/${nasId}/activate`);
   },
 
+  /**
+   * Platform-only. Moved from `/radius/nas/{id}/disable` (2026-09-02).
+   *
+   * There is no hub call and no device call behind this: the backend flips
+   * the NAS row's status and returns, and FreeRADIUS auth accepts only an
+   * `active` NAS. So a success here means guest WiFi at that venue is down
+   * from this moment until someone activates it again -- immediately, and
+   * with nothing in any guest-facing or router-facing log naming the cause.
+   * Confirm before calling it, and say what it does.
+   */
   async disable(nasId: string, reason?: string): Promise<void> {
-    await api.post(`/radius/nas/${nasId}/disable`, { reason });
+    await api.post(`/platform/radius/nas/${nasId}/disable`, { reason });
   },
 
   /**
