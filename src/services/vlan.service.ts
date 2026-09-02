@@ -23,6 +23,9 @@ interface BackendVlan {
   enable_hotspot: boolean;
   description: string | null;
   is_enabled: boolean;
+  device_push_status: "pending" | "active" | "failed";
+  device_push_error: string | null;
+  device_pushed_at: string | null;
   created_at: string;
 }
 
@@ -51,6 +54,9 @@ function toVlan(v: BackendVlan): Vlan {
     enableHotspot: v.enable_hotspot,
     description: v.description,
     isEnabled: v.is_enabled,
+    devicePushStatus: v.device_push_status,
+    devicePushError: v.device_push_error,
+    devicePushedAt: v.device_pushed_at,
     createdAt: v.created_at,
   };
 }
@@ -176,5 +182,27 @@ export const vlanService = {
     await api.delete(`/vlans/${id}`, {
       headers: { "X-Organization-Id": orgId },
     });
+  },
+
+  /**
+   * Realizes the VLAN on its router, over the RouterOS API.
+   *
+   * Creating a VLAN writes a database row and nothing else -- that is
+   * deliberate, so that renaming one cannot fail with a device connection
+   * error. This is the separate step that actually reaches the hardware, and
+   * until it exists in the UI a "created" VLAN is only ever a row.
+   *
+   * Failures arrive as real non-2xx responses carrying the device's own
+   * error text, so the caller's `catch` gets something worth showing. The
+   * backend deliberately never returns `200 {success: false}` here: the
+   * response interceptor discards `success`, so such a response would reach
+   * this method as a success.
+   */
+  async push(id: string): Promise<Vlan> {
+    const orgId = await resolveOrganizationId();
+    const { data } = await api.post<BackendVlan>(`/vlans/${id}/push`, undefined, {
+      headers: { "X-Organization-Id": orgId },
+    });
+    return toVlan(data);
   },
 };
