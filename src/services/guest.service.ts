@@ -58,6 +58,10 @@ interface BackendGuest {
 interface BackendGuestSession {
   id: string;
   guest_id: string;
+  /** Not currently emitted by GuestSessionResponse -- optional so the client
+   *  picks it up automatically once the backend joins it in, rather than
+   *  fabricating an empty string in the meantime. */
+  guest_identifier?: string | null;
   device_id: string | null;
   router_id: string;
   location_id: string;
@@ -173,7 +177,7 @@ function toGuestSession(
   return {
     id: s.id,
     guestId: s.guest_id,
-    guestIdentifier: "",
+    guestIdentifier: s.guest_identifier ?? null,
     deviceId: s.device_id,
     userAgent: s.user_agent,
     routerId: s.router_id,
@@ -448,6 +452,33 @@ export const guestService = {
   },
 
   async listSessions(query: SessionListQuery): Promise<SessionListResult> {
+    // Scoped path: one request, filtered and paginated by the backend. The
+    // endpoint takes location_id, status, page and page_size server-side and
+    // returns a real total_items, so counts derived from this are the true
+    // totals rather than "whatever fitted in the first 100 rows".
+    if (query.organizationId) {
+      const params: Record<string, string | number> = {
+        page: query.page,
+        page_size: query.pageSize,
+      };
+      if (query.locationId && query.locationId !== "all") params.location_id = query.locationId;
+      if (query.status && query.status !== "all") params.status = query.status;
+
+      const { data } = await api.get<BackendListResponse<BackendGuestSession>>("/guest-sessions", {
+        params,
+        headers: { "X-Organization-Id": query.organizationId },
+      });
+      let rows = data.items.map((s) => toGuestSession(s, "", "", s.router_id));
+      // `search` has no server-side equivalent on this endpoint; narrowing the
+      // page we already hold is the honest best-effort, and total_items stays
+      // the unfiltered server total rather than a number we invented.
+      if (query.search) {
+        const needle = query.search.toLowerCase();
+        rows = rows.filter((r) => (r.ipAddress ?? "").toLowerCase().includes(needle));
+      }
+      return { rows, total: data.total_items };
+    }
+
     const locations = await fetchAllLocations();
     let rows = await fanOutPerOrg<GuestSession>("/guest-sessions", (raw, org) => {
       const s = raw as BackendGuestSession;

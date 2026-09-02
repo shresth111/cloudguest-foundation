@@ -5,6 +5,7 @@ import type {
   LocationListQuery,
   LocationStatus,
   ProvisionLocationPayload,
+  UpdateLocationPayload,
 } from "@/types/location";
 
 export const locationKeys = {
@@ -13,6 +14,19 @@ export const locationKeys = {
   allRows: ["locations", "all"] as const,
   detail: (id: string) => ["locations", "detail", id] as const,
 };
+
+/**
+ * Location mutations have to clear two independent caches. `locationKeys.all`
+ * covers the operator console's own lists, but the customer workspace reads
+ * locations from a different tree entirely (`["workspace","customer",orgId]`
+ * and `["workspace","locationResources",id]` -- see WorkspaceContext and
+ * useWorkspace). Invalidating only the first is why a deleted location kept
+ * showing in the workspace switcher, tree and grid until a full reload.
+ */
+function invalidateLocationCaches(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: locationKeys.all });
+  qc.invalidateQueries({ queryKey: ["workspace"] });
+}
 
 export function useLocations(query: LocationListQuery) {
   return useQuery({
@@ -52,7 +66,26 @@ export function useCreateLocation() {
       payload: CreateLocationPayload;
       knownOrgName?: string;
     }) => locationService.create(payload, knownOrgName),
-    onSuccess: () => qc.invalidateQueries({ queryKey: locationKeys.all }),
+    onSuccess: () => invalidateLocationCaches(qc),
+  });
+}
+
+export function useUpdateLocation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      patch,
+      organizationId,
+    }: {
+      id: string;
+      patch: UpdateLocationPayload;
+      organizationId?: string;
+    }) => locationService.update(id, patch, organizationId),
+    onSuccess: (_data, vars) => {
+      invalidateLocationCaches(qc);
+      qc.invalidateQueries({ queryKey: locationKeys.detail(vars.id) });
+    },
   });
 }
 
@@ -61,7 +94,7 @@ export function useUpdateLocationStatus() {
   return useMutation({
     mutationFn: ({ ids, status }: { ids: string[]; status: LocationStatus }) =>
       locationService.updateStatus(ids, status),
-    onSuccess: () => qc.invalidateQueries({ queryKey: locationKeys.all }),
+    onSuccess: () => invalidateLocationCaches(qc),
   });
 }
 
@@ -69,7 +102,7 @@ export function useDeleteLocations() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (ids: string[]) => locationService.remove(ids),
-    onSuccess: () => qc.invalidateQueries({ queryKey: locationKeys.all }),
+    onSuccess: () => invalidateLocationCaches(qc),
   });
 }
 
@@ -78,7 +111,7 @@ export function useProvisionLocation() {
   return useMutation({
     mutationFn: (payload: ProvisionLocationPayload) => locationService.provisionLocation(payload),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: locationKeys.all });
+      invalidateLocationCaches(qc);
       qc.invalidateQueries({ queryKey: ["organizations"] });
     },
   });

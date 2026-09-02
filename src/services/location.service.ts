@@ -8,6 +8,7 @@ import type {
   LocationStatus,
   ProvisionLocationPayload,
   ProvisionLocationResult,
+  UpdateLocationPayload,
 } from "@/types/location";
 
 // The Master Console's demo sign-in (master-login.tsx's "admin@example.com /
@@ -281,6 +282,57 @@ export const locationService = {
   // found") even though the location genuinely exists, which is exactly
   // the real bug this was caught fixing: master's location delete/suspend
   // silently failing because the id-only call had no org context.
+  /**
+   * The raw backend row for one location, with no follow-up
+   * fetchAllOrganizations() lookup -- that call needs GLOBAL scope and 403s
+   * for an ordinary customer/org-owner session (same restriction documented
+   * on create() above), so get() cannot be used from the customer
+   * workspace. Everything the settings form edits lives on this row.
+   */
+  async getDetail(id: string): Promise<BackendLocation> {
+    const { data } = await api.get<BackendLocation>(`/locations/${id}`);
+    return data;
+  },
+
+  /**
+   * PUT /locations/{id}. Only the keys present are sent -- the backend
+   * schema is `exclude_unset`, so an omitted field is left untouched rather
+   * than nulled. `status` is deliberately not settable here; use
+   * updateStatus() (the backend rejects it on this endpoint too).
+   */
+  async update(
+    id: string,
+    patch: UpdateLocationPayload,
+    organizationId?: string,
+  ): Promise<BackendLocation> {
+    const body: Record<string, unknown> = {};
+    const put = (key: string, value: unknown) => {
+      if (value !== undefined) body[key] = value;
+    };
+    put("name", patch.name);
+    put("slug", patch.slug);
+    put("address_line1", patch.addressLine1);
+    put("address_line2", patch.addressLine2);
+    put("city", patch.city);
+    put("state_province", patch.stateProvince);
+    put("postal_code", patch.postalCode);
+    put("country", patch.country);
+    put("timezone", patch.timezone);
+    put("latitude", patch.latitude);
+    put("longitude", patch.longitude);
+    put("contact_name", patch.contactName);
+    put("contact_phone", patch.contactPhone);
+    put("contact_email", patch.contactEmail);
+    put("settings", patch.settings);
+
+    const { data } = await api.put<BackendLocation>(
+      `/locations/${id}`,
+      body,
+      organizationId ? { headers: { "X-Organization-Id": organizationId } } : undefined,
+    );
+    return data;
+  },
+
   async updateStatus(
     ids: string[],
     status: LocationStatus,

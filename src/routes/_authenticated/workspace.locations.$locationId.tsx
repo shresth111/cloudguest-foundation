@@ -57,7 +57,12 @@ import type { StatTone } from "@/components/ui-ext";
 import { businessTypeIcon } from "@/lib/business-type-icons";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { useLocationResources } from "@/hooks/useWorkspace";
-import { useDeleteLocations } from "@/hooks/useLocations";
+import { useDeleteLocations, useUpdateLocation } from "@/hooks/useLocations";
+import { useRebootRouter } from "@/hooks/useRouters";
+import { useQuery } from "@tanstack/react-query";
+import { monitoringService } from "@/services/monitoring.service";
+import { routerService } from "@/services/router.service";
+import { locationService } from "@/services/location.service";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import type { ExistingCustomer } from "@/context/WorkspaceContext";
 import type { LocationResources, LocationRouterSummary } from "@/hooks/useWorkspace";
@@ -252,7 +257,7 @@ function LocationWorkspacePage() {
                 <AnalyticsTab resources={resources} />
               </TabsContent>
               <TabsContent value="monitoring">
-                <MonitoringTab resources={resources} />
+                <MonitoringTab resources={resources} locationId={location.id} />
               </TabsContent>
               <TabsContent value="reports">
                 <ReportsTab />
@@ -526,13 +531,13 @@ function QuickActions({ onNavigate }: { onNavigate: (t: TabKey) => void }) {
     icon: React.ComponentType<{ className?: string }>;
     onClick: () => void;
   }[] = [
-    { label: "Add router", icon: Plus, onClick: () => onNavigate("routers") },
-    { label: "Restart router", icon: RefreshCw, onClick: () => toast.success("Restart queued") },
+    { label: "View routers", icon: RouterIcon, onClick: () => onNavigate("routers") },
+    { label: "Manage routers", icon: RefreshCw, onClick: () => onNavigate("routers") },
     { label: "Create voucher", icon: Ticket, onClick: () => onNavigate("wifi") },
     { label: "Generate QR", icon: QrCode, onClick: () => onNavigate("wifi") },
     { label: "Invite staff", icon: UserPlus, onClick: () => onNavigate("staff") },
     { label: "Generate report", icon: FileText, onClick: () => onNavigate("reports") },
-    { label: "Backup router", icon: Download, onClick: () => toast.success("Backup started") },
+    { label: "View guests", icon: Users, onClick: () => onNavigate("guests") },
     { label: "Configure portal", icon: SettingsIcon, onClick: () => onNavigate("portal") },
   ];
   return (
@@ -616,13 +621,7 @@ function RoutersTab({ resources }: { resources: LocationResources }) {
     return (
       <EmptyState
         title="No routers yet"
-        body="Register your first router to get started."
-        action={
-          <Button size="sm">
-            <Plus className="mr-1.5 h-4 w-4" />
-            Add router
-          </Button>
-        }
+        body="Routers are registered and provisioned for you by the Wyfy Guest team. Contact support to add one to this location."
       />
     );
   }
@@ -652,10 +651,6 @@ function RoutersTab({ resources }: { resources: LocationResources }) {
             List
           </Button>
         </div>
-        <Button size="sm">
-          <Plus className="mr-1.5 h-4 w-4" />
-          Add router
-        </Button>
       </div>
 
       {view === "cards" ? (
@@ -675,38 +670,32 @@ function RoutersTab({ resources }: { resources: LocationResources }) {
                     <TableHead>Serial</TableHead>
                     <TableHead>Model</TableHead>
                     <TableHead>RouterOS</TableHead>
-                    <TableHead>CPU</TableHead>
-                    <TableHead>RAM</TableHead>
-                    <TableHead>Traffic</TableHead>
-                    <TableHead>Clients</TableHead>
+                    <TableHead>Public IP</TableHead>
+                    <TableHead>Last seen</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((r, i) => (
+                  {filtered.map((r) => (
                     <TableRow key={r.id}>
                       <TableCell className="font-medium">{r.name}</TableCell>
                       <TableCell className="font-mono text-xs">{r.serialNumber}</TableCell>
                       <TableCell>{r.model}</TableCell>
                       <TableCell>{r.routerOsVersion ?? "—"}</TableCell>
-                      <TableCell>{30 + i * 7}%</TableCell>
-                      <TableCell>{40 + i * 5}%</TableCell>
-                      <TableCell>{120 + i * 40} Mbps</TableCell>
-                      <TableCell>{20 + i * 3}</TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {r.publicIpAddress ?? "—"}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {r.lastSeenAt ? new Date(r.lastSeenAt).toLocaleString() : "Never"}
+                      </TableCell>
                       <TableCell>
                         <Badge variant={statusVariant(r.status)} className="capitalize">
                           {r.status.replace(/_/g, " ")}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => toast.info("Router actions")}
-                        >
-                          Open
-                        </Button>
+                        <RouterRowActions r={r} />
                       </TableCell>
                     </TableRow>
                   ))}
@@ -720,9 +709,44 @@ function RoutersTab({ resources }: { resources: LocationResources }) {
   );
 }
 
+/** Restart, confirmed, for the table view. Same real mutation the card uses. */
+function RouterRowActions({ r }: { r: LocationRouterSummary }) {
+  const [confirmRestart, setConfirmRestart] = useState(false);
+  const restart = useRebootRouter();
+  return (
+    <>
+      <Button
+        size="sm"
+        variant="ghost"
+        disabled={restart.isPending}
+        onClick={() => setConfirmRestart(true)}
+      >
+        {restart.isPending ? "Restarting…" : "Restart"}
+      </Button>
+      <ConfirmDialog
+        open={confirmRestart}
+        onOpenChange={setConfirmRestart}
+        title={`Restart ${r.name}?`}
+        description="Every guest connected to this router is disconnected, and it stays offline for its normal one-to-two minute boot cycle."
+        confirmLabel="Restart"
+        destructive
+        onConfirm={async () => {
+          try {
+            await restart.mutateAsync(r.id);
+            toast.success(`${r.name} is restarting`);
+          } catch (err) {
+            toast.error((err as unknown as AppError).message || `Couldn't restart ${r.name}`);
+          }
+        }}
+      />
+    </>
+  );
+}
+
 function RouterCard({ r }: { r: LocationRouterSummary }) {
-  const cpu = 20 + ((r.name.length * 7) % 70);
-  const ram = 30 + ((r.model.length * 5) % 60);
+  const [confirmRestart, setConfirmRestart] = useState(false);
+  const restart = useRebootRouter();
+
   return (
     <Card>
       <CardContent className="space-y-3 p-4">
@@ -740,30 +764,18 @@ function RouterCard({ r }: { r: LocationRouterSummary }) {
             {r.status.replace(/_/g, " ")}
           </Badge>
         </div>
+        {/* CPU, RAM and throughput are deliberately absent: the backend records
+            a self-reported heartbeat, not live device metrics. */}
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <div className="flex justify-between text-xs">
-              <span>CPU</span>
-              <span className="font-mono">{cpu}%</span>
-            </div>
-            <Progress value={cpu} className="mt-1 h-1.5" />
-          </div>
-          <div>
-            <div className="flex justify-between text-xs">
-              <span>RAM</span>
-              <span className="font-mono">{ram}%</span>
-            </div>
-            <Progress value={ram} className="mt-1 h-1.5" />
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Traffic</p>
-            <p className="text-sm font-medium">{120 + cpu} Mbps</p>
-          </div>
           <div>
             <p className="text-xs text-muted-foreground">Last seen</p>
             <p className="text-sm font-medium">
               {r.lastSeenAt ? new Date(r.lastSeenAt).toLocaleString() : "Never"}
             </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Management IP</p>
+            <p className="text-sm font-medium">{r.publicIpAddress ?? "—"}</p>
           </div>
         </div>
         <div className="flex flex-wrap gap-1.5">
@@ -775,19 +787,34 @@ function RouterCard({ r }: { r: LocationRouterSummary }) {
           </Badge>
         </div>
         <div className="flex flex-wrap gap-1.5">
-          {(["Open", "Restart", "Backup", "Sync", "Logs", "Terminal"] as const).map((label) => (
-            <Button
-              key={label}
-              size="sm"
-              variant="outline"
-              className="h-7 px-2 text-xs"
-              onClick={() => toast.success(`${label} · ${r.name}`)}
-            >
-              {label}
-            </Button>
-          ))}
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 px-2 text-xs"
+            disabled={restart.isPending}
+            onClick={() => setConfirmRestart(true)}
+          >
+            {restart.isPending ? "Restarting…" : "Restart"}
+          </Button>
         </div>
       </CardContent>
+
+      <ConfirmDialog
+        open={confirmRestart}
+        onOpenChange={setConfirmRestart}
+        title={`Restart ${r.name}?`}
+        description="Every guest connected to this router is disconnected, and it stays offline for its normal one-to-two minute boot cycle."
+        confirmLabel="Restart"
+        destructive
+        onConfirm={async () => {
+          try {
+            await restart.mutateAsync(r.id);
+            toast.success(`${r.name} is restarting`);
+          } catch (err) {
+            toast.error((err as unknown as AppError).message || `Couldn't restart ${r.name}`);
+          }
+        }}
+      />
     </Card>
   );
 }
@@ -1213,50 +1240,104 @@ function AnalyticsTab({ resources }: { resources: LocationResources }) {
 
 /* ---------- Monitoring ---------- */
 
-function MonitoringTab({ resources }: { resources: LocationResources }) {
-  const alerts = [
-    { level: "warning", msg: "High CPU on Router 2 (86%)" },
-    { level: "info", msg: "License renewing in 22 days" },
-  ];
+function MonitoringTab({
+  resources,
+  locationId,
+}: {
+  resources: LocationResources;
+  locationId: string;
+}) {
+  const { customer } = useWorkspace();
+  const organizationId = customer?.id;
+
+  const alertsQ = useQuery({
+    queryKey: ["workspace", "locationAlerts", organizationId, locationId],
+    queryFn: () =>
+      monitoringService.listAlerts({
+        organizationId,
+        status: "triggered",
+        page: 1,
+        pageSize: 100,
+      }),
+    enabled: !!organizationId,
+  });
+
+  const online = resources.routers.filter((r) => r.status === "online").length;
+  // AlertListQuery has no location filter, so narrow the org's open alerts here.
+  const alerts = (alertsQ.data?.items ?? []).filter((a) => a.locationId === locationId);
+  const lastSeen = resources.routers
+    .map((r) => r.lastSeenAt)
+    .filter((t): t is string => !!t)
+    .sort()
+    .at(-1);
+
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
-        <Kpi label="CPU" value="52%" icon={Cpu} />
-        <Kpi label="RAM" value="61%" icon={Cpu} />
-        <Kpi label="Disk" value="34%" icon={Cpu} />
-        <Kpi label="Temp" value="48°C" icon={Gauge} />
-        <Kpi label="Latency" value="18ms" icon={Activity} tone="positive" />
-        <Kpi label="Packet loss" value="0.2%" icon={Activity} tone="positive" />
-        <Kpi label="Internet" value="Up" icon={Wifi} tone="positive" />
-        <Kpi label="WireGuard" value="Connected" icon={ShieldCheck} tone="positive" />
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Kpi
-          label="Routers"
-          value={`${resources.routers.filter((r) => r.status === "online").length}/${resources.routers.length}`}
+          label="Routers online"
+          value={`${online}/${resources.routers.length}`}
           icon={RouterIcon}
+          tone={
+            resources.routers.length > 0 && online === resources.routers.length
+              ? "positive"
+              : undefined
+          }
+        />
+        <Kpi
+          label="Open alerts"
+          value={alertsQ.isLoading ? "…" : alerts.length}
+          icon={AlertTriangle}
+        />
+        <Kpi label="Guests online" value={resources.analytics.activeSessions} icon={Wifi} />
+        <Kpi
+          label="Last heartbeat"
+          value={lastSeen ? new Date(lastSeen).toLocaleTimeString() : "Never"}
+          icon={Activity}
         />
       </div>
+      <p className="text-xs text-muted-foreground">
+        CPU, memory, disk, temperature and link latency aren&apos;t shown here yet — the backend
+        only records a self-reported heartbeat today, not live device metrics.
+      </p>
 
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Active alerts</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          {alerts.map((a, i) => (
-            <div key={i} className="flex items-center justify-between rounded-lg border p-3">
-              <div className="flex items-center gap-2">
-                <AlertTriangle
-                  className={`h-4 w-4 ${a.level === "warning" ? "text-amber-500" : "text-primary"}`}
-                />
-                <span className="text-sm">{a.msg}</span>
-              </div>
-              <Badge
-                variant={a.level === "warning" ? "secondary" : "outline"}
-                className="capitalize"
-              >
-                {a.level}
-              </Badge>
+          {alertsQ.isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading alerts…</p>
+          ) : alertsQ.isError ? (
+            <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
+              <span className="text-sm">Alerts couldn&apos;t be loaded.</span>
+              <Button size="sm" variant="outline" onClick={() => alertsQ.refetch()}>
+                Retry
+              </Button>
             </div>
-          ))}
+          ) : alerts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No active alerts for this location.</p>
+          ) : (
+            alerts.map((a) => (
+              <div
+                key={a.id}
+                className="flex items-center justify-between gap-3 rounded-lg border p-3"
+              >
+                <div className="flex items-center gap-2">
+                  <AlertTriangle
+                    className={`h-4 w-4 shrink-0 ${a.severity === "critical" ? "text-destructive" : a.severity === "warning" ? "text-amber-500" : "text-primary"}`}
+                  />
+                  <span className="text-sm">{a.message}</span>
+                </div>
+                <Badge
+                  variant={a.severity === "info" ? "outline" : "secondary"}
+                  className="shrink-0 capitalize"
+                >
+                  {a.severity}
+                </Badge>
+              </div>
+            ))
+          )}
         </CardContent>
       </Card>
     </div>
@@ -1484,19 +1565,78 @@ function SettingsTab({
   location: ExistingCustomer["locations"][number];
   onDeleteClick: () => void;
 }) {
+  // RADIUS and WireGuard are deliberately absent: tunnel and RADIUS internals are
+  // master-console-only and must never be surfaced to a venue owner.
   const sections = [
     "General",
     "Guest WiFi",
     "Captive Portal",
     "Notifications",
-    "RADIUS",
-    "WireGuard",
     "Security",
     "Email",
     "SMS",
     "Integrations",
   ];
   const [active, setActive] = useState(sections[0]);
+
+  // The workspace's own location object is narrowed to {id, name, city,
+  // siteType}; address, timezone and coordinates only exist on the full
+  // backend row, so fetch it rather than showing invented defaults.
+  const detailQ = useQuery({
+    queryKey: ["workspace", "locationDetail", location.id],
+    queryFn: () => locationService.getDetail(location.id),
+  });
+  const update = useUpdateLocation();
+
+  const [form, setForm] = useState<GeneralSettingsForm | null>(null);
+  const saved = detailQ.data ? toGeneralSettingsForm(detailQ.data) : null;
+  const current = form ?? saved;
+  const dirty = !!form && !!saved && !isSameGeneralSettings(form, saved);
+
+  const setField = (key: keyof GeneralSettingsForm, value: string) => {
+    if (!current) return;
+    setForm({ ...current, [key]: value });
+  };
+
+  const onSave = () => {
+    if (!form || !saved) return;
+    const lat = form.latitude.trim();
+    const lon = form.longitude.trim();
+    if ((lat && Number.isNaN(Number(lat))) || (lon && Number.isNaN(Number(lon)))) {
+      toast.error("Latitude and longitude must be numbers.");
+      return;
+    }
+    if (form.country.trim().length !== 2) {
+      toast.error("Country must be a 2-letter code, for example IN.");
+      return;
+    }
+    update.mutate(
+      {
+        id: location.id,
+        organizationId: customer.id,
+        patch: {
+          name: form.name.trim(),
+          addressLine1: form.addressLine1.trim(),
+          city: form.city.trim(),
+          stateProvince: form.stateProvince.trim(),
+          postalCode: form.postalCode.trim(),
+          country: form.country.trim().toUpperCase(),
+          timezone: form.timezone.trim(),
+          latitude: lat ? Number(lat) : undefined,
+          longitude: lon ? Number(lon) : undefined,
+        },
+      },
+      {
+        onSuccess: () => {
+          setForm(null);
+          toast.success("Location settings saved");
+        },
+        onError: (err) =>
+          toast.error((err as unknown as AppError)?.message || "Couldn't save location settings"),
+      },
+    );
+  };
+
   return (
     <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
       <Card>
@@ -1517,61 +1657,135 @@ function SettingsTab({
       <Card>
         <CardHeader className="flex-row items-center justify-between pb-2">
           <CardTitle className="text-base">{active}</CardTitle>
-          <div className="flex gap-1.5">
-            <Button size="sm" variant="outline">
-              Test connection
-            </Button>
-            <Button size="sm">Save</Button>
-          </div>
+          {active === "General" ? (
+            <div className="flex items-center gap-1.5">
+              {dirty ? (
+                <span className="text-xs text-muted-foreground">Unsaved changes</span>
+              ) : null}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setForm(null)}
+                disabled={!dirty || update.isPending}
+              >
+                Discard
+              </Button>
+              <Button size="sm" onClick={onSave} disabled={!dirty || update.isPending}>
+                {update.isPending ? "Saving…" : "Save"}
+              </Button>
+            </div>
+          ) : null}
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
           {active === "General" ? (
-            <>
-              <div className="space-y-1.5">
-                <Label>Property name</Label>
-                <Input defaultValue={location.name} />
+            detailQ.isLoading ? (
+              <div className="sm:col-span-2 space-y-3">
+                <Skeleton className="h-9 w-full" />
+                <Skeleton className="h-9 w-full" />
+                <Skeleton className="h-9 w-2/3" />
               </div>
-              <div className="space-y-1.5">
-                <Label>Property type</Label>
-                <Input defaultValue={location.siteType} />
+            ) : detailQ.isError || !current ? (
+              <div className="sm:col-span-2 flex items-center justify-between gap-3 rounded-lg border p-4">
+                <p className="text-sm">
+                  This location&apos;s settings couldn&apos;t be loaded, so they can&apos;t be
+                  edited right now.
+                </p>
+                <Button size="sm" variant="outline" onClick={() => detailQ.refetch()}>
+                  Retry
+                </Button>
               </div>
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label>Address</Label>
-                <Input defaultValue={`${location.city}, India`} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Timezone</Label>
-                <Input defaultValue="Asia/Kolkata" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Latitude</Label>
-                <Input defaultValue="28.6139" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Longitude</Label>
-                <Input defaultValue="77.2090" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Owner</Label>
-                <Input defaultValue={customer.owner.email} disabled />
-              </div>
-              <div className="flex items-end justify-between rounded-lg border p-3">
-                <div>
-                  <p className="text-sm font-medium">Location enabled</p>
-                  <p className="text-xs text-muted-foreground">Guest access & monitoring active</p>
+            ) : (
+              <>
+                <div className="space-y-1.5">
+                  <Label htmlFor="loc-name">Property name</Label>
+                  <Input
+                    id="loc-name"
+                    value={current.name}
+                    onChange={(e) => setField("name", e.target.value)}
+                  />
                 </div>
-                <Switch defaultChecked />
-              </div>
-              <div className="flex flex-wrap gap-2 sm:col-span-2">
-                <Button variant="outline">
-                  <Download className="mr-1.5 h-4 w-4" />
-                  Upload logo
-                </Button>
-                <Button variant="destructive" onClick={onDeleteClick}>
-                  Delete location
-                </Button>
-              </div>
-            </>
+                <div className="space-y-1.5">
+                  <Label htmlFor="loc-type">Property type</Label>
+                  <Input id="loc-type" value={location.siteType} disabled />
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor="loc-addr">Address</Label>
+                  <Input
+                    id="loc-addr"
+                    value={current.addressLine1}
+                    onChange={(e) => setField("addressLine1", e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="loc-city">City</Label>
+                  <Input
+                    id="loc-city"
+                    value={current.city}
+                    onChange={(e) => setField("city", e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="loc-state">State / province</Label>
+                  <Input
+                    id="loc-state"
+                    value={current.stateProvince}
+                    onChange={(e) => setField("stateProvince", e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="loc-postal">Postal code</Label>
+                  <Input
+                    id="loc-postal"
+                    value={current.postalCode}
+                    onChange={(e) => setField("postalCode", e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="loc-country">Country</Label>
+                  <Input
+                    id="loc-country"
+                    value={current.country}
+                    maxLength={2}
+                    onChange={(e) => setField("country", e.target.value.toUpperCase())}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="loc-tz">Timezone</Label>
+                  <Input
+                    id="loc-tz"
+                    value={current.timezone}
+                    onChange={(e) => setField("timezone", e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="loc-lat">Latitude</Label>
+                  <Input
+                    id="loc-lat"
+                    inputMode="decimal"
+                    value={current.latitude}
+                    onChange={(e) => setField("latitude", e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="loc-lon">Longitude</Label>
+                  <Input
+                    id="loc-lon"
+                    inputMode="decimal"
+                    value={current.longitude}
+                    onChange={(e) => setField("longitude", e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="loc-owner">Owner</Label>
+                  <Input id="loc-owner" value={customer.owner.email} disabled />
+                </div>
+                <div className="flex flex-wrap gap-2 sm:col-span-2">
+                  <Button variant="destructive" onClick={onDeleteClick}>
+                    Delete location
+                  </Button>
+                </div>
+              </>
+            )
           ) : (
             <div className="sm:col-span-2 rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
               <ScrollText className="mx-auto mb-2 h-6 w-6" />
@@ -1586,6 +1800,49 @@ function SettingsTab({
 }
 
 /* ---------- Helpers ---------- */
+
+/** Every General-settings field, held as a string so the inputs stay
+ *  controlled while a coordinate is mid-edit (a bare "-" or "28." is not a
+ *  number yet). Parsed and validated on save, not on keystroke. */
+interface GeneralSettingsForm {
+  name: string;
+  addressLine1: string;
+  city: string;
+  stateProvince: string;
+  postalCode: string;
+  country: string;
+  timezone: string;
+  latitude: string;
+  longitude: string;
+}
+
+function toGeneralSettingsForm(row: {
+  name: string;
+  address_line1: string;
+  city: string;
+  state_province: string;
+  postal_code: string;
+  country: string;
+  timezone: string;
+  latitude: number | null;
+  longitude: number | null;
+}): GeneralSettingsForm {
+  return {
+    name: row.name ?? "",
+    addressLine1: row.address_line1 ?? "",
+    city: row.city ?? "",
+    stateProvince: row.state_province ?? "",
+    postalCode: row.postal_code ?? "",
+    country: row.country ?? "",
+    timezone: row.timezone ?? "",
+    latitude: row.latitude === null || row.latitude === undefined ? "" : String(row.latitude),
+    longitude: row.longitude === null || row.longitude === undefined ? "" : String(row.longitude),
+  };
+}
+
+function isSameGeneralSettings(a: GeneralSettingsForm, b: GeneralSettingsForm): boolean {
+  return (Object.keys(a) as (keyof GeneralSettingsForm)[]).every((k) => a[k] === b[k]);
+}
 
 function EmptyState({
   title,
