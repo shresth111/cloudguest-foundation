@@ -3,6 +3,7 @@ import type {
   CreateNasPayload,
   NasClient,
   NasClientSecretReveal,
+  NasSecretRotation,
   NasStatus,
   UpdateNasPayload,
 } from "@/types/nas";
@@ -26,6 +27,11 @@ interface BackendNasClient {
 
 interface BackendNasSecretReveal extends BackendNasClient {
   shared_secret: string;
+}
+
+interface BackendNasSecretRotation extends BackendNasSecretReveal {
+  device_action_required: boolean;
+  device_action: string;
 }
 
 interface BackendOrgListItem {
@@ -260,13 +266,32 @@ export const nasService = {
     await api.post(`/radius/nas/${nasId}/disable`, { reason });
   },
 
-  async regenerateSecret(nasId: string): Promise<NasClientSecretReveal> {
-    const { data } = await api.post<BackendNasSecretReveal>(
-      `/radius/nas/${nasId}/regenerate-secret`,
+  /**
+   * Platform-only, and the path says so.
+   *
+   * Moved from `/radius/nas/{id}/regenerate-secret` on 2026-09-02. The old
+   * route was gated on organization-scoped `radius.execute`, which every
+   * venue owner holds, and the customer dashboard had a button on it. The
+   * new one requires `radius.execute` at GLOBAL scope, so only the Master
+   * console can reach it -- calling it from a customer-scoped session 403s
+   * by design, not by accident.
+   *
+   * The backend now pushes the rotated secret to the FreeRADIUS hub inside
+   * the same operation and writes nothing if that push fails, so a
+   * rejection here means the venue is untouched and still working on its
+   * old secret. Surface the error; do not retry blindly.
+   */
+  async regenerateSecret(nasId: string): Promise<NasSecretRotation> {
+    const { data } = await api.post<BackendNasSecretRotation>(
+      `/platform/radius/nas/${nasId}/regenerate-secret`,
     );
     const locations = await fetchAllLocations();
     const loc = locations.find((l) => l.id === data.location_id);
-    return toNasSecretReveal(data, loc?.name ?? "", loc?.organizationName ?? "");
+    return {
+      ...toNasSecretReveal(data, loc?.name ?? "", loc?.organizationName ?? ""),
+      deviceActionRequired: data.device_action_required,
+      deviceAction: data.device_action,
+    };
   },
 
   async remove(nasId: string): Promise<void> {
