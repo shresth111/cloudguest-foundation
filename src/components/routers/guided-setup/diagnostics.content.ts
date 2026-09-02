@@ -314,11 +314,25 @@ export const SYMPTOMS: Symptom[] = [
         note: "`endpoint-address=20.219.72.235`, `endpoint-port=51820`, `persistent-keepalive=25s` aur tunnel par `10.20.0.x/24` -- chaaron honi chahiye. Ek bhi missing ho to WireGuard Tunnel chunk dobara paste karo. Generate dobara mat click karna: woh keys rotate kar deta hai aur chunk add-if-missing hai, isliye re-paste se bhi repair NAHI hoga.",
       },
       {
+        // THIS ENTRY USED TO TELL THE TECHNICIAN TO DELETE THE RIGHT ONE.
+        //
+        // It was written when the frontend generator emitted
+        // `wg-cloudguest` and the backend bootstrap emitted
+        // `wg-cloudguard`, and it named `wg-cloudguard` as the interloper
+        // to remove. That is now backwards: `WIREGUARD_INTERFACE_NAME` in
+        // `RouterDetailTabs.tsx` is `wg-cloudguard`, matching the backend's
+        // `network_config/renderers.py`, and `wg-cloudguest` is the LEGACY
+        // name (`WIREGUARD_LEGACY_INTERFACE_NAME`) that only survives on
+        // routers provisioned before that fix. Following this fix as
+        // written on a correctly-provisioned router removes its only
+        // working tunnel and takes the box off the platform -- a
+        // destructive step, from a page whose whole job is to be trusted
+        // at a venue with the router in front of you.
         tell: "Do interfaces dikh rahe hain: `wg-cloudguest` aur `wg-cloudguard`.",
         cause:
-          "Frontend chunk `wg-cloudguest` banata hai, backend bootstrap `wg-cloudguard` -- dono raaste chal gaye. Firewall rule ek naam se bandhi hai, traffic doosre se jaa raha hai.",
-        fix: '/interface wireguard remove [find name="wg-cloudguard"]\n/ip firewall filter print where comment="cloudguest-fw-allow-wg-mgmt"',
-        note: "Jo bhi tunnel par asli `last-handshake=` dikh raha ho use rakho, doosra hata do. Firewall rule ka `in-interface=` bache hue tunnel ke naam se match hona chahiye.",
+          "`wg-cloudguard` sahi naam hai (generator aur backend dono yahi banate hain). `wg-cloudguest` purana naam hai -- iss fix se pehle provision hue routers par bacha reh jaata hai. Dono maujood hain, aur firewall rule sirf ek naam se bandhi hai, to traffic doosre se jaa sakta hai.",
+        fix: '/interface wireguard print detail\n/interface wireguard remove [find name="wg-cloudguest"]\n/ip firewall filter print where comment="cloudguest-fw-allow-wg-mgmt"',
+        note: "Pehle `print detail` chalao aur dekho ki asli `last-handshake=` KIS par hai. Aam taur par `wg-cloudguard` rakhna hai aur purana `wg-cloudguest` hatana hai. Agar handshake ulta `wg-cloudguest` par dikhe, to kuch mat hatao -- woh router purane naam par chal raha hai, use Advanced panel se dobara provision karo. Firewall rule ka `in-interface=` bache hue tunnel ke naam se match hona chahiye.",
       },
       {
         tell: "`last-handshake=1m30s` type recent value dikh rahi hai.",

@@ -635,8 +635,8 @@
         },
         "2": {
           "tell": "Two interfaces are showing: `wg-cloudguest` and `wg-cloudguard`.",
-          "cause": "The frontend chunk creates `wg-cloudguest`, the backend bootstrap creates `wg-cloudguard` -- both paths ran. The firewall rule is tied to one name while the traffic goes over the other.",
-          "note": "Keep whichever tunnel actually shows a `last-handshake=` and remove the other. The firewall rule's `in-interface=` has to match the name of the surviving tunnel."
+          "cause": "`wg-cloudguard` is the correct name -- the generator and the backend both create it. `wg-cloudguest` is the legacy name, left behind on routers provisioned before that fix. Both exist here, and the firewall rule is tied to only one of them, so traffic can be going over the other.",
+          "note": "First run `print detail` and see which one actually has a real `last-handshake=`. Normally you keep `wg-cloudguard` and remove the older `wg-cloudguest`. If the handshake is on `wg-cloudguest` instead, remove nothing -- that router is running on the old name, so re-provision it from the Advanced panel. The firewall rule's `in-interface=` has to match the name of the surviving tunnel."
         },
         "3": {
           "tell": "A recent value like `last-handshake=1m30s` is showing.",

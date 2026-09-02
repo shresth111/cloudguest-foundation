@@ -118,7 +118,7 @@ export const PHASES: Phase[] = [
 :put ("identity     : " . [/system identity get name])
 :put ("hotspot-count=" . [:tostr [:len [/ip hotspot find]]])
 :put ("radius-count=" . [:tostr [:len [/radius find]]])
-:put ("wireguard-count=" . [:tostr [:len [/interface wireguard find where name="wg-cloudguest"]]])
+:put ("wireguard-count=" . [:tostr [:len [/interface wireguard find where name~"wg-cloudgu"]]])
 :put ("apiuser-count=" . [:tostr [:len [/user find where name="cloudguest-api"]]])
 :put ("cert-count=" . [:tostr [:len [/certificate find where name~"cloudguest"]]])
 :put ("file-count=" . [:tostr [:len [/file find where name~"cloudguest"]]])
@@ -517,7 +517,7 @@ export const PHASES: Phase[] = [
       {
         label: "Firewall order + RADIUS src-address theek karo (WireGuard/RADIUS chunks ke baad)",
         script: `:put "==== TUNNEL FIXES ===="
-:local a [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :local d [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]; :if (([:len $a] > 0) && ([:len $d] > 0)) do={ /ip firewall filter move $a destination=$d; :put "firewall order: theek kar diya" }; :local tip ""; :foreach ad in=[/ip address find where interface="wg-cloudguest"] do={ :set tip [:pick [/ip address get $ad address] 0 [:find [/ip address get $ad address] "/"]] }; :if ($tip != "") do={ /radius set [find] src-address=$tip; :put ("radius src-address: " . $tip) }; :if ($tip = "") do={ :put "wg-cloudguest pe koi address nahi -- WireGuard chunk paste hua?" }
+:local a [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :local d [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]; :local fwOk ([:len $a] > 0 && [:len $d] > 0); :if ($fwOk) do={ /ip firewall filter move $a destination=$d }; :if ($fwOk) do={ :put "firewall order: theek kar diya" }; :if (!$fwOk) do={ :put "firewall order: allow ya drop rule mili hi nahi -- Firewall aur WireGuard dono chunks paste hue?" }; :local tip ""; :foreach adNew in=[/ip address find where interface="wg-cloudguard"] do={ :set tip [:pick [/ip address get $adNew address] 0 [:find [/ip address get $adNew address] "/"]] }; :local tipOld ""; :foreach adOld in=[/ip address find where interface="wg-cloudguest"] do={ :set tipOld [:pick [/ip address get $adOld address] 0 [:find [/ip address get $adOld address] "/"]] }; :local usedLegacy ($tip = "" && $tipOld != ""); :if ($usedLegacy) do={ :set tip $tipOld }; :local rd [/radius find where comment="cloudguest-radius"]; :if ($tip != "" && [:len $rd] > 0) do={ /radius set $rd src-address=$tip }; :if ($tip != "" && [:len $rd] > 0) do={ :put ("radius src-address: " . $tip) }; :if ($tip != "" && [:len $rd] = 0) do={ :put "radius: cloudguest-radius marker wali koi entry nahi mili -- pehle RADIUS chunk paste karo, phir yeh dobara" }; :if ($usedLegacy) do={ :put "NOTE: tunnel purane naam wg-cloudguest par hai. Sahi naam wg-cloudguard hai -- Advanced panel se dobara provision karo." }; :if ($tip = "") do={ :put "wg-cloudguard aur wg-cloudguest, dono par koi address nahi -- WireGuard chunk paste hua?" }
 :put "===================="`,
       },
       {

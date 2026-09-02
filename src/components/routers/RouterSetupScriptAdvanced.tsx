@@ -312,8 +312,34 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
   // these interfaces join the LAN bridge, everything else is left alone.
   const [lanIfsRaw, setLanIfsRaw] = useState("");
   const [enableFirewall, setEnableFirewall] = useState(true);
-  const [enableWireguard, setEnableWireguard] = useState(false);
-  const [enableRadius, setEnableRadius] = useState(false);
+  // ON BY DEFAULT, AND THIS IS THE FIX FOR "RADIUS WASN'T THERE".
+  //
+  // Both of these defaulted to `false`, and NOTHING anywhere connected that
+  // to what came out. `notProvisioned` -- the array that drives the
+  // `INCOMPLETE SCRIPT` chunk, its `:error`, and the `# !! THIS SCRIPT IS
+  // INCOMPLETE` header on the downloaded `.rsc` -- is only ever appended
+  // from a `catch`. AN UNTICKED CHECKBOX IS NOT A CAUGHT ERROR. So a
+  // default Generate produced a script with no WireGuard, no RADIUS and no
+  // incomplete-guard: it imported perfectly cleanly, every chunk reported
+  // success, and `/radius` on the device was simply empty. That is the
+  // founder's report ("the script executed, RADIUS wasn't there") end to
+  // end, and it needs no failure anywhere to happen.
+  //
+  // Neither of these is an optional extra on this product. Without RADIUS
+  // the hotspot rejects EVERY guest login (the generator says so in as many
+  // words in its own INCOMPLETE banner); without the tunnel the router
+  // never reaches the platform and stays "provisioning" forever. A default
+  // that omits both is a default that produces a router which cannot do
+  // the one thing it was shipped to do.
+  //
+  // Safe to default on: the allocate call reuses this router's existing
+  // peer unless `rotateWireguard` is explicitly ticked (it stays off, see
+  // below), so a second Generate does not burn a hub IP. Turning them OFF
+  // is still one click, and doing so now raises the standing warning
+  // rendered above the Generate button rather than silently shrinking the
+  // script.
+  const [enableWireguard, setEnableWireguard] = useState(true);
+  const [enableRadius, setEnableRadius] = useState(true);
   // Off by default and deliberately sticky-free: rotating the API password
   // is only ever correct right after the `cloudguest-api` user has been
   // removed from the device. See the mint block in `onGenerate`.
@@ -560,7 +586,34 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
       // was found only by reading `/radius` on the device and finding it
       // empty. Guests would have failed every login with nothing anywhere
       // saying why.
-      const notProvisioned: { what: string; why: string }[] = [];
+      const notProvisioned: { what: string; why: string; deliberate?: boolean }[] = [];
+      // A SUBSYSTEM LEFT OUT ON PURPOSE IS STILL A SUBSYSTEM LEFT OUT.
+      //
+      // This array used to be fed only from `catch` blocks, so it recorded
+      // failures and nothing else. An unticked box produced a script that
+      // was simply four chunks shorter, with no banner, no header on the
+      // downloaded `.rsc` and nothing on the device -- indistinguishable
+      // from a complete one right up to the moment a guest tries to log in.
+      // That is the same end state as the 2026-08-23 RADIUS-bridge failure
+      // this array was built for; only the cause differs, and the cause is
+      // not what the technician at the venue is missing.
+      //
+      // Flagged `deliberate` so the generator prints the banner without
+      // aborting: see `notProvisioned`'s docstring in RouterDetailTabs.
+      if (!enableWireguard) {
+        notProvisioned.push({
+          what: "WireGuard tunnel",
+          why: 'the "Also create a WireGuard tunnel" box was not ticked when this script was generated',
+          deliberate: true,
+        });
+      }
+      if (!enableRadius) {
+        notProvisioned.push({
+          what: "RADIUS",
+          why: 'the "Also enable RADIUS" box was not ticked when this script was generated',
+          deliberate: true,
+        });
+      }
       let wireguard: import("@/components/routers/RouterDetailTabs").WireguardPeerInfo | undefined;
       if (enableWireguard) {
         // Routed through the backend, not fetch()'d directly against the
@@ -703,6 +756,40 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
             `Couldn't reach the RADIUS server -- script generated without RADIUS. ${why}`,
           );
         }
+      } else if (enableRadius) {
+        // RADIUS WAS ASKED FOR AND IS NOT IN THIS SCRIPT, AND UNTIL NOW
+        // NOTHING SAID SO.
+        //
+        // The guard above is `enableRadius && wireguard`, and `wireguard`
+        // is `undefined` whenever the tunnel allocation threw a few lines
+        // up. That path pushes a `notProvisioned` entry for the TUNNEL and
+        // nothing at all for RADIUS -- so the operator got a script whose
+        // INCOMPLETE banner named one missing subsystem when two were
+        // missing, and whose per-subsystem "effect:" text (keyed on
+        // /radius/i in the generator) therefore never printed the one line
+        // that matters: "the hotspot will reject EVERY guest login".
+        //
+        // That is the founder's reported symptom exactly -- "RADIUS wasn't
+        // there" -- reached without any RADIUS call failing. Every other
+        // subsystem in this handler already feeds `notProvisioned` on
+        // failure (see the API Access catch below, which says so in as many
+        // words); this was the one branch that dropped a requested
+        // subsystem on the floor, because it is a SKIP rather than a
+        // throw and so had no catch to hang the push off.
+        //
+        // The UI couples the two checkboxes (ticking RADIUS turns WireGuard
+        // on, unticking WireGuard turns RADIUS off), so the only reachable
+        // way in here is a tunnel allocation that failed. The `why` says
+        // that, rather than blaming the RADIUS bridge, which was never
+        // called.
+        const why =
+          "no WireGuard tunnel was allocated, and a router's RADIUS identity is its tunnel IP -- " +
+          "the NAS could not be registered without one";
+        notProvisioned.push({ what: "RADIUS", why });
+        toast.error(
+          "RADIUS was requested but is NOT in this script -- the WireGuard tunnel it depends on " +
+            "could not be allocated. Every guest login will be rejected until both are on the device.",
+        );
       }
 
       // Unlocks Device Console for this router (it stays permanently
@@ -835,7 +922,21 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
       setGenerationCount((n) => n + 1);
       setLastGeneration({
         at: new Date(),
-        rotated: rotatingSecrets({ enableWireguard, enableRadius, mintApiSecret }),
+        // WHAT ROTATED, NOT WHAT WAS ASKED FOR. These used to be the raw
+        // checkbox values, so a Generate whose tunnel allocation failed
+        // still told the operator "the WireGuard key and the RADIUS shared
+        // secret were rotated -- every earlier copy of this script is now
+        // dead". Neither had been: the calls that rotate them never
+        // returned. A false alarm here is not harmless, because the banner's
+        // whole job is to be believed at the moment someone is deciding
+        // whether the script in their clipboard is still good. `wireguard`
+        // and `radius` are set only on the success path above, so they are
+        // the honest answer to "did this actually happen".
+        rotated: rotatingSecrets({
+          enableWireguard: enableWireguard && !!wireguard,
+          enableRadius: enableRadius && !!radius,
+          mintApiSecret,
+        }),
       });
       // Each rotation has to be its own deliberate decision. Leaving the
       // box ticked would make the NEXT Generate rotate again silently --
@@ -1335,6 +1436,51 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
         lastGeneration={lastGeneration}
         priorScriptLikely={router.hasApiCredentials}
       />
+
+      {/* WHAT THIS CLICK WILL LEAVE OUT, BEFORE IT IS CLICKED.
+       *
+       * Both boxes now default ON (see their `useState`), so this is only
+       * ever the result of someone unticking one. It still has to be said
+       * here, because the state it produces is the one that cost the
+       * founder a provisioning run: a script with no RADIUS chunk, which
+       * imports perfectly cleanly, reports success on every chunk, and
+       * hands the venue a hotspot that rejects every single guest.
+       *
+       * Deliberately not a toast. The generated script and the downloaded
+       * `.rsc` now carry the same statement in their own banner and header
+       * -- this is the copy that is on screen while the decision is still
+       * being made, which is the only moment it is cheap to change. */}
+      {(!enableWireguard || !enableRadius) && (
+        <div className="space-y-1.5 rounded-lg border-2 border-amber-500/50 bg-amber-500/5 p-2.5 text-[11px]">
+          <p className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            This script will NOT configure{" "}
+            {[!enableRadius && "RADIUS", !enableWireguard && "the WireGuard tunnel"]
+              .filter(Boolean)
+              .join(" or ")}
+            .
+          </p>
+          {!enableRadius && (
+            <p className="text-muted-foreground">
+              Without RADIUS the hotspot comes up and looks correct, and then rejects{" "}
+              <strong>every guest login</strong> — no OTP, no session, no accounting. RouterOS
+              reports no error for this; the guest just sees the sign-in fail.
+            </p>
+          )}
+          {!enableWireguard && (
+            <p className="text-muted-foreground">
+              Without the tunnel this router never reaches the platform: no heartbeat, no Discovery,
+              no Device Console, and it stays “provisioning” on the dashboard while guest WiFi works
+              fine.
+            </p>
+          )}
+          <p className="text-muted-foreground">
+            The script and the downloaded <code>.rsc</code> will say so in their own header, and the
+            import will still run to the end — nothing has failed, this is a choice. Tick the boxes
+            above for a full provision.
+          </p>
+        </div>
+      )}
 
       <MButton variant="primary" onClick={onGenerate} disabled={busy}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCode2 className="h-4 w-4" />}

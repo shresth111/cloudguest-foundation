@@ -359,7 +359,17 @@ for (const lang of LANGS) {
       "\\b\\d{1,3}(?:\\.\\d{1,3}){3}(?:/\\d{1,2})?\\b", // IPv4 / CIDR
       "\\bether\\d+\\b",
       "\\bsfp\\d*\\b",
+      // BOTH tunnel names. `wg-cloudguard` is the authoritative one --
+      // `WIREGUARD_INTERFACE_NAME` in `RouterDetailTabs.tsx`, matching the
+      // backend's `network_config/renderers.py` -- and it was missing here,
+      // so the one name a technician actually types today was the one name
+      // a translation was free to drift on. `wg-cloudguest` stays: it is
+      // the legacy name (`WIREGUARD_LEGACY_INTERFACE_NAME`) that routers
+      // provisioned before the rename still carry, so the content
+      // legitimately names it and must name it identically in every
+      // language.
       "\\bwg-cloudguest\\b",
+      "\\bwg-cloudguard\\b",
       "\\bhsprof\\d+\\b",
       "\\bbridge\\d*\\b",
       "\\b\\d{2}:\\d{2}:\\d{2}\\b", // durations, e.g. 00:05:00
