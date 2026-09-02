@@ -1,9 +1,11 @@
 /**
- * Master Console only — legacy client-side MikroTik setup script generator.
- * Prefer the server-driven provisioning wizard (/master/routers/setup/$routerId).
+ * Master Console only — client-side MikroTik setup script generator, and
+ * as of the Router Fleet cleanup the ONLY provisioning entry point in the
+ * fleet UI. This header used to call the page "legacy" and point at the
+ * server-driven wizard; see the callout comment further down for why that
+ * was backwards, and why the wizard and Guided Setup now redirect here.
  */
 import { useState } from "react";
-import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import {
   AlertTriangle,
@@ -14,8 +16,6 @@ import {
   Globe,
   Loader2,
   ShieldCheck,
-  Workflow,
-  Compass,
 } from "lucide-react";
 import { MButton, MTag } from "@/components/master/MasterKit";
 import {
@@ -1839,43 +1839,25 @@ export function RouterSetupDrilldown({
         />
       </div>
 
-      {!demo ? (
-        <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 text-sm">
-          <p className="font-medium">Provisioning a new router? Use Guided Setup.</p>
-          {/* This callout used to point at the Fleet Wizard and describe
-           * THIS page as "legacy". That was backwards in practice: the
-           * wizard's script is rendered server-side and every step past
-           * bootstrap pushes through the device gateway, so it cannot get
-           * a factory-fresh box onto the network -- there is no agent and
-           * no tunnel yet for it to talk through. Guided Setup walks the
-           * whole provision one phase at a time with a verification gate
-           * after each, and sends the operator back here for exactly the
-           * chunks that carry per-router values. This page stays the
-           * source of those chunks; it is just no longer the place to
-           * start. */}
-          <p className="text-muted-foreground">
-            Guided Setup ek baar me ek hi step dikhata hai, har step ke baad check karta hai, aur
-            per-router chunks ke liye wapas isi page pe bhejta hai. Yeh page un chunks ka source hai
-            -- shuruaat yahan se mat karo.
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Link
-              to="/master/routers/guided/$routerId"
-              params={{ routerId: router.id }}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-primary bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90"
-            >
-              <Compass className="h-3.5 w-3.5" /> Open Guided Setup
-            </Link>
-            <Link
-              to="/master/routers/setup/$routerId"
-              params={{ routerId: router.id }}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground hover:border-primary hover:bg-accent hover:text-foreground"
-            >
-              <Workflow className="h-3.5 w-3.5" /> Provisioning wizard
-            </Link>
-          </div>
-        </div>
-      ) : null}
+      {/* THE "START SOMEWHERE ELSE" CALLOUT IS GONE. It stood here twice,
+       * pointing somewhere else both times, and was wrong both times.
+       *
+       * Version one told operators this page was "legacy" and to prefer
+       * the Fleet Wizard. That was backwards: the wizard's script is
+       * rendered server-side and every step past bootstrap pushes through
+       * the device gateway, so it cannot get a factory-fresh box onto the
+       * network -- there is no agent and no tunnel yet for it to talk
+       * through. A live session stranded an operator at step 2 of 13.
+       *
+       * Version two pointed at Guided Setup instead. Also now wrong, for a
+       * duller reason: Guided and Wizard are no longer offered from Router
+       * Fleet, and both of their routes redirect HERE. A link to either
+       * would have bounced the operator straight back to the page they
+       * were already on.
+       *
+       * There is no longer anywhere else to start, so the honest callout
+       * is no callout. Don't reintroduce one without a destination that
+       * actually exists in the fleet UI. */}
 
       {demo ? (
         <div className="rounded-xl border border-dashed border-border bg-card p-6 text-center text-sm text-muted-foreground">
