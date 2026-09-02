@@ -1,24 +1,14 @@
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, KeyRound, Power, Trash2 } from "lucide-react";
+import { ArrowLeft, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { ErrorState } from "@/components/common/ErrorState";
 import { PageSkeleton } from "@/components/common/LoadingSkeleton";
-import { useActivateNas, useDeleteNas, useDisableNas, useNas } from "@/hooks/useNas";
+import { useDeleteNas, useNas } from "@/hooks/useNas";
 import { NAS_STATUS_LABEL } from "@/types/nas";
 import type { AppError } from "@/services/api";
 
@@ -47,8 +37,6 @@ function NasDetailPage() {
   const { locationId, nasId } = Route.useParams();
   const navigate = useNavigate();
   const { data: nas, isLoading, isError, refetch } = useNas(nasId);
-  const activate = useActivateNas();
-  const disable = useDisableNas();
   const remove = useDeleteNas();
 
   const [confirm, setConfirm] = useState<null | {
@@ -57,43 +45,17 @@ function NasDetailPage() {
     onConfirm: () => void;
     destructive?: boolean;
   }>(null);
-  const [disableReasonOpen, setDisableReasonOpen] = useState(false);
-  const [reason, setReason] = useState("");
-
   if (isLoading) return <PageSkeleton />;
   if (isError) return <ErrorState onRetry={() => refetch()} />;
   if (!nas)
     return <ErrorState title="NAS not found" description="This NAS may have been removed." />;
 
-  // Mirrors the real backend's NasStatus transition graph: activate is legal
-  // from pending/disabled/suspended, disable only from pending/active, and
-  // delete from anything non-terminal. There is no direct "suspend" action
-  // exposed by the API -- suspended is reached some other way -- so only the
-  // transitions the backend actually offers are ever shown here.
-  const canActivate =
-    nas.status === "pending" || nas.status === "disabled" || nas.status === "suspended";
-  const canDisable = nas.status === "pending" || nas.status === "active";
+  // NO canActivate/canDisable HERE ANY MORE (2026-09-02). This page used to
+  // mirror the backend's NasStatus transition graph into buttons, which is
+  // how a venue owner ended up with a one-click switch that stopped every
+  // guest login at their own venue. An internal lifecycle model is not a
+  // feature; see the Actions card below.
   const canDelete = nas.status !== "deleted";
-
-  async function handleActivate() {
-    try {
-      await activate.mutateAsync(nasId);
-      toast.success("NAS activated");
-    } catch (err) {
-      toast.error((err as unknown as AppError).message || "Failed to activate NAS");
-    }
-  }
-
-  async function handleDisable() {
-    try {
-      await disable.mutateAsync({ nasId, reason: reason || undefined });
-      toast.success("NAS disabled");
-      setDisableReasonOpen(false);
-      setReason("");
-    } catch (err) {
-      toast.error((err as unknown as AppError).message || "Failed to disable NAS");
-    }
-  }
 
   async function handleDelete() {
     try {
@@ -164,43 +126,44 @@ function NasDetailPage() {
         </Card>
       </div>
 
-      {/* NO "REGENERATE SECRET" BUTTON HERE, deliberately (2026-09-02).
-          It used to sit in this row, one click, no confirmation, reporting
-          success -- and it took the venue's own guest WiFi down. Rotating
-          the RADIUS shared secret changes the platform's record and the
-          FreeRADIUS hub's copy but cannot change the router's, because
-          there is no write path from here to a RouterOS RADIUS client. The
-          old secret keeps being rejected until an engineer re-pastes the
-          RADIUS chunk over WinBox, which is not something a venue owner can
-          do from a dashboard. It now lives in the Master console behind a
-          GLOBAL-scoped route, the same place SNMP and router credentials
-          went for the same reason. */}
+      {/* NO "REGENERATE SECRET", "ACTIVATE" OR "DISABLE" BUTTON HERE,
+          deliberately. Regenerate went on 2026-09-02; Activate and Disable
+          went the same day, once it turned out all three had been gated on
+          the same organization-scoped `radius.execute` and only one had
+          been moved.
+
+          Rotating the RADIUS shared secret changes the platform's record
+          and the FreeRADIUS hub's copy but cannot change the router's, so
+          the old secret keeps being rejected until an engineer re-pastes
+          the RADIUS chunk over WinBox -- not something a venue owner can
+          finish from a dashboard.
+
+          Disable was worse in one way and better in another. Worse: it is a
+          pure database write, so it took effect instantly and silently --
+          every guest login at this venue rejected, with nothing the guest
+          or the router could see explaining why. Better: it was reversible,
+          by Activate, which sat right next to it. The reason it is gone is
+          not that it could not be undone; it is that nobody ever asked for
+          a kill switch here. These buttons existed because the backend's
+          internal NasStatus graph had been mirrored into this page. If you
+          want guest WiFi to stop at certain times, that is business hours
+          and the closed-portal state, which is built for it. */}
       <Card className="rounded-2xl border-border/70">
         <CardHeader>
           <CardTitle className="text-base">Actions</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            Rotating this NAS's RADIUS shared secret is done by Wyfy support, not from here: the new
-            secret has to be written onto the router on site, and guest WiFi stays down until it is.
-            Raise a support ticket if you need one rotated.
+            Taking this NAS in or out of service — activating it, disabling it, or rotating its
+            RADIUS shared secret — is done by Wyfy support, not from here. Each one stops or starts
+            guest authentication for the whole venue, and a rotation also needs the new secret
+            written onto the router on site. Raise a support ticket and we will do it with you.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            To stop serving guests on a schedule, use business hours instead — that closes the
+            portal without touching this venue's RADIUS registration.
           </p>
           <div className="flex flex-wrap gap-2">
-            {canActivate && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleActivate}
-                disabled={activate.isPending}
-              >
-                <Power className="h-4 w-4" /> <span className="ml-2">Activate</span>
-              </Button>
-            )}
-            {canDisable && (
-              <Button size="sm" variant="outline" onClick={() => setDisableReasonOpen(true)}>
-                <Power className="h-4 w-4" /> <span className="ml-2">Disable</span>
-              </Button>
-            )}
             {canDelete && (
               <Button
                 size="sm"
@@ -221,34 +184,6 @@ function NasDetailPage() {
           </div>
         </CardContent>
       </Card>
-
-      <Dialog open={disableReasonOpen} onOpenChange={setDisableReasonOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Disable NAS</DialogTitle>
-            <DialogDescription>
-              Guest authentication through this NAS will stop until it's reactivated.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="disable-reason">Reason (optional)</Label>
-            <Textarea
-              id="disable-reason"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="Maintenance window, decommissioning, etc."
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDisableReasonOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleDisable} disabled={disable.isPending}>
-              <KeyRound className="h-4 w-4" /> <span className="ml-2">Disable</span>
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <ConfirmDialog
         open={!!confirm}

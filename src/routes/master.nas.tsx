@@ -172,10 +172,19 @@ function NasScreen() {
     }
   }
 
+  // THE CONFIRMATION STATES THE CONSEQUENCE, same rule as the rotate below.
+  // This is now the only surface that can disable a NAS at all -- the venue
+  // owner's own dashboard lost the button on 2026-09-02 -- so the operator
+  // clicking it is acting on somebody else's venue, and the wording has to
+  // say whose and what. Unlike a rotate this is reversible with Activate,
+  // and saying so is part of being accurate rather than merely alarming.
   async function handleDisable(n: NasClient) {
     if (
       !window.confirm(
-        `Disable "${n.nasCode ?? n.nasIdentifier}"? Guests will stop authenticating through it.`,
+        `Disable "${n.nasCode ?? n.nasIdentifier}"?\n\n` +
+          `${n.locationName || "This venue"}'s guest WiFi stops immediately: every guest login ` +
+          `is rejected from the moment this returns, and nothing the guest or the router can see ` +
+          `will say why. Reversible with Activate.`,
       )
     )
       return;

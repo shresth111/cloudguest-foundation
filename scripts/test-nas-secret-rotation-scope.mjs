@@ -24,6 +24,22 @@
 // ScopeType.GLOBAL -- the same posture `/platform/routers/{id}` already
 // carries for the same bug class (PR #91).
 //
+// WIDENED THE SAME DAY, second pass. That fix moved one of the three
+// `radius.execute` routes and left `activate` and `disable` behind, still
+// wired to buttons on the venue owner's own NAS pages. `disable` was the
+// sharp one: a pure database write on the backend -- no hub call, no device
+// call -- and FreeRADIUS auth accepts only an `active` NAS, so one click
+// stopped every guest login at that venue instantly, reported success, and
+// left nothing the guest or the router could see to name the cause. It was
+// reversible (Activate sat beside it), which is the one way it was gentler
+// than a rotation; the reason it is gone anyway is that no product surface
+// ever asked for a venue-owner kill switch. Those buttons existed because
+// the backend's internal NasStatus graph had been mirrored into the
+// customer UI. "Stop serving guests" is business hours / closed portal.
+//
+// So this file now checks the whole NAS *lifecycle* -- activate, disable,
+// rotate -- rather than the one route it was written for.
+//
 // WHAT THIS CHECKS, AND WHAT IT CANNOT. This reads source files, so it can
 // prove the button is absent and the path is the platform one. It cannot
 // see the backend's RBAC scope -- the equivalent assertion lives there, in
@@ -163,6 +179,101 @@ check(
     /deviceAction/.test(master),
     "the backend states the router half as data (device_action_required / " +
       "device_action) precisely so a client cannot fail to show it",
+  );
+}
+
+// ---------------------------------------------------------------------
+// 5. The other two lifecycle routes, same rule.
+// ---------------------------------------------------------------------
+//
+// Written as a loop over the operation names rather than as two more
+// copies of section 1-3, so that adding a fourth `radius.execute`
+// operation is one line here -- the frontend counterpart of the backend's
+// TestNasSecretRotationIsPlatformOnly::test_no_radius_execute_route_is_org_scoped,
+// which asserts the rule for the permission key rather than for today's
+// three paths.
+const LIFECYCLE_OPS = [
+  { op: "activate", hook: "useActivateNas", method: "activate" },
+  { op: "disable", hook: "useDisableNas", method: "disable" },
+];
+
+{
+  const svc = stripComments(read("src/services/nas.service.ts"));
+  const customerRoutes = walk(join(ROOT, "src/routes/_authenticated"));
+
+  for (const { op, hook } of LIFECYCLE_OPS) {
+    const calls = [...svc.matchAll(new RegExp("`([^`]*/" + op + ")`", "g"))].map((m) => m[1]);
+    check(
+      `nas.service.ts: the ${op} call still exists`,
+      calls.length > 0,
+      "a check that only forbids is satisfied by deleting the feature -- the " +
+        "Master console still needs this operation",
+    );
+    for (const path of calls) {
+      check(
+        `nas.service.ts: ${path} is platform-scoped`,
+        path.startsWith("/platform/"),
+        `/radius/nas/{id}/${op} is gated on organization-scoped radius.execute, ` +
+          "which every venue owner holds. Use " +
+          `/platform/radius/nas/{id}/${op}.`,
+      );
+    }
+
+    const offenders = customerRoutes.filter((f) =>
+      new RegExp(`${hook}|/${op}\``).test(stripComments(readFileSync(f, "utf8"))),
+    );
+    check(
+      `no customer-dashboard route can ${op} a NAS`,
+      offenders.length === 0,
+      `${offenders.length} file(s): ${offenders.map((f) => f.slice(ROOT.length + 1)).join(", ")}\n` +
+        "       NAS lifecycle is a Master console operation; disable in particular " +
+        "stops every guest login at that venue the moment it returns.",
+    );
+
+    check(
+      `useNas.ts exposes no ${op} hook`,
+      !new RegExp(`export function ${hook}`).test(stripComments(read("src/hooks/useNas.ts"))),
+      "the hooks in useNas.ts back the customer dashboard; a lifecycle hook there " +
+        "is an invitation to put the button back",
+    );
+  }
+}
+
+// ---------------------------------------------------------------------
+// 6. The Master console's DISABLE confirmation names the consequence too.
+// ---------------------------------------------------------------------
+//
+// This is now the only surface that can disable a NAS at all, so the
+// operator is acting on somebody else's venue. The previous wording
+// ("Guests will stop authenticating through it") was true but read as a
+// technical detail rather than as "this venue's WiFi stops now".
+{
+  const master = read("src/routes/master.nas.tsx");
+  const confirm = master.slice(
+    master.indexOf("async function handleDisable"),
+    master.indexOf("async function handleRegenerate"),
+  );
+  check(
+    "master.nas.tsx: handleDisable was found",
+    confirm.length > 0,
+    "the handler was renamed -- update this check rather than deleting it",
+  );
+  check(
+    "master.nas.tsx: disabling is confirmed at all",
+    /window\.confirm/.test(confirm),
+    "one unlabelled click must not stop a venue's guest WiFi",
+  );
+  check(
+    "master.nas.tsx: the confirmation says guest WiFi stops immediately",
+    /immediately/.test(confirm) && /guest/i.test(confirm),
+    "the operator must be told that this takes effect on the next Access-Request, " +
+      "not at some later sync",
+  );
+  check(
+    "master.nas.tsx: the confirmation says it is reversible",
+    /Activate/.test(confirm),
+    "unlike a rotation this one CAN be undone from here -- saying so is part of " +
+      "being accurate rather than merely alarming",
   );
 }
 

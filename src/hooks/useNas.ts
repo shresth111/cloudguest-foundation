@@ -58,22 +58,28 @@ export function useUpdateNas() {
   });
 }
 
-export function useActivateNas() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (nasId: string) => nasService.activate(nasId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: nasKeys.all }),
-  });
-}
-
-export function useDisableNas() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ nasId, reason }: { nasId: string; reason?: string }) =>
-      nasService.disable(nasId, reason),
-    onSuccess: () => qc.invalidateQueries({ queryKey: nasKeys.all }),
-  });
-}
+// NO useActivateNas / useDisableNas HOOKS EITHER, for the same reason and
+// as of the same day (2026-09-02, second pass).
+//
+// These two went with the rotation. All three were gated on
+// `radius.execute`, which `organization-owner` holds at organization scope,
+// so all three were reachable from the venue owner's own dashboard -- the
+// first pass moved one and left these behind.
+//
+// Disable is the sharp one. It is a pure database write on the backend --
+// no hub call, no device call -- and FreeRADIUS auth accepts only an
+// `active` NAS, so clicking it stopped every guest login at that venue on
+// the next request, with nothing the guest or the router could see naming
+// the cause. It was reversible (Activate sat next to it), which is the one
+// way it was gentler than the rotation, but no product surface ever asked
+// for a venue-owner kill switch: these buttons existed because the
+// backend's internal NasStatus graph had been mirrored into the customer
+// UI. A venue owner's own "stop serving guests now" is captive-portal
+// business hours / closed state, not a RADIUS client status.
+//
+// Both routes are `/platform/radius/nas/...` at GLOBAL scope now, so
+// re-adding a hook here would 403 rather than break a venue -- but do not
+// re-add it.
 
 // NO useRegenerateNasSecret HOOK, deliberately (2026-09-02).
 //
