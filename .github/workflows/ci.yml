@@ -16,7 +16,11 @@ name: CI
 #   test:output-analyser  116 checks
 #   test:a11y ........... sentinel only
 #   test:manual-wizard .. 113 checks
-#   test:setup-script ... 2000 checks (added 2026-08-23; was 169 before the
+#   test:setup-script ... 3050 checks (2928 green + 122 RED -- see the
+#                         step's own comment: section 15, added 2026-09-02,
+#                         lands with the .rsc channel's real defects
+#                         unfixed and each red check is a finding).
+#                         Was 2000; and 169 before the
 #                         five silent failures (section 6) and the three
 #                         fresh-router sections (7-9) landed, floor 160 ->
 #                         395 -> 435 -> 450; then section 12, "the uplink is
@@ -465,10 +469,69 @@ jobs:
       # the router in each half, /23, /28, /26 with a LAN allowlist, and a
       # /31 that cannot hold a pool at all), so every earlier section runs
       # against them too -- that is most of the jump.
+      #
+      # SECTION 15 (2026-09-02) -- THE .rsc IS A DELIVERY CHANNEL, NOT A
+      # VIEW. Added after the same report for the FIFTH time: "a problem I
+      # have had fixed many times already -- I configured using the .rsc
+      # file, the script executed, RADIUS wasn't there and it didn't run."
+      #
+      # Sections 1-14 all assert over `chunk.script`. The DOWNLOADED FILE,
+      # which is how the founder provisions, had four checks against it,
+      # all about one header. The channel with the most reported failures
+      # had the least coverage, and every whole-script guard in the suite
+      # was transferring to it by assumption.
+      #
+      # THIS STEP IS EXPECTED TO BE RED WHEN IT LANDS. 122 of the 602 new
+      # checks fail against origin/main at f99c02b, and each red one is a
+      # finding handed to the router work, not a broken test:
+      #
+      #   115  the .rsc carries NO progress markers. Measured: 65 in
+      #        `chunksToSingleLineScript`'s output and 0 in
+      #        `chunksToRouterOsScript`'s, for the same script. /import
+      #        aborts at the first error and reports ONE message with no
+      #        indication of how far it got -- which is exactly what
+      #        section 13 fixed for the one-line paste and never fixed
+      #        here. It is why four separate fixes each addressed
+      #        whichever statement happened to be found: the operator
+      #        could report THAT it stopped and never WHERE.
+      #     5  a default Generate silently omits whole subsystems.
+      #        `enableWireguard` and `enableRadius` both default to false
+      #        (RouterSetupScriptAdvanced.tsx:315-316) and
+      #        `notProvisioned` -- the array driving the loud INCOMPLETE
+      #        SCRIPT chunk and its :error -- is appended only from catch
+      #        blocks. An unticked checkbox is not a caught error, so the
+      #        script emits 28 chunks instead of 32, imports perfectly,
+      #        prints RESULT: PASS everywhere, creates the heartbeat
+      #        scheduler so the router shows GREEN in Master console --
+      #        and /radius is empty. Nothing aborted; nothing was asked to
+      #        configure RADIUS. Section 15.8 requires the gap to be
+      #        DERIVED from the emitted script.
+      #     2  an :error above the RADIUS chunk stops the whole /import,
+      #        and every one of those messages is written for someone
+      #        pasting chunk by chunk ("re-run", "re-paste just this
+      #        chunk"). In a file there are no chunks on screen.
+      #
+      # All 122 were confirmed SATISFIABLE before landing: a prototype of
+      # the three fixes turned every one of them green.
+      #
+      # Seventeen mutations of the real generator were injected and the
+      # suite re-run; all seventeen caught. FOUR survived the first pass
+      # and all four were real holes in the NEW guards rather than
+      # confirmations -- the sixth time that shape has been caught in this
+      # file. See the script header for the table and for the two
+      # pre-existing checks section 15 corrected (13.10's "complete"
+      # fixture was a script missing three subsystems, and an INJECTED
+      # check matched `COMPLETE` as a substring of `INCOMPLETE`).
+      #
+      # FLOOR: 2900. Observed 2928 green + 122 red on origin/main at
+      # f99c02b; 3050 checks run in total. Set below the currently-green
+      # count on purpose, because the count MOVES when the generator fix
+      # lands (the prototype ran 3047 green). Raise it to ~3040 in the
+      # same PR that turns this step green -- floor 1950 -> 2900.
       - name: setup script generator
         run: |
           ./scripts/ci-gated-test.sh \
-            "setup-script-generator" 1950 \
+            "setup-script-generator" 2900 \
             "setup-script-generator: all checks passed" \
             bun run test:setup-script
 
