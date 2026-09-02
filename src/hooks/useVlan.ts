@@ -24,6 +24,20 @@ export function useCreateVlan() {
   });
 }
 
+/** Realizes a VLAN on its router. Separate from create/update on purpose --
+ *  see `vlanService.push`. Invalidates the list so the device-push badge
+ *  reflects the new state without a manual refresh. */
+export function usePushVlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => vlanService.push(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["vlan", "list"] });
+      qc.invalidateQueries({ queryKey: vlanKeys.kpis });
+    },
+  });
+}
+
 export function useUpdateVlan() {
   const qc = useQueryClient();
   return useMutation({

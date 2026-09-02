@@ -1,5 +1,16 @@
 import { useState } from "react";
-import { Plus, Search, Trash2, Pencil, Network, ShieldCheck, ShieldOff, Wifi } from "lucide-react";
+import {
+  Plus,
+  Search,
+  Trash2,
+  Pencil,
+  Network,
+  ShieldCheck,
+  ShieldOff,
+  Wifi,
+  UploadCloud,
+  Loader2,
+} from "lucide-react";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -51,11 +62,14 @@ import {
   useCreateVlan,
   useUpdateVlan,
   useDeleteVlan,
+  usePushVlan,
 } from "@/hooks/useVlan";
 import { routerService } from "@/services/router.service";
 import { isDemo, resolveOrgId } from "@/services/customer.service";
 import type { AppError } from "@/services/api";
-import type { Vlan } from "@/types/vlan";
+import type { Vlan, VlanDevicePushStatus } from "@/types/vlan";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 25;
 
@@ -71,6 +85,52 @@ const vlanSchema = z.object({
   isEnabled: z.boolean(),
 });
 type VlanFormValues = z.infer<typeof vlanSchema>;
+
+const DEVICE_PUSH_LABEL: Record<VlanDevicePushStatus, string> = {
+  active: "Applied",
+  pending: "Not yet applied",
+  failed: "Couldn't apply",
+};
+
+const DEVICE_PUSH_STYLES: Record<VlanDevicePushStatus, string> = {
+  active: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400",
+  pending: "bg-zinc-500/10 text-zinc-600 border-zinc-500/20 dark:text-zinc-400",
+  failed: "bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400",
+};
+
+/** Whether this VLAN exists on the actual router.
+ *
+ * Worth its own column rather than folding into "Status": `isEnabled` is
+ * intent, this is fact, and until the domain had a device push every VLAN
+ * ever created sat permanently at "Not yet applied" while the UI said
+ * "Enabled". Those two being visibly different is the point.
+ *
+ * A failed push shows the device's own error on hover -- unedited, because a
+ * RouterOS message ("already have such item", a connection timeout) tells an
+ * operator more than any summary of it would.
+ */
+function DevicePushBadge({ vlan }: { vlan: Vlan }) {
+  const badge = (
+    <Badge
+      variant="outline"
+      className={cn("rounded-full font-medium", DEVICE_PUSH_STYLES[vlan.devicePushStatus])}
+    >
+      <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
+      {DEVICE_PUSH_LABEL[vlan.devicePushStatus]}
+    </Badge>
+  );
+  if (vlan.devicePushStatus !== "failed" || !vlan.devicePushError) return badge;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex cursor-default">{badge}</span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs">
+        Couldn&apos;t apply this VLAN to your router: {vlan.devicePushError}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 export function VlanManagement({ locationId }: { locationId?: string } = {}) {
   const [page, setPage] = useState(1);
@@ -88,6 +148,25 @@ export function VlanManagement({ locationId }: { locationId?: string } = {}) {
   });
   const { data: kpis } = useVlanKpis();
   const del = useDeleteVlan();
+  const push = usePushVlan();
+
+  /** Applies one VLAN to its router.
+   *
+   * A failure arrives as a real non-2xx carrying the device's own error
+   * text, so it is worth showing verbatim -- "already have such item" or a
+   * connection timeout tells an operator far more than a generic message
+   * would. The backend never returns a 2xx for a failed push, precisely so
+   * this catch is reachable. */
+  function handlePush(vlan: Vlan) {
+    push.mutate(vlan.id, {
+      onSuccess: () => toast.success(`VLAN ${vlan.vlanId} applied to the router`),
+      onError: (err) =>
+        toast.error(
+          (err as unknown as AppError)?.message ||
+            `Couldn't apply VLAN ${vlan.vlanId} to the router`,
+        ),
+    });
+  }
   const { data: routers = { rows: [], total: 0 } } = useQuery({
     queryKey: ["vlan", "router-options", locationId],
     queryFn: async () => {
@@ -198,7 +277,8 @@ export function VlanManagement({ locationId }: { locationId?: string } = {}) {
                 <TableHead>Port</TableHead>
                 <TableHead>Portal</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="w-[80px]" />
+                <TableHead>On router</TableHead>
+                <TableHead className="w-[120px]" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -268,13 +348,35 @@ export function VlanManagement({ locationId }: { locationId?: string } = {}) {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                      <Button size="icon" variant="ghost" onClick={() => setEditing(v)}>
-                        <Pencil className="h-3.5 w-3.5" />
+                    <DevicePushBadge vlan={v} />
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-1">
+                      {/* Always visible, unlike the hover-revealed edit/delete
+                          pair: this is the step that actually reaches the
+                          hardware, and a VLAN sitting at "Not applied" is the
+                          thing an operator most needs to notice. */}
+                      <Button
+                        size="sm"
+                        variant={v.devicePushStatus === "active" ? "ghost" : "outline"}
+                        disabled={push.isPending}
+                        onClick={() => handlePush(v)}
+                      >
+                        {push.isPending && push.variables === v.id ? (
+                          <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <UploadCloud className="mr-1 h-3.5 w-3.5" />
+                        )}
+                        {v.devicePushStatus === "active" ? "Re-apply" : "Apply"}
                       </Button>
-                      <Button size="icon" variant="ghost" onClick={() => setConfirmDelete(v)}>
-                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                      </Button>
+                      <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                        <Button size="icon" variant="ghost" onClick={() => setEditing(v)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button size="icon" variant="ghost" onClick={() => setConfirmDelete(v)}>
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        </Button>
+                      </div>
                     </div>
                   </TableCell>
                 </TableRow>
