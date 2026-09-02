@@ -816,6 +816,19 @@ writeFileSync(
     // up with two different words for the same thing -- an operator reads
     // both the same way or the markers are worth nothing.
     `export { SINGLE_LINE_MARKER_PREFIX } from "@/components/routers/RouterDetailTabs";`,
+    // 15.1 grades the renderers' invented statements against an
+    // ENUMERATION rather than a pattern -- see its own comment. The
+    // enumeration has to come from the module the renderers are built
+    // from, or it is a second list that drifts, which is the exact shape
+    // that left the .rsc with no markers at all for a month.
+    `export { progressMarkerStatements, markerStatements } from "@/components/routers/RouterDetailTabs";`,
+    // Section 16 grades the deselect gate by CALLING it. The panel's own
+    // copy of this was source-grepped, and the grep stayed green when the
+    // comparison that actually accepts or rejects the typed phrase was
+    // mutated to accept anything at all -- a guard that could not fail,
+    // which is the defect this file has shipped six times. The decision
+    // lives beside `SetupScriptGap` for exactly that reason.
+    `export { DESELECT_PHRASE, DESELECT_CONSEQUENCE, deselectAcknowledgement } from "@/components/routers/RouterDetailTabs";`,
   ].join("\n"),
 );
 
@@ -862,6 +875,11 @@ const {
   SETUP_SCRIPT_VALIDATOR_CHECKS,
   SETUP_SCRIPT_VALIDATOR_LIMITS,
   SINGLE_LINE_MARKER_PREFIX,
+  progressMarkerStatements,
+  markerStatements,
+  DESELECT_PHRASE,
+  DESELECT_CONSEQUENCE,
+  deselectAcknowledgement,
 } = await import(pathToFileURL(join(work, "bundle.mjs")).href);
 
 // ---------------------------------------------------------------------
@@ -4959,7 +4977,32 @@ check(
   // where it is the first thing anyone opening it reads.
   {
     const rsc = chunksToRouterOsScript(withGaps, "lobby router");
-    const head = rsc.split("\n").slice(0, 14).join("\n");
+    // THE PROLOGUE IS EVERYTHING BEFORE THE FIRST STATEMENT, not a magic
+    // line count. `slice(0, 14)` stood here and silently stopped covering
+    // the banner the moment the header grew a sixth line -- the check
+    // still passed on "THIS SCRIPT IS INCOMPLETE" and stopped seeing the
+    // subsystem names, which is the half that matters. Deriving the
+    // boundary means the header can grow without this going quietly
+    // vacuous.
+    const prologueLines = (text) => {
+      const out = [];
+      for (const raw of text.split("\n")) {
+        const l = raw.trim();
+        if (l === "") continue;
+        if (!l.startsWith("#")) break;
+        out.push(l);
+      }
+      return out;
+    };
+    const head = prologueLines(rsc).join("\n");
+    check(
+      "the .rsc header ends before the first executable statement",
+      prologueLines(rsc).length > 0 &&
+        rsc.split("\n").some((l) => l.trim() !== "" && !l.trim().startsWith("#")) &&
+        !prologueLines(rsc).some((l) => !l.startsWith("#")),
+      "if the prologue extended past the first statement this check would be grading the " +
+        "whole file, and 'the header names RADIUS' would be true of any script that mentions it",
+    );
     check(
       "a .rsc built from an incomplete script says so in its header",
       /THIS SCRIPT IS INCOMPLETE/.test(head),
@@ -4972,11 +5015,7 @@ check(
     );
     check(
       "...and only ever as RouterOS comments, so the file still imports",
-      rsc
-        .split("\n")
-        .slice(0, 14)
-        .filter((l) => l.trim() !== "")
-        .every((l) => l.trimStart().startsWith("#")),
+      prologueLines(rsc).every((l) => l.startsWith("#")),
       "a non-comment line in the header would be executed by /import",
     );
     const cleanRsc = chunksToRouterOsScript(clean, "lobby router");
@@ -5733,19 +5772,61 @@ console.log("\n-- 13.8 the one-line paste says how far it got --");
     "a marker whose meaning has to be inferred does not survive a night shift",
   );
   check(
-    "the markers are real `:put` statements, not `#` comments",
+    "the markers are real statements, not `#` comments",
     markers.length > 0 &&
       oneLine.split("; ").every((stmt) => !stmt.trimStart().startsWith("#")) &&
-      (oneLine.match(/### cloudguest/g) ?? []).every(() => true) &&
-      (oneLine.match(/:put "### cloudguest/g) ?? []).length === markers.length,
+      (oneLine.match(/(?::put|:log info) "### cloudguest/g) ?? []).length === markers.length,
     "`#` comments are stripped by this very function, and a comment prints nothing anyway -- the " +
       "whole point is output the operator can read back",
   );
+  // EVERY MARKER GOES TO BOTH SINKS, AND THE `:put` IS THE ONE THAT ENDS
+  // THE PAIR.
+  //
+  // `:put` under `/import` is an assumption nobody in this repo has ever
+  // tested on a device (the spec logs it as AC-4.5, "resolve this on real
+  // hardware", and it was never resolved). A marker scheme that rests on
+  // it is a marker scheme that might print nothing at all in the channel
+  // the founder uses. So each marker is also `:log info`'d, readable
+  // afterwards with `/log print` regardless of what `/import` does with
+  // console output -- and readable after the terminal buffer has scrolled
+  // past on a 30-chunk run, which is a problem `:put` has even when it
+  // works.
+  //
+  // The `:put` is emitted SECOND so the runbook everybody follows -- read
+  // the last line -- still lands on the sentence it was told to look for.
+  const putMarkers = (oneLine.match(/:put "### cloudguest/g) ?? []).length;
+  const logMarkers = (oneLine.match(/:log info "### cloudguest/g) ?? []).length;
   check(
-    "the marker count is exactly 2 per chunk plus one COMPLETE",
-    markers.length === chunks.length * 2 + 1,
+    "the marker count is exactly 4 per chunk plus 2 for COMPLETE",
+    markers.length === chunks.length * 4 + 2,
     `${markers.length} markers for ${chunks.length} chunks -- a duplicated or missing marker ` +
       "makes the position report wrong, which is worse than absent",
+  );
+  check(
+    "every marker is written to BOTH the console and the log",
+    putMarkers > 0 && putMarkers === logMarkers && putMarkers === chunks.length * 2 + 1,
+    `${putMarkers} :put vs ${logMarkers} :log info. A marker present in only one sink is a ` +
+      "marker that disappears the moment the OTHER sink turns out to be the working one, and " +
+      "which sink that is has never been measured on hardware",
+  );
+  check(
+    "the `:put` half of a marker pair is emitted last",
+    (() => {
+      const pairs = [...oneLine.matchAll(/(:log info|:put) "(### cloudguest [^"]*)"/g)].map((m) => [
+        m[1],
+        m[2],
+      ]);
+      if (pairs.length !== markers.length || pairs.length === 0) return false;
+      for (let i = 0; i < pairs.length; i += 2) {
+        if (pairs[i][0] !== ":log info") return false;
+        if (pairs[i + 1]?.[0] !== ":put") return false;
+        if (pairs[i][1] !== pairs[i + 1][1]) return false;
+      }
+      return true;
+    })(),
+    "the runbook is 'read the last line'. If the log half trailed the console half, the last " +
+      "thing a watching operator sees would be a statement that prints nothing, and the " +
+      "COMPLETE sentinel would not be where the instruction says it is",
   );
   check(
     "a chunk label containing a quote cannot break the marker it is embedded in",
@@ -5768,17 +5849,42 @@ console.log("\n-- 13.8 the one-line paste says how far it got --");
     !/(^|; )#/.test(oneLine),
     "a `#` at statement position runs to end-of-line and eats every statement after it",
   );
+  console.log(
+    `       [size] one-line paste ${oneLine.length} chars for ${chunks.length} chunks; ` +
+      `chunk bodies ${chunks.reduce((n, c) => n + c.script.length, 0)}; ` +
+      `markers ${oneLine.length - chunks.reduce((n, c) => n + c.script.length, 0)} ` +
+      `(${(((oneLine.length - chunks.reduce((n, c) => n + c.script.length, 0)) / oneLine.length) * 100).toFixed(1)}%)`,
+  );
+  // RE-PINNED AT THE MEASURED LEVEL, because the markers just doubled.
+  //
+  // Every marker now goes to two sinks (see `markerStatements`), which
+  // took the marker overhead on this fixture from ~4.5% of the paste to
+  // 8.8% -- 6,965 characters on a 78,787-character line, up ~3.5 KB. The
+  // budget was 20%, which the doubling did not come close to, and a
+  // budget with that much slack cannot object to a THIRD sink being added
+  // the same way. 12% leaves room for the chunk set to grow and none for
+  // another blanket duplication going in unremarked.
+  //
+  // This matters because the paste channel has a MEASURED corruption
+  // failure on long input -- that is why the chunking exists at all. The
+  // `.rsc` pays the same overhead and does not care; the paste does.
+  const markerCost = oneLine.length - chunks.reduce((n, c) => n + c.script.length, 0);
   check(
-    "the markers cost a negligible fraction of the paste",
-    oneLine.length - chunks.reduce((n, c) => n + c.script.length, 0) < oneLine.length * 0.2,
-    "a size increase big enough to matter would trade one paste risk for another",
+    "the markers cost a bounded fraction of the paste",
+    markerCost < oneLine.length * 0.12,
+    `markers are ${((markerCost / oneLine.length) * 100).toFixed(1)}% of the paste. A size ` +
+      `increase big enough to matter would trade one paste risk for another, on a channel ` +
+      `with a confirmed corruption failure on long input`,
   );
 
   // INJECTED
   {
     const stripped = oneLine
       .split("; ")
-      .filter((stmt) => !stmt.startsWith(':put "### cloudguest'))
+      .filter(
+        (stmt) =>
+          !stmt.startsWith(':put "### cloudguest') && !stmt.startsWith(':log info "### cloudguest'),
+      )
       .join("; ");
     check(
       "INJECTED: the marker guard fires on the marker-free flattening it replaced",
@@ -6436,7 +6542,33 @@ const executableLines = (text) =>
     .map((l) => l.trim())
     .filter((l) => l.length > 0 && !l.startsWith("#"));
 
-const isMarkerLine = (line) => line.includes(SINGLE_LINE_MARKER_PREFIX);
+/** WHAT THE RENDERER IS ALLOWED TO INVENT, AS A SHAPE.
+ *
+ * This used to be `line.includes(SINGLE_LINE_MARKER_PREFIX)`, and that is
+ * not a bound -- it is a hole with a password. 15.1 exists to prove the
+ * renderers add no executable statement of their own, and a substring
+ * exemption waves through
+ * `/system reset-configuration; :put "### cloudguest"` as cheerfully as a
+ * real marker. The exemption had to get MORE precise, not disappear,
+ * because the markers now go to two sinks and a blanket exemption over a
+ * wider set of statements is a wider blind spot.
+ *
+ * So: the whole line must be exactly ONE statement, that statement must
+ * be `:put` or `:log info`, and its only argument must be one
+ * double-quoted literal that starts with the marker prefix. The `$`
+ * anchor is what does the work -- nothing can be chained onto it, and no
+ * expression, variable, `[` command substitution or `.` concatenation can
+ * appear, because none of those can occur inside the quoted run this
+ * permits.
+ *
+ * Being a legal SHAPE is still not enough to be legal CONTENT: 15.1 also
+ * requires the renderer's contributions to be exactly the enumerated set
+ * `progressMarkerStatements` predicts. This regex is what makes that
+ * enumeration safe to trust -- it proves every member of it is inert. */
+const MARKER_STATEMENT_RE = new RegExp(
+  `^(?::put|:log info) "${SINGLE_LINE_MARKER_PREFIX} (?:[^"\\\\]|\\\\.)*"$`,
+);
+const isMarkerLine = (line) => MARKER_STATEMENT_RE.test(line);
 
 // ---------------------------------------------------------------------
 // 15.1 THE FILE IS THE CHUNKS. Nothing added, nothing dropped, nothing
@@ -6500,6 +6632,41 @@ for (const { variant, chunks, rsc } of RSC_CASES) {
       "renderer is a statement the whole suite is blind to",
   );
 
+  // AND THE MARKERS ARE AN ENUMERATION, NOT A PATTERN.
+  //
+  // The check above says every renderer-added statement LOOKS like a
+  // marker. That is a shape test, and a shape test cannot tell a marker
+  // from a plausible-looking statement that happens to wear the prefix.
+  // `progressMarkerStatements` is the renderers' own source for these
+  // lines, so this compares what the file contains against what the
+  // renderer was entitled to emit, both ways: an extra marker (a
+  // duplicated bracket, a stray sentinel) and a missing one (a chunk
+  // whose START never rendered) are both red.
+  //
+  // This is what lets 15.1 stay a real guard while the renderer emits
+  // executable statements of its own. The guard was never "the renderer
+  // emits nothing"; it is "the renderer emits nothing this suite has not
+  // seen", and the enumeration is how the suite sees them.
+  const expectedMarkers = progressMarkerStatements(chunks);
+  const actualMarkers = fileLines.filter((l) => !chunkLineSet.has(l));
+  check(
+    `${variant}: the .rsc's invented statements are EXACTLY the enumerated markers`,
+    actualMarkers.length === expectedMarkers.length &&
+      actualMarkers.every((l, i) => l === expectedMarkers[i]),
+    `the renderer contributed ${actualMarkers.length} statement(s) where the enumeration ` +
+      `predicts ${expectedMarkers.length}. A statement the enumeration does not name is a ` +
+      `statement no guard in this file has ever inspected, whether or not it wears the ` +
+      `marker prefix -- first mismatch: ` +
+      `${JSON.stringify(actualMarkers.find((l, i) => l !== expectedMarkers[i]) ?? null)}`,
+  );
+  check(
+    `${variant}: every enumerated marker is an inert print or log of a literal`,
+    expectedMarkers.length > 0 && expectedMarkers.every((l) => MARKER_STATEMENT_RE.test(l)),
+    "the enumeration is only safe to exempt because nothing in it can change device state. " +
+      "A member that took a variable, a `[` substitution or a second chained statement would " +
+      "make the exemption a hole",
+  );
+
   // REPRODUCIBLE. `generatedAt` is a declared input precisely so the
   // emitted text is a function of the options; the file's header carries
   // a wall-clock stamp, which is fine in a comment and would not be fine
@@ -6513,6 +6680,84 @@ for (const { variant, chunks, rsc } of RSC_CASES) {
     executableLines(again).join("\n") === fileLines.join("\n"),
     "two downloads of the same script would configure the router differently, so no verdict " +
       "read off one of them says anything about the other",
+  );
+}
+
+// ---------------------------------------------------------------------
+// 15.1b THE TWO CHANNELS ARE THE SAME STATEMENTS IN THE SAME ORDER.
+// ---------------------------------------------------------------------
+// 15.1 pins the `.rsc` to the chunks. Sections 1-14 pin the chunks. What
+// NOTHING pinned was the third edge of the triangle: that the flattened
+// paste and the downloaded file configure the same router.
+//
+// It was true by construction and it was measured by hand when the .rsc
+// finally got markers -- and "true by construction" is the exact phrase
+// that was also true of the .rsc's markers right up until it turned out
+// the .rsc had none for a month while the paste had 65. Two renderers,
+// two hands, one shared vocabulary and no assertion tying them is how
+// that happened, and it is the failure this change is most able to
+// repeat: the markers just went from one sink to two, in both renderers.
+//
+// So the property is asserted as an EQUALITY rather than a containment.
+// Both channels are, statement for statement, the same list -- markers
+// included, order included. A change that reaches one renderer and not
+// the other cannot be green.
+for (const { variant, chunks, rsc } of RSC_CASES) {
+  const fileStatements = executableLines(rsc);
+  const oneLine = chunksToSingleLineScript(chunks);
+
+  check(
+    `${variant}: the .rsc and the one-line paste are the same statement list`,
+    fileStatements.join("; ") === oneLine,
+    "the two delivery channels would configure the same router differently. This is the " +
+      "shape that left the .rsc with no progress markers for a month while the paste had " +
+      "them, and the .rsc is the channel the founder actually uses",
+  );
+
+  // AND THE NON-MARKER HALF SPECIFICALLY, stated on its own because it is
+  // the half that survives any future disagreement about markers. If the
+  // two channels ever DO diverge on marker policy -- a shorter paste, a
+  // different sink -- this is the line that must still hold: every
+  // statement that touches the device appears verbatim in both, in order.
+  let cursor = 0;
+  let firstMissing = null;
+  for (const line of fileStatements.filter((l) => !isMarkerLine(l))) {
+    const at = oneLine.indexOf(line, cursor);
+    if (at < 0) {
+      firstMissing = line;
+      break;
+    }
+    cursor = at + line.length;
+  }
+  check(
+    `${variant}: every executable non-marker statement of the .rsc appears verbatim, in order, in the one-line paste`,
+    firstMissing === null,
+    `a statement the downloaded file runs is absent from the paste (or out of order in it): ` +
+      `${JSON.stringify(firstMissing?.slice(0, 120) ?? null)}. Chunk order is a dependency ` +
+      `order, so 'present somewhere' is not the property -- RADIUS needs the tunnel address ` +
+      `and the heartbeat needs the clock`,
+  );
+}
+
+// The equality above is only worth having if it can actually fail.
+{
+  const two = [
+    { label: "A", script: "/ip dns set servers=1.1.1.1" },
+    { label: "B", script: "/ip dns set servers=8.8.8.8" },
+  ];
+  check(
+    "15.1b's channel equality fails when one channel drops a statement",
+    executableLines(chunksToRouterOsScript(two, "r"))
+      .filter((l) => l !== two[1].script)
+      .join("; ") !== chunksToSingleLineScript(two),
+    "if removing a whole chunk's statement from one side still compared equal, the check " +
+      "could never see a renderer drifting",
+  );
+  check(
+    "15.1b's channel equality fails when the two are reordered",
+    executableLines(chunksToRouterOsScript([two[1], two[0]], "r")).join("; ") !==
+      chunksToSingleLineScript(two),
+    "a set comparison would call a reordered dependency chain identical; this must not be one",
   );
 }
 
@@ -6530,9 +6775,76 @@ for (const { variant, chunks, rsc } of RSC_CASES) {
       "contradict each other and one of them would get switched off",
   );
   check(
+    "15.1's invented-line detector does not flag the log half of a marker pair either",
+    isMarkerLine(`:log info "${SINGLE_LINE_MARKER_PREFIX} 1/1 START X"`),
+    "the markers now go to two sinks; a detector that only knew about `:put` would make the " +
+      "second sink unrepresentable and the whole hedge would be reverted to get green",
+  );
+  check(
     "15.1's invented-line detector does flag a real invented statement",
     !isMarkerLine(`/system reboot`),
     "a detector that treats every renderer-added line as a marker cannot fail",
+  );
+  // THE THREE SHAPES THE OLD SUBSTRING EXEMPTION LET THROUGH. Each is a
+  // statement that changes device state and that
+  // `line.includes(SINGLE_LINE_MARKER_PREFIX)` graded as a legal marker.
+  // The precise form is worth the extra lines only if it actually stops
+  // them, so it is proven here rather than asserted in a comment.
+  for (const [shape, line] of [
+    [
+      "a real command chained onto a marker",
+      `:put "${SINGLE_LINE_MARKER_PREFIX} 1/1 START X"; /system reset-configuration`,
+    ],
+    [
+      "a command hiding behind a marker-shaped comment",
+      `/ip firewall filter remove [find] # ${SINGLE_LINE_MARKER_PREFIX}`,
+    ],
+    [
+      "a marker whose argument is an expression rather than a literal",
+      `:put ("${SINGLE_LINE_MARKER_PREFIX} " . [/system identity get name])`,
+    ],
+  ]) {
+    check(
+      `15.1's detector rejects ${shape}`,
+      !isMarkerLine(line),
+      "the substring exemption this replaced accepted all three. An exemption that a real " +
+        "statement can wear is not a bound on what the renderer may emit -- it is the " +
+        "renderer's blank cheque, and 15.1 is the only thing standing between the file and " +
+        "one",
+    );
+  }
+  check(
+    "15.1's enumeration is derived from the renderer, not restated",
+    (() => {
+      const one = [{ label: "Solo", script: "/ip dns set servers=1.1.1.1" }];
+      const enumerated = progressMarkerStatements(one);
+      const rendered = chunksToRouterOsScript(one, "r")
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l.length > 0 && !l.startsWith("#") && l !== one[0].script);
+      return (
+        enumerated.length === 6 &&
+        rendered.length === enumerated.length &&
+        rendered.every((l, i) => l === enumerated[i])
+      );
+    })(),
+    "a one-chunk script must contribute exactly START x2, DONE x2 and COMPLETE x2. If the " +
+      "enumeration were written out by hand here it would go stale the first time the " +
+      "renderer changed, and 15.1 would be grading the file against last month's renderer",
+  );
+  check(
+    "markerStatements writes each marker to both sinks, log first",
+    (() => {
+      const out = markerStatements(`${SINGLE_LINE_MARKER_PREFIX} test`);
+      return (
+        out.length === 2 &&
+        out[0] === `:log info "${SINGLE_LINE_MARKER_PREFIX} test"` &&
+        out[1] === `:put "${SINGLE_LINE_MARKER_PREFIX} test"`
+      );
+    })(),
+    "whether /import echoes `:put` at all has never been measured on hardware (AC-4.5, never " +
+      "resolved). A marker that exists only as `:put` is a marker that may print nothing in " +
+      "the one channel the founder uses, and nobody would find out",
   );
   check(
     "15.1's executable-line filter drops # comments and keeps statements",
@@ -6592,10 +6904,65 @@ for (const { variant, chunks, rsc } of RSC_CASES) {
   );
 
   check(
-    `${variant}: the .rsc's markers are executable :put lines, not comments`,
-    markers.length > 0 && markers.every((m) => /^:put\s+"/.test(m)),
+    `${variant}: the .rsc's markers are executable statements, not comments`,
+    markers.length > 0 && markers.every((m) => /^(?::put|:log info)\s+"/.test(m)),
     "a `#` line prints nothing under /import, so a marker written as a comment is invisible " +
       "in the one place it is needed",
+  );
+
+  // BOTH SINKS, IN THE .rsc TOO -- and this is the channel it matters in.
+  //
+  // The single-line paste runs in the console the operator is watching.
+  // The `.rsc` runs under `/import`, and whether `/import` echoes `:put`
+  // to the terminal AT ALL is an assumption this repo has never tested on
+  // a device: the spec logs it as AC-4.5 and says to resolve it on real
+  // hardware first, and nobody did. If it does not echo, a `:put`-only
+  // marker scheme prints nothing, the operator reads nothing, and every
+  // fix made for "the script executed, RADIUS wasn't there" is void with
+  // no symptom to notice.
+  //
+  // `:log` needs no terminal. It is also the better record even when
+  // `:put` works, because a 30-chunk import scrolls a WinBox buffer.
+  const putM = markers.filter((m) => m.startsWith(":put "));
+  const logM = markers.filter((m) => m.startsWith(":log info "));
+  check(
+    `${variant}: every .rsc marker is written to the log as well as the console`,
+    putM.length > 0 &&
+      putM.length === logM.length &&
+      putM.every((m) => logM.includes(m.replace(/^:put /, ":log info "))),
+    `${putM.length} :put vs ${logM.length} :log info. The whole marker scheme rests on ` +
+      `/import echoing :put, which nobody has confirmed. One sink is a single point of ` +
+      `failure for the only thing that can tell an aborted run from a clean one`,
+  );
+  // IN THE HEADER, not merely somewhere in the file. A chunk deep in the
+  // script already prints `/log print where message~cloudguest` for an
+  // unrelated reason, so a whole-file search here would have been green
+  // with the header instruction deleted -- a check that could not fail,
+  // which is the defect QA found six times in this suite. Scoped to the
+  // `#` prologue, where a downloaded file is actually read.
+  const rscPrologue = (() => {
+    const out = [];
+    for (const raw of rsc.split("\n")) {
+      const l = raw.trim();
+      if (l === "") continue;
+      if (!l.startsWith("#")) break;
+      out.push(l);
+    }
+    return out.join("\n");
+  })();
+  check(
+    `${variant}: the .rsc names the /log route to read them back in its own header`,
+    new RegExp(`/log print where message~"${SINGLE_LINE_MARKER_PREFIX}"`).test(rscPrologue),
+    "AC-4.4: the file is read without the panel around it. A log the operator is never told " +
+      "to look at is the same as no log -- and it has to be told in the prologue, because " +
+      "that is the part of a .rsc anyone reads before running it",
+  );
+  check(
+    `${variant}: ...and says what the last line must read`,
+    new RegExp(`${SINGLE_LINE_MARKER_PREFIX} COMPLETE`).test(rscPrologue) &&
+      /START/.test(rscPrologue),
+    "AC-4.3/4.4: 'read the log' without 'and this is what a clean run looks like' is an " +
+      "instruction with no verdict at the end of it",
   );
 
   check(
@@ -7598,6 +7965,7 @@ for (const [label, script] of pasteables) {
         what: "RADIUS",
         why: 'the "Also enable RADIUS" box was not ticked when this script was generated',
         deliberate: true,
+        acknowledgement: "NO GUEST LOGIN",
       },
     ],
   });
@@ -7717,6 +8085,7 @@ for (const [label, script] of pasteables) {
     what: "RADIUS",
     why: 'the "Also enable RADIUS" box was not ticked when this script was generated',
     deliberate: true,
+    acknowledgement: "NO GUEST LOGIN",
   };
   const FAILED = { what: "RADIUS", why: "the RADIUS bridge could not be reached" };
 
@@ -7887,6 +8256,251 @@ for (const { variant, rsc, opts } of RSC_CASES) {
         "old `wg-cloudguest` name never handshakes and nothing on either side says why",
     );
   }
+}
+
+// =====================================================================
+// 16. A PARTIAL PROVISION HAS TO BE SOMETHING SOMEBODY SAID YES TO.
+// =====================================================================
+// Section 15.10 pinned the three ENDINGS of an incomplete script. It did
+// not pin the thing that decides which ending applies, and that turned
+// out to be a boolean any caller could set.
+//
+// The state that cost the founder a provisioning run is a script with no
+// RADIUS. After section 15 that script says so three times -- an amber
+// panel before the click, a `# !!` header in the file, a last line that
+// names the gap instead of claiming a clean finish -- and NONE OF THE
+// THREE STOPS ANYTHING. All three are dismissible by doing nothing at
+// all, which is what "the operator failed to notice" means. A venue whose
+// RADIUS is missing has no guest login whatsoever, so the cost of an
+// accidental partial is total; the cost of a deliberate one is a
+// checkbox.
+//
+// The gate is NOT a fourth warning. A fourth dismissible thing is
+// strictly worse than three -- it is the same failure with more clicks,
+// and it spends the attention the existing three still need. The gate is
+// a TYPED PHRASE AT THE DESELECT (`confirmDeselect` in the panel), which
+// is:
+//
+//   - an ACT, not a dismissal. "OK" is reachable by reflex; "NO GUEST
+//     LOGIN" is not reachable without reading it.
+//   - ONCE, at the moment the decision is made and is still free to
+//     reverse -- not on every Generate, which is clicked repeatedly and
+//     would burn out inside one sitting.
+//   - TOTAL, because both boxes default ON, so a deselect is the only
+//     route from a full script to a partial one and every downstream
+//     channel (.rsc, one-line, chunk copies, .md) is covered by
+//     construction rather than one at a time.
+//
+// And the generator does not take the caller's word for it. `deliberate:
+// true` now REQUIRES an `acknowledgement`, and an empty one demotes the
+// gap to a failure -- which `:error`s. Fail-closed: the worst outcome of
+// a caller bug is a script that refuses to run, never one that quietly
+// half-provisions a venue.
+//
+// WHAT THIS STILL DOES NOT PREVENT, stated here because a guard whose
+// limits are not written down gets trusted past them: an operator who
+// genuinely wants to skip RADIUS types the phrase and gets exactly the
+// script they asked for. That is correct. What it prevents is reaching
+// that state without ever having read what it costs.
+
+console.log("\n-- 16. the partial-provision acknowledgement --");
+
+{
+  const FULL_16 = {
+    ...BASE,
+    wans: [DHCP_WAN],
+    portalUrl: PORTAL,
+    wireguard: WG,
+    radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t", srcAddress: "10.20.0.5" },
+    apiAccess: { username: "cloudguest", secret: "pw" },
+  };
+  const build = (gap) =>
+    buildRouterSetupScriptChunks({ ...FULL_16, radius: undefined, notProvisioned: [gap] });
+  const banner = (chunks) => chunks.find((c) => /INCOMPLETE SCRIPT/.test(c.label));
+
+  const WHY = 'the "Also enable RADIUS" box was not ticked when this script was generated';
+  const acked = build({
+    what: "RADIUS",
+    why: WHY,
+    deliberate: true,
+    acknowledgement: "NO GUEST LOGIN",
+  });
+  const unacked = build({ what: "RADIUS", why: WHY, deliberate: true, acknowledgement: "" });
+  const blankAcked = build({
+    what: "RADIUS",
+    why: WHY,
+    deliberate: true,
+    acknowledgement: "   ",
+  });
+
+  // FIXTURE GUARD. Every assertion below reads a banner chunk; if one of
+  // these fixtures produced none, its assertions would grade `undefined`
+  // and pass by never looking at anything. This file has shipped that bug
+  // six times.
+  check(
+    "16's three fixtures all produce a banner chunk to grade",
+    Boolean(banner(acked)) && Boolean(banner(unacked)) && Boolean(banner(blankAcked)),
+    "without a banner chunk every check below is vacuous",
+  );
+
+  check(
+    "an ACKNOWLEDGED deliberate gap still runs to the end",
+    !/:error\s/.test(banner(acked)?.script ?? ""),
+    "this is 15.10's decision and it is still right: refusing to run a configuration " +
+      "somebody scoped on purpose teaches the operator that the banner is noise, and the " +
+      "banner is what catches the gap nobody chose",
+  );
+  check(
+    "an UNACKNOWLEDGED deliberate gap aborts instead",
+    /:error\s/.test(banner(unacked)?.script ?? ""),
+    "`deliberate: true` with nothing typed means a caller ASSERTED that a human chose this " +
+      "and produced no evidence of one. The quiet ending is the dangerous ending; it has to " +
+      "cost something to claim, or it is the same boolean the unticked checkbox already was",
+  );
+  check(
+    "...and a whitespace-only acknowledgement does not buy the quiet ending either",
+    /:error\s/.test(banner(blankAcked)?.script ?? ""),
+    "a space bar is not a decision. If ' ' passed, the requirement would be a formality any " +
+      "caller could satisfy without a human in the loop",
+  );
+  check(
+    "an unacknowledged gap does not get the '(by choice)' label",
+    !/by choice/.test(banner(unacked)?.label ?? "") && /by choice/.test(banner(acked)?.label ?? ""),
+    "the label drives the .rsc header's wording. A file that says PARTIAL BY CHOICE when " +
+      "nobody chose it is the original defect with better copy",
+  );
+
+  // THE TYPED WORDS TRAVEL WITH THE ARTIFACT. A `.rsc` outlives the
+  // session that made it: it is saved, forwarded, re-imported and blamed
+  // weeks later. "(by choice)" records that a flag was set. The phrase
+  // records that a human read the consequence and wrote it out, and it is
+  // the one part of this a caller cannot produce by accident.
+  check(
+    "the acknowledgement is printed on the device by the banner chunk",
+    /acknowledged: the operator typed 'NO GUEST LOGIN'/.test(banner(acked)?.script ?? ""),
+    "the technician at the rack is looking at terminal output, not at the panel that " +
+      "collected it",
+  );
+  const ackedRsc = chunksToRouterOsScript(acked, "lobby router");
+  check(
+    "...and restated in the .rsc header, above the first statement",
+    executableLines(ackedRsc).length > 0 &&
+      ackedRsc
+        .split("\n")
+        .slice(
+          0,
+          ackedRsc.split("\n").findIndex((l) => l.trim() !== "" && !l.trim().startsWith("#")),
+        )
+        .some((l) => /acknowledged: the operator typed 'NO GUEST LOGIN'/.test(l)),
+    "the header is the only part of a downloaded file that gets read before it runs, and " +
+      "'who approved this' is the question asked when the venue reports no guest login",
+  );
+  check(
+    "the header's acknowledgement is a comment, so the file still imports",
+    ackedRsc
+      .split("\n")
+      .filter((l) => /acknowledged: the operator typed/.test(l))
+      .every((l) => l.trimStart().startsWith("#") || l.trimStart().startsWith(":put ")),
+    "a bare acknowledgement line at statement position would be a syntax error, which would " +
+      "turn a recorded decision into a refusal to import",
+  );
+  check(
+    "a full provision's .rsc carries no acknowledgement line at all",
+    !/acknowledged: the operator typed/.test(
+      chunksToRouterOsScript(buildRouterSetupScriptChunks(FULL_16), "lobby router"),
+    ),
+    "a line printed on every healthy download is a line nobody reads on the one that matters",
+  );
+
+  // THE PANEL SIDE. The generator can only refuse a gap that arrives
+  // unacknowledged; whether one can arrive acknowledged WITHOUT a human
+  // is a property of the panel, and it is the whole point.
+  const panel16 = readFileSync(
+    resolve(ROOT, "src/components/routers/RouterSetupScriptAdvanced.tsx"),
+    "utf8",
+  );
+  check(
+    "unticking either subsystem goes through the typed gate",
+    (panel16.match(/confirmDeselect\(/g) ?? []).length >= 4,
+    "both checkboxes have an untick path, and unticking WireGuard takes RADIUS with it -- " +
+      "that coupled path needs BOTH acknowledgements or the more expensive of the two rides " +
+      "along unread, which is the coupling bug in miniature",
+  );
+  check(
+    "the gate asks for the CONSEQUENCE, not the subsystem name",
+    Object.entries(DESELECT_PHRASE).every(
+      ([which, phrase]) => !new RegExp(`\\b${which}\\b`, "i").test(phrase),
+    ) && Object.values(DESELECT_PHRASE).every((phrase) => /\s/.test(phrase.trim())),
+    "typing 'RADIUS' is satisfiable without understanding anything, and so is any phrase that " +
+      "is just the thing's name. The phrase has to be the outcome, because reading it is the " +
+      "mechanism -- there is nothing else in a prompt that makes a person think",
+  );
+  check(
+    "the consequence text says what the venue loses, per subsystem",
+    /every guest login/i.test(DESELECT_CONSEQUENCE.radius) &&
+      /never reaches the platform/i.test(DESELECT_CONSEQUENCE.wireguard),
+    "a gate that says 'are you sure?' without saying what for is a gate that gets typed " +
+      "through as fast as it gets clicked through",
+  );
+
+  // THE GATE ITSELF, CALLED. Everything above about the panel is a grep,
+  // and a grep on this specific function was already proven blind: the
+  // comparison that decides whether the phrase was typed can be replaced
+  // with one that accepts anything and every source pattern still
+  // matches. So the decision is a pure function and this exercises it.
+  for (const [name, which, typed, expected] of [
+    ["cancelled prompt", "radius", null, null],
+    ["dialogs suppressed by the browser (also null)", "wireguard", null, null],
+    ["nothing typed", "radius", "", null],
+    ["the subsystem's own name", "radius", "RADIUS", null],
+    ["a plausible near-miss", "radius", "NO GUEST LOGINS", null],
+    ["the other subsystem's phrase", "radius", "NO PLATFORM ACCESS", null],
+    ["whitespace only", "radius", "   ", null],
+    ["the phrase", "radius", "NO GUEST LOGIN", "NO GUEST LOGIN"],
+    ["the phrase, lower case", "radius", "no guest login", "NO GUEST LOGIN"],
+    ["the phrase with stray spaces", "radius", "  NO GUEST LOGIN ", "NO GUEST LOGIN"],
+    ["the WireGuard phrase", "wireguard", "no platform access", "NO PLATFORM ACCESS"],
+  ]) {
+    check(
+      `the deselect gate on ${name} ${expected === null ? "REFUSES" : "accepts"}`,
+      deselectAcknowledgement(which, typed) === expected,
+      expected === null
+        ? "`null` is a cancelled prompt AND a browser that suppresses dialogs, and anything " +
+            "that is not the phrase is somebody who did not read it. All of them have to fail " +
+            "toward a FULL provision -- a dialog policy nobody set must not be able to produce " +
+            "the one script this gate exists to prevent"
+        : "a gate that rejects the phrase the dialog told the operator to type is a gate " +
+            "that gets worked around, and the workaround is worse than no gate",
+    );
+  }
+  check(
+    "what the gate returns is what the generator will accept as an acknowledgement",
+    ["radius", "wireguard"].every((w) => {
+      const ack = deselectAcknowledgement(w, DESELECT_PHRASE[w]);
+      const chunks = buildRouterSetupScriptChunks({
+        ...FULL_16,
+        radius: undefined,
+        notProvisioned: [{ what: "RADIUS", why: WHY, deliberate: true, acknowledgement: ack }],
+      });
+      return !/:error\s/.test(banner(chunks)?.script ?? "");
+    }),
+    "if the phrase the operator types were not a value the generator counts as acknowledged, " +
+      "a correctly-gated deselect would produce an aborting script and the gate would be " +
+      "routed around within a week",
+  );
+  check(
+    "the typed phrase is what reaches the generator, not a boolean",
+    /acknowledgement: deselectAck\.radius/.test(panel16) &&
+      /acknowledgement: deselectAck\.wireguard/.test(panel16),
+    "if the panel synthesised the acknowledgement at generate time, the requirement would be " +
+      "a type annotation and nothing else -- exactly what `deliberate: true` was",
+  );
+  check(
+    "re-ticking needs no phrase",
+    /setDeselectAck\({}\)/.test(panel16),
+    "the gate is on the deselect only. Making the safe direction expensive is how a gate " +
+      "becomes something people route around",
+  );
 }
 
 // =====================================================================
