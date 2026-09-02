@@ -1,118 +1,43 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
-import type { TFunction } from "i18next";
-import { useTranslation } from "react-i18next";
-import { GuidedSetup } from "@/components/routers/guided-setup/GuidedSetup";
-import { GuidedDevanagariFont } from "@/components/routers/guided-setup/GuidedDevanagariFont";
-import { MasterShell } from "@/components/master/MasterShell";
-import { MButton, MPageShell } from "@/components/master/MasterKit";
-import masterI18n from "@/lib/master-i18n";
-import { useRouter } from "@/hooks/useRouters";
-import { isDemo } from "@/services/customer.service";
-import type { RouterDevice } from "@/types/router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 /**
- * Guided Setup for one router -- the "no thinking required" provisioning
- * path: one phase on screen, copy, then answer Haan/Nahi.
+ * Retired entry point, kept only as a redirect.
  *
- * Deliberately its own route rather than a tab inside the fleet page: it
- * is used standing at a rack with WinBox open next to it, so it needs the
- * full width, a URL that can be reopened directly, and nothing else on
- * screen competing for attention. Mirrors the existing
- * `/master/routers/setup/$routerId` wizard route's own shape (demo guard,
- * loading, not-found), so both provisioning entry points behave the same.
+ * Router Fleet used to offer three ways to provision one router --
+ * Guided, Wizard and Advanced. It now offers one, Advanced, and this
+ * route's button is gone from both the fleet table and the router
+ * drawer.
+ *
+ * The file stays behind because this URL was linkable and is very likely
+ * bookmarked: operators open it standing at a rack mid-provision, and a
+ * dead link at that moment is worse than an unexpected-but-working one.
+ * Same reasoning the repo already applied to `/background-image` when
+ * that surface was folded into Portal -> Design.
+ *
+ * `/master`'s own `beforeLoad` guard runs first (this is a descendant of
+ * that layout route), so an expired bookmark still lands on
+ * `/master-login`, not on the operator console.
+ *
+ * `$routerId` is carried across as the `advanced` search param rather
+ * than dropped, so the redirect lands on the SAME router the operator
+ * asked for. A stale id is handled there -- `master.routers.tsx` renders
+ * "Couldn't find that router" with a way back to the fleet, rather than
+ * a 404 or an empty page.
+ *
+ * `GuidedSetup` itself (`@/components/routers/guided-setup/`) is
+ * deliberately NOT deleted: it is large, it has its own gated suites
+ * (`test:guided-i18n`, `test:guided-i18n-state`,
+ * `test:guided-i18n-switch`, `test:output-analyser`) that import it
+ * directly rather than through this route, and removing the component
+ * tree is a separate change from removing the entry point.
  */
 export const Route = createFileRoute("/master/routers/guided/$routerId")({
-  component: GuidedSetupRoute,
+  ssr: false,
+  beforeLoad: ({ params }) => {
+    throw redirect({
+      to: "/master/routers",
+      search: { advanced: params.routerId },
+      replace: true,
+    });
+  },
 });
-
-function GuidedSetupRoute() {
-  const { routerId } = Route.useParams();
-  const { t } = useTranslation("guided", { i18n: masterI18n });
-  const navigate = useNavigate();
-  const demo = isDemo();
-  const { data: router, isLoading, isError } = useRouter(routerId);
-
-  const backToFleet = () => navigate({ to: "/master/routers" });
-
-  // `GuidedDevanagariFont` is rendered once here, above every branch,
-  // rather than inside `GuidedSetup` -- the demo, loading and not-found
-  // screens are translated too, so they need the face as much as the
-  // wizard does. It emits only a <style> element, so its position in the
-  // tree is irrelevant to layout.
-  return (
-    <>
-      <GuidedDevanagariFont />
-      <GuidedSetupBody
-        demo={demo}
-        isLoading={isLoading}
-        isError={isError}
-        router={router}
-        backToFleet={backToFleet}
-        t={t}
-      />
-    </>
-  );
-}
-
-function GuidedSetupBody({
-  demo,
-  isLoading,
-  isError,
-  router,
-  backToFleet,
-  t,
-}: {
-  demo: boolean;
-  isLoading: boolean;
-  isError: boolean;
-  router: RouterDevice | null | undefined;
-  backToFleet: () => void;
-  t: TFunction<"guided">;
-}) {
-  if (demo) {
-    return (
-      <MasterShell title={t("route.title")}>
-        <MPageShell>
-          <div className="guided-setup-surface rounded-xl border border-border bg-card p-10 text-center text-sm text-muted-foreground">
-            {t("route.demo")}
-          </div>
-          <div className="mt-4 flex justify-center">
-            <MButton variant="outline" onClick={backToFleet}>
-              {t("route.backToFleet")}
-            </MButton>
-          </div>
-        </MPageShell>
-      </MasterShell>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <MasterShell title={t("route.title")}>
-        <div className="guided-setup-surface flex items-center justify-center gap-2 p-10 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> {t("route.loading")}
-        </div>
-      </MasterShell>
-    );
-  }
-
-  if (isError || !router) {
-    return (
-      <MasterShell title={t("route.title")}>
-        <MPageShell>
-          <div className="guided-setup-surface rounded-xl border border-border bg-card p-10 text-center text-sm text-muted-foreground">
-            {t("route.notFound")}
-          </div>
-          <div className="mt-4 flex justify-center">
-            <MButton variant="outline" onClick={backToFleet}>
-              {t("route.backToFleet")}
-            </MButton>
-          </div>
-        </MPageShell>
-      </MasterShell>
-    );
-  }
-
-  return <GuidedSetup router={router} onBack={backToFleet} />;
-}

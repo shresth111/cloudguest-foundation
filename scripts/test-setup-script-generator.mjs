@@ -620,6 +620,159 @@
  * present makes guest sign-in depend on certificate freshness, turning a
  * silent renewal failure into fleet-wide "OTP verifies but no internet".
  * `http-pap` works regardless of certificate state.
+ *
+ * SECTION 15 -- THE `.rsc` IS A DELIVERY CHANNEL, NOT A VIEW (2026-09-02)
+ * ----------------------------------------------------------------------
+ * Added after the same report for the FIFTH time: "a problem I have had
+ * fixed many times already -- I configured using the .rsc file, the script
+ * executed, RADIUS wasn't there and it didn't run."
+ *
+ * Sections 1-14 all assert over `chunk.script`, and a few over
+ * `chunksToSingleLineScript`. `chunksToRouterOsScript` -- THE DOWNLOADED
+ * FILE, which is how the founder provisions -- was covered by four checks,
+ * all of them about the INCOMPLETE-SCRIPT header. So the channel with the
+ * most reported failures was the one with the least coverage, and every
+ * whole-script guard in this file was transferring to it by assumption.
+ *
+ * TWO REAL DEFECTS, both red on origin/main at f99c02b and both fixed by
+ * the generator work that landed in the same PR as this section:
+ *
+ * 1. THE .rsc CANNOT TELL A CLEAN RUN FROM AN ABORTED ONE. Measured: 65
+ *    progress markers in `chunksToSingleLineScript`'s output, 0 in
+ *    `chunksToRouterOsScript`'s, for the same script. `/import` aborts at
+ *    the first error and reports ONE message with no indication of how far
+ *    it got, which is exactly what section 13 fixed for the one-line paste
+ *    and never fixed here. That is why four separate fixes each addressed
+ *    whichever statement happened to be found: the operator could report
+ *    THAT it stopped and never WHERE.
+ *
+ * 2. AN UNTICKED CHECKBOX IS NOT A CAUGHT ERROR, AND THAT IS THE FOUNDER'S
+ *    ACTUAL BUG. `enableWireguard` and `enableRadius` both default to
+ *    false (`RouterSetupScriptAdvanced.tsx:315-316`), and `notProvisioned`
+ *    -- the array driving the loud `INCOMPLETE SCRIPT` chunk and its
+ *    `:error` -- is appended ONLY from `catch` blocks (667, 701, 766). A
+ *    default Generate therefore emits 28 chunks instead of 32, the
+ *    incomplete guard never fires, the .rsc imports perfectly, every chunk
+ *    prints `RESULT: PASS`, the heartbeat scheduler is created so the
+ *    router shows GREEN in Master console -- and `/radius` is empty.
+ *    NOTHING ABORTED. The script was never asked to configure RADIUS.
+ *    15.8 requires the gap to be DERIVED from the emitted script, because
+ *    whether a subsystem is missing is a property of the script and not of
+ *    whether the caller happened to catch something.
+ *
+ * WHAT IS NOT TESTABLE HERE, SAID PLAINLY rather than faked: this suite
+ * cannot run RouterOS. It cannot prove `/import` aborts, that a menu
+ * accepts a property, or that a bounded retry outlasts a real ISP's DHCP.
+ * 15.4 is a DENYLIST OF MEASURED FACTS -- one entry, the `/ip hotspot`
+ * `comment=` that aborted a live import on 2026-09-01 -- not a model of
+ * RouterOS, and a "valid parameter" allowlist was deliberately not written
+ * because it would be either wrong or unmaintainable and both end with the
+ * check switched off.
+ *
+ * Seventeen mutations of the REAL generator were injected and this suite
+ * re-run. All seventeen caught:
+ *
+ *   the .rsc renderer drops the last chunk ............................ 46
+ *   the .rsc renderer rewrites a line (disabled=no -> yes) ............ 92
+ *   the .rsc renderer reverses chunk order ............................ 23
+ *   the .rsc renderer emits an executable line of its own ............. 70
+ *   a marker line carries a wall clock (non-reproducible) ............. 24
+ *   an :error added to the Portal Redirect Page chunk .................. 8
+ *   adcea57 reverted: `comment=` back on `/ip hotspot add` ............. 6
+ *   section 13.7 reverted: bare `set [find] dns-name=` ................. 7
+ *   the RADIUS else-branch stops writing `secret=` ..................... 4
+ *   the WireGuard update branch loses `private-key=` ................... 2
+ *   section 6 reverted: bare `/file set [find]` for portal pages ...... 15
+ *   the tunnel reverts to the old `wg-cloudguest` name ................. 9
+ *   a local `guest` hotspot user is created again ..................... 23
+ *   the Clock + NTP chunk stops being emitted ........................ 233
+ *   the hotspot user profile loses its `idle-timeout` ................. 46
+ *   the API Access chunk loses its password-update branch .............. 3
+ *   an INCOMPLETE warning that fires on a HEALTHY script ............... 5
+ *
+ * FOUR SURVIVED ON THE FIRST PASS AND ALL FOUR WERE REAL HOLES IN THE NEW
+ * GUARDS, not confirmations -- the same shape this file has now been
+ * caught by six times, which is why every one of the seventeen above was
+ * actually run rather than reasoned about:
+ *
+ *  - 15.5's create-and-count exemption accepted an add-if-missing
+ *    ANYWHERE in the chunk. Reverting section 13.7's `dns-name` fix left
+ *    the sweep green, because the Hotspot chunk creates `hsprof1`
+ *    elsewhere in the same chunk and the exemption swallowed the whole
+ *    `/ip hotspot profile` menu. The exemption is now ADJACENCY-scoped:
+ *    the add must be on the same line or the line immediately above.
+ *  - 15.7's tunnel-name check ran over `parameterWrites`, which strips
+ *    string contents on purpose -- so `name="wg-cloudguest"` reached it as
+ *    `name=""` and it could never have fired. It now separates statements
+ *    that WRITE (decided on the stripped form) from the VALUE they write
+ *    (read off the raw statement).
+ *  - 15.7's idle-timeout check tested for `idle-timeout=` anywhere in the
+ *    file, and the chunk's own verdict line prints that string, so
+ *    deleting the actual write left it green. It now requires the
+ *    `/ip hotspot user profile set ... idle-timeout=` statement.
+ *  - 15.5's guard predicate first required the `[:len [...]]` INLINE in
+ *    the `:if`, which flagged all five Portal Redirect Page chunks -- the
+ *    very chunks section 6 fixed. A guard that cries wolf on correct code
+ *    is a guard that gets deleted, so it now also accepts a count bound by
+ *    `:local` on the SAME CONSOLE LINE, which is what actually makes those
+ *    statements safe.
+ *
+ * ONE PRE-EXISTING CHECK WAS CORRECTED rather than added to. 13.10's "a
+ * complete script carries no incomplete-script warning" was asserted
+ * against `{ ...BASE, wans: [DHCP_WAN] }` -- a script with no RADIUS, no
+ * tunnel and no portal pages. It therefore required a script missing three
+ * subsystems to carry NO warning, which is the founder's bug stated as a
+ * requirement, and it would have contradicted 15.8 outright. The check's
+ * intent is unchanged; its fixture is now genuinely complete.
+ *
+ * AND ONE LATENT WEAKNESS, surfaced by prototyping 15.8's fix: 13.x's
+ * "INJECTED: a paste that dies partway does NOT print COMPLETE" tested
+ * `truncated.includes("COMPLETE")`, and `INCOMPLETE` contains `COMPLETE`.
+ * The moment any chunk mentioned an incomplete script, a truncated run
+ * read as complete -- on precisely the script where that costs the most.
+ * It now matches the marker, not the substring.
+ *
+ * SECTIONS 15.9 AND 15.10 -- WHAT THE FIX ITSELF THEN NEEDED (integration
+ * pass, 2026-09-02)
+ * ----------------------------------------------------------------------
+ * Closing 15.8 introduced two behaviours that nothing in this file
+ * asserted, which is the same state section 15 was written to end.
+ *
+ *  - 15.9. A gap the operator CHOSE deliberately does not `:error` -- that
+ *    is the right call (aborting a run somebody scoped on purpose teaches
+ *    them to page past the banner) and it has a consequence: the file runs
+ *    to the end and reaches the COMPLETE sentinel 15.2 just added. It
+ *    printed the identical "COMPLETE -- all N chunk(s) ran" a full
+ *    provision prints. N differs; nobody counts N. The field runbook is
+ *    one sentence -- import it, read the last line -- so that line was
+ *    about to say "finished" over a router with an empty `/radius`, which
+ *    is the original defect wearing a green light. Both channels now build
+ *    that line from one shared function, and 15.9 pins that they end with
+ *    the same sentence.
+ *  - 15.10. The three endings (the operator chose it / something failed /
+ *    nobody reported it and the generator derived it from `opts`) are each
+ *    a weighed product decision and none of them was pinned by anything.
+ *    Six further mutations were injected against 15.9 and 15.10 and all
+ *    six were caught: derived gaps removed; the COMPLETE line made
+ *    unconditional again; the two channels' endings diverged; a derived
+ *    gap flagged `deliberate` so it stops aborting; a deliberate gap made
+ *    to abort; a mixed list taking the gentler ending.
+ *
+ * TWO FURTHER PRE-EXISTING WEAKNESSES were corrected in the same pass:
+ *
+ *  - 13.10's "it logs as well as prints" counted `:log warning` lines
+ *    against the CALLER's `notProvisioned` array. Once the generator
+ *    derives its own gaps those are two different numbers, and the fixture
+ *    was one subsystem short of complete besides -- the same fixture
+ *    problem 13.10's `clean` had. Its fixture is now complete apart from
+ *    the two gaps it declares.
+ *  - 15.3's abort-message check asked whether the word "import" appeared
+ *    ANYWHERE in an aborting chunk, which a comment or an unrelated `:put`
+ *    three statements away would have satisfied while the message RouterOS
+ *    actually shows still said "re-paste just this chunk". It now extracts
+ *    the `:error` message itself and grades that, with a companion check
+ *    that the extraction found any messages at all -- the extraction
+ *    silently matching nothing is the same "cannot fail" shape.
  */
 import { build } from "esbuild";
 import { mkdtempSync, writeFileSync, existsSync, readFileSync } from "node:fs";
@@ -658,6 +811,11 @@ writeFileSync(
     // Section 13.9 asserts what the panel's own validator claims to check
     // against what it really checks.
     `export { SETUP_SCRIPT_VALIDATOR_CHECKS, SETUP_SCRIPT_VALIDATOR_LIMITS } from "@/components/routers/RouterDetailTabs";`,
+    // Section 15 asserts the `.rsc` delivery channel. The marker prefix is
+    // imported rather than spelled out here so the two channels cannot end
+    // up with two different words for the same thing -- an operator reads
+    // both the same way or the markers are worth nothing.
+    `export { SINGLE_LINE_MARKER_PREFIX } from "@/components/routers/RouterDetailTabs";`,
   ].join("\n"),
 );
 
@@ -703,6 +861,7 @@ const {
   deriveLanAddressing,
   SETUP_SCRIPT_VALIDATOR_CHECKS,
   SETUP_SCRIPT_VALIDATOR_LIMITS,
+  SINGLE_LINE_MARKER_PREFIX,
 } = await import(pathToFileURL(join(work, "bundle.mjs")).href);
 
 // ---------------------------------------------------------------------
@@ -4747,11 +4906,37 @@ check(
     { what: "WireGuard tunnel", why: "the hub refused the allocation" },
   ];
   const withGaps = buildRouterSetupScriptChunks({
+    // `portalUrl` and the rest of a real Generate are present so that the
+    // ONLY gaps in this fixture are the two the caller declared. Without
+    // it the generator now derives a third (no portal redirect pages) and
+    // every count below silently means something other than what it says
+    // -- the same "the fixture is not what the check claims" shape 13.10's
+    // own `clean` fixture was corrected for a few lines up.
     ...BASE,
     wans: [DHCP_WAN],
+    portalUrl: PORTAL,
+    apiAccess: { username: "cloudguest", secret: "pw" },
     notProvisioned: gaps,
   });
-  const clean = buildRouterSetupScriptChunks({ ...BASE, wans: [DHCP_WAN] });
+  // A GENUINELY complete script. This fixture used to be
+  // `{ ...BASE, wans: [DHCP_WAN] }` -- no RADIUS, no tunnel, no portal
+  // pages -- and this check therefore asserted that a script missing
+  // three subsystems must carry NO warning. That is the founder's bug
+  // stated as a requirement: the suite's own definition of "complete" was
+  // "the caller reported no exception", which is exactly the definition
+  // `notProvisioned` encodes and exactly the one that misses an unticked
+  // checkbox. Section 15.8 asserts the other direction, so the two would
+  // have contradicted each other and whichever is looser would have won.
+  // The check's INTENT is right and unchanged: a banner on every healthy
+  // download is noise that gets scrolled past on the one that matters.
+  const clean = buildRouterSetupScriptChunks({
+    ...BASE,
+    wans: [DHCP_WAN],
+    wireguard: WG,
+    radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t", srcAddress: "10.20.0.5" },
+    apiAccess: { username: "cloudguest", secret: "pw" },
+    portalUrl: PORTAL,
+  });
 
   check(
     "a complete script carries no incomplete-script warning",
@@ -5603,7 +5788,12 @@ console.log("\n-- 13.8 the one-line paste says how far it got --");
     const truncated = oneLine.slice(0, oneLine.indexOf("### cloudguest 3/"));
     check(
       "INJECTED: a paste that dies partway does NOT print COMPLETE",
-      !truncated.includes("COMPLETE"),
+      // The MARKER, not the substring. `INCOMPLETE` contains `COMPLETE`,
+      // so a bare `includes("COMPLETE")` reports a truncated run as
+      // complete the moment any chunk mentions an incomplete script --
+      // which is precisely the script where getting this wrong costs the
+      // most. Surfaced by prototyping section 15.8's derived-gap warning.
+      !truncated.includes(`${SINGLE_LINE_MARKER_PREFIX} COMPLETE`),
       "if a truncated run could still show COMPLETE the marker would be worse than nothing",
     );
   }
@@ -6166,6 +6356,1537 @@ for (const [label, script] of TRIPWIRE_CHUNKS.length
       "silently deleting entries is how this file's own local-hotspot-user bug became " +
       "interesting -- it must report, not act",
   );
+}
+
+// =====================================================================
+// SECTION 15 -- THE `.rsc` IS A DELIVERY CHANNEL, NOT A VIEW
+// =====================================================================
+// Added 2026-09-02, after a report of the SAME defect for the fifth time:
+// "I configured using the .rsc file, the script executed, RADIUS wasn't
+// there and it didn't run."
+//
+// Every one of the fourteen sections above asserts over `chunk.script`
+// (and, in a few places, over `chunksToSingleLineScript`). Before this
+// section, `chunksToRouterOsScript` -- the DOWNLOADED FILE, which is how
+// the founder provisions -- was touched by exactly four checks, all of
+// them about the INCOMPLETE-SCRIPT header. Nothing asserted that the file
+// contains what the chunks contain, that a failed `/import` is
+// attributable to a chunk, or that the file behaves the way the panel's
+// copy says it does.
+//
+// That is not a small gap, because the two channels are NOT equivalent:
+//
+//  - `/import` ABORTS AT THE FIRST ERROR AND SAYS NOTHING ABOUT WHERE.
+//    The chunked paste already learned this (section 13's START/DONE/
+//    COMPLETE markers on `chunksToSingleLineScript`). The `.rsc` never
+//    got them, so an import that dies at chunk 9 of 32 produces one
+//    `Script Error` line, a router with a working guest LAN, and no
+//    RADIUS, no tunnel and no heartbeat -- with nothing in the output
+//    naming which chunk stopped it. That is the founder's report, word
+//    for word, and `fix(router-script): /ip hotspot takes no comment,
+//    and the error aborts the import` (adcea57, 2026-09-01) is the fourth
+//    fix for one instance of it.
+//
+//  - `/import` HAS NO OPERATOR IN IT. Six chunks are titled "confirm PASS
+//    before continuing". In a paste flow a human reads the verdict and
+//    decides; in a file there is nobody, so the verdict has to be a
+//    control-flow decision or it is decoration. Some of them already
+//    `:error`; the point of 15.3 is that WHICH ones do is a recorded
+//    decision rather than an accident, because each `:error` upstream of
+//    RADIUS is a place the founder's symptom can be reproduced.
+//
+//  - `/import` NEVER PAUSES. The chunked paste's typing delay is what let
+//    a DHCP lease bind between the `add` and the read; the file has no
+//    such delay, which is how a default route came out with gateway
+//    `0.0.0.0` and flags `Is`. The generator now polls for that (five
+//    bounded retries, then `:error`), and sections 12.x gate the poll --
+//    but they gate it on the CHUNK. 15.1 is what makes those guards
+//    legitimately cover the file: it proves the file's executable content
+//    is the chunks' executable content and nothing else, so every guard
+//    in sections 1-14 transfers rather than being assumed to.
+//
+// WHAT IS NOT TESTABLE HERE, STATED PLAINLY. This suite cannot run
+// RouterOS. It cannot prove that `/import` aborts (that is measured
+// behaviour, recorded from live devices), that any particular property is
+// accepted by any particular menu (15.4 is a denylist of things MEASURED
+// to be rejected, not a model of RouterOS), or that a bounded retry is
+// long enough for a real ISP's DHCP. Those are hardware facts. What this
+// section can do is make the script's own STRUCTURE prove the class
+// cannot recur silently: a failure has a name, an abort is a decision,
+// and the file and the chunks cannot drift apart.
+
+console.log("\n-- 15. the .rsc delivery channel --");
+
+/** A `.rsc` for every variant in the main sweep, alongside the chunks it
+ * was rendered from. Deliberately the SAME `VARIANTS` list the rest of
+ * this file uses: a private fixture list here would be a second matrix
+ * that drifts, which is the shape section 12 was bitten by. */
+const RSC_CASES = VARIANTS.map(([variant, opts]) => {
+  const chunks = buildRouterSetupScriptChunks(opts);
+  return { variant, opts, chunks, rsc: chunksToRouterOsScript(chunks, "lobby router") };
+});
+
+/** The lines `/import` will actually EXECUTE: everything that is not
+ * blank and not a `#` comment. `#` runs to end of line on RouterOS and
+ * the renderer only ever emits comments on their own line, so this is the
+ * whole of it. */
+const executableLines = (text) =>
+  text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0 && !l.startsWith("#"));
+
+const isMarkerLine = (line) => line.includes(SINGLE_LINE_MARKER_PREFIX);
+
+// ---------------------------------------------------------------------
+// 15.1 THE FILE IS THE CHUNKS. Nothing added, nothing dropped, nothing
+//      rewritten, nothing reordered.
+// ---------------------------------------------------------------------
+// This is the check that makes the other 2,400 legitimate. Every guard in
+// sections 1-14 judges `chunk.script`; they only say anything about the
+// downloaded file if the file's executable content IS that text. Today it
+// is, by construction -- but "by construction" is what was true of the
+// single-line channel too, right up until it grew progress markers the
+// `.rsc` never got. So the relationship is asserted rather than assumed,
+// and it is asserted in BOTH directions: a renderer that quietly dropped
+// a chunk and one that quietly rewrote a line are different bugs with the
+// same symptom.
+for (const { variant, chunks, rsc } of RSC_CASES) {
+  const fileLines = executableLines(rsc);
+  const chunkLines = chunks.flatMap((c) => executableLines(c.script));
+
+  const chunkLineSet = new Set(chunkLines);
+  const invented = fileLines.filter((l) => !chunkLineSet.has(l) && !isMarkerLine(l));
+  check(
+    `${variant}: every executable line of the .rsc comes verbatim from a chunk`,
+    invented.length === 0,
+    `the file would run ${invented.length} statement(s) no chunk contains, and no guard in ` +
+      `this suite has ever seen them -- first: ${invented[0]?.slice(0, 120)}`,
+  );
+
+  const fileLineSet = new Set(fileLines);
+  const dropped = chunkLines.filter((l) => !fileLineSet.has(l));
+  check(
+    `${variant}: the .rsc drops no executable line the chunks emit`,
+    dropped.length === 0,
+    `${dropped.length} statement(s) an operator pasting chunk-by-chunk would run are absent ` +
+      `from the downloaded file -- the two channels do not configure the same router. ` +
+      `First: ${dropped[0]?.slice(0, 120)}`,
+  );
+
+  // ORDER, not just membership. Chunk order is a dependency order (RADIUS
+  // needs hsprof1 and the tunnel address; the heartbeat needs the clock),
+  // and a set comparison cannot see it being lost.
+  const withoutMarkers = fileLines.filter((l) => !isMarkerLine(l));
+  check(
+    `${variant}: the .rsc preserves chunk order exactly`,
+    withoutMarkers.length === chunkLines.length &&
+      withoutMarkers.every((l, i) => l === chunkLines[i]),
+    "the file's statements are not the chunks' statements in the chunks' order, so the " +
+      "dependency order the panel lists them in is not the order /import will run them in",
+  );
+
+  // Everything the RENDERER contributes must be inert or a marker. A
+  // non-comment line of the renderer's own is a statement no guard in
+  // this file has ever inspected.
+  const rendererOwn = rsc
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0 && !chunkLineSet.has(l));
+  check(
+    `${variant}: everything the renderer adds is a # comment or a progress marker`,
+    rendererOwn.every((l) => l.startsWith("#") || isMarkerLine(l)),
+    "the .rsc header and separators must be inert; an executable line invented by the " +
+      "renderer is a statement the whole suite is blind to",
+  );
+
+  // REPRODUCIBLE. `generatedAt` is a declared input precisely so the
+  // emitted text is a function of the options; the file's header carries
+  // a wall-clock stamp, which is fine in a comment and would not be fine
+  // in a statement.
+  const again = chunksToRouterOsScript(
+    buildRouterSetupScriptChunks(RSC_CASES.find((c) => c.variant === variant).opts),
+    "lobby router",
+  );
+  check(
+    `${variant}: the .rsc's executable content is reproducible`,
+    executableLines(again).join("\n") === fileLines.join("\n"),
+    "two downloads of the same script would configure the router differently, so no verdict " +
+      "read off one of them says anything about the other",
+  );
+}
+
+// ANTI-OVER-STRICTNESS. 15.1 must be able to tell "the renderer added a
+// marker" (legal, and 15.2 requires it) from "the renderer added a
+// statement" (the thing it exists to catch). Proven here on synthetic
+// input rather than by trusting the sweep's silence.
+{
+  const fake = [{ label: "X", script: `/ip dns set servers=1.1.1.1` }];
+  const marker = `:put "${SINGLE_LINE_MARKER_PREFIX} 1/1 START X"`;
+  check(
+    "15.1's invented-line detector does not flag a progress marker",
+    isMarkerLine(marker),
+    "if a marker read as an invented statement, 15.2's requirement and 15.1's would " +
+      "contradict each other and one of them would get switched off",
+  );
+  check(
+    "15.1's invented-line detector does flag a real invented statement",
+    !isMarkerLine(`/system reboot`),
+    "a detector that treats every renderer-added line as a marker cannot fail",
+  );
+  check(
+    "15.1's executable-line filter drops # comments and keeps statements",
+    executableLines("# a comment\n\n/ip dns set servers=1.1.1.1\n").length === 1 &&
+      executableLines(fake[0].script).length === 1,
+    "if comments counted as executable, the header would read as invented statements and " +
+      "the sweep would be red for the wrong reason",
+  );
+}
+
+// ---------------------------------------------------------------------
+// 15.2 A FAILED IMPORT MUST HAVE A NAME.
+// ---------------------------------------------------------------------
+// RouterOS reports ONE error for an aborted `/import` and gives no
+// indication of how far it got. The chunked-paste channel already solved
+// this: `chunksToSingleLineScript` brackets every chunk with a `:put`
+// START/DONE marker and ends with COMPLETE, so the LAST LINE OF OUTPUT
+// names the chunk that died. The `.rsc` -- the channel the founder
+// actually uses, and the one with no panel, no toast and no chunk list
+// around it -- has none of that.
+//
+// Measured on origin/main at f99c02b: 65 markers in the single-line form,
+// 0 in the .rsc, for the same script. That is why "the script executed,
+// RADIUS wasn't there" was reportable but not diagnosable: the operator
+// had no way to say WHERE it stopped, so each fix addressed whichever
+// statement happened to be found, and the next provisioning found the
+// next one.
+//
+// Markers, not `#` comments: a comment prints nothing under `/import`,
+// and output an operator can read back is the entire point.
+for (const { variant, chunks, rsc } of RSC_CASES) {
+  const fileLines = executableLines(rsc);
+  const markers = fileLines.filter(isMarkerLine);
+  const total = chunks.length;
+
+  check(
+    `${variant}: the .rsc brackets every chunk with a progress marker`,
+    chunks.every(
+      (c) =>
+        markers.some((m) => m.includes("START") && m.includes(c.label)) &&
+        markers.some((m) => m.includes("DONE") && m.includes(c.label)),
+    ),
+    `an /import that aborts partway prints one error and no position. Without a START/DONE ` +
+      `marker per chunk there is nothing to read the stopping point off, which is exactly ` +
+      `how "the script executed and RADIUS wasn't there" stayed undiagnosed for four fixes ` +
+      `(${markers.length} marker(s) present, ${total} chunk(s))`,
+  );
+
+  check(
+    `${variant}: the .rsc ends with a COMPLETE marker`,
+    fileLines.length > 0 &&
+      isMarkerLine(fileLines[fileLines.length - 1]) &&
+      /COMPLETE/.test(fileLines[fileLines.length - 1]),
+    "a run that reached the end and a run that stopped one statement short are otherwise " +
+      "indistinguishable -- the COMPLETE marker is the only thing that says the import " +
+      "finished rather than merely stopped",
+  );
+
+  check(
+    `${variant}: the .rsc's markers are executable :put lines, not comments`,
+    markers.length > 0 && markers.every((m) => /^:put\s+"/.test(m)),
+    "a `#` line prints nothing under /import, so a marker written as a comment is invisible " +
+      "in the one place it is needed",
+  );
+
+  check(
+    `${variant}: each marker names its chunk, not just an index`,
+    markers.length > 0 &&
+      markers
+        .filter((m) => /START|DONE/.test(m))
+        .every((m) => chunks.some((c) => m.includes(c.label))),
+    "a column number in a 90,000-character file is not something an operator can map back " +
+      "to anything; a chunk NAME maps straight onto the panel's chunk list",
+  );
+
+  check(
+    `${variant}: the .rsc and the one-line paste use the SAME marker vocabulary`,
+    markers.length > 0 && chunksToSingleLineScript(chunks).includes(SINGLE_LINE_MARKER_PREFIX),
+    "two channels with two different words for 'this is where it stopped' means the runbook " +
+      "has to describe both, and the one nobody wrote down is the one that fails",
+  );
+}
+
+// ---------------------------------------------------------------------
+// 15.3 AN ABORT UPSTREAM OF RADIUS IS A DECISION, NOT AN ACCIDENT.
+// ---------------------------------------------------------------------
+// In a file, `:error` does not stop a chunk -- it stops the PROVISIONING.
+// Every `:error` that sits above the RADIUS chunk is a place where the
+// founder's exact symptom is reproducible, so which chunks carry one is
+// pinned here as a table with a reason each, and the table moves only
+// when a person decides it should.
+//
+// This is a ratchet, and it is the honest shape for this problem: whether
+// a wrong clock SHOULD stop a provisioning is a product decision (it
+// costs the heartbeat, so the router shows offline forever -- but
+// aborting there costs the guests their internet entirely, which is
+// worse). What must not happen is that decision changing because someone
+// added an `:error` to a chunk while fixing something else.
+const RADIUS_LABEL = "RADIUS";
+const ABORT_POLICY = [
+  {
+    // The one abort that is unambiguously right, and the only one that is
+    // ALSO the first chunk: it configures nothing, so stopping there costs
+    // nothing and leaves the device untouched. Listed here so that a
+    // generator which learns to DERIVE its own gaps (15.8) does not turn
+    // this ratchet red for doing the right thing.
+    match: /^INCOMPLETE SCRIPT/,
+    why:
+      "the script is knowingly missing a subsystem; it configures nothing before this " +
+      "point, so aborting leaves the device exactly as it was",
+  },
+  {
+    match: /^WAN Routing/,
+    why: "no default route means nothing downstream can work at all, RADIUS included",
+  },
+  {
+    match: /^WAN Connectivity Check/,
+    why:
+      "no uplink means the hotspot would come up serving guests a portal that cannot " +
+      "reach the platform; every later chunk depends on it",
+  },
+  {
+    match: /^Clock \+ NTP/,
+    why:
+      "a wrong clock fails HTTPS certificate validation, so the heartbeat is rejected " +
+      "before it is sent and the router shows offline forever. NOTE: this abort is ABOVE " +
+      "RADIUS and a venue that blocks UDP/123 reproduces the founder's report exactly -- " +
+      "guests would have worked, and the import stops before RADIUS is written",
+  },
+  {
+    match: /^RADIUS$/,
+    why:
+      "refusing to pin src-address to an address this router does not hold; writing it " +
+      "anyway produces a RADIUS client the hub silently drops",
+  },
+  {
+    match: /^Walled Garden Check/,
+    why:
+      "below RADIUS. An unreachable portal means no guest can sign in, and the two " +
+      "verification chunks after it have nothing left to verify",
+  },
+  {
+    match: /^Portal Identity Check/,
+    why: "below RADIUS. Serving another tenant's portal link is worse than serving none",
+  },
+];
+
+/** Chunks that must NEVER be able to stop an import. Each one is either
+ * cosmetic, optional, or repairable by re-pasting one chunk -- and each
+ * one sits ABOVE RADIUS in the dependency order, so an `:error` added to
+ * any of them turns a cosmetic fault into "no guest can log in". This is
+ * the list the next well-meaning fix will be tempted to add to: a stock
+ * MikroTik login page IS a real fault, and stopping the import over it
+ * would cost the venue its whole guest network. */
+const NEVER_ABORTS = [
+  /^Portal Redirect Page/,
+  /^Portal Stamp/,
+  /^Router Identity/,
+  /^Block DNS-over-HTTPS/,
+  /^Captive-Portal Detection/,
+  /^Walled Garden \(/,
+  /^Firewall$/,
+  /^LAN Interfaces/,
+  /^LAN Ports/,
+  /^Stale Factory-Default/,
+  /^WAN \+ Bridge$/,
+  /^Hotspot$/,
+  /^WireGuard Tunnel$/,
+  /^API Access/,
+  /^Tunnel Identity Check/,
+  /^Heartbeat/,
+  /^Guest Access Sync/,
+  /^Guest Data Path/,
+];
+
+for (const { variant, chunks } of RSC_CASES) {
+  const aborting = chunks.filter((c) => /:error\b/.test(c.script));
+
+  const unlisted = aborting.filter((c) => !ABORT_POLICY.some((p) => p.match.test(c.label)));
+  check(
+    `${variant}: every chunk that can abort the import is in ABORT_POLICY`,
+    unlisted.length === 0,
+    `${unlisted.map((c) => c.label).join(", ")} stops an /import and no one wrote down why. ` +
+      `Under /import an :error does not fail a chunk, it ends the provisioning -- so a new ` +
+      `one above RADIUS silently reproduces "the script executed and RADIUS wasn't there"`,
+  );
+
+  const wronglyAborting = chunks.filter(
+    (c) => /:error\b/.test(c.script) && NEVER_ABORTS.some((re) => re.test(c.label)),
+  );
+  check(
+    `${variant}: no cosmetic or optional chunk can stop the import`,
+    wronglyAborting.length === 0,
+    `${wronglyAborting.map((c) => c.label).join(", ")} would abort. Each of these sits above ` +
+      `RADIUS and each fails for reasons that leave the guest path repairable -- stopping ` +
+      `there trades a cosmetic fault for a venue with no guest network`,
+  );
+
+  // The founder's symptom, stated as an invariant an operator can read:
+  // if the import stops before RADIUS, they have to be told that is what
+  // just happened. Under /import there is no chunk list on screen and no
+  // "re-paste just this chunk" to do.
+  const radiusIdx = chunks.findIndex((c) => c.label === RADIUS_LABEL);
+  if (radiusIdx >= 0) {
+    const upstreamAborts = chunks.slice(0, radiusIdx).filter((c) => /:error\b/.test(c.script));
+    // GRADED ON THE `:error` MESSAGE, NOT ON THE CHUNK. The first version
+    // of this check asked whether the word "import" appeared ANYWHERE in
+    // the chunk's script, which a comment, a `:put` or an unrelated
+    // sentence three statements away would have satisfied -- the chunk
+    // would have gone green while the message RouterOS actually shows on
+    // an abort still said "re-paste just this chunk". The message is the
+    // only text the operator sees when the file dies, so it is the only
+    // text worth grading.
+    const abortMessages = (script) =>
+      [...script.matchAll(/:error\s+"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1]);
+    check(
+      `${variant}: 15.3 can actually see the abort messages it grades`,
+      upstreamAborts.every((c) => abortMessages(c.script).length > 0),
+      `${upstreamAborts
+        .filter((c) => abortMessages(c.script).length === 0)
+        .map((c) => c.label)
+        .join(", ")} carries an :error this scan cannot extract, so the check below passes ` +
+        `it by never looking at it -- the "a guard that cannot fail" shape this file has ` +
+        `been bitten by six times`,
+    );
+    const silent = upstreamAborts.filter((c) =>
+      abortMessages(c.script).some((m) => !/\bimport\b/i.test(m)),
+    );
+    check(
+      `${variant}: an abort above RADIUS says the rest of the FILE did not run`,
+      silent.length === 0,
+      `${silent.map((c) => c.label).join(", ")} stops the import with a message written for ` +
+        `someone pasting chunk by chunk ("re-run", "re-paste just this chunk"). In a .rsc ` +
+        `there are no chunks on screen: the operator sees one Script Error and a router ` +
+        `that looks provisioned. The message has to say that everything below it -- RADIUS, ` +
+        `the tunnel, the heartbeat -- was skipped`,
+    );
+  }
+}
+
+// Both halves of 15.3 must be able to fail. Proven on synthetic chunks
+// rather than by trusting the sweep, because a policy check that can only
+// ever agree with the list it was written from is decoration.
+{
+  const listed = [{ label: "Clock + NTP (x)", script: `:error "stop"` }];
+  const unlisted = [{ label: "Portal Stamp (x)", script: `:error "stop"` }];
+  check(
+    "15.3 accepts an :error in a chunk the policy names",
+    ABORT_POLICY.some((p) => p.match.test(listed[0].label)),
+    "an over-strict policy check that flags the deliberate aborts too gets switched off",
+  );
+  check(
+    "15.3 rejects an :error in a chunk the policy does not name",
+    !ABORT_POLICY.some((p) => p.match.test(unlisted[0].label)),
+    "if every label matched the policy the sweep could not fail",
+  );
+  check(
+    "15.3's never-abort list actually matches the chunks it names",
+    NEVER_ABORTS.some((re) => re.test("Portal Redirect Page (login.html)")) &&
+      NEVER_ABORTS.some((re) => re.test("Hotspot")) &&
+      !NEVER_ABORTS.some((re) => re.test("Clock + NTP (confirm PASS before continuing)")),
+    "a list of patterns that match nothing is a check that cannot fire; a list that matches " +
+      "the deliberate aborts too would contradict ABORT_POLICY",
+  );
+  check(
+    "15.3's every-chunk-accounted-for property holds over the real labels",
+    RSC_CASES.every(({ chunks }) =>
+      chunks.every(
+        (c) =>
+          !ABORT_POLICY.some((p) => p.match.test(c.label)) ||
+          !NEVER_ABORTS.some((re) => re.test(c.label)),
+      ),
+    ),
+    "a label matched by BOTH tables makes the pair of checks self-contradictory, and " +
+      "whichever one is looser silently wins",
+  );
+}
+
+// ---------------------------------------------------------------------
+// 15.4 NO STATEMENT MAY PASS A PARAMETER THE MENU REJECTS.
+// ---------------------------------------------------------------------
+// The regression test for adcea57. Confirmed live on a hEX running
+// RouterOS 7.23.3 on 2026-09-01, mid provisioning:
+//
+//     Script Error: bad parameter comment (line 75 column 183)
+//
+// `/ip hotspot` -- the SERVER menu -- has no `comment` property. Both the
+// add and the set passed one, RouterOS rejected the statement, and
+// because this ships as an /import file the error took hotspot, RADIUS,
+// WireGuard and heartbeat with it.
+//
+// THIS IS A DENYLIST OF MEASURED FACTS, NOT A MODEL OF RouterOS. This
+// suite cannot enumerate RouterOS's property tables and must not pretend
+// to: a "valid parameter" allowlist here would either be wrong or would
+// have to be maintained against firmware, and both of those end with the
+// check switched off. What it CAN do is make a fault confirmed on
+// hardware unrepresentable, and give the next one somewhere to go that
+// takes one line. Every entry below is a specific menu/parameter pair
+// observed to be rejected by a real device, with the incident recorded.
+const MENU_REJECTS = [
+  {
+    // The `/ip hotspot` SERVER menu specifically -- NOT `/ip hotspot
+    // user`, `/ip hotspot profile`, `/ip hotspot walled-garden`,
+    // `/ip hotspot ip-binding` or `/ip hotspot user profile`, all of
+    // which do take comments and several of which this generator
+    // deliberately comments. The distinction is the whole point: a rule
+    // written as "no comment anywhere under /ip hotspot" would have
+    // deleted five working comment= writes.
+    menu: "/ip hotspot",
+    param: "comment",
+    incident:
+      "adcea57 / #165 -- `bad parameter comment (line 75 column 183)` on a hEX, RouterOS " +
+      "7.23.3, 2026-09-01. The statement was rejected and the /import aborted, so hotspot, " +
+      "RADIUS, WireGuard and heartbeat never ran",
+  },
+];
+
+/** Statement-level parameter writes: the menu, the verb, and the
+ * parameter names that statement SETS -- with `[...]` selectors removed
+ * first, so a `find where comment="..."` FILTER is never mistaken for a
+ * `comment=` write. Strings are stripped throughout (same discipline as
+ * `doBodies` and `stripStrings`), so a `comment=` inside a `:put` message
+ * is text, not syntax.
+ *
+ * ONE predicate, shared by the sweep and by every self-check below. Four
+ * guards in this file have already been caught keeping a private copy. */
+const parameterWrites = (script) => {
+  const out = [];
+  for (const rawLine of script.split("\n")) {
+    if (rawLine.trimStart().startsWith("#")) continue;
+    const line = stripStrings(rawLine);
+    for (const stmt of line.split(";")) {
+      const m = stmt.match(/(\/[a-z][a-z0-9-]*(?:\s+[a-z][a-z0-9-]*)*?)\s+(add|set)\b(.*)$/);
+      if (!m) continue;
+      const [, menu, verb, tail] = m;
+      // Drop bracketed selectors -- `set [find where comment=...]` names
+      // a row, it does not write a property.
+      const args = tail.replace(/\[[^\]]*\]/g, " ");
+      const params = [...args.matchAll(/(?:^|\s)([a-z][a-z0-9-]*)=/g)].map((p) => p[1]);
+      out.push({ menu, verb, params, stmt: stmt.trim() });
+    }
+  }
+  return out;
+};
+
+const rejectedParamsIn = (script) => {
+  const bad = [];
+  for (const w of parameterWrites(script)) {
+    for (const r of MENU_REJECTS) {
+      if (w.menu === r.menu && w.params.includes(r.param)) bad.push({ ...w, rule: r });
+    }
+  }
+  return bad;
+};
+
+check(
+  "15.4's denylist is not empty",
+  MENU_REJECTS.length > 0,
+  "an empty table makes the sweep below vacuous, which is the state test:location-liveness " +
+    "sat in while proving nothing",
+);
+
+for (const [label, script] of pasteables) {
+  const bad = rejectedParamsIn(script);
+  check(
+    `${label}: passes no parameter a real device rejected`,
+    bad.length === 0,
+    bad.map((b) => `${b.menu} ${b.verb} ... ${b.rule.param}= -- ${b.rule.incident}`).join(" | "),
+  );
+}
+
+// INJECTED: the exact statement that aborted the founder's import. The
+// guard must fire on it, verbatim, in both the add and the set form.
+{
+  const shipped_broken_add = `:if ([:len [/ip hotspot find where interface="bridge-guest"]] = 0) do={ /ip hotspot add name="hotspot1" interface="bridge-guest" address-pool="hotspot-pool" profile="hsprof1" disabled=no comment="cloudguest-hotspot" }`;
+  const shipped_broken_set = `:if ([:len [/ip hotspot find where interface="bridge-guest"]] > 0) do={ /ip hotspot set [find where interface="bridge-guest"] address-pool="hotspot-pool" profile="hsprof1" disabled=no comment="cloudguest-hotspot" }`;
+  check(
+    "INJECTED: 15.4 fires on the `/ip hotspot add ... comment=` that shipped",
+    rejectedParamsIn(shipped_broken_add).length === 1,
+    "the guard cannot see the statement it exists for",
+  );
+  check(
+    "INJECTED: 15.4 fires on the `/ip hotspot set ... comment=` that shipped",
+    rejectedParamsIn(shipped_broken_set).length === 1,
+    "the set form aborts an import exactly as the add form does",
+  );
+}
+
+// ANTI-OVER-STRICTNESS. The cheapest way to lose this guard is to make it
+// delete working `comment=` writes on the five sibling menus that DO take
+// one -- the generator depends on those comments to find its own objects
+// on a re-paste, so a too-broad rule here breaks idempotency everywhere.
+{
+  const legal = [
+    `/ip hotspot walled-garden add dst-host="auth.wyfyguest.com" action=allow comment="cloudguest-portal"`,
+    `/ip hotspot ip-binding add address="10.5.50.0/24" type=bypassed comment="cloudguest-bypass"`,
+    `/ip firewall filter add chain=input action=accept comment="cloudguest-fw-allow-wg-mgmt"`,
+    `/ip dhcp-client add interface="ether1" disabled=no comment="cloudguest-dhcp-wan1"`,
+    `/radius add service=hotspot address="10.20.0.1" comment="cloudguest-radius"`,
+    `/ip hotspot user profile set [find where name="default"] shared-users=5`,
+  ];
+  for (const stmt of legal) {
+    check(
+      `15.4 does not flag a legal comment= write: ${stmt.slice(0, 46)}...`,
+      rejectedParamsIn(stmt).length === 0,
+      "these menus take comments and this generator matches its own objects on them; a rule " +
+        "broad enough to flag them would be turned off within a week",
+    );
+  }
+  check(
+    "15.4 does not read a `find where comment=` FILTER as a comment WRITE",
+    rejectedParamsIn(
+      `:if ([:len [/ip hotspot find where comment="x"]] > 0) do={ /ip hotspot set [find where comment="x"] disabled=no }`,
+    ).length === 0,
+    "a selector names a row; treating it as a property write makes every idempotent set " +
+      "statement in this generator look like the defect",
+  );
+  check(
+    "15.4 does not read a comment= inside a :put message as syntax",
+    rejectedParamsIn(`:put "run /ip hotspot set comment=x by hand"`).length === 0,
+    "same skip-strings discipline as every other sweep in this file",
+  );
+}
+
+// The table must stay CONNECTED to reality: a rule for a menu this
+// generator never emits is a rule nothing can ever exercise, and it rots
+// unnoticed exactly the way test:portal-cna did.
+for (const r of MENU_REJECTS) {
+  check(
+    `15.4's rule for ${r.menu} names a menu this generator really uses`,
+    pasteables.some(([, s]) => parameterWrites(s).some((w) => w.menu === r.menu)),
+    "a denylist entry for a menu that never appears cannot ever fire, so it records an " +
+      "incident without preventing it",
+  );
+}
+
+// ---------------------------------------------------------------------
+// 15.5 EVERY `set [find ...]` IS GUARDED.
+// ---------------------------------------------------------------------
+// `set [find ...]` against an EMPTY match SUCCEEDS on RouterOS. No error,
+// no output, nothing written. Sections 6, 10 and 13 each fixed one
+// instance by name -- the `flash/hotspot/login.html` path, the six bare
+// chunks on a defaults-less router, the hotspot `dns-name` -- and each
+// time the next provisioning found another one. This is the sweep that
+// stops naming them individually.
+//
+// The rule: a `set [find ...]` is acceptable only if the same statement
+// tests a count first (`:if ([:len [... find ...]] > 0) do={ ... set
+// [find ...] ... }`), OR the object is created by an add-if-missing
+// earlier in the same chunk AND the chunk reports a count for it. The
+// second exemption is real and load-bearing -- `/interface bridge set
+// [find name="bridge-guest"] disabled=no` follows its own add on the line
+// above and the chunk's next line binds and prints `lanBrN` -- and it is
+// narrow enough that it cannot swallow the class.
+
+/** Top-level statements, brace- and string-aware: a `;` inside a
+ * `do={ ... }` body belongs to that body, not to the line. The unit a
+ * "was this guarded" question is about is the whole `:if (...) do={ ... }`,
+ * so splitting naively on `;` would report every guarded set as bare. */
+const topLevelStatements = (script) => {
+  const out = [];
+  for (const rawLine of script.split("\n")) {
+    if (rawLine.trimStart().startsWith("#")) continue;
+    let depth = 0;
+    let inStr = false;
+    let cur = "";
+    for (let i = 0; i < rawLine.length; i++) {
+      const c = rawLine[i];
+      if (inStr) {
+        cur += c;
+        if (c === "\\") {
+          cur += rawLine[++i] ?? "";
+        } else if (c === '"') inStr = false;
+        continue;
+      }
+      if (c === '"') {
+        inStr = true;
+        cur += c;
+        continue;
+      }
+      if (c === "{") depth++;
+      else if (c === "}") depth--;
+      else if (c === ";" && depth === 0) {
+        if (cur.trim()) out.push(cur.trim());
+        cur = "";
+        continue;
+      }
+      cur += c;
+    }
+    if (cur.trim()) out.push(cur.trim());
+  }
+  return out;
+};
+
+/** Every `<menu> set [find ...]` in a statement, with the menu it targets. */
+const SET_FIND = /(\/[a-z][a-z0-9-]*(?:\s+[a-z][a-z0-9-]*)*?)\s+set\s+\[find\b/g;
+
+/** ONE predicate, shared by the sweep and every self-check below. A
+ * `set [find ...]` is guarded when it sits inside an `:if` that tests a
+ * count -- EITHER inline (`:if ([:len [... find ...]] > 0) do={ ... }`) or
+ * through a variable the same CONSOLE LINE bound from a `[:len [...]]`.
+ *
+ * The second form is not a loophole, it is the shape most of this
+ * generator uses: the RouterOS console runs each ENTERED LINE as its own
+ * program, so a `:local pfHits [:len [/file find ...]]` and every `:if
+ * ($pfHits > 0)` that reads it are necessarily on one line, and that line
+ * is exactly as safe as the inline form. A predicate that only accepted
+ * the inline spelling would have flagged all five Portal Redirect Page
+ * chunks -- the very chunks section 6 fixed -- and the guard would have
+ * been switched off within a week for crying wolf. `countBoundNames` is
+ * therefore computed per LINE and passed in. */
+const countBoundNames = (line) =>
+  new Set([...line.matchAll(/:local\s+(\w+)\s+\[:len\s*\[/g)].map((m) => m[1]));
+
+const unguardedSetFinds = (statement, bound = new Set()) => {
+  const cond = statement.match(/:if\s*\(([\s\S]*?)\)\s*do=\{/);
+  if (cond) {
+    if (/\[:len\s*\[/.test(cond[1])) return [];
+    if ([...bound].some((n) => cond[1].includes(`$${n}`))) return [];
+  }
+  return [...statement.matchAll(SET_FIND)].map((m) => m[1]);
+};
+
+/** The one narrow exemption, and it is deliberately narrow enough to be
+ * useless as a loophole: the object is created by an add-if-missing for
+ * the SAME menu on the SAME line or the line IMMEDIATELY above, and the
+ * chunk binds a `[:len [<menu> find ...]]` so a zero is still reported.
+ *
+ * Adjacency is the whole of it. An earlier version accepted an
+ * add-if-missing anywhere in the chunk, and a mutation pass caught that
+ * out: reverting section 13.7's `dns-name` fix to a bare `set [find ...]`
+ * left this sweep GREEN, because the Hotspot chunk creates `hsprof1`
+ * somewhere else in the same chunk and the exemption swallowed the whole
+ * menu. That is the fifth time a guard in this file has been shown to be
+ * unable to fail, and it is why every mutation below was actually run
+ * rather than reasoned about.
+ *
+ * What survives is exactly the site the exemption exists for:
+ * `/interface bridge set [find name="..."] disabled=no` on the line after
+ * its own `:if ([:len [/interface bridge find ...]] = 0) do={ ... add }`,
+ * with `:local lanBrN [:len [/interface bridge find ...]]` below it. */
+const createdAndCountedInChunk = (script, menu, lineIdx) => {
+  const esc = menu.replace(/[/]/g, "\\/").replace(/\s+/g, "\\s+");
+  const addIfMissing = new RegExp(
+    `:if\\s*\\(\\[:len\\s*\\[${esc}\\s+find[^\\]]*\\]\\]\\s*=\\s*0\\)\\s*do=\\{\\s*${esc}\\s+add\\b`,
+  );
+  const counted = new RegExp(`:local\\s+\\w+\\s+\\[:len\\s*\\[${esc}\\s+find\\b`);
+  if (!counted.test(script)) return false;
+  const lines = script.split("\n");
+  const here = lines[lineIdx] ?? "";
+  let prev = "";
+  for (let i = lineIdx - 1; i >= 0; i--) {
+    const l = lines[i].trim();
+    if (l === "" || l.startsWith("#")) continue;
+    prev = l;
+    break;
+  }
+  return addIfMissing.test(here) || addIfMissing.test(prev);
+};
+
+for (const [label, script] of pasteables) {
+  const offenders = [];
+  const lines = script.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const rawLine = lines[i];
+    if (rawLine.trimStart().startsWith("#")) continue;
+    const bound = countBoundNames(rawLine);
+    for (const stmt of topLevelStatements(rawLine)) {
+      for (const menu of unguardedSetFinds(stmt, bound)) {
+        if (createdAndCountedInChunk(script, menu, i)) continue;
+        offenders.push(`${menu} :: ${stmt.slice(0, 110)}`);
+      }
+    }
+  }
+  check(
+    `${label}: no unguarded \`set [find ...]\``,
+    offenders.length === 0,
+    `set [find ...] against an empty match SUCCEEDS on RouterOS -- nothing is written and ` +
+      `nothing is reported, so the chunk's verdict is computed over work that never ` +
+      `happened. ${offenders.join(" | ")}`,
+  );
+}
+
+// INJECTED + ANTI-OVER-STRICTNESS for 15.5, on the exact shapes that have
+// shipped broken and the exact shapes that are correct.
+{
+  check(
+    "INJECTED: 15.5 fires on the bare `dns-name` write that shipped (section 13.7)",
+    unguardedSetFinds(`/ip hotspot profile set [find name="hsprof1"] dns-name="wifi.wyfyguest.com"`)
+      .length === 1,
+    "the guard cannot see the statement it exists for",
+  );
+  check(
+    "INJECTED: 15.5 fires on a bare `/file set [find ...]` (the flash/ portal-page class)",
+    unguardedSetFinds(`/file set [find where name~"/login.html"] contents="x"`).length === 1,
+    "this is the case where the guest silently gets MikroTik's stock login page",
+  );
+  check(
+    "15.5 does not flag the guarded form the generator actually ships",
+    unguardedSetFinds(
+      `:if ([:len [/ip hotspot profile find where name="hsprof1"]] > 0) do={ /ip hotspot profile set [find name="hsprof1"] dns-name="x" }`,
+    ).length === 0,
+    "an over-strict rule here would flag every correct statement in the Hotspot chunk and " +
+      "get switched off with them",
+  );
+  {
+    // The shape all five Portal Redirect Page chunks use, and the shape
+    // that is genuinely unguarded, told apart. Both directions matter:
+    // flagging the first is how the guard gets deleted, missing the second
+    // is how `flash/hotspot/login.html` shipped.
+    const sameLine = `:local pfHits [:len [/file find where name~"/login.html"]]; :if ($pfHits > 0) do={ /file set [find where name~"/login.html"] contents="x" }`;
+    const stmts = topLevelStatements(sameLine);
+    check(
+      "15.5 accepts a count bound by :local on the SAME console line",
+      stmts.every((st) => unguardedSetFinds(st, countBoundNames(sameLine)).length === 0),
+      "the RouterOS console runs each entered line as one program, so this is exactly as " +
+        "safe as the inline form -- flagging it would condemn every Portal Redirect Page " +
+        "chunk and the guard would be turned off with them",
+    );
+    check(
+      "15.5 still flags the same statement when nothing bound that count",
+      stmts.some((st) => unguardedSetFinds(st, new Set()).length === 1),
+      "if the binding were not what makes it safe, the predicate would be accepting the " +
+        "`$pfHits` spelling rather than the guarantee behind it, and could not fail",
+    );
+    check(
+      "15.5 does not accept an :if on an unrelated variable as a guard",
+      unguardedSetFinds(
+        `:if ($somethingElse > 0) do={ /file set [find where name~"/login.html"] contents="x" }`,
+        countBoundNames(`:local pfHits [:len [/file find where name~"/x"]]`),
+      ).length === 1,
+      "any `:if` counting as a guard would exempt every statement in the generator",
+    );
+  }
+  {
+    const bridgeChunk = `:if ([:len [/interface bridge find where name="b"]] = 0) do={ /interface bridge add name="b" }\n/interface bridge set [find name="b"] disabled=no\n:local lanBrN [:len [/interface bridge find where name="b"]]`;
+    check(
+      "15.5's create-and-count exemption accepts the adjacent add it exists for",
+      createdAndCountedInChunk(bridgeChunk, "/interface bridge", 1),
+      "the WAN + Bridge chunk creates the bridge on the line above and reports its count on " +
+        "the line below; flagging that would be crying wolf on the one site the exemption " +
+        "was written for",
+    );
+    check(
+      "15.5's exemption does not fire without an add-if-missing at all",
+      !createdAndCountedInChunk(
+        `/file set [find where name~"/login.html"] contents="x"`,
+        "/file",
+        0,
+      ),
+      "an exemption that matches anything is the guard switched off",
+    );
+    // THE HOLE A MUTATION PASS FOUND. An add-if-missing SOMEWHERE in the
+    // chunk is not adjacency, and accepting it exempted the whole
+    // `/ip hotspot profile` menu inside the Hotspot chunk -- which left
+    // this sweep green when section 13.7's `dns-name` fix was reverted.
+    const farApart = `:if ([:len [/ip hotspot profile find where name="hsprof1"]] = 0) do={ /ip hotspot profile add name="hsprof1" }\n:put "something else entirely"\n/ip hotspot profile set [find name="hsprof1"] dns-name="x"\n:local n [:len [/ip hotspot profile find where name="hsprof1"]]`;
+    check(
+      "15.5's exemption does NOT reach a set two lines below the add",
+      !createdAndCountedInChunk(farApart, "/ip hotspot profile", 2),
+      "a chunk-wide exemption swallows the whole menu, and a bare `set [find ...]` on any " +
+        "other object under it becomes invisible -- this is the exact hole a mutation of " +
+        "section 13.7 exposed in an earlier version of this predicate",
+    );
+  }
+  check(
+    "15.5's statement splitter keeps a `do={ ... ; ... }` body together",
+    topLevelStatements(`:if (1=1) do={ :put "a" }; :put "b"`).length === 2 &&
+      topLevelStatements(`:put "a; b"`).length === 1,
+    "splitting on every `;` would report every guarded set as bare and every `;` inside a " +
+      "string as a statement boundary",
+  );
+}
+
+// ---------------------------------------------------------------------
+// 15.6 A RE-RUN MUST CONVERGE, NOT NO-OP.
+// ---------------------------------------------------------------------
+// Re-clicking Generate rotates secrets server-side. `SECRET_REPAIR` in
+// `src/lib/setup-script-secrets.ts` claims all four are repaired by
+// re-pasting; section 8 asserts that table against the CHUNK TEXT for the
+// two it was written about. This is the general form, and it derives the
+// answer instead of reading it: generate the same router twice with
+// DIFFERENT secrets, take every literal that changed, and require each
+// one to be written on a path that runs against a router which already
+// has the object.
+//
+// A value that appears ONLY inside `:if ([:len [...]] = 0) do={ ... add
+// ... secret=NEW ... }` is add-only. On a half-configured router that
+// branch does not run, every statement reports success, and the device
+// keeps the old secret -- which RouterOS reports as a TIMEOUT rather than
+// as a mismatch, so nothing anywhere names it. That is failure class 4,
+// and deriving it from the diff means a FIFTH secret added later is
+// covered without anyone remembering to add it here.
+{
+  const A = {
+    ...BASE,
+    wans: [DHCP_WAN],
+    wireguard: WG,
+    radius: { serverAddress: "10.20.0.1", sharedSecret: "SEC-AAA", srcAddress: "10.20.0.5" },
+    apiAccess: { username: "cloudguest", secret: "API-AAA" },
+    agentCredential: "AGENT-AAA",
+    portalUrl: PORTAL,
+  };
+  const B = {
+    ...A,
+    wireguard: { ...WG, routerPrivateKey: "PRIVKEY-BBB", serverPublicKey: "PUBKEY-BBB" },
+    radius: { ...A.radius, sharedSecret: "SEC-BBB" },
+    apiAccess: { username: "cloudguest", secret: "API-BBB" },
+    agentCredential: "AGENT-BBB",
+  };
+  const chunksB = buildRouterSetupScriptChunks(B);
+  const textB = chunksB.map((c) => c.script).join("\n");
+
+  /** The rotated values, each named with the device object it is written
+   * to. `peerPublicKey` is deliberately absent: it is what the PLATFORM
+   * holds, and the Tunnel Identity Check only ever COMPARES it. The check
+   * below asserts that stays true, so the day something starts writing it
+   * this list has to grow. */
+  const ROTATED = [
+    { value: "AGENT-BBB", what: "the platform agent credential" },
+    { value: "SEC-BBB", what: "the RADIUS shared secret" },
+    { value: "PRIVKEY-BBB", what: "the router's WireGuard private key" },
+    { value: "PUBKEY-BBB", what: "the hub's WireGuard public key on the peer" },
+    { value: "API-BBB", what: "the RouterOS API password" },
+  ];
+
+  /** Does this statement run on a router that ALREADY has the object?
+   * Three shapes qualify: a `set`; an `add` inside an exists-branch that
+   * first `remove`s (the scheduler); and an unconditional statement. */
+  const isRepairPath = (stmt) => {
+    if (/\bset\b/.test(stmt)) return true;
+    if (/\bremove\b/.test(stmt) && /\badd\b/.test(stmt)) return true;
+    const createOnly = /:if\s*\([^)]*\[:len\s*\[[^\]]*\]\]\s*=\s*0[^)]*\)\s*do=\{/.test(stmt);
+    return !createOnly;
+  };
+
+  check(
+    "15.6's diff really sees the rotation",
+    ROTATED.every((r) => textB.includes(r.value)),
+    "if a rotated value never appears in the generated text the sweep below is asserting " +
+      "over nothing -- the same vacuous-pass shape ci-gated-test.sh's floor exists for",
+  );
+
+  for (const r of ROTATED) {
+    const carrying = chunksB.flatMap((c) =>
+      topLevelStatements(c.script)
+        .filter((s) => s.includes(r.value))
+        .map((s) => ({ label: c.label, stmt: s })),
+    );
+    check(
+      `re-paste converges ${r.what}`,
+      carrying.length > 0 && carrying.some((c) => isRepairPath(c.stmt)),
+      `every statement carrying this value is add-if-missing, so re-pasting a router that ` +
+        `already has the object writes nothing and reports success. RouterOS reports a stale ` +
+        `RADIUS secret as a TIMEOUT and a stale WireGuard key as no handshake, so neither ` +
+        `side names the cause. Statements found: ${carrying.map((c) => c.label).join(", ")}`,
+    );
+    // ...and the claim in SECRET_REPAIR must agree with what was just derived.
+    const key = {
+      "AGENT-BBB": "agent",
+      "SEC-BBB": "radius",
+      "PRIVKEY-BBB": "wireguard",
+      "PUBKEY-BBB": "wireguard",
+      "API-BBB": "api",
+    }[r.value];
+    check(
+      `SECRET_REPAIR.${key} agrees with what the chunks do for ${r.what}`,
+      SECRET_REPAIR[key].repairableByRepaste === carrying.some((c) => isRepairPath(c.stmt)),
+      "the table is what the Master-console dialog tells the operator. A table that says " +
+        "'re-pasting fixes it' over chunks that no-op is worse than no table",
+    );
+  }
+
+  check(
+    "the platform-held peer key is still only ever compared, never written",
+    !parameterWrites(textB).some(
+      (w) => w.params.some((p) => /public-key/.test(p)) && w.stmt.includes("PEERPUBKEY"),
+    ),
+    "if something starts WRITING the platform's registered key, it has become a rotating " +
+      "secret and must join the ROTATED list above -- otherwise it is the one secret this " +
+      "convergence sweep cannot see",
+  );
+
+  // ANTI-OVER-STRICTNESS: `isRepairPath` must actually be able to answer
+  // "no", or every secret passes and the section is decoration.
+  check(
+    "15.6 classifies an add-only branch as NOT a repair path",
+    !isRepairPath(
+      `:if ([:len [/radius find where comment="c"]] = 0) do={ /radius add address="h" secret="SEC-BBB" }`,
+    ),
+    "this is the exact shape that left routers on the old shared secret; if it classified as " +
+      "a repair path the whole sweep would pass vacuously",
+  );
+  check(
+    "15.6 classifies an else-branch `set` as a repair path",
+    isRepairPath(
+      `:if ([:len [/radius find where comment="c"]] > 0) do={ /radius set [find where comment="c"] secret="SEC-BBB" }`,
+    ) && isRepairPath(`/tool fetch url="x" http-header-field="X-Agent-Credential: AGENT-BBB"`),
+    "an over-strict classifier that calls the correct shape broken gets the guard deleted",
+  );
+  check(
+    "15.6 classifies remove-then-add as a repair path",
+    isRepairPath(
+      `:foreach s in=[/system scheduler find where name="cloudguest-heartbeat"] do={ /system scheduler remove $s }; /system scheduler add name="cloudguest-heartbeat" on-event="AGENT-BBB"`
+        .split("; ")
+        .join(" "),
+    ),
+    "the scheduler converges by replacement rather than by `set`, and a classifier blind to " +
+      "that would report a false defect on the one chunk that is already right",
+  );
+}
+
+// ---------------------------------------------------------------------
+// 15.8 A SCRIPT MISSING A WHOLE SUBSYSTEM CANNOT LOOK COMPLETE.
+// ---------------------------------------------------------------------
+// THIS IS THE ONE THE FOUNDER ACTUALLY HIT. Measured on origin/main at
+// f99c02b, not inferred:
+//
+//   `enableWireguard` and `enableRadius` both default to FALSE
+//   (`RouterSetupScriptAdvanced.tsx:315-316`), and `notProvisioned` --
+//   the array that drives the loud `INCOMPLETE SCRIPT` chunk and its
+//   `:error` -- is appended ONLY from `catch` blocks (lines 667, 701,
+//   766). An unticked checkbox is not a caught exception.
+//
+// So a default Generate emits 28 chunks instead of 32. The hotspot is
+// built, the portal pages are written, the firewall is built, the
+// heartbeat scheduler is created -- the router CHECKS IN and shows GREEN
+// in Master console -- and `/radius` is empty. Not one line of the file
+// says so. The `.rsc` imports perfectly cleanly, every chunk prints
+// `RESULT: PASS`, and no guest can ever get past the login page.
+//
+// "The script executed, RADIUS wasn't there and it didn't run" is a
+// precise description of that, and it is NOT the `/import` abort class at
+// all: nothing aborted. The script was never asked to configure RADIUS.
+// Four previous fixes went to abort causes because an abort was the only
+// hypothesis the output supported.
+//
+// THE RULE: whether a subsystem is missing is a property of the EMITTED
+// SCRIPT, so it must be derived from the emitted script. A gap that is
+// only visible when the caller happens to hand over a `notProvisioned`
+// entry is a gap that is invisible in every path where the caller did not
+// call at all -- which is the default path.
+//
+// Deliberately NOT asserted here: that the panel's `if (enableRadius)`
+// branch records the gap on its else. Deciding whether a `push` sits
+// inside a `catch` needs a real parser, and a regex over JSX source that
+// half-does it is the "a guard that cannot be shown to fail" shape this
+// file has already been bitten by five times. Making the GENERATOR derive
+// the gap makes the call-site question moot: it does not matter why
+// `opts.radius` was undefined.
+{
+  /** What this generator can leave out while still producing a script
+   * that runs to COMPLETE, and what each omission costs a venue. Derived
+   * from the emitted text, never from the caller's `notProvisioned`.
+   *
+   * The `needs` predicate is what stops this being an opinion: a script
+   * that builds no hotspot is not missing RADIUS, it is a different
+   * product. A script that DOES build a hotspot and has no RADIUS cannot
+   * authenticate a single guest, and that is not a mode anyone chose. */
+  const buildsHotspot = (t) => /\/ip hotspot\s+add\b/.test(t);
+  const SILENT_GAPS = [
+    {
+      what: "RADIUS",
+      needs: buildsHotspot,
+      emitted: (t) => /\/radius\s+add\b/.test(t),
+      // What a Generate looks like with THIS subsystem left out and
+      // everything else present. Each gap is tested in isolation against
+      // an otherwise-complete script, so a red check names one missing
+      // subsystem rather than "this fixture is minimal".
+      without: { radius: undefined },
+      cost:
+        "the hotspot comes up, the portal loads, and every guest login is Access-Rejected. " +
+        "RouterOS reports a missing RADIUS server the same way it reports a wrong shared " +
+        "secret -- as a timeout -- so neither the router nor the hub names the cause",
+    },
+    {
+      what: "WireGuard tunnel",
+      needs: buildsHotspot,
+      emitted: (t) => /\/interface wireguard\s+add\b/.test(t),
+      // RADIUS goes with it: `srcAddress` is the tunnel IP, so the panel
+      // cannot offer RADIUS without WireGuard (`enableRadius && wireguard`).
+      without: { wireguard: undefined, radius: undefined },
+      cost:
+        "the router has no path to the platform that a venue firewall cannot close, and " +
+        "RADIUS has no address to source from. Master console can still show it ONLINE off " +
+        "the WAN-side heartbeat, which is the reading an operator trusts",
+    },
+    {
+      what: "portal redirect pages",
+      needs: buildsHotspot,
+      emitted: (t) => /\/file set \[find/.test(t),
+      without: { portalUrl: undefined },
+      cost:
+        "guests get MikroTik's own stock login page instead of the venue's portal -- a form " +
+        "asking for a RouterOS username, on a network the venue is paying to brand",
+    },
+  ];
+
+  /** The founder's Generate: every field filled in, both subsystem
+   * checkboxes left at their default of off. Nothing threw, so
+   * `notProvisioned` is empty -- deliberately not passed at all here,
+   * because that is the whole point. */
+  const DEFAULT_GENERATE = {
+    ...BASE,
+    wans: [DHCP_WAN],
+    identity: "gurgaon-branch",
+    portalUrl: PORTAL,
+  };
+  const COMPLETE_GENERATE = {
+    ...DEFAULT_GENERATE,
+    wireguard: WG,
+    radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t", srcAddress: "10.20.0.5" },
+    apiAccess: { username: "cloudguest", secret: "pw" },
+  };
+
+  const declaresGap = (chunks, what) =>
+    chunks.some((c) => /INCOMPLETE SCRIPT/.test(c.label) && c.label.includes(what)) ||
+    chunks.some((c) => /INCOMPLETE SCRIPT/.test(c.label) && c.script.includes(what));
+
+  const defaultChunks = buildRouterSetupScriptChunks(DEFAULT_GENERATE);
+  const defaultText = defaultChunks.map((c) => c.script).join("\n");
+  const completeChunks = buildRouterSetupScriptChunks(COMPLETE_GENERATE);
+  const completeText = completeChunks.map((c) => c.script).join("\n");
+  /** An otherwise-complete Generate with exactly one subsystem left out. */
+  const withoutGap = (gap) =>
+    buildRouterSetupScriptChunks({ ...COMPLETE_GENERATE, ...gap.without });
+
+  // The fixture has to really be the founder's case, or everything below
+  // is asserting over something else.
+  check(
+    "15.8's default-Generate fixture really does build a hotspot with no RADIUS",
+    buildsHotspot(defaultText) && !/\/radius\s+add\b/.test(defaultText),
+    "if the fixture were already complete this whole block would pass vacuously -- the same " +
+      "shape as a guard whose sample string does not contain the pattern it claims to test",
+  );
+  check(
+    "15.8's complete-Generate fixture really is complete",
+    SILENT_GAPS.every((g) => g.emitted(completeText)),
+    "the anti-over-strictness half below is only meaningful against a script that has " +
+      "everything",
+  );
+
+  for (const gap of SILENT_GAPS) {
+    const chunks = withoutGap(gap);
+    const text = chunks.map((c) => c.script).join("\n");
+    if (!gap.needs(text)) continue;
+    check(
+      `a script with no ${gap.what} says so, without being told`,
+      gap.emitted(text) || declaresGap(chunks, gap.what),
+      `this script configures a hotspot and never configures ${gap.what}, and nothing IN THE ` +
+        `SCRIPT says so. ${gap.cost}. ` +
+        `NOTE FOR THE ROUTER WORK: the panel-side half of this is fixed -- both subsystems ` +
+        `now default ON and a deselected one is recorded as a \`deliberate\` gap. What this ` +
+        `check still wants is the BACKSTOP: \`notProvisioned\` is supplied by the CALLER, so ` +
+        `the guarantee holds only for callers that remember. Whether a subsystem is missing ` +
+        `is a property of \`opts\`, and deriving it inside the generator makes the class ` +
+        `unrepresentable at every call site rather than at the one that exists today -- ` +
+        `which is what the previous four fixes each did for one instance`,
+    );
+  }
+
+  // ANTI-OVER-STRICTNESS. A banner on every healthy download is noise
+  // that gets scrolled past on the one that matters, which is the same
+  // reason the notProvisioned warning is first and not last.
+  for (const gap of SILENT_GAPS) {
+    check(
+      `a complete script carries no ${gap.what} gap warning`,
+      gap.emitted(completeText) && !declaresGap(completeChunks, gap.what),
+      "a warning that fires on a correct script is a warning nobody reads on an incorrect one",
+    );
+  }
+
+  // THE DOWNLOADED FILE, not just the chunk list. A .rsc has no panel, no
+  // toast and no chunk count around it; the header is the only thing read
+  // before it runs. The existing 13.10 check proves this for the
+  // caller-supplied path -- this is the derived one.
+  {
+    const rsc = chunksToRouterOsScript(defaultChunks, "lobby router");
+    const head = rsc.split("\n").slice(0, 16).join("\n");
+    check(
+      "a .rsc missing a subsystem says so in its header, without being told",
+      /INCOMPLETE/.test(head) || /\/radius\s+add\b/.test(rsc),
+      "the operator saves this file, carries it to the venue, uploads it and imports it. It " +
+        "runs to COMPLETE, every chunk prints PASS, the router checks in and shows green in " +
+        "Master console, and no guest can sign in. The header is the only place that can " +
+        "still be read at that point. Follows from the check above: the header is rendered " +
+        "from the INCOMPLETE chunks, so a gap the generator did not derive cannot reach it",
+    );
+  }
+
+  // AND THE READING THAT MADE IT SURVIVABLE. The heartbeat is what an
+  // operator checks to decide a provisioning worked, and it reports the
+  // WAN-side check-in -- which succeeds perfectly on a router with no
+  // RADIUS. A script that omits a subsystem must not also emit the chunk
+  // that makes the omission look like success.
+  check(
+    "a script with no RADIUS does not still claim the router is fully provisioned",
+    !defaultChunks.some((c) => /^Heartbeat Check/.test(c.label)) ||
+      declaresGap(defaultChunks, "RADIUS") ||
+      /\/radius\s+add\b/.test(defaultText),
+    'the "Heartbeat Check (confirm this router actually appears online)" chunk passes on a ' +
+      "router that cannot authenticate a single guest, because appearing online is a " +
+      "WAN-side fact. Green in Master console is the reading an operator stops at, and it " +
+      "is how a RADIUS-less router reached a venue",
+  );
+
+  // ROT GUARD. The table above is only worth its floor if every entry is
+  // reachable -- an entry for something the generator always emits can
+  // never fire, and records an incident without preventing it.
+  for (const gap of SILENT_GAPS) {
+    check(
+      `15.8 can actually construct a script missing ${gap.what}`,
+      !gap.emitted(
+        withoutGap(gap)
+          .map((c) => c.script)
+          .join("\n"),
+      ),
+      "an entry whose `without` override does not actually remove the subsystem tests " +
+        "nothing -- it records an incident without preventing it, which is the state " +
+        "test:location-liveness sat in",
+    );
+  }
+}
+
+// ---------------------------------------------------------------------
+// 15.9 A PARTIAL PROVISION MUST NOT END ON THE SAME LINE AS A FULL ONE.
+// ---------------------------------------------------------------------
+// 15.2 gets a COMPLETE sentinel onto the end of the .rsc, and the field
+// runbook that goes with it is one sentence: import it, read the last
+// line. That instruction is only safe if the last line can tell apart the
+// TWO ways a run ends well-formed.
+//
+// A gap the operator chose (an unticked box) deliberately does NOT
+// `:error` -- see `notProvisioned`'s docstring in the generator: aborting a
+// run somebody scoped on purpose is how a banner becomes something people
+// learn to page past. The consequence is that a deliberately-partial file
+// runs every chunk it contains and reaches the sentinel, and until this
+// section existed it printed the identical `COMPLETE -- all N chunk(s)
+// ran` a full provision does. N differs; nobody counts N.
+//
+// That is the original defect wearing a green light: a script that quietly
+// did less than the operator believed, ending on a line that says it
+// finished. The section-1 banner does say so, but by the end of an
+// `/import` the top of the run has scrolled off, and "read the last line"
+// is the instruction that actually gets followed at a rack at 11pm.
+{
+  const FULL = {
+    ...BASE,
+    wans: [DHCP_WAN],
+    portalUrl: PORTAL,
+    wireguard: WG,
+    radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t", srcAddress: "10.20.0.5" },
+    apiAccess: { username: "cloudguest", secret: "pw" },
+  };
+  const full = buildRouterSetupScriptChunks(FULL);
+  // The founder's exact case, post-fix: RADIUS deselected on purpose, so
+  // the banner fires and the run is allowed to finish.
+  const byChoice = buildRouterSetupScriptChunks({
+    ...FULL,
+    radius: undefined,
+    notProvisioned: [
+      {
+        what: "RADIUS",
+        why: 'the "Also enable RADIUS" box was not ticked when this script was generated',
+        deliberate: true,
+      },
+    ],
+  });
+
+  const lastExecutable = (text) => {
+    const ls = executableLines(text);
+    return ls[ls.length - 1] ?? "";
+  };
+  const fullLast = lastExecutable(chunksToRouterOsScript(full, "lobby router"));
+  const choiceLast = lastExecutable(chunksToRouterOsScript(byChoice, "lobby router"));
+
+  // FIXTURE GUARDS. Both of these have been wrong in this file before --
+  // 13.10's "complete" fixture was a script missing three subsystems, and
+  // an injected check matched COMPLETE as a substring of INCOMPLETE. If
+  // the by-choice fixture aborted at chunk 1 it would never reach the
+  // sentinel and everything below would pass by never running.
+  check(
+    "15.9's full fixture really is a complete provision",
+    !full.some((c) => /INCOMPLETE SCRIPT/.test(c.label)),
+    "if the 'complete' fixture already had a gap, the anti-noise half below would be vacuous",
+  );
+  check(
+    "15.9's by-choice fixture really does declare a gap AND run to the end",
+    byChoice.some((c) => /INCOMPLETE SCRIPT/.test(c.label)) &&
+      !byChoice.some((c) => /INCOMPLETE SCRIPT/.test(c.label) && /:error\s/.test(c.script)),
+    "a fixture that aborts at chunk 1 never reaches the last line, so every check below " +
+      "would pass without testing anything",
+  );
+  check(
+    "15.9 is reading the COMPLETE sentinel, not some other trailing line",
+    isMarkerLine(fullLast) &&
+      isMarkerLine(choiceLast) &&
+      // `INCOMPLETE` contains `COMPLETE`. An injected check in this file
+      // matched exactly that and could never have failed.
+      /\bCOMPLETE\b/.test(fullLast.replace(/INCOMPLETE/g, "")) &&
+      /\bCOMPLETE\b/.test(choiceLast.replace(/INCOMPLETE/g, "")),
+    "if the last executable line were anything else, the two comparisons below would be " +
+      "comparing the wrong strings",
+  );
+
+  check(
+    "a deliberately-partial run NAMES the missing subsystem on its last line",
+    /RADIUS/.test(choiceLast),
+    "the operator was told to read the last line. On this file that line said COMPLETE and " +
+      "the router had no /radius entry -- which is the founder's report end to end, reached " +
+      "with nothing having failed. The last line has to carry the gap or the runbook is a lie",
+  );
+  check(
+    "...and says outright that the router is not finished",
+    /\bNOT\b/.test(choiceLast.replace(/INCOMPLETE/g, "")),
+    "naming RADIUS is not enough on its own -- 'COMPLETE ... RADIUS' reads to a tired " +
+      "technician as 'RADIUS done'. The line has to negate",
+  );
+  check(
+    "a full provision's last line carries no gap warning",
+    !/RADIUS/.test(fullLast) && !/NOT A FULL PROVISION/.test(fullLast),
+    "a warning printed on every healthy import is a warning nobody reads on the one import " +
+      "that needed it -- the same reason the section-1 banner is conditional",
+  );
+  check(
+    "the two endings are not the same sentence",
+    fullLast.replace(/all \d+ chunk/, "all N chunk") !==
+      choiceLast.replace(/all \d+ chunk/, "all N chunk"),
+    "the chunk COUNT differing is not a difference an operator can act on: nobody knows " +
+      "whether this router's full script was 31 chunks or 32",
+  );
+
+  // BOTH CHANNELS, ONE SENTENCE. The .rsc and the flattened paste now
+  // share a builder; this is what keeps them shared. A divergence here is
+  // exactly the shape that left the .rsc with no markers at all for a
+  // month while the one-line paste had them.
+  for (const [name, chunks, expected] of [
+    ["a full provision", full, fullLast],
+    ["a deliberately-partial provision", byChoice, choiceLast],
+  ]) {
+    check(
+      `both delivery channels end ${name} with the SAME sentence`,
+      chunksToSingleLineScript(chunks).endsWith(expected),
+      "two channels with two different last lines means the runbook has to describe both, " +
+        "and the one nobody wrote down is the one that fails",
+    );
+  }
+}
+
+// ---------------------------------------------------------------------
+// 15.10 THE THREE ENDINGS OF AN INCOMPLETE SCRIPT ARE A PRODUCT DECISION.
+// ---------------------------------------------------------------------
+// The generator now distinguishes three cases, and every one of them was
+// arrived at by someone weighing a specific failure. None of them was
+// pinned by anything until this section, which meant the whole design
+// could be reverted by a well-meaning edit and every suite would stay
+// green.
+//
+//   1. THE OPERATOR CHOSE IT (`deliberate: true`). Banner, no `:error`.
+//      Aborting a run somebody deliberately scoped is how a warning
+//      becomes something people learn to page past -- and the banner it
+//      would cost us is the one that catches case 3.
+//   2. SOMETHING FAILED. Banner AND `:error`. There is a cause to fix, the
+//      script in hand cannot be repaired by re-pasting, and the file must
+//      not run. A MIXED list takes this ending: a real fault is in it.
+//   3. NOBODY SAID ANYTHING and the generator worked it out from `opts`.
+//      Banner AND `:error`, because a caller that emitted a hotspot with
+//      no RADIUS and did not report it is a BUG in the caller, not a
+//      choice by an operator -- and the failure being silent is the entire
+//      history of this file. Loud is the only safe default for a gap whose
+//      provenance is unknown.
+{
+  const FULL_1510 = {
+    ...BASE,
+    wans: [DHCP_WAN],
+    portalUrl: PORTAL,
+    wireguard: WG,
+    radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t", srcAddress: "10.20.0.5" },
+    apiAccess: { username: "cloudguest", secret: "pw" },
+  };
+  const DELIBERATE = {
+    what: "RADIUS",
+    why: 'the "Also enable RADIUS" box was not ticked when this script was generated',
+    deliberate: true,
+  };
+  const FAILED = { what: "RADIUS", why: "the RADIUS bridge could not be reached" };
+
+  const banner = (chunks) => chunks.find((c) => /INCOMPLETE SCRIPT/.test(c.label));
+  const aborts = (chunk) => /:error\s/.test(chunk?.script ?? "");
+
+  const cases = [
+    {
+      name: "chose to leave RADIUS out",
+      chunks: buildRouterSetupScriptChunks({
+        ...FULL_1510,
+        radius: undefined,
+        notProvisioned: [DELIBERATE],
+      }),
+      shouldAbort: false,
+      byChoiceLabel: true,
+      because:
+        "a script somebody deliberately scoped must still RUN. Refusing to import it teaches " +
+        "the operator that this banner is noise, and the next one is the one that matters",
+    },
+    {
+      name: "RADIUS registration failed",
+      chunks: buildRouterSetupScriptChunks({
+        ...FULL_1510,
+        radius: undefined,
+        notProvisioned: [FAILED],
+      }),
+      shouldAbort: true,
+      byChoiceLabel: false,
+      because:
+        "there is a cause to fix and the script in hand cannot be repaired by re-pasting. " +
+        "Importing it anyway is the 2026-08-23 incident: a hotspot serving a venue with an " +
+        "empty /radius and nothing saying so",
+    },
+    {
+      name: "one deliberate gap and one failure",
+      chunks: buildRouterSetupScriptChunks({
+        ...FULL_1510,
+        radius: undefined,
+        wireguard: undefined,
+        notProvisioned: [
+          { ...DELIBERATE, what: "RADIUS" },
+          { what: "WireGuard tunnel", why: "the hub refused the allocation" },
+        ],
+      }),
+      shouldAbort: true,
+      byChoiceLabel: false,
+      because:
+        "a mixed list contains a real fault. Taking the gentler ending because one entry was " +
+        "deliberate would let a failed allocation import silently, which is the whole defect",
+    },
+    {
+      name: "nobody reported the gap and the generator derived it",
+      // NO `notProvisioned` AT ALL. This is the founder's original case as
+      // it reaches the generator: the panel never called, because an
+      // unticked checkbox is not a caught exception.
+      chunks: buildRouterSetupScriptChunks({ ...FULL_1510, radius: undefined }),
+      shouldAbort: true,
+      byChoiceLabel: false,
+      because:
+        "a caller that emitted a hotspot with no RADIUS and reported nothing is a caller with " +
+        "a bug, and the gap's provenance is unknown -- the one thing that must not happen is " +
+        "the silent ending. If this goes green while `deliberate` is assumed, the backstop " +
+        "added for exactly this case stops backstopping",
+    },
+  ];
+
+  for (const c of cases) {
+    const b = banner(c.chunks);
+    // FIXTURE GUARD FIRST: no banner means every assertion below is about
+    // `undefined` and passes by never looking at anything.
+    check(
+      `15.10 (${c.name}): a banner chunk exists to grade`,
+      Boolean(b),
+      "without a banner chunk the abort assertions below are vacuous",
+    );
+    check(
+      `15.10 (${c.name}): the script ${c.shouldAbort ? "stops" : "runs on"}`,
+      aborts(b) === c.shouldAbort,
+      c.because,
+    );
+    check(
+      `15.10 (${c.name}): the label ${c.byChoiceLabel ? "says" : "does not say"} "(by choice)"`,
+      /\(by choice\)/.test(b?.label ?? "") === c.byChoiceLabel,
+      "the label is what `chunksToRouterOsScript` keys the downloaded file's header off, so " +
+        "a label that lies about the reason makes the header lie too -- and the header is " +
+        "the only part of a .rsc read before it runs",
+    );
+    // AND THE HEADER, which is the .rsc's own half of the same decision.
+    const head = chunksToRouterOsScript(c.chunks, "lobby router").split("\n").slice(0, 18);
+    check(
+      `15.10 (${c.name}): the .rsc header tells the same story as the banner`,
+      head.some((l) =>
+        c.byChoiceLabel
+          ? /PARTIAL BY CHOICE/.test(l)
+          : /THIS SCRIPT IS INCOMPLETE/.test(l) && !/PARTIAL BY CHOICE/.test(l),
+      ),
+      "the file's header and the terminal output are read by the same person minutes apart. " +
+        "Two different stories about one script is how 'it said PASS everywhere' happened",
+    );
+  }
+}
+
+// ---------------------------------------------------------------------
+// 15.7 THE FILE STILL CARRIES THE FOUR THINGS THAT WENT MISSING BEFORE.
+// ---------------------------------------------------------------------
+// Sections 6 and 7 assert these against the chunks. They are re-asserted
+// HERE against the rendered `.rsc`, because that is the artefact the
+// founder runs and because 15.1 is what connects the two -- if 15.1 ever
+// goes red these four are the ones whose absence is silent rather than
+// loud. Cheap, and each one is a confirmed-live incident:
+//   - no NTP        -> fresh hEX has no battery clock -> heartbeat's
+//                      HTTPS fails -> router shows offline forever
+//   - local `guest` -> RouterOS checks local hotspot users BEFORE RADIUS,
+//     hotspot user     so the portal is bypassed entirely
+//   - keepalive     -> `keepalive-timeout=none` with no `idle-timeout`
+//     with no idle      means nothing ever closes a session
+//   - wg-cloudguest -> the frontend's old tunnel name; the backend
+//                      (`network_config/renderers.py`) says wg-cloudguard,
+//                      and a device on the old name never handshakes
+for (const { variant, rsc, opts } of RSC_CASES) {
+  const file = executableLines(rsc).join("\n");
+  check(
+    `${variant}: the .rsc sets and verifies the clock`,
+    /\/system ntp client/.test(file) && /ntp/i.test(file),
+    "a fresh hEX has no battery-backed clock; a wrong date fails HTTPS validation, so the " +
+      "heartbeat is rejected before it is sent and the router shows offline while guests " +
+      "have working WiFi",
+  );
+  check(
+    `${variant}: the .rsc creates no local hotspot user`,
+    !/\/ip hotspot user\s+add\b/.test(file),
+    "RouterOS checks local hotspot users BEFORE RADIUS, so a local `guest` user bypasses " +
+      "the portal, the venue's terms and every guest record the platform would have kept",
+  );
+  // The WRITE, not the word. An earlier version tested for `idle-timeout=`
+  // anywhere in the file and could not fire: the chunk's own verdict line
+  // prints the string, so deleting the actual write left it green. Caught
+  // by mutating `HOTSPOT_IDLE_TIMEOUT` out of the real generator.
+  check(
+    `${variant}: the .rsc never leaves a session with no timeout at all`,
+    !/keepalive-timeout=none/.test(file) ||
+      topLevelStatements(file).some((st) =>
+        /\/ip hotspot user profile\s+set\b[^;]*idle-timeout=/.test(stripStrings(st)),
+      ),
+    "`keepalive-timeout=none` with no `idle-timeout` means nothing ever closes a session, " +
+      "so the concurrent-user count climbs until logins start failing",
+  );
+  if (opts.wireguard) {
+    // RAW text, not `parameterWrites`: that helper strips string contents
+    // on purpose, so `name="wg-cloudguest"` reaches it as `name=""` and
+    // this check could never have fired. Caught by mutating the real
+    // `WIREGUARD_INTERFACE_NAME` and finding only the section-6 checks
+    // red. The interface NAME is the value here, so the value has to be
+    // what is inspected.
+    // Statements that WRITE, told from statements that only talk about
+    // the old name -- the chunk deliberately names `wg-cloudguest` in its
+    // legacy warning and in the `remove` command it prints for the
+    // operator, and both of those are correct. `stripStrings` decides
+    // which is which, then the RAW statement is searched for the value.
+    const wgWrites = topLevelStatements(file).filter((st) =>
+      /\/interface wireguard(?: peers)?\s+(?:add|set)\b/.test(stripStrings(st)),
+    );
+    check(
+      `${variant}: the .rsc builds the tunnel the BACKEND knows about`,
+      wgWrites.length > 0 && wgWrites.every((st) => !/wg-cloudguest/.test(st)),
+      "`wg-cloudguard` is what `network_config/renderers.py` renders; a device built on the " +
+        "old `wg-cloudguest` name never handshakes and nothing on either side says why",
+    );
+  }
 }
 
 // =====================================================================

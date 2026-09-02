@@ -18,9 +18,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   ArrowLeft,
-  Workflow,
   WifiOff,
-  Compass,
 } from "lucide-react";
 import { MasterShell } from "@/components/master/MasterShell";
 import {
@@ -65,8 +63,16 @@ export const Route = createFileRoute("/master/routers")({
   // this list's own local-state drawer (`sel` below), so it hands in the
   // router id here and this auto-selects it once the real fleet has loaded.
   // `advanced` (legacy alias `setup`) swaps the whole page into the
-  // full-width legacy script generator for that router instead of the
-  // lightweight browse drawer -- shareable/bookmarkable deep links.
+  // full-width setup script generator for that router instead of the
+  // lightweight browse drawer -- shareable/bookmarkable deep links. It is
+  // also where the retired `/master/routers/guided/$id` and
+  // `/master/routers/setup/$id` routes now land, and where the customer
+  // dashboard's "Setup Script has moved" button points.
+  //
+  // Not "legacy": this panel is the fleet's ONLY provisioning entry point
+  // as of the Router Fleet cleanup. Calling it legacy in three places is
+  // part of what sent operators to a wizard that cannot finish on a fresh
+  // box.
   validateSearch: z.object({
     open: z.string().optional(),
     setup: z.string().optional(),
@@ -75,15 +81,19 @@ export const Route = createFileRoute("/master/routers")({
   component: RouterFleetRoute,
 });
 
-/** This route has a child (`/master/routers/setup/$routerId`, the fleet
- * provisioning wizard) but `RouterFleetScreen` never rendered an
- * `<Outlet/>`, so navigating to the wizard just re-rendered the fleet
- * list -- the wizard route was unreachable. The wizard is a full-page
- * surface (it renders its own `MasterShell`), so when a child match
- * exists this defers to it entirely instead of embedding it below the
- * list. Kept as a wrapper component (not an early return inside
- * `RouterFleetScreen`) so the screen's own hooks never change order
- * across renders. */
+/** This route has children (`/master/routers/setup/$routerId` and
+ * `/master/routers/guided/$routerId`) but `RouterFleetScreen` never
+ * rendered an `<Outlet/>`, so navigating to one just re-rendered the
+ * fleet list -- the child route was unreachable. Both children are
+ * full-page surfaces, so when a child match exists this defers to it
+ * entirely instead of embedding it below the list. Kept as a wrapper
+ * component (not an early return inside `RouterFleetScreen`) so the
+ * screen's own hooks never change order across renders.
+ *
+ * Both children are now redirect-only (they throw in `beforeLoad` and
+ * land on `?advanced=<id>` here), so in practice no child ever renders.
+ * The `<Outlet/>` stays anyway: it costs nothing, and it is what makes
+ * this parent correct if a real child surface is ever added back. */
 function RouterFleetRoute() {
   const childMatches = useChildMatches();
   if (childMatches.length > 0) return <Outlet />;
@@ -429,32 +439,20 @@ function RouterFleetScreen() {
                     {!demo && (
                       <MTd className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Link
-                            to="/master/routers/guided/$routerId"
-                            params={{ routerId: r.id }}
-                            onClick={(e) => e.stopPropagation()}
-                            title="Guided Setup -- ek phase, copy, Haan/Nahi. Naye router ke liye yahi use karo."
-                            className="inline-flex items-center gap-1 rounded-lg border border-primary bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground hover:bg-primary/90"
-                          >
-                            <Compass className="h-3 w-3" /> Guided
-                          </Link>
-                          <Link
-                            to="/master/routers/setup/$routerId"
-                            params={{ routerId: r.id }}
-                            onClick={(e) => e.stopPropagation()}
-                            title="Server-driven provisioning wizard (needs a live agent + tunnel)"
-                            className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-[11px] font-medium text-muted-foreground hover:border-primary hover:bg-accent hover:text-foreground"
-                          >
-                            <Workflow className="h-3 w-3" /> Wizard
-                          </Link>
+                          {/* THE ONLY PROVISIONING ENTRY POINT. This row
+                           * carried three (Guided / Wizard / Advanced) and
+                           * now carries one. The other two routes still
+                           * exist but redirect here -- see
+                           * `master.routers.guided.$routerId.tsx` and
+                           * `master.routers.setup.$routerId.tsx` for why. */}
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               goToAdvanced(r.id);
                             }}
-                            title="Legacy expert MikroTik script generator"
-                            className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-[11px] font-medium text-muted-foreground hover:border-primary hover:bg-accent hover:text-foreground"
+                            title="MikroTik setup script generator"
+                            className="inline-flex items-center gap-1 rounded-lg border border-primary bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground hover:bg-primary/90"
                           >
                             <FileCode2 className="h-3 w-3" /> Advanced
                           </button>
@@ -546,26 +544,8 @@ function RouterFleetScreen() {
 
                   {!demo && (
                     <div className="space-y-2">
-                      <Link
-                        to="/master/routers/guided/$routerId"
-                        params={{ routerId: sel.id }}
-                        className="block"
-                      >
-                        <MButton variant="primary" className="w-full justify-center">
-                          <Compass className="h-4 w-4" /> Guided Setup (recommended)
-                        </MButton>
-                      </Link>
-                      <Link
-                        to="/master/routers/setup/$routerId"
-                        params={{ routerId: sel.id }}
-                        className="block"
-                      >
-                        <MButton variant="outline" className="w-full justify-center">
-                          <Workflow className="h-4 w-4" /> Provisioning wizard
-                        </MButton>
-                      </Link>
                       <MButton
-                        variant="outline"
+                        variant="primary"
                         className="w-full justify-center"
                         onClick={() => goToAdvanced(sel.id)}
                       >
