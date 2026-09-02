@@ -1,8 +1,12 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ExternalLink, Laptop, RotateCcw, Sparkles } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ExternalLink, Laptop, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PortalShell, PortalCard, PortalTextPlate } from "@/components/portal-runtime/PortalShell";
-import { PG_PRIMARY_BTN, PG_SECONDARY_BTN } from "@/components/portal-runtime/PortalGuestUi";
+import {
+  DemoNotice,
+  PG_PRIMARY_BTN,
+  PG_SECONDARY_BTN,
+} from "@/components/portal-runtime/PortalGuestUi";
 import { GuestSignInCard } from "@/components/portal-runtime/GuestSignInCard";
 import {
   CampaignOverlay,
@@ -36,7 +40,13 @@ import type { NextCampaign } from "@/types/campaign";
  *      content/intro two-step (`contentMode` image/text/redirect ->
  *      Continue -> sign-in) and, in `demoMode`, runs the DUMMY OTP/password
  *      flow (see `useGuestSignIn`): no `requestOtp`, no `loginWithOtp`, no
- *      `recordConsent`, no navigation.
+ *      `recordConsent`, no navigation. VOUCHER is in that step too, and is
+ *      the reason a voucher-only venue has a walkthrough at all: its form
+ *      is the real `VoucherForm`, opened INLINE inside this same provider
+ *      rather than by following the `/portal/auth/voucher` link a real
+ *      guest follows (see `AuthTabSwitcher`'s `VoucherAffordance` and
+ *      `useGuestSignIn`'s voucher-step block). No `loginWithVoucher`, so
+ *      no voucher is checked, redeemed or marked used.
  *   2. CAMPAIGN -- the real `CampaignOverlay`, if the caller handed one over.
  *      Placed AFTER sign-in, not before it, because that is where a real
  *      guest meets it (`portal.session.tsx` resolves it post-login from a
@@ -218,18 +228,6 @@ function DemoConnectedIllustration({ className }: { className?: string }) {
   );
 }
 
-/** The one honest "this was a demo" note, shared by every resting step of
- * the walkthrough. Not a real guest-facing string, so it is plain copy
- * rather than a translated key. */
-function DemoNotice({ children }: { children: ReactNode }) {
-  return (
-    <div className="flex items-start gap-2.5 rounded-2xl border border-[var(--pg-border)] bg-[color-mix(in_srgb,var(--pr-primary,#6366f1)_5%,var(--pg-surface,#fff))] p-3.5">
-      <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[var(--pr-primary,#6366f1)]" />
-      <p className="pg-meta text-[var(--pg-ink-muted)]">{children}</p>
-    </div>
-  );
-}
-
 function StartOverButton({ onRestart }: { onRestart: () => void }) {
   return (
     <button
@@ -289,10 +287,19 @@ function DemoConnectedCard({
       </PortalCard>
 
       {/* An honest "this was a demo" note -- a prospect should never think a
-       * real connection was made. */}
+       * real connection was made.
+       *
+       * It names the method that actually got here, because the generic
+       * line was written when only OTP and password could: "no code was
+       * actually sent" is true of a voucher redemption in the narrow sense
+       * that nothing was sent anywhere, but it answers a question a
+       * voucher guest never asked and leaves the one they DID ask -- was a
+       * real voucher just consumed? -- unanswered on the one screen that
+       * appears immediately after they typed one in. */}
       <DemoNotice>
-        This is a demonstration of the guest sign-in flow. No code was actually sent, no session was
-        created, and no device was connected to any network.
+        {session?.authMethod === "voucher"
+          ? "This is a demonstration of the guest sign-in flow. The code entered was not checked against any real voucher, nothing was redeemed or marked as used, no session was created, and no device was connected to any network."
+          : "This is a demonstration of the guest sign-in flow. No code was actually sent, no session was created, and no device was connected to any network."}
       </DemoNotice>
 
       {onContinue && (

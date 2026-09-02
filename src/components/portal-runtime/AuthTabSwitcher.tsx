@@ -133,10 +133,22 @@ export function AuthTabSwitcher(sign: UseGuestSignInReturn) {
  * for that venue's real organization/location, where `loginWithVoucher`
  * would create a real `GuestSession` against them. A preview that can be
  * clicked into a real login two taps from the sign-in card is not a
- * preview, so on a simulated surface this renders as an inert control with
- * an honest note instead of a link.
+ * preview, so on a simulated surface this is NEVER a link.
  *
- * Real guests are entirely unaffected -- neither flag is ever set for them.
+ * That is the guard, and it does not move. What differs is what the
+ * non-link does, and it now splits the two simulated surfaces the same way
+ * every other sign-in action in `useGuestSignIn` already splits them:
+ *
+ *   - `demoMode` (the guest walkthrough) OPENS THE REAL VOUCHER FORM
+ *     INLINE, in this same card and this same provider, with no navigation
+ *     -- see `useGuestSignIn`'s voucher-step block for why a voucher-only
+ *     venue had no runnable walkthrough without it, and `VoucherForm`'s
+ *     own `onSubmit` for why submitting it cannot reach a backend.
+ *   - `previewMode` (the static preview, where nothing signs in at all)
+ *     keeps the inert control and its honest note, unchanged.
+ *
+ * Real guests are entirely unaffected -- neither flag is ever set for
+ * them, so this stays the `<Link>` to the real route it has always been.
  */
 function VoucherAffordance({
   sign,
@@ -156,8 +168,13 @@ function VoucherAffordance({
       <button
         type="button"
         aria-label={label}
-        onClick={() =>
-          toast.info("Voucher sign-in opens the live guest portal, so it is left out of previews.")
+        onClick={
+          demoMode
+            ? sign.onOpenVoucherStep
+            : () =>
+                toast.info(
+                  "Voucher sign-in opens the live guest portal, so it is left out of previews.",
+                )
         }
         className={className}
       >

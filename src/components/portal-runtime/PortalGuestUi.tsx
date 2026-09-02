@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { AlertCircle, Loader2, ShieldAlert } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { AlertCircle, Loader2, ShieldAlert, Sparkles } from "lucide-react";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 
 /**
@@ -23,6 +23,28 @@ import { usePortalRuntime } from "@/context/PortalRuntimeContext";
  * still wins whenever `logoUrl` is set.
  */
 export const DEFAULT_PORTAL_LOGO_SRC = "/brand/mark-compact-blue.svg";
+
+/**
+ * The one honest "this is a demonstration" note, shared by every resting
+ * step of a simulated guest journey -- `DemoPortalFlow`'s connected and
+ * post-login screens, and `GuestSignInCard`'s walkthrough-only voucher
+ * step. Lives here rather than in `DemoPortalFlow` because that module
+ * renders `GuestSignInCard`, so exporting it from there would close an
+ * import cycle; and a second hand-copied version of it is exactly how one
+ * of these screens quietly stops saying it.
+ *
+ * Not a real guest-facing string (a real guest never sees any of these
+ * screens), so it is plain copy rather than a translated key -- same
+ * decision, and the same reason, as the notes it carries.
+ */
+export function DemoNotice({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex items-start gap-2.5 rounded-2xl border border-[var(--pg-border)] bg-[color-mix(in_srgb,var(--pr-primary,#6366f1)_5%,var(--pg-surface,#fff))] p-3.5">
+      <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[var(--pr-primary,#6366f1)]" />
+      <p className="pg-meta text-[var(--pg-ink-muted)]">{children}</p>
+    </div>
+  );
+}
 
 /** Inline red alert banner -- "invalid mobile, wrong OTP, wrong password,
  * terms unchecked" per the design spec. Renders nothing when `message` is
