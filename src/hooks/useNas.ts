@@ -75,13 +75,20 @@ export function useDisableNas() {
   });
 }
 
-export function useRegenerateNasSecret() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (nasId: string) => nasService.regenerateSecret(nasId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: nasKeys.all }),
-  });
-}
+// NO useRegenerateNasSecret HOOK, deliberately (2026-09-02).
+//
+// The hooks in this file back the *customer* dashboard, and rotating a
+// RADIUS shared secret is not a customer operation. It takes the venue's
+// guest WiFi down the instant it succeeds -- the platform cannot write the
+// new secret onto the router, so the old one keeps being rejected until
+// somebody re-pastes the RADIUS chunk in WinBox -- and a venue owner has no
+// way to finish it. It used to be a one-click button on the NAS detail page
+// with no confirmation, reporting success.
+//
+// `nasService.regenerateSecret` is still there for the Master console,
+// which calls it directly, and the route behind it is GLOBAL-scoped now:
+// re-adding a hook here would 403 rather than break a venue, but do not
+// re-add it.
 
 export function useDeleteNas() {
   const qc = useQueryClient();

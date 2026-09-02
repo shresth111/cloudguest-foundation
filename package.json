@@ -26,6 +26,7 @@
     "test:api-paths": "node scripts/test-api-paths.mjs",
     "test:location-liveness": "node scripts/test-location-liveness.mjs",
     "test:device-health": "node scripts/test-device-health.mjs",
+    "test:nas-rotation-scope": "node scripts/test-nas-secret-rotation-scope.mjs",
     "format": "prettier --write .",
     "measure:portal-contrast": "node scripts/measure-portal-contrast.mjs"
   },

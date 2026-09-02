@@ -32,7 +32,12 @@ import {
 } from "@/components/master/MasterKit";
 import { nasService } from "@/services/nas.service";
 import { routerService } from "@/services/router.service";
-import { NAS_STATUS_LABEL, type NasClient, type NasClientSecretReveal } from "@/types/nas";
+import {
+  NAS_STATUS_LABEL,
+  type NasClient,
+  type NasClientSecretReveal,
+  type NasSecretRotation,
+} from "@/types/nas";
 import type { RouterDevice } from "@/types/router";
 import type { AppError } from "@/services/api";
 
@@ -63,7 +68,9 @@ function NasScreen() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [nasClients, setNasClients] = useState<NasClient[]>([]);
   const [routers, setRouters] = useState<RouterDevice[]>([]);
-  const [reveal, setReveal] = useState<NasClientSecretReveal | null>(null);
+  // Both a fresh registration and a rotation land here; only the latter
+  // carries the "the router still holds the old secret" instruction.
+  const [reveal, setReveal] = useState<NasClientSecretReveal | NasSecretRotation | null>(null);
 
   const [form, setForm] = useState({
     routerId: "",
@@ -184,20 +191,36 @@ function NasScreen() {
     }
   }
 
+  // THE CONFIRMATION STATES THE CONSEQUENCE, in the words an operator needs
+  // rather than the words the operation uses. A rotate is not "update a
+  // credential": it takes this venue's guest WiFi down at the moment it
+  // succeeds and keeps it down until someone is physically able to open the
+  // router in WinBox. The previous wording ("the router's RADIUS config must
+  // be updated immediately") described the same fact as routine follow-up
+  // work, which is how it got clicked.
   async function handleRegenerate(n: NasClient) {
+    const label = n.nasCode ?? n.nasIdentifier;
     if (
       !window.confirm(
-        `Regenerate the shared secret for "${n.nasCode ?? n.nasIdentifier}"? The router's RADIUS config must be updated immediately -- the old secret stops working right away.`,
+        `Rotate the RADIUS shared secret for "${label}"?\n\n` +
+          `This takes ${n.locationName || "this venue"}'s guest WiFi DOWN immediately. ` +
+          `Every guest login will be rejected until someone opens the router in WinBox and ` +
+          `re-pastes the RADIUS configuration with the new secret -- the platform cannot do ` +
+          `that for you, and the change cannot be undone.\n\n` +
+          `Only continue if someone can reach the router now.`,
       )
     )
       return;
     setBusyId(n.id);
     try {
       const result = await nasService.regenerateSecret(n.id);
-      toast.success("Secret regenerated");
+      // Not a success toast. The hub half worked; the venue is down.
+      toast.warning("Secret rotated — venue is down until the router is updated");
       setReveal(result);
     } catch (err) {
-      toast.error(errMsg(err, "Could not regenerate the shared secret."));
+      // The backend pushes to the hub before it writes, so a failure here
+      // means nothing changed and the venue is still up on the old secret.
+      toast.error(errMsg(err, "Could not rotate the shared secret — nothing was changed."));
     } finally {
       setBusyId(null);
     }
@@ -455,6 +478,15 @@ function NasScreen() {
                   <Copy className="h-4 w-4" />
                 </button>
               </div>
+              {/* The device half, straight from the backend rather than
+                  restated here -- the API owns this sentence because it is
+                  the half of a rotation the platform cannot perform. Only a
+                  rotation carries it; a fresh registration does not. */}
+              {"deviceActionRequired" in reveal && reveal.deviceActionRequired && (
+                <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+                  {reveal.deviceAction}
+                </p>
+              )}
             </div>
           )}
         </MDialog>
