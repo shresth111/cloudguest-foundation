@@ -6,83 +6,87 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { useWorkspaceScope } from "@/hooks/useWorkspace";
+import { ScopeErrorBanner } from "@/components/workspace/ScopeErrorBanner";
 import { businessTypeIcon } from "@/lib/business-type-icons";
-
-const CARD_HOVER =
-  "rounded-2xl border-border/70 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md";
 
 export function LocationGrid() {
   const { setActiveLocationId } = useWorkspace();
-  const { scope } = useWorkspaceScope();
+  const { scope, isError, refetchFailed } = useWorkspaceScope();
 
   if (scope.length === 0) {
+    // "under the current scope" and "switch to All locations" meant nothing
+    // to a venue owner with no venues, and there was nothing to switch to.
     return (
       <p className="text-sm text-muted-foreground">
-        No locations under the current scope. Switch to “All locations” to see everything.
+        No venues set up yet. Your Wyfy Guest contact adds your venues when your WiFi is installed —
+        email support@wyfyguest.com to add another.
       </p>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-      {scope.map((l) => {
-        const rOnline = l.resources?.routers.filter((r) => r.status === "online").length ?? 0;
-        const rTotal = l.resources?.routers.length ?? 0;
-        const SiteIcon = businessTypeIcon(l.siteType);
-        return (
-          <Card key={l.id} className="transition-shadow hover:shadow-md">
-            <CardContent className="space-y-4 p-5">
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-3">
-                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-                    <SiteIcon className="h-4 w-4" />
+    <>
+      {isError ? <ScopeErrorBanner onRetry={refetchFailed} /> : null}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {scope.map((l) => {
+          const rOnline = l.resources?.routers.filter((r) => r.status === "online").length ?? 0;
+          const rTotal = l.resources?.routers.length ?? 0;
+          const SiteIcon = businessTypeIcon(l.siteType);
+          return (
+            <Card key={l.id} className="transition-shadow hover:shadow-md">
+              <CardContent className="space-y-4 p-5">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-3">
+                    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                      <SiteIcon className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="text-base font-semibold">{l.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {l.city} · <span className="capitalize">{l.siteType}</span>
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-base font-semibold">{l.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {l.city} · <span className="capitalize">{l.siteType}</span>
+                  <Badge variant="secondary" className="capitalize">
+                    {l.siteType}
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-md bg-muted/40 p-2">
+                    <p className="text-xs text-muted-foreground">Guests</p>
+                    <p className="text-sm font-semibold">
+                      {l.resources?.analytics.activeSessions ?? "—"}
+                    </p>
+                  </div>
+                  <div className="rounded-md bg-muted/40 p-2">
+                    <p className="text-xs text-muted-foreground">Routers</p>
+                    <p className="text-sm font-semibold">
+                      {rOnline}/{rTotal}
+                    </p>
+                  </div>
+                  <div className="rounded-md bg-muted/40 p-2">
+                    <p className="text-xs text-muted-foreground">Data</p>
+                    <p className="text-sm font-semibold">
+                      {l.resources?.analytics.dataConsumedGb.toFixed(1) ?? "—"} GB
                     </p>
                   </div>
                 </div>
-                <Badge variant="secondary" className="capitalize">
-                  {l.siteType}
-                </Badge>
-              </div>
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="rounded-md bg-muted/40 p-2">
-                  <p className="text-xs text-muted-foreground">Guests</p>
-                  <p className="text-sm font-semibold">
-                    {l.resources?.analytics.activeSessions ?? "—"}
-                  </p>
+                <div className="flex items-center justify-between">
+                  <Button variant="outline" size="sm" onClick={() => setActiveLocationId(l.id)}>
+                    Focus location
+                  </Button>
+                  <Button asChild size="sm">
+                    <Link to="/workspace/locations/$locationId" params={{ locationId: l.id }}>
+                      Open workspace
+                    </Link>
+                  </Button>
                 </div>
-                <div className="rounded-md bg-muted/40 p-2">
-                  <p className="text-xs text-muted-foreground">Routers</p>
-                  <p className="text-sm font-semibold">
-                    {rOnline}/{rTotal}
-                  </p>
-                </div>
-                <div className="rounded-md bg-muted/40 p-2">
-                  <p className="text-xs text-muted-foreground">Data</p>
-                  <p className="text-sm font-semibold">
-                    {l.resources?.analytics.dataConsumedGb.toFixed(1) ?? "—"} GB
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <Button variant="outline" size="sm" onClick={() => setActiveLocationId(l.id)}>
-                  Focus location
-                </Button>
-                <Button asChild size="sm">
-                  <Link to="/workspace/locations/$locationId" params={{ locationId: l.id }}>
-                    Open workspace
-                  </Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })}
-    </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </>
   );
 }
 
@@ -92,7 +96,7 @@ export function LocationTree() {
     <Card>
       <CardContent className="p-4">
         <div className="flex items-center gap-2 border-b pb-2 text-sm font-medium">
-          <Building2 className="h-4 w-4 text-primary" /> Customer
+          <Building2 className="h-4 w-4 text-primary" /> Your venues
         </div>
         <ul className="mt-2 space-y-1 pl-4">
           <li>

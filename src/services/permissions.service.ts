@@ -886,163 +886,39 @@ function buildOwnerWorkspaceSidebar(): SidebarGroupDef[] {
     items: items.map((it, i) => ({ ...it, order: i })),
   });
 
+  // Every entry below points at a real page under /workspace that a venue
+  // owner can actually open.
+  //
+  // This list used to carry 50 items. 31 of them pointed outside /workspace
+  // -- /monitoring, /analytics/*, /network/*, /campaigns, /settings, /rbac
+  // and friends -- which are operator-console routes that _authenticated.tsx
+  // bounces every non-operator off, silently, back to "/". A further 12
+  // pointed at /workspace/pending-scope. So six real pages sat behind a menu
+  // of fifty, and four of those six (Guests, Reports, Notifications,
+  // Company, Help) were not listed at all: they were reachable only from a
+  // dashboard tile or a keyboard shortcut.
+  //
+  // An owner clicking "Alerts" and landing back on the dashboard with no
+  // message concludes the product is broken, and stops trusting the menu.
+  // If a future page belongs here, add it when the page exists -- a link
+  // that teleports the user is worse than no link.
   return [
     g("ws-overview", "Overview", 0, [
       { id: "ws-dashboard", label: "Dashboard", icon: "LayoutDashboard", to: "/workspace" },
+      { id: "ws-notifications", label: "Alerts", icon: "Bell", to: "/workspace/notifications" },
     ]),
-    g("ws-organization", "Organization", 10, [
-      { id: "ws-org-locations", label: "Locations", icon: "MapPin", to: "/workspace/locations" },
-      // /rbac's listUsers omits X-Organization-Id -- traced into
-      // backend/app/domains/user/service.py's list_users: when the header
-      // is absent it returns EVERY user platform-wide, with no check that
-      // the caller is actually Super Admin first. A real cross-tenant
-      // leak for any org-scoped Owner/Agent -- see workspace.pending-scope.tsx.
-      { id: "ws-org-users", label: "Users", icon: "Users", to: "/workspace/pending-scope" },
-      { id: "ws-org-roles", label: "Roles", icon: "ShieldCheck", to: "/workspace/pending-scope" },
+    g("ws-venues", "Venues", 10, [
+      { id: "ws-locations", label: "Locations", icon: "MapPin", to: "/workspace/locations" },
+      { id: "ws-routers", label: "Routers", icon: "Router", to: "/workspace/routers" },
     ]),
-    g("ws-network", "Network", 20, [
-      { id: "ws-net-routers", label: "Routers", icon: "Router", to: "/workspace/routers" },
-      // No dedicated provisioning workflow page yet -- routers list is the
-      // real, closest entry point today.
-      {
-        id: "ws-net-provisioning",
-        label: "Provisioning",
-        icon: "ServerCog",
-        to: "/workspace/routers",
-      },
-      { id: "ws-net-vlan", label: "VLAN", icon: "Network", to: "/network/vlan" },
-      { id: "ws-net-dhcp", label: "DHCP", icon: "Share2", to: "/network/dhcp" },
-      // RADIUS clients are managed via the NAS registry -- but /nas fans
-      // out across EVERY organization (no per-org scoping exists there),
-      // a real cross-tenant leak if linked from the customer workspace.
-      // Routers is the closest safe, already org-scoped destination until
-      // a workspace-scoped NAS view exists.
-      { id: "ws-net-radius", label: "Radius", icon: "Radio", to: "/workspace/routers" },
-      { id: "ws-net-firewall", label: "Firewall", icon: "Shield", to: "/network/firewall" },
+    g("ws-guests", "Guests", 20, [
+      { id: "ws-guest-list", label: "Guests", icon: "Users", to: "/workspace/guests" },
+      { id: "ws-reports", label: "Reports", icon: "FileText", to: "/workspace/reports" },
     ]),
-    g("ws-guest-access", "Guest Access", 30, [
-      // portal.service.ts's list() fans out across every organization
-      // (fetchAllConfigs) with no per-org filter -- same leak class as
-      // NAS/Users. Every /portals-linked leaf below is neutralized until
-      // that service gets real org scoping.
-      {
-        id: "ws-ga-login-methods",
-        label: "Login Methods",
-        icon: "KeyRound",
-        to: "/workspace/pending-scope",
-      },
-      // voucher.service.ts's own comment: "Platform-wide 'Voucher Master'
-      // view -- omits X-Organization-Id" -- deliberate for the platform
-      // console, but a real leak if reachable from the customer workspace.
-      { id: "ws-ga-voucher", label: "Voucher", icon: "Ticket", to: "/workspace/pending-scope" },
-      // OTP attempt/rate policy -- there's no separate OTP admin page.
-      { id: "ws-ga-otp", label: "OTP", icon: "Smartphone", to: "/policies/authentication" },
-      { id: "ws-ga-social", label: "Social Login", icon: "Users2", to: "/workspace/pending-scope" },
-      {
-        id: "ws-ga-whitelist",
-        label: "Whitelist",
-        icon: "Fingerprint",
-        to: "/network/mac-authorization",
-      },
-      {
-        id: "ws-ga-session-policies",
-        label: "Session Policies",
-        icon: "Clock",
-        to: "/policies/user",
-      },
-    ]),
-    g("ws-captive-portal", "Captive Portal", 40, [
-      { id: "ws-cp-branding", label: "Branding", icon: "Palette", to: "/branding" },
-      {
-        id: "ws-cp-templates",
-        label: "Templates",
-        icon: "LayoutTemplate",
-        to: "/workspace/pending-scope",
-      },
-      {
-        id: "ws-cp-landing",
-        label: "Landing Page",
-        icon: "LayoutTemplate",
-        to: "/workspace/pending-scope",
-      },
-      { id: "ws-cp-campaigns", label: "Campaigns", icon: "Megaphone", to: "/campaigns" },
-      { id: "ws-cp-surveys", label: "Surveys", icon: "MessageSquare", to: "/campaigns" },
-      {
-        id: "ws-cp-redirect",
-        label: "Redirect URL",
-        icon: "Globe",
-        to: "/workspace/pending-scope",
-      },
-    ]),
-    g("ws-monitoring", "Monitoring", 50, [
-      { id: "ws-mon-live-users", label: "Live Users", icon: "Users", to: "/guests" },
-      { id: "ws-mon-sessions", label: "Active Sessions", icon: "Activity", to: "/monitoring" },
-      { id: "ws-mon-device-health", label: "Device Health", icon: "HeartPulse", to: "/monitoring" },
-      { id: "ws-mon-isp", label: "ISP Status", icon: "Cable", to: "/network/isp" },
-      { id: "ws-mon-wan", label: "WAN Health", icon: "Signal", to: "/network/wan" },
-      { id: "ws-mon-alerts", label: "Alerts", icon: "BellRing", to: "/monitoring" },
-    ]),
-    g("ws-analytics", "Analytics", 60, [
-      { id: "ws-an-user", label: "User Report", icon: "PieChart", to: "/analytics/guest" },
-      {
-        id: "ws-an-voucher",
-        label: "Voucher Report",
-        icon: "Ticket",
-        to: "/workspace/pending-scope",
-      },
-      { id: "ws-an-otp", label: "OTP Report", icon: "BarChart3", to: "/analytics" },
-      // billing.service.ts's getSnapshot() fans out across every
-      // organization (fetchAllOrganizations) -- same leak class as NAS.
-      {
-        id: "ws-an-revenue",
-        label: "Revenue Report",
-        icon: "Receipt",
-        to: "/workspace/pending-scope",
-      },
-      { id: "ws-an-campaign", label: "Campaign Report", icon: "Megaphone", to: "/campaigns" },
-      { id: "ws-an-export", label: "Export", icon: "Download", to: "/exports" },
-    ]),
-    g("ws-automation", "Automation", 70, [
-      { id: "ws-auto-reports", label: "Scheduled Reports", icon: "FileClock", to: "/analytics" },
-      // No dedicated auto-provisioning workflow yet -- routers list is the
-      // real, closest entry point today.
-      {
-        id: "ws-auto-provisioning",
-        label: "Auto Provisioning",
-        icon: "ServerCog",
-        to: "/workspace/routers",
-      },
-      { id: "ws-auto-webhooks", label: "Webhooks", icon: "Plug", to: "/api-keys" },
-      { id: "ws-auto-integrations", label: "Integrations", icon: "Plug", to: "/settings" },
-    ]),
-    g("ws-security", "Security", 80, [
-      // audit.service.ts's AuditListQuery has no organizationId field at
-      // all -- structurally impossible to scope from the frontend today,
-      // and the underlying /audit/entries list is platform-wide.
-      {
-        id: "ws-sec-audit",
-        label: "Audit Logs",
-        icon: "ScrollText",
-        to: "/workspace/pending-scope",
-      },
-      {
-        id: "ws-sec-admin-logs",
-        label: "Admin Logs",
-        icon: "ScrollText",
-        to: "/workspace/pending-scope",
-      },
-      { id: "ws-sec-api-keys", label: "API Keys", icon: "KeyRound", to: "/api-keys" },
-      { id: "ws-sec-sso", label: "SSO", icon: "ShieldAlert", to: "/settings" },
-      { id: "ws-sec-mfa", label: "MFA", icon: "ShieldCheck", to: "/account" },
-    ]),
-    g("ws-settings", "Settings", 90, [
-      { id: "ws-set-branding", label: "Branding", icon: "Palette", to: "/branding" },
-      { id: "ws-set-domains", label: "Domains", icon: "Globe", to: "/branding" },
-      { id: "ws-set-email", label: "Email", icon: "Mail", to: "/settings" },
-      { id: "ws-set-sms", label: "SMS", icon: "MessageSquare", to: "/settings" },
-      { id: "ws-set-billing", label: "Billing", icon: "Receipt", to: "/workspace/billing" },
-      { id: "ws-set-subscription", label: "Subscription", icon: "CreditCard", to: "/subscription" },
-      { id: "ws-set-integrations", label: "Integrations", icon: "Plug", to: "/settings" },
+    g("ws-account", "Account", 30, [
+      { id: "ws-billing", label: "Plan & invoices", icon: "CreditCard", to: "/workspace/billing" },
+      { id: "ws-company", label: "Company", icon: "Building2", to: "/workspace/company" },
+      { id: "ws-help", label: "Help", icon: "LifeBuoy", to: "/workspace/help" },
     ]),
   ];
 }

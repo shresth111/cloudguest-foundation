@@ -6,6 +6,7 @@ import { ORGS_STORAGE_KEY, ROLES_STORAGE_KEY } from "@/services/api";
 import type { OrganizationMembership, RoleAssignment } from "@/types/auth";
 import { deriveLocationLiveness } from "@/lib/location-liveness";
 import type { LocationLiveness, RawRouterLiveness } from "@/lib/location-liveness";
+import { registerSessionScopeCache } from "@/lib/session-scope-cache";
 
 /* ── Types ─────────────────────────────────────────────────── */
 
@@ -666,6 +667,11 @@ interface MyOrganizationMembership {
 }
 
 let cachedOrgId: string | null = null;
+// Cleared on every identity transition -- this id must not outlive the
+// session that resolved it. See lib/session-scope-cache.ts.
+registerSessionScopeCache(() => {
+  cachedOrgId = null;
+});
 /** Resolves the current session's organization id for endpoints that
  * require X-Organization-Id (e.g. MAC authorization -- see
  * backend/app/domains/mac_authorization/service.py's OrganizationRequiredError).

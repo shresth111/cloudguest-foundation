@@ -5,24 +5,15 @@ import { useMemo, useState } from "react";
 import {
   Activity,
   AlertTriangle,
-  ArrowLeft,
-  BarChart3,
-  Cpu,
-  Download,
-  FileText,
   Gauge,
   MapPin,
   Pencil,
-  Plus,
-  QrCode,
-  Receipt,
   RefreshCw,
   Router as RouterIcon,
   ScrollText,
   Settings as SettingsIcon,
   ShieldCheck,
   Ticket,
-  UserPlus,
   Users,
   Wifi,
 } from "lucide-react";
@@ -42,7 +33,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -63,24 +53,24 @@ import { useQuery } from "@tanstack/react-query";
 import { monitoringService } from "@/services/monitoring.service";
 import { routerService } from "@/services/router.service";
 import { locationService } from "@/services/location.service";
+import { portalService } from "@/services/portal.service";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import type { ExistingCustomer } from "@/context/WorkspaceContext";
 import type { LocationResources, LocationRouterSummary } from "@/hooks/useWorkspace";
 import type { RouterStatus } from "@/types/router";
 import { GUEST_AUTH_METHOD_LABEL } from "@/types/guest";
+import { guestLabel } from "@/lib/guest-label";
+import { relativeTime, routerStatusLabel } from "@/lib/friendly";
 import type { GuestAuthMethod } from "@/types/guest";
 import type { AppError } from "@/services/api";
 import { toast } from "sonner";
 import {
   Area,
   AreaChart,
-  Bar,
-  BarChart,
   CartesianGrid,
   Cell,
   Legend,
   Line,
-  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -95,7 +85,8 @@ import {
 // `120 + i * 30`, and an audit log of fabricated entries the owner could
 // search. None had a per-location data source. The workspace already has
 // real, org-scoped Analytics, Reports and Billing pages, and staff is a
-// per-user concern, not a per-location one; RelatedLinks below points there.
+// per-user concern, not a per-location one. QuickActions on the Overview tab
+// links to the org-scoped equivalents.
 const TAB_KEYS = [
   "overview",
   "routers",
@@ -198,14 +189,14 @@ function LocationWorkspacePage() {
       <ConfirmDialog
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
-        title={`Delete ${location.name}?`}
-        description="This archives the location. Guest access and monitoring for it will stop."
-        confirmLabel="Delete"
+        title={`Remove ${location.name}?`}
+        description="Guest WiFi and monitoring for this venue stop immediately. Past guest records are kept — contact support if you need it restored."
+        confirmLabel="Remove venue"
         destructive
         onConfirm={async () => {
           try {
             await remove.mutateAsync([location.id]);
-            toast.success("Location deleted");
+            toast.success(`${location.name} removed`);
             navigate({ to: "/workspace/locations" });
           } catch (err) {
             toast.error((err as unknown as AppError).message || "Failed to delete location");
@@ -219,7 +210,7 @@ function LocationWorkspacePage() {
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="routers">Routers</TabsTrigger>
             <TabsTrigger value="wifi">Guest WiFi</TabsTrigger>
-            <TabsTrigger value="portal">Captive portal</TabsTrigger>
+            <TabsTrigger value="portal">Guest login screen</TabsTrigger>
             <TabsTrigger value="guests">Guests</TabsTrigger>
             <TabsTrigger value="monitoring">Monitoring</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
@@ -227,22 +218,43 @@ function LocationWorkspacePage() {
         </div>
 
         <div className="mt-4">
+          {/* Guest login screen and Settings read no part of `resources` --
+              PortalTab fetches its own portal and SettingsTab its own
+              location row, each with their own loading and error states. A
+              failure fetching routers or guest sessions used to blank them
+              out too, so an owner couldn't edit their address while sessions
+              were down. Rendered outside the resource gate. */}
+          <TabsContent value="settings">
+            <SettingsTab
+              customer={customer}
+              location={location}
+              onDeleteClick={() => setConfirmDelete(true)}
+            />
+          </TabsContent>
+          <TabsContent value="portal">
+            <PortalTab customer={customer} location={location} />
+          </TabsContent>
+
           {loadingResources ? (
-            <LocationWorkspaceSkeleton />
+            tab === "portal" || tab === "settings" ? null : (
+              <LocationWorkspaceSkeleton />
+            )
           ) : resourcesFailed || !resources ? (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Couldn&apos;t load this location&apos;s data</AlertTitle>
-              <AlertDescription className="flex items-center justify-between gap-3">
-                <span className="truncate">
-                  {(resourcesError as AppError | null)?.message ??
-                    "The routers and guest sessions for this location could not be fetched."}
-                </span>
-                <Button size="sm" variant="outline" onClick={() => refetch()}>
-                  Retry
-                </Button>
-              </AlertDescription>
-            </Alert>
+            tab === "portal" || tab === "settings" ? null : (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Couldn&apos;t load this location&apos;s data</AlertTitle>
+                <AlertDescription className="flex items-center justify-between gap-3">
+                  <span className="truncate">
+                    {(resourcesError as AppError | null)?.message ??
+                      "The routers and guest sessions for this location could not be fetched."}
+                  </span>
+                  <Button size="sm" variant="outline" onClick={() => refetch()}>
+                    Retry
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )
           ) : (
             <>
               <TabsContent value="overview">
@@ -259,21 +271,11 @@ function LocationWorkspacePage() {
               <TabsContent value="wifi">
                 <GuestWifiTab resources={resources} />
               </TabsContent>
-              <TabsContent value="portal">
-                <PortalTab customer={customer} location={location} />
-              </TabsContent>
               <TabsContent value="guests">
                 <GuestsTab resources={resources} />
               </TabsContent>
               <TabsContent value="monitoring">
                 <MonitoringTab resources={resources} locationId={location.id} />
-              </TabsContent>
-              <TabsContent value="settings">
-                <SettingsTab
-                  customer={customer}
-                  location={location}
-                  onDeleteClick={() => setConfirmDelete(true)}
-                />
               </TabsContent>
             </>
           )}
@@ -342,8 +344,7 @@ function LocationHeader({
             <p className="mt-0.5 flex flex-wrap items-center gap-2 truncate text-xs text-muted-foreground">
               <MapPin className="h-3.5 w-3.5 shrink-0" />
               {location.city}
-              {headerTimezone ? ` · ${headerTimezone}` : ""} ·{" "}
-              <span className="font-mono">{location.id}</span> · {customer.name}
+              {headerTimezone ? ` · ${headerTimezone}` : ""} · {customer.name}
             </p>
           </div>
         </div>
@@ -486,7 +487,12 @@ function OverviewTab({
           icon={RouterIcon}
           tone={offline ? "danger" : "default"}
         />
-        <Kpi label="Guest sessions" value={resources.analytics.totalSessions} icon={Users} />
+        <Kpi
+          label="Guest visits"
+          value={resources.analytics.totalSessions}
+          sub="all time"
+          icon={Users}
+        />
         <Kpi
           label="Active sessions"
           value={resources.analytics.activeSessions}
@@ -494,9 +500,9 @@ function OverviewTab({
           tone="positive"
         />
         <Kpi
-          label="Bandwidth"
+          label="Data used"
           value={`${resources.analytics.dataConsumedGb.toFixed(1)} GB`}
-          sub="recent sessions"
+          sub="last 100 visits"
           icon={Gauge}
         />
         <Kpi
@@ -697,7 +703,7 @@ function RoutersTab({ resources }: { resources: LocationResources }) {
     return (
       <EmptyState
         title="No routers yet"
-        body="Routers are registered and provisioned for you by the Wyfy Guest team. Contact support to add one to this location."
+        body="Our team installs and sets up your routers for you. Email support@wyfyguest.com to add one to this venue."
       />
     );
   }
@@ -742,13 +748,11 @@ function RoutersTab({ resources }: { resources: LocationResources }) {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Identity</TableHead>
+                    <TableHead>Router</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Last checked in</TableHead>
                     <TableHead>Serial</TableHead>
                     <TableHead>Model</TableHead>
-                    <TableHead>RouterOS</TableHead>
-                    <TableHead>Public IP</TableHead>
-                    <TableHead>Last seen</TableHead>
-                    <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -756,20 +760,16 @@ function RoutersTab({ resources }: { resources: LocationResources }) {
                   {filtered.map((r) => (
                     <TableRow key={r.id}>
                       <TableCell className="font-medium">{r.name}</TableCell>
-                      <TableCell className="font-mono text-xs">{r.serialNumber}</TableCell>
-                      <TableCell>{r.model}</TableCell>
-                      <TableCell>{r.routerOsVersion ?? "—"}</TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {r.publicIpAddress ?? "—"}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        {r.lastSeenAt ? new Date(r.lastSeenAt).toLocaleString() : "Never"}
-                      </TableCell>
                       <TableCell>
-                        <Badge variant={statusVariant(r.status)} className="capitalize">
-                          {r.status.replace(/_/g, " ")}
+                        <Badge variant={statusVariant(r.status)}>
+                          {routerStatusLabel(r.status)}
                         </Badge>
                       </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {r.lastSeenAt ? relativeTime(r.lastSeenAt) : "Never"}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">{r.serialNumber}</TableCell>
+                      <TableCell>{r.model}</TableCell>
                       <TableCell className="text-right">
                         <RouterRowActions r={r} />
                       </TableCell>
@@ -836,30 +836,25 @@ function RouterCard({ r }: { r: LocationRouterSummary }) {
               {r.model} · {r.publicIpAddress ?? "no public IP"}
             </p>
           </div>
-          <Badge variant={statusVariant(r.status)} className="capitalize">
-            {r.status.replace(/_/g, " ")}
-          </Badge>
+          <Badge variant={statusVariant(r.status)}>{routerStatusLabel(r.status)}</Badge>
         </div>
         {/* CPU, RAM and throughput are deliberately absent: the backend records
             a self-reported heartbeat, not live device metrics. */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <p className="text-xs text-muted-foreground">Last seen</p>
+            <p className="text-xs text-muted-foreground">Last checked in</p>
             <p className="text-sm font-medium">
-              {r.lastSeenAt ? new Date(r.lastSeenAt).toLocaleString() : "Never"}
+              {r.lastSeenAt ? relativeTime(r.lastSeenAt) : "Never"}
             </p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Management IP</p>
-            <p className="text-sm font-medium">{r.publicIpAddress ?? "—"}</p>
+            <p className="text-xs text-muted-foreground">Serial</p>
+            <p className="font-mono text-sm font-medium">{r.serialNumber}</p>
           </div>
         </div>
         <div className="flex flex-wrap gap-1.5">
           <Badge variant="outline" className="text-[10px]">
-            {r.serialNumber}
-          </Badge>
-          <Badge variant="outline" className="text-[10px]">
-            RouterOS {r.routerOsVersion ?? "unknown"}
+            {r.model}
           </Badge>
         </div>
         <div className="flex flex-wrap gap-1.5">
@@ -915,15 +910,19 @@ function GuestWifiTab({ resources }: { resources: LocationResources }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Kpi label="Guest sessions" value={resources.analytics.totalSessions} icon={Wifi} />
+        <Kpi
+          label="Guest visits"
+          value={resources.analytics.totalSessions}
+          sub="all time"
+          icon={Wifi}
+        />
         <Kpi label="Active now" value={resources.analytics.activeSessions} icon={Users} />
         <Kpi
           label="Data used"
           value={`${resources.analytics.dataConsumedGb.toFixed(1)} GB`}
-          sub="sessions loaded"
+          sub="last 100 visits"
           icon={Gauge}
         />
-        <Kpi label="Sessions listed" value={resources.guestSessions.length} icon={Cpu} />
       </div>
 
       <Card>
@@ -968,82 +967,97 @@ function PortalTab({
   customer: ExistingCustomer;
   location: ExistingCustomer["locations"][number];
 }) {
-  const [primary, setPrimary] = useState("#6366f1");
-  const [secondary, setSecondary] = useState("#22c55e");
-  const [welcome, setWelcome] = useState(`Welcome to ${location.name}`);
+  // This tab used to be a full branding editor -- welcome message, redirect
+  // URL, two colour pickers, font, languages, terms -- with a live preview
+  // and NO Save button and no persistence anywhere. An owner could spend ten
+  // minutes branding their guest login screen, switch tabs, and lose all of
+  // it, with nothing on screen suggesting that would happen. It didn't look
+  // broken; it looked finished. That is the worst kind of defect.
+  //
+  // Several of its defaults were invented too: the redirect URL was guessed
+  // from the company name, and Languages was a free-text box pre-filled with
+  // "EN, HI, AR, FR, ES" regardless of what the portal actually served.
+  //
+  // Until the editor is genuinely wired to portalService.update, this shows
+  // the venue's REAL current portal configuration, read-only, and says how
+  // to get it changed.
+  const portalQ = useQuery({
+    queryKey: ["workspace", "locationPortal", location.id],
+    queryFn: () =>
+      portalService.list({
+        organizationId: customer.id,
+        page: 1,
+        pageSize: 50,
+        sort: { key: "name", dir: "asc" },
+      }),
+    enabled: !!customer.id,
+  });
+
+  const portal = portalQ.data?.items.find((p) => p.locationId === location.id);
+  const primary = portal?.branding.primaryColor ?? "#6366f1";
+  const secondary = portal?.branding.secondaryColor ?? "#22c55e";
+  const welcome = portal?.content.heading?.trim() || `Welcome to ${location.name}`;
+
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
       <div className="space-y-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Customization</CardTitle>
+            <CardTitle className="text-base">Your guest login screen</CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label>Welcome message</Label>
-              <Textarea rows={3} value={welcome} onChange={(e) => setWelcome(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Redirect URL</Label>
-              <Input
-                defaultValue={`https://${customer.name.toLowerCase().replace(/\s+/g, "")}.com`}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Primary color</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="color"
-                  value={primary}
-                  onChange={(e) => setPrimary(e.target.value)}
-                  className="h-9 w-14 p-1"
-                />
-                <Input
-                  value={primary}
-                  onChange={(e) => setPrimary(e.target.value)}
-                  className="font-mono"
-                />
+          <CardContent className="space-y-4">
+            {portalQ.isLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-9 w-full" />
+                <Skeleton className="h-9 w-2/3" />
               </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Secondary color</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="color"
-                  value={secondary}
-                  onChange={(e) => setSecondary(e.target.value)}
-                  className="h-9 w-14 p-1"
-                />
-                <Input
-                  value={secondary}
-                  onChange={(e) => setSecondary(e.target.value)}
-                  className="font-mono"
-                />
+            ) : portalQ.isError ? (
+              <div className="flex items-center justify-between gap-3 rounded-lg border p-4">
+                <p className="text-sm">Your guest login screen settings couldn&apos;t be loaded.</p>
+                <Button size="sm" variant="outline" onClick={() => portalQ.refetch()}>
+                  Retry
+                </Button>
               </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Font</Label>
-              <Select defaultValue="inter">
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="inter">Inter</SelectItem>
-                  <SelectItem value="poppins">Poppins</SelectItem>
-                  <SelectItem value="system">System</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Languages</Label>
-              <Input defaultValue="EN, HI, AR, FR, ES" />
-            </div>
-            <div className="sm:col-span-2 space-y-1.5">
-              <Label>Terms & conditions</Label>
-              <Textarea
-                rows={3}
-                defaultValue="By connecting you agree to fair-use and privacy terms."
-              />
+            ) : !portal ? (
+              <p className="text-sm text-muted-foreground">
+                No guest login screen has been set up for this venue yet. Email{" "}
+                <span className="font-medium">support@wyfyguest.com</span> and we&apos;ll set one up
+                for you.
+              </p>
+            ) : (
+              <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+                <PortalFact label="Welcome message" value={welcome} />
+                <PortalFact
+                  label="Status"
+                  value={portal.status === "published" ? "Live" : portal.status}
+                />
+                <PortalFact
+                  label="Languages"
+                  value={portal.languages.length ? portal.languages.join(", ") : "English"}
+                />
+                <PortalFact
+                  label="How guests sign in"
+                  value={
+                    portal.loginMethods.length
+                      ? portal.loginMethods.join(", ").replace(/_/g, " ")
+                      : "Not set"
+                  }
+                />
+                <PortalFact
+                  label="After signing in, guests go to"
+                  value={portal.login.redirectUrl || "Wherever they were heading"}
+                />
+                <PortalFact label="Brand colours" value={`${primary} · ${secondary}`} />
+              </dl>
+            )}
+
+            <div className="rounded-lg border bg-muted/40 p-4">
+              <p className="text-sm font-medium">Want to change any of this?</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Email <span className="font-medium">support@wyfyguest.com</span> with what
+                you&apos;d like — your welcome message, logo or brand colours — and we&apos;ll
+                update it for you.
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -1051,7 +1065,7 @@ function PortalTab({
 
       <Card className="lg:sticky lg:top-4 lg:self-start">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Live preview</CardTitle>
+          <CardTitle className="text-base">What your guests see</CardTitle>
         </CardHeader>
         <CardContent>
           <div
@@ -1068,10 +1082,13 @@ function PortalTab({
               <p className="text-sm font-semibold">{welcome}</p>
               <p className="text-xs text-muted-foreground">Connect to enjoy free WiFi</p>
               <div className="mx-auto max-w-xs space-y-2">
-                <Input placeholder="Mobile number" className="h-9" />
-                <Button className="h-9 w-full" style={{ background: primary }}>
+                <div className="h-9 rounded-md border bg-background/60" />
+                <div
+                  className="grid h-9 place-items-center rounded-md text-xs font-medium text-white"
+                  style={{ background: primary }}
+                >
                   Continue
-                </Button>
+                </div>
               </div>
               <p className="text-[10px] text-muted-foreground">
                 Powered by Wyfy Guest · {location.name}
@@ -1080,6 +1097,15 @@ function PortalTab({
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function PortalFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="text-sm font-medium">{value}</dd>
     </div>
   );
 }
@@ -1098,43 +1124,28 @@ function GuestsTab({ resources }: { resources: LocationResources }) {
               <TableHeader>
                 <TableRow>
                   <TableHead>Guest</TableHead>
-                  <TableHead>IP address</TableHead>
-                  <TableHead>Method</TableHead>
+                  <TableHead>Signed in with</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Data</TableHead>
                   <TableHead>Started</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {resources.guestSessions.map((g) => (
                   <TableRow key={g.id}>
-                    <TableCell className="font-medium">{g.guestIdentifier}</TableCell>
-                    <TableCell className="font-mono text-xs">{g.ipAddress ?? "—"}</TableCell>
+                    <TableCell className="font-medium">{guestLabel(g)}</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="capitalize">
-                        {g.authMethod.replace(/_/g, " ")}
+                      <Badge variant="outline">
+                        {GUEST_AUTH_METHOD_LABEL[g.authMethod] ?? g.authMethod}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant={g.status === "active" ? "default" : "secondary"}
-                        className="capitalize"
-                      >
-                        {g.status}
+                      <Badge variant={g.status === "active" ? "default" : "outline"}>
+                        {g.status === "active" ? "Online" : "Ended"}
                       </Badge>
                     </TableCell>
                     <TableCell>{g.dataMb.toFixed(1)} MB</TableCell>
                     <TableCell>{new Date(g.startedAt).toLocaleString()}</TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => toast.info(`Details · ${g.guestIdentifier}`)}
-                      >
-                        Details
-                      </Button>
-                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -1199,8 +1210,8 @@ function MonitoringTab({
         />
         <Kpi label="Guests online" value={resources.analytics.activeSessions} icon={Wifi} />
         <Kpi
-          label="Last heartbeat"
-          value={lastSeen ? new Date(lastSeen).toLocaleTimeString() : "Never"}
+          label="Router last checked in"
+          value={lastSeen ? relativeTime(lastSeen) : "Never"}
           icon={Activity}
         />
       </div>
@@ -1268,7 +1279,7 @@ function SettingsTab({
   const sections = [
     "General",
     "Guest WiFi",
-    "Captive Portal",
+    "Guest login screen",
     "Notifications",
     "Security",
     "Email",
@@ -1308,6 +1319,21 @@ function SettingsTab({
       toast.error("Country must be a 2-letter code, for example IN.");
       return;
     }
+    // These five are NOT NULL on the backend with min_length=1, so an empty
+    // one reaches Pydantic and comes back as a raw 422 the user cannot act
+    // on. Name the field instead.
+    const required: Array<[keyof GeneralSettingsForm, string]> = [
+      ["name", "Property name"],
+      ["addressLine1", "Address"],
+      ["city", "City"],
+      ["stateProvince", "State / province"],
+      ["postalCode", "Postal code"],
+    ];
+    const blank = required.find(([key]) => !form[key].trim());
+    if (blank) {
+      toast.error(`${blank[1]} can't be empty.`);
+      return;
+    }
     update.mutate(
       {
         id: location.id,
@@ -1320,8 +1346,8 @@ function SettingsTab({
           postalCode: form.postalCode.trim(),
           country: form.country.trim().toUpperCase(),
           timezone: form.timezone.trim(),
-          latitude: lat ? Number(lat) : undefined,
-          longitude: lon ? Number(lon) : undefined,
+          latitude: lat ? Number(lat) : null,
+          longitude: lon ? Number(lon) : null,
         },
       },
       {
@@ -1479,7 +1505,7 @@ function SettingsTab({
                 </div>
                 <div className="flex flex-wrap gap-2 sm:col-span-2">
                   <Button variant="destructive" onClick={onDeleteClick}>
-                    Delete location
+                    Remove venue
                   </Button>
                 </div>
               </>
@@ -1578,9 +1604,3 @@ function LocationWorkspaceSkeleton() {
     </div>
   );
 }
-
-function ArrowBack() {
-  return <ArrowLeft className="mr-1.5 h-4 w-4" />;
-}
-// keep import used
-void ArrowBack;

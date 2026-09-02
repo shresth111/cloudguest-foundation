@@ -7,6 +7,7 @@ import type {
   MacAuthorizationListResult,
   UpdateMacAuthorizationPayload,
 } from "@/types/mac-authorization";
+import { registerSessionScopeCache } from "@/lib/session-scope-cache";
 
 interface BackendMacAuthorizationEntry {
   id: string;
@@ -48,6 +49,11 @@ function toEntry(e: BackendMacAuthorizationEntry): MacAuthorizationEntry {
 }
 
 let cachedOrganizationId: string | null = null;
+// Cleared on every identity transition -- this id must not outlive the
+// session that resolved it. See lib/session-scope-cache.ts.
+registerSessionScopeCache(() => {
+  cachedOrganizationId = null;
+});
 // create_entry requires an organization context (raises
 // OrganizationRequiredError otherwise -- see
 // backend/app/domains/mac_authorization/service.py), so every call here

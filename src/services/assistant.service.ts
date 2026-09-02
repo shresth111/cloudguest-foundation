@@ -1,5 +1,6 @@
 import { api } from "@/services/api";
 import type { AssistantConversation, AssistantMessage } from "@/types/assistant";
+import { registerSessionScopeCache } from "@/lib/session-scope-cache";
 
 interface BackendMessage {
   id: string;
@@ -59,6 +60,11 @@ function toConversation(c: BackendConversation): AssistantConversation {
 }
 
 let cachedOrgId: string | null = null;
+// Cleared on every identity transition -- this id must not outlive the
+// session that resolved it. See lib/session-scope-cache.ts.
+registerSessionScopeCache(() => {
+  cachedOrgId = null;
+});
 // GET /organizations is the platform-wide admin listing (GLOBAL scope
 // only) -- an ordinary customer/org-owner session 403s on it. Resolved via
 // /me/organizations (membership-scoped) instead, same fix as
