@@ -102,7 +102,11 @@ async function fetchAllOrgLocations(organizationId: string): Promise<BackendLoca
   const totalPages = Math.min(first.total_pages ?? 1, MAX_LOCATION_PAGES);
   if (totalPages <= 1) return first.items;
 
-  const rest = await Promise.all(
+  // allSettled, not all: a single rejected page used to fail the whole
+  // workspace load and render "Your workspace couldn't be loaded" -- turning
+  // one recoverable request into nineteen fatal ones. A dropped page costs
+  // some locations; a thrown one costs the entire dashboard.
+  const rest = await Promise.allSettled(
     Array.from({ length: totalPages - 1 }, (_, i) =>
       api.get<BackendLocationList>(`/organizations/${organizationId}/locations`, {
         params: { page: i + 2, page_size: LOCATION_PAGE_SIZE },
@@ -110,7 +114,10 @@ async function fetchAllOrgLocations(organizationId: string): Promise<BackendLoca
       }),
     ),
   );
-  return [...first.items, ...rest.flatMap((r) => r.data.items)];
+  return [
+    ...first.items,
+    ...rest.flatMap((r) => (r.status === "fulfilled" ? r.value.data.items : [])),
+  ];
 }
 
 interface BackendSubscription {

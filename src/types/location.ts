@@ -103,14 +103,21 @@ export type UpdateLocationPayload = Partial<
     | "postalCode"
     | "country"
     | "timezone"
-    | "latitude"
-    | "longitude"
     | "contactName"
     | "contactPhone"
     | "contactEmail"
     | "settings"
   >
->;
+> & {
+  /**
+   * `null` clears the coordinate; omitting the key leaves it untouched. The
+   * distinction matters because the backend uses `exclude_unset`, so an
+   * omitted field is a no-op -- which is how clearing a latitude used to
+   * report success and then show the old value again.
+   */
+  latitude?: number | null;
+  longitude?: number | null;
+};
 
 export interface ProvisionLocationPayload {
   existingOrganizationId?: string;

@@ -15,6 +15,7 @@ import type {
   UpdateCampaignPayload,
   UpdateCampaignQuestionPayload,
 } from "@/types/campaign";
+import { registerSessionScopeCache } from "@/lib/session-scope-cache";
 
 interface BackendCampaign {
   id: string;
@@ -122,6 +123,11 @@ function toCampaign(c: BackendCampaign): Campaign {
 // the full explanation -- same fix applied here, first fixed in
 // ticket.service.ts's resolveOrgId).
 let cachedOrganizationId: string | null = null;
+// Cleared on every identity transition -- this id must not outlive the
+// session that resolved it. See lib/session-scope-cache.ts.
+registerSessionScopeCache(() => {
+  cachedOrganizationId = null;
+});
 async function resolveOrganizationId(): Promise<string> {
   if (cachedOrganizationId) return cachedOrganizationId;
   const { data } =

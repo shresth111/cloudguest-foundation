@@ -9,7 +9,7 @@ import {
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { authService } from "@/services/auth.service";
-import { resetAnalyticsScopeCache } from "@/services/analytics.service";
+import { resetSessionScopeCaches } from "@/lib/session-scope-cache";
 import { useCustomerStore } from "@/stores/customerStore";
 import {
   TOKEN_STORAGE_KEY,
@@ -257,6 +257,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // location wale pr pehle nahi ja raha... login hote hi direct
       // location mai ja raha hai."
       useCustomerStore.getState().clearLocation();
+      resetSessionScopeCaches();
 
       // A fresh login is never a continuation of some earlier impersonation
       // detour -- drop both slots so a stale preserved-operator-session or
@@ -345,11 +346,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // sign-in (same tab, different account) must not inherit this
     // session's location either.
     useCustomerStore.getState().clearLocation();
-    // analytics.service.ts resolves and caches a default organization and
-    // location id at module level. queryClient.clear() does not touch those,
-    // so without this the next account signed in on the same tab would
-    // generate reports scoped to the previous account's organization.
-    resetAnalyticsScopeCache();
+    resetSessionScopeCaches();
     setUser(null);
     setRoles([]);
     setOrganizations([]);
@@ -409,6 +406,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // impersonated view.
       queryClient.clear();
       useCustomerStore.getState().clearLocation();
+      resetSessionScopeCaches();
 
       const fullName = input.targetUser.fullName.trim();
       const [firstName, ...rest] = fullName.split(/\s+/).filter(Boolean);
@@ -498,6 +496,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const preSession = readStoredJson<PreImpersonationSession>(PRE_IMPERSONATION_SESSION_KEY);
     queryClient.clear();
     useCustomerStore.getState().clearLocation();
+    resetSessionScopeCaches();
     removeStored(PRE_IMPERSONATION_SESSION_KEY);
     removeStored(IMPERSONATION_EXPIRES_AT_KEY);
 

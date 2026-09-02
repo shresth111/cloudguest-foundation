@@ -1,16 +1,14 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { DashboardWidgets } from "@/components/workspace/DashboardWidgets";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
+// This page rendered <DashboardWidgets /> -- byte for byte the same tiles and
+// charts as /workspace, under a different heading. An owner who found both
+// would reasonably assume one of them was broken. Redirected rather than
+// kept, so an existing bookmark still lands somewhere real.
+//
+// If a genuine analytics view is wanted later it should show what the
+// dashboard doesn't: busiest hours, repeat visitors, week on week.
 export const Route = createFileRoute("/_authenticated/workspace/analytics")({
-  component: () => (
-    <div>
-      <div className="mb-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Analytics</h1>
-        <p className="text-sm text-muted-foreground">
-          Rolling insights across every location in scope.
-        </p>
-      </div>
-      <DashboardWidgets />
-    </div>
-  ),
+  beforeLoad: () => {
+    throw redirect({ to: "/workspace" });
+  },
 });

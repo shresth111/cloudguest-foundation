@@ -1,19 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  Activity,
-  Bell,
-  Router as RouterIcon,
-  ShieldCheck,
-  Sparkles,
-  Ticket,
-  Users,
-} from "lucide-react";
+import { Activity, Bell, Router as RouterIcon, ShieldCheck, Sparkles, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Can } from "@/components/permissions/Can";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { useWorkspaceScope } from "@/hooks/useWorkspace";
 import { usePermissions } from "@/hooks/usePermissions";
+import { ScopeErrorBanner } from "@/components/workspace/ScopeErrorBanner";
 
 export const Route = createFileRoute("/_authenticated/workspace/agent")({
   component: AgentDashboardPage,
@@ -38,7 +31,7 @@ export const Route = createFileRoute("/_authenticated/workspace/agent")({
  */
 function AgentDashboardPage() {
   const { customer, activeLocation, locations } = useWorkspace();
-  const { aggregated } = useWorkspaceScope();
+  const { aggregated, isError: scopeFailed, refetchFailed } = useWorkspaceScope();
   const { modules, isLoading: permissionsLoading } = usePermissions();
 
   // Count only the modules this page actually gates on. Counting every
@@ -46,13 +39,7 @@ function AgentDashboardPage() {
   // appear once permissions resolved (every allowed bucket has `dashboard`),
   // so a user with genuinely none of these got a blank page -- while it
   // *did* flash on every load, when `modules` was still {}.
-  const GATED_MODULES = [
-    "guests-live",
-    "routers",
-    "monitoring",
-    "voucher-master",
-    "notifications",
-  ] as const;
+  const GATED_MODULES = ["guests-live", "routers", "monitoring", "notifications"] as const;
   const visibleCount = GATED_MODULES.filter((id) => modules[id]?.view).length;
   const location = activeLocation ?? locations[0];
 
@@ -94,37 +81,38 @@ function AgentDashboardPage() {
         </Can>
       </div>
 
+      {/* Every card here used to point at an operator-console route --
+          /guests, /vouchers, /monitoring, /notifications -- none of which is
+          a customer-safe path, so _authenticated.tsx bounced the agent to
+          "/" with no explanation on all four. Same defect that was fixed for
+          /workspace/staff and /workspace/audit. Only the destinations that
+          exist inside the workspace are offered; Vouchers has no customer
+          page at all, so it is gone rather than broken. */}
+      {scopeFailed ? <ScopeErrorBanner onRetry={refetchFailed} /> : null}
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Can module="guests-live" mode="hidden">
           <QuickLinkCard
             icon={Users}
             title="Guests"
-            description="View and manage guests currently on this location's network."
-            to="/guests"
+            description="See who has connected to your venue's WiFi."
+            to="/workspace/guests"
           />
         </Can>
-        <Can module="voucher-master" mode="hidden">
+        <Can module="routers" mode="hidden">
           <QuickLinkCard
-            icon={Ticket}
-            title="Vouchers"
-            description="Generate and manage guest access vouchers."
-            to="/vouchers"
-          />
-        </Can>
-        <Can module="monitoring" mode="hidden">
-          <QuickLinkCard
-            icon={Activity}
-            title="Monitoring"
-            description="Router and network health for your location."
-            to="/monitoring"
+            icon={RouterIcon}
+            title="Routers"
+            description="Check whether your venue's routers are online."
+            to="/workspace/routers"
           />
         </Can>
         <Can module="notifications" mode="hidden">
           <QuickLinkCard
             icon={Bell}
-            title="Notifications"
-            description="Recent alerts and system notices."
-            to="/notifications"
+            title="Alerts"
+            description="Recent alerts raised for your venue."
+            to="/workspace/notifications"
           />
         </Can>
       </div>
@@ -133,9 +121,9 @@ function AgentDashboardPage() {
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center gap-2 p-10 text-center">
             <Sparkles className="h-6 w-6 text-muted-foreground" />
-            <p className="text-sm font-medium">No features assigned yet</p>
+            <p className="text-sm font-medium">Nothing assigned to you yet</p>
             <p className="text-xs text-muted-foreground">
-              Ask your Owner to grant access via Roles &amp; Permissions.
+              Your manager hasn&apos;t given you access to anything yet — ask them to add it.
             </p>
           </CardContent>
         </Card>

@@ -1,5 +1,6 @@
 import { api } from "@/services/api";
 import { isDemo } from "@/services/customer.service";
+import { registerSessionScopeCache } from "@/lib/session-scope-cache";
 import type {
   AnalyticsKpis,
   AnalyticsSettings,
@@ -819,12 +820,14 @@ async function resolveDefaultOrganizationId(): Promise<string | null> {
   }
 }
 
-/** Clears the resolved organization/location ids. Call on sign-out and on
- *  organization switch. */
+/** Clears the resolved organization/location ids. Registered below so every
+ *  identity transition clears it via resetSessionScopeCaches(). */
 export function resetAnalyticsScopeCache(): void {
   cachedOrgId = undefined;
   cachedLocationId = undefined;
 }
+
+registerSessionScopeCache(resetAnalyticsScopeCache);
 
 // There is no cross-org "first location" endpoint (same gap
 // location.service.ts's fetchAllLocations already documents), so this fans
@@ -835,6 +838,7 @@ export function resetAnalyticsScopeCache(): void {
 let cachedLocationId: string | null | undefined;
 async function resolveDefaultLocationId(): Promise<string | null> {
   if (cachedLocationId !== undefined) return cachedLocationId;
+  let sawFailure = false;
   try {
     const { data: orgs } = await api.get<BackendListResponse<BackendOrgListItem>>(
       "/organizations",
@@ -852,8 +856,14 @@ async function resolveDefaultLocationId(): Promise<string | null> {
         }
       } catch {
         // This caller may not be a member of `org` -- try the next one.
+        sawFailure = true;
       }
     }
+    // Only cache "no location" when every lookup actually answered. If any
+    // of them failed transiently we cannot tell "not a member" from "network
+    // blipped", and caching null there strands the session permanently --
+    // the same defect resolveDefaultOrganizationId above was fixed for.
+    if (sawFailure) return null;
     cachedLocationId = null;
   } catch {
     // Not cached: a failed lookup is retried, not remembered as "none".

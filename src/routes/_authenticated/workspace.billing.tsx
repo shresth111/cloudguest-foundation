@@ -71,7 +71,22 @@ function BillingPage() {
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <Metric label="Plan" value={billing.data.plan.name} />
-            <Metric label="Cycle" value={billing.data.billingCycle} />
+            {/* The one question a venue owner opens this page to answer --
+                what am I paying, and what comes out next -- was the one
+                thing the card didn't show. */}
+            <Metric
+              label="Price"
+              value={money(
+                billing.data.billingCycle === "annual"
+                  ? billing.data.plan.annualPrice
+                  : billing.data.plan.monthlyPrice,
+                billing.data.plan.currency,
+              )}
+            />
+            <Metric
+              label="Billed"
+              value={billing.data.billingCycle === "annual" ? "Yearly" : "Monthly"}
+            />
             <Metric
               label={billing.data.status === "active" ? "Renewal" : "Ends"}
               value={new Date(billing.data.renewalDate).toLocaleDateString()}

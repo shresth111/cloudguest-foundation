@@ -42,15 +42,10 @@ import { rbacService } from "@/services/rbac.service";
 import { campaignService } from "@/services/campaign.service";
 import { billingService } from "@/services/billing.service";
 import { monitoringService } from "@/services/monitoring.service";
+import { guestLabel } from "@/lib/guest-label";
 import { cn } from "@/lib/utils";
 
 const CHART_COLORS = ["#6366f1", "#22c55e", "#f59e0b", "#ef4444", "#06b6d4", "#a855f7"];
-
-/** The backend's session payload carries no guest identifier, so fall back to
- *  a short, stable reference rather than rendering an empty line. */
-function guestLabel(s: { guestIdentifier: string | null; guestId: string }): string {
-  return s.guestIdentifier?.trim() || `Guest ${s.guestId.slice(0, 8)}`;
-}
 
 function startOfToday(): number {
   const d = new Date();
@@ -69,7 +64,7 @@ function startOfToday(): number {
 function useOwnerKpis(organizationId: string | undefined, organizationName: string | undefined) {
   const usersQ = useQuery({
     queryKey: ["workspace-kpi", "users", organizationId],
-    queryFn: () => rbacService.listUsers({ page: 1, pageSize: 1 }),
+    queryFn: () => rbacService.listUsers({ page: 1, pageSize: 1 }, organizationId),
     enabled: !!organizationId,
   });
 
@@ -141,8 +136,12 @@ export function DashboardWidgets() {
   // actually has (see the module docstring on RouterDetailTabs' own
   // monitoring-tab gap: no live CPU/RAM/bandwidth endpoint exists yet).
   const routerRatio = aggregated.routers.length ? onlineRouters / aggregated.routers.length : 1;
-  const systemHealth: "healthy" | "degraded" | "critical" =
-    routerRatio === 1 && (owner.openAlerts ?? 0) === 0
+  const systemHealth: "healthy" | "degraded" | "critical" | "unknown" = scopeFailed
+    ? // Every location failing produces an empty aggregate, which makes
+      // routerRatio short-circuit to 1 and the tile read green -- asserting
+      // health for a fleet we could not reach at all.
+      "unknown"
+    : routerRatio === 1 && (owner.openAlerts ?? 0) === 0
       ? "healthy"
       : routerRatio >= 0.7
         ? "degraded"
@@ -261,7 +260,7 @@ export function DashboardWidgets() {
       <SectionHeader
         eyebrow="Workspace"
         title="Dashboard overview"
-        description="Unified view of your locations, guests, routers, and revenue."
+        description="Everything happening across your venues today."
       />
 
       {/* Some locations failed to load. Every total below is then a partial
@@ -321,20 +320,28 @@ export function DashboardWidgets() {
           <HealthCard
             label="System health"
             value={
-              systemHealth === "healthy"
-                ? "Healthy"
-                : systemHealth === "degraded"
-                  ? "Degraded"
-                  : "Critical"
+              systemHealth === "unknown"
+                ? "Unknown"
+                : systemHealth === "healthy"
+                  ? "Healthy"
+                  : systemHealth === "degraded"
+                    ? "Degraded"
+                    : "Critical"
             }
             tone={
-              systemHealth === "healthy" ? "green" : systemHealth === "degraded" ? "yellow" : "red"
+              systemHealth === "healthy"
+                ? "green"
+                : systemHealth === "degraded" || systemHealth === "unknown"
+                  ? "yellow"
+                  : "red"
             }
             icon={systemHealth === "healthy" ? ShieldCheck : AlertTriangle}
             hint={
-              owner.openAlerts !== undefined
-                ? `${owner.openAlerts} open alert${owner.openAlerts === 1 ? "" : "s"}`
-                : undefined
+              systemHealth === "unknown"
+                ? "Couldn't reach your venues"
+                : owner.openAlerts !== undefined
+                  ? `${owner.openAlerts} open alert${owner.openAlerts === 1 ? "" : "s"}`
+                  : undefined
             }
           />
           <Card>
@@ -410,23 +417,29 @@ export function DashboardWidgets() {
             <CardTitle className="text-base">Login methods</CardTitle>
           </CardHeader>
           <CardContent className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={devicePie}
-                  dataKey="value"
-                  nameKey="name"
-                  innerRadius={45}
-                  outerRadius={80}
-                  paddingAngle={2}
-                >
-                  {devicePie.map((_, i) => (
-                    <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+            {devicePie.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-center text-sm text-muted-foreground">
+                No logins recorded yet.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={devicePie}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={45}
+                    outerRadius={80}
+                    paddingAngle={2}
+                  >
+                    {devicePie.map((_, i) => (
+                      <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -511,7 +524,7 @@ export function DashboardWidgets() {
             <Button asChild variant="outline" className="w-full justify-between">
               <Link to="/workspace/billing">
                 <span className="flex items-center gap-2">
-                  <Activity className="h-4 w-4" /> Billing · {customer?.subscription.plan}
+                  <Activity className="h-4 w-4" /> Plan &amp; invoices
                 </span>
                 <ArrowUpRight className="h-4 w-4" />
               </Link>
