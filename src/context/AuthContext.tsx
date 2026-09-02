@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { authService } from "@/services/auth.service";
+import { resetAnalyticsScopeCache } from "@/services/analytics.service";
 import { useCustomerStore } from "@/stores/customerStore";
 import {
   TOKEN_STORAGE_KEY,
@@ -344,6 +345,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // sign-in (same tab, different account) must not inherit this
     // session's location either.
     useCustomerStore.getState().clearLocation();
+    // analytics.service.ts resolves and caches a default organization and
+    // location id at module level. queryClient.clear() does not touch those,
+    // so without this the next account signed in on the same tab would
+    // generate reports scoped to the previous account's organization.
+    resetAnalyticsScopeCache();
     setUser(null);
     setRoles([]);
     setOrganizations([]);

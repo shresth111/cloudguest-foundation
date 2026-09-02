@@ -1,37 +1,29 @@
-import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { WorkspaceProvider, useWorkspace } from "@/context/WorkspaceContext";
 import { WorkspaceHeader } from "@/components/workspace/WorkspaceHeader";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/context/AuthContext";
-import { legacyRoleBucket, type LegacyRoleBucket } from "@/lib/roles";
 
 export const Route = createFileRoute("/_authenticated/workspace")({
   component: WorkspaceLayout,
 });
 
-// support_engineer covers helpdesk/network-engineer/network-administrator --
-// exactly the kind of operational role an Owner would assign as an "Agent"
-// (see workspace.agent.tsx) -- without it here, those users get bounced to
-// /dashboard before ever reaching the workspace at all.
-const ALLOWED: LegacyRoleBucket[] = [
-  "super_admin",
-  "org_admin",
-  "location_manager",
-  "support_engineer",
-  "read_only",
-];
+// There is deliberately no role gate here any more.
+//
+// This layout used to redirect anyone outside an ALLOWED list of
+// LegacyRoleBucket values. That gate could never fire: legacyRoleBucket()
+// returns one of exactly five buckets and falls through to "read_only" for
+// any role it doesn't recognise, and all five were in the list. So it read
+// as protection while denying nobody -- and its redirect target, /dashboard,
+// is itself an operator-console path that the parent _authenticated guard
+// bounces customers off, so had it ever fired the user would have been
+// redirected twice and landed at "/".
+//
+// The real gating is elsewhere and unaffected: _authenticated.tsx keeps
+// non-operators inside the customer-safe paths, and the backend enforces
+// permissions per request. Removing dead code rather than leaving a guard
+// that implies a check nobody performs.
 
 function WorkspaceLayout() {
-  const { user, roles } = useAuth();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    if (user && !ALLOWED.includes(legacyRoleBucket(roles))) {
-      navigate({ to: "/dashboard", replace: true });
-    }
-  }, [user, roles, navigate]);
-
   return (
     <WorkspaceProvider>
       <WorkspaceLoaded />

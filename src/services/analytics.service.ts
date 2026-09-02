@@ -564,23 +564,38 @@ export const analyticsService = {
     const orgId = await resolveDefaultOrganizationId();
     const headers = orgId ? { "X-Organization-Id": orgId } : undefined;
 
+    // Two writes with no transaction between them. If the schedule POST
+    // fails -- RequireOrganization 400, reports.manage denied at org scope,
+    // a validation error on the recipients -- the template row is already
+    // committed, and nothing ever cleaned it up: every retry from the dialog
+    // left another orphan behind. Roll the template back on failure.
     const { data: template } = await api.post<BackendReportTemplate>(
       "/reports/templates",
       { name: input.name, report_type: backendType, config: {}, is_active: true },
       { headers },
     );
-    const { data: schedule } = await api.post<BackendScheduledReport>(
-      "/reports/schedule",
-      {
-        template_id: template.id,
-        frequency: input.frequency,
-        recipient_emails: input.recipients,
-        export_format: input.format,
-        is_active: input.enabled,
-      },
-      { headers },
-    );
-    return toScheduledReport(schedule, template);
+    try {
+      const { data: schedule } = await api.post<BackendScheduledReport>(
+        "/reports/schedule",
+        {
+          template_id: template.id,
+          frequency: input.frequency,
+          recipient_emails: input.recipients,
+          export_format: input.format,
+          is_active: input.enabled,
+        },
+        { headers },
+      );
+      return toScheduledReport(schedule, template);
+    } catch (err) {
+      try {
+        await api.delete(`/reports/templates/${template.id}`, { headers });
+      } catch {
+        // The rollback is best-effort: report the original failure, which is
+        // the one the user needs to see, not a secondary cleanup error.
+      }
+      throw err;
+    }
   },
 
   async toggleScheduledReport(id: string, enabled: boolean): Promise<void> {
@@ -777,6 +792,16 @@ function toScheduledReport(
   };
 }
 
+/**
+ * Module-level caches, cleared on sign-out and organization switch via
+ * `resetAnalyticsScopeCache()` below.
+ *
+ * Two reasons that reset matters. A transient failure here caches `null`
+ * permanently -- every later report in the session then generates unscoped
+ * or fails, with no way to recover short of a reload. And without a reset
+ * the ids survive a sign-out, so the next account signed in on the same tab
+ * generates reports against the previous account's organization.
+ */
 let cachedOrgId: string | null | undefined;
 async function resolveDefaultOrganizationId(): Promise<string | null> {
   if (cachedOrgId !== undefined) return cachedOrgId;
@@ -784,11 +809,21 @@ async function resolveDefaultOrganizationId(): Promise<string | null> {
     const { data } = await api.get<BackendListResponse<{ id: string }>>("/organizations", {
       params: { page_size: 1 },
     });
-    cachedOrgId = data.items[0]?.id ?? null;
+    const resolved = data.items[0]?.id ?? null;
+    // Only a successful lookup is cached; a failure is retried next time
+    // rather than remembered as "this session has no organization".
+    cachedOrgId = resolved;
+    return resolved;
   } catch {
-    cachedOrgId = null;
+    return null;
   }
-  return cachedOrgId;
+}
+
+/** Clears the resolved organization/location ids. Call on sign-out and on
+ *  organization switch. */
+export function resetAnalyticsScopeCache(): void {
+  cachedOrgId = undefined;
+  cachedLocationId = undefined;
 }
 
 // There is no cross-org "first location" endpoint (same gap
@@ -821,7 +856,8 @@ async function resolveDefaultLocationId(): Promise<string | null> {
     }
     cachedLocationId = null;
   } catch {
-    cachedLocationId = null;
+    // Not cached: a failed lookup is retried, not remembered as "none".
+    return null;
   }
   return cachedLocationId;
 }

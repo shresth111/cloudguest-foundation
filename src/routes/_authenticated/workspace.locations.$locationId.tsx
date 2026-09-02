@@ -333,9 +333,11 @@ function LocationHeader({
               >
                 {headerStatus ?? "…"}
               </Badge>
-              <Badge variant="outline" className="capitalize">
-                {customer.subscription.plan}
-              </Badge>
+              {customer.subscription.plan ? (
+                <Badge variant="outline" className="capitalize">
+                  {customer.subscription.plan}
+                </Badge>
+              ) : null}
             </div>
             <p className="mt-0.5 flex flex-wrap items-center gap-2 truncate text-xs text-muted-foreground">
               <MapPin className="h-3.5 w-3.5 shrink-0" />
@@ -499,7 +501,7 @@ function OverviewTab({
         />
         <Kpi
           label="Subscription"
-          value={customer.subscription.plan}
+          value={customer.subscription.plan ?? "—"}
           sub={days === null ? undefined : `Renews in ${days}d`}
           icon={ShieldCheck}
         />
@@ -649,7 +651,12 @@ function PropertyInfoCard({
     ["Latitude", detailQ.isLoading ? "…" : coord(d?.latitude)],
     ["Longitude", detailQ.isLoading ? "…" : coord(d?.longitude)],
     ["Contact", customer.owner.email],
-    ["Subscription", `${customer.subscription.plan} · ${customer.subscription.billingCycle}`],
+    [
+      "Subscription",
+      customer.subscription.plan
+        ? `${customer.subscription.plan} · ${customer.subscription.billingCycle}`
+        : customer.subscription.billingCycle,
+    ],
     ["Status", d?.status ?? customer.status],
   ];
   return (

@@ -46,11 +46,6 @@ import { cn } from "@/lib/utils";
 
 const CHART_COLORS = ["#6366f1", "#22c55e", "#f59e0b", "#ef4444", "#06b6d4", "#a855f7"];
 
-function kFmt(n: number) {
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  return `${n}`;
-}
-
 /** The backend's session payload carries no guest identifier, so fall back to
  *  a short, stable reference rather than rendering an empty line. */
 function guestLabel(s: { guestIdentifier: string | null; guestId: string }): string {
@@ -80,7 +75,7 @@ function useOwnerKpis(organizationId: string | undefined, organizationName: stri
 
   const campaignsQ = useQuery({
     queryKey: ["workspace-kpi", "campaigns", organizationId],
-    queryFn: () => campaignService.list({ page: 1, pageSize: 100 }),
+    queryFn: () => campaignService.listAll(),
     enabled: !!organizationId,
   });
 
@@ -108,7 +103,7 @@ function useOwnerKpis(organizationId: string | undefined, organizationName: stri
     enabled: !!organizationId,
   });
 
-  const activeCampaigns = campaignsQ.data?.rows.filter((c) => c.status === "active").length;
+  const activeCampaigns = campaignsQ.data?.filter((c) => c.status === "active").length;
   const openAlerts = alertsQ.data?.totalItems;
 
   return {
@@ -128,7 +123,7 @@ function useOwnerKpis(organizationId: string | undefined, organizationName: stri
 
 export function DashboardWidgets() {
   const { customer, locations, activeLocation, activeLocationId } = useWorkspace();
-  const { aggregated, scope } = useWorkspaceScope();
+  const { aggregated, scope, isError: scopeFailed, refetchFailed } = useWorkspaceScope();
   const owner = useOwnerKpis(customer?.organizationId, customer?.organizationName);
 
   const onlineRouters = aggregated.routers.filter((r) => r.status === "online").length;
@@ -268,6 +263,20 @@ export function DashboardWidgets() {
         title="Dashboard overview"
         description="Unified view of your locations, guests, routers, and revenue."
       />
+
+      {/* Some locations failed to load. Every total below is then a partial
+          view, so say so rather than presenting the reduced numbers as the
+          real ones -- which is what a silently-empty result used to do. */}
+      {scopeFailed ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3">
+          <p className="text-sm">
+            Some locations couldn&apos;t be loaded, so the figures below are incomplete.
+          </p>
+          <Button size="sm" variant="outline" onClick={() => refetchFailed()}>
+            Retry
+          </Button>
+        </div>
+      ) : null}
 
       {/* KPI */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">

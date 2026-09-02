@@ -152,6 +152,29 @@ export const campaignService = {
     };
   },
 
+  /**
+   * Every campaign in the caller's organization, paged out in full.
+   *
+   * The endpoint caps page_size at 100 and offers no status filter, so
+   * "active campaigns" could only ever be counted client-side over whatever
+   * fitted in the first page -- an organization with more than 100
+   * campaigns undercounted silently, with nothing on screen saying the
+   * number was a cap. Bounded so a pathological total can't spin.
+   */
+  async listAll(locationId?: string): Promise<Campaign[]> {
+    const MAX_PAGES = 20;
+    const first = await campaignService.list({ locationId, page: 1, pageSize: 100 });
+    const totalPages = Math.min(first.totalPages ?? 1, MAX_PAGES);
+    if (totalPages <= 1) return first.rows;
+
+    const rest = await Promise.all(
+      Array.from({ length: totalPages - 1 }, (_, i) =>
+        campaignService.list({ locationId, page: i + 2, pageSize: 100 }),
+      ),
+    );
+    return [...first.rows, ...rest.flatMap((r) => r.rows)];
+  },
+
   async get(id: string): Promise<Campaign> {
     const orgId = await resolveOrganizationId();
     const { data } = await api.get<BackendCampaign>(`/campaigns/${id}`, {

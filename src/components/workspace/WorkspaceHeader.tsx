@@ -36,9 +36,11 @@ export function WorkspaceHeader() {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="truncate text-sm font-semibold sm:text-base">{customer.name}</span>
-            <Badge variant="secondary" className="capitalize">
-              {customer.subscription.plan}
-            </Badge>
+            {customer.subscription.plan ? (
+              <Badge variant="secondary" className="capitalize">
+                {customer.subscription.plan}
+              </Badge>
+            ) : null}
             <Badge
               variant={
                 customer.status === "active"

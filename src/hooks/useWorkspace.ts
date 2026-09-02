@@ -27,6 +27,8 @@ export interface LocationGuestSessionSummary {
   authMethod: GuestAuthMethod;
   status: GuestSessionStatus;
   startedAt: string;
+  /** Decimal megabytes (bytes / 1e6), matching how transfer volume is
+   *  quoted on the rest of this surface -- not MiB. */
   dataMb: number;
 }
 
@@ -55,7 +57,7 @@ async function fetchLocationResources(
   organizationId?: string,
 ): Promise<LocationResources> {
   const [routersResult, sessionsResult] = await Promise.allSettled([
-    routerService.list({ locationId, page: 1, pageSize: 100 }),
+    routerService.list({ locationId, organizationId, page: 1, pageSize: 100 }),
     guestService.listSessions({ locationId, organizationId, page: 1, pageSize: 100 }),
   ]);
 
