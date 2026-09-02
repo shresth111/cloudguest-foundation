@@ -91,6 +91,10 @@ export interface Invoice {
   amount: number;
   tax: number;
   total: number;
+  /** The currency this invoice was issued in. Not the same as the current
+   *  plan's currency -- formatting an old invoice with the plan's symbol
+   *  labels the amount wrong after a plan or region change. */
+  currency: string;
   issuedAt: string;
   dueAt: string;
   status: PaymentStatus;

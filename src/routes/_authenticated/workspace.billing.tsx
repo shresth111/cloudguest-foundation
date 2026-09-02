@@ -14,11 +14,12 @@ export const Route = createFileRoute("/_authenticated/workspace/billing")({
   component: BillingPage,
 });
 
+/** Formats with the invoice's own currency and keeps the minor units. A
+ *  rounded figure is one the customer cannot reconcile against anything. */
 function money(amount: number, currency: string) {
   return new Intl.NumberFormat(currency === "INR" ? "en-IN" : undefined, {
     style: "currency",
-    currency,
-    maximumFractionDigits: 0,
+    currency: currency || "INR",
   }).format(amount);
 }
 
@@ -36,10 +37,17 @@ function BillingPage() {
       { id: invoiceId, organizationId: customer?.organizationId },
       {
         onSuccess: ({ url, fileName }) => {
+          // Firefox ignores a click on an anchor that was never appended to
+          // the document, so the download silently no-opped while the toast
+          // claimed success. Name the file after the invoice the user
+          // clicked, not the row's UUID, and release the object URL.
           const a = document.createElement("a");
           a.href = url;
-          a.download = fileName;
+          a.download = fileName.match(/^[0-9a-f-]{36}\.pdf$/i) ? `${invoiceNumber}.pdf` : fileName;
+          document.body.appendChild(a);
           a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
           toast.success(`Downloading ${invoiceNumber}`);
         },
         onError: () => toast.error("Could not download the invoice PDF."),
@@ -98,8 +106,8 @@ function BillingPage() {
                   <span className="text-muted-foreground sm:text-left">
                     {new Date(inv.issuedAt).toLocaleDateString()}
                   </span>
-                  <span className="font-semibold">
-                    {money(inv.total, billing.data.plan.currency)}
+                  <span className="font-semibold tabular-nums">
+                    {money(inv.total, inv.currency || billing.data.plan.currency)}
                   </span>
                   <div className="flex items-center justify-self-end gap-2">
                     <Badge
@@ -132,6 +140,8 @@ function BillingPage() {
                 </li>
               ))}
             </ul>
+          ) : billing.isError ? (
+            <ErrorState onRetry={() => billing.refetch()} />
           ) : (
             <p className="py-6 text-center text-sm text-muted-foreground">No invoices yet.</p>
           )}
