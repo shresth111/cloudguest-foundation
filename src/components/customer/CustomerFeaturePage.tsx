@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
+import { lazyView } from "@/lib/lazy-view";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
@@ -65,22 +66,33 @@ import {
   useCustomerUsers,
   useDataMasking,
 } from "@/hooks/useCustomerDashboard";
-import {
-  AlertsView,
-  OpenHoursView,
-  NotificationView,
-  IspDetailsView,
-  AdminLogsView,
-  MacAuthView,
-  PortForwardingView,
-  DhcpView,
-  VlansView,
-  VoipView,
-  WebsiteBlockingView,
-  DebuggingView,
-  HotspotView,
-  GenericFeatureView,
-} from "@/components/features/OperationsFeatures";
+// Lazy, not static. This was the last remaining eager importer of
+// OperationsFeatures -- a 446 kB chunk, the largest in the build after the
+// React and charts vendors. Because `routeTree.gen.ts` statically imports
+// all 180 routes, one static import anywhere in a route's component tree
+// puts the whole chunk in the graph the browser must fetch before first
+// paint. With this and the registry in `config/customerFeatures.tsx` both
+// deferred, nothing imports it statically any more, so it is fetched when
+// an operations feature is actually opened.
+//
+// All fourteen views live in one module, so opening any one of them fetches
+// the same chunk. Splitting that module is a separate change; the point
+// here is *when* it is fetched, not how finely it is divided.
+const OPS = () => import("@/components/features/OperationsFeatures");
+const AlertsView = lazyView(OPS, "AlertsView");
+const OpenHoursView = lazyView(OPS, "OpenHoursView");
+const NotificationView = lazyView(OPS, "NotificationView");
+const IspDetailsView = lazyView(OPS, "IspDetailsView");
+const AdminLogsView = lazyView(OPS, "AdminLogsView");
+const MacAuthView = lazyView(OPS, "MacAuthView");
+const PortForwardingView = lazyView(OPS, "PortForwardingView");
+const DhcpView = lazyView(OPS, "DhcpView");
+const VlansView = lazyView(OPS, "VlansView");
+const VoipView = lazyView(OPS, "VoipView");
+const WebsiteBlockingView = lazyView(OPS, "WebsiteBlockingView");
+const DebuggingView = lazyView(OPS, "DebuggingView");
+const HotspotView = lazyView(OPS, "HotspotView");
+const GenericFeatureView = lazyView(OPS, "GenericFeatureView");
 import { toast } from "sonner";
 import { guestService } from "@/services/guest.service";
 import type { AppError } from "@/services/api";
@@ -261,39 +273,52 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
             {feature === "teams" && <ManageTeamsPage locationId={locationId} />}
             {feature === "agents" && <AgentsPage locationId={locationId} />}
             {feature === "advanced" && <AdvancedPage />}
-            {/* "audit" no longer has its own nav entry (merged into Admin
+            {/* Every branch below is a lazily-loaded view (see the OPS
+                imports at the top of this file), so they need one Suspense
+                boundary. Placed around the whole group rather than per
+                branch: only one matches at a time, and a single fallback
+                keeps the page from flickering between them. */}
+            <Suspense
+              fallback={
+                <div className="flex min-h-[240px] items-center justify-center">
+                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                </div>
+              }
+            >
+              {/* "audit" no longer has its own nav entry (merged into Admin
                 Logs' Account Activity section) -- keep old bookmarks/links
                 to /customer/:id/audit landing somewhere real instead of the
                 generic-feature fallback. */}
-            {feature === "audit" && <AdminLogsView locationId={locationId} />}
-            {feature === "tickets" && <TicketsPage locationId={locationId} />}
-            {feature === "how-it-works" && <HowItWorksView />}
-            {feature === "alerts" && <AlertsView />}
-            {feature === "business-hours" && <OpenHoursView locationId={locationId} />}
-            {/* "background-image" no longer renders here -- the login-screen
+              {feature === "audit" && <AdminLogsView locationId={locationId} />}
+              {feature === "tickets" && <TicketsPage locationId={locationId} />}
+              {feature === "how-it-works" && <HowItWorksView />}
+              {feature === "alerts" && <AlertsView />}
+              {feature === "business-hours" && <OpenHoursView locationId={locationId} />}
+              {/* "background-image" no longer renders here -- the login-screen
                 backdrop is uploaded from Portal -> Design (PortalPage.tsx),
                 beside the logo and headline it has to stay legible against.
                 Unlike "audit" above, old links don't need a fallback branch:
                 /background-image redirects to /guest-portal at beforeLoad,
                 so nothing reaches this switch with that id. */}
-            {feature === "notification" && <NotificationView />}
-            {feature === "isp-details" && <IspDetailsView locationId={locationId} />}
-            {feature === "admin-logs" && <AdminLogsView locationId={locationId} />}
-            {feature === "network-activity" && <NetworkActivityLog masked={masked} />}
-            {feature === "mac-auth" && <MacAuthView locationId={locationId} />}
-            {feature === "port-forwarding" && <PortForwardingView locationId={locationId} />}
-            {feature === "dhcp" && <DhcpView locationId={locationId} />}
-            {feature === "vlans" && <VlansView locationId={locationId} />}
-            {feature === "voip" && <VoipView locationId={locationId} />}
-            {feature === "website-blocking" && <WebsiteBlockingView locationId={locationId} />}
-            {feature === "debugging" && <DebuggingView locationId={locationId} />}
-            {feature === "hotspot" && <HotspotView locationId={locationId} />}
-            {/* "audit" is handled above (redirected to AdminLogsView, see
+              {feature === "notification" && <NotificationView />}
+              {feature === "isp-details" && <IspDetailsView locationId={locationId} />}
+              {feature === "admin-logs" && <AdminLogsView locationId={locationId} />}
+              {feature === "network-activity" && <NetworkActivityLog masked={masked} />}
+              {feature === "mac-auth" && <MacAuthView locationId={locationId} />}
+              {feature === "port-forwarding" && <PortForwardingView locationId={locationId} />}
+              {feature === "dhcp" && <DhcpView locationId={locationId} />}
+              {feature === "vlans" && <VlansView locationId={locationId} />}
+              {feature === "voip" && <VoipView locationId={locationId} />}
+              {feature === "website-blocking" && <WebsiteBlockingView locationId={locationId} />}
+              {feature === "debugging" && <DebuggingView locationId={locationId} />}
+              {feature === "hotspot" && <HotspotView locationId={locationId} />}
+              {/* "audit" is handled above (redirected to AdminLogsView, see
                 that render line's own comment) -- excluded here too so it
                 doesn't also fall through to the generic placeholder. */}
-            {feature !== "audit" && !CUSTOMER_NAVS.some((n) => n.id === feature) && (
-              <GenericFeatureView feature={feature} />
-            )}
+              {feature !== "audit" && !CUSTOMER_NAVS.some((n) => n.id === feature) && (
+                <GenericFeatureView feature={feature} />
+              )}
+            </Suspense>
           </div>
         </main>
       </div>

@@ -1,44 +1,83 @@
-/**
- * Render registry for customer features. Maps a feature id (from the pure
- * data catalog) to its view. Shared by the customer owner dashboard, the
- * owner's Agent permission manager, and the agent dynamic dashboard.
- */
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
+import { lazyView } from "@/lib/lazy-view";
 
-import { CampaignsPage } from "@/components/features/CampaignsPage";
-import { VouchersPage } from "@/components/features/VouchersPage";
-import { PortalPage } from "@/components/features/PortalPage";
-import PoliciesHub from "@/components/features/PoliciesHub";
-import { AdvancedPage } from "@/components/features/FeatureComponents";
-import ManageTeamsPage from "@/components/features/ManageTeamsPage";
-import WhiteList from "@/components/features/WhiteList";
-import UserReports from "@/components/features/UserReports";
-import NetworkActivityLog from "@/components/features/NetworkActivityLog";
-import { AgentsPage } from "@/components/features/AgentsPage";
-import TicketsPage from "@/components/features/TicketsPage";
-import {
-  AlertsView,
-  OpenHoursView,
-  NotificationView,
-  IspDetailsView,
-  AdminLogsView,
-  MacAuthView,
-  PortForwardingView,
-  DhcpView,
-  VlansView,
-  VoipView,
-  DebuggingView,
-  HotspotView,
-  GenericFeatureView,
-} from "@/components/features/OperationsFeatures";
-import {
-  BasicDashboardView,
-  BasicUsersView,
-  BasicDevicesView,
-  BasicAuditView,
-  NetworkHardwareView,
-} from "@/components/customer/BasicFeatureViews";
-import { DeviceHealthTrafficView } from "@/components/customer/DeviceHealthTrafficView";
+/**
+ * Every feature page is loaded on demand, not up front.
+ *
+ * This registry used to import all of them statically. Because
+ * `customerNav.ts` imports this module and is itself reachable from the
+ * eagerly-built route graph (`routeTree.gen.ts` statically imports all 180
+ * routes), that put the entire feature set into the initial bundle --
+ * including `OperationsFeatures` at 446 kB, `PortalShell` at 153 kB and
+ * `RouterDetailTabs` at 142 kB, none of which a venue owner opens on the
+ * way to a login form.
+ *
+ * Measured before this change: the entry chunk referenced 290 chunks, and
+ * demo.wyfyguest.com fetched 43 of them before the sign-in form painted.
+ * That gap is the white screen.
+ *
+ * Note the two barrel modules below: pulling one view out of
+ * `OperationsFeatures` still fetches that whole chunk, because it is one
+ * module. That is fine here -- the point is that it is fetched when a
+ * feature is opened rather than on every first paint. Splitting the barrel
+ * itself is a separate, larger change.
+ */
+const ops = () => import("@/components/features/OperationsFeatures");
+const basic = () => import("@/components/customer/BasicFeatureViews");
+
+const CampaignsPage = lazyView(
+  () => import("@/components/features/CampaignsPage"),
+  "CampaignsPage",
+);
+const VouchersPage = lazyView(() => import("@/components/features/VouchersPage"), "VouchersPage");
+const PortalPage = lazyView(() => import("@/components/features/PortalPage"), "PortalPage");
+const PoliciesHub = lazyView(() => import("@/components/features/PoliciesHub"), "default");
+const AdvancedPage = lazyView(
+  () => import("@/components/features/FeatureComponents"),
+  "AdvancedPage",
+);
+const ManageTeamsPage = lazyView(() => import("@/components/features/ManageTeamsPage"), "default");
+const WhiteList = lazyView(() => import("@/components/features/WhiteList"), "default");
+const UserReports = lazyView(() => import("@/components/features/UserReports"), "default");
+const NetworkActivityLog = lazyView(
+  () => import("@/components/features/NetworkActivityLog"),
+  "default",
+);
+const AgentsPage = lazyView(() => import("@/components/features/AgentsPage"), "AgentsPage");
+const TicketsPage = lazyView(() => import("@/components/features/TicketsPage"), "default");
+const DeviceHealthTrafficView = lazyView(
+  () => import("@/components/customer/DeviceHealthTrafficView"),
+  "DeviceHealthTrafficView",
+);
+
+const AlertsView = lazyView(ops, "AlertsView");
+const OpenHoursView = lazyView(ops, "OpenHoursView");
+const NotificationView = lazyView(ops, "NotificationView");
+const IspDetailsView = lazyView(ops, "IspDetailsView");
+const AdminLogsView = lazyView(ops, "AdminLogsView");
+const MacAuthView = lazyView(ops, "MacAuthView");
+const PortForwardingView = lazyView(ops, "PortForwardingView");
+const DhcpView = lazyView(ops, "DhcpView");
+const VlansView = lazyView(ops, "VlansView");
+const VoipView = lazyView(ops, "VoipView");
+const DebuggingView = lazyView(ops, "DebuggingView");
+const HotspotView = lazyView(ops, "HotspotView");
+const GenericFeatureView = lazyView(ops, "GenericFeatureView");
+
+const BasicDashboardView = lazyView(basic, "BasicDashboardView");
+const BasicUsersView = lazyView(basic, "BasicUsersView");
+const BasicDevicesView = lazyView(basic, "BasicDevicesView");
+const BasicAuditView = lazyView(basic, "BasicAuditView");
+const NetworkHardwareView = lazyView(basic, "NetworkHardwareView");
+
+/** Shown while a feature's chunk is in flight. */
+function FeatureLoading() {
+  return (
+    <div className="flex min-h-[240px] items-center justify-center">
+      <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+    </div>
+  );
+}
 
 export {
   FEATURE_GROUPS,
@@ -59,6 +98,10 @@ export function renderFeature(
   id: string,
   ctx: { locationId?: string; masked?: boolean } = {},
 ): ReactNode {
+  return <Suspense fallback={<FeatureLoading />}>{featureElement(id, ctx)}</Suspense>;
+}
+
+function featureElement(id: string, ctx: { locationId?: string; masked?: boolean }): ReactNode {
   switch (id) {
     case "dashboard":
       return <BasicDashboardView locationId={ctx.locationId} masked={ctx.masked} />;
