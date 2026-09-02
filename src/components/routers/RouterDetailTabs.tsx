@@ -3081,6 +3081,15 @@ export const DESELECT_PHRASE = {
 
 /** What the operator is being asked to accept, in the words the script
  * and the panel will both use. */
+/* eslint-disable-next-line react-refresh/only-export-components --
+   The suite (`scripts/test-setup-script-generator.mjs`) imports this to
+   assert against the real implementation rather than a copy, which is the
+   only way these guards mean anything. Extracting it would mean moving the
+   generator's core out of the file the whole suite is built around, in the
+   highest-risk file in this repo, immediately after hardening it -- a real
+   regression risk traded for a lint warning. Scoped here rather than spent
+   as headroom on the repo-wide --max-warnings ratchet, so the ratchet keeps
+   catching drift that is not this. */
 export const DESELECT_CONSEQUENCE: Record<keyof typeof DESELECT_PHRASE, string> = {
   radius:
     "Without RADIUS this router's hotspot comes up, serves the portal, looks completely correct -- and Access-Rejects EVERY guest login. No OTP, no session, no accounting. RouterOS reports no error for this and neither does the dashboard; the guest just sees the sign-in fail. The venue has WiFi with nobody able to use it.",
@@ -3103,6 +3112,15 @@ export const DESELECT_CONSEQUENCE: Record<keyof typeof DESELECT_PHRASE, string> 
  * stray space from a double-click is not a different decision. Anything
  * that is not the phrase -- including the empty string, the subsystem's
  * own name, or the phrase with something appended -- is a no. */
+/* eslint-disable-next-line react-refresh/only-export-components --
+   The suite (`scripts/test-setup-script-generator.mjs`) imports this to
+   assert against the real implementation rather than a copy, which is the
+   only way these guards mean anything. Extracting it would mean moving the
+   generator's core out of the file the whole suite is built around, in the
+   highest-risk file in this repo, immediately after hardening it -- a real
+   regression risk traded for a lint warning. Scoped here rather than spent
+   as headroom on the repo-wide --max-warnings ratchet, so the ratchet keeps
+   catching drift that is not this. */
 export function deselectAcknowledgement(
   which: keyof typeof DESELECT_PHRASE,
   typed: string | null,
@@ -3427,6 +3445,15 @@ export const SINGLE_LINE_MARKER_PREFIX = "### cloudguest";
  * was already five figures. The cost of being wrong about `:put` is a
  * silent half-provisioned router, which is the entire subject of this
  * file. */
+/* eslint-disable-next-line react-refresh/only-export-components --
+   The suite (`scripts/test-setup-script-generator.mjs`) imports this to
+   assert against the real implementation rather than a copy, which is the
+   only way these guards mean anything. Extracting it would mean moving the
+   generator's core out of the file the whole suite is built around, in the
+   highest-risk file in this repo, immediately after hardening it -- a real
+   regression risk traded for a lint warning. Scoped here rather than spent
+   as headroom on the repo-wide --max-warnings ratchet, so the ratchet keeps
+   catching drift that is not this. */
 export function markerStatements(text: string): string[] {
   return [`:log info "${text}"`, `:put "${text}"`];
 }
@@ -3459,6 +3486,15 @@ function markerText(kind: "START" | "DONE", n: number, total: number, label: str
  * Both renderers are built from the same two helpers this composes, so a
  * renderer that grew a statement this does not predict is red, and a
  * renderer that stopped emitting one this predicts is red as well. */
+/* eslint-disable-next-line react-refresh/only-export-components --
+   The suite (`scripts/test-setup-script-generator.mjs`) imports this to
+   assert against the real implementation rather than a copy, which is the
+   only way these guards mean anything. Extracting it would mean moving the
+   generator's core out of the file the whole suite is built around, in the
+   highest-risk file in this repo, immediately after hardening it -- a real
+   regression risk traded for a lint warning. Scoped here rather than spent
+   as headroom on the repo-wide --max-warnings ratchet, so the ratchet keeps
+   catching drift that is not this. */
 export function progressMarkerStatements(chunks: RouterSetupScriptChunk[]): string[] {
   const total = chunks.length;
   return [
