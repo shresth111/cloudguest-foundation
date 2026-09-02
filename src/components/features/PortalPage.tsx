@@ -1154,79 +1154,20 @@ export function PortalPage({ locationId }: { locationId?: string }) {
               )}
             </div>
 
-            {/* Content mode -- what the portal shows above the sign-in card.
-              Every change here re-renders the Live Preview instantly via
-              livePreviewConfig. */}
-            <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
-              <div className="space-y-1.5">
-                <Label>Portal Content Mode</Label>
-                <Select
-                  value={contentMode}
-                  onValueChange={(v) => setContentMode(v as PortalContentMode)}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="login">Sign-in only (default)</SelectItem>
-                    <SelectItem value="image">Show an image</SelectItem>
-                    <SelectItem value="text">Show text</SelectItem>
-                    <SelectItem value="redirect">Redirect to a URL</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Choose what guests see above the sign-in card. Watch the Live Preview update as
-                  you change it.
-                </p>
-              </div>
+            {/* The "Portal Content Mode" picker (sign-in only / image / text /
+              redirect, plus its heading, image-URL and body inputs) used to
+              sit here and was removed on request: it asked a venue to make a
+              decision about a pre-sign-in content step most of them do not
+              want, in the middle of the branding controls they came here for.
+              Campaigns are the surface for "show the guest something extra".
 
-              {(contentMode === "image" || contentMode === "text") && (
-                <div className="space-y-1.5">
-                  <Label>Content Heading</Label>
-                  <Input
-                    value={contentHeading}
-                    onChange={(e) => setContentHeading(e.target.value)}
-                    placeholder="e.g. Today's specials"
-                    className="h-9"
-                  />
-                </div>
-              )}
-
-              {contentMode === "image" && (
-                <div className="space-y-1.5">
-                  <Label>Content Image URL</Label>
-                  <Input
-                    value={contentImageUrl}
-                    onChange={(e) => setContentImageUrl(e.target.value)}
-                    placeholder="/demo/portal/content/cafe-promo.svg"
-                    className="h-9"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    A promo, menu, or event graphic shown to guests. Paste an image URL or use one
-                    of the bundled demo images under <code>/demo/portal/</code>.
-                  </p>
-                </div>
-              )}
-
-              {contentMode === "text" && (
-                <div className="space-y-1.5">
-                  <Label>Content Text</Label>
-                  <Textarea
-                    rows={4}
-                    value={contentBody}
-                    onChange={(e) => setContentBody(e.target.value)}
-                    placeholder="Welcome! Here's what you need to know..."
-                  />
-                </div>
-              )}
-
-              {contentMode === "redirect" && (
-                <p className="text-xs text-muted-foreground">
-                  Guests are sent to the <span className="font-medium">Redirect URL</span> set
-                  above. The preview shows the destination and a Continue button.
-                </p>
-              )}
-            </div>
+              Only the editor is gone. `contentMode`/`contentHeading`/
+              `contentBody`/`contentImageUrl` are still loaded in `loadPortal`
+              and still sent unchanged by `saveConfig`, so a venue that already
+              configured a mode keeps exactly what its guests see today -- this
+              removal changes no guest-facing render. It does mean such a venue
+              can no longer change that setting from this page; see the note on
+              `saveConfig` if that has to be revisited. */}
 
             <div className="space-y-1.5">
               <Label>Auth Methods</Label>
