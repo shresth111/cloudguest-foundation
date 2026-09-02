@@ -655,6 +655,7 @@ export const monitoringService = {
       params: {
         organization_id: q.organizationId,
         router_id: q.routerId,
+        location_id: q.locationId,
         status: q.status,
         severity: q.severity,
         page: q.page,

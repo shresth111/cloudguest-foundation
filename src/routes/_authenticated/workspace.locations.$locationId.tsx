@@ -1174,6 +1174,7 @@ function MonitoringTab({
     queryFn: () =>
       monitoringService.listAlerts({
         organizationId,
+        locationId,
         status: "triggered",
         page: 1,
         pageSize: 100,
@@ -1182,8 +1183,12 @@ function MonitoringTab({
   });
 
   const online = resources.routers.filter((r) => r.status === "online").length;
-  // AlertListQuery has no location filter, so narrow the org's open alerts here.
-  const alerts = (alertsQ.data?.items ?? []).filter((a) => a.locationId === locationId);
+  // Filtered server-side now. The client-side narrowing this replaces ran
+  // over the organization's first 100 alerts, so a venue whose alerts fell
+  // past that page reported zero -- and the query key varied by location
+  // while the request did not, so N venues issued N identical org-wide
+  // requests.
+  const alerts = alertsQ.data?.items ?? [];
   const lastSeen = resources.routers
     .map((r) => r.lastSeenAt)
     .filter((t): t is string => !!t)
@@ -1205,7 +1210,9 @@ function MonitoringTab({
         />
         <Kpi
           label="Open alerts"
-          value={alertsQ.isLoading ? "…" : alerts.length}
+          // The server's own count for this venue, not the length of the
+          // page we happen to hold.
+          value={alertsQ.isLoading ? "…" : (alertsQ.data?.totalItems ?? alerts.length)}
           icon={AlertTriangle}
         />
         <Kpi label="Guests online" value={resources.analytics.activeSessions} icon={Wifi} />
