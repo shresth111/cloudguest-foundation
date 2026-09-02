@@ -3004,6 +3004,113 @@ export interface RouterSetupScriptChunk {
   script: string;
 }
 
+/** A SUBSYSTEM THIS SCRIPT DOES NOT CONFIGURE, AND WHY.
+ *
+ * Two shapes, and the difference between them is the whole of item 2.
+ *
+ * A FAILURE (`deliberate` absent/false) is the platform having tried and
+ * not got there: an allocate call that threw, a RADIUS bridge that 502'd.
+ * The script `:error`s -- there is a cause to fix and re-pasting this
+ * artifact cannot fix it.
+ *
+ * A CHOICE (`deliberate: true`) is the operator having deselected the
+ * subsystem, and it does NOT `:error`, deliberately: aborting a run
+ * somebody scoped on purpose is how a warning becomes something people
+ * page past. That softer ending was the seam. Three things said "this is
+ * partial" -- an amber panel, a `# !!` header, a last line that names the
+ * gap -- and NONE of them stopped anything, so an operator who noticed
+ * none of the three got a venue with no guest login and a green finish.
+ *
+ * SO THE SOFT ENDING IS NOT AVAILABLE FOR FREE. `acknowledgement` is
+ * REQUIRED on the choice branch, and it is required to be the text the
+ * operator TYPED to reach this state -- not a boolean the caller can set,
+ * because a boolean is exactly what "the box was unticked" already was.
+ * The generator re-checks it at runtime (`isAcknowledgedChoice`) and a
+ * `deliberate: true` entry that arrives with an empty acknowledgement is
+ * treated as a FAILURE and `:error`s. Fail-closed: a caller that forgets
+ * to collect the acknowledgement gets the loud ending, never the quiet
+ * one.
+ *
+ * The text is carried into the artifact -- the section-1 banner, the
+ * `.rsc` header -- so the operator holding the file a week later can see
+ * not just THAT it was a choice but that a human typed the consequence
+ * out. That is the in-file acknowledgement, and it is the thing a
+ * screenshot of a green run cannot fake. */
+export type SetupScriptGap =
+  | {
+      what: string;
+      why: string;
+      deliberate?: false;
+      /** Never set on the failure branch: nobody acknowledged a 502. */
+      acknowledgement?: undefined;
+    }
+  | {
+      what: string;
+      why: string;
+      deliberate: true;
+      /** Verbatim what the operator typed to switch this subsystem off.
+       * Empty or whitespace-only demotes this entry to a failure. */
+      acknowledgement: string;
+    };
+
+/** Whether a gap may take the non-aborting ending. `deliberate` alone is
+ * not enough -- see `SetupScriptGap`. */
+function isAcknowledgedChoice(gap: SetupScriptGap): boolean {
+  return gap.deliberate === true && (gap.acknowledgement ?? "").trim().length > 0;
+}
+
+/** THE PHRASE THAT BUYS A PARTIAL PROVISION, AND IT IS THE CONSEQUENCE.
+ *
+ * Not the subsystem name. "Type RADIUS to continue" is satisfiable by
+ * someone who has not read a word of the dialog; "type NO GUEST LOGIN"
+ * is not, and that is the entire mechanism -- there is nothing else in a
+ * modal that makes a person think. The operator has to write out the
+ * outcome they are choosing.
+ *
+ * Lives HERE, next to `SetupScriptGap`, rather than in the panel: the
+ * type requires an acknowledgement and this is what a valid one is, so
+ * the requirement and its satisfaction are one file apart from nothing.
+ * It also makes the decision a pure function the generator suite can
+ * CALL -- the panel's copy of this was source-grepped, and a grep for
+ * `typed === null` stayed green when the comparison that actually
+ * accepts or rejects the phrase was mutated to accept anything. */
+export const DESELECT_PHRASE = {
+  radius: "NO GUEST LOGIN",
+  wireguard: "NO PLATFORM ACCESS",
+} as const;
+
+/** What the operator is being asked to accept, in the words the script
+ * and the panel will both use. */
+export const DESELECT_CONSEQUENCE: Record<keyof typeof DESELECT_PHRASE, string> = {
+  radius:
+    "Without RADIUS this router's hotspot comes up, serves the portal, looks completely correct -- and Access-Rejects EVERY guest login. No OTP, no session, no accounting. RouterOS reports no error for this and neither does the dashboard; the guest just sees the sign-in fail. The venue has WiFi with nobody able to use it.",
+  wireguard:
+    "Without the tunnel this router never reaches the platform: no heartbeat, no Discovery, no Device Console, and it sits at 'provisioning' on the dashboard forever while guest WiFi works fine. RADIUS also has no address to source from, so it goes with it.",
+};
+
+/** Grades what the operator typed. Returns the canonical acknowledgement
+ * to record in the script, or `null` -- and `null` MUST leave the
+ * subsystem enabled.
+ *
+ * `typed === null` is `window.prompt` cancelled, and it is also
+ * `window.prompt` suppressed by the browser. Both mean "no human said
+ * yes", and both have to fail toward a FULL provision: a dialog policy
+ * nobody set must not be able to produce the exact script this gate
+ * exists to prevent.
+ *
+ * Trimmed and case-folded on purpose. The requirement is that they read
+ * it and wrote it, not that they matched a shell's idea of equality; a
+ * stray space from a double-click is not a different decision. Anything
+ * that is not the phrase -- including the empty string, the subsystem's
+ * own name, or the phrase with something appended -- is a no. */
+export function deselectAcknowledgement(
+  which: keyof typeof DESELECT_PHRASE,
+  typed: string | null,
+): string | null {
+  if (typed === null) return null;
+  return typed.trim().toUpperCase() === DESELECT_PHRASE[which] ? DESELECT_PHRASE[which] : null;
+}
+
 /** Renders a generated setup script's chunks as a single reviewable
  * Markdown document -- same numbered-piece shape the Master Console's
  * "Setup Script" panel already shows on screen (`N. <label>` + a
@@ -3050,6 +3157,24 @@ export function chunksToRouterOsScript(
     `# Generated ${new Date().toISOString()}`,
     `# Upload via WebFig/WinBox Files, then run: /import file=<this-filename>.rsc`,
     "",
+    // HOW TO READ THE RUN, IN THE FILE, BECAUSE THE FILE TRAVELS ALONE.
+    //
+    // AC-4.3/4.4. The panel says this too, but the panel is not at the
+    // venue -- the operator saved this file, walked to a rack and opened
+    // it in whatever Windows has. The instruction has to be inside it.
+    //
+    // Two ways to read it on purpose. `/import` echoing `:put` is an
+    // ASSUMPTION -- see `markerStatements` -- so the `/log` route is named
+    // first and is not presented as a fallback: it is the one that works
+    // whatever `/import` does with console output, and it survives the
+    // terminal buffer scrolling past on a 30-chunk run.
+    `# HOW TO TELL A CLEAN RUN FROM ONE THAT STOPPED HALFWAY:`,
+    `#   /log print where message~"${SINGLE_LINE_MARKER_PREFIX}"`,
+    `# The last line must read '${SINGLE_LINE_MARKER_PREFIX} COMPLETE'. If the last line`,
+    `# is a 'START <n>/<N> <name>' instead, that chunk is where the import`,
+    `# stopped and nothing below it ran. Every marker is also printed to the`,
+    `# terminal, so the same last line is readable there if /import echoes it.`,
+    "",
   ];
   // THE .rsc IS ITS OWN DELIVERY CHANNEL, AND IT IS THE ONE THAT BIT FIRST.
   //
@@ -3078,6 +3203,32 @@ export function chunksToRouterOsScript(
         : `# !! THIS SCRIPT IS INCOMPLETE -- READ BEFORE IMPORTING`,
       `# ====================================================`,
       ...incomplete.map((c) => `# !! ${c.label}`),
+      // THE TYPED ACKNOWLEDGEMENT, LIFTED OUT OF THE CHUNK IT WAS
+      // PRINTED IN.
+      //
+      // Read back out of the emitted script rather than taken from a
+      // second copy of the gap list, for the same reason section 15.8's
+      // warning is derived: two sources for one fact is how the file
+      // header and the device output came to tell different stories in
+      // the first place. If the banner does not say it, the header
+      // cannot either.
+      //
+      // Why it belongs at the top of the file at all: a `.rsc` gets
+      // re-imported, forwarded and blamed weeks later, and "(by choice)"
+      // records only that a flag was set. The typed string records that
+      // a human read the consequence and wrote it out. When a venue has
+      // no guest login, this line is the difference between "who
+      // approved this" and an argument.
+      ...incomplete
+        .flatMap((c) => c.script.split("\n"))
+        .filter((l) => l.includes("acknowledged: the operator typed"))
+        .map(
+          (l) =>
+            `# !! ${l
+              .replace(/^:put\s+"\s*/, "")
+              .replace(/"$/, "")
+              .trim()}`,
+        ),
       `# !! The missing pieces, and what each costs, are spelled out in`,
       `# !! section 1 below. Importing this file leaves the router`,
       // A file that is short BY CHOICE imports to the end and configures a
@@ -3126,14 +3277,18 @@ export function chunksToRouterOsScript(
   //  - last line `DONE 10/32` with no `START 11/32` -> the file was
   //    truncated between chunks rather than erroring.
   //
-  // These are plain top-level `:put`s of a double-quoted literal, which is
-  // exactly what the rest of this generator already trusts in both
+  // These are plain top-level statements over a double-quoted literal,
+  // which is exactly what the rest of this generator already trusts in both
   // channels: nothing to parse, nothing to escape at run time, and no
   // dependence on any variable. They are deliberately NOT `#` comments --
   // a comment prints nothing, and output an operator can read back is the
   // entire point. The `# --- N. label ---` comments stay as well: they are
   // what makes RouterOS's own "line 75" mappable when someone does open the
   // file.
+  //
+  // Each marker is emitted TWICE, to two different sinks. See
+  // `markerStatements` for why the whole scheme would otherwise rest on an
+  // assumption nobody has tested on hardware.
   //
   // The label goes through `escapeForRouterOsString` for the same reason it
   // does in the single-line builder: it is operator-influenced text (a WAN
@@ -3144,9 +3299,9 @@ export function chunksToRouterOsScript(
     const label = escapeForRouterOsString(chunk.label);
     lines.push(
       `# --- ${n}. ${chunk.label} ---`,
-      `:put "${SINGLE_LINE_MARKER_PREFIX} ${n}/${total} START ${label}"`,
+      ...markerStatements(markerText("START", n, total, label)),
       chunk.script,
-      `:put "${SINGLE_LINE_MARKER_PREFIX} ${n}/${total} DONE ${label}"`,
+      ...markerStatements(markerText("DONE", n, total, label)),
       "",
     );
   });
@@ -3154,7 +3309,7 @@ export function chunksToRouterOsScript(
   // scrolled past" is the only evidence of success available to someone
   // watching an import, and that is precisely the evidence that was wrong
   // every time this went wrong.
-  lines.push(chunksToCompletionMarkerLine(chunks), "");
+  lines.push(...chunksToCompletionMarkerStatements(chunks), "");
   return lines.join("\n");
 }
 
@@ -3234,6 +3389,90 @@ export function chunksToRouterOsScript(
  * whole point is output an operator can read back. */
 export const SINGLE_LINE_MARKER_PREFIX = "### cloudguest";
 
+/** THE MARKERS DO NOT GET TO DEPEND ON AN UNTESTED ASSUMPTION.
+ *
+ * Every progress marker in both channels -- `START n/N`, `DONE n/N`,
+ * `COMPLETE` -- was a bare `:put`, and the whole run/abort legibility
+ * scheme rested on one thing NOBODY IN THIS REPO HAS EVER CONFIRMED ON
+ * HARDWARE: that `/import` echoes `:put` output to the terminal at all.
+ * The spec records it as an open question (AC-4.5, "resolve this on real
+ * hardware before implementing AC-4.1") and it was never resolved. The
+ * one-line paste has carried these markers since August without the
+ * question being asked there either -- it is less doubtful there, because
+ * a pasted line runs in the console the operator is looking at, but "less
+ * doubtful" is not "measured".
+ *
+ * If `/import` swallows `:put`, the operator reads nothing, and every fix
+ * that was made for "the script executed, RADIUS wasn't there and it
+ * didn't run" is void -- silently, and in exactly the channel the founder
+ * uses.
+ *
+ * So each marker is written to BOTH sinks. `:log` needs no terminal: it
+ * lands in `/log` and is read back with
+ * `/log print where message~"### cloudguest"` after the fact. This is not
+ * merely a hedge against the open question -- it is strictly better
+ * evidence than `:put` even if `:put` does echo, because an `/import` on
+ * a 32-chunk script prints far more than a WinBox terminal buffer holds
+ * and the useful line has scrolled off by the time anyone looks. The
+ * `:put` half stays, and stays LAST of the pair, because the runbook
+ * everybody actually follows is "read the last line".
+ *
+ * `:log info "<literal>"` is not a new shape for this generator: it is
+ * already used on the RouterOS-version, clock, WireGuard-DNS and
+ * missing-subsystem paths. It cannot fail on a device that has a log,
+ * which is every device.
+ *
+ * THE COST OF BEING WRONG IN THE OTHER DIRECTION IS ~55 CHARACTERS PER
+ * MARKER, on a file channel where size is free and a paste channel that
+ * was already five figures. The cost of being wrong about `:put` is a
+ * silent half-provisioned router, which is the entire subject of this
+ * file. */
+export function markerStatements(text: string): string[] {
+  return [`:log info "${text}"`, `:put "${text}"`];
+}
+
+/** The text inside a START/DONE marker. `label` is expected to have been
+ * through `escapeForRouterOsString` already -- it is operator-influenced
+ * (a WAN count, a portal filename) and is being interpolated into a
+ * RouterOS double-quoted string. */
+function markerText(kind: "START" | "DONE", n: number, total: number, label: string): string {
+  return `${SINGLE_LINE_MARKER_PREFIX} ${n}/${total} ${kind} ${label}`;
+}
+
+/** EVERY STATEMENT EITHER RENDERER IS ALLOWED TO INVENT, ENUMERATED.
+ *
+ * The `.rsc` and the flattened paste are the only two places where text
+ * that no chunk wrote reaches a router, and the guarantee that makes the
+ * other ~3,000 assertions in `test-setup-script-generator.mjs` mean
+ * anything is that the renderers add NOTHING EXECUTABLE OF THEIR OWN --
+ * because every guard in that suite reads `chunk.script`, not the file.
+ *
+ * Progress markers are the one exception, and an exception stated as
+ * "anything containing the marker prefix is fine" is not a bound: it
+ * would wave through `/system reboot; :put "### cloudguest"` just as
+ * happily. So the exception is an ENUMERATION instead. This function
+ * returns the exact, complete, ordered list of statements the renderers
+ * may contribute for a given chunk array; the suite asserts set equality
+ * against it rather than pattern-matching, and separately asserts that
+ * every member of it is an inert print/log of a double-quoted literal.
+ *
+ * Both renderers are built from the same two helpers this composes, so a
+ * renderer that grew a statement this does not predict is red, and a
+ * renderer that stopped emitting one this predicts is red as well. */
+export function progressMarkerStatements(chunks: RouterSetupScriptChunk[]): string[] {
+  const total = chunks.length;
+  return [
+    ...chunks.flatMap((chunk, i) => {
+      const label = escapeForRouterOsString(chunk.label);
+      return [
+        ...markerStatements(markerText("START", i + 1, total, label)),
+        ...markerStatements(markerText("DONE", i + 1, total, label)),
+      ];
+    }),
+    ...chunksToCompletionMarkerStatements(chunks),
+  ];
+}
+
 /** THE LAST LINE OF THE FILE, AND THE ONLY ONE ANYONE PROMISES TO READ.
  *
  * Both channels end with a `COMPLETE` sentinel, and the field runbook is
@@ -3259,12 +3498,12 @@ export const SINGLE_LINE_MARKER_PREFIX = "### cloudguest";
  * itself -- the same `INCOMPLETE SCRIPT` label the `.rsc` header keys off
  * -- so the two channels and the file header cannot disagree, and a chunk
  * count that changes cannot leave this behind. */
-function chunksToCompletionMarkerLine(chunks: RouterSetupScriptChunk[]): string {
+function chunksToCompletionMarkerStatements(chunks: RouterSetupScriptChunk[]): string[] {
   const total = chunks.length;
   const head = `${SINGLE_LINE_MARKER_PREFIX} COMPLETE -- all ${total} chunk(s) ran`;
   const gapChunk = chunks.find((c) => c.label.startsWith("INCOMPLETE SCRIPT"));
   if (!gapChunk) {
-    return `:put "${head}. A run that ends anywhere else stopped early."`;
+    return markerStatements(`${head}. A run that ends anywhere else stopped early.`);
   }
   // The label already carries the subsystem names and the "(by choice)"
   // distinction; reusing it rather than re-deriving keeps this line, the
@@ -3272,7 +3511,9 @@ function chunksToCompletionMarkerLine(chunks: RouterSetupScriptChunk[]): string 
   const what = escapeForRouterOsString(
     gapChunk.label.replace(/^INCOMPLETE SCRIPT(?: \(by choice\))? -- /, ""),
   );
-  return `:put "${head}, BUT THIS SCRIPT WAS NOT A FULL PROVISION: ${what}. This router is NOT finished -- see section 1 at the top of this run. A run that ends anywhere else stopped early."`;
+  return markerStatements(
+    `${head}, BUT THIS SCRIPT WAS NOT A FULL PROVISION: ${what}. This router is NOT finished -- see section 1 at the top of this run. A run that ends anywhere else stopped early.`,
+  );
 }
 
 export function chunksToSingleLineScript(chunks: RouterSetupScriptChunk[]): string {
@@ -3285,12 +3526,12 @@ export function chunksToSingleLineScript(chunks: RouterSetupScriptChunk[]): stri
       .map((line) => line.trim())
       .filter((line) => line.length > 0 && !line.startsWith("#"));
     return [
-      `:put "${SINGLE_LINE_MARKER_PREFIX} ${n}/${total} START ${label}"`,
+      ...markerStatements(markerText("START", n, total, label)),
       ...body,
-      `:put "${SINGLE_LINE_MARKER_PREFIX} ${n}/${total} DONE ${label}"`,
+      ...markerStatements(markerText("DONE", n, total, label)),
     ];
   });
-  commandLines.push(chunksToCompletionMarkerLine(chunks));
+  commandLines.push(...chunksToCompletionMarkerStatements(chunks));
 
   let out = "";
   for (const line of commandLines) {
@@ -4239,8 +4480,14 @@ export function buildRouterSetupScriptChunks(opts: {
    * regenerate, use the new file); a DELIBERATE omission does not, because
    * there is no cause to fix and refusing to run a script somebody
    * configured on purpose only teaches them to page past the banner. A
-   * mixed list takes the failure ending -- there is a real fault in it. */
-  notProvisioned?: { what: string; why: string; deliberate?: boolean }[];
+   * mixed list takes the failure ending -- there is a real fault in it.
+   *
+   * AND `deliberate: true` NOW COSTS SOMETHING TO CLAIM. See
+   * `SetupScriptGap`: the softer ending is not available to a caller that
+   * merely sets a boolean, because a boolean is what the panel's three
+   * warnings were -- all of them true, none of them evidence that anybody
+   * read one. */
+  notProvisioned?: SetupScriptGap[];
 }): RouterSetupScriptChunk[] {
   const {
     apiBase,
@@ -4358,7 +4605,7 @@ export function buildRouterSetupScriptChunks(opts: {
   // this gap at all, which is a bug in the caller -- so it is NOT
   // `deliberate`, and it stops the import. Loud is correct there: the
   // alternative is the silence that started all of this.
-  const derivedGaps: { what: string; why: string; deliberate?: boolean }[] = lan.ok
+  const derivedGaps: SetupScriptGap[] = lan.ok
     ? [
         !wireguard && {
           what: "WireGuard tunnel",
@@ -4394,7 +4641,12 @@ export function buildRouterSetupScriptChunks(opts: {
     // going to configure RADIUS) but not the `:error`: nothing failed, and
     // there is nothing to go and fix. Any genuine failure in the list makes
     // the whole thing fatal again -- see `notProvisioned`'s own docstring.
-    const allDeliberate = gaps.every((g) => g.deliberate === true);
+    // `isAcknowledgedChoice`, not `g.deliberate === true`. A caller that
+    // sets the flag without collecting a typed acknowledgement gets the
+    // FAILURE ending, which is the fail-closed direction: the worst
+    // outcome of a caller bug is a script that refuses to run, never a
+    // script that quietly half-provisions a venue.
+    const allDeliberate = gaps.every(isAcknowledgedChoice);
     const lines = [
       `:put "===================================================="`,
       allDeliberate
@@ -4405,6 +4657,16 @@ export function buildRouterSetupScriptChunks(opts: {
     for (const gap of gaps) {
       lines.push(`:put "  MISSING: ${escapeForRouterOsString(gap.what)}"`);
       lines.push(`:put "    why: ${escapeForRouterOsString(gap.why)}"`);
+      // WHO SAID YES, IN THE ARTIFACT. A `.rsc` outlives the panel and
+      // the session that made it; "(by choice)" alone records that a flag
+      // was set, not that a human was ever in the loop. The typed string
+      // is the only part of this that a caller cannot produce by
+      // accident.
+      if (isAcknowledgedChoice(gap)) {
+        lines.push(
+          `:put "    acknowledged: the operator typed '${escapeForRouterOsString(gap.acknowledgement ?? "")}' to switch this off"`,
+        );
+      }
       // What it actually costs, per subsystem -- an operator cannot weigh
       // "RADIUS is missing" without knowing that it means no guest can log
       // in at all.
