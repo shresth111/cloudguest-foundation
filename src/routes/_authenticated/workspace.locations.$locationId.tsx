@@ -67,6 +67,8 @@ import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import type { ExistingCustomer } from "@/context/WorkspaceContext";
 import type { LocationResources, LocationRouterSummary } from "@/hooks/useWorkspace";
 import type { RouterStatus } from "@/types/router";
+import { GUEST_AUTH_METHOD_LABEL } from "@/types/guest";
+import type { GuestAuthMethod } from "@/types/guest";
 import type { AppError } from "@/services/api";
 import { toast } from "sonner";
 import {
@@ -87,18 +89,20 @@ import {
   YAxis,
 } from "recharts";
 
+// analytics / reports / billing / audit / staff used to be tabs here. Every
+// one of them rendered invented figures -- literal invoice numbers, a
+// hardcoded "Revenue (MTD) $4,820", a twelve-month growth curve computed as
+// `120 + i * 30`, and an audit log of fabricated entries the owner could
+// search. None had a per-location data source. The workspace already has
+// real, org-scoped Analytics, Reports and Billing pages, and staff is a
+// per-user concern, not a per-location one; RelatedLinks below points there.
 const TAB_KEYS = [
   "overview",
   "routers",
   "wifi",
   "portal",
   "guests",
-  "staff",
-  "analytics",
   "monitoring",
-  "reports",
-  "billing",
-  "audit",
   "settings",
 ] as const;
 type TabKey = (typeof TAB_KEYS)[number];
@@ -142,6 +146,8 @@ function LocationWorkspacePage() {
   const {
     data: resources,
     isLoading: loadingResources,
+    isError: resourcesFailed,
+    error: resourcesError,
     refetch,
   } = useLocationResources(locationId);
   const remove = useDeleteLocations();
@@ -215,19 +221,28 @@ function LocationWorkspacePage() {
             <TabsTrigger value="wifi">Guest WiFi</TabsTrigger>
             <TabsTrigger value="portal">Captive portal</TabsTrigger>
             <TabsTrigger value="guests">Guests</TabsTrigger>
-            <TabsTrigger value="staff">Staff</TabsTrigger>
-            <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="monitoring">Monitoring</TabsTrigger>
-            <TabsTrigger value="reports">Reports</TabsTrigger>
-            <TabsTrigger value="billing">Billing</TabsTrigger>
-            <TabsTrigger value="audit">Audit logs</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
         </div>
 
         <div className="mt-4">
-          {loadingResources || !resources ? (
+          {loadingResources ? (
             <LocationWorkspaceSkeleton />
+          ) : resourcesFailed || !resources ? (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Couldn&apos;t load this location&apos;s data</AlertTitle>
+              <AlertDescription className="flex items-center justify-between gap-3">
+                <span className="truncate">
+                  {(resourcesError as AppError | null)?.message ??
+                    "The routers and guest sessions for this location could not be fetched."}
+                </span>
+                <Button size="sm" variant="outline" onClick={() => refetch()}>
+                  Retry
+                </Button>
+              </AlertDescription>
+            </Alert>
           ) : (
             <>
               <TabsContent value="overview">
@@ -250,23 +265,8 @@ function LocationWorkspacePage() {
               <TabsContent value="guests">
                 <GuestsTab resources={resources} />
               </TabsContent>
-              <TabsContent value="staff">
-                <StaffTab />
-              </TabsContent>
-              <TabsContent value="analytics">
-                <AnalyticsTab resources={resources} />
-              </TabsContent>
               <TabsContent value="monitoring">
                 <MonitoringTab resources={resources} locationId={location.id} />
-              </TabsContent>
-              <TabsContent value="reports">
-                <ReportsTab />
-              </TabsContent>
-              <TabsContent value="billing">
-                <BillingTab customer={customer} resources={resources} />
-              </TabsContent>
-              <TabsContent value="audit">
-                <AuditTab />
               </TabsContent>
               <TabsContent value="settings">
                 <SettingsTab
@@ -298,6 +298,15 @@ function LocationHeader({
 }) {
   const sibling = customer.locations.filter((l) => l.id !== location.id);
   const navigate = useNavigate();
+  // Status and timezone were hardcoded to "Active" and Asia/Kolkata, so a
+  // suspended or archived location advertised itself as active and every
+  // venue on the platform claimed IST.
+  const detailQ = useQuery({
+    queryKey: ["workspace", "locationDetail", location.id],
+    queryFn: () => locationService.getDetail(location.id),
+  });
+  const headerStatus = detailQ.data?.status;
+  const headerTimezone = detailQ.data?.timezone;
   const HeaderIcon = businessTypeIcon(location.siteType);
   return (
     <Card>
@@ -312,15 +321,27 @@ function LocationHeader({
               <Badge variant="secondary" className="capitalize">
                 {location.siteType}
               </Badge>
-              <Badge variant="default">Active</Badge>
+              <Badge
+                variant={
+                  headerStatus === "active"
+                    ? "default"
+                    : headerStatus === "suspended"
+                      ? "destructive"
+                      : "secondary"
+                }
+                className="capitalize"
+              >
+                {headerStatus ?? "…"}
+              </Badge>
               <Badge variant="outline" className="capitalize">
                 {customer.subscription.plan}
               </Badge>
             </div>
             <p className="mt-0.5 flex flex-wrap items-center gap-2 truncate text-xs text-muted-foreground">
               <MapPin className="h-3.5 w-3.5 shrink-0" />
-              {location.city} · Asia/Kolkata · <span className="font-mono">{location.id}</span> ·{" "}
-              {customer.name}
+              {location.city}
+              {headerTimezone ? ` · ${headerTimezone}` : ""} ·{" "}
+              <span className="font-mono">{location.id}</span> · {customer.name}
             </p>
           </div>
         </div>
@@ -395,21 +416,56 @@ function OverviewTab({
 }) {
   const online = resources.routers.filter((r) => r.status === "online").length;
   const offline = resources.routers.filter((r) => r.status === "offline").length;
-  const days = Math.max(
-    0,
-    Math.floor((new Date(customer.subscription.expiryDate).getTime() - Date.now()) / 86400000),
-  );
-  const activity = Array.from({ length: 12 }, (_, i) => ({
-    label: `${i * 2}:00`,
-    guests: 20 + ((i * 17) % 120),
-    bandwidth: 40 + ((i * 23) % 180),
+  // An org with no subscription row has expiryDate "", so new Date("") is
+  // NaN and the KPI used to read "Renews in NaNd".
+  const expiry = customer.subscription.expiryDate
+    ? new Date(customer.subscription.expiryDate).getTime()
+    : NaN;
+  const days = Number.isNaN(expiry)
+    ? null
+    : Math.max(0, Math.floor((expiry - Date.now()) / 86400000));
+
+  // A real histogram of the sessions loaded for this location, bucketed by
+  // start hour. The previous series was `20 + ((i * 17) % 120)` -- a shape
+  // with no data behind it at all.
+  const now = new Date();
+  const activity = (() => {
+    const buckets = Array.from({ length: 12 }, (_, i) => {
+      const end = new Date(now.getTime() - (11 - i) * 2 * 3600_000);
+      return {
+        label: `${String(end.getHours()).padStart(2, "0")}:00`,
+        from: end.getTime() - 2 * 3600_000,
+        to: end.getTime(),
+        guests: 0,
+        bandwidth: 0,
+      };
+    });
+    for (const g of resources.guestSessions) {
+      const t = new Date(g.startedAt).getTime();
+      const b = buckets.find((x) => t > x.from && t <= x.to);
+      if (b) {
+        b.guests += 1;
+        b.bandwidth += g.dataMb;
+      }
+    }
+    return buckets.map(({ label, guests, bandwidth }) => ({
+      label,
+      guests,
+      bandwidth: Number(bandwidth.toFixed(1)),
+    }));
+  })();
+  const activityEmpty = activity.every((b) => b.guests === 0);
+
+  // Real login-method split from the sessions in hand, replacing a fixed
+  // 42/26/18/14 pie that was the same for every venue on the platform.
+  const methodCounts = resources.guestSessions.reduce<Record<string, number>>((acc, g) => {
+    acc[g.authMethod] = (acc[g.authMethod] ?? 0) + 1;
+    return acc;
+  }, {});
+  const methods = Object.entries(methodCounts).map(([name, value]) => ({
+    name: GUEST_AUTH_METHOD_LABEL[name as GuestAuthMethod] ?? name,
+    value,
   }));
-  const methods = [
-    { name: "OTP", value: 42 },
-    { name: "Voucher", value: 26 },
-    { name: "Social", value: 18 },
-    { name: "QR", value: 14 },
-  ];
   const COLORS = ["var(--primary)", "#22c55e", "#f59e0b", "#8b5cf6"];
 
   return (
@@ -442,23 +498,9 @@ function OverviewTab({
           icon={Gauge}
         />
         <Kpi
-          label="Revenue (MTD)"
-          value="$4,820"
-          sub="+12% vs last mo"
-          icon={Receipt}
-          tone="positive"
-        />
-        <Kpi
-          label="Alerts"
-          value={2}
-          sub="1 warning · 1 info"
-          icon={AlertTriangle}
-          tone="warning"
-        />
-        <Kpi
           label="Subscription"
           value={customer.subscription.plan}
-          sub={`Renews in ${days}d`}
+          sub={days === null ? undefined : `Renews in ${days}d`}
           icon={ShieldCheck}
         />
       </div>
@@ -466,30 +508,36 @@ function OverviewTab({
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Guest activity & bandwidth · 24h</CardTitle>
+            <CardTitle className="text-base">Guest activity &amp; data · last 24h</CardTitle>
           </CardHeader>
           <CardContent className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={activity}>
-                <defs>
-                  <linearGradient id="gA" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.4} />
-                    <stop offset="100%" stopColor="var(--primary)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip
-                  contentStyle={{
-                    background: "var(--popover)",
-                    border: "1px solid var(--border)",
-                  }}
-                />
-                <Area type="monotone" dataKey="guests" stroke="var(--primary)" fill="url(#gA)" />
-                <Line type="monotone" dataKey="bandwidth" stroke="#f59e0b" dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
+            {activityEmpty ? (
+              <div className="flex h-full items-center justify-center text-center text-sm text-muted-foreground">
+                No guest sessions started here in the last 24 hours.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={activity}>
+                  <defs>
+                    <linearGradient id="gA" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.4} />
+                      <stop offset="100%" stopColor="var(--primary)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip
+                    contentStyle={{
+                      background: "var(--popover)",
+                      border: "1px solid var(--border)",
+                    }}
+                  />
+                  <Area type="monotone" dataKey="guests" stroke="var(--primary)" fill="url(#gA)" />
+                  <Line type="monotone" dataKey="bandwidth" stroke="#f59e0b" dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -497,23 +545,29 @@ function OverviewTab({
             <CardTitle className="text-base">Login methods</CardTitle>
           </CardHeader>
           <CardContent className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={methods}
-                  innerRadius={50}
-                  outerRadius={90}
-                  paddingAngle={2}
-                  dataKey="value"
-                  nameKey="name"
-                >
-                  {methods.map((_, i) => (
-                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+            {methods.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-center text-sm text-muted-foreground">
+                No logins recorded yet.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={methods}
+                    innerRadius={50}
+                    outerRadius={90}
+                    paddingAngle={2}
+                    dataKey="value"
+                    nameKey="name"
+                  >
+                    {methods.map((_, i) => (
+                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -531,14 +585,12 @@ function QuickActions({ onNavigate }: { onNavigate: (t: TabKey) => void }) {
     icon: React.ComponentType<{ className?: string }>;
     onClick: () => void;
   }[] = [
-    { label: "View routers", icon: RouterIcon, onClick: () => onNavigate("routers") },
-    { label: "Manage routers", icon: RefreshCw, onClick: () => onNavigate("routers") },
-    { label: "Create voucher", icon: Ticket, onClick: () => onNavigate("wifi") },
-    { label: "Generate QR", icon: QrCode, onClick: () => onNavigate("wifi") },
-    { label: "Invite staff", icon: UserPlus, onClick: () => onNavigate("staff") },
-    { label: "Generate report", icon: FileText, onClick: () => onNavigate("reports") },
-    { label: "View guests", icon: Users, onClick: () => onNavigate("guests") },
-    { label: "Configure portal", icon: SettingsIcon, onClick: () => onNavigate("portal") },
+    { label: "Routers", icon: RouterIcon, onClick: () => onNavigate("routers") },
+    { label: "Guest WiFi", icon: Ticket, onClick: () => onNavigate("wifi") },
+    { label: "Guests", icon: Users, onClick: () => onNavigate("guests") },
+    { label: "Monitoring", icon: Activity, onClick: () => onNavigate("monitoring") },
+    { label: "Captive portal", icon: SettingsIcon, onClick: () => onNavigate("portal") },
+    { label: "Settings", icon: Pencil, onClick: () => onNavigate("settings") },
   ];
   return (
     <Card>
@@ -546,7 +598,7 @@ function QuickActions({ onNavigate }: { onNavigate: (t: TabKey) => void }) {
         <CardTitle className="text-base">Quick actions</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-8">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-6">
           {actions.map((a) => (
             <Button
               key={a.label}
@@ -572,16 +624,33 @@ function PropertyInfoCard({
   customer: ExistingCustomer;
   location: ExistingCustomer["locations"][number];
 }) {
+  // The workspace's location object is narrowed to {id, name, city,
+  // siteType}, so address, timezone and coordinates were previously
+  // hardcoded to New Delhi for every location on the platform. They are on
+  // the real backend row; fetch it.
+  const detailQ = useQuery({
+    queryKey: ["workspace", "locationDetail", location.id],
+    queryFn: () => locationService.getDetail(location.id),
+  });
+  const d = detailQ.data;
+  const address = d
+    ? [d.address_line1, d.city, d.state_province, d.postal_code, d.country]
+        .filter(Boolean)
+        .join(", ")
+    : location.city;
+  const coord = (v: number | null | undefined) =>
+    v === null || v === undefined ? "Not set" : String(v);
+
   const rows: Array<[string, string]> = [
-    ["Property name", location.name],
+    ["Property name", d?.name ?? location.name],
     ["Property type", location.siteType],
-    ["Address", `${location.city}, India`],
-    ["Timezone", "Asia/Kolkata (UTC+05:30)"],
-    ["Latitude", "28.6139"],
-    ["Longitude", "77.2090"],
-    ["Owner", `${customer.owner.name} · ${customer.owner.email}`],
+    ["Address", address],
+    ["Timezone", d?.timezone ?? (detailQ.isLoading ? "…" : "Not set")],
+    ["Latitude", detailQ.isLoading ? "…" : coord(d?.latitude)],
+    ["Longitude", detailQ.isLoading ? "…" : coord(d?.longitude)],
+    ["Contact", customer.owner.email],
     ["Subscription", `${customer.subscription.plan} · ${customer.subscription.billingCycle}`],
-    ["Status", customer.status],
+    ["Status", d?.status ?? customer.status],
   ];
   return (
     <Card>
@@ -822,23 +891,29 @@ function RouterCard({ r }: { r: LocationRouterSummary }) {
 /* ---------- Guest WiFi ---------- */
 
 function GuestWifiTab({ resources }: { resources: LocationResources }) {
-  const methods = [
-    { key: "voucher", label: "Voucher login", on: true },
-    { key: "qr", label: "QR login", on: true },
-    { key: "email", label: "Email login", on: false },
-    { key: "otp", label: "Mobile OTP", on: true },
-    { key: "social", label: "Social login", on: false },
-    { key: "userpass", label: "Username / password", on: false },
-  ];
+  // The login-method list used to be six Switches over hardcoded on/off
+  // state, identical for every location, whose only handler was a success
+  // toast -- toggling "Mobile OTP" off reported success and changed nothing,
+  // anywhere. There is no per-location auth-method endpoint on the customer
+  // surface, so this shows what guests actually used instead of pretending
+  // to configure it. The voucher table and QR panel that sat below were
+  // likewise literal codes (VCH-8821..8824) with no voucher API behind them.
+  const methodCounts = resources.guestSessions.reduce<Record<string, number>>((acc, g) => {
+    acc[g.authMethod] = (acc[g.authMethod] ?? 0) + 1;
+    return acc;
+  }, {});
+  const methods = Object.entries(methodCounts).sort((a, b) => b[1] - a[1]);
+  const totalWithMethod = methods.reduce((sum, [, n]) => sum + n, 0);
+
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Kpi label="Guest sessions" value={resources.analytics.totalSessions} icon={Wifi} />
         <Kpi label="Active now" value={resources.analytics.activeSessions} icon={Users} />
-        <Kpi label="Avg session" value="24m" icon={Activity} />
         <Kpi
-          label="Bandwidth"
+          label="Data used"
           value={`${resources.analytics.dataConsumedGb.toFixed(1)} GB`}
+          sub="sessions loaded"
           icon={Gauge}
         />
         <Kpi label="Sessions listed" value={resources.guestSessions.length} icon={Cpu} />
@@ -846,97 +921,33 @@ function GuestWifiTab({ resources }: { resources: LocationResources }) {
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Login methods</CardTitle>
+          <CardTitle className="text-base">How guests signed in</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {methods.map((m) => (
-              <div key={m.key} className="flex items-center justify-between rounded-lg border p-3">
-                <div>
-                  <p className="text-sm font-medium">{m.label}</p>
-                  <p className="text-xs text-muted-foreground">{m.on ? "Enabled" : "Disabled"}</p>
-                </div>
-                <Switch
-                  defaultChecked={m.on}
-                  onCheckedChange={(v) => toast.success(`${m.label} ${v ? "enabled" : "disabled"}`)}
-                />
-              </div>
-            ))}
-          </div>
+          {methods.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              No guest logins recorded for this location yet.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {methods.map(([method, count]) => {
+                const pct = totalWithMethod ? Math.round((count / totalWithMethod) * 100) : 0;
+                return (
+                  <div key={method}>
+                    <div className="flex items-center justify-between text-sm">
+                      <span>{GUEST_AUTH_METHOD_LABEL[method as GuestAuthMethod] ?? method}</span>
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {count} · {pct}%
+                      </span>
+                    </div>
+                    <Progress value={pct} className="mt-1 h-1.5" />
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader className="flex-row items-center justify-between pb-2">
-            <CardTitle className="text-base">Vouchers</CardTitle>
-            <div className="flex gap-1.5">
-              <Button size="sm" variant="outline">
-                <Plus className="mr-1 h-3.5 w-3.5" />
-                Generate
-              </Button>
-              <Button size="sm" variant="outline">
-                Bulk
-              </Button>
-              <Button size="sm" variant="ghost">
-                <Download className="h-4 w-4" />
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Code</TableHead>
-                  <TableHead>Plan</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Used</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {["VCH-8821", "VCH-8822", "VCH-8823", "VCH-8824"].map((c, i) => (
-                  <TableRow key={c}>
-                    <TableCell className="font-mono">{c}</TableCell>
-                    <TableCell>{["1h", "24h", "1h", "3d"][i]}</TableCell>
-                    <TableCell>
-                      <Badge variant={i === 3 ? "secondary" : "default"}>
-                        {i === 3 ? "unused" : "active"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">{[3, 12, 1, 0][i]}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">QR login</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col items-center gap-3">
-            <div className="grid h-40 w-40 place-items-center rounded-lg bg-gradient-to-br from-primary/10 to-primary/30">
-              <QrCode className="h-24 w-24 text-primary" />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              portal.cloudguest.io/{resources.routers[0]?.id ?? "loc"}
-            </p>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline">
-                <Download className="mr-1 h-3.5 w-3.5" />
-                Download
-              </Button>
-              <Button size="sm" variant="outline">
-                Print
-              </Button>
-              <Button size="sm" variant="outline">
-                Brand
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 }
@@ -1140,104 +1151,6 @@ function GuestsTab({ resources }: { resources: LocationResources }) {
   );
 }
 
-/* ---------- Staff ---------- */
-
-function StaffTab() {
-  return (
-    <Card>
-      <CardContent className="grid place-items-center gap-2 p-10 text-center">
-        <div className="grid h-12 w-12 place-items-center rounded-full bg-muted">
-          <UserPlus className="h-5 w-5 text-muted-foreground" />
-        </div>
-        <p className="text-base font-semibold">Staff is managed in the RBAC console</p>
-        <p className="max-w-sm text-sm text-muted-foreground">
-          There's no per-location staff roster in this platform — role assignments are scoped per
-          user, viewable and editable from the Users &amp; Roles console.
-        </p>
-        <Button asChild size="sm">
-          <Link to="/rbac">Open Users &amp; Roles</Link>
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
-
-/* ---------- Analytics ---------- */
-
-function AnalyticsTab({ resources }: { resources: LocationResources }) {
-  const growth = Array.from({ length: 12 }, (_, i) => ({
-    m: ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"][i],
-    guests: 120 + i * 30,
-    revenue: 800 + i * 220,
-  }));
-  const devices = [
-    { name: "iPhone", value: 42 },
-    { name: "Android", value: 34 },
-    { name: "MacBook", value: 12 },
-    { name: "Windows", value: 9 },
-    { name: "iPad", value: 3 },
-  ];
-  const COLORS = ["var(--primary)", "#22c55e", "#f59e0b", "#8b5cf6", "#ef4444"];
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
-        <Kpi label="Guest count" value={resources.analytics.totalSessions} icon={Users} />
-        <Kpi label="Returning" value={`${34}%`} icon={Users} />
-        <Kpi label="Revenue" value="$12.4k" icon={Receipt} tone="positive" />
-        <Kpi
-          label="Bandwidth"
-          value={`${resources.analytics.dataConsumedGb.toFixed(1)} GB`}
-          icon={Gauge}
-        />
-        <Kpi label="Peak hour" value="19:00" icon={Activity} />
-        <Kpi label="Portal views" value="8.2k" icon={BarChart3} />
-        <Kpi label="Conversion" value="72%" icon={ShieldCheck} tone="positive" />
-        <Kpi label="Voucher use" value="61%" icon={Ticket} />
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Guest growth</CardTitle>
-          </CardHeader>
-          <CardContent className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={growth}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                <XAxis dataKey="m" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip />
-                <Line type="monotone" dataKey="guests" stroke="var(--primary)" />
-                <Line type="monotone" dataKey="revenue" stroke="#22c55e" />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Top devices</CardTitle>
-          </CardHeader>
-          <CardContent className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={devices}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip />
-                <Bar dataKey="value" radius={[6, 6, 0, 0]}>
-                  {devices.map((_, i) => (
-                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
-}
-
 /* ---------- Monitoring ---------- */
 
 function MonitoringTab({
@@ -1338,216 +1251,6 @@ function MonitoringTab({
               </div>
             ))
           )}
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-/* ---------- Reports ---------- */
-
-function ReportsTab() {
-  const reports = [
-    "Guest report",
-    "Voucher report",
-    "Bandwidth report",
-    "Revenue report",
-    "Router report",
-    "Portal report",
-    "Audit report",
-  ];
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base">Generate reports</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {reports.map((r) => (
-            <div key={r} className="rounded-lg border p-4">
-              <div className="flex items-center gap-2">
-                <FileText className="h-4 w-4 text-primary" />
-                <p className="text-sm font-semibold">{r}</p>
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">Last generated 3d ago</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {(["PDF", "Excel", "CSV"] as const).map((f) => (
-                  <Button
-                    key={f}
-                    size="sm"
-                    variant="outline"
-                    onClick={() => toast.success(`${r} exported (${f})`)}
-                  >
-                    {f}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-/* ---------- Billing ---------- */
-
-function BillingTab({
-  customer,
-  resources,
-}: {
-  customer: ExistingCustomer;
-  resources: LocationResources;
-}) {
-  const invoices = Array.from({ length: 5 }, (_, i) => ({
-    id: `INV-${2401 + i}`,
-    date: new Date(Date.now() - i * 30 * 86400000).toISOString().slice(0, 10),
-    amount: 420 + i * 40,
-    status: i === 0 ? "due" : "paid",
-  }));
-  const usageGuests = resources.analytics.totalSessions * 30;
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Kpi label="Current plan" value={customer.subscription.plan} icon={ShieldCheck} />
-        <Kpi label="Guests (mo)" value={usageGuests} sub="of 250k" icon={Users} />
-        <Kpi
-          label="Bandwidth"
-          value={`${(resources.analytics.dataConsumedGb * 30).toFixed(1)} GB`}
-          sub="of 2 TB"
-          icon={Gauge}
-        />
-        <Kpi label="Storage" value="18 GB" sub="of 100 GB" icon={Cpu} />
-      </div>
-      <Card>
-        <CardHeader className="flex-row items-center justify-between pb-2">
-          <CardTitle className="text-base">Invoices & payments</CardTitle>
-          <Button size="sm" variant="outline">
-            <Download className="mr-1 h-3.5 w-3.5" />
-            Export
-          </Button>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Invoice</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {invoices.map((v) => (
-                <TableRow key={v.id}>
-                  <TableCell className="font-mono">{v.id}</TableCell>
-                  <TableCell>{v.date}</TableCell>
-                  <TableCell>${v.amount}</TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={v.status === "due" ? "destructive" : "default"}
-                      className="capitalize"
-                    >
-                      {v.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button size="sm" variant="ghost">
-                      View
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-/* ---------- Audit ---------- */
-
-function AuditTab() {
-  const events = [
-    { icon: Users, when: "2m ago", who: "guest.otp", what: "Guest login via OTP · +91 98•••••23" },
-    {
-      icon: Ticket,
-      when: "18m ago",
-      who: "reception@delhi",
-      what: "Voucher VCH-8824 created (24h)",
-    },
-    {
-      icon: RouterIcon,
-      when: "1h ago",
-      who: "system",
-      what: "Router 2 restarted after firmware update",
-    },
-    {
-      icon: SettingsIcon,
-      when: "3h ago",
-      who: "manager@delhi",
-      what: "Captive portal updated (primary color)",
-    },
-    {
-      icon: UserPlus,
-      when: "1d ago",
-      who: "owner@existing.com",
-      what: "Staff added: Anjali Rao (Reception)",
-    },
-    { icon: SettingsIcon, when: "2d ago", who: "admin", what: "RADIUS configuration changed" },
-  ];
-  const [q, setQ] = useState("");
-  const filtered = events.filter((e) => (e.who + e.what).toLowerCase().includes(q.toLowerCase()));
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap gap-2">
-        <Input
-          placeholder="Search events…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          className="h-9 w-64"
-        />
-        <Select defaultValue="all">
-          <SelectTrigger className="w-32">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All actions</SelectItem>
-            <SelectItem value="login">Logins</SelectItem>
-            <SelectItem value="config">Config</SelectItem>
-            <SelectItem value="voucher">Vouchers</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select defaultValue="7d">
-          <SelectTrigger className="w-28">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="24h">24h</SelectItem>
-            <SelectItem value="7d">7 days</SelectItem>
-            <SelectItem value="30d">30 days</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <Card>
-        <CardContent className="p-4">
-          <ol className="relative border-l pl-6">
-            {filtered.map((e, i) => (
-              <li key={i} className="mb-4 last:mb-0">
-                <span className="absolute -left-3 grid h-6 w-6 place-items-center rounded-full border bg-background">
-                  <e.icon className="h-3 w-3 text-primary" />
-                </span>
-                <div className="flex flex-wrap items-baseline gap-2">
-                  <p className="text-sm">{e.what}</p>
-                  <span className="text-xs text-muted-foreground">
-                    · {e.who} · {e.when}
-                  </span>
-                </div>
-              </li>
-            ))}
-          </ol>
         </CardContent>
       </Card>
     </div>

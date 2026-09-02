@@ -34,6 +34,12 @@ export interface ExistingCustomer {
 
 interface WorkspaceContextValue {
   isLoading: boolean;
+  /** True when the workspace query failed. Distinguishes a server error
+   *  from an account that genuinely has no workspace -- rendering the
+   *  latter's message for the former told the user their account was
+   *  unprovisioned every time the API hiccuped. */
+  isError: boolean;
+  refetch: () => void;
   customer: ExistingCustomer | null;
   locations: ExistingCustomer["locations"];
   activeLocationId: string; // "all" or location id
@@ -166,7 +172,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { user, organizations } = useAuth();
   const activeOrg = organizations[0] ?? null;
 
-  const { data: customer, isLoading } = useQuery({
+  const {
+    data: customer,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ["workspace", "customer", activeOrg?.organizationId],
     queryFn: () =>
       fetchActiveCustomer(activeOrg!.organizationId, activeOrg!.isPrimaryContact, {
@@ -227,13 +238,15 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     const activeLocation = locs.find((l) => l.id === activeLocationId) ?? null;
     return {
       isLoading,
+      isError,
+      refetch,
       customer: customer ?? null,
       locations: locs,
       activeLocationId,
       activeLocation,
       setActiveLocationId,
     };
-  }, [customer, activeLocationId, isLoading]);
+  }, [customer, activeLocationId, isLoading, isError, refetch]);
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
 }
