@@ -1,67 +1,37 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
-import { RouterFleetSetupWizard } from "@/components/routers/fleet-wizard/RouterFleetSetupWizard";
-import { MasterShell } from "@/components/master/MasterShell";
-import { MButton, MPageShell } from "@/components/master/MasterKit";
-import { useRouter } from "@/hooks/useRouters";
-import { isDemo } from "@/services/customer.service";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
+/**
+ * Retired entry point, kept only as a redirect.
+ *
+ * The server-driven provisioning wizard is no longer offered from Router
+ * Fleet -- see the sibling `master.routers.guided.$routerId.tsx` for the
+ * full reasoning behind keeping these URLs alive rather than deleting
+ * them.
+ *
+ * Worth recording why THIS one in particular stopped being a recommended
+ * path: the wizard renders its script server-side and every step past
+ * bootstrap pushes through the device gateway, so it cannot get a
+ * factory-fresh box onto the network -- there is no agent and no tunnel
+ * yet for it to talk through. A live provisioning session stranded an
+ * operator at step 2 of 13 on a fresh router. Advanced generates the
+ * script client-side, so frontend fixes actually reach it.
+ *
+ * Note this is the PATH `/master/routers/setup/$routerId` (the wizard),
+ * which is a different thing from the `?setup=<id>` SEARCH param on
+ * `/master/routers` -- that one is a legacy alias for `?advanced=<id>`
+ * and still resolves to the Advanced panel directly. Both now land in
+ * the same place, which is the point.
+ *
+ * `RouterFleetSetupWizard` (`@/components/routers/fleet-wizard/`) is
+ * deliberately left in the tree; this change is about entry points.
+ */
 export const Route = createFileRoute("/master/routers/setup/$routerId")({
-  component: RouterFleetSetupRoute,
+  ssr: false,
+  beforeLoad: ({ params }) => {
+    throw redirect({
+      to: "/master/routers",
+      search: { advanced: params.routerId },
+      replace: true,
+    });
+  },
 });
-
-function RouterFleetSetupRoute() {
-  const { routerId } = Route.useParams();
-  const navigate = useNavigate();
-  const demo = isDemo();
-  const { data: router, isLoading, isError } = useRouter(routerId);
-
-  if (demo) {
-    return (
-      <MasterShell title="Provisioning wizard">
-        <MPageShell>
-          <div className="rounded-xl border border-border bg-card p-10 text-center text-sm text-muted-foreground">
-            The server-driven provisioning wizard is not available in the demo session. Sign in with
-            a platform operator account to run discovery and WAN apply against a real router.
-          </div>
-          <div className="mt-4 flex justify-center">
-            <MButton variant="outline" onClick={() => navigate({ to: "/master/routers" })}>
-              Back to Router Fleet
-            </MButton>
-          </div>
-        </MPageShell>
-      </MasterShell>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <MasterShell title="Provisioning wizard">
-        <div className="flex items-center justify-center gap-2 p-10 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Loading router…
-        </div>
-      </MasterShell>
-    );
-  }
-
-  if (isError || !router) {
-    return (
-      <MasterShell title="Provisioning wizard">
-        <MPageShell>
-          <div className="rounded-xl border border-border bg-card p-10 text-center text-sm text-muted-foreground">
-            Router not found or you do not have access.
-          </div>
-          <div className="mt-4 flex justify-center">
-            <MButton variant="outline" onClick={() => navigate({ to: "/master/routers" })}>
-              Back to Router Fleet
-            </MButton>
-          </div>
-        </MPageShell>
-      </MasterShell>
-    );
-  }
-
-  return (
-    <RouterFleetSetupWizard router={router} onBack={() => navigate({ to: "/master/routers" })} />
-  );
-}
