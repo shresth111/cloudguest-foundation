@@ -16,7 +16,9 @@
 # VERBATIM COPY. The canonical copy is cloud-guest/deploy/remote-deploy.sh; this
 # one exists so this repo's workflow is self-contained (same deliberate
 # duplication the repos already use for MIN_PAGES). Fix bugs THERE and copy
-# here in the same PR.
+# here in the same PR. This paragraph is the only sanctioned difference;
+# diff the two files before merging either. Last synced: the build:->image:
+# conversion from foundation #153.
 #
 # WHY IMAGE REFS AND NOT `git pull && docker compose build`
 # ---------------------------------------------------------
