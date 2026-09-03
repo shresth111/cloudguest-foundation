@@ -8,6 +8,8 @@ import {
   ShieldCheck,
   ShieldOff,
   Share2,
+  UploadCloud,
+  Loader2,
 } from "lucide-react";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
@@ -54,18 +56,21 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { StatCard, SectionHeader } from "@/components/ui-ext";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import {
   usePortForwardingRules,
   usePortForwardingKpis,
   useCreatePortForwardingRule,
   useUpdatePortForwardingRule,
   useDeletePortForwardingRule,
+  usePushPortForwardingRule,
 } from "@/hooks/usePortForwarding";
 import { routerService } from "@/services/router.service";
 import { isDemo, resolveOrgId } from "@/services/customer.service";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import type { AppError } from "@/services/api";
-import type { PortForwardingRule } from "@/types/port-forwarding";
+import type { PortForwardingDevicePushStatus, PortForwardingRule } from "@/types/port-forwarding";
 
 const PAGE_SIZE = 25;
 const PROTOCOLS = ["tcp", "udp", "both"] as const;
@@ -83,6 +88,53 @@ const ruleSchema = z.object({
   isEnabled: z.boolean(),
 });
 type RuleFormValues = z.infer<typeof ruleSchema>;
+
+const DEVICE_PUSH_LABEL: Record<PortForwardingDevicePushStatus, string> = {
+  active: "Applied",
+  pending: "Not yet applied",
+  failed: "Couldn't apply",
+};
+
+const DEVICE_PUSH_STYLES: Record<PortForwardingDevicePushStatus, string> = {
+  active: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400",
+  pending: "bg-zinc-500/10 text-zinc-600 border-zinc-500/20 dark:text-zinc-400",
+  failed: "bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400",
+};
+
+/** Whether this rule actually exists on the router.
+ *
+ * Worth its own column rather than folding into "Status": `isEnabled` is
+ * intent, this is fact, and until the domain had a device push every rule
+ * ever created sat permanently unapplied while the UI said "Enabled" --
+ * no `/ip firewall nat` DSTNAT entry had ever been created, so the public
+ * port the dashboard said was forwarded answered nothing at all.
+ *
+ * A failed push shows the router's own words rather than a generic
+ * message: "already have such item" or a policy denial tells an operator
+ * what to do, and summarising device errors is how the silence started.
+ */
+function DevicePushBadge({ rule }: { rule: PortForwardingRule }) {
+  const badge = (
+    <Badge
+      variant="outline"
+      className={cn("rounded-full font-medium", DEVICE_PUSH_STYLES[rule.devicePushStatus])}
+    >
+      <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
+      {DEVICE_PUSH_LABEL[rule.devicePushStatus]}
+    </Badge>
+  );
+  if (rule.devicePushStatus !== "failed" || !rule.devicePushError) return badge;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex cursor-default">{badge}</span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs">
+        Couldn&apos;t apply this rule to your router: {rule.devicePushError}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 export function PortForwardingManagement({ locationId }: { locationId?: string } = {}) {
   const [page, setPage] = useState(1);
@@ -133,6 +185,27 @@ export function PortForwardingManagement({ locationId }: { locationId?: string }
     enabled: locationId ? demoFlag || !!scopedOrgId : true,
   });
   const del = useDeletePortForwardingRule();
+  const push = usePushPortForwardingRule();
+
+  /** Sends one rule to its router, and says what the router said back.
+   *
+   * A failure arrives as a real non-2xx carrying the device's own error
+   * text, so it is worth showing verbatim -- "already have such item" or a
+   * connection timeout tells an operator far more than a generic message
+   * would. The backend never returns a 2xx for a failed push, precisely so
+   * this `onError` is reachable. */
+  function handlePush(rule: PortForwardingRule) {
+    push.mutate(
+      { id: rule.id, organizationId: locationId ? scopedOrgId : undefined },
+      {
+        onSuccess: () => toast.success(`${rule.name} applied to the router`),
+        onError: (err) =>
+          toast.error(
+            (err as unknown as AppError)?.message || `Couldn't apply ${rule.name} to the router`,
+          ),
+      },
+    );
+  }
   const { data: routers = { rows: [], total: 0 } } = useQuery({
     queryKey: ["port-forwarding", "router-options", locationId],
     queryFn: async () => {
@@ -191,7 +264,7 @@ export function PortForwardingManagement({ locationId }: { locationId?: string }
         icon={Share2}
         eyebrow="Network"
         title="Port Forwarding"
-        description="Per-router NAT rules mapping a public destination port to an internal address/port."
+        description="Per-router NAT rules mapping a public destination port to an internal address/port. Apply a rule to send it to the router."
         actions={
           <Button onClick={() => setCreating(true)}>
             <Plus className="mr-1.5 h-4 w-4" /> New Rule
@@ -249,14 +322,15 @@ export function PortForwardingManagement({ locationId }: { locationId?: string }
                 <TableHead>Destination</TableHead>
                 <TableHead>Internal target</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="w-[80px]" />
+                <TableHead>On router</TableHead>
+                <TableHead className="w-[160px]" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading && (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={8}
                     className="py-10 text-center text-sm text-muted-foreground"
                   >
                     Loading…
@@ -266,7 +340,7 @@ export function PortForwardingManagement({ locationId }: { locationId?: string }
               {!isLoading && rows.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={8}
                     className="py-10 text-center text-sm text-muted-foreground"
                   >
                     No port forwarding rules match your filters.
@@ -301,13 +375,42 @@ export function PortForwardingManagement({ locationId }: { locationId?: string }
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                      <Button size="icon" variant="ghost" onClick={() => setEditing(r)}>
-                        <Pencil className="h-3.5 w-3.5" />
+                    <DevicePushBadge rule={r} />
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-1">
+                      {/* Always visible, unlike the hover-revealed edit/delete
+                          pair: this is the step that actually reaches the
+                          hardware, and a rule sitting at "Not yet applied" is
+                          the thing an operator most needs to notice -- it is
+                          the difference between a forwarded port that answers
+                          and one that does not.
+
+                          `push.variables?.id === r.id` scopes the pending
+                          state to the row being pushed: a bare
+                          `push.isPending` off this one shared mutation object
+                          freezes every row's button during any one push. */}
+                      <Button
+                        size="sm"
+                        variant={r.devicePushStatus === "active" ? "ghost" : "outline"}
+                        disabled={push.isPending && push.variables?.id === r.id}
+                        onClick={() => handlePush(r)}
+                      >
+                        {push.isPending && push.variables?.id === r.id ? (
+                          <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <UploadCloud className="mr-1 h-3.5 w-3.5" />
+                        )}
+                        {r.devicePushStatus === "active" ? "Re-apply" : "Apply"}
                       </Button>
-                      <Button size="icon" variant="ghost" onClick={() => setConfirmDelete(r)}>
-                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                      </Button>
+                      <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                        <Button size="icon" variant="ghost" onClick={() => setEditing(r)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button size="icon" variant="ghost" onClick={() => setConfirmDelete(r)}>
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        </Button>
+                      </div>
                     </div>
                   </TableCell>
                 </TableRow>

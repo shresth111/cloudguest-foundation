@@ -23,6 +23,9 @@ interface BackendPortForwardingRule {
   internal_port: number;
   description: string | null;
   is_enabled: boolean;
+  device_push_status: "pending" | "active" | "failed";
+  device_push_error: string | null;
+  device_pushed_at: string | null;
   created_at: string;
 }
 
@@ -51,6 +54,9 @@ function toRule(r: BackendPortForwardingRule): PortForwardingRule {
     internalPort: r.internal_port,
     description: r.description,
     isEnabled: r.is_enabled,
+    devicePushStatus: r.device_push_status,
+    devicePushError: r.device_push_error,
+    devicePushedAt: r.device_pushed_at,
     createdAt: r.created_at,
   };
 }
@@ -155,5 +161,39 @@ export const portForwardingService = {
 
   async remove(id: string, organizationId?: string): Promise<void> {
     await api.delete(`/port-forwarding/rules/${id}`, orgHeaders(organizationId));
+  },
+
+  /**
+   * Realizes the rule on its router, over the RouterOS API.
+   *
+   * Creating a rule writes a database row and nothing else -- that is
+   * deliberate, so that renaming one cannot fail with a device connection
+   * error. This is the separate step that actually reaches the hardware,
+   * and until it exists in the UI a "created" rule is only ever a row: no
+   * `/ip firewall nat` DSTNAT entry exists, and the public port the
+   * dashboard says is forwarded answers nothing.
+   *
+   * Note the path: the push hangs off `/port-forwarding/rules/{id}/push`,
+   * under the same `/rules` segment as the rest of this domain's CRUD --
+   * not `/port-forwarding/{id}/push`.
+   *
+   * Gated by `firewall.execute` on the backend, not `firewall.update` --
+   * editing a row and reaching into a live router are different
+   * privileges, and both an Organization Owner (FULL) and an Organization
+   * Admin (OPERATE) hold it.
+   *
+   * Failures arrive as real non-2xx responses carrying the device's own
+   * error text, so the caller's `catch` gets something worth showing. The
+   * backend deliberately never returns `200 {success: false}` here: the
+   * response interceptor discards `success`, so such a response would
+   * reach this method as a success.
+   */
+  async push(id: string, organizationId?: string): Promise<PortForwardingRule> {
+    const { data } = await api.post<BackendPortForwardingRule>(
+      `/port-forwarding/rules/${id}/push`,
+      undefined,
+      orgHeaders(organizationId),
+    );
+    return toRule(data);
   },
 };

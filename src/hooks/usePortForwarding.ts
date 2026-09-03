@@ -39,6 +39,25 @@ export function useCreatePortForwardingRule() {
   });
 }
 
+/** Sends one rule to its router.
+ *
+ * Takes the id in an object (not bare) so callers can thread the
+ * location-scoped `organizationId` the endpoint's tenant scoping needs --
+ * same shape as `usePushDhcpPool`. The row-scoped spinner in
+ * PortForwardingManagement reads `push.variables?.id`, which is why the
+ * variables stay an object rather than a bare string. */
+export function usePushPortForwardingRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, organizationId }: { id: string; organizationId?: string }) =>
+      portForwardingService.push(id, organizationId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["port-forwarding", "list"] });
+      qc.invalidateQueries({ queryKey: ["port-forwarding", "kpis"] });
+    },
+  });
+}
+
 export function useUpdatePortForwardingRule() {
   const qc = useQueryClient();
   return useMutation({

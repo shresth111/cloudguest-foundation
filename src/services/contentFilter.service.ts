@@ -21,6 +21,9 @@ interface BackendContentFilterRule {
   value: string;
   comment: string | null;
   is_enabled: boolean;
+  device_push_status: "pending" | "active" | "failed";
+  device_push_error: string | null;
+  device_pushed_at: string | null;
   created_at: string;
 }
 
@@ -46,6 +49,9 @@ function toRule(r: BackendContentFilterRule): ContentFilterRule {
     value: r.value,
     comment: r.comment,
     isEnabled: r.is_enabled,
+    devicePushStatus: r.device_push_status,
+    devicePushError: r.device_push_error,
+    devicePushedAt: r.device_pushed_at,
     createdAt: r.created_at,
   };
 }
@@ -120,5 +126,35 @@ export const contentFilterService = {
 
   async remove(id: string, organizationId?: string): Promise<void> {
     await api.delete(`/content-filter-rules/${id}`, orgHeaders(organizationId));
+  },
+
+  /**
+   * Realizes the block on its router, over the RouterOS API.
+   *
+   * Creating a rule writes a database row and nothing else -- that is
+   * deliberate, so that renaming one cannot fail with a device connection
+   * error. This is the separate step that actually reaches the hardware,
+   * and until it exists in the UI "blocked" means "a database row exists"
+   * and nothing more, on a screen that presents it as an enforced
+   * restriction -- the customer blocks a site and reaches it from the
+   * guest network unchanged.
+   *
+   * The backend refuses to push a disabled rule (a disabled rule is the
+   * customer saying this site should *not* be blocked), so that arrives
+   * here as a 4xx naming the problem rather than a false success.
+   *
+   * Failures arrive as real non-2xx responses carrying the device's own
+   * error text, so the caller's `catch` gets something worth showing. The
+   * backend deliberately never returns `200 {success: false}` here: the
+   * response interceptor discards `success`, so such a response would
+   * reach this method as a success.
+   */
+  async push(id: string, organizationId?: string): Promise<ContentFilterRule> {
+    const { data } = await api.post<BackendContentFilterRule>(
+      `/content-filter-rules/${id}/push`,
+      undefined,
+      orgHeaders(organizationId),
+    );
+    return toRule(data);
   },
 };

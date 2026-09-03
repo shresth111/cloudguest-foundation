@@ -24,6 +24,17 @@ export const CONTENT_FILTER_CATEGORY_LABELS: Record<ContentFilterCategory, strin
   custom: "Custom",
 };
 
+/** Whether this rule's real `/ip dns static` entries (a domain rule) or
+ * `/ip firewall address-list` membership (an IP/CIDR rule) exist on the
+ * router right now.
+ *
+ * Deliberately separate from `isEnabled`, which is only intent ("this site
+ * should be blocked"): before this domain had a device push, a customer
+ * could block a site, be shown that it was blocked, and reach it from the
+ * guest network unchanged. Mirrors the backend's
+ * `ContentFilterDevicePushStatus`. */
+export type ContentFilterDevicePushStatus = "pending" | "active" | "failed";
+
 export interface ContentFilterRule {
   id: string;
   routerId: string;
@@ -35,6 +46,10 @@ export interface ContentFilterRule {
   value: string;
   comment: string | null;
   isEnabled: boolean;
+  devicePushStatus: ContentFilterDevicePushStatus;
+  /** Raw device error from the last failed push, shown verbatim. */
+  devicePushError: string | null;
+  devicePushedAt: string | null;
   createdAt: string;
 }
 

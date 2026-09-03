@@ -1,5 +1,15 @@
 import { useState } from "react";
-import { Plus, Search, Trash2, Pencil, Ban, ShieldCheck, Globe2 } from "lucide-react";
+import {
+  Plus,
+  Search,
+  Trash2,
+  Pencil,
+  Ban,
+  ShieldCheck,
+  Globe2,
+  UploadCloud,
+  Loader2,
+} from "lucide-react";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -45,11 +55,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { StatCard, SectionHeader } from "@/components/ui-ext";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import {
   useContentFilterRules,
   useCreateContentFilterRule,
   useUpdateContentFilterRule,
   useDeleteContentFilterRule,
+  usePushContentFilterRule,
 } from "@/hooks/useContentFilter";
 import { routerService } from "@/services/router.service";
 import { isDemo, resolveOrgId } from "@/services/customer.service";
@@ -58,6 +71,7 @@ import type { AppError } from "@/services/api";
 import {
   CONTENT_FILTER_CATEGORY_LABELS,
   type ContentFilterCategory,
+  type ContentFilterDevicePushStatus,
   type ContentFilterRule,
   type ContentFilterValueType,
 } from "@/types/contentFilter";
@@ -99,6 +113,55 @@ function valueTypeLabel(t: ContentFilterValueType): string {
   return t === "domain" ? "Domain" : "IP / CIDR";
 }
 
+const DEVICE_PUSH_LABEL: Record<ContentFilterDevicePushStatus, string> = {
+  active: "Applied",
+  pending: "Not yet applied",
+  failed: "Couldn't apply",
+};
+
+const DEVICE_PUSH_STYLES: Record<ContentFilterDevicePushStatus, string> = {
+  active: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400",
+  pending: "bg-zinc-500/10 text-zinc-600 border-zinc-500/20 dark:text-zinc-400",
+  failed: "bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400",
+};
+
+/** Whether this block actually exists on the router.
+ *
+ * Worth its own column rather than folding into "Status": `isEnabled` is
+ * intent, this is fact, and until the domain had a device push every rule
+ * ever created sat permanently unapplied while the UI said "Enabled" --
+ * so a customer could block a site, be shown that it was blocked, and
+ * reach it from the guest network unchanged. A missing VLAN is visibly
+ * missing; a missing block is not, which is why this gets a column of its
+ * own rather than a footnote.
+ *
+ * A failed push shows the router's own words rather than a generic
+ * message: "already have such item" or a policy denial tells an operator
+ * what to do, and summarising device errors is how the silence started.
+ */
+function DevicePushBadge({ rule }: { rule: ContentFilterRule }) {
+  const badge = (
+    <Badge
+      variant="outline"
+      className={cn("rounded-full font-medium", DEVICE_PUSH_STYLES[rule.devicePushStatus])}
+    >
+      <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
+      {DEVICE_PUSH_LABEL[rule.devicePushStatus]}
+    </Badge>
+  );
+  if (rule.devicePushStatus !== "failed" || !rule.devicePushError) return badge;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex cursor-default">{badge}</span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs">
+        Couldn&apos;t apply this block to your router: {rule.devicePushError}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 // Was nothing -- Call Priority/DHCP/VLAN/Port Forwarding/ISP Routing all
 // had a real backend domain with no gap; content filtering (per-router
 // website/IP blocking) had neither a frontend component nor, until this
@@ -137,6 +200,28 @@ export function ContentFilterManagement({ locationId }: { locationId?: string } 
     { enabled: locationId ? demoFlag || !!scopedOrgId : true },
   );
   const del = useDeleteContentFilterRule();
+  const push = usePushContentFilterRule();
+
+  /** Sends one block to its router, and says what the router said back.
+   *
+   * A failure arrives as a real non-2xx carrying the device's own error
+   * text, so it is worth showing verbatim -- "already have such item" or a
+   * connection timeout tells an operator far more than a generic message
+   * would. The backend never returns a 2xx for a failed push, precisely so
+   * this `onError` is reachable; it also refuses to push a disabled rule,
+   * which arrives here as a 4xx naming that rather than a false success. */
+  function handlePush(rule: ContentFilterRule) {
+    push.mutate(
+      { id: rule.id, organizationId: locationId ? scopedOrgId : undefined },
+      {
+        onSuccess: () => toast.success(`${rule.name} applied to the router`),
+        onError: (err) =>
+          toast.error(
+            (err as unknown as AppError)?.message || `Couldn't apply ${rule.name} to the router`,
+          ),
+      },
+    );
+  }
   const { data: routers = { rows: [], total: 0 } } = useQuery({
     queryKey: ["content-filter", "router-options", locationId],
     queryFn: async () => {
@@ -180,7 +265,7 @@ export function ContentFilterManagement({ locationId }: { locationId?: string } 
         icon={Ban}
         eyebrow="Network"
         title="Website Blocking"
-        description="Block specific websites or IP ranges on guest WiFi -- a blocked domain simply fails to resolve; an IP/CIDR is dropped at the firewall. Applies the next time this router's configuration is pushed."
+        description="Block specific websites or IP ranges on guest WiFi -- a blocked domain simply fails to resolve; an IP/CIDR is dropped at the firewall. Apply a rule to send it to the router; nothing is blocked until you do."
         actions={
           <Button onClick={() => setCreating(true)}>
             <Plus className="mr-1.5 h-4 w-4" /> Block a website
@@ -237,14 +322,15 @@ export function ContentFilterManagement({ locationId }: { locationId?: string } 
                 <TableHead>Blocked</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="w-[90px]" />
+                <TableHead>On router</TableHead>
+                <TableHead className="w-[160px]" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading && (
                 <TableRow>
                   <TableCell
-                    colSpan={6}
+                    colSpan={7}
                     className="py-10 text-center text-sm text-muted-foreground"
                   >
                     Loading…
@@ -254,7 +340,7 @@ export function ContentFilterManagement({ locationId }: { locationId?: string } 
               {!isLoading && rows.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={6}
+                    colSpan={7}
                     className="py-10 text-center text-sm text-muted-foreground"
                   >
                     No blocking rules match your filters.
@@ -282,13 +368,42 @@ export function ContentFilterManagement({ locationId }: { locationId?: string } 
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                      <Button size="icon" variant="ghost" onClick={() => setEditing(r)}>
-                        <Pencil className="h-3.5 w-3.5" />
+                    <DevicePushBadge rule={r} />
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-1">
+                      {/* Always visible, unlike the hover-revealed edit/delete
+                          pair: this is the step that actually reaches the
+                          hardware, and a rule sitting at "Not yet applied" is
+                          the thing an operator most needs to notice -- it is
+                          the difference between a site the dashboard says is
+                          blocked and a site that is.
+
+                          `push.variables?.id === r.id` scopes the pending
+                          state to the row being pushed: a bare
+                          `push.isPending` off this one shared mutation object
+                          freezes every row's button during any one push. */}
+                      <Button
+                        size="sm"
+                        variant={r.devicePushStatus === "active" ? "ghost" : "outline"}
+                        disabled={push.isPending && push.variables?.id === r.id}
+                        onClick={() => handlePush(r)}
+                      >
+                        {push.isPending && push.variables?.id === r.id ? (
+                          <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <UploadCloud className="mr-1 h-3.5 w-3.5" />
+                        )}
+                        {r.devicePushStatus === "active" ? "Re-apply" : "Apply"}
                       </Button>
-                      <Button size="icon" variant="ghost" onClick={() => setConfirmDelete(r)}>
-                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                      </Button>
+                      <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                        <Button size="icon" variant="ghost" onClick={() => setEditing(r)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button size="icon" variant="ghost" onClick={() => setConfirmDelete(r)}>
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        </Button>
+                      </div>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -339,9 +454,10 @@ export function ContentFilterManagement({ locationId }: { locationId?: string } 
           <AlertDialogHeader>
             <AlertDialogTitle>Remove block on "{confirmDelete?.name}"?</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently removes this rule from{" "}
-              {confirmDelete ? routerName(confirmDelete.routerId) : ""}. The site/IP will resolve
-              normally again once this router's configuration is next pushed. This cannot be undone.
+              This removes the block from {confirmDelete ? routerName(confirmDelete.routerId) : ""}{" "}
+              and then deletes the rule. The site/IP resolves normally again as soon as that
+              succeeds — and if the router can&apos;t be reached, nothing is deleted, so you can
+              retry. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
