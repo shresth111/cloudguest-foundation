@@ -4214,10 +4214,16 @@ export function VoipView({ locationId }: { locationId?: string }) {
  * the `content_filter_rules` table) and its frontend component
  * (ContentFilterManagement, content_filter.service.ts/useContentFilter.ts
  * alongside it) are both new this session, following QosManagement's own
- * structure/conventions. Rules apply the next time this router's config
- * is pushed (part of the same combined render_network_config script as
- * DHCP/VLAN/etc.) -- unlike QoS, there is no separate per-rule device-push
- * endpoint/status to surface here. */
+ * structure/conventions.
+ *
+ * That last sentence used to read "rules apply the next time this router's
+ * config is pushed ... there is no separate per-rule device-push endpoint/
+ * status to surface here." Both halves are now false, and the first was
+ * never load-bearing: `render_network_config` ships over SSH on port 22,
+ * which is filtered on the fleet, so nothing was ever applied that way.
+ * The domain now has a real `POST /content-filter-rules/{id}/push` and a
+ * `device_push_status` per row, and ContentFilterManagement surfaces both
+ * as an "On router" column plus an always-visible Apply button. */
 export function WebsiteBlockingView({ locationId }: { locationId?: string }) {
   return <ContentFilterManagement locationId={locationId} />;
 }
