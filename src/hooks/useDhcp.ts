@@ -21,6 +21,15 @@ export function useCreateDhcpPool() {
   });
 }
 
+export function usePushDhcpPool() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, organizationId }: { id: string; organizationId?: string }) =>
+      dhcpService.push(id, organizationId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["dhcp", "list"] }),
+  });
+}
+
 export function useUpdateDhcpPool() {
   const qc = useQueryClient();
   return useMutation({

@@ -22,6 +22,9 @@ interface BackendDhcpPool {
   dns_secondary: string | null;
   lease_time_seconds: number;
   is_enabled: boolean;
+  device_push_status: "pending" | "active" | "failed";
+  device_push_error: string | null;
+  device_pushed_at: string | null;
   created_at: string;
 }
 
@@ -50,6 +53,9 @@ function toDhcpPool(p: BackendDhcpPool): DhcpPool {
     dnsSecondary: p.dns_secondary,
     leaseTimeSeconds: p.lease_time_seconds,
     isEnabled: p.is_enabled,
+    devicePushStatus: p.device_push_status,
+    devicePushError: p.device_push_error,
+    devicePushedAt: p.device_pushed_at,
     createdAt: p.created_at,
   };
 }
@@ -141,5 +147,30 @@ export const dhcpService = {
 
   async remove(id: string, organizationId?: string): Promise<void> {
     await api.delete(`/dhcp-pools/${id}`, orgHeaders(organizationId));
+  },
+
+  /**
+   * Realizes the pool on its router, over the RouterOS API.
+   *
+   * Creating a pool writes a database row and nothing else -- that is
+   * deliberate, so that renaming one cannot fail with a device connection
+   * error. This is the separate step that actually reaches the hardware,
+   * and until it exists in the UI a "created" pool is only ever a row: no
+   * `/ip dhcp-server` answers, and a guest joining the network gets no
+   * address at all.
+   *
+   * Failures arrive as real non-2xx responses carrying the device's own
+   * error text, so the caller's `catch` gets something worth showing. The
+   * backend deliberately never returns `200 {success: false}` here: the
+   * response interceptor discards `success`, so such a response would
+   * reach this method as a success.
+   */
+  async push(id: string, organizationId?: string): Promise<DhcpPool> {
+    const { data } = await api.post<BackendDhcpPool>(
+      `/dhcp-pools/${id}/push`,
+      undefined,
+      orgHeaders(organizationId),
+    );
+    return toDhcpPool(data);
   },
 };
