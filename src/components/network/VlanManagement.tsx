@@ -588,6 +588,7 @@ function VlanDialog({
   });
   const portMode = form.watch("portMode");
   const watchedVlanId = form.watch("vlanId");
+  const watchedHotspot = form.watch("enableHotspot");
   const selectedRouterId = form.watch("routerId");
   const watchedInterface = form.watch(portMode === "access" ? "accessPort" : "trunkInterface");
 
@@ -599,6 +600,13 @@ function VlanDialog({
   const allInterfaces = deviceInterfaces ?? [];
   const trunkOptions = interfacesForMode(allInterfaces, "trunk");
   const accessOptions = interfacesForMode(allInterfaces, "access");
+  // Access mode only ever offers bridge ports (see interfacesForMode), so a
+  // chosen access port is ALWAYS being taken out of a bridge. The bridge
+  // name comes off the same live interface read the picker is built from.
+  const accessPortBridge =
+    portMode === "access" && watchedInterface
+      ? (allInterfaces.find((i) => i.name === watchedInterface)?.bridge ?? null)
+      : null;
   // An unreadable router and a router with nothing suitable on it look the
   // same in the dropdown -- both are empty -- so the two are told apart here
   // and named, rather than leaving the customer with a dropdown that opens
@@ -725,8 +733,18 @@ function VlanDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="trunk">Trunk (tagged)</SelectItem>
-                    <SelectItem value="access">Access (dedicated port)</SelectItem>
+                    {/* Named by outcome, not by network jargon. A customer
+                      picked "Access" because their access point was on that
+                      port, and the VLAN took the whole port and cut the AP
+                      off the guest network. "Trunk" and "access port" are
+                      correct RouterOS terms and meant nothing to them; the
+                      stored values are unchanged, only these labels. */}
+                    <SelectItem value="trunk">
+                      Share the existing cable (tagged) — recommended
+                    </SelectItem>
+                    <SelectItem value="access">
+                      Take a whole port for this zone (untagged)
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               )}
@@ -737,7 +755,7 @@ function VlanDialog({
               control={form.control}
               name="trunkInterface"
               label="Trunk interface"
-              hint="Read live off your router. The zone's tagged traffic rides on this interface — usually the LAN bridge."
+              hint="Read live off your router. This zone rides the cable that is already there, tagged — nothing else on that cable is disturbed. Use this for several Wi-Fi networks from one access point; the AP must tag this zone's VLAN id."
               manualPlaceholder="bridge"
               emptyMessage={
                 allInterfaces.length === 0
@@ -755,7 +773,7 @@ function VlanDialog({
               control={form.control}
               name="accessPort"
               label="Access port"
-              hint="Read live off your router. This port carries this zone only, untagged — anything plugged into it lands here."
+              hint="Read live off your router. This port is handed entirely to this zone, untagged. Whatever is plugged into it leaves its current network — including an access point, which would stop serving the Wi-Fi it serves today."
               manualPlaceholder="ether3"
               emptyMessage={
                 allInterfaces.length === 0
@@ -812,17 +830,39 @@ function VlanDialog({
               />
             </div>
           )}
+          {accessPortBridge && (
+            <div className="sm:col-span-2 rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2.5 text-[11px] text-amber-900 dark:text-amber-200">
+              <span className="font-medium">
+                {watchedInterface} will be removed from {accessPortBridge}.
+              </span>{" "}
+              Anything plugged into that port loses the network it is on today. If an access point
+              is on it, the Wi-Fi it serves stops working until the port is put back. Choose{" "}
+              <span className="font-medium">Share the existing cable</span> instead to add this zone
+              without taking the port.
+            </div>
+          )}
           <div className="sm:col-span-2 rounded-lg border border-dashed border-border/60 bg-muted/30 px-3 py-2.5 text-[11px] text-muted-foreground">
-            This creates the network only — no addresses are handed out automatically. To assign IPs
-            to guests, create an{" "}
-            <span className="font-medium text-foreground">IP address pool</span> afterward with
-            Interface set to{" "}
-            <code className="rounded bg-muted px-1 py-0.5 font-mono text-foreground">
-              {portMode === "access"
-                ? watchedInterface || "the port you pick above"
-                : `vlan${watchedVlanId || "<tag>"}`}
-            </code>
-            .
+            {watchedHotspot ? (
+              <>
+                The sign-in page also creates this zone&apos;s{" "}
+                <span className="font-medium text-foreground">IP address pool and DHCP</span>, so
+                devices get an address automatically.
+              </>
+            ) : (
+              <>
+                This creates the network only —{" "}
+                <span className="font-medium text-foreground">no addresses are handed out</span>, so
+                devices will join and get nothing until you create an{" "}
+                <span className="font-medium text-foreground">IP address pool</span> with Interface
+                set to{" "}
+                <code className="rounded bg-muted px-1 py-0.5 font-mono text-foreground">
+                  {portMode === "access"
+                    ? watchedInterface || "the port you pick above"
+                    : `vlan${watchedVlanId || "<tag>"}`}
+                </code>
+                .
+              </>
+            )}
           </div>
           <DialogFooter className="sm:col-span-2">
             <Button type="button" variant="ghost" onClick={close}>
