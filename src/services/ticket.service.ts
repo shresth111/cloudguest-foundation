@@ -1,4 +1,5 @@
 import { api, TOKEN_STORAGE_KEY } from "@/services/api";
+import { resolveOrganizationId as sharedResolveOrganizationId } from "./organization-id";
 import type {
   CreateTicketPayload,
   SupportTicket,
@@ -89,7 +90,6 @@ interface MyOrganizationMembership {
   status: "invited" | "active" | "suspended" | "removed";
 }
 
-let cachedOrgId: string | null = null;
 /** Resolves the *current user's own* organization id via `/me/organizations`
  * -- the membership-scoped endpoint (no `organizations.read` permission
  * required, returns only organizations this user actually belongs to).
@@ -105,12 +105,11 @@ let cachedOrgId: string | null = null;
  * app.domains.support_tickets.service.TicketService._assert_location_in_organization.
  */
 export async function resolveOrgId(): Promise<string> {
-  if (cachedOrgId) return cachedOrgId;
-  const { data } = await api.get<MyOrganizationMembership[]>("/me/organizations");
-  const membership = data.find((m) => m.status === "active") ?? data[0];
-  if (!membership) throw new Error("No organization found for the current session");
-  cachedOrgId = membership.organization_id;
-  return cachedOrgId;
+  // Delegates to the one shared resolver. This used to hold its own
+  // module cache and issue its own `/me/organizations`, which is why a
+  // single page load fetched that endpoint once per active service.
+  // See services/organization-id.ts.
+  return sharedResolveOrganizationId();
 }
 
 export const ticketService = {

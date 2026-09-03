@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import { resolveOrganizationId as sharedResolveOrganizationId } from "./organization-id";
 // Straight from api.ts, which is where these now live -- AuthContext only
 // re-exports them, and importing it here would drag React into a module
 // that is otherwise plain data-fetching code.
@@ -6,7 +7,6 @@ import { ORGS_STORAGE_KEY, ROLES_STORAGE_KEY } from "@/services/api";
 import type { OrganizationMembership, RoleAssignment } from "@/types/auth";
 import { deriveLocationLiveness } from "@/lib/location-liveness";
 import type { LocationLiveness, RawRouterLiveness } from "@/lib/location-liveness";
-import { registerSessionScopeCache } from "@/lib/session-scope-cache";
 
 /* ── Types ─────────────────────────────────────────────────── */
 
@@ -666,12 +666,6 @@ interface MyOrganizationMembership {
   status: string;
 }
 
-let cachedOrgId: string | null = null;
-// Cleared on every identity transition -- this id must not outlive the
-// session that resolved it. See lib/session-scope-cache.ts.
-registerSessionScopeCache(() => {
-  cachedOrgId = null;
-});
 /** Resolves the current session's organization id for endpoints that
  * require X-Organization-Id (e.g. MAC authorization -- see
  * backend/app/domains/mac_authorization/service.py's OrganizationRequiredError).
@@ -685,12 +679,11 @@ registerSessionScopeCache(() => {
  * ticket.service.ts's resolveOrgId for the identical fix, applied there
  * first). */
 export async function resolveOrgId(): Promise<string> {
-  if (cachedOrgId) return cachedOrgId;
-  const { data } = await api.get<MyOrganizationMembership[]>("/me/organizations");
-  const membership = data.find((m) => m.status === "active") ?? data[0];
-  if (!membership) throw new Error("No organization found for the current session");
-  cachedOrgId = membership.organization_id;
-  return cachedOrgId;
+  // Delegates to the one shared resolver. This used to hold its own
+  // module cache and issue its own `/me/organizations`, which is why a
+  // single page load fetched that endpoint once per active service.
+  // See services/organization-id.ts.
+  return sharedResolveOrganizationId();
 }
 
 /** Buckets session user-agent strings into the OS categories the dashboard

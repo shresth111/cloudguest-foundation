@@ -378,6 +378,28 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
     })();
   }, [demo, locationId]);
 
+  // Preselect the location this page is already scoped to.
+  //
+  // The header reads "Access Rules · <location>" and the page is reached
+  // through that location, but the field underneath opened on "Choose a
+  // location" and made the customer pick it again -- and picking the wrong
+  // one silently writes the policy against a different location. The
+  // `locationId` prop was passed in and never read.
+  //
+  // Two cases, in order: the scoped location when there is one, otherwise a
+  // customer who only has a single location at all. Only ever fills a blank
+  // field, so it cannot overwrite a choice the customer made or a policy
+  // being edited.
+  useEffect(() => {
+    if (f.businessUnit || editingId) return;
+    const scoped = locationId
+      ? (locations ?? []).find((l) => l.id === locationId)?.name
+      : undefined;
+    const only = units.length === 1 ? units[0] : undefined;
+    const preselect = scoped ?? only;
+    if (preselect) setF((prev) => ({ ...prev, businessUnit: preselect }));
+  }, [f.businessUnit, editingId, locationId, locations, units]);
+
   // ── derived ────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     const q = search.toLowerCase();

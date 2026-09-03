@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import { resolveOrganizationId as sharedResolveOrganizationId } from "./organization-id";
 import type {
   Campaign,
   CampaignAsset,
@@ -15,7 +16,6 @@ import type {
   UpdateCampaignPayload,
   UpdateCampaignQuestionPayload,
 } from "@/types/campaign";
-import { registerSessionScopeCache } from "@/lib/session-scope-cache";
 
 interface BackendCampaign {
   id: string;
@@ -122,20 +122,12 @@ function toCampaign(c: BackendCampaign): Campaign {
 // customer session (see customer.service.ts's resolveOrgId doc comment for
 // the full explanation -- same fix applied here, first fixed in
 // ticket.service.ts's resolveOrgId).
-let cachedOrganizationId: string | null = null;
-// Cleared on every identity transition -- this id must not outlive the
-// session that resolved it. See lib/session-scope-cache.ts.
-registerSessionScopeCache(() => {
-  cachedOrganizationId = null;
-});
 async function resolveOrganizationId(): Promise<string> {
-  if (cachedOrganizationId) return cachedOrganizationId;
-  const { data } =
-    await api.get<Array<{ organization_id: string; status: string }>>("/me/organizations");
-  const membership = data.find((m) => m.status === "active") ?? data[0];
-  if (!membership) throw new Error("No organization found for the current session");
-  cachedOrganizationId = membership.organization_id;
-  return cachedOrganizationId;
+  // Delegates to the one shared resolver. This used to hold its own
+  // module cache and issue its own `/me/organizations`, which is why a
+  // single page load fetched that endpoint once per active service.
+  // See services/organization-id.ts.
+  return sharedResolveOrganizationId();
 }
 
 export const campaignService = {

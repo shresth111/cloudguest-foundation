@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import { resolveOrganizationId as sharedResolveOrganizationId } from "./organization-id";
 import { isDemo } from "@/services/customer.service";
 import type {
   CreateVlanPayload,
@@ -74,7 +75,6 @@ function toVlan(v: BackendVlan): Vlan {
   };
 }
 
-let cachedOrganizationId: string | null = null;
 // list_vlans/create_vlan/etc. resolve their tenant scope from
 // CurrentOrganization, which -- per app.domains.rbac.dependencies -- trusts
 // the X-Organization-Id header only, resolving to None (and RequirePermission
@@ -86,13 +86,11 @@ let cachedOrganizationId: string | null = null;
 // the first place). Same fix, same cause, same convention as
 // mac-authorization.service.ts's resolveOrganizationId.
 async function resolveOrganizationId(): Promise<string> {
-  if (cachedOrganizationId) return cachedOrganizationId;
-  const { data } =
-    await api.get<Array<{ organization_id: string; status: string }>>("/me/organizations");
-  const membership = data.find((m) => m.status === "active") ?? data[0];
-  if (!membership) throw new Error("No organization found for the current session");
-  cachedOrganizationId = membership.organization_id;
-  return cachedOrganizationId;
+  // Delegates to the one shared resolver. This used to hold its own
+  // module cache and issue its own `/me/organizations`, which is why a
+  // single page load fetched that endpoint once per active service.
+  // See services/organization-id.ts.
+  return sharedResolveOrganizationId();
 }
 
 export const vlanService = {

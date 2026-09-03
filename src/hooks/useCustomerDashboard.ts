@@ -264,8 +264,19 @@ export function useDataMasking() {
   const [sentTo, setSentTo] = useState<string | null>(null);
   const demoCodeRef = useRef<string | null>(null);
 
+  // Which user id this effect has a request in flight for, or has already
+  // completed. `hydrated` alone cannot serve as that guard: it is only set
+  // once the request *resolves*, so any re-render in between -- a new `user`
+  // object identity is enough, and this hook backs the whole shell -- re-ran
+  // the effect and issued a second identical `GET /users/{id}`. Measured:
+  // two of them on every page load. This request sits outside React Query,
+  // which would otherwise have deduped it.
+  const maskingFetchedFor = useRef<string | null>(null);
+
   useEffect(() => {
     if (demo || !user || hydrated) return;
+    if (maskingFetchedFor.current === user.id) return;
+    maskingFetchedFor.current = user.id;
     let cancelled = false;
     resolveOrgId()
       .then((orgId) => rbacService.getUserDetail(user.id, orgId))
@@ -275,7 +286,13 @@ export function useDataMasking() {
           setHydrated(true);
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        // Let a later render retry: a failed fetch must not leave the
+        // masking preference permanently unread.
+        if (maskingFetchedFor.current === user.id) {
+          maskingFetchedFor.current = null;
+        }
+      });
     return () => {
       cancelled = true;
     };

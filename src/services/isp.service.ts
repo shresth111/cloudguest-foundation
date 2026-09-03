@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import { resolveOrganizationId as sharedResolveOrganizationId } from "./organization-id";
 import type {
   CreateIspLinkPayload,
   CreateIspRoutingRulePayload,
@@ -33,15 +34,12 @@ import type {
 // importing customer.service.ts's resolveOrgId() -- same "each real service
 // stays self-contained" precedent that file's own comment documents), fixed
 // there first.
-let cachedOrganizationId: string | null = null;
 async function resolveOrganizationId(): Promise<string> {
-  if (cachedOrganizationId) return cachedOrganizationId;
-  const { data } =
-    await api.get<Array<{ organization_id: string; status: string }>>("/me/organizations");
-  const membership = data.find((m) => m.status === "active") ?? data[0];
-  if (!membership) throw new Error("No organization found for the current session");
-  cachedOrganizationId = membership.organization_id;
-  return cachedOrganizationId;
+  // Delegates to the one shared resolver. This used to hold its own
+  // module cache and issue its own `/me/organizations`, which is why a
+  // single page load fetched that endpoint once per active service.
+  // See services/organization-id.ts.
+  return sharedResolveOrganizationId();
 }
 
 interface BackendIspLink {
