@@ -326,6 +326,15 @@ function DnsDialog({
   const create = useCreateDnsRecord();
   const update = useUpdateDnsRecord();
 
+  const blank: DnsFormValues = {
+    routerId: "",
+    name: "",
+    address: "",
+    recordType: "a",
+    ttlSeconds: 86_400,
+    comment: "",
+    isEnabled: true,
+  };
   const defaults: DnsFormValues = record
     ? {
         routerId: record.routerId,
@@ -336,21 +345,27 @@ function DnsDialog({
         comment: record.comment ?? "",
         isEnabled: record.isEnabled,
       }
-    : {
-        routerId: "",
-        name: "",
-        address: "",
-        recordType: "a",
-        ttlSeconds: 86_400,
-        comment: "",
-        isEnabled: true,
-      };
+    : blank;
 
   const form = useForm<DnsFormValues>({
     resolver: zodResolver(dnsSchema),
     defaultValues: defaults,
     values: defaults,
   });
+
+  /** Resets the form on the way out, so the next open starts clean.
+   *
+   * `useForm`'s `values` prop only resyncs when the object it is handed
+   * deep-changes, and this dialog is never unmounted -- two consecutive
+   * opens of the same target hand it the identical blank defaults, so no
+   * reset fires and React Hook Form repopulates every input from the form
+   * state it kept as each field re-registers. The dialog then reopens
+   * showing the last attempt's values. Same convention as NasDevicesPanel
+   * and SlaPanel. */
+  function close() {
+    form.reset(blank);
+    onClose();
+  }
 
   async function submit(v: DnsFormValues) {
     try {
@@ -369,14 +384,14 @@ function DnsDialog({
         await create.mutateAsync({ routerId: v.routerId, ...shared, organizationId });
         toast.success("DNS record created");
       }
-      onClose();
+      close();
     } catch (err) {
       toast.error((err as AppError).message || "Failed to save record");
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={open} onOpenChange={(o) => !o && close()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{record ? "Edit DNS record" : "New DNS record"}</DialogTitle>
@@ -469,7 +484,7 @@ function DnsDialog({
             <Input {...form.register("comment")} placeholder="Notes…" />
           </div>
           <DialogFooter className="sm:col-span-2">
-            <Button type="button" variant="ghost" onClick={onClose}>
+            <Button type="button" variant="ghost" onClick={close}>
               Cancel
             </Button>
             <Button type="submit" disabled={create.isPending || update.isPending}>

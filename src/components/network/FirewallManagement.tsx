@@ -344,6 +344,21 @@ function FirewallDialog({
   const create = useCreateFirewallRule();
   const update = useUpdateFirewallRule();
 
+  const blank: FirewallFormValues = {
+    routerId: "",
+    name: "",
+    chain: "forward",
+    action: "accept",
+    protocol: "all",
+    sourceAddress: "",
+    destinationAddress: "",
+    sourcePort: Number.NaN,
+    destinationPort: Number.NaN,
+    inInterface: "",
+    priority: 100,
+    comment: "",
+    isEnabled: true,
+  };
   const defaults: FirewallFormValues = rule
     ? {
         routerId: rule.routerId,
@@ -360,27 +375,27 @@ function FirewallDialog({
         comment: rule.comment ?? "",
         isEnabled: rule.isEnabled,
       }
-    : {
-        routerId: "",
-        name: "",
-        chain: "forward",
-        action: "accept",
-        protocol: "all",
-        sourceAddress: "",
-        destinationAddress: "",
-        sourcePort: Number.NaN,
-        destinationPort: Number.NaN,
-        inInterface: "",
-        priority: 100,
-        comment: "",
-        isEnabled: true,
-      };
+    : blank;
 
   const form = useForm<FirewallFormValues>({
     resolver: zodResolver(firewallSchema),
     defaultValues: defaults,
     values: defaults,
   });
+
+  /** Resets the form on the way out, so the next open starts clean.
+   *
+   * `useForm`'s `values` prop only resyncs when the object it is handed
+   * deep-changes, and this dialog is never unmounted -- two consecutive
+   * opens of the same target hand it the identical blank defaults, so no
+   * reset fires and React Hook Form repopulates every input from the form
+   * state it kept as each field re-registers. The dialog then reopens
+   * showing the last attempt's values. Same convention as NasDevicesPanel
+   * and SlaPanel. */
+  function close() {
+    form.reset(blank);
+    onClose();
+  }
 
   async function submit(v: FirewallFormValues) {
     try {
@@ -405,14 +420,14 @@ function FirewallDialog({
         await create.mutateAsync({ routerId: v.routerId, ...shared });
         toast.success("Firewall rule created");
       }
-      onClose();
+      close();
     } catch (err) {
       toast.error((err as AppError).message || "Failed to save rule");
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={open} onOpenChange={(o) => !o && close()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{rule ? "Edit firewall rule" : "New firewall rule"}</DialogTitle>
@@ -566,7 +581,7 @@ function FirewallDialog({
             <Input {...form.register("comment")} placeholder="Notes…" />
           </div>
           <DialogFooter className="sm:col-span-2">
-            <Button type="button" variant="ghost" onClick={onClose}>
+            <Button type="button" variant="ghost" onClick={close}>
               Cancel
             </Button>
             <Button type="submit" disabled={create.isPending || update.isPending}>

@@ -367,6 +367,16 @@ function HotspotDialog({
   const create = useCreateHotspotProfile();
   const update = useUpdateHotspotProfile();
 
+  const blank: HotspotFormValues = {
+    routerId: "",
+    name: "",
+    sessionTimeoutMinutes: undefined,
+    idleTimeoutMinutes: undefined,
+    uploadLimitKbps: undefined,
+    downloadLimitKbps: undefined,
+    walledGardenHosts: "",
+    isEnabled: true,
+  };
   const defaults: HotspotFormValues = profile
     ? {
         routerId: profile.routerId,
@@ -378,16 +388,7 @@ function HotspotDialog({
         walledGardenHosts: profile.walledGardenHosts.join(", "),
         isEnabled: profile.isEnabled,
       }
-    : {
-        routerId: "",
-        name: "",
-        sessionTimeoutMinutes: undefined,
-        idleTimeoutMinutes: undefined,
-        uploadLimitKbps: undefined,
-        downloadLimitKbps: undefined,
-        walledGardenHosts: "",
-        isEnabled: true,
-      };
+    : blank;
 
   const form = useForm<HotspotFormValues>({
     resolver: zodResolver(hotspotSchema),
@@ -400,6 +401,20 @@ function HotspotDialog({
       .split(",")
       .map((h) => h.trim())
       .filter(Boolean);
+  }
+
+  /** Resets the form on the way out, so the next open starts clean.
+   *
+   * `useForm`'s `values` prop only resyncs when the object it is handed
+   * deep-changes, and this dialog is never unmounted -- two consecutive
+   * opens of the same target hand it the identical blank defaults, so no
+   * reset fires and React Hook Form repopulates every input from the form
+   * state it kept as each field re-registers. The dialog then reopens
+   * showing the last attempt's values. Same convention as NasDevicesPanel
+   * and SlaPanel. */
+  function close() {
+    form.reset(blank);
+    onClose();
   }
 
   async function submit(v: HotspotFormValues) {
@@ -433,14 +448,14 @@ function HotspotDialog({
         });
         toast.success("Profile created");
       }
-      onClose();
+      close();
     } catch (err) {
       toast.error((err as AppError).message || "Failed to save profile");
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={open} onOpenChange={(o) => !o && close()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{profile ? "Edit profile" : "New hotspot profile"}</DialogTitle>
@@ -520,7 +535,7 @@ function HotspotDialog({
             />
           </div>
           <DialogFooter className="sm:col-span-2">
-            <Button type="button" variant="ghost" onClick={onClose}>
+            <Button type="button" variant="ghost" onClick={close}>
               Cancel
             </Button>
             <Button type="submit" disabled={create.isPending || update.isPending}>

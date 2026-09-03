@@ -447,7 +447,10 @@ export function VlanManagement({ locationId }: { locationId?: string } = {}) {
                       <Button
                         size="sm"
                         variant={v.devicePushStatus === "active" ? "ghost" : "outline"}
-                        disabled={push.isPending || v.devicePushStatus === "provisioning"}
+                        disabled={
+                          (push.isPending && push.variables === v.id) ||
+                          v.devicePushStatus === "provisioning"
+                        }
                         onClick={() => handlePush(v)}
                       >
                         {(push.isPending && push.variables === v.id) ||

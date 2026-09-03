@@ -411,6 +411,14 @@ function ProfileDialog({
   const create = useCreateQueueProfile();
   const update = useUpdateQueueProfile();
 
+  const blank: ProfileFormValues = {
+    name: "",
+    description: "",
+    downloadRateKbps: 10_000,
+    uploadRateKbps: 5_000,
+    priority: 8,
+    isActive: true,
+  };
   const defaults: ProfileFormValues = profile
     ? {
         name: profile.name,
@@ -420,20 +428,27 @@ function ProfileDialog({
         priority: profile.priority,
         isActive: profile.isActive,
       }
-    : {
-        name: "",
-        description: "",
-        downloadRateKbps: 10_000,
-        uploadRateKbps: 5_000,
-        priority: 8,
-        isActive: true,
-      };
+    : blank;
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
     defaultValues: defaults,
     values: defaults,
   });
+
+  /** Resets the form on the way out, so the next open starts clean.
+   *
+   * `useForm`'s `values` prop only resyncs when the object it is handed
+   * deep-changes, and this dialog is never unmounted -- two consecutive
+   * opens of the same target hand it the identical blank defaults, so no
+   * reset fires and React Hook Form repopulates every input from the form
+   * state it kept as each field re-registers. The dialog then reopens
+   * showing the last attempt's values. Same convention as NasDevicesPanel
+   * and SlaPanel. */
+  function close() {
+    form.reset(blank);
+    onClose();
+  }
 
   async function submit(v: ProfileFormValues) {
     try {
@@ -461,14 +476,14 @@ function ProfileDialog({
         });
         toast.success("Profile created");
       }
-      onClose();
+      close();
     } catch (err) {
       toast.error((err as AppError).message || "Failed to save profile");
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={open} onOpenChange={(o) => !o && close()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{profile ? "Edit profile" : "New profile"}</DialogTitle>
@@ -511,7 +526,7 @@ function ProfileDialog({
             <Input {...form.register("description")} />
           </div>
           <DialogFooter className="sm:col-span-2">
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={close}>
               Cancel
             </Button>
             <Button type="submit" disabled={create.isPending || update.isPending}>
@@ -545,6 +560,18 @@ function AssignmentDialog({
     enabled: open,
   });
 
+  /** Clears the picks on the way out. They live in `useState` out here
+   *  rather than inside `DialogContent`, so they survive a close the same
+   *  way retained form state does -- without this, "New assignment"
+   *  reopened still holding the last one's target and profile. */
+  function close() {
+    setTargetType("router");
+    setRouterId("");
+    setLocationId("");
+    setQueueProfileId("");
+    onClose();
+  }
+
   async function submit() {
     try {
       await create.mutateAsync({
@@ -554,14 +581,14 @@ function AssignmentDialog({
         queueProfileId: queueProfileId || undefined,
       });
       toast.success("Assignment created");
-      onClose();
+      close();
     } catch (err) {
       toast.error((err as AppError).message || "Failed to create assignment");
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={open} onOpenChange={(o) => !o && close()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>New assignment</DialogTitle>
@@ -629,7 +656,7 @@ function AssignmentDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={onClose}>
+          <Button type="button" variant="outline" onClick={close}>
             Cancel
           </Button>
           <Button

@@ -298,6 +298,19 @@ function AlertRuleFormDialog({
 
   const triggerType = form.watch("triggerType");
 
+  /** Resets the form on the way out, so the next open starts clean.
+   *
+   * `useForm`'s `values` prop only resyncs when the object it is handed
+   * deep-changes, and this dialog is never unmounted -- two consecutive
+   * opens of the same target hand it the identical DEFAULTS, so no reset
+   * fires and React Hook Form repopulates every input from the form state
+   * it kept as each field re-registers. Same convention as the other
+   * always-mounted dialogs. */
+  function close() {
+    form.reset(DEFAULTS);
+    onOpenChange(false);
+  }
+
   async function submit(values: AlertRuleFormValues) {
     const conditionConfig = conditionConfigFromAlertRuleForm(values);
     try {
@@ -330,7 +343,7 @@ function AlertRuleFormDialog({
         });
         toast.success("Alert rule created");
       }
-      onOpenChange(false);
+      close();
       onSaved();
     } catch (err) {
       toast.error((err as AppError).message || "Failed to save rule");
@@ -338,7 +351,7 @@ function AlertRuleFormDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(true) : close())}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{editing ? "Edit alert rule" : "Add alert rule"}</DialogTitle>
