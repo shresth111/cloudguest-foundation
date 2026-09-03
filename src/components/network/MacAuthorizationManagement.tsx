@@ -315,6 +315,14 @@ function EntryDialog({
   const create = useCreateMacAuthorizationEntry();
   const update = useUpdateMacAuthorizationEntry();
 
+  const blank: EntryFormValues = {
+    macAddress: "",
+    authorizationType: "permanent",
+    locationId: "",
+    expiresAt: "",
+    comment: "",
+    isEnabled: true,
+  };
   const defaults: EntryFormValues = entry
     ? {
         macAddress: entry.macAddress,
@@ -324,14 +332,7 @@ function EntryDialog({
         comment: entry.comment ?? "",
         isEnabled: entry.isEnabled,
       }
-    : {
-        macAddress: "",
-        authorizationType: "permanent",
-        locationId: "",
-        expiresAt: "",
-        comment: "",
-        isEnabled: true,
-      };
+    : blank;
 
   const form = useForm<EntryFormValues>({
     resolver: zodResolver(entrySchema),
@@ -339,6 +340,20 @@ function EntryDialog({
     values: defaults,
   });
   const authType = form.watch("authorizationType");
+
+  /** Resets the form on the way out, so the next open starts clean.
+   *
+   * `useForm`'s `values` prop only resyncs when the object it is handed
+   * deep-changes, and this dialog is never unmounted -- two consecutive
+   * opens of the same target hand it the identical blank defaults, so no
+   * reset fires and React Hook Form repopulates every input from the form
+   * state it kept as each field re-registers. The dialog then reopens
+   * showing the last attempt's values. Same convention as NasDevicesPanel
+   * and SlaPanel. */
+  function close() {
+    form.reset(blank);
+    onClose();
+  }
 
   async function submit(v: EntryFormValues) {
     const expiresAt = v.expiresAt ? new Date(v.expiresAt).toISOString() : null;
@@ -367,14 +382,14 @@ function EntryDialog({
         });
         toast.success("Entry created");
       }
-      onClose();
+      close();
     } catch (err) {
       toast.error((err as AppError).message || "Failed to save entry");
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={open} onOpenChange={(o) => !o && close()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{entry ? "Edit entry" : "New MAC authorization entry"}</DialogTitle>
@@ -465,7 +480,7 @@ function EntryDialog({
             />
           </div>
           <DialogFooter className="sm:col-span-2">
-            <Button type="button" variant="ghost" onClick={onClose}>
+            <Button type="button" variant="ghost" onClick={close}>
               Cancel
             </Button>
             <Button type="submit" disabled={create.isPending || update.isPending}>

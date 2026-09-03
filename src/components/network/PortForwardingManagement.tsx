@@ -404,6 +404,18 @@ function RuleDialog({
   const create = useCreatePortForwardingRule();
   const update = useUpdatePortForwardingRule();
 
+  const blank: RuleFormValues = {
+    routerId: "",
+    name: "",
+    protocol: "both",
+    sourceAddress: "",
+    destinationAddress: "",
+    destinationPort: 8080,
+    internalAddress: "",
+    internalPort: 80,
+    description: "",
+    isEnabled: true,
+  };
   const defaults: RuleFormValues = rule
     ? {
         routerId: rule.routerId,
@@ -417,24 +429,27 @@ function RuleDialog({
         description: rule.description ?? "",
         isEnabled: rule.isEnabled,
       }
-    : {
-        routerId: "",
-        name: "",
-        protocol: "both",
-        sourceAddress: "",
-        destinationAddress: "",
-        destinationPort: 8080,
-        internalAddress: "",
-        internalPort: 80,
-        description: "",
-        isEnabled: true,
-      };
+    : blank;
 
   const form = useForm<RuleFormValues>({
     resolver: zodResolver(ruleSchema),
     defaultValues: defaults,
     values: defaults,
   });
+
+  /** Resets the form on the way out, so the next open starts clean.
+   *
+   * `useForm`'s `values` prop only resyncs when the object it is handed
+   * deep-changes, and this dialog is never unmounted -- two consecutive
+   * opens of the same target hand it the identical blank defaults, so no
+   * reset fires and React Hook Form repopulates every input from the form
+   * state it kept as each field re-registers. The dialog then reopens
+   * showing the last attempt's values. Same convention as NasDevicesPanel
+   * and SlaPanel. */
+  function close() {
+    form.reset(blank);
+    onClose();
+  }
 
   async function submit(v: RuleFormValues) {
     try {
@@ -471,14 +486,14 @@ function RuleDialog({
         });
         toast.success("Rule created");
       }
-      onClose();
+      close();
     } catch (err) {
       toast.error((err as AppError).message || "Failed to save rule");
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={open} onOpenChange={(o) => !o && close()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{rule ? "Edit rule" : "New rule"}</DialogTitle>
@@ -593,7 +608,7 @@ function RuleDialog({
             />
           </div>
           <DialogFooter className="sm:col-span-2">
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={close}>
               Cancel
             </Button>
             <Button type="submit" disabled={create.isPending || update.isPending}>

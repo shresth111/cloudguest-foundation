@@ -95,6 +95,21 @@ const dhcpSchema = z.object({
 });
 type DhcpFormValues = z.infer<typeof dhcpSchema>;
 
+/** The one blank form. Hoisted so `DhcpDialog` can reset back to exactly
+ *  this on close -- see the comment on its `close`. */
+const BLANK_DHCP_FORM: DhcpFormValues = {
+  routerId: "",
+  name: "",
+  addressRangeStart: "",
+  addressRangeEnd: "",
+  interface: "",
+  gatewayIpAddress: "",
+  dnsPrimary: "",
+  dnsSecondary: "",
+  leaseTimeSeconds: 86_400,
+  isEnabled: true,
+};
+
 function DhcpIllustration() {
   const shouldReduceMotion = useReducedMotion();
   return (
@@ -463,7 +478,7 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
                       <Button
                         size="sm"
                         variant={p.devicePushStatus === "active" ? "ghost" : "outline"}
-                        disabled={push.isPending}
+                        disabled={push.isPending && push.variables?.id === p.id}
                         onClick={() => handlePush(p)}
                       >
                         {push.isPending && push.variables?.id === p.id ? (
@@ -590,18 +605,7 @@ function DhcpDialog({
         leaseTimeSeconds: pool.leaseTimeSeconds,
         isEnabled: pool.isEnabled,
       }
-    : {
-        routerId: "",
-        name: "",
-        addressRangeStart: "",
-        addressRangeEnd: "",
-        interface: "",
-        gatewayIpAddress: "",
-        dnsPrimary: "",
-        dnsSecondary: "",
-        leaseTimeSeconds: 86_400,
-        isEnabled: true,
-      };
+    : BLANK_DHCP_FORM;
 
   const form = useForm<DhcpFormValues>({
     resolver: zodResolver(dhcpSchema),
@@ -625,6 +629,25 @@ function DhcpDialog({
     staleTime: 15_000,
   });
 
+  /** Resets the form on the way out, so the next open starts clean.
+   *
+   * `useForm`'s `values` prop only resyncs when the object it is handed
+   * deep-changes, and this dialog is never unmounted -- two consecutive
+   * opens of the same target hand it the identical object ("New DHCP pool"
+   * straight after creating one gets the same blank defaults both times),
+   * so no reset fires. React Hook Form then repopulates every input from
+   * the form state it kept as each field re-registers, and the dialog
+   * reopens showing the last attempt's values. `manualInterface` leaked the
+   * same way: it lives out here rather than inside `DialogContent`, so it
+   * survived the close too and a reopened dialog stayed stuck in
+   * type-it-yourself mode. Same fix and same convention as
+   * NasDevicesPanel and SlaPanel. */
+  function close() {
+    form.reset(BLANK_DHCP_FORM);
+    setManualInterface(false);
+    onClose();
+  }
+
   async function submit(v: DhcpFormValues) {
     try {
       const shared = {
@@ -645,14 +668,14 @@ function DhcpDialog({
         await create.mutateAsync({ routerId: v.routerId, ...shared, organizationId });
         toast.success("DHCP pool created");
       }
-      onClose();
+      close();
     } catch (err) {
       toast.error((err as AppError).message || "Failed to save pool");
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={open} onOpenChange={(o) => !o && close()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{pool ? "Edit DHCP pool" : "New DHCP pool"}</DialogTitle>
@@ -826,7 +849,7 @@ function DhcpDialog({
             />
           </div>
           <DialogFooter className="sm:col-span-2">
-            <Button type="button" variant="ghost" onClick={onClose}>
+            <Button type="button" variant="ghost" onClick={close}>
               Cancel
             </Button>
             <Button type="submit" disabled={create.isPending || update.isPending}>

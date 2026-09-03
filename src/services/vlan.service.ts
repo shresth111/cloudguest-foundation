@@ -4,6 +4,7 @@ import type {
   CreateVlanPayload,
   UpdateVlanPayload,
   Vlan,
+  VlanDeviceInterface,
   VlanKpis,
   VlanListQuery,
   VlanListResult,
@@ -21,12 +22,23 @@ interface BackendVlan {
   interface: string | null;
   port_mode: "trunk" | "access";
   enable_hotspot: boolean;
+  nat_enabled: boolean;
   description: string | null;
   is_enabled: boolean;
-  device_push_status: "pending" | "active" | "failed";
+  device_push_status: "pending" | "provisioning" | "active" | "failed";
   device_push_error: string | null;
   device_pushed_at: string | null;
   created_at: string;
+}
+
+interface BackendDeviceInterface {
+  name: string;
+  type: string | null;
+  running: boolean;
+  disabled: boolean;
+  bridge: string | null;
+  is_bridge_port: boolean;
+  has_ip_address: boolean;
 }
 
 interface BackendVlanListResponse {
@@ -52,6 +64,7 @@ function toVlan(v: BackendVlan): Vlan {
     interface: v.interface,
     portMode: v.port_mode,
     enableHotspot: v.enable_hotspot,
+    natEnabled: v.nat_enabled,
     description: v.description,
     isEnabled: v.is_enabled,
     devicePushStatus: v.device_push_status,
@@ -149,6 +162,7 @@ export const vlanService = {
         interface: payload.interface,
         port_mode: payload.portMode ?? "trunk",
         enable_hotspot: payload.enableHotspot ?? false,
+        nat_enabled: payload.natEnabled ?? true,
         description: payload.description,
         is_enabled: payload.isEnabled ?? true,
       },
@@ -169,6 +183,7 @@ export const vlanService = {
         interface: payload.interface,
         port_mode: payload.portMode,
         enable_hotspot: payload.enableHotspot,
+        nat_enabled: payload.natEnabled,
         description: payload.description,
         is_enabled: payload.isEnabled,
       },
@@ -182,6 +197,37 @@ export const vlanService = {
     await api.delete(`/vlans/${id}`, {
       headers: { "X-Organization-Id": orgId },
     });
+  },
+
+  /**
+   * The router's own interface table, read live over the RouterOS API.
+   *
+   * The VLAN form used to ask the customer to type this name -- with
+   * `bridgeLocal` as the placeholder, while the bridge on a real customer
+   * router is called `bridge`. A wrong guess is only discovered at push
+   * time, as a device error. This is the list that removes the guess.
+   *
+   * The backend answers `{ interfaces: [] }` -- not an error -- when the
+   * router has no stored credentials or is unreachable, so an empty list
+   * here means "couldn't read the router", not "the router has no
+   * interfaces". The caller says so in the UI and offers manual entry.
+   */
+  async listDeviceInterfaces(routerId: string): Promise<VlanDeviceInterface[]> {
+    if (isDemo()) return [];
+    const orgId = await resolveOrganizationId();
+    const { data } = await api.get<{ interfaces: BackendDeviceInterface[] }>(
+      "/vlans/device-interfaces",
+      { params: { router_id: routerId }, headers: { "X-Organization-Id": orgId } },
+    );
+    return data.interfaces.map((i) => ({
+      name: i.name,
+      type: i.type,
+      running: i.running,
+      disabled: i.disabled,
+      bridge: i.bridge,
+      isBridgePort: i.is_bridge_port,
+      hasIpAddress: i.has_ip_address,
+    }));
   },
 
   /**

@@ -5,10 +5,31 @@ import type { CreateVlanPayload, UpdateVlanPayload, VlanListQuery } from "@/type
 export const vlanKeys = {
   list: (q: VlanListQuery) => ["vlan", "list", q] as const,
   kpis: ["vlan", "kpis"] as const,
+  deviceInterfaces: (routerId: string) => ["vlan", "device-interfaces", routerId] as const,
 };
 
+/** A push is not instant on the device: the row goes `provisioning` and only
+ *  settles to `active` or `failed` once the router answers. Nothing on this
+ *  page would move it, so poll while any row is still in flight -- and stop
+ *  the moment none is, rather than polling the list forever. */
 export const useVlans = (q: VlanListQuery) =>
-  useQuery({ queryKey: vlanKeys.list(q), queryFn: () => vlanService.list(q) });
+  useQuery({
+    queryKey: vlanKeys.list(q),
+    queryFn: () => vlanService.list(q),
+    refetchInterval: (query) =>
+      query.state.data?.rows.some((v) => v.devicePushStatus === "provisioning") ? 4_000 : false,
+  });
+
+/** The interfaces that actually exist on a router, for the VLAN form's
+ *  parent/access-port pickers. Resolves to `[]` (not an error) when the
+ *  router is unreachable -- see `vlanService.listDeviceInterfaces`. */
+export const useVlanDeviceInterfaces = (routerId: string) =>
+  useQuery({
+    queryKey: vlanKeys.deviceInterfaces(routerId),
+    queryFn: () => vlanService.listDeviceInterfaces(routerId),
+    enabled: !!routerId,
+    staleTime: 15_000,
+  });
 
 export const useVlanKpis = () =>
   useQuery({ queryKey: vlanKeys.kpis, queryFn: vlanService.getKpis });

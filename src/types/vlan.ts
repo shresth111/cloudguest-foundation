@@ -5,8 +5,33 @@ export type VlanPortMode = "trunk" | "access";
  * Deliberately separate from `isEnabled` (intent) and from the config
  * version pipeline. Until the domain gained a device push, every VLAN was
  * permanently `pending` -- a row and nothing more.
+ *
+ * `provisioning` is the in-flight state: the push has been accepted but the
+ * router has not answered yet, so the row is neither pending nor applied.
+ * It settles to `active` or `failed` on its own, which is why the list
+ * polls while any row is sitting in it.
  */
-export type VlanDevicePushStatus = "pending" | "active" | "failed";
+export type VlanDevicePushStatus = "pending" | "provisioning" | "active" | "failed";
+
+/** One interface read live off the router, for the VLAN form's pickers.
+ *
+ * Deliberately not router.ts's `DeviceInterface`: that one is the DHCP
+ * picker's list, already narrowed by the backend to interfaces nothing
+ * else has claimed. This is the router's whole interface table, unfiltered,
+ * because a VLAN parent is allowed to be an interface that already carries
+ * addresses and servers. `isBridgePort` is the extra field, and it is the
+ * one the Access-port list is filtered on -- see `interfacesForMode`.
+ */
+export interface VlanDeviceInterface {
+  name: string;
+  type: string | null;
+  running: boolean;
+  disabled: boolean;
+  /** The bridge this interface is a member of, if any. */
+  bridge: string | null;
+  isBridgePort: boolean;
+  hasIpAddress: boolean;
+}
 
 export interface Vlan {
   id: string;
@@ -20,6 +45,8 @@ export interface Vlan {
   interface: string | null;
   portMode: VlanPortMode;
   enableHotspot: boolean;
+  /** Whether traffic from this VLAN is masqueraded out to the internet. */
+  natEnabled: boolean;
   description: string | null;
   isEnabled: boolean;
   devicePushStatus: VlanDevicePushStatus;
@@ -53,6 +80,7 @@ export interface CreateVlanPayload {
   interface?: string | null;
   portMode?: VlanPortMode;
   enableHotspot?: boolean;
+  natEnabled?: boolean;
   description?: string | null;
   isEnabled?: boolean;
 }
@@ -65,6 +93,7 @@ export interface UpdateVlanPayload {
   interface?: string | null;
   portMode?: VlanPortMode;
   enableHotspot?: boolean;
+  natEnabled?: boolean;
   description?: string | null;
   isEnabled?: boolean;
 }

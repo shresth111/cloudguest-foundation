@@ -530,6 +530,18 @@ function LinkDialog({
   const create = useCreateIspLink();
   const update = useUpdateIspLink();
 
+  const blank: LinkFormValues = {
+    providerName: "",
+    linkType: "fiber",
+    role: "primary",
+    priority: 0,
+    interface: "",
+    gatewayIpAddress: "",
+    downloadBandwidthMbps: Number.NaN,
+    uploadBandwidthMbps: Number.NaN,
+    autoFailback: true,
+    isEnabled: true,
+  };
   const defaults: LinkFormValues = link
     ? {
         providerName: link.providerName,
@@ -543,24 +555,27 @@ function LinkDialog({
         autoFailback: link.autoFailback,
         isEnabled: link.isEnabled,
       }
-    : {
-        providerName: "",
-        linkType: "fiber",
-        role: "primary",
-        priority: 0,
-        interface: "",
-        gatewayIpAddress: "",
-        downloadBandwidthMbps: Number.NaN,
-        uploadBandwidthMbps: Number.NaN,
-        autoFailback: true,
-        isEnabled: true,
-      };
+    : blank;
 
   const form = useForm<LinkFormValues>({
     resolver: zodResolver(linkSchema),
     defaultValues: defaults,
     values: defaults,
   });
+
+  /** Resets the form on the way out, so the next open starts clean.
+   *
+   * `useForm`'s `values` prop only resyncs when the object it is handed
+   * deep-changes, and this dialog is never unmounted -- two consecutive
+   * opens of the same target hand it the identical blank defaults, so no
+   * reset fires and React Hook Form repopulates every input from the form
+   * state it kept as each field re-registers. The dialog then reopens
+   * showing the last attempt's values. Same convention as NasDevicesPanel
+   * and SlaPanel. */
+  function close() {
+    form.reset(blank);
+    onClose();
+  }
 
   async function submit(v: LinkFormValues) {
     try {
@@ -584,14 +599,14 @@ function LinkDialog({
         await create.mutateAsync({ routerId, ...shared });
         toast.success("Uplink created");
       }
-      onClose();
+      close();
     } catch (err) {
       toast.error(humanizeApiError(err as AppError, "Failed to save uplink"));
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={open} onOpenChange={(o) => !o && close()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{link ? "Edit uplink" : "New uplink"}</DialogTitle>
@@ -685,7 +700,7 @@ function LinkDialog({
             </div>
           )}
           <DialogFooter className="sm:col-span-2">
-            <Button type="button" variant="ghost" onClick={onClose}>
+            <Button type="button" variant="ghost" onClick={close}>
               Cancel
             </Button>
             <Button type="submit" disabled={create.isPending || update.isPending}>
@@ -754,6 +769,15 @@ function RuleDialog({
   const create = useCreateIspRoutingRule();
   const update = useUpdateIspRoutingRule();
 
+  const blank: RuleFormValues = {
+    ispLinkId: links[0]?.id ?? "",
+    ruleType: "vlan",
+    name: "",
+    description: "",
+    priority: 0,
+    matchValue: "",
+    isEnabled: true,
+  };
   const defaults: RuleFormValues = rule
     ? {
         ispLinkId: rule.ispLinkId,
@@ -764,15 +788,7 @@ function RuleDialog({
         matchValue: matchValueFromRule(rule),
         isEnabled: rule.isEnabled,
       }
-    : {
-        ispLinkId: links[0]?.id ?? "",
-        ruleType: "vlan",
-        name: "",
-        description: "",
-        priority: 0,
-        matchValue: "",
-        isEnabled: true,
-      };
+    : blank;
 
   const form = useForm<RuleFormValues>({
     resolver: zodResolver(ruleSchema),
@@ -780,6 +796,20 @@ function RuleDialog({
     values: defaults,
   });
   const ruleType = form.watch("ruleType");
+
+  /** Resets the form on the way out, so the next open starts clean.
+   *
+   * `useForm`'s `values` prop only resyncs when the object it is handed
+   * deep-changes, and this dialog is never unmounted -- two consecutive
+   * opens of the same target hand it the identical blank defaults, so no
+   * reset fires and React Hook Form repopulates every input from the form
+   * state it kept as each field re-registers. The dialog then reopens
+   * showing the last attempt's values. Same convention as NasDevicesPanel
+   * and SlaPanel. */
+  function close() {
+    form.reset(blank);
+    onClose();
+  }
 
   async function submit(v: RuleFormValues) {
     try {
@@ -806,14 +836,14 @@ function RuleDialog({
         await create.mutateAsync({ routerId, ...shared });
         toast.success("Routing rule created");
       }
-      onClose();
+      close();
     } catch (err) {
       toast.error(humanizeApiError(err as AppError, "Failed to save rule"));
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={open} onOpenChange={(o) => !o && close()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{rule ? "Edit routing rule" : "New routing rule"}</DialogTitle>
@@ -904,7 +934,7 @@ function RuleDialog({
             <Input {...form.register("description")} placeholder="Notes…" />
           </div>
           <DialogFooter className="sm:col-span-2">
-            <Button type="button" variant="ghost" onClick={onClose}>
+            <Button type="button" variant="ghost" onClick={close}>
               Cancel
             </Button>
             <Button type="submit" disabled={create.isPending || update.isPending}>
