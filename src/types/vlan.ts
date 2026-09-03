@@ -83,6 +83,11 @@ export interface CreateVlanPayload {
   natEnabled?: boolean;
   description?: string | null;
   isEnabled?: boolean;
+  /** Consent to hand the chosen physical port over to this zone, taking it
+   * out of the bridge it is in today. The backend REFUSES an access-mode
+   * push onto a bridge member without it (409), because doing that to the
+   * port an access point sits on takes the Wi-Fi down. */
+  confirmTakesPort?: boolean;
 }
 
 export interface UpdateVlanPayload {
@@ -92,6 +97,10 @@ export interface UpdateVlanPayload {
   cidr?: string | null;
   interface?: string | null;
   portMode?: VlanPortMode;
+  /** See CreateVlanPayload. Changing the interface or port mode clears the
+   * stored consent server-side, so an edit that moves the zone to a
+   * different port has to be acknowledged again. */
+  confirmTakesPort?: boolean;
   enableHotspot?: boolean;
   natEnabled?: boolean;
   description?: string | null;
