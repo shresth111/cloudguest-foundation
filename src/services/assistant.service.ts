@@ -1,6 +1,6 @@
 import { api } from "@/services/api";
+import { resolveOrganizationId as sharedResolveOrganizationId } from "./organization-id";
 import type { AssistantConversation, AssistantMessage } from "@/types/assistant";
-import { registerSessionScopeCache } from "@/lib/session-scope-cache";
 
 interface BackendMessage {
   id: string;
@@ -59,25 +59,17 @@ function toConversation(c: BackendConversation): AssistantConversation {
   };
 }
 
-let cachedOrgId: string | null = null;
-// Cleared on every identity transition -- this id must not outlive the
-// session that resolved it. See lib/session-scope-cache.ts.
-registerSessionScopeCache(() => {
-  cachedOrgId = null;
-});
 // GET /organizations is the platform-wide admin listing (GLOBAL scope
 // only) -- an ordinary customer/org-owner session 403s on it. Resolved via
 // /me/organizations (membership-scoped) instead, same fix as
 // customer.service.ts's resolveOrgId / mac-authorization.service.ts's
 // resolveOrganizationId.
 async function resolveOrgId(): Promise<string> {
-  if (cachedOrgId) return cachedOrgId;
-  const { data } =
-    await api.get<Array<{ organization_id: string; status: string }>>("/me/organizations");
-  const membership = data.find((m) => m.status === "active") ?? data[0];
-  if (!membership) throw new Error("No organization found for the current session");
-  cachedOrgId = membership.organization_id;
-  return cachedOrgId;
+  // Delegates to the one shared resolver. This used to hold its own
+  // module cache and issue its own `/me/organizations`, which is why a
+  // single page load fetched that endpoint once per active service.
+  // See services/organization-id.ts.
+  return sharedResolveOrganizationId();
 }
 
 export const assistantService = {
