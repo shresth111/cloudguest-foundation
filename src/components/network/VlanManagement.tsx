@@ -298,7 +298,7 @@ export function VlanManagement({ locationId }: { locationId?: string } = {}) {
         description={
           locationId
             ? "Split your network into separate zones — e.g. guest Wi-Fi kept apart from staff or office devices — each with its own address range."
-            : "Per-router VLAN inventory — a real 802.1Q tag, gateway, and CIDR record. Device push happens through a separate configuration pipeline."
+            : "Per-router VLAN inventory — a real 802.1Q tag, gateway, and CIDR record. Apply pushes a VLAN to the router; each row's badge shows what the device is holding."
         }
         actions={
           <Button onClick={() => setCreating(true)}>

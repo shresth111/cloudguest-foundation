@@ -126,7 +126,7 @@ export function FirewallManagement() {
       <SectionHeader
         eyebrow="Network"
         title="Firewall Rule Management"
-        description="Per-router filter rules (chain / action / protocol / source-destination match). Device push happens through a separate configuration pipeline."
+        description="Per-router filter rules (chain / action / protocol / source-destination match). Saved here and included in the router's generated network configuration — nothing on this screen writes to the device."
         actions={
           <Button onClick={() => setCreating(true)}>
             <Plus className="mr-1.5 h-4 w-4" /> New Rule
