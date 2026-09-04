@@ -234,8 +234,9 @@ export interface BillingOverview {
   /** Everything the single super-admin dashboard response can justify: failed
    * payments and outstanding invoices. Deliberately NOT the expiry reminders
    * getSnapshot() also produces -- those need each subscription's own
-   * `current_period_end`, which this response does not carry. See
-   * useExpiringSubscriptions for how the Platform Overview keeps them. */
+   * `current_period_end`, which this response does not carry, so they cost one
+   * request per organization. The Platform Overview shows this narrower set
+   * and says so; /master/billing has the full list. */
   reminders: Reminder[];
   /** Per-organization plan/status/price for the Organizations table, taken from
    * the dashboard's own `customers` page. This is what removes the

@@ -32,12 +32,14 @@
  *      touches /payments, /invoices, /usage, /organizations or
  *      /subscriptions. This is the assertion that fails if someone folds a
  *      per-org lookup back into the cheap path.
- *   2. getExpiringReminders() is the ONE remaining fan-out and costs exactly
- *      N. It exists because "expires in N days" needs each subscription's
- *      own current_period_end and there is no bulk subscription endpoint --
- *      backend/app/domains/billing/router.py exposes only
- *      `GET /subscriptions/{organization_id}`. It is a separate call so that
- *      only the reminders card waits on it.
+ *   2. The Platform Overview has NO per-organization fan-out left at all.
+ *      Its billing cost is 3 requests at any tenant count. The one thing
+ *      that bought was the expiry reminders ("expires in 3 days"), which
+ *      need each subscription's own current_period_end and have no bulk
+ *      endpoint to come from -- backend/app/domains/billing/router.py
+ *      exposes only `GET /subscriptions/{organization_id}` -- so they are
+ *      one request per organization or nothing. This page chose nothing and
+ *      says so on the card; /master/billing still lists them.
  *   3. getSnapshot() is UNCHANGED at 5 + 4N. /master/billing and /billing
  *      genuinely render per-org payments, invoices and usage, so the
  *      expensive path had to keep working -- this test is here to prove the
@@ -371,24 +373,13 @@ eq(
 );
 
 // ---------------------------------------------------------------------------
-// 2. The one remaining fan-out, and it is opt-in.
+// 2. There is no second billing query on this page any more.
 // ---------------------------------------------------------------------------
-console.log("\ngetExpiringReminders -- the only per-organization fan-out left");
-reset();
-const expiring = await billingService.getExpiringReminders(overview.organizations);
-const expiringCalls = calls.length;
-
-eq("exactly one request per organization", expiringCalls, ORG_COUNT);
-eq("all of them /subscriptions/{org}", counts()["/subscriptions/{org}"], ORG_COUNT);
+console.log("\nthe page's billing cost is fixed, not per-tenant");
 check(
-  "each carries its own X-Organization-Id (the header IS the scoping)",
-  calls.every((c) => c.headers && c.url.endsWith(c.headers["X-Organization-Id"])),
-);
-eq("the one subscription inside the 14-day window becomes a reminder", expiring.length, 1);
-eq("and it is an expiry reminder", expiring[0].type, "expiry");
-check(
-  "a 404 for an organization with no subscription is dropped, not thrown",
-  expiring.every((r) => !NO_SUBSCRIPTION.has(r.organizationName)),
+  "the service exposes no per-org expiry fetch for the overview to call",
+  typeof billingService.getExpiringReminders === "undefined",
+  "getExpiringReminders still exists -- if it came back, the overview must still not call it",
 );
 
 // ---------------------------------------------------------------------------
@@ -453,15 +444,25 @@ check(
 // The number this whole change is about.
 // ---------------------------------------------------------------------------
 const before = overviewCalls + snapshotCalls;
-const after = overviewCalls + expiringCalls;
+const after = overviewCalls;
 console.log(`\n  billing requests for one /master load at N=${ORG_COUNT}`);
 console.log(`    before  ${before}  (getOverview ${overviewCalls} + getSnapshot ${snapshotCalls})`);
-console.log(
-  `    after   ${after}  (getOverview ${overviewCalls} + getExpiringReminders ${expiringCalls})`,
-);
+console.log(`    after   ${after}  (getOverview ${overviewCalls}, and nothing else)`);
 console.log(`    saved   ${before - after}`);
-check("the billing half of the page got cheaper", after < before);
-eq("and the cheap path no longer scales with N at all", overviewCalls, 3);
+eq("the billing half of one /master load is exactly 3 requests", after, 3);
+check("which is 61 fewer than before", before - after === 61, `saved ${before - after}`);
+// The assertion that actually matters: doubling the tenant count must not
+// change the number above. Everything the page reads is in the one dashboard
+// response, so this is the property, not the constant, that must hold.
+reset();
+const doubled = {
+  ...dashboard,
+  customers: { ...dashboard.customers, items: [...customers, ...customers] },
+};
+globalThis.__fx.dashboard = doubled;
+await billingService.getOverview();
+eq("still 3 requests with twice the organizations", calls.length, 3);
+globalThis.__fx.dashboard = dashboard;
 
 console.log(
   failures === 0

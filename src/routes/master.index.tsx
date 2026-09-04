@@ -26,7 +26,7 @@ import {
 } from "@/components/master/MasterKit";
 import { CHART_BODY_H } from "@/components/master/chart-layout";
 import { useAnalyticsSnapshot } from "@/hooks/useAnalytics";
-import { useBillingOverview, useExpiringReminders } from "@/hooks/useBilling";
+import { useBillingOverview } from "@/hooks/useBilling";
 
 // Both point at the same module, so this is ONE extra chunk request, not two.
 const RevenueTrendChart = lazy(() =>
@@ -133,7 +133,6 @@ function CellSkeleton({ w }: { w: string }) {
  *
  *   useAnalyticsSnapshot   2 + N requests, 2 waves  (N = organizations)
  *   useBillingOverview     3 requests,     1 wave
- *   useExpiringReminders   N requests,     1 wave (after the overview)
  *
  * Measured in real Chromium against a real `.output/` build (30Mbps/40ms
  * link, 150ms/request backend, 8 concurrent, 12 orgs): the KPI numbers, both
@@ -157,29 +156,32 @@ function CellSkeleton({ w }: { w: string }) {
  *
  * useBillingSnapshot itself is unchanged and still used by /master/billing and
  * /billing, which genuinely render those rows. This page just stopped asking
- * for them. The one per-org fan-out that remains is useExpiringReminders,
- * because "expires in N days" needs each subscription's own
- * `current_period_end` and no bulk subscription endpoint exists to get it.
+ * for them. The billing half of this page is now a FIXED 3 requests that does
+ * not grow with the tenant count at all.
+ *
+ * The one thing that cost bought was the expiry reminders ("Starter plan
+ * expires in 3 days"): those need each subscription's own
+ * `current_period_end`, the dashboard's customers items carry no dates, and
+ * backend/app/domains/billing/router.py exposes no bulk subscription endpoint
+ * -- only `GET /subscriptions/{organization_id}`. So they are one request per
+ * organization or nothing, and this page chose nothing. The Billing Reminders
+ * card below therefore says exactly which reminder kinds it covers and links
+ * to /master/billing for the rest, rather than quietly presenting a narrower
+ * list as if it were all of them.
  */
 function PlatformOverview() {
   const analytics = useAnalyticsSnapshot("last30");
   const overview = useBillingOverview();
-  const expiring = useExpiringReminders(overview.data?.organizations);
 
   const kpis = analytics.data?.kpis;
   const orgRows = analytics.data?.organizations ?? [];
   const orgBilling = overview.data?.organizations ?? [];
 
-  // The failed-payment/outstanding-invoice reminders arrive with the overview;
-  // the expiry ones cost a request per organization and land later. Both are
-  // real, so the card shows whatever has arrived rather than holding the cheap
-  // ones back to display a single complete list.
-  const reminders = [...(overview.data?.reminders ?? []), ...(expiring.data ?? [])];
-  // `isLoading` (not `isPending`) on purpose: while the overview is still in
-  // flight the expiry query is disabled, and a disabled query stays `pending`
-  // forever -- which would pin this card's skeleton on a platform that has no
-  // organizations at all.
-  const remindersPending = overview.isPending || expiring.isLoading;
+  // Failed payments and outstanding invoices only -- see this component's
+  // REQUEST COUNT note for why expiry reminders are not in here, and the card
+  // below for how that is disclosed rather than hidden.
+  const reminders = overview.data?.reminders ?? [];
+  const remindersPending = overview.isPending;
 
   const recent = orgRows.slice(0, 5).map((o) => ({
     ...o,
@@ -241,7 +243,11 @@ function PlatformOverview() {
     },
     {
       key: "reminders",
-      label: "Billing Reminders",
+      // Narrower than "Billing Reminders" on purpose: this counts the failed
+      // payments and outstanding invoices only, and a tile that says the
+      // broader thing while counting the narrower one is the exact kind of
+      // quiet mislabel this page has been cleaned of.
+      label: "Payment Issues",
       value: String(reminders.length),
       icon: AlertTriangle,
       pending: remindersPending,
@@ -373,14 +379,31 @@ function PlatformOverview() {
           </div>
 
           <div>
-            <p className="mb-2 text-sm font-semibold">Billing Reminders</p>
+            {/* Titled for what it actually contains. This card used to be fed
+                the full reminder set (failed payments + outstanding invoices +
+                expiring plans); it now costs 0 extra requests and covers the
+                first two, so it names them and links to the page that has the
+                rest. A card headed "Billing Reminders" that had quietly
+                stopped showing expiries would be the worse outcome. */}
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-semibold">Payments &amp; Invoices</p>
+              <Link
+                to="/master/billing"
+                className="inline-flex items-center gap-1 text-xs font-medium text-primary"
+              >
+                All reminders <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
             <div className="rounded-xl border border-border bg-card shadow-sm">
               {remindersPending ? (
                 // Four rows: the same count the loaded card caps at, so the
                 // card keeps its height when the real reminders land.
                 Array.from({ length: 4 }).map((_, i) => <ReminderSkeletonRow key={i} />)
               ) : reminders.length === 0 ? (
-                <p className="p-3.5 text-sm text-muted-foreground">Nothing needs attention.</p>
+                <p className="p-3.5 text-sm text-muted-foreground">
+                  No failed payments or outstanding invoices. Expiring plans are listed under
+                  Billing.
+                </p>
               ) : (
                 reminders.slice(0, 4).map((r) => (
                   <div

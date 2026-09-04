@@ -1114,9 +1114,8 @@ const EXPIRY_REMINDER_WINDOW_MS = 14 * 86_400_000;
  *
  * The expiry reminders getSnapshot() adds on top are deliberately NOT here:
  * "expires in N days" needs each subscription's own `current_period_end`, and
- * the dashboard's `customers` items carry a status but no dates. See
- * expiryRemindersFrom / fetchExpiringSubscriptions for how the Platform
- * Overview keeps them without paying for the whole snapshot.
+ * the dashboard's `customers` items carry a status but no dates -- so they are
+ * one request per organization or nothing (see expiryRemindersFrom).
  *
  * `resolveOrgName` is a parameter because a failed-payment row carries only an
  * organization_id: getSnapshot() already holds the full /organizations list and
@@ -1151,21 +1150,12 @@ function dashboardRemindersFrom(
   return reminders;
 }
 
-/** Just enough of a Subscription to nag about its expiry. Narrower than
- * `Subscription` on purpose: the Platform Overview's cheap path knows each
- * organization's plan name and status already (from the dashboard's customers
- * page) and only needs `current_period_end` from the subscription itself, so it
- * never has to build -- or fetch the plans and coupons required to build -- a
- * complete Subscription just to render a reminder. */
-type ExpiringSubscription = Pick<
-  Subscription,
-  "id" | "status" | "expiryDate" | "planName" | "organizationName"
->;
-
 /** "Starter plan expires in 3 days" for every active subscription inside the
- * reminder window. Split out of getSnapshot() so the Platform Overview can
- * produce byte-identical rows from the same expression. */
-function expiryRemindersFrom(subscriptions: ExpiringSubscription[], now: number): Reminder[] {
+ * reminder window. Only getSnapshot() produces these: they need each
+ * subscription's own `current_period_end`, so they cost one request per
+ * organization, and the Platform Overview deliberately does not pay for them
+ * (see master.index.tsx's REQUEST COUNT note). /master/billing does. */
+function expiryRemindersFrom(subscriptions: Subscription[], now: number): Reminder[] {
   return subscriptions
     .filter((s) => s.status === "active")
     .filter((s) => new Date(s.expiryDate).getTime() - now < EXPIRY_REMINDER_WINDOW_MS)
@@ -1303,59 +1293,6 @@ export const billingService = {
       reminders: dashboardRemindersFrom(dashboard, (id) => nameById.get(id)),
       organizations,
     };
-  },
-
-  /**
-   * The one thing getOverview() genuinely cannot derive: "this plan expires in
-   * N days".
-   *
-   * The super-admin dashboard's `customers` items carry a subscription STATUS
-   * but no dates, and there is no bulk subscription endpoint to ask instead --
-   * backend/app/domains/billing/router.py exposes only
-   * `GET /subscriptions/{organization_id}` (single) and `GET
-   * /billing/subscription` (the caller's own, via X-Organization-Id). So this
-   * is a genuine N-request fan-out and the only one the Platform Overview
-   * still pays for.
-   *
-   * It is deliberately a SEPARATE call from getOverview() rather than folded
-   * into it: getOverview() is the 3-request/one-wave path the KPI tiles, both
-   * charts and the Organizations table render off, and putting an N-request
-   * second wave inside it would put every one of them back behind the fan-out
-   * that master.index.tsx's own LOADING BEHAVIOUR comment exists to prevent.
-   * Only the Billing Reminders card waits on this.
-   *
-   * Takes the organizations getOverview() already resolved, so it needs
-   * neither a /organizations call of its own nor the Plan catalog: plan name
-   * and organization name come from those rows, and only `current_period_end`
-   * comes from the subscription.
-   */
-  async getExpiringReminders(organizations: OverviewOrganization[]): Promise<Reminder[]> {
-    if (isDemo()) {
-      return buildDemoSnapshot().reminders.filter((r) => r.type === "expiry");
-    }
-    const settled = await Promise.allSettled(
-      organizations.map(async (org): Promise<ExpiringSubscription> => {
-        const { data } = await api.get<BackendSubscription>(
-          `/subscriptions/${org.organizationId}`,
-          { headers: { "X-Organization-Id": org.organizationId } },
-        );
-        return {
-          id: data.id,
-          status: SUBSCRIPTION_STATUS_MAP[data.status] ?? "active",
-          expiryDate: data.current_period_end,
-          planName: org.planName,
-          organizationName: org.organizationName,
-        };
-      }),
-    );
-    // An organization with no subscription 404s here, which is a legitimate
-    // state, not a failure -- allSettled drops it and the Organizations table
-    // still renders the row (as "no plan"). Same convention as
-    // fetchAllSubscriptions.
-    const subscriptions = settled
-      .filter((r): r is PromiseFulfilledResult<ExpiringSubscription> => r.status === "fulfilled")
-      .map((r) => r.value);
-    return expiryRemindersFrom(subscriptions, Date.now());
   },
 
   async getSnapshot(): Promise<BillingSnapshot> {
