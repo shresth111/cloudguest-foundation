@@ -2,6 +2,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
 import { AppLoadingIndicator } from "@/components/AppLoadingIndicator";
+import { ErrorComponent } from "@/routes/__root";
 import type { RouterAuthContext } from "@/context/AuthContext";
 
 export const getRouter = () => {
@@ -53,6 +54,24 @@ export const getRouter = () => {
     // has actually rendered. The two changes cover different windows and both
     // are required; neither is redundant with the other.
     defaultPendingComponent: () => <AppLoadingIndicator />,
+    // Without this, a route that throws before its match resolves spins
+    // forever. `__root.tsx` sets `errorComponent`, but that only covers
+    // errors thrown *inside* a resolved match -- a `validateSearch` failure
+    // happens earlier, in `matchRoutes`, so the match never resolves, the
+    // pending component stays up, and the page is a spinner with no end
+    // state and no message.
+    //
+    // Found on 2026-09-04: opening /preview/portal/<id> without its
+    // required `?organizationId=` search param produced an infinite
+    // spinner. The console carried a precise zod error the whole time
+    // ("organizationId: Required"), so the app knew exactly what was wrong
+    // and showed the user nothing. A truncated link in a chat message, or
+    // a bookmark from before a param was added, is enough to reach this.
+    //
+    // A spinner is a promise that something is coming. Making the same
+    // component the root already uses keeps that promise honest across
+    // every route rather than only the ones that manage to match.
+    defaultErrorComponent: ErrorComponent,
   });
 
   return router;
