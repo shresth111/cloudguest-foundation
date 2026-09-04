@@ -7,6 +7,11 @@ import { ORGS_STORAGE_KEY, ROLES_STORAGE_KEY } from "@/services/api";
 import type { OrganizationMembership, RoleAssignment } from "@/types/auth";
 import { deriveLocationLiveness } from "@/lib/location-liveness";
 import type { LocationLiveness, RawRouterLiveness } from "@/lib/location-liveness";
+// getDashboard()'s SLA-uptime leg reads the same `/isp/links` list the
+// dashboard's own WAN cards read, so it goes through the same service --
+// see that call site's comment. `isp.service` imports only `api` and the
+// shared org-id resolver, so this is not a cycle.
+import { ispService } from "@/services/isp.service";
 
 /* ── Types ─────────────────────────────────────────────────── */
 
@@ -811,19 +816,15 @@ export interface RawGuest {
   created_at?: string;
 }
 
-/** Minimal shape for resolving this location's active ISP uplink, same
- * client-side "fetch up to 100 org-wide links, filter by location_id,
- * sort by is_active_uplink/role/priority" resolution `useWanSummary`
- * already does in the dashboard route -- no `location_id` filter exists
- * server-side (`GET /isp/links` only takes `router_id`), so this mirrors
- * that same real precedent rather than inventing a different one. */
-interface RawIspLinkForSla {
-  id: string;
-  location_id: string | null;
-  is_active_uplink: boolean;
-  role: string;
-  priority: number;
-}
+/* This file used to declare its own `RawIspLinkForSla` wire shape for
+ * getDashboard()'s SLA-uptime leg. It no longer reads `/isp/links`
+ * directly -- it calls `ispService.listLinks()`, which already owns that
+ * mapping (and the in-flight coalescing this page needs) -- so the local
+ * duplicate is gone. The one thing that comment said which is still true
+ * and still load-bearing lives at the filter below: no `location_id`
+ * filter exists server-side (`GET /isp/links` only takes `router_id`),
+ * so the location match is made client-side, exactly as `useWanSummary`
+ * makes it. */
 
 interface RawIspHealthCheckBucket {
   total_checks: number;
@@ -1170,11 +1171,21 @@ export const customerService = {
         ...locationHeaders,
       }),
       // For SLA uptime below -- same up-to-100-org-wide-then-filter
-      // resolution as useWanSummary (see RawIspLinkForSla's own comment).
-      api.get<{ items: RawIspLinkForSla[] }>("/isp/links", {
-        params: { page_size: 100 },
-        ...locationHeaders,
-      }),
+      // resolution as useWanSummary, and now literally the same request:
+      // this used to be an inline `api.get("/isp/links", { page_size: 100 })`
+      // that bypassed `ispService` entirely, so it wrote no coalescing key
+      // and could never be shared with the two WAN cards mounted beside it
+      // on this very page. Measured: two `GET /isp/links` per dashboard
+      // load. Going through the service is what makes them one -- see
+      // `listLinks`' own comment for the two things that had to change
+      // there before that actually held (the key had to normalise `page`,
+      // and the sharing had to survive the gap between this read and the
+      // cards', which mount only once this promise has resolved).
+      // Identical on the wire (`page` omitted == `page=1`, the backend's
+      // own default) and identical in scope -- `fetchLinks` sends
+      // X-Organization-Id + X-Location-Id for a query with a locationId,
+      // exactly the `locationHeaders` this call used to build by hand.
+      ispService.listLinks({ pageSize: 100, locationId }),
       // Real failed-login count, Owner-only (`_OWNER_ONLY_DEPENDENCIES` on
       // this endpoint) -- org-wide, not location-scoped, since a login
       // attempt isn't tied to any one location. Was previously hardcoded
@@ -1210,10 +1221,10 @@ export const customerService = {
     // number) when there's no active link or no bucket data yet.
     let slaUptime: number | null = null;
     if (iR.status === "fulfilled") {
-      const links = (iR.value.data?.items ?? [])
-        .filter((l) => l.location_id === locationId)
+      const links = (iR.value.rows ?? [])
+        .filter((l) => l.locationId === locationId)
         .sort((a, b) => {
-          if (a.is_active_uplink !== b.is_active_uplink) return a.is_active_uplink ? -1 : 1;
+          if (a.isActiveUplink !== b.isActiveUplink) return a.isActiveUplink ? -1 : 1;
           if (a.role !== b.role) return a.role === "primary" ? -1 : 1;
           return a.priority - b.priority;
         });

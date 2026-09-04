@@ -1,5 +1,6 @@
 import { api } from "@/services/api";
 import { resolveOrganizationId as sharedResolveOrganizationId } from "./organization-id";
+import { registerSessionScopeCache } from "@/lib/session-scope-cache";
 import type {
   CreateIspLinkPayload,
   CreateIspRoutingRulePayload,
@@ -268,7 +269,35 @@ function toIspRoutingRule(r: BackendIspRoutingRule): IspRoutingRule {
   };
 }
 
-async function fetchLinks(q: IspLinkListQuery): Promise<IspLinkListResult> {
+/** The one canonical form of a links query.
+ *
+ * `page` is optional on the wire -- `GET /isp/links` declares
+ * `page: int = Query(default=1)` -- so `{ pageSize: 100 }` and
+ * `{ page: 1, pageSize: 100 }` are the same request written two ways. They
+ * were NOT the same coalescing key, which is how the customer dashboard
+ * still issued two `GET /isp/links` on every load with the single-flight
+ * map sitting right there: `getDashboard`'s SLA read omitted `page`, the
+ * two WAN cards passed `page: 1`, the keys disagreed, and neither call
+ * ever saw the other.
+ *
+ * Everything downstream is derived from this one value -- the key AND the
+ * params -- so the key cannot drift from the request it claims to
+ * describe. Anything that varies the response must be normalised here, in
+ * this function, not added to the key separately.
+ */
+type NormalizedIspLinkQuery = Required<Pick<IspLinkListQuery, "page" | "pageSize">> &
+  Pick<IspLinkListQuery, "routerId" | "locationId">;
+
+function normalizeLinkQuery(q: IspLinkListQuery): NormalizedIspLinkQuery {
+  return {
+    routerId: q.routerId,
+    locationId: q.locationId,
+    page: q.page ?? 1,
+    pageSize: q.pageSize,
+  };
+}
+
+async function fetchLinks(q: NormalizedIspLinkQuery): Promise<IspLinkListResult> {
   const orgId = await resolveOrganizationId();
   const { data } = await api.get<BackendIspLinkListResponse>("/isp/links", {
     params: { router_id: q.routerId, page: q.page, page_size: q.pageSize },
@@ -285,7 +314,9 @@ async function fetchLinks(q: IspLinkListQuery): Promise<IspLinkListResult> {
   };
 }
 
-/** Requests currently in flight, keyed by the exact query they encode.
+/** Requests currently in flight, keyed by the normalised query they
+ * encode. Paired with `linksRecent` below, which briefly retains a settled
+ * one -- see "Why this is no longer in-flight-only".
  *
  * The customer dashboard mounts `useWanSummary` and `useBandwidthSeries`
  * side by side, and each runs its own effect issuing a byte-identical
@@ -296,26 +327,121 @@ async function fetchLinks(q: IspLinkListQuery): Promise<IspLinkListResult> {
  * identical `GET /isp/links` on every dashboard load, which is what a live
  * network capture showed.
  *
- * This shares the *in-flight* promise only, never a settled result. Two
- * callers that ask at the same moment get one request; a caller that asks
- * later gets a fresh one. So the independence the hooks rely on is intact
- * and there is no cache to go stale -- the same single-flight shape
- * `services/organization-id.ts` already uses for `/me/organizations`.
+ * A third reader on that same page, `customerService.getDashboard()`'s
+ * SLA-uptime leg, joined them later. It had been bypassing this module
+ * with its own inline `api.get("/isp/links", { page_size: 100 })` and
+ * writing no key at all; now it calls `listLinks` like everyone else. That
+ * exposed the key hole this map's key normalisation exists to close: it
+ * omits `page`, the WAN cards pass `page: 1`, and those are the same
+ * request. See `normalizeLinkQuery`.
+ *
+ * ## Why this is no longer in-flight-only
+ *
+ * It used to be, with this argument, which was right about the risk and
+ * wrong about the shape of the problem:
+ *
+ *   "This shares the *in-flight* promise only, never a settled result. Two
+ *    callers that ask at the same moment get one request; a caller that
+ *    asks later gets a fresh one. So the independence the hooks rely on is
+ *    intact and there is no cache to go stale -- the same single-flight
+ *    shape `services/organization-id.ts` already uses."
+ *
+ * The two WAN cards do ask at the same moment, so that worked for them.
+ * `getDashboard()` does not, and MEASUREMENT is what settled it rather
+ * than reading: `scripts/test-customer-dashboard-fetch-count.mjs` times
+ * every request on a real mount, and the two reads are strictly
+ * sequential, not concurrent --
+ *
+ *     t+168ms  GET /isp/links                      <- getDashboard()
+ *     t+182ms  GET /isp/links/{id}/health-checks/summary
+ *     t+204ms  GET /isp/links                      <- the WAN cards
+ *
+ * -- because the WAN cards are inside the `d ? … : …` branch and do not
+ * mount until `getDashboard()` has resolved. Nothing keyed on "in flight
+ * right now" can ever bridge that gap; the first request is long settled.
+ * The real gap is one links round trip plus one summary round trip, so on
+ * a slow connection it is close to a second.
+ *
+ * So a settled result is now shared, for {@link LINKS_SHARE_WINDOW_MS} and
+ * no longer. That window is deliberately far shorter than any reader's own
+ * idea of fresh: every polling reader of this list refreshes on
+ * `ISP_LINKS_POLL_INTERVAL_MS` (20s, `hooks/useIsp.ts` and
+ * `OperationsFeatures.tsx`), and the dashboard query's own `staleTime` is
+ * 15s. Serving a value five seconds old to a card that would otherwise
+ * accept a twenty-second-old one cannot make it wronger; it exists to
+ * collapse one page-load burst, not to be a cache.
+ *
+ * The old comment's actual fear -- "the dashboard would keep showing a
+ * failed-over uplink as active until something evicted it" -- is answered
+ * directly rather than by refusing to retain anything: {@link dropLinksCache}
+ * runs after every write in this module that can change a link's row
+ * (create/update/remove/check-health/manual status/failover/failback/speed
+ * test), so a settled result is never served across a mutation, and the
+ * cache is registered with `session-scope-cache` so it cannot outlive the
+ * identity that fetched it. `scripts/test-isp-links-single-flight.mjs`
+ * pins all of it, including that a read past the window does go back to
+ * the network.
  */
 const linksInFlight = new Map<string, Promise<IspLinkListResult>>();
 
+/** How long a settled links result may be handed to a later caller. Sized
+ * against the gap measured above (a links round trip plus a summary round
+ * trip, on a real connection), not against a stopwatch in a test. */
+const LINKS_SHARE_WINDOW_MS = 5_000;
+
+const linksRecent = new Map<string, { at: number; result: IspLinkListResult }>();
+
+/** Forget every retained result. Called after any write that can change a
+ * link row, so an invalidate-and-refetch never reads back the pre-write
+ * state, and on identity transitions via `session-scope-cache`. */
+function dropLinksCache(): void {
+  linksRecent.clear();
+}
+
+registerSessionScopeCache(() => {
+  dropLinksCache();
+  // An in-flight read was issued for the previous identity; its answer
+  // must not be handed to the next one. Same reasoning as
+  // `services/organization-id.ts`'s own resetter.
+  linksInFlight.clear();
+});
+
 export const ispService = {
   listLinks(q: IspLinkListQuery): Promise<IspLinkListResult> {
+    // Normalise ONCE, then derive both the key and the request from that
+    // same value (see normalizeLinkQuery). A key computed from the raw
+    // argument disagreed with itself: two callers meaning the same read
+    // wrote different keys, so the map never matched and the coalescer
+    // silently did nothing.
+    const query = normalizeLinkQuery(q);
     // Every field the request actually varies on. `routerId`/`locationId`
     // are `undefined` for the unscoped operator view, which must not
     // collide with a location-scoped read.
-    const key = JSON.stringify([q.routerId, q.locationId, q.page, q.pageSize]);
+    const key = JSON.stringify([query.routerId, query.locationId, query.page, query.pageSize]);
     const existing = linksInFlight.get(key);
     if (existing) return existing;
 
-    const request = fetchLinks(q).finally(() => {
-      linksInFlight.delete(key);
-    });
+    const recent = linksRecent.get(key);
+    if (recent) {
+      if (Date.now() - recent.at < LINKS_SHARE_WINDOW_MS) return Promise.resolve(recent.result);
+      // Expired. Drop it rather than leaving it to be re-checked forever,
+      // so a location the user has navigated away from stops occupying a
+      // slot in this map.
+      linksRecent.delete(key);
+    }
+
+    const request = fetchLinks(query)
+      .then((result) => {
+        // Only a success is retained. A rejection must not be replayed to
+        // later callers -- the page has to be able to recover without a
+        // reload, which is the same property `finally` below preserves for
+        // the in-flight entry.
+        linksRecent.set(key, { at: Date.now(), result });
+        return result;
+      })
+      .finally(() => {
+        linksInFlight.delete(key);
+      });
     linksInFlight.set(key, request);
     return request;
   },
@@ -341,6 +467,7 @@ export const ispService = {
       },
       { headers: { "X-Organization-Id": orgId } },
     );
+    dropLinksCache();
     return toIspLink(data);
   },
 
@@ -365,12 +492,14 @@ export const ispService = {
       },
       { headers: { "X-Organization-Id": orgId } },
     );
+    dropLinksCache();
     return toIspLink(data);
   },
 
   async removeLink(id: string): Promise<void> {
     const orgId = await resolveOrganizationId();
     await api.delete(`/isp/links/${id}`, { headers: { "X-Organization-Id": orgId } });
+    dropLinksCache();
   },
 
   async checkLinkHealth(id: string): Promise<IspLink> {
@@ -378,6 +507,7 @@ export const ispService = {
     const { data } = await api.post<BackendIspLink>(`/isp/links/${id}/check-health`, undefined, {
       headers: { "X-Organization-Id": orgId },
     });
+    dropLinksCache();
     return toIspLink(data);
   },
 
@@ -394,6 +524,9 @@ export const ispService = {
       undefined,
       { headers: { "X-Organization-Id": orgId }, timeout: 75_000 },
     );
+    // The backend records the reading against the link row itself, so a
+    // retained list from before this test is now behind.
+    dropLinksCache();
     return toIspSpeedTestResult(data);
   },
 
@@ -414,6 +547,7 @@ export const ispService = {
       { health_status: healthStatus, reason: reason || undefined },
       { headers: { "X-Organization-Id": orgId } },
     );
+    dropLinksCache();
     return toIspLink(data);
   },
 
@@ -478,6 +612,7 @@ export const ispService = {
       { reason: reason ?? "manual_admin_trigger" },
       { headers: { "X-Organization-Id": orgId } },
     );
+    dropLinksCache();
     return toIspLink(data);
   },
 
@@ -488,6 +623,7 @@ export const ispService = {
       { reason: reason ?? "manual_admin_trigger" },
       { headers: { "X-Organization-Id": orgId } },
     );
+    dropLinksCache();
     return toIspLink(data);
   },
 
