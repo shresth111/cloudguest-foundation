@@ -67,7 +67,7 @@ import {
 } from "@/hooks/useQos";
 import { routerService } from "@/services/router.service";
 import { isDemo, resolveOrgId } from "@/services/customer.service";
-import { useIsDemo } from "@/hooks/useCustomerDashboard";
+import { partialCountHint } from "@/components/network/list-kpis";
 import type { AppError } from "@/services/api";
 import type { DevicePushStatus, QosTrafficRule } from "@/types/qos";
 
@@ -176,39 +176,28 @@ export function QosManagement({ locationId }: { locationId?: string } = {}) {
   const [creating, setCreating] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<QosTrafficRule | null>(null);
 
-  // useIsDemo(), not isDemo() directly, for anything that feeds a hook's
-  // `enabled` -- see DhcpManagement's identical comment: isDemo() resolves
-  // differently between the server render pass and the client's first
-  // hydration pass, which threw a real "Hydration failed" on this page's
-  // loading/empty-state text. useIsDemo() starts at the same value on
-  // both sides and only flips post-mount.
-  const demoFlag = useIsDemo();
-
-  // Demo mode never needs a real org id (qosService.list() and
-  // DEMO_ROUTERS below both short-circuit on isDemo() before touching
-  // it) -- resolving it anyway meant the demo account's VOIP Priority
-  // page always fired one real, 401ing `/me/organizations` request on
-  // load for a value nothing used.
-  const { data: scopedOrgId } = useQuery({
-    queryKey: ["qos", "org-id"],
-    queryFn: resolveOrgId,
-    enabled: !!locationId && !demoFlag,
-  });
-
+  // No org id is resolved or threaded here, and this query has no `enabled`
+  // gate. The endpoint still scopes on X-Organization-Id, but
+  // `attachOrganizationHeader` (services/api.ts) attaches it to every request
+  // an organization-scoped session makes, and attaches nothing for a
+  // GLOBAL-scope one -- so the unscoped /network view still spans every org.
+  //
+  // This used to gate on a `scopedOrgId` query whose result went into the
+  // React Query key, which cost every read on the page a second request: the
+  // gate was already open on the first render (useIsDemo starts true, by
+  // design, for hydration), so the query fired with `organizationId:
+  // undefined`; the id then resolved, the key changed, and it all refetched.
+  //
   // The backend's `GET /qos-rules` only filters by `router_id`, not
   // location -- so a location-scoped view (the customer dashboard's VOIP
   // Priority page) fetches one full (up to max page_size) page and narrows +
   // paginates it client-side below, same tradeoff PortForwardingManagement/
   // DhcpManagement make.
-  const { data, isLoading } = useQosRules(
-    {
-      page: locationId ? 1 : page,
-      pageSize: locationId ? 100 : PAGE_SIZE,
-      routerId: routerFilter === "all" ? undefined : routerFilter,
-      organizationId: locationId ? scopedOrgId : undefined,
-    },
-    { enabled: locationId ? demoFlag || !!scopedOrgId : true },
-  );
+  const { data, isLoading } = useQosRules({
+    page: locationId ? 1 : page,
+    pageSize: locationId ? 100 : PAGE_SIZE,
+    routerId: routerFilter === "all" ? undefined : routerFilter,
+  });
   const del = useDeleteQosRule();
   const push = usePushQosRule();
   const { data: routers = { rows: [], total: 0 } } = useQuery({
@@ -249,6 +238,10 @@ export function QosManagement({ locationId }: { locationId?: string } = {}) {
     : (data?.totalPages ?? 1);
   const hasNext = locationId ? page < totalPages : !!data?.hasNext;
   const hasPrevious = locationId ? page > 1 : !!data?.hasPrevious;
+  // Tiles come from the list response above, never a second request --
+  // see components/network/list-kpis.ts for what the hint is admitting to.
+  const statHint = partialCountHint(data?.rows.length ?? 0, data?.total ?? 0);
+  const totalHint = locationId ? statHint : undefined;
   const enabledCount = filteredRows.filter((r) => r.isEnabled).length;
   const voiceCount = filteredRows.filter(
     (r) => r.protocol && [5060, 5061].includes(r.portRangeStart ?? -1),
@@ -256,7 +249,7 @@ export function QosManagement({ locationId }: { locationId?: string } = {}) {
 
   async function handlePush(rule: QosTrafficRule) {
     try {
-      await push.mutateAsync({ id: rule.id, organizationId: locationId ? scopedOrgId : undefined });
+      await push.mutateAsync({ id: rule.id });
       toast.success(`"${rule.name}" applied to your router`);
     } catch (err) {
       toast.error((err as AppError).message || `Couldn't apply "${rule.name}" to your router`);
@@ -288,9 +281,21 @@ export function QosManagement({ locationId }: { locationId?: string } = {}) {
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Total Rules" value={total} icon={Gauge} tone="primary" />
-        <StatCard label="Enabled" value={enabledCount} icon={ShieldCheck} tone="success" />
-        <StatCard label="SIP rules (5060/5061)" value={voiceCount} icon={Signal} tone="info" />
+        <StatCard label="Total Rules" value={total} hint={totalHint} icon={Gauge} tone="primary" />
+        <StatCard
+          label="Enabled"
+          value={enabledCount}
+          hint={statHint}
+          icon={ShieldCheck}
+          tone="success"
+        />
+        <StatCard
+          label="SIP rules (5060/5061)"
+          value={voiceCount}
+          hint={statHint}
+          icon={Signal}
+          tone="info"
+        />
       </div>
 
       <Card className="border-0 shadow-sm">
@@ -441,7 +446,6 @@ export function QosManagement({ locationId }: { locationId?: string } = {}) {
         open={creating || !!editing}
         rule={editing}
         routers={routers.rows}
-        organizationId={locationId ? scopedOrgId : undefined}
         onClose={() => {
           setCreating(false);
           setEditing(null);
@@ -463,10 +467,7 @@ export function QosManagement({ locationId }: { locationId?: string } = {}) {
               onClick={async () => {
                 if (!confirmDelete) return;
                 try {
-                  await del.mutateAsync({
-                    id: confirmDelete.id,
-                    organizationId: locationId ? scopedOrgId : undefined,
-                  });
+                  await del.mutateAsync({ id: confirmDelete.id });
                   toast.success(`Rule "${confirmDelete.name}" deleted`);
                 } catch (err) {
                   toast.error((err as AppError).message || "Failed to delete rule");
@@ -487,13 +488,11 @@ function RuleDialog({
   open,
   rule,
   routers,
-  organizationId,
   onClose,
 }: {
   open: boolean;
   rule: QosTrafficRule | null;
   routers: { id: string; name: string }[];
-  organizationId?: string;
   onClose: () => void;
 }) {
   const create = useCreateQosRule();
@@ -557,10 +556,10 @@ function RuleDialog({
     };
     try {
       if (rule) {
-        await update.mutateAsync({ id: rule.id, payload, organizationId });
+        await update.mutateAsync({ id: rule.id, payload });
         toast.success("Rule updated");
       } else {
-        await create.mutateAsync({ routerId: v.routerId, ...payload, organizationId });
+        await create.mutateAsync({ routerId: v.routerId, ...payload });
         toast.success("Rule created");
       }
       close();

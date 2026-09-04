@@ -8,7 +8,6 @@ import type {
 
 export const hotspotKeys = {
   list: (q: HotspotProfileListQuery) => ["hotspot", "list", q] as const,
-  kpis: (organizationId?: string) => ["hotspot", "kpis", organizationId] as const,
 };
 
 export const useHotspotProfiles = (q: HotspotProfileListQuery, options?: { enabled?: boolean }) =>
@@ -18,20 +17,12 @@ export const useHotspotProfiles = (q: HotspotProfileListQuery, options?: { enabl
     enabled: options?.enabled,
   });
 
-export const useHotspotKpis = (organizationId?: string, options?: { enabled?: boolean }) =>
-  useQuery({
-    queryKey: hotspotKeys.kpis(organizationId),
-    queryFn: () => hotspotService.getKpis(organizationId),
-    enabled: options?.enabled,
-  });
-
 export function useCreateHotspotProfile() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: CreateHotspotProfilePayload) => hotspotService.create(payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["hotspot", "list"] });
-      qc.invalidateQueries({ queryKey: ["hotspot", "kpis"] });
     },
   });
 }
@@ -39,18 +30,10 @@ export function useCreateHotspotProfile() {
 export function useUpdateHotspotProfile() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      id,
-      payload,
-      organizationId,
-    }: {
-      id: string;
-      payload: UpdateHotspotProfilePayload;
-      organizationId?: string;
-    }) => hotspotService.update(id, payload, organizationId),
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateHotspotProfilePayload }) =>
+      hotspotService.update(id, payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["hotspot", "list"] });
-      qc.invalidateQueries({ queryKey: ["hotspot", "kpis"] });
     },
   });
 }
@@ -58,11 +41,9 @@ export function useUpdateHotspotProfile() {
 export function useDeleteHotspotProfile() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, organizationId }: { id: string; organizationId?: string }) =>
-      hotspotService.remove(id, organizationId),
+    mutationFn: ({ id }: { id: string }) => hotspotService.remove(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["hotspot", "list"] });
-      qc.invalidateQueries({ queryKey: ["hotspot", "kpis"] });
     },
   });
 }

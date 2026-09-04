@@ -45,9 +45,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { StatCard, SectionHeader } from "@/components/ui-ext";
+import { partialCountHint } from "@/components/network/list-kpis";
 import {
   useHotspotProfiles,
-  useHotspotKpis,
   useCreateHotspotProfile,
   useUpdateHotspotProfile,
   useDeleteHotspotProfile,
@@ -83,32 +83,26 @@ export function HotspotManagement({ locationId }: { locationId?: string } = {}) 
   const [creating, setCreating] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<HotspotProfile | null>(null);
 
-  // `list_hotspot_profiles`/etc. resolve their tenant scope from
-  // CurrentOrganization (X-Organization-Id) -- an ordinary org-owner session
-  // holds no GLOBAL-scope fallback, so the location-scoped (customer
-  // dashboard) case must resolve and thread its real org id. The master
-  // console's unscoped view deliberately leaves it unset (spans every org).
-  const { data: scopedOrgId } = useQuery({
-    queryKey: ["hotspot", "org-id"],
-    queryFn: resolveOrgId,
-    enabled: !!locationId,
-  });
-
+  // No org id is resolved or threaded here, and this query has no `enabled`
+  // gate. The endpoint still scopes on X-Organization-Id, but
+  // `attachOrganizationHeader` (services/api.ts) attaches it to every request
+  // an organization-scoped session makes, and attaches nothing for a
+  // GLOBAL-scope one -- so the unscoped /network view still spans every org.
+  //
+  // This used to gate on a `scopedOrgId` query whose result went into the
+  // React Query key, which cost every read on the page a second request: the
+  // gate was already open on the first render (useIsDemo starts true, by
+  // design, for hydration), so the query fired with `organizationId:
+  // undefined`; the id then resolved, the key changed, and it all refetched.
+  //
   // The backend's `GET /hotspot-profiles` only filters by `router_id`, not
   // location -- so a location-scoped view (the customer dashboard's Hotspot
   // Settings page) fetches one full (up to max page_size) page and narrows +
   // paginates it client-side below, same tradeoff DhcpManagement makes.
-  const { data, isLoading } = useHotspotProfiles(
-    {
-      page: locationId ? 1 : page,
-      pageSize: locationId ? 100 : PAGE_SIZE,
-      routerId: routerFilter === "all" ? undefined : routerFilter,
-      organizationId: locationId ? scopedOrgId : undefined,
-    },
-    { enabled: locationId ? !!scopedOrgId : true },
-  );
-  const { data: kpis } = useHotspotKpis(locationId ? scopedOrgId : undefined, {
-    enabled: locationId ? !!scopedOrgId : true,
+  const { data, isLoading } = useHotspotProfiles({
+    page: locationId ? 1 : page,
+    pageSize: locationId ? 100 : PAGE_SIZE,
+    routerId: routerFilter === "all" ? undefined : routerFilter,
   });
   const del = useDeleteHotspotProfile();
   const { data: routers = { rows: [], total: 0 } } = useQuery({
@@ -144,14 +138,15 @@ export function HotspotManagement({ locationId }: { locationId?: string } = {}) 
     : (data?.totalPages ?? 1);
   const hasNext = locationId ? page < totalPages : !!data?.hasNext;
   const hasPrevious = locationId ? page > 1 : !!data?.hasPrevious;
-  // The dedicated KPI endpoint isn't location-scoped (same backend gap as
-  // the list endpoint), so a location-scoped view derives its stat tiles
-  // from the already-narrowed filteredRows instead of the org-wide kpis
-  // query -- same tradeoff PortForwardingManagement makes.
-  const scopedEnabled = filteredRows.filter((p) => p.isEnabled).length;
-  const statTotal = locationId ? total : (kpis?.total ?? 0);
-  const statEnabled = locationId ? scopedEnabled : (kpis?.enabled ?? 0);
-  const statDisabled = locationId ? total - scopedEnabled : (kpis?.disabled ?? 0);
+  // Tiles come from the list response above, never a second request -- see
+  // components/network/list-kpis.ts. The endpoint has no location filter, so
+  // a location-scoped view counts the rows it narrowed itself; either way the
+  // hint says so whenever the loaded rows fall short of the server's total.
+  const statHint = partialCountHint(data?.rows.length ?? 0, data?.total ?? 0);
+  const statTotal = locationId ? total : (data?.total ?? 0);
+  const statEnabled = filteredRows.filter((p) => p.isEnabled).length;
+  const statDisabled = filteredRows.length - statEnabled;
+  const totalHint = locationId ? statHint : undefined;
 
   return (
     <div className="space-y-6">
@@ -168,9 +163,27 @@ export function HotspotManagement({ locationId }: { locationId?: string } = {}) 
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Total profiles" value={statTotal} icon={Wifi} tone="primary" />
-        <StatCard label="Enabled" value={statEnabled} icon={ShieldCheck} tone="success" />
-        <StatCard label="Disabled" value={statDisabled} icon={ShieldOff} tone="warning" />
+        <StatCard
+          label="Total profiles"
+          value={statTotal}
+          hint={totalHint}
+          icon={Wifi}
+          tone="primary"
+        />
+        <StatCard
+          label="Enabled"
+          value={statEnabled}
+          hint={statHint}
+          icon={ShieldCheck}
+          tone="success"
+        />
+        <StatCard
+          label="Disabled"
+          value={statDisabled}
+          hint={statHint}
+          icon={ShieldOff}
+          tone="warning"
+        />
       </div>
 
       <Card className="border-0 shadow-sm">
@@ -309,7 +322,6 @@ export function HotspotManagement({ locationId }: { locationId?: string } = {}) 
         open={creating || !!editing}
         profile={editing}
         routers={routers.rows}
-        organizationId={locationId ? scopedOrgId : undefined}
         onClose={() => {
           setCreating(false);
           setEditing(null);
@@ -331,10 +343,7 @@ export function HotspotManagement({ locationId }: { locationId?: string } = {}) 
               onClick={async () => {
                 if (!confirmDelete) return;
                 try {
-                  await del.mutateAsync({
-                    id: confirmDelete.id,
-                    organizationId: locationId ? scopedOrgId : undefined,
-                  });
+                  await del.mutateAsync({ id: confirmDelete.id });
                   toast.success(`Profile ${confirmDelete.name} deleted`);
                 } catch (err) {
                   toast.error((err as AppError).message || "Failed to delete profile");
@@ -355,13 +364,11 @@ function HotspotDialog({
   open,
   profile,
   routers,
-  organizationId,
   onClose,
 }: {
   open: boolean;
   profile: HotspotProfile | null;
   routers: { id: string; name: string }[];
-  organizationId?: string;
   onClose: () => void;
 }) {
   const create = useCreateHotspotProfile();
@@ -431,7 +438,6 @@ function HotspotDialog({
             walledGardenHosts: hostsFromInput(v.walledGardenHosts),
             isEnabled: v.isEnabled,
           },
-          organizationId,
         });
         toast.success("Profile updated");
       } else {
@@ -444,7 +450,6 @@ function HotspotDialog({
           downloadLimitKbps: numOrNull(v.downloadLimitKbps),
           walledGardenHosts: hostsFromInput(v.walledGardenHosts),
           isEnabled: v.isEnabled,
-          organizationId,
         });
         toast.success("Profile created");
       }

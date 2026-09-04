@@ -60,9 +60,14 @@ function toDhcpPool(p: BackendDhcpPool): DhcpPool {
   };
 }
 
-function orgHeaders(organizationId?: string) {
-  return organizationId ? { headers: { "X-Organization-Id": organizationId } } : {};
-}
+// Tenant scope rides on `X-Organization-Id`, which the api client attaches to
+// every request from an organization-scoped session (see
+// `attachOrganizationHeader` in services/api.ts) and deliberately omits for a
+// GLOBAL-scope one, so a master-console view still spans every organization.
+// Nothing here sets that header by hand any more and no method takes an
+// `organizationId`. Do not re-add one: the caller then has to *resolve* the id
+// before it can read, that resolution ends up in the React Query key, and the
+// key changing once it settles fired every read on these pages twice.
 
 export const dhcpService = {
   // `create_pool`/`list_pools`/`update_pool`/`delete_pool` all resolve their
@@ -91,7 +96,6 @@ export const dhcpService = {
     }
     const { data } = await api.get<BackendDhcpPoolListResponse>("/dhcp-pools", {
       params: { router_id: q.routerId, page: q.page, page_size: q.pageSize },
-      ...orgHeaders(q.organizationId),
     });
     return {
       rows: data.items.map(toDhcpPool),
@@ -103,50 +107,38 @@ export const dhcpService = {
   },
 
   async create(payload: CreateDhcpPoolPayload): Promise<DhcpPool> {
-    const { data } = await api.post<BackendDhcpPool>(
-      "/dhcp-pools",
-      {
-        router_id: payload.routerId,
-        name: payload.name,
-        address_range_start: payload.addressRangeStart,
-        address_range_end: payload.addressRangeEnd,
-        interface: payload.interface,
-        gateway_ip_address: payload.gatewayIpAddress,
-        dns_primary: payload.dnsPrimary,
-        dns_secondary: payload.dnsSecondary,
-        lease_time_seconds: payload.leaseTimeSeconds,
-        is_enabled: payload.isEnabled ?? true,
-      },
-      orgHeaders(payload.organizationId),
-    );
+    const { data } = await api.post<BackendDhcpPool>("/dhcp-pools", {
+      router_id: payload.routerId,
+      name: payload.name,
+      address_range_start: payload.addressRangeStart,
+      address_range_end: payload.addressRangeEnd,
+      interface: payload.interface,
+      gateway_ip_address: payload.gatewayIpAddress,
+      dns_primary: payload.dnsPrimary,
+      dns_secondary: payload.dnsSecondary,
+      lease_time_seconds: payload.leaseTimeSeconds,
+      is_enabled: payload.isEnabled ?? true,
+    });
     return toDhcpPool(data);
   },
 
-  async update(
-    id: string,
-    payload: UpdateDhcpPoolPayload,
-    organizationId?: string,
-  ): Promise<DhcpPool> {
-    const { data } = await api.put<BackendDhcpPool>(
-      `/dhcp-pools/${id}`,
-      {
-        name: payload.name,
-        address_range_start: payload.addressRangeStart,
-        address_range_end: payload.addressRangeEnd,
-        interface: payload.interface,
-        gateway_ip_address: payload.gatewayIpAddress,
-        dns_primary: payload.dnsPrimary,
-        dns_secondary: payload.dnsSecondary,
-        lease_time_seconds: payload.leaseTimeSeconds,
-        is_enabled: payload.isEnabled,
-      },
-      orgHeaders(organizationId),
-    );
+  async update(id: string, payload: UpdateDhcpPoolPayload): Promise<DhcpPool> {
+    const { data } = await api.put<BackendDhcpPool>(`/dhcp-pools/${id}`, {
+      name: payload.name,
+      address_range_start: payload.addressRangeStart,
+      address_range_end: payload.addressRangeEnd,
+      interface: payload.interface,
+      gateway_ip_address: payload.gatewayIpAddress,
+      dns_primary: payload.dnsPrimary,
+      dns_secondary: payload.dnsSecondary,
+      lease_time_seconds: payload.leaseTimeSeconds,
+      is_enabled: payload.isEnabled,
+    });
     return toDhcpPool(data);
   },
 
-  async remove(id: string, organizationId?: string): Promise<void> {
-    await api.delete(`/dhcp-pools/${id}`, orgHeaders(organizationId));
+  async remove(id: string): Promise<void> {
+    await api.delete(`/dhcp-pools/${id}`);
   },
 
   /**
@@ -165,12 +157,8 @@ export const dhcpService = {
    * response interceptor discards `success`, so such a response would
    * reach this method as a success.
    */
-  async push(id: string, organizationId?: string): Promise<DhcpPool> {
-    const { data } = await api.post<BackendDhcpPool>(
-      `/dhcp-pools/${id}/push`,
-      undefined,
-      orgHeaders(organizationId),
-    );
+  async push(id: string): Promise<DhcpPool> {
+    const { data } = await api.post<BackendDhcpPool>(`/dhcp-pools/${id}/push`);
     return toDhcpPool(data);
   },
 };

@@ -1,7 +1,6 @@
 import { api } from "@/services/api";
 import type {
   CreateHotspotProfilePayload,
-  HotspotKpis,
   HotspotProfile,
   HotspotProfileListQuery,
   HotspotProfileListResult,
@@ -50,9 +49,14 @@ function toHotspotProfile(p: BackendHotspotProfile): HotspotProfile {
   };
 }
 
-function orgHeaders(organizationId?: string) {
-  return organizationId ? { headers: { "X-Organization-Id": organizationId } } : {};
-}
+// Tenant scope rides on `X-Organization-Id`, which the api client attaches to
+// every request from an organization-scoped session (see
+// `attachOrganizationHeader` in services/api.ts) and deliberately omits for a
+// GLOBAL-scope one, so a master-console view still spans every organization.
+// Nothing here sets that header by hand any more and no method takes an
+// `organizationId`. Do not re-add one: the caller then has to *resolve* the id
+// before it can read, that resolution ends up in the React Query key, and the
+// key changing once it settles fired every read on these pages twice.
 
 // This module's own comment used to claim "no X-Organization-Id header
 // needed once router_id is given" -- that's not true. `create_hotspot_profile`
@@ -63,15 +67,11 @@ function orgHeaders(organizationId?: string) {
 // real customer ("'hotspot.read' is required at global scope") -- surfaced
 // as the customer dashboard's Hotspot Settings page never having been
 // backend-wired in the first place (it rendered decorative, non-persisted
-// toggles instead). `organizationId` is optional and left unset by the
-// master console's platform-wide /network/hotspot view (which deliberately
-// spans every org), and threaded by the customer dashboard's location-scoped
-// HotspotManagement -- same convention as dhcp.service.ts's orgHeaders.
+// toggles instead).
 export const hotspotService = {
   async list(q: HotspotProfileListQuery): Promise<HotspotProfileListResult> {
     const { data } = await api.get<BackendHotspotProfileListResponse>("/hotspot-profiles", {
       params: { router_id: q.routerId, page: q.page, page_size: q.pageSize },
-      ...orgHeaders(q.organizationId),
     });
     return {
       rows: data.items.map(toHotspotProfile),
@@ -82,69 +82,48 @@ export const hotspotService = {
     };
   },
 
-  async get(id: string, organizationId?: string): Promise<HotspotProfile> {
-    const { data } = await api.get<BackendHotspotProfile>(
-      `/hotspot-profiles/${id}`,
-      orgHeaders(organizationId),
-    );
+  async get(id: string): Promise<HotspotProfile> {
+    const { data } = await api.get<BackendHotspotProfile>(`/hotspot-profiles/${id}`);
     return toHotspotProfile(data);
   },
 
-  async getKpis(organizationId?: string): Promise<HotspotKpis> {
-    // No dedicated stats endpoint -- fetch a large page and compute real
-    // counts client-side, same convention as vlanService.getKpis.
-    const { data } = await api.get<BackendHotspotProfileListResponse>("/hotspot-profiles", {
-      params: { page: 1, page_size: 100 },
-      ...orgHeaders(organizationId),
-    });
-    const enabled = data.items.filter((p) => p.is_enabled).length;
-    return {
-      total: data.total_items,
-      enabled,
-      disabled: data.items.length - enabled,
-    };
-  },
+  // There is deliberately no getKpis() here any more. It re-issued list()'s
+  // own URL verbatim -- a second, byte-identical request on every page load --
+  // and then reported the true server `total_items` next to enabled/disabled
+  // counted over at most the 100 rows it received, so past 100 profiles the
+  // three tiles stopped summing. HotspotManagement derives its tiles from the
+  // list response it already has, and says on the tile when the rows it
+  // counted do not cover the total. GET /hotspot-profiles has no `is_enabled`
+  // filter to get an exact count from, and caps page_size at 100.
 
   async create(payload: CreateHotspotProfilePayload): Promise<HotspotProfile> {
-    const { data } = await api.post<BackendHotspotProfile>(
-      "/hotspot-profiles",
-      {
-        router_id: payload.routerId,
-        name: payload.name,
-        session_timeout_minutes: payload.sessionTimeoutMinutes ?? null,
-        idle_timeout_minutes: payload.idleTimeoutMinutes ?? null,
-        upload_limit_kbps: payload.uploadLimitKbps ?? null,
-        download_limit_kbps: payload.downloadLimitKbps ?? null,
-        walled_garden_hosts: payload.walledGardenHosts ?? [],
-        is_enabled: payload.isEnabled ?? true,
-      },
-      orgHeaders(payload.organizationId),
-    );
+    const { data } = await api.post<BackendHotspotProfile>("/hotspot-profiles", {
+      router_id: payload.routerId,
+      name: payload.name,
+      session_timeout_minutes: payload.sessionTimeoutMinutes ?? null,
+      idle_timeout_minutes: payload.idleTimeoutMinutes ?? null,
+      upload_limit_kbps: payload.uploadLimitKbps ?? null,
+      download_limit_kbps: payload.downloadLimitKbps ?? null,
+      walled_garden_hosts: payload.walledGardenHosts ?? [],
+      is_enabled: payload.isEnabled ?? true,
+    });
     return toHotspotProfile(data);
   },
 
-  async update(
-    id: string,
-    payload: UpdateHotspotProfilePayload,
-    organizationId?: string,
-  ): Promise<HotspotProfile> {
-    const { data } = await api.put<BackendHotspotProfile>(
-      `/hotspot-profiles/${id}`,
-      {
-        name: payload.name,
-        session_timeout_minutes: payload.sessionTimeoutMinutes,
-        idle_timeout_minutes: payload.idleTimeoutMinutes,
-        upload_limit_kbps: payload.uploadLimitKbps,
-        download_limit_kbps: payload.downloadLimitKbps,
-        walled_garden_hosts: payload.walledGardenHosts,
-        is_enabled: payload.isEnabled,
-      },
-      orgHeaders(organizationId),
-    );
+  async update(id: string, payload: UpdateHotspotProfilePayload): Promise<HotspotProfile> {
+    const { data } = await api.put<BackendHotspotProfile>(`/hotspot-profiles/${id}`, {
+      name: payload.name,
+      session_timeout_minutes: payload.sessionTimeoutMinutes,
+      idle_timeout_minutes: payload.idleTimeoutMinutes,
+      upload_limit_kbps: payload.uploadLimitKbps,
+      download_limit_kbps: payload.downloadLimitKbps,
+      walled_garden_hosts: payload.walledGardenHosts,
+      is_enabled: payload.isEnabled,
+    });
     return toHotspotProfile(data);
   },
 
-  async remove(id: string, organizationId?: string): Promise<void> {
-    await api.delete(`/hotspot-profiles/${id}`, orgHeaders(organizationId));
+  async remove(id: string): Promise<void> {
+    await api.delete(`/hotspot-profiles/${id}`);
   },
 };

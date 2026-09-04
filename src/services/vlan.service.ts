@@ -1,12 +1,10 @@
 import { api } from "@/services/api";
-import { resolveOrganizationId as sharedResolveOrganizationId } from "./organization-id";
 import { isDemo } from "@/services/customer.service";
 import type {
   CreateVlanPayload,
   UpdateVlanPayload,
   Vlan,
   VlanDeviceInterface,
-  VlanKpis,
   VlanListQuery,
   VlanListResult,
 } from "@/types/vlan";
@@ -83,15 +81,15 @@ function toVlan(v: BackendVlan): Vlan {
 // real customer/org-owner session 403'd on every VLAN request with
 // "'vlan.read' is required at global scope" -- read from the actual VLANs
 // page as a dead Edit icon (and a page that never loaded any real rows in
-// the first place). Same fix, same cause, same convention as
-// mac-authorization.service.ts's resolveOrganizationId.
-async function resolveOrganizationId(): Promise<string> {
-  // Delegates to the one shared resolver. This used to hold its own
-  // module cache and issue its own `/me/organizations`, which is why a
-  // single page load fetched that endpoint once per active service.
-  // See services/organization-id.ts.
-  return sharedResolveOrganizationId();
-}
+// the first place).
+//
+// The header is no longer resolved here: `attachOrganizationHeader`
+// (services/api.ts) puts it on every request from an organization-scoped
+// session, and deliberately puts nothing on a GLOBAL-scope one, so a
+// master-console session still spans every organization. That also drops the
+// `await resolveOrganizationId()` that used to stand in front of each of
+// these reads -- it made the first VLAN request wait on `/me/organizations`
+// before it could even be issued.
 
 export const vlanService = {
   async list(q: VlanListQuery): Promise<VlanListResult> {
@@ -103,7 +101,6 @@ export const vlanService = {
     if (isDemo()) {
       return { rows: [], total: 0, totalPages: 1, hasNext: false, hasPrevious: false };
     }
-    const orgId = await resolveOrganizationId();
     const { data } = await api.get<BackendVlanListResponse>("/vlans", {
       params: {
         router_id: q.routerId,
@@ -111,7 +108,6 @@ export const vlanService = {
         page: q.page,
         page_size: q.pageSize,
       },
-      headers: { "X-Organization-Id": orgId },
     });
     return {
       rows: data.items.map(toVlan),
@@ -123,80 +119,59 @@ export const vlanService = {
   },
 
   async get(id: string): Promise<Vlan> {
-    const orgId = await resolveOrganizationId();
-    const { data } = await api.get<BackendVlan>(`/vlans/${id}`, {
-      headers: { "X-Organization-Id": orgId },
-    });
+    const { data } = await api.get<BackendVlan>(`/vlans/${id}`);
     return toVlan(data);
   },
 
-  async getKpis(): Promise<VlanKpis> {
-    if (isDemo()) return { total: 0, enabled: 0, disabled: 0 };
-    // No dedicated stats endpoint exists -- fetch a large page and compute
-    // real counts client-side, same convention as other list-derived KPIs.
-    const orgId = await resolveOrganizationId();
-    const { data } = await api.get<BackendVlanListResponse>("/vlans", {
-      params: { page: 1, page_size: 100 },
-      headers: { "X-Organization-Id": orgId },
-    });
-    const enabled = data.items.filter((v) => v.is_enabled).length;
-    return {
-      total: data.total_items,
-      enabled,
-      disabled: data.items.length - enabled,
-    };
-  },
+  // There is deliberately no getKpis() here any more. It was a second read of
+  // this module's own list() endpoint on every page load, and it was wrong in
+  // two ways at once: it passed no `location_id`, so on a multi-location org
+  // "TOTAL VLANS" counted the whole organization while the rows underneath it
+  // showed one location; and it reported the true server `total_items` next to
+  // enabled/disabled counted over at most the 100 rows it received, so past
+  // 100 VLANs the three tiles stopped summing. VlanManagement now derives its
+  // tiles from the list response it already has -- same location scope as the
+  // table by construction -- and says on the tile when the rows it counted do
+  // not cover the total. GET /vlans has no `is_enabled` filter to get an exact
+  // count from (see app/domains/vlan/router.py), and caps page_size at 100.
 
   async create(payload: CreateVlanPayload): Promise<Vlan> {
-    const orgId = await resolveOrganizationId();
-    const { data } = await api.post<BackendVlan>(
-      "/vlans",
-      {
-        router_id: payload.routerId,
-        vlan_id: payload.vlanId,
-        name: payload.name,
-        gateway_ip_address: payload.gatewayIpAddress,
-        cidr: payload.cidr,
-        interface: payload.interface,
-        port_mode: payload.portMode ?? "trunk",
-        confirm_takes_port: payload.confirmTakesPort ?? false,
-        enable_hotspot: payload.enableHotspot ?? false,
-        nat_enabled: payload.natEnabled ?? true,
-        description: payload.description,
-        is_enabled: payload.isEnabled ?? true,
-      },
-      { headers: { "X-Organization-Id": orgId } },
-    );
+    const { data } = await api.post<BackendVlan>("/vlans", {
+      router_id: payload.routerId,
+      vlan_id: payload.vlanId,
+      name: payload.name,
+      gateway_ip_address: payload.gatewayIpAddress,
+      cidr: payload.cidr,
+      interface: payload.interface,
+      port_mode: payload.portMode ?? "trunk",
+      confirm_takes_port: payload.confirmTakesPort ?? false,
+      enable_hotspot: payload.enableHotspot ?? false,
+      nat_enabled: payload.natEnabled ?? true,
+      description: payload.description,
+      is_enabled: payload.isEnabled ?? true,
+    });
     return toVlan(data);
   },
 
   async update(id: string, payload: UpdateVlanPayload): Promise<Vlan> {
-    const orgId = await resolveOrganizationId();
-    const { data } = await api.put<BackendVlan>(
-      `/vlans/${id}`,
-      {
-        vlan_id: payload.vlanId,
-        name: payload.name,
-        gateway_ip_address: payload.gatewayIpAddress,
-        cidr: payload.cidr,
-        interface: payload.interface,
-        port_mode: payload.portMode,
-        confirm_takes_port: payload.confirmTakesPort,
-        enable_hotspot: payload.enableHotspot,
-        nat_enabled: payload.natEnabled,
-        description: payload.description,
-        is_enabled: payload.isEnabled,
-      },
-      { headers: { "X-Organization-Id": orgId } },
-    );
+    const { data } = await api.put<BackendVlan>(`/vlans/${id}`, {
+      vlan_id: payload.vlanId,
+      name: payload.name,
+      gateway_ip_address: payload.gatewayIpAddress,
+      cidr: payload.cidr,
+      interface: payload.interface,
+      port_mode: payload.portMode,
+      confirm_takes_port: payload.confirmTakesPort,
+      enable_hotspot: payload.enableHotspot,
+      nat_enabled: payload.natEnabled,
+      description: payload.description,
+      is_enabled: payload.isEnabled,
+    });
     return toVlan(data);
   },
 
   async remove(id: string): Promise<void> {
-    const orgId = await resolveOrganizationId();
-    await api.delete(`/vlans/${id}`, {
-      headers: { "X-Organization-Id": orgId },
-    });
+    await api.delete(`/vlans/${id}`);
   },
 
   /**
@@ -214,10 +189,9 @@ export const vlanService = {
    */
   async listDeviceInterfaces(routerId: string): Promise<VlanDeviceInterface[]> {
     if (isDemo()) return [];
-    const orgId = await resolveOrganizationId();
     const { data } = await api.get<{ interfaces: BackendDeviceInterface[] }>(
       "/vlans/device-interfaces",
-      { params: { router_id: routerId }, headers: { "X-Organization-Id": orgId } },
+      { params: { router_id: routerId } },
     );
     return data.interfaces.map((i) => ({
       name: i.name,
@@ -245,10 +219,7 @@ export const vlanService = {
    * this method as a success.
    */
   async push(id: string): Promise<Vlan> {
-    const orgId = await resolveOrganizationId();
-    const { data } = await api.post<BackendVlan>(`/vlans/${id}/push`, undefined, {
-      headers: { "X-Organization-Id": orgId },
-    });
+    const { data } = await api.post<BackendVlan>(`/vlans/${id}/push`);
     return toVlan(data);
   },
 };

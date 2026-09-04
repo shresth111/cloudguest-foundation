@@ -31,7 +31,6 @@ export interface QosListQuery {
   routerId?: string;
   page: number;
   pageSize: number;
-  organizationId?: string;
 }
 
 export interface QosListResult {
@@ -51,7 +50,6 @@ export interface CreateQosRulePayload {
   dscpValue?: number | null;
   priority?: number;
   isEnabled?: boolean;
-  organizationId?: string;
 }
 
 export interface UpdateQosRulePayload {

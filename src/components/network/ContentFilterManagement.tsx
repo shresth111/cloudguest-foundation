@@ -66,7 +66,7 @@ import {
 } from "@/hooks/useContentFilter";
 import { routerService } from "@/services/router.service";
 import { isDemo, resolveOrgId } from "@/services/customer.service";
-import { useIsDemo } from "@/hooks/useCustomerDashboard";
+import { partialCountHint } from "@/components/network/list-kpis";
 import type { AppError } from "@/services/api";
 import {
   CONTENT_FILTER_CATEGORY_LABELS,
@@ -178,27 +178,22 @@ export function ContentFilterManagement({ locationId }: { locationId?: string } 
   const [creating, setCreating] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<ContentFilterRule | null>(null);
 
-  // useIsDemo(), not isDemo() directly -- see QosManagement's identical
-  // comment: isDemo() resolves differently between the server render pass
-  // and the client's first hydration pass, which throws a real "Hydration
-  // failed" on this page's loading/empty-state text otherwise.
-  const demoFlag = useIsDemo();
-
-  const { data: scopedOrgId } = useQuery({
-    queryKey: ["content-filter", "org-id"],
-    queryFn: resolveOrgId,
-    enabled: !!locationId && !demoFlag,
+  // No org id is resolved or threaded here, and this query has no `enabled`
+  // gate. The endpoint still scopes on X-Organization-Id, but
+  // `attachOrganizationHeader` (services/api.ts) attaches it to every request
+  // an organization-scoped session makes, and attaches nothing for a
+  // GLOBAL-scope one -- so the unscoped /network view still spans every org.
+  //
+  // This used to gate on a `scopedOrgId` query whose result went into the
+  // React Query key, which cost every read on the page a second request: the
+  // gate was already open on the first render (useIsDemo starts true, by
+  // design, for hydration), so the query fired with `organizationId:
+  // undefined`; the id then resolved, the key changed, and it all refetched.
+  const { data, isLoading } = useContentFilterRules({
+    page: locationId ? 1 : page,
+    pageSize: locationId ? 100 : PAGE_SIZE,
+    routerId: routerFilter === "all" ? undefined : routerFilter,
   });
-
-  const { data, isLoading } = useContentFilterRules(
-    {
-      page: locationId ? 1 : page,
-      pageSize: locationId ? 100 : PAGE_SIZE,
-      routerId: routerFilter === "all" ? undefined : routerFilter,
-      organizationId: locationId ? scopedOrgId : undefined,
-    },
-    { enabled: locationId ? demoFlag || !!scopedOrgId : true },
-  );
   const del = useDeleteContentFilterRule();
   const push = usePushContentFilterRule();
 
@@ -212,7 +207,7 @@ export function ContentFilterManagement({ locationId }: { locationId?: string } 
    * which arrives here as a 4xx naming that rather than a false success. */
   function handlePush(rule: ContentFilterRule) {
     push.mutate(
-      { id: rule.id, organizationId: locationId ? scopedOrgId : undefined },
+      { id: rule.id },
       {
         onSuccess: () => toast.success(`${rule.name} applied to the router`),
         onError: (err) =>
@@ -256,6 +251,10 @@ export function ContentFilterManagement({ locationId }: { locationId?: string } 
     : (data?.totalPages ?? 1);
   const hasNext = locationId ? page < totalPages : !!data?.hasNext;
   const hasPrevious = locationId ? page > 1 : !!data?.hasPrevious;
+  // Tiles come from the list response above, never a second request --
+  // see components/network/list-kpis.ts for what the hint is admitting to.
+  const statHint = partialCountHint(data?.rows.length ?? 0, data?.total ?? 0);
+  const totalHint = locationId ? statHint : undefined;
   const enabledCount = filteredRows.filter((r) => r.isEnabled).length;
   const domainCount = filteredRows.filter((r) => r.valueType === "domain").length;
 
@@ -274,9 +273,21 @@ export function ContentFilterManagement({ locationId }: { locationId?: string } 
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Total Rules" value={total} icon={Ban} tone="primary" />
-        <StatCard label="Enabled" value={enabledCount} icon={ShieldCheck} tone="success" />
-        <StatCard label="Blocked domains" value={domainCount} icon={Globe2} tone="info" />
+        <StatCard label="Total Rules" value={total} hint={totalHint} icon={Ban} tone="primary" />
+        <StatCard
+          label="Enabled"
+          value={enabledCount}
+          hint={statHint}
+          icon={ShieldCheck}
+          tone="success"
+        />
+        <StatCard
+          label="Blocked domains"
+          value={domainCount}
+          hint={statHint}
+          icon={Globe2}
+          tone="info"
+        />
       </div>
 
       <Card className="border-0 shadow-sm">
@@ -442,7 +453,6 @@ export function ContentFilterManagement({ locationId }: { locationId?: string } 
         open={creating || !!editing}
         rule={editing}
         routers={routers.rows}
-        organizationId={locationId ? scopedOrgId : undefined}
         onClose={() => {
           setCreating(false);
           setEditing(null);
@@ -466,10 +476,7 @@ export function ContentFilterManagement({ locationId }: { locationId?: string } 
               onClick={async () => {
                 if (!confirmDelete) return;
                 try {
-                  await del.mutateAsync({
-                    id: confirmDelete.id,
-                    organizationId: locationId ? scopedOrgId : undefined,
-                  });
+                  await del.mutateAsync({ id: confirmDelete.id });
                   toast.success(`"${confirmDelete.name}" unblocked`);
                 } catch (err) {
                   toast.error((err as AppError).message || "Failed to delete rule");
@@ -490,13 +497,11 @@ function RuleDialog({
   open,
   rule,
   routers,
-  organizationId,
   onClose,
 }: {
   open: boolean;
   rule: ContentFilterRule | null;
   routers: { id: string; name: string }[];
-  organizationId?: string;
   onClose: () => void;
 }) {
   const create = useCreateContentFilterRule();
@@ -555,10 +560,10 @@ function RuleDialog({
     };
     try {
       if (rule) {
-        await update.mutateAsync({ id: rule.id, payload, organizationId });
+        await update.mutateAsync({ id: rule.id, payload });
         toast.success("Rule updated");
       } else {
-        await create.mutateAsync({ routerId: v.routerId, ...payload, organizationId });
+        await create.mutateAsync({ routerId: v.routerId, ...payload });
         toast.success(`"${v.name}" blocked`);
       }
       close();

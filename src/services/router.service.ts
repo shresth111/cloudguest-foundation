@@ -606,7 +606,11 @@ export const routerService = {
     return data;
   },
 
-  async getDeviceInterfaces(routerId: string, organizationId?: string): Promise<DeviceInterface[]> {
+  // No `organizationId` argument: `attachOrganizationHeader` (services/api.ts)
+  // supplies X-Organization-Id for every organization-scoped session, and its
+  // one caller (DhcpManagement's pool dialog) used to have to resolve that id
+  // first -- which is what put it in a React Query key and refetched.
+  async getDeviceInterfaces(routerId: string): Promise<DeviceInterface[]> {
     interface BackendDeviceInterface {
       name: string;
       type: string | null;
@@ -617,7 +621,6 @@ export const routerService = {
     }
     const { data } = await api.get<{ interfaces: BackendDeviceInterface[] }>(
       `/routers/${routerId}/device-interfaces`,
-      organizationId ? { headers: { "X-Organization-Id": organizationId } } : {},
     );
     return data.interfaces.map((i) => ({
       name: i.name,

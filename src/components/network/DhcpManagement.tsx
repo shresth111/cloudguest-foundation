@@ -68,7 +68,7 @@ import {
 } from "@/hooks/useDhcp";
 import { routerService } from "@/services/router.service";
 import { isDemo, resolveOrgId } from "@/services/customer.service";
-import { useIsDemo } from "@/hooks/useCustomerDashboard";
+import { partialCountHint } from "@/components/network/list-kpis";
 import type { AppError } from "@/services/api";
 import type { DhcpPool, DhcpDevicePushStatus } from "@/types/dhcp";
 
@@ -232,53 +232,34 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
   const [creating, setCreating] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<DhcpPool | null>(null);
 
-  // useIsDemo(), not isDemo() directly, for anything that feeds a hook's
-  // `enabled` (i.e. affects the very first render's query state): isDemo()
-  // reads localStorage synchronously, so it resolves differently during
-  // the server render pass (no window -> false) than during the client's
-  // first hydration pass (real token -> true) -- react-query's isLoading
-  // for that instant differs right along with it (a real "Hydration
-  // failed" on this page's "Loading…"/"No pools match your filters" text,
-  // not just a flash). useIsDemo() instead starts at the same value on
-  // both sides and only flips post-mount, same fix as AlertsView/
-  // BusinessHoursView elsewhere in this session.
-  const demoFlag = useIsDemo();
-
-  // `list_pools`/etc. resolve their tenant scope from CurrentOrganization
-  // (X-Organization-Id) -- an ordinary org-owner session holds no
-  // GLOBAL-scope fallback, so the location-scoped (customer dashboard) case
-  // must resolve and thread its real org id. The master console's
-  // unscoped view deliberately leaves it unset (spans every org).
-  // Demo mode never needs a real org id (dhcpService.list()/DEMO_ROUTERS
-  // below both short-circuit on isDemo() before touching it) -- resolving
-  // it anyway meant the demo account's DHCP page always fired one real,
-  // 401ing `/me/organizations` request on load for a value nothing used.
-  const { data: scopedOrgId } = useQuery({
-    queryKey: ["dhcp", "org-id"],
-    queryFn: resolveOrgId,
-    enabled: !!locationId && !demoFlag,
-  });
-
+  // No org id is resolved or threaded here, and this query has no `enabled`
+  // gate. The endpoint still scopes on X-Organization-Id, but
+  // `attachOrganizationHeader` (services/api.ts) attaches it to every request
+  // an organization-scoped session makes, and attaches nothing for a
+  // GLOBAL-scope one -- so the unscoped /network view still spans every org.
+  //
+  // This used to gate on a `scopedOrgId` query whose result went into the
+  // React Query key, which cost every read on the page a second request: the
+  // gate was already open on the first render (useIsDemo starts true, by
+  // design, for hydration), so the query fired with `organizationId:
+  // undefined`; the id then resolved, the key changed, and it all refetched.
+  //
   // The backend's `GET /dhcp-pools` only filters by `router_id`, not
   // location -- so a location-scoped view (the customer dashboard's DHCP
   // Pool page) fetches one full (up to max page_size) page and narrows +
   // paginates it client-side below, same tradeoff `routerService.list`
   // already makes for its own "all routers" case.
-  const { data, isLoading } = useDhcpPools(
-    {
-      page: locationId ? 1 : page,
-      pageSize: locationId ? 100 : PAGE_SIZE,
-      routerId: routerFilter === "all" ? undefined : routerFilter,
-      organizationId: locationId ? scopedOrgId : undefined,
-    },
-    { enabled: locationId ? demoFlag || !!scopedOrgId : true },
-  );
+  const { data, isLoading } = useDhcpPools({
+    page: locationId ? 1 : page,
+    pageSize: locationId ? 100 : PAGE_SIZE,
+    routerId: routerFilter === "all" ? undefined : routerFilter,
+  });
   const del = useDeleteDhcpPool();
   const push = usePushDhcpPool();
 
   function handlePush(pool: DhcpPool) {
     push.mutate(
-      { id: pool.id, organizationId: locationId ? scopedOrgId : undefined },
+      { id: pool.id },
       {
         onSuccess: () => toast.success(`${pool.name} applied to the router`),
         onError: (err) =>
@@ -331,7 +312,13 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
     : (data?.totalPages ?? 1);
   const hasNext = locationId ? page < totalPages : !!data?.hasNext;
   const hasPrevious = locationId ? page > 1 : !!data?.hasPrevious;
-  const enabledCount = rows.filter((p) => p.isEnabled).length;
+  // Tiles come from the list response above, never a second request -- and
+  // they count every row this page holds, not just the 25 currently on
+  // screen, which is what "Enabled" used to do while "Total Pools" counted
+  // all of them. See components/network/list-kpis.ts for the hint.
+  const enabledCount = filteredRows.filter((p) => p.isEnabled).length;
+  const statHint = partialCountHint(data?.rows.length ?? 0, data?.total ?? 0);
+  const totalHint = locationId ? statHint : undefined;
 
   return (
     <div className="space-y-6">
@@ -358,11 +345,18 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Total Pools" value={total} icon={Share2} tone="primary" />
-        <StatCard label="Enabled" value={enabledCount} icon={ShieldCheck} tone="success" />
+        <StatCard label="Total Pools" value={total} hint={totalHint} icon={Share2} tone="primary" />
+        <StatCard
+          label="Enabled"
+          value={enabledCount}
+          hint={statHint}
+          icon={ShieldCheck}
+          tone="success"
+        />
         <StatCard
           label="Disabled"
-          value={rows.length - enabledCount}
+          value={filteredRows.length - enabledCount}
+          hint={statHint}
           icon={ShieldOff}
           tone="warning"
         />
@@ -534,7 +528,6 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
         open={creating || !!editing}
         pool={editing}
         routers={routers.rows}
-        organizationId={locationId ? scopedOrgId : undefined}
         onClose={() => {
           setCreating(false);
           setEditing(null);
@@ -556,10 +549,7 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
               onClick={async () => {
                 if (!confirmDelete) return;
                 try {
-                  await del.mutateAsync({
-                    id: confirmDelete.id,
-                    organizationId: locationId ? scopedOrgId : undefined,
-                  });
+                  await del.mutateAsync({ id: confirmDelete.id });
                   toast.success(`Pool ${confirmDelete.name} deleted`);
                 } catch (err) {
                   toast.error((err as AppError).message || "Failed to delete pool");
@@ -580,13 +570,11 @@ function DhcpDialog({
   open,
   pool,
   routers,
-  organizationId,
   onClose,
 }: {
   open: boolean;
   pool: DhcpPool | null;
   routers: { id: string; name: string }[];
-  organizationId?: string;
   onClose: () => void;
 }) {
   const create = useCreateDhcpPool();
@@ -623,8 +611,8 @@ function DhcpDialog({
     isLoading: interfacesLoading,
     isError: interfacesErrored,
   } = useQuery({
-    queryKey: ["dhcp", "device-interfaces", selectedRouterId, organizationId],
-    queryFn: () => routerService.getDeviceInterfaces(selectedRouterId, organizationId),
+    queryKey: ["dhcp", "device-interfaces", selectedRouterId],
+    queryFn: () => routerService.getDeviceInterfaces(selectedRouterId),
     enabled: !!selectedRouterId,
     staleTime: 15_000,
   });
@@ -662,10 +650,10 @@ function DhcpDialog({
         isEnabled: v.isEnabled,
       };
       if (pool) {
-        await update.mutateAsync({ id: pool.id, payload: shared, organizationId });
+        await update.mutateAsync({ id: pool.id, payload: shared });
         toast.success("DHCP pool updated");
       } else {
-        await create.mutateAsync({ routerId: v.routerId, ...shared, organizationId });
+        await create.mutateAsync({ routerId: v.routerId, ...shared });
         toast.success("DHCP pool created");
       }
       close();

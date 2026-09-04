@@ -106,9 +106,3 @@ export interface UpdateVlanPayload {
   description?: string | null;
   isEnabled?: boolean;
 }
-
-export interface VlanKpis {
-  total: number;
-  enabled: number;
-  disabled: number;
-}

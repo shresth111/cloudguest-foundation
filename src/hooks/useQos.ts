@@ -24,15 +24,8 @@ export function useCreateQosRule() {
 export function useUpdateQosRule() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      id,
-      payload,
-      organizationId,
-    }: {
-      id: string;
-      payload: UpdateQosRulePayload;
-      organizationId?: string;
-    }) => qosService.update(id, payload, organizationId),
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateQosRulePayload }) =>
+      qosService.update(id, payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["qos", "list"] }),
   });
 }
@@ -40,8 +33,7 @@ export function useUpdateQosRule() {
 export function useDeleteQosRule() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, organizationId }: { id: string; organizationId?: string }) =>
-      qosService.remove(id, organizationId),
+    mutationFn: ({ id }: { id: string }) => qosService.remove(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["qos", "list"] }),
   });
 }
@@ -49,8 +41,7 @@ export function useDeleteQosRule() {
 export function usePushQosRule() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, organizationId }: { id: string; organizationId?: string }) =>
-      qosService.push(id, organizationId),
+    mutationFn: ({ id }: { id: string }) => qosService.push(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["qos", "list"] }),
   });
 }

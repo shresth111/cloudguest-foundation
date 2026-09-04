@@ -4,7 +4,6 @@ import type { CreateVlanPayload, UpdateVlanPayload, VlanListQuery } from "@/type
 
 export const vlanKeys = {
   list: (q: VlanListQuery) => ["vlan", "list", q] as const,
-  kpis: ["vlan", "kpis"] as const,
   deviceInterfaces: (routerId: string) => ["vlan", "device-interfaces", routerId] as const,
 };
 
@@ -31,17 +30,11 @@ export const useVlanDeviceInterfaces = (routerId: string) =>
     staleTime: 15_000,
   });
 
-export const useVlanKpis = () =>
-  useQuery({ queryKey: vlanKeys.kpis, queryFn: vlanService.getKpis });
-
 export function useCreateVlan() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: CreateVlanPayload) => vlanService.create(payload),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["vlan", "list"] });
-      qc.invalidateQueries({ queryKey: vlanKeys.kpis });
-    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["vlan", "list"] }),
   });
 }
 
@@ -52,10 +45,7 @@ export function usePushVlan() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => vlanService.push(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["vlan", "list"] });
-      qc.invalidateQueries({ queryKey: vlanKeys.kpis });
-    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["vlan", "list"] }),
   });
 }
 
@@ -64,10 +54,7 @@ export function useUpdateVlan() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: UpdateVlanPayload }) =>
       vlanService.update(id, payload),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["vlan", "list"] });
-      qc.invalidateQueries({ queryKey: vlanKeys.kpis });
-    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["vlan", "list"] }),
   });
 }
 
@@ -75,9 +62,6 @@ export function useDeleteVlan() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => vlanService.remove(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["vlan", "list"] });
-      qc.invalidateQueries({ queryKey: vlanKeys.kpis });
-    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["vlan", "list"] }),
   });
 }
