@@ -3161,6 +3161,16 @@ const KNOWN_MENUS = new Set([
   "/ip route",
   "/ip service",
   "/radius",
+  // The RFC 5176 Change-of-Authorization listener -- a SINGLETON settings
+  // object, not a table, so it is `set` with no `find` in front of it (see
+  // the RADIUS chunk's own comment for why that is correct here and not an
+  // unguarded write). Added deliberately, per this check's own instruction.
+  // Not verified by this author on hardware, but on stronger evidence than
+  // a second text renderer would be: `wyfy_device_gateway.mikrotik_adapter
+  // ._set_radius_client_config_sync` drives this exact menu over the
+  // STRUCTURED RouterOS API (`api.path("radius", "incoming").update(...)`),
+  // which a device rejects outright if the path does not exist.
+  "/radius incoming",
   // RouterOS 7 only. A route may not enter a routing table that has not
   // been declared here first, and on v6 this menu does not exist at all --
   // which is one of the things the generator's own version banner warns

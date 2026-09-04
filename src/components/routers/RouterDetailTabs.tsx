@@ -1951,6 +1951,19 @@ const WIREGUARD_LEGACY_INTERFACE_NAME = "wg-cloudguest";
  * tunnel's own rows, and as `cloudguest-portal*` on the walled garden. */
 const RADIUS_MARKER = "cloudguest-radius";
 
+/** The UDP port this router is told to LISTEN on for RADIUS
+ * Change-of-Authorization and Disconnect-Request packets (RFC 5176).
+ *
+ * NOT RouterOS's own default of 1700: 3799 is the IANA-assigned port, and
+ * it is the port the platform actually sends to. The same number is a
+ * named constant on both of the other two writers of this setting --
+ * `RADIUS_COA_PORT` in the backend's `network_config/renderers.py` and the
+ * literal in `wyfy_device_gateway.mikrotik_adapter.set_radius_client_config`
+ * -- so a router configured by any of the three routes ends up listening
+ * on the same port the platform talks to. Finding 3799 on a device is
+ * evidence this platform wrote it. */
+const RADIUS_COA_PORT = 3799;
+
 /** How many times the "WAN Routing" chunk asks a DHCP WAN for its gateway
  * before giving up, and how long it waits between attempts. Written out as
  * an unrolled ladder rather than a `:for` loop because a loop cannot
@@ -7459,9 +7472,61 @@ export function buildRouterSetupScriptChunks(opts: {
       //     far too aggressive for a WireGuard-tunnelled path. Every router
       //     provisioned before `timeout=3s` was added kept 300ms forever.
       //   - `address=` -- a hub that moves could never be followed.
+      //   - `authentication-port=`/`accounting-port=` -- see below.
       // Re-writing a field that already matches costs a healthy re-paste
       // nothing, which is the whole argument for writing all of them.
-      `:if ([:len [/radius find where comment="${RADIUS_MARKER}"]] > 0) do={ /radius set [find where comment="${RADIUS_MARKER}"] service=hotspot address="${radius.serverAddress}" secret="${escapeForRouterOsString(radius.sharedSecret)}" src-address=${radius.srcAddress} timeout=3s disabled=no }`,
+      //
+      // THE PORTS ARE WRITTEN EXPLICITLY EVEN THOUGH THEY ARE THE DEFAULTS.
+      // `service=hotspot` already defaults `authentication-port=1812` and
+      // `accounting-port=1813` onto a NEW entry (confirmed live on RouterOS
+      // 7.21.5 by the backend's own renderer, whose `RADIUS_AUTH_PORT`/
+      // `RADIUS_ACCT_PORT` these mirror), so on the `add` above they change
+      // nothing. They exist for the ADOPT path: the first line of this trio
+      // takes over an entry that was already sitting at the hub's address
+      // without this generator's marker, and an entry this generator did not
+      // create can carry anything -- 1645/1646 was the de-facto pair before
+      // 1812/1813 and is still what some hand-built configs use. Adopting
+      // such a row and then converging every field EXCEPT its ports leaves a
+      // router talking to the right hub, with the right secret, from the
+      // right source address, on ports nothing is listening on. That fails
+      // the same way everything else in this chunk fails: no error, no log,
+      // just Access-Requests that are never answered.
+      `:if ([:len [/radius find where comment="${RADIUS_MARKER}"]] > 0) do={ /radius set [find where comment="${RADIUS_MARKER}"] service=hotspot address="${radius.serverAddress}" secret="${escapeForRouterOsString(radius.sharedSecret)}" src-address=${radius.srcAddress} authentication-port=1812 accounting-port=1813 timeout=3s disabled=no }`,
+      // OPEN THE DOOR THE PLATFORM ALREADY KNOCKS ON. Everything above
+      // registers this router so it can ASK the hub a question
+      // (Access-Request) and be answered. This line is the other
+      // direction: the hub telling an already-authenticated session to
+      // change or end, unprompted -- RADIUS Change-of-Authorization and
+      // Disconnect-Request, RFC 5176. RouterOS does not listen for those
+      // unless it is told to, and "not listening" on a UDP port is not an
+      // error anyone sees: the packet arrives, nothing is bound, it is
+      // dropped, and the sender is never told.
+      //
+      // `app/domains/guest/radius_coa.py` builds and sends those packets
+      // for real, which is what "Block guest" and "End session" on the
+      // customer dashboard actually do. Without this line those two
+      // buttons report success, write the intended state server-side, and
+      // change NOTHING on the router -- the blocked guest keeps browsing
+      // until their session times out on its own. The backend's
+      // `render_radius_client` and the gateway's
+      // `set_radius_client_config` have both always emitted it; this
+      // generator never did, so a router provisioned ONLY from this paste
+      // script (the normal path for a new site) was deaf to CoA while
+      // looking completely correct -- `/radius` populated, guests logging
+      // in, dashboard green.
+      //
+      // NO `find` GUARD, DELIBERATELY -- and that is not the oversight it
+      // looks like next to every other line in this chunk. `/radius
+      // incoming` is a SINGLETON settings object, router-global rather
+      // than one row per registered server (which is also why it is
+      // emitted unconditionally here rather than once per `/radius`
+      // entry). There is nothing to count and nothing to duplicate: `set`
+      // on it is a plain property write, so a re-paste is a no-op, not a
+      // second listener. A `[:len [... find ...]] = 0` guard around it
+      // would not be defensive, it would be a `find` against a menu that
+      // enumerates nothing -- the silent-empty-match shape this file is
+      // full of warnings about.
+      `/radius incoming set accept=yes port=${RADIUS_COA_PORT}`,
       // COUNT-GATED, not a bare `set [find ...]`. The read-back below already
       // reports a missing hsprof1, but reporting is not the same as not doing
       // it: an ungated `set` against an empty match returns success, so the
