@@ -31,7 +31,8 @@
     "test:nas-rotation-scope": "node scripts/test-nas-secret-rotation-scope.mjs",
     "test:fetch-count": "node scripts/test-network-page-fetch-count.mjs",
     "format": "prettier --write .",
-    "measure:portal-contrast": "node scripts/measure-portal-contrast.mjs"
+    "measure:portal-contrast": "node scripts/measure-portal-contrast.mjs",
+    "test:isp-single-flight": "node scripts/test-isp-links-single-flight.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

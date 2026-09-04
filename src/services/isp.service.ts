@@ -268,22 +268,56 @@ function toIspRoutingRule(r: BackendIspRoutingRule): IspRoutingRule {
   };
 }
 
+async function fetchLinks(q: IspLinkListQuery): Promise<IspLinkListResult> {
+  const orgId = await resolveOrganizationId();
+  const { data } = await api.get<BackendIspLinkListResponse>("/isp/links", {
+    params: { router_id: q.routerId, page: q.page, page_size: q.pageSize },
+    headers: q.locationId
+      ? { "X-Organization-Id": orgId, "X-Location-Id": q.locationId }
+      : { "X-Organization-Id": orgId },
+  });
+  return {
+    rows: data.items.map(toIspLink),
+    total: data.total_items,
+    totalPages: data.total_pages,
+    hasNext: data.has_next,
+    hasPrevious: data.has_previous,
+  };
+}
+
+/** Requests currently in flight, keyed by the exact query they encode.
+ *
+ * The customer dashboard mounts `useWanSummary` and `useBandwidthSeries`
+ * side by side, and each runs its own effect issuing a byte-identical
+ * `listLinks({ page: 1, pageSize: 100, locationId })`. Both hooks
+ * deliberately fetch independently -- their own comments defend that, so
+ * one card keeps working if the other's shape changes -- and neither goes
+ * through React Query, so nothing deduplicates them. The result was two
+ * identical `GET /isp/links` on every dashboard load, which is what a live
+ * network capture showed.
+ *
+ * This shares the *in-flight* promise only, never a settled result. Two
+ * callers that ask at the same moment get one request; a caller that asks
+ * later gets a fresh one. So the independence the hooks rely on is intact
+ * and there is no cache to go stale -- the same single-flight shape
+ * `services/organization-id.ts` already uses for `/me/organizations`.
+ */
+const linksInFlight = new Map<string, Promise<IspLinkListResult>>();
+
 export const ispService = {
-  async listLinks(q: IspLinkListQuery): Promise<IspLinkListResult> {
-    const orgId = await resolveOrganizationId();
-    const { data } = await api.get<BackendIspLinkListResponse>("/isp/links", {
-      params: { router_id: q.routerId, page: q.page, page_size: q.pageSize },
-      headers: q.locationId
-        ? { "X-Organization-Id": orgId, "X-Location-Id": q.locationId }
-        : { "X-Organization-Id": orgId },
+  listLinks(q: IspLinkListQuery): Promise<IspLinkListResult> {
+    // Every field the request actually varies on. `routerId`/`locationId`
+    // are `undefined` for the unscoped operator view, which must not
+    // collide with a location-scoped read.
+    const key = JSON.stringify([q.routerId, q.locationId, q.page, q.pageSize]);
+    const existing = linksInFlight.get(key);
+    if (existing) return existing;
+
+    const request = fetchLinks(q).finally(() => {
+      linksInFlight.delete(key);
     });
-    return {
-      rows: data.items.map(toIspLink),
-      total: data.total_items,
-      totalPages: data.total_pages,
-      hasNext: data.has_next,
-      hasPrevious: data.has_previous,
-    };
+    linksInFlight.set(key, request);
+    return request;
   },
 
   async createLink(payload: CreateIspLinkPayload): Promise<IspLink> {
