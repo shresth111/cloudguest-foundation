@@ -24,16 +24,23 @@ import type { AppError } from "@/services/api";
  * How old the newest recorded check may be before this board stops presenting
  * itself as a current picture.
  *
- * There is nothing arbitrary to tune here against a schedule, because there is
- * no schedule: `GET /monitoring/health` is a pure read of the stored
- * `service_health` table (MonitoringService.get_dashboard_summary), and the
- * ONLY thing that ever writes that table is `POST /monitoring/health/run` --
- * the "Run health checks now" button below. No Celery beat entry, no cron, no
- * sweep task calls run_all_health_checks. So every row is exactly as old as
- * the last time a human clicked that button, and an hour is already long
- * enough that "currently healthy" is a claim this page cannot support.
+ * `GET /monitoring/health` is still a pure read of the stored
+ * `service_health` table (MonitoringService.get_dashboard_summary) -- it
+ * probes nothing. What changed is who writes that table: alongside the "Run
+ * health checks now" button below, a Beat-scheduled sweep now calls
+ * `run_all_health_checks` every five minutes (cloud-guest
+ * `HEALTH_CHECK_SWEEP_INTERVAL_SECONDS`). Before that existed, every row was
+ * exactly as old as the last time a human clicked, and this board was found
+ * showing two-day-old statuses while describing itself as live.
+ *
+ * So the threshold now means something specific: at six times the sweep
+ * interval, the sweep has missed roughly five consecutive runs. That is not
+ * "nobody clicked lately" any more -- it is Beat, the worker, or the sweep
+ * itself being down, which is worth saying out loud on a reliability page.
+ * Kept generous on purpose: a threshold near the interval would fire on one
+ * slow run and train people to ignore it.
  */
-const HEALTH_STALE_AFTER_MS = 60 * 60_000;
+const HEALTH_STALE_AFTER_MS = 30 * 60_000;
 
 /** The newest `lastCheckedAt` across every component, or null if nothing has
  * ever been checked. The board's age is the freshest row's age -- a single
@@ -166,8 +173,9 @@ export function HealthDashboard() {
                   ? "These components have never been checked."
                   : `Last checked ${relativeTime(new Date(newest).toISOString())}.`}
               </span>{" "}
-              Health checks only run when someone runs them -- nothing refreshes this board on a
-              schedule -- so the statuses below describe that moment, not right now.
+              A sweep should refresh this every five minutes, so a gap this long means the scheduled
+              run is not happening -- not that the components below are fine. The statuses describe
+              when they were last checked, not right now.
             </p>
           </div>
         );
