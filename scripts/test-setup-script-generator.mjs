@@ -1169,6 +1169,45 @@ const pasteables = [];
   }
 }
 
+/** Top-level statements, brace- and string-aware: a `;` inside a
+ * `do={ ... }` body belongs to that body, not to the line. The unit a
+ * "was this guarded" question is about is the whole `:if (...) do={ ... }`,
+ * so splitting naively on `;` would report every guarded set as bare. */
+const topLevelStatements = (script) => {
+  const out = [];
+  for (const rawLine of script.split("\n")) {
+    if (rawLine.trimStart().startsWith("#")) continue;
+    let depth = 0;
+    let inStr = false;
+    let cur = "";
+    for (let i = 0; i < rawLine.length; i++) {
+      const c = rawLine[i];
+      if (inStr) {
+        cur += c;
+        if (c === "\\") {
+          cur += rawLine[++i] ?? "";
+        } else if (c === '"') inStr = false;
+        continue;
+      }
+      if (c === '"') {
+        inStr = true;
+        cur += c;
+        continue;
+      }
+      if (c === "{") depth++;
+      else if (c === "}") depth--;
+      else if (c === ";" && depth === 0) {
+        if (cur.trim()) out.push(cur.trim());
+        cur = "";
+        continue;
+      }
+      cur += c;
+    }
+    if (cur.trim()) out.push(cur.trim());
+  }
+  return out;
+};
+
 // ==============================================================// 1. THE CONSOLE-SCOPE GUARD
 // =====================================================================
 // Identical rule to `test-output-analyser.mjs` and
@@ -5442,6 +5481,378 @@ for (const [variant, script] of FULL_SCRIPTS) {
 }
 
 // ---------------------------------------------------------------------
+// 13.1b `hsprof1` IS CREATED IN ONE PLACE, AND ONLY WHERE `login-by` IS
+//       DECIDED.
+// ---------------------------------------------------------------------
+// 13.1 above counts `set`s. That is the whole of the rule it was written
+// for and it was not the whole of the property, which is how the next
+// instance of the same defect sat in this generator for months without
+// this section going red.
+//
+// THE DEFECT. The RADIUS chunk carried its own self-heal:
+//
+//   :if ([:len [/ip hotspot profile find where name="hsprof1"]] = 0) \
+//     do={ /ip hotspot profile add name="hsprof1" hotspot-address=... \
+//          html-directory=hotspot dns-name="wifi.wyfyguest.com" }
+//
+// -- copied from the Hotspot chunk, for the case where the operator has
+// not pasted the Hotspot chunk yet, so this chunk's own `set`s would have
+// something to land on. In the Hotspot chunk that `add` is correct because
+// the ONE `set login-by=$hsLoginBy` in this whole file follows it three
+// lines later. In the RADIUS chunk nothing followed it, and RouterOS gives
+// a profile born with no explicit `login-by` its own default,
+// `cookie,http-chap` -- the value the Hotspot chunk's own comment records
+// as rejecting every guest login, confirmed live in Haldwani. So in
+// exactly the one scenario the self-heal existed for, it produced a router
+// with `/radius` written, `use-radius=yes` applied, the RADIUS chunk's own
+// verdict printing `RESULT: PASS`, and no guest able to log in at all.
+//
+// A CREATION IS A WRITE. That is the sentence 13.1 was missing. `add` with
+// no `login-by=` decides `login-by` just as surely as `set login-by=`
+// does; it simply delegates the decision to MikroTik's factory default,
+// which is the one value this platform cannot use. So the invariant is not
+// "one `set` per property" alone -- it is that a profile can never come
+// into existence anywhere `login-by` is not decided about it.
+//
+// WHY THE OBVIOUS REPAIR IS THE FORBIDDEN ONE, recorded because it is the
+// first thing anyone will try. Appending `login-by=http-pap` to that `add`
+// fixes today's symptom and creates a second place in the file with an
+// opinion about this property -- which is precisely what
+// `HOTSPOT_LOGIN_BY`'s docstring exists to forbid, and what 13.1 fails the
+// build over. (It would even have SLIPPED PAST 13.1, whose `HOTSPOT_SET`
+// regex reads `set` and not `add`; the rule would have been broken in
+// spirit while the guard stayed green.) The fix is the other direction:
+// the RADIUS chunk no longer creates the profile at all, so `hsprof1` is
+// brought into being in exactly one place, on the same handful of lines
+// that decide `login-by` for it.
+//
+// GRADED BY MODELLING THE DEVICE, NOT BY GREPPING THE SOURCE. A grep for
+// `login-by` in the RADIUS chunk passes on the words in this very
+// paragraph if they are ever pasted into the generator as a comment --
+// which is literally how the sibling CoA defect survived. What follows
+// builds the script an operator gets when the Hotspot chunk never ran,
+// runs it against a tiny model of the one RouterOS object in question, and
+// asks the guest-facing question directly: could anybody log in.
+
+console.log("\n-- hsprof1 is created in one place, and only where login-by is decided --");
+
+/** RouterOS's own default for a `/ip hotspot profile` created without an
+ * explicit `login-by`. Not a value this generator ever writes -- it is
+ * what the DEVICE supplies when nobody writes one, and modelling it is
+ * the whole point: the defect was invisible precisely because it lived in
+ * a value no line of the script contains. */
+const ROUTEROS_DEFAULT_LOGIN_BY = "cookie,http-chap";
+
+/** A deliberately tiny model of `hsprof1` -- existence, and the properties
+ * written to it -- run over real generated statements.
+ *
+ * DELIBERATE LIMITS, so nobody mistakes this for a RouterOS interpreter.
+ * It resolves only `:local name "literal"` bindings (the `$hsLoginBy`
+ * shape), and only evaluates guards that count `hsprof1` itself; anything
+ * else runs. It does NOT model the `hsBound` certificate upgrade, because
+ * 13.1 already pins that logic line by line and a second, worse model of
+ * it here would just be somewhere for the two to disagree. What it does
+ * model is the one thing no other check in this file does: that an `add`
+ * without `login-by=` leaves the device holding a value the script never
+ * mentions. */
+const simulateHsprof1 = (script) => {
+  let profile = null;
+  for (const rawLine of script.split("\n")) {
+    if (rawLine.trimStart().startsWith("#")) continue;
+    // Bound PER ENTERED LINE, because that is the scope RouterOS's console
+    // gives a `:local` -- the same fact section 1 exists to police.
+    const literals = new Map(
+      [...rawLine.matchAll(/:local\s+(\w+)\s+"([^"]*)"/g)].map((m) => [m[1], m[2]]),
+    );
+    const hsCounted = new Set(
+      [
+        ...rawLine.matchAll(
+          /:local\s+(\w+)\s+\[:len\s*\[\/ip hotspot profile find where\s+name="hsprof1"\]\]/g,
+        ),
+      ].map((m) => m[1]),
+    );
+    for (const stmt of topLevelStatements(rawLine)) {
+      const guard = stmt.match(/:if\s*\(([\s\S]*?)\)\s*do=\{/);
+      if (guard) {
+        const cond = guard[1];
+        const countsHsprof1 =
+          /\[:len\s*\[\/ip hotspot profile find where\s+name="hsprof1"\]\]/.test(cond) ||
+          [...hsCounted].some((n) => new RegExp(`\\$${n}\\b`).test(cond));
+        if (countsHsprof1) {
+          if (/=\s*0/.test(cond) && profile !== null) continue;
+          if (/>\s*0/.test(cond) && profile === null) continue;
+        }
+      }
+      const add = stmt.match(/\/ip hotspot profile add\s+([^;}]*)/);
+      if (add) {
+        const props = Object.fromEntries(
+          [...add[1].matchAll(/([a-z][a-z0-9-]*)=("[^"]*"|\S+)/g)].map((m) => [
+            m[1],
+            m[2].replace(/^"|"$/g, ""),
+          ]),
+        );
+        if (props.name !== "hsprof1") continue;
+        // THE LINE THAT MODELS THE DEFECT. Absent an explicit `login-by=`,
+        // the object exists on the device carrying MikroTik's default.
+        profile = { "login-by": ROUTEROS_DEFAULT_LOGIN_BY, ...props };
+        continue;
+      }
+      const set = stmt.match(/\/ip hotspot profile set\s+\[find[^\]]*\]([^;}]*)/);
+      if (set && profile !== null) {
+        for (const m of set[1].matchAll(/([a-z][a-z0-9-]*)=("[^"]*"|\S+)/g)) {
+          const raw = m[2].replace(/^"|"$/g, "");
+          profile[m[1]] = raw.startsWith("$") ? (literals.get(raw.slice(1)) ?? raw) : raw;
+        }
+      }
+    }
+  }
+  return profile;
+};
+
+/** The guest-facing question, asked of the modelled device: given what is
+ * on `hsprof1` now, can anybody sign in? RouterOS's `login-by` is an
+ * unordered set, so this asks whether `http-pap` is IN it rather than
+ * whether it equals anything -- the external-portal form POST is satisfied
+ * by that one method and by nothing else in the list. */
+const rejectsEveryLogin = (profile) =>
+  profile !== null && !/(^|,)http-pap(,|$)/.test(profile["login-by"] ?? "");
+
+const FULL_CHUNK_SETS = VARIANTS.map(([variant, opts]) => [
+  variant,
+  buildRouterSetupScriptChunks(opts),
+]);
+
+/** The label the generator gives the chunk that owns `hsprof1`, and the
+ * label the RADIUS chunk prints at an operator who has to go and find it.
+ * Spelled here once so the "names a chunk that exists" check below cannot
+ * pass by comparing a typo to itself. */
+const HOTSPOT_CHUNK_LABEL = "Hotspot";
+
+check(
+  "13.1b: the hotspot chunk this section is about is really in every full script",
+  FULL_CHUNK_SETS.every(([, chunks]) =>
+    chunks.some(
+      (c) => c.label === HOTSPOT_CHUNK_LABEL || /^Hotspot -- NOT GENERATED/.test(c.label),
+    ),
+  ),
+  "no chunk matched either hotspot label, so every check below is grading a script that " +
+    "does not contain the subject -- the vacuous-pass shape this file has shipped six times",
+);
+
+for (const [variant, chunks] of FULL_CHUNK_SETS) {
+  const creators = chunks.filter((c) => /\/ip hotspot profile add\b/.test(c.script));
+  check(
+    `${variant}: only the ${HOTSPOT_CHUNK_LABEL} chunk creates hsprof1`,
+    creators.every((c) => c.label === HOTSPOT_CHUNK_LABEL),
+    `${creators.map((c) => c.label).join(", ")} creates a hotspot profile. Creation is a write ` +
+      `of login-by -- an add with no login-by= hands the decision to RouterOS's default, ` +
+      `${ROUTEROS_DEFAULT_LOGIN_BY}, which rejects every guest login while the router looks ` +
+      `provisioned. Only the chunk that sets login-by may create the object it applies to`,
+  );
+
+  // THE SCENARIO THE SELF-HEAL EXISTED FOR, built rather than described:
+  // every chunk the operator pastes EXCEPT the one that owns the profile.
+  const withoutHotspot = chunks
+    .filter((c) => !/^Hotspot\b/.test(c.label))
+    .map((c) => c.script)
+    .join("\n");
+  const strandedProfile = simulateHsprof1(withoutHotspot);
+  check(
+    `${variant}: with the ${HOTSPOT_CHUNK_LABEL} chunk never pasted, no profile rejects every login`,
+    !rejectsEveryLogin(strandedProfile),
+    `the rest of the script left hsprof1 on login-by=${strandedProfile?.["login-by"]}. That is ` +
+      `a router that answers RADIUS, prints RESULT: PASS and signs nobody in -- the exact ` +
+      `state the RADIUS chunk's self-heal add used to produce. Either create it where ` +
+      `login-by is decided, or do not create it`,
+  );
+
+  // ...AND THE WHOLE SCRIPT STILL STANDS ONE UP. Half of the property is
+  // "no bad profile"; deleting the creation everywhere would satisfy that
+  // and ship a router with no hotspot at all.
+  const full = chunks.map((c) => c.script).join("\n");
+  const hotspotRefused = /HOTSPOT \+ DHCP: NOTHING WAS GENERATED/.test(full);
+  if (!hotspotRefused) {
+    const provisioned = simulateHsprof1(full);
+    check(
+      `${variant}: the complete script still leaves hsprof1 able to sign guests in`,
+      provisioned !== null && !rejectsEveryLogin(provisioned),
+      `after the whole script the model holds ${JSON.stringify(provisioned)}. A generator that ` +
+        `stopped creating the profile anywhere would pass the check above and ship a venue ` +
+        `with no hotspot`,
+    );
+  }
+}
+
+// THE REFUSAL HAS TO BE ACTIONABLE. A chunk that declines to create the
+// profile and says nothing leaves the operator with a FAIL and no next
+// step, which is a worse outcome than the broken profile: at least the
+// broken profile could be diagnosed. Graded on the text RouterOS actually
+// PRINTS -- the `:put` and `:log` message bodies -- not on the chunk
+// source, because a comment saying "tell them to paste the Hotspot chunk"
+// satisfies a source grep and reaches no one.
+{
+  const radiusChunks = FULL_CHUNK_SETS.flatMap(([variant, chunks]) =>
+    chunks.filter((c) => c.label === "RADIUS").map((c) => [variant, c]),
+  );
+  check(
+    "13.1b: there are RADIUS chunks to grade the refusal on",
+    radiusChunks.length > 0,
+    "no variant produced a RADIUS chunk, so the refusal checks below assert nothing",
+  );
+  const printed = (script) =>
+    [
+      ...script.matchAll(/:put\s+"((?:[^"\\]|\\.)*)"/g),
+      ...script.matchAll(/:log\s+\w+\s+"((?:[^"\\]|\\.)*)"/g),
+    ]
+      .map((m) => m[1])
+      .join("\n");
+
+  for (const [variant, chunk] of radiusChunks) {
+    const say = printed(chunk.script);
+    check(
+      `${variant}: the RADIUS chunk creates no hotspot profile`,
+      !/\/ip hotspot profile add\b/.test(chunk.script),
+      "the self-heal add is back. It cannot set login-by without becoming the second writer " +
+        "HOTSPOT_LOGIN_BY forbids, and it cannot omit it without shipping cookie,http-chap",
+    );
+    check(
+      `${variant}: ...and tells the operator, on screen, exactly which chunk to run`,
+      /hsprof1/.test(say) && /WHAT TO RUN/.test(say),
+      `the messages this chunk prints are: ${JSON.stringify(say)}. Refusing is only acceptable ` +
+        `because the refusal names the next step; without it the operator sees a FAIL about an ` +
+        `object they have never heard of`,
+    );
+    check(
+      `${variant}: ...naming a chunk that is really in this script, or the reason there isn't one`,
+      new RegExp(`\\b${HOTSPOT_CHUNK_LABEL} chunk\\b`).test(say),
+      `nothing the chunk prints names the "${HOTSPOT_CHUNK_LABEL}" chunk. An instruction ` +
+        `pointing at a chunk label the operator cannot find in their list is the same dead end ` +
+        `as no instruction at all`,
+    );
+    check(
+      `${variant}: ...and logs it, for an operator reading /log after the fact`,
+      /:log warning "cloudguest-radius: hsprof1 missing/.test(chunk.script),
+      "console output scrolls away and an /import prints hundreds of lines; every other " +
+        "refusal in this generator lands in the log as well as on screen",
+    );
+  }
+
+  // The one variant whose Hotspot chunk refuses to generate AT ALL must
+  // not be told to paste it -- that chunk's entire body is a FAIL message,
+  // so the instruction would be a dead end dressed up as a fix. Built by
+  // calling the generator with the LAN prefix that produces the refusal,
+  // beside a RADIUS registration, which is a combination no variant in the
+  // matrix above happens to cover.
+  const unusableLan = buildRouterSetupScriptChunks({
+    ...BASE,
+    wans: [DHCP_WAN],
+    lanIp: "192.168.10.1",
+    lanCidr: "31",
+    wireguard: WG,
+    radius: { serverAddress: "10.20.0.1", sharedSecret: "s3cr3t", srcAddress: "10.20.0.5" },
+  });
+  const refusedHotspot = unusableLan.find((c) => /^Hotspot -- NOT GENERATED/.test(c.label));
+  const radiusOnUnusableLan = unusableLan.find((c) => c.label === "RADIUS");
+  check(
+    "13.1b: the unusable-LAN fixture really produces both a refused hotspot and a RADIUS chunk",
+    Boolean(refusedHotspot) && Boolean(radiusOnUnusableLan),
+    "the fixture stopped covering the case it was built for, so the two checks below pass by " +
+      "never running",
+  );
+  check(
+    "13.1b: an unusable LAN prefix creates no hotspot profile anywhere in the script",
+    !unusableLan.some((c) => /\/ip hotspot profile add\b/.test(c.script)),
+    "the Hotspot chunk refuses to emit a pool, a DHCP server or a hotspot for this LAN -- a " +
+      "profile created behind its back by another chunk is the half-provisioned state 13.1's " +
+      "refusal check exists to forbid, and it would be a profile nothing ever sets login-by on",
+  );
+  check(
+    "13.1b: ...and the RADIUS chunk sends the operator to Master console, not to a refusing chunk",
+    /Fix the LAN IP \/ LAN CIDR fields in Master console/.test(radiusOnUnusableLan.script) &&
+      !/paste the Hotspot chunk from this same script/.test(radiusOnUnusableLan.script),
+    "this script contains no chunk that can create hsprof1, so 'paste the Hotspot chunk' " +
+      "points at a chunk whose whole body is a FAIL message. The remedy here is upstream of " +
+      "the router and has to be the one the refusing chunk itself prints",
+  );
+}
+
+// INJECTED -- the model must be able to convict and to acquit, proven on
+// fixtures rather than on the generator being broken first. Without these
+// a simulator that returned `null` for everything would pass every check
+// above, which is the "guard that cannot fail" shape this file has shipped
+// six times.
+{
+  const SELF_HEAL_AS_IT_SHIPPED =
+    `:if ([:len [/ip hotspot profile find where name="hsprof1"]] = 0) do={ /ip hotspot profile add name="hsprof1" hotspot-address=10.5.50.1 html-directory=hotspot dns-name="wifi.wyfyguest.com" }\n` +
+    `:local rdUseProf [:len [/ip hotspot profile find where name="hsprof1"]]; :if ($rdUseProf > 0) do={ /ip hotspot profile set [find name="hsprof1"] use-radius=yes radius-accounting=yes }`;
+  const shipped = simulateHsprof1(SELF_HEAL_AS_IT_SHIPPED);
+  check(
+    "INJECTED: the model convicts the self-heal exactly as it shipped",
+    shipped !== null &&
+      shipped["login-by"] === ROUTEROS_DEFAULT_LOGIN_BY &&
+      rejectsEveryLogin(shipped),
+    `the model made ${JSON.stringify(shipped)} of the real defect. If it cannot see this line ` +
+      `as a login-by decision, the whole subsection is decoration`,
+  );
+  check(
+    "INJECTED: ...and convicts the 'obvious' repair's evil twin, an explicit chap value",
+    rejectsEveryLogin(
+      simulateHsprof1(
+        `/ip hotspot profile add name="hsprof1" login-by=cookie,http-chap html-directory=hotspot`,
+      ),
+    ),
+    "a spelled-out default is the same device state as an omitted one and must convict the same",
+  );
+  check(
+    "INJECTED: the model acquits an add whose chunk decides login-by",
+    !rejectsEveryLogin(
+      simulateHsprof1(
+        `:if ([:len [/ip hotspot profile find where name="hsprof1"]] = 0) do={ /ip hotspot profile add name="hsprof1" hotspot-address=10.5.50.1 html-directory=hotspot dns-name="wifi.wyfyguest.com" }\n` +
+          `:local hsLoginBy "http-pap"; :if ([:len [/ip hotspot profile find where name="hsprof1"]] > 0) do={ /ip hotspot profile set [find name="hsprof1"] login-by=$hsLoginBy }`,
+      ),
+    ),
+    "an over-strict model that convicts the CORRECT shape gets deleted by the next person -- " +
+      "and note this is the Hotspot chunk's real spelling, `$hsLoginBy` resolved off the same " +
+      "entered line, not a literal",
+  );
+  check(
+    "INJECTED: ...and keeps http-pap inside a list, since login-by is an unordered set",
+    !rejectsEveryLogin(
+      simulateHsprof1(`/ip hotspot profile add name="hsprof1" login-by=https,http-pap`),
+    ) &&
+      !rejectsEveryLogin(
+        simulateHsprof1(`/ip hotspot profile add name="hsprof1" login-by=http-pap,https`),
+      ),
+    "a substring or equality test would read one ordering as fine and the other as broken; " +
+      "13.1 owns whether https belongs there at all, this only asks whether anyone can log in",
+  );
+  check(
+    "INJECTED: ...and does not invent a profile out of a chunk that never creates one",
+    simulateHsprof1(
+      `:local rdProfPre [:len [/ip hotspot profile find where name="hsprof1"]]; :if ($rdProfPre = 0) do={ :put "  FAIL -- no hotspot profile named hsprof1 exists on this router." }\n` +
+        `:local rdUseProf [:len [/ip hotspot profile find where name="hsprof1"]]; :if ($rdUseProf > 0) do={ /ip hotspot profile set [find name="hsprof1"] use-radius=yes }`,
+    ) === null,
+    "the fixed RADIUS chunk's own shape must model as 'no profile', or the check that the " +
+      "stranded script leaves none passes for the wrong reason",
+  );
+  check(
+    "INJECTED: ...and respects the add-if-missing guard rather than creating twice",
+    simulateHsprof1(
+      `/ip hotspot profile add name="hsprof1" login-by=http-pap\n` +
+        `:if ([:len [/ip hotspot profile find where name="hsprof1"]] = 0) do={ /ip hotspot profile add name="hsprof1" html-directory=hotspot }`,
+    )["login-by"] === "http-pap",
+    "a model blind to the `= 0` guard would let the second, login-by-less add overwrite the " +
+      "first and convict a script that is actually correct on a real device",
+  );
+  check(
+    "INJECTED: ...and ignores a profile that is not hsprof1",
+    simulateHsprof1(`/ip hotspot profile add name="other" html-directory=hotspot`) === null,
+    "a model that grabbed any profile would convict a script for an object this rule says " +
+      "nothing about",
+  );
+}
+
+// ---------------------------------------------------------------------
 // 13.2 NO CERTIFICATE THIS SCRIPT SIGNED ITSELF EVER FACES A GUEST.
 // ---------------------------------------------------------------------
 // Stated as the RELATIONSHIP, not as a ban on either half. Importing a
@@ -7365,44 +7776,12 @@ for (const r of MENU_REJECTS) {
 // above and the chunk's next line binds and prints `lanBrN` -- and it is
 // narrow enough that it cannot swallow the class.
 
-/** Top-level statements, brace- and string-aware: a `;` inside a
- * `do={ ... }` body belongs to that body, not to the line. The unit a
- * "was this guarded" question is about is the whole `:if (...) do={ ... }`,
- * so splitting naively on `;` would report every guarded set as bare. */
-const topLevelStatements = (script) => {
-  const out = [];
-  for (const rawLine of script.split("\n")) {
-    if (rawLine.trimStart().startsWith("#")) continue;
-    let depth = 0;
-    let inStr = false;
-    let cur = "";
-    for (let i = 0; i < rawLine.length; i++) {
-      const c = rawLine[i];
-      if (inStr) {
-        cur += c;
-        if (c === "\\") {
-          cur += rawLine[++i] ?? "";
-        } else if (c === '"') inStr = false;
-        continue;
-      }
-      if (c === '"') {
-        inStr = true;
-        cur += c;
-        continue;
-      }
-      if (c === "{") depth++;
-      else if (c === "}") depth--;
-      else if (c === ";" && depth === 0) {
-        if (cur.trim()) out.push(cur.trim());
-        cur = "";
-        continue;
-      }
-      cur += c;
-    }
-    if (cur.trim()) out.push(cur.trim());
-  }
-  return out;
-};
+// `topLevelStatements` -- the brace- and string-aware statement splitter
+// this sweep is built on -- is defined once, up beside `pasteables`, so
+// that 13.1b's device model and this section share ONE parser. A second
+// private copy is the exact shape the comment on `HOTSPOT_SET` warns
+// about: a self-check that keeps its own regex cannot see the sweep it is
+// supposed to be checking being mutated.
 
 /** Every `<menu> set [find ...]` in a statement, with the menu it targets. */
 const SET_FIND = /(\/[a-z][a-z0-9-]*(?:\s+[a-z][a-z0-9-]*)*?)\s+set\s+\[find\b/g;

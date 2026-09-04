@@ -1802,6 +1802,46 @@ const HOTSPOT_DNS_NAME = "wifi.wyfyguest.com";
  * is a one-line edit; adding a second writer anywhere fails the build. */
 const HOTSPOT_LOGIN_BY = "http-pap";
 
+/** The label of the ONE chunk allowed to bring `hsprof1` into existence,
+ * and the name the RADIUS chunk tells the operator to go and paste.
+ *
+ * **THE SECOND HALF OF THE SINGLE-WRITER RULE, learned the hard way a
+ * second time.** `HOTSPOT_LOGIN_BY` above stopped two chunks from `set`ting
+ * `login-by`. It did not stop a second chunk from CREATING the profile --
+ * and creation is a write of `login-by` too, just an invisible one.
+ * RouterOS gives a profile born without an explicit `login-by` its own
+ * default, `cookie,http-chap`, and the Hotspot chunk's comment on its
+ * `login-by=` line already records what that costs, confirmed live in
+ * Haldwani: CHAP needs a challenge/response the guest-facing login page
+ * never fetches, so the NAS rejects every login no matter how correct the
+ * credentials are.
+ *
+ * The RADIUS chunk used to carry its own `/ip hotspot profile add
+ * name="hsprof1" ...` as a self-heal for "the Hotspot chunk has not been
+ * pasted yet". Its `add` was copied from the Hotspot chunk's, which is
+ * correct THERE because a `set login-by=$hsLoginBy` follows it three lines
+ * later; copied into a chunk with no such `set`, it created a profile in
+ * exactly the state the rest of this file documents as broken. In the one
+ * scenario that self-heal existed for, it produced a router that looks
+ * provisioned -- `/radius` written, `use-radius=yes` applied, the chunk's
+ * own verdict printing `RESULT: PASS` -- and rejects every guest login.
+ *
+ * The obvious repair (append `login-by=` to that `add`) is the one thing
+ * `HOTSPOT_LOGIN_BY`'s docstring forbids: a second place in this file that
+ * decides this property, which is the shape that shipped untrusted TLS to
+ * every guest. So the self-heal is gone instead. `hsprof1` is created in
+ * exactly one place, by the chunk named here, a few lines above the ONE
+ * `set` that decides `login-by` -- so there is no code path anywhere that
+ * can bring this profile into being without that decision being made about
+ * it in the same breath.
+ *
+ * Refusing is only acceptable because the refusal is ACTIONABLE: the RADIUS
+ * chunk names this label on the console, on screen, at the top of its own
+ * output. That is why the label is a constant rather than a string typed
+ * twice -- an instruction that names a chunk the operator cannot find in
+ * their chunk list is the same dead end as no instruction at all. */
+const HOTSPOT_CHUNK_LABEL = "Hotspot";
+
 /** The stable RouterOS certificate name that `/opt/wyfy/renew-hotspot-certs.sh`
  * binds on a router after pushing the fleet's real Let's Encrypt certificate
  * (SANs: `wifi.wyfyguest.com`, `portal.wyfyguest.com`, `*.portal.wyfyguest.com`).
@@ -6665,7 +6705,11 @@ export function buildRouterSetupScriptChunks(opts: {
         `:if ($hsProf > 0) do={ :put ("  Hotspot default profile: idle-timeout=" . [:tostr [/ip hotspot user profile get [find where name="default"] idle-timeout]] . " shared-users=" . [:tostr [/ip hotspot user profile get [find where name="default"] shared-users]]) }`,
       ].join("; "),
     ];
-    chunks.push({ label: "Hotspot", script: lines.join("\n") });
+    // Labelled from `HOTSPOT_CHUNK_LABEL` rather than a literal because the
+    // RADIUS chunk PRINTS this label at an operator who has to go and find
+    // this chunk in their list. Renaming it here and nowhere else would
+    // leave that instruction pointing at a chunk that no longer exists.
+    chunks.push({ label: HOTSPOT_CHUNK_LABEL, script: lines.join("\n") });
   }
 
   // ===================================================================
@@ -7386,18 +7430,76 @@ export function buildRouterSetupScriptChunks(opts: {
   }
 
   if (radius) {
+    // THE ONE SENTENCE THIS CHUNK PRINTS WHEN IT REFUSES, and the reason it
+    // is computed here rather than spelled inline: the honest instruction
+    // depends on whether THIS script even contains a chunk that creates
+    // `hsprof1`. On a router with an unusable LAN address/prefix pair the
+    // Hotspot chunk refuses to emit anything at all (`lan.ok === false`, see
+    // its own REFUSE, LOUDLY comment), so "paste the Hotspot chunk" would
+    // send the operator to a chunk whose entire body is a FAIL message --
+    // a dead end dressed up as a fix, which is worse than the silence this
+    // whole change is removing. In that case the real remedy is upstream of
+    // the router entirely, and it is the same one the refusing chunk itself
+    // prints, word for word.
+    const hotspotRemedy = lan.ok
+      ? `WHAT TO RUN: paste the ${HOTSPOT_CHUNK_LABEL} chunk from this same script, confirm its RESULT: PASS, then re-paste this chunk.`
+      : `WHAT TO RUN: this script has NO chunk that creates hsprof1 -- the ${HOTSPOT_CHUNK_LABEL} chunk was not generated because the LAN address/CIDR cannot describe a usable subnet. Fix the LAN IP / LAN CIDR fields in Master console, re-generate, and paste the new Hotspot chunk before this one.`;
     const lines = [
-      // `hsprof1` is normally created by the "Hotspot" chunk above, but
-      // this chunk's own `/ip hotspot profile set [find name="hsprof1"]
-      // ...` below silently no-ops (RouterOS's `set` on an empty `find`
-      // touches nothing and reports no error) if that hasn't run yet --
-      // confirmed by inspection, not just theory: there's no on-device
-      // signal at all that RADIUS never actually got wired up. Self-heal
-      // with the same minimal `hsprof1` shape the "Hotspot" chunk itself
-      // creates (see that chunk's own `/ip hotspot profile add` line) so
-      // the `set` below always has something real to land on, regardless
-      // of paste order.
-      `:if ([:len [/ip hotspot profile find where name="hsprof1"]] = 0) do={ /ip hotspot profile add name="hsprof1" hotspot-address=${lanIp} html-directory=hotspot dns-name="${HOTSPOT_DNS_NAME}" }`,
+      // REFUSE TO CREATE `hsprof1`, AND SAY WHERE IT COMES FROM INSTEAD.
+      //
+      // This line used to be a self-heal: `:if ([:len [find]] = 0) do={ /ip
+      // hotspot profile add name="hsprof1" hotspot-address=... html-directory=
+      // hotspot dns-name="..." }`, copied from the Hotspot chunk so that the
+      // `set`s below always had something to land on regardless of paste
+      // order. The copy dropped the half that matters. In the Hotspot chunk
+      // that `add` is followed, three lines later, by the ONE `set` in this
+      // file that decides `login-by`; here there was no such `set`, so the
+      // profile it created kept RouterOS's own default, `cookie,http-chap`
+      // -- which the Hotspot chunk's own comment records as rejecting every
+      // guest login, confirmed live in Haldwani. The self-heal therefore
+      // produced, in precisely the scenario it existed for, a router with a
+      // `/radius` entry, `use-radius=yes`, this chunk's verdict printing
+      // `RESULT: PASS`, and not one guest able to log in.
+      //
+      // Appending `login-by=` here is the repair that suggests itself and it
+      // is the one `HOTSPOT_LOGIN_BY`'s docstring forbids: a second place in
+      // this file with an opinion about this property is the exact shape
+      // that shipped a self-signed certificate to every guest. Worse, it
+      // would have gone GREEN -- section 13.1's sweep reads `set` and not
+      // `add`, measured, so the rule would have been broken in spirit with
+      // the guard still passing. That is why section 13.1b now exists and
+      // why it grades a model of the device rather than the source text. So
+      // creation moves wholly to the chunk that already owns the decision,
+      // and this chunk asks instead of assuming.
+      //
+      // WHAT THE OPERATOR LOSES AND WHAT THEY GAIN. They lose a paste-order
+      // convenience that never worked: a profile with no `login-by` is not
+      // a working hotspot that RADIUS is merely missing from, it is a
+      // hotspot that refuses everyone. They gain a chunk that names the
+      // chunk to run, by its exact label, at the top of its own output --
+      // and every `set` below is already count-gated, so refusing costs
+      // nothing except the writes that would have been meaningless anyway.
+      //
+      // NOT AN `:error`. The chunk keeps going and still writes `/radius`:
+      // that entry is correct, idempotent and useful on its own, and under
+      // `/import` an abort here would also take the heartbeat with it --
+      // leaving a router that cannot report itself to Master console, which
+      // is the one failure that turns a re-paste into a site visit. See
+      // section 15.3's ABORT_POLICY for why the aborts this file does have
+      // are a written-down decision rather than a habit. The chunk's own
+      // closing verdict already reads FAIL in this state, because
+      // `use-radius` never landed.
+      [
+        `:local rdProfPre [:len [/ip hotspot profile find where name="hsprof1"]]`,
+        `:if ($rdProfPre > 0) do={ :put ("  Hotspot profile hsprof1: " . [:tostr $rdProfPre] . " -- the RADIUS settings below have something to land on.") }`,
+        `:if ($rdProfPre = 0) do={ :put "  FAIL -- no hotspot profile named hsprof1 exists on this router." }`,
+        `:if ($rdProfPre = 0) do={ :put "  This chunk deliberately does NOT create one. A profile created here would carry" }`,
+        `:if ($rdProfPre = 0) do={ :put "  RouterOS's default login-by (cookie,http-chap), which rejects EVERY guest login" }`,
+        `:if ($rdProfPre = 0) do={ :put "  while the router looks fully provisioned. Only the hotspot chunk sets login-by." }`,
+        `:if ($rdProfPre = 0) do={ :put "  ${hotspotRemedy}" }`,
+        `:if ($rdProfPre = 0) do={ :put "  The /radius entry below is still written -- it is correct on its own and re-pasting is safe." }`,
+        `:if ($rdProfPre = 0) do={ :log warning "cloudguest-radius: hsprof1 missing -- refusing to create it here; ${hotspotRemedy}" }`,
+      ].join("; "),
       // One line, one statement per branch -- the console runs each entered
       // line as its own program, so an `:if`/`else={}` split over five
       // lines cannot be assumed to be one program.
@@ -7537,15 +7639,15 @@ export function buildRouterSetupScriptChunks(opts: {
         `:if ($rdUseProf > 0) do={ /ip hotspot profile set [find name="hsprof1"] use-radius=yes radius-accounting=yes }`,
         `:if ($rdUseProf = 0) do={ :log warning "cloudguest: use-radius not applied -- hsprof1 does not exist" }`,
       ].join("; "),
-      // The self-heal `add` above is supposed to guarantee the `set` on the
-      // line before this one has something to land on. "Supposed to" is
-      // exactly the assumption this file keeps getting caught by: `set
-      // [find ...]` against an empty match succeeds with no error, so if
-      // that `add` did not take (a board where `/ip hotspot profile add`
-      // itself failed, an operator who removed the profile between chunks)
-      // the router ends up with a `/radius` entry configured and a hotspot
-      // that never asks it anything -- guests fail every login and the
-      // console printed nothing at all. Read the count back, both ways.
+      // NOTHING IN THIS CHUNK CREATES `hsprof1` ANY MORE, so the count is
+      // read back at the end as well as at the start. The two reads are not
+      // redundant: the opening one tells the operator what to go and paste
+      // before they have watched twenty lines of RADIUS output scroll past,
+      // and this one is what the machine-readable verdict is computed from.
+      // Between them an operator can still remove the profile in WinBox
+      // mid-paste, and the state that produces -- a `/radius` entry
+      // configured and a hotspot that never asks it anything -- is exactly
+      // the one that used to print nothing at all. Read it back, both ways.
       // READ BACK THE CONTENT, NOT THE PRESENCE. A check that only asked
       // "does a /radius entry exist" would have printed PASS on every router
       // this chunk has ever mis-configured: the entry existed, at the right
@@ -7564,8 +7666,16 @@ export function buildRouterSetupScriptChunks(opts: {
         `:put ("  hsprof1 profiles=" . [:tostr $rdProf] . "   of which use-radius=yes: " . [:tostr $rdUse])`,
         `:if ($rdOk) do={ :put "  RESULT: PASS -- registered, enabled, sourcing from this router's tunnel IP, and the hotspot asks it." }`,
         `:if (!$rdOk) do={ :put "  RESULT: FAIL -- a value above is wrong. No guest will authenticate." }`,
-        `:if ($rdProf = 0) do={ :put "  No hotspot profile named hsprof1 exists: use-radius landed on nothing" }`,
-        `:if ($rdProf = 0) do={ :put "  and RouterOS reported success anyway. Paste the Hotspot chunk, then re-paste this one." }`,
+        // WORDED AS "SKIPPED", NOT "LANDED ON NOTHING". It used to say the
+        // latter, which was already only half true (the `use-radius` write
+        // is count-gated) and is now flatly false: nothing was attempted
+        // against a missing profile, and nothing was created to stand in for
+        // one either. An operator who reads "landed on nothing" goes looking
+        // for a write that failed; the actual next step is a chunk they have
+        // not pasted, so say that instead -- and say it with the same label
+        // the chunk list shows them.
+        `:if ($rdProf = 0) do={ :put "  No hotspot profile named hsprof1 exists, so use-radius was SKIPPED, not applied." }`,
+        `:if ($rdProf = 0) do={ :put "  ${hotspotRemedy}" }`,
         `:if ($rdN = 0) do={ :put "  No enabled /radius entry carries the ${RADIUS_MARKER} marker at ${radius.serverAddress}." }`,
         `:if ($rdSrcNow != "${radius.srcAddress}") do={ :put "  src-address is not this router's tunnel IP, so the hub sees an unknown client:" }`,
         `:if ($rdSrcNow != "${radius.srcAddress}") do={ :put "  the request is dropped with no reply and nothing logged, secret irrelevant." }`,
