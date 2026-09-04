@@ -284,15 +284,14 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
               {!hasRateData ? (
                 hasCounters ? (
                   <EmptyNote>
-                    Port traffic is being measured, but throughput needs two readings to
-                    compare — the next one is due within a few minutes. Its overall health is
-                    below in the meantime.
+                    Port traffic is being measured, but throughput needs two readings to compare —
+                    the next one is due within a few minutes. Its overall health is below in the
+                    meantime.
                   </EmptyNote>
                 ) : (
                   <EmptyNote>
-                    Per-port traffic isn&apos;t being measured for this device, so we can only
-                    show its overall health below. Ask support if you need port-level traffic
-                    here.
+                    Per-port traffic isn&apos;t being measured for this device, so we can only show
+                    its overall health below. Ask support if you need port-level traffic here.
                   </EmptyNote>
                 )
               ) : (
