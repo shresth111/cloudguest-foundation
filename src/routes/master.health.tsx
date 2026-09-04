@@ -32,15 +32,16 @@ function HealthScreen() {
           title="System Health"
           actions={
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              {/* Not "Live dependency checks". GET /monitoring/health reads the
-                  stored service_health table and probes nothing; the only code
-                  that actually checks a dependency is POST
-                  /monitoring/health/run, behind this page's own "Run health
-                  checks now" button, and no scheduled job ever calls it. The
-                  header used to describe what that button does as though it
-                  were what the page continuously shows. */}
-              <Activity className="h-3.5 w-3.5" /> On-demand dependency checks -- API, database,
-              cache
+              {/* Still not "Live". GET /monitoring/health reads the stored
+                  service_health table and probes nothing -- the checks happen
+                  elsewhere, now on a five-minute Beat sweep as well as behind
+                  this page's own "Run health checks now" button. "Checked every
+                  5 minutes" says what a reader actually needs: how stale the
+                  worst case is. It used to say "Live", which described neither
+                  the read nor the schedule, and at the time there was no
+                  schedule at all. */}
+              <Activity className="h-3.5 w-3.5" /> Dependency checks -- API, database, cache --
+              refreshed every 5 minutes
             </p>
           }
         />
