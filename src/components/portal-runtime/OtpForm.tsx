@@ -279,7 +279,14 @@ export function OtpForm(sign: UseGuestSignInReturn) {
           onClick={sign.onChangeNumber}
           className="font-medium text-[var(--pg-ink-muted)] hover:text-[var(--pg-ink)] hover:underline"
         >
-          {t("changeNumberLabel")}
+          {/* The label has to follow the channel. A guest who signed in
+              with an email address was being offered "Change number" --
+              the one control on this screen for fixing a typo in the
+              thing they just typed, naming something they never entered.
+              `otpChannel` is already what decides which field the
+              previous step showed (see the phone/email branch above), so
+              it decides this too. */}
+          {sign.otpChannel === "email" ? t("changeEmailLabel") : t("changeNumberLabel")}
         </button>
       </div>
       <SecurityTip />
