@@ -29,11 +29,6 @@ export interface DhcpPoolListQuery {
   routerId?: string;
   page: number;
   pageSize: number;
-  /** Threaded through as X-Organization-Id for callers that already have
-   * it (the customer dashboard's location-scoped view) -- see
-   * dhcp.service.ts's own comment for why this can't just always be
-   * resolved internally. */
-  organizationId?: string;
 }
 
 export interface DhcpPoolListResult {
@@ -55,7 +50,6 @@ export interface CreateDhcpPoolPayload {
   dnsSecondary?: string | null;
   leaseTimeSeconds?: number;
   isEnabled?: boolean;
-  organizationId?: string;
 }
 
 export interface UpdateDhcpPoolPayload {

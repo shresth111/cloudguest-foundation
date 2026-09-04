@@ -24,8 +24,7 @@ export function useCreateDhcpPool() {
 export function usePushDhcpPool() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, organizationId }: { id: string; organizationId?: string }) =>
-      dhcpService.push(id, organizationId),
+    mutationFn: ({ id }: { id: string }) => dhcpService.push(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["dhcp", "list"] }),
   });
 }
@@ -33,15 +32,8 @@ export function usePushDhcpPool() {
 export function useUpdateDhcpPool() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      id,
-      payload,
-      organizationId,
-    }: {
-      id: string;
-      payload: UpdateDhcpPoolPayload;
-      organizationId?: string;
-    }) => dhcpService.update(id, payload, organizationId),
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateDhcpPoolPayload }) =>
+      dhcpService.update(id, payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["dhcp", "list"] }),
   });
 }
@@ -49,8 +41,7 @@ export function useUpdateDhcpPool() {
 export function useDeleteDhcpPool() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, organizationId }: { id: string; organizationId?: string }) =>
-      dhcpService.remove(id, organizationId),
+    mutationFn: ({ id }: { id: string }) => dhcpService.remove(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["dhcp", "list"] }),
   });
 }

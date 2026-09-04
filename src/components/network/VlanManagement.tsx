@@ -56,9 +56,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { StatCard, SectionHeader } from "@/components/ui-ext";
+import { partialCountHint } from "@/components/network/list-kpis";
 import {
   useVlans,
-  useVlanKpis,
   useCreateVlan,
   useUpdateVlan,
   useDeleteVlan,
@@ -229,7 +229,6 @@ export function VlanManagement({ locationId }: { locationId?: string } = {}) {
     routerId: routerFilter === "all" ? undefined : routerFilter,
     locationId,
   });
-  const { data: kpis } = useVlanKpis();
   const del = useDeleteVlan();
   const push = usePushVlan();
 
@@ -286,6 +285,16 @@ export function VlanManagement({ locationId }: { locationId?: string } = {}) {
     );
   });
 
+  // Tiles come from the list query above rather than a second request, which
+  // also puts them on the same `locationId` the table is scoped to: the old
+  // KPI call passed no location at all, so on a multi-location org "Total
+  // VLANs" counted the whole organization while the rows below it showed one
+  // location. `data.total` is the server's own count for this location and is
+  // exact; enabled/disabled are counted over the page in hand and say so.
+  // See components/network/list-kpis.ts.
+  const enabledCount = rows.filter((v) => v.isEnabled).length;
+  const statHint = partialCountHint(rows.length, data?.total ?? 0);
+
   return (
     <div className="space-y-6">
       {/* Shared with the master console's own /network/vlan route (rendered
@@ -310,9 +319,21 @@ export function VlanManagement({ locationId }: { locationId?: string } = {}) {
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Total VLANs" value={kpis?.total ?? 0} icon={Network} tone="primary" />
-        <StatCard label="Enabled" value={kpis?.enabled ?? 0} icon={ShieldCheck} tone="success" />
-        <StatCard label="Disabled" value={kpis?.disabled ?? 0} icon={ShieldOff} tone="warning" />
+        <StatCard label="Total VLANs" value={data?.total ?? 0} icon={Network} tone="primary" />
+        <StatCard
+          label="Enabled"
+          value={enabledCount}
+          hint={statHint}
+          icon={ShieldCheck}
+          tone="success"
+        />
+        <StatCard
+          label="Disabled"
+          value={rows.length - enabledCount}
+          hint={statHint}
+          icon={ShieldOff}
+          tone="warning"
+        />
       </div>
 
       <Card className="border-0 shadow-sm">

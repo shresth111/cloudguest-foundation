@@ -25,11 +25,15 @@ interface BackendDnsRecord {
 // RequirePermission("dns.*") on every /dns-records route infers scope
 // from the X-Organization-Id header (or falls back to requiring GLOBAL
 // scope, which an ordinary org-owner session never holds) -- without
-// this, every call here 403s for a real customer. Same pattern as
-// dhcp.service.ts's own orgHeaders().
-function orgHeaders(organizationId?: string) {
-  return organizationId ? { headers: { "X-Organization-Id": organizationId } } : {};
-}
+// it, every call here 403s for a real customer.
+// Tenant scope rides on `X-Organization-Id`, which the api client attaches to
+// every request from an organization-scoped session (see
+// `attachOrganizationHeader` in services/api.ts) and deliberately omits for a
+// GLOBAL-scope one, so a master-console view still spans every organization.
+// Nothing here sets that header by hand any more and no method takes an
+// `organizationId`. Do not re-add one: the caller then has to *resolve* the id
+// before it can read, that resolution ends up in the React Query key, and the
+// key changing once it settles fired every read on these pages twice.
 
 interface BackendDnsRecordListResponse {
   items: BackendDnsRecord[];
@@ -61,7 +65,6 @@ export const dnsService = {
   async list(q: DnsRecordListQuery): Promise<DnsRecordListResult> {
     const { data } = await api.get<BackendDnsRecordListResponse>("/dns-records", {
       params: { router_id: q.routerId, page: q.page, page_size: q.pageSize },
-      ...orgHeaders(q.organizationId),
     });
     return {
       rows: data.items.map(toDnsRecord),
@@ -73,43 +76,31 @@ export const dnsService = {
   },
 
   async create(payload: CreateDnsRecordPayload): Promise<DnsRecord> {
-    const { data } = await api.post<BackendDnsRecord>(
-      "/dns-records",
-      {
-        router_id: payload.routerId,
-        name: payload.name,
-        address: payload.address,
-        record_type: payload.recordType ?? "a",
-        ttl_seconds: payload.ttlSeconds,
-        comment: payload.comment,
-        is_enabled: payload.isEnabled ?? true,
-      },
-      orgHeaders(payload.organizationId),
-    );
+    const { data } = await api.post<BackendDnsRecord>("/dns-records", {
+      router_id: payload.routerId,
+      name: payload.name,
+      address: payload.address,
+      record_type: payload.recordType ?? "a",
+      ttl_seconds: payload.ttlSeconds,
+      comment: payload.comment,
+      is_enabled: payload.isEnabled ?? true,
+    });
     return toDnsRecord(data);
   },
 
-  async update(
-    id: string,
-    payload: UpdateDnsRecordPayload,
-    organizationId?: string,
-  ): Promise<DnsRecord> {
-    const { data } = await api.put<BackendDnsRecord>(
-      `/dns-records/${id}`,
-      {
-        name: payload.name,
-        address: payload.address,
-        record_type: payload.recordType,
-        ttl_seconds: payload.ttlSeconds,
-        comment: payload.comment,
-        is_enabled: payload.isEnabled,
-      },
-      orgHeaders(organizationId),
-    );
+  async update(id: string, payload: UpdateDnsRecordPayload): Promise<DnsRecord> {
+    const { data } = await api.put<BackendDnsRecord>(`/dns-records/${id}`, {
+      name: payload.name,
+      address: payload.address,
+      record_type: payload.recordType,
+      ttl_seconds: payload.ttlSeconds,
+      comment: payload.comment,
+      is_enabled: payload.isEnabled,
+    });
     return toDnsRecord(data);
   },
 
-  async remove(id: string, organizationId?: string): Promise<void> {
-    await api.delete(`/dns-records/${id}`, orgHeaders(organizationId));
+  async remove(id: string): Promise<void> {
+    await api.delete(`/dns-records/${id}`);
   },
 };

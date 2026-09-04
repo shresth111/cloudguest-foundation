@@ -2,7 +2,6 @@ import { api } from "@/services/api";
 import { isDemo } from "@/services/customer.service";
 import type {
   CreatePortForwardingPayload,
-  PortForwardingKpis,
   PortForwardingListQuery,
   PortForwardingListResult,
   PortForwardingRule,
@@ -61,21 +60,21 @@ function toRule(r: BackendPortForwardingRule): PortForwardingRule {
   };
 }
 
-function orgHeaders(organizationId?: string) {
-  return organizationId ? { headers: { "X-Organization-Id": organizationId } } : {};
-}
-
 // `create_port_forwarding_rule`/`list_port_forwarding_rules`/etc. all resolve
 // their tenant scope from CurrentOrganization (X-Organization-Id) -- absent
 // it, RequirePermission falls back to checking for a GLOBAL-scope grant,
 // which an ordinary customer/org-owner session never holds, so every call
 // here 403'd for a real customer ("'firewall.read' is required at global
-// scope") -- surfaced as the customer dashboard's Port Forwarding page never
-// having been backend-wired in the first place. `organizationId` is optional
-// and left unset by the master console's platform-wide /network view (which
-// deliberately spans every org), and threaded by the customer dashboard's
-// location-scoped PortForwardingManagement -- same convention as
-// dhcp.service.ts's orgHeaders.
+// scope").
+//
+// Nothing here sets that header any more, and no method takes an
+// `organizationId`: `attachOrganizationHeader` (services/api.ts) puts it on
+// every request from an organization-scoped session, and deliberately puts
+// nothing on a GLOBAL-scope one -- so the master console's platform-wide
+// /network view still spans every org, exactly as when this module threaded
+// the id by hand. Do not re-add it: the caller then has to *resolve* the id
+// before it can read, that resolution lands in the React Query key, and the
+// key changing once it settles fired every read on this page twice.
 export const portForwardingService = {
   async list(q: PortForwardingListQuery): Promise<PortForwardingListResult> {
     // The demo account's token isn't a real backend session -- every call
@@ -89,7 +88,6 @@ export const portForwardingService = {
     }
     const { data } = await api.get<BackendPortForwardingListResponse>("/port-forwarding/rules", {
       params: { router_id: q.routerId, page: q.page, page_size: q.pageSize },
-      ...orgHeaders(q.organizationId),
     });
     return {
       rows: data.items.map(toRule),
@@ -100,67 +98,51 @@ export const portForwardingService = {
     };
   },
 
-  async getKpis(organizationId?: string): Promise<PortForwardingKpis> {
-    if (isDemo()) return { total: 0, enabled: 0, disabled: 0 };
-    // No dedicated stats endpoint -- fetch a large page and compute real
-    // counts client-side, same convention as vlan.service.ts's getKpis.
-    const { data } = await api.get<BackendPortForwardingListResponse>("/port-forwarding/rules", {
-      params: { page: 1, page_size: 100 },
-      ...orgHeaders(organizationId),
-    });
-    const enabled = data.items.filter((r) => r.is_enabled).length;
-    return {
-      total: data.total_items,
-      enabled,
-      disabled: data.items.length - enabled,
-    };
-  },
+  // There is deliberately no getKpis() here any more. It re-issued this
+  // module's own list() URL verbatim (same path, same page_size=100) for a
+  // second time on every page load, and then reported `total_items` --
+  // the true server total -- alongside enabled/disabled counted over at most
+  // the 100 rows it happened to receive, so past 100 rules the three tiles
+  // stopped summing. The page already holds the list; PortForwardingManagement
+  // derives its tiles from that one response and says, on the tile itself,
+  // when the rows it counted do not cover the total. There is no
+  // `is_enabled` filter on GET /port-forwarding/rules (see
+  // app/domains/port_forwarding/router.py) to get an exact count from,
+  // and page_size is capped at 100.
 
   async create(payload: CreatePortForwardingPayload): Promise<PortForwardingRule> {
-    const { data } = await api.post<BackendPortForwardingRule>(
-      "/port-forwarding/rules",
-      {
-        router_id: payload.routerId,
-        name: payload.name,
-        protocol: payload.protocol ?? "both",
-        source_address: payload.sourceAddress ?? null,
-        destination_address: payload.destinationAddress ?? null,
-        destination_port: payload.destinationPort,
-        internal_address: payload.internalAddress,
-        internal_port: payload.internalPort,
-        description: payload.description ?? null,
-        is_enabled: payload.isEnabled ?? true,
-      },
-      orgHeaders(payload.organizationId),
-    );
+    const { data } = await api.post<BackendPortForwardingRule>("/port-forwarding/rules", {
+      router_id: payload.routerId,
+      name: payload.name,
+      protocol: payload.protocol ?? "both",
+      source_address: payload.sourceAddress ?? null,
+      destination_address: payload.destinationAddress ?? null,
+      destination_port: payload.destinationPort,
+      internal_address: payload.internalAddress,
+      internal_port: payload.internalPort,
+      description: payload.description ?? null,
+      is_enabled: payload.isEnabled ?? true,
+    });
     return toRule(data);
   },
 
-  async update(
-    id: string,
-    payload: UpdatePortForwardingPayload,
-    organizationId?: string,
-  ): Promise<PortForwardingRule> {
-    const { data } = await api.put<BackendPortForwardingRule>(
-      `/port-forwarding/rules/${id}`,
-      {
-        name: payload.name,
-        protocol: payload.protocol,
-        source_address: payload.sourceAddress,
-        destination_address: payload.destinationAddress,
-        destination_port: payload.destinationPort,
-        internal_address: payload.internalAddress,
-        internal_port: payload.internalPort,
-        description: payload.description,
-        is_enabled: payload.isEnabled,
-      },
-      orgHeaders(organizationId),
-    );
+  async update(id: string, payload: UpdatePortForwardingPayload): Promise<PortForwardingRule> {
+    const { data } = await api.put<BackendPortForwardingRule>(`/port-forwarding/rules/${id}`, {
+      name: payload.name,
+      protocol: payload.protocol,
+      source_address: payload.sourceAddress,
+      destination_address: payload.destinationAddress,
+      destination_port: payload.destinationPort,
+      internal_address: payload.internalAddress,
+      internal_port: payload.internalPort,
+      description: payload.description,
+      is_enabled: payload.isEnabled,
+    });
     return toRule(data);
   },
 
-  async remove(id: string, organizationId?: string): Promise<void> {
-    await api.delete(`/port-forwarding/rules/${id}`, orgHeaders(organizationId));
+  async remove(id: string): Promise<void> {
+    await api.delete(`/port-forwarding/rules/${id}`);
   },
 
   /**
@@ -188,12 +170,8 @@ export const portForwardingService = {
    * response interceptor discards `success`, so such a response would
    * reach this method as a success.
    */
-  async push(id: string, organizationId?: string): Promise<PortForwardingRule> {
-    const { data } = await api.post<BackendPortForwardingRule>(
-      `/port-forwarding/rules/${id}/push`,
-      undefined,
-      orgHeaders(organizationId),
-    );
+  async push(id: string): Promise<PortForwardingRule> {
+    const { data } = await api.post<BackendPortForwardingRule>(`/port-forwarding/rules/${id}/push`);
     return toRule(data);
   },
 };

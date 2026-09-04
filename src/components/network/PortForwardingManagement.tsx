@@ -60,7 +60,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils";
 import {
   usePortForwardingRules,
-  usePortForwardingKpis,
   useCreatePortForwardingRule,
   useUpdatePortForwardingRule,
   useDeletePortForwardingRule,
@@ -68,7 +67,7 @@ import {
 } from "@/hooks/usePortForwarding";
 import { routerService } from "@/services/router.service";
 import { isDemo, resolveOrgId } from "@/services/customer.service";
-import { useIsDemo } from "@/hooks/useCustomerDashboard";
+import { partialCountHint } from "@/components/network/list-kpis";
 import type { AppError } from "@/services/api";
 import type { PortForwardingDevicePushStatus, PortForwardingRule } from "@/types/port-forwarding";
 
@@ -144,45 +143,28 @@ export function PortForwardingManagement({ locationId }: { locationId?: string }
   const [creating, setCreating] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<PortForwardingRule | null>(null);
 
-  // useIsDemo(), not isDemo() directly, for anything that feeds a hook's
-  // `enabled` -- see DhcpManagement's identical comment: isDemo() resolves
-  // differently between the server render pass and the client's first
-  // hydration pass, which threw a real "Hydration failed" on this page's
-  // loading/empty-state text. useIsDemo() starts at the same value on
-  // both sides and only flips post-mount.
-  const demoFlag = useIsDemo();
-
-  // `list_port_forwarding_rules`/etc. resolve their tenant scope from
-  // CurrentOrganization (X-Organization-Id) -- an ordinary org-owner session
-  // holds no GLOBAL-scope fallback, so the location-scoped (customer
-  // dashboard) case must resolve and thread its real org id. The master
-  // console's unscoped view deliberately leaves it unset (spans every org).
-  // Demo mode never needs a real org id (portForwardingService's list/kpis
-  // and DEMO_ROUTERS below both short-circuit on isDemo() before touching
-  // it) -- resolving it anyway meant the demo account's Port Forwarding
-  // page always fired one real, 401ing `/me/organizations` request on load
-  // for a value nothing used.
-  const { data: scopedOrgId } = useQuery({
-    queryKey: ["port-forwarding", "org-id"],
-    queryFn: resolveOrgId,
-    enabled: !!locationId && !demoFlag,
-  });
-
+  // No org id is resolved or threaded here, and this query has no `enabled`
+  // gate. `list_port_forwarding_rules` still scopes on X-Organization-Id, but
+  // `attachOrganizationHeader` (services/api.ts) attaches it to every request
+  // an organization-scoped session makes, and attaches nothing for a
+  // GLOBAL-scope one -- so the unscoped /network view still spans every org.
+  //
+  // This used to gate on a `scopedOrgId` query and put that id in the React
+  // Query key, which cost every read on this page a second request: `demoFlag`
+  // starts true (useIsDemo is post-mount by design, for hydration), so the
+  // gate was already open on the first render and the query fired with
+  // `organizationId: undefined`; the flag then flipped, the id resolved, the
+  // key changed, and everything refetched. A live capture showed this
+  // endpoint hit four times on one page load.
+  //
   // The backend's `GET /port-forwarding/rules` only filters by `router_id`,
   // not location -- so a location-scoped view (the customer dashboard's Port
   // Forwarding page) fetches one full (up to max page_size) page and narrows
   // + paginates it client-side below, same tradeoff DhcpManagement makes.
-  const { data, isLoading } = usePortForwardingRules(
-    {
-      page: locationId ? 1 : page,
-      pageSize: locationId ? 100 : PAGE_SIZE,
-      routerId: routerFilter === "all" ? undefined : routerFilter,
-      organizationId: locationId ? scopedOrgId : undefined,
-    },
-    { enabled: locationId ? demoFlag || !!scopedOrgId : true },
-  );
-  const { data: kpis } = usePortForwardingKpis(locationId ? scopedOrgId : undefined, {
-    enabled: locationId ? demoFlag || !!scopedOrgId : true,
+  const { data, isLoading } = usePortForwardingRules({
+    page: locationId ? 1 : page,
+    pageSize: locationId ? 100 : PAGE_SIZE,
+    routerId: routerFilter === "all" ? undefined : routerFilter,
   });
   const del = useDeletePortForwardingRule();
   const push = usePushPortForwardingRule();
@@ -196,7 +178,7 @@ export function PortForwardingManagement({ locationId }: { locationId?: string }
    * this `onError` is reachable. */
   function handlePush(rule: PortForwardingRule) {
     push.mutate(
-      { id: rule.id, organizationId: locationId ? scopedOrgId : undefined },
+      { id: rule.id },
       {
         onSuccess: () => toast.success(`${rule.name} applied to the router`),
         onError: (err) =>
@@ -249,14 +231,18 @@ export function PortForwardingManagement({ locationId }: { locationId?: string }
     : (data?.totalPages ?? 1);
   const hasNext = locationId ? page < totalPages : !!data?.hasNext;
   const hasPrevious = locationId ? page > 1 : !!data?.hasPrevious;
-  // The dedicated KPI endpoint isn't location-scoped (same backend gap as
-  // the list endpoint), so a location-scoped view derives its stat tiles
-  // from the already-narrowed filteredRows instead of the org-wide kpis
-  // query -- same tradeoff DhcpManagement makes.
-  const scopedEnabled = filteredRows.filter((r) => r.isEnabled).length;
-  const statTotal = locationId ? total : (kpis?.total ?? 0);
-  const statEnabled = locationId ? scopedEnabled : (kpis?.enabled ?? 0);
-  const statDisabled = locationId ? total - scopedEnabled : (kpis?.disabled ?? 0);
+  // Tiles come from the list response above, never a second request -- see
+  // components/network/list-kpis.ts. The endpoint has no location filter, so
+  // a location-scoped view counts the rows it narrowed itself; either way the
+  // hint says so whenever the loaded rows fall short of the server's total.
+  const statHint = partialCountHint(data?.rows.length ?? 0, data?.total ?? 0);
+  const statTotal = locationId ? total : (data?.total ?? 0);
+  const statEnabled = filteredRows.filter((r) => r.isEnabled).length;
+  const statDisabled = filteredRows.length - statEnabled;
+  // Unscoped, "Total Rules" is the server's own `total_items` and needs no
+  // qualifying; location-scoped it is this page's own narrowing of the rows
+  // that arrived, so it carries the same hint the other two do.
+  const totalHint = locationId ? statHint : undefined;
 
   return (
     <div className="space-y-6">
@@ -273,9 +259,27 @@ export function PortForwardingManagement({ locationId }: { locationId?: string }
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Total Rules" value={statTotal} icon={ArrowRightLeft} tone="primary" />
-        <StatCard label="Enabled" value={statEnabled} icon={ShieldCheck} tone="success" />
-        <StatCard label="Disabled" value={statDisabled} icon={ShieldOff} tone="warning" />
+        <StatCard
+          label="Total Rules"
+          value={statTotal}
+          hint={totalHint}
+          icon={ArrowRightLeft}
+          tone="primary"
+        />
+        <StatCard
+          label="Enabled"
+          value={statEnabled}
+          hint={statHint}
+          icon={ShieldCheck}
+          tone="success"
+        />
+        <StatCard
+          label="Disabled"
+          value={statDisabled}
+          hint={statHint}
+          icon={ShieldOff}
+          tone="warning"
+        />
       </div>
 
       <Card className="border-0 shadow-sm">
@@ -449,7 +453,6 @@ export function PortForwardingManagement({ locationId }: { locationId?: string }
         open={creating || !!editing}
         rule={editing}
         routers={routers.rows}
-        organizationId={locationId ? scopedOrgId : undefined}
         onClose={() => {
           setCreating(false);
           setEditing(null);
@@ -471,10 +474,7 @@ export function PortForwardingManagement({ locationId }: { locationId?: string }
               onClick={async () => {
                 if (!confirmDelete) return;
                 try {
-                  await del.mutateAsync({
-                    id: confirmDelete.id,
-                    organizationId: locationId ? scopedOrgId : undefined,
-                  });
+                  await del.mutateAsync({ id: confirmDelete.id });
                   toast.success(`Rule "${confirmDelete.name}" deleted`);
                 } catch (err) {
                   toast.error((err as AppError).message || "Failed to delete rule");
@@ -495,13 +495,11 @@ function RuleDialog({
   open,
   rule,
   routers,
-  organizationId,
   onClose,
 }: {
   open: boolean;
   rule: PortForwardingRule | null;
   routers: { id: string; name: string }[];
-  organizationId?: string;
   onClose: () => void;
 }) {
   const create = useCreatePortForwardingRule();
@@ -570,7 +568,6 @@ function RuleDialog({
             description: v.description || null,
             isEnabled: v.isEnabled,
           },
-          organizationId,
         });
         toast.success("Rule updated");
       } else {
@@ -585,7 +582,6 @@ function RuleDialog({
           internalPort: v.internalPort,
           description: v.description || null,
           isEnabled: v.isEnabled,
-          organizationId,
         });
         toast.success("Rule created");
       }

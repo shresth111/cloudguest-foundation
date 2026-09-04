@@ -57,7 +57,6 @@ export interface ContentFilterListQuery {
   routerId?: string;
   page: number;
   pageSize: number;
-  organizationId?: string;
 }
 
 export interface ContentFilterListResult {
@@ -76,7 +75,6 @@ export interface CreateContentFilterRulePayload {
   category?: ContentFilterCategory | null;
   comment?: string | null;
   isEnabled?: boolean;
-  organizationId?: string;
 }
 
 export interface UpdateContentFilterRulePayload {

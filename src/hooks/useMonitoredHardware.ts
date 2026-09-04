@@ -18,14 +18,36 @@ import { deviceHardwareService, type MonitoredDeviceRow } from "@/services/devic
 import { isDemo } from "@/services/customer.service";
 import { useDeviceStore, type DeviceType } from "@/stores/deviceStore";
 
+/**
+ * `locationId` has three meanings here, and they are not interchangeable:
+ *
+ *   - omitted (`undefined`) -- deliberately org-wide, every location at once.
+ *     `switch-location.tsx`'s cross-location "N devices down" summary wants
+ *     exactly this, and the backend's `location_id` is optional for it.
+ *   - a real id -- that one location.
+ *   - `""` -- a caller that IS location-scoped but whose id has not resolved
+ *     yet. `switch-location.tsx` computes
+ *     `deviceLocationId || locations?.[0]?.id || ""`, so `AddDeviceDialog`
+ *     (which mounts with the route, open or not) held `""` until the
+ *     locations list landed.
+ *
+ * That third case used to fetch anyway. `location_id` is a `uuid.UUID | None`
+ * on the backend (app/domains/monitored_hardware/router.py) and axios
+ * serialises an empty string as a present-but-empty param -- `null` and
+ * `undefined` it drops -- so the request went out as
+ * `GET /monitored-hardware?location_id=&page_size=200` and came back 422 on
+ * every load of that route, then refetched once the id arrived. Waiting is
+ * the whole fix: an unresolved location has nothing to ask about yet.
+ */
 export function useMonitoredHardware(locationId?: string) {
   const demo = isDemo();
   const demoStore = useDeviceStore();
   const [realDevices, setRealDevices] = useState<MonitoredDeviceRow[]>([]);
+  const pendingLocation = locationId === "";
   const [loading, setLoading] = useState(!demo);
 
   const refetch = useCallback(async () => {
-    if (demo) return;
+    if (demo || pendingLocation) return;
     setLoading(true);
     try {
       setRealDevices(await deviceHardwareService.list(locationId));
@@ -37,7 +59,7 @@ export function useMonitoredHardware(locationId?: string) {
     } finally {
       setLoading(false);
     }
-  }, [demo, locationId]);
+  }, [demo, locationId, pendingLocation]);
 
   useEffect(() => {
     refetch();

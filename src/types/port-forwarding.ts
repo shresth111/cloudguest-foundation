@@ -33,7 +33,6 @@ export interface PortForwardingListQuery {
   routerId?: string;
   page: number;
   pageSize: number;
-  organizationId?: string;
 }
 
 export interface PortForwardingListResult {
@@ -55,7 +54,6 @@ export interface CreatePortForwardingPayload {
   internalPort: number;
   description?: string | null;
   isEnabled?: boolean;
-  organizationId?: string;
 }
 
 export interface UpdatePortForwardingPayload {
@@ -68,10 +66,4 @@ export interface UpdatePortForwardingPayload {
   internalPort?: number;
   description?: string | null;
   isEnabled?: boolean;
-}
-
-export interface PortForwardingKpis {
-  total: number;
-  enabled: number;
-  disabled: number;
 }

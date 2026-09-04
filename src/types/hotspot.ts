@@ -17,7 +17,6 @@ export interface HotspotProfileListQuery {
   routerId?: string;
   page: number;
   pageSize: number;
-  organizationId?: string;
 }
 
 export interface HotspotProfileListResult {
@@ -37,7 +36,6 @@ export interface CreateHotspotProfilePayload {
   downloadLimitKbps?: number | null;
   walledGardenHosts?: string[];
   isEnabled?: boolean;
-  organizationId?: string;
 }
 
 export interface UpdateHotspotProfilePayload {
@@ -48,10 +46,4 @@ export interface UpdateHotspotProfilePayload {
   downloadLimitKbps?: number | null;
   walledGardenHosts?: string[];
   isEnabled?: boolean;
-}
-
-export interface HotspotKpis {
-  total: number;
-  enabled: number;
-  disabled: number;
 }

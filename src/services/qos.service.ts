@@ -58,19 +58,21 @@ function toRule(r: BackendQosRule): QosTrafficRule {
   };
 }
 
-function orgHeaders(organizationId?: string) {
-  return organizationId ? { headers: { "X-Organization-Id": organizationId } } : {};
-}
+// Tenant scope rides on `X-Organization-Id`, which the api client attaches to
+// every request from an organization-scoped session (see
+// `attachOrganizationHeader` in services/api.ts) and deliberately omits for a
+// GLOBAL-scope one, so a master-console view still spans every organization.
+// Nothing here sets that header by hand any more and no method takes an
+// `organizationId`. Do not re-add one: the caller then has to *resolve* the id
+// before it can read, that resolution ends up in the React Query key, and the
+// key changing once it settles fired every read on these pages twice.
 
 // `create_qos_rule`/`list_qos_rules`/etc. all resolve their tenant scope
 // from CurrentOrganization (X-Organization-Id) -- absent it, RequirePermission
 // falls back to checking for a GLOBAL-scope grant, which an ordinary
 // customer/org-owner session never holds, so every call here would 403 for a
-// real customer the same way port-forwarding/dhcp/vlan did before their own
-// orgHeaders fix. `organizationId` is optional and left unset by a future
-// platform-wide master-console view (spans every org), and threaded by the
-// customer dashboard's location-scoped QosManagement -- same convention as
-// dhcp.service.ts/vlan.service.ts/port-forwarding.service.ts's own orgHeaders.
+// real customer the same way port-forwarding/dhcp/vlan did before the
+// request interceptor started supplying that header for everyone.
 export const qosService = {
   async list(q: QosListQuery): Promise<QosListResult> {
     // The demo account's token isn't a real backend session -- every call
@@ -84,7 +86,6 @@ export const qosService = {
     }
     const { data } = await api.get<BackendQosListResponse>("/qos-rules", {
       params: { router_id: q.routerId, page: q.page, page_size: q.pageSize },
-      ...orgHeaders(q.organizationId),
     });
     return {
       rows: data.items.map(toRule),
@@ -96,46 +97,34 @@ export const qosService = {
   },
 
   async create(payload: CreateQosRulePayload): Promise<QosTrafficRule> {
-    const { data } = await api.post<BackendQosRule>(
-      "/qos-rules",
-      {
-        router_id: payload.routerId,
-        name: payload.name,
-        protocol: payload.protocol ?? null,
-        port_range_start: payload.portRangeStart ?? null,
-        port_range_end: payload.portRangeEnd ?? null,
-        dscp_value: payload.dscpValue ?? null,
-        priority: payload.priority ?? 4,
-        is_enabled: payload.isEnabled ?? true,
-      },
-      orgHeaders(payload.organizationId),
-    );
+    const { data } = await api.post<BackendQosRule>("/qos-rules", {
+      router_id: payload.routerId,
+      name: payload.name,
+      protocol: payload.protocol ?? null,
+      port_range_start: payload.portRangeStart ?? null,
+      port_range_end: payload.portRangeEnd ?? null,
+      dscp_value: payload.dscpValue ?? null,
+      priority: payload.priority ?? 4,
+      is_enabled: payload.isEnabled ?? true,
+    });
     return toRule(data);
   },
 
-  async update(
-    id: string,
-    payload: UpdateQosRulePayload,
-    organizationId?: string,
-  ): Promise<QosTrafficRule> {
-    const { data } = await api.put<BackendQosRule>(
-      `/qos-rules/${id}`,
-      {
-        name: payload.name,
-        protocol: payload.protocol,
-        port_range_start: payload.portRangeStart,
-        port_range_end: payload.portRangeEnd,
-        dscp_value: payload.dscpValue,
-        priority: payload.priority,
-        is_enabled: payload.isEnabled,
-      },
-      orgHeaders(organizationId),
-    );
+  async update(id: string, payload: UpdateQosRulePayload): Promise<QosTrafficRule> {
+    const { data } = await api.put<BackendQosRule>(`/qos-rules/${id}`, {
+      name: payload.name,
+      protocol: payload.protocol,
+      port_range_start: payload.portRangeStart,
+      port_range_end: payload.portRangeEnd,
+      dscp_value: payload.dscpValue,
+      priority: payload.priority,
+      is_enabled: payload.isEnabled,
+    });
     return toRule(data);
   },
 
-  async remove(id: string, organizationId?: string): Promise<void> {
-    await api.delete(`/qos-rules/${id}`, orgHeaders(organizationId));
+  async remove(id: string): Promise<void> {
+    await api.delete(`/qos-rules/${id}`);
   },
 
   // Real device push: `POST /qos-rules/{id}/push` creates/updates this
@@ -143,12 +132,8 @@ export const qosService = {
   // hardware, instead of just sitting as a database row. Returns the full
   // rule with its refreshed devicePushStatus/devicePushError so the caller
   // can update its cache without a second round trip.
-  async push(id: string, organizationId?: string): Promise<QosTrafficRule> {
-    const { data } = await api.post<BackendQosRule>(
-      `/qos-rules/${id}/push`,
-      undefined,
-      orgHeaders(organizationId),
-    );
+  async push(id: string): Promise<QosTrafficRule> {
+    const { data } = await api.post<BackendQosRule>(`/qos-rules/${id}/push`);
     return toRule(data);
   },
 };

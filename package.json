@@ -28,6 +28,7 @@
     "test:location-liveness": "node scripts/test-location-liveness.mjs",
     "test:device-health": "node scripts/test-device-health.mjs",
     "test:nas-rotation-scope": "node scripts/test-nas-secret-rotation-scope.mjs",
+    "test:fetch-count": "node scripts/test-network-page-fetch-count.mjs",
     "format": "prettier --write .",
     "measure:portal-contrast": "node scripts/measure-portal-contrast.mjs"
   },

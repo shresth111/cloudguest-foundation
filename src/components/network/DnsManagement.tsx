@@ -45,6 +45,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { StatCard, SectionHeader } from "@/components/ui-ext";
+import { partialCountHint } from "@/components/network/list-kpis";
 import {
   useDnsRecords,
   useCreateDnsRecord,
@@ -52,7 +53,6 @@ import {
   useDeleteDnsRecord,
 } from "@/hooks/useDns";
 import { routerService } from "@/services/router.service";
-import { resolveOrgId } from "@/services/customer.service";
 import type { AppError } from "@/services/api";
 import type { DnsRecord, DnsRecordType } from "@/types/dns";
 
@@ -78,16 +78,16 @@ export function DnsManagement() {
   const [creating, setCreating] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<DnsRecord | null>(null);
 
-  // This route (/network/dns) is customer-dashboard-only -- always
-  // resolve the current session's own org (see DhcpManagement.tsx's
-  // identical comment on why RequirePermission needs this header).
-  const { data: orgId } = useQuery({ queryKey: ["dns", "org-id"], queryFn: resolveOrgId });
-
+  // No org id is resolved or threaded here. `attachOrganizationHeader`
+  // (services/api.ts) puts X-Organization-Id on every request from an
+  // organization-scoped session, which is the only kind that reaches this
+  // route. Resolving it here instead put it in the React Query key, and
+  // because the query had no `enabled` gate at all it fired once with
+  // `organizationId: undefined` and again the moment the id landed.
   const { data, isLoading } = useDnsRecords({
     page,
     pageSize: PAGE_SIZE,
     routerId: routerFilter === "all" ? undefined : routerFilter,
-    organizationId: orgId,
   });
   const del = useDeleteDnsRecord();
   const { data: routers = { rows: [], total: 0 } } = useQuery({
@@ -106,7 +106,11 @@ export function DnsManagement() {
       routerName(r.routerId).toLowerCase().includes(t)
     );
   });
+  // "Total Records" is the server's own count and is exact; enabled/disabled
+  // are counted over the page in hand, and the hint says so when that page is
+  // not the whole set. See components/network/list-kpis.ts.
   const enabledCount = rows.filter((r) => r.isEnabled).length;
+  const statHint = partialCountHint(data?.rows.length ?? 0, data?.total ?? 0);
 
   return (
     <div className="space-y-6">
@@ -123,10 +127,17 @@ export function DnsManagement() {
 
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard label="Total Records" value={data?.total ?? 0} icon={Server} tone="primary" />
-        <StatCard label="Enabled" value={enabledCount} icon={ShieldCheck} tone="success" />
+        <StatCard
+          label="Enabled"
+          value={enabledCount}
+          hint={statHint}
+          icon={ShieldCheck}
+          tone="success"
+        />
         <StatCard
           label="Disabled"
           value={rows.length - enabledCount}
+          hint={statHint}
           icon={ShieldOff}
           tone="warning"
         />
@@ -271,7 +282,6 @@ export function DnsManagement() {
         open={creating || !!editing}
         record={editing}
         routers={routers.rows}
-        organizationId={orgId}
         onClose={() => {
           setCreating(false);
           setEditing(null);
@@ -293,7 +303,7 @@ export function DnsManagement() {
               onClick={async () => {
                 if (!confirmDelete) return;
                 try {
-                  await del.mutateAsync({ id: confirmDelete.id, organizationId: orgId });
+                  await del.mutateAsync({ id: confirmDelete.id });
                   toast.success(`Record ${confirmDelete.name} deleted`);
                 } catch (err) {
                   toast.error((err as AppError).message || "Failed to delete record");
@@ -314,13 +324,11 @@ function DnsDialog({
   open,
   record,
   routers,
-  organizationId,
   onClose,
 }: {
   open: boolean;
   record: DnsRecord | null;
   routers: { id: string; name: string }[];
-  organizationId?: string;
   onClose: () => void;
 }) {
   const create = useCreateDnsRecord();
@@ -378,10 +386,10 @@ function DnsDialog({
         isEnabled: v.isEnabled,
       };
       if (record) {
-        await update.mutateAsync({ id: record.id, payload: shared, organizationId });
+        await update.mutateAsync({ id: record.id, payload: shared });
         toast.success("DNS record updated");
       } else {
-        await create.mutateAsync({ routerId: v.routerId, ...shared, organizationId });
+        await create.mutateAsync({ routerId: v.routerId, ...shared });
         toast.success("DNS record created");
       }
       close();
