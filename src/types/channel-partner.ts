@@ -1,5 +1,16 @@
 export type ChannelPartnerStatus = "active" | "inactive";
 
+/** One welcome channel's outcome, as the backend classifies it.
+ *
+ * `not_configured` is a property of the *server* -- it means this
+ * deployment has no provider wired for that channel at all, so it reads
+ * identically for every partner and no per-partner follow-up changes it.
+ * `failed` is a property of the *partner* and is worth chasing. Treating
+ * the two the same is what put a red "Welcome failed" badge on all five
+ * live partners while three of them had had their welcome email
+ * delivered. */
+export type WelcomeDeliveryStatus = "sent" | "not_configured" | "failed" | "not_attempted";
+
 export interface ChannelPartner {
   id: string;
   name: string;
@@ -13,6 +24,8 @@ export interface ChannelPartner {
   welcomeSmsError: string | null;
   welcomeEmailSentAt: string | null;
   welcomeEmailError: string | null;
+  welcomeSmsStatus: WelcomeDeliveryStatus;
+  welcomeEmailStatus: WelcomeDeliveryStatus;
   createdAt: string;
   updatedAt: string;
 }

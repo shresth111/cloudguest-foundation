@@ -75,8 +75,47 @@ function isValidIndianMobile(value: string): boolean {
   return INDIAN_MOBILE_PATTERN.test(value.trim());
 }
 
+/** Whether this partner has something an operator can actually act on.
+ *
+ * Deliberately NOT "is there any error text on the row". That reading put
+ * a red "Welcome failed" badge on all five live partners, three of whom
+ * had had their welcome email delivered -- the entire alarm came from SMS,
+ * which that deployment has no provider for. A missing provider is a
+ * server fact, identical on every row and unchanged by chasing any one
+ * partner, so it must not be counted or badged as a per-partner failure.
+ * See the backend's `welcome_delivery_status`. */
 function hasWelcomeFailure(p: ChannelPartner): boolean {
-  return !!p.welcomeSmsError || !!p.welcomeEmailError;
+  return p.welcomeSmsStatus === "failed" || p.welcomeEmailStatus === "failed";
+}
+
+/** Whether this deployment can send a channel at all. Same for every
+ * partner, so it is surfaced once, next to the count -- not once per row. */
+function channelNotConfigured(partners: ChannelPartner[]): string[] {
+  const missing: string[] = [];
+  if (partners.some((p) => p.welcomeSmsStatus === "not_configured")) missing.push("SMS");
+  if (partners.some((p) => p.welcomeEmailStatus === "not_configured")) missing.push("email");
+  return missing;
+}
+
+const WELCOME_CHANNEL_LABEL: Record<string, (detail: string | null) => string> = {
+  sent: (detail) => (detail ? `Sent ${detail}` : "Sent"),
+  not_configured: () => "Not configured on this server",
+  failed: (detail) => (detail ? `Failed — ${detail}` : "Failed"),
+  not_attempted: () => "Not sent",
+};
+
+function welcomeChannelText(
+  status: ChannelPartner["welcomeSmsStatus"],
+  sentAt: string | null,
+  error: string | null,
+): string {
+  const detail =
+    status === "sent" && sentAt
+      ? new Date(sentAt).toLocaleString()
+      : status === "failed"
+        ? error
+        : null;
+  return WELCOME_CHANNEL_LABEL[status](detail);
 }
 
 function emptyForm() {
@@ -142,6 +181,7 @@ function ChannelPartnersScreen() {
     }).length;
   }, [partners]);
   const welcomeFailureCount = partners.filter(hasWelcomeFailure).length;
+  const unconfiguredChannels = channelNotConfigured(partners);
 
   function resetForm() {
     setForm(emptyForm());
@@ -195,20 +235,32 @@ function ChannelPartnersScreen() {
       setPartners((prev) => [partner, ...prev]);
       setCreateOpen(false);
       resetForm();
-      if (!hasWelcomeFailure(partner)) {
-        const channels = partner.email
-          ? `SMS sent to ${partner.phone} and email sent to ${partner.email}`
-          : `welcome SMS sent to ${partner.phone}`;
-        toast.success(`${partner.name} onboarded — ${channels}`);
+      // Report what actually reached the partner. Previously any error
+      // text -- including "this server has no SMS provider", which is true
+      // of every partner on this deployment -- turned the confirmation into
+      // a warning, so a successful email onboarding still looked broken.
+      const delivered = [
+        partner.welcomeSmsStatus === "sent" ? `SMS to ${partner.phone}` : null,
+        partner.welcomeEmailStatus === "sent" && partner.email ? `email to ${partner.email}` : null,
+      ].filter(Boolean);
+      const failures = [
+        partner.welcomeSmsStatus === "failed" ? `SMS: ${partner.welcomeSmsError}` : null,
+        partner.welcomeEmailStatus === "failed" ? `Email: ${partner.welcomeEmailError}` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+
+      if (failures) {
+        toast.warning(`${partner.name} onboarded, but a welcome message could not be sent`, {
+          description: failures,
+        });
+      } else if (delivered.length > 0) {
+        toast.success(`${partner.name} onboarded — sent ${delivered.join(" and ")}`);
       } else {
-        const failures = [
-          partner.welcomeSmsError ? `SMS: ${partner.welcomeSmsError}` : null,
-          partner.welcomeEmailError ? `Email: ${partner.welcomeEmailError}` : null,
-        ]
-          .filter(Boolean)
-          .join(" · ");
-        toast.warning(`${partner.name} onboarded, but the welcome message could not be sent`, {
-          description: failures || undefined,
+        // Nothing failed and nothing was sent: no provider is wired up.
+        toast.success(`${partner.name} onboarded`, {
+          description:
+            "No welcome message went out — this server has no delivery provider configured.",
         });
       }
     } catch (err) {
@@ -265,8 +317,21 @@ function ChannelPartnersScreen() {
             label="Welcome Message Failures"
             value={String(welcomeFailureCount)}
             icon={AlertTriangle}
+            accent={welcomeFailureCount > 0}
           />
         </div>
+
+        {/* Said once, here, instead of as a red badge on every row: an
+            unwired channel is the same fact for the whole fleet, and no
+            per-partner follow-up changes it. */}
+        {unconfiguredChannels.length > 0 && (
+          <p className="text-xs text-muted-foreground">
+            This server has no {unconfiguredChannels.join(" or ")} delivery provider configured, so
+            welcome messages on{" "}
+            {unconfiguredChannels.length > 1 ? "those channels" : "that channel"} never go out. That
+            is a deployment setting, not a problem with any individual partner.
+          </p>
+        )}
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <MSeg
@@ -406,37 +471,40 @@ function ChannelPartnersScreen() {
                   Welcome Message Delivery
                 </p>
                 <div className="space-y-2">
+                  {/* Only a real `failed` gets the destructive treatment. A
+                      channel this server cannot send at all is a plain
+                      statement of fact, not something red to chase. */}
                   <div
                     className={cn(
                       "rounded-lg border p-3 text-xs",
-                      selected.welcomeSmsError
+                      selected.welcomeSmsStatus === "failed"
                         ? "border-destructive/30 bg-destructive/5 text-destructive"
                         : "border-border text-muted-foreground",
                     )}
                   >
                     <span className="font-semibold text-foreground">SMS: </span>
-                    {selected.welcomeSmsError
-                      ? `Failed — ${selected.welcomeSmsError}`
-                      : selected.welcomeSmsSentAt
-                        ? `Sent ${new Date(selected.welcomeSmsSentAt).toLocaleString()}`
-                        : "Not sent"}
+                    {welcomeChannelText(
+                      selected.welcomeSmsStatus,
+                      selected.welcomeSmsSentAt,
+                      selected.welcomeSmsError,
+                    )}
                   </div>
                   <div
                     className={cn(
                       "rounded-lg border p-3 text-xs",
-                      selected.welcomeEmailError
+                      selected.welcomeEmailStatus === "failed"
                         ? "border-destructive/30 bg-destructive/5 text-destructive"
                         : "border-border text-muted-foreground",
                     )}
                   >
                     <span className="font-semibold text-foreground">Email: </span>
-                    {selected.welcomeEmailError
-                      ? `Failed — ${selected.welcomeEmailError}`
-                      : selected.welcomeEmailSentAt
-                        ? `Sent ${new Date(selected.welcomeEmailSentAt).toLocaleString()}`
-                        : selected.email
-                          ? "Not sent"
-                          : "No email on file"}
+                    {selected.welcomeEmailStatus === "not_attempted" && !selected.email
+                      ? "No email on file"
+                      : welcomeChannelText(
+                          selected.welcomeEmailStatus,
+                          selected.welcomeEmailSentAt,
+                          selected.welcomeEmailError,
+                        )}
                   </div>
                 </div>
               </div>
