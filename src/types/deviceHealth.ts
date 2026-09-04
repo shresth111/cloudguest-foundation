@@ -31,8 +31,13 @@
  * Which measurement path took a reading.
  *
  * `null` is a real, distinct answer and is never collapsed into a
- * default: rows recorded before the backend's `0079` migration have no
- * recorded source at all, and claiming one would fabricate provenance.
+ * default. Two populations of rows carry it: those recorded before the
+ * backend's `0079` migration, and those the RouterOS-API sweep wrote
+ * before it started stamping its own source (fixed 2026-09-04 -- until
+ * then that sweep had the parameter and never passed it, so its readings
+ * were indistinguishable from pre-migration ones). Neither is
+ * backfilled: claiming a source nobody recorded would replace a true
+ * "unknown" with a guess.
  */
 export type MetricsSource = "snmp" | "routerApi" | null;
 
