@@ -3,6 +3,7 @@ import { billingService } from "@/services/billing.service";
 import type {
   BillingReportFormat,
   Coupon,
+  OverviewOrganization,
   PaymentGateway,
   Plan,
   ScheduledBillingReport,
@@ -27,6 +28,25 @@ export function useBillingOverview() {
   return useQuery({
     queryKey: ["billing", "overview"],
     queryFn: () => billingService.getOverview(),
+    staleTime: 30_000,
+  });
+}
+
+/** The Platform Overview's expiry reminders ("Starter plan expires in 3 days"),
+ * which are the one part of that page's Billing Reminders card the cheap
+ * useBillingOverview cannot derive -- see billingService.getExpiringReminders.
+ *
+ * Deliberately its own query key rather than part of useBillingOverview: it
+ * costs one request per organization and only the reminders card waits on it,
+ * while the KPI tiles, both charts and the Organizations table render off the
+ * overview alone. Gated on the overview having resolved, since the
+ * organization rows it fans out over come from there. */
+export function useExpiringReminders(organizations: OverviewOrganization[] | undefined) {
+  const organizationIds = organizations?.map((o) => o.organizationId) ?? [];
+  return useQuery({
+    queryKey: ["billing", "expiring", organizationIds],
+    queryFn: () => billingService.getExpiringReminders(organizations!),
+    enabled: organizationIds.length > 0,
     staleTime: 30_000,
   });
 }

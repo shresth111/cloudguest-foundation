@@ -152,10 +152,16 @@ function LimitField({
   );
 }
 
+// One entry per backend PlanType (see the PlanTier type). Exhaustive by
+// construction: Record<PlanTier, ...> stops a newly-supported tier from
+// silently rendering no icon.
 const TIER_ICON: Record<PlanTier, typeof Sparkles> = {
+  free_trial: Sparkles,
   starter: Sparkles,
   professional: Zap,
+  business: Zap,
   enterprise: Crown,
+  msp: Crown,
   custom: Crown,
 };
 
@@ -438,9 +444,12 @@ function PlanEditor({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="free_trial">Free trial</SelectItem>
                 <SelectItem value="starter">Starter</SelectItem>
                 <SelectItem value="professional">Professional</SelectItem>
+                <SelectItem value="business">Business</SelectItem>
                 <SelectItem value="enterprise">Enterprise</SelectItem>
+                <SelectItem value="msp">MSP</SelectItem>
                 <SelectItem value="custom">Custom</SelectItem>
               </SelectContent>
             </Select>

@@ -26,7 +26,7 @@ import {
 } from "@/components/master/MasterKit";
 import { CHART_BODY_H } from "@/components/master/chart-layout";
 import { useAnalyticsSnapshot } from "@/hooks/useAnalytics";
-import { useBillingOverview, useBillingSnapshot } from "@/hooks/useBilling";
+import { useBillingOverview, useExpiringReminders } from "@/hooks/useBilling";
 
 // Both point at the same module, so this is ONE extra chunk request, not two.
 const RevenueTrendChart = lazy(() =>
@@ -127,38 +127,63 @@ function CellSkeleton({ w }: { w: string }) {
  * "Tenants by Region" is dropped (no real region field on Organization
  * anywhere in the backend) in favor of a real plan-mix chart.
  *
- * LOADING BEHAVIOUR -- read before "simplifying" the three queries back into
- * one gate. This page reads three independent sources with wildly different
- * costs, and it used to render NOTHING until the two slowest had both
- * resolved:
+ * LOADING BEHAVIOUR -- read before "simplifying" these queries back into one
+ * gate. This page reads independent sources with wildly different costs, and
+ * it used to render NOTHING until the two slowest had both resolved:
  *
  *   useAnalyticsSnapshot   2 + N requests, 2 waves  (N = organizations)
  *   useBillingOverview     3 requests,     1 wave
- *   useBillingSnapshot     5 + 4N requests, 2 waves
+ *   useExpiringReminders   N requests,     1 wave (after the overview)
  *
  * Measured in real Chromium against a real `.output/` build (30Mbps/40ms
  * link, 150ms/request backend, 8 concurrent, 12 orgs): the KPI numbers, both
  * charts and the reminders all appeared together at 2517ms, because a single
  * `analytics.isLoading || billing.isLoading` gate held every one of them
- * behind `useBillingSnapshot`'s per-org fan-out -- including the seven KPI
- * tiles that come from `analytics` and were ready at 1180ms. At 40 orgs that
- * gate was 9643ms. So: every card below gates on its OWN query, and every
- * loading state reserves exactly the space its loaded content will occupy.
+ * behind a per-org fan-out -- including the seven KPI tiles that come from
+ * `analytics` and were ready at 1180ms. At 40 orgs that gate was 9643ms. So:
+ * every card below gates on its OWN query, and every loading state reserves
+ * exactly the space its loaded content will occupy.
+ *
+ * REQUEST COUNT -- this page used to also call useBillingSnapshot, whose
+ * `5 + 4N` fan-out (`/subscriptions/{org}`, `/payments`, `/invoices`,
+ * `/usage/{org}`, one call per org each) made a single load of /master issue
+ * 81 `/api/v1/` requests against 14 real organizations. It read only three
+ * things out of that snapshot -- the trial count, the reminders, and the
+ * Organizations table's Plan/MRR/Status columns -- and every one of them is
+ * available from the single `/billing/dashboard/super-admin` response
+ * useBillingOverview already fetches (see billingService.getOverview). The
+ * snapshot's `payments`, `invoices` and `usage` -- 3N of the 4N requests --
+ * were fetched purely to compute KPIs this page never displays.
+ *
+ * useBillingSnapshot itself is unchanged and still used by /master/billing and
+ * /billing, which genuinely render those rows. This page just stopped asking
+ * for them. The one per-org fan-out that remains is useExpiringReminders,
+ * because "expires in N days" needs each subscription's own
+ * `current_period_end` and no bulk subscription endpoint exists to get it.
  */
 function PlatformOverview() {
   const analytics = useAnalyticsSnapshot("last30");
   const overview = useBillingOverview();
-  const billing = useBillingSnapshot();
+  const expiring = useExpiringReminders(overview.data?.organizations);
 
   const kpis = analytics.data?.kpis;
-  const billingKpis = billing.data?.kpis;
   const orgRows = analytics.data?.organizations ?? [];
-  const subscriptions = billing.data?.subscriptions ?? [];
-  const reminders = billing.data?.reminders ?? [];
+  const orgBilling = overview.data?.organizations ?? [];
+
+  // The failed-payment/outstanding-invoice reminders arrive with the overview;
+  // the expiry ones cost a request per organization and land later. Both are
+  // real, so the card shows whatever has arrived rather than holding the cheap
+  // ones back to display a single complete list.
+  const reminders = [...(overview.data?.reminders ?? []), ...(expiring.data ?? [])];
+  // `isLoading` (not `isPending`) on purpose: while the overview is still in
+  // flight the expiry query is disabled, and a disabled query stays `pending`
+  // forever -- which would pin this card's skeleton on a platform that has no
+  // organizations at all.
+  const remindersPending = overview.isPending || expiring.isLoading;
 
   const recent = orgRows.slice(0, 5).map((o) => ({
     ...o,
-    sub: subscriptions.find((s) => s.organizationId === o.id),
+    sub: orgBilling.find((s) => s.organizationId === o.id),
   }));
 
   // Label + icon are static, so every tile renders its own frame immediately
@@ -219,15 +244,15 @@ function PlatformOverview() {
       label: "Billing Reminders",
       value: String(reminders.length),
       icon: AlertTriangle,
-      pending: !billing.data,
+      pending: remindersPending,
       accent: reminders.length > 0,
     },
     {
       key: "trials",
       label: "Trials",
-      value: String(billingKpis?.trialOrganizations ?? 0),
+      value: String(overview.data?.trialOrganizations ?? 0),
       icon: Sparkles,
-      pending: !billingKpis,
+      pending: !overview.data,
     },
   ];
 
@@ -259,8 +284,10 @@ function PlatformOverview() {
           ))}
         </div>
 
-        {/* Charts. Both read only `useBillingOverview` (3 requests, one wave),
-            never the 5+4N snapshot -- see billingService.getOverview. */}
+        {/* Charts. Both read only `useBillingOverview` (3 requests, one wave)
+            -- see billingService.getOverview. Each renders its own honest
+            empty state when there is genuinely nothing to plot; neither
+            zero-fills or floors a value to look busy. */}
         <div className="grid gap-3 lg:grid-cols-3">
           <ChartCard title="Revenue Trend" className="lg:col-span-2" ready={!!overview.data}>
             <RevenueTrendChart data={overview.data?.trend ?? []} />
@@ -311,12 +338,12 @@ function PlatformOverview() {
                       of the row is already real. Each cell holds its own line
                       height so the row does not grow when they arrive. */}
                   <MTd className="text-sm">
-                    {billing.isPending ? <CellSkeleton w="w-16" /> : (c.sub?.planName ?? "—")}
+                    {overview.isPending ? <CellSkeleton w="w-16" /> : (c.sub?.planName ?? "—")}
                   </MTd>
                   <MTd className="hidden tabular-nums sm:table-cell">{c.activeLocations}</MTd>
                   <MTd className="tabular-nums">{c.activeRouters}</MTd>
                   <MTd className="font-semibold tabular-nums">
-                    {billing.isPending ? (
+                    {overview.isPending ? (
                       <CellSkeleton w="w-12" />
                     ) : c.sub ? (
                       money(c.sub.amount)
@@ -325,7 +352,7 @@ function PlatformOverview() {
                     )}
                   </MTd>
                   <MTd>
-                    {billing.isPending ? (
+                    {overview.isPending ? (
                       <CellSkeleton w="w-14" />
                     ) : c.sub ? (
                       <MTag label={c.sub.status} />
@@ -348,7 +375,7 @@ function PlatformOverview() {
           <div>
             <p className="mb-2 text-sm font-semibold">Billing Reminders</p>
             <div className="rounded-xl border border-border bg-card shadow-sm">
-              {billing.isPending ? (
+              {remindersPending ? (
                 // Four rows: the same count the loaded card caps at, so the
                 // card keeps its height when the real reminders land.
                 Array.from({ length: 4 }).map((_, i) => <ReminderSkeletonRow key={i} />)

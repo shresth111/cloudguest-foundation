@@ -10,8 +10,10 @@ import type {
   Payment,
   PaymentStatus,
   Plan,
+  OverviewOrganization,
   PlanDistribution,
   PlanTier,
+  Reminder,
   RevenuePoint,
   ScheduledBillingReport,
   Subscription,
@@ -568,14 +570,31 @@ async function fetchAllOrganizations(): Promise<BackendOrg[]> {
 // are read from the matching PlanFeatureKey row when present.
 // ============================================================================
 
-const PLAN_TIERS: ReadonlySet<string> = new Set([
+/** Every backend PlanType value, in the order they are shown to an operator
+ * (cheapest commercial commitment first, then the two non-standard shapes).
+ * Doubles as the fixed category axis of the Plan Tier chart, so a tier with no
+ * subscribers still gets its own labeled slot instead of vanishing.
+ *
+ * This list used to hold only four of the seven, with planTier() folding the
+ * rest into "custom" -- see the PlanTier type's own comment for what that
+ * silently mislabeled. Keep it 1:1 with backend PlanType. */
+const PLAN_TIER_ORDER: readonly PlanTier[] = [
+  "free_trial",
   "starter",
   "professional",
+  "business",
   "enterprise",
+  "msp",
   "custom",
-]);
+];
+
+const PLAN_TIERS: ReadonlySet<string> = new Set(PLAN_TIER_ORDER);
 
 function planTier(planType: string): PlanTier {
+  // "custom" remains the fallback for a plan_type this frontend has never
+  // heard of (a backend enum gaining an eighth member), which is a genuine
+  // "does not fit a standard tier" -- unlike the three real tiers that used
+  // to land here purely because they were missing from the set above.
   return (PLAN_TIERS.has(planType) ? planType : "custom") as PlanTier;
 }
 
@@ -1078,11 +1097,114 @@ function planDistributionFrom(
   counts: Record<string, number>,
   revenue: Record<string, number>,
 ): PlanDistribution[] {
-  return (["starter", "professional", "enterprise", "custom"] as PlanTier[]).map((tier) => ({
+  return PLAN_TIER_ORDER.map((tier) => ({
     tier,
     count: counts[tier] ?? 0,
     revenue: Math.round(revenue[tier] ?? 0),
   }));
+}
+
+/** How close to its period end an active subscription has to be before the
+ * Platform Overview nags about it. */
+const EXPIRY_REMINDER_WINDOW_MS = 14 * 86_400_000;
+
+/** The reminders the single `/billing/dashboard/super-admin` response can
+ * justify on its own -- a failed payment, and an organization carrying unpaid
+ * invoices. Shared by getOverview() and getSnapshot() so the two cannot drift.
+ *
+ * The expiry reminders getSnapshot() adds on top are deliberately NOT here:
+ * "expires in N days" needs each subscription's own `current_period_end`, and
+ * the dashboard's `customers` items carry a status but no dates. See
+ * expiryRemindersFrom / fetchExpiringSubscriptions for how the Platform
+ * Overview keeps them without paying for the whole snapshot.
+ *
+ * `resolveOrgName` is a parameter because a failed-payment row carries only an
+ * organization_id: getSnapshot() already holds the full /organizations list and
+ * resolves against that, while getOverview() has only this response's own
+ * customers page. Both fall back to the same honest "Unknown organization"
+ * rather than rendering a bare uuid at an operator. */
+function dashboardRemindersFrom(
+  dashboard: BackendSuperAdminDashboard,
+  resolveOrgName: (organizationId: string) => string | undefined,
+): Reminder[] {
+  const reminders: Reminder[] = dashboard.failed_payments.items.map((row, i) => ({
+    id: `fp_${row.payment.id ?? i}`,
+    type: "payment_failed",
+    title: row.payment.failure_reason ?? "Payment retry required",
+    organizationName: resolveOrgName(row.payment.organization_id) ?? "Unknown organization",
+    dueAt: row.payment.updated_at,
+    severity: "critical",
+  }));
+  dashboard.customers.items
+    .filter((c) => c.outstanding_invoice_count > 0)
+    .slice(0, 10)
+    .forEach((c, i) => {
+      reminders.push({
+        id: `inv_due_${c.organization_id}_${i}`,
+        type: "invoice_due",
+        title: `${c.outstanding_invoice_count} outstanding invoice(s)`,
+        organizationName: c.organization_name,
+        dueAt: new Date().toISOString(),
+        severity: "warning",
+      });
+    });
+  return reminders;
+}
+
+/** Just enough of a Subscription to nag about its expiry. Narrower than
+ * `Subscription` on purpose: the Platform Overview's cheap path knows each
+ * organization's plan name and status already (from the dashboard's customers
+ * page) and only needs `current_period_end` from the subscription itself, so it
+ * never has to build -- or fetch the plans and coupons required to build -- a
+ * complete Subscription just to render a reminder. */
+type ExpiringSubscription = Pick<
+  Subscription,
+  "id" | "status" | "expiryDate" | "planName" | "organizationName"
+>;
+
+/** "Starter plan expires in 3 days" for every active subscription inside the
+ * reminder window. Split out of getSnapshot() so the Platform Overview can
+ * produce byte-identical rows from the same expression. */
+function expiryRemindersFrom(subscriptions: ExpiringSubscription[], now: number): Reminder[] {
+  return subscriptions
+    .filter((s) => s.status === "active")
+    .filter((s) => new Date(s.expiryDate).getTime() - now < EXPIRY_REMINDER_WINDOW_MS)
+    .map((s) => {
+      const daysLeft = Math.ceil((new Date(s.expiryDate).getTime() - now) / 86_400_000);
+      return {
+        id: `exp_${s.id}`,
+        type: "expiry" as const,
+        title:
+          daysLeft <= 0
+            ? `${s.planName} plan expired`
+            : `${s.planName} plan expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`,
+        organizationName: s.organizationName,
+        dueAt: s.expiryDate,
+        severity: daysLeft <= 3 ? ("critical" as const) : ("warning" as const),
+      };
+    });
+}
+
+/** The Organizations table's Plan / MRR / Status columns for one dashboard
+ * `customers` row. `lifetime_revenue` is deliberately ignored: it is
+ * cumulative-to-date, and that column is headed MRR, so the recurring figure
+ * comes from the joined Plan's own base_price -- the same expression
+ * toSubscription() uses for `amount`. */
+function toOverviewOrganization(
+  customer: BackendSuperAdminDashboard["customers"]["items"][number],
+  plans: BackendPlan[],
+): OverviewOrganization {
+  const plan = plans.find((p) => p.id === customer.plan_id);
+  return {
+    organizationId: customer.organization_id,
+    organizationName: customer.organization_name,
+    // plan_name comes straight off the dashboard row, so an organization whose
+    // plan is missing from the catalog page still names its plan correctly.
+    planName: customer.plan_name,
+    tier: plan ? planTier(plan.plan_type) : "custom",
+    status: SUBSCRIPTION_STATUS_MAP[customer.subscription_status] ?? "active",
+    amount: plan ? n(plan.base_price) : 0,
+  };
 }
 
 async function fetchDashboard(): Promise<BackendSuperAdminDashboard> {
@@ -1151,15 +1273,89 @@ export const billingService = {
         overduePayments: demo.kpis.overduePayments,
         trend: demo.revenue.trend,
         planDistribution: demo.revenue.planDistribution,
+        trialOrganizations: demo.kpis.trialOrganizations,
+        reminders: demo.reminders,
+        organizations: demo.subscriptions.map((sub) => ({
+          organizationId: sub.organizationId,
+          organizationName: sub.organizationName,
+          planName: sub.planName,
+          tier: sub.tier,
+          status: sub.status,
+          amount: sub.amount,
+        })),
       };
     }
     const [dashboard, backendPlans] = await Promise.all([fetchDashboard(), fetchAllPlans()]);
+    const organizations = dashboard.customers.items.map((customer) =>
+      toOverviewOrganization(customer, backendPlans),
+    );
+    const nameById = new Map(organizations.map((o) => [o.organizationId, o.organizationName]));
     return {
       mrr: Math.round(n(dashboard.revenue.mrr)),
       overduePayments: dashboard.failed_payments.total_items,
       trend: revenueTrendFrom(dashboard),
       planDistribution: planDistributionFrom(planTierCountsFrom(dashboard, backendPlans), {}),
+      // Keyed by the RAW backend SubscriptionStatus (constants.py:
+      // trialing/active/past_due/paused/cancelled), not this app's mapped
+      // "trial" -- counting fanned-out per-org subscription rows to learn the
+      // same number is what this whole shape exists to avoid.
+      trialOrganizations: dashboard.subscriptions.counts_by_status.trialing ?? 0,
+      reminders: dashboardRemindersFrom(dashboard, (id) => nameById.get(id)),
+      organizations,
     };
+  },
+
+  /**
+   * The one thing getOverview() genuinely cannot derive: "this plan expires in
+   * N days".
+   *
+   * The super-admin dashboard's `customers` items carry a subscription STATUS
+   * but no dates, and there is no bulk subscription endpoint to ask instead --
+   * backend/app/domains/billing/router.py exposes only
+   * `GET /subscriptions/{organization_id}` (single) and `GET
+   * /billing/subscription` (the caller's own, via X-Organization-Id). So this
+   * is a genuine N-request fan-out and the only one the Platform Overview
+   * still pays for.
+   *
+   * It is deliberately a SEPARATE call from getOverview() rather than folded
+   * into it: getOverview() is the 3-request/one-wave path the KPI tiles, both
+   * charts and the Organizations table render off, and putting an N-request
+   * second wave inside it would put every one of them back behind the fan-out
+   * that master.index.tsx's own LOADING BEHAVIOUR comment exists to prevent.
+   * Only the Billing Reminders card waits on this.
+   *
+   * Takes the organizations getOverview() already resolved, so it needs
+   * neither a /organizations call of its own nor the Plan catalog: plan name
+   * and organization name come from those rows, and only `current_period_end`
+   * comes from the subscription.
+   */
+  async getExpiringReminders(organizations: OverviewOrganization[]): Promise<Reminder[]> {
+    if (isDemo()) {
+      return buildDemoSnapshot().reminders.filter((r) => r.type === "expiry");
+    }
+    const settled = await Promise.allSettled(
+      organizations.map(async (org): Promise<ExpiringSubscription> => {
+        const { data } = await api.get<BackendSubscription>(
+          `/subscriptions/${org.organizationId}`,
+          { headers: { "X-Organization-Id": org.organizationId } },
+        );
+        return {
+          id: data.id,
+          status: SUBSCRIPTION_STATUS_MAP[data.status] ?? "active",
+          expiryDate: data.current_period_end,
+          planName: org.planName,
+          organizationName: org.organizationName,
+        };
+      }),
+    );
+    // An organization with no subscription 404s here, which is a legitimate
+    // state, not a failure -- allSettled drops it and the Organizations table
+    // still renders the row (as "no plan"). Same convention as
+    // fetchAllSubscriptions.
+    const subscriptions = settled
+      .filter((r): r is PromiseFulfilledResult<ExpiringSubscription> => r.status === "fulfilled")
+      .map((r) => r.value);
+    return expiryRemindersFrom(subscriptions, Date.now());
   },
 
   async getSnapshot(): Promise<BillingSnapshot> {
@@ -1203,7 +1399,7 @@ export const billingService = {
     const now = Date.now();
     const expiring = subscriptions.filter((s) => {
       const t = new Date(s.renewalDate).getTime();
-      return t - now < 14 * 86_400_000 && t - now > 0;
+      return t - now < EXPIRY_REMINDER_WINDOW_MS && t - now > 0;
     }).length;
 
     const paid = payments.filter((p) => p.status === "paid").length;
@@ -1211,52 +1407,10 @@ export const billingService = {
     const mrr = Math.round(n(dashboard.revenue.mrr));
     const arpo = active.length ? Math.round(mrr / active.length) : 0;
 
-    const reminders: BillingSnapshot["reminders"] = dashboard.failed_payments.items.map(
-      (row, i) => {
-        const org = orgs.find((o) => o.id === row.payment.organization_id);
-        return {
-          id: `fp_${row.payment.id ?? i}`,
-          type: "payment_failed",
-          title: row.payment.failure_reason ?? "Payment retry required",
-          organizationName: org?.name ?? "Unknown organization",
-          dueAt: row.payment.updated_at,
-          severity: "critical",
-        };
-      },
-    );
-    dashboard.customers.items
-      .filter((c) => c.outstanding_invoice_count > 0)
-      .slice(0, 10)
-      .forEach((c, i) => {
-        reminders.push({
-          id: `inv_due_${c.organization_id}_${i}`,
-          type: "invoice_due",
-          title: `${c.outstanding_invoice_count} outstanding invoice(s)`,
-          organizationName: c.organization_name,
-          dueAt: new Date().toISOString(),
-          severity: "warning",
-        });
-      });
-    subscriptions
-      .filter((s) => s.status === "active")
-      .filter((s) => {
-        const t = new Date(s.expiryDate).getTime();
-        return t - now < 14 * 86_400_000;
-      })
-      .forEach((s) => {
-        const daysLeft = Math.ceil((new Date(s.expiryDate).getTime() - now) / 86_400_000);
-        reminders.push({
-          id: `exp_${s.id}`,
-          type: "expiry",
-          title:
-            daysLeft <= 0
-              ? `${s.planName} plan expired`
-              : `${s.planName} plan expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`,
-          organizationName: s.organizationName,
-          dueAt: s.expiryDate,
-          severity: daysLeft <= 3 ? "critical" : "warning",
-        });
-      });
+    const reminders: BillingSnapshot["reminders"] = [
+      ...dashboardRemindersFrom(dashboard, (id) => orgs.find((o) => o.id === id)?.name),
+      ...expiryRemindersFrom(subscriptions, now),
+    ];
 
     const planTierCounts = planTierCountsFrom(dashboard, backendPlans);
     // MRR per tier from each active subscription's own plan amount -- real
