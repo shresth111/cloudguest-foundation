@@ -23,6 +23,7 @@
     "test:guided-i18n-switch": "node scripts/test-guided-i18n-switch.mjs",
     "test:plan-editor": "node scripts/test-plan-editor-feedback.mjs",
     "test:setup-script": "node scripts/test-setup-script-generator.mjs",
+    "test:radius-coa": "node scripts/test-radius-coa-listener.mjs",
     "test:discovery-preflight": "node scripts/test-discovery-preflight.mjs",
     "test:api-paths": "node scripts/test-api-paths.mjs",
     "test:platform-overview-requests": "node scripts/test-platform-overview-requests.mjs",
