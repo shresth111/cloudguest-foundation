@@ -57,7 +57,16 @@ export interface IspLink {
 
 export interface IspLinkListQuery {
   routerId?: string;
-  page: number;
+  /** Optional because `GET /isp/links` declares `page: int = Query(default=1)`
+   * (backend `app/domains/isp/router.py`), so omitting it and passing `1`
+   * are the same request. `ispService.listLinks` normalises the two to a
+   * single value before it builds either the coalescing key or the wire
+   * params -- see its own comment for why that matters. */
+  page?: number;
+  /** Required, deliberately, unlike `page`. An omitted `page_size` means
+   * the server's own default (25), which is a genuinely different read
+   * from `100` -- there is no value that could be substituted here without
+   * guessing, so callers must say. */
   pageSize: number;
   /** When known, sent as `X-Location-Id` alongside `X-Organization-Id` --
    * without it, RBAC infers ORGANIZATION scope for the `isp.read` check

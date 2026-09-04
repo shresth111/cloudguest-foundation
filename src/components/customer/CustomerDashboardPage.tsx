@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
-  ArrowLeft,
   Wifi,
   Router,
   Activity,
@@ -12,7 +11,6 @@ import {
   CheckCircle,
   XCircle,
   AlertTriangle,
-  RefreshCw,
   Quote,
   HardDrive,
   Gauge,
@@ -38,13 +36,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
-import {
-  useCustomerDashboard,
-  useCustomerLocations,
-  useCustomerUsers,
-  useIsDemo,
-  useDataMasking,
-} from "@/hooks/useCustomerDashboard";
+import { useCustomerDashboard, useIsDemo, useDataMasking } from "@/hooks/useCustomerDashboard";
 import { isDemo } from "@/services/customer.service";
 import {
   LocationLivenessBadge,
@@ -1567,7 +1559,7 @@ function DashboardWatchIllustration() {
 export function CustomerDashboardPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const { activeLocation, activeLocationId, setActiveLocation } = useCustomerStore();
+  const { activeLocation, activeLocationId } = useCustomerStore();
   // index.tsx (this component's only real caller now) already guarantees
   // activeLocationId is set before rendering this -- non-null assertion
   // documents that invariant rather than threading an unnecessary
@@ -1575,7 +1567,21 @@ export function CustomerDashboardPage() {
   // string.
   const locationId = activeLocationId!;
   const { data: d, isLoading, refetch } = useCustomerDashboard(locationId);
-  const { data: uData } = useCustomerUsers(locationId, { page: 1, pageSize: 6 });
+  // There was a `useCustomerUsers(locationId, { page: 1, pageSize: 6 })`
+  // here whose result was never read by anything -- the "Recent Users"
+  // table below renders `d.recentUsers`, which `getDashboard()` builds from
+  // its own `/guest-sessions?page_size=100` leg. It survived because
+  // `@typescript-eslint/no-unused-vars` is off in this repo's eslint
+  // config, so nothing ever flagged the binding.
+  //
+  // It was not free: `customerService.getUsers()` issues THREE requests --
+  // `/guest-sessions?page=1&page_size=6`, `/connected-devices?page_size=100`
+  // and `/guests?page_size=100`. That last one is byte-identical to the
+  // `/guests` read `getDashboard()` already makes for the same table's
+  // identities, which is how a live capture of app.wyfyguest.com caught
+  // `/guests` twice per load. It was not even a useful cache warm: no other
+  // caller asks for pageSize 6 (the Users page uses 8, the feature-page
+  // Users view 20), so the entry it filled was never read either.
   // Read through the SSR-safe useIsDemo() hook, not isDemo() directly --
   // isDemo() reads localStorage synchronously, so calling it straight in
   // render can flip value between the server pass (no window -> false)
@@ -1591,20 +1597,48 @@ export function CustomerDashboardPage() {
   // Raw ISO, not pre-formatted -- CustomerHeader's PlanRenewalTicket needs
   // the real date to compute a live countdown/urgency tier, not just a label.
   const planExpiryIso = demoFlag ? DEMO_PLAN_RENEWAL_ISO : billing.data?.renewalDate;
-  // The store's activeLocationId is only populated by clicking a location
-  // card on /customer (see customer.index.tsx's handleSelect) -- a direct
-  // deep link/bookmark/refresh of this URL arrives with it unset or
-  // pointing at a different location. Previously that hard-blocked the
-  // whole page behind a bare "Back" button even though every fetch here
-  // (useCustomerDashboard/useCustomerUsers) is already keyed off the URL's
-  // own locationId, not the store. Resync the store from the same
-  // locations list /customer itself uses instead of blocking.
-  const { data: locationsList, isLoading: locationsLoading } = useCustomerLocations();
-  useEffect(() => {
-    if (activeLocationId === locationId) return;
-    const match = locationsList?.find((l) => l.id === locationId);
-    if (match) setActiveLocation(match.id, match);
-  }, [locationId, activeLocationId, locationsList, setActiveLocation]);
+  // A `useCustomerLocations()` fetch and a store-resync effect/guard used
+  // to sit here. Their original argument, kept verbatim so it can be
+  // answered rather than deleted:
+  //
+  //   "The store's activeLocationId is only populated by clicking a
+  //    location card on /customer (see customer.index.tsx's handleSelect)
+  //    -- a direct deep link/bookmark/refresh of this URL arrives with it
+  //    unset or pointing at a different location. Previously that
+  //    hard-blocked the whole page behind a bare 'Back' button even though
+  //    every fetch here (useCustomerDashboard/useCustomerUsers) is already
+  //    keyed off the URL's own locationId, not the store. Resync the store
+  //    from the same locations list /customer itself uses instead of
+  //    blocking."
+  //
+  // That was right when this component took its locationId from the URL.
+  // It no longer does. Since the move to the bare "/" route this file's
+  // header comment describes, the route carries no params and `locationId`
+  // is assigned from `activeLocationId` five lines above -- so
+  // `activeLocationId !== locationId` is not merely usually false, it is
+  // false by construction, on every render, forever. The effect returned on
+  // its first line and the guard's whole branch (spinner / "Location not
+  // found" / `return null`) was unreachable.
+  //
+  // The fetch behind it was not free. `customerService.listLocations()`
+  // fans out `/organizations/{id}/locations` and then, per location,
+  // `/locations/{id}/routers?page_size=100` and
+  // `/guest-sessions?location_id=…&page_size=50`. That routers read is
+  // byte-identical -- same params, same X-Organization-Id + X-Location-Id
+  // -- to the one `getDashboard()` makes for this same location's liveness,
+  // which is the second `/locations/{id}/routers` a live capture of
+  // app.wyfyguest.com found on every dashboard load.
+  //
+  // Nothing rendered changes: no JSX read `locationsList`. The one thing
+  // lost is a cache warm of `customerKeys.locations`, which only the legacy
+  // `/customer/$locationId/*` compat redirects consume (via
+  // `resolveCustomerLocationById`) and which /switch-location fetches for
+  // itself anyway -- neither is reachable *from* this page without a
+  // navigation that would fetch it regardless.
+  //
+  // IF THIS COMPONENT EVER TAKES A locationId FROM THE URL AGAIN, restore
+  // the resync (git history has it): the guard becomes live the moment
+  // `locationId` stops being `activeLocationId`.
   const [sidebar, setSidebar] = useState(true);
   const [mobile, setMobile] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
@@ -1629,28 +1663,11 @@ export function CustomerDashboardPage() {
   const headerLiveness: LocationLiveness =
     d?.liveness ?? activeLocation?.liveness ?? (isLoading ? CHECKING_LIVENESS : UNKNOWN_LIVENESS);
 
-  if (activeLocationId !== locationId) {
-    if (locationsLoading)
-      return (
-        <div className="flex min-h-screen items-center justify-center">
-          <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
-        </div>
-      );
-    const found = locationsList?.some((l) => l.id === locationId);
-    if (!found)
-      return (
-        <div className="flex min-h-screen flex-col items-center justify-center gap-3 text-muted-foreground">
-          <p>Location not found or you don't have access to it.</p>
-          <Button variant="outline" onClick={() => navigate({ to: "/switch-location" })}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to locations
-          </Button>
-        </div>
-      );
-    // Found but the store hasn't caught up with the effect above yet --
-    // render nothing for this one tick rather than a flash of "Back".
-    return null;
-  }
+  // (The `activeLocationId !== locationId` guard that stood here -- spinner
+  // / "Location not found" / `return null` -- was unreachable by
+  // construction and is gone with the fetch that fed it. See the comment
+  // above the `sidebar` state for the full argument and for exactly what
+  // would have to change to make it live again.)
 
   const handleNav = (id: string) => navigate({ to: customerFeatureHref(id) });
   const handleLogout = async () => {
