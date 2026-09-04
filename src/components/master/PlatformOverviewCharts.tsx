@@ -1,6 +1,6 @@
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { CHART_BODY_H } from "@/components/master/chart-layout";
-import type { PlanDistribution, RevenuePoint } from "@/types/billing";
+import type { PlanDistribution, PlanTier, RevenuePoint } from "@/types/billing";
 
 /**
  * The two bar charts on the Master Console's Platform Overview (`/master`),
@@ -33,6 +33,41 @@ import type { PlanDistribution, RevenuePoint } from "@/types/billing";
 
 const AXIS_TICK = { fontSize: 10, fill: "var(--muted-foreground)" } as const;
 
+/** Operator-facing names for the raw backend PlanType values. Only used for the
+ * category axis and the tooltip -- the underlying tier strings stay the
+ * backend's own, so nothing here has to be mapped back. */
+const TIER_LABEL: Record<PlanTier, string> = {
+  free_trial: "Trial",
+  starter: "Starter",
+  professional: "Pro",
+  business: "Business",
+  enterprise: "Enterprise",
+  msp: "MSP",
+  custom: "Custom",
+};
+
+/**
+ * What a chart shows when the endpoint answered 200 and the answer was
+ * "nothing".
+ *
+ * Both charts on this page render at a fixed body height, and an empty recharts
+ * BarChart at that height is two grid rules and blank space -- which reads as a
+ * broken widget, not as "no data". Saying so plainly is the whole point: the
+ * alternative this codebase has actually shipped before (a Math.sin() session
+ * curve with a `|| 20` floor) invented numbers to make a chart look busy, and
+ * an operator cannot tell an invented trend from a real one.
+ */
+function ChartEmpty({ message }: { message: string }) {
+  return (
+    <div
+      className="flex w-full items-center justify-center rounded-lg border border-dashed border-border"
+      style={{ height: CHART_BODY_H }}
+    >
+      <p className="px-4 text-center text-xs text-muted-foreground">{message}</p>
+    </div>
+  );
+}
+
 const TOOLTIP_CONTENT_STYLE = {
   borderRadius: 8,
   border: "1px solid var(--border)",
@@ -42,6 +77,15 @@ const TOOLTIP_CONTENT_STYLE = {
 } as const;
 
 export function RevenueTrendChart({ data }: { data: RevenuePoint[] }) {
+  // The backend returns one point per calendar month that has at least one
+  // captured payment (BillingDashboardRepository.revenue_by_month) -- it does
+  // NOT zero-fill the window, so a platform that has taken no payments yet gets
+  // an empty list rather than twelve zeroes. Both are legitimately "no revenue
+  // to plot"; neither is an error, and neither should be padded into a flat
+  // line that implies twelve months of confirmed zero revenue.
+  if (data.length === 0) {
+    return <ChartEmpty message="No revenue recorded yet." />;
+  }
   return (
     <ResponsiveContainer width="100%" height={CHART_BODY_H}>
       <BarChart data={data} margin={{ left: -18, right: 6, top: 6, bottom: 0 }}>
@@ -56,11 +100,24 @@ export function RevenueTrendChart({ data }: { data: RevenuePoint[] }) {
 }
 
 export function PlanTierChart({ data }: { data: PlanDistribution[] }) {
+  // `data` always carries one entry per backend PlanType, subscribers or not
+  // (planDistributionFrom maps over the fixed tier list), so "is it empty" is a
+  // question about the counts, never about the array's length.
+  if (data.every((d) => d.count === 0)) {
+    return <ChartEmpty message="No subscriptions on any plan tier yet." />;
+  }
   return (
     <ResponsiveContainer width="100%" height={CHART_BODY_H}>
       <BarChart data={data} margin={{ left: -22, right: 6, top: 6, bottom: 0 }}>
         <CartesianGrid stroke="var(--border)" vertical={false} />
-        <XAxis dataKey="tier" tick={AXIS_TICK} tickLine={false} axisLine={false} />
+        <XAxis
+          dataKey="tier"
+          tick={AXIS_TICK}
+          tickLine={false}
+          axisLine={false}
+          interval={0}
+          tickFormatter={(tier: PlanTier) => TIER_LABEL[tier] ?? tier}
+        />
         <YAxis
           tick={AXIS_TICK}
           tickLine={false}

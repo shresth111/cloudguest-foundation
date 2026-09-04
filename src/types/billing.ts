@@ -1,4 +1,19 @@
-export type PlanTier = "starter" | "professional" | "enterprise" | "custom";
+// Mirrors the real backend PlanType enum exactly (backend/app/domains/billing/
+// constants.py: FREE_TRIAL/STARTER/PROFESSIONAL/BUSINESS/ENTERPRISE/MSP/CUSTOM).
+// This used to be a 4-value subset, and planTier() below mapped anything it did
+// not recognize to "custom" -- so real `free_trial`, `business` and `msp` plans
+// were silently relabeled "Custom" everywhere the tier is read, and the plan
+// editor could not create them at all (savePlan sends `plan_type: input.tier`).
+// The Plan Tier chart on the Platform Overview was the visible symptom: three
+// of the seven real tiers had no bar of their own and were folded into one.
+export type PlanTier =
+  | "free_trial"
+  | "starter"
+  | "professional"
+  | "business"
+  | "enterprise"
+  | "msp"
+  | "custom";
 export type BillingCycle = "monthly" | "annual";
 // Mirrors the real backend SupportTier enum exactly (backend/app/domains/
 // billing/constants.py) -- the closed set of legal PlanFeature.tier_value
@@ -212,6 +227,38 @@ export interface BillingOverview {
   /** `revenue` is always 0 here -- per-tier MRR needs the per-org fan-out this
    * shape exists to avoid. Only `count` is meaningful. */
   planDistribution: PlanDistribution[];
+  /** Organizations whose subscription is in the backend's `trialing` state,
+   * read straight off `subscriptions.counts_by_status` rather than by counting
+   * fanned-out per-org subscription rows. */
+  trialOrganizations: number;
+  /** Everything the single super-admin dashboard response can justify: failed
+   * payments and outstanding invoices. Deliberately NOT the expiry reminders
+   * getSnapshot() also produces -- those need each subscription's own
+   * `current_period_end`, which this response does not carry, so they cost one
+   * request per organization. The Platform Overview shows this narrower set
+   * and says so; /master/billing has the full list. */
+  reminders: Reminder[];
+  /** Per-organization plan/status/price for the Organizations table, taken from
+   * the dashboard's own `customers` page. This is what removes the
+   * `/subscriptions/{org}` fan-out from that table entirely. */
+  organizations: OverviewOrganization[];
+}
+
+/** The Organizations-table slice of one organization, derived from the super
+ * admin dashboard's `customers` items joined to the Plan catalog. A strict
+ * subset of `Subscription` -- only the three columns that table renders -- so
+ * it is deliberately its own shape rather than a half-populated Subscription
+ * that would claim fields (renewal dates, coupons, usage limits) this cheap
+ * path never actually read. */
+export interface OverviewOrganization {
+  organizationId: string;
+  organizationName: string;
+  planName: string;
+  tier: PlanTier;
+  status: SubscriptionStatus;
+  /** The plan's recurring base price, not `lifetime_revenue`: the table's
+   * column is headed MRR. */
+  amount: number;
 }
 
 export interface BillingSnapshot {

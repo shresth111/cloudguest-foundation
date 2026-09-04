@@ -14,7 +14,18 @@ export type SubscriptionFormValues = z.infer<typeof subscriptionSchema>;
 
 export const planSchema = z.object({
   name: z.string().min(2, "Name is required"),
-  tier: z.enum(["starter", "professional", "enterprise", "custom"]),
+  // 1:1 with backend PlanType -- savePlan sends this straight through as
+  // `plan_type` on create, so a tier missing here is a plan shape the console
+  // simply cannot create.
+  tier: z.enum([
+    "free_trial",
+    "starter",
+    "professional",
+    "business",
+    "enterprise",
+    "msp",
+    "custom",
+  ]),
   // INR only -- the real GST tax engine (compute_tax_breakdown, backend/
   // app/domains/billing/validators.py) is India-specific by construction
   // (CGST/SGST vs IGST is a purely Indian-jurisdiction distinction), so a

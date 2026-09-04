@@ -369,8 +369,36 @@ function RouterFleetScreen() {
           />
         ) : (
           <>
+            {/* "At active locations", not "Total routers".
+                This page and the Platform Overview / Global Analytics tiles
+                disagree about the fleet size (8 here vs 11 there) and they are
+                NOT the same quantity, so they must not be labeled as though
+                they were. The two counts come from different places:
+
+                  * /dashboard/super-admin/unified counts the `routers` table
+                    directly -- `Router.is_deleted = False`, GROUP BY status,
+                    with no join to Location or Organization at all
+                    (AnalyticsRepository.count_routers_by_status).
+                  * this page fans `GET /locations/{id}/routers` out over the
+                    live organization -> location tree, and RouterService
+                    .list_routers 404s for an archived location because its own
+                    `get_location(..., include_deleted=False)` guard rejects it.
+
+                Archiving a Location or an Organization soft-deletes that row
+                but does NOT cascade to the `routers` underneath it, so those
+                routers keep `is_deleted = False`: still counted platform-wide,
+                and permanently unreachable from this screen. The gap is those
+                orphans -- it is not access points (there is no device_type
+                column anywhere in the backend; the "... AP 1" rows are
+                ordinary `routers` rows and are counted identically by both
+                paths) and it is not a page_size cap (this fetches 100 per
+                location against single-digit real counts).
+
+                Making the two agree needs the backend aggregate to join
+                Location/Organization, which is not this repo. So the number
+                here is labeled for what it can actually see. */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <MStat label="Total routers" value={summary.total} icon={RouterIcon} />
+              <MStat label="At active locations" value={summary.total} icon={RouterIcon} />
               <MStat label="Online" value={summary.online} tone="success" icon={CheckCircle2} />
               <MStat
                 label="Degraded"

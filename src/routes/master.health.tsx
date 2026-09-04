@@ -32,7 +32,15 @@ function HealthScreen() {
           title="System Health"
           actions={
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Activity className="h-3.5 w-3.5" /> Live dependency checks -- API, database, cache
+              {/* Not "Live dependency checks". GET /monitoring/health reads the
+                  stored service_health table and probes nothing; the only code
+                  that actually checks a dependency is POST
+                  /monitoring/health/run, behind this page's own "Run health
+                  checks now" button, and no scheduled job ever calls it. The
+                  header used to describe what that button does as though it
+                  were what the page continuously shows. */}
+              <Activity className="h-3.5 w-3.5" /> On-demand dependency checks -- API, database,
+              cache
             </p>
           }
         />

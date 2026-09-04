@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { History, Loader2, PlayCircle } from "lucide-react";
+import { AlertTriangle, History, Loader2, PlayCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,10 +14,37 @@ import {
 } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ErrorState } from "@/components/common/ErrorState";
+import { relativeTime } from "@/lib/friendly";
 import { HealthBadge } from "./MonitoringBadges";
 import { useHealthDashboard, useHealthHistory, useRunHealthChecks } from "@/hooks/useMonitoring";
 import { HEALTH_COMPONENT_LABEL, type HealthComponent } from "@/types/monitoring";
 import type { AppError } from "@/services/api";
+
+/**
+ * How old the newest recorded check may be before this board stops presenting
+ * itself as a current picture.
+ *
+ * There is nothing arbitrary to tune here against a schedule, because there is
+ * no schedule: `GET /monitoring/health` is a pure read of the stored
+ * `service_health` table (MonitoringService.get_dashboard_summary), and the
+ * ONLY thing that ever writes that table is `POST /monitoring/health/run` --
+ * the "Run health checks now" button below. No Celery beat entry, no cron, no
+ * sweep task calls run_all_health_checks. So every row is exactly as old as
+ * the last time a human clicked that button, and an hour is already long
+ * enough that "currently healthy" is a claim this page cannot support.
+ */
+const HEALTH_STALE_AFTER_MS = 60 * 60_000;
+
+/** The newest `lastCheckedAt` across every component, or null if nothing has
+ * ever been checked. The board's age is the freshest row's age -- a single
+ * component checked recently does not make the others current, but it does
+ * mean a run happened, and the per-card timestamps carry the rest. */
+function newestCheck(components: { lastCheckedAt: string | null }[]): number | null {
+  const times = components
+    .map((c) => (c.lastCheckedAt ? new Date(c.lastCheckedAt).getTime() : NaN))
+    .filter((t) => !Number.isNaN(t));
+  return times.length ? Math.max(...times) : null;
+}
 
 function HistoryDialog({
   component,
@@ -122,10 +149,33 @@ export function HealthDashboard() {
           Run health checks now
         </Button>
       </div>
+      {/* The board is a stored table, not a live probe, so its age is part of
+          its meaning: without this, a two-day-old "Healthy" reads exactly like
+          a "Healthy" from thirty seconds ago. Only shown once the data really
+          is old -- a board refreshed a minute ago does not need explaining. */}
+      {(() => {
+        const newest = newestCheck(data.components);
+        if (data.components.length === 0) return null;
+        if (newest !== null && Date.now() - newest < HEALTH_STALE_AFTER_MS) return null;
+        return (
+          <div className="flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+            <p className="text-muted-foreground">
+              <span className="font-semibold text-foreground">
+                {newest === null
+                  ? "These components have never been checked."
+                  : `Last checked ${relativeTime(new Date(newest).toISOString())}.`}
+              </span>{" "}
+              Health checks only run when someone runs them -- nothing refreshes this board on a
+              schedule -- so the statuses below describe that moment, not right now.
+            </p>
+          </div>
+        );
+      })()}
       {data.components.length === 0 && (
         <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-          No health checks have been recorded yet -- run one now to populate this board with real,
-          live component status.
+          No health checks have been recorded yet -- run one now to populate this board with real
+          component status.
         </div>
       )}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -138,8 +188,17 @@ export function HealthDashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <p className="text-xs text-muted-foreground">
-                {c.lastCheckedAt ? new Date(c.lastCheckedAt).toLocaleString() : "Never checked"}
+              {/* Relative first: a bare "02/09/2026, 17:31:46" is read as a
+                  timestamp of something that just happened, which is how a
+                  two-day-old check passed for a current one. The absolute time
+                  stays on the title attribute for anyone who needs it -- and
+                  it renders in the VIEWER's timezone, another reason not to
+                  lead with it. */}
+              <p
+                className="text-xs text-muted-foreground"
+                title={c.lastCheckedAt ? new Date(c.lastCheckedAt).toLocaleString() : undefined}
+              >
+                {c.lastCheckedAt ? `Checked ${relativeTime(c.lastCheckedAt)}` : "Never checked"}
               </p>
               {c.consecutiveFailureCount > 0 && (
                 <p className="text-xs text-red-500">
