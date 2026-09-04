@@ -123,7 +123,21 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
   // Provenance of the most recent reading, and whether any reading at all
   // carried a per-interface breakdown.
   const latest = readings[readings.length - 1];
-  const hasInterfaceData = series.some((s) => s.points.some((p) => p.downMbps != null));
+  // Two different absences, and they must not share a message.
+  //
+  // `hasRateData` asks whether a *rate* could be computed, which needs
+  // two readings -- a single cumulative octet count is not a throughput.
+  // `hasCounters` asks the weaker question: did any reading carry a
+  // per-interface breakdown at all?
+  //
+  // Collapsing them tells an operator "this device isn't being measured"
+  // during the window after the very first reading arrives, when it
+  // demonstrably is. That window used to be permanent (nothing populated
+  // these counters at all), which is why one message was once enough.
+  const hasCounters = readings.some(
+    (r) => r.interfaceTrafficCounters != null && r.interfaceTrafficCounters.length > 0,
+  );
+  const hasRateData = series.some((s) => s.points.some((p) => p.downMbps != null));
 
   const healthChart = useMemo(
     () =>
@@ -267,11 +281,20 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
             <section className="space-y-4">
               <h3 className="text-sm font-medium">Traffic by port</h3>
 
-              {!hasInterfaceData ? (
-                <EmptyNote>
-                  Per-port traffic isn&apos;t being measured for this device, so we can only show
-                  its overall health below. Ask support if you need port-level traffic here.
-                </EmptyNote>
+              {!hasRateData ? (
+                hasCounters ? (
+                  <EmptyNote>
+                    Port traffic is being measured, but throughput needs two readings to
+                    compare — the next one is due within a few minutes. Its overall health is
+                    below in the meantime.
+                  </EmptyNote>
+                ) : (
+                  <EmptyNote>
+                    Per-port traffic isn&apos;t being measured for this device, so we can only
+                    show its overall health below. Ask support if you need port-level traffic
+                    here.
+                  </EmptyNote>
+                )
               ) : (
                 series
                   .filter((s) => s.points.some((p) => p.downMbps != null || p.upMbps != null))

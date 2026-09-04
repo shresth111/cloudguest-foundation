@@ -380,6 +380,27 @@ check(
 // NAMING (docs/ipdr-logs-syslog-spec.md §5): the customer request said
 // "SNMP logs". It is not a log, and the transport is not the product.
 const customerCopy = view.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, "");
+// "No rate yet" and "not measured at all" are different facts, and the
+// view must not tell the operator the second when the first is true.
+// The window is small (one sweep interval after a device's very first
+// counter reading) but it is a plain false statement while it lasts --
+// and it lasts forever for a device that has been read exactly once.
+check(
+  "measured-once-is-not-reported-as-unmeasured",
+  /hasCounters/.test(view) && /hasRateData/.test(view),
+  "the view still collapses 'no rate yet' and 'no counters at all' into one condition",
+);
+check(
+  "the-not-measured-message-is-guarded-by-having-no-counters",
+  /hasCounters \? \(/.test(view),
+  "the two empty states are not branched on hasCounters",
+);
+check(
+  "the-waiting-message-explains-why-two-readings-are-needed",
+  /throughput needs two readings/i.test(view),
+  "the waiting state does not say why it is waiting",
+);
+
 check(
   "customer-copy-never-says-snmp-logs",
   !/snmp\s*logs?/i.test(customerCopy),
