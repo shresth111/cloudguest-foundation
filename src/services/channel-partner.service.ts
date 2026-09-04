@@ -3,6 +3,7 @@ import type {
   ChannelPartner,
   ChannelPartnerStatus,
   CreateChannelPartnerPayload,
+  WelcomeDeliveryStatus,
 } from "@/types/channel-partner";
 
 interface BackendChannelPartner {
@@ -18,6 +19,8 @@ interface BackendChannelPartner {
   welcome_sms_error: string | null;
   welcome_email_sent_at: string | null;
   welcome_email_error: string | null;
+  welcome_sms_status: WelcomeDeliveryStatus;
+  welcome_email_status: WelcomeDeliveryStatus;
   created_at: string;
   updated_at: string;
 }
@@ -46,6 +49,8 @@ function toChannelPartner(p: BackendChannelPartner): ChannelPartner {
     welcomeSmsError: p.welcome_sms_error,
     welcomeEmailSentAt: p.welcome_email_sent_at,
     welcomeEmailError: p.welcome_email_error,
+    welcomeSmsStatus: p.welcome_sms_status,
+    welcomeEmailStatus: p.welcome_email_status,
     createdAt: p.created_at,
     updatedAt: p.updated_at,
   };
