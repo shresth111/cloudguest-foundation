@@ -32,7 +32,8 @@
     "test:fetch-count": "node scripts/test-network-page-fetch-count.mjs",
     "format": "prettier --write .",
     "measure:portal-contrast": "node scripts/measure-portal-contrast.mjs",
-    "test:isp-single-flight": "node scripts/test-isp-links-single-flight.mjs"
+    "test:isp-single-flight": "node scripts/test-isp-links-single-flight.mjs",
+    "test:fleet-unreachable": "node scripts/test-fleet-unreachable-locations.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

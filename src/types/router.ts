@@ -42,6 +42,19 @@ export interface RouterListQuery {
 }
 
 export interface RouterListResult {
+  /** How many locations could not be read while assembling this list.
+   *
+   * There is no endpoint that lists routers platform-wide, so the fleet is
+   * assembled by fanning `GET /locations/{id}/routers` across every
+   * location and concatenating. That fan-out uses `Promise.allSettled` so
+   * one unreachable location does not take the whole page down -- correct,
+   * but it silently *dropped* the rejected ones, and a router missing from
+   * a fleet list is the single thing nobody notices. "Eight routers" and
+   * "eight routers plus two locations we could not read" look identical.
+   *
+   * Zero for the location-scoped path, which reads one location directly
+   * and has nothing to fan out. */
+  unreachableLocationCount: number;
   rows: RouterDevice[];
   total: number;
 }
