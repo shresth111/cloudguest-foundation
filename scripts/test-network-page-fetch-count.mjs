@@ -41,6 +41,11 @@
  * REAL shared `organization-id` resolver, so its own dedupe stays under test).
  * The services, hooks, query keys and components are all the shipping ones.
  *
+ * VERIFIED AGAINST THE BUG. Run on the parent commit (the pre-fix src, with
+ * this file left in place) the assertions below fail with exactly the counts
+ * the live capture showed: /port-forwarding/rules 4, /dhcp-pools 2. That, not
+ * a green run on its own, is what makes this a regression test.
+ *
  * CASE 4 IS THE CONTROL. It mounts a component with the OLD shape -- a
  * post-mount flag plus a resolved id in the key -- and asserts it fires
  * TWICE. Without it, "exactly one request" could just mean the harness never
@@ -121,6 +126,12 @@ export const api = {
   delete: async (url, config) => { record("delete", url, config); return { data: {} }; },
 };
 export const DEMO_ACCESS_TOKEN = "demo-access-token";
+export const TOKEN_STORAGE_KEY = "cloudguest_token";
+export const REFRESH_TOKEN_STORAGE_KEY = "cloudguest_refresh_token";
+export const USER_STORAGE_KEY = "cloudguest_user";
+export const ROLES_STORAGE_KEY = "cloudguest_roles";
+export const ORGS_STORAGE_KEY = "cloudguest_organizations";
+export function resolveActiveOrganizationId() { return null; }
 export default api;
 `;
 writeFileSync(join(work, "api-stub.js"), API_STUB);
@@ -136,6 +147,7 @@ writeFileSync(
      return localStorage.getItem("cloudguest_token") === "demo-access-token";
    }
    export function resolveOrgId() { return resolveOrganizationId(); }
+   export const customerService = {};
 `,
 );
 
