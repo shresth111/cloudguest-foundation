@@ -89,6 +89,7 @@ const vlanSchema = z
     gatewayIpAddress: z.string().trim().optional().or(z.literal("")),
     cidr: z.string().trim().optional().or(z.literal("")),
     portMode: z.enum(["trunk", "access"]),
+    confirmTakesPort: z.boolean(),
     trunkInterface: z.string().trim().optional().or(z.literal("")),
     accessPort: z.string().trim().optional().or(z.literal("")),
     enableHotspot: z.boolean(),
@@ -122,6 +123,7 @@ const BLANK_VLAN_FORM: VlanFormValues = {
   gatewayIpAddress: "",
   cidr: "",
   portMode: "trunk",
+  confirmTakesPort: false,
   trunkInterface: "",
   accessPort: "",
   enableHotspot: false,
@@ -571,6 +573,10 @@ function VlanDialog({
         gatewayIpAddress: vlan.gatewayIpAddress ?? "",
         cidr: vlan.cidr ?? "",
         portMode: vlan.portMode,
+        // Never pre-ticked from a saved row: consent is for the change
+        // being made now, and a box that arrives already ticked is not
+        // consent to anything.
+        confirmTakesPort: false,
         // One `interface` column on the wire, two fields in the form: load
         // it into whichever one this VLAN's mode actually uses.
         trunkInterface: vlan.portMode === "trunk" ? (vlan.interface ?? "") : "",
@@ -640,6 +646,8 @@ function VlanDialog({
       cidr: v.cidr || null,
       interface: (v.portMode === "access" ? v.accessPort : v.trunkInterface) || null,
       portMode: v.portMode,
+      // Only meaningful for access mode; harmless and false otherwise.
+      confirmTakesPort: v.portMode === "access" ? v.confirmTakesPort : false,
       enableHotspot: v.enableHotspot,
       natEnabled: v.natEnabled,
       isEnabled: v.isEnabled,
@@ -839,6 +847,24 @@ function VlanDialog({
               is on it, the Wi-Fi it serves stops working until the port is put back. Choose{" "}
               <span className="font-medium">Share the existing cable</span> instead to add this zone
               without taking the port.
+              <Controller
+                control={form.control}
+                name="confirmTakesPort"
+                render={({ field }) => (
+                  <label className="mt-2.5 flex cursor-pointer items-start gap-2">
+                    <input
+                      type="checkbox"
+                      checked={field.value}
+                      onChange={(e) => field.onChange(e.target.checked)}
+                      className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-amber-600"
+                    />
+                    <span>
+                      Yes, take {watchedInterface} out of {accessPortBridge}. Without this the
+                      router refuses the change.
+                    </span>
+                  </label>
+                )}
+              />
             </div>
           )}
           <div className="sm:col-span-2 rounded-lg border border-dashed border-border/60 bg-muted/30 px-3 py-2.5 text-[11px] text-muted-foreground">
