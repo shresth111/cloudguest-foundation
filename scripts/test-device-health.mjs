@@ -283,6 +283,48 @@ check(
 check("peak-records-when-it-happened", multi[0].peakDownAt === T5);
 check("interface-up-state-is-carried", multi[0].up === true && multi[1].up === false);
 
+// One physical port polled by both sweeps is ONE series.
+//
+// The two transports disagree about `ifIndex` by construction: SNMP
+// reports a real IF-MIB ifIndex, the RouterOS-API sweep parses the
+// device's own internal row id. Keying the series on the index would
+// split `ether1` into two half-length series -- each of which renders as
+// a perfectly ordinary complete one, with no error anywhere to say the
+// operator is looking at half the history.
+const mixedTransport = toInterfaceSeries([
+  {
+    ...snmpReading("a", T0, 0, 0),
+    metricsSource: "snmp",
+    interfaceTrafficCounters: [
+      { ifIndex: 1, ifName: "ether1", up: true, inOctets: 0, outOctets: 0 },
+    ],
+  },
+  {
+    ...snmpReading("b", T5, 0, 0),
+    metricsSource: "routerApi",
+    // Same physical port, different numbering scheme.
+    interfaceTrafficCounters: [
+      { ifIndex: 7, ifName: "ether1", up: true, inOctets: 75_000_000, outOctets: 0 },
+    ],
+  },
+]);
+check(
+  "one-port-across-both-transports-is-one-series",
+  mixedTransport.length === 1,
+  `got ${mixedTransport.length} series: ${mixedTransport.map((s) => `${s.ifName}#${s.ifIndex}`).join(",")}`,
+);
+check(
+  "and-the-rate-across-that-pair-is-measured",
+  mixedTransport[0] && Math.abs(mixedTransport[0].peakDownMbps - 2) < 1e-9,
+  `${mixedTransport[0] && mixedTransport[0].peakDownMbps}`,
+);
+// Two genuinely different ports must still stay apart -- the fix above
+// must not have collapsed the series onto something too coarse.
+check(
+  "different-ports-are-still-different-series",
+  multi.length === 2 && multi[0].ifName === "ether1" && multi[1].ifName === "ether2",
+);
+
 // ---------------------------------------------------------------------------
 // 7. Formatting never dresses an unknown as a number.
 // ---------------------------------------------------------------------------

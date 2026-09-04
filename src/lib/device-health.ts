@@ -48,10 +48,17 @@ import type { DeviceHealthReading, InterfaceTrafficCounter } from "@/types/devic
 
 /**
  * Longest interval between two readings still worth expressing as a rate.
- * The SNMP sweep runs every 5 minutes
- * (`ROUTER_SNMP_METRICS_POLL_SWEEP_INTERVAL_SECONDS = 300`), so this is
- * six consecutive missed sweeps -- comfortably past ordinary jitter, well
- * short of averaging a busy evening into a flat line.
+ *
+ * The slower of the two sweeps that feed this chart runs every 10 minutes
+ * (`ROUTER_HEALTH_POLL_SWEEP_INTERVAL_SECONDS = 600`; the SNMP one is
+ * 300s), so this is three consecutive missed sweeps of the slow path --
+ * comfortably past ordinary jitter, well short of averaging a busy
+ * evening into a flat line.
+ *
+ * The backend applies the same 1800s ceiling to the ISP link card's own
+ * rate derivation (`MAX_RATE_INTERVAL_SECONDS` in
+ * `app/domains/isp/constants.py`). Different pipeline, same question
+ * about the same physical link -- change one, change both.
  */
 export const MAX_INTERVAL_MINUTES = 30;
 
@@ -108,19 +115,39 @@ export function intervalMbps(
   return (delta * BITS_PER_OCTET) / seconds / BITS_PER_MEGABIT;
 }
 
-/** Stable identity for an interface across readings. */
+/**
+ * Stable identity for an interface across readings.
+ *
+ * The NAME, not the index. `ifIndex` means two different things
+ * depending on which sweep took the reading: SNMP reports a genuine
+ * IF-MIB `ifIndex`, while the RouterOS-API sweep has no such field and
+ * parses the device's own internal row id (`*1`, `*2`) instead. Those
+ * two numbering schemes are commonly equal on RouterOS but nothing has
+ * verified it against hardware, so they must not be assumed equal here.
+ *
+ * Keying on the index would mean that a router polled by both
+ * transports could render `ether1` as two separate series -- each
+ * holding half the history, each looking like a complete one. There is
+ * no error state for that; it just quietly halves what the operator
+ * sees. The name is what both transports report identically, and it is
+ * also the identity the operator recognises.
+ *
+ * `ifIndex` is still carried on the series (first one seen wins) purely
+ * for ordering and for DOM ids.
+ */
 function key(counter: InterfaceTrafficCounter): string {
-  return `${counter.ifIndex}::${counter.ifName}`;
+  return counter.ifName;
 }
 
 /**
  * Turn a device's readings into one throughput series per interface.
  *
- * Only readings that actually carry a per-interface breakdown take part
- * (in practice, the SNMP-sourced ones). Router-API readings are skipped
- * rather than treated as zeroes -- they are interleaved into the same
- * table on a different cadence and carry no interface data at all, so
- * counting them would fabricate a hole in every other slot.
+ * Only readings that actually carry a per-interface breakdown take part.
+ * Both sweeps now attach one, but older rows -- and any poll whose
+ * interface read failed -- do not. Those are skipped rather than treated
+ * as zeroes: a reading with no breakdown is not a reading of no traffic,
+ * and counting it would draw a hole in the line that the device never
+ * had.
  *
  * `readings` must be oldest-first (`deviceHealthService.history` returns
  * them that way).

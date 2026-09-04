@@ -4,13 +4,18 @@
  * Backed by `GET /routers/{router_id}/health-history`
  * (`app/domains/router_provisioning/router.py`), which serves the
  * `router_health_snapshots` table. Both device-metrics sweeps write into
- * that one table: the RouterOS-API sweep every 600s and the SNMP sweep
- * every 300s, the latter tagging `metrics_source="snmp"` and attaching
- * `interface_traffic_counters` the router-API path has no equivalent for.
- * So a page of history is an interleaving of both sources, and the
- * per-interface breakdown is present on only some rows -- see
- * `toInterfaceSeries` in `@/lib/device-health`, which is where that gets
- * separated out rather than being smeared over the chart.
+ * that one table -- the RouterOS-API sweep every 600s, the SNMP sweep
+ * every 300s -- and each tags its own `metrics_source`. A page of history
+ * is therefore an interleaving of both sources on different cadences.
+ *
+ * Both now attach `interface_traffic_counters`. The RouterOS-API sweep
+ * did not until 2026-09-04, and since SNMP is gated behind a per-router
+ * flag that nothing in the product can set, that made the per-interface
+ * breakdown empty fleet-wide -- a chart that was correct, honest, and
+ * permanently blank. Rows recorded before that still carry no breakdown,
+ * so it is present on only some of them; `toInterfaceSeries` in
+ * `@/lib/device-health` is where those get separated out rather than
+ * smeared over the chart as zeroes.
  *
  * This module deliberately reads only metrics. The SNMP *configuration*
  * on a router (community string, version, port, enabled flag) is
