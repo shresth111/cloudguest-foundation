@@ -243,8 +243,11 @@ async function fetchAllLocations(): Promise<
  * same graceful `allSettled` degradation for locations the caller can't
  * reach) as `location.service.ts`'s own `fetchAllLocations`.
  */
-async function fetchAllRouters(): Promise<RouterDevice[]> {
-  if (isDemo()) return DEMO_ROUTERS;
+async function fetchAllRouters(): Promise<{
+  routers: RouterDevice[];
+  unreachableLocationCount: number;
+}> {
+  if (isDemo()) return { routers: DEMO_ROUTERS, unreachableLocationCount: 0 };
   const locations = await fetchAllLocations();
   const settled = await Promise.allSettled(
     locations.map(async (loc) => {
@@ -255,9 +258,27 @@ async function fetchAllRouters(): Promise<RouterDevice[]> {
       return data.items.map((r) => toRouter(r, loc.name, loc.organizationName));
     }),
   );
-  return settled
-    .filter((r): r is PromiseFulfilledResult<RouterDevice[]> => r.status === "fulfilled")
-    .flatMap((r) => r.value);
+
+  // The rejected ones used to be dropped on the floor. Keeping the page up
+  // when one location fails is right; not saying so is not -- a router
+  // missing from a fleet list is the one thing nobody notices, and an
+  // operator counting devices has no way to tell a short list from a
+  // complete one. Counted here and surfaced by the caller.
+  const rejected = settled.filter((r) => r.status === "rejected");
+  if (rejected.length > 0) {
+    console.warn(
+      `[fleet] ${rejected.length} of ${locations.length} locations could not be read; ` +
+        "their routers are missing from this list",
+      rejected.map((r) => (r as PromiseRejectedResult).reason),
+    );
+  }
+
+  return {
+    routers: settled
+      .filter((r): r is PromiseFulfilledResult<RouterDevice[]> => r.status === "fulfilled")
+      .flatMap((r) => r.value),
+    unreachableLocationCount: rejected.length,
+  };
 }
 
 export interface RouterModelGroup {
@@ -386,6 +407,7 @@ export const routerService = {
   },
 
   async list(q: RouterListQuery): Promise<RouterListResult> {
+    let unreachableLocationCount = 0;
     let rows =
       q.locationId && q.locationId !== "all"
         ? await (async () => {
@@ -414,7 +436,11 @@ export const routerService = {
             );
             return data.items.map((r) => toRouter(r, loc?.name ?? "", loc?.organizationName ?? ""));
           })()
-        : await fetchAllRouters();
+        : await (async () => {
+            const fleet = await fetchAllRouters();
+            unreachableLocationCount = fleet.unreachableLocationCount;
+            return fleet.routers;
+          })();
 
     if (q.search) {
       const s = q.search.toLowerCase();
@@ -434,7 +460,7 @@ export const routerService = {
     const total = rows.length;
     const start = (q.page - 1) * q.pageSize;
     rows = rows.slice(start, start + q.pageSize);
-    return { rows, total };
+    return { rows, total, unreachableLocationCount };
   },
 
   async get(id: string): Promise<RouterDevice | null> {

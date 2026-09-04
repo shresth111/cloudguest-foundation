@@ -394,9 +394,13 @@ function RouterFleetScreen() {
                 paths) and it is not a page_size cap (this fetches 100 per
                 location against single-digit real counts).
 
-                Making the two agree needs the backend aggregate to join
-                Location/Organization, which is not this repo. So the number
-                here is labeled for what it can actually see. */}
+                The backend aggregate now performs that join (cloud-guest
+                #134), so the two agree again -- Platform Overview reads 7/8
+                against this page's 8, verified live on 2026-09-04. The label
+                stays as it is anyway: it says what this number can actually
+                see, which remains true whether or not the other tile happens
+                to match today. The orphaned routers themselves still exist;
+                they are excluded from both counts now rather than resolved. */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <MStat label="At active locations" value={summary.total} icon={RouterIcon} />
               <MStat label="Online" value={summary.online} tone="success" icon={CheckCircle2} />
@@ -408,6 +412,20 @@ function RouterFleetScreen() {
               />
               <MStat label="Offline" value={summary.offline} tone="danger" icon={WifiOff} />
             </div>
+
+            {/* A short list and a complete one look identical, so say when
+                it is short. `fetchAllRouters` keeps the page up when one
+                location's read fails -- right -- but it used to drop those
+                silently, and a router missing from a fleet list is the one
+                thing nobody notices. */}
+            {(fleetQuery.data?.unreachableLocationCount ?? 0) > 0 && (
+              <p className="text-xs text-amber-600 dark:text-amber-500">
+                {fleetQuery.data?.unreachableLocationCount} location
+                {fleetQuery.data?.unreachableLocationCount === 1 ? "" : "s"} could not be read, so
+                any routers there are missing from this list. The counts above cover only what
+                loaded.
+              </p>
+            )}
 
             <div className="flex flex-wrap items-center justify-between gap-3">
               <MSeg
