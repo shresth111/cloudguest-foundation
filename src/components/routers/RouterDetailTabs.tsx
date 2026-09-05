@@ -51,11 +51,14 @@ import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { ErrorState } from "@/components/common/ErrorState";
 import { ComingSoonPanel } from "@/components/ui-ext/ComingSoonPanel";
 import type { RouterDevice } from "@/types/router";
-import type {
-  DiagnosticRun,
-  PingRunResult,
-  TracerouteRunResult,
-} from "@/types/network-diagnostics";
+import type { DiagnosticRun } from "@/types/network-diagnostics";
+// Shared with the customer dashboard's Connection Tools page -- the two
+// had already drifted on RTT precision and on how a silent hop is drawn.
+import {
+  didDiagnosticExecute,
+  summarizeDiagnosticResult,
+  tracerouteHopsOf,
+} from "@/lib/diagnostics-presentation";
 import { PEER_STATUS_LABEL } from "@/types/router";
 import { deriveLanAddressing } from "@/lib/lan-addressing";
 import { RouterStatusBadge, HealthStatusBadge } from "./RouterStatusBadge";
@@ -876,33 +879,9 @@ function ProvisioningTab({ routerId }: { routerId: string }) {
   );
 }
 
-/** Compact, human summary of a completed run's own `result` -- see
- * `types/network-diagnostics.ts`'s own `PingRunResult`/`TracerouteRunResult`
- * docstrings for why `result`'s keys stay snake_case unlike the rest of
- * `DiagnosticRun`. Failed runs have no `result` to summarize (the backend
- * writes `{}` on failure -- `errorMessage` is the real signal there). */
-function summarizeDiagnosticResult(run: DiagnosticRun): string | null {
-  if (run.status !== "completed" && run.status !== "success") return null;
-  if (run.diagnosticType === "ping") {
-    const r = run.result as unknown as PingRunResult;
-    if (typeof r?.sent !== "number") return null;
-    const rtt = r.avg_rtt_ms != null ? `${r.avg_rtt_ms.toFixed(1)} ms avg` : "no response";
-    return `${r.received}/${r.sent} received · ${r.packet_loss_percentage}% loss · ${rtt}`;
-  }
-  if (run.diagnosticType === "traceroute") {
-    const r = run.result as unknown as TracerouteRunResult;
-    if (!Array.isArray(r?.hops)) return null;
-    return `${r.hops.length} hop${r.hops.length === 1 ? "" : "s"}`;
-  }
-  return null;
-}
-
 function DiagnosticRunRow({ run }: { run: DiagnosticRun }) {
   const [expanded, setExpanded] = useState(false);
-  const hops =
-    run.diagnosticType === "traceroute"
-      ? ((run.result as unknown as TracerouteRunResult)?.hops ?? [])
-      : [];
+  const hops = run.diagnosticType === "traceroute" ? tracerouteHopsOf(run) : [];
   const canExpand = run.diagnosticType === "traceroute" && hops.length > 0;
   const summary = summarizeDiagnosticResult(run);
 
@@ -927,7 +906,7 @@ function DiagnosticRunRow({ run }: { run: DiagnosticRun }) {
         <TableCell>{run.target}</TableCell>
         <TableCell>
           <Badge
-            variant={run.status === "completed" || run.status === "success" ? "default" : "outline"}
+            variant={didDiagnosticExecute(run) ? "default" : "outline"}
           >
             {run.status}
           </Badge>
