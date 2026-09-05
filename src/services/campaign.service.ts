@@ -151,6 +151,16 @@ export const campaignService = {
       total_impressions: number;
       total_skipped: number;
       total_clicked: number;
+      question_breakdowns?: {
+        question_id: string;
+        question_text: string;
+        answer_type: string;
+        total_answers: number;
+        option_counts: Record<string, number> | null;
+        average_rating: number | null;
+        rating_distribution: Record<string, number> | null;
+        free_text_answers: string[] | null;
+      }[];
     }>(`/campaigns/${campaignId}/results`, {
       headers: { "X-Organization-Id": orgId },
     });
@@ -160,6 +170,24 @@ export const campaignService = {
       totalImpressions: data.total_impressions,
       totalSkipped: data.total_skipped,
       totalClicked: data.total_clicked,
+      questionBreakdowns: (data.question_breakdowns ?? []).map((b) => ({
+        questionId: b.question_id,
+        questionText: b.question_text,
+        answerType: b.answer_type as QuestionAnswerType,
+        totalAnswers: b.total_answers,
+        optionCounts: b.option_counts,
+        averageRating: b.average_rating,
+        // JSON object keys are strings even where the backend types the
+        // dict as `dict[int, int]`, so the star buckets arrive as "1".."5".
+        // Normalise to real numbers here rather than leaving every consumer
+        // to remember that.
+        ratingDistribution: b.rating_distribution
+          ? Object.fromEntries(
+              Object.entries(b.rating_distribution).map(([k, v]) => [Number(k), v]),
+            )
+          : null,
+        freeTextAnswers: b.free_text_answers,
+      })),
     };
   },
 

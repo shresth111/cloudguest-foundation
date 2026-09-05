@@ -16,6 +16,7 @@ import {
   Sparkles,
   X,
   ListChecks,
+  BarChart3,
   Eye,
   Wifi,
   ExternalLink,
@@ -52,9 +53,34 @@ import { portalService } from "@/services/portal.service";
 import type {
   CampaignAsset,
   CampaignQuestion,
+  CampaignResults,
   CampaignType,
   QuestionAnswerType,
 } from "@/types/campaign";
+
+/** One horizontal answer bar: label, count, and the share of answers it
+ * took. Used for both star buckets and choice options, so a survey's two
+ * question shapes read as one thing rather than two.
+ *
+ * `total` is the question's own answer count, not the campaign's, so a
+ * multi-choice question where guests picked several options can legitimately
+ * sum past 100% -- clamped rather than allowed to overflow the track. */
+function AnswerBar({ label, count, total }: { label: string; count: number; total: number }) {
+  const pct = total > 0 ? Math.min(100, Math.round((count / total) * 100)) : 0;
+  return (
+    <div className="flex items-center gap-3">
+      <span className="w-24 shrink-0 truncate text-xs text-muted-foreground" title={label}>
+        {label}
+      </span>
+      <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+        <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+      </div>
+      <span className="w-10 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+        {count.toLocaleString()}
+      </span>
+    </div>
+  );
+}
 
 interface Campaign {
   id: string;
@@ -389,6 +415,32 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
   // this at all: the Recent Campaigns table had no per-row action for it,
   // so clicking a survey campaign did nothing.
   const [manageFor, setManageFor] = useState<Campaign | null>(null);
+
+  // Survey results. The star rating has shipped for a while and guests
+  // really do submit answers (campaign-portal.service.ts's submitResponse),
+  // but until now nothing in the dashboard read them back -- an owner could
+  // ask "How was your visit?" and never see a single reply. The aggregate
+  // has always been there: GET /campaigns/{id}/results returns per-question
+  // option counts, an average rating and a star distribution.
+  const [resultsFor, setResultsFor] = useState<Campaign | null>(null);
+  const [resultsData, setResultsData] = useState<CampaignResults | null>(null);
+  const [resultsLoading, setResultsLoading] = useState(false);
+  const [resultsError, setResultsError] = useState(false);
+
+  const openResults = async (c: Campaign) => {
+    setResultsFor(c);
+    setResultsData(null);
+    setResultsError(false);
+    if (demo) return;
+    setResultsLoading(true);
+    try {
+      setResultsData(await campaignService.getResults(c.id));
+    } catch {
+      setResultsError(true);
+    } finally {
+      setResultsLoading(false);
+    }
+  };
   const [questions, setQuestions] = useState<CampaignQuestion[]>([]);
   const [questionsLoading, setQuestionsLoading] = useState(false);
   const [qForm, setQForm] = useState(emptyQuestionForm);
@@ -1239,6 +1291,134 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
         </div>
       )}
 
+      {resultsFor && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+          onClick={() => setResultsFor(null)}
+        >
+          <div
+            className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border bg-card p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-1 flex items-center justify-between">
+              <h3 className="text-base font-semibold tracking-tight">
+                Answers — {resultsFor.name}
+              </h3>
+              <button
+                onClick={() => setResultsFor(null)}
+                className="rounded-lg p-1 text-muted-foreground hover:bg-accent"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="mb-4 text-xs text-muted-foreground">
+              What guests actually replied. Aggregated, never per guest.
+            </p>
+
+            {demo ? (
+              <EmptyState
+                icon={BarChart3}
+                title="Not available on the demo account"
+                description="Survey answers belong to real guests at a real venue, so there is nothing to aggregate here."
+              />
+            ) : resultsLoading ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">Loading…</p>
+            ) : resultsError ? (
+              <EmptyState
+                icon={BarChart3}
+                title="Couldn't load the answers"
+                description="Try again in a moment — nothing was changed."
+              />
+            ) : !resultsData ? null : (
+              <div className="space-y-5">
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { label: "Shown", value: resultsData.totalImpressions },
+                    { label: "Answered", value: resultsData.totalResponses },
+                    { label: "Skipped", value: resultsData.totalSkipped },
+                  ].map((k) => (
+                    <div key={k.label} className="rounded-xl bg-muted/40 px-3 py-2.5 text-center">
+                      <p className="text-xs text-muted-foreground">{k.label}</p>
+                      <p className="text-lg font-semibold tabular-nums">
+                        {k.value.toLocaleString()}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                {resultsData.questionBreakdowns.length === 0 ? (
+                  <EmptyState
+                    icon={BarChart3}
+                    title="No answers yet"
+                    description="Once guests start replying, their answers appear here."
+                  />
+                ) : (
+                  resultsData.questionBreakdowns.map((q) => (
+                    <div key={q.questionId} className="space-y-2 rounded-xl border p-4">
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{q.questionText}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {q.totalAnswers.toLocaleString()}{" "}
+                          {q.totalAnswers === 1 ? "answer" : "answers"}
+                        </p>
+                      </div>
+
+                      {q.totalAnswers === 0 ? (
+                        <p className="text-xs text-muted-foreground">
+                          Nobody has answered this yet.
+                        </p>
+                      ) : (
+                        <>
+                          {q.averageRating != null && (
+                            <p className="text-sm">
+                              <span className="font-semibold tabular-nums">
+                                {q.averageRating.toFixed(1)}
+                              </span>
+                              <span className="text-muted-foreground"> average out of 5</span>
+                            </p>
+                          )}
+                          {q.ratingDistribution && (
+                            <div className="space-y-1">
+                              {[5, 4, 3, 2, 1].map((star) => (
+                                <AnswerBar
+                                  key={star}
+                                  label={`${star} star`}
+                                  count={q.ratingDistribution?.[star] ?? 0}
+                                  total={q.totalAnswers}
+                                />
+                              ))}
+                            </div>
+                          )}
+                          {q.optionCounts && (
+                            <div className="space-y-1">
+                              {Object.entries(q.optionCounts).map(([opt, n]) => (
+                                <AnswerBar key={opt} label={opt} count={n} total={q.totalAnswers} />
+                              ))}
+                            </div>
+                          )}
+                          {q.freeTextAnswers && q.freeTextAnswers.length > 0 && (
+                            <ul className="space-y-1.5">
+                              {q.freeTextAnswers.map((t, i) => (
+                                <li
+                                  key={i}
+                                  className="rounded-lg bg-muted/40 px-3 py-2 text-sm text-foreground"
+                                >
+                                  {t}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {manageFor && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
@@ -1721,14 +1901,24 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
                       </TableCell>
                       <TableCell className="text-right">
                         {c.type === "SURVEY" && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            title="Manage questions"
-                            onClick={() => openManage(c)}
-                          >
-                            <ListChecks className="h-4 w-4" />
-                          </Button>
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Manage questions"
+                              onClick={() => openManage(c)}
+                            >
+                              <ListChecks className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="See answers"
+                              onClick={() => openResults(c)}
+                            >
+                              <BarChart3 className="h-4 w-4" />
+                            </Button>
+                          </>
                         )}
                         <Button
                           variant="ghost"

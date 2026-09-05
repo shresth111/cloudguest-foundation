@@ -750,6 +750,27 @@ jobs:
             "customer-nav-permissions" 35 "all customer nav permission checks passed" \
             bun run test:customer-nav-permissions
 
+      # --- Campaign results ----------------------------------------------
+      #
+      # The read half of a feature whose write half shipped months ago: an
+      # owner could author a star-rating question, guests really answered
+      # it, and nothing in the dashboard ever read a single reply back.
+      # GET /campaigns/{id}/results existed with no caller, so the admin
+      # table hardcoded impressions/conversions to 0 for every real
+      # campaign while the demo fixtures showed 2841/423.
+      #
+      # The subtle one this pins: the backend types rating_distribution as
+      # dict[int, int], but JSON object keys are always strings, so a
+      # consumer doing dist[5] reads undefined and every star bar renders
+      # zero -- indistinguishable from "nobody rated us".
+      #
+      # Floor 28, observed green at 28.
+      - name: campaign results
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "campaign-results" 28 "all campaign results checks passed" \
+            bun run test:campaign-results
+
       # --- Guest walkthrough: the voucher step ---------------------------
       #
       # Voucher is the one sign-in method whose submit does not live in
