@@ -1,246 +1,194 @@
-import type { ComponentType } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Card, CardContent } from "@/components/ui/card";
+import { ChevronRight, HelpCircle } from "lucide-react";
 import {
-  HelpCircle,
-  LayoutDashboard,
-  Megaphone,
-  ShieldCheck,
-  Monitor,
-  Network,
-} from "lucide-react";
-
-interface HowItWorksItem {
-  /** Matches the real sidebar label exactly (see customerNav.ts) so a
-   * customer can map this straight onto what they see in their own
-   * sidebar. */
-  heading: string;
-  copy: string;
-}
-
-interface HowItWorksGroup {
-  id: string;
-  label: string;
-  line: string;
-  /** The exact lucide icon customerNav.ts already assigns to this group's
-   * first sidebar item, reused here rather than a bespoke illustration --
-   * see this file's top comment for why. */
-  Icon: ComponentType<{ className?: string }>;
-  items: HowItWorksItem[];
-}
-
-const GROUPS: HowItWorksGroup[] = [
-  {
-    id: "overview",
-    label: "Overview",
-    line: "A quick, real-time read on how your guest WiFi is doing right now.",
-    Icon: LayoutDashboard,
-    items: [
-      {
-        heading: "Dashboard",
-        copy: "Your home screen the moment you sign in. It shows how many guests are online right now, whether your internet connection is healthy, how much of your bandwidth is being used, and a rolling look at guest activity over the last 24 hours — plus anything that needs your attention, like hardware that's gone offline. Check it here first before a guest has to tell you something's down.",
-      },
-      {
-        heading: "Users",
-        copy: "The live list of every guest connected to your network. Search by name, filter by online or offline, and open any guest to see their phone number, device, how long they've been connected, and how much data they've used. If someone needs to be kicked off, you can disconnect them on the spot — it ends their session and clears them from the router, not just your records.",
-      },
-    ],
-  },
-  {
-    id: "engagement",
-    label: "Engagement",
-    line: "Reach the people connected to your WiFi — surveys, offers, and a branded welcome.",
-    Icon: Megaphone,
-    items: [
-      {
-        heading: "Campaigns",
-        copy: "Run two kinds of outreach to guests as they connect: quick surveys and feedback forms, or banners with discounts and promotions. You can also set the Post-Login Redirect URL — the page guests land on right after they sign in — so their first moment on your WiFi points wherever you want (your menu, a booking page, your website).",
-      },
-      {
-        heading: "Portal",
-        copy: "Design exactly what a guest sees on the sign-in screen: the headline and welcome message, your brand color and logo, the overall look and font, which languages to offer, and which sign-in methods are available (OTP by mobile, email, or WhatsApp, a voucher code, or social login). Changes show up in a live preview instantly, so you can see exactly what a guest will see before you save.",
-      },
-      {
-        heading: "Vouchers",
-        copy: "Generate batches of one-time or limited-use access codes guests can redeem instead of signing in the usual way — set how many codes, how long they're valid, and any data limit per code. Once a batch is ready, export it as a CSV, download a printable PDF, or email it straight to someone (handy for reception desks or events).",
-      },
-    ],
-  },
-  {
-    id: "access-policy",
-    label: "Access & Policy",
-    line: "Control who can connect, how much bandwidth they get, and when WiFi is available.",
-    Icon: ShieldCheck,
-    items: [
-      {
-        heading: "Access Rules",
-        copy: "Set the limits every guest connects under: maximum speed per device, how many devices one guest can use at once, how long before they're asked to sign in again (session timeout), how long an inactive connection is cut off (idle timeout), and a cap on total connected time per day. This is also where you manage blocked guests, choose which sign-in methods are offered, and set up access tiers — different limit packages you can assign different guests to.",
-      },
-      {
-        heading: "Always Allowed",
-        copy: "A short list of phone numbers or devices that skip the sign-in screen entirely and connect automatically — useful for regulars, staff, or anyone you don't want to make sign in every time. Each entry can be given a start and end date, so the bypass can be temporary rather than forever.",
-      },
-      {
-        heading: "Trusted Devices",
-        copy: "Similar idea, but by device instead of by person: authorize specific hardware (by its MAC address — the device's built-in serial number) to connect without ever hitting the sign-in screen. Good for things like a front-desk tablet, a POS terminal, or an office printer. You can mark an entry as permanent or set it to expire.",
-      },
-      {
-        heading: "Open Hours",
-        copy: "Set a weekly schedule for when guests are allowed to sign in to your WiFi — pick the days and hours it's open, and write a message guests see if they try to connect while you're closed. An “Enforce” toggle turns the whole schedule on or off, and the page shows you a live “Open now / Closed now” status.",
-      },
-      {
-        heading: "Background Image",
-        copy: "Upload a custom background image to appear behind the sign-in screen guests see when they first connect — a simple way to make that first impression feel fully branded to your venue instead of generic.",
-      },
-    ],
-  },
-  {
-    id: "devices-team",
-    label: "Devices & Team",
-    line: "Keep track of your hardware and shared accounts, and control what your staff can do.",
-    Icon: Monitor,
-    items: [
-      {
-        heading: "Devices",
-        copy: "Two things in one place: register your own network hardware — access points, printers, routers, cameras — by MAC address and which floor it's on, so you can see at a glance if anything's gone offline; and see the live list of every device currently connected to your guest network, with its IP address, device type, and when it was last seen.",
-      },
-      {
-        heading: "Guest Groups",
-        copy: "Set up shared team or desk accounts — think a coworking desk, a meeting room, or a shared office — with one login and a pooled data allowance that everyone using that account draws from together, instead of tracking each person individually.",
-      },
-      {
-        heading: "Staff Access",
-        copy: "Create roles with specific permissions, then add your own team members — name, email, mobile number — and assign each one a role. This is what controls which parts of the dashboard each of your staff can see and change, so you can hand off day-to-day management without handing over everything.",
-      },
-    ],
-  },
-  {
-    id: "network",
-    label: "Network",
-    line: "The plumbing behind your guest WiFi — addresses, separation, forwarding, and call quality.",
-    Icon: Network,
-    items: [
-      {
-        heading: "IP Addresses",
-        copy: "The pool of addresses your router automatically hands out to each guest device when it connects, along with the gateway and DNS settings and how long a device holds onto its address before it's freed up for someone else. You generally won't need to touch this unless you're troubleshooting a connectivity issue.",
-      },
-      {
-        heading: "Network Zones",
-        copy: "Split your network into separate zones — most commonly, keeping guest WiFi completely walled off from your staff or office devices — each with its own private address range. This keeps guest traffic from ever mixing with the equipment and systems you use to run your business.",
-      },
-      {
-        heading: "Port Forwarding",
-        copy: "Lets a specific device on your network — a camera system, a booking kiosk, an internal tool — be reached from the outside internet, by forwarding one specific incoming connection to that device. This is an advanced, occasional-use setting; most venues will never need it.",
-      },
-      {
-        heading: "Call Priority",
-        copy: "Gives voice and video calls priority over regular browsing traffic, so a guest's call stays clear even when the network is busy with everyone else's streaming, downloads, and browsing.",
-      },
-    ],
-  },
-];
+  customerFeatureHref,
+  customerNavGroupsForRole,
+  getCustomerLoginRole,
+} from "@/lib/customerNav";
+import { filterNavGroupsByPermissions } from "@/lib/customerNavPermissions";
+import { useMyPermissions } from "@/hooks/useCustomerDashboard";
 
 /**
- * The customer-facing "How the dashboard works" help page -- a static,
- * always-available reference walking through what every sidebar group and
- * item does, in the copy's own words (see customerNav.ts's group ids/order,
- * which this deliberately mirrors 1:1 so the mapping to a customer's real
- * sidebar is obvious). Rendered as the `how-it-works` case in
- * CustomerFeaturePage.tsx, reachable from the sidebar's Support & Logs
- * group.
+ * The customer-facing "How the dashboard works" reference page, reachable
+ * from the sidebar's Support & Logs group and rendered as the
+ * `how-it-works` case in `CustomerFeaturePage.tsx`.
  *
- * Redesigned after owner feedback that the previous version's oversized,
- * unconstrained hero illustration (a 480x220 orbiting-node SVG rendered at
- * `width="100%" height="auto"` with no cap, so it grew huge on wide
- * screens) plus six bespoke "gradient badge with orbiting dashed lines"
- * group icons read as a weak, over-illustrated concept -- more marketing
- * hero than reference page. The fix isn't a size tweak on the same
- * artwork, it's a different concept entirely: this is a help/reference
- * page a customer scans for an answer, not a moment that needs to earn
- * attention the way Dashboard's real-KPI hero does. So the header now
- * matches the plain `FeatureHeader` pattern every other real feature page
- * already uses (OperationsFeatures.tsx's Alerts/Notifications/Logs/etc
- * views) -- a small fixed-size icon badge, a title, one description line
- * -- instead of a full-bleed gradient panel. And instead of inventing new
- * illustration motifs, each section header reuses the exact lucide icon
- * customerNav.ts already assigns to that group's first sidebar item
- * (LayoutDashboard, Megaphone, ShieldCheck, Monitor, Network), so this
- * page's icons are literally the icons a customer already sees in their
- * own sidebar rather than a separate illustrated language competing with
- * it -- fewer visual ideas, more directly useful ones.
+ * WHY THIS IS GENERATED AND NOT WRITTEN
+ * ------------------------------------
+ * This page used to carry its own hand-written `GROUPS` constant: five
+ * groups and seventeen feature blurbs, with a docstring and an on-page
+ * sub-line both claiming it "mirrors your sidebar section by section".
+ * It did not, and could not keep doing so:
+ *
+ *   - `customerNav.ts` had 7 groups / 26 items; this file had 5 / 17.
+ *   - It documented **Background Image**, a screen deleted from both
+ *     `customerNav.ts` and `config/customerFeatureCatalog.ts` when the
+ *     login backdrop moved into Portal -> Design. This file was the last
+ *     place in the codebase still telling a customer that screen existed.
+ *   - It omitted nine real screens -- Reports, Alerts, Website Blocking,
+ *     Internet Connection, Notifications, Connection Tools, Support
+ *     Tickets, Logs and Network Activity Log -- including every item in
+ *     the two groups (Operations, Support & Logs) it never mentioned, one
+ *     of which is the group this page is itself filed under.
+ *
+ * That is a drift class, not a one-off: a hand-maintained duplicate of a
+ * nav config diverges from it on every change to either, and this one had
+ * already diverged twice. "Remember to update How It Works" does not fix
+ * it. Generating the list does.
+ *
+ * So the list below is rendered from the **exact expression
+ * `CustomerSidebar.tsx` evaluates** to build the sidebar -- role filter
+ * then real RBAC grants from `GET /me/permissions`:
+ *
+ *     filterNavGroupsByPermissions(customerNavGroupsForRole(role), permissions)
+ *
+ * Two things follow, both of which the old page got wrong. A screen
+ * renamed, added or removed in `customerNav.ts` changes here with it. And
+ * the page now describes *this reader's* dashboard: an agent (staff)
+ * login sees 8 sidebar items, and the old page explained all 17 to them,
+ * so 13 of its blurbs described screens that reader could not open.
+ * Explaining a screen someone cannot reach generates the support contact
+ * it was meant to prevent.
+ *
+ * Group headings, item labels and the per-item sentence all come from
+ * i18next -- `nav:customerGroup.*` / `nav:customerItem.*` (the same keys
+ * and the same `t(key, hardcodedLabel)` fallback shape the sidebar uses,
+ * so the two can never disagree about what a screen is called) and
+ * `help:*` for this page's own copy. The previous version had zero
+ * translation calls and ~1,070 words of inline English in a product that
+ * ships a Hindi slice, which made the single wordiest customer screen the
+ * only one that could not be translated at all.
+ *
+ * Icons are not chosen here either: each group shows the icon
+ * `customerNav.ts` already assigns to its first item, so this page's
+ * visual language is literally the sidebar's rather than a second one
+ * competing with it.
  */
 export function HowItWorksView() {
+  const { t } = useTranslation(["help", "nav"], { i18n });
+  const navigate = useNavigate();
+
+  // Same two-stage narrowing as the sidebar (CustomerSidebar.tsx) -- role
+  // preference first, then the caller's real effective grants. Both only
+  // ever remove items, and an absent/failed/empty permission set leaves
+  // the role-based nav untouched; see customerNavPermissions.ts for why
+  // every ambiguity resolves toward showing the customer more rather than
+  // stranding them with less.
+  const role = getCustomerLoginRole();
+  const { data: permissions } = useMyPermissions();
+  // This page omits itself from its own index -- a row reading "How It
+  // Works: you are here" is noise. Dropping it can empty the Support &
+  // Logs group for a reader who holds nothing else in it, so groups are
+  // re-filtered after the removal rather than before.
+  const navGroups = filterNavGroupsByPermissions(customerNavGroupsForRole(role), permissions)
+    .map((g) => ({ ...g, items: g.items.filter((item) => item.id !== "how-it-works") }))
+    .filter((g) => g.items.length > 0);
+
   return (
     <div className="space-y-8">
-      {/* Page header -- same small icon-badge + title + description
-       * treatment as every other real feature page's own header (see
-       * OperationsFeatures.tsx's FeatureHeader), sized as a plain
-       * reference-page header rather than a hero. The badge reuses the
-       * exact HelpCircle icon customerNav.ts assigns to this sidebar item. */}
+      {/* Same small icon-badge + title + description header every other
+       * real feature page uses (see OperationsFeatures.tsx's
+       * FeatureHeader), sized as a reference-page header rather than a
+       * hero. The badge reuses the exact HelpCircle icon customerNav.ts
+       * assigns to this sidebar item. */}
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa] shadow-sm shadow-indigo-500/20">
           <HelpCircle className="h-5 w-5 text-white" />
         </div>
         <div>
           <h1 className="font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">
-            How the dashboard works
+            {t("help:title", "How the dashboard works")}
           </h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            A quick reference for what's where -- mirrors your sidebar section by section.
+            {t("help:subtitle", "A quick reference for the screens you have access to.")}
           </p>
         </div>
       </div>
       <p className="-mt-4 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-        Welcome to your dashboard. Everything you need to run your guest WiFi lives here — from
-        checking who's online right now to deciding exactly who gets to connect. Open any section
-        below for what it does, in plain language, no networking background required.
+        {t(
+          "help:intro",
+          "Everything you need to run your guest WiFi lives here — from checking who's online right now to deciding exactly who gets to connect. Every screen listed below is one you can open; tap any of them to go straight there.",
+        )}
       </p>
 
-      {/* One accordion section per sidebar group, each opened by default so
-       * the page is fully scannable/searchable (Cmd+F) without extra
-       * clicks, but still collapsible for anyone who wants to focus on one
-       * section at a time. */}
-      <Accordion type="multiple" defaultValue={GROUPS.map((g) => g.id)} className="space-y-4">
-        {GROUPS.map((group) => (
-          <AccordionItem
-            key={group.id}
-            value={group.id}
-            className="premium-card overflow-hidden rounded-2xl border px-4 sm:px-6"
-          >
-            <AccordionTrigger className="py-4 hover:no-underline sm:py-4">
-              <div className="flex items-center gap-3.5 text-left">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa] shadow-sm shadow-indigo-500/20">
-                  <group.Icon className="h-[18px] w-[18px] text-white" />
+      {/* One section per sidebar group, open by default so the whole page
+       * is scannable and Cmd+F-searchable without extra clicks, but still
+       * collapsible for anyone focusing on one section. */}
+      <Accordion type="multiple" defaultValue={navGroups.map((g) => g.id)} className="space-y-4">
+        {navGroups.map((group) => {
+          // The icon customerNav.ts already gives this group's first item,
+          // rather than a second set chosen here. A group is never empty:
+          // filterNavGroupsByPermissions drops any group it empties.
+          const GroupIcon = group.items[0].icon;
+          return (
+            <AccordionItem
+              key={group.id}
+              value={group.id}
+              className="premium-card overflow-hidden rounded-2xl border px-4 sm:px-6"
+            >
+              <AccordionTrigger className="py-4 hover:no-underline sm:py-4">
+                <div className="flex items-center gap-3.5 text-left">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa] shadow-sm shadow-indigo-500/20">
+                    <GroupIcon className="h-[18px] w-[18px] text-white" />
+                  </div>
+                  <div>
+                    <p className="text-base font-semibold tracking-tight text-foreground">
+                      {t(`nav:customerGroup.${group.id}`, group.label)}
+                    </p>
+                    <p className="mt-0.5 text-sm font-normal text-muted-foreground">
+                      {t(`help:group.${group.id}`, { defaultValue: "" })}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-base font-semibold tracking-tight text-foreground">
-                    {group.label}
-                  </p>
-                  <p className="mt-0.5 text-sm font-normal text-muted-foreground">{group.line}</p>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="grid gap-2 pb-2 sm:grid-cols-2">
+                  {group.items.map((item) => {
+                    const label = t(`nav:customerItem.${item.id}`, item.label);
+                    // A missing description renders as a label-only row
+                    // rather than a raw i18next key -- a screen added to
+                    // customerNav.ts before its sentence is written still
+                    // appears here, correctly named and correctly linked.
+                    const description = t(`help:feature.${item.id}`, { defaultValue: "" });
+                    const ItemIcon = item.icon;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => navigate({ to: customerFeatureHref(item.id) })}
+                        className="premium-card premium-card-hover group flex w-full items-start gap-3 rounded-2xl p-4 text-left transition-colors sm:p-5"
+                      >
+                        <ItemIcon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center gap-1.5">
+                            <span className="text-sm font-semibold text-foreground">{label}</span>
+                            <ChevronRight
+                              aria-hidden
+                              className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+                            />
+                          </span>
+                          {description && (
+                            <span className="mt-1 block text-sm leading-relaxed text-muted-foreground">
+                              {description}
+                            </span>
+                          )}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent>
-              <div className="grid gap-3 pb-2 sm:grid-cols-2">
-                {group.items.map((item) => (
-                  <Card key={item.heading} className="premium-card premium-card-hover rounded-2xl">
-                    <CardContent className="p-4 sm:p-5">
-                      <p className="text-sm font-semibold text-foreground">{item.heading}</p>
-                      <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                        {item.copy}
-                      </p>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-        ))}
+              </AccordionContent>
+            </AccordionItem>
+          );
+        })}
       </Accordion>
     </div>
   );

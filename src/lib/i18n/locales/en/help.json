@@ -1,0 +1,41 @@
+{
+  "title": "How the dashboard works",
+  "subtitle": "A quick reference for the screens you have access to.",
+  "intro": "Everything you need to run your guest WiFi lives here — from checking who's online right now to deciding exactly who gets to connect. Every screen listed below is one you can open; tap any of them to go straight there.",
+  "group": {
+    "overview": "A quick, real-time read on how your guest WiFi is doing right now.",
+    "engagement": "Reach the people connected to your WiFi — surveys, offers, and a branded welcome.",
+    "access-policy": "Control who can connect, how much bandwidth they get, and when WiFi is available.",
+    "devices-team": "Keep track of your hardware and shared accounts, and control what your staff can do.",
+    "network": "The plumbing behind your guest WiFi — addresses, separation, forwarding, and call quality.",
+    "operations": "Day-to-day running — where alerts get sent, and what to check when something breaks.",
+    "support-logs": "Get help, and see the record of what happened."
+  },
+  "feature": {
+    "dashboard": "Who's online right now, whether your connection is healthy, and anything that needs your attention.",
+    "users": "Every guest connected right now. Search by name, see their device and data used, or disconnect someone.",
+    "reports": "Guest numbers over time, and the full list you can export as a CSV.",
+    "alerts": "Get told when something goes wrong — before a guest has to tell you.",
+    "campaigns": "Surveys and offers shown to guests as they connect, plus the page they land on afterwards.",
+    "portal": "Design the sign-in screen guests see — logo, colours, headline, languages and sign-in methods.",
+    "vouchers": "Printable one-time codes guests redeem instead of signing in the usual way.",
+    "policies": "The speed, device and time limits every guest connects under, plus blocked guests and access tiers.",
+    "whitelist": "Regulars and staff whose phone numbers skip the sign-in screen and connect automatically.",
+    "mac-auth": "Fixed equipment — a front-desk tablet, a POS terminal, a printer — that connects on its own.",
+    "business-hours": "The days and hours guests are allowed to sign in, and what they see when you're closed.",
+    "devices": "Your own network hardware and whether it's online, plus every guest device connected to it.",
+    "teams": "Shared desk or room accounts with one login and a pooled data allowance.",
+    "agents": "Add your staff, and choose exactly which parts of this dashboard each of them can see.",
+    "dhcp": "The pool of addresses your router hands out to guest devices. You'll rarely need to touch this.",
+    "vlans": "Keeps guest WiFi walled off from your own staff and office equipment.",
+    "port-forwarding": "Advanced. Lets one device be reached from the internet. Most venues never need this.",
+    "voip": "Gives voice and video calls priority over browsing, so calls stay clear when the network is busy.",
+    "website-blocking": "Sites and categories guests can't reach while they're on your WiFi.",
+    "isp-details": "Your internet line — who provides it, how it's performing, and what happens if it drops.",
+    "notification": "Where alerts get sent — email, SMS or WhatsApp — and who receives them.",
+    "debugging": "Tests you can run when something's slow or broken, including resetting one guest's session.",
+    "tickets": "Ask us for help. We can see your setup, so you don't have to explain it from scratch.",
+    "admin-logs": "Who signed in to this dashboard, and what they changed.",
+    "network-activity": "The record of guest connections and sign-in attempts you may need to keep for compliance."
+  }
+}

@@ -4,10 +4,12 @@ import enCommon from "./locales/en/common.json";
 import enNav from "./locales/en/nav.json";
 import enGuests from "./locales/en/guests.json";
 import enAccount from "./locales/en/account.json";
+import enHelp from "./locales/en/help.json";
 import hiCommon from "./locales/hi/common.json";
 import hiNav from "./locales/hi/nav.json";
 import hiGuests from "./locales/hi/guests.json";
 import hiAccount from "./locales/hi/account.json";
+import hiHelp from "./locales/hi/help.json";
 
 const LANG_CACHE_KEY = "cg.dashboard.lang";
 
@@ -35,17 +37,25 @@ function readCachedLang(): string {
 
 // Bounded first slice (see docs/hindi-language-rollout-spec.md): only `en`
 // and `hi` resource bundles ship here. `fallbackLng: "en"` means every
-// dashboard screen outside this rollout's four namespaces just renders in
+// dashboard screen outside this rollout's namespaces just renders in
 // English with zero extra work -- the intended, honest "partial coverage"
 // behavior rather than a raw i18next key falling through to the screen.
+//
+// `help` is the How It Works reference page (HowItWorksPage.tsx). Its `hi`
+// bundle deliberately carries only the page chrome and the seven group
+// lines; the 25 per-screen sentences are English-only for now and reach a
+// Hindi reader through `fallbackLng` above -- the same bounded, honest
+// partial coverage this file already documents, rather than shipping
+// machine-quality Hindi to paying venues. They need a native review pass
+// before they are added to `hi/help.json`.
 i18n.use(initReactI18next).init({
   resources: {
-    en: { common: enCommon, nav: enNav, guests: enGuests, account: enAccount },
-    hi: { common: hiCommon, nav: hiNav, guests: hiGuests, account: hiAccount },
+    en: { common: enCommon, nav: enNav, guests: enGuests, account: enAccount, help: enHelp },
+    hi: { common: hiCommon, nav: hiNav, guests: hiGuests, account: hiAccount, help: hiHelp },
   },
   lng: readCachedLang(),
   fallbackLng: "en",
-  ns: ["common", "nav", "guests", "account"],
+  ns: ["common", "nav", "guests", "account", "help"],
   defaultNS: "common",
   interpolation: { escapeValue: false },
   returnNull: false,
