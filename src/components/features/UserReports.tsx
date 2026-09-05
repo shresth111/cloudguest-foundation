@@ -36,6 +36,7 @@ import {
 } from "@/services/customer.service";
 import { useCustomerLocations, useIsDemo } from "@/hooks/useCustomerDashboard";
 import { maskEmail, maskMac, maskPhone } from "@/components/features/HeaderControls";
+import { csvField, downloadCsv } from "@/lib/csv-export";
 import { voucherService } from "@/services/voucher.service";
 import type { VoucherBatch } from "@/types/voucher";
 
@@ -1826,24 +1827,13 @@ export function ReportPanel({
   // the standard mitigation: Excel/Sheets render the cell as plain text
   // from the character after it, so a legitimate value is unaffected and
   // exports byte-for-byte as displayed.
-  const csvField = (val: string): string => {
-    const safe = CSV_FORMULA_TRIGGER_RE.test(val) ? `'${val}` : val;
-    return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
-  };
-
   const exportCsv = () => {
     if (!rows || !rows.length) return;
     const header = cols.map((c) => csvField(c.label)).join(",") + "\n";
     const data = sortedRows
       .map((r) => cols.map((c) => csvField(fmtCell(c.key, r[c.key] ?? null))).join(","))
       .join("\n");
-    const blob = new Blob([header + data], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${csvPrefix}-${reportType}-${today()}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCsv(`${csvPrefix}-${reportType}-${today()}.csv`, header + data);
   };
 
   // Both print and "download PDF" hand off to the browser's print dialog --
