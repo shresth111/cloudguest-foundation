@@ -64,8 +64,13 @@ interface Campaign {
   businessUnit: string;
   startDate: string;
   endDate: string;
-  impressions: number;
-  conversions: number;
+  /** `null` means "not asked yet, or the results call failed" -- rendered
+   * as "--". Never conflate that with a real zero: this table used to hard
+   * code 0 for every campaign on a real account, which reads as "nobody
+   * ever saw it" rather than "we did not look". A freshly created campaign
+   * legitimately is 0. */
+  impressions: number | null;
+  conversions: number | null;
 }
 const TYPES = ["SURVEY", "BANNER", "REDIRECT"];
 const STATUSES = ["draft", "scheduled", "active", "paused", "ended"];
@@ -357,6 +362,10 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
   const demo = useIsDemo();
   const [items, setItems] = useState<Campaign[]>(demo ? DEMO_SEED : []);
   const [loading, setLoading] = useState(!demo);
+  // Set when the campaign list itself could not be loaded. Previously this
+  // path substituted DEMO_SEED, i.e. six invented campaigns with invented
+  // engagement numbers, on a real account.
+  const [loadError, setLoadError] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [errs, setErrs] = useState<Record<string, string>>({});
@@ -401,10 +410,14 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
     if (demo) return;
     let cancelled = false;
     setLoading(true);
-    campaignService
-      .list({ locationId, page: 1, pageSize: 50 })
-      .then((res) => {
+    (async () => {
+      try {
+        const res = await campaignService.list({ locationId, page: 1, pageSize: 50 });
         if (cancelled) return;
+        // Paint the rows first, then fill the counters in. The list is the
+        // useful part of this screen and it should not wait on N results
+        // calls; a campaign whose counters are still in flight shows "--",
+        // which is also what it shows if they never arrive.
         setItems(
           res.rows.map((c) => ({
             id: c.id,
@@ -414,17 +427,38 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
             businessUnit: "",
             startDate: c.startsAt?.slice(0, 10) ?? "",
             endDate: c.endsAt?.slice(0, 10) ?? "",
-            impressions: 0,
-            conversions: 0,
+            impressions: null,
+            conversions: null,
           })),
         );
-      })
-      .catch(() => {
-        if (!cancelled) setItems(DEMO_SEED);
-      })
-      .finally(() => {
+        setLoading(false);
+
+        const results = await campaignService.listResults(res.rows.map((c) => c.id));
+        if (cancelled) return;
+        setItems((rows) =>
+          rows.map((r) => {
+            const hit = results[r.id];
+            return hit
+              ? { ...r, impressions: hit.totalImpressions, conversions: hit.totalResponses }
+              : r;
+          }),
+        );
+      } catch {
+        // Previously: `setItems(DEMO_SEED)`. On a real account, any failure
+        // of this fetch filled the table with six invented campaigns
+        // carrying invented engagement numbers (2841 impressions, 423
+        // conversions) -- indistinguishable from real data, on the screen
+        // where a venue decides whether its offers are working. An empty
+        // table and an error is the honest answer to "we could not load
+        // your campaigns".
+        if (!cancelled) {
+          setItems([]);
+          setLoadError(true);
+        }
+      } finally {
         if (!cancelled) setLoading(false);
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -1593,6 +1627,12 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
               <div className="p-4">
                 <LoadingSkeleton rows={4} />
               </div>
+            ) : loadError ? (
+              <EmptyState
+                icon={ClipboardList}
+                title="Couldn't load your campaigns"
+                description="Nothing was changed. Refresh to try again — if it keeps happening, raise a support ticket."
+              />
             ) : filtered.length === 0 ? (
               <EmptyState
                 icon={ClipboardList}
@@ -1665,8 +1705,20 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
                           </SelectContent>
                         </Select>
                       </TableCell>
-                      <TableCell>{c.impressions.toLocaleString()}</TableCell>
-                      <TableCell>{c.conversions}</TableCell>
+                      <TableCell>
+                        {c.impressions === null ? (
+                          <span className="text-muted-foreground">--</span>
+                        ) : (
+                          c.impressions.toLocaleString()
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {c.conversions === null ? (
+                          <span className="text-muted-foreground">--</span>
+                        ) : (
+                          c.conversions.toLocaleString()
+                        )}
+                      </TableCell>
                       <TableCell className="text-right">
                         {c.type === "SURVEY" && (
                           <Button

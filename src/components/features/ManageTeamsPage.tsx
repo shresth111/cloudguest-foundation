@@ -109,13 +109,29 @@ function downloadCsvTemplate(filename: string, header: string[], sampleRow: stri
   toast.success("Template downloaded");
 }
 
-function CsvDropzone({ file, onFile }: { file: File | null; onFile: (f: File | null) => void }) {
+function CsvDropzone({
+  file,
+  onFile,
+  disabled = false,
+}: {
+  file: File | null;
+  onFile: (f: File | null) => void;
+  disabled?: boolean;
+}) {
   return (
-    <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-8 text-center transition-colors hover:border-primary/50 hover:bg-accent/40">
+    <label
+      className={cn(
+        "flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-8 text-center transition-colors",
+        disabled
+          ? "cursor-not-allowed opacity-60"
+          : "cursor-pointer hover:border-primary/50 hover:bg-accent/40",
+      )}
+    >
       <input
         type="file"
         accept=".csv"
         className="hidden"
+        disabled={disabled}
         onChange={(e) => onFile(e.target.files?.[0] ?? null)}
       />
       <FileSpreadsheet className="h-8 w-8 text-muted-foreground" />
@@ -123,11 +139,53 @@ function CsvDropzone({ file, onFile }: { file: File | null; onFile: (f: File | n
         <p className="text-sm font-medium text-foreground">{file.name}</p>
       ) : (
         <>
-          <p className="text-sm font-medium text-foreground">Click to upload a CSV file</p>
-          <p className="text-xs text-muted-foreground">or drag and drop it here</p>
+          <p className="text-sm font-medium text-foreground">
+            {disabled ? "CSV import isn't available yet" : "Click to upload a CSV file"}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {disabled ? "See below" : "or drag and drop it here"}
+          </p>
         </>
       )}
     </label>
+  );
+}
+
+/**
+ * The honest state for bulk import.
+ *
+ * WHAT THIS REPLACED: an enabled "Upload & Create" button whose entire
+ * implementation was
+ * `toast.success('Uploaded x.csv — teams queued for import.')`. No
+ * FileReader, no parse, no request. The word "queued" made it read as a
+ * job accepted for async processing, so the failure was invisible: a venue
+ * uploading forty members got a green toast and forty guests who could not
+ * connect. `/features` sells this as a headline capability ("Add a whole
+ * group of guests at once with a spreadsheet upload").
+ *
+ * There is no endpoint behind it. `app/domains/guest_teams/router.py`
+ * exposes exactly `/guest-teams`, `/{team_id}`, `/{team_id}/revoke`,
+ * `/{team_id}/members/{guest_id}` and `/join` -- no bulk or import route
+ * anywhere in the backend (the only `bulk_create` is a generic repository
+ * helper, not an API). Rather than fake a queue or loop createTeam over a
+ * client-parsed file and call that "import", the control says what is
+ * true and points at the thing that does work today.
+ *
+ * The CSV template download above is deliberately left working: it is
+ * real, it costs nothing, and a venue preparing data ahead of this
+ * shipping is doing something useful.
+ */
+function BulkImportUnavailable() {
+  return (
+    <div className="rounded-xl border border-dashed bg-muted/40 p-4 text-center">
+      <p className="text-sm font-medium text-foreground">Bulk import is coming</p>
+      <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
+        We haven&apos;t shipped spreadsheet import yet, so we&apos;ve switched this off rather than
+        take a file and quietly drop it. Add groups with{" "}
+        <span className="font-medium text-foreground">Create Team</span> above, or send us your
+        sheet on a support ticket and we&apos;ll load it for you.
+      </p>
+    </div>
   );
 }
 
@@ -713,19 +771,8 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                     ))}
                   </select>
                 </div>
-                <CsvDropzone file={teamsCsv} onFile={setTeamsCsv} />
-                <div className="flex justify-center">
-                  <Button
-                    disabled={!teamsBu || !teamsCsv}
-                    onClick={() => {
-                      toast.success(`Uploaded ${teamsCsv?.name} — teams queued for import.`);
-                      setTeamsCsv(null);
-                    }}
-                  >
-                    <Upload className="mr-2 h-4 w-4" />
-                    Upload &amp; Create
-                  </Button>
-                </div>
+                <CsvDropzone file={teamsCsv} onFile={setTeamsCsv} disabled />
+                <BulkImportUnavailable />
               </div>
               <QuickNotes
                 items={[
@@ -783,19 +830,8 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                     ))}
                   </select>
                 </div>
-                <CsvDropzone file={mapCsv} onFile={setMapCsv} />
-                <div className="flex justify-center">
-                  <Button
-                    disabled={!mapBu || !mapCsv}
-                    onClick={() => {
-                      toast.success(`Uploaded ${mapCsv?.name} — user mapping queued.`);
-                      setMapCsv(null);
-                    }}
-                  >
-                    <Upload className="mr-2 h-4 w-4" />
-                    Upload &amp; Map
-                  </Button>
-                </div>
+                <CsvDropzone file={mapCsv} onFile={setMapCsv} disabled />
+                <BulkImportUnavailable />
               </div>
               <QuickNotes
                 items={[

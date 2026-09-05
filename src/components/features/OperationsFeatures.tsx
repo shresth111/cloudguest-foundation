@@ -140,6 +140,8 @@ import type {
 } from "@/types/isp";
 import { api } from "@/services/api";
 import type { AppError } from "@/services/api";
+import { monitoringService } from "@/services/monitoring.service";
+import type { AlertRule, NotificationChannel } from "@/types/monitoring";
 import { humanizeApiError } from "@/lib/errorMessages";
 import { cn } from "@/lib/utils";
 import { getCustomerLoginRole } from "@/lib/customerNav";
@@ -186,26 +188,11 @@ function FeatureHeader({
   );
 }
 
-function ToggleRow({
-  label,
-  hint,
-  defaultOn = false,
-}: {
-  label: string;
-  hint?: string;
-  defaultOn?: boolean;
-}) {
-  const [on, setOn] = useState(defaultOn);
-  return (
-    <div className="flex items-center justify-between gap-4 rounded-xl border-0 bg-muted/40 px-4 py-3 shadow-sm">
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-foreground">{label}</p>
-        {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-      </div>
-      <Switch checked={on} onCheckedChange={setOn} />
-    </div>
-  );
-}
+// `ToggleRow` used to live here: a switch bound to nothing but its own
+// `useState`, which is how NotificationView managed to look finished while
+// persisting nothing. Its only caller was that screen; both are gone.
+// (The unrelated `ToggleRow` in components/settings/SectionCard.tsx is a
+// different component and is still in use.)
 
 const STATUS_STYLES: Record<string, string> = {
   active: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10",
@@ -1185,49 +1172,391 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
 }
 
 /* ---------- Notification ---------- */
+
+/** Channel types a venue owner can actually set up for themselves, with
+ * the one config field each needs.
+ *
+ * The backend's `NotificationChannelType` also has SLACK/TEAMS/DISCORD;
+ * those are left out here deliberately rather than forgotten -- they need
+ * an incoming-webhook URL created inside a workspace, which is an
+ * IT-department task, not something a cafe owner does between orders. They
+ * remain available through the operator console's own
+ * `NotificationChannelsPanel`.
+ *
+ * WHATSAPP is deliberately absent for a different and more important
+ * reason: the backend's own constants.py calls it "an honest logging-only
+ * placeholder" with no real integration behind it. Offering it here would
+ * put a switch on a customer's screen that silently delivers nothing --
+ * which is the exact failure this whole screen is being rewritten to
+ * remove. It comes back when the WhatsApp Business integration is real. */
+const CUSTOMER_CHANNEL_TYPES = [
+  {
+    value: "email",
+    label: "Email",
+    field: "Email address",
+    placeholder: "alerts@yourvenue.com",
+    configKey: "to",
+    inputType: "email",
+  },
+  {
+    value: "sms",
+    label: "SMS",
+    field: "Mobile number",
+    placeholder: "+91 90000 00000",
+    configKey: "to",
+    inputType: "tel",
+  },
+  {
+    value: "webhook",
+    label: "Webhook",
+    field: "POST URL",
+    placeholder: "https://example.com/hooks/wyfy",
+    configKey: "url",
+    inputType: "url",
+  },
+] as const;
+
+type CustomerChannelType = (typeof CUSTOMER_CHANNEL_TYPES)[number]["value"];
+
+/**
+ * Notification preferences: where alerts go, and which rules are live.
+ *
+ * WHAT THIS REPLACED: every control on this screen used to be a
+ * `ToggleRow` holding nothing but its own `useState`, over hardcoded
+ * contact strings ("admin@company.com", "+91 •••• •• 4210") that belonged
+ * to no one, and a Save button whose entire implementation was
+ * `toast.success("Preferences saved")`. There was no fetch, no mutation
+ * and no `isDemo()` guard -- so it was fabricated for every account, and a
+ * customer who turned "Router offline -> SMS" on got a green success
+ * toast and no notification, ever. A customer who turned it *off* still
+ * got them. It is the single worst thing the 2026-09-05 audit found,
+ * precisely because it looked completely finished.
+ *
+ * WHAT IT IS NOW: two real surfaces over APIs that already shipped and
+ * were, until now, wired only to the operator console.
+ *
+ *   - Channels are real rows from `GET /notifications/channels`, created
+ *     and deleted for real, with the active switch writing
+ *     `is_active` through `PUT /notifications/channels/{id}`.
+ *   - Events are the organization's real alert rules from
+ *     `GET /alerts/rules`; the switch writes `is_active` through
+ *     `PUT /alerts/rules/{id}`. These are the same rules whose firing
+ *     produces the rows on the Alerts screen and in the header bell, so
+ *     what this screen turns off genuinely stops arriving.
+ *
+ * There is deliberately no Save button any more. Every control commits on
+ * change and reports the real outcome; a Save button that batches nothing
+ * is how the previous version got away with lying for as long as it did.
+ *
+ * WHAT IS HONESTLY MISSING: a venue cannot yet author a *new* alert rule
+ * here, only enable or disable the ones it has. Rule authoring needs a
+ * trigger type, a target component and a threshold config -- a real
+ * editor, not a toggle -- and inventing five plausible-sounding event
+ * names ("Voucher low balance") over rules that do not exist is what the
+ * old screen did. The empty state says so in as many words rather than
+ * implying the venue has no alerting.
+ */
 export function NotificationView() {
+  const [demo, setDemo] = useState<boolean | null>(null);
+  const [orgId, setOrgId] = useState<string | undefined>(undefined);
+  const [channels, setChannels] = useState<NotificationChannel[]>([]);
+  const [rules, setRules] = useState<AlertRule[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const [addOpen, setAddOpen] = useState(false);
+  const [newType, setNewType] = useState<CustomerChannelType>("email");
+  const [newTarget, setNewTarget] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  const typeMeta =
+    CUSTOMER_CHANNEL_TYPES.find((t) => t.value === newType) ?? CUSTOMER_CHANNEL_TYPES[0];
+
+  // Same neutral-first-paint rule as AlertsView above: `isDemo()` reads a
+  // token that exists on the client and not on the server, so seeding
+  // state from it in the render body is a real hydration mismatch.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (isDemo()) {
+        if (!cancelled) {
+          setDemo(true);
+          setLoading(false);
+        }
+        return;
+      }
+      if (!cancelled) setDemo(false);
+      try {
+        const org = await resolveOrgId();
+        const [channelPage, rulePage] = await Promise.all([
+          monitoringService.listNotificationChannels({
+            organizationId: org,
+            page: 1,
+            pageSize: 50,
+          }),
+          monitoringService.listAlertRules({ organizationId: org, page: 1, pageSize: 50 }),
+        ]);
+        if (cancelled) return;
+        setOrgId(org);
+        setChannels(channelPage.items);
+        setRules(rulePage.items);
+      } catch {
+        // An honest failure state. Never a fabricated set of preferences:
+        // showing invented toggles here is the bug this screen had.
+        if (!cancelled) setLoadError(true);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function toggleChannel(channel: NotificationChannel, next: boolean) {
+    setBusyId(channel.id);
+    const before = channels;
+    setChannels((cs) => cs.map((c) => (c.id === channel.id ? { ...c, isActive: next } : c)));
+    try {
+      await monitoringService.updateNotificationChannel(channel.id, { isActive: next }, orgId);
+      toast.success(next ? `${channel.name} switched on` : `${channel.name} switched off`);
+    } catch {
+      setChannels(before);
+      toast.error(`Could not update ${channel.name}. Nothing was changed.`);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function toggleRule(rule: AlertRule, next: boolean) {
+    setBusyId(rule.id);
+    const before = rules;
+    setRules((rs) => rs.map((r) => (r.id === rule.id ? { ...r, isActive: next } : r)));
+    try {
+      await monitoringService.updateAlertRule(rule.id, { isActive: next }, orgId);
+      toast.success(next ? `${rule.name} is on` : `${rule.name} is off`);
+    } catch {
+      setRules(before);
+      toast.error(`Could not update ${rule.name}. Nothing was changed.`);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function removeChannel(channel: NotificationChannel) {
+    setBusyId(channel.id);
+    const before = channels;
+    setChannels((cs) => cs.filter((c) => c.id !== channel.id));
+    try {
+      await monitoringService.deleteNotificationChannel(channel.id, orgId);
+      toast.success(`${channel.name} removed`);
+    } catch {
+      setChannels(before);
+      toast.error(`Could not remove ${channel.name}.`);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function createChannel() {
+    const target = newTarget.trim();
+    if (!target) {
+      toast.error(`Enter a ${typeMeta.field.toLowerCase()}.`);
+      return;
+    }
+    setCreating(true);
+    try {
+      const created = await monitoringService.createNotificationChannel({
+        organizationId: orgId,
+        channelType: newType as NotificationChannel["channelType"],
+        name: `${typeMeta.label} · ${target}`,
+        config: { [typeMeta.configKey]: target },
+        isActive: true,
+      });
+      setChannels((cs) => [...cs, created]);
+      setAddOpen(false);
+      setNewTarget("");
+      toast.success(`${typeMeta.label} channel added`);
+    } catch (e) {
+      toast.error(humanizeApiError(e as AppError, "Could not add that channel."));
+    } finally {
+      setCreating(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
           <FeatureHeader
             title="Notifications"
-            description="Choose how and when your team is notified about network events."
+            description="Where alerts are sent, and which ones are switched on. Changes save as you make them."
             icon={Bell}
             action={
-              <Button size="sm" onClick={() => toast.success("Preferences saved")}>
-                Save
-              </Button>
+              demo === false && !loadError ? (
+                <Button size="sm" onClick={() => setAddOpen(true)}>
+                  <Plus className="mr-1.5 h-4 w-4" />
+                  Add channel
+                </Button>
+              ) : undefined
             }
           />
         </div>
         <NotificationIllustration />
       </div>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="border-0 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-sm">Channels</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2.5">
-            <ToggleRow label="Email" hint="admin@company.com" defaultOn />
-            <ToggleRow label="SMS" hint="+91 •••• •• 4210" />
-            <ToggleRow label="WhatsApp" hint="Business number" defaultOn />
-            <ToggleRow label="Webhook" hint="POST to your endpoint" />
-          </CardContent>
-        </Card>
-        <Card className="border-0 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-sm">Events</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2.5">
-            <ToggleRow label="Router offline" defaultOn />
-            <ToggleRow label="ISP failover" defaultOn />
-            <ToggleRow label="Bandwidth threshold" defaultOn />
-            <ToggleRow label="New guest sign-up" />
-            <ToggleRow label="Voucher low balance" defaultOn />
-          </CardContent>
-        </Card>
-      </div>
+
+      {loading && <LoadingSkeleton rows={4} />}
+
+      {!loading && demo && (
+        <EmptyState
+          icon={Bell}
+          title="Not available on the demo account"
+          description="Notification channels and alert rules belong to a real organization, so there is nothing here to show or change. Sign in to a real account to set up where your alerts go."
+        />
+      )}
+
+      {!loading && demo === false && loadError && (
+        <ErrorState
+          title="Couldn't load your notification settings"
+          description="Your preferences were not changed. Try again in a moment."
+        />
+      )}
+
+      {!loading && demo === false && !loadError && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card className="border-0 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-sm">Channels</CardTitle>
+              <CardDescription className="text-xs">
+                Where a notification is delivered when a rule fires.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2.5">
+              {channels.length === 0 ? (
+                <EmptyState
+                  icon={Bell}
+                  title="No channels yet"
+                  description="Add an email address, a mobile number or a webhook and alerts will start going there."
+                />
+              ) : (
+                channels.map((c) => (
+                  <div
+                    key={c.id}
+                    className="flex items-center justify-between gap-4 rounded-xl border-0 bg-muted/40 px-4 py-3 shadow-sm"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-foreground">{c.name}</p>
+                      <p className="text-xs capitalize text-muted-foreground">{c.channelType}</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Switch
+                        checked={c.isActive}
+                        disabled={busyId === c.id}
+                        onCheckedChange={(v) => toggleChannel(c, v)}
+                        aria-label={`${c.name} active`}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        disabled={busyId === c.id}
+                        onClick={() => removeChannel(c)}
+                        aria-label={`Remove ${c.name}`}
+                      >
+                        <Trash2 className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-sm">Events</CardTitle>
+              <CardDescription className="text-xs">
+                The alert rules set up for your account. Switching one off stops it firing.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2.5">
+              {rules.length === 0 ? (
+                <EmptyState
+                  icon={Bell}
+                  title="No alert rules yet"
+                  description="Alert rules are set up for your account with our team. Raise a support ticket telling us what you want to be told about, and it will appear here."
+                />
+              ) : (
+                rules.map((r) => (
+                  <div
+                    key={r.id}
+                    className="flex items-center justify-between gap-4 rounded-xl border-0 bg-muted/40 px-4 py-3 shadow-sm"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-foreground">{r.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {r.description || `${r.severity} · ${r.triggerType}`}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={r.isActive}
+                      disabled={busyId === r.id}
+                      onCheckedChange={(v) => toggleRule(r, v)}
+                      aria-label={`${r.name} active`}
+                    />
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add a notification channel</DialogTitle>
+            <DialogDescription>
+              Alerts for your account will be delivered here once it is switched on.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Channel</Label>
+              <Select value={newType} onValueChange={(v) => setNewType(v as CustomerChannelType)}>
+                <SelectTrigger className="h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CUSTOMER_CHANNEL_TYPES.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>
+                      {t.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>{typeMeta.field}</Label>
+              <Input
+                type={typeMeta.inputType}
+                value={newTarget}
+                placeholder={typeMeta.placeholder}
+                onChange={(e) => setNewTarget(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddOpen(false)} disabled={creating}>
+              Cancel
+            </Button>
+            <Button onClick={createChannel} disabled={creating || !newTarget.trim()}>
+              {creating ? "Adding…" : "Add channel"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
