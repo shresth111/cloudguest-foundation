@@ -701,6 +701,55 @@ jobs:
             "device-health" 40 "all checks passed" \
             bun run test:device-health
 
+      # --- Customer dashboard KPI figures --------------------------------
+      #
+      # Two numbers that were shipping wrong to venue owners on the
+      # most-viewed screen in the product, both found by the 2026-09-05
+      # frontend feature audit:
+      #
+      #   1. "avg session" was `sum(bytes_downloaded)/count/1e6` rendered
+      #      as `${n} min` -- average megabytes wearing a time unit. It
+      #      survived because it was unfalsifiable by eye: plausible-looking
+      #      at a streaming venue, plausible-looking at a coffee shop.
+      #   2. SLA uptime printed via `.toFixed(1)`, which rounds to nearest,
+      #      so anything from 99.95 up became a flat "100.0%". The demo
+      #      fixture is 99.97, which is why the product video advertises a
+      #      perfect 100% -- and why a customer fresh off an outage could be
+      #      told the month was clean.
+      #
+      # The load-bearing assertion is that uptime NEVER rounds up to 100.
+      # Floor 47, observed green at 47.
+      - name: customer dashboard KPIs
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "customer-kpis" 47 "all customer KPI checks passed" \
+            bun run test:customer-kpis
+
+      # --- Customer sidebar permission filter ----------------------------
+      #
+      # "Each staff member sees only what their job needs" used to be
+      # decided by a radio button on the sign-in form, stashed in
+      # localStorage -- so a front-desk account that picked "Owner" got the
+      # owner's entire sidebar, while the permission keys an owner really
+      # saves in Staff Access -> Roles drove nothing in that shell.
+      #
+      # The fix is the dangerous direction here, not the bug: the backend
+      # resolves permissions purely from role assignments with no superuser
+      # bypass, so an account with no assignment resolves to `[]`. Getting
+      # this wrong empties a paying customer's sidebar. The load-bearing
+      # assertions are therefore the fail-open ones -- null (in flight),
+      # undefined (fetch failed) and [] (no role) must every one of them
+      # leave the nav untouched -- plus the two permission keys that would
+      # be WRONG if inferred from the nav id (port-forwarding is gated on
+      # firewall.*, admin-logs on audit_logs.*).
+      #
+      # Floor 35, observed green at 35.
+      - name: customer sidebar permissions
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "customer-nav-permissions" 35 "all customer nav permission checks passed" \
+            bun run test:customer-nav-permissions
+
       # --- Guest walkthrough: the voucher step ---------------------------
       #
       # Voucher is the one sign-in method whose submit does not live in

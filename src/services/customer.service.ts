@@ -7,6 +7,7 @@ import { ORGS_STORAGE_KEY, ROLES_STORAGE_KEY } from "@/services/api";
 import type { OrganizationMembership, RoleAssignment } from "@/types/auth";
 import { deriveLocationLiveness } from "@/lib/location-liveness";
 import type { LocationLiveness, RawRouterLiveness } from "@/lib/location-liveness";
+import { avgSessionMinutes, sessionStartsByHour, sessionsOpenByHour } from "@/lib/session-metrics";
 // getDashboard()'s SLA-uptime leg reads the same `/isp/links` list the
 // dashboard's own WAN cards read, so it goes through the same service --
 // see that call site's comment. `isp.service` imports only `api` and the
@@ -1139,8 +1140,21 @@ export const customerService = {
         params: { page_size: 100 },
         ...locationHeaders,
       }),
+      // A real [start_date, end_date) window, so "over the last 24 hours"
+      // on the dashboard is true. Without it this asked for "the most
+      // recent 100 sessions, whenever they happened" and then bucketed
+      // them by hour-of-day under a "last 24h" heading -- at a quiet venue
+      // that silently charted weeks of history as though it were today.
+      // `page_size` is capped at 100 server-side (guest/router.py), so a
+      // very busy venue can still truncate; that is a real remaining
+      // limitation, not something to paper over here.
       api.get<{ items: RawGuestSession[] }>("/guest-sessions", {
-        params: { location_id: locationId, page_size: 100 },
+        params: {
+          location_id: locationId,
+          start_date: new Date(Date.now() - 24 * 3_600_000).toISOString(),
+          end_date: new Date().toISOString(),
+          page_size: 100,
+        },
         ...locationHeaders,
       }),
       // Backend's AlertResponse (monitoring/schemas.py) uses `message` +
@@ -1257,10 +1271,13 @@ export const customerService = {
       }
     }
     const liveness = deriveLocationLiveness(routers);
-    const hourly = new Array(24).fill(0);
-    sessions.forEach((s) => {
-      if (s.started_at) hourly[new Date(s.started_at).getHours()]++;
-    });
+    // Two genuinely different questions, and until now two identical
+    // answers: both charts were derived from this same per-hour count of
+    // session *starts*. `startsByHour` is "when do guests arrive";
+    // `openByHour` is "how many were online at that hour", which is what
+    // "Guests online, last 24h" claims to show.
+    const startsByHour = sessionStartsByHour(sessions);
+    const openByHour = sessionsOpenByHour(sessions);
     // "Online Users" and "Active Sessions" are the same real thing (one
     // online guest == one active session) and must come from the same
     // count -- `sessions` here is every row /guest-sessions returned
@@ -1295,24 +1312,22 @@ export const customerService = {
         routersOnline: liveness.routersOnline,
         totalRouters: liveness.routersTotal,
         todayGuests: sessions.filter((s) => s.started_at?.startsWith(today)).length,
-        avgSession:
-          sessions.length > 0
-            ? Math.round(
-                sessions.reduce((s, se) => s + (se.bytes_downloaded || 0), 0) /
-                  sessions.length /
-                  1e6,
-              )
-            : 0,
-        peakConcurrent: Math.max(...hourly),
+        avgSession: avgSessionMinutes(sessions),
+        // Real peak concurrency, not peak arrivals. This read
+        // `Math.max(...hourly)` over session STARTS, so a venue where 30
+        // guests joined at noon and stayed all afternoon reported a
+        // "peak" of 30 for the noon hour and less for every hour after,
+        // even though more people were online then.
+        peakConcurrent: openByHour.length > 0 ? Math.max(...openByHour) : 0,
         failedLogins: failedLoginsToday,
         newToday: sessions.filter((s) => s.started_at?.startsWith(today)).length,
         slaUptime,
       },
-      usersTrend: hourly.map((c, i) => ({ hour: `${i}`, users: c })),
+      usersTrend: openByHour.map((c, i) => ({ hour: `${i}`, users: c })),
       deviceDistribution: deviceDistributionFrom(
         sessions.map((s) => ({ userAgent: s.user_agent ?? null })),
       ),
-      hourlySessions: hourly.map((c, i) => ({ hour: `${i}`, sessions: c })),
+      hourlySessions: startsByHour.map((c, i) => ({ hour: `${i}`, sessions: c })),
       // s.device_id is the session's raw GuestDevice UUID FK, not a device
       // name -- /guest-sessions doesn't join the device row that would
       // carry one, so this rendered as a bare UUID (bug report: a raw

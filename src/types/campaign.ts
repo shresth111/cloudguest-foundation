@@ -57,6 +57,28 @@ export interface UpdateCampaignPayload {
   isSkippable?: boolean;
 }
 
+/** Real engagement counters for one campaign, from
+ * `GET /campaigns/{id}/results`.
+ *
+ * The guest-facing portal has always recorded these -- `CampaignOverlay`
+ * fires `POST /portal/campaigns/{id}/impression` and survey submissions go
+ * through `campaign-portal.service.ts` -- but nothing in the dashboard ever
+ * read them back, so the admin table hardcoded `impressions: 0,
+ * conversions: 0` for every real campaign while demo fixtures showed
+ * 2841/423. The data was there the whole time; only the caller was
+ * missing.
+ *
+ * `questionBreakdowns` is deliberately not modelled yet: nothing renders
+ * per-question answers, and a survey-results screen is a separate piece of
+ * work. */
+export interface CampaignResults {
+  campaignId: string;
+  totalResponses: number;
+  totalImpressions: number;
+  totalSkipped: number;
+  totalClicked: number;
+}
+
 export interface CampaignKpis {
   total: number;
   active: number;

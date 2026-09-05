@@ -4,6 +4,7 @@ import type {
   Campaign,
   CampaignAsset,
   CampaignKpis,
+  CampaignResults,
   CampaignListQuery,
   CampaignListResult,
   CampaignQuestion,
@@ -133,6 +134,53 @@ async function resolveOrganizationId(): Promise<string> {
 export const campaignService = {
   async getOrganizationId(): Promise<string> {
     return resolveOrganizationId();
+  },
+
+  /** Real engagement counters for one campaign.
+   *
+   * Impressions and survey responses have been recorded by the guest
+   * portal since campaigns shipped; this is simply the first caller to
+   * read them back. Kept as a per-campaign call because the list endpoint
+   * does not embed counters -- see `listResults` for the batched form the
+   * admin table actually uses. */
+  async getResults(campaignId: string): Promise<CampaignResults> {
+    const orgId = await resolveOrganizationId();
+    const { data } = await api.get<{
+      campaign_id: string;
+      total_responses: number;
+      total_impressions: number;
+      total_skipped: number;
+      total_clicked: number;
+    }>(`/campaigns/${campaignId}/results`, {
+      headers: { "X-Organization-Id": orgId },
+    });
+    return {
+      campaignId: data.campaign_id,
+      totalResponses: data.total_responses,
+      totalImpressions: data.total_impressions,
+      totalSkipped: data.total_skipped,
+      totalClicked: data.total_clicked,
+    };
+  },
+
+  /**
+   * Counters for many campaigns at once, keyed by campaign id.
+   *
+   * There is no bulk results endpoint, so this fans out -- but it does so
+   * with `allSettled`, deliberately: one campaign whose results 403 or 404
+   * must not blank the counters for every other row. A campaign whose call
+   * fails is simply absent from the returned map, and the caller renders
+   * that as "--" rather than as a confident zero. Showing 0 for "we could
+   * not ask" is how the previous version of this table came to claim every
+   * campaign had never been seen.
+   */
+  async listResults(campaignIds: string[]): Promise<Record<string, CampaignResults>> {
+    const settled = await Promise.allSettled(campaignIds.map((id) => this.getResults(id)));
+    const out: Record<string, CampaignResults> = {};
+    settled.forEach((r, i) => {
+      if (r.status === "fulfilled") out[campaignIds[i]] = r.value;
+    });
+    return out;
   },
 
   async list(q: CampaignListQuery): Promise<CampaignListResult> {

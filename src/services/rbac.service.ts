@@ -648,6 +648,27 @@ export const rbacService = {
     return data.permissions;
   },
 
+  /** The signed-in user's own effective permission keys.
+   *
+   * Distinct from `getUserPermissions(id)` above, and not a convenience
+   * wrapper around it: that endpoint is gated by `users.read`, which a
+   * front-desk staff account legitimately does not have on itself, so
+   * asking it "what may I do?" 403s for exactly the accounts whose answer
+   * matters most. `GET /me/permissions` (backend
+   * app/domains/rbac/router.py's `get_my_permissions`) carries no
+   * `RequirePermission` at all -- any authenticated caller can read their
+   * own effective set.
+   *
+   * Keys are `{module}.{action}`, e.g. `campaigns.read`, resolved by the
+   * backend from the caller's role assignments plus any per-user
+   * overrides. An account with no role assignment resolves to an empty
+   * list -- which is why every caller here must treat empty as "don't
+   * know", never as "denied". See `filterNavGroupsByPermissions`. */
+  async getMyPermissions(): Promise<string[]> {
+    const { data } = await api.get<{ user_id: string; permissions: string[] }>("/me/permissions");
+    return data.permissions;
+  },
+
   // -- Login attempts (admin-facing, via controller-logs) --------------------
 
   async listLoginAttempts(q: LoginAttemptListQuery): Promise<PaginatedResult<LoginAttemptLog>> {
