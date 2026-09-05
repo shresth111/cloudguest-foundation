@@ -771,6 +771,26 @@ jobs:
             "campaign-results" 28 "all campaign results checks passed" \
             bun run test:campaign-results
 
+      # --- CSV export escaping -------------------------------------------
+      #
+      # Security-relevant, not cosmetic: guest-supplied free text reaches
+      # these files, and the backend's normalize_redeemed_identifier only
+      # strips whitespace by design, so a guest can register an identifier
+      # that is a spreadsheet formula. A venue owner opening the export in
+      # Excel would execute it. The mitigation is one character and is easy
+      # to lose in a refactor.
+      #
+      # The helpers were extracted from UserReports when the Users screen
+      # gained its own guest-list export, so the second surface could not
+      # ship a less careful copy. This guards the shared one.
+      #
+      # Floor 27, observed green at 27.
+      - name: CSV export escaping
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "csv-export" 27 "all CSV export checks passed" \
+            bun run test:csv-export
+
       # --- Guest walkthrough: the voucher step ---------------------------
       #
       # Voucher is the one sign-in method whose submit does not live in
