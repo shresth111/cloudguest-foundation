@@ -57,6 +57,31 @@ export function useCustomerLocations() {
   });
 }
 
+/**
+ * The signed-in user's own effective RBAC permission keys, used to narrow
+ * the customer sidebar to what their role actually grants.
+ *
+ * Skipped entirely in demo mode: the demo session has no real RBAC
+ * identity, so the request would 401 and the result would be discarded
+ * anyway (see `filterNavGroupsByPermissions`, which treats absent as
+ * "don't know" and shows the full role-based nav).
+ *
+ * `retry: false` and a long `staleTime` are deliberate. A user's grants
+ * change when an owner edits their role, which is rare and already
+ * triggers a reload elsewhere; retrying a 403/401 here would just delay
+ * the fail-open path that renders the nav.
+ */
+export function useMyPermissions() {
+  const demo = useIsDemo();
+  return useQuery({
+    queryKey: customerKeys.permissions,
+    queryFn: () => rbacService.getMyPermissions(),
+    enabled: !demo,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+}
+
 export function useCustomerDashboard(locationId: string) {
   return useQuery({
     queryKey: customerKeys.dashboard(locationId),

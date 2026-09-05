@@ -3,7 +3,9 @@ import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { customerNavGroupsForRole, getCustomerLoginRole } from "@/lib/customerNav";
+import { filterNavGroupsByPermissions } from "@/lib/customerNavPermissions";
 import { DataMaskingOtpDialog } from "@/components/features/HeaderControls";
+import { useMyPermissions } from "@/hooks/useCustomerDashboard";
 import type { useDataMasking } from "@/hooks/useCustomerDashboard";
 
 /**
@@ -49,7 +51,17 @@ export function CustomerSidebar({
 }: CustomerSidebarProps) {
   const { t } = useTranslation("nav", { i18n });
   const role = getCustomerLoginRole();
-  const navGroups = customerNavGroupsForRole(role);
+  // `role` comes from a radio button on the sign-in form, kept in
+  // localStorage -- a landing preference, never an authorization decision
+  // (see customerNav.ts's own note). On its own it meant a staff member
+  // who picked "Owner" got the owner's whole sidebar. The caller's real
+  // effective grants now narrow it further; the two only ever compose in
+  // the removing direction, and an absent/failed/empty permission set
+  // leaves the role-based nav exactly as it was. See
+  // customerNavPermissions.ts for why every ambiguity resolves toward the
+  // customer rather than toward an empty sidebar.
+  const { data: permissions } = useMyPermissions();
+  const navGroups = filterNavGroupsByPermissions(customerNavGroupsForRole(role), permissions);
   const expanded = !collapsed;
 
   return (
