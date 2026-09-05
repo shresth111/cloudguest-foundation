@@ -68,15 +68,38 @@ export interface UpdateCampaignPayload {
  * 2841/423. The data was there the whole time; only the caller was
  * missing.
  *
- * `questionBreakdowns` is deliberately not modelled yet: nothing renders
- * per-question answers, and a survey-results screen is a separate piece of
- * work. */
+ */
 export interface CampaignResults {
   campaignId: string;
   totalResponses: number;
   totalImpressions: number;
   totalSkipped: number;
   totalClicked: number;
+  questionBreakdowns: CampaignQuestionBreakdown[];
+}
+
+/** One question's aggregated answers.
+ *
+ * The backend already computes all of this
+ * (`QuestionResultBreakdownResponse`); which fields are populated depends
+ * on `answerType`:
+ *
+ *   - `rating_5`      -> `averageRating` + `ratingDistribution`
+ *   - `single_choice` /
+ *     `multi_choice`  -> `optionCounts`
+ *   - `free_text`     -> `freeTextAnswers`
+ *
+ * Every one of them is nullable, so a UI must render "no answers yet"
+ * rather than assume the shape its answer type implies. */
+export interface CampaignQuestionBreakdown {
+  questionId: string;
+  questionText: string;
+  answerType: QuestionAnswerType;
+  totalAnswers: number;
+  optionCounts: Record<string, number> | null;
+  averageRating: number | null;
+  ratingDistribution: Record<number, number> | null;
+  freeTextAnswers: string[] | null;
 }
 
 export interface CampaignKpis {
