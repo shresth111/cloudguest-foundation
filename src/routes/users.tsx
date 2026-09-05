@@ -68,6 +68,9 @@ import {
   maskPhone,
   DEMO_PLAN_RENEWAL_ISO,
 } from "@/components/features/HeaderControls";
+import { customerService } from "@/services/customer.service";
+import type { CustomerUsersData } from "@/services/customer.service";
+import { toCsv, downloadCsv, csvDateStamp } from "@/lib/csv-export";
 import { requireCustomerSession } from "@/lib/authGuards";
 import { requireActiveLocationId } from "@/lib/customerLocationGuard";
 import { customerFeatureHref } from "@/lib/customerNav";
@@ -180,6 +183,98 @@ function CustomerUsersPage() {
   const onlineNow = useCustomerOnlineNow(locationId);
 
   const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 0;
+
+  /**
+   * Export the guest list the venue is currently looking at.
+   *
+   * The site sells this as "Full history of every guest, ready to check or
+   * download anytime", and until now the only way to get a guest list out
+   * of the product was the Reports screen -- this table had no export at
+   * all.
+   *
+   * Exports what the CURRENT FILTERS SELECT, not the page on screen. The
+   * table pages at 8 rows, and a "download" that silently handed over 8 of
+   * 400 guests would be worse than none: it looks complete. So this pages
+   * through the same query the table uses.
+   *
+   * The server caps page_size at 100, so this walks pages up to a bound
+   * rather than asking for everything at once. If a venue has more guests
+   * than the bound, the file says so in a trailing note rather than
+   * quietly truncating -- the failure mode to avoid is a venue reconciling
+   * against a file they believe is complete.
+   *
+   * Masking is respected because it is applied server-side: `phone` and
+   * `email` arrive already masked unless this account has unmasked itself
+   * via OTP, so an export can never leak more than the screen shows. The
+   * client-side `masked ?` conditional below mirrors the table for the
+   * same belt-and-braces reason it exists there.
+   */
+  const EXPORT_PAGE_SIZE = 100;
+  const EXPORT_MAX_PAGES = 50; // 5,000 rows
+  const [exporting, setExporting] = useState(false);
+
+  const exportGuests = async () => {
+    setExporting(true);
+    try {
+      const rows: CustomerUsersData["users"] = [];
+      let truncated = false;
+      for (let p = 1; p <= EXPORT_MAX_PAGES; p++) {
+        const chunk = await customerService.getUsers(
+          locationId,
+          search || undefined,
+          statusTab !== "all" ? statusTab : undefined,
+          p,
+          EXPORT_PAGE_SIZE,
+        );
+        rows.push(...chunk.users);
+        if (rows.length >= chunk.total) break;
+        if (p === EXPORT_MAX_PAGES && rows.length < chunk.total) truncated = true;
+      }
+
+      if (rows.length === 0) {
+        toast.info("Nothing to export for these filters.");
+        return;
+      }
+
+      const header = [
+        "Name",
+        "Email",
+        "Phone",
+        "Device",
+        "MAC",
+        "IP",
+        "Duration",
+        "Connected at",
+        "Disconnected at",
+        "Downloaded",
+        "Status",
+      ];
+      const body = rows.map((u) => [
+        u.name,
+        masked ? maskEmail(u.email) : u.email,
+        masked ? maskPhone(u.phone) : u.phone,
+        u.device,
+        u.mac,
+        u.ip,
+        u.duration,
+        u.connectedAt,
+        u.disconnectedAt ?? "",
+        u.download,
+        u.status,
+      ]);
+
+      let csv = toCsv(header, body);
+      if (truncated) {
+        csv += `\n\nNOTE: this export stopped at ${rows.length} rows. Narrow the date range or filters, or ask support for a full extract.`;
+      }
+      downloadCsv(`guests-${csvDateStamp()}.csv`, csv);
+      toast.success(`Exported ${rows.length.toLocaleString()} guests`);
+    } catch {
+      toast.error("Could not build the export. Nothing was changed.");
+    } finally {
+      setExporting(false);
+    }
+  };
   const handleNav = (id: string) => navigate({ to: customerFeatureHref(id) });
   const handleLogout = async () => {
     await logout();
@@ -327,6 +422,16 @@ function CustomerUsersPage() {
                   className="h-10 pl-9 bg-background"
                 />
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-10"
+                disabled={exporting || !data || data.total === 0}
+                onClick={exportGuests}
+              >
+                <Download className="mr-1.5 h-4 w-4" />
+                {exporting ? "Exporting…" : "Export CSV"}
+              </Button>
               <div className="flex gap-1 border rounded-lg p-0.5 bg-muted/50">
                 {(["all", "online", "offline"] as const).map((tab) => (
                   <button
