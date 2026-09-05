@@ -104,7 +104,6 @@
     "whitelist": "Always Allowed",
     "mac-auth": "Trusted Devices",
     "business-hours": "Open Hours",
-    "background-image": "Background Image",
     "devices": "Devices",
     "teams": "Guest Groups",
     "agents": "Staff Access",
@@ -118,6 +117,7 @@
     "debugging": "Connection Tools",
     "tickets": "Support Tickets",
     "admin-logs": "Logs",
+    "network-activity": "Network Activity Log",
     "how-it-works": "How It Works"
   }
 }
