@@ -905,11 +905,7 @@ function DiagnosticRunRow({ run }: { run: DiagnosticRun }) {
         </TableCell>
         <TableCell>{run.target}</TableCell>
         <TableCell>
-          <Badge
-            variant={didDiagnosticExecute(run) ? "default" : "outline"}
-          >
-            {run.status}
-          </Badge>
+          <Badge variant={didDiagnosticExecute(run) ? "default" : "outline"}>{run.status}</Badge>
         </TableCell>
         <TableCell className="text-xs">
           {summary ??

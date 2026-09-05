@@ -791,6 +791,28 @@ jobs:
             "csv-export" 27 "all CSV export checks passed" \
             bun run test:csv-export
 
+      # --- Connection Tools: a failed check must not read as a success ---
+      #
+      # The backend records a ping that reached nothing as
+      # `status: "success"` with `received: 0, loss: 100` -- correct from
+      # its point of view, because the command it was asked to run ran. The
+      # page coloured everything off that field, so a venue whose internet
+      # was down got a green tick, a green "Success" tile and a green toast,
+      # on a page headed "Trouble connecting or opening a site? Fix it right
+      # here."
+      #
+      # "Did the command execute" and "did the target answer" are different
+      # questions and only the first was being asked. The regression risk is
+      # ordinary: `status` is the obvious field to reach for, and reaching
+      # for it looks right in review.
+      #
+      # Floor 36, observed green at 36.
+      - name: Diagnostics verdict
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "diagnostics-verdict" 36 "all diagnostics verdict checks passed" \
+            bun run test:diagnostics-verdict
+
       # --- Guest walkthrough: the voucher step ---------------------------
       #
       # Voucher is the one sign-in method whose submit does not live in
