@@ -41,7 +41,8 @@
     "format": "prettier --write .",
     "measure:portal-contrast": "node scripts/measure-portal-contrast.mjs",
     "test:isp-single-flight": "node scripts/test-isp-links-single-flight.mjs",
-    "test:fleet-unreachable": "node scripts/test-fleet-unreachable-locations.mjs"
+    "test:fleet-unreachable": "node scripts/test-fleet-unreachable-locations.mjs",
+    "test:customer-destinations": "node scripts/test-customer-destinations.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

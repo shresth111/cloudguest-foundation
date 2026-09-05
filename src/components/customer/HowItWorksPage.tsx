@@ -8,12 +8,8 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { ChevronRight, HelpCircle } from "lucide-react";
-import {
-  customerFeatureHref,
-  customerNavGroupsForRole,
-  getCustomerLoginRole,
-} from "@/lib/customerNav";
-import { filterNavGroupsByPermissions } from "@/lib/customerNavPermissions";
+import { customerFeatureHref, getCustomerLoginRole } from "@/lib/customerNav";
+import { CUSTOMER_DESTINATIONS, destinationsFor } from "@/lib/customerDestinations";
 import { useMyPermissions } from "@/hooks/useCustomerDashboard";
 
 /**
@@ -48,7 +44,17 @@ import { useMyPermissions } from "@/hooks/useCustomerDashboard";
  * `CustomerSidebar.tsx` evaluates** to build the sidebar -- role filter
  * then real RBAC grants from `GET /me/permissions`:
  *
- *     filterNavGroupsByPermissions(customerNavGroupsForRole(role), permissions)
+ *     destinationsFor(role, permissions)
+ *
+ * That expression changed with the 26 -> 9 nav restructure and this page
+ * moved with it, which is the whole point of generating the list: the
+ * sidebar now offers nine destinations, so a help page still grouped by the
+ * old seven (Overview / Engagement / Access & Policy / Devices & Team /
+ * Network / Operations / Support & Logs) would have re-created this exact
+ * defect one release after it was fixed -- a reader looking for "Network"
+ * in a sidebar that no longer has it. `destinationsFor` composes the same
+ * two filters underneath (role, then real RBAC grants via
+ * `navItemAllowed`), so nothing about who-sees-what changed here.
  *
  * Two things follow, both of which the old page got wrong. A screen
  * renamed, added or removed in `customerNav.ts` changes here with it. And
@@ -88,8 +94,13 @@ export function HowItWorksView() {
   // Works: you are here" is noise. Dropping it can empty the Support &
   // Logs group for a reader who holds nothing else in it, so groups are
   // re-filtered after the removal rather than before.
-  const navGroups = filterNavGroupsByPermissions(customerNavGroupsForRole(role), permissions)
-    .map((g) => ({ ...g, items: g.items.filter((item) => item.id !== "how-it-works") }))
+  const navGroups = destinationsFor(role, permissions)
+    .map(({ destination, sections }) => ({
+      id: destination.id,
+      label: destination.label,
+      blurb: destination.blurb,
+      items: sections.filter((item) => item.id !== "how-it-works"),
+    }))
     .filter((g) => g.items.length > 0);
 
   return (
@@ -124,10 +135,14 @@ export function HowItWorksView() {
        * collapsible for anyone focusing on one section. */}
       <Accordion type="multiple" defaultValue={navGroups.map((g) => g.id)} className="space-y-4">
         {navGroups.map((group) => {
-          // The icon customerNav.ts already gives this group's first item,
-          // rather than a second set chosen here. A group is never empty:
-          // filterNavGroupsByPermissions drops any group it empties.
-          const GroupIcon = group.items[0].icon;
+          // The destination's own icon -- the one the sidebar row shows --
+          // rather than a second set chosen here, so a reader matching this
+          // page against their sidebar is matching the same glyph. A group
+          // is never empty: destinationsFor drops any destination with no
+          // openable section, and the `how-it-works` removal above
+          // re-filters afterwards.
+          const GroupIcon =
+            CUSTOMER_DESTINATIONS.find((d) => d.id === group.id)?.icon ?? group.items[0].icon;
           return (
             <AccordionItem
               key={group.id}
@@ -141,10 +156,15 @@ export function HowItWorksView() {
                   </div>
                   <div>
                     <p className="text-base font-semibold tracking-tight text-foreground">
-                      {t(`nav:customerGroup.${group.id}`, group.label)}
+                      {t(`nav:customerDestination.${group.id}`, group.label)}
                     </p>
+                    {/* The destination's own one-liner is the same sentence
+                        the section header shows, so the help page and the
+                        page it describes introduce a destination identically.
+                        A `help:group.*` override still wins where one has
+                        been written. */}
                     <p className="mt-0.5 text-sm font-normal text-muted-foreground">
-                      {t(`help:group.${group.id}`, { defaultValue: "" })}
+                      {t(`help:group.${group.id}`, { defaultValue: group.blurb })}
                     </p>
                   </div>
                 </div>

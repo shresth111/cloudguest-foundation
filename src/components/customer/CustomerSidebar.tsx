@@ -1,199 +1,237 @@
+import { Link } from "@tanstack/react-router";
 import { Shield, Eye, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { customerNavGroupsForRole, getCustomerLoginRole } from "@/lib/customerNav";
-import { filterNavGroupsByPermissions } from "@/lib/customerNavPermissions";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSkeleton,
+  SidebarRail,
+  useSidebar,
+} from "@/components/ui/sidebar";
+import { customerFeatureHref, getCustomerLoginRole } from "@/lib/customerNav";
+import {
+  DESTINATION_GROUPS,
+  destinationForFeature,
+  destinationHome,
+  destinationsFor,
+} from "@/lib/customerDestinations";
 import { DataMaskingOtpDialog } from "@/components/features/HeaderControls";
 import { useMyPermissions } from "@/hooks/useCustomerDashboard";
 import type { useDataMasking } from "@/hooks/useCustomerDashboard";
 
 /**
- * The one shared sidebar every `/customer/$locationId/*` page renders --
- * grouped nav (Overview / Engagement / Access & Policy / Devices & Team /
- * Network / Operations / Support & Logs), permission-aware (role-filtered
- * via `customerNavGroupsForRole`) and collapse/mobile-aware. Previously this
- * markup was hand-rolled independently in customer.$locationId.$feature.tsx
- * (which all of Reports/Campaigns/Policies/Vouchers/Portal/Devices/ISP
- * Details/Admin Logs/etc. route through) and, separately and out of sync,
- * in customer.$locationId.dashboard.tsx -- extracted here so the Dashboard
- * page (and any future customer page) can't drift back out of step with
- * its siblings again.
+ * The customer sidebar: nine destinations, built on the shadcn `Sidebar`
+ * primitive this repo already ships.
+ *
+ * TWO CHANGES, AND THE SECOND IS WHY THIS FILE SHRANK
+ * ---------------------------------------------------
+ * 1. It renders `CUSTOMER_DESTINATIONS` (see customerDestinations.ts for
+ *    why 26 became 9) rather than `CUSTOMER_NAV_GROUPS` directly. Every one
+ *    of the 26 features still exists and still has its own route; a
+ *    destination navigates to its first openable section and the shell
+ *    renders the rest as tabs.
+ *
+ * 2. It is `components/ui/sidebar.tsx` now, not a hand-rolled `<aside>`.
+ *    That primitive was already in this repo and already used -- by
+ *    AppSidebar, TopNavbar and `_authenticated.tsx`, i.e. the Master
+ *    Console. Customers got the hand-rolled one, which meant they were the
+ *    only audience without:
+ *
+ *      - collapse state that survives navigation. The old one held it in
+ *        `useState(true)` inside a component every route remounts (each
+ *        feature is its own top-level route with its own arrow-function
+ *        component), so collapsing the sidebar and clicking anything sprang
+ *        it back open. The primitive persists it to a cookie for a week.
+ *      - Cmd/Ctrl-B to toggle.
+ *      - a real mobile drawer. The old one was a `translate-x` div beside a
+ *        click-scrim: no focus trap, no Escape, no body-scroll lock, no
+ *        dialog semantics. The primitive uses Radix `Sheet` and gets all
+ *        four.
+ *      - focus-visible rings on the nav rows.
+ *
+ * Nav rows are `<Link>`, not `<button onClick>`. The old rows had no href,
+ * so there was no cmd-click, no open-in-new-tab, no `aria-current`, and a
+ * screen reader announced 26 unlabelled buttons with no indication of which
+ * page you were on. `customerFeatureHref()` was already the single source of
+ * truth for the URLs; nothing but the element type had to change.
  */
 export interface CustomerSidebarProps {
-  /** The nav item id that should render active, e.g. "dashboard", "reports". */
-  activeId: string;
-  /** Collapsed to icon rail (desktop). */
-  collapsed: boolean;
-  /** Open as an overlay drawer (mobile). */
-  mobileOpen: boolean;
-  onNavigate: (id: string) => void;
-  onToggleCollapsed: () => void;
-  /** Shown under the brand mark, e.g. the active location's name. */
+  /** The *feature* id of the current page, e.g. "reports", "mac-auth". The
+   * destination that owns it is what renders active. */
+  activeFeatureId: string;
+  /** Shown under the brand mark -- the active venue's name. */
   subtitle?: string;
-  /** Moved here from the top header (was crowding the tablet-width title
-   * band, and every real competitor dashboard we looked at treats "hide
-   * sensitive data" as a persistent account-level setting that lives with
-   * navigation, not a transient header pill). The whole `useDataMasking()`
-   * return value, same as `CustomerHeader` used to take -- the OTP dialog
-   * moves with it so the whole feature stays in one place. */
+  /** See the previous implementation's note: "hide sensitive data" is an
+   * account-level setting, so it lives with navigation rather than as a
+   * transient header pill. The OTP dialog travels with it. */
   dataMasking: ReturnType<typeof useDataMasking>;
 }
 
-export function CustomerSidebar({
-  activeId,
-  collapsed,
-  mobileOpen,
-  onNavigate,
-  onToggleCollapsed,
-  subtitle,
-  dataMasking,
-}: CustomerSidebarProps) {
+export function CustomerSidebar({ activeFeatureId, subtitle, dataMasking }: CustomerSidebarProps) {
   const { t } = useTranslation("nav", { i18n });
+  const { state } = useSidebar();
+  const collapsed = state === "collapsed";
   const role = getCustomerLoginRole();
-  // `role` comes from a radio button on the sign-in form, kept in
-  // localStorage -- a landing preference, never an authorization decision
-  // (see customerNav.ts's own note). On its own it meant a staff member
-  // who picked "Owner" got the owner's whole sidebar. The caller's real
-  // effective grants now narrow it further; the two only ever compose in
-  // the removing direction, and an absent/failed/empty permission set
-  // leaves the role-based nav exactly as it was. See
-  // customerNavPermissions.ts for why every ambiguity resolves toward the
-  // customer rather than toward an empty sidebar.
+  // Role is a sign-in landing preference kept in localStorage, never an
+  // authorization decision; the caller's real grants narrow it further and
+  // the two only ever compose in the removing direction. An absent, failed
+  // or empty permission set means "we don't know" and leaves the nav alone.
+  // See customerNavPermissions.ts for why every ambiguity resolves toward
+  // the customer.
   const { data: permissions, isLoading: permissionsLoading } = useMyPermissions();
-  const navGroups = filterNavGroupsByPermissions(customerNavGroupsForRole(role), permissions);
-  const expanded = !collapsed;
-  // Show a skeleton while the real grants are still in flight rather than
-  // painting the unfiltered role-based nav and letting it shrink under the
-  // pointer a moment later. This is only ever a brief, honest "we are still
-  // looking" -- it is NOT a third answer: `isLoading` is false whenever the
-  // query is disabled (demo mode) or has settled, including when it failed
-  // or returned `[]`, so every one of those still falls through to
-  // filterNavGroupsByPermissions' fail-open path and the full nav. The
-  // operator sidebar has had exactly this (AppSidebar.tsx's `isLoading &&
-  // groups.length === 0` branch); the customer one never got it.
-  const showNavSkeleton = permissionsLoading && !permissions;
+  const destinations = destinationsFor(role, permissions);
+  const activeDestinationId = destinationForFeature(activeFeatureId)?.id;
+  // A brief, honest "still looking" instead of painting the full nav and
+  // letting it shrink under the pointer once grants arrive. `isLoading` is
+  // false for demo, failed and empty alike, so all three still fall through
+  // to the fail-open full nav.
+  const showSkeleton = permissionsLoading && !permissions;
+
+  const renderRows = (rows: ReturnType<typeof destinationsFor>) =>
+    rows.map(({ destination, sections }) => {
+      const Icon = destination.icon;
+      const first = destinationHome(destination, role, permissions);
+      const label = t(`customerDestination.${destination.id}`, destination.label);
+      return (
+        <SidebarMenuItem key={destination.id}>
+          <SidebarMenuButton
+            asChild
+            isActive={destination.id === activeDestinationId}
+            // The collapsed rail is icons only, so the tooltip is the label.
+            // The primitive renders it as a real Radix tooltip and hides it
+            // when expanded, rather than the old `title=` attribute that
+            // showed nothing on touch.
+            tooltip={collapsed ? label : undefined}
+          >
+            <Link
+              to={first ? customerFeatureHref(first) : "/"}
+              aria-current={destination.id === activeDestinationId ? "page" : undefined}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="flex-1 truncate">{label}</span>
+              {/* How many things live behind this door. Only where it is
+                  more than one, and never in the rail. */}
+              {sections.length > 1 && !collapsed && (
+                <span className="ml-auto text-[10px] tabular-nums text-sidebar-foreground/40">
+                  {sections.length}
+                </span>
+              )}
+            </Link>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      );
+    });
+
+  const ungrouped = destinations.filter((d) => d.destination.group === null);
+  const home = ungrouped.filter((d) => d.destination.id === "home");
+  const settings = ungrouped.filter((d) => d.destination.id === "settings");
 
   return (
-    <aside
-      className={cn(
-        "fixed inset-y-0 left-0 z-50 flex flex-col border-r border-white/10 bg-gradient-to-b from-[#1e1b4b] to-[#181530] text-white transition-all lg:static lg:z-auto",
-        expanded ? "w-60" : "w-0 lg:w-16 overflow-hidden",
-        mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
-      )}
-    >
-      <div className="flex items-center gap-3 px-4 h-16 border-b border-white/10 shrink-0">
-        <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6] shadow-sm">
-          <img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" />
-          <span className="absolute -right-0.5 -top-0.5 flex h-2.5 w-2.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-[#1e1b4b]" />
-          </span>
+    <Sidebar collapsible="icon">
+      <SidebarHeader className="border-b border-sidebar-border">
+        <div className="flex items-center gap-2.5 px-2 py-2">
+          <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]">
+            <img src="/brand/mark-compact-white.svg" alt="" className="h-4.5 w-4.5" />
+          </div>
+          <div className="flex min-w-0 flex-col group-data-[collapsible=icon]:hidden">
+            <span className="truncate text-sm font-bold tracking-tight">Wyfy Guest</span>
+            {/* The venue this whole shell is scoped to. Every list behind
+                these nine doors is filtered to it -- see the scope line each
+                feature page renders for the same reason. */}
+            <span className="truncate text-[11px] text-sidebar-foreground/50">
+              {subtitle ?? "Your venue"}
+            </span>
+          </div>
         </div>
-        {expanded && (
-          <div>
-            <p className="text-sm font-bold tracking-tight">Wyfy Guest</p>
-            <p className="text-[10px] font-normal tracking-wide text-white/45">
-              {subtitle ?? "Portal"}
-            </p>
-          </div>
-        )}
-      </div>
-      <nav className="flex-1 space-y-4 px-2.5 py-3 overflow-y-auto">
-        {showNavSkeleton && (
-          <div className="space-y-1" aria-hidden>
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5">
-                <span className="h-7 w-7 shrink-0 animate-pulse rounded-md bg-white/10" />
-                {expanded && <span className="h-3 flex-1 animate-pulse rounded bg-white/10" />}
-              </div>
-            ))}
-          </div>
-        )}
-        {!showNavSkeleton &&
-          navGroups.map((g) => (
-            <div key={g.id} className="space-y-1">
-              {expanded && (
-                <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-white/35">
-                  {t(`customerGroup.${g.id}`, g.label)}
-                </p>
-              )}
-              {g.items.map((item) => {
-                const Icon = item.icon;
-                const active = item.id === activeId;
-                const label = t(`customerItem.${item.id}`, item.label);
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => onNavigate(item.id)}
-                    title={label}
-                    className={cn(
-                      // A left indicator bar + soft tinted background/glow on
-                      // the active item (never used for hover, so hovering a
-                      // nearby item can never read as "also selected"), each
-                      // icon riding in its own rounded chip so the rail reads
-                      // as a set of distinct rows instead of same-weight
-                      // plain-white glyphs floating in a list.
-                      "group relative flex w-full items-center gap-3 rounded-lg border-l-[3px] px-2.5 py-2.5 text-sm text-left transition-all duration-150",
-                      active
-                        ? "border-[#6C4EFF] bg-gradient-to-r from-[#6C4EFF]/25 via-[#6C4EFF]/10 to-transparent text-white font-medium shadow-[0_1px_0_0_rgba(255,255,255,0.04)_inset,0_4px_14px_-4px_rgba(108,78,255,0.55)]"
-                        : "border-transparent text-white/60 hover:bg-white/[0.06] hover:text-white",
-                      !expanded && "justify-center px-0",
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors duration-150",
-                        active
-                          ? "bg-white/15 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)]"
-                          : "bg-white/5 text-white/60 group-hover:bg-white/10 group-hover:text-white",
-                      )}
-                    >
-                      <Icon className="h-4 w-4 shrink-0" />
-                    </span>
-                    {expanded && <span className="truncate">{label}</span>}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
-      </nav>
-      <div className="border-t border-white/10 p-2 shrink-0">
-        <button
-          type="button"
-          disabled={dataMasking.sending}
-          onClick={dataMasking.requestToggle}
-          title={
-            dataMasking.masked
-              ? "Sensitive guest data is masked. Click to verify and show it unmasked."
-              : "Guest data is shown unmasked for this account. Click to mask it again."
-          }
-          className={cn(
-            "flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-sm text-left transition-colors disabled:opacity-60",
-            "text-white/60 hover:bg-white/[0.06] hover:text-white",
-            !expanded && "justify-center px-0",
-          )}
-        >
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white/5">
-            {dataMasking.sending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : dataMasking.masked ? (
-              <Shield className="h-4 w-4" />
-            ) : (
-              <Eye className="h-4 w-4 text-sky-300" />
+      </SidebarHeader>
+
+      <SidebarContent>
+        {showSkeleton ? (
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <SidebarMenuItem key={i}>
+                    <SidebarMenuSkeleton showIcon />
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ) : (
+          <>
+            {home.length > 0 && (
+              <SidebarGroup>
+                <SidebarGroupContent>
+                  <SidebarMenu>{renderRows(home)}</SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
             )}
-          </span>
-          {expanded && <span className="truncate">Guest Privacy</span>}
-        </button>
-      </div>
-      <div className="border-t border-white/10 p-2 hidden lg:block">
-        <button
-          onClick={onToggleCollapsed}
-          className="flex w-full items-center justify-center rounded-lg px-3 py-2 text-xs text-white/50 hover:bg-white/10 hover:text-white"
-        >
-          {expanded ? "◄" : "►"}
-        </button>
-      </div>
+            {DESTINATION_GROUPS.map((group) => {
+              const rows = destinations.filter((d) => d.destination.group === group.id);
+              if (rows.length === 0) return null;
+              return (
+                <SidebarGroup key={group.id}>
+                  <SidebarGroupLabel className="text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/55">
+                    {t(`customerDestinationGroup.${group.id}`, group.label)}
+                  </SidebarGroupLabel>
+                  <SidebarGroupContent>
+                    <SidebarMenu>{renderRows(rows)}</SidebarMenu>
+                  </SidebarGroupContent>
+                </SidebarGroup>
+              );
+            })}
+            {settings.length > 0 && (
+              <SidebarGroup className="mt-auto">
+                <SidebarGroupContent>
+                  <SidebarMenu>{renderRows(settings)}</SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            )}
+          </>
+        )}
+      </SidebarContent>
+
+      <SidebarFooter className="border-t border-sidebar-border">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              disabled={dataMasking.sending}
+              onClick={dataMasking.requestToggle}
+              tooltip={
+                dataMasking.masked
+                  ? "Guest details are hidden. Click to verify and show them."
+                  : "Guest details are visible. Click to hide them again."
+              }
+            >
+              {dataMasking.sending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : dataMasking.masked ? (
+                <Shield className="h-4 w-4" />
+              ) : (
+                <Eye className={cn("h-4 w-4", "text-sky-400")} />
+              )}
+              <span className="flex-1 truncate">Guest Privacy</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
+
+      {/* Drag-or-click edge handle. Carries aria-label="Toggle Sidebar" and
+          the Cmd/Ctrl-B binding from the primitive -- the old rail had a
+          bare "◄"/"►" glyph with no accessible name at all. */}
+      <SidebarRail />
+
       <DataMaskingOtpDialog
         open={dataMasking.otpOpen}
         maskingOn={dataMasking.pendingTarget}
@@ -202,6 +240,6 @@ export function CustomerSidebar({
         onVerify={dataMasking.verifyToggle}
         onCancel={dataMasking.cancel}
       />
-    </aside>
+    </Sidebar>
   );
 }

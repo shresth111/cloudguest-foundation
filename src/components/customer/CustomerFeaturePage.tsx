@@ -14,6 +14,12 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
 import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
+import { CustomerSectionTabs } from "@/components/customer/CustomerSectionTabs";
+import {
+  CustomerCommandPalette,
+  useCustomerCommandPalette,
+} from "@/components/customer/CustomerCommandPalette";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { CustomerHeader } from "@/components/customer/CustomerHeader";
 import { CUSTOMER_NAVS, customerFeatureHref } from "@/lib/customerNav";
 import { AgentsPage } from "@/components/features/AgentsPage";
@@ -110,14 +116,12 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
     activeLocation?.organizationName,
   );
   const planExpiryIso = demoFlag ? DEMO_PLAN_RENEWAL_ISO : billing.data?.renewalDate;
-  const [sidebar, setSidebar] = useState(true);
-  const [mobile, setMobile] = useState(false);
+  const { open: paletteOpen, setOpen: setPaletteOpen } = useCustomerCommandPalette();
   const dataMasking = useDataMasking();
   const masked = dataMasking.masked;
   const [changePwOpen, setChangePwOpen] = useState(false);
   const [tfaOpen, setTfaOpen] = useState(false);
 
-  const handleNav = (id: string) => navigate({ to: customerFeatureHref(id) });
   const handleLogout = async () => {
     await logout();
     navigate({ to: "/login", replace: true });
@@ -127,8 +131,8 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
   };
 
   return (
-    <div
-      className="flex min-h-screen bg-muted/30"
+    <SidebarProvider
+      className="bg-muted/30"
       style={
         {
           // The indigo brand accent from login/select-location/dashboard
@@ -147,36 +151,28 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
         } as React.CSSProperties
       }
     >
-      {mobile && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
-          onClick={() => setMobile(false)}
-        />
-      )}
+      {/* The hand-rolled scrim + translate-x drawer that used to live here
+          is gone: `SidebarProvider` owns open/collapsed state (persisted to
+          a cookie, so it survives this shell remounting on every route
+          change), binds Cmd/Ctrl-B, and renders the mobile drawer as a Radix
+          Sheet -- focus trap, Escape and scroll lock included. */}
       <CustomerSidebar
-        activeId={feature}
-        collapsed={!sidebar}
-        mobileOpen={mobile}
-        onNavigate={handleNav}
-        onToggleCollapsed={() => setSidebar(!sidebar)}
-        subtitle="Portal"
+        activeFeatureId={feature}
+        subtitle={activeLocation?.name}
         dataMasking={dataMasking}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <CustomerHeader
           title={
-            // Look the breadcrumb label up from the same CUSTOMER_NAVS list
-            // the sidebar renders from, instead of hand-rolling a couple of
-            // special cases -- the old two-entry ternary here (admin-logs ->
-            // "Logs", business-hours -> "Open Hours") quietly fell back to
-            // the raw feature id (CSS `capitalize`'d) for every other
-            // renamed page, so the breadcrumb kept showing retired technical
-            // names like "Whitelist" and "Isp-Details" even after the
-            // sidebar/page title below it had already been renamed to
-            // "Always Allowed" / "Internet Connection". Falls back to the
-            // capitalized raw id for the handful of ids with no sidebar
-            // entry (audit, advanced, hotspot).
+            // Label from the same CUSTOMER_NAVS list the palette and section
+            // tabs read, never the raw feature id -- the old fallback
+            // CSS-`capitalize`d it and so kept showing retired technical
+            // names ("Whitelist", "Isp-Details") after the rename. The venue
+            // stays in the bar as well as on the page: the bar is where you
+            // check it deliberately, the page heading is where you read it
+            // without meaning to. See CustomerSectionTabs for why that
+            // matters once lists are scoped server-side.
             <p className="truncate text-sm font-semibold capitalize">
               {CUSTOMER_NAVS.find((n) => n.id === feature)?.label ?? feature} ·{" "}
               {activeLocation?.name ?? ""}
@@ -184,7 +180,7 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
           }
           locationId={locationId}
           planExpiryIso={planExpiryIso}
-          onMobileMenuClick={() => setMobile(true)}
+          onOpenSearch={() => setPaletteOpen(true)}
           user={user}
           onSwitchLocation={handleSwitchLocation}
           onChangePassword={() => setChangePwOpen(true)}
@@ -200,6 +196,9 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
             views this shell renders. */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 pb-24 overflow-y-auto">
           <div className="mx-auto max-w-7xl">
+            {/* Which destination this page belongs to, which venue it is
+                scoped to, and the sibling sections as tabs. */}
+            <CustomerSectionTabs featureId={feature} locationName={activeLocation?.name} />
             {/* Every branch below can be a lazily-loaded view, so the whole
                 group sits behind one boundary. Only one branch matches at a
                 time, and a single fallback keeps the page from flickering
@@ -286,8 +285,9 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
       </div>
       <ChangePasswordDialog open={changePwOpen} onOpenChange={setChangePwOpen} />
       <TwoFactorDialog open={tfaOpen} onOpenChange={setTfaOpen} />
+      <CustomerCommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       <AssistantWidget />
-    </div>
+    </SidebarProvider>
   );
 }
 
