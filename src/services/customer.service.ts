@@ -134,8 +134,27 @@ export interface CustomerDashboardData {
   // yet to compute a real figure from -- see getDashboard()'s own
   // comment. Never a fabricated placeholder number.
   kpis: {
+    /** Guests with a session open right now.
+     *
+     * There used to be an `activeSessions` field beside this one, and the
+     * dashboard rendered both as headline tiles -- "Online right now" next
+     * to "Active sessions". They were assigned from the same
+     * `activeSessionCount` variable in getDashboard() below, so they were
+     * not two signals that happened to agree, they were one number printed
+     * twice, guaranteed identical on every real account forever. The demo
+     * fixture was the only place they could differ, which is why it read
+     * as plausible in the product video (142 beside 142) rather than as
+     * the bug it was.
+     *
+     * Removed rather than given a second real derivation: "sessions" is
+     * our word, not a venue owner's, and a second number that tracks this
+     * one to within a rounding error is not worth a headline tile. If a
+     * genuinely different concurrency measure is ever wanted, it needs its
+     * own derivation and its own name -- not this field back.
+     *
+     * `newToday` went the same way: identical expression to `todayGuests`
+     * below, and never rendered anywhere. */
     onlineUsers: number;
-    activeSessions: number;
     /** `null` when the routers could not be read. Never a stand-in zero. */
     routersOnline: number | null;
     totalRouters: number | null;
@@ -143,7 +162,6 @@ export interface CustomerDashboardData {
     avgSession: number;
     peakConcurrent: number;
     failedLogins: number;
-    newToday: number;
     slaUptime: number | null;
   };
   usersTrend: { hour: string; users: number }[];
@@ -1058,14 +1076,12 @@ export const customerService = {
         },
         kpis: {
           onlineUsers: loc.onlineUsers,
-          activeSessions: loc.sessionsActive,
           routersOnline: loc.routersOnline,
           totalRouters: loc.routersTotal,
           todayGuests: 456,
           avgSession: 34,
           peakConcurrent: 234,
           failedLogins: 12,
-          newToday: 89,
           slaUptime: 99.97,
         },
         usersTrend: Array.from({ length: 24 }, (_, i) => ({
@@ -1308,7 +1324,6 @@ export const customerService = {
       },
       kpis: {
         onlineUsers: activeSessionCount,
-        activeSessions: activeSessionCount,
         routersOnline: liveness.routersOnline,
         totalRouters: liveness.routersTotal,
         todayGuests: sessions.filter((s) => s.started_at?.startsWith(today)).length,
@@ -1320,7 +1335,6 @@ export const customerService = {
         // even though more people were online then.
         peakConcurrent: openByHour.length > 0 ? Math.max(...openByHour) : 0,
         failedLogins: failedLoginsToday,
-        newToday: sessions.filter((s) => s.started_at?.startsWith(today)).length,
         slaUptime,
       },
       usersTrend: openByHour.map((c, i) => ({ hour: `${i}`, users: c })),

@@ -55,7 +55,16 @@ export function CustomerHeader({
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-white/10 bg-gradient-to-r from-[#1e1b4b] to-[#241f4d] px-4 text-white backdrop-blur-xl sm:px-6">
-      <button className="text-white/70 hover:text-white lg:hidden" onClick={onMobileMenuClick}>
+      {/* -ml-2 keeps the icon on the same optical left edge it always sat on
+          while the button itself grows to 40px. It was a bare 20px icon with
+          no padding -- the smallest tap target in the product, and the only
+          way to reach navigation at all on a phone, on every page. */}
+      <button
+        type="button"
+        aria-label="Open navigation menu"
+        className="-ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white/70 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 lg:hidden"
+        onClick={onMobileMenuClick}
+      >
         <Menu className="h-5 w-5" />
       </button>
       <div className="min-w-0 flex-1">{title}</div>

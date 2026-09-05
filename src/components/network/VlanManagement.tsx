@@ -313,7 +313,7 @@ export function VlanManagement({ locationId }: { locationId?: string } = {}) {
         }
         actions={
           <Button onClick={() => setCreating(true)}>
-            <Plus className="mr-1.5 h-4 w-4" /> New VLAN
+            <Plus className="mr-1.5 h-4 w-4" /> {locationId ? "New zone" : "New VLAN"}
           </Button>
         }
       />
@@ -338,7 +338,9 @@ export function VlanManagement({ locationId }: { locationId?: string } = {}) {
 
       <Card className="border-0 shadow-sm">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
-          <CardTitle className="text-base font-semibold">All VLANs</CardTitle>
+          <CardTitle className="text-base font-semibold">
+            {locationId ? "All zones" : "All VLANs"}
+          </CardTitle>
           <div className="flex flex-wrap items-center gap-2">
             <Select
               value={routerFilter}
@@ -364,7 +366,11 @@ export function VlanManagement({ locationId }: { locationId?: string } = {}) {
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search name, tag, CIDR, router…"
+                placeholder={
+                  locationId
+                    ? "Search name, address range, router…"
+                    : "Search name, tag, CIDR, router…"
+                }
                 className="pl-8"
               />
             </div>
@@ -374,7 +380,7 @@ export function VlanManagement({ locationId }: { locationId?: string } = {}) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>VLAN</TableHead>
+                <TableHead>{locationId ? "Zone" : "VLAN"}</TableHead>
                 <TableHead>Router</TableHead>
                 <TableHead>Location</TableHead>
                 <TableHead>Network</TableHead>
@@ -402,7 +408,7 @@ export function VlanManagement({ locationId }: { locationId?: string } = {}) {
                     colSpan={9}
                     className="py-10 text-center text-sm text-muted-foreground"
                   >
-                    No VLANs match your filters.
+                    {locationId ? "No zones match your filters." : "No VLANs match your filters."}
                   </TableCell>
                 </TableRow>
               )}
@@ -534,6 +540,7 @@ export function VlanManagement({ locationId }: { locationId?: string } = {}) {
         open={creating || !!editing}
         vlan={editing}
         routers={routers.rows}
+        plain={!!locationId}
         onClose={() => {
           setCreating(false);
           setEditing(null);
@@ -543,7 +550,9 @@ export function VlanManagement({ locationId }: { locationId?: string } = {}) {
       <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete VLAN {confirmDelete?.vlanId}?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {locationId ? "Delete zone" : "Delete VLAN"} {confirmDelete?.vlanId}?
+            </AlertDialogTitle>
             <AlertDialogDescription>
               This permanently removes "{confirmDelete?.name}" from{" "}
               {confirmDelete ? routerName(confirmDelete.routerId) : ""}. This cannot be undone.
@@ -563,7 +572,7 @@ export function VlanManagement({ locationId }: { locationId?: string } = {}) {
                 setConfirmDelete(null);
               }}
             >
-              Delete VLAN
+              {locationId ? "Delete zone" : "Delete VLAN"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -572,15 +581,27 @@ export function VlanManagement({ locationId }: { locationId?: string } = {}) {
   );
 }
 
+/** `plain` = the venue-owner wording. The master console's own
+ * /network/vlan route renders this with no locationId and keeps the precise
+ * RouterOS vocabulary its audience works in; the customer portal always
+ * passes one. Same id/route/data either way -- only these strings differ.
+ *
+ * The header of this page was renamed to "Network Zones" and the port-mode
+ * options were rewritten by outcome (see the SelectContent below, which got
+ * this right first). Everything between them was missed, so an owner clicked
+ * "Network Zones" and was asked for an "802.1Q Tag" and a "CIDR". A rename
+ * that stops at the title teaches the owner the rename was cosmetic. */
 function VlanDialog({
   open,
   vlan,
   routers,
+  plain,
   onClose,
 }: {
   open: boolean;
   vlan: Vlan | null;
   routers: { id: string; name: string }[];
+  plain: boolean;
   onClose: () => void;
 }) {
   const create = useCreateVlan();
@@ -676,14 +697,16 @@ function VlanDialog({
     try {
       if (vlan) {
         await update.mutateAsync({ id: vlan.id, payload: shared });
-        toast.success("VLAN updated");
+        toast.success(plain ? "Zone updated" : "VLAN updated");
       } else {
         await create.mutateAsync({ routerId: v.routerId, ...shared });
-        toast.success("VLAN created");
+        toast.success(plain ? "Zone created" : "VLAN created");
       }
       close();
     } catch (err) {
-      toast.error((err as AppError).message || "Failed to save VLAN");
+      toast.error(
+        (err as AppError).message || (plain ? "Couldn't save that zone" : "Failed to save VLAN"),
+      );
     }
   }
 
@@ -691,7 +714,9 @@ function VlanDialog({
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{vlan ? "Edit VLAN" : "New VLAN"}</DialogTitle>
+          <DialogTitle>
+            {plain ? (vlan ? "Edit zone" : "New zone") : vlan ? "Edit VLAN" : "New VLAN"}
+          </DialogTitle>
           <DialogDescription>
             {vlan
               ? "The router this VLAN belongs to cannot be changed — delete and recreate to move it."
@@ -733,14 +758,16 @@ function VlanDialog({
             )}
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium">802.1Q Tag</Label>
+            <Label className="text-xs font-medium">{plain ? "Zone ID" : "802.1Q Tag"}</Label>
             <Input type="number" min={1} max={4094} {...form.register("vlanId")} />
             {form.formState.errors.vlanId && (
               <p className="text-[11px] text-destructive">{form.formState.errors.vlanId.message}</p>
             )}
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium">Gateway IP (optional)</Label>
+            <Label className="text-xs font-medium">
+              {plain ? "Router address (optional)" : "Gateway IP (optional)"}
+            </Label>
             <Input
               {...form.register("gatewayIpAddress")}
               placeholder="10.0.0.1"
@@ -748,7 +775,9 @@ function VlanDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium">CIDR (optional)</Label>
+            <Label className="text-xs font-medium">
+              {plain ? "Address range (optional)" : "CIDR (optional)"}
+            </Label>
             <Input {...form.register("cidr")} placeholder="10.0.0.0/24" className="font-mono" />
           </div>
           <div className="space-y-1.5">
@@ -783,7 +812,7 @@ function VlanDialog({
             <InterfacePicker
               control={form.control}
               name="trunkInterface"
-              label="Trunk interface"
+              label={plain ? "Which cable does it use?" : "Trunk interface"}
               hint="Read live off your router. This zone rides the cable that is already there, tagged — nothing else on that cable is disturbed. Use this for several Wi-Fi networks from one access point; the AP must tag this zone's VLAN id."
               manualPlaceholder="bridge"
               emptyMessage={
@@ -801,7 +830,7 @@ function VlanDialog({
             <InterfacePicker
               control={form.control}
               name="accessPort"
-              label="Access port"
+              label={plain ? "Which port does it take?" : "Access port"}
               hint="Read live off your router. This port is handed entirely to this zone, untagged. Whatever is plugged into it leaves its current network — including an access point, which would stop serving the Wi-Fi it serves today."
               manualPlaceholder="ether3"
               emptyMessage={
@@ -818,9 +847,13 @@ function VlanDialog({
           )}
           <div className="sm:col-span-2 flex items-center justify-between rounded-lg border border-border/60 bg-background px-3 py-2.5">
             <div>
-              <div className="text-sm font-medium">Captive portal</div>
+              <div className="text-sm font-medium">
+                {plain ? "Guests must sign in" : "Captive portal"}
+              </div>
               <div className="text-[11px] text-muted-foreground">
-                Guests on this VLAN must log in through a hotspot page.
+                {plain
+                  ? "Anyone joining this zone sees your sign-in screen before they get online."
+                  : "Guests on this VLAN must log in through a hotspot page."}
               </div>
             </div>
             <Controller

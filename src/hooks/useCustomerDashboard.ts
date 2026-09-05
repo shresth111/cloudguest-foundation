@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useSyncExternalStore } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customerService, isDemo, resolveOrgId } from "@/services/customer.service";
 import type { CustomerUsersData } from "@/services/customer.service";
@@ -15,19 +15,53 @@ import { useDataMaskingStore } from "@/stores/dataMaskingStore";
 import { maskPhone } from "@/lib/masking";
 import { toast } from "sonner";
 
-/** SSR-safe demo-mode flag. isDemo() reads localStorage, which doesn't
- * exist during server render -- calling it directly during render (e.g. in
- * a useState initializer or JSX conditional) makes the server's output
- * disagree with the client's hydration pass and React discards the tree.
- * Defaults to true (demo, the common path for this app) so server and
- * client agree on the first render, then corrects itself via effect once
- * mounted client-side. */
+/** SSR-safe demo-mode flag.
+ *
+ * isDemo() reads localStorage, which doesn't exist during server render --
+ * calling it directly in a render body (a useState initializer, a JSX
+ * conditional) makes the server's output disagree with the client's
+ * hydration pass and React discards the tree. That is a real constraint and
+ * this hook still honours it.
+ *
+ * What changed: it used to be `useState(true)` + a correcting `useEffect`,
+ * i.e. the first client render always claimed "demo". "We haven't looked
+ * yet" was spelled as a positive assertion, and the most load-bearing
+ * consumer reads it as one -- `useMyPermissions` below is `enabled: !demo`,
+ * so the permission fetch was *disabled* on first paint and the customer
+ * sidebar rendered its unfiltered 26-item nav, then silently shrank once
+ * the effect ran, the query fired and the answer came back. Items vanished
+ * from under the pointer with no skeleton to say a narrower answer was
+ * coming (the operator sidebar has had one all along, see AppSidebar.tsx).
+ *
+ * `useSyncExternalStore` is the React 18 primitive for exactly this: read
+ * an external, non-React value in a way that is correct on the first client
+ * render and still safe to hydrate. `getServerSnapshot` keeps the SSR pass
+ * deterministic (matching isDemo()'s own no-window branch), while
+ * `getSnapshot` gives a client-only mount -- which is what every customer
+ * route is, they all set `ssr: false` -- the true value immediately, with no
+ * intermediate wrong frame at all.
+ *
+ * The `storage` subscription is not decoration: signing into the demo in a
+ * second tab writes the same key, and a stale "real" reading there would
+ * point a demo session at endpoints it has no token for. */
+const demoStore = {
+  subscribe(onChange: () => void) {
+    if (typeof window === "undefined") return () => {};
+    window.addEventListener("storage", onChange);
+    return () => window.removeEventListener("storage", onChange);
+  },
+  getSnapshot: () => isDemo(),
+  // Must match isDemo()'s `typeof window === "undefined"` branch exactly, or
+  // hydration disagrees for the routes that do server-render.
+  getServerSnapshot: () => false,
+};
+
 export function useIsDemo(): boolean {
-  const [demo, setDemo] = useState(true);
-  useEffect(() => {
-    setDemo(isDemo());
-  }, []);
-  return demo;
+  return useSyncExternalStore(
+    demoStore.subscribe,
+    demoStore.getSnapshot,
+    demoStore.getServerSnapshot,
+  );
 }
 
 export const customerKeys = {

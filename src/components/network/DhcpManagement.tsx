@@ -339,7 +339,7 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
         illustration={<DhcpIllustration />}
         actions={
           <Button onClick={() => setCreating(true)}>
-            <Plus className="mr-1.5 h-4 w-4" /> New Pool
+            <Plus className="mr-1.5 h-4 w-4" /> {locationId ? "New address range" : "New Pool"}
           </Button>
         }
       />
@@ -364,7 +364,9 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
 
       <Card className="border-0 shadow-sm">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
-          <CardTitle className="text-base font-semibold">All DHCP Pools</CardTitle>
+          <CardTitle className="text-base font-semibold">
+            {locationId ? "All address ranges" : "All DHCP Pools"}
+          </CardTitle>
           <div className="flex flex-wrap items-center gap-2">
             <Select
               value={routerFilter}
@@ -400,12 +402,12 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Pool</TableHead>
+                <TableHead>{locationId ? "Range" : "Pool"}</TableHead>
                 <TableHead>Router</TableHead>
                 <TableHead>Address range</TableHead>
-                <TableHead>Gateway</TableHead>
+                <TableHead>{locationId ? "Router address" : "Gateway"}</TableHead>
                 <TableHead>DNS</TableHead>
-                <TableHead>Lease</TableHead>
+                <TableHead>{locationId ? "Held for" : "Lease"}</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>On router</TableHead>
                 <TableHead className="w-[160px]" />
@@ -428,7 +430,9 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
                     colSpan={9}
                     className="py-10 text-center text-sm text-muted-foreground"
                   >
-                    No DHCP pools match your filters.
+                    {locationId
+                      ? "No address ranges match your filters."
+                      : "No DHCP pools match your filters."}
                   </TableCell>
                 </TableRow>
               )}
@@ -525,6 +529,7 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
       </Card>
 
       <DhcpDialog
+        plain={!!locationId}
         open={creating || !!editing}
         pool={editing}
         routers={routers.rows}
@@ -537,7 +542,9 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
       <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete pool "{confirmDelete?.name}"?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {locationId ? "Delete address range" : "Delete pool"} "{confirmDelete?.name}"?
+            </AlertDialogTitle>
             <AlertDialogDescription>
               This permanently removes it from{" "}
               {confirmDelete ? routerName(confirmDelete.routerId) : ""}. This cannot be undone.
@@ -557,7 +564,7 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
                 setConfirmDelete(null);
               }}
             >
-              Delete pool
+              {locationId ? "Delete range" : "Delete pool"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -566,15 +573,22 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
   );
 }
 
+/** `plain` = the venue-owner wording, same split as VlanManagement's own
+ * VlanDialog: the master console keeps "DHCP pool", the customer portal --
+ * whose sidebar and page title already say "IP Addresses" -- gets words that
+ * match the door they came through. An owner clicking "IP Addresses" and
+ * being handed a "New DHCP pool" button learns that the rename was paint. */
 function DhcpDialog({
   open,
   pool,
   routers,
+  plain,
   onClose,
 }: {
   open: boolean;
   pool: DhcpPool | null;
   routers: { id: string; name: string }[];
+  plain: boolean;
   onClose: () => void;
 }) {
   const create = useCreateDhcpPool();
@@ -651,14 +665,17 @@ function DhcpDialog({
       };
       if (pool) {
         await update.mutateAsync({ id: pool.id, payload: shared });
-        toast.success("DHCP pool updated");
+        toast.success(plain ? "Address range updated" : "DHCP pool updated");
       } else {
         await create.mutateAsync({ routerId: v.routerId, ...shared });
-        toast.success("DHCP pool created");
+        toast.success(plain ? "Address range created" : "DHCP pool created");
       }
       close();
     } catch (err) {
-      toast.error((err as AppError).message || "Failed to save pool");
+      toast.error(
+        (err as AppError).message ||
+          (plain ? "Couldn't save that address range" : "Failed to save pool"),
+      );
     }
   }
 
@@ -666,11 +683,23 @@ function DhcpDialog({
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{pool ? "Edit DHCP pool" : "New DHCP pool"}</DialogTitle>
+          <DialogTitle>
+            {plain
+              ? pool
+                ? "Edit address range"
+                : "New address range"
+              : pool
+                ? "Edit DHCP pool"
+                : "New DHCP pool"}
+          </DialogTitle>
           <DialogDescription>
             {pool
-              ? "The router this pool belongs to cannot be changed — delete and recreate to move it."
-              : "A DHCP pool belongs to exactly one router for its whole lifetime."}
+              ? plain
+                ? "The router this range belongs to cannot be changed — delete it and make a new one to move it."
+                : "The router this pool belongs to cannot be changed — delete and recreate to move it."
+              : plain
+                ? "An address range belongs to exactly one router for its whole life."
+                : "A DHCP pool belongs to exactly one router for its whole lifetime."}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(submit)} className="grid gap-3 sm:grid-cols-2">
@@ -734,7 +763,9 @@ function DhcpDialog({
             )}
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium">Gateway IP (optional)</Label>
+            <Label className="text-xs font-medium">
+              {plain ? "Router address (optional)" : "Gateway IP (optional)"}
+            </Label>
             <Input
               {...form.register("gatewayIpAddress")}
               placeholder="10.0.0.1"
@@ -743,7 +774,9 @@ function DhcpDialog({
           </div>
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <Label className="text-xs font-medium">Interface</Label>
+              <Label className="text-xs font-medium">
+                {plain ? "Which cable or zone" : "Interface"}
+              </Label>
               {!manualInterface && (
                 <button
                   type="button"
@@ -818,7 +851,9 @@ function DhcpDialog({
             <Input {...form.register("dnsSecondary")} placeholder="8.8.4.4" className="font-mono" />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium">Lease time (seconds)</Label>
+            <Label className="text-xs font-medium">
+              {plain ? "Hold each address for (seconds)" : "Lease time (seconds)"}
+            </Label>
             <Input type="number" min={1} {...form.register("leaseTimeSeconds")} />
             {form.formState.errors.leaseTimeSeconds && (
               <p className="text-[11px] text-destructive">

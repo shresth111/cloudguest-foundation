@@ -60,9 +60,19 @@ export function CustomerSidebar({
   // leaves the role-based nav exactly as it was. See
   // customerNavPermissions.ts for why every ambiguity resolves toward the
   // customer rather than toward an empty sidebar.
-  const { data: permissions } = useMyPermissions();
+  const { data: permissions, isLoading: permissionsLoading } = useMyPermissions();
   const navGroups = filterNavGroupsByPermissions(customerNavGroupsForRole(role), permissions);
   const expanded = !collapsed;
+  // Show a skeleton while the real grants are still in flight rather than
+  // painting the unfiltered role-based nav and letting it shrink under the
+  // pointer a moment later. This is only ever a brief, honest "we are still
+  // looking" -- it is NOT a third answer: `isLoading` is false whenever the
+  // query is disabled (demo mode) or has settled, including when it failed
+  // or returned `[]`, so every one of those still falls through to
+  // filterNavGroupsByPermissions' fail-open path and the full nav. The
+  // operator sidebar has had exactly this (AppSidebar.tsx's `isLoading &&
+  // groups.length === 0` branch); the customer one never got it.
+  const showNavSkeleton = permissionsLoading && !permissions;
 
   return (
     <aside
@@ -90,52 +100,63 @@ export function CustomerSidebar({
         )}
       </div>
       <nav className="flex-1 space-y-4 px-2.5 py-3 overflow-y-auto">
-        {navGroups.map((g) => (
-          <div key={g.id} className="space-y-1">
-            {expanded && (
-              <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-white/35">
-                {t(`customerGroup.${g.id}`, g.label)}
-              </p>
-            )}
-            {g.items.map((item) => {
-              const Icon = item.icon;
-              const active = item.id === activeId;
-              const label = t(`customerItem.${item.id}`, item.label);
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => onNavigate(item.id)}
-                  title={label}
-                  className={cn(
-                    // A left indicator bar + soft tinted background/glow on
-                    // the active item (never used for hover, so hovering a
-                    // nearby item can never read as "also selected"), each
-                    // icon riding in its own rounded chip so the rail reads
-                    // as a set of distinct rows instead of same-weight
-                    // plain-white glyphs floating in a list.
-                    "group relative flex w-full items-center gap-3 rounded-lg border-l-[3px] px-2.5 py-2.5 text-sm text-left transition-all duration-150",
-                    active
-                      ? "border-[#6C4EFF] bg-gradient-to-r from-[#6C4EFF]/25 via-[#6C4EFF]/10 to-transparent text-white font-medium shadow-[0_1px_0_0_rgba(255,255,255,0.04)_inset,0_4px_14px_-4px_rgba(108,78,255,0.55)]"
-                      : "border-transparent text-white/60 hover:bg-white/[0.06] hover:text-white",
-                    !expanded && "justify-center px-0",
-                  )}
-                >
-                  <span
+        {showNavSkeleton && (
+          <div className="space-y-1" aria-hidden>
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5">
+                <span className="h-7 w-7 shrink-0 animate-pulse rounded-md bg-white/10" />
+                {expanded && <span className="h-3 flex-1 animate-pulse rounded bg-white/10" />}
+              </div>
+            ))}
+          </div>
+        )}
+        {!showNavSkeleton &&
+          navGroups.map((g) => (
+            <div key={g.id} className="space-y-1">
+              {expanded && (
+                <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-white/35">
+                  {t(`customerGroup.${g.id}`, g.label)}
+                </p>
+              )}
+              {g.items.map((item) => {
+                const Icon = item.icon;
+                const active = item.id === activeId;
+                const label = t(`customerItem.${item.id}`, item.label);
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => onNavigate(item.id)}
+                    title={label}
                     className={cn(
-                      "flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors duration-150",
+                      // A left indicator bar + soft tinted background/glow on
+                      // the active item (never used for hover, so hovering a
+                      // nearby item can never read as "also selected"), each
+                      // icon riding in its own rounded chip so the rail reads
+                      // as a set of distinct rows instead of same-weight
+                      // plain-white glyphs floating in a list.
+                      "group relative flex w-full items-center gap-3 rounded-lg border-l-[3px] px-2.5 py-2.5 text-sm text-left transition-all duration-150",
                       active
-                        ? "bg-white/15 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)]"
-                        : "bg-white/5 text-white/60 group-hover:bg-white/10 group-hover:text-white",
+                        ? "border-[#6C4EFF] bg-gradient-to-r from-[#6C4EFF]/25 via-[#6C4EFF]/10 to-transparent text-white font-medium shadow-[0_1px_0_0_rgba(255,255,255,0.04)_inset,0_4px_14px_-4px_rgba(108,78,255,0.55)]"
+                        : "border-transparent text-white/60 hover:bg-white/[0.06] hover:text-white",
+                      !expanded && "justify-center px-0",
                     )}
                   >
-                    <Icon className="h-4 w-4 shrink-0" />
-                  </span>
-                  {expanded && <span className="truncate">{label}</span>}
-                </button>
-              );
-            })}
-          </div>
-        ))}
+                    <span
+                      className={cn(
+                        "flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors duration-150",
+                        active
+                          ? "bg-white/15 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)]"
+                          : "bg-white/5 text-white/60 group-hover:bg-white/10 group-hover:text-white",
+                      )}
+                    >
+                      <Icon className="h-4 w-4 shrink-0" />
+                    </span>
+                    {expanded && <span className="truncate">{label}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
       </nav>
       <div className="border-t border-white/10 p-2 shrink-0">
         <button

@@ -550,10 +550,23 @@ check(
   /<Activity aria-hidden className="h-3\.5 w-3\.5 text-muted-foreground" \/>/.test(dash),
 );
 
+// This used to assert that CustomerFeaturePage rendered the explainer too,
+// because it carried its own second copy of the dashboard (`DashboardView`).
+// That copy was unreachable: no route file has passed `feature="dashboard"`
+// into that shell since location ids left the URL, so `/` renders
+// CustomerDashboardPage and nothing rendered DashboardView at all. It has
+// been deleted, along with the equally-dead `UsersView`.
+//
+// Worth recording why this assertion existed: the liveness explainer, the
+// pb-24 AssistantWidget clearance and the formatUptimePercent change were
+// each applied to that dead copy -- three separate fixes aimed at a screen
+// no customer could open, two of which (pb-24, and this one) the live
+// dashboard also needed. A second implementation does not just rot, it
+// absorbs the fixes meant for the first one. The guard below keeps it gone.
 const feature = readFileSync(join(ROOT, "src/components/customer/CustomerFeaturePage.tsx"), "utf8");
 check(
-  "the-other-page-rendering-the-same-payload-explains-itself-too",
-  feature.includes("<LocationLivenessExplainer"),
+  "the-feature-shell-no-longer-carries-a-second-dashboard-to-fix-by-mistake",
+  !/feature === "dashboard"/.test(feature) && !feature.includes("<LocationLivenessExplainer"),
 );
 
 // =====================================================================

@@ -1826,21 +1826,32 @@ export function CustomerDashboardPage() {
                      * "Online right now" is the one metric with a genuine
                      * same-day reference point (peakConcurrent, derived from
                      * real hourly session counts, see customer.service.ts).
-                     * Active sessions/SLA uptime have no real day-over-day
-                     * or prior-period figure to compare against yet, so they
-                     * intentionally show label + number only rather than
-                     * inventing a trend. */}
+                     * Uptime has no real day-over-day or prior-period figure
+                     * to compare against yet, so it intentionally shows label
+                     * + number only rather than inventing a trend.
+                     *
+                     * "Guests today" leads. It used to sit in the secondary
+                     * strip below at `text-xs` while an "Active sessions"
+                     * tile -- fed by the same variable as "Online right now",
+                     * see customer.service.ts's note -- took a 36-48px slot
+                     * beside it. So the number a venue owner opens this page
+                     * to find was the smallest thing in the hero and its
+                     * duplicate was the largest. Dropping the duplicate frees
+                     * exactly the slot "Guests today" needed.
+                     *
+                     * "SLA uptime" is now "Uptime": a cafe owner has no SLA,
+                     * and the word was ours, not theirs. */}
                     <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
                       {[
+                        {
+                          label: "Guests today",
+                          value: d.kpis.todayGuests.toLocaleString(),
+                          context: null,
+                        },
                         {
                           label: "Online right now",
                           value: d.kpis.onlineUsers.toLocaleString(),
                           context: `Today's peak: ${d.kpis.peakConcurrent.toLocaleString()}`,
-                        },
-                        {
-                          label: "Active sessions",
-                          value: d.kpis.activeSessions.toLocaleString(),
-                          context: null,
                         },
                         // Omitted entirely (not a fake "--%") when there's no
                         // active uplink / no health-check data yet to compute
@@ -1848,7 +1859,7 @@ export function CustomerDashboardPage() {
                         ...(d.kpis.slaUptime != null
                           ? [
                               {
-                                label: "SLA uptime",
+                                label: "Uptime",
                                 value: formatUptimePercent(d.kpis.slaUptime),
                                 context: null,
                               },
@@ -1884,10 +1895,10 @@ export function CustomerDashboardPage() {
                    * numbers only; the strip below owns infrastructure
                    * health only -- each stat has exactly one home. */}
                   <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-white/10 pt-2.5 text-xs tabular-nums text-white/70">
-                    {[
-                      { label: "guests today", value: d.kpis.todayGuests.toLocaleString() },
-                      { label: "avg session", value: `${d.kpis.avgSession} min` },
-                    ].map((s) => (
+                    {/* "guests today" was promoted out of this strip into the
+                     * hero row above -- it is the question the page is opened
+                     * to answer, and it was the smallest number on it. */}
+                    {[{ label: "avg session", value: `${d.kpis.avgSession} min` }].map((s) => (
                       <span key={s.label}>
                         <span className="font-semibold text-white">{s.value}</span>{" "}
                         <span className="text-white/50">{s.label}</span>
