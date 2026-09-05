@@ -718,11 +718,11 @@ jobs:
       #      told the month was clean.
       #
       # The load-bearing assertion is that uptime NEVER rounds up to 100.
-      # Floor 32, observed green at 32.
+      # Floor 47, observed green at 47.
       - name: customer dashboard KPIs
         run: |
           ./scripts/ci-gated-test.sh \
-            "customer-kpis" 32 "all customer KPI checks passed" \
+            "customer-kpis" 47 "all customer KPI checks passed" \
             bun run test:customer-kpis
 
       # --- Customer sidebar permission filter ----------------------------

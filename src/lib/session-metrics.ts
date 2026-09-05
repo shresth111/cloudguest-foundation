@@ -34,6 +34,67 @@ export interface SessionSpan {
  * Returns 0 when nothing is countable, matching the shape the caller
  * already expects (it renders that as "0 min", not as a gap).
  */
+/** How many sessions *began* in each hour-of-day bucket, 0..23.
+ *
+ * This is the honest series for "Sessions by hour": it answers "when do
+ * people arrive", which is what a venue schedules staff around. */
+export function sessionStartsByHour(sessions: SessionSpan[]): number[] {
+  const buckets = new Array(24).fill(0) as number[];
+  for (const s of sessions) {
+    if (!s.started_at) continue;
+    const start = new Date(s.started_at);
+    const h = start.getHours();
+    if (Number.isFinite(start.getTime()) && h >= 0 && h < 24) buckets[h] += 1;
+  }
+  return buckets;
+}
+
+/** How many sessions were *open* during each hour-of-day bucket, 0..23.
+ *
+ * This is the honest series for "Guests online, last 24h": a guest who
+ * connected at 14:10 and left at 16:30 was online at 14:00, 15:00 and
+ * 16:00, and should appear in all three -- which is what "how busy was
+ * the WiFi at 3pm" means.
+ *
+ * WHY THIS FUNCTION EXISTS AT ALL: the dashboard used to derive BOTH
+ * charts from one array of per-hour session *starts*, so "Guests online,
+ * last 24h" and "Sessions by hour" rendered identical numbers in two
+ * different chart shapes. Nobody noticed because the demo fixtures seed
+ * the two separately (a 24-point curve and 6 bars), which is exactly what
+ * the product video shows -- the duplication was only ever visible on a
+ * real account.
+ *
+ * A session still running is counted through to `now` and no further, so
+ * an open session never fills the rest of the day with guests who are not
+ * there yet.
+ */
+export function sessionsOpenByHour(sessions: SessionSpan[], now: number = Date.now()): number[] {
+  const buckets = new Array(24).fill(0) as number[];
+  for (const s of sessions) {
+    if (!s.started_at) continue;
+    const startMs = new Date(s.started_at).getTime();
+    if (!Number.isFinite(startMs)) continue;
+    const rawEnd = s.ended_at ? new Date(s.ended_at).getTime() : now;
+    const endMs = Number.isFinite(rawEnd) ? Math.max(startMs, Math.min(rawEnd, now)) : now;
+
+    // Walk hour boundaries from the session's start to its end. Capped at
+    // 24 buckets so a very long session (a hotel guest's multi-day
+    // session) marks each hour at most once instead of looping for days.
+    const cursor = new Date(startMs);
+    cursor.setMinutes(0, 0, 0);
+    const seen = new Set<number>();
+    for (let i = 0; i < 24 && cursor.getTime() <= endMs; i++) {
+      const h = cursor.getHours();
+      if (!seen.has(h)) {
+        seen.add(h);
+        buckets[h] += 1;
+      }
+      cursor.setTime(cursor.getTime() + 3_600_000);
+    }
+  }
+  return buckets;
+}
+
 export function avgSessionMinutes(sessions: SessionSpan[], now: number = Date.now()): number {
   let totalMs = 0;
   let counted = 0;

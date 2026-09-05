@@ -77,7 +77,7 @@ const outdir = mkdtempSync(join(tmpdir(), "customer-kpis-"));
 const entry = join(outdir, "entry.mjs");
 writeFileSync(
   entry,
-  `export { avgSessionMinutes } from "${join(ROOT, "src/lib/session-metrics.ts").replace(/\\/g, "/")}";
+  `export { avgSessionMinutes, sessionStartsByHour, sessionsOpenByHour } from "${join(ROOT, "src/lib/session-metrics.ts").replace(/\\/g, "/")}";
    export { formatUptimePercent } from "${join(ROOT, "src/lib/uptime-format.ts").replace(/\\/g, "/")}";`,
 );
 
@@ -91,7 +91,8 @@ await build({
   logLevel: "silent",
 });
 
-const { avgSessionMinutes, formatUptimePercent } = await import(`file://${outfile}`);
+const { avgSessionMinutes, sessionStartsByHour, sessionsOpenByHour, formatUptimePercent } =
+  await import(`file://${outfile}`);
 
 const NOW = new Date("2026-09-05T12:00:00.000Z").getTime();
 /** ISO timestamp `minutes` before NOW. */
@@ -204,6 +205,62 @@ eq("no countable rows yields 0", avgSessionMinutes([], NOW), 0);
 eq("only-bad rows yield 0", avgSessionMinutes([{ started_at: null }], NOW), 0);
 
 // ---------------------------------------------------------------------------
+// 2b. The two dashboard charts must be genuinely different series.
+// ---------------------------------------------------------------------------
+
+console.log("\nthe two dashboard charts are different questions");
+
+// A guest who connects at 14:10 and leaves at 16:30 arrived once, but was
+// online for three clock hours.
+const AT = (h, m = 0) => {
+  const d = new Date(NOW);
+  d.setHours(h, m, 0, 0);
+  return d.toISOString();
+};
+const LONG_VISIT = [{ started_at: AT(14, 10), ended_at: AT(16, 30) }];
+
+const starts = sessionStartsByHour(LONG_VISIT);
+const open = sessionsOpenByHour(LONG_VISIT, new Date(NOW).setHours(23, 59, 0, 0));
+
+eq("one arrival is counted once, in its own hour", starts[14], 1);
+eq("...and not in the hours it merely spans", starts[15], 0);
+eq("but it was online at 14", open[14], 1);
+eq("and at 15", open[15], 1);
+eq("and at 16", open[16], 1);
+eq("and not at 17", open[17], 0);
+check(
+  "the two series are not the same array",
+  starts.join(",") !== open.join(","),
+  "both charts would render identical numbers again",
+);
+
+console.log("\nconcurrency never counts guests who are not there yet");
+const nowAt15 = new Date(NOW).setHours(15, 0, 0, 0);
+const stillOpen = sessionsOpenByHour([{ started_at: AT(14, 0), ended_at: null }], nowAt15);
+eq("an open session counts up to now", stillOpen[15], 1);
+eq("...and no further", stillOpen[16], 0);
+
+console.log("\nconcurrency is bounded and junk-tolerant");
+const multiDay = sessionsOpenByHour(
+  [{ started_at: new Date(NOW - 5 * 86_400_000).toISOString(), ended_at: null }],
+  NOW,
+);
+check(
+  "a multi-day session marks each hour at most once",
+  multiDay.every((v) => v <= 1) && multiDay.length === 24,
+);
+eq(
+  "a row with no start contributes nothing",
+  sessionsOpenByHour([{ started_at: null }], NOW).reduce((a, b) => a + b, 0),
+  0,
+);
+eq(
+  "an unparseable start contributes nothing",
+  sessionStartsByHour([{ started_at: "nope" }]).reduce((a, b) => a + b, 0),
+  0,
+);
+
+// ---------------------------------------------------------------------------
 // 3. Wiring -- a correct helper nobody calls is the same bug.
 // ---------------------------------------------------------------------------
 
@@ -227,6 +284,19 @@ check(
 check(
   "customer.service.ts no longer derives avgSession from bytes_downloaded",
   !/avgSession:[\s\S]{0,220}bytes_downloaded/.test(service),
+);
+check(
+  "customer.service.ts feeds the two charts from two different derivations",
+  /usersTrend:\s*openByHour\.map/.test(service) &&
+    /hourlySessions:\s*startsByHour\.map/.test(service),
+);
+check(
+  "peakConcurrent is real concurrency, not peak arrivals",
+  /peakConcurrent:[\s\S]{0,120}openByHour/.test(service),
+);
+check(
+  "the dashboard asks for a real 24h window",
+  /start_date:\s*new Date\(Date\.now\(\) - 24 \* 3_600_000\)/.test(service),
 );
 
 for (const [label, src] of [
