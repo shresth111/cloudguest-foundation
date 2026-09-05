@@ -73,6 +73,7 @@ import { IspProviderIcon } from "@/components/icons/isp";
 import { DEVICE_TYPES, formatSince } from "@/stores/deviceStore";
 import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
 import { DEVICE_TYPE_META } from "@/lib/device-presentation";
+import { formatUptimePercent } from "@/lib/uptime-format";
 import { BlurFade } from "@/components/magicui/blur-fade";
 import { BackgroundBoxes } from "@/components/aceternity/background-boxes";
 
@@ -1848,7 +1849,7 @@ export function CustomerDashboardPage() {
                           ? [
                               {
                                 label: "SLA uptime",
-                                value: `${d.kpis.slaUptime.toFixed(1)}%`,
+                                value: formatUptimePercent(d.kpis.slaUptime),
                                 context: null,
                               },
                             ]

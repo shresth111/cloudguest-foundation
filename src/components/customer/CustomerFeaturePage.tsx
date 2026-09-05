@@ -98,6 +98,7 @@ const HotspotView = lazyView(OPS, "HotspotView");
 const GenericFeatureView = lazyView(OPS, "GenericFeatureView");
 import { toast } from "sonner";
 import { guestService } from "@/services/guest.service";
+import { formatUptimePercent } from "@/lib/uptime-format";
 import type { AppError } from "@/services/api";
 import {
   Area,
@@ -568,7 +569,7 @@ function DashboardView({ locationId, masked }: { locationId: string; masked: boo
       ? [
           {
             label: "SLA uptime",
-            value: `${data.kpis.slaUptime.toFixed(1)}%`,
+            value: formatUptimePercent(data.kpis.slaUptime),
             context: null as string | null,
           },
         ]

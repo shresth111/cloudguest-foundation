@@ -32,6 +32,7 @@
     "test:nas-rotation-scope": "node scripts/test-nas-secret-rotation-scope.mjs",
     "test:fetch-count": "node scripts/test-network-page-fetch-count.mjs",
     "test:dashboard-fetch-count": "node scripts/test-customer-dashboard-fetch-count.mjs",
+    "test:customer-kpis": "node scripts/test-customer-kpis.mjs",
     "format": "prettier --write .",
     "measure:portal-contrast": "node scripts/measure-portal-contrast.mjs",
     "test:isp-single-flight": "node scripts/test-isp-links-single-flight.mjs",

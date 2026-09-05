@@ -7,6 +7,7 @@ import { ORGS_STORAGE_KEY, ROLES_STORAGE_KEY } from "@/services/api";
 import type { OrganizationMembership, RoleAssignment } from "@/types/auth";
 import { deriveLocationLiveness } from "@/lib/location-liveness";
 import type { LocationLiveness, RawRouterLiveness } from "@/lib/location-liveness";
+import { avgSessionMinutes } from "@/lib/session-metrics";
 // getDashboard()'s SLA-uptime leg reads the same `/isp/links` list the
 // dashboard's own WAN cards read, so it goes through the same service --
 // see that call site's comment. `isp.service` imports only `api` and the
@@ -1295,14 +1296,7 @@ export const customerService = {
         routersOnline: liveness.routersOnline,
         totalRouters: liveness.routersTotal,
         todayGuests: sessions.filter((s) => s.started_at?.startsWith(today)).length,
-        avgSession:
-          sessions.length > 0
-            ? Math.round(
-                sessions.reduce((s, se) => s + (se.bytes_downloaded || 0), 0) /
-                  sessions.length /
-                  1e6,
-              )
-            : 0,
+        avgSession: avgSessionMinutes(sessions),
         peakConcurrent: Math.max(...hourly),
         failedLogins: failedLoginsToday,
         newToday: sessions.filter((s) => s.started_at?.startsWith(today)).length,

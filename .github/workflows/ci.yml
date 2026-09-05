@@ -701,6 +701,30 @@ jobs:
             "device-health" 40 "all checks passed" \
             bun run test:device-health
 
+      # --- Customer dashboard KPI figures --------------------------------
+      #
+      # Two numbers that were shipping wrong to venue owners on the
+      # most-viewed screen in the product, both found by the 2026-09-05
+      # frontend feature audit:
+      #
+      #   1. "avg session" was `sum(bytes_downloaded)/count/1e6` rendered
+      #      as `${n} min` -- average megabytes wearing a time unit. It
+      #      survived because it was unfalsifiable by eye: plausible-looking
+      #      at a streaming venue, plausible-looking at a coffee shop.
+      #   2. SLA uptime printed via `.toFixed(1)`, which rounds to nearest,
+      #      so anything from 99.95 up became a flat "100.0%". The demo
+      #      fixture is 99.97, which is why the product video advertises a
+      #      perfect 100% -- and why a customer fresh off an outage could be
+      #      told the month was clean.
+      #
+      # The load-bearing assertion is that uptime NEVER rounds up to 100.
+      # Floor 32, observed green at 32.
+      - name: customer dashboard KPIs
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "customer-kpis" 32 "all customer KPI checks passed" \
+            bun run test:customer-kpis
+
       # --- Guest walkthrough: the voucher step ---------------------------
       #
       # Voucher is the one sign-in method whose submit does not live in
