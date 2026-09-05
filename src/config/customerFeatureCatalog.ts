@@ -110,7 +110,7 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
       // network_diagnostics/guestService data underneath, display name +
       // icon only (Terminal -> Wifi, previously-unused import here). See
       // OperationsFeatures.tsx's DebuggingView for the matching redesign.
-      { id: "debugging", label: "Connection Tools", icon: Wifi },
+      { id: "debugging", label: "Fix a Problem", icon: Wifi },
     ],
   },
   {

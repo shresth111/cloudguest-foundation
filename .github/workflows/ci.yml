@@ -806,12 +806,53 @@ jobs:
       # ordinary: `status` is the obvious field to reach for, and reaching
       # for it looks right in review.
       #
-      # Floor 36, observed green at 36.
+      # Floor 36, observed green at 37. The count moved when the page this
+      # suite's section 7 pointed at was rebuilt as
+      # components/customer/FixAProblem.tsx: three of those wiring checks
+      # guarded controls that no longer exist (the KPI tile, the
+      # ping/traceroute toast, the history-row status dot) and were
+      # replaced by checks that they STAY deleted. The pure-logic sections
+      # 1-6, which are the ones that would catch the original bug, are
+      # untouched. Floor left at 36 rather than raised to 37 so it remains
+      # a floor rather than a tripwire on the exact number.
       - name: Diagnostics verdict
         run: |
           ./scripts/ci-gated-test.sh \
             "diagnostics-verdict" 36 "all diagnostics verdict checks passed" \
             bun run test:diagnostics-verdict
+
+      # --- Fix a Problem: the verdict ladders ----------------------------
+      #
+      # The page a venue owner opens when a guest says the WiFi is broken.
+      # Its failure modes are all ways of saying something untrue to the
+      # person least able to check it, and the first is the expensive one:
+      #
+      # THE MANAGEMENT TUNNEL RIDES THE VENUE'S OWN WAN. When their line
+      # goes down we lose the router with it -- so "we cannot reach your
+      # router" is what an outage LOOKS like from here. There are two
+      # unreachable states, and putting the reassuring one ("we can't reach
+      # your router, but your internet looks fine") in front of a venue
+      # that is actually dark is the worst thing this page can do. The
+      # first assertions in this suite are exactly that, and swapping the
+      # two rungs fails eight of them.
+      #
+      # It also pins the three things the hardware makes permanent: no
+      # signal strength or dBm anywhere (the fleet is a wired five-port
+      # MikroTik with no radio to ask), no composite health score, and no
+      # SSID -- there is no SSID model in the product, and the last time
+      # the frontend needed one it invented four.
+      #
+      # And it pins the honest-absence rule: when everything measurable is
+      # healthy the verdict is the wireless boundary, NOT a green tick, and
+      # the rungs that cannot be checked yet (login history, hotspot host)
+      # are rendered rather than silently skipped.
+      #
+      # Floor 70, observed green at 78.
+      - name: Connection verdicts
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "connection-verdicts" 70 "all connection verdict checks passed" \
+            bun run test:connection-verdicts
 
       # --- Guest walkthrough: the voucher step ---------------------------
       #
