@@ -11,8 +11,8 @@ import {
   Monitor,
   UsersRound,
   Bot,
+  Send,
   Network,
-  Settings2,
   Bell,
   Sun,
   Globe,
@@ -119,7 +119,13 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
     id: "operations",
     label: "Operations",
     items: [
-      { id: "notification", label: "Notifications", icon: Bell, roles: ["owner"] },
+      // Not `Bell`. "Alerts" (Overview) already uses it, and in the
+      // collapsed rail -- where labels are hidden entirely -- two items
+      // with the same glyph and near-synonymous names were literally
+      // indistinguishable pixels. Alerts is what the system tells you;
+      // Notifications is where you say how you want to be told, so a
+      // send/route glyph is also the more accurate of the two.
+      { id: "notification", label: "Notifications", icon: Send, roles: ["owner"] },
       // "Network Diagnostics" -> "Connection Tools" -> "Fix a Problem".
       // The first rename was display-only and the complaint it was meant
       // to fix outlived it; this one comes with the page actually being

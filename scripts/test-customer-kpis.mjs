@@ -275,6 +275,7 @@ const featurePage = readFileSync(
   join(ROOT, "src/components/customer/CustomerFeaturePage.tsx"),
   "utf8",
 );
+const nav = readFileSync(join(ROOT, "src/lib/customerNav.ts"), "utf8");
 
 check("customer.service.ts imports avgSessionMinutes", service.includes("@/lib/session-metrics"));
 check(
@@ -299,16 +300,85 @@ check(
   /start_date:\s*new Date\(Date\.now\(\) - 24 \* 3_600_000\)/.test(service),
 );
 
-for (const [label, src] of [
-  ["CustomerDashboardPage", dashboard],
-  ["CustomerFeaturePage", featurePage],
-]) {
+// CustomerFeaturePage used to be checked here too, because it carried its
+// own second copy of the dashboard (`DashboardView`). That copy was
+// unreachable -- no route file has ever passed `feature="dashboard"` into
+// that shell since location ids left the URL -- and it has been deleted
+// along with the equally-dead `UsersView`. Asserting a live invariant
+// against a dead file is how the pb-24 AssistantWidget fix ended up applied
+// to the copy nobody could open while `/` went without it; the guard below
+// keeps the copy from coming back.
+check(
+  "CustomerFeaturePage renders no dashboard/users view of its own",
+  !/feature === "dashboard"/.test(featurePage) && !/feature === "users"/.test(featurePage),
+);
+
+for (const [label, src] of [["CustomerDashboardPage", dashboard]]) {
   check(`${label} imports formatUptimePercent`, src.includes("@/lib/uptime-format"));
   check(`${label} formats slaUptime through it`, src.includes("formatUptimePercent("));
   check(
     `${label} no longer prints slaUptime with toFixed(1)`,
     !/slaUptime\.toFixed\(1\)/.test(src),
   );
+}
+
+// ---------------------------------------------------------------------------
+// The two headline tiles fed by one variable.
+// ---------------------------------------------------------------------------
+
+console.log("\nno headline number is printed twice");
+
+// `onlineUsers` and `activeSessions` were both assigned from
+// `activeSessionCount`, so "Online right now" and "Active sessions" were
+// guaranteed identical on every real account -- one number rendered twice at
+// 36-48px while "guests today", the number the page is opened to answer, sat
+// in a text-xs strip below them. The field is gone, not re-derived: a second
+// number that tracks the first to within a rounding error does not earn a
+// headline tile.
+check(
+  "customer.service.ts no longer exposes a kpis.activeSessions",
+  !/^\s*activeSessions:/m.test(service),
+);
+check(
+  "customer.service.ts no longer exposes a kpis.newToday",
+  // Same expression as todayGuests, and never rendered anywhere.
+  !/^\s*newToday:/m.test(service),
+);
+check(
+  "the dashboard hero no longer renders an Active sessions tile",
+  !/label:\s*"Active sessions"/.test(dashboard),
+);
+check("the dashboard hero leads with Guests today", /label:\s*"Guests today"/.test(dashboard));
+check(
+  "guests today is no longer demoted to the secondary stat strip",
+  !/label:\s*"guests today"/.test(dashboard),
+);
+check(
+  'the hero says "Uptime", not the telecom-contract "SLA uptime"',
+  /label:\s*"Uptime"/.test(dashboard) && !/label:\s*"SLA uptime"/.test(dashboard),
+);
+
+// ---------------------------------------------------------------------------
+// Two nav items, two icons.
+// ---------------------------------------------------------------------------
+
+console.log("\nno two nav items share an icon");
+
+{
+  const block = nav.slice(
+    nav.indexOf("CUSTOMER_NAV_GROUPS"),
+    nav.indexOf("Flattened view of CUSTOMER_NAV_GROUPS"),
+  );
+  const icons = [...block.matchAll(/\{ id: "([^"]+)",[^}]*icon: (\w+),/g)].map((m) => [m[1], m[2]]);
+  const byIcon = new Map();
+  for (const [id, icon] of icons) byIcon.set(icon, [...(byIcon.get(icon) ?? []), id]);
+  const dupes = [...byIcon.entries()].filter(([, ids]) => ids.length > 1);
+  check(
+    "every customer nav item has a distinct icon",
+    dupes.length === 0,
+    dupes.map(([icon, ids]) => `${icon} -> ${ids.join(", ")}`).join("; "),
+  );
+  check("the nav still has every item", icons.length === 26, `found ${icons.length}`);
 }
 
 console.log(

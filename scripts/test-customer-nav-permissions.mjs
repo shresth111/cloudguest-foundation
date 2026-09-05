@@ -89,19 +89,24 @@ await build({
       name: "stub-lucide",
       setup(b) {
         b.onResolve({ filter: /^lucide-react$/ }, () => ({ path: "lucide", namespace: "stub" }));
-        b.onLoad({ filter: /.*/, namespace: "stub" }, () => ({
-          contents: `export default new Proxy({}, { get: () => () => null });
-                     ${[
-                       "LayoutDashboard,Users,FileText,Megaphone,Palette,Ticket,ShieldCheck,Shield",
-                       "Monitor,UsersRound,Bot,Network,Settings2,Bell,Sun,Globe,ScrollText",
-                       "Fingerprint,Server,Signal,Wifi,Ban,LifeBuoy,Share2,HelpCircle,Radar",
-                     ]
-                       .join(",")
-                       .split(",")
-                       .map((n) => `export const ${n} = () => null;`)
-                       .join("\n")}`,
-          loader: "js",
-        }));
+        // The stub used to carry a hand-maintained list of icon names, so
+        // adding one to the nav (or dropping a dead import) failed this test
+        // with "No matching export in stub:lucide" -- a real change reported
+        // as an unrelated breakage. Read the names the modules under test
+        // actually import instead, so the stub can never drift from them.
+        b.onLoad({ filter: /.*/, namespace: "stub" }, () => {
+          const names = new Set();
+          for (const f of ["src/lib/customerNav.ts", "src/config/customerFeatureCatalog.ts"]) {
+            const src = readFileSync(join(ROOT, f), "utf8");
+            const m = src.match(/import\s*\{([^}]*)\}\s*from\s*"lucide-react"/s);
+            if (m) for (const n of m[1].split(",")) if (n.trim()) names.add(n.trim());
+          }
+          return {
+            contents: `export default new Proxy({}, { get: () => () => null });
+                       ${[...names].map((n) => `export const ${n} = () => null;`).join("\n")}`,
+            loader: "js",
+          };
+        });
       },
     },
   ],
@@ -298,6 +303,46 @@ check(
   /api\.get<[^>]*>\("\/me\/permissions"\)/.test(rbac),
 );
 check("useMyPermissions is skipped in demo mode", /enabled:\s*!demo/.test(hooks));
+
+// ---------------------------------------------------------------------------
+// 7. "We haven't looked yet" must not be spelled "demo".
+// ---------------------------------------------------------------------------
+
+console.log("\nthe nav does not paint an answer it is about to take back");
+
+// useIsDemo() was `useState(true)` + a correcting useEffect, so the FIRST
+// client render of every real session asserted "this is the demo". The most
+// load-bearing consumer treats that as fact -- useMyPermissions is
+// `enabled: !demo` -- so the permission fetch was disabled on first paint,
+// the sidebar rendered its unfiltered 26-item nav, and then silently shrank
+// once the effect ran and the answer arrived. Items vanished from under the
+// pointer. The fail-open rules above are all still correct; the bug was that
+// "unknown" and "demo" were the same value.
+// Comments stripped first: the docstring on useIsDemo quotes the old
+// `useState(true)` to explain what changed, and a grep over the raw source
+// would match its own postmortem.
+const hooksCode = hooks.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+check(
+  "useIsDemo does not initialise to a positive claim",
+  !/useState\(true\)/.test(hooksCode),
+  "useIsDemo is asserting 'demo' before it has looked",
+);
+check(
+  "useIsDemo reads the real value on the first client render",
+  /useSyncExternalStore\(/.test(hooks),
+);
+check(
+  "the SSR snapshot still matches isDemo()'s own no-window branch",
+  /getServerSnapshot:\s*\(\)\s*=>\s*false/.test(hooks),
+);
+// And while the real answer is genuinely in flight, say so rather than
+// showing a nav that is about to get shorter. Must be gated on the query's
+// own loading flag, which is false for demo/failed/empty -- all of which
+// still fall through to the fail-open full nav asserted in section 1.
+check(
+  "CustomerSidebar shows a skeleton while grants are in flight",
+  /isLoading:\s*permissionsLoading/.test(sidebar) && /showNavSkeleton/.test(sidebar),
+);
 
 console.log(
   failures === 0

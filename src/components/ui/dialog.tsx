@@ -38,7 +38,18 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg",
+        // `max-h-[90dvh] overflow-y-auto` is load-bearing on a phone, not
+        // polish. The content is centred with translate-y-[-50%] and Radix
+        // locks background scroll while a dialog is open, so anything taller
+        // than the viewport had its top and bottom pushed off-screen with
+        // nothing left to scroll -- the page behind was frozen and the dialog
+        // itself had no scroll container. On an iPhone SE that put the Save
+        // button of the taller forms (the Add/Edit ISP Link dialog is ~10
+        // labelled fields) permanently out of reach. No call site compensated:
+        // every DialogContent className in the app sets only `sm:max-w-*`.
+        // dvh, not vh, so the mobile browser's collapsing address bar doesn't
+        // reintroduce the same overflow.
+        "fixed left-[50%] top-[50%] z-50 grid max-h-[90dvh] w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg",
         className,
       )}
       {...props}
