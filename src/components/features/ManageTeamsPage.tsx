@@ -26,6 +26,7 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { cn } from "@/lib/utils";
 import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import { guestService } from "@/services/guest.service";
+import type { Guest } from "@/types/guest";
 import { resolveOrgId } from "@/services/customer.service";
 
 const UNITS = ["Mumbai HQ", "Delhi Office", "Bangalore DC", "Chennai Office"]; // Matches this demo account's real location roster (see customer.service.ts DEMO_LOCATIONS) instead of unrelated placeholder hospitality names that clashed with the rest of the demo persona.
@@ -367,30 +368,20 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
 
   // Manage Team dialog
   const [manageTeam, setManageTeam] = useState<Team | null>(null);
-  const [manageDraft, setManageDraft] = useState({ name: "", businessUnit: "", members: "" });
+  const openManage = (t: Team) => setManageTeam(t);
 
-  const openManage = (t: Team) => {
-    setManageTeam(t);
-    setManageDraft({ name: t.name, businessUnit: t.businessUnit, members: String(t.members) });
-  };
-
-  const saveManage = () => {
-    if (!manageTeam) return;
-    if (!manageDraft.name.trim()) {
-      toast.error("Enter a team name.");
-      return;
-    }
-    const members = Math.max(0, parseInt(manageDraft.members) || 0);
-    setTeams((p) =>
-      p.map((t) =>
-        t.id === manageTeam.id
-          ? { ...t, name: manageDraft.name.trim(), businessUnit: manageDraft.businessUnit, members }
-          : t,
-      ),
-    );
-    toast.success(`${manageDraft.name} updated`);
-    setManageTeam(null);
-  };
+  // `saveManage` used to live here. It wrote the edited name/location/
+  // member count into local `teams` state, toasted "<name> updated" and
+  // closed -- with no API call anywhere. The rename looked like it worked
+  // and was gone on the next refresh.
+  //
+  // There is nothing to wire it to: app/domains/guest_teams/router.py
+  // exposes POST /guest-teams, GET /guest-teams, GET /guest-teams/{id},
+  // POST /guest-teams/{id}/revoke, DELETE
+  // /guest-teams/{id}/members/{guest_id} and POST /guest-teams/join --
+  // no PUT and no PATCH on a team. So the dialog is read-only until a
+  // team-update endpoint exists, and says so, rather than accepting edits
+  // it cannot keep.
 
   const createTeam = async () => {
     const e: Record<string, string> = {};
@@ -472,8 +463,46 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
   };
 
   // Update User Details form
-  const [udBu, setUdBu] = useState("");
   const [udMobile, setUdMobile] = useState("");
+  // "Find User" used to be `toast.success("Looked up user -- no changes
+  // yet.")` -- a button that reported a lookup it had never performed.
+  // Unlike the team rename above, this one has a real endpoint behind it:
+  // GET /guests?search= is a genuine server-side search (see
+  // app/domains/guest/router.py's `search` query param), so the lookup is
+  // now real. Editing a found guest still is not: the guest domain has
+  // GET /guests/{id} and block/unblock, but no update route, so the
+  // result is presented as a read-only record rather than an edit form.
+  const [udLoading, setUdLoading] = useState(false);
+  const [udResult, setUdResult] = useState<Guest[] | null>(null);
+
+  const findUser = async () => {
+    if (!udMobile) {
+      toast.error("Enter a mobile number.");
+      return;
+    }
+    if (demo) {
+      toast.error("Guest lookup needs a real account.");
+      return;
+    }
+    setUdLoading(true);
+    setUdResult(null);
+    try {
+      const org = orgId ?? (await resolveOrgId());
+      const res = await guestService.list({
+        organizationId: org,
+        locationId: locationId ?? undefined,
+        search: udMobile,
+        page: 1,
+        pageSize: 10,
+      });
+      setUdResult(res.rows);
+      if (res.rows.length === 0) toast.info("No guest matched that number.");
+    } catch {
+      toast.error("Could not search for that guest.");
+    } finally {
+      setUdLoading(false);
+    }
+  };
 
   // Bulk forms
   const [teamsBu, setTeamsBu] = useState("");
@@ -703,19 +732,11 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
               Please use this to modify user details.
             </p>
             <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className={labelCls}>
-                  Location <span className="text-destructive">*</span>
-                </label>
-                <select value={udBu} onChange={(e) => setUdBu(e.target.value)} className={inputCls}>
-                  <option value="">Choose location</option>
-                  {units.map((u) => (
-                    <option key={u} value={u}>
-                      {u}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {/* A required-looking "Location *" select used to sit here
+                  and feed nothing: the guest search is already scoped to
+                  this page's active location, so choosing one changed no
+                  result. Removed rather than left as a control that looks
+                  load-bearing and is not. */}
               <div>
                 <label className={labelCls}>
                   Mobile No. <span className="text-destructive">*</span>
@@ -729,18 +750,37 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
               </div>
             </div>
             <div className="mt-5 flex justify-center">
-              <Button
-                onClick={() => {
-                  if (!udBu || !udMobile) {
-                    toast.error("Fill in location and mobile number.");
-                    return;
-                  }
-                  toast.success("Looked up user — no changes yet.");
-                }}
-              >
-                Find User
+              <Button onClick={findUser} disabled={udLoading || !udMobile}>
+                {udLoading ? "Searching…" : "Find User"}
               </Button>
             </div>
+            {udResult !== null && (
+              <div className="mt-5">
+                {udResult.length === 0 ? (
+                  <p className="text-center text-sm text-muted-foreground">
+                    No guest matched that number.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {udResult.map((g) => (
+                      <div key={g.id} className="rounded-xl bg-muted/40 px-4 py-3">
+                        <p className="text-sm font-medium text-foreground">
+                          {g.displayName || g.identifier || "Guest"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {g.identifier}
+                          {g.locationName ? ` · ${g.locationName}` : ""}
+                          {g.isBlocked ? " · blocked" : ""}
+                        </p>
+                      </div>
+                    ))}
+                    <p className="pt-1 text-center text-xs text-muted-foreground">
+                      Editing guest details isn&apos;t available yet — this is a lookup only.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -864,50 +904,44 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
       <Dialog open={!!manageTeam} onOpenChange={(open) => !open && setManageTeam(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Manage Team</DialogTitle>
+            <DialogTitle>Team details</DialogTitle>
             <DialogDescription>
-              Update this team's name, location, or member count.
+              What this team is set to today. Editing isn&apos;t available yet.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
               <label className={labelCls}>Team Name</label>
-              <input
-                value={manageDraft.name}
-                onChange={(e) => setManageDraft((p) => ({ ...p, name: e.target.value }))}
-                className={inputCls}
-              />
-            </div>
-            <div>
-              <label className={labelCls}>Location</label>
-              <select
-                value={manageDraft.businessUnit}
-                onChange={(e) => setManageDraft((p) => ({ ...p, businessUnit: e.target.value }))}
-                className={inputCls}
-              >
-                {units.map((u) => (
-                  <option key={u} value={u}>
-                    {u}
-                  </option>
-                ))}
-              </select>
+              <p className="text-sm font-medium text-foreground">{manageTeam?.name}</p>
             </div>
             <div>
               <label className={labelCls}>Members</label>
-              <input
-                type="number"
-                min={0}
-                value={manageDraft.members}
-                onChange={(e) => setManageDraft((p) => ({ ...p, members: e.target.value }))}
-                className={inputCls}
-              />
+              <p className="text-sm font-medium text-foreground">{manageTeam?.members ?? 0}</p>
+            </div>
+            <div>
+              <label className={labelCls}>Shared data used</label>
+              <p className="text-sm font-medium text-foreground">
+                {manageTeam?.quotaPercent == null
+                  ? "No quota set"
+                  : `${manageTeam.quotaPercent}% of the shared limit`}
+              </p>
+            </div>
+            <div>
+              <label className={labelCls}>Status</label>
+              <p className="text-sm font-medium capitalize text-foreground">{manageTeam?.status}</p>
+            </div>
+            <div className="rounded-xl border border-dashed bg-muted/40 p-3">
+              <p className="text-xs text-muted-foreground">
+                Renaming a team or changing its size isn&apos;t something we can save yet, so
+                we&apos;ve made this read-only rather than accept a change and lose it. Raise a
+                support ticket and we&apos;ll make the change for you.
+              </p>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setManageTeam(null)}>
-              Cancel
+              Close
             </Button>
-            <Button onClick={saveManage}>Save Changes</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
