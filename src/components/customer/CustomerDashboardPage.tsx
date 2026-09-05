@@ -17,6 +17,11 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
+import {
+  CustomerCommandPalette,
+  useCustomerCommandPalette,
+} from "@/components/customer/CustomerCommandPalette";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { CustomerHeader } from "@/components/customer/CustomerHeader";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
 import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
@@ -1640,8 +1645,7 @@ export function CustomerDashboardPage() {
   // IF THIS COMPONENT EVER TAKES A locationId FROM THE URL AGAIN, restore
   // the resync (git history has it): the guard becomes live the moment
   // `locationId` stops being `activeLocationId`.
-  const [sidebar, setSidebar] = useState(true);
-  const [mobile, setMobile] = useState(false);
+  const { open: paletteOpen, setOpen: setPaletteOpen } = useCustomerCommandPalette();
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const dataMasking = useDataMasking();
   const masked = dataMasking.masked;
@@ -1680,8 +1684,8 @@ export function CustomerDashboardPage() {
   };
 
   return (
-    <div
-      className="flex min-h-screen bg-muted/30"
+    <SidebarProvider
+      className="bg-muted/30"
       style={
         {
           "--primary": "#6C4EFF",
@@ -1690,26 +1694,14 @@ export function CustomerDashboardPage() {
         } as React.CSSProperties
       }
     >
-      {/* Mobile overlay */}
-      {mobile && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
-          onClick={() => setMobile(false)}
-        />
-      )}
-
       {/* Sidebar -- same shared component/grouped-nav data source every
           other customer page (Reports, Campaigns, Policies, Vouchers,
           Portal, Devices, ISP Details, Admin Logs, etc., all rendered via
           customer.$locationId.$feature.tsx) uses, so Dashboard can't drift
           out of visual/structural sync with its siblings again. */}
       <CustomerSidebar
-        activeId="dashboard"
-        collapsed={!sidebar}
-        mobileOpen={mobile}
-        onNavigate={handleNav}
-        onToggleCollapsed={() => setSidebar(!sidebar)}
-        subtitle="Portal"
+        activeFeatureId="dashboard"
+        subtitle={activeLocation?.name}
         dataMasking={dataMasking}
       />
 
@@ -1749,7 +1741,7 @@ export function CustomerDashboardPage() {
           }
           locationId={locationId}
           planExpiryIso={planExpiryIso}
-          onMobileMenuClick={() => setMobile(true)}
+          onOpenSearch={() => setPaletteOpen(true)}
           onRefresh={() => refetch()}
           user={user}
           onSwitchLocation={handleSwitchLocation}
@@ -2440,7 +2432,8 @@ export function CustomerDashboardPage() {
       </div>
       <ChangePasswordDialog open={changePwOpen} onOpenChange={setChangePwOpen} />
       <TwoFactorDialog open={tfaOpen} onOpenChange={setTfaOpen} />
+      <CustomerCommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       <AssistantWidget />
-    </div>
+    </SidebarProvider>
   );
 }

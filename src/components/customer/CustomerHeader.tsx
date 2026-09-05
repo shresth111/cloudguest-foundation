@@ -1,5 +1,7 @@
 import { useState, type ReactNode } from "react";
-import { Menu, MapPinned, KeyRound, ShieldCheck, LogOut, RefreshCw } from "lucide-react";
+import { MapPinned, KeyRound, ShieldCheck, LogOut, RefreshCw } from "lucide-react";
+import { SidebarTrigger } from "@/components/ui/sidebar";
+import { CommandPaletteTrigger } from "@/components/customer/CustomerCommandPalette";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
@@ -18,7 +20,11 @@ interface CustomerHeaderProps {
    * needs the raw date to compute the real countdown/urgency tier, and
    * formats it for display itself. */
   planExpiryIso?: string;
-  onMobileMenuClick: () => void;
+  /** Opens the Cmd/Ctrl-K palette. The 26 features are now folded into
+   * nine sidebar destinations, so search is how anyone who knew where a
+   * thing used to live still gets to it in one step -- and a shortcut with
+   * no visible control only serves the people who already know it exists. */
+  onOpenSearch: () => void;
   /** Shown only on pages that actually have something to refresh. */
   onRefresh?: () => void;
   user: { firstName?: string; lastName?: string; name?: string; email?: string } | null;
@@ -43,7 +49,7 @@ export function CustomerHeader({
   title,
   locationId,
   planExpiryIso,
-  onMobileMenuClick,
+  onOpenSearch,
   onRefresh,
   user,
   onSwitchLocation,
@@ -55,18 +61,15 @@ export function CustomerHeader({
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-white/10 bg-gradient-to-r from-[#1e1b4b] to-[#241f4d] px-4 text-white backdrop-blur-xl sm:px-6">
-      {/* -ml-2 keeps the icon on the same optical left edge it always sat on
-          while the button itself grows to 40px. It was a bare 20px icon with
-          no padding -- the smallest tap target in the product, and the only
-          way to reach navigation at all on a phone, on every page. */}
-      <button
-        type="button"
-        aria-label="Open navigation menu"
-        className="-ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white/70 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 lg:hidden"
-        onClick={onMobileMenuClick}
-      >
-        <Menu className="h-5 w-5" />
-      </button>
+      {/* The sidebar primitive's own trigger. #218 had already grown the
+          hand-rolled hamburger from a bare 20px <Menu/> -- the smallest tap
+          target in the product, and the only route to navigation on a phone
+          -- to a 40px labelled button; this replaces that button outright,
+          because the trigger has to talk to the provider that now owns the
+          mobile Sheet and the Cmd/Ctrl-B binding. Same 40px box, same
+          optical left edge, and aria-label="Toggle Sidebar" comes from the
+          primitive rather than being spelled here. */}
+      <SidebarTrigger className="-ml-1 h-10 w-10 shrink-0 text-white/70 hover:bg-white/10 hover:text-white" />
       <div className="min-w-0 flex-1">{title}</div>
 
       {/* Plan renewal + demo CTA is one perforated "ticket" object, not a
@@ -81,6 +84,7 @@ export function CustomerHeader({
           same hidden treatment phones already get, rather than a half-shown
           one. (The data-masking toggle that used to sit here moved to the
           sidebar footer -- see CustomerSidebar.tsx.) */}
+      <CommandPaletteTrigger onClick={onOpenSearch} />
       <PlanRenewalTicket
         expiryIso={planExpiryIso}
         className="mr-1 hidden h-9 shrink-0 items-stretch lg:flex"

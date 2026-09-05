@@ -18,6 +18,12 @@ import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
+import { CustomerSectionTabs } from "@/components/customer/CustomerSectionTabs";
+import {
+  CustomerCommandPalette,
+  useCustomerCommandPalette,
+} from "@/components/customer/CustomerCommandPalette";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { CustomerHeader } from "@/components/customer/CustomerHeader";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -143,8 +149,7 @@ function CustomerUsersPage() {
   const [search, setSearch] = useState("");
   const [statusTab, setStatusTab] = useState("all");
   const [page, setPage] = useState(0);
-  const [sidebar, setSidebar] = useState(true);
-  const [mobile, setMobile] = useState(false);
+  const { open: paletteOpen, setOpen: setPaletteOpen } = useCustomerCommandPalette();
   const dataMasking = useDataMasking();
   const masked = dataMasking.masked;
   const [changePwOpen, setChangePwOpen] = useState(false);
@@ -275,7 +280,6 @@ function CustomerUsersPage() {
       setExporting(false);
     }
   };
-  const handleNav = (id: string) => navigate({ to: customerFeatureHref(id) });
   const handleLogout = async () => {
     await logout();
     navigate({ to: "/login", replace: true });
@@ -304,8 +308,8 @@ function CustomerUsersPage() {
   };
 
   return (
-    <div
-      className="flex min-h-screen bg-muted/30"
+    <SidebarProvider
+      className="bg-muted/30"
       style={
         {
           "--primary": "#6C4EFF",
@@ -314,24 +318,15 @@ function CustomerUsersPage() {
         } as React.CSSProperties
       }
     >
-      {mobile && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
-          onClick={() => setMobile(false)}
-        />
-      )}
-      {/* Same shared sidebar/grouped-nav data source every other customer
-          page uses (see src/components/customer/CustomerSidebar.tsx) --
-          this page used to hand-roll its own flat, ungrouped copy with a
-          hardcoded `item.id === "users"` active check, which is exactly the
-          kind of drift that component was extracted to prevent. */}
+      {/* Same shared sidebar every other customer page uses -- this page
+          used to hand-roll its own flat copy with a hardcoded
+          `item.id === "users"` active check, which is the drift that
+          component was extracted to prevent. Open/collapsed state and the
+          mobile drawer now belong to SidebarProvider, so there is no scrim
+          or local state here any more. */}
       <CustomerSidebar
-        activeId="users"
-        collapsed={!sidebar}
-        mobileOpen={mobile}
-        onNavigate={handleNav}
-        onToggleCollapsed={() => setSidebar(!sidebar)}
-        subtitle="Portal"
+        activeFeatureId="users"
+        subtitle={activeLocation?.name}
         dataMasking={dataMasking}
       />
 
@@ -344,7 +339,7 @@ function CustomerUsersPage() {
           }
           locationId={locationId}
           planExpiryIso={planExpiryIso}
-          onMobileMenuClick={() => setMobile(true)}
+          onOpenSearch={() => setPaletteOpen(true)}
           onRefresh={() => refetch()}
           user={user}
           onSwitchLocation={handleSwitchLocation}
@@ -362,6 +357,11 @@ function CustomerUsersPage() {
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
           <div className="mx-auto max-w-7xl space-y-4">
+            {/* "Guests" is one destination holding the guest list and the
+                session log; the tabs are how the second one stays reachable
+                now that it is not its own sidebar row. The venue name beside
+                the heading is deliberate -- see CustomerSectionTabs. */}
+            <CustomerSectionTabs featureId="users" locationName={activeLocation?.name} />
             {/* Previously 4 tiles (On this page/Online/Idle/Offline)
              * computed from data.users -- but that's only the current
              * paginated slice (8 rows), not this location's real totals,
@@ -991,6 +991,7 @@ function CustomerUsersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+      <CustomerCommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+    </SidebarProvider>
   );
 }

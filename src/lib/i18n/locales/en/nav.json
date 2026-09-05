@@ -119,5 +119,21 @@
     "admin-logs": "Logs",
     "network-activity": "Network Activity Log",
     "how-it-works": "How It Works"
+  },
+  "customerDestination": {
+    "home": "Home",
+    "guests": "Guests",
+    "offers": "Offers",
+    "reports": "Reports",
+    "login-screen": "Login Screen",
+    "access": "Access Rules",
+    "status": "Fix a Problem",
+    "help": "Help",
+    "settings": "Settings"
+  },
+  "customerDestinationGroup": {
+    "guests": "Guests",
+    "wifi": "WiFi",
+    "health": "Health"
   }
 }
