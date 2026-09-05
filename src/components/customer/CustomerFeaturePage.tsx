@@ -315,7 +315,10 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
               {feature === "vlans" && <VlansView locationId={locationId} />}
               {feature === "voip" && <VoipView locationId={locationId} />}
               {feature === "website-blocking" && <WebsiteBlockingView locationId={locationId} />}
-              {feature === "debugging" && <DebuggingView locationId={locationId} />}
+              {/* `masked` matters here now: this page looks a guest up by
+                  phone number, so it renders an identifier the account
+                  holder's own masking preference applies to. */}
+              {feature === "debugging" && <DebuggingView locationId={locationId} masked={masked} />}
               {feature === "hotspot" && <HotspotView locationId={locationId} />}
               {/* "audit" is handled above (redirected to AdminLogsView, see
                 that render line's own comment) -- excluded here too so it

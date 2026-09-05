@@ -273,48 +273,62 @@ check(
 // ---------------------------------------------------------------------------
 // 7. Wiring -- a correct helper nobody calls is the same bug in disguise.
 // ---------------------------------------------------------------------------
+//
+// THESE ASSERTIONS MOVED FILE, NOT INTENT. The page they used to point at
+// (`DebuggingView` inside OperationsFeatures.tsx) was rebuilt as
+// `components/customer/FixAProblem.tsx`; OperationsFeatures now only
+// re-exports it. Three of the original checks guarded controls that no
+// longer exist at all -- the KPI tile, the ping/traceroute toast, and the
+// history-row status dot -- and a check for a deleted control is not a
+// check. They are replaced below by assertions that those controls STAY
+// deleted, which is the honest successor: the old ones proved a colour was
+// computed correctly, these prove the thing that computed it wrongly is
+// gone.
 
 console.log("\nthe page actually uses the verdict");
 
+const page = readFileSync(join(ROOT, "src/components/customer/FixAProblem.tsx"), "utf8");
 const ops = readFileSync(join(ROOT, "src/components/features/OperationsFeatures.tsx"), "utf8");
-const debugging = ops.slice(ops.indexOf("function DiagnosticResultView"));
 
-check("DiagnosticResultView calls diagnosticVerdict", /diagnosticVerdict\(run\)/.test(debugging));
+check("the page derives outcomes through diagnosticVerdict", /diagnosticVerdict\(/.test(page));
 check(
-  "the result banner no longer colours off run.status",
-  !/run\.status\s*!==\s*"success"/.test(debugging),
-);
-check(
-  "the KPI tile no longer colours off lastRun.status",
-  !/lastRun\?\.status\s*===\s*"success"/.test(debugging),
-);
-check(
-  "the history rows no longer colour off r.status",
-  !/r\.status\s*===\s*"success"/.test(debugging),
-);
-check(
-  "the toast reports the verdict rather than 'completed'",
-  !/completed`\)/.test(debugging) && /verdict\.headline/.test(debugging),
+  "summarizeDiagnosticResult renders the measured line",
+  /summarizeDiagnosticResult\(/.test(page),
 );
 check(
   "the thrown-error path uses describeDiagnosticApiError",
-  /describeDiagnosticApiError\(/.test(debugging),
+  /describeDiagnosticApiError\(/.test(page),
 );
 check(
-  "the single catch-all sentence is gone",
-  !/Could not reach the router to run this diagnostic/.test(debugging),
+  "nothing on the page colours off a raw run status",
+  !/run\.status\s*===\s*"success"/.test(page) && !/r\.status\s*===\s*"success"/.test(page),
 );
 check(
-  "resetSession scopes the lookup to the organization",
-  /organizationId: await resolveOrgId\(\)/.test(debugging),
+  "the single catch-all sentence is gone from both files",
+  !/Could not reach the router to run this diagnostic/.test(page) &&
+    !/Could not reach the router to run this diagnostic/.test(ops),
 );
 check(
-  "a failed router fetch no longer claims the venue has no router",
-  /routersError \?/.test(debugging),
+  "the guest lookup is scoped to the organization",
+  /resolveOrgId\(\)/.test(page) && /organizationId: orgId/.test(page),
 );
 check(
-  "summarizeDiagnosticResult is used for history rows",
-  /summarizeDiagnosticResult\(/.test(debugging),
+  "a load failure renders ErrorState rather than a claim about the venue",
+  /ErrorState/.test(page) && !/Register a router here before running diagnostics/.test(page),
+);
+
+// The three deleted controls must stay deleted.
+check("the KPI row is gone", !/Recent runs/.test(page) && !/label: "Routers"/.test(page));
+check('the "Demo" tile string is gone', !/value: demo \? "Demo"/.test(page));
+check(
+  "no button is named after a RouterOS command",
+  !/>\s*Ping\s*</.test(page) && !/>\s*Traceroute\s*</.test(page),
+);
+
+// OperationsFeatures must be a delegator now, not a second copy.
+check(
+  "OperationsFeatures only re-exports the page",
+  /return <FixAProblem/.test(ops) && !/function DiagnosticResultView/.test(ops),
 );
 
 console.log(

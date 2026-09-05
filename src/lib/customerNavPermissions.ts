@@ -95,7 +95,14 @@ const NAV_PERMISSION_KEYS: Record<string, readonly string[]> = {
   "isp-details": ["isp.read"],
   // Operations
   notification: ["notifications.read"],
-  debugging: ["network_diagnostics.read"],
+  // Two keys, and the OR is the point. This page's primary job -- looking
+  // a guest up and saying why they cannot get on -- reads guest sessions,
+  // not the diagnostics domain, and front-desk roles hold
+  // `guest_sessions.read` while deliberately not holding
+  // `network_diagnostics.*`. Requiring the diagnostics key alone hid the
+  // whole page from exactly the people it is written for. The zones that
+  // do need diagnostics degrade individually.
+  debugging: ["guest_sessions.read", "network_diagnostics.read"],
   // Support & Logs
   tickets: ["support_tickets.read"],
   "admin-logs": ["audit_logs.read"],
