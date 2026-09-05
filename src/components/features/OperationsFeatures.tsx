@@ -146,6 +146,12 @@ import { humanizeApiError } from "@/lib/errorMessages";
 import { cn } from "@/lib/utils";
 import { getCustomerLoginRole } from "@/lib/customerNav";
 import { normalizeMac } from "@/lib/device-presentation";
+import {
+  diagnosticVerdict,
+  describeDiagnosticApiError,
+  summarizeDiagnosticResult,
+  type DiagnosticTone,
+} from "@/lib/diagnostics-presentation";
 import { IspProviderIcon } from "@/components/icons/isp";
 
 function timeAgo(d: string): string {
@@ -4584,68 +4590,88 @@ export function WebsiteBlockingView({ locationId }: { locationId?: string }) {
  */
 const IP_RE = /^(\d{1,3}\.){3}\d{1,3}$/;
 
+/* The colour here follows what the check FOUND, not whether the router
+ * managed to run it. Those are different questions and this page used to
+ * answer only the second one: the backend records a ping that reached
+ * nothing as `status: "success"` with `received: 0, loss: 100`, so a venue
+ * whose internet was down got a green tick, a green "Success" tile and a
+ * green toast. `diagnosticVerdict` splits the two axes. */
+const VERDICT_BOX: Record<DiagnosticTone, string> = {
+  success:
+    "border-emerald-200 bg-emerald-50 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300",
+  warning: "border-amber-200 bg-amber-50 text-amber-800 dark:bg-amber-500/10 dark:text-amber-300",
+  danger: "border-rose-200 bg-rose-50 text-rose-800 dark:bg-rose-500/10 dark:text-rose-300",
+};
+const VERDICT_ICON: Record<DiagnosticTone, typeof CheckCircle2> = {
+  success: CheckCircle2,
+  warning: AlertTriangle,
+  danger: XCircle,
+};
+
 function DiagnosticResultView({ run }: { run: DiagnosticRun }) {
-  if (run.status !== "success") {
+  const verdict = diagnosticVerdict(run);
+  const Icon = VERDICT_ICON[verdict.tone];
+  const banner = (
+    <div className={cn("rounded-lg border px-3 py-2 text-xs", VERDICT_BOX[verdict.tone])}>
+      <p className="flex items-start gap-1.5 font-medium">
+        <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <span>{verdict.headline}</span>
+      </p>
+      {verdict.detail && <p className="mt-1 pl-5 opacity-80">{verdict.detail}</p>}
+    </div>
+  );
+  if (!verdict.executed) return banner;
+  if (run.diagnosticType === "traceroute") {
     return (
-      <div className="flex items-center gap-1.5 rounded-lg border bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:bg-rose-500/10 dark:text-rose-400">
-        <XCircle className="h-3.5 w-3.5 shrink-0" /> {run.errorMessage || "Diagnostic failed."}
+      <div className="space-y-2">
+        {banner}
+        <TracerouteHopTable run={run} />
       </div>
     );
   }
-  if (run.diagnosticType === "traceroute") {
-    const hops =
-      (run.result.hops as {
-        hop_number: number;
-        address: string | null;
-        packet_loss_percentage: number;
-        avg_rtt_ms: number | null;
-      }[]) ?? [];
-    return (
-      <div className="max-h-48 overflow-y-auto rounded-lg border">
-        <Table>
-          <TableHeader>
+  return banner;
+}
+
+function TracerouteHopTable({ run }: { run: DiagnosticRun }) {
+  const hops =
+    (run.result.hops as {
+      hop_number: number;
+      address: string | null;
+      packet_loss_percentage: number;
+      avg_rtt_ms: number | null;
+    }[]) ?? [];
+  return (
+    <div className="max-h-48 overflow-y-auto rounded-lg border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="text-xs">Hop</TableHead>
+            <TableHead className="text-xs">Address</TableHead>
+            <TableHead className="text-xs">Loss</TableHead>
+            <TableHead className="text-xs">RTT</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {hops.length === 0 ? (
             <TableRow>
-              <TableHead className="text-xs">Hop</TableHead>
-              <TableHead className="text-xs">Address</TableHead>
-              <TableHead className="text-xs">Loss</TableHead>
-              <TableHead className="text-xs">RTT</TableHead>
+              <TableCell colSpan={4} className="py-4 text-center text-xs text-muted-foreground">
+                No hops recorded.
+              </TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {hops.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={4} className="py-4 text-center text-xs text-muted-foreground">
-                  No hops recorded.
+          ) : (
+            hops.map((h) => (
+              <TableRow key={h.hop_number}>
+                <TableCell className="text-xs">{h.hop_number}</TableCell>
+                <TableCell className="font-mono text-xs">{h.address ?? "*"}</TableCell>
+                <TableCell className="text-xs">{h.packet_loss_percentage}%</TableCell>
+                <TableCell className="text-xs">
+                  {h.avg_rtt_ms != null ? `${h.avg_rtt_ms}ms` : "—"}
                 </TableCell>
               </TableRow>
-            ) : (
-              hops.map((h) => (
-                <TableRow key={h.hop_number}>
-                  <TableCell className="text-xs">{h.hop_number}</TableCell>
-                  <TableCell className="font-mono text-xs">{h.address ?? "*"}</TableCell>
-                  <TableCell className="text-xs">{h.packet_loss_percentage}%</TableCell>
-                  <TableCell className="text-xs">
-                    {h.avg_rtt_ms != null ? `${h.avg_rtt_ms}ms` : "—"}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
-    );
-  }
-  const sent = Number(run.result.sent ?? 0);
-  const received = Number(run.result.received ?? 0);
-  const loss = run.result.packet_loss_percentage as number | undefined;
-  const rtt = run.result.avg_rtt_ms as number | null | undefined;
-  return (
-    <div className="flex items-center justify-between rounded-lg border bg-emerald-50 px-3 py-2 text-xs dark:bg-emerald-500/10">
-      <span className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-400">
-        <CheckCircle2 className="h-3.5 w-3.5" />
-        {run.target} — {received}/{sent} received{loss != null ? ` (${loss}% loss)` : ""}
-      </span>
-      <span className="text-muted-foreground">{rtt != null ? `${rtt}ms avg` : "—"}</span>
+            ))
+          )}
+        </TableBody>
+      </Table>
     </div>
   );
 }
@@ -4659,6 +4685,9 @@ export function DebuggingView({ locationId }: { locationId?: string } = {}) {
   const [running, setRunning] = useState<"ping" | "traceroute" | null>(null);
   const [lastRun, setLastRun] = useState<DiagnosticRun | null>(null);
   const [runs, setRuns] = useState<DiagnosticRun[]>([]);
+  const [runsError, setRunsError] = useState(false);
+  const [routersError, setRoutersError] = useState(false);
+  const [routersRefreshKey, setRoutersRefreshKey] = useState(0);
 
   useEffect(() => {
     if (demo) {
@@ -4674,11 +4703,18 @@ export function DebuggingView({ locationId }: { locationId?: string } = {}) {
           : [];
         if (!alive) return;
         setRouters(rows);
+        setRoutersError(false);
         setSelectedRouterId((prev) =>
           prev && rows.some((r) => r.id === prev) ? prev : (rows[0]?.id ?? ""),
         );
       } catch {
-        if (alive) toast.error("Could not load routers for this location.");
+        // Without this the empty state below asserts "No router at this
+        // location" -- a factual claim about the venue's hardware, made
+        // because a request failed.
+        if (alive) {
+          setRoutersError(true);
+          toast.error("Could not load routers for this location.");
+        }
       } finally {
         if (alive) setRoutersLoading(false);
       }
@@ -4686,7 +4722,7 @@ export function DebuggingView({ locationId }: { locationId?: string } = {}) {
     return () => {
       alive = false;
     };
-  }, [locationId, demo]);
+  }, [locationId, demo, routersRefreshKey]);
 
   const selectedRouterOrgId = routers.find((r) => r.id === selectedRouterId)?.organizationId;
 
@@ -4698,16 +4734,24 @@ export function DebuggingView({ locationId }: { locationId?: string } = {}) {
     try {
       const res = await networkDiagnosticsService.listRuns(routerId, organizationId, 1, 10);
       setRuns(res.rows);
+      setRunsError(false);
     } catch {
+      // A failed query and an empty history used to look identical, so a
+      // broken list read as "you have never run a check".
       setRuns([]);
+      setRunsError(true);
     }
   };
   useEffect(() => {
+    // lastRun belongs to the router it was run against; leaving it up while
+    // the header names a different router attributes one router's result to
+    // another.
+    setLastRun(null);
     loadRuns(
       selectedRouterId,
       selectedRouterOrgId,
     ); /* eslint-disable-next-line react-hooks/exhaustive-deps */
-  }, [selectedRouterId]);
+  }, [selectedRouterId, selectedRouterOrgId]);
 
   const runDiagnostic = async (kind: "ping" | "traceroute") => {
     const clean = target.trim();
@@ -4724,6 +4768,7 @@ export function DebuggingView({ locationId }: { locationId?: string } = {}) {
       return;
     }
     setRunning(kind);
+    const startedAt = Date.now();
     try {
       const run =
         kind === "ping"
@@ -4735,11 +4780,21 @@ export function DebuggingView({ locationId }: { locationId?: string } = {}) {
             );
       setLastRun(run);
       setRuns((r) => [run, ...r].slice(0, 10));
-      if (run.status === "success")
-        toast.success(`${kind === "ping" ? "Ping" : "Traceroute"} to ${clean} completed`);
-      else toast.error(run.errorMessage || `${kind === "ping" ? "Ping" : "Traceroute"} failed`);
-    } catch {
-      toast.error("Could not reach the router to run this diagnostic.");
+      // The toast reports what the check FOUND. "Completed" was true of a
+      // ping that reached nothing, which is the one case the person running
+      // it most needs to hear about.
+      const verdict = diagnosticVerdict(run);
+      if (verdict.tone === "success") toast.success(verdict.headline);
+      else if (verdict.tone === "warning") toast.warning(verdict.headline);
+      else toast.error(verdict.headline);
+    } catch (err) {
+      const problem = describeDiagnosticApiError(err as AppError, {
+        kind,
+        target: clean,
+        elapsedMs: Date.now() - startedAt,
+        timeoutMs: 20000,
+      });
+      toast.error(problem.title, { description: problem.description });
     } finally {
       setRunning(null);
     }
@@ -4759,16 +4814,25 @@ export function DebuggingView({ locationId }: { locationId?: string } = {}) {
     }
     setResettingSession(true);
     try {
+      // organizationId matters: without it listSessions takes the
+      // cross-org fan-out path -- 1+2N requests, 100 rows per org, with the
+      // active/location filters applied on the client afterwards. A guest
+      // sitting outside the newest 100 rows was reported as "no active
+      // session" while visibly online at the counter.
       const result = await guestService.listSessions({
         search: ip,
         status: "active",
+        organizationId: await resolveOrgId(),
         locationId: locationId ?? "all",
         page: 1,
         pageSize: 5,
       });
       const match = result.rows.find((s) => s.ipAddress === ip);
       if (!match) {
-        toast.error(`No active session found for ${ip}.`);
+        toast.error(`No active session found for ${ip}.`, {
+          description:
+            "Only guests currently online at this location can be reset. Check the address on the Users screen.",
+        });
         return;
       }
       await guestService.terminateSession(match.id, "Session reset from Network Diagnostics");
@@ -4784,7 +4848,14 @@ export function DebuggingView({ locationId }: { locationId?: string } = {}) {
   // Purely-derived display values (no new fields, no new fetch) -- these
   // KPI tiles just summarize routers/runs/lastRun, same read-only pattern
   // as OpenHoursView's kpiItems above.
-  const lastRunOk = lastRun?.status === "success";
+  // "Last result" reports the finding, not whether the command executed --
+  // the tile said "Success" over a ping that reached nothing.
+  const lastVerdict = lastRun ? diagnosticVerdict(lastRun) : null;
+  const VERDICT_TILE: Record<DiagnosticTone, { value: string; tone: StatTone }> = {
+    success: { value: "Reached", tone: "success" },
+    warning: { value: "Patchy", tone: "warning" },
+    danger: { value: "No answer", tone: "danger" },
+  };
   const kpiItems = [
     {
       label: "Routers",
@@ -4793,13 +4864,14 @@ export function DebuggingView({ locationId }: { locationId?: string } = {}) {
       icon: Router,
     },
     { label: "Recent runs", value: String(runs.length), tone: "info" as StatTone, icon: History },
-    ...(lastRun
+    ...(lastVerdict
       ? [
           {
             label: "Last result",
-            value: lastRunOk ? "Success" : "Failed",
-            tone: (lastRunOk ? "success" : "danger") as StatTone,
-            icon: lastRunOk ? CheckCircle2 : XCircle,
+            value:
+              lastVerdict.outcome === "failed" ? "Not run" : VERDICT_TILE[lastVerdict.tone].value,
+            tone: VERDICT_TILE[lastVerdict.tone].tone,
+            icon: VERDICT_ICON[lastVerdict.tone],
           },
         ]
       : []),
@@ -4844,11 +4916,19 @@ export function DebuggingView({ locationId }: { locationId?: string } = {}) {
               </Select>
             )}
             {!demo && !routersLoading && routers.length === 0 ? (
-              <EmptyState
-                icon={Router}
-                title="No router at this location"
-                description="Register a router here before running diagnostics."
-              />
+              routersError ? (
+                <ErrorState
+                  title="We could not load this location's routers"
+                  description="This is a problem reaching us, not a problem with your router."
+                  onRetry={() => setRoutersRefreshKey((k) => k + 1)}
+                />
+              ) : (
+                <EmptyState
+                  icon={Router}
+                  title="No router at this location"
+                  description="Register a router here before running diagnostics."
+                />
+              )
             ) : (
               <>
                 <Input
@@ -4908,7 +4988,15 @@ export function DebuggingView({ locationId }: { locationId?: string } = {}) {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {demo || runs.length === 0 ? (
+          {!demo && runsError ? (
+            <div className="p-4">
+              <ErrorState
+                title="We could not load this router's history"
+                description="Your earlier checks are still recorded — we just could not read them back."
+                onRetry={() => loadRuns(selectedRouterId, selectedRouterOrgId)}
+              />
+            </div>
+          ) : demo || runs.length === 0 ? (
             <div className="p-4">
               <EmptyState
                 icon={Terminal}
@@ -4923,38 +5011,47 @@ export function DebuggingView({ locationId }: { locationId?: string } = {}) {
                   <TableRow>
                     <TableHead className="text-xs">Type</TableHead>
                     <TableHead className="text-xs">Target</TableHead>
-                    <TableHead className="text-xs">Status</TableHead>
+                    <TableHead className="text-xs">Result</TableHead>
                     <TableHead className="text-xs">When</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {runs.map((r) => (
-                    <TableRow key={r.id}>
-                      <TableCell className="text-xs capitalize">{r.diagnosticType}</TableCell>
-                      <TableCell className="font-mono text-xs">{r.target}</TableCell>
-                      <TableCell className="text-xs">
-                        <span
-                          className={cn(
-                            "inline-flex items-center gap-1",
-                            r.status === "success"
-                              ? "text-emerald-600 dark:text-emerald-400"
-                              : "text-rose-600 dark:text-rose-400",
-                          )}
-                        >
+                  {runs.map((r) => {
+                    /* Same correction as the result banner: the dot used to
+                     * follow `status`, so a run that reached nothing sat in
+                     * the history as a green "success". */
+                    const v = diagnosticVerdict(r);
+                    const measured = summarizeDiagnosticResult(r);
+                    return (
+                      <TableRow key={r.id}>
+                        <TableCell className="text-xs capitalize">{r.diagnosticType}</TableCell>
+                        <TableCell className="font-mono text-xs">{r.target}</TableCell>
+                        <TableCell className="text-xs">
                           <span
                             className={cn(
-                              "h-1.5 w-1.5 rounded-full",
-                              r.status === "success" ? "bg-emerald-500" : "bg-rose-500",
+                              "inline-flex items-center gap-1",
+                              v.tone === "success" && "text-emerald-600 dark:text-emerald-400",
+                              v.tone === "warning" && "text-amber-600 dark:text-amber-400",
+                              v.tone === "danger" && "text-rose-600 dark:text-rose-400",
                             )}
-                          />
-                          {r.status}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {timeAgo(r.createdAt)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                          >
+                            <span
+                              className={cn(
+                                "h-1.5 w-1.5 shrink-0 rounded-full",
+                                v.tone === "success" && "bg-emerald-500",
+                                v.tone === "warning" && "bg-amber-500",
+                                v.tone === "danger" && "bg-rose-500",
+                              )}
+                            />
+                            {measured ?? v.headline}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {timeAgo(r.createdAt)}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>

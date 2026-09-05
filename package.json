@@ -36,6 +36,7 @@
     "test:customer-nav-permissions": "node scripts/test-customer-nav-permissions.mjs",
     "test:campaign-results": "node scripts/test-campaign-results.mjs",
     "test:csv-export": "node scripts/test-csv-export.mjs",
+    "test:diagnostics-verdict": "node scripts/test-diagnostics-verdict.mjs",
     "format": "prettier --write .",
     "measure:portal-contrast": "node scripts/measure-portal-contrast.mjs",
     "test:isp-single-flight": "node scripts/test-isp-links-single-flight.mjs",
