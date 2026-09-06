@@ -211,6 +211,7 @@ export interface Portal {
   consent: PortalConsent;
   content: PortalContent;
   postConnect: PortalPostConnect;
+  whitelistOnly: PortalWhitelistOnly;
   seo: PortalSeo;
   ads: PortalAd[];
   components: PortalComponent[];
@@ -255,6 +256,32 @@ export interface PortalPostConnect {
    * a visit and never in a session where the Google card appeared. */
   guestFeedbackEnabled: boolean;
   feedbackDwellMinutes: number;
+}
+
+/**
+ * Per-property whitelist-only mode (backend `captive_portal_configs
+ * .whitelist_only_enabled` / `whitelist_only_denied_message`).
+ *
+ * Deliberately its own section rather than fields on `login`: `login` is
+ * how a guest signs in, this is *whether the venue will admit them at all*.
+ * Both live on the same config row, but conflating them in the model is
+ * how a branding edit ends up carrying an access-control change.
+ *
+ * The flag is refused server-side on an organisation-default config
+ * (`location_id IS NULL`) -- a default is inherited by every location
+ * without an override, so setting it there would close every property in
+ * the organisation at once. Anything that writes `enabled: true` must be
+ * writing a location-specific config.
+ */
+export interface PortalWhitelistOnly {
+  /** False for every venue, existing ones included -- exactly today's
+   * behaviour. */
+  enabled: boolean;
+  /** The venue's own words on the refusal screen. "" means "the venue has
+   * published nothing", and the service layer writes that back as NULL so
+   * the platform's own default copy applies -- never as "", which would
+   * read as "the venue chose an empty message". */
+  deniedMessage: string;
 }
 
 export interface PortalTheme {

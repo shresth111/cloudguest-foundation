@@ -105,6 +105,14 @@ interface BackendCaptivePortalConfig {
   guest_feedback_enabled?: boolean;
   feedback_dwell_minutes?: number | null;
   background_overlay_strength?: number;
+  /** Per-property whitelist-only mode (migration 0117). PLACE 1 OF 4 --
+   * `toPortal`, `create` and `update`'s whitelist below are the other
+   * three, and a field that reaches only some of them is a control bound
+   * to nothing. Optional so a pre-0117 backend response still parses;
+   * every read site below falls back to `false`/`null`, which is exactly
+   * the column's own server default and today's behaviour. */
+  whitelist_only_enabled?: boolean;
+  whitelist_only_denied_message?: string | null;
 }
 
 interface BackendListResponse<T> {
@@ -477,6 +485,15 @@ function toPortal(
       guestFeedbackEnabled: c.guest_feedback_enabled ?? false,
       feedbackDwellMinutes: clampFeedbackDwellMinutes(c.feedback_dwell_minutes),
     },
+    // READ half (PLACE 2 OF 4) of per-property whitelist-only mode. The
+    // WRITE halves are in create() and update() below -- BOTH are required.
+    // This one is not a cosmetic field: a switch that renders the stored
+    // value, accepts a flip and silently discards it would leave an owner
+    // believing their WiFi is closed to the public when it is wide open.
+    whitelistOnly: {
+      enabled: c.whitelist_only_enabled ?? false,
+      deniedMessage: c.whitelist_only_denied_message ?? "",
+    },
     seo: {
       pageTitle: c.splash_headline ?? c.name,
       metaDescription: c.splash_welcome_message ?? "",
@@ -605,6 +622,32 @@ export const portalService = {
     return fetchOnePortal(id, organizationId);
   },
 
+  /**
+   * The one config that belongs to `locationId` itself -- never the
+   * organisation default.
+   *
+   * Whitelist-only mode is per property, and the backend refuses
+   * `whitelist_only_enabled=true` on a config with `location_id IS NULL`
+   * (`WhitelistOnlyRequiresLocationError`, 400) precisely because a default
+   * is inherited by every location without an override: one toggle there
+   * would close every property in the organisation at once. So the caller
+   * needs a location-specific row or nothing -- returning the default here
+   * as a convenient fallback is exactly the mistake the backend guardrail
+   * exists to catch, and it would surface as an unexplained 400 at save
+   * time instead of an honest "this property has no page of its own yet".
+   *
+   * Prefers the active config when a location somehow has more than one.
+   */
+  async forLocation(organizationId: string, locationId: string): Promise<Portal | null> {
+    if (!locationId) return null;
+    const configs = await fetchAllConfigs(organizationId);
+    const own = configs.filter((c) => c.location_id === locationId);
+    if (own.length === 0) return null;
+    const chosen = own.find((c) => c.is_active) ?? own[0];
+    const [rows] = await Promise.all([hydrate([chosen], organizationId)]);
+    return rows[0] ?? null;
+  },
+
   async create(
     input: PortalPatch & { name: string; organizationId: string; locationId: string },
   ): Promise<Portal> {
@@ -656,6 +699,16 @@ export const portalService = {
         review_card_enabled: input.postConnect?.reviewCardEnabled ?? false,
         guest_feedback_enabled: input.postConnect?.guestFeedbackEnabled ?? false,
         feedback_dwell_minutes: clampFeedbackDwellMinutes(input.postConnect?.feedbackDwellMinutes),
+        // WRITE half (create) -- PLACE 3 OF 4 -- of whitelist-only mode.
+        // Defaults false: a newly created config is never born closed, and
+        // the backend refuses `true` outright on an organisation default
+        // (location_id null) because a default is inherited by every
+        // location without an override. `.trim() || null` on the message so
+        // an empty textarea stores NULL and the platform's default refusal
+        // copy still applies -- "" would read as "the venue published an
+        // empty message".
+        whitelist_only_enabled: input.whitelistOnly?.enabled ?? false,
+        whitelist_only_denied_message: input.whitelistOnly?.deniedMessage?.trim() || null,
         guest_font_choice: input.branding?.fontChoice ?? "system",
         background_overlay_strength: input.branding?.backgroundOverlayStrength ?? 55,
         ...flags,
@@ -740,6 +793,20 @@ export const portalService = {
       body.feedback_dwell_minutes = clampFeedbackDwellMinutes(
         patch.postConnect.feedbackDwellMinutes,
       );
+    // WRITE half (update) -- PLACE 4 OF 4 -- of whitelist-only mode. This
+    // whitelist is where a new field goes to die: `fontFamily`, the two
+    // consent `_text` columns and (in PR #226) the Terms textarea all
+    // rendered, accepted an edit and returned a success toast while this
+    // body never carried them. Guarded on `!== undefined` like every other
+    // field here, so a patch that does not mention them leaves the stored
+    // values alone -- a branding save can never flip a venue's access
+    // control. `.trim() || null` on the message so clearing the textarea
+    // clears the column and the guest screen goes back to the platform
+    // default, rather than storing "" which reads as "published".
+    if (patch.whitelistOnly?.enabled !== undefined)
+      body.whitelist_only_enabled = patch.whitelistOnly.enabled;
+    if (patch.whitelistOnly?.deniedMessage !== undefined)
+      body.whitelist_only_denied_message = patch.whitelistOnly.deniedMessage.trim() || null;
     if (patch.loginMethods !== undefined) Object.assign(body, loginMethodFlags(patch.loginMethods));
     // captive-portal-v6-design-spec.md §1.3/§3.5/§4.4 -- the real fix for
     // this whitelist's exact gap: the old admin font picker silently lost

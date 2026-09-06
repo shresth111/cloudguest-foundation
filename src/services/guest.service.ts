@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import { DENIAL_WINDOW_MS, countRecentDenials } from "@/lib/whitelist-only";
 import type {
   AccessCheckQuery,
   AccessCheckResult,
@@ -583,6 +584,51 @@ export const guestService = {
       ),
     ]);
     return [...identifierRules, ...deviceRules];
+  },
+
+  /**
+   * How many guests one property turned away in the last 24 hours because
+   * whitelist-only mode is on and they were not on the list.
+   *
+   * Every refusal writes a `GuestLoginHistory` row carrying its own
+   * `failure_reason` (backend `WHITELIST_ONLY_LOGIN_FAILURE_REASON`), so
+   * this is a real count of real refused people, not an estimate. The
+   * endpoint has no `failure_reason` filter, so the window is narrowed
+   * server-side with the same `start_date`/`end_date` contract
+   * `/guest-sessions` uses and the reason is matched client-side over at
+   * most `maxPages` pages of 100 -- the same paging discipline
+   * UserReports.tsx's own login-history reader uses.
+   *
+   * Returns `capped: true` when the scan hit that ceiling, so the caller
+   * can render "500+" rather than quietly under-reporting a busy day.
+   */
+  async countWhitelistDenials(
+    organizationId: string,
+    locationId: string,
+    nowMs: number = Date.now(),
+    maxPages = 5,
+  ): Promise<{ count: number; capped: boolean }> {
+    const rows: { failure_reason?: string | null; attempted_at?: string | null }[] = [];
+    let capped = false;
+    for (let page = 1; page <= maxPages; page++) {
+      const { data } = await api.get<{
+        items?: { failure_reason?: string | null; attempted_at?: string | null }[];
+        has_next?: boolean;
+      }>("/guest-login-history", {
+        params: {
+          location_id: locationId,
+          start_date: new Date(nowMs - DENIAL_WINDOW_MS).toISOString(),
+          end_date: new Date(nowMs).toISOString(),
+          page,
+          page_size: 100,
+        },
+        headers: { "X-Organization-Id": organizationId },
+      });
+      rows.push(...(data?.items ?? []));
+      if (!data?.has_next) break;
+      if (page === maxPages) capped = true;
+    }
+    return { count: countRecentDenials(rows, nowMs), capped };
   },
 
   async createAccessRule(payload: CreateAccessRulePayload): Promise<AnyAccessRule> {
