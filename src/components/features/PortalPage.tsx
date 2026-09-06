@@ -332,7 +332,17 @@ export function PortalPage({ locationId }: { locationId?: string }) {
     font: "inter",
     lang: "en, hi, ar",
     redirectUrl: "https://wyfyguest.com/welcome",
-    terms: "By connecting you agree to fair-use terms.",
+    // Empty, deliberately. This used to seed the textarea with the sentence
+    // "By connecting you agree to fair-use terms." -- harmless while the
+    // field saved nothing, and actively destructive the moment it does: the
+    // first time any venue clicked Save Configuration for any unrelated
+    // reason (a colour, a headline), that one line would have become their
+    // published terms, replacing the platform's full default terms +
+    // privacy document on `/portal/terms` with a flippant one-liner. Blank
+    // is the truthful starting state -- it is what every production config
+    // actually holds -- and a blank field is what makes the platform
+    // default apply. The placeholder on the control says so.
+    terms: "",
   });
   const [logo, setLogo] = useState<string | null>(null);
   // True once `logo` is a blob: URL from a real uploaded file (needs
@@ -462,7 +472,15 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       ...f,
       redirectUrl: p.login.redirectUrl || f.redirectUrl,
       lang: p.languages.join(", "),
-      terms: p.consent.termsUrl || f.terms,
+      // `consent.termsText`, not `termsUrl`: this control is a prose
+      // textarea and it always was -- reading it out of the URL column was
+      // half of why it never round-tripped. And no `|| f.terms` fallback:
+      // a venue that has published nothing must see an empty field, because
+      // empty is exactly what makes `/portal/terms` serve the platform's
+      // default copy. Falling back to a seeded sentence would show the
+      // venue text that is not in the database and then save it on their
+      // next unrelated edit.
+      terms: p.consent.termsText,
     }));
     setAuthMethods(p.loginMethods);
     // "survey" is a retired content mode (guest surveys are Campaigns-only
@@ -606,7 +624,10 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       ...resolveLanguageSelection(langList[0], langList),
       advertisementBannerUrl: null,
       advertisementBannerLink: null,
-      termsAndConditionsText: form.terms || null,
+      // `.trim()`, matching exactly what saveConfig puts on the wire -- a
+      // textarea holding only whitespace previews as "nothing published",
+      // which is what the guest would then get.
+      termsAndConditionsText: form.terms.trim() || null,
       termsAndConditionsUrl: null,
       privacyPolicyText: null,
       privacyPolicyUrl: null,
@@ -917,6 +938,18 @@ export function PortalPage({ locationId }: { locationId?: string }) {
         // bug `fontFamily` shipped with.
         login: { redirectUrl: form.redirectUrl, postLoginHtml },
         loginMethods: authMethods as PortalLoginMethod[],
+        // The Terms & Conditions textarea. This whole group was missing from
+        // the patch -- no `consent` key at all -- so the field displayed,
+        // accepted an edit and reported success while never leaving the
+        // browser. It goes to `termsText` (`terms_and_conditions_text`),
+        // which is what `/portal/terms` renders as the document body and
+        // what the Live Preview above has always previewed it as; the `_url`
+        // columns stay the master console wizard's surface for a venue that
+        // hosts its document elsewhere. Both halves are mapped in
+        // portal.service.ts (toPortal on read, create()/update() on write) --
+        // see that file's note on the `fontFamily` bug for why a read-only
+        // mapping is worse than no mapping at all.
+        consent: { termsText: form.terms.trim() },
         seo: { pageTitle: headline, metaDescription: msg },
         content: {
           mode: contentMode,
@@ -973,6 +1006,13 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       }
       setSavedSplash({ headline, msg });
       toast.success("Portal configuration saved");
+
+      // Repaint the terms textarea from what came back, for the same reason
+      // the post-login editor does below: the field is trimmed on the way
+      // out, so leaving the box holding whitespace the database does not
+      // have is a small lie, and it is the one that makes "did this
+      // actually save?" unanswerable from the screen.
+      setForm((f) => ({ ...f, terms: saved.consent.termsText }));
 
       // Repaint the post-login editor from the STORED, SANITIZED value the
       // save returned. The backend sanitizes on write and echoes back what it
@@ -1519,12 +1559,22 @@ export function PortalPage({ locationId }: { locationId?: string }) {
               </div>
 
               <div className="space-y-1.5">
-                <Label>Terms &amp; Conditions</Label>
+                <Label htmlFor="portal-terms">Terms &amp; Conditions</Label>
                 <Textarea
-                  rows={2}
+                  id="portal-terms"
+                  rows={6}
                   value={form.terms}
+                  placeholder="Leave blank to publish our default terms &amp; privacy copy, or paste your own here."
                   onChange={(e) => setForm({ ...form, terms: e.target.value })}
                 />
+                {/* Blank is a real, supported answer here, so say so rather
+                 * than letting an empty box read as an unfinished form. It
+                 * is also the state every venue is in today. */}
+                <p className="text-xs text-muted-foreground">
+                  {form.terms.trim()
+                    ? "Guests see this on the Terms & Privacy page, with your paragraph breaks kept."
+                    : "Blank: guests see our default terms & privacy copy on the Terms & Privacy page."}
+                </p>
               </div>
               <div className="space-y-1.5">
                 <Button className="w-full sm:w-auto" onClick={saveConfig} disabled={saveBlocked}>

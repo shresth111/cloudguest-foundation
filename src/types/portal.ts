@@ -112,11 +112,33 @@ export interface PortalLoginSettings {
   rememberDevice: boolean;
 }
 
+/** The venue's legal copy. Text and URL are two DIFFERENT authoring
+ * surfaces onto the same pair of documents, and both are real:
+ *
+ *  - `termsText`/`privacyText` are the venue's own prose, written into the
+ *    Portal editor's Terms & Conditions textarea (PortalPage.tsx). The
+ *    guest screen (`/portal/terms`) renders this as the document body,
+ *    `whitespace-pre-line`, so an admin's paragraph breaks survive.
+ *  - `termsUrl`/`privacyUrl` point at a document the venue already hosts
+ *    elsewhere (a PDF, a corporate legal page). They are authored in the
+ *    master console's PortalWizard, and `/portal/terms` renders them as a
+ *    "Read the full document" link beneath the prose.
+ *
+ * Both map to real backend columns (`terms_and_conditions_text`/`_url`,
+ * `privacy_policy_text`/`_url`) and all four feed the backend's content
+ * hash for `guest_consents.terms_version` -- so a venue that publishes
+ * only a link is versioned just as correctly as one that publishes prose.
+ * When a venue publishes NEITHER, `/portal/terms` falls back to the
+ * platform's own default terms + privacy copy (DEFAULT_SECTIONS there),
+ * which is why an empty field here is a legitimate, useful state and not
+ * something to pre-fill with a placeholder sentence. */
 export interface PortalConsent {
   termsRequired: boolean;
   privacyRequired: boolean;
   marketingConsent: boolean;
   gdprConsent: boolean;
+  termsText: string;
+  privacyText: string;
   termsUrl: string;
   privacyUrl: string;
 }
