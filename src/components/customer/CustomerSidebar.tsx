@@ -121,27 +121,29 @@ export function CustomerSidebar({ activeFeatureId, subtitle, dataMasking }: Cust
   return (
     <Sidebar
       collapsible="icon"
-      // Customer chrome is the dark indigo the product screenshots on
-      // wyfyguest.com ship with (dashboard-overview.webp): sampled from the
-      // image, the rail's body is ~#1c1a42/#1c1a44 through the nav, with a
-      // brighter #2d285e wash at the very top (logo zone) and a #191733
-      // bottom. styles.css's sitewide "modern ink rail" `--sidebar*` tokens
-      // are neutral-near-black, so they are overridden here with the indigo
-      // values; Master Console opts out of the same defaults via its own
-      // `.master-theme` class. The primitive paints its own `bg-sidebar` on
-      // an inner div, so `--sidebar` must be transparent for the gradient
-      // on this wrapper to show through.
-      className="customer-rail bg-[linear-gradient(to_bottom,#2d285e_0%,#1f1c49_8%,#1c1a44_40%,#18172e_100%)]"
+      // Customer chrome is a vibrant purple-violet rail -- the same indigo
+      // family as the app's #6C4EFF/#7C3AED accents, not the near-black
+      // graphite the sitewide "--sidebar*" tokens default to (Master
+      // Console opts out of those via its own `.master-theme` class). The
+      // primitive paints its own `bg-sidebar` on an inner div, so
+      // `--sidebar` must be transparent for the gradient on this wrapper to
+      // show through. The gradient rides on backgroundImage INLINE (not a
+      // class) so the sitewide brand-sheen rule in styles.css cannot layer
+      // over it, and so it reaches the portal-rendered mobile Sheet through
+      // the style forwarding in ui/sidebar.tsx.
+      className="customer-rail"
       style={
         {
           "--sidebar": "transparent",
-          "--sidebar-foreground": "#9897bc",
-          "--sidebar-border": "rgb(255 255 255 / 10%)",
-          "--sidebar-accent": "#2a275a",
+          "--sidebar-foreground": "#d5d3f5",
+          "--sidebar-border": "rgb(255 255 255 / 14%)",
+          "--sidebar-accent": "#4f46e5",
           "--sidebar-accent-foreground": "#ffffff",
-          "--sidebar-primary": "#a5a0ff",
+          "--sidebar-primary": "#a5b4fc",
           "--sidebar-primary-foreground": "#ffffff",
-          "--sidebar-ring": "#6d68ff",
+          "--sidebar-ring": "#818cf8",
+          backgroundImage:
+            "linear-gradient(to bottom, #4338ca 0%, #3730a3 12%, #312e81 45%, #241f5e 100%)",
         } as CSSProperties
       }
     >

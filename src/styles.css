@@ -468,8 +468,11 @@
  * gradient (see CustomerSidebar.tsx) on the wrapper, so this sitewide
  * sheen -- a second, brand-tinted wash on the same surface -- would
  * double-lift the top and read as a mismatch against the header it sits
- * beside. The wrapper's own gradient replaces it. */
-.customer-rail [data-sidebar="sidebar"] {
+ * beside. The wrapper's own gradient replaces it. The second selector
+ * covers the mobile Sheet, where .customer-rail and data-sidebar land on
+ * the SAME element (portal-rendered) rather than ancestor/descendant. */
+.customer-rail [data-sidebar="sidebar"],
+.customer-rail[data-sidebar="sidebar"] {
   background-image: none;
 }
 
