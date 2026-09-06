@@ -1001,7 +1001,25 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
                         </span>
                         <span className="text-sm font-medium">{label}</span>
                       </div>
-                      <Switch checked={d.open} onCheckedChange={(v) => setDay(key, { open: v })} />
+                      {/* Switching a day on seeds the times too. The two
+                        inputs below render `d.start ?? "09:00"` -- a
+                        display fallback that was never written to state,
+                        so a day you switched on and did not otherwise
+                        touch had start/end still undefined. Apply then
+                        failed the guard with "set both a start and end
+                        time" while the pickers plainly read 09:00 and
+                        18:00. Now what you see is what is stored. */}
+                      <Switch
+                        checked={d.open}
+                        onCheckedChange={(v) =>
+                          setDay(
+                            key,
+                            v
+                              ? { open: true, start: d.start ?? "09:00", end: d.end ?? "18:00" }
+                              : { open: false },
+                          )
+                        }
+                      />
                     </div>
                     {d.open ? (
                       <div className="space-y-1.5">
