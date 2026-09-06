@@ -6271,102 +6271,108 @@ export function buildRouterSetupScriptChunks(opts: {
       // leases but no gateway or DNS.
       `:if ([:len [/ip dhcp-server find where interface="${lanBridge}"]] = 0) do={ /ip dhcp-server add name="hotspot-dhcp" interface="${lanBridge}" address-pool="hotspot-pool" disabled=no }`,
       `:if ([:len [/ip dhcp-server network find where address="${lanNetwork}"]] = 0) do={ /ip dhcp-server network add address=${lanNetwork} gateway=${lanIp} dns-server=${lanIp} }`,
-      // DHCP OPTION 114 -- RFC 8910, the Captive-Portal URI.
+      // DHCP OPTION 114 -- RFC 8910 -- IS NOW REMOVED, NOT WRITTEN.
       //
-      // Everything else in this script relies on the guest's device GUESSING
-      // that a portal exists: it fetches its own probe URL, the hotspot
-      // intercepts it, the redirect is read as "captive". That works on
-      // Wi-Fi and is unreliable on a cable -- macOS does not open its
-      // Captive Network Assistant for an Ethernet interface at all, so a
-      // laptop plugged in with a patch lead gets an address, gets no popup,
-      // and looks broken until someone types the address by hand.
-      // Confirmed live 2026-08-23 on exactly that: browser-typed worked,
-      // nothing appeared on its own.
+      // This chunk used to create the option, force it onto every lease
+      // (#221) and attach it to the network row. It now takes all three
+      // back off, because the URI it advertised can only ever answer half
+      // the question the option exists to ask.
       //
-      // Option 114 removes the guessing. The lease itself says "this
-      // network has a captive portal, here it is". Windows 11, macOS 13+,
-      // iOS 14+ and Android all read it, and they read it on wired links
-      // too. It is additive: a device that ignores 114 still hits the
-      // probe-interception path exactly as before, so this can only help.
+      // WHAT OPTION 114 PROMISES. RFC 8910 does not carry "the portal's
+      // address"; it carries the address of an RFC 8908 Captive Portal
+      // API, and a capport-aware OS RE-POLLS that API to learn whether it
+      // is still captive. Advertising it makes that API the OS's
+      // authority on both transitions -- sheet up, and sheet down.
       //
-      // IT POINTS AT THE RFC 8908 API, NOT AT A PAGE. This was wrong when
-      // first written, and the mistake is worth keeping visible: option 114
-      // does not carry "the portal's address", it carries the address of a
-      // Captive Portal API that ANSWERS that question in JSON:
+      // WHAT OURS ANSWERED. `GET /captive-portal/rfc8908` returns a
+      // hardcoded `{"captive": true}` (backend
+      // `app/domains/captive_portal/router.py`, the `captive_portal_api`
+      // handler) and takes no `Request` at all -- deliberately, and
+      // correctly: every guest reaches the cloud from behind the venue's
+      // NAT as one source address, so that handler cannot tell which
+      // client is asking and therefore can never answer `false`. The
+      // limit is positional, not a bug to fix in the handler.
       //
-      //     {"captive": true, "user-portal-url": "http://wifi.wyfyguest.com/"}
+      // SO THE TWO STATE MACHINES ARE NOT EQUIVALENT, AND OURS IS WORSE:
       //
-      // Pointed at an HTML page instead, a conforming client fetches it,
-      // fails to parse it as `application/captive+json`, and silently
-      // ignores the whole option -- which looks exactly like option 114 not
-      // working at all.
+      //   probe interception  before login: intercepted  -> sheet opens
+      //                       after login:  probe passes -> SHEET CLOSES
+      //   our option 114      before login: captive:true -> sheet opens
+      //                       after login:  captive:true -> NEVER CLOSES
       //
-      // The backend already serves this at `/captive-portal/rfc8908`, and
-      // that endpoint's own docstring says it exists to be reached "via the
-      // RFC 8910 DHCP Option 114 URI the Setup Script's DHCP Option 114
-      // chunk configures". It was built for this and nothing pointed at it.
+      // Advertising it hands the OS an authority that is right once and
+      // wrong for ever after, in place of a heuristic that is right in
+      // both directions. On iOS that is not cosmetic: the Captive Network
+      // Assistant holds the interface in the captive state and keeps app
+      // traffic pinned to the portal host -- the confirmed-live failure
+      // `portal.success.tsx` already sends `dst` to `captive.apple.com`
+      // to escape, and an option-114 poll re-asserts exactly the state
+      // that escape exists to clear.
       //
-      // `portal_url` is still the hotspot's own `dns-name`, and that part
-      // was always right: the JSON's `user-portal-url` is where the device
-      // is actually sent, and it must be THIS router's redirect page, which
-      // carries the $(mac)/$(link-login-only) substitution the portal needs.
-      // Sending the device straight to the cloud portal would give it a
-      // session it has no way to log into -- see HOTSPOT_DNS_NAME.
+      // WHAT THIS COSTS, HONESTLY. The chunk existed for one case: a
+      // cabled macOS laptop never opens its Captive Network Assistant on
+      // an Ethernet interface, so there is no probe to intercept
+      // (confirmed live 2026-08-23 -- a laptop got an address, got no
+      // popup, and reached the portal only when the address was typed by
+      // hand). That failure is real and confirmed. THAT OPTION 114 FIXES
+      // IT IS NOT. Nothing in this repo records a wired macOS client
+      // being shown a portal because of this option; "macOS 13+ reads it
+      // on wired links too" was written into this file uncited and never
+      // tested against the one router that carries it. A certain harm to
+      // every Wi-Fi guest was being traded for an unverified benefit on
+      // the cable. Two minutes with `ipconfig getpacket en0` on a cabled
+      // laptop in the venue settles it, and should be run before anyone
+      // reinstates this.
       //
-      // Reachable before login: the walled-garden IP rule accepts the
-      // platform's own address, and this API is served from the same box,
-      // so the fetch succeeds while the guest is still unauthenticated.
+      // WHAT WOULD BRING IT BACK. RouterOS >= 7.3 serves its own RFC 8908
+      // `api.json` with a real, per-client `captive` value -- unlike the
+      // cloud it knows which client is asking -- but only at
+      // `https://<dns-name>/api`, which needs the trusted certificate
+      // this fleet does not have (see the `login-by` chunk below, and
+      // `backend/docs/mikrotik/PORTAL_AND_DNS.md` 2.2.4). Once the fleet
+      // has that certificate, point option 114 at the ROUTER's own
+      // api.json and this chunk becomes correct in both directions.
+      // Pointed back at the cloud endpoint it never will be.
       //
-      // That is TRUE TODAY BUT NOT ESTABLISHED HERE, and the difference
-      // matters. The address-based accept is `:resolve`d from
-      // `portalUrl.frontendBase` (`auth.wyfyguest.com`); this option's URL
-      // is built from `apiBase`, which is the Master console's own origin.
-      // Two different names. They currently resolve to one address because
-      // the platform is on one box -- verified 2026-09-06, both
-      // `auth.wyfyguest.com` and `app.wyfyguest.com` answer as
-      // 13.203.112.174 -- not because anything here makes them agree. Split
-      // them across two hosts, or point `VITE_API_BASE_URL` somewhere else,
-      // and this option's host stops being walled in: the pre-auth fetch is
-      // then caught by the hotspot's own redirect and dies in the TLS
-      // handshake, which is indistinguishable from the option not existing.
-      // The durable fix is to resolve and accept this URL's host too, or to
-      // build the URL from a guest-facing constant rather than from
-      // whatever origin the admin happened to be browsing from --
-      // `GUEST_PORTAL_PUBLIC_BASE` exists because that exact mistake was
-      // made once already.
+      // REMOVAL, NOT MERELY "STOP WRITING IT". Nothing in the backend
+      // writes DHCP options -- `renderers.py` emits none, and the only
+      // writer in the whole platform is a human pasting this script. So
+      // deleting the old lines would leave the option sitting on every
+      // router already provisioned, for ever. This takes it off on
+      // re-paste, in dependency order (a set that is in use cannot be
+      // removed, and an option inside a set cannot be removed either),
+      // and BY ITS OWN NAME -- never by `code=114`, which could only ever
+      // sweep away an option somebody else added for their own reasons.
       //
-      // ADD-OR-UPDATE, not add-if-missing: the value embeds the hotspot
-      // hostname, and an option left over from an earlier run with a
-      // different one is worse than none -- the device would be sent
-      // somewhere this router does not answer.
-      //
-      // `force=yes` is not decoration. Without it RouterOS hands the option
-      // only to clients that named code 114 in their DHCP Parameter Request
-      // List. Capport-aware operating systems generally do ask for it --
-      // and "generally" is the exact thing this option exists to stop
-      // relying on. The whole reason the chunk is here is the cabled macOS
-      // laptop that never opens its Captive Network Assistant on Ethernet
-      // (confirmed live 2026-08-23); a device that is not asking the right
-      // question is precisely the device that needs to be told anyway.
-      // Available since RouterOS 7.1rc5. On anything older the `add` is
-      // rejected and no option is created, which the read-back below
-      // already reports as a NOTE rather than a failure.
-      `:if ([:len [/ip dhcp-server option find where name="cloudguest-captive-portal"]] = 0) do={ /ip dhcp-server option add name="cloudguest-captive-portal" code=114 force=yes value="'${apiBase}/captive-portal/rfc8908?portal_url=http://${HOTSPOT_DNS_NAME}/'" } else={ /ip dhcp-server option set [find name="cloudguest-captive-portal"] code=114 force=yes value="'${apiBase}/captive-portal/rfc8908?portal_url=http://${HOTSPOT_DNS_NAME}/'" }`,
-      // Attached through an option SET rather than directly, because
-      // `/ip dhcp-server network` takes `dhcp-option` as a list and a bare
-      // assignment would discard anything already there.
-      `:if ([:len [/ip dhcp-server option sets find where name="cloudguest-opts"]] = 0) do={ /ip dhcp-server option sets add name="cloudguest-opts" options=cloudguest-captive-portal } else={ /ip dhcp-server option sets set [find name="cloudguest-opts"] options=cloudguest-captive-portal }`,
-      `:if ([:len [/ip dhcp-server network find where address="${lanNetwork}"]] > 0) do={ /ip dhcp-server network set [find where address="${lanNetwork}"] dhcp-option-set=cloudguest-opts }`,
-      // Read back. Every line above is an `:if`, and `set [find ...]`
-      // against an empty match succeeds silently -- the failure this file
-      // has been bitten by six times. A guest with no option 114 is not
-      // broken, only back to guessing, so this reports rather than fails.
+      // Same shape as the local-hotspot-user removal further down: count
+      // first, act only on a non-zero count, print both branches, and
+      // never `:error` -- a router that never had the option is the
+      // expected case, not a failure.
       [
-        `:local optN [:len [/ip dhcp-server option find where name="cloudguest-captive-portal"]]`,
-        `:local setN [:len [/ip dhcp-server network find where address="${lanNetwork}" and dhcp-option-set="cloudguest-opts"]]`,
-        `:if (($optN > 0) && ($setN > 0)) do={ :put "  Captive-portal DHCP option (114) is set and attached -- wired clients get the portal without guessing." }`,
-        `:if ($optN = 0) do={ :put "  NOTE: DHCP option 114 was not created. Guests still reach the portal by probe interception; a cabled laptop may need the address typed by hand." }`,
-        `:if (($optN > 0) && ($setN = 0)) do={ :put "  NOTE: DHCP option 114 exists but is not attached to this network, so it will not be handed out." }`,
+        `:local cpNet [:len [/ip dhcp-server network find where dhcp-option-set="cloudguest-opts"]]`,
+        `:local cpSet [:len [/ip dhcp-server option sets find where name="cloudguest-opts"]]`,
+        `:local cpOpt [:len [/ip dhcp-server option find where name="cloudguest-captive-portal"]]`,
+        `:if ($cpNet > 0) do={ /ip dhcp-server network set [find where dhcp-option-set="cloudguest-opts"] !dhcp-option-set }`,
+        `:if ($cpSet > 0) do={ /ip dhcp-server option sets remove [find where name="cloudguest-opts"] }`,
+        `:if ($cpOpt > 0) do={ /ip dhcp-server option remove [find where name="cloudguest-captive-portal"] }`,
+        `:local cpTotal ($cpNet + $cpSet + $cpOpt)`,
+        `:if ($cpTotal > 0) do={ :put ("  Removed the captive-portal DHCP option (114): " . [:tostr $cpNet] . " network attachment(s), " . [:tostr $cpSet] . " option set(s), " . [:tostr $cpOpt] . " option(s).") }`,
+        `:if ($cpTotal > 0) do={ :put "  It advertised a cloud API that answers captive:true for ever, so the guest's sign-in sheet never closed." }`,
+        `:if ($cpTotal = 0) do={ :put "  No captive-portal DHCP option (114) on this device (expected)." }`,
+        `:if ($cpTotal = 0) do={ :put "  Guests reach the portal by probe interception, which also detects when they are through." }`,
+      ].join("; "),
+      // Read back. Every line above is an `:if`, and RouterOS reports
+      // success for a `remove` against an empty match exactly as it does
+      // for one that removed something -- the silent-success shape this
+      // file has been bitten by six times. Anything still present here
+      // means the removal did not take, and the guest symptom (a sign-in
+      // sheet that will not close) survives with it.
+      [
+        `:local cpLeft ([:len [/ip dhcp-server option find where name="cloudguest-captive-portal"]] + [:len [/ip dhcp-server option sets find where name="cloudguest-opts"]] + [:len [/ip dhcp-server network find where dhcp-option-set="cloudguest-opts"]])`,
+        `:if ($cpLeft = 0) do={ :put "  Captive-portal DHCP option (114) is gone from this router." }`,
+        `:if ($cpLeft > 0) do={ :put ("  NOTE: " . [:tostr $cpLeft] . " captive-portal DHCP option object(s) still present after removal.") }`,
+        `:if ($cpLeft > 0) do={ :put "  Detach it from the network row first, then remove the option set, then the option itself." }`,
+        `:if ($cpLeft > 0) do={ :log warning "cloudguest: captive-portal DHCP option 114 objects survived removal -- the sign-in sheet may still refuse to close" }`,
       ].join("; "),
       // Uses RouterOS's own *stock* hotspot template ("hotspot", not a
       // custom-uploaded one) -- present with all its supporting CSS/error/

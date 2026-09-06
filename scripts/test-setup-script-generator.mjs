@@ -5203,90 +5203,122 @@ check(
 }
 
 // ---------------------------------------------------------------------
-// 13.11 THE LEASE ITSELF SAYS THERE IS A PORTAL (RFC 8910, option 114).
-// ---------------------------------------------------------------------
-// Everything else in this script relies on the guest's device GUESSING
-// that a portal exists: it fetches its own probe URL, the hotspot
-// intercepts it, the redirect is read as "captive". That works on Wi-Fi
-// and is unreliable on a cable -- macOS does not open its Captive Network
-// Assistant for an Ethernet interface at all. Confirmed live 2026-08-23:
-// a cabled laptop got an address, got no popup, and reached the portal
-// only when the address was typed by hand.
+// 13.11 THE LEASE NO LONGER CLAIMS A PORTAL THAT NEVER CLEARS (option 114).
+// -------------------------------------------------------------------------
+// THIS SECTION WAS INVERTED, NOT DELETED, AND THE INVERSION IS THE POINT.
+// It used to pin option 114 as present, forced and attached. Every check
+// below is the same check with the sign flipped, plus the removal that a
+// generator-only change cannot perform on a router that is already
+// provisioned.
 //
-// Option 114 removes the guessing. It is additive -- a device that ignores
-// it still hits the probe-interception path exactly as before.
+// WHY. RFC 8910's option does not carry "the portal's address" -- it
+// carries the address of an RFC 8908 API that a capport-aware OS RE-POLLS
+// to learn whether it is STILL captive. We pointed it at the platform's
+// own `/captive-portal/rfc8908`, which returns a hardcoded
+// `{"captive": true}` and takes no `Request` at all -- correctly, because
+// every guest arrives from behind the venue's NAT as one source address,
+// so that handler can never identify the client and can never answer
+// `false`.
+//
+//   probe interception  before login: intercepted  -> sheet opens
+//                       after login:  probe passes -> SHEET CLOSES
+//   our option 114      before login: captive:true -> sheet opens
+//                       after login:  captive:true -> NEVER CLOSES
+//
+// Advertising it replaced a heuristic that is right in both directions
+// with an authority that is right in one. On iOS that is not cosmetic --
+// the Captive Network Assistant holds app traffic on the portal host.
+//
+// The wired-macOS case the chunk was written for is real and confirmed
+// (2026-08-23: a cabled laptop got an address, got no popup, reached the
+// portal only when the address was typed by hand). That option 114 FIXES
+// that case was never verified against a router; it was asserted in a
+// comment. A certain harm was being traded for an unverified benefit.
+//
+// This comes back the day the fleet has a trusted certificate, pointed at
+// the ROUTER's own RFC 8908 `api.json` (RouterOS >= 7.3), which knows
+// which client is asking and so can answer both halves.
 for (const [variant, script] of FULL_SCRIPTS) {
   if (/HOTSPOT \+ DHCP: NOTHING WAS GENERATED/.test(script)) continue;
 
   check(
-    `${variant}: the DHCP lease advertises the captive portal (option 114)`,
-    /\/ip dhcp-server option add name="cloudguest-captive-portal" code=114/.test(script),
-    "without it a cabled client has nothing but probe interception to go on, and macOS " +
-      "does not act on that for an Ethernet interface",
+    `${variant}: the DHCP lease no longer advertises the cloud captive-portal API`,
+    !/\/ip dhcp-server option add name="cloudguest-captive-portal"/.test(script),
+    "an option pointing at an endpoint that answers captive:true for ever tells the guest's " +
+      "OS to keep the sign-in sheet open on a connection that already works",
   );
-  // IT POINTS AT THE RFC 8908 API, NOT AT A PAGE. This was written wrong
-  // the first time and the check went with it, so both are pinned now.
-  // Option 114 does not carry "the portal's address" -- it carries the
-  // address of an API that answers that question in JSON. Pointed at an
-  // HTML page, a conforming client fetches it, fails to parse it as
-  // `application/captive+json`, and ignores the option entirely, which is
-  // indistinguishable from option 114 not working at all.
+  // NOTHING MAY NAME THE CLOUD ENDPOINT. Not as an option value, not as a
+  // fetch, not anywhere -- it is the URL whose only possible answer is the
+  // wrong one, and the previous version of this section pinned it as
+  // required.
   check(
-    `${variant}: option 114 points at the RFC 8908 API, not at a page`,
-    /code=114 [^\n]*value="'https?:\/\/[^']*\/captive-portal\/rfc8908\?portal_url=/.test(script),
-    "an HTML page there is silently ignored by every conforming client",
+    `${variant}: nothing in the script points a client at the cloud RFC 8908 endpoint`,
+    !/captive-portal\/rfc8908/.test(script) && !/portal_url=/.test(script),
+    "that endpoint cannot identify the client behind the venue's NAT, so it can only ever " +
+      "answer `captive: true` -- correct before login and permanently wrong after it",
   );
-  // AND IT IS HANDED OUT WHETHER OR NOT THE CLIENT ASKS FOR IT. Without
-  // `force=yes` RouterOS sends the option only to clients that named code
-  // 114 in their Parameter Request List. Capport-aware operating systems
-  // generally do ask -- and the device this chunk exists for is the one
-  // that is not asking the right question: a cabled macOS laptop never
-  // opens its Captive Network Assistant on Ethernet at all (confirmed live
-  // 2026-08-23). An option that is only delivered on request is no help to
-  // a client that does not know to make the request.
+  // AND IT IS NOT FORCED ONTO CLIENTS THAT NEVER ASKED (#221's own change,
+  // reversed). `force=yes` widened delivery from "clients that named code
+  // 114 in their Parameter Request List" to every lease -- which, given
+  // what the option pointed at, widened the fault rather than the fix.
   check(
-    `${variant}: option 114 is forced, not offered only on request`,
-    /name="cloudguest-captive-portal" code=114 force=yes/.test(script) &&
-      /option set \[find name="cloudguest-captive-portal"\] code=114 force=yes/.test(script),
-    "without force=yes a client that does not list code 114 never receives it, " +
-      "which is the exact client this option was added for",
+    `${variant}: no option 114 is written at all, forced or otherwise`,
+    !/force=yes/.test(script) && !/code=114/.test(script),
+    "#221 forced this option onto every lease; with the URL it carried, that made more " +
+      "clients poll an endpoint that can never say they are through",
   );
-  // AND THE PORTAL IT NAMES IS STILL THIS ROUTER. The JSON's
-  // `user-portal-url` is where the device actually goes, and it must be the
-  // router's own redirect page -- that is what carries the
-  // $(mac)/$(link-login-only) substitution the portal needs. Sending the
-  // device straight to the cloud portal gives it a session it cannot log
-  // into; see HOTSPOT_DNS_NAME's docstring for the live failure.
+  // A GENERATOR-ONLY CHANGE REMOVES NOTHING. No backend path writes DHCP
+  // options -- `renderers.py` emits none -- so the only writer is a human
+  // pasting this script, and the only remover is the same paste. Dropping
+  // the lines would leave the option on every provisioned router for ever.
   check(
-    `${variant}: the portal_url it hands back is this router, not the cloud portal`,
-    new RegExp(`portal_url=http://${HOTSPOT_DNS_NAME_RE}/'"`).test(script) &&
-      !/portal_url=https?:\/\/portal\./.test(script),
-    "the device must land on this router's redirect page, which carries the session " +
-      "parameters the portal needs",
+    `${variant}: an option left by an earlier paste is actively removed`,
+    /\/ip dhcp-server option remove \[find where name="cloudguest-captive-portal"\]/.test(script) &&
+      /\/ip dhcp-server option sets remove \[find where name="cloudguest-opts"\]/.test(script) &&
+      /\/ip dhcp-server network set \[find where dhcp-option-set="cloudguest-opts"\] !dhcp-option-set/.test(
+        script,
+      ),
+    "the fleet's routers already carry this option; not writing it again leaves every one of " +
+      "them exactly as broken as it is today",
   );
-  // ADD-OR-UPDATE. The value embeds the hostname; one left over from an
-  // earlier run with a different name would send devices somewhere this
-  // router does not answer, and add-if-missing would never correct it.
+  // ORDER IS LOAD-BEARING, AND IT IS RouterOS THAT MAKES IT SO: an option
+  // set still attached to a network row cannot be removed, and an option
+  // still inside a set cannot be removed either. Detach, then set, then
+  // option.
   check(
-    `${variant}: a stale option 114 is corrected, not left in place`,
-    /else=\{ \/ip dhcp-server option set \[find name="cloudguest-captive-portal"\] code=114/.test(
-      script,
-    ),
-    "add-if-missing would leave a wrong URL on the device for ever",
+    `${variant}: the removal runs in dependency order (detach, set, option)`,
+    (() => {
+      const detach = script.indexOf('network set [find where dhcp-option-set="cloudguest-opts"]');
+      const set = script.indexOf('option sets remove [find where name="cloudguest-opts"]');
+      const opt = script.indexOf('option remove [find where name="cloudguest-captive-portal"]');
+      return detach >= 0 && set > detach && opt > set;
+    })(),
+    "RouterOS refuses to remove an option set that a network row still references, and an " +
+      "option that a set still contains -- the wrong order fails halfway and leaves the option",
   );
+  // BY NAME, NEVER BY CODE, AND NEVER RE-ATTACHED. A `find where code=114`
+  // sweep could only ever hit a row somebody else added for their own
+  // reasons; and no line may put the option set back on the network row.
   check(
-    `${variant}: the option is actually attached to this network`,
-    /dhcp-option-set=cloudguest-opts/.test(script),
-    "an option that exists but is attached to nothing is never handed out -- and RouterOS " +
-      "reports success either way",
+    `${variant}: the option is removed by its own name and never re-attached`,
+    !/option remove \[find where code=114\]/.test(script) &&
+      !/\] dhcp-option-set=cloudguest-opts/.test(script),
+    "a code-scoped sweep deletes options this platform never created, and a re-attach " +
+      "anywhere later in the same paste would silently undo the removal above",
   );
-  // REPORTS, DOES NOT FAIL. A guest without option 114 is not broken, only
-  // back to guessing, so this must not read as a fatal error.
+  // REPORTS BOTH BRANCHES, AND NEVER FAILS. A router that never had the
+  // option is the expected case, not an error -- the same shape as the
+  // local-hotspot-user removal. RouterOS reports success for a `remove`
+  // against an empty match exactly as for one that removed something, so
+  // the read-back is the only thing that can tell them apart.
   check(
-    `${variant}: it says so when the option did not land`,
-    /NOTE: DHCP option 114 was not created/.test(script) &&
-      /exists but is not attached/.test(script),
-    "both halves can fail independently and `set [find ...]` succeeds against an empty match",
+    `${variant}: it says what it removed, says when there was nothing, and never errors`,
+    /Removed the captive-portal DHCP option \(114\)/.test(script) &&
+      /No captive-portal DHCP option \(114\) on this device \(expected\)/.test(script) &&
+      /Captive-portal DHCP option \(114\) is gone from this router/.test(script) &&
+      /captive-portal DHCP option object\(s\) still present after removal/.test(script),
+    "both halves can be true independently, and `remove [find ...]` against an empty match " +
+      "succeeds silently -- without the read-back a failed removal looks identical to a clean one",
   );
 }
 
