@@ -950,3 +950,34 @@ jobs:
             "post-login-html-sandbox" 9 \
             "All post-login HTML sandbox checks passed." \
             bun run test:post-login-sandbox
+
+      # --- Whitelist-only mode (per-property allow-list) -----------------
+      #
+      # The switch that closes one venue's WiFi to everyone not on its
+      # Always Allowed list. Two of its guardrails are the whole feature:
+      #
+      #   1. It must refuse to turn on when the list is EMPTY -- at a
+      #      whitelist-only property that means nobody gets online, not the
+      #      listed guests, not the owner, not whoever is diagnosing it.
+      #   2. It must refuse to turn on when the list is MIS-KEYED. Every
+      #      rule the Always Allowed form wrote before 2026-09-06 stored
+      #      bare national digits (9876543210) while guests sign in as
+      #      E.164 (+919876543210). Under the old default-allow that was
+      #      invisible. Under whitelist-only the identical unchanged rows
+      #      refuse every guest at the property while the dashboard renders
+      #      a full, correct-looking list of allowed people. The form fix
+      #      (#225) and the backend canonicalization (#160) landed the same
+      #      day; the rows written before them are still in the database.
+      #
+      # It also gates the four-places rule in portal.service.ts (wire
+      # interface, toPortal, create, update's whitelist) -- the exact
+      # discipline `fontFamily`, the consent `_text` columns and PR #226's
+      # Terms textarea each broke -- and that a cleared refusal message
+      # writes NULL rather than "".
+      #
+      # Floor 66, observed green at 66.
+      - name: whitelist-only guardrails
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "whitelist-only" 66 "all whitelist-only guardrail checks passed" \
+            bun run test:whitelist-only

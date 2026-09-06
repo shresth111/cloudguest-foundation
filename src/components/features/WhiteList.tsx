@@ -10,6 +10,9 @@ import {
   ChevronLeft,
   ChevronRight,
   ShieldCheck,
+  ShieldAlert,
+  AlertTriangle,
+  Loader2,
   User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -24,10 +27,31 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { EmptyState } from "@/components/common/EmptyState";
 import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import { guestService } from "@/services/guest.service";
+import { portalService } from "@/services/portal.service";
 import { resolveOrgId } from "@/services/customer.service";
+import {
+  describeBlocker,
+  evaluateWhitelistOnlyReadiness,
+  isRuleActive,
+  whitelistOnlySummary,
+} from "@/lib/whitelist-only";
+import type { WhitelistOnlyBlocker } from "@/lib/whitelist-only";
+import type { Portal } from "@/types/portal";
 import { maskMac } from "@/components/features/HeaderControls";
 import type { AnyAccessRule } from "@/types/guest";
 
@@ -93,6 +117,12 @@ interface Entry {
   id: string;
   tab: Tab;
   identifier: string; // mobile number (number tab) or MAC (device tab)
+  /** The rule's own scope. `null` means it was written org-wide, and the
+   * backend's `list_matching_guest_rules` ORs `location_id IS NULL` against
+   * the target location -- i.e. it applies at *every* property. The
+   * whitelist-only readiness check below has to honour that, or a property
+   * whose only entries are org-wide rules reads as an empty list. */
+  locationId: string | null;
   name: string;
   email: string;
   businessUnit: string;
@@ -120,6 +150,7 @@ const SEED: Entry[] = [
   {
     id: "s1",
     tab: "number",
+    locationId: null,
     identifier: "9876543210",
     name: "Ravi Sharma",
     email: "ravi@example.com",
@@ -130,6 +161,7 @@ const SEED: Entry[] = [
   {
     id: "s2",
     tab: "number",
+    locationId: null,
     identifier: "8765432109",
     name: "Priya Kapoor",
     email: "priya@example.com",
@@ -140,6 +172,7 @@ const SEED: Entry[] = [
   {
     id: "s3",
     tab: "device",
+    locationId: null,
     identifier: "AA:BB:CC:DD:EE:FF",
     name: "Office Printer",
     email: "it@example.com",
@@ -276,6 +309,7 @@ function toEntry(r: AnyAccessRule): Entry {
     id: r.id,
     tab: r.kind === "device" ? "device" : "number",
     identifier: r.kind === "device" ? r.macAddress : r.identifier,
+    locationId: r.locationId ?? null,
     name: r.reason ?? "—",
     email: r.email ?? "",
     // Real rows carry a real location_id, not a name -- resolved against
@@ -321,6 +355,182 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
   // already-existing endpoints. See handleSubmit/handleDelete below.
   const [editingId, setEditingId] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+
+  // ── whitelist-only mode ───────────────────────────────────────
+  // The per-property switch. Stored on that property's own captive-portal
+  // config (`whitelist_only_enabled`), never on the organisation default --
+  // the backend refuses the flag there outright, because a default is
+  // inherited by every location without an override and one toggle would
+  // close the whole estate at once.
+  const [wlLocationId, setWlLocationId] = useState<string>("");
+  const [wlDemoUnit, setWlDemoUnit] = useState<string>(UNITS[0]);
+  const [wlConfig, setWlConfig] = useState<Portal | null>(null);
+  const [wlLoading, setWlLoading] = useState(false);
+  const [wlSaving, setWlSaving] = useState(false);
+  const [wlEnabled, setWlEnabled] = useState(false);
+  const [wlMissingConfig, setWlMissingConfig] = useState(false);
+  const [wlError, setWlError] = useState<string | null>(null);
+  const [wlDenials, setWlDenials] = useState<{ count: number; capped: boolean } | null>(null);
+  // Deliberately NOT seeded with example copy. A textarea that ships
+  // pre-filled becomes the venue's published words on their first
+  // unrelated Save -- exactly the defect PR #226 caught in the Terms
+  // editor. The example lives in the placeholder, where it can be read
+  // and cannot be saved.
+  const [wlMessage, setWlMessage] = useState("");
+  const [wlMessageDirty, setWlMessageDirty] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+
+  const wlLocationName = demo
+    ? wlDemoUnit
+    : (locations?.find((l) => l.id === wlLocationId)?.name ?? "");
+
+  // Default the switch's property picker to whichever property the page is
+  // already scoped to, else the first one the account holds.
+  useEffect(() => {
+    if (demo || wlLocationId || !locations?.length) return;
+    setWlLocationId(
+      locationId && locations.some((l) => l.id === locationId) ? locationId : locations[0].id,
+    );
+  }, [demo, locations, locationId, wlLocationId]);
+
+  // Read the selected property's own config, and -- when the mode is
+  // already on -- how many guests it turned away in the last 24 hours.
+  useEffect(() => {
+    if (demo || !orgId || !wlLocationId) return;
+    let cancelled = false;
+    setWlLoading(true);
+    setWlError(null);
+    (async () => {
+      try {
+        const cfg = await portalService.forLocation(orgId, wlLocationId);
+        if (cancelled) return;
+        setWlConfig(cfg);
+        setWlMissingConfig(cfg === null);
+        setWlEnabled(cfg?.whitelistOnly.enabled ?? false);
+        setWlMessage(cfg?.whitelistOnly.deniedMessage ?? "");
+        setWlMessageDirty(false);
+        if (cfg?.whitelistOnly.enabled) {
+          try {
+            const denials = await guestService.countWhitelistDenials(orgId, wlLocationId);
+            if (!cancelled) setWlDenials(denials);
+          } catch {
+            // A missing count is not a reason to hide a working switch --
+            // render the switch and say the count is unavailable.
+            if (!cancelled) setWlDenials(null);
+          }
+        } else if (!cancelled) {
+          setWlDenials(null);
+        }
+      } catch {
+        if (!cancelled) setWlError("Could not read this property's settings.");
+      } finally {
+        if (!cancelled) setWlLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [demo, orgId, wlLocationId]);
+
+  // Every rule that would actually be consulted at the selected property:
+  // its own rules, plus the org-wide ones (`location_id IS NULL`) the
+  // backend's matcher ORs in. Scoped by name in demo mode, where the seed
+  // rows carry business-unit names rather than real ids.
+  const wlScopedEntries = useMemo(
+    () =>
+      entries.filter((e) =>
+        demo ? e.businessUnit === wlDemoUnit : !e.locationId || e.locationId === wlLocationId,
+      ),
+    [entries, demo, wlDemoUnit, wlLocationId],
+  );
+
+  const readiness = useMemo(
+    () => evaluateWhitelistOnlyReadiness(wlScopedEntries),
+    [wlScopedEntries],
+  );
+
+  const wlBlockers: WhitelistOnlyBlocker[] = useMemo(() => {
+    const b = [...readiness.blockers];
+    if (!demo && wlMissingConfig) b.push({ kind: "no-portal-config" });
+    return b;
+  }, [readiness.blockers, demo, wlMissingConfig]);
+
+  const canEnable = wlBlockers.length === 0;
+  const confirmMatches = confirmText.trim().toLowerCase() === wlLocationName.trim().toLowerCase();
+
+  const persistWhitelistOnly = async (enabled: boolean, deniedMessage: string) => {
+    if (demo) {
+      setWlEnabled(enabled);
+      setWlMessage(deniedMessage);
+      setWlMessageDirty(false);
+      setToast(
+        enabled
+          ? `Whitelist-only mode is on for ${wlLocationName}.`
+          : `Whitelist-only mode is off for ${wlLocationName}.`,
+      );
+      setTimeout(() => setToast(null), 2500);
+      return;
+    }
+    if (!orgId || !wlConfig) return;
+    setWlSaving(true);
+    setWlError(null);
+    try {
+      const updated = await portalService.update(
+        wlConfig.id,
+        { whitelistOnly: { enabled, deniedMessage } },
+        orgId,
+      );
+      setWlConfig(updated);
+      setWlEnabled(updated.whitelistOnly.enabled);
+      setWlMessage(updated.whitelistOnly.deniedMessage);
+      setWlMessageDirty(false);
+      // The moment it goes on is the moment the count starts mattering --
+      // waiting for a reload to fetch it is the difference between finding
+      // a mis-keyed list in the next minute and finding it in a support
+      // call. Turning it off clears the count with the reason for it.
+      if (updated.whitelistOnly.enabled) {
+        try {
+          setWlDenials(await guestService.countWhitelistDenials(orgId, wlLocationId));
+        } catch {
+          setWlDenials(null);
+        }
+      } else {
+        setWlDenials(null);
+      }
+      setToast(
+        enabled
+          ? `Whitelist-only mode is on for ${wlLocationName}.`
+          : `Whitelist-only mode is off for ${wlLocationName}.`,
+      );
+      setTimeout(() => setToast(null), 2500);
+    } catch (err) {
+      // Surface the server's own words. The one refusal worth reading
+      // verbatim is WhitelistOnlyRequiresLocationError -- it means this
+      // save was aimed at an organisation default, which must never
+      // happen from here, and a generic "could not save" would hide it.
+      const message = err instanceof Error ? err.message : "";
+      setWlError(
+        message ||
+          "Could not save this setting. Nothing changed — the property is still in its previous mode.",
+      );
+    } finally {
+      setWlSaving(false);
+    }
+  };
+
+  const onSwitchChange = (next: boolean) => {
+    setWlError(null);
+    // Turning it OFF only ever widens access, so it needs no confirmation:
+    // every guest goes back to signing in normally.
+    if (!next) {
+      void persistWhitelistOnly(false, wlMessage);
+      return;
+    }
+    if (!canEnable) return;
+    setConfirmText("");
+    setConfirmOpen(true);
+  };
 
   // Real rows only carry a location_id, not a display name -- resolve it
   // against the caller's own real locations, same pairing TicketsPage.tsx
@@ -457,6 +667,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
           id: `e${Date.now()}`,
           tab,
           identifier,
+          locationId: null,
           name: f.name,
           email: f.email,
           businessUnit: f.businessUnit,
@@ -580,7 +791,13 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
   };
 
   // ── helpers ───────────────────────────────────────────────────
-  const isActive = (end: string) => new Date(end) > new Date();
+  // One definition of "live", shared with the whitelist-only readiness
+  // check. A rule with no end date carries no `expires_at` at all, which
+  // the backend treats as permanent -- `new Date("") > new Date()` used to
+  // read that as *expired*, so the strip called a permanent allow-list
+  // "Expired" and, worse, the switch below would have called a fully
+  // permanent list empty.
+  const isActive = (end: string) => isRuleActive(end, Date.now());
   const Err = ({ k }: { k: keyof FormData }) =>
     errs[k] ? <p className="mt-1 text-xs text-destructive">{errs[k]}</p> : null;
 
@@ -611,6 +828,239 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
         </div>
         <TrustedAccessIllustration />
       </div>
+
+      {/* Whitelist-only mode -- the switch that closes this property's WiFi
+       * to everyone not on the list below. Placed above the list because
+       * it changes what the entire list *means*: with it off the list is a
+       * convenience, with it on the list is the door. */}
+      <div className="rounded-2xl border-0 bg-card p-5 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex min-w-0 items-start gap-3">
+            <div
+              className={cn(
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+                wlEnabled ? "bg-amber-500/15" : "bg-muted",
+              )}
+            >
+              <ShieldAlert
+                className={cn(
+                  "h-4.5 w-4.5",
+                  wlEnabled ? "text-amber-600" : "text-muted-foreground",
+                )}
+              />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold">Only allow the guests on this list</h2>
+              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+                {wlEnabled
+                  ? `On. Only the numbers and devices below get online at ${wlLocationName || "this property"}.`
+                  : `Off. Every guest signs in on the WiFi login page and gets online — this is how ${wlLocationName || "this property"} works today.`}
+              </p>
+              <p className="mt-2 max-w-2xl text-xs leading-relaxed text-muted-foreground">
+                Turning this on does not hide your WiFi and drops nobody. Everyone still reaches
+                your login page. People on this list sign in and get through; everyone else is
+                refused on that page, in your words, and is never sent a verification code.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-3">
+            {/* Property picker -- this setting is stored per property, so the
+             * switch has to say which one it is about. */}
+            {demo ? (
+              <Select value={wlDemoUnit} onValueChange={setWlDemoUnit}>
+                <SelectTrigger className="h-9 w-[180px]" aria-label="Property">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {UNITS.map((u) => (
+                    <SelectItem key={u} value={u}>
+                      {u}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Select value={wlLocationId} onValueChange={setWlLocationId}>
+                <SelectTrigger className="h-9 w-[180px]" aria-label="Property">
+                  <SelectValue placeholder="Choose a property" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(locations ?? []).map((l) => (
+                    <SelectItem key={l.id} value={l.id}>
+                      {l.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {wlLoading || wlSaving ? (
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            ) : null}
+            <Switch
+              checked={wlEnabled}
+              onCheckedChange={onSwitchChange}
+              disabled={wlSaving || wlLoading || (!wlEnabled && !canEnable)}
+              aria-label={`Only allow the guests on this list at ${wlLocationName || "this property"}`}
+              data-testid="whitelist-only-switch"
+            />
+          </div>
+        </div>
+
+        {/* What the switch is about to do, counted from the list itself. */}
+        <p className="mt-4 text-sm font-medium" data-testid="whitelist-only-summary">
+          {whitelistOnlySummary(readiness, wlLocationName)}
+        </p>
+
+        {/* Why it cannot be turned on, and what to do about it. Each of
+         * these is a way the mode fails silently and expensively. */}
+        {!wlEnabled && wlBlockers.length > 0 && (
+          <div className="mt-3 space-y-2" data-testid="whitelist-only-blockers">
+            {wlBlockers.map((blocker) => {
+              const { title, detail } = describeBlocker(blocker, wlLocationName);
+              return (
+                <div
+                  key={blocker.kind}
+                  className="flex gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3"
+                >
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
+                      {title}
+                    </p>
+                    <p className="mt-0.5 text-xs leading-relaxed text-amber-900/80 dark:text-amber-200/80">
+                      {detail}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Once it is on, the first question is always "who did we turn
+         * away?" -- because a mis-keyed list refuses everyone while
+         * looking perfectly correct on screen. */}
+        {wlEnabled && (
+          <div
+            className="mt-3 rounded-xl border bg-muted/40 p-3"
+            data-testid="whitelist-only-denials"
+          >
+            <p className="text-sm font-medium">
+              {wlDenials === null
+                ? "Refused guests: not available right now"
+                : `${wlDenials.capped ? `${wlDenials.count}+` : wlDenials.count} ${
+                    wlDenials.count === 1 && !wlDenials.capped ? "guest was" : "guests were"
+                  } refused here in the last 24 hours`}
+            </p>
+            <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+              Every refusal is recorded against this property. A number far higher than you expect
+              usually means a list entry is stored in a form that cannot match anyone — check the
+              entries below still show a country code.
+            </p>
+          </div>
+        )}
+
+        {wlError && (
+          <p className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+            {wlError}
+          </p>
+        )}
+
+        {/* The venue's own refusal copy. Never pre-filled -- the example
+         * lives in the placeholder so it can be read and cannot be saved
+         * by accident. */}
+        <div className="mt-4 border-t pt-4">
+          <Label htmlFor="wl-denied-message" className="text-sm">
+            What a refused guest sees
+          </Label>
+          <Textarea
+            id="wl-denied-message"
+            value={wlMessage}
+            rows={2}
+            maxLength={500}
+            placeholder="e.g. Ask the front desk to add your number to the guest WiFi list."
+            onChange={(e) => {
+              setWlMessage(e.target.value);
+              setWlMessageDirty(true);
+            }}
+            className="mt-1.5"
+            data-testid="whitelist-only-message"
+          />
+          <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground">
+              Shown on your WiFi login page to anyone who is not on the list. Leave it empty and
+              guests see the standard message instead.
+            </p>
+            {wlMessageDirty && (
+              <Button
+                type="button"
+                size="sm"
+                disabled={wlSaving || (!demo && !wlConfig)}
+                onClick={() => void persistWhitelistOnly(wlEnabled, wlMessage)}
+              >
+                Save message
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Confirmation -- named against the property, because "Are you
+       * sure?" does not tell an owner with four sites which one they are
+       * about to close. */}
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Refuse everyone not on this list at {wlLocationName || "this property"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>{whitelistOnlySummary(readiness, wlLocationName)}</p>
+                <p>
+                  From the moment you save, a guest who is not on the list still reaches your WiFi
+                  login page and is refused there. They are not sent a verification code and no
+                  session starts for them.
+                </p>
+                <p>
+                  This changes {wlLocationName || "this property"} only. Your other properties keep
+                  working exactly as they do now, and you can switch this back off at any time.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-1.5">
+            <Label htmlFor="wl-confirm" className="text-sm">
+              Type <span className="font-semibold">{wlLocationName}</span> to confirm
+            </Label>
+            <Input
+              id="wl-confirm"
+              value={confirmText}
+              autoComplete="off"
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder={wlLocationName}
+              data-testid="whitelist-only-confirm-input"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!confirmMatches}
+              data-testid="whitelist-only-confirm-action"
+              onClick={(e) => {
+                if (!confirmMatches) {
+                  e.preventDefault();
+                  return;
+                }
+                void persistWhitelistOnly(true, wlMessage);
+              }}
+            >
+              Turn on for {wlLocationName}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* KPI strip -- was missing entirely; a plain form-then-table page
        * with no at-a-glance summary read closer to a generic admin
