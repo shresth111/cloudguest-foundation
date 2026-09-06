@@ -131,7 +131,7 @@ export function CustomerSidebar({ activeFeatureId, subtitle, dataMasking }: Cust
       // `.master-theme` class. The primitive paints its own `bg-sidebar` on
       // an inner div, so `--sidebar` must be transparent for the gradient
       // on this wrapper to show through.
-      className="bg-[linear-gradient(to_bottom,#2d285e_0%,#1f1c49_8%,#1c1a44_40%,#18172e_100%)]"
+      className="customer-rail bg-[linear-gradient(to_bottom,#2d285e_0%,#1f1c49_8%,#1c1a44_40%,#18172e_100%)]"
       style={
         {
           "--sidebar": "transparent",

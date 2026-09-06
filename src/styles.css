@@ -464,6 +464,15 @@
   );
 }
 
+/* Customer sidebar: the rail paints its own exact screenshot-sampled
+ * gradient (see CustomerSidebar.tsx) on the wrapper, so this sitewide
+ * sheen -- a second, brand-tinted wash on the same surface -- would
+ * double-lift the top and read as a mismatch against the header it sits
+ * beside. The wrapper's own gradient replaces it. */
+.customer-rail [data-sidebar="sidebar"] {
+  background-image: none;
+}
+
 @layer base {
   * {
     border-color: var(--color-border);
