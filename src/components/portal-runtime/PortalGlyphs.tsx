@@ -99,6 +99,33 @@ export function GlyphOffline(p: GlyphProps) {
   );
 }
 
+/** Not listed -- a guest list with an add-affordance beside it.
+ *
+ * Deliberately NOT a barrier, a crossed circle, or a warning triangle
+ * (GlyphFailure's job). A guest who reaches `/portal/not-listed` has done
+ * nothing wrong; the fact being drawn is "there is a list, and you can be
+ * put on it", which is also the one action available to them. The plus is
+ * an open circle rather than a filled badge so it reads as an affordance
+ * belonging to the list, not as a button on the screen -- there is no
+ * self-service "request access" here, by design. */
+export function GlyphNotListed(p: GlyphProps) {
+  return (
+    <G {...p}>
+      {/* The list. Kept clear of the plus circle rather than overlapping
+       * it -- two crossing strokes at the ~32px render size these discs
+       * use turn into a smudge. */}
+      <path d="M5 3.2h7.2a2 2 0 0 1 2 2v11.2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5.2a2 2 0 0 1 2-2Z" />
+      <path d="M5.9 7.6h5.4" />
+      <path d="M5.9 10.8h5.4" />
+      {/* Short third row: the entry that is not there. */}
+      <path d="M5.9 14h2.8" />
+      <circle cx="18.6" cy="18.2" r="4" />
+      <path d="M18.6 16.4v3.6" />
+      <path d="M16.8 18.2h3.6" />
+    </G>
+  );
+}
+
 /** Redirect -- arrow leaving an open frame: "we're sending you onward". */
 export function GlyphRedirect(p: GlyphProps) {
   return (

@@ -15,6 +15,7 @@ import {
 } from "@/lib/portal-locale";
 import { useOtpResendCooldown } from "@/lib/portal-otp-cooldown";
 import { DEMO_OTP_CODE, buildDemoSession } from "@/lib/portal-demo";
+import { isWhitelistOnlyRefusal } from "@/lib/portal-whitelist-refusal";
 import type { RuntimeAuthMethod, RuntimeSession } from "@/types/portal-runtime";
 import type { AppError } from "@/services/api";
 
@@ -52,9 +53,44 @@ export function useGuestSignIn() {
     t,
     dataConsentAccepted,
     setDataConsentAccepted,
+    setRefusedContactKind,
   } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/welcome" });
   const portalSearch = { organizationId, locationId, routerId };
+
+  /**
+   * Whitelist-only refusal -> `/portal/not-listed`, from either of the two
+   * moments it can arrive at.
+   *
+   * **Why two.** The backend gates this at `POST /otp/request` *as well as*
+   * at the login call, and deliberately so: the OTP endpoint spends the
+   * venue's own SMS credit on every hit, so gating only the login would
+   * let anyone on the street drain a property's balance by typing numbers
+   * into a page that is open by design (`GuestService
+   * .check_portal_admission`'s own docstring). It is also the kinder
+   * order -- a guest who is not on the list finds out immediately instead
+   * of waiting for a code that was never going to help them.
+   *
+   * The login call still refuses independently, and that path is not
+   * redundant: `check_portal_admission` **fails open** if the config
+   * lookup raises (a whitelist-only property must not lose its WiFi
+   * entirely over a hiccup), which leaves the login gate as the one that
+   * was always there. So a refusal can genuinely surface at either call,
+   * and both are handled.
+   *
+   * Returns true when it handled the error, so each caller can skip its
+   * own inline-error path -- this is a navigation, not a message under a
+   * field.
+   */
+  function handledAsWhitelistRefusal(e: AppError, kind: "phone" | "email"): boolean {
+    if (!isWhitelistOnlyRefusal(e, config?.whitelistOnlyDeniedMessage)) return false;
+    // Never in preview/demo: those flows never reach a real backend, so a
+    // 403 there is a bug to surface, not a venue decision to render.
+    if (previewMode || demoMode) return false;
+    setRefusedContactKind(kind);
+    navigate({ to: "/portal/not-listed", search: (prev) => prev });
+    return true;
+  }
 
   const methods: RuntimeAuthMethod[] = config ? enabledAuthMethods(config) : [];
   const hasOtpSms = methods.includes("otp_sms");
@@ -218,6 +254,12 @@ export function useGuestSignIn() {
       resetCooldown();
     },
     onError: (e: AppError) => {
+      // Refusal moment 1 of 2: the venue admits only its Always Allowed
+      // list and this identifier is not on it. Checked before the cooldown
+      // and the inline error, because neither applies -- no SMS was sent,
+      // so there is nothing to wait out, and the answer is a screen rather
+      // than a line of red text under the field.
+      if (handledAsWhitelistRefusal(e, otpChannel === "email" ? "email" : "phone")) return;
       // A real 429 from OtpRateLimiter carries the real cooldown --
       // surface exactly that, never an invented fixed wait.
       applyServerCooldown(e);
@@ -258,7 +300,12 @@ export function useGuestSignIn() {
     // 422 "Request validation failed" (the backend's generic request-schema
     // validation handler, not a real OTP business-logic reason) -- see
     // src/lib/portal-guest-errors.ts for why that's the only case mapped.
-    onError: (e: AppError) => setOtpError(friendlyGuestAuthError(e, "otp_verify")),
+    onError: (e: AppError) => {
+      // Refusal moment 2 of 2 -- see handledAsWhitelistRefusal for why the
+      // OTP-request gate above does not make this one redundant.
+      if (handledAsWhitelistRefusal(e, otpChannel === "email" ? "email" : "phone")) return;
+      setOtpError(friendlyGuestAuthError(e, "otp_verify"));
+    },
   });
 
   // ---- Password tab state --------------------------------------------
@@ -283,7 +330,16 @@ export function useGuestSignIn() {
       setGuestIdentifier(identifier.trim());
       await afterLogin(session);
     },
-    onError: (e: AppError) => setPasswordError(friendlyGuestAuthError(e, "password")),
+    onError: (e: AppError) => {
+      // The same refusal reaches the password path too: on the backend
+      // `login_via_password` runs the identical `_enforce_access_control`
+      // that `login_via_otp` does, so a returning guest with a saved
+      // password is refused exactly as a first-time one is. There is no
+      // OTP-request gate in front of this call (nothing is spent to
+      // reach it), which makes this the sole moment for that flow.
+      if (handledAsWhitelistRefusal(e, identifier.includes("@") ? "email" : "phone")) return;
+      setPasswordError(friendlyGuestAuthError(e, "password"));
+    },
   });
 
   async function afterLogin(session: RuntimeSession) {
