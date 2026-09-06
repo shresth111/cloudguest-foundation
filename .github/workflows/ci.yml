@@ -157,6 +157,27 @@ jobs:
         with:
           bun-version: "1.3.14" # matches local dev; the Dockerfile floats `npm i -g bun`
 
+      # This job is the one place CI actually runs Node. The suites are
+      # invoked as `bun run test:*`, and every one of those package.json
+      # scripts is `node scripts/<suite>.mjs` -- so bun starts them and the
+      # runner's own Node executes them. Unpinned, that is whatever
+      # `ubuntu-latest` happens to ship this month, which is a version
+      # nobody chose and which moves without a commit.
+      #
+      # `node-version-file` rather than a literal: `.nvmrc` is already the
+      # source of truth for local dev and for `scripts/check-node-version.mjs`
+      # (#234), and the Dockerfile builds the same major. Repeating the
+      # number here is how the four would come to disagree, and the failure
+      # that teaches you is a suite passing in CI and failing on a laptop,
+      # or the reverse.
+      #
+      # The `static` and `build` jobs deliberately do not get this step:
+      # they run entirely through bun (`bunx tsc`, `bunx eslint`,
+      # `bun run build`), so a Node they never invoke would be noise.
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
       - name: Install
         run: bun install --frozen-lockfile
 
