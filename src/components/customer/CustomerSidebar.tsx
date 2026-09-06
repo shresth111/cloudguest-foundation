@@ -218,10 +218,12 @@ export function CustomerSidebar({ activeFeatureId, subtitle, dataMasking }: Cust
                           >
                             {/* Active-page accent bar -- a 3px violet rail on
                              * the row's leading edge so the current section
-                             * reads instantly even when the pill background
-                             * is subtle. Mirrors the reference design's left
-                             * indicator on the active nav item. */}
-                            {active && (
+                             * reads instantly when the sidebar is expanded.
+                             * Hidden in the collapsed icon rail: the rail is
+                             * one icon wide, so a bar pinned to the row's
+                             * left edge optically shoves the icon off-center
+                             * (the active pill fill is the indicator there). */}
+                            {active && !collapsed && (
                               <span
                                 aria-hidden
                                 className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-[#8B5CF6]"
