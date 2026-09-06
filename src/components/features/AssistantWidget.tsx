@@ -197,7 +197,7 @@ export default function AssistantWidget() {
   return (
     <>
       {open && (
-        <Card className="fixed bottom-24 right-6 z-50 flex h-[30rem] w-[22rem] flex-col overflow-hidden rounded-2xl border shadow-2xl sm:w-96">
+        <Card className="fixed bottom-24 right-8 z-50 flex h-[30rem] w-[22rem] flex-col overflow-hidden rounded-2xl border shadow-2xl sm:w-96">
           <div className="flex shrink-0 items-center justify-between gap-2 border-b bg-primary/5 px-4 py-3">
             <div className="flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground">
@@ -299,7 +299,7 @@ export default function AssistantWidget() {
       <Button
         onClick={() => setOpen((o) => !o)}
         size="icon"
-        className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full shadow-2xl"
+        className="fixed bottom-8 right-8 z-50 h-14 w-14 rounded-full shadow-2xl"
         aria-label={open ? "Close support chat" : "Open support chat"}
       >
         {open ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   Wifi,
   Router,
@@ -11,7 +11,7 @@ import {
   CheckCircle,
   XCircle,
   AlertTriangle,
-  Quote,
+  Clock,
   HardDrive,
   Gauge,
 } from "lucide-react";
@@ -134,18 +134,6 @@ const HEADER_DOT: Record<LivenessTone, string> = {
   down: "bg-rose-400",
   neutral: "bg-white/40",
 };
-
-/** Operator-voice lines, not fabricated testimonials -- same pattern used
- * on the Select Location page's hero, scoped here so the hero's secondary
- * stat row doesn't leave dead space beside the corner illustration. */
-const DASHBOARD_QUOTES = [
-  "Uptime is a feature nobody thanks you for — until it's gone.",
-  "Check it before a guest has to tell you it's down.",
-  "The best network is the one nobody notices.",
-  "A dropped connection is a dropped guest.",
-  "Numbers you check daily are numbers that stay healthy.",
-  "A quiet dashboard is the goal, not a boring one.",
-];
 
 /**
  * Shared empty-state graphic for any chart/table on this page with no data
@@ -1499,12 +1487,6 @@ export function CustomerDashboardPage() {
   const masked = dataMasking.masked;
   const [changePwOpen, setChangePwOpen] = useState(false);
   const [tfaOpen, setTfaOpen] = useState(false);
-  const [quoteIndex, setQuoteIndex] = useState(0);
-
-  useEffect(() => {
-    const t = setInterval(() => setQuoteIndex((i) => (i + 1) % DASHBOARD_QUOTES.length), 5000);
-    return () => clearInterval(t);
-  }, []);
 
   // The header renders above the `isLoading ? ... : d ? ...` split, so it
   // needs an answer in all three of those states. Two of them are not
@@ -1644,150 +1626,117 @@ export function CustomerDashboardPage() {
                     backgroundSize: "22px 22px",
                   }}
                 />
-                <div className="relative mx-auto max-w-7xl px-4 pt-4 pb-5 sm:px-6 sm:pt-5 sm:pb-5 lg:px-8">
-                  {/* The corner illustration used to sit here, floated right
-                   * over the Uptime stat. It crowded that stat (the only
-                   * one of the three with a graphic beside it) and read as
-                   * an odd, uneven background -- the reference design keeps
-                   * the three stats clean on the gradient alone. Removed;
-                   * the soft glows + dot grid carry the decoration. */}
-                  <div className="relative">
-                    <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/60">
-                      This location, right now
-                    </p>
-                    {/* Each metric gets a label above the number and, only
-                     * where a real comparison value actually exists in
-                     * `d.kpis` (never fabricated), a context line below it --
-                     * "Online right now" is the one metric with a genuine
-                     * same-day reference point (peakConcurrent, derived from
-                     * real hourly session counts, see customer.service.ts).
-                     * Uptime has no real day-over-day or prior-period figure
-                     * to compare against yet, so it intentionally shows label
-                     * + number only rather than inventing a trend.
-                     *
-                     * "Guests today" leads. It used to sit in the secondary
-                     * strip below at `text-xs` while an "Active sessions"
-                     * tile -- fed by the same variable as "Online right now",
-                     * see customer.service.ts's note -- took a 36-48px slot
-                     * beside it. So the number a venue owner opens this page
-                     * to find was the smallest thing in the hero and its
-                     * duplicate was the largest. Dropping the duplicate frees
-                     * exactly the slot "Guests today" needed.
-                     *
-                     * "SLA uptime" is now "Uptime": a cafe owner has no SLA,
-                     * and the word was ours, not theirs. */}
-                    <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
-                      {[
-                        {
-                          label: "Guests today",
-                          value: d.kpis.todayGuests.toLocaleString(),
-                          context: null,
-                        },
-                        {
-                          label: "Online right now",
-                          value: d.kpis.onlineUsers.toLocaleString(),
-                          context: `Today's peak: ${d.kpis.peakConcurrent.toLocaleString()}`,
-                        },
-                        // Omitted entirely (not a fake "--%") when there's no
-                        // active uplink / no health-check data yet to compute
-                        // a real figure from -- see getDashboard()'s comment.
-                        ...(d.kpis.slaUptime != null
-                          ? [
-                              {
-                                label: "Uptime",
-                                value: formatUptimePercent(d.kpis.slaUptime),
-                                context: null,
-                              },
-                            ]
-                          : []),
-                      ].map((k, i) => (
-                        <motion.div
-                          key={k.label}
-                          initial={{ opacity: 0, y: 8 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: i * 0.06 }}
-                        >
-                          <p className="text-[11px] font-semibold uppercase tracking-wide text-white/50">
-                            {k.label}
-                          </p>
-                          <p className="font-display mt-1 text-3xl font-bold tracking-tight tabular-nums sm:text-4xl sm:leading-none">
-                            {k.value}
-                          </p>
-                          {k.context && (
-                            <p className="mt-1 text-xs font-medium text-white/60">{k.context}</p>
-                          )}
-                        </motion.div>
-                      ))}
+                <div className="relative mx-auto max-w-7xl px-4 pt-3 pb-4 sm:px-6 lg:px-8">
+                  <div className="relative flex flex-wrap items-end justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/60">
+                        This location, right now
+                      </p>
+                      <p className="mt-0.5 text-xs text-white/40">
+                        Live snapshot for {activeLocation?.name ?? "this venue"}
+                      </p>
                     </div>
-                  </div>
-                  {/* "Routers online" deliberately left out of this row --
-                   * it's the exact same onR/routers.length pair the "Core
-                   * systems" status strip right below already shows as
-                   * "Routers 1/1" (see customer.service.ts's getDashboard,
-                   * both read off the same two variables), so showing it
-                   * here too was pure duplication a few pixels apart, not a
-                   * second real signal. This row now owns guest-activity
-                   * numbers only; the strip below owns infrastructure
-                   * health only -- each stat has exactly one home. */}
-                  <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-white/10 pt-2.5 text-xs tabular-nums text-white/70">
-                    {/* "guests today" was promoted out of this strip into the
-                     * hero row above -- it is the question the page is opened
-                     * to answer, and it was the smallest number on it. */}
-                    {[{ label: "avg session", value: `${d.kpis.avgSession} min` }].map((s) => (
-                      <span key={s.label}>
-                        <span className="font-semibold text-white">{s.value}</span>{" "}
-                        <span className="text-white/50">{s.label}</span>
-                      </span>
-                    ))}
-                    {/* Surfaced only when it matters -- a security-relevant
-                     * number that was in the data but never shown anywhere.
-                     * Silent when zero, so it never clutters a clean day. */}
+                    {/* Security-relevant alert surfaced beside the KPIs, not
+                     * buried in a quote row -- silent when zero so a clean
+                     * day stays clean. */}
                     {d.kpis.failedLogins > 0 && (
-                      <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/15 px-2.5 py-0.5 font-medium text-rose-200">
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-400/40 bg-rose-500/20 px-2.5 py-1 text-[11px] font-semibold text-rose-100">
                         <AlertTriangle className="h-3 w-3" />
                         {d.kpis.failedLogins} failed login{d.kpis.failedLogins === 1 ? "" : "s"}{" "}
                         today
                       </span>
                     )}
                   </div>
-                  <div className="mt-2.5 flex items-center gap-2 text-xs text-white/50">
-                    <Quote className="h-3 w-3 shrink-0 text-white/30" />
-                    <AnimatePresence mode="wait">
-                      <motion.span
-                        key={quoteIndex}
-                        initial={{ opacity: 0, y: 4 }}
+
+                  {/* Three KPIs, equal weight. Each metric gets a label above
+                   * the number and, only where a real comparison value
+                   * actually exists in `d.kpis` (never fabricated), a context
+                   * line below it. Uptime shows label + number only rather
+                   * than inventing a trend. */}
+                  <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6">
+                    {[
+                      {
+                        label: "Guests today",
+                        value: d.kpis.todayGuests.toLocaleString(),
+                        context: null,
+                      },
+                      {
+                        label: "Online right now",
+                        value: d.kpis.onlineUsers.toLocaleString(),
+                        context: `Today's peak: ${d.kpis.peakConcurrent.toLocaleString()}`,
+                      },
+                      // Omitted entirely (not a fake "--%") when there's no
+                      // active uplink / no health-check data yet to compute
+                      // a real figure from -- see getDashboard()'s comment.
+                      ...(d.kpis.slaUptime != null
+                        ? [
+                            {
+                              label: "Uptime",
+                              value: formatUptimePercent(d.kpis.slaUptime),
+                              context: null,
+                            },
+                          ]
+                        : []),
+                    ].map((k, i) => (
+                      <motion.div
+                        key={k.label}
+                        initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -4 }}
-                        transition={{ duration: 0.4 }}
+                        transition={{ delay: i * 0.06 }}
+                        className="sm:border-l sm:border-white/10 sm:pl-6 sm:first:border-l-0 sm:first:pl-0"
                       >
-                        {DASHBOARD_QUOTES[quoteIndex]}
-                      </motion.span>
-                    </AnimatePresence>
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-white/50">
+                          {k.label}
+                        </p>
+                        <p className="font-display mt-1 text-3xl font-bold tracking-tight tabular-nums sm:leading-none">
+                          {k.value}
+                        </p>
+                        {k.context && (
+                          <p className="mt-1 text-xs font-medium text-white/60">{k.context}</p>
+                        )}
+                      </motion.div>
+                    ))}
+                  </div>
+
+                  {/* Session meta -- the one operator line that earns its
+                   * place under the KPIs. */}
+                  <div className="mt-3 flex items-center gap-1.5 border-t border-white/10 pt-2 text-xs tabular-nums text-white/70">
+                    <Clock className="h-3 w-3 text-white/40" />
+                    <span>
+                      <span className="font-semibold text-white">{d.kpis.avgSession} min</span>{" "}
+                      <span className="text-white/50">avg session</span>
+                    </span>
                   </div>
                 </div>
               </div>
 
               <div className="mx-auto max-w-7xl space-y-8 pt-8">
-                {/* Status strip -- moved out of the dark hero into its own
-                 * light card (same treatment as the chart cards below it)
-                 * so the hero itself stays short instead of the health
-                 * checks adding another full row of dark-surface height. */}
-                {/* The two icons that used to be hard-coded
+                {/* Status strip -- one compact card instead of a sprawling
+                 * single row: a label up top, then each infrastructure
+                 * verdict as its own bordered chip so System/Routers/ISP
+                 * read as separate facts, not one run-on sentence.
+                 *
+                 * The two icons that used to be hard-coded
                  * `text-emerald-500` regardless of value now read off the
                  * real verdict, so "Routers 0/1" can no longer sit behind
-                 * a green tick. The ISP pill keeps NO status icon at all:
+                 * a green tick. The ISP chip keeps NO status icon at all:
                  * `d.health.isp` is derived from `/dashboard/organization`
                  * answering, not from any uplink's health (see
                  * getDashboard()), and a green tick on it would be the
                  * same fabricated reassurance as the "WireGuard:
                  * Reachable" stat the fleet wizard had to remove. */}
                 <div className="space-y-3">
-                  <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl px-5 py-3 premium-card">
-                    <p className="shrink-0 text-xs font-medium text-muted-foreground">
-                      Core systems, checked continuously
-                    </p>
-                    <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-                      <span className="inline-flex items-center gap-1.5 text-sm">
+                  <div className="rounded-2xl px-5 py-3.5 premium-card">
+                    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Core systems, checked continuously
+                      </p>
+                      {locationLivenessIsReassuring(d.liveness) && (
+                        <LocationLivenessBadge liveness={d.liveness} className="shrink-0" />
+                      )}
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <span className="inline-flex items-center gap-1.5 rounded-lg border border-border/80 bg-background/60 px-2.5 py-1.5 text-xs">
                         <CheckCircle
                           aria-hidden
                           className={cn("h-3.5 w-3.5", CORE_ICON[livenessTone(d.liveness.state)])}
@@ -1797,7 +1746,7 @@ export function CustomerDashboardPage() {
                           {d.health.systemHealth}
                         </span>
                       </span>
-                      <span className="inline-flex items-center gap-1.5 text-sm">
+                      <span className="inline-flex items-center gap-1.5 rounded-lg border border-border/80 bg-background/60 px-2.5 py-1.5 text-xs">
                         <Router
                           aria-hidden
                           className={cn("h-3.5 w-3.5", CORE_ICON[livenessTone(d.liveness.state)])}
@@ -1807,14 +1756,11 @@ export function CustomerDashboardPage() {
                           {d.health.routersOnline}
                         </span>
                       </span>
-                      <span className="inline-flex items-center gap-1.5 text-sm">
+                      <span className="inline-flex items-center gap-1.5 rounded-lg border border-border/80 bg-background/60 px-2.5 py-1.5 text-xs">
                         <Activity aria-hidden className="h-3.5 w-3.5 text-muted-foreground" />
                         <span className="text-muted-foreground">ISP</span>
                         <span className="font-semibold text-foreground">{d.health.isp}</span>
                       </span>
-                      {locationLivenessIsReassuring(d.liveness) && (
-                        <LocationLivenessBadge liveness={d.liveness} />
-                      )}
                     </div>
                   </div>
 
@@ -1838,7 +1784,7 @@ export function CustomerDashboardPage() {
                         <CardTitle className="text-sm">Guests online, last 24h</CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="h-56">
+                        <div className="h-52">
                           {/* Real (non-demo) dashboards always hand back a
                            * full 24-bucket array here -- one entry per hour,
                            * `users: 0` for every hour nothing happened --
@@ -1891,6 +1837,16 @@ export function CustomerDashboardPage() {
                                     tickLine={false}
                                     axisLine={false}
                                     width={38}
+                                    // Scale to the data rather than Recharts'
+                                    // default padded range: snap the ceiling to
+                                    // a round number so quiet days don't waste
+                                    // the top half of the chart.
+                                    domain={[
+                                      0,
+                                      (dataMax: number) =>
+                                        Math.max(20, Math.ceil(dataMax / 20) * 20),
+                                    ]}
+                                    tickCount={6}
                                   />
                                   <Tooltip
                                     cursor={{ stroke: "var(--primary)", strokeOpacity: 0.35 }}
@@ -1927,15 +1883,15 @@ export function CustomerDashboardPage() {
                         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]">
                           <Router className="h-3.5 w-3.5 text-white" />
                         </div>
-                        <CardTitle className="text-sm">What's connected</CardTitle>
+                        <CardTitle className="text-sm">Devices by OS</CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="h-56">
+                        <div className="h-52">
                           {d.deviceDistribution.length === 0 ? (
                             <ChartEmptyState label="No devices connected yet." />
                           ) : (
                             <BlurFade inView className="h-full w-full" blur="4px" offset={4}>
-                              <div className="flex h-full flex-col justify-center gap-2.5">
+                              <div className="flex h-full flex-col justify-center gap-3">
                                 {(() => {
                                   const max = Math.max(
                                     ...d.deviceDistribution.map((x) => x.value),
@@ -1946,7 +1902,7 @@ export function CustomerDashboardPage() {
                                       <span className="w-20 shrink-0 truncate text-xs text-muted-foreground">
                                         {item.name}
                                       </span>
-                                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                                      <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-muted">
                                         <div
                                           className="h-full rounded-full"
                                           style={{
@@ -1976,7 +1932,7 @@ export function CustomerDashboardPage() {
                         <CardTitle className="text-sm">Sessions by hour</CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="h-56">
+                        <div className="h-52">
                           {/* Same real-data shape as usersTrend above -- a
                            * full 24-hour array of `sessions: 0` buckets, not
                            * an empty one, so the "all zero" check (not just
@@ -2021,6 +1977,16 @@ export function CustomerDashboardPage() {
                                     tickLine={false}
                                     axisLine={false}
                                     width={38}
+                                    // Scale to the data rather than Recharts'
+                                    // default padded range: snap the ceiling to
+                                    // a round number so quiet days don't waste
+                                    // the top half of the chart.
+                                    domain={[
+                                      0,
+                                      (dataMax: number) =>
+                                        Math.max(20, Math.ceil(dataMax / 20) * 20),
+                                    ]}
+                                    tickCount={6}
                                   />
                                   <Tooltip
                                     cursor={{ fill: "var(--muted)", fillOpacity: 0.5 }}
