@@ -53,6 +53,15 @@ interface BackendCaptivePortalConfig {
   supported_languages: string[];
   advertisement_banner_url: string | null;
   advertisement_banner_link: string | null;
+  /** The venue's legal copy -- four real columns, and until now only the
+   * two `_url` ones were mapped anywhere below. The `_text` pair is what
+   * the Portal editor's Terms & Conditions textarea actually authors, so
+   * every one of these needs all four mappings (interface, `toPortal`,
+   * `create`, `update`'s whitelist) or the field silently vanishes on
+   * save -- see `update`'s own note on the `fontFamily` bug. All four also
+   * feed the backend's content hash behind `guest_consents.terms_version`:
+   * a column this file never writes hashes to nothing, and every consent
+   * row records a null version. */
   terms_and_conditions_text: string | null;
   terms_and_conditions_url: string | null;
   privacy_policy_text: string | null;
@@ -431,11 +440,20 @@ function toPortal(
       autoLogin: true,
       rememberDevice: true,
     },
+    // READ half of the venue's legal copy. The WRITE half is in create()
+    // and update() below -- BOTH are required, for all four fields. The
+    // `_text` pair used to be read here only through the two `termsRequired`
+    // /`privacyRequired` booleans, never as content and never written back,
+    // so the Portal editor's Terms & Conditions textarea round-tripped
+    // through `terms_and_conditions_url` (a URL column holding prose) and
+    // was then dropped entirely by update()'s whitelist.
     consent: {
       termsRequired: !!(c.terms_and_conditions_text || c.terms_and_conditions_url),
       privacyRequired: !!(c.privacy_policy_text || c.privacy_policy_url),
       marketingConsent: false,
       gdprConsent: false,
+      termsText: c.terms_and_conditions_text ?? "",
+      privacyText: c.privacy_policy_text ?? "",
       termsUrl: c.terms_and_conditions_url ?? "",
       privacyUrl: c.privacy_policy_url ?? "",
     },
@@ -610,8 +628,16 @@ export const portalService = {
         secondary_color: input.branding?.secondaryColor ?? "#0F172A",
         default_language: input.defaultLanguage ?? "en",
         supported_languages: input.languages ?? ["en"],
-        terms_and_conditions_url: input.consent?.termsUrl || null,
-        privacy_policy_url: input.consent?.privacyUrl || null,
+        // WRITE half (create) of the venue's legal copy -- all four columns,
+        // not just the two URLs. `.trim() || null` so an empty or
+        // whitespace-only textarea stores NULL rather than "": the guest
+        // `/portal/terms` screen treats a falsy value as "this venue has
+        // published nothing" and falls back to the platform's own default
+        // terms + privacy copy, and "" would defeat that check.
+        terms_and_conditions_text: input.consent?.termsText?.trim() || null,
+        privacy_policy_text: input.consent?.privacyText?.trim() || null,
+        terms_and_conditions_url: input.consent?.termsUrl?.trim() || null,
+        privacy_policy_url: input.consent?.privacyUrl?.trim() || null,
         splash_headline: input.seo?.pageTitle ?? null,
         splash_welcome_message: input.seo?.metaDescription ?? null,
         redirect_url: input.login?.redirectUrl || null,
@@ -652,10 +678,28 @@ export const portalService = {
       body.secondary_color = patch.branding.secondaryColor;
     if (patch.defaultLanguage !== undefined) body.default_language = patch.defaultLanguage;
     if (patch.languages !== undefined) body.supported_languages = patch.languages;
+    // WRITE half (update) of the venue's legal copy -- THESE TWO `_text`
+    // LINES ARE THE ONES THAT WERE MISSING. `toPortal` above exposed the
+    // consent group, the Portal editor rendered a Terms & Conditions
+    // textarea, the venue typed a document, Save returned a success toast --
+    // and this whitelist never carried it, exactly the `fontFamily` failure
+    // described below. The consequence was not cosmetic: with nothing ever
+    // written, all four consent columns are empty for every production
+    // config, so the backend's content hash for `guest_consents.terms_version`
+    // has nothing to hash and every consent row is versioned `None`.
+    // Each is guarded on `!== undefined` like every other field here, so a
+    // patch that does not mention them leaves the stored value alone.
+    // `.trim() || null` so clearing the field clears the column (and the
+    // guest screen goes back to the platform default copy) rather than
+    // storing an empty string that reads as "published".
+    if (patch.consent?.termsText !== undefined)
+      body.terms_and_conditions_text = patch.consent.termsText.trim() || null;
+    if (patch.consent?.privacyText !== undefined)
+      body.privacy_policy_text = patch.consent.privacyText.trim() || null;
     if (patch.consent?.termsUrl !== undefined)
-      body.terms_and_conditions_url = patch.consent.termsUrl || null;
+      body.terms_and_conditions_url = patch.consent.termsUrl.trim() || null;
     if (patch.consent?.privacyUrl !== undefined)
-      body.privacy_policy_url = patch.consent.privacyUrl || null;
+      body.privacy_policy_url = patch.consent.privacyUrl.trim() || null;
     if (patch.seo?.pageTitle !== undefined) body.splash_headline = patch.seo.pageTitle || null;
     if (patch.seo?.metaDescription !== undefined)
       body.splash_welcome_message = patch.seo.metaDescription || null;

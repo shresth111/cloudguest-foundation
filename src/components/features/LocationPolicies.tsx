@@ -36,6 +36,7 @@ import {
   listPolicyDetails,
   latestVersion,
   deactivatePolicy,
+  sessionPolicyRules,
 } from "@/services/policy-engine";
 
 // DevicePolicyRules.max_devices_per_guest (backend) is a required int >= 1
@@ -45,48 +46,13 @@ import {
 // 3, which would silently contradict what "Unlimited" promises).
 const UNLIMITED_DEVICES_SENTINEL = 9999;
 
-// Session Timeout is a SESSION policy, not a bandwidth one.
-//
-// This form used to write `session_timeout_minutes` into the BANDWIDTH
-// policy's rules JSON. The backend accepts that happily -- BandwidthPolicyRules
-// declares the field -- but nothing on the guest side ever reads it: the
-// login paths call `resolve_effective_policy(policy_type=SESSION, ...)`
-// (guest/service.py's `_resolve_session_timeout_minutes`), and
-// `list_candidate_assignments` filters candidates by policy_type, so a
-// bandwidth policy is never even a candidate for a SESSION resolve. The
-// picker saved, read back correctly on reload, and every guest still got
-// the platform default of 240 minutes -- which is the "session timeout is
-// stuck on 4 hours and can't be changed" report, from the customer's side
-// of the glass.
-//
-// PolicyType.SESSION, its typed rules schema and LOCATION-scoped
-// assignments were all already built; this form simply never wrote one.
-// So: upsert a real SESSION policy alongside the bandwidth and device
-// ones, exactly the way the DEVICE policy above it is already handled.
-//
-// SessionPolicyRules is `extra="forbid"` with all four fields *required*
-// (policy/schemas.py), so a write cannot patch the timeout alone -- the
-// other three have to go up on every save. There is no UI for them yet;
-// when there is, it belongs here.
-//
-// These deliberately mirror the constants the backend *actually enforces*
-// today (app/domains/guest/constants.py), NOT
-// PLATFORM_DEFAULT_RULES[SESSION] in policy/constants.py. Those two
-// disagree on the concurrent-session cap: the policy mirror still says 3,
-// while the enforced constant is
-// DEFAULT_MAX_CONCURRENT_SESSIONS_PER_GUEST = 20 -- deliberately raised
-// from 3 after a launch incident, and the mirror was never updated.
-// `_enforce_concurrent_session_limit` reads the constant, not the policy,
-// so writing 3 here is inert *today* -- but that lookup is being wired to
-// the policy right now, and the moment it lands, every location this form
-// has saved would silently drop from 20 back to 3 and reproduce that
-// incident. Mirroring the enforced values means a save changes the
-// session length and nothing else, before or after that change lands.
-const SESSION_POLICY_DEFAULTS = {
-  max_concurrent_sessions_per_guest: 20,
-  termination_reconnect_cooldown_minutes: 60,
-  reconnect_grace_minutes: 30,
-} as const;
+// Session Timeout is a SESSION policy, not a bandwidth one -- the constants
+// and the full-rules helper now live in policy-engine.ts, next to the
+// create/update calls that send them, because the identical bug turned out
+// to exist on CreateGroup.tsx too and two copies of those three numbers is
+// exactly how they drift. That comment is the long-form version of why this
+// is a separate policy and why the three companion fields mirror
+// guest/constants.py rather than policy/constants.py; read it there.
 
 // Rules the backend stores but no code path reads. Each is declared on
 // BandwidthPolicyRules, round-trips through save/reload perfectly, and is
@@ -619,17 +585,15 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         setDeviceRealIds((prev) => ({ ...prev, [f.businessUnit]: createdDevice.id }));
       }
 
-      // Session Timeout -- the real one. See SESSION_POLICY_DEFAULTS above
-      // for why this is a separate policy rather than a field on the
-      // bandwidth one. Same name-keyed upsert + location assignment shape
-      // as the DEVICE policy directly above.
+      // Session Timeout -- the real one. See sessionPolicyRules /
+      // SESSION_POLICY_DEFAULTS in policy-engine.ts for why this is a
+      // separate policy rather than a field on the bandwidth one. Same
+      // name-keyed upsert + location assignment shape as the DEVICE policy
+      // directly above.
       const sessionMinutes = SESSION_TIMEOUT_MINUTES[f.sessionTimeout];
       if (sessionMinutes) {
         const existingSessionId = sessionRealIds[f.businessUnit];
-        const sessionRules = {
-          session_timeout_minutes: sessionMinutes,
-          ...SESSION_POLICY_DEFAULTS,
-        };
+        const sessionRules = sessionPolicyRules(sessionMinutes);
         if (existingSessionId) {
           await updatePolicyRules({
             id: existingSessionId,

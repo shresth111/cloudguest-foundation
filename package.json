@@ -17,6 +17,7 @@
     "test:post-connect": "node scripts/test-portal-post-connect-asks.mjs",
     "test:signin-fields": "node scripts/test-portal-signin-fields.mjs",
     "test:post-login-roundtrip": "node scripts/test-post-login-html-roundtrip.mjs",
+    "test:consent-roundtrip": "node scripts/test-portal-consent-roundtrip.mjs",
     "test:voucher-walkthrough": "node scripts/test-portal-voucher-walkthrough.mjs",
     "test:post-login-sandbox": "node scripts/test-post-login-html-sandbox.mjs",
     "test:guided-i18n": "node scripts/check-guided-i18n.mjs",

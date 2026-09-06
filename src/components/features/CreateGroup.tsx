@@ -43,6 +43,7 @@ import {
   listPolicyDetails,
   latestVersion,
   deactivatePolicy,
+  sessionPolicyRules,
 } from "@/services/policy-engine";
 import { useCustomerStore } from "@/stores/customerStore";
 import type { Guest } from "@/types/guest";
@@ -133,62 +134,81 @@ function labelFromMinutes(
 }
 
 // Mirrors a group's real bandwidth-policy location/guest assignment onto
-// its paired DEVICE policy. bandwidthPolicyService's mapToLocation/
+// its PAIRED policies -- the DEVICE one and, since the session-timeout fix
+// below, the SESSION one. bandwidthPolicyService's mapToLocation/
 // unmapFromLocation/mapGuestToLocation/unmapGuestFromLocation/
 // listLocationMappings/guestMappings are policy-type-agnostic (they only
 // take a policyId and hit the generic /policies/{id}/assignments
 // endpoints -- see that service's own file for confirmation), so calling
-// them again with the DEVICE policy's id is the real, live mirror
-// operation, not a simulation. `deviceId` is undefined whenever a group
-// predates this fix and has no paired DEVICE policy yet -- each helper
-// no-ops in that case rather than throwing, so a bandwidth-only mapping
-// action still succeeds even if its DEVICE mirror can't be attempted.
-async function mirrorDeviceLocationMap(
-  deviceId: string | undefined,
+// them again with a paired policy's id is the real, live mirror operation,
+// not a simulation.
+//
+// Takes a LIST rather than one id because an unassigned SESSION policy is
+// worse than useless: `resolve_effective_policy` walks assignments, so a
+// session policy that exists but is mapped to nothing resolves to nothing
+// and the guest silently falls back to the 240-minute platform default --
+// which is the exact bug this file is fixing, one step further along. Any
+// entry is undefined whenever a group predates the relevant fix and has no
+// paired policy of that type yet; those are skipped rather than throwing,
+// so a bandwidth mapping action still succeeds even if a mirror can't be
+// attempted.
+type PairedPolicyIds = (string | undefined)[];
+const realIdsOf = (ids: PairedPolicyIds): string[] => ids.filter((id): id is string => !!id);
+
+async function mirrorPairedLocationMap(
+  pairedIds: PairedPolicyIds,
   locationId: string,
   organizationId: string | undefined,
 ): Promise<void> {
-  if (!deviceId) return;
-  await bandwidthPolicyService.mapToLocation(deviceId, locationId, organizationId);
-}
-async function mirrorDeviceLocationUnmap(
-  deviceId: string | undefined,
-  locationId: string,
-  organizationId: string | undefined,
-): Promise<void> {
-  if (!deviceId) return;
-  const assignmentId = await bandwidthPolicyService.locationMapping(
-    deviceId,
-    locationId,
-    organizationId,
+  await Promise.all(
+    realIdsOf(pairedIds).map((id) =>
+      bandwidthPolicyService.mapToLocation(id, locationId, organizationId),
+    ),
   );
-  if (assignmentId)
-    await bandwidthPolicyService.unmapFromLocation(deviceId, assignmentId, organizationId);
 }
-async function mirrorDeviceGuestMap(
-  deviceId: string | undefined,
+async function mirrorPairedLocationUnmap(
+  pairedIds: PairedPolicyIds,
+  locationId: string,
+  organizationId: string | undefined,
+): Promise<void> {
+  await Promise.all(
+    realIdsOf(pairedIds).map(async (id) => {
+      const assignmentId = await bandwidthPolicyService.locationMapping(
+        id,
+        locationId,
+        organizationId,
+      );
+      if (assignmentId)
+        await bandwidthPolicyService.unmapFromLocation(id, assignmentId, organizationId);
+    }),
+  );
+}
+async function mirrorPairedGuestMap(
+  pairedIds: PairedPolicyIds,
   locationId: string,
   guestId: string,
   organizationId: string | undefined,
 ): Promise<void> {
-  if (!deviceId) return;
-  await bandwidthPolicyService.mapGuestToLocation(deviceId, locationId, guestId, organizationId);
+  await Promise.all(
+    realIdsOf(pairedIds).map((id) =>
+      bandwidthPolicyService.mapGuestToLocation(id, locationId, guestId, organizationId),
+    ),
+  );
 }
-async function mirrorDeviceGuestUnmap(
-  deviceId: string | undefined,
+async function mirrorPairedGuestUnmap(
+  pairedIds: PairedPolicyIds,
   locationId: string,
   guestId: string,
   organizationId: string | undefined,
 ): Promise<void> {
-  if (!deviceId) return;
-  const mappings = await bandwidthPolicyService.guestMappings(deviceId, locationId, organizationId);
-  const match = mappings.find((m) => m.guestId === guestId);
-  if (match)
-    await bandwidthPolicyService.unmapGuestFromLocation(
-      deviceId,
-      match.assignmentId,
-      organizationId,
-    );
+  await Promise.all(
+    realIdsOf(pairedIds).map(async (id) => {
+      const mappings = await bandwidthPolicyService.guestMappings(id, locationId, organizationId);
+      const match = mappings.find((m) => m.guestId === guestId);
+      if (match)
+        await bandwidthPolicyService.unmapGuestFromLocation(id, match.assignmentId, organizationId);
+    }),
+  );
 }
 
 /**
@@ -487,6 +507,18 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   // Populated on load (from real, is_active DEVICE policies) and kept in
   // sync by handleCreate (create/update)/handleDelete (deactivate).
   const [deviceRealIds, setDeviceRealIds] = useState<Record<string, string>>({});
+  // Paired SESSION policy id per group, same name-keying and same lifecycle
+  // as deviceRealIds above. This is the policy the guest login path actually
+  // resolves for a session timeout -- see the handleCreate block below.
+  const [sessionRealIds, setSessionRealIds] = useState<Record<string, string>>({});
+
+  // The paired policies that must follow this group's bandwidth policy
+  // everywhere it is assigned. Read straight off state so every mapping
+  // handler below sends the same set and none can be forgotten.
+  const pairedIdsFor = (groupName: string): PairedPolicyIds => [
+    deviceRealIds[groupName],
+    sessionRealIds[groupName],
+  ];
 
   useEffect(() => {
     if (demo) return;
@@ -494,9 +526,10 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       try {
         const org = await resolveOrgId();
         setOrgId(org);
-        const [real, deviceDetailsAll] = await Promise.all([
+        const [real, deviceDetailsAll, sessionDetailsAll] = await Promise.all([
           bandwidthPolicyService.list(org),
           listPolicyDetails("device", org).catch(() => []),
+          listPolicyDetails("session", org).catch(() => []),
         ]);
         // Backend's GET /policies has no is_active filter -- it returns
         // deactivated (deleted) policies right alongside active ones, so a
@@ -517,6 +550,16 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           ]),
         );
         setDeviceRealIds(Object.fromEntries(deviceDetails.map((d) => [d.name, d.id])));
+        // SESSION policies are name-keyed and archive-filtered exactly like
+        // the DEVICE ones above, for the same reasons.
+        const sessionDetails = sessionDetailsAll.filter((d) => d.is_active);
+        const sessionByName = new Map(
+          sessionDetails.map((d) => [
+            d.name,
+            latestVersion(d)?.rules?.session_timeout_minutes as number | undefined,
+          ]),
+        );
+        setSessionRealIds(Object.fromEntries(sessionDetails.map((d) => [d.name, d.id])));
         // One assignments lookup per group -- listLocationMappings returns
         // *every* active location this group is mapped to in one call, so
         // this seeds both the "Map group" toggle's current-location state
@@ -559,8 +602,13 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
               id: p.id,
               name: p.name,
               bandwidth: kbpsToLabel(p.downloadRateKbps),
+              // Prefer the real SESSION policy -- that is the one the guest
+              // login path resolves. A tier saved before this fix has only
+              // the (unread) bandwidth copy, so fall back to it so the row
+              // and the Edit form still show what was chosen; the next save
+              // writes a real SESSION policy for it.
               sessionTimeout: labelFromMinutes(
-                p.sessionTimeoutMinutes,
+                sessionByName.get(p.name) ?? p.sessionTimeoutMinutes,
                 SESSION_TIMEOUT_MINUTES,
                 "",
               ),
@@ -799,6 +847,13 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       // matching how the bandwidth policy itself has zero real effect
       // until it's explicitly mapped via handleToggleMap/
       // handleSaveMapModal/mapGuest below.
+      //
+      // Paired policies created during THIS save. They start with no
+      // assignments of their own, so anywhere the bandwidth policy is
+      // ALREADY mapped they would resolve to nothing -- see the backfill
+      // below.
+      const createdPairedIds: string[] = [];
+
       const maxDevices = dp === "Unlimited" ? UNLIMITED_DEVICES_SENTINEL : parseInt(dp, 10);
       const deviceRules = { max_devices_per_guest: maxDevices };
       const existingDeviceId = deviceRealIds[name];
@@ -820,6 +875,77 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           organizationId: orgId ?? undefined,
         });
         setDeviceRealIds((prev) => ({ ...prev, [name]: createdDevice.id }));
+        createdPairedIds.push(createdDevice.id);
+      }
+
+      // Session Timeout -- the real one. This form used to write
+      // `session_timeout_minutes` into the BANDWIDTH policy's rules JSON
+      // (`sessionTimeoutMinutes` in the bandwidthPolicyService.save call
+      // above, which stays for backward-compatible reads). The backend
+      // accepts that happily, and nothing on the guest side ever reads it:
+      // the login path calls `resolve_effective_policy(policy_type=SESSION)`
+      // and `list_candidate_assignments` filters candidates by type, so a
+      // bandwidth policy is never even a candidate. The picker saved, read
+      // back correctly on reload, and every guest still got the platform
+      // default of 240 minutes. Identical to the LocationPolicies.tsx bug
+      // fixed in d5fdd91 / PR #225; the constants and the full four-field
+      // rules body are shared from policy-engine.ts rather than copied, so
+      // the two screens cannot drift. Same name-keyed upsert shape as the
+      // DEVICE policy directly above.
+      const sessionMinutes = SESSION_TIMEOUT_MINUTES[st];
+      if (sessionMinutes) {
+        const sessionRules = sessionPolicyRules(sessionMinutes);
+        const existingSessionId = sessionRealIds[name];
+        if (existingSessionId) {
+          await updatePolicyRules({
+            id: existingSessionId,
+            rules: sessionRules,
+            publish: true,
+            archive: false,
+            organizationId: orgId ?? undefined,
+          });
+        } else {
+          const createdSession = await createPolicyWithRules({
+            policyType: "session",
+            name,
+            description: null,
+            rules: sessionRules,
+            publish: true,
+            organizationId: orgId ?? undefined,
+          });
+          setSessionRealIds((prev) => ({ ...prev, [name]: createdSession.id }));
+          createdPairedIds.push(createdSession.id);
+        }
+      }
+
+      // Backfill: a tier that already exists is already mapped to
+      // locations, and a paired policy created just now has none of those
+      // assignments. `resolve_effective_policy` walks assignments, so
+      // without this an operator editing an existing tier's Session Timeout
+      // would get a correct SESSION policy that resolves for nobody and
+      // still see every guest on 240 minutes -- the same bug one step
+      // further along. Only ids created in THIS save are mapped, so this
+      // can never duplicate an assignment a previous save already made, and
+      // for a brand-new tier the mapping list is empty and this is a no-op.
+      // Best-effort: the tier itself is already saved, so a failure here
+      // must not present as "could not save" -- the next map/unmap from the
+      // table repairs it through the mirror helpers.
+      if (createdPairedIds.length > 0) {
+        try {
+          const existingMappings = await bandwidthPolicyService.listLocationMappings(
+            saved.id,
+            orgId ?? undefined,
+          );
+          await Promise.all(
+            existingMappings.flatMap((m) =>
+              createdPairedIds.map((policyId) =>
+                bandwidthPolicyService.mapToLocation(policyId, m.locationId, orgId ?? undefined),
+              ),
+            ),
+          );
+        } catch {
+          // Intentionally silent -- see above.
+        }
       }
 
       if (isEdit) {
@@ -897,13 +1023,20 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         // the one just deactivated -- same reasoning as bandwidth's own id
         // handling via the id-in-`groups` state above.
         if (groupName) {
-          const deviceId = deviceRealIds[groupName];
+          const pairedIds = pairedIdsFor(groupName);
           setDeviceRealIds((prevIds) => {
             const n = { ...prevIds };
             delete n[groupName];
             return n;
           });
-          if (deviceId) deactivatePolicy(deviceId, orgId ?? undefined).catch(() => {});
+          setSessionRealIds((prevIds) => {
+            const n = { ...prevIds };
+            delete n[groupName];
+            return n;
+          });
+          realIdsOf(pairedIds).forEach((policyId) => {
+            deactivatePolicy(policyId, orgId ?? undefined).catch(() => {});
+          });
         }
       }
     } else {
@@ -950,7 +1083,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           g.mappedAssignmentId as string,
           orgId ?? undefined,
         );
-        await mirrorDeviceLocationUnmap(deviceRealIds[g.name], locationId, orgId ?? undefined);
+        await mirrorPairedLocationUnmap(pairedIdsFor(g.name), locationId, orgId ?? undefined);
         setGroups((prev) =>
           prev.map((x) =>
             x.id === g.id
@@ -968,7 +1101,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           locationId,
           orgId ?? undefined,
         );
-        await mirrorDeviceLocationMap(deviceRealIds[g.name], locationId, orgId ?? undefined);
+        await mirrorPairedLocationMap(pairedIdsFor(g.name), locationId, orgId ?? undefined);
         setGroups((prev) =>
           prev.map((x) =>
             x.id === g.id
@@ -1083,13 +1216,13 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           finalMap[locId] = mapModalInitial[locId] ?? `demo-${g.id}-${locId}`;
         });
       } else {
-        const deviceId = deviceRealIds[g.name];
+        const paired = pairedIdsFor(g.name);
         const [addResults] = await Promise.all([
           Promise.all(
             toAdd.map(async (locId) => {
               const [assignmentId] = await Promise.all([
                 bandwidthPolicyService.mapToLocation(g.id, locId, orgId ?? undefined),
-                mirrorDeviceLocationMap(deviceId, locId, orgId ?? undefined),
+                mirrorPairedLocationMap(paired, locId, orgId ?? undefined),
               ]);
               return { locId, assignmentId };
             }),
@@ -1102,7 +1235,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                   mapModalInitial[locId],
                   orgId ?? undefined,
                 ),
-                mirrorDeviceLocationUnmap(deviceId, locId, orgId ?? undefined),
+                mirrorPairedLocationUnmap(paired, locId, orgId ?? undefined),
               ]),
             ),
           ),
@@ -1355,8 +1488,8 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
             guest.id,
             orgId ?? undefined,
           ),
-          mirrorDeviceGuestMap(
-            deviceRealIds[usersModalGroup.name],
+          mirrorPairedGuestMap(
+            pairedIdsFor(usersModalGroup.name),
             locationId,
             guest.id,
             orgId ?? undefined,
@@ -1420,8 +1553,8 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           other.assignmentId,
           orgId ?? undefined,
         ),
-        mirrorDeviceGuestUnmap(
-          deviceRealIds[other.policyName],
+        mirrorPairedGuestUnmap(
+          pairedIdsFor(other.policyName),
           locationId,
           guest.id,
           orgId ?? undefined,
@@ -1434,8 +1567,8 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           guest.id,
           orgId ?? undefined,
         ),
-        mirrorDeviceGuestMap(
-          deviceRealIds[usersModalGroup.name],
+        mirrorPairedGuestMap(
+          pairedIdsFor(usersModalGroup.name),
           locationId,
           guest.id,
           orgId ?? undefined,
@@ -1491,8 +1624,8 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
             mapping.assignmentId,
             orgId ?? undefined,
           ),
-          mirrorDeviceGuestUnmap(
-            deviceRealIds[usersModalGroup.name],
+          mirrorPairedGuestUnmap(
+            pairedIdsFor(usersModalGroup.name),
             locationId,
             mapping.guestId,
             orgId ?? undefined,

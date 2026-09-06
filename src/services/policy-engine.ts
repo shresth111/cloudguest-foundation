@@ -99,6 +99,58 @@ export async function listPolicyDetails(
   return Promise.all(data.items.map((item) => fetchPolicyDetail(item.id, organizationId)));
 }
 
+// ============================================================================
+// Session Timeout is a SESSION policy, not a bandwidth one.
+//
+// Lifted verbatim out of LocationPolicies.tsx (commit d5fdd91 / PR #225),
+// because the identical bug existed on CreateGroup.tsx ("Access Tiers") and
+// two copies of these three numbers is exactly how they drift.
+//
+// Both forms used to write `session_timeout_minutes` into the BANDWIDTH
+// policy's rules JSON. The backend accepts that happily -- BandwidthPolicyRules
+// declares the field -- but nothing on the guest side ever reads it: the
+// login paths call `resolve_effective_policy(policy_type=SESSION, ...)`
+// (guest/service.py's `_resolve_session_timeout_minutes`), and
+// `list_candidate_assignments` filters candidates by policy_type, so a
+// bandwidth policy is never even a candidate for a SESSION resolve. The
+// picker saved, read back correctly on reload, and every guest still got
+// the platform default of 240 minutes.
+//
+// PolicyType.SESSION, its typed rules schema and its assignments were all
+// already built; these forms simply never wrote one. So: upsert a real
+// SESSION policy alongside the bandwidth and device ones, exactly the way
+// the paired DEVICE policy is already handled in both files.
+//
+// SessionPolicyRules is `extra="forbid"` with all four fields *required*
+// (policy/schemas.py), so a write cannot patch the timeout alone -- the
+// other three have to go up on every save. There is no UI for them yet;
+// when there is, it belongs here.
+//
+// These deliberately mirror the constants the backend *actually enforces*
+// today (app/domains/guest/constants.py), NOT PLATFORM_DEFAULT_RULES[SESSION]
+// in policy/constants.py. Those two disagree on the concurrent-session cap:
+// the policy mirror still says 3, while the enforced constant is
+// DEFAULT_MAX_CONCURRENT_SESSIONS_PER_GUEST = 20 -- deliberately raised from
+// 3 after a launch incident, and the mirror was never updated.
+// `_enforce_concurrent_session_limit` reads the constant, not the policy, so
+// writing 3 here is inert *today* -- but that lookup is being wired to the
+// policy right now, and the moment it lands, every location and every access
+// tier these forms have saved would silently drop from 20 back to 3 and
+// reproduce that incident. Mirroring the enforced values means a save changes
+// the session length and nothing else, before or after that change lands.
+// ============================================================================
+export const SESSION_POLICY_DEFAULTS = {
+  max_concurrent_sessions_per_guest: 20,
+  termination_reconnect_cooldown_minutes: 60,
+  reconnect_grace_minutes: 30,
+} as const;
+
+/** The full SessionPolicyRules body for a chosen session length. All four
+ * fields, because the schema forbids a partial one -- see above. */
+export function sessionPolicyRules(sessionTimeoutMinutes: number) {
+  return { session_timeout_minutes: sessionTimeoutMinutes, ...SESSION_POLICY_DEFAULTS };
+}
+
 export async function createPolicyWithRules(args: {
   policyType: string;
   name: string;
