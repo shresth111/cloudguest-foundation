@@ -114,26 +114,10 @@
     "website-blocking": "वेबसाइट ब्लॉकिंग",
     "isp-details": "इंटरनेट कनेक्शन",
     "notification": "सूचनाएं",
-    "debugging": "कनेक्शन टूल्स",
+    "debugging": "समस्या ठीक करें",
     "tickets": "सहायता टिकट",
     "admin-logs": "लॉग",
     "network-activity": "नेटवर्क गतिविधि लॉग",
     "how-it-works": "यह कैसे काम करता है"
-  },
-  "customerDestination": {
-    "home": "होम",
-    "guests": "मेहमान",
-    "offers": "ऑफ़र",
-    "reports": "रिपोर्ट",
-    "login-screen": "लॉगिन स्क्रीन",
-    "access": "एक्सेस नियम",
-    "status": "समस्या ठीक करें",
-    "help": "सहायता",
-    "settings": "सेटिंग्स"
-  },
-  "customerDestinationGroup": {
-    "guests": "मेहमान",
-    "wifi": "वाईफ़ाई",
-    "health": "स्थिति"
   }
 }
