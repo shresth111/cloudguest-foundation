@@ -1404,158 +1404,6 @@ function DeviceStatusCard({ locationId, onManage }: { locationId: string; onMana
   );
 }
 
-/**
- * Compact corner illustration for the Dashboard hero card: a mini brand
- * shield-and-signal mark beside a live pulse-monitor with a calm "all
- * clear" checkmark, and a signal-bars motif -- same filled-flat-shape
- * character language as the Select Location page's hero illustration
- * (both now built from the same shield mark), but a quieter pose sized
- * for a hero-card corner accent rather than a full side panel, since this
- * page is a data-first "check the numbers" moment, not a "which venue"
- * moment. Kept small and semi-transparent so it never competes with the
- * three big KPI numbers already carrying this card. Replaces the earlier
- * cartoon figure, which read as consumer clip-art rather than enterprise
- * network monitoring.
- *
- * Purely decorative -- aria-hidden. The pulse sweep and "all clear" ring
- * loop, so both respect useReducedMotion.
- */
-function DashboardWatchIllustration() {
-  const shouldReduceMotion = useReducedMotion();
-
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 300 210"
-      className="h-auto w-full max-w-[260px] opacity-90"
-      fill="none"
-    >
-      <defs>
-        <filter id="watch-illo-glow" x="-60%" y="-60%" width="220%" height="220%">
-          <feGaussianBlur stdDeviation="12" />
-        </filter>
-        <linearGradient id="watch-pulse-stroke" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="#22d3ee" />
-          <stop offset="100%" stopColor="#f0abfc" />
-        </linearGradient>
-        <linearGradient
-          id="watch-shield-grad"
-          x1="54"
-          y1="114"
-          x2="115"
-          y2="190"
-          gradientUnits="userSpaceOnUse"
-        >
-          <stop offset="0%" stopColor="#6366f1" />
-          <stop offset="100%" stopColor="#7c3aed" />
-        </linearGradient>
-      </defs>
-
-      <circle
-        cx="215"
-        cy="70"
-        r="46"
-        fill="#7c3aed"
-        opacity="0.16"
-        filter="url(#watch-illo-glow)"
-      />
-
-      <rect
-        x="118"
-        y="46"
-        width="118"
-        height="80"
-        rx="10"
-        fill="#241f4d"
-        stroke="white"
-        strokeOpacity="0.12"
-        strokeWidth="1.5"
-      />
-      <rect
-        x="118"
-        y="46"
-        width="118"
-        height="80"
-        rx="10"
-        fill="url(#watch-pulse-stroke)"
-        fillOpacity="0.05"
-      />
-      <motion.path
-        d="M130 90h16l8-22 10 40 8-28 6 10h56"
-        stroke="url(#watch-pulse-stroke)"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-        initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
-        animate={{ pathLength: 1, opacity: 1 }}
-        transition={{ duration: 1, delay: 0.3, ease: "easeOut" }}
-      />
-      <rect x="164" y="126" width="26" height="10" rx="2" fill="#241f4d" />
-      <rect x="150" y="136" width="54" height="5" rx="2.5" fill="white" fillOpacity="0.1" />
-
-      <motion.g
-        animate={
-          shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.08, 1], opacity: [0.85, 1, 0.85] }
-        }
-        transition={
-          shouldReduceMotion ? undefined : { duration: 2.4, repeat: Infinity, ease: "easeInOut" }
-        }
-      >
-        <circle cx="228" cy="54" r="13" fill="#1e1b4b" stroke="#22d3ee" strokeWidth="2" />
-        <path
-          d="M222 54l4 4 8-8"
-          stroke="#22d3ee"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          fill="none"
-        />
-      </motion.g>
-
-      <path
-        d="M84.5 116 L112.68 127.07 V147.8 C112.68 165.69 101.25 179.6 84.5 185.5 C67.75 179.6 56.32 165.69 56.32 147.8 V127.07 Z"
-        fill="url(#watch-shield-grad)"
-      />
-      <path
-        d="M65.26 138.76a27.54 27.54 0 0 1 38.48 0"
-        stroke="#ffffff"
-        strokeWidth="5.45"
-        strokeLinecap="round"
-        fill="none"
-        opacity="0.75"
-      />
-      <path
-        d="M73.43 148.71a16.76 16.76 0 0 1 22.15 0"
-        stroke="#ffffff"
-        strokeWidth="5.45"
-        strokeLinecap="round"
-        fill="none"
-      />
-      <circle cx="84.5" cy="157.58" r="4.3" fill="#ffffff" />
-
-      <g>
-        {[0, 1, 2, 3].map((i) => (
-          <motion.rect
-            key={i}
-            x={20 + i * 10}
-            y={188 - (i + 1) * 9}
-            width="6"
-            height={(i + 1) * 9}
-            rx="2"
-            fill={["#8B5CF6", "#22d3ee", "#f0abfc", "#8B5CF6"][i]}
-            initial={shouldReduceMotion ? false : { opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.6 + i * 0.08, ease: "easeOut" }}
-          />
-        ))}
-      </g>
-
-      <line x1="10" y1="196" x2="250" y2="196" stroke="white" strokeOpacity="0.1" strokeWidth="1" />
-    </svg>
-  );
-}
-
 /** The real customer dashboard, rendered both at the bare "/" root
  * (index.tsx, the normal path for an authenticated customer) and as the
  * redirect target every "/c" (c.index.tsx) alias resolves to. Lives in its
@@ -1797,18 +1645,13 @@ export function CustomerDashboardPage() {
                   }}
                 />
                 <div className="relative mx-auto max-w-7xl px-4 pt-4 pb-5 sm:px-6 sm:pt-5 sm:pb-5 lg:px-8">
-                  {/* Illustration scoped to its own relative sub-container
-                   * covering only the eyebrow/headline/3-number portion --
-                   * it was previously absolute-positioned against the WHOLE
-                   * hero including the status strip below, so once that
-                   * strip moved into this same dark section the card grew
-                   * taller and the "bottom-right" anchor drifted down onto
-                   * the status strip instead of sitting quietly in this
-                   * top portion's corner. */}
+                  {/* The corner illustration used to sit here, floated right
+                   * over the Uptime stat. It crowded that stat (the only
+                   * one of the three with a graphic beside it) and read as
+                   * an odd, uneven background -- the reference design keeps
+                   * the three stats clean on the gradient alone. Removed;
+                   * the soft glows + dot grid carry the decoration. */}
                   <div className="relative">
-                    <div className="pointer-events-none absolute -top-2 right-0 hidden w-[110px] sm:block lg:w-[160px]">
-                      <DashboardWatchIllustration />
-                    </div>
                     <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/60">
                       This location, right now
                     </p>
