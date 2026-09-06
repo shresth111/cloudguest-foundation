@@ -55,6 +55,27 @@ interface BackendCaptivePortalConfig {
   resolved_via_location_override: boolean;
   is_open_now: boolean;
   business_hours_closed_message: string | null;
+  /** The venue's own words on the whitelist-only refusal screen
+   * (`/portal/not-listed`). Optional-then-nullable, and both halves are
+   * load-bearing:
+   *
+   *  - `?` because a portal served by a backend from before migration
+   *    0117 (`0117_add_whitelist_only_to_captive_portal_configs`) does not
+   *    send the key at all. A refusal screen that rendered `undefined`
+   *    there would be worse than the generic copy it replaced.
+   *  - `| null` because the column itself is nullable and null is the
+   *    normal, expected state: the operator has not written anything, and
+   *    the frontend owns the default copy -- the identical contract
+   *    `business_hours_closed_message` already has.
+   *
+   * Note that `whitelist_only_enabled` is deliberately NOT here. The
+   * resolve endpoint strips it (`ResolvedCaptivePortalConfigResponse`
+   * marks it `exclude=True` *and* `router.resolve_captive_portal_config`
+   * pops the key), because announcing "this venue runs an allowlist" to
+   * every unauthenticated device that curls the endpoint tells a guest
+   * nothing they can act on. Which is exactly why this screen cannot be
+   * pre-emptive the way `/portal/closed` is -- see that route's comment. */
+  whitelist_only_denied_message?: string | null;
   /** captive-portal-v6-design-spec.md §6.1 -- optional until the backend
    * PR (separate repo, `cloud-guest-repo/backend`) lands; `toRuntimeConfig`
    * below falls back to `"system"`/`55` for either field when absent, so
@@ -226,6 +247,7 @@ function toRuntimeConfig(c: BackendCaptivePortalConfig): RuntimePortalConfig {
     resolvedViaLocationOverride: c.resolved_via_location_override,
     isOpenNow: c.is_open_now,
     businessHoursClosedMessage: c.business_hours_closed_message,
+    whitelistOnlyDeniedMessage: c.whitelist_only_denied_message ?? null,
     guestFontChoice: toGuestFontChoice(c.guest_font_choice),
     backgroundOverlayStrength: clampBackgroundOverlayStrength(c.background_overlay_strength),
     // v7 §1.4 C4. 50/25 is not a frontend guess -- it is migration 0089's own

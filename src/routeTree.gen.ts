@@ -60,6 +60,7 @@ import { Route as PortalSetPasswordRouteImport } from './routes/portal.set-passw
 import { Route as PortalSessionRouteImport } from './routes/portal.session'
 import { Route as PortalRedirectRouteImport } from './routes/portal.redirect'
 import { Route as PortalOfflineRouteImport } from './routes/portal.offline'
+import { Route as PortalNotListedRouteImport } from './routes/portal.not-listed'
 import { Route as PortalFailureRouteImport } from './routes/portal.failure'
 import { Route as PortalExpiredRouteImport } from './routes/portal.expired'
 import { Route as PortalClosedRouteImport } from './routes/portal.closed'
@@ -440,6 +441,11 @@ const PortalRedirectRoute = PortalRedirectRouteImport.update({
 const PortalOfflineRoute = PortalOfflineRouteImport.update({
   id: '/offline',
   path: '/offline',
+  getParentRoute: () => PortalRoute,
+} as any)
+const PortalNotListedRoute = PortalNotListedRouteImport.update({
+  id: '/not-listed',
+  path: '/not-listed',
   getParentRoute: () => PortalRoute,
 } as any)
 const PortalFailureRoute = PortalFailureRouteImport.update({
@@ -1230,6 +1236,7 @@ export interface FileRoutesByFullPath {
   '/portal/closed': typeof PortalClosedRoute
   '/portal/expired': typeof PortalExpiredRoute
   '/portal/failure': typeof PortalFailureRoute
+  '/portal/not-listed': typeof PortalNotListedRoute
   '/portal/offline': typeof PortalOfflineRoute
   '/portal/redirect': typeof PortalRedirectRoute
   '/portal/session': typeof PortalSessionRoute
@@ -1404,6 +1411,7 @@ export interface FileRoutesByTo {
   '/portal/closed': typeof PortalClosedRoute
   '/portal/expired': typeof PortalExpiredRoute
   '/portal/failure': typeof PortalFailureRoute
+  '/portal/not-listed': typeof PortalNotListedRoute
   '/portal/offline': typeof PortalOfflineRoute
   '/portal/redirect': typeof PortalRedirectRoute
   '/portal/session': typeof PortalSessionRoute
@@ -1584,6 +1592,7 @@ export interface FileRoutesById {
   '/portal/closed': typeof PortalClosedRoute
   '/portal/expired': typeof PortalExpiredRoute
   '/portal/failure': typeof PortalFailureRoute
+  '/portal/not-listed': typeof PortalNotListedRoute
   '/portal/offline': typeof PortalOfflineRoute
   '/portal/redirect': typeof PortalRedirectRoute
   '/portal/session': typeof PortalSessionRoute
@@ -1765,6 +1774,7 @@ export interface FileRouteTypes {
     | '/portal/closed'
     | '/portal/expired'
     | '/portal/failure'
+    | '/portal/not-listed'
     | '/portal/offline'
     | '/portal/redirect'
     | '/portal/session'
@@ -1939,6 +1949,7 @@ export interface FileRouteTypes {
     | '/portal/closed'
     | '/portal/expired'
     | '/portal/failure'
+    | '/portal/not-listed'
     | '/portal/offline'
     | '/portal/redirect'
     | '/portal/session'
@@ -2118,6 +2129,7 @@ export interface FileRouteTypes {
     | '/portal/closed'
     | '/portal/expired'
     | '/portal/failure'
+    | '/portal/not-listed'
     | '/portal/offline'
     | '/portal/redirect'
     | '/portal/session'
@@ -2639,6 +2651,13 @@ declare module '@tanstack/react-router' {
       path: '/offline'
       fullPath: '/portal/offline'
       preLoaderRoute: typeof PortalOfflineRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/portal/not-listed': {
+      id: '/portal/not-listed'
+      path: '/not-listed'
+      fullPath: '/portal/not-listed'
+      preLoaderRoute: typeof PortalNotListedRouteImport
       parentRoute: typeof PortalRoute
     }
     '/portal/failure': {
@@ -3863,6 +3882,7 @@ interface PortalRouteChildren {
   PortalClosedRoute: typeof PortalClosedRoute
   PortalExpiredRoute: typeof PortalExpiredRoute
   PortalFailureRoute: typeof PortalFailureRoute
+  PortalNotListedRoute: typeof PortalNotListedRoute
   PortalOfflineRoute: typeof PortalOfflineRoute
   PortalRedirectRoute: typeof PortalRedirectRoute
   PortalSessionRoute: typeof PortalSessionRoute
@@ -3880,6 +3900,7 @@ const PortalRouteChildren: PortalRouteChildren = {
   PortalClosedRoute: PortalClosedRoute,
   PortalExpiredRoute: PortalExpiredRoute,
   PortalFailureRoute: PortalFailureRoute,
+  PortalNotListedRoute: PortalNotListedRoute,
   PortalOfflineRoute: PortalOfflineRoute,
   PortalRedirectRoute: PortalRedirectRoute,
   PortalSessionRoute: PortalSessionRoute,

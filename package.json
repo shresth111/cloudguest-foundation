@@ -46,7 +46,8 @@
     "test:fleet-unreachable": "node scripts/test-fleet-unreachable-locations.mjs",
     "test:customer-nav-shell": "node scripts/test-customer-nav-shell.mjs",
     "test:block-users-e164": "node scripts/test-block-users-e164.mjs",
-    "test:whitelist-only": "node scripts/test-whitelist-only-guardrails.mjs"
+    "test:whitelist-only": "node scripts/test-whitelist-only-guardrails.mjs",
+    "test:whitelist-refusal": "node scripts/test-portal-whitelist-refusal.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

@@ -418,6 +418,24 @@ interface PortalRuntimeState {
    * visit should see it unticked again rather than a stale prior answer. */
   dataConsentAccepted: boolean;
   setDataConsentAccepted: (v: boolean) => void;
+  /** Which kind of contact detail the guest was refused on, set only on
+   * the way to `/portal/not-listed` (whitelist-only refusal).
+   *
+   * That screen has to name the thing the guest typed -- "try a different
+   * number" is simply wrong for someone who signed in with email OTP, and
+   * a refusal screen is the last place to be vague about what to do next.
+   * The kind is known at the moment of refusal (`useGuestSignIn`'s
+   * `otpChannel`) and nowhere afterwards, because a refused guest never
+   * gets a session or a `guestIdentifier` to infer it from.
+   *
+   * Plain component state, not sessionStorage-backed, for the same reason
+   * `dataConsentAccepted` above is: it never needs to survive the
+   * top-level navigation to the NAS, and a guest coming back for a fresh
+   * attempt should not inherit a stale answer. Undefined -- the state on
+   * any direct hit of the URL -- makes the screen fall back to "number",
+   * which is the overwhelmingly common case (`otp_sms_enabled`). */
+  refusedContactKind?: "phone" | "email";
+  setRefusedContactKind: (v?: "phone" | "email") => void;
 }
 
 const Ctx = createContext<PortalRuntimeState | null>(null);
@@ -520,6 +538,7 @@ export function PortalRuntimeProvider({
     loadPersistedIdentifier(),
   );
   const [dataConsentAccepted, setDataConsentAccepted] = useState(false);
+  const [refusedContactKind, setRefusedContactKind] = useState<"phone" | "email" | undefined>();
 
   const setSession = useCallback((s: RuntimeSession | undefined) => {
     setSessionState(s);
@@ -732,6 +751,8 @@ export function PortalRuntimeProvider({
       setGuestIdentifier,
       dataConsentAccepted,
       setDataConsentAccepted,
+      refusedContactKind,
+      setRefusedContactKind,
     }),
     [
       organizationId,
@@ -757,6 +778,7 @@ export function PortalRuntimeProvider({
       guestIdentifier,
       setGuestIdentifier,
       dataConsentAccepted,
+      refusedContactKind,
     ],
   );
 

@@ -7,6 +7,23 @@ import {
 type Dict = Record<string, string>;
 
 const EN: Dict = {
+  // ---- /portal/not-listed: whitelist-only refusal -------------------
+  // A guest at a property that admits only its Always Allowed list, who
+  // has just submitted and been refused. They have done nothing wrong and
+  // cannot fix it themselves, so every string below points at the person
+  // who can. `{contact}` is substituted with notListedContactPhone /
+  // notListedContactEmail by the route, so the same sentence works for a
+  // number and for an email without duplicating it ten times over.
+  // Never carries the matched rule's operator-authored `reason`.
+  notListedTitle: "This WiFi is for registered guests",
+  notListedBody:
+    "Access here is limited to guests on the venue's list, and this {contact} isn't on it yet.",
+  notListedNextStepLead: "Staying here or have a booking?",
+  notListedNextStep: "Give this {contact} at reception and they can add you in a moment.",
+  notListedRetryPrompt: "Wrong {contact}?",
+  notListedRetry: "Try a different {contact}",
+  notListedContactPhone: "number",
+  notListedContactEmail: "email",
   loading: "Preparing your connection…",
   connect: "Connect",
   learnMore: "Learn more",
@@ -322,6 +339,23 @@ const EN: Dict = {
 };
 
 const HI: Dict = {
+  // ---- /portal/not-listed: whitelist-only refusal -------------------
+  // A guest at a property that admits only its Always Allowed list, who
+  // has just submitted and been refused. They have done nothing wrong and
+  // cannot fix it themselves, so every string below points at the person
+  // who can. `{contact}` is substituted with notListedContactPhone /
+  // notListedContactEmail by the route, so the same sentence works for a
+  // number and for an email without duplicating it ten times over.
+  // Never carries the matched rule's operator-authored `reason`.
+  notListedTitle: "यह WiFi रजिस्टर्ड मेहमानों के लिए है",
+  notListedBody:
+    "यहाँ इंटरनेट सिर्फ़ वेन्यू की सूची में शामिल मेहमानों के लिए है, और यह {contact} अभी उसमें नहीं है।",
+  notListedNextStepLead: "यहाँ ठहरे हैं या बुकिंग है?",
+  notListedNextStep: "रिसेप्शन पर यह {contact} बता दें, वे इसे तुरंत जोड़ सकते हैं।",
+  notListedRetryPrompt: "{contact} ग़लत है?",
+  notListedRetry: "दूसरा {contact} आज़माएँ",
+  notListedContactPhone: "नंबर",
+  notListedContactEmail: "ईमेल",
   loading: "आपका कनेक्शन तैयार किया जा रहा है…",
   connect: "कनेक्ट करें",
   learnMore: "और जानें",
@@ -580,6 +614,23 @@ const HI: Dict = {
  * these strings are buttons and tab labels with a fixed width to fit. */
 // Bengali (bn).
 const BN: Dict = {
+  // ---- /portal/not-listed: whitelist-only refusal -------------------
+  // A guest at a property that admits only its Always Allowed list, who
+  // has just submitted and been refused. They have done nothing wrong and
+  // cannot fix it themselves, so every string below points at the person
+  // who can. `{contact}` is substituted with notListedContactPhone /
+  // notListedContactEmail by the route, so the same sentence works for a
+  // number and for an email without duplicating it ten times over.
+  // Never carries the matched rule's operator-authored `reason`.
+  notListedTitle: "এই WiFi নিবন্ধিত অতিথিদের জন্য",
+  notListedBody:
+    "এখানে ইন্টারনেট শুধু ভেন্যুর তালিকায় থাকা অতিথিদের জন্য, আর এই {contact} এখনও সেই তালিকায় নেই।",
+  notListedNextStepLead: "এখানে আছেন বা বুকিং আছে?",
+  notListedNextStep: "রিসেপশনে এই {contact} জানান, ওঁরা সঙ্গে সঙ্গে যোগ করে দেবেন।",
+  notListedRetryPrompt: "{contact} ভুল?",
+  notListedRetry: "অন্য একটি {contact} দিন",
+  notListedContactPhone: "নম্বর",
+  notListedContactEmail: "ইমেল",
   loading: "আপনার কানেকশন তৈরি করা হচ্ছে…",
   connect: "কানেক্ট করুন",
   learnMore: "আরও জানুন",
@@ -800,6 +851,23 @@ const BN: Dict = {
 
 // Marathi (mr).
 const MR: Dict = {
+  // ---- /portal/not-listed: whitelist-only refusal -------------------
+  // A guest at a property that admits only its Always Allowed list, who
+  // has just submitted and been refused. They have done nothing wrong and
+  // cannot fix it themselves, so every string below points at the person
+  // who can. `{contact}` is substituted with notListedContactPhone /
+  // notListedContactEmail by the route, so the same sentence works for a
+  // number and for an email without duplicating it ten times over.
+  // Never carries the matched rule's operator-authored `reason`.
+  notListedTitle: "हे WiFi नोंदणीकृत पाहुण्यांसाठी आहे",
+  notListedBody:
+    "इथे इंटरनेट फक्त ठिकाणाच्या यादीतील पाहुण्यांसाठी आहे, आणि हा {contact} अजून त्यात नाही.",
+  notListedNextStepLead: "इथे राहत आहात किंवा बुकिंग आहे?",
+  notListedNextStep: "रिसेप्शनला हा {contact} सांगा, ते लगेच जोडून देतील.",
+  notListedRetryPrompt: "{contact} चुकीचा आहे?",
+  notListedRetry: "दुसरा {contact} वापरून पाहा",
+  notListedContactPhone: "नंबर",
+  notListedContactEmail: "ईमेल",
   loading: "तुमचं connection तयार करत आहोत…",
   connect: "Connect करा",
   learnMore: "अधिक जाणून घ्या",
@@ -1021,6 +1089,23 @@ const MR: Dict = {
 
 // Telugu (te).
 const TE: Dict = {
+  // ---- /portal/not-listed: whitelist-only refusal -------------------
+  // A guest at a property that admits only its Always Allowed list, who
+  // has just submitted and been refused. They have done nothing wrong and
+  // cannot fix it themselves, so every string below points at the person
+  // who can. `{contact}` is substituted with notListedContactPhone /
+  // notListedContactEmail by the route, so the same sentence works for a
+  // number and for an email without duplicating it ten times over.
+  // Never carries the matched rule's operator-authored `reason`.
+  notListedTitle: "ఈ WiFi నమోదైన అతిథుల కోసం",
+  notListedBody:
+    "ఇక్కడ ఇంటర్నెట్ వేదిక జాబితాలో ఉన్న అతిథులకు మాత్రమే, ఈ {contact} ఇంకా అందులో లేదు.",
+  notListedNextStepLead: "ఇక్కడ బస చేస్తున్నారా లేదా బుకింగ్ ఉందా?",
+  notListedNextStep: "రిసెప్షన్‌లో ఈ {contact} చెప్పండి, వాళ్లు వెంటనే చేర్చుతారు.",
+  notListedRetryPrompt: "{contact} తప్పా?",
+  notListedRetry: "వేరే {contact} ప్రయత్నించండి",
+  notListedContactPhone: "నంబర్",
+  notListedContactEmail: "ఇమెయిల్",
   loading: "మీ కనెక్షన్ సిద్ధం చేస్తున్నాం…",
   connect: "కనెక్ట్ చేయండి",
   learnMore: "మరింత తెలుసుకోండి",
@@ -1242,6 +1327,23 @@ const TE: Dict = {
 
 // Tamil (ta).
 const TA: Dict = {
+  // ---- /portal/not-listed: whitelist-only refusal -------------------
+  // A guest at a property that admits only its Always Allowed list, who
+  // has just submitted and been refused. They have done nothing wrong and
+  // cannot fix it themselves, so every string below points at the person
+  // who can. `{contact}` is substituted with notListedContactPhone /
+  // notListedContactEmail by the route, so the same sentence works for a
+  // number and for an email without duplicating it ten times over.
+  // Never carries the matched rule's operator-authored `reason`.
+  notListedTitle: "இந்த WiFi பதிவு செய்யப்பட்ட விருந்தினர்களுக்கானது",
+  notListedBody:
+    "இங்கு இணையம் இடத்தின் பட்டியலில் உள்ள விருந்தினர்களுக்கு மட்டுமே, இந்த {contact} இன்னும் அதில் இல்லை.",
+  notListedNextStepLead: "இங்கு தங்கியுள்ளீர்களா அல்லது முன்பதிவு உள்ளதா?",
+  notListedNextStep: "வரவேற்பறையில் இந்த {contact} சொல்லுங்கள், அவர்கள் உடனே சேர்த்துவிடுவார்கள்.",
+  notListedRetryPrompt: "{contact} தவறா?",
+  notListedRetry: "வேறு {contact} முயற்சிக்கவும்",
+  notListedContactPhone: "எண்",
+  notListedContactEmail: "மின்னஞ்சல்",
   loading: "உங்கள் இணைப்பு தயாராகிறது…",
   connect: "இணைக்க",
   learnMore: "மேலும் அறிக",
@@ -1467,6 +1569,23 @@ const TA: Dict = {
 
 // Gujarati (gu).
 const GU: Dict = {
+  // ---- /portal/not-listed: whitelist-only refusal -------------------
+  // A guest at a property that admits only its Always Allowed list, who
+  // has just submitted and been refused. They have done nothing wrong and
+  // cannot fix it themselves, so every string below points at the person
+  // who can. `{contact}` is substituted with notListedContactPhone /
+  // notListedContactEmail by the route, so the same sentence works for a
+  // number and for an email without duplicating it ten times over.
+  // Never carries the matched rule's operator-authored `reason`.
+  notListedTitle: "આ WiFi નોંધાયેલ મહેમાનો માટે છે",
+  notListedBody:
+    "અહીં ઇન્ટરનેટ ફક્ત સ્થળની યાદીમાંના મહેમાનો માટે છે, અને આ {contact} હજી તેમાં નથી.",
+  notListedNextStepLead: "અહીં રોકાયા છો કે બુકિંગ છે?",
+  notListedNextStep: "રિસેપ્શન પર આ {contact} જણાવો, તેઓ તરત જ ઉમેરી દેશે.",
+  notListedRetryPrompt: "{contact} ખોટો છે?",
+  notListedRetry: "બીજો {contact} અજમાવો",
+  notListedContactPhone: "નંબર",
+  notListedContactEmail: "ઈમેલ",
   loading: "તમારું connection તૈયાર થાય છે…",
   connect: "Connect કરો",
   learnMore: "વધુ જાણો",
@@ -1686,6 +1805,23 @@ const GU: Dict = {
 
 // Kannada (kn).
 const KN: Dict = {
+  // ---- /portal/not-listed: whitelist-only refusal -------------------
+  // A guest at a property that admits only its Always Allowed list, who
+  // has just submitted and been refused. They have done nothing wrong and
+  // cannot fix it themselves, so every string below points at the person
+  // who can. `{contact}` is substituted with notListedContactPhone /
+  // notListedContactEmail by the route, so the same sentence works for a
+  // number and for an email without duplicating it ten times over.
+  // Never carries the matched rule's operator-authored `reason`.
+  notListedTitle: "ಈ WiFi ನೋಂದಾಯಿತ ಅತಿಥಿಗಳಿಗಾಗಿ",
+  notListedBody:
+    "ಇಲ್ಲಿ ಇಂಟರ್ನೆಟ್ ಸ್ಥಳದ ಪಟ್ಟಿಯಲ್ಲಿರುವ ಅತಿಥಿಗಳಿಗೆ ಮಾತ್ರ, ಈ {contact} ಇನ್ನೂ ಅದರಲ್ಲಿ ಇಲ್ಲ.",
+  notListedNextStepLead: "ಇಲ್ಲಿ ತಂಗಿದ್ದೀರಾ ಅಥವಾ ಬುಕಿಂಗ್ ಇದೆಯೇ?",
+  notListedNextStep: "ಸ್ವಾಗತ ಕೊಠಡಿಯಲ್ಲಿ ಈ {contact} ತಿಳಿಸಿ, ಅವರು ತಕ್ಷಣ ಸೇರಿಸುತ್ತಾರೆ.",
+  notListedRetryPrompt: "{contact} ತಪ್ಪಾಗಿದೆಯೇ?",
+  notListedRetry: "ಬೇರೆ {contact} ಪ್ರಯತ್ನಿಸಿ",
+  notListedContactPhone: "ನಂಬರ್",
+  notListedContactEmail: "ಇಮೇಲ್",
   loading: "ನಿಮ್ಮ connection ಸಿದ್ಧವಾಗುತ್ತಿದೆ…",
   connect: "Connect ಮಾಡಿ",
   learnMore: "ಇನ್ನಷ್ಟು ತಿಳಿಯಿರಿ",
@@ -1905,6 +2041,23 @@ const KN: Dict = {
 
 // Malayalam (ml).
 const ML: Dict = {
+  // ---- /portal/not-listed: whitelist-only refusal -------------------
+  // A guest at a property that admits only its Always Allowed list, who
+  // has just submitted and been refused. They have done nothing wrong and
+  // cannot fix it themselves, so every string below points at the person
+  // who can. `{contact}` is substituted with notListedContactPhone /
+  // notListedContactEmail by the route, so the same sentence works for a
+  // number and for an email without duplicating it ten times over.
+  // Never carries the matched rule's operator-authored `reason`.
+  notListedTitle: "ഈ WiFi രജിസ്റ്റർ ചെയ്ത അതിഥികൾക്കുള്ളതാണ്",
+  notListedBody:
+    "ഇവിടെ ഇന്റർനെറ്റ് വേദിയുടെ പട്ടികയിലുള്ള അതിഥികൾക്ക് മാത്രമാണ്, ഈ {contact} ഇതുവരെ അതിൽ ഇല്ല.",
+  notListedNextStepLead: "ഇവിടെ താമസിക്കുന്നുണ്ടോ അല്ലെങ്കിൽ ബുക്കിംഗ് ഉണ്ടോ?",
+  notListedNextStep: "റിസപ്ഷനിൽ ഈ {contact} പറയൂ, അവർ ഉടനെ ചേർത്തുതരും.",
+  notListedRetryPrompt: "{contact} തെറ്റാണോ?",
+  notListedRetry: "മറ്റൊരു {contact} പരീക്ഷിക്കൂ",
+  notListedContactPhone: "നമ്പർ",
+  notListedContactEmail: "ഇമെയിൽ",
   loading: "നിങ്ങളുടെ കണക്ഷൻ ഒരുക്കുന്നു…",
   connect: "കണക്ട് ചെയ്യൂ",
   learnMore: "കൂടുതൽ അറിയൂ",
@@ -2127,6 +2280,23 @@ const ML: Dict = {
 
 // Punjabi (pa, Gurmukhi).
 const PA: Dict = {
+  // ---- /portal/not-listed: whitelist-only refusal -------------------
+  // A guest at a property that admits only its Always Allowed list, who
+  // has just submitted and been refused. They have done nothing wrong and
+  // cannot fix it themselves, so every string below points at the person
+  // who can. `{contact}` is substituted with notListedContactPhone /
+  // notListedContactEmail by the route, so the same sentence works for a
+  // number and for an email without duplicating it ten times over.
+  // Never carries the matched rule's operator-authored `reason`.
+  notListedTitle: "ਇਹ WiFi ਰਜਿਸਟਰਡ ਮਹਿਮਾਨਾਂ ਲਈ ਹੈ",
+  notListedBody:
+    "ਇੱਥੇ ਇੰਟਰਨੈੱਟ ਸਿਰਫ਼ ਥਾਂ ਦੀ ਸੂਚੀ ਵਿੱਚ ਸ਼ਾਮਲ ਮਹਿਮਾਨਾਂ ਲਈ ਹੈ, ਅਤੇ ਇਹ {contact} ਹਾਲੇ ਉਸ ਵਿੱਚ ਨਹੀਂ ਹੈ।",
+  notListedNextStepLead: "ਇੱਥੇ ਠਹਿਰੇ ਹੋ ਜਾਂ ਬੁਕਿੰਗ ਹੈ?",
+  notListedNextStep: "ਰਿਸੈਪਸ਼ਨ 'ਤੇ ਇਹ {contact} ਦੱਸੋ, ਉਹ ਤੁਰੰਤ ਜੋੜ ਦੇਣਗੇ।",
+  notListedRetryPrompt: "{contact} ਗਲਤ ਹੈ?",
+  notListedRetry: "ਹੋਰ {contact} ਅਜ਼ਮਾਓ",
+  notListedContactPhone: "ਨੰਬਰ",
+  notListedContactEmail: "ਈਮੇਲ",
   loading: "ਤੁਹਾਡਾ connection ਤਿਆਰ ਕੀਤਾ ਜਾ ਰਿਹਾ ਹੈ…",
   connect: "ਜੁੜੋ",
   learnMore: "ਹੋਰ ਜਾਣੋ",

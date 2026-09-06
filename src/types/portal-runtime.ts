@@ -351,6 +351,18 @@ export interface RuntimePortalConfig {
    * .is_open_now. Always true when business hours enforcement is off. */
   isOpenNow: boolean;
   businessHoursClosedMessage: string | null;
+  /** The venue's own words on the whitelist-only refusal screen
+   * (`/portal/not-listed`), from `captive_portal_configs
+   * .whitelist_only_denied_message`. Null -- the normal state -- leaves the
+   * localized default copy in place, the same contract
+   * `businessHoursClosedMessage` above already has.
+   *
+   * Optional (`?`) rather than plain `| null` only because it is the newest
+   * field on this type: a config object built before migration 0117 landed
+   * (a backend a version behind, or one of this repo's own hand-built
+   * literals) simply does not carry the key, and every reader here already
+   * treats absent and null identically. */
+  whitelistOnlyDeniedMessage?: string | null;
   /** captive-portal-v6-design-spec.md §3 -- heading-layer-only font choice
    * (`pg-display`/`pg-title`/`pg-subtitle`, never body/UI text). Default
    * `"system"` for every venue until an admin explicitly picks otherwise. */
