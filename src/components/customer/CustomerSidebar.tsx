@@ -214,7 +214,19 @@ export function CustomerSidebar({ activeFeatureId, subtitle, dataMasking }: Cust
                           <Link
                             to={customerFeatureHref(item.id)}
                             aria-current={active ? "page" : undefined}
+                            className="relative"
                           >
+                            {/* Active-page accent bar -- a 3px violet rail on
+                             * the row's leading edge so the current section
+                             * reads instantly even when the pill background
+                             * is subtle. Mirrors the reference design's left
+                             * indicator on the active nav item. */}
+                            {active && (
+                              <span
+                                aria-hidden
+                                className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-[#8B5CF6]"
+                              />
+                            )}
                             <Icon className="h-4 w-4 shrink-0" />
                             <span className="flex-1 truncate">{label}</span>
                           </Link>
@@ -246,7 +258,7 @@ export function CustomerSidebar({ activeFeatureId, subtitle, dataMasking }: Cust
               ) : dataMasking.masked ? (
                 <Shield className="h-4 w-4" />
               ) : (
-                <Eye className={cn("h-4 w-4", "text-sky-400")} />
+                <Eye className={cn("h-4 w-4", "text-violet-300")} />
               )}
               <span className="flex-1 truncate">Guest Privacy</span>
             </SidebarMenuButton>

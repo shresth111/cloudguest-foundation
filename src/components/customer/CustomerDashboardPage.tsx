@@ -1924,7 +1924,7 @@ export function CustomerDashboardPage() {
                 </div>
               </div>
 
-              <div className="mx-auto max-w-7xl space-y-8 pt-6">
+              <div className="mx-auto max-w-7xl space-y-8 pt-8">
                 {/* Status strip -- moved out of the dark hero into its own
                  * light card (same treatment as the chart cards below it)
                  * so the hero itself stays short instead of the health
@@ -1987,7 +1987,7 @@ export function CustomerDashboardPage() {
                     Traffic and hardware, over the last 24 hours.
                   </p>
                   <div className="grid gap-6 lg:grid-cols-3">
-                    <Card className="lg:col-span-1 premium-card premium-card-hover">
+                    <Card className="h-full lg:col-span-1 premium-card premium-card-hover">
                       <CardHeader className="flex flex-row items-center gap-2.5 space-y-0">
                         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]">
                           <TrendingUp className="h-3.5 w-3.5 text-white" />
@@ -2079,7 +2079,7 @@ export function CustomerDashboardPage() {
                         </div>
                       </CardContent>
                     </Card>
-                    <Card className="lg:col-span-1 premium-card premium-card-hover">
+                    <Card className="h-full lg:col-span-1 premium-card premium-card-hover">
                       <CardHeader className="flex flex-row items-center gap-2.5 space-y-0">
                         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]">
                           <Router className="h-3.5 w-3.5 text-white" />
@@ -2125,7 +2125,7 @@ export function CustomerDashboardPage() {
                         </div>
                       </CardContent>
                     </Card>
-                    <Card className="lg:col-span-1 premium-card premium-card-hover">
+                    <Card className="h-full lg:col-span-1 premium-card premium-card-hover">
                       <CardHeader className="flex flex-row items-center gap-2.5 space-y-0">
                         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]">
                           <Activity className="h-3.5 w-3.5 text-white" />
