@@ -121,29 +121,33 @@ export function CustomerSidebar({ activeFeatureId, subtitle, dataMasking }: Cust
   return (
     <Sidebar
       collapsible="icon"
-      // Customer chrome is a vibrant purple-violet rail -- the same indigo
-      // family as the app's #6C4EFF/#7C3AED accents, not the near-black
-      // graphite the sitewide "--sidebar*" tokens default to (Master
-      // Console opts out of those via its own `.master-theme` class). The
-      // primitive paints its own `bg-sidebar` on an inner div, so
-      // `--sidebar` must be transparent for the gradient on this wrapper to
-      // show through. The gradient rides on backgroundImage INLINE (not a
-      // class) so the sitewide brand-sheen rule in styles.css cannot layer
-      // over it, and so it reaches the portal-rendered mobile Sheet through
-      // the style forwarding in ui/sidebar.tsx.
+      // Customer chrome matches the how-it-works dashboard screenshot on
+      // wyfyguest.com exactly. Sampled from dashboard-overview.webp, the
+      // rail runs #1f1c49 at the top (logo zone), settles through
+      // #1c1a44/#1c1a42 across the nav body, and darkens to #191733 /
+      // #181630 at the bottom. styles.css's sitewide "--sidebar*" tokens
+      // default to near-black graphite instead, so they are overridden
+      // here with the sampled indigo values (Master Console opts out of
+      // those defaults via its own `.master-theme` class). The primitive
+      // paints its own `bg-sidebar` on an inner div, so `--sidebar` must
+      // be transparent for the gradient on this wrapper to show through.
+      // The gradient rides on backgroundImage INLINE (not a class) so the
+      // sitewide brand-sheen rule in styles.css cannot layer over it, and
+      // so it reaches the portal-rendered mobile Sheet through the style
+      // forwarding in ui/sidebar.tsx.
       className="customer-rail"
       style={
         {
           "--sidebar": "transparent",
-          "--sidebar-foreground": "#d5d3f5",
-          "--sidebar-border": "rgb(255 255 255 / 14%)",
-          "--sidebar-accent": "#4f46e5",
+          "--sidebar-foreground": "#c8c6dd",
+          "--sidebar-border": "rgb(255 255 255 / 10%)",
+          "--sidebar-accent": "#2a2755",
           "--sidebar-accent-foreground": "#ffffff",
-          "--sidebar-primary": "#a5b4fc",
+          "--sidebar-primary": "#a5a0ff",
           "--sidebar-primary-foreground": "#ffffff",
-          "--sidebar-ring": "#818cf8",
+          "--sidebar-ring": "#6d68ff",
           backgroundImage:
-            "linear-gradient(to bottom, #4338ca 0%, #3730a3 12%, #312e81 45%, #241f5e 100%)",
+            "linear-gradient(to bottom, #1f1c49 0%, #1d1b46 10%, #1c1a44 30%, #1c1a42 55%, #1a183d 80%, #191733 100%)",
         } as CSSProperties
       }
     >
