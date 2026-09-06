@@ -188,6 +188,7 @@ export interface Portal {
   login: PortalLoginSettings;
   consent: PortalConsent;
   content: PortalContent;
+  postConnect: PortalPostConnect;
   seo: PortalSeo;
   ads: PortalAd[];
   components: PortalComponent[];
@@ -199,6 +200,39 @@ export interface Portal {
   createdAt: string;
   views: number;
   logins: number;
+}
+
+/**
+ * The "After they connect" settings -- everything a venue asks a guest for
+ * on `/portal/session`, AFTER the RADIUS session is authorised.
+ *
+ * Deliberately its own section rather than more fields on `login`. `login`
+ * is the sign-in screen; none of this can affect whether a guest gets
+ * online, and keeping the boundary in the data model is what stops someone
+ * quietly dragging the email field back onto the sign-in card. The section
+ * boundary is a design guardrail, not tidiness.
+ */
+export interface PortalPostConnect {
+  /** Both default OFF for every venue, existing ones included. The venue is
+   * the Data Fiduciary under DPDP; a migration that switched on collection
+   * of personal data on their behalf would make a decision that is not ours
+   * to make. */
+  collectGuestName: boolean;
+  collectGuestEmail: boolean;
+  /** The venue's own Google review link, pasted verbatim from Business
+   * Profile → Read reviews → Get more reviews (backend `review_url`).
+   * "" means the review card never renders. Never synthesised from a
+   * place id. */
+  reviewUrl: string;
+  /** Whether the venue currently wants the card shown (backend
+   * `review_card_enabled`). Separate from the link on purpose: pausing the
+   * ask must not cost a venue the URL they would then have to go and find
+   * again. The card needs both. */
+  reviewCardEnabled: boolean;
+  /** Private 1-5 star feedback, shown at least `feedbackDwellMinutes` into
+   * a visit and never in a session where the Google card appeared. */
+  guestFeedbackEnabled: boolean;
+  feedbackDwellMinutes: number;
 }
 
 export interface PortalTheme {

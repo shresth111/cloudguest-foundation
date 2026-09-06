@@ -50,5 +50,10 @@ export function buildDemoSession(
     deviceMacAddress: null,
     deviceName: "This device",
     hasPassword: false,
+    // The demo mirrors a first-time guest who has answered nothing: both
+    // false, so the walkthrough shows whatever the previewed venue's own
+    // post-connect settings would actually ask for.
+    hasProfile: false,
+    hasOpenedReviewLink: false,
   };
 }

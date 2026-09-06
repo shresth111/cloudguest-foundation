@@ -24,7 +24,13 @@ export type GuestAuthErrorContext =
   | "otp_verify"
   | "password"
   | "voucher"
-  | "team_join";
+  | "team_join"
+  /** The post-connect profile card. It is not an auth surface -- the guest
+   * is already online and nothing here can affect the gate -- but its
+   * errors must read like every other guest-facing form's, and routing it
+   * through the same function is what stops a sixth surface hand-rolling a
+   * sixth error string that drifts from the other five. */
+  | "profile";
 
 const RAW_VALIDATION_MESSAGE = "Request validation failed";
 const RAW_IDENTIFIER_PATTERN = /is not a valid identifier for channel/i;
@@ -40,11 +46,31 @@ const FRIENDLY_BY_CONTEXT: Record<GuestAuthErrorContext, string> = {
   // other guest-facing form's fallback for the one raw, non-guest-facing
   // shape the backend can return.
   team_join: "That team code doesn't look right -- please check it and try again.",
+  // Deliberately says the internet is working. A guest watching a failure
+  // on a captive portal assumes the WiFi broke; by the time this card can
+  // render, the RADIUS session is authorised and it did not.
+  profile: "Couldn't save that. Your internet is working -- try again.",
 };
 
-export function friendlyGuestAuthError(e: AppError, context: GuestAuthErrorContext): string {
+/**
+ * `localizedFallback` exists because the map above is English-only, and so
+ * is every real backend message it passes through -- a pre-existing gap on
+ * the sign-in surfaces, which are English-first. The post-connect profile
+ * card is not: it ships in ten languages, and a guest reading the portal in
+ * Malayalam should not be handed an English sentence for the one thing that
+ * went wrong. A caller with a translated string for its own context passes
+ * it here and it replaces the generic fallback ONLY -- a real, specific
+ * backend reason still wins, unchanged, exactly as this module's docstring
+ * requires.
+ */
+export function friendlyGuestAuthError(
+  e: AppError,
+  context: GuestAuthErrorContext,
+  localizedFallback?: string,
+): string {
   const isRawValidationError =
     e.status === 422 &&
     (e.message === RAW_VALIDATION_MESSAGE || RAW_IDENTIFIER_PATTERN.test(e.message));
-  return isRawValidationError ? FRIENDLY_BY_CONTEXT[context] : e.message;
+  if (!isRawValidationError && e.message) return e.message;
+  return localizedFallback || FRIENDLY_BY_CONTEXT[context];
 }

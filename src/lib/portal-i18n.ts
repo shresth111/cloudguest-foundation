@@ -175,11 +175,56 @@ const EN: Dict = {
   // disclosure link).
   switchOtpChannel: "Get the code another way",
 
-  // Closes portal.session.tsx's new profile nudge card (v4 §6.5 --
-  // relocated out of the login funnel, same pattern as the password/team
-  // nudges already on this page).
-  profileNudgeTitle: "Tell us a bit about yourself",
-  profileNudgeSubtitle: "Optional -- helps venue staff recognize you next time.",
+  // ===== POST-CONNECT ASKS. Everything below renders on /portal/session,
+  // after the RADIUS session is authorised -- nothing here can affect
+  // whether a guest gets online. The rules that decide WHICH of these
+  // cards may render, and when, live in src/lib/portal-post-connect.ts.
+  //
+  // `{venue}` / `{name}` / `{n}` are substituted at the call site with
+  // `.replace()`, never inside translate() -- the same reason
+  // `courtesyOfTemplate` does it there: word order moves per language.
+  //
+  // The profile card's title/subtitle REPLACE the previous pair.
+  // "Tell us a bit about yourself" was vague in the one way that costs
+  // trust on a network guests already distrust: it named neither the ask
+  // nor the asker. And "helps venue staff recognize you next time" was an
+  // invented benefit -- nothing in this product shows a guest's name to
+  // floor staff at the moment they walk in.
+  //
+  // No placeholders. "Jane Doe" and "you@example.com" used to be hardcoded
+  // outside t(), so a guest reading the portal in Bengali got a Bengali
+  // label and an American placeholder. The labels already carry the
+  // meaning; empty placeholders beat translating a name ten times.
+  //
+  // Review-card copy is fixed, product-owned, and NOT venue-configurable
+  // (review-prompt-ux.md §3.4): no adjective describing the review, no
+  // incentive, no sentiment question anywhere near it. "would appreciate"
+  // is a request; "great"/"honest"/"5-star" would be an attempt to
+  // influence the contents, which is a live clause in Google's policy and
+  // whose penalty lands on the VENUE's Business Profile.
+  profileNudgeTitle: "Add your name",
+  profileNudgeTitleEmail: "Add your email",
+  profileNudgeSubtitle: "Optional — you're already online.",
+  profileEmailPurpose: "Only {venue} sees this.",
+  profileSaveCta: "Save",
+  profileSaveEmailCta: "Save email",
+  profileSkipCta: "Not now",
+  profileRetryCta: "Try again",
+  profileSlowSaving: "Still saving — your internet is working.",
+  profileSaveFailed: "Couldn't save that. Your internet is working — try again.",
+  profileEmailInvalid: "That email doesn't look right.",
+  profileSavedTemplate: "Thanks, {name}.",
+  profileSaved: "Saved.",
+  dismissCardLabel: "Dismiss",
+  reviewCardTitle: "Been here before?",
+  reviewCardSubtitle: "{venue} would appreciate a review on Google.",
+  reviewCardCta: "Write a Google review",
+  feedbackCardTitle: "How's it going at {venue}?",
+  feedbackCardSubtitle: "Goes straight to the owner. Not public.",
+  feedbackThanksTemplate: "Thanks — {venue} will see this.",
+  feedbackFreeTextLabel: "Anything you'd like to add? (optional)",
+  feedbackSendCta: "Send",
+  feedbackStarLabelTemplate: "{n} out of 5",
 
   // captive-portal-v7-design-spec.md §7.2 -- accessible names for the
   // sign-in fields, which until v7 had none at all (see AuthFields.tsx).
@@ -430,8 +475,29 @@ const HI: Dict = {
   switchOtpChannel: "कोड पाने का दूसरा तरीका",
 
   // Closes portal.session.tsx's new profile nudge card.
-  profileNudgeTitle: "हमें अपने बारे में थोड़ा बताएं",
-  profileNudgeSubtitle: "वैकल्पिक -- अगली बार वेन्यू स्टाफ को आपको पहचानने में मदद करता है।",
+  profileNudgeTitle: "अपना नाम जोड़ें",
+  profileNudgeTitleEmail: "अपना ईमेल जोड़ें",
+  profileNudgeSubtitle: "वैकल्पिक — आप पहले से ऑनलाइन हैं।",
+  profileEmailPurpose: "इसे सिर्फ़ {venue} देखता है।",
+  profileSaveCta: "सेव करें",
+  profileSaveEmailCta: "ईमेल सेव करें",
+  profileSkipCta: "अभी नहीं",
+  profileRetryCta: "फिर कोशिश करें",
+  profileSlowSaving: "अभी भी सेव हो रहा है — आपका इंटरनेट चल रहा है।",
+  profileSaveFailed: "यह सेव नहीं हो पाया। आपका इंटरनेट चल रहा है — फिर कोशिश करें।",
+  profileEmailInvalid: "यह ईमेल सही नहीं लग रहा।",
+  profileSavedTemplate: "धन्यवाद, {name}।",
+  profileSaved: "सेव हो गया।",
+  dismissCardLabel: "बंद करें",
+  reviewCardTitle: "पहले भी यहाँ आए हैं?",
+  reviewCardSubtitle: "{venue} को Google पर आपकी समीक्षा अच्छी लगेगी।",
+  reviewCardCta: "Google पर समीक्षा लिखें",
+  feedbackCardTitle: "{venue} में कैसा चल रहा है?",
+  feedbackCardSubtitle: "यह सीधे मालिक तक जाता है। सार्वजनिक नहीं।",
+  feedbackThanksTemplate: "धन्यवाद — {venue} इसे देखेंगे।",
+  feedbackFreeTextLabel: "कुछ और कहना चाहेंगे? (वैकल्पिक)",
+  feedbackSendCta: "भेजें",
+  feedbackStarLabelTemplate: "5 में से {n}",
 
   // v7 §7.2 -- see the EN block.
   countryCodeLabel: "देश कोड",
@@ -666,8 +732,29 @@ const BN: Dict = {
   switchOtpChannel: "অন্যভাবে কোড নিন",
 
   // Closes portal.session.tsx's new profile nudge card.
-  profileNudgeTitle: "নিজের সম্পর্কে একটু বলুন",
-  profileNudgeSubtitle: "ঐচ্ছিক — পরের বার স্টাফের আপনাকে চিনতে সুবিধা হয়।",
+  profileNudgeTitle: "আপনার নাম যোগ করুন",
+  profileNudgeTitleEmail: "আপনার ইমেল যোগ করুন",
+  profileNudgeSubtitle: "ঐচ্ছিক — আপনি ইতিমধ্যেই অনলাইনে আছেন।",
+  profileEmailPurpose: "এটি শুধু {venue} দেখতে পায়।",
+  profileSaveCta: "সেভ করুন",
+  profileSaveEmailCta: "ইমেল সেভ করুন",
+  profileSkipCta: "এখন নয়",
+  profileRetryCta: "আবার চেষ্টা করুন",
+  profileSlowSaving: "এখনও সেভ হচ্ছে — আপনার ইন্টারনেট কাজ করছে।",
+  profileSaveFailed: "এটি সেভ করা গেল না। আপনার ইন্টারনেট কাজ করছে — আবার চেষ্টা করুন।",
+  profileEmailInvalid: "ইমেলটি ঠিক মনে হচ্ছে না।",
+  profileSavedTemplate: "ধন্যবাদ, {name}।",
+  profileSaved: "সেভ হয়েছে।",
+  dismissCardLabel: "বন্ধ করুন",
+  reviewCardTitle: "আগেও এসেছেন?",
+  reviewCardSubtitle: "{venue} Google-এ আপনার রিভিউ পেলে খুশি হবে।",
+  reviewCardCta: "Google-এ রিভিউ লিখুন",
+  feedbackCardTitle: "{venue}-এ কেমন চলছে?",
+  feedbackCardSubtitle: "সরাসরি মালিকের কাছে যায়। প্রকাশ্য নয়।",
+  feedbackThanksTemplate: "ধন্যবাদ — {venue} এটি দেখবে।",
+  feedbackFreeTextLabel: "আর কিছু বলতে চান? (ঐচ্ছিক)",
+  feedbackSendCta: "পাঠান",
+  feedbackStarLabelTemplate: "৫-এর মধ্যে {n}",
 
   // v7 §7.2 -- see the EN block.
   countryCodeLabel: "দেশের কোড",
@@ -864,8 +951,29 @@ const MR: Dict = {
   switchOtpChannel: "Code दुसऱ्या मार्गाने मिळवा",
 
   // Closes portal.session.tsx's new profile nudge card.
-  profileNudgeTitle: "तुमच्याबद्दल थोडं सांगा",
-  profileNudgeSubtitle: "ऐच्छिक — पुढच्या वेळी इथल्या staff ला तुम्ही ओळखू येता.",
+  profileNudgeTitle: "तुमचं नाव जोडा",
+  profileNudgeTitleEmail: "तुमचा ईमेल जोडा",
+  profileNudgeSubtitle: "ऐच्छिक — तुम्ही आधीच ऑनलाइन आहात.",
+  profileEmailPurpose: "हे फक्त {venue} पाहतं.",
+  profileSaveCta: "Save करा",
+  profileSaveEmailCta: "ईमेल save करा",
+  profileSkipCta: "आत्ता नको",
+  profileRetryCta: "पुन्हा प्रयत्न करा",
+  profileSlowSaving: "अजून save होत आहे — तुमचं इंटरनेट सुरू आहे.",
+  profileSaveFailed: "हे save झालं नाही. तुमचं इंटरनेट सुरू आहे — पुन्हा प्रयत्न करा.",
+  profileEmailInvalid: "हा ईमेल बरोबर वाटत नाही.",
+  profileSavedTemplate: "धन्यवाद, {name}.",
+  profileSaved: "Save झालं.",
+  dismissCardLabel: "बंद करा",
+  reviewCardTitle: "याआधी इथे आला आहात?",
+  reviewCardSubtitle: "{venue} ला Google वर तुमचा review आवडेल.",
+  reviewCardCta: "Google वर review लिहा",
+  feedbackCardTitle: "{venue} मध्ये कसं चाललंय?",
+  feedbackCardSubtitle: "हे थेट मालकाकडे जातं. सार्वजनिक नाही.",
+  feedbackThanksTemplate: "धन्यवाद — {venue} हे बघेल.",
+  feedbackFreeTextLabel: "आणखी काही सांगायचं आहे? (ऐच्छिक)",
+  feedbackSendCta: "पाठवा",
+  feedbackStarLabelTemplate: "5 पैकी {n}",
 
   // v7 §7.2 -- see the EN block.
   countryCodeLabel: "देशाचा code",
@@ -1065,8 +1173,29 @@ const TE: Dict = {
   switchOtpChannel: "కోడ్ మరో విధంగా పొందండి",
 
   // Closes portal.session.tsx's new profile nudge card.
-  profileNudgeTitle: "మీ గురించి కొంచెం చెప్పండి",
-  profileNudgeSubtitle: "ఐచ్ఛికం -- వచ్చేసారి సిబ్బంది మిమ్మల్ని గుర్తుపట్టేందుకు ఉపయోగపడుతుంది.",
+  profileNudgeTitle: "మీ పేరు జోడించండి",
+  profileNudgeTitleEmail: "మీ ఈమెయిల్ జోడించండి",
+  profileNudgeSubtitle: "ఐచ్ఛికం — మీరు ఇప్పటికే ఆన్‌లైన్‌లో ఉన్నారు.",
+  profileEmailPurpose: "దీన్ని {venue} మాత్రమే చూస్తుంది.",
+  profileSaveCta: "సేవ్ చేయండి",
+  profileSaveEmailCta: "ఈమెయిల్ సేవ్ చేయండి",
+  profileSkipCta: "ఇప్పుడు వద్దు",
+  profileRetryCta: "మళ్లీ ప్రయత్నించండి",
+  profileSlowSaving: "ఇంకా సేవ్ అవుతోంది — మీ ఇంటర్నెట్ పనిచేస్తోంది.",
+  profileSaveFailed: "అది సేవ్ కాలేదు. మీ ఇంటర్నెట్ పనిచేస్తోంది — మళ్లీ ప్రయత్నించండి.",
+  profileEmailInvalid: "ఆ ఈమెయిల్ సరిగ్గా అనిపించడం లేదు.",
+  profileSavedTemplate: "ధన్యవాదాలు, {name}.",
+  profileSaved: "సేవ్ అయింది.",
+  dismissCardLabel: "మూసివేయండి",
+  reviewCardTitle: "ఇంతకు ముందు వచ్చారా?",
+  reviewCardSubtitle: "Googleలో మీ రివ్యూ {venue}కి సంతోషాన్నిస్తుంది.",
+  reviewCardCta: "Googleలో రివ్యూ రాయండి",
+  feedbackCardTitle: "{venue}లో ఎలా ఉంది?",
+  feedbackCardSubtitle: "ఇది నేరుగా యజమానికి వెళ్తుంది. బహిరంగం కాదు.",
+  feedbackThanksTemplate: "ధన్యవాదాలు — {venue} దీన్ని చూస్తుంది.",
+  feedbackFreeTextLabel: "ఇంకేమైనా చెప్పాలనుకుంటున్నారా? (ఐచ్ఛికం)",
+  feedbackSendCta: "పంపండి",
+  feedbackStarLabelTemplate: "5లో {n}",
 
   // v7 §7.2 -- see the EN block.
   countryCodeLabel: "దేశ కోడ్",
@@ -1267,8 +1396,30 @@ const TA: Dict = {
   switchOtpChannel: "வேறு வழியில் குறியீடு பெறுங்கள்",
 
   // Closes portal.session.tsx's new profile nudge card.
-  profileNudgeTitle: "உங்களைப் பற்றிக் கொஞ்சம் சொல்லுங்கள்",
-  profileNudgeSubtitle: "விருப்பம் -- அடுத்த முறை இட ஊழியர் உங்களை அடையாளம் காண உதவும்.",
+  profileNudgeTitle: "உங்கள் பெயரைச் சேர்க்கவும்",
+  profileNudgeTitleEmail: "உங்கள் மின்னஞ்சலைச் சேர்க்கவும்",
+  profileNudgeSubtitle: "விருப்பத்தேர்வு — நீங்கள் ஏற்கனவே ஆன்லைனில் இருக்கிறீர்கள்.",
+  profileEmailPurpose: "இதை {venue} மட்டுமே பார்க்கும்.",
+  profileSaveCta: "சேமிக்கவும்",
+  profileSaveEmailCta: "மின்னஞ்சலைச் சேமிக்கவும்",
+  profileSkipCta: "இப்போதைக்கு வேண்டாம்",
+  profileRetryCta: "மீண்டும் முயற்சிக்கவும்",
+  profileSlowSaving: "இன்னும் சேமிக்கிறது — உங்கள் இணையம் வேலை செய்கிறது.",
+  profileSaveFailed:
+    "அதைச் சேமிக்க முடியவில்லை. உங்கள் இணையம் வேலை செய்கிறது — மீண்டும் முயற்சிக்கவும்.",
+  profileEmailInvalid: "அந்த மின்னஞ்சல் சரியாகத் தெரியவில்லை.",
+  profileSavedTemplate: "நன்றி, {name}.",
+  profileSaved: "சேமிக்கப்பட்டது.",
+  dismissCardLabel: "மூடு",
+  reviewCardTitle: "முன்பே இங்கு வந்திருக்கிறீர்களா?",
+  reviewCardSubtitle: "Google-இல் உங்கள் விமர்சனம் {venue}-க்கு மகிழ்ச்சி அளிக்கும்.",
+  reviewCardCta: "Google-இல் விமர்சனம் எழுதுங்கள்",
+  feedbackCardTitle: "{venue}-இல் எப்படி இருக்கிறது?",
+  feedbackCardSubtitle: "இது நேரடியாக உரிமையாளருக்குச் செல்கிறது. பொதுவானது அல்ல.",
+  feedbackThanksTemplate: "நன்றி — {venue} இதைப் பார்க்கும்.",
+  feedbackFreeTextLabel: "வேறு ஏதாவது சொல்ல வேண்டுமா? (விருப்பத்தேர்வு)",
+  feedbackSendCta: "அனுப்பு",
+  feedbackStarLabelTemplate: "5-இல் {n}",
 
   // v7 §7.2 -- see the EN block.
   countryCodeLabel: "நாட்டுக் குறியீடு",
@@ -1467,8 +1618,29 @@ const GU: Dict = {
   switchOtpChannel: "કોડ મેળવવાની બીજી રીત",
 
   // Closes portal.session.tsx's new profile nudge card.
-  profileNudgeTitle: "તમારા વિશે થોડું જણાવો",
-  profileNudgeSubtitle: "મરજિયાત -- આવતી વખતે અહીંના સ્ટાફને તમને ઓળખવામાં મદદ મળે.",
+  profileNudgeTitle: "તમારું નામ ઉમેરો",
+  profileNudgeTitleEmail: "તમારું ઈમેલ ઉમેરો",
+  profileNudgeSubtitle: "વૈકલ્પિક — તમે પહેલેથી ઓનલાઈન છો.",
+  profileEmailPurpose: "આ ફક્ત {venue} જુએ છે.",
+  profileSaveCta: "સેવ કરો",
+  profileSaveEmailCta: "ઈમેલ સેવ કરો",
+  profileSkipCta: "અત્યારે નહીં",
+  profileRetryCta: "ફરી પ્રયાસ કરો",
+  profileSlowSaving: "હજુ સેવ થઈ રહ્યું છે — તમારું ઇન્ટરનેટ ચાલુ છે.",
+  profileSaveFailed: "એ સેવ ન થયું. તમારું ઇન્ટરનેટ ચાલુ છે — ફરી પ્રયાસ કરો.",
+  profileEmailInvalid: "એ ઈમેલ સાચું લાગતું નથી.",
+  profileSavedTemplate: "આભાર, {name}.",
+  profileSaved: "સેવ થઈ ગયું.",
+  dismissCardLabel: "બંધ કરો",
+  reviewCardTitle: "પહેલાં અહીં આવ્યા છો?",
+  reviewCardSubtitle: "{venue}ને Google પર તમારો રિવ્યૂ ગમશે.",
+  reviewCardCta: "Google પર રિવ્યૂ લખો",
+  feedbackCardTitle: "{venue}માં કેવું ચાલે છે?",
+  feedbackCardSubtitle: "આ સીધું માલિક પાસે જાય છે. જાહેર નથી.",
+  feedbackThanksTemplate: "આભાર — {venue} આ જોશે.",
+  feedbackFreeTextLabel: "બીજું કંઈ કહેવું છે? (વૈકલ્પિક)",
+  feedbackSendCta: "મોકલો",
+  feedbackStarLabelTemplate: "5માંથી {n}",
 
   // v7 §7.2 -- see the EN block.
   countryCodeLabel: "દેશનો કોડ",
@@ -1664,8 +1836,29 @@ const KN: Dict = {
   switchOtpChannel: "ಕೋಡ್ ಬೇರೆ ದಾರಿಯಲ್ಲಿ ಪಡೆಯಿರಿ",
 
   // Closes portal.session.tsx's new profile nudge card.
-  profileNudgeTitle: "ನಿಮ್ಮ ಬಗ್ಗೆ ಸ್ವಲ್ಪ ಹೇಳಿ",
-  profileNudgeSubtitle: "ಐಚ್ಛಿಕ — ಮುಂದಿನ ಸಲ ಇಲ್ಲಿನ staff ನಿಮ್ಮನ್ನು ಗುರುತಿಸಲು ಸಹಾಯವಾಗುತ್ತದೆ.",
+  profileNudgeTitle: "ನಿಮ್ಮ ಹೆಸರು ಸೇರಿಸಿ",
+  profileNudgeTitleEmail: "ನಿಮ್ಮ ಇಮೇಲ್ ಸೇರಿಸಿ",
+  profileNudgeSubtitle: "ಐಚ್ಛಿಕ — ನೀವು ಈಗಾಗಲೇ ಆನ್‌ಲೈನ್‌ನಲ್ಲಿದ್ದೀರಿ.",
+  profileEmailPurpose: "ಇದನ್ನು {venue} ಮಾತ್ರ ನೋಡುತ್ತದೆ.",
+  profileSaveCta: "ಉಳಿಸಿ",
+  profileSaveEmailCta: "ಇಮೇಲ್ ಉಳಿಸಿ",
+  profileSkipCta: "ಈಗ ಬೇಡ",
+  profileRetryCta: "ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ",
+  profileSlowSaving: "ಇನ್ನೂ ಉಳಿಸುತ್ತಿದೆ — ನಿಮ್ಮ ಇಂಟರ್ನೆಟ್ ಕೆಲಸ ಮಾಡುತ್ತಿದೆ.",
+  profileSaveFailed: "ಅದನ್ನು ಉಳಿಸಲಾಗಲಿಲ್ಲ. ನಿಮ್ಮ ಇಂಟರ್ನೆಟ್ ಕೆಲಸ ಮಾಡುತ್ತಿದೆ — ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
+  profileEmailInvalid: "ಆ ಇಮೇಲ್ ಸರಿ ಇದ್ದಂತೆ ಕಾಣುತ್ತಿಲ್ಲ.",
+  profileSavedTemplate: "ಧನ್ಯವಾದಗಳು, {name}.",
+  profileSaved: "ಉಳಿಸಲಾಗಿದೆ.",
+  dismissCardLabel: "ಮುಚ್ಚಿ",
+  reviewCardTitle: "ಮೊದಲು ಇಲ್ಲಿಗೆ ಬಂದಿದ್ದೀರಾ?",
+  reviewCardSubtitle: "Google ನಲ್ಲಿ ನಿಮ್ಮ ವಿಮರ್ಶೆ {venue}ಗೆ ಸಂತೋಷ ತರುತ್ತದೆ.",
+  reviewCardCta: "Google ನಲ್ಲಿ ವಿಮರ್ಶೆ ಬರೆಯಿರಿ",
+  feedbackCardTitle: "{venue}ನಲ್ಲಿ ಹೇಗಿದೆ?",
+  feedbackCardSubtitle: "ಇದು ನೇರವಾಗಿ ಮಾಲೀಕರಿಗೆ ಹೋಗುತ್ತದೆ. ಸಾರ್ವಜನಿಕವಲ್ಲ.",
+  feedbackThanksTemplate: "ಧನ್ಯವಾದಗಳು — {venue} ಇದನ್ನು ನೋಡುತ್ತದೆ.",
+  feedbackFreeTextLabel: "ಇನ್ನೇನಾದರೂ ಹೇಳಬೇಕೆ? (ಐಚ್ಛಿಕ)",
+  feedbackSendCta: "ಕಳುಹಿಸಿ",
+  feedbackStarLabelTemplate: "5ರಲ್ಲಿ {n}",
 
   // v7 §7.2 -- see the EN block.
   countryCodeLabel: "ದೇಶದ ಕೋಡ್",
@@ -1864,8 +2057,30 @@ const ML: Dict = {
   switchOtpChannel: "കോഡ് കിട്ടാൻ മറ്റൊരു വഴി",
 
   // Closes portal.session.tsx's new profile nudge card.
-  profileNudgeTitle: "നിങ്ങളെക്കുറിച്ച് അൽപ്പം പറയൂ",
-  profileNudgeSubtitle: "നിർബന്ധമല്ല -- അടുത്ത തവണ ജീവനക്കാർക്ക് നിങ്ങളെ തിരിച്ചറിയാൻ സഹായിക്കും.",
+  profileNudgeTitle: "നിങ്ങളുടെ പേര് ചേർക്കുക",
+  profileNudgeTitleEmail: "നിങ്ങളുടെ ഇമെയിൽ ചേർക്കുക",
+  profileNudgeSubtitle: "ഐച്ഛികം — നിങ്ങൾ ഇതിനകം ഓൺലൈനിലാണ്.",
+  profileEmailPurpose: "ഇത് {venue} മാത്രമേ കാണൂ.",
+  profileSaveCta: "സേവ് ചെയ്യുക",
+  profileSaveEmailCta: "ഇമെയിൽ സേവ് ചെയ്യുക",
+  profileSkipCta: "ഇപ്പോൾ വേണ്ട",
+  profileRetryCta: "വീണ്ടും ശ്രമിക്കുക",
+  profileSlowSaving: "ഇപ്പോഴും സേവ് ചെയ്യുന്നു — നിങ്ങളുടെ ഇന്റർനെറ്റ് പ്രവർത്തിക്കുന്നുണ്ട്.",
+  profileSaveFailed:
+    "അത് സേവ് ചെയ്യാനായില്ല. നിങ്ങളുടെ ഇന്റർനെറ്റ് പ്രവർത്തിക്കുന്നുണ്ട് — വീണ്ടും ശ്രമിക്കുക.",
+  profileEmailInvalid: "ആ ഇമെയിൽ ശരിയാണെന്ന് തോന്നുന്നില്ല.",
+  profileSavedTemplate: "നന്ദി, {name}.",
+  profileSaved: "സേവ് ചെയ്തു.",
+  dismissCardLabel: "അടയ്ക്കുക",
+  reviewCardTitle: "മുൻപ് ഇവിടെ വന്നിട്ടുണ്ടോ?",
+  reviewCardSubtitle: "Google-ൽ നിങ്ങളുടെ റിവ്യൂ {venue}-ന് സന്തോഷമാകും.",
+  reviewCardCta: "Google-ൽ ഒരു റിവ്യൂ എഴുതുക",
+  feedbackCardTitle: "{venue}-ൽ എങ്ങനെ പോകുന്നു?",
+  feedbackCardSubtitle: "ഇത് നേരിട്ട് ഉടമയ്ക്ക് പോകുന്നു. പൊതുവല്ല.",
+  feedbackThanksTemplate: "നന്ദി — {venue} ഇത് കാണും.",
+  feedbackFreeTextLabel: "മറ്റെന്തെങ്കിലും പറയാനുണ്ടോ? (ഐച്ഛികം)",
+  feedbackSendCta: "അയയ്ക്കുക",
+  feedbackStarLabelTemplate: "5-ൽ {n}",
 
   // v7 §7.2 -- see the EN block.
   countryCodeLabel: "രാജ്യ കോഡ്",
@@ -2063,8 +2278,29 @@ const PA: Dict = {
   switchOtpChannel: "Code ਲੈਣ ਦਾ ਹੋਰ ਤਰੀਕਾ",
 
   // Closes portal.session.tsx's new profile nudge card.
-  profileNudgeTitle: "ਆਪਣੇ ਬਾਰੇ ਥੋੜ੍ਹਾ ਦੱਸੋ",
-  profileNudgeSubtitle: "ਲਾਜ਼ਮੀ ਨਹੀਂ -- ਅਗਲੀ ਵਾਰ ਸਟਾਫ਼ ਨੂੰ ਤੁਹਾਨੂੰ ਪਛਾਣਨ ਵਿੱਚ ਮਦਦ ਮਿਲਦੀ ਹੈ।",
+  profileNudgeTitle: "ਆਪਣਾ ਨਾਂ ਸ਼ਾਮਲ ਕਰੋ",
+  profileNudgeTitleEmail: "ਆਪਣਾ ਈਮੇਲ ਸ਼ਾਮਲ ਕਰੋ",
+  profileNudgeSubtitle: "ਵਿਕਲਪਿਕ — ਤੁਸੀਂ ਪਹਿਲਾਂ ਹੀ ਆਨਲਾਈਨ ਹੋ।",
+  profileEmailPurpose: "ਇਹ ਸਿਰਫ਼ {venue} ਵੇਖਦਾ ਹੈ।",
+  profileSaveCta: "ਸੇਵ ਕਰੋ",
+  profileSaveEmailCta: "ਈਮੇਲ ਸੇਵ ਕਰੋ",
+  profileSkipCta: "ਹੁਣੇ ਨਹੀਂ",
+  profileRetryCta: "ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ",
+  profileSlowSaving: "ਹਾਲੇ ਵੀ ਸੇਵ ਹੋ ਰਿਹਾ ਹੈ — ਤੁਹਾਡਾ ਇੰਟਰਨੈੱਟ ਚੱਲ ਰਿਹਾ ਹੈ।",
+  profileSaveFailed: "ਇਹ ਸੇਵ ਨਹੀਂ ਹੋ ਸਕਿਆ। ਤੁਹਾਡਾ ਇੰਟਰਨੈੱਟ ਚੱਲ ਰਿਹਾ ਹੈ — ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ।",
+  profileEmailInvalid: "ਇਹ ਈਮੇਲ ਸਹੀ ਨਹੀਂ ਲੱਗਦਾ।",
+  profileSavedTemplate: "ਧੰਨਵਾਦ, {name}।",
+  profileSaved: "ਸੇਵ ਹੋ ਗਿਆ।",
+  dismissCardLabel: "ਬੰਦ ਕਰੋ",
+  reviewCardTitle: "ਪਹਿਲਾਂ ਵੀ ਇੱਥੇ ਆਏ ਹੋ?",
+  reviewCardSubtitle: "{venue} ਨੂੰ Google 'ਤੇ ਤੁਹਾਡਾ ਰਿਵਿਊ ਚੰਗਾ ਲੱਗੇਗਾ।",
+  reviewCardCta: "Google 'ਤੇ ਰਿਵਿਊ ਲਿਖੋ",
+  feedbackCardTitle: "{venue} ਵਿੱਚ ਕਿਵੇਂ ਚੱਲ ਰਿਹਾ ਹੈ?",
+  feedbackCardSubtitle: "ਇਹ ਸਿੱਧਾ ਮਾਲਕ ਕੋਲ ਜਾਂਦਾ ਹੈ। ਜਨਤਕ ਨਹੀਂ।",
+  feedbackThanksTemplate: "ਧੰਨਵਾਦ — {venue} ਇਹ ਵੇਖੇਗਾ।",
+  feedbackFreeTextLabel: "ਹੋਰ ਕੁਝ ਕਹਿਣਾ ਹੈ? (ਵਿਕਲਪਿਕ)",
+  feedbackSendCta: "ਭੇਜੋ",
+  feedbackStarLabelTemplate: "5 ਵਿੱਚੋਂ {n}",
 
   // v7 §7.2 -- see the EN block.
   countryCodeLabel: "ਦੇਸ਼ ਦਾ code",

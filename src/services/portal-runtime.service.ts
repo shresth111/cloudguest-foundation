@@ -1,4 +1,5 @@
 import { guestPortalApi } from "@/services/guest-portal-api";
+import { clampFeedbackDwellMinutes } from "@/lib/portal-post-connect";
 import {
   clampBackgroundFocal,
   clampBackgroundOverlayStrength,
@@ -90,6 +91,25 @@ interface BackendCaptivePortalConfig {
    * `RuntimePortalConfig.locationCountry`. ISO 3166-1 alpha-2, never a
    * dialing code. */
   location_country?: string | null;
+  /** The "After they connect" settings, all four on
+   * `captive_portal_configs` (migration 0114). Optional here until that
+   * migration is deployed; every fallback in `toRuntimeConfig` is chosen so
+   * that absence and the server default the column ships with resolve
+   * IDENTICALLY, which is what makes this frontend safe to land first.
+   *
+   * These names are the backend's, verbatim. An earlier draft of this
+   * frontend guessed `google_review_url` for what the backend actually
+   * calls `review_url`, and invented no equivalent of
+   * `review_card_enabled` at all -- so the card would have rendered off a
+   * field that never arrived, and ignored the switch the venue actually
+   * flipped. Renaming a wire field is free; discovering the mismatch in
+   * production is not. */
+  collect_guest_name?: boolean;
+  collect_guest_email?: boolean;
+  review_url?: string | null;
+  review_card_enabled?: boolean;
+  guest_feedback_enabled?: boolean;
+  feedback_dwell_minutes?: number | null;
 }
 
 interface BackendOtpRequestResponse {
@@ -134,6 +154,10 @@ interface BackendGuestLoginResponse {
   identifier: string;
   is_new_guest: boolean;
   has_password: boolean;
+  /** Optional until the backend adds them alongside `has_password` -- see
+   * `RuntimeSession.hasProfile` / `.hasOpenedReviewLink`. */
+  has_profile?: boolean;
+  has_opened_review_link?: boolean;
   session: BackendGuestSession;
   device: BackendGuestDevice | null;
 }
@@ -223,6 +247,25 @@ function toRuntimeConfig(c: BackendCaptivePortalConfig): RuntimePortalConfig {
     // action, so it only ever happens on an explicit backend `false`.
     poweredByEnabled: c.powered_by_enabled ?? true,
     locationCountry: c.location_country ?? null,
+    // BOTH default OFF. Not a cautious fallback -- the venue is the Data
+    // Fiduciary under DPDP, and the backend column will ship with the same
+    // default, so a venue that has never opened the setting collects
+    // nothing new either before or after that PR. See the field's own
+    // docstring on `RuntimePortalConfig`.
+    collectGuestName: c.collect_guest_name ?? false,
+    collectGuestEmail: c.collect_guest_email ?? false,
+    // Stored and used VERBATIM -- never rebuilt from a place id. `null`
+    // means the review card never renders, with no placeholder.
+    reviewUrl: c.review_url ?? null,
+    // Defaults OFF, like the two above and for the same reason: the card is
+    // greenfield, and switching a public review request on for a venue that
+    // has not read Google's Rating Manipulation policy is not a decision to
+    // make on their behalf -- the penalty (reviews unpublished, a public
+    // "fake reviews were removed" banner, account-level suspension) lands on
+    // their Business Profile, not on this platform.
+    reviewCardEnabled: c.review_card_enabled ?? false,
+    guestFeedbackEnabled: c.guest_feedback_enabled ?? false,
+    feedbackDwellMinutes: clampFeedbackDwellMinutes(c.feedback_dwell_minutes),
   };
 }
 
@@ -250,6 +293,13 @@ function toRuntimeSession(data: BackendGuestLoginResponse): RuntimeSession {
     deviceMacAddress: data.device?.mac_address ?? null,
     deviceName: data.device?.device_name ?? null,
     hasPassword: data.has_password,
+    // The `hasPassword`/`hasPin` pattern, extended -- see the fields' own
+    // docstrings on `RuntimeSession`. Absent reads as "not yet answered",
+    // which is what a guest inside Apple's CNA effectively got from the
+    // `localStorage` flag this replaces (that read threw every time), so
+    // landing ahead of the backend changes nothing for anyone.
+    hasProfile: data.has_profile ?? false,
+    hasOpenedReviewLink: data.has_opened_review_link ?? false,
   };
 }
 
@@ -443,12 +493,42 @@ export const portalRuntimeService = {
     sessionId: string;
     displayName?: string;
     email?: string;
+    /** A decline is a real answer and has to be recorded as one, or the
+     * card comes back on the guest's next visit. It is what lets the
+     * server set `has_profile` for a guest who said no -- see
+     * `RuntimeSession.hasProfile`.
+     *
+     * A backend that does not know this field yet simply ignores it, and
+     * the guest is asked once more on a later visit. That is a strictly
+     * better failure than the `localStorage` flag it replaces, which
+     * failed this way on EVERY visit inside Apple's CNA. */
+    declined?: boolean;
   }): Promise<void> {
     await guestPortalApi.post("/guest/profile", {
       guest_id: params.guestId,
       session_id: params.sessionId,
       display_name: params.displayName || undefined,
       email: params.email || undefined,
+      declined: params.declined || undefined,
+    });
+  },
+
+  /** Records that a guest tapped through to the venue's Google review link.
+   *
+   * Fire-and-forget at the call site and never awaited before navigating:
+   * a slow analytics call must not delay the link, and a failed one must
+   * not cost the venue the tap.
+   *
+   * ⚠ This is the ONLY signal this product has, and it measures INTENT,
+   * not outcome. Some guests who tap will not review; some who never tap
+   * will review later from the table card. Google publishes no API that
+   * answers "has user X reviewed place Y", so any dashboard number labelled
+   * "reviews" would be invented. The only honest label is
+   * "opened your review link" -- see `PortalPage`'s own card. */
+  async recordReviewLinkOpened(params: { guestId: string; sessionId: string }): Promise<void> {
+    await guestPortalApi.post("/guest/review-link-opened", {
+      guest_id: params.guestId,
+      session_id: params.sessionId,
     });
   },
 
