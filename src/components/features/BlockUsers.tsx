@@ -212,8 +212,15 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
   // An access rule carries a location_id, not a name -- resolve it the
   // same way WhiteList.tsx's withBusinessUnit does, so the Location column
   // shows something.
-  const nameForLocation = (id: string | null | undefined) =>
-    locations?.find((l) => l.id === id)?.name ?? "";
+  // `useCallback`, not a plain function: the fetch effect below depends on
+  // it, and a fresh identity every render would either re-fetch the whole
+  // blocklist on every render or -- the shape this file would otherwise
+  // have taken -- sit in the dependency array as an omission the linter
+  // reports and the next reader assumes is deliberate.
+  const nameForLocation = useCallback(
+    (id: string | null | undefined) => locations?.find((l) => l.id === id)?.name ?? "",
+    [locations],
+  );
   // Fixed dates, not Date.now()-relative -- see WhiteList.tsx's SEED
   // comment for why a relative computation here hydration-mismatches.
   const [blocked, setBlocked] = useState<BlockedUser[]>(
@@ -290,7 +297,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
         // Leave blocked empty -- the "no blocked numbers" state is accurate.
       }
     })();
-  }, [demo, locationId]);
+  }, [demo, locationId, nameForLocation]);
 
   const [mode, setMode] = useState<Mode>("mobile");
   const [textarea, setTextarea] = useState("");
