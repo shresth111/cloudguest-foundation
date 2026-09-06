@@ -135,9 +135,41 @@ interface AccessRuleBase {
   updatedAt: string;
 }
 
+/**
+ * What the platform did about the live sessions of a guest a blocklist
+ * rule was just written for -- `guest_access.constants
+ * .BlockEnforcementStatus`, carried through verbatim.
+ *
+ * "Blocked" and "blocked, and the session they were in was ended" are
+ * different outcomes, and so is "blocked, and the router could not be
+ * reached to cut them off". The dashboard has no way to tell them apart
+ * without this, which is why it used to report all three as the same
+ * success.
+ */
+export type BlockEnforcementStatus =
+  | "not_applicable"
+  | "unenforced"
+  | "pending"
+  | "enforced"
+  | "failed";
+
 export interface GuestAccessRule extends AccessRuleBase {
   kind: "identifier";
   identifier: string;
+  // `null` on rows written before enforcement existed (see the backend's
+  // migration 0107 for why those are not backfilled), and on a backend
+  // older than this field -- so absence must read as "not known", never
+  // as "nothing happened".
+  enforcementStatus: BlockEnforcementStatus | null;
+  enforcementError: string | null;
+  enforcedAt: string | null;
+  /**
+   * Sessions *confirmed* gone from the router's own active table, never
+   * removals attempted. Legitimately `0` for a blocked guest who was not
+   * online, which is why `enforcementStatus` is carried alongside it
+   * rather than inferred from it.
+   */
+  sessionsEnded: number | null;
 }
 
 export interface DeviceAccessRule extends AccessRuleBase {

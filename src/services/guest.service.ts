@@ -92,6 +92,14 @@ interface BackendAccessRule {
   email: string | null;
   expires_at: string | null;
   is_active: boolean;
+  // Block-enforcement outcome (AccessRuleResponse in
+  // guest_access/schemas.py). Optional here, not just nullable: a
+  // deployment running an older API omits the keys entirely, and the
+  // dashboard must read that as "unknown" rather than crash or claim.
+  enforcement_status?: string | null;
+  enforcement_error?: string | null;
+  enforced_at?: string | null;
+  sessions_ended?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -214,6 +222,13 @@ function toAccessRule(r: BackendAccessRule): GuestAccessRule {
     email: r.email,
     expiresAt: r.expires_at,
     isActive: r.is_active,
+    enforcementStatus: (r.enforcement_status as GuestAccessRule["enforcementStatus"]) ?? null,
+    enforcementError: r.enforcement_error ?? null,
+    enforcedAt: r.enforced_at ?? null,
+    // `?? null` and not `?? 0`: a missing count is "we do not know", and
+    // zero is "nobody was online". Collapsing them is how the UI came to
+    // report a disconnection that never happened.
+    sessionsEnded: r.sessions_ended ?? null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
