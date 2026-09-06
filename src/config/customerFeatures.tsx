@@ -52,7 +52,6 @@ const DeviceHealthTrafficView = lazyView(
 
 const AlertsView = lazyView(ops, "AlertsView");
 const OpenHoursView = lazyView(ops, "OpenHoursView");
-const NotificationView = lazyView(ops, "NotificationView");
 const IspDetailsView = lazyView(ops, "IspDetailsView");
 const AdminLogsView = lazyView(ops, "AdminLogsView");
 const MacAuthView = lazyView(ops, "MacAuthView");
@@ -144,8 +143,6 @@ function featureElement(id: string, ctx: { locationId?: string; masked?: boolean
       return <AlertsView />;
     case "business-hours":
       return <OpenHoursView locationId={ctx.locationId} />;
-    case "notification":
-      return <NotificationView />;
     case "isp-details":
       return <IspDetailsView />;
     case "admin-logs":

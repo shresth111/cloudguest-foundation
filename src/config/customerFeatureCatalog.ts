@@ -19,7 +19,6 @@ import {
   Monitor,
   UsersRound,
   Bot,
-  Send,
   Network,
   Wifi,
   Server,
@@ -104,7 +103,6 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
   {
     group: "Operations",
     items: [
-      { id: "notification", label: "Notifications", icon: Send },
       // Renamed from "Network Diagnostics" -- the old label/layout read too
       // close to a competitor's equivalent feature. Same id/route and
       // network_diagnostics/guestService data underneath, display name +

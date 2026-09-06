@@ -8,7 +8,7 @@
     "access-policy": "Control who can connect, how much bandwidth they get, and when WiFi is available.",
     "devices-team": "Keep track of your hardware and shared accounts, and control what your staff can do.",
     "network": "The plumbing behind your guest WiFi — addresses, separation, forwarding, and call quality.",
-    "operations": "Day-to-day running — where alerts get sent, and what to check when something breaks.",
+    "operations": "Day-to-day running — and what to check when something breaks.",
     "support-logs": "Get help, and see the record of what happened."
   },
   "feature": {
@@ -32,7 +32,6 @@
     "voip": "Gives voice and video calls priority over browsing, so calls stay clear when the network is busy.",
     "website-blocking": "Sites and categories guests can't reach while they're on your WiFi.",
     "isp-details": "Your internet line — who provides it, how it's performing, and what happens if it drops.",
-    "notification": "Where alerts get sent — email, SMS or WhatsApp — and who receives them.",
     "debugging": "Tests you can run when something's slow or broken, including resetting one guest's session.",
     "tickets": "Ask us for help. We can see your setup, so you don't have to explain it from scratch.",
     "admin-logs": "Who signed in to this dashboard, and what they changed.",

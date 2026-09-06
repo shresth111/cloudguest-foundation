@@ -94,7 +94,6 @@ const NAV_PERMISSION_KEYS: Record<string, readonly string[]> = {
   "website-blocking": ["content_filtering.read"],
   "isp-details": ["isp.read"],
   // Operations
-  notification: ["notifications.read"],
   // Two keys, and the OR is the point. This page's primary job -- looking
   // a guest up and saying why they cannot get on -- reads guest sessions,
   // not the diagnostics domain, and front-desk roles hold

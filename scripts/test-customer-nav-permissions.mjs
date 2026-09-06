@@ -42,6 +42,13 @@
  * real table and filter are bundled with esbuild and executed; the wiring
  * is checked against the real component and service sources.
  *
+ * COUNT NOTE: the owner nav used to be 26 items; the "Notifications"
+ * preferences screen was removed from the customer dashboard along with
+ * its nav entry (id "notification"), so the nav is 25. The stub below
+ * reads the lucide imports straight from `customerNav.ts` +
+ * `customerFeatureCatalog.ts`, so removing that entry's `Send` icon drops
+ * it from the stub automatically.
+ *
  * Run: node scripts/test-customer-nav-permissions.mjs
  */
 import { build } from "esbuild";
@@ -301,8 +308,9 @@ const hooks = readFileSync(join(ROOT, "src/hooks/useCustomerDashboard.ts"), "utf
 // guarantee below gets lost.
 check("CustomerSidebar imports the filter", sidebar.includes("@/lib/customerNavPermissions"));
 check("CustomerSidebar applies the filter", /filterNavGroupsByPermissions\(/.test(sidebar));
-// The palette reaches the same 26 features and must be narrowed by the same
-// expression -- a shortcut past the scrolling, never past the permissions.
+// The palette reaches the same customer features and must be narrowed by the
+// same expression -- a shortcut past the scrolling, never past the
+// permissions.
 const palette = readFileSync(
   join(ROOT, "src/components/customer/CustomerCommandPalette.tsx"),
   "utf8",
@@ -329,7 +337,7 @@ console.log("\nthe nav does not paint an answer it is about to take back");
 // client render of every real session asserted "this is the demo". The most
 // load-bearing consumer treats that as fact -- useMyPermissions is
 // `enabled: !demo` -- so the permission fetch was disabled on first paint,
-// the sidebar rendered its unfiltered 26-item nav, and then silently shrank
+// the sidebar rendered its unfiltered nav, and then silently shrank
 // once the effect ran and the answer arrived. Items vanished from under the
 // pointer. The fail-open rules above are all still correct; the bug was that
 // "unknown" and "demo" were the same value.

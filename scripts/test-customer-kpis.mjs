@@ -359,7 +359,7 @@ check(
 );
 
 // ---------------------------------------------------------------------------
-// Two nav items, two icons.
+// The nav table stays healthy.
 // ---------------------------------------------------------------------------
 
 console.log("\nno two nav items share an icon");
@@ -378,7 +378,9 @@ console.log("\nno two nav items share an icon");
     dupes.length === 0,
     dupes.map(([icon, ids]) => `${icon} -> ${ids.join(", ")}`).join("; "),
   );
-  check("the nav still has every item", icons.length === 26, `found ${icons.length}`);
+  // 25, not 26: the "Notifications" preferences screen was removed from the
+  // customer dashboard along with its nav entry.
+  check("the nav still has every item", icons.length === 25, `found ${icons.length}`);
 }
 
 console.log(

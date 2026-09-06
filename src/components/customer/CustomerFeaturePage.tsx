@@ -63,7 +63,6 @@ import { useIsDemo, useDataMasking } from "@/hooks/useCustomerDashboard";
 const OPS = () => import("@/components/features/OperationsFeatures");
 const AlertsView = lazyView(OPS, "AlertsView");
 const OpenHoursView = lazyView(OPS, "OpenHoursView");
-const NotificationView = lazyView(OPS, "NotificationView");
 const IspDetailsView = lazyView(OPS, "IspDetailsView");
 const AdminLogsView = lazyView(OPS, "AdminLogsView");
 const MacAuthView = lazyView(OPS, "MacAuthView");
@@ -138,7 +137,7 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
           // The indigo brand accent from login/select-location/dashboard
           // never reached this shell -- every feature page nested under it
           // (Reports, Campaigns, Portal, Vouchers, Policies, Whitelist,
-          // Devices, Teams, Agents, Alerts, Open Hours, Notification,
+          // Devices, Teams, Agents, Alerts, Open Hours,
           // ISP Details, Admin Logs, Mac Auth, Port Forwarding, DHCP,
           // VLANs, VOIP, ISP Routing, Debugging, Hotspot, Tickets) was
           // still rendering every `text-primary`/`bg-primary`/`ring-primary`
@@ -257,7 +256,6 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                 Unlike "audit" above, old links don't need a fallback branch:
                 /background-image redirects to /guest-portal at beforeLoad,
                 so nothing reaches this switch with that id. */}
-              {feature === "notification" && <NotificationView />}
               {feature === "isp-details" && <IspDetailsView locationId={locationId} />}
               {feature === "admin-logs" && <AdminLogsView locationId={locationId} />}
               {feature === "network-activity" && <NetworkActivityLog masked={masked} />}

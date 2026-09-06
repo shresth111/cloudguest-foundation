@@ -402,7 +402,7 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
   // This card's Save button previously only fired a success toast and never
   // called the backend at all -- typing a URL, refreshing, and finding the
   // old value back was the exact "fake-save button" pattern this session
-  // already found on Vouchers/Notification/Network-Diagnostics. Now backed
+  // already found on Vouchers and Network-Diagnostics. Now backed
   // by the same portalService.update() the real Portal Builder page uses,
   // resolved to this location's captive-portal config.
   const [redirectUrl, setRedirectUrl] = useState("");
