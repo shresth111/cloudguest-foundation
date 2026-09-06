@@ -40,10 +40,10 @@ interface CustomerHeaderProps {
  * hand-rolled independently in three places (customer.$locationId.$feature
  * .tsx, customer.$locationId.dashboard.tsx, customer.$locationId.users.tsx),
  * each drifting slightly out of sync (a dead "search" button here, a
- * missing refresh button there). Extracted so it can't drift again. Briefly
- * given a dark indigo gradient to match the sidebar it sits beside; reverted
- * back to the original plain `bg-background/80` -- the sidebar itself is
- * back to its own original light chrome too (see `CustomerSidebar.tsx`).
+ * missing refresh button there). Extracted so it can't drift again, and
+ * given the same dark indigo chrome as the sidebar it sits beside --
+ * matching the product screenshots on wyfyguest.com. The light
+ * `bg-background/80` treatment that preceded it lives in git history.
  */
 export function CustomerHeader({
   title,
@@ -60,7 +60,7 @@ export function CustomerHeader({
   const [menu, setMenu] = useState(false);
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur-xl sm:px-6">
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-white/10 bg-gradient-to-r from-[#1f1c4a] to-[#241f4d] px-4 text-white backdrop-blur-xl sm:px-6">
       {/* The sidebar primitive's own trigger. #218 had already grown the
           hand-rolled hamburger from a bare 20px <Menu/> -- the smallest tap
           target in the product, and the only route to navigation on a phone
@@ -69,7 +69,7 @@ export function CustomerHeader({
           mobile Sheet and the Cmd/Ctrl-B binding. Same 40px box, same
           optical left edge, and aria-label="Toggle Sidebar" comes from the
           primitive rather than being spelled here. */}
-      <SidebarTrigger className="-ml-1 h-10 w-10 shrink-0" />
+      <SidebarTrigger className="-ml-1 h-10 w-10 shrink-0 text-white/70 hover:bg-white/10 hover:text-white" />
       <div className="min-w-0 flex-1">{title}</div>
 
       {/* Plan renewal + demo CTA is one perforated "ticket" object, not a
@@ -90,7 +90,12 @@ export function CustomerHeader({
         className="mr-1 hidden h-9 shrink-0 items-stretch lg:flex"
       />
       {onRefresh && (
-        <Button variant="ghost" size="icon" className="h-9 w-9" onClick={onRefresh}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9 text-white/70 hover:bg-white/10 hover:text-white"
+          onClick={onRefresh}
+        >
           <RefreshCw className="h-4 w-4" />
         </Button>
       )}
@@ -99,32 +104,35 @@ export function CustomerHeader({
           Master Console layout), leaving every real customer/org-admin page
           (everything under /c/$locationId, which is what this component
           renders) with no way to switch language short of a trip to Account
-          settings. Styled to match the refresh button beside it. */}
-      <DashboardLanguageSwitcher className="h-9 w-9" />
-      <NotificationBell scope="org" viewAllPath={customerFeatureHref("alerts")} />
+          settings. Styled to match the refresh button beside it since the
+          default ghost styling isn't legible on this header's dark gradient. */}
+      <DashboardLanguageSwitcher className="h-9 w-9 text-white/70 hover:bg-white/10 hover:text-white" />
+      <span className="[&_button]:text-white/70 [&_button:hover]:bg-white/10 [&_button:hover]:text-white">
+        <NotificationBell scope="org" viewAllPath={customerFeatureHref("alerts")} />
+      </span>
 
       <div className="relative">
         <button onClick={() => setMenu((m) => !m)} className="ml-1">
           <Avatar className="h-8 w-8">
-            <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
+            <AvatarFallback className="bg-white/15 text-xs font-semibold text-white">
               {user?.firstName?.[0] ?? "A"}
               {user?.lastName?.[0] ?? "U"}
             </AvatarFallback>
           </Avatar>
         </button>
         {menu && (
-          <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border bg-popover p-1 shadow-xl">
+          <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-white/10 bg-[#241f4d] p-1 text-white shadow-xl">
             <div className="px-3 py-2">
               <p className="text-sm font-medium">{user?.name ?? "Admin"}</p>
-              <p className="text-xs text-muted-foreground">{user?.email}</p>
+              <p className="text-xs text-white/50">{user?.email}</p>
             </div>
-            <div className="my-1 border-t" />
+            <div className="my-1 border-t border-white/10" />
             <button
               onClick={() => {
                 setMenu(false);
                 onSwitchLocation();
               }}
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent"
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-white/10"
             >
               <MapPinned className="h-4 w-4" />
               Switch location
@@ -134,7 +142,7 @@ export function CustomerHeader({
                 setMenu(false);
                 onChangePassword();
               }}
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent"
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-white/10"
             >
               <KeyRound className="h-4 w-4" />
               Change password
@@ -144,18 +152,18 @@ export function CustomerHeader({
                 setMenu(false);
                 onTfaSettings();
               }}
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent"
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-white/10"
             >
               <ShieldCheck className="h-4 w-4" />
               2FA settings
             </button>
-            <div className="my-1 border-t" />
+            <div className="my-1 border-t border-white/10" />
             <button
               onClick={() => {
                 setMenu(false);
                 onLogout();
               }}
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-destructive hover:bg-destructive/5"
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-rose-400 hover:bg-rose-500/10"
             >
               <LogOut className="h-4 w-4" />
               Sign out

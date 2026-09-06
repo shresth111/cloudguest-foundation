@@ -121,26 +121,26 @@ export function CustomerSidebar({ activeFeatureId, subtitle, dataMasking }: Cust
   return (
     <Sidebar
       collapsible="icon"
-      // The dark "modern ink rail" `--sidebar*` tokens in styles.css are a
-      // sitewide default (added later, independently of this component --
-      // see git history) that Master Console opts out of via its own
-      // `.master-theme` class. Customer routes never got an equivalent
-      // wrapper, so this primitive would otherwise render the same near-
-      // black rail here. Re-pointing `--sidebar*` at the plain page tokens
-      // (`--background`/`--foreground`/...) restores this sidebar to the
-      // light chrome it had before it was given the header's matching dark
-      // indigo treatment -- back when it was a hand-rolled `<aside>` with
-      // nothing more than `bg-background`.
+      // Customer chrome is the dark indigo the product screenshots on
+      // wyfyguest.com ship with (dashboard-overview.webp): a vertical
+      // gradient from #1f1c4a at the top to #18172e at the bottom, with
+      // lavender-tinted text on top. styles.css's sitewide "modern ink
+      // rail" `--sidebar*` tokens are neutral-near-black, so they are
+      // overridden here with the indigo values; Master Console opts out of
+      // the same defaults via its own `.master-theme` class. The primitive
+      // paints its own `bg-sidebar` on an inner div, so `--sidebar` must be
+      // transparent for the gradient on this wrapper to show through.
+      className="bg-gradient-to-b from-[#1f1c4a] via-[#1c1a44] to-[#18172e]"
       style={
         {
-          "--sidebar": "var(--background)",
-          "--sidebar-foreground": "var(--foreground)",
-          "--sidebar-border": "var(--border)",
-          "--sidebar-accent": "var(--accent)",
-          "--sidebar-accent-foreground": "var(--accent-foreground)",
-          "--sidebar-primary": "var(--primary)",
-          "--sidebar-primary-foreground": "var(--primary-foreground)",
-          "--sidebar-ring": "var(--ring)",
+          "--sidebar": "transparent",
+          "--sidebar-foreground": "#c8c6dd",
+          "--sidebar-border": "rgb(255 255 255 / 10%)",
+          "--sidebar-accent": "#2a2652",
+          "--sidebar-accent-foreground": "#ffffff",
+          "--sidebar-primary": "#a5a0ff",
+          "--sidebar-primary-foreground": "#ffffff",
+          "--sidebar-ring": "#6d68ff",
         } as CSSProperties
       }
     >
@@ -165,8 +165,9 @@ export function CustomerSidebar({ activeFeatureId, subtitle, dataMasking }: Cust
           nine-row nav it was last used with, but 26 icon rows are taller
           than a short viewport and the ones past the bottom would simply be
           unreachable in the rail. Scroll instead of clip; the expanded
-          sidebar already scrolls. */}
-      <SidebarContent className="group-data-[collapsible=icon]:overflow-y-auto">
+          sidebar already scrolls. Also drop the primitive's hardcoded
+          `bg-background` so the wrapper gradient shows through. */}
+      <SidebarContent className="bg-transparent group-data-[collapsible=icon]:overflow-y-auto">
         {showSkeleton ? (
           <SidebarGroup>
             <SidebarGroupContent>
@@ -182,7 +183,7 @@ export function CustomerSidebar({ activeFeatureId, subtitle, dataMasking }: Cust
         ) : (
           navGroups.map((group) => (
             <SidebarGroup key={group.id}>
-              <SidebarGroupLabel className="text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/55">
+              <SidebarGroupLabel className="text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/75">
                 {t(`customerGroup.${group.id}`, group.label)}
               </SidebarGroupLabel>
               <SidebarGroupContent>

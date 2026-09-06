@@ -170,6 +170,7 @@ const Sidebar = React.forwardRef<
     ref,
   ) => {
     const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
+    const { style: sheetStyle, ...sheetProps } = props;
 
     if (collapsible === "none") {
       return (
@@ -188,14 +189,29 @@ const Sidebar = React.forwardRef<
 
     if (isMobile) {
       return (
-        <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
+        <Sheet open={openMobile} onOpenChange={setOpenMobile} {...sheetProps}>
           <SheetContent
             data-sidebar="sidebar"
             data-mobile="true"
-            className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
+            className={cn(
+              "w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden",
+              // The className that styles the desktop rail paints its
+              // background here too -- a gradient set on this Sidebar
+              // (e.g. CustomerSidebar's indigo chrome) has to land on the
+              // portal-rendered SheetContent directly, since it won't
+              // inherit through the portal boundary.
+              className,
+            )}
             style={
               {
                 "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
+                // The Sheet portal renders outside this subtree (see
+                // MasterLoginPage.tsx's note on DialogPortal), so custom
+                // properties set on this Sidebar -- e.g. CustomerSidebar's
+                // indigo chrome -- would otherwise be lost on mobile.
+                // Forward them onto the SheetContent so desktop and mobile
+                // paint the same rail.
+                ...sheetStyle,
               } as React.CSSProperties
             }
             side={side}
@@ -242,7 +258,8 @@ const Sidebar = React.forwardRef<
               : "group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left]:border-r group-data-[side=right]:border-l",
             className,
           )}
-          {...props}
+          style={sheetStyle}
+          {...sheetProps}
         >
           <div
             data-sidebar="sidebar"

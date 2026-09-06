@@ -132,7 +132,7 @@ const HEADER_DOT: Record<LivenessTone, string> = {
   live: "bg-emerald-400",
   warn: "bg-amber-400",
   down: "bg-rose-400",
-  neutral: "bg-muted-foreground/40",
+  neutral: "bg-white/40",
 };
 
 /** Operator-voice lines, not fabricated testimonials -- same pattern used
@@ -1710,8 +1710,8 @@ export function CustomerDashboardPage() {
         <CustomerHeader
           title={
             <div className="flex min-w-0 flex-1 items-center gap-3">
-              <Wifi className="h-5 w-5 shrink-0 text-primary" />
-              <p className="truncate text-sm font-semibold">
+              <Wifi className="h-5 w-5 shrink-0 text-white/70" />
+              <p className="truncate text-sm font-semibold text-white">
                 {activeLocation?.name ?? "Dashboard"}
               </p>
               {/* Was a three-way ternary over `activeLocation?.status`
@@ -1725,7 +1725,11 @@ export function CustomerDashboardPage() {
                * zustand `persist` store, so a summary written before this
                * field existed has no `liveness` at all -- which must show
                * as "can't tell", never as a colour picked by an else. */}
-              <LocationLivenessBadge liveness={headerLiveness} className="hidden sm:inline-flex" />
+              <LocationLivenessBadge
+                liveness={headerLiveness}
+                surface="dark"
+                className="hidden sm:inline-flex"
+              />
               <span
                 aria-hidden
                 className={cn(
