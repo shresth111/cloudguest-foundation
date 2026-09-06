@@ -5233,8 +5233,23 @@ for (const [variant, script] of FULL_SCRIPTS) {
   // indistinguishable from option 114 not working at all.
   check(
     `${variant}: option 114 points at the RFC 8908 API, not at a page`,
-    /code=114 value="'https?:\/\/[^']*\/captive-portal\/rfc8908\?portal_url=/.test(script),
+    /code=114 [^\n]*value="'https?:\/\/[^']*\/captive-portal\/rfc8908\?portal_url=/.test(script),
     "an HTML page there is silently ignored by every conforming client",
+  );
+  // AND IT IS HANDED OUT WHETHER OR NOT THE CLIENT ASKS FOR IT. Without
+  // `force=yes` RouterOS sends the option only to clients that named code
+  // 114 in their Parameter Request List. Capport-aware operating systems
+  // generally do ask -- and the device this chunk exists for is the one
+  // that is not asking the right question: a cabled macOS laptop never
+  // opens its Captive Network Assistant on Ethernet at all (confirmed live
+  // 2026-08-23). An option that is only delivered on request is no help to
+  // a client that does not know to make the request.
+  check(
+    `${variant}: option 114 is forced, not offered only on request`,
+    /name="cloudguest-captive-portal" code=114 force=yes/.test(script) &&
+      /option set \[find name="cloudguest-captive-portal"\] code=114 force=yes/.test(script),
+    "without force=yes a client that does not list code 114 never receives it, " +
+      "which is the exact client this option was added for",
   );
   // AND THE PORTAL IT NAMES IS STILL THIS ROUTER. The JSON's
   // `user-portal-url` is where the device actually goes, and it must be the

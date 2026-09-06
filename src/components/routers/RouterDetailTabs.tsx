@@ -6314,14 +6314,44 @@ export function buildRouterSetupScriptChunks(opts: {
       // session it has no way to log into -- see HOTSPOT_DNS_NAME.
       //
       // Reachable before login: the walled-garden IP rule accepts the
-      // platform's own address, which is the same box this API is served
-      // from, so the fetch succeeds while the guest is still unauthenticated.
+      // platform's own address, and this API is served from the same box,
+      // so the fetch succeeds while the guest is still unauthenticated.
+      //
+      // That is TRUE TODAY BUT NOT ESTABLISHED HERE, and the difference
+      // matters. The address-based accept is `:resolve`d from
+      // `portalUrl.frontendBase` (`auth.wyfyguest.com`); this option's URL
+      // is built from `apiBase`, which is the Master console's own origin.
+      // Two different names. They currently resolve to one address because
+      // the platform is on one box -- verified 2026-09-06, both
+      // `auth.wyfyguest.com` and `app.wyfyguest.com` answer as
+      // 13.203.112.174 -- not because anything here makes them agree. Split
+      // them across two hosts, or point `VITE_API_BASE_URL` somewhere else,
+      // and this option's host stops being walled in: the pre-auth fetch is
+      // then caught by the hotspot's own redirect and dies in the TLS
+      // handshake, which is indistinguishable from the option not existing.
+      // The durable fix is to resolve and accept this URL's host too, or to
+      // build the URL from a guest-facing constant rather than from
+      // whatever origin the admin happened to be browsing from --
+      // `GUEST_PORTAL_PUBLIC_BASE` exists because that exact mistake was
+      // made once already.
       //
       // ADD-OR-UPDATE, not add-if-missing: the value embeds the hotspot
       // hostname, and an option left over from an earlier run with a
       // different one is worse than none -- the device would be sent
       // somewhere this router does not answer.
-      `:if ([:len [/ip dhcp-server option find where name="cloudguest-captive-portal"]] = 0) do={ /ip dhcp-server option add name="cloudguest-captive-portal" code=114 value="'${apiBase}/captive-portal/rfc8908?portal_url=http://${HOTSPOT_DNS_NAME}/'" } else={ /ip dhcp-server option set [find name="cloudguest-captive-portal"] code=114 value="'${apiBase}/captive-portal/rfc8908?portal_url=http://${HOTSPOT_DNS_NAME}/'" }`,
+      //
+      // `force=yes` is not decoration. Without it RouterOS hands the option
+      // only to clients that named code 114 in their DHCP Parameter Request
+      // List. Capport-aware operating systems generally do ask for it --
+      // and "generally" is the exact thing this option exists to stop
+      // relying on. The whole reason the chunk is here is the cabled macOS
+      // laptop that never opens its Captive Network Assistant on Ethernet
+      // (confirmed live 2026-08-23); a device that is not asking the right
+      // question is precisely the device that needs to be told anyway.
+      // Available since RouterOS 7.1rc5. On anything older the `add` is
+      // rejected and no option is created, which the read-back below
+      // already reports as a NOTE rather than a failure.
+      `:if ([:len [/ip dhcp-server option find where name="cloudguest-captive-portal"]] = 0) do={ /ip dhcp-server option add name="cloudguest-captive-portal" code=114 force=yes value="'${apiBase}/captive-portal/rfc8908?portal_url=http://${HOTSPOT_DNS_NAME}/'" } else={ /ip dhcp-server option set [find name="cloudguest-captive-portal"] code=114 force=yes value="'${apiBase}/captive-portal/rfc8908?portal_url=http://${HOTSPOT_DNS_NAME}/'" }`,
       // Attached through an option SET rather than directly, because
       // `/ip dhcp-server network` takes `dhcp-option` as a list and a bare
       // assignment would discard anything already there.
