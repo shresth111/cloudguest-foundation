@@ -995,3 +995,29 @@ jobs:
           ./scripts/ci-gated-test.sh \
             "whitelist-only" 66 "all whitelist-only guardrail checks passed" \
             bun run test:whitelist-only
+
+      # --- Whitelist-only refusal screen ---------------------------------
+      #
+      # scripts/test-portal-whitelist-refusal.mjs shipped with the refusal
+      # screen (#231) but no gate, so nothing in this repo ran it -- the
+      # exact failure ci-gated-test.sh was written to stop, repeated on a
+      # brand new suite.
+      #
+      # What it protects: the backend models a whitelist-only refusal as
+      # its own exception, but that and a blocklist denial both serialise
+      # as a bare 403 which toAppError collapses to `code: "forbidden"`.
+      # The portal therefore has to tell them apart from the message, and
+      # both misreadings hurt -- a blocklisted person sent to reception to
+      # be refused again, or a whitelist refusal shown as a red line under
+      # a field with no next step. It also holds the line that an
+      # operator-authored rule `reason` ("ex-employee, do not readmit")
+      # never reaches a guest's screen, and that the {contact} placeholder
+      # survives in all ten languages rather than being printed literally.
+      #
+      # Floor 45, observed green at 45.
+      - name: whitelist-only refusal screen
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "whitelist-refusal" 45 \
+            "whitelist-only refusal: all checks passed" \
+            bun run test:whitelist-refusal
