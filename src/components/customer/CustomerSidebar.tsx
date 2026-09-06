@@ -1,4 +1,3 @@
-import type { CSSProperties } from "react";
 import { Link } from "@tanstack/react-router";
 import { Shield, Eye, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -74,18 +73,6 @@ import type { useDataMasking } from "@/hooks/useCustomerDashboard";
  * screen reader announced 26 unlabelled buttons with no indication of which
  * page you were on. `customerFeatureHref()` was already the single source of
  * truth for the URLs; only the element type changed.
- *
- * COLORS
- * ------
- * The old hand-rolled `<aside>` was plain `bg-background` until it was given
- * a dark indigo gradient (`from-[#1e1b4b] to-[#181530]`) to match the header
- * -- see `CustomerHeader.tsx`'s own doc comment. That gradient never
- * survived the migration to this shared primitive, but the primitive's own
- * `--sidebar*` tokens defaulted dark anyway (a separate, sitewide "modern
- * ink rail" restyle unrelated to this component), so the net effect was the
- * same dark chrome by another route. The inline `style` override on
- * `<Sidebar>` below re-points those tokens at the plain page tokens, which
- * is what restores the light look -- see that override's own comment.
  */
 export interface CustomerSidebarProps {
   /** The feature id of the current page, e.g. "reports", "mac-auth" -- the
@@ -119,31 +106,7 @@ export function CustomerSidebar({ activeFeatureId, subtitle, dataMasking }: Cust
   const showSkeleton = permissionsLoading && !permissions;
 
   return (
-    <Sidebar
-      collapsible="icon"
-      // The dark "modern ink rail" `--sidebar*` tokens in styles.css are a
-      // sitewide default (added later, independently of this component --
-      // see git history) that Master Console opts out of via its own
-      // `.master-theme` class. Customer routes never got an equivalent
-      // wrapper, so this primitive would otherwise render the same near-
-      // black rail here. Re-pointing `--sidebar*` at the plain page tokens
-      // (`--background`/`--foreground`/...) restores this sidebar to the
-      // light chrome it had before it was given the header's matching dark
-      // indigo treatment -- back when it was a hand-rolled `<aside>` with
-      // nothing more than `bg-background`.
-      style={
-        {
-          "--sidebar": "var(--background)",
-          "--sidebar-foreground": "var(--foreground)",
-          "--sidebar-border": "var(--border)",
-          "--sidebar-accent": "var(--accent)",
-          "--sidebar-accent-foreground": "var(--accent-foreground)",
-          "--sidebar-primary": "var(--primary)",
-          "--sidebar-primary-foreground": "var(--primary-foreground)",
-          "--sidebar-ring": "var(--ring)",
-        } as CSSProperties
-      }
-    >
+    <Sidebar collapsible="icon">
       <SidebarHeader className="border-b border-sidebar-border">
         <div className="flex items-center gap-2.5 px-2 py-2">
           <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]">
