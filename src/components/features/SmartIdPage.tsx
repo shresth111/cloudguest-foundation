@@ -11,7 +11,7 @@ import {
   Ticket,
   Key,
   LogIn,
-  ArrowUp,
+  AlertTriangle,
   ListOrdered,
   Hourglass,
   MessageCircle,
@@ -176,6 +176,14 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
   // on the first backed toggle (see toggleMethod below).
   const [orgId, setOrgId] = useState<string | null>(null);
   const [configId, setConfigId] = useState<string | null>(null);
+  // The seven rows below are a hardcoded array with baked-in `enabled`
+  // flags (Mobile OTP / Email OTP / Voucher start `true`). If the GET
+  // fails, those defaults are all that is left on screen -- and the page
+  // used to render them as fact, telling an owner three sign-in methods
+  // were on without ever having asked the server. For the screen that
+  // decides how guests get online, "we don't know" has to look different
+  // from "it's on".
+  const [loadFailed, setLoadFailed] = useState(false);
   // Guards the lazy-create-on-first-toggle path below: if two different
   // methods are toggled before the first POST resolves, `configId` is still
   // null for both calls, which would otherwise fire two
@@ -217,9 +225,11 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
             }),
           );
         }
+        setLoadFailed(false);
       } catch {
-        // Leave the local defaults in place -- backed toggles will lazily
-        // create a config on first use (see toggleMethod).
+        // Do NOT leave the local defaults standing as if they were the
+        // answer -- say the settings could not be read (see loadFailed).
+        setLoadFailed(true);
       }
     })();
   }, [demo, locationId]);
@@ -287,13 +297,6 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
     }
   };
 
-  const moveUp = (idx: number) => {
-    if (idx === 0) return;
-    const arr = [...methods];
-    [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
-    setMethods(arr.map((m, i) => ({ ...m, order: i + 1 })));
-  };
-
   // Split for rendering only -- live/orderable methods vs. still-planned
   // ones, so an owner sees "what guests can use today" separately from
   // "what's coming" instead of one flat list of 8 identical-looking rows.
@@ -313,8 +316,7 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
         <div>
           <h1 className="text-lg font-semibold tracking-tight">Sign-in Methods</h1>
           <p className="text-sm text-muted-foreground">
-            Configure login methods for the captive portal — guests can use any enabled method, in
-            the order you set below.
+            Choose which ways guests can sign in to your WiFi.
           </p>
         </div>
       </div>
@@ -359,10 +361,29 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
                       Live for Guests
                     </h3>
                   </div>
+                  {/* No ordering claim any more. The arrows here reordered
+                      local state and nothing else: there is no `order`
+                      field on captive_portal_configs, nothing is sent, and
+                      the real portal does not read one -- so every arrow
+                      click was lost on reload while the copy promised it
+                      set the guest-facing tab order. Removed rather than
+                      disabled, because unlike the limit fields elsewhere in
+                      Access Rules there is no value being stored at all. */}
                   <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">
-                    Guests can sign in with any of these today. The order below is the order the
-                    sign-in tabs appear in for guests — use the arrow to move a method up.
+                    Guests can sign in with any of these today.
                   </p>
+                  {loadFailed && (
+                    <div
+                      role="alert"
+                      className="mb-4 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300"
+                    >
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                      <span>
+                        We couldn&rsquo;t load your sign-in settings, so the switches below may not
+                        match what guests actually see. Nothing has changed — reload to try again.
+                      </span>
+                    </div>
+                  )}
                   <div className="space-y-2">
                     {/* enabledCount/enabledRank are the "to guests" numbers --
                         distinct from `rank`, which is this row's position in
@@ -375,29 +396,14 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
                         excludes disabled methods from what guests actually
                         see. */}
                     {(() => {
-                      const enabledLiveMethods = liveMethods.filter(({ method }) => method.enabled);
-                      return liveMethods.map(({ method, idx }, rank) => {
+                      return liveMethods.map(({ method }) => {
                         const Icon = method.icon;
-                        const enabledRank = enabledLiveMethods.findIndex(
-                          (m) => m.method.id === method.id,
-                        );
                         return (
                           <div
                             key={method.id}
                             className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800/50"
                           >
                             <div className="flex items-center gap-3">
-                              <button
-                                onClick={() => moveUp(idx)}
-                                aria-label={`Move ${method.label} up in the sign-in order`}
-                                title="Move up in the sign-in order"
-                                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:hover:bg-slate-700 dark:hover:text-indigo-400"
-                              >
-                                <ArrowUp className="h-4 w-4" />
-                              </button>
-                              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-xs font-semibold text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400">
-                                {rank + 1}
-                              </span>
                               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50 dark:bg-indigo-500/10">
                                 <Icon className="h-4 w-4 text-indigo-500" />
                               </div>
@@ -414,13 +420,14 @@ export default function SmartIdPage({ locationId }: { locationId?: string } = {}
                                   )}
                                 >
                                   {method.enabled
-                                    ? `Shown ${enabledRank + 1} of ${enabledLiveMethods.length} to guests${method.required ? " · Required" : ""}`
-                                    : "Hidden from guests — turn on to add it to the sign-in order"}
+                                    ? `Shown to guests${method.required ? " · Required" : ""}`
+                                    : "Hidden from guests"}
                                 </p>
                               </div>
                             </div>
                             <Switch
                               checked={method.enabled}
+                              disabled={loadFailed}
                               onCheckedChange={() => toggleMethod(method.id)}
                             />
                           </div>
