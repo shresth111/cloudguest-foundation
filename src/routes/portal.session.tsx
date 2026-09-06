@@ -14,6 +14,9 @@ import {
   campaignHasRenderableContent,
 } from "@/components/portal-runtime/CampaignOverlay";
 import { GuestProfileNudge } from "@/components/portal-runtime/GuestProfileNudge";
+import { GoogleReviewNudge } from "@/components/portal-runtime/GoogleReviewNudge";
+import { GuestFeedbackNudge } from "@/components/portal-runtime/GuestFeedbackNudge";
+import { isStarFeedbackCampaign, resolvePostConnectAsk } from "@/lib/portal-post-connect";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
 import { campaignPortalService } from "@/services/campaign-portal.service";
@@ -276,6 +279,25 @@ function SessionPage() {
   });
   const [campaignDismissed, setCampaignDismissed] = useState(false);
 
+  // ===== THE POST-CONNECT ASK SLOT =====
+  //
+  // At most ONE of { profile card, Google review card, star feedback card }
+  // ever renders, and which one is decided by `resolvePostConnectAsk`
+  // (src/lib/portal-post-connect.ts) rather than by three components each
+  // checking their own conditions. That matters beyond tidiness: the rule
+  // "a rating prompt and a review link never share a screen, and never
+  // share a visit" is a compliance invariant whose penalty lands on the
+  // VENUE's Google Business Profile, and it is enforceable only if it lives
+  // in one place a reviewer can read.
+  //
+  // All three bits below are ordinary component state. NONE of them is
+  // persisted: Web Storage throws inside Apple's CNA, and if a bit is lost
+  // to a reload the dwell gate and the arrival-only rule still keep the two
+  // apart on their own. Belt and braces, no storage.
+  const [arrivalAskSettled, setArrivalAskSettled] = useState(false);
+  const [feedbackSettled, setFeedbackSettled] = useState(false);
+  const [reviewCardShownThisSession, setReviewCardShownThisSession] = useState(false);
+
   // Same eligibility rule portal.success.tsx used to gate its own
   // set-password nudge with -- relocated here, not re-derived.
   const showPasswordNudge = !!(config?.usernamePasswordEnabled && session && !session.hasPassword);
@@ -339,12 +361,26 @@ function SessionPage() {
 
   if (!session || now === 0) return null;
 
+  // A one-question `rating_5` survey is the "how was your visit?" star
+  // prompt, and it is the ONE campaign shape that must not take the screen
+  // over on arrival: it was asking about a visit ninety seconds old, from
+  // in front of the screen that tells the guest their WiFi works. It is
+  // routed to an inline card below, behind a dwell gate. Everything else --
+  // banners, redirects, real multi-question surveys -- keeps the takeover,
+  // because those are arrival content a venue authored to be read.
+  const starCampaign = nextCampaign && isStarFeedbackCampaign(nextCampaign) ? nextCampaign : null;
+
   // See this component's own comment on the `nextCampaign` query above --
   // `campaignHasRenderableContent` is the same "an admin created a SURVEY
   // with zero questions / a BANNER with no asset" guard `CampaignOverlay`
   // itself relies on, checked here too so this never mounts that component
   // for genuinely empty content.
-  if (nextCampaign && campaignHasRenderableContent(nextCampaign) && !campaignDismissed) {
+  if (
+    nextCampaign &&
+    !starCampaign &&
+    campaignHasRenderableContent(nextCampaign) &&
+    !campaignDismissed
+  ) {
     return (
       <CampaignOverlay
         campaign={nextCampaign}
@@ -353,6 +389,44 @@ function SessionPage() {
       />
     );
   }
+
+  // `now` is the same 1s tick the countdown above already runs, so the
+  // 25-minute dwell gate costs one comparison rather than a feature.
+  const ask = config
+    ? resolvePostConnectAsk({
+        config,
+        session,
+        now,
+        reviewCardShownThisSession,
+        starCampaignAvailable: !!starCampaign,
+        arrivalAskSettled,
+        feedbackSettled,
+      })
+    : null;
+
+  // Suppress the star card for the WHOLE session once the Google card has
+  // been on screen, even across re-landings on this page. The reverse
+  // suppression is unnecessary: the dwell gate means the star card cannot
+  // appear on an arrival view, and the Google card only ever appears on
+  // one.
+  if (ask === "review" && !reviewCardShownThisSession) {
+    // Safe during render: React bails out of the re-render when the value
+    // is unchanged, and the guard above makes this run at most once.
+    setReviewCardShownThisSession(true);
+  }
+
+  const askSlot =
+    ask === "profile" ? (
+      <GuestProfileNudge session={session} onResolved={() => setArrivalAskSettled(true)} />
+    ) : ask === "review" ? (
+      <GoogleReviewNudge session={session} onResolved={() => setArrivalAskSettled(true)} />
+    ) : ask === "feedback" && starCampaign ? (
+      <GuestFeedbackNudge
+        campaign={starCampaign}
+        sessionId={session.sessionId}
+        onResolved={() => setFeedbackSettled(true)}
+      />
+    ) : null;
 
   return (
     <PortalShell>
@@ -382,6 +456,22 @@ function SessionPage() {
             <p className="mt-1 text-sm text-[var(--pg-ink-muted)]">{t("connectedSubtitle")}</p>
           </PortalTextPlate>
         </div>
+
+        {/* THE ONE ASK, directly under the hero.
+         *
+         * This slot is the highest-attention position on the page and it
+         * used to hold a card about bytes and a card about a MAC address.
+         * The guest came for internet, already has it, and the status card
+         * is reference material they will scroll to if they want it -- the
+         * one moment of goodwill ("it worked") is the moment directly under
+         * the hero, and it is the moment worth spending. Everything below
+         * is unchanged in order.
+         *
+         * At most one card ever appears here, and once the guest answers or
+         * dismisses it the slot stays CLOSED -- it does not promote the
+         * runner-up ask. A guest who says "not now" sees a session page
+         * identical to one at a venue that never turned any of this on. */}
+        {askSlot}
 
         {/* Stats card. Label row: pg-micro/ink-faint (hierarchy below
          * muted comes from size, not lightness -- the old slate-400
@@ -452,14 +542,6 @@ function SessionPage() {
             <ChevronRight className="h-4 w-4 shrink-0 text-[var(--pg-ink-faint)]" />
           </Link>
         )}
-
-        {/* v4 UX §6.5: the post-OTP "tell us about yourself" prompt,
-            relocated out of the login funnel onto this page -- see
-            GuestProfileNudge's own docstring for the full eligibility
-            gating. Self-gating (returns null when not eligible/already
-            handled), so always rendered unconditionally here, same as
-            the team-join card below. */}
-        <GuestProfileNudge session={session} />
 
         {/* Real "Guest Teams" feature (app.domains.guest_teams) -- an
             admin-created shared-code group a guest can optionally join

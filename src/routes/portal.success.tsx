@@ -10,6 +10,7 @@ import {
   persistHotspotSubmit,
 } from "@/context/PortalRuntimeContext";
 import { buildSessionUrl } from "@/lib/portal-session-url";
+import { PORTAL_SLOW_NOTICE_DELAY_MS } from "@/lib/portal-post-connect";
 
 // v4 §6.1: the same "taking longer than expected" threshold
 // portal.index.tsx's own loading screen already uses, for the identical
@@ -17,7 +18,10 @@ import { buildSessionUrl } from "@/lib/portal-session-url";
 // (~600ms for 3 cycles), so the common case (this POST resolving quickly)
 // never reaches it, but a genuinely slow/unreachable NAS surfaces an
 // actionable notice instead of an indefinite spinner.
-const SLOW_NOTICE_DELAY_MS = 4_000;
+// Shared, not re-picked here: the post-connect profile card shows the same
+// "still working, your internet is fine" reassurance at the same moment,
+// and two screens that can show a guest one should agree about when.
+const SLOW_NOTICE_DELAY_MS = PORTAL_SLOW_NOTICE_DELAY_MS;
 // A longer bound past which this reads as more than "just slow" -- offers
 // a real way back to sign-in rather than leaving a stuck guest with only
 // a retry button that's already been sitting there for 11 more seconds.

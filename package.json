@@ -14,6 +14,7 @@
     "test:output-analyser": "node scripts/test-output-analyser.mjs",
     "test:manual-wizard": "node scripts/test-manual-wizard-engine.mjs",
     "test:portal-cna": "node scripts/test-portal-cna-storage-safety.mjs",
+    "test:post-connect": "node scripts/test-portal-post-connect-asks.mjs",
     "test:signin-fields": "node scripts/test-portal-signin-fields.mjs",
     "test:post-login-roundtrip": "node scripts/test-post-login-html-roundtrip.mjs",
     "test:voucher-walkthrough": "node scripts/test-portal-voucher-walkthrough.mjs",

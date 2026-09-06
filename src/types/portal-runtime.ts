@@ -420,6 +420,72 @@ export interface RuntimePortalConfig {
    * reliable than `defaultLanguage` for defaulting the OTP phone field's
    * country code. */
   locationCountry: string | null;
+  /** Whether this venue asks a connected guest for a name / an email at
+   * all -- backend `captive_portal_configs.collect_guest_name` /
+   * `.collect_guest_email`.
+   *
+   * Both default **off**, for every venue including existing ones, and
+   * that is a deliberate behaviour change rather than a cautious fallback:
+   * the venue -- not Wyfy -- is the Data Fiduciary under DPDP, so a
+   * migration that switched on collection of personal data on their behalf
+   * would be making a decision that is not ours to make. A venue that has
+   * never opened the setting collects nothing new.
+   *
+   * Optional on the wire until the backend columns land (see
+   * `toRuntimeConfig`'s `?? false`), which makes the frontend's behaviour
+   * identical before and after that PR: absent reads the same as the
+   * server default it will arrive with.
+   *
+   * ⚠ Off must be off on the SERVER too. With the flag off,
+   * `POST /guest/profile` has to reject that field with the same
+   * "method not enabled" shape the auth-method flags already use -- a
+   * hidden field that still accepts a write is how a venue ends up holding
+   * data it never agreed to hold. */
+  collectGuestName: boolean;
+  collectGuestEmail: boolean;
+  /** The venue's own Google review link, pasted by the merchant and stored
+   * verbatim (backend `captive_portal_configs.review_url`). Never
+   * synthesised from a place id: neither `g.page/r/…` nor
+   * `search.google.com/local/writereview?placeid=` is a documented stable
+   * contract. `null` means the review card never renders -- no placeholder,
+   * no empty state.
+   *
+   * Named to mirror the wire field exactly, like every other member of this
+   * interface. It was `googleReviewUrl` against a `google_review_url` this
+   * backend never shipped; the backend's own name won because its
+   * Google-host allowlist (`captive_portal/constants.py`
+   * REVIEW_URL_ALLOWED_HOST_SUFFIXES) is already keyed to it.
+   *
+   * Guarded at the render site by `isSafeGoogleReviewUrl`
+   * (src/lib/portal-post-connect.ts) before it ever reaches an `href` --
+   * that validator keeps its name, because what it checks really is
+   * "is this a Google host", independent of what the column is called. */
+  reviewUrl: string | null;
+  /** Whether the venue currently wants the review card shown at all
+   * (backend `captive_portal_configs.review_card_enabled`).
+   *
+   * A SEPARATE bit from `reviewUrl`, and the separation is the feature: a
+   * venue pausing the ask -- a refurbishment, a bad month, a manager who
+   * wants to think about it -- must not have to delete a link they will
+   * have to find again in Business Profile. This frontend used to infer
+   * "URL present means on", which made pausing and forgetting the same
+   * gesture.
+   *
+   * The card needs BOTH: see `reviewCardEligible`. Either one alone renders
+   * nothing, which is why the venue editor shows the switch and the field
+   * together rather than treating the switch as a disclosure control. */
+  reviewCardEnabled: boolean;
+  /** Whether the private 1-5 star feedback card
+   * may render at all. It is private venue feedback: it never leaves the
+   * venue's dashboard, and it is never shown in a session where the Google
+   * review card has appeared. */
+  guestFeedbackEnabled: boolean;
+  /** Minutes of dwell before that card may appear, defaulting to 25 with a
+   * floor (never zero) -- see `clampFeedbackDwellMinutes`. A hotel will
+   * want longer than a cafe. The gate exists because the prompt used to
+   * fire on arrival and ask "how was your visit?" about a visit ninety
+   * seconds old. */
+  feedbackDwellMinutes: number;
 }
 
 /** Whether a config presents a *gating* intro step -- an `image`/`text`
@@ -484,4 +550,36 @@ export interface RuntimeSession {
   // ``portalRuntimeService.loginWithPassword``, which only ever succeeds
   // for a guest that already has one).
   hasPassword: boolean;
+  /** True once this guest has given a name or an email, OR has explicitly
+   * declined -- backend `guest.validators.guest_has_profile`, derived from
+   * `display_name || email || profile_prompt_declined_at`. The third
+   * member of the
+   * `hasPassword`/`hasPin` family, and it exists for exactly the same
+   * reason: a server-owned bit is the only "don't ask twice" that survives
+   * a browser whose storage throws.
+   *
+   * It replaces two wrong keys at once. `isNewGuest` meant a venue that
+   * enabled collection in October could never ask the thousands of guests
+   * it already had. And the device-local `localStorage` flag it also
+   * replaces returned `false` on every read inside Apple's CNA -- so an
+   * iPhone guest who typed their name, tapped Save, and was bounced back
+   * to this page by the NAS was asked for it again, having just given it.
+   * On the platform where the environment is worst, the product nagged
+   * hardest.
+   *
+   * Optional on the wire until the backend adds `has_profile` to the login
+   * / session response; absent reads as `false` (ask), which is today's
+   * behaviour for a guest whose storage threw anyway. */
+  hasProfile: boolean;
+  /** True once this guest has ever tapped through to the venue's Google
+   * review link -- carried on the same response as `hasProfile`, and set
+   * by `POST /guest/review-link-opened`. Once tapped, they are done
+   * forever: over-asking a guest who already reviewed is a worse error
+   * than under-asking one who did not.
+   *
+   * ⚠ This is a proxy for INTENT, never for outcome. Google publishes no
+   * API answering "has user X reviewed place Y" and will not -- it would
+   * leak review authorship. Nothing anywhere may report this as a count of
+   * reviews; the only truthful label is "opened your review link". */
+  hasOpenedReviewLink: boolean;
 }

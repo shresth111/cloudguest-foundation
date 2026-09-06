@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import { clampFeedbackDwellMinutes } from "@/lib/portal-post-connect";
 import {
   clampBackgroundOverlayStrength,
   toGuestFontChoice,
@@ -85,6 +86,15 @@ interface BackendCaptivePortalConfig {
    * `"system"`/`55` when absent (§7), and update()'s whitelist only sends
    * these when a value is actually being set. */
   guest_font_choice?: string;
+  /** "After they connect" columns. Optional until the backend migration
+   * lands; every fallback below is the same value the server default will
+   * carry, so this editor behaves identically before and after it. */
+  collect_guest_name?: boolean;
+  collect_guest_email?: boolean;
+  review_url?: string | null;
+  review_card_enabled?: boolean;
+  guest_feedback_enabled?: boolean;
+  feedback_dwell_minutes?: number | null;
   background_overlay_strength?: number;
 }
 
@@ -436,6 +446,19 @@ function toPortal(
       imageUrl: c.content_image_url ?? "",
       survey: toPortalSurvey(c.content_survey),
     },
+    // READ half of the "After they connect" settings. The WRITE half is in
+    // create() and update() below -- BOTH are required. A field mapped here
+    // and not there is silently dropped on save with a success toast, which
+    // is exactly how `fontFamily` shipped as a live control bound to
+    // nothing.
+    postConnect: {
+      collectGuestName: c.collect_guest_name ?? false,
+      collectGuestEmail: c.collect_guest_email ?? false,
+      reviewUrl: c.review_url ?? "",
+      reviewCardEnabled: c.review_card_enabled ?? false,
+      guestFeedbackEnabled: c.guest_feedback_enabled ?? false,
+      feedbackDwellMinutes: clampFeedbackDwellMinutes(c.feedback_dwell_minutes),
+    },
     seo: {
       pageTitle: c.splash_headline ?? c.name,
       metaDescription: c.splash_welcome_message ?? "",
@@ -600,6 +623,13 @@ export const portalService = {
         content_body: input.content?.body || null,
         content_image_url: input.content?.imageUrl || null,
         content_survey: input.content?.survey ?? null,
+        // WRITE half (create) of the "After they connect" settings.
+        collect_guest_name: input.postConnect?.collectGuestName ?? false,
+        collect_guest_email: input.postConnect?.collectGuestEmail ?? false,
+        review_url: input.postConnect?.reviewUrl?.trim() || null,
+        review_card_enabled: input.postConnect?.reviewCardEnabled ?? false,
+        guest_feedback_enabled: input.postConnect?.guestFeedbackEnabled ?? false,
+        feedback_dwell_minutes: clampFeedbackDwellMinutes(input.postConnect?.feedbackDwellMinutes),
         guest_font_choice: input.branding?.fontChoice ?? "system",
         background_overlay_strength: input.branding?.backgroundOverlayStrength ?? 55,
         ...flags,
@@ -645,6 +675,27 @@ export const portalService = {
     if (patch.content?.imageUrl !== undefined)
       body.content_image_url = patch.content.imageUrl || null;
     if (patch.content?.survey !== undefined) body.content_survey = patch.content.survey ?? null;
+    // WRITE half (update) of the "After they connect" settings. Each one is
+    // guarded on `!== undefined` like every other field here, so a patch
+    // that does not mention them leaves the stored values alone.
+    if (patch.postConnect?.collectGuestName !== undefined)
+      body.collect_guest_name = patch.postConnect.collectGuestName;
+    if (patch.postConnect?.collectGuestEmail !== undefined)
+      body.collect_guest_email = patch.postConnect.collectGuestEmail;
+    // `|| null` -- clearing the field must clear the column, not store "".
+    // Note these two travel INDEPENDENTLY: switching the card off leaves
+    // `review_url` exactly as the venue typed it, so turning it back on
+    // needs no second trip to Business Profile.
+    if (patch.postConnect?.reviewUrl !== undefined)
+      body.review_url = patch.postConnect.reviewUrl.trim() || null;
+    if (patch.postConnect?.reviewCardEnabled !== undefined)
+      body.review_card_enabled = patch.postConnect.reviewCardEnabled;
+    if (patch.postConnect?.guestFeedbackEnabled !== undefined)
+      body.guest_feedback_enabled = patch.postConnect.guestFeedbackEnabled;
+    if (patch.postConnect?.feedbackDwellMinutes !== undefined)
+      body.feedback_dwell_minutes = clampFeedbackDwellMinutes(
+        patch.postConnect.feedbackDwellMinutes,
+      );
     if (patch.loginMethods !== undefined) Object.assign(body, loginMethodFlags(patch.loginMethods));
     // captive-portal-v6-design-spec.md §1.3/§3.5/§4.4 -- the real fix for
     // this whitelist's exact gap: the old admin font picker silently lost

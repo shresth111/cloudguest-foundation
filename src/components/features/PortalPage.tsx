@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import axios from "axios";
 import { motion, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,9 @@ import {
   QrCode,
   RefreshCw,
   ExternalLink,
+  Info,
   Loader2,
+  MessageSquareText,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -49,6 +51,16 @@ import { PostLoginHtmlFrame } from "@/components/portal-runtime/PostLoginHtmlFra
 import { PortalRuntimeProvider } from "@/context/PortalRuntimeContext";
 import { PortalShell } from "@/components/portal-runtime/PortalShell";
 import { GuestSignInCard } from "@/components/portal-runtime/GuestSignInCard";
+import {
+  ConnectedPreview,
+  type ConnectedPreviewScenario,
+} from "@/components/portal-runtime/ConnectedPreview";
+import {
+  DEFAULT_FEEDBACK_DWELL_MINUTES,
+  MAX_POST_CONNECT_ASKS,
+  countPostConnectAsks,
+  isSafeGoogleReviewUrl,
+} from "@/lib/portal-post-connect";
 import { DEMO_PORTAL_PREVIEW_STORAGE_KEY } from "@/lib/portal-preview-storage";
 import { BRAND_ASSET_ACCEPT_ATTR, brandAssetRejectionReason } from "@/lib/brand-asset-limits";
 import type { PortalLanguage, PortalLoginMethod } from "@/types/portal";
@@ -68,6 +80,35 @@ const SWATCHES = [
   "#ec4899",
   "#0f172a",
 ];
+/** The three guests the Connected preview can be pointed at. Each is a real
+ * state a real guest is in -- not a "show me card X" switch: the preview
+ * runs the same resolver a phone does and shows whichever single card that
+ * guest would actually get. Lives here, next to the control that renders
+ * it, rather than in the preview component, which then only exports a
+ * component. */
+const CONNECTED_PREVIEW_SCENARIOS: { id: ConnectedPreviewScenario; label: string }[] = [
+  { id: "first_visit", label: "First visit" },
+  { id: "returning", label: "Returning guest" },
+  { id: "dwell", label: "30 minutes in" },
+];
+
+/** One entry per possible number of post-connect asks. The wording is the
+ * whole point -- it is what makes an owner feel a fourth switch before they
+ * flip it, and it is a statement about their own settings rather than a
+ * claim about guest behaviour, so it needs no data behind it and can never
+ * be wrong. */
+const ASK_METER = [
+  { label: "Nothing extra is asked.", tone: "text-muted-foreground", dot: "bg-muted-foreground" },
+  { label: "One ask. Barely noticeable.", tone: "text-emerald-600", dot: "bg-emerald-500" },
+  { label: "Two is comfortable.", tone: "text-emerald-600", dot: "bg-emerald-500" },
+  {
+    label: "Three asks. Most guests will ignore the last one.",
+    tone: "text-amber-600",
+    dot: "bg-amber-500",
+  },
+  { label: "Four asks. This will feel like a form.", tone: "text-destructive", dot: "bg-red-500" },
+];
+
 const AUTH_OPTIONS: [PortalLoginMethod, string][] = [
   ["mobile_otp", "Mobile OTP"],
   ["email_otp", "Email OTP"],
@@ -154,6 +195,88 @@ function PortalDesignIllustration() {
   );
 }
 
+/**
+ * One settings row on the "After they connect" card -- title and
+ * description left, `Switch` right, expandable detail underneath. Same
+ * shape as the `OpenHoursView` row this dashboard already uses for
+ * settings toggles, so the card reads as part of the product rather than a
+ * new idiom.
+ */
+function PostConnectRow({
+  title,
+  description,
+  checked,
+  onCheckedChange,
+  children,
+}: {
+  title: string;
+  description: string;
+  checked: boolean;
+  onCheckedChange: (v: boolean) => void;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="rounded-lg border p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-medium">{title}</p>
+          <p className="text-xs text-muted-foreground">{description}</p>
+        </div>
+        <Switch checked={checked} onCheckedChange={onCheckedChange} aria-label={title} />
+      </div>
+      {checked && children ? <div className="mt-3 space-y-2 border-t pt-3">{children}</div> : null}
+    </div>
+  );
+}
+
+/**
+ * The honest empty state for every per-row funnel number on this card.
+ *
+ * NOT a zero, not a dash, not a placeholder chart. The server-side counters
+ * these lines will read (`profile_prompt_shown` / `_saved` / `_declined` /
+ * `_save_failed`, and `review_link_opened`) do not exist yet, and
+ * `CampaignsPage` has already shipped this exact bug once -- its own code
+ * comment records that the table "used to hard code 0 for every campaign on
+ * a real account" while demo fixtures showed 2841/423. Reintroducing it one
+ * card over would be worse, because it would be deliberate.
+ *
+ * And there is no benchmark here either: every captive-portal conversion
+ * statistic located in research was vendor marketing with no published
+ * methodology, sample definition or audit. A number under a toggle would be
+ * repeated to customers by sales and indefensible when someone asked where
+ * it came from.
+ */
+/** The placeholder that stands where each row's own count will go.
+ *
+ * It carries the reach caveat, and that placement is deliberate: this is
+ * the spot a venue owner looks at to answer "is this working", so it is
+ * the spot where the denominator has to be honest. Every post-connect card
+ * lives on `/portal/session`, and iPhone and iPad guests never load that
+ * page -- `portal.success.tsx` hands them to `captive.apple.com` on
+ * purpose, because that is the only thing that makes iOS's Captive Network
+ * Assistant dismiss itself and release the guest's traffic. So these
+ * counts are over Android and desktop guests, always.
+ *
+ * Saying it here rather than only in a code comment or a help article is
+ * the whole point. A count labelled plainly, that silently excludes every
+ * iPhone in the venue, is how an owner concludes the feature does not work
+ * and switches it off -- or worse, concludes it works better than it does.
+ * When the real numbers land they replace `No data yet` and this line
+ * stays. */
+function NoDataYet() {
+  return (
+    <div className="space-y-1">
+      <p className="text-xs text-muted-foreground">
+        No data yet. Numbers appear here once we are counting them.
+      </p>
+      <p className="text-xs text-muted-foreground">
+        Counts cover guests on Android and laptops. iPhone and iPad guests go straight online
+        without opening this screen.
+      </p>
+    </div>
+  );
+}
+
 export function PortalPage({ locationId }: { locationId?: string }) {
   const demo = useIsDemo();
   const [primary, setPrimary] = useState("#1B57F5");
@@ -218,6 +341,30 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   const [logoIsUploaded, setLogoIsUploaded] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingBg, setUploadingBg] = useState(false);
+  // ===== "After they connect" =====
+  // Local state, one explicit Save at the bottom of the card rather than
+  // save-on-toggle -- the same shape as every other settings-toggle row in
+  // this dashboard. Every one of these defaults OFF, including for venues
+  // that already exist.
+  // The venue's real name, used by the Connected preview for the `{venue}`
+  // slot in the DPDP purpose line and the review subtitle. Sourced from the
+  // resolved location, never invented -- with no name the cards that would
+  // have interpolated it simply omit that line, which is also what a guest
+  // would see.
+  const [venueName, setVenueName] = useState("");
+  const [collectGuestName, setCollectGuestName] = useState(false);
+  const [collectGuestEmail, setCollectGuestEmail] = useState(false);
+  const [reviewCardEnabled, setReviewCardEnabled] = useState(false);
+  const [reviewUrl, setReviewUrl] = useState("");
+  const [guestFeedbackEnabled, setGuestFeedbackEnabled] = useState(false);
+  // Which screen the Live Preview is showing. Focusing anything in the
+  // "After they connect" card flips this to "connected" automatically --
+  // every setting in that card is invisible on the sign-in screen, and a
+  // preview that does not move while a venue flips switches is worse than
+  // no preview.
+  const [previewTab, setPreviewTab] = useState<"signin" | "connected">("signin");
+  const [previewScenario, setPreviewScenario] = useState<ConnectedPreviewScenario>("first_visit");
+
   const [portalId, setPortalId] = useState<string | null>(null);
   const [orgId, setOrgId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -327,6 +474,19 @@ export function PortalPage({ locationId }: { locationId?: string }) {
     setContentBody(p.content.body);
     setContentImageUrl(p.content.imageUrl);
     setPostLoginHtml(p.login.postLoginHtml || "");
+    setVenueName(p.locationId ? p.locationName : "");
+    setCollectGuestName(p.postConnect.collectGuestName);
+    setCollectGuestEmail(p.postConnect.collectGuestEmail);
+    setReviewUrl(p.postConnect.reviewUrl);
+    // The switch is its OWN stored column, not something derived from the
+    // URL. Deriving it was a real design mistake: it made "pause the ask"
+    // and "delete the link" the same gesture, so a venue pausing for a
+    // refurbishment had to throw away a link they would then have to go
+    // and find again in Business Profile. The venue's intent and the
+    // material it needs are two different facts and the backend stores
+    // them as two columns.
+    setReviewCardEnabled(p.postConnect.reviewCardEnabled);
+    setGuestFeedbackEnabled(p.postConnect.guestFeedbackEnabled);
   };
 
   useEffect(() => {
@@ -428,7 +588,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   const livePreviewConfig: RuntimePortalConfig = useMemo(
     () => ({
       id: portalId ?? "live-preview",
-      name: "",
+      name: venueName,
       theme: "light",
       logoUrl: logo,
       // The org's real login-screen background (loaded above), so the Live
@@ -488,6 +648,20 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       // has zero backfilled branding rows), so the preview shows the
       // unconditional §1.3 scrim floor -- which is exactly what that venue will
       // see. See `toBackgroundMetric` for why 0 would have been wrong.
+      // The "After they connect" settings, live. This is what makes the
+      // Connected tab of the preview move as the venue flips switches --
+      // before Save, on every keystroke, exactly as the sign-in tab already
+      // does for the headline and colours.
+      collectGuestName,
+      collectGuestEmail,
+      // Both, unconditionally -- the preview applies the same
+      // `reviewCardEnabled && reviewUrl` rule a guest's portal does
+      // (`reviewCardEligible`), rather than this page pre-collapsing them
+      // into one nullable field and teaching the preview a second rule.
+      reviewUrl: reviewUrl.trim() || null,
+      reviewCardEnabled,
+      guestFeedbackEnabled,
+      feedbackDwellMinutes: DEFAULT_FEEDBACK_DWELL_MINUTES,
       backgroundFocalX: 50,
       backgroundFocalY: 25,
       backgroundLuminance: null,
@@ -501,6 +675,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
     }),
     [
       portalId,
+      venueName,
       logo,
       bgImage,
       primary,
@@ -515,6 +690,11 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       contentBody,
       contentImageUrl,
       postLoginHtml,
+      collectGuestName,
+      collectGuestEmail,
+      reviewCardEnabled,
+      reviewUrl,
+      guestFeedbackEnabled,
     ],
   );
 
@@ -690,6 +870,28 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   const postLoginBlocked = postLoginHtmlOverLimit(postLoginHtml);
   const saveBlocked = splashBlocked || postLoginBlocked;
 
+  // ===== The ask budget, computed from the venue's own live settings =====
+  // Dish ratings contribute 0 because they cannot be enabled -- see the
+  // disabled row's own comment. Recomputed on every render so the meter
+  // moves as toggles move, before anything is saved.
+  const askCount = countPostConnectAsks({
+    collectGuestName,
+    collectGuestEmail,
+    // The switch AND a link, because that pair is what a guest actually
+    // meets. Counting the switch alone would tell a venue they are making
+    // three asks when the third one cannot render.
+    reviewCardEnabled: reviewCardEnabled && !!reviewUrl.trim(),
+    guestFeedbackEnabled,
+    dishRatingsEnabled: false,
+  });
+  const askMeter = ASK_METER[Math.min(askCount, MAX_POST_CONNECT_ASKS)];
+
+  // The same guard the guest card applies before this URL ever reaches an
+  // `href` -- surfaced here so a venue finds out at authoring time rather
+  // than by wondering why no guest ever saw the card.
+  const reviewUrlInvalid =
+    reviewCardEnabled && !!reviewUrl.trim() && !isSafeGoogleReviewUrl(reviewUrl);
+
   const saveConfig = async () => {
     // The Save button is disabled while blocked; this guard just keeps the
     // rule airtight if another code path ever calls saveConfig directly.
@@ -737,6 +939,25 @@ export function PortalPage({ locationId }: { locationId?: string }) {
         // to ["en"]) so what's saved always matches what was just previewed.
         languages: resolveLanguageSelection(langList[0], langList)
           .supportedLanguages as PortalLanguage[],
+        // Both halves of every one of these is mapped in portal.service.ts
+        // (toPortal on read, create()/update() on write) -- see that file's
+        // note on the `fontFamily` bug for why a read-only mapping is worse
+        // than no mapping at all.
+        postConnect: {
+          collectGuestName,
+          collectGuestEmail,
+          // The link is saved WHATEVER the switch says, and the switch is
+          // saved as its own column. Turning the ask off used to clear the
+          // stored URL on the theory that a venue resuming should
+          // re-confirm it; in practice that made pausing destructive, and
+          // the venue's punishment for a two-week pause was a trip back
+          // into Business Profile to find the link again. Pausing is now
+          // just the switch.
+          reviewUrl: reviewUrl.trim(),
+          reviewCardEnabled,
+          guestFeedbackEnabled,
+          feedbackDwellMinutes: DEFAULT_FEEDBACK_DWELL_MINUTES,
+        },
       };
       let saved;
       if (portalId) {
@@ -841,228 +1062,235 @@ export function PortalPage({ locationId }: { locationId?: string }) {
         </div>
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="shadow-sm border-0">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2.5 text-sm">
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
-                <Sparkles className="h-3.5 w-3.5 text-white" />
+        {/* LEFT COLUMN. Two cards, not one, and the boundary is deliberate:
+            Portal Configuration is the sign-in screen (headline, logo,
+            colours, auth methods, terms); "After they connect" is the screen
+            AFTER the gate. Mixing them is what would let someone drag the
+            email field back onto the sign-in card, which is the one thing
+            the guest-side design exists to prevent. */}
+        <div className="space-y-4">
+          <Card className="shadow-sm border-0">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2.5 text-sm">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
+                  <Sparkles className="h-3.5 w-3.5 text-white" />
+                </div>
+                Portal Configuration
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label>Headline</Label>
+                  <SplashCharCounter value={headline} max={SPLASH_HEADLINE_MAX} />
+                </div>
+                <Input
+                  value={headline}
+                  onChange={(e) => setHeadline(e.target.value)}
+                  placeholder="Welcome to your venue"
+                />
+                <p className="text-xs text-muted-foreground">
+                  The large heading guests see first on the sign-in screen. Leave blank to use the
+                  default "Welcome to [venue]".
+                </p>
               </div>
-              Portal Configuration
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label>Headline</Label>
-                <SplashCharCounter value={headline} max={SPLASH_HEADLINE_MAX} />
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label>Welcome Message</Label>
+                  <SplashCharCounter value={msg} max={SPLASH_WELCOME_MAX} />
+                </div>
+                <Textarea rows={2} value={msg} onChange={(e) => setMsg(e.target.value)} />
+                <p className="text-xs text-muted-foreground">
+                  Smaller subtext shown under the headline.
+                </p>
               </div>
-              <Input
-                value={headline}
-                onChange={(e) => setHeadline(e.target.value)}
-                placeholder="Welcome to your venue"
-              />
-              <p className="text-xs text-muted-foreground">
-                The large heading guests see first on the sign-in screen. Leave blank to use the
-                default "Welcome to [venue]".
-              </p>
-            </div>
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label>Welcome Message</Label>
-                <SplashCharCounter value={msg} max={SPLASH_WELCOME_MAX} />
-              </div>
-              <Textarea rows={2} value={msg} onChange={(e) => setMsg(e.target.value)} />
-              <p className="text-xs text-muted-foreground">
-                Smaller subtext shown under the headline.
-              </p>
-            </div>
 
-            <div>
-              <Label className="mb-2 block">Brand Color</Label>
-              <div className="flex flex-wrap items-center gap-2">
-                {SWATCHES.map((c) => (
-                  <button
-                    key={c}
-                    onClick={() => setPrimary(c)}
-                    aria-label={c}
-                    className="relative h-8 w-8 rounded-full ring-2 ring-offset-2 ring-offset-background transition-transform hover:scale-110"
-                    style={{
-                      background: c,
-                      ["--tw-ring-color" as string]: primary === c ? c : "transparent",
-                    }}
-                  >
-                    {primary === c && (
-                      <motion.span
-                        layoutId="swatch-ring"
-                        className="absolute inset-0 rounded-full ring-2 ring-foreground/70"
-                        transition={{ type: "spring", bounce: 0.3, duration: 0.4 }}
+              <div>
+                <Label className="mb-2 block">Brand Color</Label>
+                <div className="flex flex-wrap items-center gap-2">
+                  {SWATCHES.map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => setPrimary(c)}
+                      aria-label={c}
+                      className="relative h-8 w-8 rounded-full ring-2 ring-offset-2 ring-offset-background transition-transform hover:scale-110"
+                      style={{
+                        background: c,
+                        ["--tw-ring-color" as string]: primary === c ? c : "transparent",
+                      }}
+                    >
+                      {primary === c && (
+                        <motion.span
+                          layoutId="swatch-ring"
+                          className="absolute inset-0 rounded-full ring-2 ring-foreground/70"
+                          transition={{ type: "spring", bounce: 0.3, duration: 0.4 }}
+                        />
+                      )}
+                    </button>
+                  ))}
+                  <div className="ml-1 flex items-center gap-2">
+                    <Input
+                      type="color"
+                      value={primary}
+                      onChange={(e) => setPrimary(e.target.value)}
+                      className="h-9 w-10 p-1"
+                    />
+                    <Input
+                      value={primary}
+                      onChange={(e) => setPrimary(e.target.value)}
+                      className="font-mono h-9 w-24"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <Label className="mb-2 block">Portal Logo</Label>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-muted/40">
+                    {uploadingLogo ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    ) : logo ? (
+                      <img
+                        src={logo}
+                        alt="Portal logo"
+                        className="h-full w-full object-cover"
+                        onError={() => setLogo(null)}
                       />
+                    ) : (
+                      <ImageUp className="h-5 w-5 text-muted-foreground" />
                     )}
-                  </button>
-                ))}
-                <div className="ml-1 flex items-center gap-2">
-                  <Input
-                    type="color"
-                    value={primary}
-                    onChange={(e) => setPrimary(e.target.value)}
-                    className="h-9 w-10 p-1"
-                  />
-                  <Input
-                    value={primary}
-                    onChange={(e) => setPrimary(e.target.value)}
-                    className="font-mono h-9 w-24"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <Label className="mb-2 block">Portal Logo</Label>
-              <div className="flex items-center gap-3">
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-muted/40">
-                  {uploadingLogo ? (
-                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                  ) : logo ? (
-                    <img
-                      src={logo}
-                      alt="Portal logo"
-                      className="h-full w-full object-cover"
-                      onError={() => setLogo(null)}
+                  </div>
+                  <label className="cursor-pointer">
+                    <span className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+                      <ImageUp className="h-3.5 w-3.5" />
+                      Upload logo
+                    </span>
+                    <input
+                      type="file"
+                      accept={BRAND_ASSET_ACCEPT_ATTR}
+                      className="hidden"
+                      disabled={uploadingLogo}
+                      onChange={handleLogoUpload}
                     />
-                  ) : (
-                    <ImageUp className="h-5 w-5 text-muted-foreground" />
+                  </label>
+                  {logo && (
+                    <button
+                      type="button"
+                      onClick={handleRemoveLogo}
+                      disabled={uploadingLogo}
+                      className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-destructive/50 hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Remove
+                    </button>
                   )}
                 </div>
-                <label className="cursor-pointer">
-                  <span className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-                    <ImageUp className="h-3.5 w-3.5" />
-                    Upload logo
-                  </span>
-                  <input
-                    type="file"
-                    accept={BRAND_ASSET_ACCEPT_ATTR}
-                    className="hidden"
-                    disabled={uploadingLogo}
-                    onChange={handleLogoUpload}
-                  />
-                </label>
-                {logo && (
-                  <button
-                    type="button"
-                    onClick={handleRemoveLogo}
-                    disabled={uploadingLogo}
-                    className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-destructive/50 hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Remove
-                  </button>
-                )}
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  Displayed at 32×32px on the real sign-in screen (inside a rounded color badge) --
+                  upload a square image, 256×256px, PNG with a transparent background, for a sharp,
+                  clean result. Shared across every location in this organization, same as the
+                  Background Image.
+                </p>
               </div>
-              <p className="mt-1.5 text-xs text-muted-foreground">
-                Displayed at 32×32px on the real sign-in screen (inside a rounded color badge) --
-                upload a square image, 256×256px, PNG with a transparent background, for a sharp,
-                clean result. Shared across every location in this organization, same as the
-                Background Image.
-              </p>
-            </div>
 
-            <div>
-              <Label className="mb-2 block">Background Image</Label>
-              <div className="flex items-center gap-3">
-                <div className="flex h-14 w-24 shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-muted/40">
-                  {uploadingBg ? (
-                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                  ) : bgImage ? (
-                    <img
-                      src={bgImage}
-                      alt="Portal background"
-                      className="h-full w-full object-cover"
-                      onError={() => setBgImage(null)}
+              <div>
+                <Label className="mb-2 block">Background Image</Label>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-14 w-24 shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-muted/40">
+                    {uploadingBg ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    ) : bgImage ? (
+                      <img
+                        src={bgImage}
+                        alt="Portal background"
+                        className="h-full w-full object-cover"
+                        onError={() => setBgImage(null)}
+                      />
+                    ) : (
+                      <ImageUp className="h-5 w-5 text-muted-foreground" />
+                    )}
+                  </div>
+                  <label className="cursor-pointer">
+                    <span className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+                      <ImageUp className="h-3.5 w-3.5" />
+                      {bgImage ? "Replace image" : "Upload image"}
+                    </span>
+                    <input
+                      type="file"
+                      accept={BRAND_ASSET_ACCEPT_ATTR}
+                      className="hidden"
+                      disabled={uploadingBg}
+                      onChange={handleBackgroundUpload}
                     />
-                  ) : (
-                    <ImageUp className="h-5 w-5 text-muted-foreground" />
+                  </label>
+                  {bgImage && (
+                    <button
+                      type="button"
+                      onClick={handleRemoveBackground}
+                      disabled={uploadingBg}
+                      className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-destructive/50 hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Remove
+                    </button>
                   )}
                 </div>
-                <label className="cursor-pointer">
-                  <span className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-                    <ImageUp className="h-3.5 w-3.5" />
-                    {bgImage ? "Replace image" : "Upload image"}
-                  </span>
-                  <input
-                    type="file"
-                    accept={BRAND_ASSET_ACCEPT_ATTR}
-                    className="hidden"
-                    disabled={uploadingBg}
-                    onChange={handleBackgroundUpload}
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  Fills the whole sign-in screen behind the card, on phones held upright — upload a
+                  tall portrait photo, at least 1170×2532px, PNG/JPEG/WEBP/GIF up to 5 MB. Keep the
+                  middle of the frame free of anything important: the sign-in card sits over it.
+                  Like the logo, this is shared across every location in this organization. The Live
+                  Preview on the right updates as soon as the upload finishes.
+                </p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label>Theme</Label>
+                  <Select value={form.theme} onValueChange={(v) => setForm({ ...form, theme: v })}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="enterprise">Enterprise Blue</SelectItem>
+                      <SelectItem value="dark">Dark</SelectItem>
+                      <SelectItem value="light">Light</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Font</Label>
+                  <Select value={form.font} onValueChange={(v) => setForm({ ...form, font: v })}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="inter">Inter</SelectItem>
+                      <SelectItem value="poppins">Poppins</SelectItem>
+                      <SelectItem value="system">System</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Languages</Label>
+                  <Input
+                    value={form.lang}
+                    onChange={(e) => setForm({ ...form, lang: e.target.value })}
+                    className="h-9"
                   />
-                </label>
-                {bgImage && (
-                  <button
-                    type="button"
-                    onClick={handleRemoveBackground}
-                    disabled={uploadingBg}
-                    className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-destructive/50 hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Remove
-                  </button>
-                )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Redirect URL</Label>
+                  <Input
+                    value={form.redirectUrl}
+                    onChange={(e) => setForm({ ...form, redirectUrl: e.target.value })}
+                    className="h-9"
+                  />
+                </div>
               </div>
-              <p className="mt-1.5 text-xs text-muted-foreground">
-                Fills the whole sign-in screen behind the card, on phones held upright — upload a
-                tall portrait photo, at least 1170×2532px, PNG/JPEG/WEBP/GIF up to 5 MB. Keep the
-                middle of the frame free of anything important: the sign-in card sits over it. Like
-                the logo, this is shared across every location in this organization. The Live
-                Preview on the right updates as soon as the upload finishes.
-              </p>
-            </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label>Theme</Label>
-                <Select value={form.theme} onValueChange={(v) => setForm({ ...form, theme: v })}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="enterprise">Enterprise Blue</SelectItem>
-                    <SelectItem value="dark">Dark</SelectItem>
-                    <SelectItem value="light">Light</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Font</Label>
-                <Select value={form.font} onValueChange={(v) => setForm({ ...form, font: v })}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="inter">Inter</SelectItem>
-                    <SelectItem value="poppins">Poppins</SelectItem>
-                    <SelectItem value="system">System</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Languages</Label>
-                <Input
-                  value={form.lang}
-                  onChange={(e) => setForm({ ...form, lang: e.target.value })}
-                  className="h-9"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Redirect URL</Label>
-                <Input
-                  value={form.redirectUrl}
-                  onChange={(e) => setForm({ ...form, redirectUrl: e.target.value })}
-                  className="h-9"
-                />
-              </div>
-            </div>
-
-            {/* Post-login page. Sits directly under Redirect URL because the
+              {/* Post-login page. Sits directly under Redirect URL because the
               two are the same decision -- what a guest sees the moment they
               are online -- and because a venue that sets both needs to see
               that they COMPOSE, not that one wins (the note under the
@@ -1071,157 +1299,451 @@ export function PortalPage({ locationId }: { locationId?: string }) {
               Plain monospace <Textarea>, not a code editor: a code-editor
               dependency is ~200KB of the customer dashboard's bundle to
               syntax-highlight a field most venues will paste into once. */}
-            <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <Label htmlFor="post-login-html">Post-login page (HTML)</Label>
-                {/* Bytes, not characters -- the backend column's cap is a
+              <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Label htmlFor="post-login-html">Post-login page (HTML)</Label>
+                  {/* Bytes, not characters -- the backend column's cap is a
                   byte cap, and one Devanagari code point is 3 bytes. A
                   character count would tell a Hindi-writing venue they had
                   3x the room they actually have. */}
-                <span
-                  aria-live="polite"
-                  className={`text-xs tabular-nums ${
-                    postLoginBlocked ? "font-medium text-destructive" : "text-muted-foreground"
-                  }`}
-                >
-                  {postLoginBytes.toLocaleString()} / {POST_LOGIN_HTML_MAX_BYTES.toLocaleString()}{" "}
-                  bytes
-                </span>
-              </div>
-              <Textarea
-                id="post-login-html"
-                rows={8}
-                spellCheck={false}
-                value={postLoginHtml}
-                onChange={(e) => setPostLoginHtml(e.target.value)}
-                placeholder={
-                  "<h2>Welcome!</h2>\n<p>Show your booking at the desk for a free coffee.</p>"
-                }
-                className="font-mono text-xs"
-              />
-              <p className="text-xs text-muted-foreground">
-                Shown to guests right after they sign in. Leave it empty to keep today&apos;s
-                behaviour.{" "}
-                {form.redirectUrl.trim() ? (
-                  <>
-                    Because a <span className="font-medium">Redirect URL</span> is also set, guests
-                    see this page with a <span className="font-medium">Continue</span> button to it.
-                    They are not sent on automatically, so the page stays up until they choose to
-                    leave.
-                  </>
-                ) : (
-                  <>
-                    With no <span className="font-medium">Redirect URL</span> set, this page is
-                    where guests stay.
-                  </>
-                )}
-              </p>
-              {/* The one thing a venue WILL get wrong if we don't say it.
+                  <span
+                    aria-live="polite"
+                    className={`text-xs tabular-nums ${
+                      postLoginBlocked ? "font-medium text-destructive" : "text-muted-foreground"
+                    }`}
+                  >
+                    {postLoginBytes.toLocaleString()} / {POST_LOGIN_HTML_MAX_BYTES.toLocaleString()}{" "}
+                    bytes
+                  </span>
+                </div>
+                <Textarea
+                  id="post-login-html"
+                  rows={8}
+                  spellCheck={false}
+                  value={postLoginHtml}
+                  onChange={(e) => setPostLoginHtml(e.target.value)}
+                  placeholder={
+                    "<h2>Welcome!</h2>\n<p>Show your booking at the desk for a free coffee.</p>"
+                  }
+                  className="font-mono text-xs"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Shown to guests right after they sign in. Leave it empty to keep today&apos;s
+                  behaviour.{" "}
+                  {form.redirectUrl.trim() ? (
+                    <>
+                      Because a <span className="font-medium">Redirect URL</span> is also set,
+                      guests see this page with a <span className="font-medium">Continue</span>{" "}
+                      button to it. They are not sent on automatically, so the page stays up until
+                      they choose to leave.
+                    </>
+                  ) : (
+                    <>
+                      With no <span className="font-medium">Redirect URL</span> set, this page is
+                      where guests stay.
+                    </>
+                  )}
+                </p>
+                {/* The one thing a venue WILL get wrong if we don't say it.
                 This page runs on the same origin as the OTP screen, so the
                 HTML is rendered in a sandboxed frame with scripts disabled
                 -- an analytics or chat-widget snippet pasted here does
                 nothing at all, silently. Saying so here is cheaper than the
                 bug report. */}
-              <p className="text-xs text-muted-foreground">
-                <span className="font-medium text-foreground">Scripts will not run.</span> For your
-                guests&apos; safety this page is displayed in a sandbox, so{" "}
-                <code>&lt;script&gt;</code> tags, analytics snippets, chat widgets and inline{" "}
-                <code>onclick</code> handlers are ignored. HTML, CSS, images and links all work —
-                links open in a new tab. Saving also runs the page through a safety filter, so the
-                editor may come back slightly changed from what you pasted; that version is what
-                guests get.
-              </p>
-              {hasPostLoginHtml(previewHtml) && (
-                <div className="space-y-1.5">
-                  <p className="text-xs font-medium">Preview</p>
-                  {/* The SAME component, with the SAME sandbox, that
+                <p className="text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">Scripts will not run.</span> For
+                  your guests&apos; safety this page is displayed in a sandbox, so{" "}
+                  <code>&lt;script&gt;</code> tags, analytics snippets, chat widgets and inline{" "}
+                  <code>onclick</code> handlers are ignored. HTML, CSS, images and links all work —
+                  links open in a new tab. Saving also runs the page through a safety filter, so the
+                  editor may come back slightly changed from what you pasted; that version is what
+                  guests get.
+                </p>
+                {hasPostLoginHtml(previewHtml) && (
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium">Preview</p>
+                    {/* The SAME component, with the SAME sandbox, that
                     /portal/redirect renders for a real guest -- not a
                     lookalike. That is the whole point: whatever gets
                     silently dropped in this box is exactly what gets
                     dropped on the guest's phone. */}
-                  <PostLoginHtmlFrame
-                    html={previewHtml}
-                    title="Post-login page preview"
-                    className="h-64 bg-white"
-                  />
-                </div>
-              )}
-              {postLoginBlocked && (
-                <p className="text-xs text-destructive" role="alert">
-                  This page is {postLoginBytes.toLocaleString()} bytes — the limit is{" "}
-                  {POST_LOGIN_HTML_MAX_BYTES.toLocaleString()}. Shorten it to save.
-                </p>
-              )}
-            </div>
-
-            {/* The "Portal Content Mode" picker (sign-in only / image / text /
-              redirect, plus its heading, image-URL and body inputs) used to
-              sit here and was removed on request: it asked a venue to make a
-              decision about a pre-sign-in content step most of them do not
-              want, in the middle of the branding controls they came here for.
-              Campaigns are the surface for "show the guest something extra".
-
-              Only the editor is gone. `contentMode`/`contentHeading`/
-              `contentBody`/`contentImageUrl` are still loaded in `loadPortal`
-              and still sent unchanged by `saveConfig`, so a venue that already
-              configured a mode keeps exactly what its guests see today -- this
-              removal changes no guest-facing render. It does mean such a venue
-              can no longer change that setting from this page; see the note on
-              `saveConfig` if that has to be revisited. */}
-
-            <div className="space-y-1.5">
-              <Label>Auth Methods</Label>
-              <div className="flex flex-wrap gap-2">
-                {AUTH_OPTIONS.map(([k, v]) => (
-                  <motion.div
-                    key={k}
-                    whileTap={{ scale: 0.96 }}
-                    className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 transition-colors ${authMethods.includes(k) ? "border-primary/50 bg-primary/5" : ""}`}
-                  >
-                    <Switch
-                      checked={authMethods.includes(k)}
-                      onCheckedChange={() => toggleAuth(k)}
+                    <PostLoginHtmlFrame
+                      html={previewHtml}
+                      title="Post-login page preview"
+                      className="h-64 bg-white"
                     />
-                    <span className="text-xs">{v}</span>
-                  </motion.div>
-                ))}
+                  </div>
+                )}
+                {postLoginBlocked && (
+                  <p className="text-xs text-destructive" role="alert">
+                    This page is {postLoginBytes.toLocaleString()} bytes — the limit is{" "}
+                    {POST_LOGIN_HTML_MAX_BYTES.toLocaleString()}. Shorten it to save.
+                  </p>
+                )}
               </div>
-            </div>
 
-            <div className="space-y-1.5">
-              <Label>Terms &amp; Conditions</Label>
-              <Textarea
-                rows={2}
-                value={form.terms}
-                onChange={(e) => setForm({ ...form, terms: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Button className="w-full sm:w-auto" onClick={saveConfig} disabled={saveBlocked}>
-                Save Configuration
-              </Button>
-              {splashBlocked && (
-                <p className="text-xs text-destructive" role="alert">
-                  {headlineBlocked && msgBlocked
-                    ? "The headline and welcome message are over their length limits — shorten them to save."
-                    : headlineBlocked
-                      ? `The headline is over the ${SPLASH_HEADLINE_MAX}-character limit — shorten it to save.`
-                      : `The welcome message is over the ${SPLASH_WELCOME_MAX}-character limit — shorten it to save.`}
+              {/* BEFORE SIGN-IN. This picker was removed once, for a good
+              reason that no longer holds: it asked a venue to make a
+              decision about a pre-sign-in content step "most of them do not
+              want", sitting in the middle of the branding controls they came
+              here for. Only the editor went; `contentMode`/`contentHeading`/
+              `contentBody`/`contentImageUrl` stayed in `loadPortal` and
+              `saveConfig` throughout, which is why restoring it is a JSX
+              change and not a plumbing one -- all four already have their
+              read half in `toPortal` and their write half in both `create()`
+              and `update()`'s whitelist.
+
+              It comes back because a venue asked for the one thing it is
+              genuinely for: showing guests a MENU inside the captive portal.
+              And this is the only surface that can. A menu shown after
+              connecting reaches Android and desktop guests only, because iOS
+              guests are handed to captive.apple.com the moment the gate
+              opens and never load `/portal/session`. This step runs BEFORE
+              sign-in, on every device, on the one screen every guest sees.
+
+              The catch, and the reason "Image" leads rather than an external
+              link: pre-authentication the guest is inside the hotspot's
+              walled garden, which allows exactly the portal host and the API
+              host (`_portal_walled_garden_hosts`). An uploaded image is
+              served from the portal's own origin and loads; a link to a menu
+              on some other domain is intercepted by the NAS and goes
+              nowhere. So the honest pre-login menu is a picture, and the
+              copy below says so rather than letting a venue discover it by
+              paste.
+
+              Its own section, not folded back into the branding block --
+              that placement was half the original objection. */}
+              <div className="space-y-1.5 rounded-lg border p-3">
+                <Label htmlFor="content-mode">Before sign-in</Label>
+                <p className="text-xs text-muted-foreground">
+                  An optional screen guests see before the sign-in form. Use it for a menu, an
+                  offer, or house rules. Reaches every guest, iPhones included.
                 </p>
-              )}
-              {/* The post-login field has its own inline error next to the
+                <Select
+                  value={contentMode}
+                  onValueChange={(v) => setContentMode(v as PortalContentMode)}
+                >
+                  <SelectTrigger id="content-mode">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="login">Nothing — go straight to sign-in</SelectItem>
+                    <SelectItem value="image">Show a picture (menu, offer, poster)</SelectItem>
+                    <SelectItem value="text">Show a short message</SelectItem>
+                    <SelectItem value="redirect">
+                      Send guests to a page after they connect
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {contentMode !== "login" && (
+                  <div className="space-y-1.5 border-t pt-3">
+                    <Label htmlFor="content-heading" className="text-xs">
+                      Heading <span className="font-normal text-muted-foreground">(optional)</span>
+                    </Label>
+                    <Input
+                      id="content-heading"
+                      value={contentHeading}
+                      onChange={(e) => setContentHeading(e.target.value)}
+                      placeholder="Today's menu"
+                    />
+                  </div>
+                )}
+
+                {contentMode === "image" && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="content-image-url" className="text-xs">
+                      Picture link
+                    </Label>
+                    <Input
+                      id="content-image-url"
+                      value={contentImageUrl}
+                      onChange={(e) => setContentImageUrl(e.target.value)}
+                      placeholder="https://..."
+                      inputMode="url"
+                    />
+                    {/* The constraint a venue cannot see and will otherwise
+                      hit blind. There is no upload for this field -- the
+                      only upload endpoints this product has are the
+                      org-level logo and background (brand-asset.service.ts)
+                      -- so it is a link, and where the picture is hosted
+                      decides whether it loads at all before sign-in. */}
+                    <p className="text-xs text-muted-foreground">
+                      A photo of your menu works well. Guests have not reached the internet yet at
+                      this point, so the picture must be one we host — ask support to add it. A link
+                      to a menu on another website will not load here.
+                    </p>
+                  </div>
+                )}
+
+                {contentMode === "text" && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="content-body" className="text-xs">
+                      Message
+                    </Label>
+                    <Textarea
+                      id="content-body"
+                      rows={3}
+                      value={contentBody}
+                      onChange={(e) => setContentBody(e.target.value)}
+                      placeholder="Kitchen closes at 10pm. Ask staff for today's specials."
+                    />
+                  </div>
+                )}
+
+                {contentMode === "redirect" && (
+                  <p className="text-xs text-muted-foreground">
+                    Sends guests to your <span className="font-medium">Redirect URL</span> above
+                    once they are online. Set one, or guests see the sign-in form as usual.
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Auth Methods</Label>
+                <div className="flex flex-wrap gap-2">
+                  {AUTH_OPTIONS.map(([k, v]) => (
+                    <motion.div
+                      key={k}
+                      whileTap={{ scale: 0.96 }}
+                      className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 transition-colors ${authMethods.includes(k) ? "border-primary/50 bg-primary/5" : ""}`}
+                    >
+                      <Switch
+                        checked={authMethods.includes(k)}
+                        onCheckedChange={() => toggleAuth(k)}
+                      />
+                      <span className="text-xs">{v}</span>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Terms &amp; Conditions</Label>
+                <Textarea
+                  rows={2}
+                  value={form.terms}
+                  onChange={(e) => setForm({ ...form, terms: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Button className="w-full sm:w-auto" onClick={saveConfig} disabled={saveBlocked}>
+                  Save Configuration
+                </Button>
+                {splashBlocked && (
+                  <p className="text-xs text-destructive" role="alert">
+                    {headlineBlocked && msgBlocked
+                      ? "The headline and welcome message are over their length limits — shorten them to save."
+                      : headlineBlocked
+                        ? `The headline is over the ${SPLASH_HEADLINE_MAX}-character limit — shorten it to save.`
+                        : `The welcome message is over the ${SPLASH_WELCOME_MAX}-character limit — shorten it to save.`}
+                  </p>
+                )}
+                {/* The post-login field has its own inline error next to the
                 counter, but it is far enough up the form to be off screen
                 from here -- repeat the reason at the disabled button rather
                 than leaving it looking broken. */}
-              {postLoginBlocked && (
-                <p className="text-xs text-destructive" role="alert">
-                  The post-login page is over the {POST_LOGIN_HTML_MAX_BYTES.toLocaleString()}-byte
-                  limit — shorten it to save.
+                {postLoginBlocked && (
+                  <p className="text-xs text-destructive" role="alert">
+                    The post-login page is over the {POST_LOGIN_HTML_MAX_BYTES.toLocaleString()}
+                    -byte limit — shorten it to save.
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* ═══ AFTER THEY CONNECT ═══ */}
+          <Card className="shadow-sm border-0" onFocusCapture={() => setPreviewTab("connected")}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2.5 text-sm">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
+                  <MessageSquareText className="h-3.5 w-3.5 text-white" />
+                </div>
+                After they connect
+              </CardTitle>
+              {/* The only truthful conversion figure for this whole card. Every
+                setting below renders after the RADIUS session is authorised,
+                so none of them CAN cost a connection -- which is why there is
+                no "-12% conversions" chip anywhere here. See the note above
+                the "No data yet" lines. */}
+              <p className="text-xs text-muted-foreground">
+                None of this affects whether a guest gets online.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* THE ASK BUDGET. The primary cost display, and the one that
+                will actually change behaviour, because it is present at the
+                moment of the decision rather than a month later. It costs
+                nothing to build and it cannot be wrong: it is a count of the
+                venue's own settings, not an estimate of anything. Name and
+                email count as ONE -- they share a card.
+
+                Deliberately not a hard cap. A venue that wants four asks
+                gets four; the guest-side rules already limit it to one ask
+                per screen, so the damage is bounded. This meter's job is to
+                make the owner feel the accumulation. */}
+              <div className="rounded-lg border bg-muted/40 p-3">
+                <p className="text-sm font-medium">
+                  {askCount === 0
+                    ? "Your guests are asked for nothing extra after connecting."
+                    : `Your guests are asked for ${askCount} thing${askCount === 1 ? "" : "s"} after connecting.`}
                 </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="flex items-center gap-1" aria-hidden="true">
+                    {Array.from({ length: MAX_POST_CONNECT_ASKS }, (_, i) => (
+                      <span
+                        key={i}
+                        className={`h-2 w-2 rounded-full ${i < askCount ? askMeter.dot : "bg-muted-foreground/25"}`}
+                      />
+                    ))}
+                  </span>
+                  <span className={`text-xs ${askMeter.tone}`}>{askMeter.label}</span>
+                </div>
+                {/* WHO these asks actually reach, stated at the moment the
+                  venue is deciding how many to make -- not in a help
+                  article and not only in a code comment. The connected
+                  screen is the only surface any of this renders on, and
+                  iOS guests never load it (portal.success.tsx hands them
+                  to captive.apple.com so the CNA dismisses and their
+                  traffic is released -- deliberate, and the fix for a real
+                  "authenticated but no internet" incident). Shown only
+                  once at least one ask is on: with nothing enabled there
+                  is no reach to qualify, and the line would just be
+                  noise. */}
+                {askCount > 0 && (
+                  <p className="mt-2 border-t pt-2 text-xs text-muted-foreground">
+                    These reach guests on Android phones and laptops. iPhone and iPad guests are
+                    sent straight to the internet the moment they connect, so they never open the
+                    screen these cards are on.
+                  </p>
+                )}
+              </div>
+
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Guest details
+              </p>
+
+              <PostConnectRow
+                title="Ask for their name"
+                description="A dismissible card on the connected screen. Shown once ever, never during sign-in."
+                checked={collectGuestName}
+                onCheckedChange={setCollectGuestName}
+              >
+                <NoDataYet />
+              </PostConnectRow>
+
+              <PostConnectRow
+                title="Ask for their email"
+                description="The only channel you can message without DLT or WhatsApp approval. Shown on the same card as the name."
+                checked={collectGuestEmail}
+                onCheckedChange={setCollectGuestEmail}
+              >
+                {/* A venue that turns this on expecting a mailing list and
+                  gets a database column should learn that here, not in a
+                  support ticket. The marketing consent checkbox is
+                  deliberately NOT on the guest card until the consent model
+                  it would write to exists. */}
+                <p className="text-xs text-muted-foreground">
+                  You collect the address now; sending to it needs the marketing consent work, which
+                  is not built yet.
+                </p>
+                <NoDataYet />
+              </PostConnectRow>
+
+              <p className="pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Reviews
+              </p>
+
+              <PostConnectRow
+                title="Invite guests to review you on Google"
+                description="One dismissible card, identical for every guest, shown before you have asked them anything else. Never next to a rating question."
+                checked={reviewCardEnabled}
+                onCheckedChange={setReviewCardEnabled}
+              >
+                {reviewCardEnabled && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="review-url" className="text-xs">
+                      Your Google review link
+                    </Label>
+                    <Input
+                      id="review-url"
+                      value={reviewUrl}
+                      onChange={(e) => setReviewUrl(e.target.value)}
+                      placeholder="https://g.page/r/..."
+                      inputMode="url"
+                      aria-invalid={reviewUrlInvalid || undefined}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Business Profile → Read reviews → Get more reviews. Paste it exactly as Google
+                      gives it to you.
+                    </p>
+                    {/* The switch and the link are two separate stored
+                      values, so say what switching off does. Without this
+                      line an owner has no way to know whether pausing
+                      costs them the URL, and the safe assumption -- that it
+                      does -- is the one that stops them pausing at all. */}
+                    <p className="text-xs text-muted-foreground">
+                      Switching this off pauses the card and keeps your link.
+                    </p>
+                    {reviewUrlInvalid && (
+                      <p className="text-xs text-destructive" role="alert">
+                        That does not look like an https Google link — guests will not see the card
+                        until it is one.
+                      </p>
+                    )}
+                  </div>
+                )}
+                <NoDataYet />
+                {/* Said on the card, where a venue owner will read it, rather
+                  than in a help article: this product cannot see Google's
+                  side, so any number labelled "reviews" would be invented.
+                  "Opened your review link" is the only true measure. */}
+                <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                  <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  We can only count guests who opened your review link. Whether a review was
+                  actually posted is not something Google tells us.
+                </p>
+              </PostConnectRow>
+
+              <PostConnectRow
+                title="Ask for private feedback"
+                description={`A 1–5 star rating only you can see. Asked at least ${DEFAULT_FEEDBACK_DWELL_MINUTES} minutes into a visit, never in the same visit as the Google ask.`}
+                checked={guestFeedbackEnabled}
+                onCheckedChange={setGuestFeedbackEnabled}
+              >
+                <NoDataYet />
+              </PostConnectRow>
+
+              {/* Disabled, and it persists nothing. There is no `menu` campaign
+                type in this product yet, so there is no dish to attach a
+                rating to -- a toggle that stored a flag nothing can act on is
+                the exact "ships and lies" failure the social-login switch
+                already demonstrated. It is shown rather than hidden so a
+                venue knows the capability is coming and what it needs first. */}
+              <div className="rounded-lg border border-dashed p-3 opacity-70">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">Ask about individual dishes</p>
+                    <p className="text-xs text-muted-foreground">
+                      Needs a menu. Best for a short menu guests order from often.
+                    </p>
+                  </div>
+                  <Switch checked={false} disabled aria-label="Ask about individual dishes" />
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Menus are not built yet — there is nothing for a guest to rate.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-end">
+                <Button onClick={saveConfig} disabled={saveBlocked}>
+                  Save changes
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
         <div className="space-y-4">
           <Card className="shadow-sm border-0 overflow-hidden bg-gradient-to-br from-[#1e1b4b] via-[#241f52] to-[#2b2461] text-white">
@@ -1273,6 +1795,74 @@ export function PortalPage({ locationId }: { locationId?: string }) {
               </div>
             </CardHeader>
             <CardContent>
+              {/* TWO TABS, and this is the fix for the blindest thing on
+                  this page. The preview used to render `GuestSignInCard`
+                  and only that -- the sign-in screen -- while every setting
+                  on the "After they connect" card affects `/portal/session`.
+                  A venue owner could flip five switches, watch the phone
+                  mockup not change once, and press Save with no idea what
+                  they had done to their guests. That is the difference
+                  between an editor and a settings list.
+
+                  `Sign in` is exactly the previous render, unchanged.
+                  Focusing anything in the "After they connect" card switches
+                  to `Connected` automatically, the same way editing the
+                  headline implicitly shows the sign-in view. */}
+              <div
+                role="tablist"
+                aria-label="Preview screen"
+                className="mx-auto mb-3 flex w-full max-w-[340px] rounded-lg bg-white/10 p-1"
+              >
+                {(
+                  [
+                    ["signin", "Sign in"],
+                    ["connected", "Connected"],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="tab"
+                    aria-selected={previewTab === id}
+                    onClick={() => setPreviewTab(id)}
+                    className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                      previewTab === id
+                        ? "bg-white text-[#1e1b4b]"
+                        : "text-white/70 hover:text-white"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Which guest, not which card. The mutual-exclusion rules are
+                  NOT simulated away: the preview runs the real resolver and
+                  shows ONE ask per screen, because a preview showing four
+                  cards at once would teach the venue a picture of their
+                  portal that no guest will ever see. To see the others, they
+                  switch guest. */}
+              {previewTab === "connected" && (
+                <div className="mx-auto mb-3 flex w-full max-w-[340px] flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] text-white/50">Showing:</span>
+                  {CONNECTED_PREVIEW_SCENARIOS.map((sc) => (
+                    <button
+                      key={sc.id}
+                      type="button"
+                      onClick={() => setPreviewScenario(sc.id)}
+                      aria-pressed={previewScenario === sc.id}
+                      className={`rounded-full border px-2.5 py-0.5 text-[11px] transition-colors ${
+                        previewScenario === sc.id
+                          ? "border-white/40 bg-white/15 text-white"
+                          : "border-white/15 text-white/60 hover:text-white"
+                      }`}
+                    >
+                      {sc.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {/* Phone frame -- a real device bezel wrapping the *actual*
                 guest-facing components (GuestSignInCard/PortalShell), not a
                 hand-drawn approximation of them. `livePreviewConfig` above
@@ -1307,15 +1897,34 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                     presetConfig={livePreviewConfig}
                     presetConfigLoading={false}
                   >
-                    <PortalShell constrained>
-                      <GuestSignInCard />
-                    </PortalShell>
+                    {previewTab === "connected" ? (
+                      <ConnectedPreview scenario={previewScenario} />
+                    ) : (
+                      <PortalShell constrained>
+                        <GuestSignInCard />
+                      </PortalShell>
+                    )}
                   </PortalRuntimeProvider>
                 </div>
               </div>
+              {/* Stated where the venue is looking at the screen it applies
+                  to. iOS guests are handed off to captive.apple.com on
+                  success so the Captive Network Assistant closes itself,
+                  which means they never load the connected screen at all --
+                  so these settings reach fewer guests than the sign-in
+                  screen does. We are not guessing at the share: the only
+                  device-mix figures available are seeded, not real. */}
+              {previewTab === "connected" && (
+                <p className="mt-3 rounded-lg bg-white/5 px-3 py-2 text-[11px] leading-relaxed text-white/60">
+                  Guests on iPhones and iPads are sent straight to the internet when they connect,
+                  so many of them never open this screen. Anything you switch on here reaches the
+                  guests who do.
+                </p>
+              )}
               <p className="mt-3 text-center text-[11px] text-white/50">
-                This is the real guest sign-in component, live-rendered with your unsaved edits
-                above.
+                {previewTab === "connected"
+                  ? "This is the real connected screen, live-rendered with your unsaved settings above — one ask per screen, exactly as a guest gets it."
+                  : "This is the real guest sign-in component, live-rendered with your unsaved edits above."}
                 {!demo ? (
                   <>
                     {" "}

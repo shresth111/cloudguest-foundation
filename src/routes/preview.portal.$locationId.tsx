@@ -33,6 +33,7 @@ import {
   campaignHasRenderableContent,
 } from "@/components/portal-runtime/CampaignOverlay";
 import { campaignService } from "@/services/campaign.service";
+import { DEFAULT_FEEDBACK_DWELL_MINUTES } from "@/lib/portal-post-connect";
 import type { RuntimePortalConfig } from "@/types/portal-runtime";
 
 /**
@@ -419,6 +420,16 @@ function PortalPreviewPage() {
           // backend default is `true`.
           poweredByEnabled: true,
           locationCountry: null,
+          // A branding-only location has no captive_portal_configs row, so
+          // it has no post-connect settings either -- every one of these is
+          // the same "never opened the setting" state a real venue starts
+          // in, which is what this synthetic config exists to be true to.
+          collectGuestName: false,
+          collectGuestEmail: false,
+          reviewUrl: null,
+          reviewCardEnabled: false,
+          guestFeedbackEnabled: false,
+          feedbackDwellMinutes: DEFAULT_FEEDBACK_DWELL_MINUTES,
         }
       : null);
 
