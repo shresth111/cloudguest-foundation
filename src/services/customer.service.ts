@@ -5,6 +5,7 @@ import { resolveOrganizationId as sharedResolveOrganizationId } from "./organiza
 // that is otherwise plain data-fetching code.
 import { ORGS_STORAGE_KEY, ROLES_STORAGE_KEY } from "@/services/api";
 import type { OrganizationMembership, RoleAssignment } from "@/types/auth";
+import type { IspLink } from "@/types/isp";
 import { deriveLocationLiveness } from "@/lib/location-liveness";
 import type { LocationLiveness, RawRouterLiveness } from "@/lib/location-liveness";
 import { avgSessionMinutes, sessionStartsByHour, sessionsOpenByHour } from "@/lib/session-metrics";
@@ -161,7 +162,9 @@ export interface CustomerDashboardData {
     todayGuests: number;
     avgSession: number;
     peakConcurrent: number;
-    failedLogins: number;
+    /** `null` when the Owner-only dashboard-logins read failed or was
+     * denied -- a failed read is not a report of zero failed logins. */
+    failedLogins: number | null;
     slaUptime: number | null;
   };
   usersTrend: { hour: string; users: number }[];
@@ -1151,7 +1154,7 @@ export const customerService = {
     const locationHeaders = {
       headers: { "X-Organization-Id": orgId, "X-Location-Id": locationId },
     };
-    const [rR, sR, aR, hR, gR, iR, lR] = await Promise.allSettled([
+    const [rR, sR, aR, gR, iR, lR] = await Promise.allSettled([
       api.get<{ items: RawRouterStatus[] }>(`/locations/${locationId}/routers`, {
         params: { page_size: 100 },
         ...locationHeaders,
@@ -1186,12 +1189,6 @@ export const customerService = {
       api.get<{
         items: { severity: string; message: string; triggered_at: string; status: string }[];
       }>("/alerts", { params: { page_size: 10, organization_id: orgId }, ...locationHeaders }),
-      api.get<{
-        routers_online: number;
-        routers_offline: number;
-        total_guests: number;
-        active_sessions: number;
-      }>("/dashboard/organization", orgHeaders),
       // Bulk guest-identity lookup, same "one fetch per page load, matched
       // client-side by guest_id" shape as getUsers()' own connected-device
       // fetch below -- best-effort, so recentUsers just falls back to "Guest"
@@ -1231,25 +1228,31 @@ export const customerService = {
     const routers = rR.status === "fulfilled" ? (rR.value.data?.items ?? []) : null;
     const sessions = sR.status === "fulfilled" ? (sR.value.data?.items ?? []) : [];
     const alerts = aR.status === "fulfilled" ? (aR.value.data?.items ?? []) : [];
-    const health = hR.status === "fulfilled" ? (hR.value.data ?? null) : null;
     const guestsById = new Map<string, RawGuest>();
     if (gR.status === "fulfilled") {
       for (const g of gR.value.data?.items ?? []) guestsById.set(g.id, g);
     }
     const today = new Date().toISOString().slice(0, 10);
+    // `null`, not 0, when this Owner-only read fails or is denied: a
+    // failed /admin-logs/dashboard-logins fetch is not evidence of zero
+    // failed logins. The pill renders only for a real number.
     const failedLoginsToday =
-      lR.status === "fulfilled"
+      lR.status === "fulfilled" && lR.value.data
         ? (lR.value.data?.items ?? []).filter((l) => !l.success && l.created_at?.startsWith(today))
             .length
-        : 0;
+        : null;
 
     // Real ~24h SLA uptime for this location's active ISP uplink -- a
     // weighted average of the same time-bucketed `uptime_percentage` the
     // "Internet Connection" history dialog already charts (never a flat,
     // always-99.9% placeholder that wouldn't have budged even during
     // today's own real outage). `null` (stat omitted, never a fabricated
-    // number) when there's no active link or no bucket data yet.
+    // number) when there's no active link or no bucket data yet. The same
+    // sorted link list also feeds the status strip's ISP chip below --
+    // "Active" used to mean "/dashboard/organization answered", which
+    // says nothing about any uplink; now it names the actual active link.
     let slaUptime: number | null = null;
+    let activeLink: IspLink | null = null;
     if (iR.status === "fulfilled") {
       const links = (iR.value.rows ?? [])
         .filter((l) => l.locationId === locationId)
@@ -1258,7 +1261,7 @@ export const customerService = {
           if (a.role !== b.role) return a.role === "primary" ? -1 : 1;
           return a.priority - b.priority;
         });
-      const activeLink = links[0];
+      activeLink = links[0] ?? null;
       if (activeLink) {
         try {
           const end = new Date();
@@ -1313,14 +1316,17 @@ export const customerService = {
       liveness,
       health: {
         ...healthStrings(liveness),
-        // NOT a real ISP signal: this is `/dashboard/organization`
-        // answering at all, which says nothing whatsoever about any
-        // uplink's health. Left as-is deliberately (fixing it needs the
-        // per-link `/isp/links` read this method does not do), but see
-        // WanStatusCard on the same page for the real per-uplink status,
-        // and the strip renders this pill without a status icon so it
-        // cannot pass itself off as a green check.
-        isp: health ? "Active" : "Unknown",
+        // The REAL uplink, not a liveness proxy: this used to be
+        // `health ? "Active" : "Unknown"`, i.e. "/dashboard/organization
+        // answered at all" -- a signal that says nothing about any ISP
+        // link. Now it names the location's actual active link (same
+        // `/isp/links` read that feeds the SLA figure and the WAN card),
+        // with honest labels for no-link / unreadable states.
+        isp: activeLink
+          ? activeLink.providerName || "ISP link"
+          : iR.status === "fulfilled"
+            ? "No ISP link"
+            : "Unknown",
       },
       kpis: {
         onlineUsers: activeSessionCount,

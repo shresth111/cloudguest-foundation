@@ -1579,36 +1579,40 @@ export function CustomerDashboardPage() {
           onLogout={handleLogout}
         />
 
-        {/* Content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8">
+        {/* Content -- main carries NO horizontal padding of its own: the
+         * hero band below is full-bleed to the content column, and every
+         * element inside it (hero copy, KPI grid, divider, cards) shares
+         * ONE mx-auto max-w-7xl px-* container, so all left/right edges
+         * line up at every viewport width. */}
+        <main className="flex-1">
           {isLoading ? (
-            <div className="space-y-6 animate-pulse">
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="h-24 rounded-2xl bg-muted" />
-                ))}
-              </div>
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-5">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="h-28 rounded-2xl bg-muted" />
-                ))}
-              </div>
-              <div className="grid gap-4 lg:grid-cols-3">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="h-72 rounded-2xl bg-muted" />
-                ))}
+            <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+              <div className="space-y-6 animate-pulse">
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="h-24 rounded-2xl bg-muted" />
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-5">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="h-28 rounded-2xl bg-muted" />
+                  ))}
+                </div>
+                <div className="grid gap-4 lg:grid-cols-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="h-72 rounded-2xl bg-muted" />
+                  ))}
+                </div>
               </div>
             </div>
           ) : d ? (
             <div>
-              {/* Full-bleed dark section -- was a floating rounded-3xl card
-               * on a plain page (4 surface changes: dark card -> light page
-               * -> light status strip -> light charts). Now the hero AND
-               * the status strip live on one continuous dark surface that
-               * spans the content column edge-to-edge (negative margins
-               * cancel <main>'s own padding), and the page transitions from
-               * dark to light exactly once, right before the charts. */}
-              <div className="-mx-4 -mt-4 relative overflow-hidden bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#4c1d95] text-white shadow-xl shadow-indigo-950/30 sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8">
+              {/* Full-bleed dark section: spans the content column edge to
+               * edge (main has no padding, so no negative margins needed),
+               * while its INNER content uses the same shared container as
+               * the cards below -- one horizontal grid from hero through
+               * the whole dashboard. */}
+              <div className="relative overflow-hidden bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#4c1d95] text-white shadow-xl shadow-indigo-950/30">
                 <div
                   aria-hidden
                   className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-[#6C4EFF]/30 blur-3xl"
@@ -1635,14 +1639,24 @@ export function CustomerDashboardPage() {
                         Live snapshot for {activeLocation?.name ?? "this venue"}
                       </p>
                     </div>
-                    {/* Security-relevant alert surfaced beside the KPIs, not
-                     * buried in a quote row -- silent when zero so a clean
-                     * day stays clean. */}
-                    {d.kpis.failedLogins > 0 && (
+                    {/* Security-relevant alert surfaced beside the KPIs.
+                     * `null` (fetch failed/denied) shows an honest "couldn't
+                     * check" chip rather than a confident zero; zero shows
+                     * nothing -- a clean day stays clean. */}
+                    {d.kpis.failedLogins != null && d.kpis.failedLogins > 0 && (
                       <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-400/40 bg-rose-500/20 px-2.5 py-1 text-[11px] font-semibold text-rose-100">
                         <AlertTriangle className="h-3 w-3" />
-                        {d.kpis.failedLogins} failed login{d.kpis.failedLogins === 1 ? "" : "s"}{" "}
-                        today
+                        {d.kpis.failedLogins} failed login
+                        {d.kpis.failedLogins === 1 ? "" : "s"} today
+                      </span>
+                    )}
+                    {d.kpis.failedLogins === null && (
+                      <span
+                        title="The failed-login check could not read this venue's login audit log."
+                        className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/30 bg-amber-400/10 px-2.5 py-1 text-[11px] font-medium text-amber-100/80"
+                      >
+                        <AlertTriangle className="h-3 w-3" />
+                        Login check unavailable
                       </span>
                     )}
                   </div>
@@ -1707,7 +1721,11 @@ export function CustomerDashboardPage() {
                 </div>
               </div>
 
-              <div className="mx-auto max-w-7xl space-y-8 pt-8">
+              {/* Cards + charts live in the SAME horizontal container as the
+               * hero copy above (mx-auto max-w-7xl px-*) so the status
+               * card's left edge is exactly the KPI grid's left edge at
+               * every viewport width. */}
+              <div className="mx-auto max-w-7xl space-y-8 px-4 pt-8 sm:px-6 lg:px-8">
                 {/* Status strip -- one compact card instead of a sprawling
                  * single row: a label up top, then each infrastructure
                  * verdict as its own bordered chip so System/Routers/ISP
@@ -2226,12 +2244,14 @@ export function CustomerDashboardPage() {
               </div>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground">
-              <p className="mb-1 font-medium text-foreground">Couldn't load this dashboard</p>
-              <p className="mb-4 text-sm">Your connection or our servers hiccuped — try again.</p>
-              <Button variant="outline" onClick={() => refetch()}>
-                Retry
-              </Button>
+            <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+              <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground">
+                <p className="mb-1 font-medium text-foreground">Couldn't load this dashboard</p>
+                <p className="mb-4 text-sm">Your connection or our servers hiccuped — try again.</p>
+                <Button variant="outline" onClick={() => refetch()}>
+                  Retry
+                </Button>
+              </div>
             </div>
           )}
         </main>
