@@ -14,7 +14,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
 import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
-import { CustomerSectionTabs } from "@/components/customer/CustomerSectionTabs";
+import { CustomerPageScope } from "@/components/customer/CustomerPageScope";
 import {
   CustomerCommandPalette,
   useCustomerCommandPalette,
@@ -165,13 +165,13 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
       <div className="flex min-w-0 flex-1 flex-col">
         <CustomerHeader
           title={
-            // Label from the same CUSTOMER_NAVS list the palette and section
-            // tabs read, never the raw feature id -- the old fallback
+            // Label from the same CUSTOMER_NAVS list the palette and the
+            // page scope line read, never the raw feature id -- the old fallback
             // CSS-`capitalize`d it and so kept showing retired technical
             // names ("Whitelist", "Isp-Details") after the rename. The venue
             // stays in the bar as well as on the page: the bar is where you
             // check it deliberately, the page heading is where you read it
-            // without meaning to. See CustomerSectionTabs for why that
+            // without meaning to. See CustomerPageScope for why that
             // matters once lists are scoped server-side.
             <p className="truncate text-sm font-semibold capitalize">
               {CUSTOMER_NAVS.find((n) => n.id === feature)?.label ?? feature} ·{" "}
@@ -196,9 +196,8 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
             views this shell renders. */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 pb-24 overflow-y-auto">
           <div className="mx-auto max-w-7xl">
-            {/* Which destination this page belongs to, which venue it is
-                scoped to, and the sibling sections as tabs. */}
-            <CustomerSectionTabs featureId={feature} locationName={activeLocation?.name} />
+            {/* What this screen is, and which venue it is scoped to. */}
+            <CustomerPageScope featureId={feature} locationName={activeLocation?.name} />
             {/* Every branch below can be a lazily-loaded view, so the whole
                 group sits behind one boundary. Only one branch matches at a
                 time, and a single fallback keeps the page from flickering

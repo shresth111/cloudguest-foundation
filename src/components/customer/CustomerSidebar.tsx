@@ -18,56 +18,65 @@ import {
   SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { customerFeatureHref, getCustomerLoginRole } from "@/lib/customerNav";
 import {
-  DESTINATION_GROUPS,
-  destinationForFeature,
-  destinationHome,
-  destinationsFor,
-} from "@/lib/customerDestinations";
+  customerFeatureHref,
+  customerNavGroupsForRole,
+  getCustomerLoginRole,
+} from "@/lib/customerNav";
+import { filterNavGroupsByPermissions } from "@/lib/customerNavPermissions";
 import { DataMaskingOtpDialog } from "@/components/features/HeaderControls";
 import { useMyPermissions } from "@/hooks/useCustomerDashboard";
 import type { useDataMasking } from "@/hooks/useCustomerDashboard";
 
 /**
- * The customer sidebar: nine destinations, built on the shadcn `Sidebar`
- * primitive this repo already ships.
+ * The one shared sidebar every customer page renders: the 26 features in
+ * their seven groups (Overview / Engagement / Access & Policy / Devices &
+ * Team / Network / Operations / Support & Logs), straight off
+ * `CUSTOMER_NAV_GROUPS`, role-filtered and then permission-filtered.
  *
- * TWO CHANGES, AND THE SECOND IS WHY THIS FILE SHRANK
- * ---------------------------------------------------
- * 1. It renders `CUSTOMER_DESTINATIONS` (see customerDestinations.ts for
- *    why 26 became 9) rather than `CUSTOMER_NAV_GROUPS` directly. Every one
- *    of the 26 features still exists and still has its own route; a
- *    destination navigates to its first openable section and the shell
- *    renders the rest as tabs.
+ * ON THE GROUPING
+ * ---------------
+ * A previous change folded these 26 into nine "destinations" with the other
+ * seventeen reachable as tabs inside them. That grouping was reverted: the
+ * one-row-per-screen menu is what this product's customers navigate by, and
+ * the destination layer is gone rather than left half-wired. `customerNav.ts`
+ * is the single source of truth for what is offered and
+ * `customerFeatureHref()` for where each one lives, exactly as before.
  *
- * 2. It is `components/ui/sidebar.tsx` now, not a hand-rolled `<aside>`.
- *    That primitive was already in this repo and already used -- by
- *    AppSidebar, TopNavbar and `_authenticated.tsx`, i.e. the Master
- *    Console. Customers got the hand-rolled one, which meant they were the
- *    only audience without:
+ * The known costs of this shape are real and are not fixed here -- "why is
+ * the WiFi down" is answered across four of the seven groups, and 26 rows
+ * plus seven group labels is more nav than a laptop viewport holds, so the
+ * last groups sit below the fold. Both want an ordering/labelling pass
+ * inside this structure, which is a separate change from restoring it.
  *
- *      - collapse state that survives navigation. The old one held it in
- *        `useState(true)` inside a component every route remounts (each
- *        feature is its own top-level route with its own arrow-function
- *        component), so collapsing the sidebar and clicking anything sprang
- *        it back open. The primitive persists it to a cookie for a week.
- *      - Cmd/Ctrl-B to toggle.
- *      - a real mobile drawer. The old one was a `translate-x` div beside a
- *        click-scrim: no focus trap, no Escape, no body-scroll lock, no
- *        dialog semantics. The primitive uses Radix `Sheet` and gets all
- *        four.
- *      - focus-visible rings on the nav rows.
+ * WHAT IS NOT REVERTED, AND WHY
+ * -----------------------------
+ * The shell underneath is still `components/ui/sidebar.tsx`, the shadcn
+ * primitive this repo already ships and already uses for the Master Console
+ * (AppSidebar, TopNavbar, `_authenticated.tsx`). Customers were the only
+ * audience without:
  *
- * Nav rows are `<Link>`, not `<button onClick>`. The old rows had no href,
+ *   - collapse state that survives navigation. The hand-rolled `<aside>`
+ *     held it in `useState(true)` inside a component every route remounts,
+ *     so collapsing the sidebar and clicking anything sprang it back open.
+ *     The primitive persists it to a cookie for a week.
+ *   - Cmd/Ctrl-B to toggle.
+ *   - a real mobile drawer. The old one was a `translate-x` div beside a
+ *     click-scrim: no focus trap, no Escape, no body-scroll lock, no dialog
+ *     semantics. The primitive uses Radix `Sheet` and gets all four.
+ *   - focus-visible rings on the nav rows.
+ *
+ * Those were bug fixes that happened to travel with the grouping change;
+ * undoing them would be a regression on top of a revert. Same for the rows
+ * being `<Link>` rather than `<button onClick>`: the old rows had no href,
  * so there was no cmd-click, no open-in-new-tab, no `aria-current`, and a
  * screen reader announced 26 unlabelled buttons with no indication of which
  * page you were on. `customerFeatureHref()` was already the single source of
- * truth for the URLs; nothing but the element type had to change.
+ * truth for the URLs; only the element type changed.
  */
 export interface CustomerSidebarProps {
-  /** The *feature* id of the current page, e.g. "reports", "mac-auth". The
-   * destination that owns it is what renders active. */
+  /** The feature id of the current page, e.g. "reports", "mac-auth" -- the
+   * row that renders active. */
   activeFeatureId: string;
   /** Shown under the brand mark -- the active venue's name. */
   subtitle?: string;
@@ -89,52 +98,12 @@ export function CustomerSidebar({ activeFeatureId, subtitle, dataMasking }: Cust
   // See customerNavPermissions.ts for why every ambiguity resolves toward
   // the customer.
   const { data: permissions, isLoading: permissionsLoading } = useMyPermissions();
-  const destinations = destinationsFor(role, permissions);
-  const activeDestinationId = destinationForFeature(activeFeatureId)?.id;
+  const navGroups = filterNavGroupsByPermissions(customerNavGroupsForRole(role), permissions);
   // A brief, honest "still looking" instead of painting the full nav and
   // letting it shrink under the pointer once grants arrive. `isLoading` is
   // false for demo, failed and empty alike, so all three still fall through
   // to the fail-open full nav.
   const showSkeleton = permissionsLoading && !permissions;
-
-  const renderRows = (rows: ReturnType<typeof destinationsFor>) =>
-    rows.map(({ destination, sections }) => {
-      const Icon = destination.icon;
-      const first = destinationHome(destination, role, permissions);
-      const label = t(`customerDestination.${destination.id}`, destination.label);
-      return (
-        <SidebarMenuItem key={destination.id}>
-          <SidebarMenuButton
-            asChild
-            isActive={destination.id === activeDestinationId}
-            // The collapsed rail is icons only, so the tooltip is the label.
-            // The primitive renders it as a real Radix tooltip and hides it
-            // when expanded, rather than the old `title=` attribute that
-            // showed nothing on touch.
-            tooltip={collapsed ? label : undefined}
-          >
-            <Link
-              to={first ? customerFeatureHref(first) : "/"}
-              aria-current={destination.id === activeDestinationId ? "page" : undefined}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              <span className="flex-1 truncate">{label}</span>
-              {/* How many things live behind this door. Only where it is
-                  more than one, and never in the rail. */}
-              {sections.length > 1 && !collapsed && (
-                <span className="ml-auto text-[10px] tabular-nums text-sidebar-foreground/40">
-                  {sections.length}
-                </span>
-              )}
-            </Link>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-      );
-    });
-
-  const ungrouped = destinations.filter((d) => d.destination.group === null);
-  const home = ungrouped.filter((d) => d.destination.id === "home");
-  const settings = ungrouped.filter((d) => d.destination.id === "settings");
 
   return (
     <Sidebar collapsible="icon">
@@ -146,7 +115,7 @@ export function CustomerSidebar({ activeFeatureId, subtitle, dataMasking }: Cust
           <div className="flex min-w-0 flex-col group-data-[collapsible=icon]:hidden">
             <span className="truncate text-sm font-bold tracking-tight">Wyfy Guest</span>
             {/* The venue this whole shell is scoped to. Every list behind
-                these nine doors is filtered to it -- see the scope line each
+                these rows is filtered to it -- see the scope line each
                 feature page renders for the same reason. */}
             <span className="truncate text-[11px] text-sidebar-foreground/50">
               {subtitle ?? "Your venue"}
@@ -155,12 +124,17 @@ export function CustomerSidebar({ activeFeatureId, subtitle, dataMasking }: Cust
         </div>
       </SidebarHeader>
 
-      <SidebarContent>
+      {/* The primitive sets `overflow-hidden` in icon mode -- fine for the
+          nine-row nav it was last used with, but 26 icon rows are taller
+          than a short viewport and the ones past the bottom would simply be
+          unreachable in the rail. Scroll instead of clip; the expanded
+          sidebar already scrolls. */}
+      <SidebarContent className="group-data-[collapsible=icon]:overflow-y-auto">
         {showSkeleton ? (
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu>
-                {Array.from({ length: 6 }).map((_, i) => (
+                {Array.from({ length: 8 }).map((_, i) => (
                   <SidebarMenuItem key={i}>
                     <SidebarMenuSkeleton showIcon />
                   </SidebarMenuItem>
@@ -169,36 +143,44 @@ export function CustomerSidebar({ activeFeatureId, subtitle, dataMasking }: Cust
             </SidebarGroupContent>
           </SidebarGroup>
         ) : (
-          <>
-            {home.length > 0 && (
-              <SidebarGroup>
-                <SidebarGroupContent>
-                  <SidebarMenu>{renderRows(home)}</SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
-            )}
-            {DESTINATION_GROUPS.map((group) => {
-              const rows = destinations.filter((d) => d.destination.group === group.id);
-              if (rows.length === 0) return null;
-              return (
-                <SidebarGroup key={group.id}>
-                  <SidebarGroupLabel className="text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/55">
-                    {t(`customerDestinationGroup.${group.id}`, group.label)}
-                  </SidebarGroupLabel>
-                  <SidebarGroupContent>
-                    <SidebarMenu>{renderRows(rows)}</SidebarMenu>
-                  </SidebarGroupContent>
-                </SidebarGroup>
-              );
-            })}
-            {settings.length > 0 && (
-              <SidebarGroup className="mt-auto">
-                <SidebarGroupContent>
-                  <SidebarMenu>{renderRows(settings)}</SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
-            )}
-          </>
+          navGroups.map((group) => (
+            <SidebarGroup key={group.id}>
+              <SidebarGroupLabel className="text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/55">
+                {t(`customerGroup.${group.id}`, group.label)}
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    const active = item.id === activeFeatureId;
+                    const label = t(`customerItem.${item.id}`, item.label);
+                    return (
+                      <SidebarMenuItem key={item.id}>
+                        <SidebarMenuButton
+                          asChild
+                          isActive={active}
+                          // The collapsed rail is icons only, so the tooltip
+                          // is the label. The primitive renders it as a real
+                          // Radix tooltip and hides it when expanded, rather
+                          // than the old `title=` attribute that showed
+                          // nothing on touch.
+                          tooltip={collapsed ? label : undefined}
+                        >
+                          <Link
+                            to={customerFeatureHref(item.id)}
+                            aria-current={active ? "page" : undefined}
+                          >
+                            <Icon className="h-4 w-4 shrink-0" />
+                            <span className="flex-1 truncate">{label}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          ))
         )}
       </SidebarContent>
 

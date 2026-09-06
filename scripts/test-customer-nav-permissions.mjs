@@ -294,29 +294,22 @@ const sidebar = readFileSync(join(ROOT, "src/components/customer/CustomerSidebar
 const rbac = readFileSync(join(ROOT, "src/services/rbac.service.ts"), "utf8");
 const hooks = readFileSync(join(ROOT, "src/hooks/useCustomerDashboard.ts"), "utf8");
 
-// The sidebar now renders nine destinations rather than the 26 nav items
-// (see customerDestinations.ts), so it reaches this table one level down --
-// through `sectionsFor`, which calls `navItemAllowed` per section. The
-// guarantee is unchanged and the table is still the only source of it; only
-// the call site moved. Assert the whole chain rather than the old direct
-// import, so this cannot be satisfied by a second, parallel filter.
-const destinations = readFileSync(join(ROOT, "src/lib/customerDestinations.ts"), "utf8");
-check("CustomerSidebar filters through the destination layer", /destinationsFor\(/.test(sidebar));
-check(
-  "the destination layer imports this filter",
-  destinations.includes("@/lib/customerNavPermissions"),
-);
-check("the destination layer applies it per section", /navItemAllowed\(/.test(destinations));
-check(
-  "the destination layer still composes role first",
-  /item\.roles\.includes\(role\)/.test(destinations),
+// The sidebar renders the seven nav groups directly again (the nine-
+// destination layer that briefly sat between them was reverted), so it reads
+// this filter itself rather than through a second module. Assert the direct
+// call: a parallel filter somewhere else is exactly how the fail-open
+// guarantee below gets lost.
+check("CustomerSidebar imports the filter", sidebar.includes("@/lib/customerNavPermissions"));
+check("CustomerSidebar applies the filter", /filterNavGroupsByPermissions\(/.test(sidebar));
+// The palette reaches the same 26 features and must be narrowed by the same
+// expression -- a shortcut past the scrolling, never past the permissions.
+const palette = readFileSync(
+  join(ROOT, "src/components/customer/CustomerCommandPalette.tsx"),
+  "utf8",
 );
 check(
-  "the destination layer still fails open on a non-answer",
-  // `known` stays null for null/undefined/[], and a null `known` skips the
-  // permission filter entirely -- the same three-way "we don't know" the
-  // group filter above is asserted on.
-  /permissions && permissions\.length > 0 \? new Set\(permissions\) : null/.test(destinations),
+  "the command palette applies the same filter",
+  /filterNavGroupsByPermissions\(customerNavGroupsForRole\(role\), permissions\)/.test(palette),
 );
 check("CustomerSidebar feeds it useMyPermissions", /useMyPermissions\(\)/.test(sidebar));
 check("rbac.service exposes getMyPermissions", /async getMyPermissions\(/.test(rbac));
@@ -363,11 +356,11 @@ check(
 // still fall through to the fail-open full nav asserted in section 1.
 check(
   "CustomerSidebar shows a skeleton while grants are in flight",
-  // Asserted on the behaviour, not on a local variable name: the nav
-  // restructure rewrote this component on the shadcn primitive and the flag
-  // moved from `showNavSkeleton` to `showSkeleton`, which failed this check
-  // while the skeleton itself was intact. What matters is that the loading
-  // flag is read from the permissions query and gates a skeleton render.
+  // Asserted on the behaviour, not on a local variable name. This check was
+  // once pinned to `showNavSkeleton`; a rewrite renamed it to `showSkeleton`
+  // and the check failed while the skeleton itself was intact. What matters
+  // is that the loading flag is read from the permissions query and gates a
+  // skeleton render.
   /isLoading:\s*\w*[Pp]ermissions\w*/.test(sidebar) && /[Ss]keleton/.test(sidebar),
 );
 
