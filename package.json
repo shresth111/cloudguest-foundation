@@ -42,7 +42,8 @@
     "measure:portal-contrast": "node scripts/measure-portal-contrast.mjs",
     "test:isp-single-flight": "node scripts/test-isp-links-single-flight.mjs",
     "test:fleet-unreachable": "node scripts/test-fleet-unreachable-locations.mjs",
-    "test:customer-nav-shell": "node scripts/test-customer-nav-shell.mjs"
+    "test:customer-nav-shell": "node scripts/test-customer-nav-shell.mjs",
+    "test:block-users-e164": "node scripts/test-block-users-e164.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

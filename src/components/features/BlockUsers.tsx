@@ -32,6 +32,8 @@ import { guestService } from "@/services/guest.service";
 import { resolveOrgId } from "@/services/customer.service";
 import type { AnyAccessRule } from "@/types/guest";
 import { maskMac } from "@/components/features/HeaderControls";
+import { DEFAULT_DIAL_CODE, PHONE_COUNTRIES, normalizePhoneToE164 } from "@/lib/phone-e164";
+import { blockOutcomeMessage } from "@/lib/block-outcome";
 
 // `identifier` holds a phone number, an email address, or a MAC (see
 // toBlockedUser below, which -- like guest_access's own rule tables --
@@ -270,6 +272,14 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
 
   const [mode, setMode] = useState<Mode>("mobile");
   const [textarea, setTextarea] = useState("");
+  // Which country a bare local number belongs to. This screen had no such
+  // control at all -- it stored whatever digits were typed behind a bare
+  // "+", so an owner entering the ten digits they know produced a rule
+  // ("+9876543210") that could never match the "+919876543210" their
+  // guest signs in with. Defaults to India, which is who this product
+  // sells to; an explicitly typed "+<code>" still wins over it (see
+  // normalizePhoneToE164).
+  const [dialCode, setDialCode] = useState(DEFAULT_DIAL_CODE);
   const [bu, setBu] = useState(demo ? "Mumbai HQ" : "");
 
   // The textarea's contents mean something different in each mode (a raw
@@ -319,94 +329,100 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   // ── parsing ───────────────────────────────────────────────────
+  //
+  // ONE pass, not two. The buckets (`valid`/`invalid`/...) and the chip
+  // row used to be computed by two near-identical loops that each had
+  // their own copy of the validity rule -- which is how the chip could
+  // say one thing and the submit another, and how a fix to one of them
+  // silently missed the other. They are the same question asked twice, so
+  // they are answered once and the chip row is derived below.
+  //
+  // De-duplication is by the CANONICAL value, not by the typed text: a
+  // list holding both "9876543210" and "+919876543210" is one number
+  // written two ways, and creating two rules for it is wrong even though
+  // the strings differ.
   const parsed = useMemo(() => {
     const raw = textarea
       .split(/[,;\n]/)
       .map((s) => s.trim())
       .filter(Boolean);
-    // Phone entry strips formatting punctuation before validating digits;
-    // an email address carries meaningful punctuation ("@", ".") so it's
-    // only ever trimmed, never stripped.
-    const cleaned = mode === "mobile" ? raw.map((s) => s.replace(/[\s\-+()]/g, "")) : raw;
-    const seen = new Set<string>();
+
+    // What is already on the blocklist, as stored. Compared against the
+    // canonical form of what was typed, so "9876543210" is recognised as
+    // the "+919876543210" that is already there.
+    //
+    // Deliberately NOT re-normalised: a legacy row written by the old
+    // `"+" + digits` code ("+9876543210") does not block anybody, so
+    // telling the owner their number "is already blocked" because such a
+    // row exists would repeat the original lie. Those rows fall through
+    // and a correct rule gets written alongside them.
+    const blockedIdentifiers = new Set(
+      blocked.filter((b) => b.status === "Blocked").map((b) => b.identifier),
+    );
+
+    const items: {
+      raw: string;
+      canonical: string | null;
+      status: "valid" | "invalid" | "blocked";
+      message?: string;
+    }[] = [];
     const valid: string[] = [];
     const invalid: string[] = [];
     const duplicates: string[] = [];
     const alreadyBlocked: string[] = [];
-    const blockedIdentifiers = new Set(
-      blocked
-        .filter((b) => b.status === "Blocked")
-        .map((b) => (mode === "mobile" ? b.identifier.replace(/[\s\-+]/g, "") : b.identifier)),
-    );
-
-    for (const c of cleaned) {
-      if (seen.has(c)) {
-        duplicates.push(c);
-        continue;
-      }
-      seen.add(c);
-      if (blockedIdentifiers.has(c)) {
-        alreadyBlocked.push(c);
-        continue;
-      }
-      if (mode === "mobile") {
-        if (c.length >= 10 && c.length <= 15 && /^\d+$/.test(c)) {
-          valid.push("+" + c);
-        } else {
-          invalid.push(c);
-        }
-      } else {
-        if (EMAIL_RE.test(c)) {
-          valid.push(c);
-        } else {
-          invalid.push(c);
-        }
-      }
-    }
-    return { valid, invalid, duplicates, alreadyBlocked, total: raw.length };
-  }, [textarea, blocked, mode]);
-
-  const chipNumbers = useMemo(() => {
-    const raw = textarea
-      .split(/[,;\n]/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const cleaned = mode === "mobile" ? raw.map((s) => s.replace(/[\s\-+()]/g, "")) : raw;
-    const result: { num: string; status: "valid" | "invalid" | "blocked"; raw: string }[] = [];
     const seen = new Set<string>();
-    const blockedIdentifiers = new Set(
-      blocked
-        .filter((b) => b.status === "Blocked")
-        .map((b) => (mode === "mobile" ? b.identifier.replace(/[\s\-+]/g, "") : b.identifier)),
-    );
 
-    for (let i = 0; i < cleaned.length; i++) {
-      if (seen.has(cleaned[i])) continue;
-      seen.add(cleaned[i]);
-      if (blockedIdentifiers.has(cleaned[i])) {
-        result.push({
-          num: mode === "mobile" ? "+" + cleaned[i] : cleaned[i],
-          status: "blocked",
-          raw: raw[i],
-        });
+    for (const entry of raw) {
+      // A phone number is normalised to the E.164 identifier the guest
+      // actually signs in with (see src/lib/phone-e164.ts). An email
+      // address carries meaningful punctuation ("@", ".") and is the
+      // identifier verbatim, so it is only ever trimmed.
+      const result =
+        mode === "mobile"
+          ? normalizePhoneToE164(entry, dialCode)
+          : EMAIL_RE.test(entry)
+            ? ({ ok: true, e164: entry } as const)
+            : ({
+                ok: false,
+                message: "Not an email address — expected something like guest@example.com.",
+              } as const);
+
+      if (!result.ok) {
+        // Dedupe invalid text too, so a list repeating the same typo
+        // doesn't produce the same complaint twice.
+        if (seen.has(entry)) {
+          duplicates.push(entry);
+          continue;
+        }
+        seen.add(entry);
+        invalid.push(entry);
+        items.push({ raw: entry, canonical: null, status: "invalid", message: result.message });
         continue;
       }
-      if (mode === "mobile") {
-        if (cleaned[i].length >= 10 && cleaned[i].length <= 15 && /^\d+$/.test(cleaned[i])) {
-          result.push({ num: "+" + cleaned[i], status: "valid", raw: raw[i] });
-        } else {
-          result.push({ num: raw[i], status: "invalid", raw: raw[i] });
-        }
-      } else {
-        if (EMAIL_RE.test(cleaned[i])) {
-          result.push({ num: cleaned[i], status: "valid", raw: raw[i] });
-        } else {
-          result.push({ num: raw[i], status: "invalid", raw: raw[i] });
-        }
+
+      const canonical = result.e164;
+      if (seen.has(canonical)) {
+        duplicates.push(entry);
+        continue;
       }
+      seen.add(canonical);
+
+      if (blockedIdentifiers.has(canonical)) {
+        alreadyBlocked.push(canonical);
+        items.push({ raw: entry, canonical, status: "blocked" });
+        continue;
+      }
+      valid.push(canonical);
+      items.push({ raw: entry, canonical, status: "valid" });
     }
-    return result;
-  }, [textarea, blocked, mode]);
+    return { items, valid, invalid, duplicates, alreadyBlocked, total: raw.length };
+  }, [textarea, blocked, mode, dialCode]);
+
+  // The chip row is the same pass, presented: the canonical value for
+  // anything we understood (so the owner SEES "+919876543210" before
+  // committing to it, rather than discovering the stored shape later),
+  // and the text they typed for anything we did not.
+  const chipNumbers = parsed.items;
 
   const removeChip = (raw: string) => {
     const parts = textarea.split(/[,;\n]/);
@@ -522,7 +538,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
       setTextarea("");
       setPage(0);
       setShowModal(false);
-      setToast(`${newBlocked.length} ${identifierNoun(newBlocked.length)} blocked.`);
+      setToast(blockOutcomeMessage(created, identifierNoun));
       setTimeout(() => setToast(null), 6500);
     } catch {
       setToast("Could not block — check the connection and try again.");
@@ -551,10 +567,12 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
           ? `That ${identifierNoun(1)} is already blocked.`
           : `Those ${identifierNoun(2)} are already blocked.`;
     } else if (parsed.invalid.length > 0) {
-      msg =
-        mode === "email"
-          ? "No valid email addresses to block — check the formatting, e.g. guest@example.com."
-          : "No valid numbers to block — check the formatting (include the country code, e.g. +919876543210).";
+      // Say what is wrong with the first thing we could not read, rather
+      // than a generic "check the formatting" -- normalizePhoneToE164
+      // already distinguishes "too short" from "add a country code", and
+      // those need different actions from the owner.
+      const first = parsed.items.find((i) => i.status === "invalid");
+      msg = first?.message ?? "Nothing to block.";
     }
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
@@ -670,8 +688,13 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
                 </p>
               ))}
             </div>
+            {/* "will end" was a promise the platform cannot keep on its
+              own -- ending a live session means reaching the venue's
+              router, which can fail. The toast afterwards says which of
+              the two actually happened; this line no longer pre-empts it. */}
             <p className="mt-3 text-sm text-slate-500">
-              Their current sessions will end right away.
+              They will not be able to sign in again, and we will try to end any session they have
+              right now.
             </p>
             <div className="mt-5 flex justify-end gap-2">
               <button
@@ -780,20 +803,49 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
           </div>
 
           <div>
-            <label
-              htmlFor="block-ta"
-              className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300"
-            >
-              {mode === "email" ? "Email addresses" : "Mobile numbers"}{" "}
-              <span className="text-indigo-500">*</span>
-            </label>
+            <div className="mb-1 flex flex-wrap items-end justify-between gap-2">
+              <label
+                htmlFor="block-ta"
+                className="block text-sm font-medium text-slate-600 dark:text-slate-300"
+              >
+                {mode === "email" ? "Email addresses" : "Mobile numbers"}{" "}
+                <span className="text-indigo-500">*</span>
+              </label>
+              {/* The country this screen never had. Access Rules has
+                offered one for as long as it has had a mobile field; this
+                one silently assumed the digits it was given were already
+                international, which is the whole defect. Native <select>
+                to match the "Applies to" control right above it. */}
+              {mode === "mobile" && (
+                <div className="flex items-center gap-1.5">
+                  <label
+                    htmlFor="block-cc"
+                    className="text-xs font-medium text-slate-500 dark:text-slate-400"
+                  >
+                    Country
+                  </label>
+                  <select
+                    id="block-cc"
+                    value={dialCode}
+                    onChange={(e) => setDialCode(e.target.value)}
+                    className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+                  >
+                    {PHONE_COUNTRIES.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
             <textarea
               id="block-ta"
               rows={6}
               placeholder={
                 mode === "email"
                   ? "guest1@example.com, guest2@example.com"
-                  : "+919876543210, +919812345678"
+                  : "9876543210, +919812345678"
               }
               value={textarea}
               onChange={(e) => setTextarea(e.target.value)}
@@ -805,7 +857,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
             <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
               {mode === "email"
                 ? "Paste one or more email addresses separated by commas, e.g. guest@example.com."
-                : "Paste one or more numbers separated by commas. Include the country code, e.g. +919876543210."}
+                : `Paste one or more numbers separated by commas. Local numbers get ${dialCode}; a number that already starts with its own country code (+441632960961) keeps it.`}
             </p>
           </div>
 
@@ -840,17 +892,23 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
                   }`}
                   title={
                     c.status === "invalid"
-                      ? "Invalid format"
+                      ? (c.message ?? "Invalid format")
                       : c.status === "blocked"
                         ? "Already blocked"
-                        : ""
+                        : // The chip shows the identifier that will be
+                          // stored, so a number typed as bare digits is
+                          // visibly resolved before it is committed.
+                          `Will be blocked as ${c.canonical}`
                   }
                 >
-                  {c.num}
+                  {/* The canonical value for anything understood, the raw
+                    text for anything not -- echoing a typo back verbatim
+                    is what lets the owner spot it. */}
+                  {c.canonical ?? c.raw}
                   {c.status !== "blocked" && (
                     <button
                       onClick={() => removeChip(c.raw)}
-                      aria-label={`Remove ${c.num}`}
+                      aria-label={`Remove ${c.canonical ?? c.raw}`}
                       className="inline-flex items-center justify-center rounded-full hover:bg-slate-200 dark:hover:bg-slate-600"
                     >
                       <X className="h-3 w-3" />
@@ -869,8 +927,8 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
           <div className="flex flex-col items-center gap-3">
             <p className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
-              Takes effect immediately, ending any session these users currently have.
-              <Tooltip text="Blocking a number or email ends that guest's active session right away, if they have one, and prevents them from signing in again until unblocked." />
+              Takes effect immediately; we also try to end any session these guests have now.
+              <Tooltip text="Blocking a number or email stops that guest signing in again until unblocked, and tries to end the session they are in right now. Ending a live session needs the venue's router, so the confirmation afterwards tells you whether it actually happened." />
             </p>
             <button
               ref={triggerRef}
