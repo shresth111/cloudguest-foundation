@@ -1,3 +1,4 @@
+import { PortalErrorScreen } from "@/components/portal-runtime/PortalErrorScreen";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { RotateCcw } from "lucide-react";
 import { PortalShell, PortalCard, PortalTextPlate } from "@/components/portal-runtime/PortalShell";
@@ -7,6 +8,7 @@ import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { scriptClassOf } from "@/lib/portal-script";
 
 export const Route = createFileRoute("/portal/not-listed")({
+  errorComponent: PortalErrorScreen,
   component: NotListedPage,
 });
 

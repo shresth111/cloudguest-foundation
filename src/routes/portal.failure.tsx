@@ -1,3 +1,4 @@
+import { PortalErrorScreen } from "@/components/portal-runtime/PortalErrorScreen";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { RotateCcw } from "lucide-react";
 import { PortalShell, PortalTextPlate } from "@/components/portal-runtime/PortalShell";
@@ -6,6 +7,7 @@ import { GlyphFailure } from "@/components/portal-runtime/PortalGlyphs";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 
 export const Route = createFileRoute("/portal/failure")({
+  errorComponent: PortalErrorScreen,
   component: FailurePage,
 });
 

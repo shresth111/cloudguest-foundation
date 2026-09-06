@@ -63,6 +63,12 @@ export function useNavigate() {
   return (...args) => globalThis.__H.navigateCalls.push(args);
 }
 export function Link() { return null; }
+// portal.success.tsx now sets \`errorComponent: PortalErrorScreen\`, which
+// pulls that component into this bundle, and it calls \`useRouter\` for its
+// retry. Enumerated here for the reason spelled out below: a named import
+// with no matching stub export fails the esbuild BUILD, and this suite then
+// asserts nothing at all -- the exact way it broke once already.
+export function useRouter() { return { invalidate() {} }; }
 `;
 const QUERY_STUB = `
 export function useQuery() { return { data: undefined, isLoading: false, error: undefined }; }

@@ -1,3 +1,4 @@
+import { PortalErrorScreen } from "@/components/portal-runtime/PortalErrorScreen";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useId } from "react";
 import { useMutation } from "@tanstack/react-query";
@@ -17,6 +18,7 @@ import { markDeviceHasPassword } from "@/lib/portal-returning-guest";
 import type { AppError } from "@/services/api";
 
 export const Route = createFileRoute("/portal/set-password")({
+  errorComponent: PortalErrorScreen,
   component: SetPasswordPage,
 });
 

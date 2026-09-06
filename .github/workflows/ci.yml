@@ -191,6 +191,20 @@ jobs:
             "Sign-in field regression test: all checks passed." \
             bun run test:signin-fields
 
+      # The per-route errorComponent wiring under /portal. TanStack Router
+      # does not inherit `errorComponent` to child routes, so this fix is one
+      # line per route file -- exactly the kind that rots when someone adds a
+      # route and doesn't know. Nothing in tsc, eslint or the build can see a
+      # missing optional route option, so the check has to live here. The
+      # suite enumerates the route files from disk, so a new /portal route is
+      # caught the moment it exists rather than when a guest finds it.
+      - name: portal error boundary
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "portal-error-boundary" 60 \
+            "portal error boundary: all checks passed" \
+            bun run test:portal-error-boundary
+
       - name: firewall rule ordering
         run: |
           ./scripts/ci-gated-test.sh \

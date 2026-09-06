@@ -1,3 +1,4 @@
+import { PortalErrorScreen } from "@/components/portal-runtime/PortalErrorScreen";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { PortalShell, PortalTextPlate } from "@/components/portal-runtime/PortalShell";
@@ -8,6 +9,7 @@ import { hasPostLoginHtml } from "@/lib/post-login-html";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 
 export const Route = createFileRoute("/portal/redirect")({
+  errorComponent: PortalErrorScreen,
   component: RedirectPage,
 });
 

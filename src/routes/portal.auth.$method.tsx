@@ -1,3 +1,4 @@
+import { PortalErrorScreen } from "@/components/portal-runtime/PortalErrorScreen";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { ArrowLeft } from "lucide-react";
@@ -27,6 +28,7 @@ import type {
 } from "@/types/portal-runtime";
 
 export const Route = createFileRoute("/portal/auth/$method")({
+  errorComponent: PortalErrorScreen,
   component: AuthMethodPage,
 });
 

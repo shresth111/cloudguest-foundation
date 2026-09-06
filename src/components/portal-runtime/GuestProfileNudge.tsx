@@ -115,8 +115,18 @@ export function GuestProfileNudge({
   // go: it excluded voucher guests entirely, who are exactly the guests a
   // venue knows least about.)
   const [name, setName] = useState("");
+  // `?.` is load-bearing, not defensive noise. This runs inside a useState
+  // LAZY INITIALIZER, i.e. during render -- so if `identifier` is ever null
+  // this is a TypeError in the render phase, which takes the whole
+  // /portal/session screen to the error boundary for a guest who is already
+  // online and whose WiFi is working perfectly. `RuntimeSession.identifier`
+  // is typed `string`, but it is mapped straight through from the backend's
+  // `data.identifier` (portal-runtime.service.ts's `toRuntimeSession`) with
+  // no runtime check, so the type is an assertion about the backend rather
+  // than a guarantee about the value. A blank pre-fill is the correct
+  // outcome in that case, and it costs one character.
   const [email, setEmail] = useState(() =>
-    session.authMethod === "otp_email" && session.identifier.includes("@")
+    session.authMethod === "otp_email" && session.identifier?.includes("@")
       ? session.identifier
       : "",
   );

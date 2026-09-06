@@ -28,7 +28,7 @@ import {
 } from "@/context/PortalRuntimeContext";
 import { PortalCard, PG_FONT_STACK } from "@/components/portal-runtime/PortalShell";
 import { PortalDefaultBrandBadge } from "@/components/portal-runtime/PortalDefaultBrandBadge";
-import { ErrorComponent as RootErrorComponent } from "./__root";
+import { PortalErrorScreen } from "@/components/portal-runtime/PortalErrorScreen";
 
 // A real captive-portal redirect from a NAS/router would encode equivalent
 // identity (MAC/AP/NAS-ID query params in a vendor-specific format) -- there
@@ -228,11 +228,20 @@ export const Route = createFileRoute("/portal")({
   // throws a real SearchParamError zod can't coerce around, and still
   // deserves this same honest treatment rather than the generic root
   // error boundary.
+  //
+  // The non-SearchParamError branch used to be `__root.tsx`'s
+  // `ErrorComponent` -- the customer dashboard's error screen, shown to a
+  // guest. It is `PortalErrorScreen` now, for the reasons in that
+  // component's own docstring. Note this boundary covers `/portal` ONLY:
+  // TanStack Router does not inherit `errorComponent` to child routes, so
+  // each `/portal/*` route sets it too. Adding a route under /portal means
+  // adding that line -- scripts/test-portal-error-boundary.mjs fails if one
+  // is missed.
   errorComponent: (props) =>
     props.error instanceof SearchParamError ? (
       <IncompletePortalLinkError />
     ) : (
-      <RootErrorComponent {...props} />
+      <PortalErrorScreen {...props} />
     ),
 });
 

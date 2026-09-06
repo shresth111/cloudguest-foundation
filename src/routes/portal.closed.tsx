@@ -1,3 +1,4 @@
+import { PortalErrorScreen } from "@/components/portal-runtime/PortalErrorScreen";
 import { createFileRoute } from "@tanstack/react-router";
 import { PortalShell, PortalCard, PortalTextPlate } from "@/components/portal-runtime/PortalShell";
 import { GlyphClosed } from "@/components/portal-runtime/PortalGlyphs";
@@ -5,6 +6,7 @@ import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { scriptClassOf } from "@/lib/portal-script";
 
 export const Route = createFileRoute("/portal/closed")({
+  errorComponent: PortalErrorScreen,
   component: ClosedPage,
 });
 

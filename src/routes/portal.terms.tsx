@@ -1,3 +1,4 @@
+import { PortalErrorScreen } from "@/components/portal-runtime/PortalErrorScreen";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, ShieldCheck, Lock, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -37,6 +38,7 @@ function SectionCardTitle({ title }: { title: string }) {
 }
 
 export const Route = createFileRoute("/portal/terms")({
+  errorComponent: PortalErrorScreen,
   component: TermsPage,
 });
 

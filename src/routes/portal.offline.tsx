@@ -1,3 +1,4 @@
+import { PortalErrorScreen } from "@/components/portal-runtime/PortalErrorScreen";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { PortalShell, PortalTextPlate } from "@/components/portal-runtime/PortalShell";
 import { PG_PRIMARY_BTN } from "@/components/portal-runtime/PortalGuestUi";
@@ -5,6 +6,7 @@ import { GlyphOffline } from "@/components/portal-runtime/PortalGlyphs";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 
 export const Route = createFileRoute("/portal/offline")({
+  errorComponent: PortalErrorScreen,
   component: OfflinePage,
 });
 
