@@ -4212,7 +4212,7 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
   // `isError`/`refetch` are read because customerService.getFeatureData no
   // longer resolves with demo fixtures when the fetch fails (see its own
   // docstring). Without an error branch below, a failed load would fall
-  // through to the "No MAC addresses authorized" empty state -- which
+  // through to the "No trusted devices yet" empty state -- which
   // asserts this location has no trusted devices, a claim we cannot make
   // when we never got an answer. For an access-control list that is the
   // one thing worth being careful about.
@@ -4230,8 +4230,9 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
   }, [data, synced]);
 
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ mac: "", type: "permanent", comment: "" });
+  const [form, setForm] = useState({ mac: "", type: "permanent", expiresAt: "", comment: "" });
   const [macError, setMacError] = useState<string | null>(null);
+  const [expiryError, setExpiryError] = useState<string | null>(null);
 
   const addEntry = async () => {
     // Real-world MACs get pasted in every notation (dashes, no separators,
@@ -4244,14 +4245,38 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
     // real inline error instead of only a fading toast.
     const normalizedMac = normalizeMac(form.mac);
     if (!normalizedMac) {
-      const msg = "Enter a valid MAC address, e.g. AA:BB:CC:DD:EE:FF";
+      const msg = "That doesn't look like a device address. Example: AA:BB:CC:DD:EE:FF";
       setMacError(msg);
       toast.error(msg);
       return;
     }
+    // "Temporary" used to send no expiry at all: `expires_at` went up as
+    // null and the row came back rendering as "Never" in the Expires
+    // column -- i.e. picking Temporary produced a permanent entry, which
+    // on an access-control list is the worst direction to be wrong in.
+    // CreateMacAuthorizationPayload.expiresAt and the service's
+    // `expires_at` mapping were already there; only this dialog never
+    // collected a date. Same rule the operator console's twin of this
+    // screen already enforces (MacAuthorizationManagement.tsx's
+    // `.refine(... "Expiry required for temporary entries")`).
+    const isTemporary = form.type === "temporary";
+    if (isTemporary && !form.expiresAt) {
+      const msg = "Pick when access should end, or choose Always.";
+      setExpiryError(msg);
+      toast.error(msg);
+      return;
+    }
+    if (isTemporary && new Date(form.expiresAt).getTime() <= Date.now()) {
+      const msg = "That time is in the past — pick a later one.";
+      setExpiryError(msg);
+      toast.error(msg);
+      return;
+    }
+    const expiresAt = isTemporary ? new Date(form.expiresAt).toISOString() : null;
     const payload = {
       macAddress: normalizedMac,
       authorizationType: form.type as "permanent" | "temporary",
+      expiresAt,
       comment: form.comment || null,
       isEnabled: true,
     };
@@ -4275,16 +4300,17 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
             id: String(Date.now()),
             mac: payload.macAddress,
             type: payload.authorizationType,
-            expiresAt: null,
+            expiresAt: payload.expiresAt,
             comment: payload.comment,
             enabled: true,
           },
           ...e,
         ]);
       }
-      toast.success("MAC address authorized");
-      setForm({ mac: "", type: "permanent", comment: "" });
+      toast.success("Device trusted");
+      setForm({ mac: "", type: "permanent", expiresAt: "", comment: "" });
       setMacError(null);
+      setExpiryError(null);
       setOpen(false);
     } catch (err) {
       // Surface the backend's real message (e.g. its duplicate-MAC 409)
@@ -4313,7 +4339,7 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
 
   const removeEntry = async (entry: MacAuthEntry) => {
     setEntries((es) => es.filter((e) => e.id !== entry.id));
-    toast.success("Entry removed");
+    toast.success("Device removed");
     if (!isDemo()) {
       try {
         await macAuthorizationService.remove(entry.id);
@@ -4330,18 +4356,19 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
         <div className="min-w-0 flex-1">
           <FeatureHeader
             title="Trusted Devices"
-            description="Bypass hotspot authentication on a few devices."
+            description="Let a few of your own devices onto the WiFi without signing in."
             icon={Fingerprint}
             action={
               <Button
                 size="sm"
                 onClick={() => {
                   setMacError(null);
+                  setExpiryError(null);
                   setOpen(true);
                 }}
               >
                 <Plus className="h-4 w-4" />
-                Add MAC
+                Add device
               </Button>
             }
           />
@@ -4350,9 +4377,9 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
       </div>
       <Card className="border-0 shadow-sm">
         <CardHeader>
-          <CardTitle className="text-sm">Authorized Devices</CardTitle>
+          <CardTitle className="text-sm">Trusted devices</CardTitle>
           <CardDescription>
-            Devices allowed onto the network without going through the captive portal.
+            Devices that connect straight to the WiFi without seeing the sign-in screen.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
@@ -4370,18 +4397,18 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
           ) : entries.length === 0 ? (
             <EmptyState
               icon={Shield}
-              title="No MAC addresses authorized"
-              description='Click "Add MAC" above to let a device bypass the captive portal.'
+              title="No trusted devices yet"
+              description='Click "Add device" above to let one of your own devices skip the sign-in screen.'
             />
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-xs font-medium">MAC Address</TableHead>
-                  <TableHead className="text-xs font-medium">Type</TableHead>
-                  <TableHead className="text-xs font-medium">Expires</TableHead>
-                  <TableHead className="text-xs font-medium">Comment</TableHead>
-                  <TableHead className="text-xs font-medium">Enabled</TableHead>
+                  <TableHead className="text-xs font-medium">Device address</TableHead>
+                  <TableHead className="text-xs font-medium">Access</TableHead>
+                  <TableHead className="text-xs font-medium">Ends</TableHead>
+                  <TableHead className="text-xs font-medium">Note</TableHead>
+                  <TableHead className="text-xs font-medium">Active</TableHead>
                   <TableHead className="text-right text-xs font-medium">Action</TableHead>
                 </TableRow>
               </TableHeader>
@@ -4389,9 +4416,20 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
                 {entries.map((e) => (
                   <TableRow key={e.id} className="border-b">
                     <TableCell className="font-mono text-xs">{e.mac}</TableCell>
-                    <TableCell className="text-xs capitalize">{e.type}</TableCell>
+                    <TableCell className="text-xs">
+                      {e.type === "temporary" ? "Until a date" : "Always"}
+                    </TableCell>
+                    {/* A row saved before the dialog collected an expiry can
+                      be temporary with no date at all. That used to render
+                      as "Never" -- the same word a genuinely permanent
+                      entry gets -- which read as a deliberate choice
+                      rather than as missing data. Say which it is. */}
                     <TableCell className="text-xs text-muted-foreground">
-                      {e.expiresAt ? new Date(e.expiresAt).toLocaleDateString() : "Never"}
+                      {e.expiresAt
+                        ? new Date(e.expiresAt).toLocaleString()
+                        : e.type === "temporary"
+                          ? "Not set — never ends"
+                          : "Never"}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {e.comment || "—"}
@@ -4421,17 +4459,30 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
         open={open}
         onOpenChange={(o) => {
           setOpen(o);
-          if (!o) setMacError(null);
+          if (!o) {
+            setMacError(null);
+            setExpiryError(null);
+          }
         }}
       >
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Add MAC Address</DialogTitle>
-            <DialogDescription>Authorize a device to skip the captive portal.</DialogDescription>
+            <DialogTitle>Add a trusted device</DialogTitle>
+            <DialogDescription>
+              This device connects straight to the WiFi without the sign-in screen.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>MAC Address</Label>
+              {/* "MAC Address" was the bare label on every control here while
+                the page header already said "Trusted Devices" -- the plain-
+                English rename reached the title and never reached the form.
+                The term itself has to stay somewhere: it is the exact
+                phrase printed in a phone's WiFi settings, which is where
+                the owner has to go to read this value off. So: plain-
+                English label, technical term in the hint that tells them
+                where to find it. */}
+              <Label>Device address</Label>
               <Input
                 placeholder="AA:BB:CC:DD:EE:FF"
                 value={form.mac}
@@ -4446,24 +4497,54 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
                 aria-invalid={!!macError}
               />
               <p className="text-[11px] text-muted-foreground">
-                Dashes, spaces, or no separators are fine too -- e.g. AA-BB-CC-DD-EE-FF.
+                Its MAC address — find it under WiFi settings on the device itself. Dashes, spaces,
+                or no separators are fine too, e.g. AA-BB-CC-DD-EE-FF.
               </p>
               {macError && <p className="text-xs font-medium text-destructive">{macError}</p>}
             </div>
             <div className="space-y-2">
-              <Label>Type</Label>
-              <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
+              <Label>Allow access</Label>
+              <Select
+                value={form.type}
+                onValueChange={(v) => {
+                  setForm({ ...form, type: v, expiresAt: v === "permanent" ? "" : form.expiresAt });
+                  setExpiryError(null);
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="permanent">Permanent</SelectItem>
-                  <SelectItem value="temporary">Temporary</SelectItem>
+                  <SelectItem value="permanent">Always</SelectItem>
+                  <SelectItem value="temporary">Until a date</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            {form.type === "temporary" && (
+              <div className="space-y-2">
+                <Label>Access ends</Label>
+                <Input
+                  type="datetime-local"
+                  value={form.expiresAt}
+                  onChange={(e) => {
+                    setForm({ ...form, expiresAt: e.target.value });
+                    if (expiryError) setExpiryError(null);
+                  }}
+                  className={cn(
+                    expiryError && "border-destructive focus-visible:ring-destructive/20",
+                  )}
+                  aria-invalid={!!expiryError}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  After this the device signs in like any other guest.
+                </p>
+                {expiryError && (
+                  <p className="text-xs font-medium text-destructive">{expiryError}</p>
+                )}
+              </div>
+            )}
             <div className="space-y-2">
-              <Label>Comment (optional)</Label>
+              <Label>Note (optional)</Label>
               <Input
                 placeholder="e.g. Front desk tablet"
                 value={form.comment}
