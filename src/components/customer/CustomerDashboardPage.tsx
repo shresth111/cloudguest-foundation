@@ -11,7 +11,6 @@ import {
   CheckCircle,
   XCircle,
   AlertTriangle,
-  Clock,
   HardDrive,
   Gauge,
 } from "lucide-react";
@@ -1648,12 +1647,12 @@ export function CustomerDashboardPage() {
                     )}
                   </div>
 
-                  {/* Three KPIs, equal weight. Each metric gets a label above
-                   * the number and, only where a real comparison value
-                   * actually exists in `d.kpis` (never fabricated), a context
-                   * line below it. Uptime shows label + number only rather
-                   * than inventing a trend. */}
-                  <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6">
+                  {/* Three KPIs, equal weight -- one 3-column CSS grid with
+                   * no manual gaps: divide-x draws the vertical rules at
+                   * the exact column boundaries, and each column pads its
+                   * content symmetrically, so the lines always bisect the
+                   * spaces between columns at any viewport width. */}
+                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 sm:divide-x sm:divide-white/10">
                     {[
                       {
                         label: "Guests today",
@@ -1683,7 +1682,7 @@ export function CustomerDashboardPage() {
                         initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.06 }}
-                        className="sm:border-l sm:border-white/10 sm:pl-6 sm:first:border-l-0 sm:first:pl-0"
+                        className="sm:px-6 sm:first:pl-0 sm:last:pr-0"
                       >
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-white/50">
                           {k.label}
@@ -1698,14 +1697,12 @@ export function CustomerDashboardPage() {
                     ))}
                   </div>
 
-                  {/* Session meta -- the one operator line that earns its
-                   * place under the KPIs. */}
-                  <div className="mt-3 flex items-center gap-1.5 border-t border-white/10 pt-2 text-xs tabular-nums text-white/70">
-                    <Clock className="h-3 w-3 text-white/40" />
-                    <span>
-                      <span className="font-semibold text-white">{d.kpis.avgSession} min</span>{" "}
-                      <span className="text-white/50">avg session</span>
-                    </span>
+                  {/* Session meta -- starts exactly at the same content edge
+                   * as the Guests today column above (no leading icon, which
+                   * would indent the label off the shared grid edge). */}
+                  <div className="mt-4 border-t border-white/10 pt-2.5 text-xs tabular-nums text-white/70">
+                    <span className="font-semibold text-white">{d.kpis.avgSession} min</span>{" "}
+                    <span className="text-white/50">avg session</span>
                   </div>
                 </div>
               </div>
