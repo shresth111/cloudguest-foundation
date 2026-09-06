@@ -151,7 +151,21 @@ export function CustomerSidebar({ activeFeatureId, subtitle, dataMasking }: Cust
         } as CSSProperties
       }
     >
-      <SidebarHeader className="border-b border-sidebar-border">
+      {/* `h-16` so this header's bottom border and the topbar's land on the
+          same y. They read as one rule across the page -- the rule above
+          "Overview" in the rail is the same rule that runs above "This
+          location, right now" in the content well -- so any height
+          disagreement shows up as a visible step where they meet at the
+          rail's edge. The topbar is `h-16` (see CustomerShell), and the
+          hand-rolled `<aside>` this replaced set `h-16` on its own header row
+          to match. `SidebarHeader` has no height of its own -- it is `p-2`
+          plus whatever it wraps -- so when the markup came across to the
+          primitive the height did not, and the border settled wherever the
+          brand block happened to end: 69.5px expanded (the two-line name
+          stack is 36.5px, taller than the 32px chip), 65px collapsed once
+          that stack is hidden. Both sat below the topbar's 64px.
+          `justify-center` keeps the block centred in the fixed box. */}
+      <SidebarHeader className="h-16 justify-center border-b border-sidebar-border">
         {/* `px-0` in the collapsed icon rail. This row's own `px-2` sits
             inside `SidebarHeader`'s `p-2`, so the 32px brand chip starts
             16px in -- fine in the 16rem expanded rail, but the icon rail is
@@ -163,7 +177,10 @@ export function CustomerSidebar({ activeFeatureId, subtitle, dataMasking }: Cust
             `overflow-hidden`, so neither the width nor the clip carried
             over. Dropping the inset also puts the chip's centre on x=24 --
             the same axis the nav icons below it centre on. */}
-        <div className="flex items-center gap-2.5 px-2 py-2 group-data-[collapsible=icon]:px-0">
+        {/* No `py-` here: the height is the header's now, and this row's own
+            16px of vertical padding would make it 52.5px inside a 47px
+            content box and spill back over the border we just pinned. */}
+        <div className="flex items-center gap-2.5 px-2 group-data-[collapsible=icon]:px-0">
           <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]">
             <img src="/brand/mark-compact-white.svg" alt="" className="h-4.5 w-4.5" />
           </div>
