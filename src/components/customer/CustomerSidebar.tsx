@@ -152,7 +152,18 @@ export function CustomerSidebar({ activeFeatureId, subtitle, dataMasking }: Cust
       }
     >
       <SidebarHeader className="border-b border-sidebar-border">
-        <div className="flex items-center gap-2.5 px-2 py-2">
+        {/* `px-0` in the collapsed icon rail. This row's own `px-2` sits
+            inside `SidebarHeader`'s `p-2`, so the 32px brand chip starts
+            16px in -- fine in the 16rem expanded rail, but the icon rail is
+            `--sidebar-width-icon` (3rem), which leaves the row a 15px
+            content box. The chip is `shrink-0`, so it kept its 32px and its
+            right edge landed at 48px: past the rail's own painted edge, with
+            the rail's right border ruled straight through the logo. The
+            pre-primitive `<aside>` this replaced was a 64px rail with
+            `overflow-hidden`, so neither the width nor the clip carried
+            over. Dropping the inset also puts the chip's centre on x=24 --
+            the same axis the nav icons below it centre on. */}
+        <div className="flex items-center gap-2.5 px-2 py-2 group-data-[collapsible=icon]:px-0">
           <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]">
             <img src="/brand/mark-compact-white.svg" alt="" className="h-4.5 w-4.5" />
           </div>
