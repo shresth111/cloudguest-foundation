@@ -60,7 +60,7 @@ export function CustomerHeader({
   const [menu, setMenu] = useState(false);
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-white/10 bg-gradient-to-r from-[#1f1c4a] to-[#241f4d] px-4 text-white backdrop-blur-xl sm:px-6">
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-white/10 bg-gradient-to-r from-[#201d49] to-[#241f4c] px-4 text-white backdrop-blur-xl sm:px-6">
       {/* The sidebar primitive's own trigger. #218 had already grown the
           hand-rolled hamburger from a bare 20px <Menu/> -- the smallest tap
           target in the product, and the only route to navigation on a phone

@@ -1779,7 +1779,7 @@ export function CustomerDashboardPage() {
                * spans the content column edge-to-edge (negative margins
                * cancel <main>'s own padding), and the page transitions from
                * dark to light exactly once, right before the charts. */}
-              <div className="-mx-4 -mt-4 relative overflow-hidden bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#4c1d95] text-white shadow-xl shadow-indigo-950/30 sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8">
+              <div className="-mx-4 -mt-4 relative overflow-hidden bg-gradient-to-br from-[#262157] via-[#312e81] to-[#462695] text-white shadow-xl shadow-indigo-950/30 sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8">
                 <div
                   aria-hidden
                   className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-[#6C4EFF]/30 blur-3xl"

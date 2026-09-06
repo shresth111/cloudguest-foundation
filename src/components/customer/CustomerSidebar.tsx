@@ -122,21 +122,22 @@ export function CustomerSidebar({ activeFeatureId, subtitle, dataMasking }: Cust
     <Sidebar
       collapsible="icon"
       // Customer chrome is the dark indigo the product screenshots on
-      // wyfyguest.com ship with (dashboard-overview.webp): a vertical
-      // gradient from #1f1c4a at the top to #18172e at the bottom, with
-      // lavender-tinted text on top. styles.css's sitewide "modern ink
-      // rail" `--sidebar*` tokens are neutral-near-black, so they are
-      // overridden here with the indigo values; Master Console opts out of
-      // the same defaults via its own `.master-theme` class. The primitive
-      // paints its own `bg-sidebar` on an inner div, so `--sidebar` must be
-      // transparent for the gradient on this wrapper to show through.
-      className="bg-gradient-to-b from-[#1f1c4a] via-[#1c1a44] to-[#18172e]"
+      // wyfyguest.com ship with (dashboard-overview.webp): sampled from the
+      // image, the rail's body is ~#1c1a42/#1c1a44 through the nav, with a
+      // brighter #2d285e wash at the very top (logo zone) and a #191733
+      // bottom. styles.css's sitewide "modern ink rail" `--sidebar*` tokens
+      // are neutral-near-black, so they are overridden here with the indigo
+      // values; Master Console opts out of the same defaults via its own
+      // `.master-theme` class. The primitive paints its own `bg-sidebar` on
+      // an inner div, so `--sidebar` must be transparent for the gradient
+      // on this wrapper to show through.
+      className="bg-[linear-gradient(to_bottom,#2d285e_0%,#1f1c49_8%,#1c1a44_40%,#18172e_100%)]"
       style={
         {
           "--sidebar": "transparent",
-          "--sidebar-foreground": "#c8c6dd",
+          "--sidebar-foreground": "#9897bc",
           "--sidebar-border": "rgb(255 255 255 / 10%)",
-          "--sidebar-accent": "#2a2652",
+          "--sidebar-accent": "#2a275a",
           "--sidebar-accent-foreground": "#ffffff",
           "--sidebar-primary": "#a5a0ff",
           "--sidebar-primary-foreground": "#ffffff",
