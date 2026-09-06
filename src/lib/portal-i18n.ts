@@ -60,6 +60,16 @@ const EN: Dict = {
   continue: "Continue browsing",
   authFailed: "We couldn't sign you in",
   retry: "Try again",
+  // ---- Portal error boundary (PortalErrorScreen) -------------------
+  // Shown when a /portal/* route throws while rendering. The one thing a
+  // guest needs to know here is whether their internet is up: the NAS gate
+  // is opened by a form POST that has already happened by the time most of
+  // these screens render, so a crash on the session/connected side leaves a
+  // guest who IS online staring at an error. Saying so is the difference
+  // between a guest who opens a browser and one who re-queues at reception.
+  portalErrorTitle: "This screen didn't load",
+  portalErrorBody:
+    "Your WiFi may already be working -- try opening a website. If it doesn't, sign in again.",
   contactSupport: "Contact support",
   sessionRemaining: "Time remaining",
   dataUsage: "Data usage",
@@ -392,6 +402,9 @@ const HI: Dict = {
   continue: "ब्राउज़िंग जारी रखें",
   authFailed: "हम आपको साइन इन नहीं कर सके",
   retry: "फिर कोशिश करें",
+  portalErrorTitle: "यह स्क्रीन लोड नहीं हो पाई",
+  portalErrorBody:
+    "आपका WiFi शायद पहले से चल रहा है -- कोई वेबसाइट खोलकर देखें। अगर न चले, तो दोबारा साइन इन करें।",
   contactSupport: "सहायता से संपर्क करें",
   sessionRemaining: "शेष समय",
   dataUsage: "डेटा उपयोग",
@@ -668,6 +681,9 @@ const BN: Dict = {
   continue: "ব্রাউজ করতে থাকুন",
   authFailed: "আপনাকে sign in করানো গেল না",
   retry: "আবার চেষ্টা করুন",
+  portalErrorTitle: "এই স্ক্রিনটি লোড হয়নি",
+  portalErrorBody:
+    "আপনার WiFi হয়তো ইতিমধ্যেই কাজ করছে -- একটি ওয়েবসাইট খুলে দেখুন। না হলে আবার সাইন ইন করুন।",
   contactSupport: "support-এ যোগাযোগ করুন",
   sessionRemaining: "বাকি সময়",
   dataUsage: "ডেটা ব্যবহার",
@@ -904,6 +920,9 @@ const MR: Dict = {
   continue: "Browse करत राहा",
   authFailed: "Sign in होऊ शकलं नाही",
   retry: "पुन्हा प्रयत्न करा",
+  portalErrorTitle: "ही स्क्रीन लोड होऊ शकली नाही",
+  portalErrorBody:
+    "तुमचे WiFi कदाचित आधीच चालू आहे -- एखादी वेबसाइट उघडून पाहा. न चालल्यास पुन्हा साइन इन करा.",
   contactSupport: "Support शी संपर्क साधा",
   sessionRemaining: "उरलेला वेळ",
   dataUsage: "Data वापर",
@@ -1142,6 +1161,9 @@ const TE: Dict = {
   continue: "బ్రౌజింగ్ కొనసాగించండి",
   authFailed: "మిమ్మల్ని సైన్ ఇన్ చేయలేకపోయాం",
   retry: "మళ్లీ ప్రయత్నించండి",
+  portalErrorTitle: "ఈ స్క్రీన్ లోడ్ కాలేదు",
+  portalErrorBody:
+    "మీ WiFi ఇప్పటికే పని చేస్తుండవచ్చు -- ఒక వెబ్‌సైట్ తెరిచి చూడండి. పని చేయకపోతే మళ్లీ సైన్ ఇన్ చేయండి.",
   contactSupport: "సపోర్ట్‌ను సంప్రదించండి",
   sessionRemaining: "మిగిలిన సమయం",
   dataUsage: "డేటా వాడకం",
@@ -1380,6 +1402,9 @@ const TA: Dict = {
   continue: "உலாவலைத் தொடர்",
   authFailed: "உங்களை நுழைய வைக்க முடியவில்லை",
   retry: "மீண்டும் முயலுங்கள்",
+  portalErrorTitle: "இந்தத் திரை ஏற்றப்படவில்லை",
+  portalErrorBody:
+    "உங்கள் WiFi ஏற்கனவே வேலை செய்யலாம் -- ஒரு இணையதளத்தைத் திறந்து பாருங்கள். இல்லையெனில் மீண்டும் உள்நுழையவும்.",
   contactSupport: "ஆதரவைத் தொடர்பு கொள்ளுங்கள்",
   sessionRemaining: "மீதமுள்ள நேரம்",
   dataUsage: "தரவுப் பயன்பாடு",
@@ -1622,6 +1647,9 @@ const GU: Dict = {
   continue: "Browsing ચાલુ રાખો",
   authFailed: "અમે તમને sign in કરી શક્યા નહીં",
   retry: "ફરી પ્રયત્ન કરો",
+  portalErrorTitle: "આ સ્ક્રીન લોડ થઈ શકી નથી",
+  portalErrorBody:
+    "તમારું WiFi કદાચ પહેલેથી જ ચાલુ છે -- કોઈ વેબસાઇટ ખોલીને જુઓ. ન ચાલે તો ફરી સાઇન ઇન કરો.",
   contactSupport: "Support નો સંપર્ક કરો",
   sessionRemaining: "બાકી સમય",
   dataUsage: "Data વપરાશ",
@@ -1858,6 +1886,9 @@ const KN: Dict = {
   continue: "Browsing ಮುಂದುವರಿಸಿ",
   authFailed: "ನಿಮ್ಮನ್ನು sign in ಮಾಡಲು ಆಗಲಿಲ್ಲ",
   retry: "ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ",
+  portalErrorTitle: "ಈ ಪರದೆ ಲೋಡ್ ಆಗಲಿಲ್ಲ",
+  portalErrorBody:
+    "ನಿಮ್ಮ WiFi ಈಗಾಗಲೇ ಕೆಲಸ ಮಾಡುತ್ತಿರಬಹುದು -- ಒಂದು ವೆಬ್‌ಸೈಟ್ ತೆರೆದು ನೋಡಿ. ಇಲ್ಲದಿದ್ದರೆ ಮತ್ತೆ ಸೈನ್ ಇನ್ ಮಾಡಿ.",
   contactSupport: "Support ಸಂಪರ್ಕಿಸಿ",
   sessionRemaining: "ಉಳಿದ ಸಮಯ",
   dataUsage: "Data ಬಳಕೆ",
@@ -2095,6 +2126,9 @@ const ML: Dict = {
   continue: "ബ്രൗസിംഗ് തുടരൂ",
   authFailed: "നിങ്ങളെ sign in ചെയ്യിക്കാനായില്ല",
   retry: "വീണ്ടും ശ്രമിക്കൂ",
+  portalErrorTitle: "ഈ സ്ക്രീൻ ലോഡ് ആയില്ല",
+  portalErrorBody:
+    "നിങ്ങളുടെ WiFi ഇതിനകം പ്രവർത്തിക്കുന്നുണ്ടാകാം -- ഒരു വെബ്‌സൈറ്റ് തുറന്നു നോക്കൂ. ഇല്ലെങ്കിൽ വീണ്ടും സൈൻ ഇൻ ചെയ്യൂ.",
   contactSupport: "support-നെ ബന്ധപ്പെടൂ",
   sessionRemaining: "ബാക്കി സമയം",
   dataUsage: "ഡാറ്റ ഉപയോഗം",
@@ -2333,6 +2367,9 @@ const PA: Dict = {
   continue: "Browsing ਜਾਰੀ ਰੱਖੋ",
   authFailed: "ਅਸੀਂ ਤੁਹਾਨੂੰ sign in ਨਹੀਂ ਕਰ ਸਕੇ",
   retry: "ਫਿਰ ਕੋਸ਼ਿਸ਼ ਕਰੋ",
+  portalErrorTitle: "ਇਹ ਸਕਰੀਨ ਲੋਡ ਨਹੀਂ ਹੋਈ",
+  portalErrorBody:
+    "ਤੁਹਾਡਾ WiFi ਸ਼ਾਇਦ ਪਹਿਲਾਂ ਹੀ ਚੱਲ ਰਿਹਾ ਹੈ -- ਕੋਈ ਵੈੱਬਸਾਈਟ ਖੋਲ੍ਹ ਕੇ ਵੇਖੋ। ਜੇ ਨਾ ਚੱਲੇ ਤਾਂ ਦੁਬਾਰਾ ਸਾਈਨ ਇਨ ਕਰੋ।",
   contactSupport: "Support ਨਾਲ ਸੰਪਰਕ ਕਰੋ",
   sessionRemaining: "ਬਾਕੀ ਸਮਾਂ",
   dataUsage: "Data ਵਰਤੋਂ",

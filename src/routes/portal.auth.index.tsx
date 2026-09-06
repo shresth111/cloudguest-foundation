@@ -1,3 +1,4 @@
+import { PortalErrorScreen } from "@/components/portal-runtime/PortalErrorScreen";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 /**
@@ -35,6 +36,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
  * captive-portal-v4-design-spec.md §6/§8.
  */
 export const Route = createFileRoute("/portal/auth/")({
+  errorComponent: PortalErrorScreen,
   beforeLoad: ({ search }) => {
     throw redirect({ to: "/portal/welcome", search });
   },

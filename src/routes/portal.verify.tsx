@@ -1,3 +1,4 @@
+import { PortalErrorScreen } from "@/components/portal-runtime/PortalErrorScreen";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
@@ -24,6 +25,7 @@ import { useOtpResendCooldown } from "@/lib/portal-otp-cooldown";
 import type { AppError } from "@/services/api";
 
 export const Route = createFileRoute("/portal/verify")({
+  errorComponent: PortalErrorScreen,
   component: VerifyPage,
 });
 

@@ -1,3 +1,4 @@
+import { PortalErrorScreen } from "@/components/portal-runtime/PortalErrorScreen";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -11,6 +12,7 @@ import { portalRuntimeService } from "@/services/portal-runtime.service";
 import { buildSessionUrl } from "@/lib/portal-session-url";
 
 export const Route = createFileRoute("/portal/")({
+  errorComponent: PortalErrorScreen,
   component: PortalLoading,
 });
 

@@ -1,3 +1,4 @@
+import { PortalErrorScreen } from "@/components/portal-runtime/PortalErrorScreen";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -23,6 +24,7 @@ import { campaignPortalService } from "@/services/campaign-portal.service";
 import type { AppError } from "@/services/api";
 
 export const Route = createFileRoute("/portal/session")({
+  errorComponent: PortalErrorScreen,
   component: SessionPage,
 });
 

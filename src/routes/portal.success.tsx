@@ -1,3 +1,4 @@
+import { PortalErrorScreen } from "@/components/portal-runtime/PortalErrorScreen";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
@@ -28,6 +29,7 @@ const SLOW_NOTICE_DELAY_MS = PORTAL_SLOW_NOTICE_DELAY_MS;
 const ESCAPE_HATCH_DELAY_MS = 15_000;
 
 export const Route = createFileRoute("/portal/success")({
+  errorComponent: PortalErrorScreen,
   component: SuccessPage,
 });
 

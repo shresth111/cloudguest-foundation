@@ -1,3 +1,4 @@
+import { PortalErrorScreen } from "@/components/portal-runtime/PortalErrorScreen";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { PortalShell, PortalTextPlate } from "@/components/portal-runtime/PortalShell";
 import { PG_PRIMARY_BTN, PG_SECONDARY_BTN } from "@/components/portal-runtime/PortalGuestUi";
@@ -6,6 +7,7 @@ import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { enabledAuthMethods } from "@/lib/portal-auth-methods";
 
 export const Route = createFileRoute("/portal/expired")({
+  errorComponent: PortalErrorScreen,
   component: ExpiredPage,
 });
 
