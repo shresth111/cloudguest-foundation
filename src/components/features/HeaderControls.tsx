@@ -367,8 +367,8 @@ export function PlanRenewalTicket({
                   glued together. */}
               <div className="relative w-px shrink-0 self-stretch">
                 <span className="absolute inset-y-0 left-0 border-l border-dashed border-white/25" />
-                <span className="absolute -top-[5px] left-1/2 h-[9px] w-[9px] -translate-x-1/2 rounded-full bg-[#1f1c49]" />
-                <span className="absolute -bottom-[5px] left-1/2 h-[9px] w-[9px] -translate-x-1/2 rounded-full bg-[#1f1c49]" />
+                <span className="absolute -top-[5px] left-1/2 h-[9px] w-[9px] -translate-x-1/2 rounded-full bg-[#1e1b4b]" />
+                <span className="absolute -bottom-[5px] left-1/2 h-[9px] w-[9px] -translate-x-1/2 rounded-full bg-[#1e1b4b]" />
               </div>
             </>
           )}

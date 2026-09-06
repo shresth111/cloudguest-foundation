@@ -60,7 +60,7 @@ export function CustomerHeader({
   const [menu, setMenu] = useState(false);
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-white/10 bg-gradient-to-r from-[#1f1c49] to-[#241f4c] px-4 text-white backdrop-blur-xl sm:px-6">
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-white/10 bg-gradient-to-r from-[#1e1b4b] to-[#312e81] px-4 text-white backdrop-blur-xl sm:px-6">
       {/* The sidebar primitive's own trigger. #218 had already grown the
           hand-rolled hamburger from a bare 20px <Menu/> -- the smallest tap
           target in the product, and the only route to navigation on a phone
@@ -121,7 +121,7 @@ export function CustomerHeader({
           </Avatar>
         </button>
         {menu && (
-          <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-white/10 bg-[#1f1c49] p-1 text-white shadow-xl">
+          <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-white/10 bg-[#241f4d] p-1 text-white shadow-xl">
             <div className="px-3 py-2">
               <p className="text-sm font-medium">{user?.name ?? "Admin"}</p>
               <p className="text-xs text-white/50">{user?.email}</p>

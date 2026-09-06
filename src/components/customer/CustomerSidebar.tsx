@@ -121,33 +121,33 @@ export function CustomerSidebar({ activeFeatureId, subtitle, dataMasking }: Cust
   return (
     <Sidebar
       collapsible="icon"
-      // Customer chrome matches the how-it-works dashboard screenshot on
-      // wyfyguest.com exactly. Sampled from dashboard-overview.webp, the
-      // rail runs #1f1c49 at the top (logo zone), settles through
-      // #1c1a44/#1c1a42 across the nav body, and darkens to #191733 /
-      // #181630 at the bottom. styles.css's sitewide "--sidebar*" tokens
-      // default to near-black graphite instead, so they are overridden
-      // here with the sampled indigo values (Master Console opts out of
-      // those defaults via its own `.master-theme` class). The primitive
-      // paints its own `bg-sidebar` on an inner div, so `--sidebar` must
-      // be transparent for the gradient on this wrapper to show through.
-      // The gradient rides on backgroundImage INLINE (not a class) so the
-      // sitewide brand-sheen rule in styles.css cannot layer over it, and
-      // so it reaches the portal-rendered mobile Sheet through the style
+      // Customer chrome matches the auth/login pages' gradient on the app
+      // (LoginPage.tsx / AuthLayout.tsx paint #1e1b4b -> #312e81 ->
+      // #4c1d95). The rail runs the same stops top-to-bottom so the dark
+      // surfaces of the product share one identity with its login screen.
+      // styles.css's sitewide "--sidebar*" tokens default to near-black
+      // graphite instead, so they are overridden here with the matching
+      // indigo values (Master Console opts out of those defaults via its
+      // own `.master-theme` class). The primitive paints its own
+      // `bg-sidebar` on an inner div, so `--sidebar` must be transparent
+      // for the gradient on this wrapper to show through. The gradient
+      // rides on backgroundImage INLINE (not a class) so the sitewide
+      // brand-sheen rule in styles.css cannot layer over it, and so it
+      // reaches the portal-rendered mobile Sheet through the style
       // forwarding in ui/sidebar.tsx.
       className="customer-rail"
       style={
         {
           "--sidebar": "transparent",
-          "--sidebar-foreground": "#c8c6dd",
-          "--sidebar-border": "rgb(255 255 255 / 10%)",
-          "--sidebar-accent": "#2a2755",
+          "--sidebar-foreground": "#d6d3f0",
+          "--sidebar-border": "rgb(255 255 255 / 12%)",
+          "--sidebar-accent": "#4c1d95",
           "--sidebar-accent-foreground": "#ffffff",
-          "--sidebar-primary": "#a5a0ff",
+          "--sidebar-primary": "#b4a7ff",
           "--sidebar-primary-foreground": "#ffffff",
-          "--sidebar-ring": "#6d68ff",
+          "--sidebar-ring": "#8b6bff",
           backgroundImage:
-            "linear-gradient(to bottom, #1f1c49 0%, #1d1b46 10%, #1c1a44 30%, #1c1a42 55%, #1a183d 80%, #191733 100%)",
+            "linear-gradient(to bottom, #1e1b4b 0%, #2a2560 30%, #312e81 60%, #4c1d95 100%)",
         } as CSSProperties
       }
     >
