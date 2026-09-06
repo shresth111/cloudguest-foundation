@@ -4,9 +4,7 @@
  * the same lesson applied to the sidebar).
  */
 import { useState } from "react";
-import { toast } from "sonner";
-import { motion } from "framer-motion";
-import { Shield, Eye, CalendarClock, Loader2 } from "lucide-react";
+import { Shield, Eye, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,8 +17,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
-import { demoRequestService } from "@/services/demo-request.service";
-import type { AppError } from "@/services/api";
 
 /**
  * Second design pass on the header controls (see git history for the first
@@ -265,29 +261,18 @@ function RunwayGauge({ tier, filled }: { tier: PlanTier; filled: number }) {
   );
 }
 
-const emptyDemoForm = { name: "", email: "", company: "", message: "" };
-
 /**
- * Combines what used to be two disconnected chips -- `PlanExpiryBadge` and
- * `BookDemoButton` -- into one object, because they were never two separate
- * facts: "your plan renews on X" and "want to talk to us" are one sentence
- * ("N days left -- talk to us"), not two unrelated pieces of chrome sharing
- * a toolbar. Shaped like a boarding-pass stub (angled ends via `clip-path`,
- * a perforated tear line down the middle) instead of a rounded pill, so it
- * reads as a distinct object rather than "another button."
- *
- * Left stub: real renewal data, either a quiet date (far off) or a live
- * countdown with a runway gauge (inside the 30-day decision window) --
- * see `planTier`/`runwayFilled`. Right stub: the real, working demo-request
- * flow (same `demoRequestService.submit` call as before), just relabeled to
- * "Talk to us" once the plan is actually at risk, and the one visual flourish
- * in this whole redesign -- a slow pulse -- only fires in the `urgent` tier,
- * because that's the one moment this chrome should actually grab attention.
+ * Real renewal state for the dashboard header: either a quiet date (far
+ * off) or a live countdown with a runway gauge (inside the 30-day decision
+ * window) -- see `planTier`/`runwayFilled`. This used to be a two-stub
+ * boarding-pass whose right stub opened the demo-request dialog ("Book a
+ * Demo" / "Talk to us"); the customer asked for that CTA out of the
+ * dashboard header, so the ticket is now just the renewal countdown pill.
  *
  * `expiryIso` must be the real `current_period_end`/`renewalDate` from
  * `GET /billing/dashboard/me`; when it hasn't loaded (or there's no
- * resolvable organization) the left stub is simply omitted rather than
- * showing a fabricated date, same honesty contract as before.
+ * resolvable organization) nothing renders rather than showing a
+ * fabricated date, same honesty contract as before.
  */
 export function PlanRenewalTicket({
   expiryIso,
@@ -296,14 +281,9 @@ export function PlanRenewalTicket({
   expiryIso?: string | null;
   className?: string;
 }) {
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState(emptyDemoForm);
-  const [submitting, setSubmitting] = useState(false);
-
   const daysLeft = daysUntil(expiryIso);
   const tier = planTier(daysLeft);
   const filled = runwayFilled(daysLeft);
-  const urgent = tier === "urgent";
   const expiryLabel = expiryIso ? formatPlanExpiry(expiryIso) : null;
 
   const statusLabel = !expiryLabel
@@ -318,147 +298,23 @@ export function PlanRenewalTicket({
             ? `${daysLeft}d left`
             : `Renews ${expiryLabel}`;
 
-  const ctaLabel = tier === "calm" ? "Book a Demo" : "Talk to us";
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.name || !form.email || !form.company) {
-      toast.error("Please share your name, email, and company.");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      await demoRequestService.submit({
-        fullName: form.name,
-        email: form.email,
-        companyName: form.company,
-        message: form.message || undefined,
-      });
-      toast.success("Thanks! Our team will reach out to schedule your demo.");
-      setForm(emptyDemoForm);
-      setOpen(false);
-    } catch (err) {
-      toast.error((err as AppError).message || "Could not submit your request. Please try again.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  // The demo-request CTA stub used to ride along on this ticket (a single
+  // boarding-pass object: renewal stub | "Book a Demo" stub). The customer
+  // asked for the demo CTA gone from the dashboard header; the renewal
+  // countdown itself is real account state and stays.
+  if (!statusLabel) return null;
 
   return (
-    <>
-      <div
-        className={className ?? "mr-1 hidden h-9 shrink-0 items-stretch sm:flex"}
-        title={expiryLabel ? `Plan renewal: ${expiryLabel}` : undefined}
-      >
-        <div
-          className="flex items-stretch overflow-hidden"
-          style={{ clipPath: "polygon(9px 0, 100% 0, calc(100% - 9px) 100%, 0 100%)" }}
-        >
-          {statusLabel && (
-            <>
-              <div className="flex items-center gap-2 border-y border-l border-white/10 bg-white/[0.04] pl-4 pr-3">
-                <RunwayGauge tier={tier} filled={filled} />
-                <span className={`text-[11px] font-medium tabular-nums ${TIER_STYLE[tier].text}`}>
-                  {statusLabel}
-                </span>
-              </div>
-              {/* Tear line: a dashed seam with two punched notches, so the
-                  two stubs read as one perforated ticket, not two chips
-                  glued together. */}
-              <div className="relative w-px shrink-0 self-stretch">
-                <span className="absolute inset-y-0 left-0 border-l border-dashed border-white/25" />
-                <span className="absolute -top-[5px] left-1/2 h-[9px] w-[9px] -translate-x-1/2 rounded-full bg-[#1e1b4b]" />
-                <span className="absolute -bottom-[5px] left-1/2 h-[9px] w-[9px] -translate-x-1/2 rounded-full bg-[#1e1b4b]" />
-              </div>
-            </>
-          )}
-          <motion.button
-            type="button"
-            onClick={() => setOpen(true)}
-            animate={
-              urgent
-                ? {
-                    boxShadow: [
-                      `0 0 0 0 rgba(${TIER_STYLE.urgent.ring},0.55)`,
-                      `0 0 0 6px rgba(${TIER_STYLE.urgent.ring},0)`,
-                    ],
-                  }
-                : { boxShadow: "0 0 0 0 rgba(0,0,0,0)" }
-            }
-            transition={urgent ? { duration: 1.8, repeat: Infinity, ease: "easeOut" } : undefined}
-            className={`flex items-center gap-1.5 border-y border-r ${statusLabel ? "" : "border-l"} border-white/10 bg-gradient-to-r from-[#4f46e5] to-[#7c3aed] pl-3 pr-4 text-[11px] font-semibold text-white`}
-          >
-            <CalendarClock className="h-3 w-3" /> {ctaLabel}
-          </motion.button>
-        </div>
+    <div
+      className={className ?? "mr-1 hidden h-9 shrink-0 items-stretch sm:flex"}
+      title={expiryLabel ? `Plan renewal: ${expiryLabel}` : undefined}
+    >
+      <div className="flex items-stretch overflow-hidden rounded-full border border-white/10 bg-white/[0.04] pl-3 pr-3">
+        <RunwayGauge tier={tier} filled={filled} />
+        <span className={`ml-2 text-[11px] font-medium tabular-nums ${TIER_STYLE[tier].text}`}>
+          {statusLabel}
+        </span>
       </div>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{tier === "calm" ? "Book a Demo" : "Talk to Us"}</DialogTitle>
-            <DialogDescription>
-              {tier === "calm"
-                ? "Tell us a bit about your business and our team will reach out to schedule a walkthrough."
-                : "Tell us a bit about your business and our team will reach out about your plan and renewal options."}
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={submit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="hdr-demo-name">Full name</Label>
-              <Input
-                id="hdr-demo-name"
-                placeholder="Jane Doe"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="hdr-demo-email">Work email</Label>
-              <Input
-                id="hdr-demo-email"
-                type="email"
-                placeholder="jane@company.com"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="hdr-demo-company">Company</Label>
-              <Input
-                id="hdr-demo-company"
-                placeholder="Acme Hotels"
-                value={form.company}
-                onChange={(e) => setForm({ ...form, company: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="hdr-demo-message">What are you looking for? (optional)</Label>
-              <textarea
-                id="hdr-demo-message"
-                placeholder="Tell us about your locations, network size, or specific needs…"
-                value={form.message}
-                onChange={(e) => setForm({ ...form, message: e.target.value })}
-                rows={3}
-                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/10"
-              />
-            </div>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setOpen(false)}
-                disabled={submitting}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={submitting}>
-                {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                {submitting ? "Submitting…" : "Request Demo"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </>
+    </div>
   );
 }
