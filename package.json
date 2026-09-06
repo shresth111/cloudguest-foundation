@@ -4,6 +4,7 @@
   "sideEffects": false,
   "type": "module",
   "scripts": {
+    "predev": "node scripts/check-node-version.mjs",
     "dev": "vite dev",
     "build": "vite build",
     "build:dev": "vite build --mode development",
@@ -48,7 +49,8 @@
     "test:block-users-e164": "node scripts/test-block-users-e164.mjs",
     "test:whitelist-only": "node scripts/test-whitelist-only-guardrails.mjs",
     "test:whitelist-refusal": "node scripts/test-portal-whitelist-refusal.mjs",
-    "test:portal-error-boundary": "node scripts/test-portal-error-boundary.mjs"
+    "test:portal-error-boundary": "node scripts/test-portal-error-boundary.mjs",
+    "check:node": "node scripts/check-node-version.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -130,5 +132,8 @@
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",
     "vite": "^8.0.16"
+  },
+  "engines": {
+    "node": "22.x"
   }
 }
