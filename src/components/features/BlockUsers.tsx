@@ -65,6 +65,14 @@ interface BlockedUser {
   name: string | null;
   identifier: string;
   businessUnit: string;
+  // The rule's own location, kept so the list can be scoped to the
+  // location this page is actually showing -- listAccessRules takes an
+  // org id and no location filter, so the fetch returns every blocklist
+  // rule in the account. A rule with no location is organization-wide and
+  // applies here too.
+  // Optional: the demo seed and the demo-mode optimistic rows have no
+  // real location id, and the demo branch of the filter matches by name.
+  locationId?: string | null;
   blockedOn: string;
   status: "Blocked" | "Unblocked";
 }
@@ -112,12 +120,17 @@ function Tooltip({ text }: { text: string }) {
 
 type SortKey = "name" | "identifier" | "businessUnit" | "blockedOn";
 
-function toBlockedUser(r: AnyAccessRule): BlockedUser {
+// `locationName` resolves the rule's location_id against the caller's own
+// locations list -- the rule carries an id, not a name. The Location
+// column used to be hardcoded to "" and was therefore blank on every real
+// row, in every case except the demo seed.
+function toBlockedUser(r: AnyAccessRule, locationName = ""): BlockedUser {
   return {
     id: r.id,
     name: r.reason ?? null,
     identifier: r.kind === "device" ? r.macAddress : r.identifier,
-    businessUnit: "",
+    businessUnit: locationName,
+    locationId: r.locationId ?? null,
     blockedOn: r.createdAt,
     status: r.isActive ? "Blocked" : "Unblocked",
   };
@@ -196,6 +209,11 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
   // units/realUnits.
   const { data: locations } = useCustomerLocations();
   const units = demo ? UNITS : (locations ?? []).map((l) => l.name);
+  // An access rule carries a location_id, not a name -- resolve it the
+  // same way WhiteList.tsx's withBusinessUnit does, so the Location column
+  // shows something.
+  const nameForLocation = (id: string | null | undefined) =>
+    locations?.find((l) => l.id === id)?.name ?? "";
   // Fixed dates, not Date.now()-relative -- see WhiteList.tsx's SEED
   // comment for why a relative computation here hydration-mismatches.
   const [blocked, setBlocked] = useState<BlockedUser[]>(
@@ -263,7 +281,11 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
         const org = await resolveOrgId();
         setOrgId(org);
         const rules = await guestService.listAccessRules(org);
-        setBlocked(rules.filter((r) => r.ruleType === "blocklist").map(toBlockedUser));
+        setBlocked(
+          rules
+            .filter((r) => r.ruleType === "blocklist")
+            .map((r) => toBlockedUser(r, nameForLocation(r.locationId))),
+        );
       } catch {
         // Leave blocked empty -- the "no blocked numbers" state is accurate.
       }
@@ -462,15 +484,19 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
   // ── filtered & sorted ─────────────────────────────────────────
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    // Real entries don't carry a per-row businessUnit (toBlockedUser always
-    // sets ""; this page is already scoped to one location via its own
-    // locationId prop) -- only demo's multi-location seed data has a
-    // meaningful businessUnit to filter by. Applying the demo-only
-    // `b.businessUnit === bu` match in real mode would always evaluate to
-    // `"" === "<some location name>"`, i.e. false, hiding every real row.
+    // Scoped to the location this page is showing. The old comment here
+    // claimed "this page is already scoped to one location via its own
+    // locationId prop" -- it is not: listAccessRules takes an org id and
+    // no location filter, so a multi-site customer was shown every other
+    // site's blocks as if they were this site's. Demo still matches by
+    // name (its seed has no ids); real rows match by location id, and a
+    // rule with no location at all is organization-wide, so it belongs in
+    // every location's list.
     const items = blocked.filter(
       (b) =>
-        (!demo || b.businessUnit === bu) &&
+        (demo
+          ? b.businessUnit === bu
+          : !locationId || b.locationId === null || b.locationId === locationId) &&
         (!q ||
           b.name?.toLowerCase().includes(q) ||
           b.identifier.toLowerCase().includes(q) ||
@@ -487,7 +513,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
       return sortDir === "asc" ? cmp : -cmp;
     });
     return items;
-  }, [blocked, bu, demo, search, sortKey, sortDir]);
+  }, [blocked, bu, demo, locationId, search, sortKey, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages - 1);
@@ -533,7 +559,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
           }),
         ),
       );
-      const newBlocked = created.map(toBlockedUser);
+      const newBlocked = created.map((r) => toBlockedUser(r, nameForLocation(r.locationId)));
       setBlocked((prev) => [...newBlocked, ...prev]);
       setTextarea("");
       setPage(0);
@@ -610,7 +636,11 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
           identifier: row.identifier,
           ruleType: "blocklist",
         });
-        setBlocked((prev) => prev.map((b) => (b.id === id ? toBlockedUser(created) : b)));
+        setBlocked((prev) =>
+          prev.map((b) =>
+            b.id === id ? toBlockedUser(created, nameForLocation(created.locationId)) : b,
+          ),
+        );
       }
     } catch {
       setToast("Could not update on the server.");
