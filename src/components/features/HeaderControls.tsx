@@ -309,7 +309,17 @@ export function PlanRenewalTicket({
       className={className ?? "mr-1 hidden h-9 shrink-0 items-stretch sm:flex"}
       title={expiryLabel ? `Plan renewal: ${expiryLabel}` : undefined}
     >
-      <div className="flex items-stretch overflow-hidden rounded-full border border-white/10 bg-white/[0.04] pl-3 pr-3">
+      {/* items-center, not items-stretch: this row lays the gauge out beside
+        the label, so both must centre on the pill's vertical axis. The outer
+        wrapper above keeps items-stretch -- that is what makes this pill fill
+        the h-9 (36px) header row. When the two-stub boarding pass was
+        flattened into a single pill, the inner stub that carried
+        `items-center` went with it and this row inherited the outer
+        `items-stretch`, which stretched both children to the full 36px: the
+        gauge is `items-end`, so its bars sank to the pill's bottom edge, while
+        the label's line box stayed at the top -- leaving the date sitting
+        ~22px above its own gauge inside a 36px pill. */}
+      <div className="flex items-center overflow-hidden rounded-full border border-white/10 bg-white/[0.04] pl-3 pr-3">
         <RunwayGauge tier={tier} filled={filled} />
         <span className={`ml-2 text-[11px] font-medium tabular-nums ${TIER_STYLE[tier].text}`}>
           {statusLabel}
