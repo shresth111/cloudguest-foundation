@@ -33,8 +33,14 @@ import type { AnyAccessRule } from "@/types/guest";
 
 // ── helpers ─────────────────────────────────────────────────────
 const pad2 = (n: number) => String(n).padStart(2, "0");
+// A rule with no expiry reads back as `endDate: ""` (see toEntry), and
+// `new Date("")` is Invalid Date -- which this used to render, verbatim, as
+// "NaN-NaN-NaN NaN:NaN" in the Access window column. Say "No end date"
+// instead: that is what an empty `expires_at` actually means.
 const fmtDT = (iso: string) => {
+  if (!iso) return "No end date";
   const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
   return `${pad2(d.getDate())}-${pad2(d.getMonth() + 1)}-${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 };
 // <input type="datetime-local">'s value ("2026-08-01T06:49") carries no UTC
@@ -60,6 +66,27 @@ const COUNTRIES = [
   { code: "+971", label: "🇦🇪 +971" },
 ];
 const UNITS = ["Mumbai HQ", "Delhi Office", "Bangalore DC", "Chennai Office"]; // Matches this demo account's real location roster (see customer.service.ts DEMO_LOCATIONS) instead of unrelated placeholder hospitality names that clashed with the rest of the demo persona.
+
+// A guest's login identifier is E.164 with the dialling code attached --
+// the real captive portal submits `dialCode + nationalPhone`
+// (useGuestSignIn.ts's `identifierForChannel`), and Blocked Guests stores
+// the same shape ("+" + digits, see BlockUsers.tsx's parsed/chipNumbers).
+// This screen had the country picker on the form and then threw it away:
+// `identifier` was the bare 10 digits, so a whitelist rule keyed
+// "9876543210" could never match the guest who signs in as
+// "+919876543210" -- the entry saved, listed, and did nothing. Join them
+// here, and split them back apart for the edit form below.
+const toE164 = (dialCode: string, national: string) => `${dialCode}${national}`;
+const splitE164 = (identifier: string): { cc: string; national: string } => {
+  // Longest dialling code first, so "+91" never shadows a longer code that
+  // happens to start with the same digits.
+  const match = [...COUNTRIES]
+    .sort((a, b) => b.code.length - a.code.length)
+    .find((c) => identifier.startsWith(c.code));
+  if (match) return { cc: match.code, national: identifier.slice(match.code.length) };
+  // Legacy rows written before this fix carry bare national digits.
+  return { cc: "+91", national: identifier.replace(/^\+/, "") };
+};
 
 type Tab = "number" | "device";
 interface Entry {
@@ -360,14 +387,21 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
       if (!f.mobile || f.mobile.length !== 10 || !/^\d{10}$/.test(f.mobile))
         e.mobile = "Mobile must be exactly 10 digits.";
     } else {
-      if (!f.mac || !MAC_RE.test(f.mac)) e.mac = "MAC must match AA:BB:CC:DD:EE:FF";
+      if (!f.mac || !MAC_RE.test(f.mac))
+        e.mac = "That doesn't look like a device address. Example: AA:BB:CC:DD:EE:FF";
     }
     if (!f.name) e.name = "Name is required.";
     if (!f.email || !EMAIL_RE.test(f.email)) e.email = "Enter a valid email address.";
-    if (!f.startDate) e.startDate = "Start date is required.";
+    // No start-date validation any more: there is no start field on an
+    // access rule (CreateAccessRulePayload carries only `expires_at`, and
+    // the list read maps `startDate` from the rule's own createdAt), so a
+    // start date could never be saved. It was required, sent nowhere, and
+    // silently replaced on reload by whenever the row happened to be
+    // created. The control is now read-only -- see the Access Window
+    // section below.
     if (!f.endDate) e.endDate = "End date is required.";
-    if (f.startDate && f.endDate && new Date(f.endDate) <= new Date(f.startDate))
-      e.endDate = "End date must be after the start date.";
+    if (f.endDate && new Date(f.endDate).getTime() <= Date.now())
+      e.endDate = "End date must be in the future.";
     return e;
   };
 
@@ -387,7 +421,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
     setErrs(v);
     if (Object.keys(v).length) return;
 
-    const identifier = tab === "number" ? f.mobile : f.mac.toUpperCase();
+    const identifier = tab === "number" ? toE164(f.mobileCC, f.mobile) : f.mac.toUpperCase();
     const resetForm = () =>
       setF({
         mobileCC: "+91",
@@ -499,9 +533,10 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
     setTab(entry.tab);
     setErrs({});
     setEditingId(entry.id);
+    const phone = entry.tab === "number" ? splitE164(entry.identifier) : null;
     setF({
-      mobileCC: "+91",
-      mobile: entry.tab === "number" ? entry.identifier : "",
+      mobileCC: phone?.cc ?? "+91",
+      mobile: phone?.national ?? "",
       mac: entry.tab === "device" ? entry.identifier : "",
       name: entry.name === "—" ? "" : entry.name,
       email: entry.email,
@@ -726,8 +761,12 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
                 </div>
               ) : (
                 <div className="space-y-1.5">
+                  {/* "Always Allowed" in the header, "MAC Address" on the
+                    control -- the rename stopped at the title. The term
+                    still belongs in the hint, because that is the exact
+                    phrase the owner reads off the device's WiFi settings. */}
                   <Label>
-                    MAC Address <span className="text-destructive">*</span>
+                    Device address <span className="text-destructive">*</span>
                   </Label>
                   <Input
                     type="text"
@@ -806,19 +845,21 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
               <h3 className="text-sm font-semibold text-foreground">Access Window</h3>
             </div>
             <p className="mb-4 text-xs text-muted-foreground">
-              When this bypass starts and automatically ends.
+              When this guest stops needing to sign in, and when that ends.
             </p>
             <div className="grid gap-4 md:grid-cols-2">
+              {/* Read-only, deliberately. An access rule has no start field
+                on the backend at all -- only `expires_at` -- so a start
+                date typed here was never sent, and reloading the page
+                replaced it with the row's creation time. Rather than leave
+                a required-looking control that quietly discards what you
+                type, say what actually happens. */}
               <div className="space-y-1.5">
-                <Label>
-                  Start Date <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  type="datetime-local"
-                  value={f.startDate}
-                  onChange={(e) => setField("startDate", e.target.value)}
-                />
-                <Err k="startDate" />
+                <Label className="text-muted-foreground">Starts</Label>
+                <Input value="As soon as you save" disabled readOnly />
+                <p className="text-xs text-muted-foreground">
+                  Scheduling a later start isn&rsquo;t supported yet.
+                </p>
               </div>
 
               <div className="space-y-1.5">
@@ -860,8 +901,12 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
               <CardTitle className="text-sm">
                 Always Allowed {tab === "number" ? "Guests" : "Devices"}
               </CardTitle>
+              {/* Not "for this location": listAccessRules takes an org id
+                and no location filter, so this table is every allow rule
+                in the account. Saying "this location" made a rule saved
+                against another site look like it applied here. */}
               <p className="text-xs text-muted-foreground">
-                Everything currently allow-listed for this location.
+                Everything currently allowed across your account.
               </p>
             </div>
           </div>

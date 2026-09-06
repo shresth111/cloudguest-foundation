@@ -45,6 +45,60 @@ import {
 // 3, which would silently contradict what "Unlimited" promises).
 const UNLIMITED_DEVICES_SENTINEL = 9999;
 
+// Session Timeout is a SESSION policy, not a bandwidth one.
+//
+// This form used to write `session_timeout_minutes` into the BANDWIDTH
+// policy's rules JSON. The backend accepts that happily -- BandwidthPolicyRules
+// declares the field -- but nothing on the guest side ever reads it: the
+// login paths call `resolve_effective_policy(policy_type=SESSION, ...)`
+// (guest/service.py's `_resolve_session_timeout_minutes`), and
+// `list_candidate_assignments` filters candidates by policy_type, so a
+// bandwidth policy is never even a candidate for a SESSION resolve. The
+// picker saved, read back correctly on reload, and every guest still got
+// the platform default of 240 minutes -- which is the "session timeout is
+// stuck on 4 hours and can't be changed" report, from the customer's side
+// of the glass.
+//
+// PolicyType.SESSION, its typed rules schema and LOCATION-scoped
+// assignments were all already built; this form simply never wrote one.
+// So: upsert a real SESSION policy alongside the bandwidth and device
+// ones, exactly the way the DEVICE policy above it is already handled.
+//
+// SessionPolicyRules is `extra="forbid"` with all four fields *required*
+// (policy/schemas.py), so a write cannot patch the timeout alone -- the
+// other three have to go up on every save. There is no UI for them yet;
+// when there is, it belongs here.
+//
+// These deliberately mirror the constants the backend *actually enforces*
+// today (app/domains/guest/constants.py), NOT
+// PLATFORM_DEFAULT_RULES[SESSION] in policy/constants.py. Those two
+// disagree on the concurrent-session cap: the policy mirror still says 3,
+// while the enforced constant is
+// DEFAULT_MAX_CONCURRENT_SESSIONS_PER_GUEST = 20 -- deliberately raised
+// from 3 after a launch incident, and the mirror was never updated.
+// `_enforce_concurrent_session_limit` reads the constant, not the policy,
+// so writing 3 here is inert *today* -- but that lookup is being wired to
+// the policy right now, and the moment it lands, every location this form
+// has saved would silently drop from 20 back to 3 and reproduce that
+// incident. Mirroring the enforced values means a save changes the
+// session length and nothing else, before or after that change lands.
+const SESSION_POLICY_DEFAULTS = {
+  max_concurrent_sessions_per_guest: 20,
+  termination_reconnect_cooldown_minutes: 60,
+  reconnect_grace_minutes: 30,
+} as const;
+
+// Rules the backend stores but no code path reads. Each is declared on
+// BandwidthPolicyRules, round-trips through save/reload perfectly, and is
+// enforced by nothing -- confirmed against the backend: the only consumer
+// of a BANDWIDTH resolve is queue_management, and it reads exactly
+// download_rate_kbps and upload_rate_kbps. Rather than leave three
+// controls that look like they work, they are disabled with the reason.
+// (Bandwidth and Devices Per User are real: bandwidth drives the router
+// queue, and Devices Per User is enforced through the paired DEVICE
+// policy's max_devices_per_guest.)
+const NOT_ENFORCED_NOTE = "Not enforced yet — saving this has no effect on guests.";
+
 const BANDWIDTH_KBPS: Record<string, number> = {
   "10 Mbps": 10240,
   "20 Mbps": 20480,
@@ -221,6 +275,7 @@ function Select({
   tooltip,
   caption,
   err,
+  disabled,
 }: {
   id: string;
   label: string;
@@ -232,22 +287,24 @@ function Select({
   tooltip?: string;
   caption?: string;
   err?: string;
+  disabled?: boolean;
 }) {
   return (
     <div>
       <label
         htmlFor={id}
-        className="mb-1 flex items-center gap-1 text-sm font-medium text-slate-600 dark:text-slate-300"
+        className={`mb-1 flex items-center gap-1 text-sm font-medium ${disabled ? "text-slate-400 dark:text-slate-500" : "text-slate-600 dark:text-slate-300"}`}
       >
         {label}
-        {required && <span className="text-indigo-500">*</span>}
+        {required && !disabled && <span className="text-indigo-500">*</span>}
         {tooltip && <Tooltip id={id} text={tooltip} />}
       </label>
       <select
         id={id}
         value={value}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+        className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
       >
         {placeholder && (
           <option value="" disabled>
@@ -301,6 +358,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   const [policies, setPolicies] = useState<Policy[]>(demo ? SEED : []);
   const [realIds, setRealIds] = useState<Record<string, string>>({}); // businessUnit(=policy name) -> real bandwidth-policy id
   const [deviceRealIds, setDeviceRealIds] = useState<Record<string, string>>({}); // businessUnit -> real DEVICE-policy id
+  const [sessionRealIds, setSessionRealIds] = useState<Record<string, string>>({}); // businessUnit -> real SESSION-policy id
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState<number>(10);
@@ -315,9 +373,10 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
       try {
         const org = await resolveOrgId();
         setOrgId(org);
-        const [realAll, deviceDetailsAll] = await Promise.all([
+        const [realAll, deviceDetailsAll, sessionDetailsAll] = await Promise.all([
           bandwidthPolicyService.list(org),
           listPolicyDetails("device", org).catch(() => []),
+          listPolicyDetails("session", org).catch(() => []),
         ]);
         // Deactivated (deleted) policies are excluded from both id maps --
         // bandwidthPolicyService.list()/listPolicyDetails() return every
@@ -345,6 +404,14 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
             latestVersion(d)?.rules?.max_devices_per_guest as number | undefined,
           ]),
         );
+        // SESSION policies are name-keyed the same way -- see handleSave.
+        const sessionDetails = sessionDetailsAll.filter((d) => d.is_active);
+        const sessionByName = new Map(
+          sessionDetails.map((d) => [
+            d.name,
+            latestVersion(d)?.rules?.session_timeout_minutes as number | undefined,
+          ]),
+        );
         setPolicies(
           real.map((p) => {
             const maxDevices = deviceByName.get(p.name);
@@ -358,8 +425,13 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
               id: p.id,
               businessUnit: p.name,
               bandwidth: kbpsToLabel(p.downloadRateKbps),
+              // Prefer the real SESSION policy -- that is the one the guest
+              // login path resolves. A location saved before this fix has
+              // only the (unread) bandwidth copy, so fall back to it so
+              // the row and the Edit form still show what was chosen; the
+              // next save writes a real SESSION policy for it.
               sessionTimeout: labelFromMinutes(
-                p.sessionTimeoutMinutes,
+                sessionByName.get(p.name) ?? p.sessionTimeoutMinutes,
                 SESSION_TIMEOUT_MINUTES,
                 "",
               ),
@@ -372,6 +444,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         );
         setRealIds(Object.fromEntries(real.map((p) => [p.name, p.id])));
         setDeviceRealIds(Object.fromEntries(deviceDetails.map((d) => [d.name, d.id])));
+        setSessionRealIds(Object.fromEntries(sessionDetails.map((d) => [d.name, d.id])));
       } catch {
         // Leave policies empty -- the "no policies yet" state is accurate.
       }
@@ -433,21 +506,12 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
     if (!f.businessUnit) e.businessUnit = "Required.";
     if (!f.bandwidth) e.bandwidth = "Required.";
     if (!f.sessionTimeout) e.sessionTimeout = "Required.";
-    if (!f.idleTimeout) e.idleTimeout = "Required.";
     if (!f.devicesPerUser) e.devicesPerUser = "Required.";
-
-    if (f.sessionTimeout && f.idleTimeout) {
-      const toMin = (v: string) => {
-        const n = parseInt(v);
-        return v.includes("hr") ? n * 60 : v.includes("min") ? n : Infinity;
-      };
-      if (toMin(f.idleTimeout) > toMin(f.sessionTimeout))
-        e.idleTimeout = "Idle timeout can't be longer than the session timeout.";
-    }
-
-    if (dataLimitOpen && (!dlQuota || parseFloat(dlQuota) <= 0)) {
-      if (!errs.idleTimeout) e.dataLimit = "Quota must be greater than 0.";
-    }
+    // Idle Timeout is no longer required, and the "idle can't exceed
+    // session" cross-check is gone with it: the control is disabled
+    // because nothing enforces the value (see NOT_ENFORCED_NOTE), and a
+    // required field that cannot be filled would block every save. The
+    // data-limit quota check goes for the same reason.
     setErrs(e);
     return !Object.keys(e).length;
   };
@@ -555,6 +619,46 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         setDeviceRealIds((prev) => ({ ...prev, [f.businessUnit]: createdDevice.id }));
       }
 
+      // Session Timeout -- the real one. See SESSION_POLICY_DEFAULTS above
+      // for why this is a separate policy rather than a field on the
+      // bandwidth one. Same name-keyed upsert + location assignment shape
+      // as the DEVICE policy directly above.
+      const sessionMinutes = SESSION_TIMEOUT_MINUTES[f.sessionTimeout];
+      if (sessionMinutes) {
+        const existingSessionId = sessionRealIds[f.businessUnit];
+        const sessionRules = {
+          session_timeout_minutes: sessionMinutes,
+          ...SESSION_POLICY_DEFAULTS,
+        };
+        if (existingSessionId) {
+          await updatePolicyRules({
+            id: existingSessionId,
+            rules: sessionRules,
+            publish: true,
+            archive: false,
+            organizationId: orgId ?? undefined,
+          });
+        } else {
+          const createdSession = await createPolicyWithRules({
+            policyType: "session",
+            name: f.businessUnit,
+            description: null,
+            rules: sessionRules,
+            publish: true,
+            organizationId: orgId ?? undefined,
+          });
+          if (locationId) {
+            await createPolicyAssignment({
+              policyId: createdSession.id,
+              scopeType: "location",
+              scopeId: locationId,
+              organizationId: orgId ?? undefined,
+            });
+          }
+          setSessionRealIds((prev) => ({ ...prev, [f.businessUnit]: createdSession.id }));
+        }
+      }
+
       const row: Policy = { id: saved.id, ...f, dataLimit };
       setPolicies((prev) => {
         // Matched by id OR businessUnit name -- a save can return a
@@ -629,6 +733,11 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
           delete n[businessUnit];
           return n;
         });
+        setSessionRealIds((prevIds) => {
+          const n = { ...prevIds };
+          delete n[businessUnit];
+          return n;
+        });
       }
       if (!demo) {
         bandwidthPolicyService.remove(id, orgId ?? undefined).catch(() => {
@@ -642,6 +751,15 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         const deviceId = businessUnit ? deviceRealIds[businessUnit] : undefined;
         if (deviceId) {
           deactivatePolicy(deviceId, orgId ?? undefined).catch(() => {});
+        }
+        // Same for the SESSION policy -- otherwise a deleted location's
+        // session length stays in force, and the next save for that same
+        // name republishes onto a policy `resolve_effective_policy` can no
+        // longer see (the exact trap the bandwidth/device ids already
+        // document above).
+        const sessionId = businessUnit ? sessionRealIds[businessUnit] : undefined;
+        if (sessionId) {
+          deactivatePolicy(sessionId, orgId ?? undefined).catch(() => {});
         }
       }
       setConfirming(null);
@@ -760,21 +878,23 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                 Nested inside this section (instead of floating below it
                 looking unrelated) so it reads as belonging with
                 Bandwidth/Devices Per User. */}
-              <button
-                type="button"
-                onClick={() => setDataLimitOpen((p) => !p)}
-                aria-expanded={dataLimitOpen}
-                aria-controls="data-limit-panel"
-                className="mt-4 flex w-full items-center justify-between rounded-md border border-dashed border-slate-300 px-3 py-2.5 text-left transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:hover:bg-slate-700"
+              {/* Disabled, not hidden. The fields underneath save and read
+                back perfectly; the value is simply never enforced (the
+                backend's real quota enforcement reads an FUP policy's own
+                data-limit fields, not this one). Leaving it clickable
+                meant an owner could set "1 GB / Daily", see it persist,
+                and watch guests use as much as they liked. */}
+              <div
+                className="mt-4 flex w-full items-center justify-between rounded-md border border-dashed border-slate-300 px-3 py-2.5 dark:border-slate-600"
+                aria-disabled="true"
               >
-                <span className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
-                  <Plus className="h-4 w-4 text-indigo-500" /> Add a data limit{" "}
-                  <span className="text-xs font-normal text-slate-400">(Optional)</span>
+                <span className="flex items-center gap-2 text-sm font-medium text-slate-400 dark:text-slate-500">
+                  <Plus className="h-4 w-4 text-slate-300 dark:text-slate-600" /> Add a data limit
                 </span>
-                <ChevronDown
-                  className={`h-4 w-4 text-slate-400 transition-transform ${dataLimitOpen ? "rotate-180" : ""}`}
-                />
-              </button>
+                <span className="text-xs text-slate-400 dark:text-slate-500">
+                  {NOT_ENFORCED_NOTE}
+                </span>
+              </div>
 
               {dataLimitOpen && (
                 <div id="data-limit-panel" className="mt-4 grid gap-4 sm:grid-cols-3">
@@ -873,13 +993,12 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                 <Select
                   id="it"
                   label="Idle Timeout"
-                  required
                   value={f.idleTimeout}
                   onChange={(v) => setField("idleTimeout", v)}
                   options={IDLE_TIMEOUT}
                   placeholder="Choose idle timeout"
-                  caption="Disconnect after this much inactivity."
-                  err={errs.idleTimeout}
+                  caption={NOT_ENFORCED_NOTE}
+                  disabled
                 />
                 <Select
                   id="dl"
@@ -888,7 +1007,8 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                   onChange={(v) => setField("dailyLimit", v)}
                   options={DAILY_LIMIT}
                   placeholder="Choose daily limit"
-                  caption="Total connected time allowed per day."
+                  caption={NOT_ENFORCED_NOTE}
+                  disabled
                 />
               </div>
             </div>
