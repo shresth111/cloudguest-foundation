@@ -157,6 +157,24 @@ const portalSearchShape = {
   // must POST to it once login succeeds here, not just create a session in
   // this platform's own database.
   "link-login-only": z.string().optional(),
+  // Which of RouterOS's own five stock hotspot pages redirected this
+  // browser here -- and therefore whether the NAS gate is already open for
+  // this client, which is the one thing no user-agent test can determine.
+  // Not a RouterOS substitution: each override page is generated
+  // separately (`PORTAL_OVERRIDE_FILES` in RouterDetailTabs.tsx), so the
+  // generator stamps its own basename. Free text, validated against a
+  // closed set by `parseNasPage`, never trusted as-is. Absent for every
+  // router provisioned before this existed, which is why
+  // `nasAuthorizedFromPage` is three-valued -- see
+  // src/lib/portal-nas-state.ts for the whole "only showing success"
+  // incident this closes.
+  //
+  // Being IN this schema is what makes it survive the client-side hops
+  // between the NAS's document load and /portal/success. That is the
+  // entire subject of this file's docstring; a param read off
+  // `window.location` but missing here would be dropped at the first
+  // `<Link>`, exactly as `mac` was.
+  hspage: z.string().optional(),
 } as const;
 
 export const portalSearchSchema = z.object(portalSearchShape);

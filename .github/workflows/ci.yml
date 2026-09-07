@@ -10,13 +10,20 @@ name: CI
 # regression:
 #   tsc --noEmit ........ 0 errors across 751 files
 #   eslint . ............ 0 errors, 56 warnings
-#   test:portal-cna ..... 7 checks
+#   test:portal-cna ..... 21 checks (was 7; the NAS hand-off cases --
+#                         hspage / captive.apple.com -- landed 2026-09-07)
+#   test:portal-auth-methods  18 checks (new 2026-09-07: password sign-in
+#                         retired from the portal)
 #   test:signin-fields .. 23 checks
 #   test:fw-order ....... 7 checks
 #   test:output-analyser  116 checks
 #   test:a11y ........... sentinel only
 #   test:manual-wizard .. 113 checks
-#   test:setup-script ... 3279 checks, all green (was 3081; sections 15.1b
+#   test:setup-script ... 3404 checks (was 3279; section 13.4b -- each
+#                         hotspot page stamping its own `hspage` -- landed
+#                         2026-09-07 with 11 deliberately RED, and the
+#                         generator fix in the same PR turned them green,
+#                         floor 3265 -> 3390; was 3279, all green (was 3081; sections 15.1b
 #                         and 16 -- the /import `:put` hedge and the typed
 #                         acknowledgement on a partial provision -- landed
 #                         2026-09-02, floor 3070 -> 3265; was 2000; section 15 --
@@ -202,8 +209,25 @@ jobs:
       - name: portal CNA storage safety
         run: |
           ./scripts/ci-gated-test.sh \
-            "portal-cna-storage-safety" 7 "all checks passed" \
+            "portal-cna-storage-safety" 21 "all checks passed" \
             bun run test:portal-cna
+
+      # Which sign-in methods a guest is actually offered. Password sign-in
+      # is retired from the portal by ONE constant
+      # (`PASSWORD_SIGN_IN_OFFERED` in src/lib/portal-auth-methods.ts), and
+      # `username_password_enabled` is still `true` in the stored config of
+      # every location provisioned before that -- so that boolean is the
+      # only thing between a live venue's config and a password form. A
+      # constant is invisible to tsc and eslint, and the "simplification"
+      # that restores it (reading the config directly again in `isEnabled`)
+      # looks like a cleanup. This drives the real module and also pins the
+      # half that is easy to forget: the set-password prompts go with it,
+      # and OTP/vouchers do not.
+      - name: portal sign-in methods
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "portal-auth-methods" 18 "all checks passed" \
+            bun run test:portal-auth-methods
 
       - name: portal sign-in fields
         run: |
@@ -675,13 +699,14 @@ jobs:
       # grading is now a pure exported function this suite CALLS. All 25
       # caught on the second pass.
       #
-      # FLOOR: 3265, against 3279 observed green. Tight on purpose --
+      # FLOOR: 3390, against 3404 observed green. Tight on purpose --
       # deleting one assertion block fails the build -- with just enough
-      # slack that correcting a single vacuous check does not.
+      # slack that correcting a single vacuous check does not. (Was
+      # 3265/3279 before section 13.4b's sixteen `hspage` checks.)
       - name: setup script generator
         run: |
           ./scripts/ci-gated-test.sh \
-            "setup-script-generator" 3265 \
+            "setup-script-generator" 3390 \
             "setup-script-generator: all checks passed" \
             bun run test:setup-script
 
