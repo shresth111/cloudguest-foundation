@@ -976,32 +976,61 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
           {loading ? (
             <LoadingSkeleton rows={4} />
           ) : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7">
-              {BH_DAYS.map(({ key, label }) => {
-                const d = dayState(key);
-                return (
-                  <div
-                    key={key}
-                    className={cn(
-                      "flex flex-col gap-2.5 rounded-2xl p-3.5 shadow-sm transition-colors",
-                      d.open ? "bg-card" : "bg-muted/40",
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={cn(
-                            "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[11px] font-semibold uppercase",
-                            d.open
-                              ? "bg-gradient-to-br from-[#4f46e5] to-[#a78bfa] text-white"
-                              : "bg-muted text-muted-foreground",
-                          )}
-                        >
-                          {label.slice(0, 2)}
-                        </span>
-                        <span className="text-sm font-medium">{label}</span>
-                      </div>
-                      {/* Switching a day on seeds the times too. The two
+            /* Container queries, not `sm:`/`md:`/`xl:`. The viewport
+             * breakpoints this used to carry described a width this grid
+             * has never actually had: the customer shell subtracts a
+             * 16rem sidebar (3rem when collapsed) and up to 4rem of
+             * `main` padding before this card sees any space, and caps
+             * the result at `max-w-7xl`. So at a 1280px viewport -- an
+             * ordinary dashboard window -- `xl:grid-cols-7` fired on the
+             * viewport crossing 1280 while the grid itself was only
+             * ~960px wide, giving seven ~127px columns. A day card cannot
+             * be built in 127px: the badge, the day name and the switch
+             * alone overflow it, and the two time inputs underneath are
+             * squeezed until the browser drops the AM/PM segment of its
+             * own native control. Both reported bugs, one cause.
+             *
+             * `@container` measures the element that actually holds the
+             * cards, so the sidebar being open or collapsed changes the
+             * column count instead of silently changing the column width.
+             * The thresholds are chosen so a column never falls below
+             * ~17rem, which is what one card needs for two `type="time"`
+             * controls showing "hh:mm AM" side by side. */
+            <div className="@container">
+              <div className="grid grid-cols-1 gap-3 @[34rem]:grid-cols-2 @[52rem]:grid-cols-3 @[70rem]:grid-cols-4">
+                {BH_DAYS.map(({ key, label }) => {
+                  const d = dayState(key);
+                  return (
+                    <div
+                      key={key}
+                      className={cn(
+                        "flex flex-col gap-2.5 rounded-2xl p-3.5 shadow-sm transition-colors",
+                        d.open ? "bg-card" : "bg-muted/40",
+                      )}
+                    >
+                      {/* `min-w-0` on both the row and the label group, and
+                      `truncate` on the day name. A flex child defaults to
+                      `min-width: auto`, so an untruncatable "Wednesday"
+                      set a hard floor on this row's width -- the row
+                      could not shrink to its column, and what got pushed
+                      out past the card's rounded edge was the switch on
+                      the end. The switch is the thing you saw escape; the
+                      text is the thing that refused to give way. */}
+                      <div className="flex min-w-0 items-center justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span
+                            className={cn(
+                              "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[11px] font-semibold uppercase",
+                              d.open
+                                ? "bg-gradient-to-br from-[#4f46e5] to-[#a78bfa] text-white"
+                                : "bg-muted text-muted-foreground",
+                            )}
+                          >
+                            {label.slice(0, 2)}
+                          </span>
+                          <span className="truncate text-sm font-medium">{label}</span>
+                        </div>
+                        {/* Switching a day on seeds the times too. The two
                         inputs below render `d.start ?? "09:00"` -- a
                         display fallback that was never written to state,
                         so a day you switched on and did not otherwise
@@ -1009,49 +1038,61 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
                         failed the guard with "set both a start and end
                         time" while the pickers plainly read 09:00 and
                         18:00. Now what you see is what is stored. */}
-                      <Switch
-                        checked={d.open}
-                        onCheckedChange={(v) =>
-                          setDay(
-                            key,
-                            v
-                              ? { open: true, start: d.start ?? "09:00", end: d.end ?? "18:00" }
-                              : { open: false },
-                          )
-                        }
-                      />
-                    </div>
-                    {d.open ? (
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-1.5">
-                          <Input
-                            type="time"
-                            value={d.start ?? "09:00"}
-                            onChange={(e) => setDay(key, { start: e.target.value })}
-                            className="h-8 min-w-0 flex-1 px-1.5 text-xs"
-                          />
-                          <span className="text-xs text-muted-foreground">–</span>
-                          <Input
-                            type="time"
-                            value={d.end ?? "18:00"}
-                            onChange={(e) => setDay(key, { end: e.target.value })}
-                            className="h-8 min-w-0 flex-1 px-1.5 text-xs"
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setDay(key, { start: "00:00", end: "23:59" })}
-                          className="text-xs font-medium text-primary hover:underline"
-                        >
-                          Open all day
-                        </button>
+                        <Switch
+                          checked={d.open}
+                          onCheckedChange={(v) =>
+                            setDay(
+                              key,
+                              v
+                                ? { open: true, start: d.start ?? "09:00", end: d.end ?? "18:00" }
+                                : { open: false },
+                            )
+                          }
+                        />
                       </div>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">Closed all day</p>
-                    )}
-                  </div>
-                );
-              })}
+                      {d.open ? (
+                        <div className="space-y-1.5">
+                          {/* `min-w-0 flex-1` let a native `type="time"`
+                          control shrink to its padding. The browser draws
+                          "09:00 AM" itself and simply clips the segment
+                          that no longer fits -- AM/PM is last, so AM/PM is
+                          what disappeared, and a 09:00 that will not say
+                          which 09:00 is worse than no control at all.
+                          `min-w-[6.5rem]` is a real floor under it, and
+                          `flex-wrap` means the pair stacks rather than
+                          clipping again if this card is ever narrower than
+                          two of them (a locale with a longer time format,
+                          or a future column count). */}
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <Input
+                              type="time"
+                              value={d.start ?? "09:00"}
+                              onChange={(e) => setDay(key, { start: e.target.value })}
+                              className="h-8 min-w-[6.5rem] flex-1 px-2 text-xs"
+                            />
+                            <span className="shrink-0 text-xs text-muted-foreground">–</span>
+                            <Input
+                              type="time"
+                              value={d.end ?? "18:00"}
+                              onChange={(e) => setDay(key, { end: e.target.value })}
+                              className="h-8 min-w-[6.5rem] flex-1 px-2 text-xs"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setDay(key, { start: "00:00", end: "23:59" })}
+                            className="text-xs font-medium text-primary hover:underline"
+                          >
+                            Open all day
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">Closed all day</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </CardContent>
