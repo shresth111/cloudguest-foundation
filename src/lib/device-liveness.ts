@@ -51,6 +51,12 @@ export interface DeviceLiveness {
   status: "up" | "down" | "unknown";
   /** When the network last observed this MAC. ISO, or null if never. */
   lastSeenAt: string | null;
+  /** When this MAC was first observed *and has stayed on since* -- the
+   * backend's sync sweep preserves `connected_at` across ticks for an
+   * active device, so for an "up" row it answers "how long has it been
+   * connected", which the age of `lastSeenAt` (the age of the sweep's
+   * own view) cannot. ISO, or null for down/unknown/never-observed. */
+  connectedAt: string | null;
   /** Real seconds since the device last booted, or null when this
    * platform has no way to know (everything that is not a router it
    * manages). Never derived from `lastSeenAt`. */
@@ -95,7 +101,7 @@ export interface LivenessDescription {
    */
   detail: string | null;
   /** Which fact `detail` reports, for callers that style them apart. */
-  detailKind: "uptime" | "lastSeen" | null;
+  detailKind: "uptime" | "connected" | "lastSeen" | null;
   /** True when `detail` is an uptime whose reading has gone stale. */
   stale: boolean;
 }
@@ -132,6 +138,23 @@ export function describeLiveness(
         : base,
       detailKind: "uptime",
       stale,
+    };
+  }
+
+  // No boot-uptime source (a third-party AP/printer/camera has none), but
+  // the device is up and the backend knows when it first came on and
+  // stayed on. "Connected for 3d" is the fact a venue owner means when
+  // they ask "how long has it been up?" -- and it is strictly better than
+  // falling through to "last seen X ago", which for an UP device answers
+  // the age of the sync sweep's own view (a 15-minute cadence), not the
+  // device's liveness, and reads as a contradiction ("Up ... but last
+  // seen 11m ago?") to exactly the people this screen is for.
+  if (device.status === "up" && device.connectedAt != null) {
+    return {
+      state,
+      detail: `connected ${formatAge(device.connectedAt, now)}`,
+      detailKind: "connected",
+      stale: false,
     };
   }
 

@@ -35,6 +35,11 @@ export interface MonitoredDevice {
    * uptime.
    * See `@/lib/device-liveness`. */
   lastSeenAt: string;
+  /** Fixture "first seen on the network and stayed on since" timestamp --
+   * the demo counterpart of the backend's `connected_at` (see
+   * `@/lib/device-liveness` for the fact it reports). `null` for down
+   * devices, mirroring the backend's own "only surfaced for UP rows". */
+  connectedAt: string | null;
   /** Fixture uptime, in seconds. Demo accounts get one for every device so
    * the screen exercises the real label; a REAL account only ever gets
    * this from the backend, and gets `null` for anything that is not a
@@ -64,6 +69,7 @@ function hashMac(mac: string) {
 export function deriveStatus(mac: string): {
   status: "up" | "down";
   lastSeenAt: string;
+  connectedAt: string | null;
   uptimeSeconds: number;
   uptimeRecordedAt: string;
 } {
@@ -74,6 +80,11 @@ export function deriveStatus(mac: string): {
   return {
     status: isUp ? "up" : "down",
     lastSeenAt,
+    // Connected for longer than the last sync saw it -- an up device whose
+    // fixture last_seen is hours old but which has been on the network
+    // since before that, exercising the "connected since" branch (the
+    // whole point of the field).
+    connectedAt: isUp ? new Date(Date.now() - (hoursAgo + 20) * 3600 * 1000).toISOString() : null,
     uptimeSeconds: Math.floor(rand() * 400000) + 600,
     uptimeRecordedAt: new Date().toISOString(),
   };

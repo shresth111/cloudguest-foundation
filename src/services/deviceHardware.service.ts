@@ -56,6 +56,13 @@ export interface MonitoredDeviceRow {
    * observed this MAC, `null` for "unknown" (never seen). "We heard from
    * it then" -- NOT "it has been running since then". */
   lastSeenAt: string | null;
+  /** Real `ConnectedDevice.connected_at` -- the moment this device was
+   * first observed on the network and has stayed on since (the backend's
+   * sync sweep preserves it across ticks for an active device). For an
+   * "up" row this is genuinely "it has been connected since", which is
+   * the fact `lastSeenAt`'s age cannot answer. `null` for down/unknown/
+   * never-observed rows. */
+  connectedAt: string | null;
   /** Seconds since the device itself last booted, or `null` where this
    * platform has no way to know. Never derived from `lastSeenAt`. */
   uptimeSeconds: number | null;
@@ -73,6 +80,7 @@ interface RawMonitoredHardware {
   floor: string | null;
   status: "up" | "down" | "unknown";
   last_seen_at: string | null;
+  connected_at: string | null;
   uptime_seconds: number | null;
   uptime_recorded_at: string | null;
 }
@@ -87,6 +95,7 @@ function toRow(r: RawMonitoredHardware): MonitoredDeviceRow {
     floor: r.floor ?? "",
     status: r.status,
     lastSeenAt: r.last_seen_at,
+    connectedAt: r.connected_at ?? null,
     // `?? null` rather than a bare read: an older backend that predates
     // these fields sends neither, and `undefined` would slip past every
     // `!= null` guard downstream as though it were a number.

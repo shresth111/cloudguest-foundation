@@ -114,29 +114,62 @@ check(
 );
 
 // ---------------------------------------------------------------------------
-// 2. No uptime source: say what we DO know, by its right name.
+// 2. No uptime source but a known connect time: say "connected since".
+//    Only when the backend has neither uptime NOR a connect time do we
+//    fall back to the heartbeat age, labelled as one.
 // ---------------------------------------------------------------------------
 
-console.log("\na device with no uptime source reports a heartbeat, labelled as one");
+console.log("\na device with no boot-uptime but a real connect time reports connected-since");
 
 const ap = describeLiveness(
-  { status: "up", lastSeenAt: ago(4 * MIN), uptimeSeconds: null, uptimeRecordedAt: null },
+  {
+    status: "up",
+    lastSeenAt: ago(4 * MIN),
+    connectedAt: ago(3 * 60 * MIN),
+    uptimeSeconds: null,
+    uptimeRecordedAt: null,
+  },
   NOW,
 );
 eq("state is still Up", ap.state, "Up");
-eq("the duration is named as a last-seen age", ap.detail, "last seen 4m ago");
-eq("and identified as such", ap.detailKind, "lastSeen");
+eq("the duration is a connected-since age", ap.detail, "connected 3h 0m");
+eq("and identified as such", ap.detailKind, "connected");
+check(
+  "the 4-minute heartbeat age is not what is shown",
+  !JSON.stringify(ap).includes("4m"),
+  JSON.stringify(ap),
+);
+
+// ---------------------------------------------------------------------------
+// 2b. No uptime AND no connect time: the heartbeat age, by its right name.
+// ---------------------------------------------------------------------------
+
+console.log("\na device with neither source reports the heartbeat, labelled as one");
+
+const apNoConnect = describeLiveness(
+  {
+    status: "up",
+    lastSeenAt: ago(4 * MIN),
+    connectedAt: null,
+    uptimeSeconds: null,
+    uptimeRecordedAt: null,
+  },
+  NOW,
+);
+eq("state is still Up", apNoConnect.state, "Up");
+eq("the duration is named as a last-seen age", apNoConnect.detail, "last seen 4m ago");
+eq("and identified as such", apNoConnect.detailKind, "lastSeen");
 check(
   'the word "up" is never attached to that duration',
-  !/\bup 4m\b/.test(`${ap.state} ${ap.detail}`),
-  `${ap.state} · ${ap.detail}`,
+  !/\bup 4m\b/.test(`${apNoConnect.state} ${apNoConnect.detail}`),
+  `${apNoConnect.state} · ${apNoConnect.detail}`,
 );
 
 // This is the whole defect, stated once: the two devices above were seen
 // 2 and 4 minutes ago respectively, and must NOT render the same shape.
 check(
   "a measured device and an unmeasured one do not render alike",
-  realRouter.detailKind !== ap.detailKind,
+  realRouter.detailKind !== apNoConnect.detailKind,
 );
 
 // ---------------------------------------------------------------------------
@@ -150,6 +183,7 @@ for (const seconds of [null, undefined]) {
     {
       status: "up",
       lastSeenAt: ago(9 * MIN),
+      connectedAt: null,
       uptimeSeconds: seconds ?? null,
       uptimeRecordedAt: null,
     },
@@ -159,7 +193,13 @@ for (const seconds of [null, undefined]) {
 }
 
 const neverSeen = describeLiveness(
-  { status: "unknown", lastSeenAt: null, uptimeSeconds: null, uptimeRecordedAt: null },
+  {
+    status: "unknown",
+    lastSeenAt: null,
+    connectedAt: null,
+    uptimeSeconds: null,
+    uptimeRecordedAt: null,
+  },
   NOW,
 );
 eq("a never-observed device says so", neverSeen.state, "Never observed");
@@ -167,7 +207,13 @@ eq("and offers no duration at all", neverSeen.detail, null);
 
 // A device the network has never seen cannot meaningfully have an uptime.
 const contradiction = describeLiveness(
-  { status: "unknown", lastSeenAt: null, uptimeSeconds: 5000, uptimeRecordedAt: ago(MIN) },
+  {
+    status: "unknown",
+    lastSeenAt: null,
+    connectedAt: null,
+    uptimeSeconds: 5000,
+    uptimeRecordedAt: ago(MIN),
+  },
   NOW,
 );
 eq("an unknown device never claims uptime either", contradiction.detail, null);
@@ -179,11 +225,21 @@ eq("an unknown device never claims uptime either", contradiction.detail, null);
 console.log("\na down device reports how long it has been unreachable");
 
 const down = describeLiveness(
-  { status: "down", lastSeenAt: ago(6 * 60 * MIN), uptimeSeconds: null, uptimeRecordedAt: null },
+  {
+    status: "down",
+    lastSeenAt: ago(6 * 60 * MIN),
+    connectedAt: ago(20 * 60 * MIN),
+    uptimeSeconds: null,
+    uptimeRecordedAt: null,
+  },
   NOW,
 );
 eq("state is Down", down.state, "Down");
 eq("with the age of the last contact", down.detail, "last seen 6h 0m ago");
+check(
+  "a down device never claims connected-since from a stale connect time",
+  down.detailKind === "lastSeen",
+);
 
 // ---------------------------------------------------------------------------
 // 5. A stale reading is quoted with its age.
