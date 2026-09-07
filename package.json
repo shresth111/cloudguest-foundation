@@ -37,6 +37,8 @@
     "test:dashboard-fetch-count": "node scripts/test-customer-dashboard-fetch-count.mjs",
     "test:customer-kpis": "node scripts/test-customer-kpis.mjs",
     "test:customer-nav-permissions": "node scripts/test-customer-nav-permissions.mjs",
+    "gen:permission-keys": "node scripts/generate-backend-permission-keys.mjs",
+    "test:permission-key-drift": "node scripts/generate-backend-permission-keys.mjs --check",
     "test:campaign-results": "node scripts/test-campaign-results.mjs",
     "test:csv-export": "node scripts/test-csv-export.mjs",
     "test:diagnostics-verdict": "node scripts/test-diagnostics-verdict.mjs",

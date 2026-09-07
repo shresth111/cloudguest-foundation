@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import { Link } from "@tanstack/react-router";
-import { Shield, Eye, Loader2 } from "lucide-react";
+import { Shield, Eye, Loader2, Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -24,7 +24,10 @@ import {
   customerNavGroupsForRole,
   getCustomerLoginRole,
 } from "@/lib/customerNav";
-import { filterNavGroupsByPermissions } from "@/lib/customerNavPermissions";
+import {
+  filterNavGroupsByPermissions,
+  navItemsHiddenByPermissions,
+} from "@/lib/customerNavPermissions";
 import { DataMaskingOtpDialog } from "@/components/features/HeaderControls";
 import { useMyPermissions } from "@/hooks/useCustomerDashboard";
 import type { useDataMasking } from "@/hooks/useCustomerDashboard";
@@ -111,7 +114,24 @@ export function CustomerSidebar({ activeFeatureId, subtitle, dataMasking }: Cust
   // See customerNavPermissions.ts for why every ambiguity resolves toward
   // the customer.
   const { data: permissions, isLoading: permissionsLoading } = useMyPermissions();
-  const navGroups = filterNavGroupsByPermissions(customerNavGroupsForRole(role), permissions);
+  const roleNavGroups = customerNavGroupsForRole(role);
+  const navGroups = filterNavGroupsByPermissions(roleNavGroups, permissions);
+  // A PRESENT BUT INCOMPLETE grant set is the case the fail-open rules
+  // above deliberately do not cover: it is a real answer, so the filter
+  // really does subtract, and subtraction here is invisible. A row that
+  // was removed and a row that never existed render identically -- which
+  // is how `dashboard.read` (a key the backend never seeded, so nobody
+  // could ever hold it) hid the Dashboard from every customer, owner
+  // included, with no error anywhere to explain it.
+  //
+  // So say so. One quiet line, only when something was actually removed,
+  // naming the sections on hover. It grants nothing -- the backend still
+  // enforces every request -- but it turns "this product does not have
+  // that" into "your role does not include that", which is a question a
+  // user can take to their owner. Hidden in the collapsed icon rail,
+  // where there is no room for a sentence and the tooltip would fight
+  // the nav's own.
+  const hiddenByPermissions = navItemsHiddenByPermissions(roleNavGroups, permissions);
   // A brief, honest "still looking" instead of painting the full nav and
   // letting it shrink under the pointer once grants arrive. `isLoading` is
   // false for demo, failed and empty alike, so all three still fall through
@@ -268,6 +288,22 @@ export function CustomerSidebar({ activeFeatureId, subtitle, dataMasking }: Cust
               </SidebarGroupContent>
             </SidebarGroup>
           ))
+        )}
+        {!showSkeleton && hiddenByPermissions.length > 0 && !collapsed && (
+          <div className="px-4 pb-3 pt-1">
+            <p
+              className="flex items-start gap-1.5 text-[11px] leading-snug text-sidebar-foreground/55"
+              title={`Hidden by your permissions: ${hiddenByPermissions
+                .map((i) => t(`customerItem.${i.id}`, i.label))
+                .join(", ")}`}
+            >
+              <Lock aria-hidden className="mt-[1px] h-3 w-3 shrink-0" />
+              <span>
+                {hiddenByPermissions.length} section
+                {hiddenByPermissions.length === 1 ? "" : "s"} hidden by your permissions
+              </span>
+            </p>
+          </div>
         )}
       </SidebarContent>
 
