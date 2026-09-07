@@ -51,6 +51,14 @@ interface RawGuestSession {
   ended_at?: string | null;
   ip_address?: string | null;
   device_id: string | null;
+  // The MAC of THIS session's own device, resolved server-side by the
+  // backend from session.device_id (GuestSessionResponse.device_mac).
+  // Exact, not inferred -- see getUsers() for why that retires the
+  // time-window heuristic below as anything but a fallback.
+  //
+  // Not masked: the backend's mask_mac is a documented no-op, mirrored by
+  // this repo's own maskMac. A null means no device on record.
+  device_mac?: string | null;
   // Real GuestSession.guest_id FK (see GuestSessionResponse in backend
   // app/domains/guest/schemas.py) -- the join key back to this guest's
   // ConnectedDevice row(s) for a real MAC and for the router-level
@@ -1513,13 +1521,18 @@ export const customerService = {
           : undefined;
         const identity = identityFromGuest(s.guest_id ? guestsById.get(s.guest_id) : undefined);
         return {
-          // s.device_id is the session's raw GuestDevice UUID FK, not a MAC
-          // address or a device name -- /guest-sessions doesn't join the
-          // device row that actually carries those. mac/ip now come from
-          // the real ConnectedDevice row that was actually active during
-          // THIS session (matchDeviceForSession, above) when one exists;
-          // otherwise they stay an honest "Unknown"/blank rather than
-          // fabricating one from that UUID.
+          // The MAC now comes from the session's own device, resolved
+          // server-side by the backend from session.device_id
+          // (GuestSessionResponse.device_mac). That is an exact key, so it
+          // wins over matchDeviceForSession's time-window inference, which
+          // stays only as a fallback for sessions the backend could not
+          // resolve (no device_id, or a device outside the caller's org
+          // scope). The heuristic exists because /connected-devices has no
+          // per-session key at all; it was never a good answer, and until
+          // the backend denormalized the MAC it was the only one available.
+          //
+          // "Unknown" is still the honest last resort -- never a MAC
+          // fabricated from s.device_id, which is a UUID FK, not an address.
           id: s.id,
           // `label` -- see getDashboard's identical call above. The Users
           // table does have its own Phone column, but its Name column is
@@ -1529,11 +1542,14 @@ export const customerService = {
           email: identity.email,
           phone: identity.phone,
           device: deviceLabelFrom(s.user_agent),
-          mac: matched?.mac_address || "Unknown",
+          mac: s.device_mac || matched?.mac_address || "Unknown",
           guestId: s.guest_id ?? null,
-          // s.ip_address is only a fallback for a session with no matched
-          // device row at all.
-          ip: matched?.ip_address || s.ip_address || "",
+          // s.ip_address is the session's own address and is preferred once
+          // the MAC no longer has to come from the same ConnectedDevice row
+          // -- taking the IP from a heuristically-matched device while the
+          // MAC comes from the real one could describe two different
+          // devices in a single row.
+          ip: s.ip_address || matched?.ip_address || "",
           duration:
             s.started_at && s.ended_at
               ? `${Math.round((new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 60000)} min`

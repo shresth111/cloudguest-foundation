@@ -971,6 +971,33 @@ jobs:
             "report-team-options" 24 "all report team option checks passed" \
             bun run test:report-team-options
 
+      # --- A guest's MAC was recorded on every login and shown on none ---
+      #
+      # Reported as "when a guest logs in with a voucher, the MAC address
+      # doesn't appear". It was not voucher-specific and the data was not
+      # missing: the device row existed for every auth method. Three
+      # screens were each blank for a different reason -- Reports read an
+      # `s.mac_address` the backend has never sent, Users inferred the
+      # device from a time window over /connected-devices, and Vouchers had
+      # no link to a device at all.
+      #
+      # The regression risk is that all three failures LOOK like absent
+      # data at runtime. Reading a field name nobody serves renders exactly
+      # the same "—" as a guest who genuinely has no device, which is why
+      # this went unnoticed long enough to be reported by the founder.
+      #
+      # It also pins that maskMac is identity. The first instinct on a
+      # blank PII-adjacent cell is "masking is hiding it", and acting on
+      # that instinct here would mean bypassing the masking layer to fix a
+      # bug that was never about masking.
+      #
+      # Floor 22, observed green at 22.
+      - name: Guest MAC visibility
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "guest-mac-visibility" 22 "All guest MAC visibility checks passed" \
+            bun run test:guest-mac-visibility
+
       # --- Connection Tools: a failed check must not read as a success ---
       #
       # The backend records a ping that reached nothing as

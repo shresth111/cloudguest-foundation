@@ -1371,6 +1371,8 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       locationName: null,
       identifier: "+91 98765 43210",
       displayName: "Aarav Shah",
+      macAddresses: ["A4:83:E7:2B:19:04"],
+      deviceCount: 1,
       firstSeenAt: "",
       lastSeenAt: "",
       totalVisitCount: 4,
@@ -1387,6 +1389,11 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       locationName: null,
       identifier: "priya@example.com",
       displayName: "Priya Nair",
+      // Two devices, so this fixture also exercises the "+N" affordance
+      // on the guest list's Device MAC cell rather than only the
+      // single-device happy path.
+      macAddresses: ["3C:22:FB:8D:41:7E", "F0:18:98:5C:2A:B3"],
+      deviceCount: 2,
       firstSeenAt: "",
       lastSeenAt: "",
       totalVisitCount: 1,

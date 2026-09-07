@@ -7,6 +7,7 @@ import type {
   VoucherBatchStats,
   VoucherKpis,
   VoucherPlan,
+  VoucherRedemption,
 } from "@/types/voucher";
 
 // Real backend integration -- backend/app/domains/voucher. Scope covers the
@@ -59,6 +60,16 @@ interface BackendVoucherBatchListResponse {
   total_pages: number;
   has_next: boolean;
   has_previous: boolean;
+}
+
+interface BackendVoucherRedemption {
+  voucher_id: string;
+  session_count: number;
+  session_id?: string | null;
+  guest_id?: string | null;
+  device_mac?: string | null;
+  ip_address?: string | null;
+  started_at?: string | null;
 }
 
 interface BackendVoucher {
@@ -295,5 +306,59 @@ export const voucherService = {
       { recipient_email: recipientEmail },
       { headers: { "X-Organization-Id": organizationId } },
     );
+  },
+
+  /** Resolve a page of vouchers to the device and address each was
+   * actually redeemed on.
+   *
+   * Lives on the guest router (`GET /voucher-redemptions`), not a voucher
+   * route, and is gated on `guest_sessions.read`: everything it returns is
+   * guest-session data. The voucher domain deliberately holds no FK to a
+   * guest, device or session, so `guest_sessions.voucher_id` is the only
+   * link and the guest domain owns it.
+   *
+   * Batched, never one call per row. The backend caps this at 100 ids and
+   * raises rather than truncating, so chunk here to match -- a silently
+   * dropped id would render as an empty cell indistinguishable from
+   * "never redeemed".
+   *
+   * Best-effort by design: a voucher with no session is simply absent from
+   * the result, and a failure resolves to an empty map rather than taking
+   * down the batch dialog that owns the codes themselves. */
+  async listRedemptions(
+    voucherIds: string[],
+    organizationId: string,
+  ): Promise<Map<string, VoucherRedemption>> {
+    const byVoucher = new Map<string, VoucherRedemption>();
+    if (voucherIds.length === 0) return byVoucher;
+    const CHUNK = 100;
+    for (let start = 0; start < voucherIds.length; start += CHUNK) {
+      const chunk = voucherIds.slice(start, start + CHUNK);
+      try {
+        const { data } = await api.get<{ items: BackendVoucherRedemption[] }>(
+          "/voucher-redemptions",
+          {
+            params: { voucher_ids: chunk },
+            paramsSerializer: { indexes: null },
+            headers: { "X-Organization-Id": organizationId },
+          },
+        );
+        for (const r of data?.items ?? []) {
+          byVoucher.set(r.voucher_id, {
+            voucherId: r.voucher_id,
+            sessionCount: r.session_count,
+            sessionId: r.session_id ?? null,
+            guestId: r.guest_id ?? null,
+            deviceMac: r.device_mac ?? null,
+            ipAddress: r.ip_address ?? null,
+            startedAt: r.started_at ?? null,
+          });
+        }
+      } catch {
+        // Leave this chunk unresolved rather than failing the whole
+        // dialog; the UI renders an unresolved voucher as "—".
+      }
+    }
+    return byVoucher;
   },
 };

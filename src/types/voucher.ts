@@ -93,3 +93,27 @@ export interface VoucherKpis {
   activeBatches: number;
   totalVouchers: number;
 }
+
+/** What a voucher's redemption actually looked like on the network, as
+ * observed by the platform -- resolved from `guest_sessions.voucher_id`,
+ * the only link between a voucher and a device that exists.
+ *
+ * Deliberately separate from `Voucher.redeemedIdentifier`. That value is
+ * whatever the guest typed at the portal (self-reported, normalized only
+ * for whitespace); these are recorded by the network. They are not equally
+ * trustworthy and the UI must not render them as though they were.
+ *
+ * `sessionCount` matters because a voucher can be multi-use: the device and
+ * address here describe the MOST RECENT session only, so a count above 1 is
+ * the cue not to present that one device as "the" redeemer. */
+export interface VoucherRedemption {
+  voucherId: string;
+  sessionCount: number;
+  sessionId: string | null;
+  guestId: string | null;
+  /** Not masked -- the backend's mask_mac is a documented no-op, mirrored
+   * by this repo's own maskMac. Null means the session presented no MAC. */
+  deviceMac: string | null;
+  ipAddress: string | null;
+  startedAt: string | null;
+}

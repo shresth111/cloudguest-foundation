@@ -47,6 +47,11 @@ interface BackendGuest {
   location_id: string | null;
   identifier: string;
   display_name: string | null;
+  // Every device MAC this guest has, newest-seen first, denormalized onto
+  // GuestResponse by the backend from one bulk lookup per page. Optional
+  // here only so a stale/cached payload does not break the mapper.
+  mac_addresses?: string[];
+  device_count?: number;
   first_seen_at: string;
   last_seen_at: string;
   total_visit_count: number;
@@ -167,6 +172,8 @@ function toGuest(g: BackendGuest, locationName: string | null, organizationName:
     locationName,
     identifier: g.identifier,
     displayName: g.display_name,
+    macAddresses: g.mac_addresses ?? [],
+    deviceCount: g.device_count ?? 0,
     firstSeenAt: g.first_seen_at,
     lastSeenAt: g.last_seen_at,
     totalVisitCount: g.total_visit_count,
