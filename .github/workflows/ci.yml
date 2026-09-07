@@ -872,6 +872,28 @@ jobs:
       - name: session rules enforcement
         run: bun run test:session-rules
 
+      # --- One setting, one screen ---------------------------------------
+      #
+      # A QA pass found two customer-dashboard settings on two screens each.
+      # The deletion is not the risky half. The risky half is that the two
+      # copies of "Sign-in Methods" wrote overlapping-but-not-identical sets
+      # of `captive_portal_configs` columns, and the copy that got deleted
+      # was the only writer of `pin_login_enabled` -- a flag the backend
+      # really does enforce (`GuestService._require_method_enabled` ->
+      # `GuestAuthMethod.PIN`). Removing the screen without moving that one
+      # row would have hidden a working setting rather than a redundant one,
+      # and a venue's portal would then be doing something no screen admits
+      # to. That flag moved to the Portal editor; this guard is what stops
+      # the next consolidation from stranding the next one.
+      #
+      # It also pins Open Hours' day grid to container queries. Its cards
+      # sit inside a shell that subtracts a 16rem sidebar and up to 4rem of
+      # padding, so a viewport-keyed `xl:grid-cols-7` was sizing off a box
+      # ~320px wider than the grid actually gets -- seven ~127px columns,
+      # which is where both of that screen's reported layout bugs came from.
+      - name: one setting, one screen
+        run: bun run test:single-home
+
       # --- Campaign results ----------------------------------------------
       #
       # The read half of a feature whose write half shipped months ago: an

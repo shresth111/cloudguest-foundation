@@ -109,11 +109,26 @@ const ASK_METER = [
   { label: "Four asks. This will feel like a form.", tone: "text-destructive", dot: "bg-red-500" },
 ];
 
+// The one place a venue turns guest sign-in methods on and off. There used
+// to be a second one -- Access Rules -> "Sign-in Methods" (SmartIdPage) --
+// writing the same `captive_portal_configs` row through the same
+// most-specific-wins resolution, so the two screens could and did disagree
+// about the same four OTP/voucher flags depending on which one you had
+// open last. That tab is gone.
+//
+// "Portal PIN" is here because of it: the deleted tab was the *only* UI for
+// `pin_login_enabled`, which is genuinely enforced at login
+// (GuestService._require_method_enabled -> GuestAuthMethod.PIN), so
+// removing the duplicate without moving this row would have hidden a
+// working setting rather than a redundant one. Nothing else the deleted tab
+// offered was real: Room No./SSO had no backing column anywhere in the
+// product and shipped permanently disabled as "Coming soon".
 const AUTH_OPTIONS: [PortalLoginMethod, string][] = [
   ["mobile_otp", "Mobile OTP"],
   ["email_otp", "Email OTP"],
   ["whatsapp_otp", "WhatsApp OTP"],
   ["voucher", "Voucher"],
+  ["pin", "Portal PIN"],
   ["social", "Social Login"],
 ];
 
@@ -688,7 +703,10 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       backgroundLuminance: null,
       backgroundTopLuminance: null,
       backgroundEntropy: null,
-      pinLoginEnabled: false,
+      // Live, like every other Auth Methods switch above -- this editor now
+      // owns `pin_login_enabled`, so the preview has to move with it rather
+      // than staying pinned to the old "no UI writes this" `false`.
+      pinLoginEnabled: authMethods.includes("pin"),
       // v7 Part 3 P4: the builder has no white-label toggle yet; `true` is
       // the only value a non-entitled venue can have.
       poweredByEnabled: true,

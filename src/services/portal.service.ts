@@ -86,6 +86,13 @@ interface BackendCaptivePortalConfig {
   otp_whatsapp_enabled: boolean;
   voucher_enabled: boolean;
   username_password_enabled: boolean;
+  /** Real and enforced, unlike `social_login_enabled` below: the backend's
+   * `GuestService._require_method_enabled` maps `GuestAuthMethod.PIN` to
+   * this exact column, so turning it off actually refuses a PIN login.
+   * Declared here (and carried through `LOGIN_METHOD_FLAGS` below) because
+   * this editor is now the only screen that writes it -- see
+   * `PortalLoginMethod`'s own note in `src/types/portal.ts`. */
+  pin_login_enabled: boolean;
   social_login_enabled: boolean;
   social_login_providers: string[];
   created_at: string;
@@ -326,6 +333,13 @@ const LOGIN_METHOD_FLAGS: Array<{
   { method: "email_otp", flag: "otp_email_enabled" },
   { method: "whatsapp_otp", flag: "otp_whatsapp_enabled" },
   { method: "voucher", flag: "voucher_enabled" },
+  { method: "pin", flag: "pin_login_enabled" },
+  // Kept, but worth knowing what it is: `social_login_enabled` is a
+  // schema-only readiness flag. There is no OAuth integration anywhere in
+  // the product, so this one only changes what the guest-facing resolve
+  // response *reports* -- the backend model's own docstring says so. It is
+  // listed last deliberately: every entry above it gates a login a guest
+  // can really complete.
   { method: "social", flag: "social_login_enabled" },
 ];
 
@@ -340,6 +354,7 @@ function loginMethodFlags(methods: PortalLoginMethod[]): Partial<BackendCaptiveP
     otp_email_enabled: set.has("email_otp"),
     otp_whatsapp_enabled: set.has("whatsapp_otp"),
     voucher_enabled: set.has("voucher"),
+    pin_login_enabled: set.has("pin"),
     social_login_enabled: set.has("social"),
   };
 }

@@ -12,6 +12,16 @@ export type PortalLoginMethod =
   | "email_otp"
   | "whatsapp_otp"
   | "voucher"
+  /** Real, backend-enforced sign-in method: `captive_portal_configs
+   * .pin_login_enabled` gates `GuestService.login_via_pin` / `POST
+   * /guest/login/pin` (see the backend's own `_require_method_enabled`).
+   * It used to be reachable only from the Access Rules -> "Sign-in
+   * Methods" tab, which was a second, partial copy of this same list
+   * writing the same table; that tab is gone and this is now the one
+   * place a venue turns guest sign-in methods on and off, so the method
+   * had to come with it -- deleting the tab without moving `pin` would
+   * have left a genuinely enforced setting with no UI at all. */
+  | "pin"
   | "pms"
   | "social"
   | "click_through";
@@ -31,6 +41,7 @@ export const LOGIN_METHOD_LABEL: Record<PortalLoginMethod, string> = {
   email_otp: "Email OTP",
   whatsapp_otp: "WhatsApp OTP",
   voucher: "Voucher",
+  pin: "Portal PIN",
   pms: "PMS",
   social: "Social",
   click_through: "Click-through",

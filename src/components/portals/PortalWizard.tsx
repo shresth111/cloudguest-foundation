@@ -49,6 +49,10 @@ const DEFAULTS: PortalWizardValues = {
     email_otp: false,
     whatsapp_otp: false,
     voucher: false,
+    // Off by default, mirroring the backing column's own default
+    // (`captive_portal_configs.pin_login_enabled`): a PIN is a materially
+    // weaker secret than an OTP, so a venue opts into it deliberately.
+    pin: false,
     pms: false,
     social: false,
     click_through: true,
