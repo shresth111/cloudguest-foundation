@@ -1401,7 +1401,9 @@ export const customerService = {
         const identity = DEMO_GUEST_IDENTITIES[i % DEMO_GUEST_IDENTITIES.length];
         const durationMinutes = 15 + (i % 6) * 10;
         const status = (i < 16 ? "online" : i < 20 ? "idle" : "offline") as
-          "online" | "offline" | "idle";
+          | "online"
+          | "offline"
+          | "idle";
         // Demo has no real GuestSession row to read started_at/ended_at
         // from, so these are derived to stay consistent with the fixture's
         // own `duration` figure above: connectedAt is `durationMinutes` ago,
