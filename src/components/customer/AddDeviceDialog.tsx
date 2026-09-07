@@ -22,7 +22,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { DEVICE_TYPES, FLOORS, type DeviceType } from "@/stores/deviceStore";
+import { DEVICE_TYPES, type DeviceType } from "@/stores/deviceStore";
+import { floorSuggestions, normalizeFloor } from "@/lib/device-floors";
 import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
 import { toAppError } from "@/services/api";
 
@@ -36,11 +37,14 @@ function normalizeMac(raw: string): string | null {
   return (hex.toUpperCase().match(/.{2}/g) ?? []).join(":");
 }
 
+// Floor starts empty, not on a guessed "GF". It is optional on the backend
+// (nullable String(50)) and a venue that does not think in floors should not
+// have to clear a value it never chose.
 const emptyForm = {
   name: "",
   mac: "",
   type: "Access Point" as DeviceType,
-  floor: FLOORS[FLOORS.length - 1],
+  floor: "",
 };
 
 export function AddDeviceDialog({
@@ -169,26 +173,28 @@ export function AddDeviceDialog({
             </div>
           </div>
 
+          {/* Free text with suggestions, not a fixed list. The
+           * six-item floor constant this replaced was the same list for
+           * every venue
+           * -- wrong for a 12-storey hotel, a mall with basements, and a
+           * single-storey cafe alike. This venue's own floors come first;
+           * see @/lib/device-floors. */}
           <div className="space-y-1.5">
-            <Label>Floor</Label>
-            <div className="flex flex-wrap gap-2">
-              {FLOORS.map((f) => (
-                <button
-                  key={f}
-                  type="button"
-                  aria-pressed={form.floor === f}
-                  onClick={() => setForm({ ...form, floor: f })}
-                  className={cn(
-                    "rounded-lg border px-3 py-1 text-xs font-medium transition-colors",
-                    form.floor === f
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border text-muted-foreground hover:bg-muted",
-                  )}
-                >
-                  {f}
-                </button>
+            <Label htmlFor="device-floor">Floor</Label>
+            <Input
+              id="device-floor"
+              list="device-floor-suggestions"
+              value={form.floor}
+              placeholder="Optional — e.g. GF, 3F, B1"
+              maxLength={50}
+              onChange={(e) => setForm({ ...form, floor: e.target.value })}
+              onBlur={(e) => setForm({ ...form, floor: normalizeFloor(e.target.value) })}
+            />
+            <datalist id="device-floor-suggestions">
+              {floorSuggestions(devices).map((f) => (
+                <option key={f} value={f} />
               ))}
-            </div>
+            </datalist>
           </div>
 
           <DialogFooter>

@@ -74,7 +74,8 @@ import { ispService } from "@/services/isp.service";
 import type { AppError } from "@/services/api";
 import type { IspLink, IspHealthCheck, IspSpeedTestResult } from "@/types/isp";
 import { IspProviderIcon } from "@/components/icons/isp";
-import { DEVICE_TYPES, formatSince } from "@/stores/deviceStore";
+import { DEVICE_TYPES } from "@/stores/deviceStore";
+import { formatAge } from "@/lib/device-liveness";
 import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
 import { DEVICE_TYPE_META } from "@/lib/device-presentation";
 import { formatUptimePercent } from "@/lib/uptime-format";
@@ -1354,18 +1355,23 @@ function DeviceStatusCard({ locationId, onManage }: { locationId: string; onMana
               {downCount > 0 ? (
                 <span className="inline-flex items-center gap-1 font-medium text-rose-600 dark:text-rose-400">
                   <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                  {/* For a device that is DOWN, time since we last heard from
+                   * it IS how long it has been down, so this duration is
+                   * honestly named -- unlike the same arithmetic beside the
+                   * word "Up", which is the bug @/lib/device-liveness exists
+                   * to prevent. */}
                   {downCount} down · longest{" "}
-                  {formatSince(
+                  {formatAge(
                     devices
                       .filter(
-                        (d): d is typeof d & { statusChangedAt: string } =>
-                          d.status === "down" && d.statusChangedAt != null,
+                        (d): d is typeof d & { lastSeenAt: string } =>
+                          d.status === "down" && d.lastSeenAt != null,
                       )
                       .sort(
                         (a, b) =>
-                          new Date(a.statusChangedAt).getTime() -
-                          new Date(b.statusChangedAt).getTime(),
-                      )[0].statusChangedAt,
+                          new Date(a.lastSeenAt).getTime() - new Date(b.lastSeenAt).getTime(),
+                      )[0].lastSeenAt,
+                    Date.now(),
                   )}
                 </span>
               ) : unknownCount > 0 ? (

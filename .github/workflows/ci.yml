@@ -919,6 +919,42 @@ jobs:
       - name: one setting, one screen
         run: bun run test:single-home
 
+      # --- A duration must be labelled with the measurement it is ---------
+      #
+      # The Network Hardware list rendered "Up" followed by a bare duration,
+      # and that duration was the age of `last_seen_at` -- when a router's
+      # sync sweep last saw the MAC. So a row read "Up . 4m" while the
+      # device's own /system/resource uptime was 7h 28m.
+      #
+      # The reason that matters more than a wrong word: the router it was
+      # measured on had rebooted three times in the preceding two hours, and
+      # since it resumed heartbeating after each one, time-since-heartbeat
+      # stayed healthy through all three and hid every one of them. Uptime
+      # is the only one of the two numbers that can surface a reboot at all.
+      #
+      # This guard pins that every duration names its own measurement, and
+      # -- the part most likely to be undone by a well-meaning tidy-up --
+      # that an absent uptime is never backfilled from the heartbeat age.
+      # Most rows legitimately have none: no third-party AP, printer or
+      # camera has an uptime source anywhere in this platform.
+      - name: device liveness labels match their data
+        run: bun run test:device-liveness
+
+      # --- A venue's floors are the venue's, not a constant ---------------
+      #
+      # `FLOORS = ["5F".."GF"]` was shown to every venue as its floor list,
+      # and was also used to FILTER the floor tiles -- so a device stored on
+      # "B1" or "7F" (both of which the backend accepts: floor is a free-text
+      # String(50)) was silently dropped from the grouping rather than
+      # mislabelled. Same shape as the TEAMS literal fixed in #246.
+      #
+      # Grouping is now derived from the venue's own hardware rows, so any
+      # label survives. This guard pins that no screen carries a floor list
+      # of its own again, and that "no floor recorded" stays a reachable
+      # answer rather than falling out of every filter.
+      - name: venue floors are derived, not hardcoded
+        run: bun run test:device-floors
+
       # --- Campaign results ----------------------------------------------
       #
       # The read half of a feature whose write half shipped months ago: an
