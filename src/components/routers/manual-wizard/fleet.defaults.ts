@@ -67,9 +67,17 @@ export const FLEET_DEFAULTS = {
    * deallocated during the 2026-08-21/22 migration and no longer answers. The
    * stale value made this check fire a WARNING on a perfectly healthy router
    * and send the operator hunting an ISP hijack that was not happening.
-   * `auth.`, `portal.`, `app.` and `master.wyfyguest.com` all resolve here —
-   * one VM, four names — so this address moves whenever the app VM moves. */
-  portalIp: "40.80.86.193" as Lit,
+   *
+   * Then it was `40.80.86.193` — the app VM on the NEXT Azure subscription,
+   * which the 2026-08-27 move to AWS ap-south-1 left behind in exactly the
+   * same way, and which sat here for ten days doing exactly the same damage.
+   * Twice is a pattern, not an accident: this literal goes stale every time
+   * the estate moves, and nothing in this repo notices.
+   *
+   * `auth.`, `wifi.`, `portal.`, `app.` and `master.wyfyguest.com` all
+   * resolve here — one host, five names — so this address moves whenever
+   * that host moves. Re-verify against DNS; never trust the literal. */
+  portalIp: "13.203.112.174" as Lit,
   portalBase: "https://auth.wyfyguest.com" as Lit,
 
   /** WireGuard interface name emitted by the FRONTEND generator. */
@@ -196,7 +204,7 @@ export const DEFAULT_PROVENANCE: Record<
   portalHost: { source: "generator", note: "RouterDetailTabs.tsx:1542 GUEST_PORTAL_PUBLIC_BASE." },
   portalIp: {
     source: "field",
-    note: "Verified 2026-08-22 by resolving portal.wyfyguest.com — 40.80.86.193, the app VM on the current Azure subscription. app. and master. resolve to the same host. Not derivable from the repo, and it moves whenever the app VM moves, so re-verify against DNS rather than trusting this literal. Treat a mismatch as WARNING, never FAIL.",
+    note: "Verified 2026-09-07: auth.wyfyguest.com resolves to 13.203.112.174 on both 1.1.1.1 and 8.8.8.8, reverse-resolves to ec2-13-203-112-174.ap-south-1.compute.amazonaws.com, and https://auth.wyfyguest.com/portal answers 200 with a valid certificate. wifi., portal., app. and master. resolve to the same host. Previous values 20.219.51.94 and 40.80.86.193 were both Azure app VMs the estate has since moved off. Not derivable from the repo, and it moves whenever the app host moves, so re-verify against DNS rather than trusting this literal. Treat a mismatch as WARNING, never FAIL.",
   },
   wgInterface: { source: "generator", note: "RouterDetailTabs.tsx WireGuard chunk." },
   wgListenPort: { source: "generator", note: "listen-port=13231 in the WireGuard chunk." },

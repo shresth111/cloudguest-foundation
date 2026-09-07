@@ -421,7 +421,7 @@ const WG_HOST_PRINT = `Flags: X - disabled, D - dynamic
 const WG_IP_PRINT = `Flags: X - disabled, D - dynamic
  #   ACTION  SRC-ADDRESS  DST-ADDRESS      PROTOCOL  DST-PORT
  ;;; cloudguest-portal-https
- 0   accept               40.80.86.193`;
+ 0   accept               13.203.112.174`;
 
 {
   // The two walled-garden menus are one word apart and look nearly
@@ -1099,7 +1099,7 @@ check(
   // A changed portal IP is a WARNING, not a FAIL: the content's own fix
   // is "re-run the block, it updates the entry". Failing here would send
   // installers chasing a healthy router.
-  const MOVED = WG_IP_PRINT.replace("40.80.86.193", "40.80.90.10");
+  const MOVED = WG_IP_PRINT.replace("13.203.112.174", "40.80.90.10");
   check(
     "a portal IP that moved is WARNING, not FAIL",
     verdict("wg-ip", MOVED) === "WARNING",

@@ -6,7 +6,7 @@
  *
  * Design rules (jo QA pass se nikle):
  *  - Har check ka output literally match hona chahiye (`As`, `bound`,
- *    `00:05:00`, `40.80.86.193`). "Verify it works" kabhi nahi.
+ *    `00:05:00`, `13.203.112.174`). "Verify it works" kabhi nahi.
  *  - Jahan ho sake, block khud `RESULT: PASS` / `RESULT: FAIL` print kare,
  *    taaki table padh ke judge na karna pade. (Phase 0 ka audit ab ISKA
  *    apwaad hai -- wo sirf counts print karta hai, verdict app nikalti hai.
@@ -441,7 +441,7 @@ export const PHASES: Phase[] = [
         id: "wg-ip",
         label: "HTTPS wali list me portal ka IP hai (yahi sabse zyada tootta hai)",
         command: "/ip hotspot walled-garden ip print",
-        expect: 'comment="cloudguest-portal-https" aur dst-address=40.80.86.193',
+        expect: 'comment="cloudguest-portal-https" aur dst-address=13.203.112.174',
         failFix: [
           {
             when: "list khaali hai",

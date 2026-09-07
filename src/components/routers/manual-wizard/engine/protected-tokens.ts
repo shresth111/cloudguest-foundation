@@ -122,7 +122,7 @@ export const TOKEN_TIERS: Record<Lit, TokenTier> = {
   "hub.wyfyguest.com": "literal",
   "10.5.50.1": "literal",
   "10.20.0.1": "literal",
-  "40.80.86.193": "literal",
+  "13.203.112.174": "literal",
 
   // --- counter names ----------------------------------------------------
   accepts: "colliding",

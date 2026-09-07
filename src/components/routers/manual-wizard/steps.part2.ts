@@ -1074,7 +1074,7 @@ export const STEPS_PART2: ManualStep[] = [
           op: "all",
           of: [
             { op: "isIpv4", key: "portal-ip", excludeUnspecified: true },
-            { op: "neq", key: "portal-ip", value: "40.80.86.193" },
+            { op: "neq", key: "portal-ip", value: "13.203.112.174" },
           ],
         },
         meaning:
