@@ -1,10 +1,8 @@
 import { useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Shield, Smartphone, Ban, CheckCircle, Layers } from "lucide-react";
+import { Shield, Ban, Layers } from "lucide-react";
 import LocationPolicies from "./LocationPolicies";
 import BlockUsers from "./BlockUsers";
-import WhiteList from "./WhiteList";
-import SmartIdPage from "./SmartIdPage";
 import CreateGroup from "./CreateGroup";
 
 /**
@@ -138,36 +136,52 @@ function PolicyShieldIllustration() {
 // sidebar, ManageTeamsPage.tsx's staff/shared-account teams).
 //
 // Flattened to one tab level after owner feedback that a "Guest Access"
-// top-level tab containing its own Blocked Guests/Always Allowed/Sign-in
-// Methods sub-tabs read as tabs nested inside tabs -- two visually
-// near-identical pill bars stacked, so it was never obvious which level a
-// click landed in. There's no real hierarchy being lost by flattening:
-// each of these 5 destinations is already a fully self-contained page with
-// its own icon-badge header (see BlockUsers.tsx/WhiteList.tsx/
-// SmartIdPage.tsx/CreateGroup.tsx's own `<h1>`), so "Guest Access" was a
-// navigation-only grouping, not a shared piece of content. That grouping
-// is now carried by adjacency and by the same rose/blocked · emerald/
-// allowed color coding the sub-tabs already used (see GuestBadges.tsx /
-// OperationsFeatures.tsx), plus a static divider on either side of the
-// trio -- a visual hint, not a second clickable layer.
+// top-level tab containing its own sub-tabs read as tabs nested inside
+// tabs -- two visually near-identical pill bars stacked, so it was never
+// obvious which level a click landed in. There's no real hierarchy being
+// lost by flattening: each of these destinations is already a fully
+// self-contained page with its own icon-badge header (see BlockUsers.tsx/
+// CreateGroup.tsx's own `<h1>`), so "Guest Access" was a navigation-only
+// grouping, not a shared piece of content. That grouping is now carried by
+// adjacency and by the rose/blocked color coding the sub-tabs already used
+// (see GuestBadges.tsx / OperationsFeatures.tsx), plus a static divider on
+// either side, a visual hint rather than a second clickable layer.
+//
+// Two tabs were removed from this row because each was the second copy of a
+// setting that already had a home, and a setting with two homes is a
+// setting two people can leave disagreeing:
+//
+//   - "Always Allowed" mounted `<WhiteList locationId={locationId} />` --
+//     byte-for-byte the same component, with the same prop, that the
+//     sidebar's own "Always Allowed" row renders one nav group above this
+//     page (see config/customerFeatures.tsx). Not a summary or a narrower
+//     view of it: the same screen, reachable twice, but only one of the two
+//     had a URL you could link to or bookmark. The sidebar row kept it.
+//
+//   - "Sign-in Methods" mounted `SmartIdPage`, which wrote
+//     `otp_sms_enabled`/`otp_email_enabled`/`otp_whatsapp_enabled`/
+//     `voucher_enabled` on the same `captive_portal_configs` row, resolved
+//     by the same most-specific-wins order, that Portal -> Auth Methods
+//     writes. Those two really could disagree on screen. Portal kept it,
+//     and `pin_login_enabled` -- the one flag only this tab wrote, and a
+//     genuinely enforced one -- moved there rather than being deleted with
+//     the tab. See PortalPage.tsx's AUTH_OPTIONS.
 const ACCESS_TABS = [
   { id: "location", label: "Guest WiFi Limits", icon: Shield, tone: "indigo" as const },
   { id: "block", label: "Blocked Guests", icon: Ban, tone: "rose" as const },
-  { id: "whitelist", label: "Always Allowed", icon: CheckCircle, tone: "emerald" as const },
-  { id: "smartid", label: "Sign-in Methods", icon: Smartphone, tone: "indigo" as const },
   { id: "group", label: "Access Tiers", icon: Layers, tone: "indigo" as const },
 ];
 
 const TAB_ACTIVE_CLASSES: Record<(typeof ACCESS_TABS)[number]["tone"], string> = {
   indigo: "bg-[#4f46e5]/10 text-[#4f46e5] shadow-sm",
   rose: "bg-rose-500/10 text-rose-600 shadow-sm dark:text-rose-400",
-  emerald: "bg-emerald-500/10 text-emerald-600 shadow-sm dark:text-emerald-400",
 };
 
 // Tabs right before/after this pair of ids get a static divider next to
-// them -- the "Guest Access" trio (block/whitelist/smartid) reads as one
-// visual group between "Guest WiFi Limits" and "Access Tiers" without
-// needing its own tab level to say so.
+// them -- "Blocked Guests" reads as its own visual group between "Guest
+// WiFi Limits" and "Access Tiers" without needing its own tab level to say
+// so. It used to fence a trio (block/whitelist/smartid); the other two are
+// now single-homed elsewhere, so it fences one.
 const DIVIDER_BEFORE = new Set(["block", "group"]);
 
 export default function PoliciesHub({ locationId }: { locationId?: string } = {}) {
@@ -190,11 +204,13 @@ export default function PoliciesHub({ locationId }: { locationId?: string } = {}
         <PolicyShieldIllustration />
       </div>
 
-      {/* One flat row, one click away from any of the 5 real sections --
+      {/* One flat row, one click away from any of the 3 real sections --
        * no second tab level underneath it. `relative` wrapper + a
-       * right-edge fade: at narrow widths this row is wider than the
-       * viewport (min-w-[600px] so five tabs never get too cramped) and
-       * silently clips "Access Tiers" at the screen edge with
+       * right-edge fade: at narrow widths this row can still be wider than
+       * the viewport (min-w-[360px] so the three tabs never get cramped --
+       * down from 600px, which was sized for the five tabs this row used to
+       * carry and now only forced a scrollbar that had nothing to scroll
+       * to) and would silently clip "Access Tiers" at the screen edge with
        * `overflow-x-auto`'s scrollbar being the only -- easy to miss on
        * touch devices -- hint that there's more to swipe to. The fade is a
        * static visual affordance (no scroll-position tracking), so it
@@ -203,7 +219,7 @@ export default function PoliciesHub({ locationId }: { locationId?: string } = {}
        * the very narrowest widths. */}
       <div className="relative">
         <div className="overflow-x-auto">
-          <div className="inline-flex min-w-[600px] w-full items-center gap-1 rounded-lg border bg-muted/50 p-0.5 sm:w-auto">
+          <div className="inline-flex min-w-[360px] w-full items-center gap-1 rounded-lg border bg-muted/50 p-0.5 sm:w-auto">
             {ACCESS_TABS.map((t) => {
               const Icon = t.icon;
               const active = tab === t.id;
@@ -240,8 +256,6 @@ export default function PoliciesHub({ locationId }: { locationId?: string } = {}
        * more than the tab row above it. */}
       {tab === "location" && <LocationPolicies locationId={locationId} />}
       {tab === "block" && <BlockUsers locationId={locationId} />}
-      {tab === "whitelist" && <WhiteList locationId={locationId} />}
-      {tab === "smartid" && <SmartIdPage locationId={locationId} />}
       {tab === "group" && <CreateGroup locationId={locationId} />}
     </div>
   );

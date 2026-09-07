@@ -22,6 +22,10 @@ export const portalLoginMethodSchema = z.object({
   email_otp: z.boolean(),
   whatsapp_otp: z.boolean(),
   voucher: z.boolean(),
+  // Real, backend-enforced (`captive_portal_configs.pin_login_enabled` ->
+  // `GuestAuthMethod.PIN`), unlike `pms`/`social` below. See
+  // `PortalLoginMethod` in src/types/portal.ts.
+  pin: z.boolean(),
   pms: z.boolean(),
   social: z.boolean(),
   click_through: z.boolean(),
