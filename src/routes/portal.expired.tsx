@@ -102,15 +102,65 @@ function ExpiredPage() {
   const duration = endedSession?.sessionTimeoutMinutes
     ? durationLabel(endedSession.sessionTimeoutMinutes)
     : null;
-  const { title, body } =
-    endedSession?.reason === "timed_out" && duration
-      ? {
-          title: t("expiredTimedOutTitle"),
-          body: t("expiredTimedOutBody").replace("{n}", duration),
-        }
-      : endedSession?.reason === "disconnected" || endedSession?.reason === "timed_out"
-        ? { title: t("expiredDroppedTitle"), body: t("expiredDroppedBody") }
-        : { title: t("sessionExpired"), body: t("expiredSubtitle") };
+  // Same "a number or nothing" treatment as `duration` above, for the idle
+  // copy: the venue's idle timeout as THIS session carried it. A session
+  // that recorded none (any that started before the backend began storing
+  // it) gets the reason without a number rather than a sentence with a hole.
+  const idleDuration = endedSession?.idleTimeoutMinutes
+    ? durationLabel(endedSession.idleTimeoutMinutes)
+    : null;
+
+  // A switch rather than the nested ternary this used to be. The chain was
+  // already re-testing `=== "timed_out"` in its second arm to catch the
+  // no-duration case, and two more reasons would have made it unreadable in
+  // exactly the place where being wrong means telling a guest something
+  // false about their own connection.
+  const copy = (): { title: string; body: string } => {
+    switch (endedSession?.reason) {
+      case "timed_out":
+        // Needs the venue's length to say anything useful; without it the
+        // dropped copy is truer than a sentence with a hole in it.
+        return duration
+          ? {
+              title: t("expiredTimedOutTitle"),
+              body: t("expiredTimedOutBody").replace("{n}", duration),
+            }
+          : { title: t("expiredDroppedTitle"), body: t("expiredDroppedBody") };
+      case "idle_timed_out":
+        // Deliberately not the timed-out copy. "Your WiFi time is up" is
+        // false here -- this guest used none of their time, which is
+        // precisely why they were signed out -- and it is the reading a
+        // guest is most likely to arrive at on their own, so saying it
+        // would confirm a wrong guess.
+        return idleDuration
+          ? {
+              title: t("expiredIdleTitle"),
+              body: t("expiredIdleBody").replace("{n}", idleDuration),
+            }
+          : { title: t("expiredIdleTitle"), body: t("expiredIdleBodyNoDuration") };
+      case "time_limit_reached":
+        // The one ending where "sign in again" is wrong advice: the backend
+        // refuses that login until the day rolls over. The CTAs are
+        // suppressed below to match.
+        return {
+          title: t("expiredDailyLimitTitle"),
+          body: t("expiredDailyLimitBody"),
+        };
+      case "disconnected":
+        return { title: t("expiredDroppedTitle"), body: t("expiredDroppedBody") };
+      default:
+        return { title: t("sessionExpired"), body: t("expiredSubtitle") };
+    }
+  };
+  const { title, body } = copy();
+
+  // Whether signing in again can actually work. For every other ending it
+  // can, and offering it is the whole point of the screen. For a spent
+  // daily allowance it cannot: `_enforce_fup_quota` refuses the next login
+  // outright, so a button here would walk the guest into a bare refusal and
+  // read as "the WiFi is broken". Showing no button is not a missing
+  // feature; it is the honest shape of "come back tomorrow".
+  const canSignInAgain = endedSession?.reason !== "time_limit_reached";
 
   return (
     <PortalShell>
@@ -164,7 +214,7 @@ function ExpiredPage() {
           </PortalTextPlate>
         </div>
         <div className="flex flex-col gap-2.5">
-          {hasPassword && (
+          {canSignInAgain && hasPassword && (
             <button
               type="button"
               onClick={() => goSignIn("username_password")}
@@ -173,7 +223,7 @@ function ExpiredPage() {
               {t("signInAgainLink")}
             </button>
           )}
-          {hasOtp && (
+          {canSignInAgain && hasOtp && (
             <button
               type="button"
               onClick={() => goSignIn(preferredOtp)}
@@ -182,7 +232,7 @@ function ExpiredPage() {
               {t("useOtpInsteadLabel")}
             </button>
           )}
-          {!hasPassword && !hasOtp && (
+          {canSignInAgain && !hasPassword && !hasOtp && (
             <button
               type="button"
               onClick={() => navigate({ to: "/portal/welcome", search: (prev) => prev })}

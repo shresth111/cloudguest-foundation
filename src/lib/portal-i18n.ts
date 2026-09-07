@@ -336,6 +336,21 @@ const EN: Dict = {
   expiredDurationMinutes: "{n} minutes",
   expiredDurationHours: "{n} hours",
   expiredDurationHour: "1 hour",
+  // Idle timeout. Deliberately NOT the timed-out copy: this guest did not
+  // run out of time, they were signed out for using none of it, and "your
+  // WiFi time is up" would confirm the wrong guess they are most likely to
+  // have already made. The number is the venue's own idle setting as the
+  // ended session carried it.
+  expiredIdleTitle: "You were signed out for being away",
+  expiredIdleBody:
+    "This device was quiet for {n}, so the WiFi here signed it out to free the space. Sign in again to carry on.",
+  expiredIdleBodyNoDuration:
+    "This device was quiet for a while, so the WiFi here signed it out to free the space. Sign in again to carry on.",
+  // Daily allowance spent. The only ending with no "sign in again" -- that
+  // login would be refused, so the screen does not offer it.
+  expiredDailyLimitTitle: "You've used today's WiFi time",
+  expiredDailyLimitBody:
+    "This venue gives each guest a set amount of WiFi time per day, and you've used yours. It starts fresh tomorrow.",
   useOtpInsteadLabel: "Use a one-time code instead",
   failureSubtitle: "Please check your details and try again.",
   failureHelp: "If the issue continues, please ask venue staff for assistance.",
@@ -624,6 +639,14 @@ const HI: Dict = {
   expiredDurationMinutes: "{n} मिनट",
   expiredDurationHours: "{n} घंटे",
   expiredDurationHour: "1 घंटा",
+  expiredIdleTitle: "निष्क्रिय रहने पर आपको साइन आउट कर दिया गया",
+  expiredIdleBody:
+    "यह डिवाइस {n} तक शांत रहा, इसलिए यहाँ की WiFi ने जगह खाली करने के लिए इसे साइन आउट कर दिया। जारी रखने के लिए फिर से साइन इन करें।",
+  expiredIdleBodyNoDuration:
+    "यह डिवाइस कुछ देर शांत रहा, इसलिए यहाँ की WiFi ने जगह खाली करने के लिए इसे साइन आउट कर दिया। जारी रखने के लिए फिर से साइन इन करें।",
+  expiredDailyLimitTitle: "आज का WiFi समय पूरा हो गया",
+  expiredDailyLimitBody:
+    "यह जगह हर मेहमान को रोज़ तय WiFi समय देती है, और आपका पूरा हो गया है। कल से फिर नया शुरू होगा।",
   useOtpInsteadLabel: "इसके बजाय OTP का उपयोग करें",
   failureSubtitle: "कृपया अपनी जानकारी जांचें और फिर कोशिश करें।",
   failureHelp: "समस्या बनी रहे तो कृपया वेन्यू स्टाफ से सहायता लें।",
@@ -908,6 +931,14 @@ const BN: Dict = {
   expiredDurationMinutes: "{n} মিনিট",
   expiredDurationHours: "{n} ঘণ্টা",
   expiredDurationHour: "1 ঘণ্টা",
+  expiredIdleTitle: "নিষ্ক্রিয় থাকায় আপনাকে sign out করা হয়েছে",
+  expiredIdleBody:
+    "এই device {n} চুপ ছিল, তাই এখানকার WiFi জায়গা খালি করতে সেটিকে sign out করেছে। চালিয়ে যেতে আবার sign in করুন।",
+  expiredIdleBodyNoDuration:
+    "এই device কিছুক্ষণ চুপ ছিল, তাই এখানকার WiFi জায়গা খালি করতে সেটিকে sign out করেছে। চালিয়ে যেতে আবার sign in করুন।",
+  expiredDailyLimitTitle: "আজকের WiFi সময় শেষ",
+  expiredDailyLimitBody:
+    "এই জায়গা প্রতিদিন প্রত্যেক অতিথিকে নির্দিষ্ট WiFi সময় দেয়, আপনারটি শেষ হয়েছে। আগামীকাল আবার নতুন করে শুরু হবে।",
   useOtpInsteadLabel: "বদলে OTP ব্যবহার করুন",
   failureSubtitle: "আপনার তথ্য দেখে আবার চেষ্টা করুন।",
   failureHelp: "সমস্যা চলতে থাকলে এখানকার স্টাফকে জিজ্ঞেস করুন।",
@@ -1174,6 +1205,14 @@ const MR: Dict = {
   expiredDurationMinutes: "{n} मिनिटे",
   expiredDurationHours: "{n} तास",
   expiredDurationHour: "1 तास",
+  expiredIdleTitle: "निष्क्रिय राहिल्यामुळे तुम्हाला sign out केलं",
+  expiredIdleBody:
+    "हे device {n} शांत होतं, म्हणून इथल्या WiFi ने जागा मोकळी करण्यासाठी ते sign out केलं. पुढे चालू ठेवण्यासाठी पुन्हा sign in करा.",
+  expiredIdleBodyNoDuration:
+    "हे device काही वेळ शांत होतं, म्हणून इथल्या WiFi ने जागा मोकळी करण्यासाठी ते sign out केलं. पुढे चालू ठेवण्यासाठी पुन्हा sign in करा.",
+  expiredDailyLimitTitle: "आजचा WiFi वेळ संपला",
+  expiredDailyLimitBody:
+    "इथे प्रत्येक पाहुण्याला दररोज ठराविक WiFi वेळ मिळतो, आणि तुमचा संपला आहे. उद्या पुन्हा नव्याने सुरू होईल.",
   useOtpInsteadLabel: "त्याऐवजी OTP वापरा",
   failureSubtitle: "तुमची माहिती तपासा आणि पुन्हा प्रयत्न करा.",
   failureHelp: "समस्या राहिली तर इथल्या staff ला विचारा.",
@@ -1443,6 +1482,14 @@ const TE: Dict = {
   expiredDurationMinutes: "{n} నిమిషాలు",
   expiredDurationHours: "{n} గంటలు",
   expiredDurationHour: "1 గంట",
+  expiredIdleTitle: "నిష్క్రియంగా ఉన్నందున మిమ్మల్ని సైన్ అవుట్ చేశాం",
+  expiredIdleBody:
+    "ఈ పరికరం {n} నిశ్శబ్దంగా ఉంది, అందుకే ఇక్కడి WiFi స్థలం ఖాళీ చేయడానికి దాన్ని సైన్ అవుట్ చేసింది. కొనసాగడానికి మళ్లీ సైన్ ఇన్ అవ్వండి.",
+  expiredIdleBodyNoDuration:
+    "ఈ పరికరం కొంతసేపు నిశ్శబ్దంగా ఉంది, అందుకే ఇక్కడి WiFi స్థలం ఖాళీ చేయడానికి దాన్ని సైన్ అవుట్ చేసింది. కొనసాగడానికి మళ్లీ సైన్ ఇన్ అవ్వండి.",
+  expiredDailyLimitTitle: "ఈరోజు WiFi సమయం ముగిసింది",
+  expiredDailyLimitBody:
+    "ఈ ప్రదేశం ప్రతి అతిథికి రోజుకు నిర్ణీత WiFi సమయం ఇస్తుంది, మీది ముగిసింది. రేపు మళ్లీ కొత్తగా మొదలవుతుంది.",
   useOtpInsteadLabel: "బదులుగా OTP వాడండి",
   failureSubtitle: "మీ వివరాలు చూసుకుని మళ్లీ ప్రయత్నించండి.",
   failureHelp: "సమస్య కొనసాగితే సిబ్బందిని అడగండి.",
@@ -1714,6 +1761,14 @@ const TA: Dict = {
   expiredDurationMinutes: "{n} நிமிடங்கள்",
   expiredDurationHours: "{n} மணி நேரம்",
   expiredDurationHour: "1 மணி நேரம்",
+  expiredIdleTitle: "செயலற்று இருந்ததால் வெளியேற்றப்பட்டீர்கள்",
+  expiredIdleBody:
+    "இந்தச் சாதனம் {n} அமைதியாக இருந்தது, எனவே இங்குள்ள WiFi இடத்தைக் காலி செய்ய அதை வெளியேற்றியது. தொடர மீண்டும் நுழையுங்கள்.",
+  expiredIdleBodyNoDuration:
+    "இந்தச் சாதனம் சிறிது நேரம் அமைதியாக இருந்தது, எனவே இங்குள்ள WiFi இடத்தைக் காலி செய்ய அதை வெளியேற்றியது. தொடர மீண்டும் நுழையுங்கள்.",
+  expiredDailyLimitTitle: "இன்றைய WiFi நேரம் முடிந்தது",
+  expiredDailyLimitBody:
+    "இந்த இடம் ஒவ்வொரு விருந்தினருக்கும் நாளொன்றுக்கு குறிப்பிட்ட WiFi நேரம் தருகிறது, உங்களுடையது முடிந்துவிட்டது. நாளை புதிதாகத் தொடங்கும்.",
   useOtpInsteadLabel: "மாற்றாக OTP பயன்படுத்துங்கள்",
   failureSubtitle: "உங்கள் விவரங்களைச் சரிபார்த்து மீண்டும் முயலுங்கள்.",
   failureHelp: "சிக்கல் தொடர்ந்தால் இட ஊழியரிடம் கேளுங்கள்.",
@@ -1982,6 +2037,14 @@ const GU: Dict = {
   expiredDurationMinutes: "{n} મિનિટ",
   expiredDurationHours: "{n} કલાક",
   expiredDurationHour: "1 કલાક",
+  expiredIdleTitle: "નિષ્ક્રિય રહેવાથી તમને sign out કરાયા",
+  expiredIdleBody:
+    "આ device {n} શાંત રહ્યું, તેથી અહીંના WiFi એ જગ્યા ખાલી કરવા તેને sign out કર્યું. ચાલુ રાખવા ફરી sign in કરો.",
+  expiredIdleBodyNoDuration:
+    "આ device થોડી વાર શાંત રહ્યું, તેથી અહીંના WiFi એ જગ્યા ખાલી કરવા તેને sign out કર્યું. ચાલુ રાખવા ફરી sign in કરો.",
+  expiredDailyLimitTitle: "આજનો WiFi સમય વપરાઈ ગયો",
+  expiredDailyLimitBody:
+    "આ સ્થળ દરેક મહેમાનને રોજ નિશ્ચિત WiFi સમય આપે છે, અને તમારો પૂરો થયો છે. કાલે ફરી નવેસરથી શરૂ થશે.",
   useOtpInsteadLabel: "એના બદલે OTP વાપરો",
   failureSubtitle: "તમારી વિગતો તપાસીને ફરી પ્રયત્ન કરો.",
   failureHelp: "સમસ્યા ચાલુ રહે તો અહીંના સ્ટાફને પૂછો.",
@@ -2248,6 +2311,14 @@ const KN: Dict = {
   expiredDurationMinutes: "{n} ನಿಮಿಷ",
   expiredDurationHours: "{n} ಗಂಟೆ",
   expiredDurationHour: "1 ಗಂಟೆ",
+  expiredIdleTitle: "ನಿಷ್ಕ್ರಿಯವಾಗಿದ್ದ ಕಾರಣ ನಿಮ್ಮನ್ನು sign out ಮಾಡಲಾಗಿದೆ",
+  expiredIdleBody:
+    "ಈ device {n} ಶಾಂತವಾಗಿತ್ತು, ಆದ್ದರಿಂದ ಇಲ್ಲಿನ WiFi ಜಾಗ ಖಾಲಿ ಮಾಡಲು ಅದನ್ನು sign out ಮಾಡಿತು. ಮುಂದುವರಿಸಲು ಮತ್ತೆ sign in ಮಾಡಿ.",
+  expiredIdleBodyNoDuration:
+    "ಈ device ಸ್ವಲ್ಪ ಹೊತ್ತು ಶಾಂತವಾಗಿತ್ತು, ಆದ್ದರಿಂದ ಇಲ್ಲಿನ WiFi ಜಾಗ ಖಾಲಿ ಮಾಡಲು ಅದನ್ನು sign out ಮಾಡಿತು. ಮುಂದುವರಿಸಲು ಮತ್ತೆ sign in ಮಾಡಿ.",
+  expiredDailyLimitTitle: "ಇಂದಿನ WiFi ಸಮಯ ಮುಗಿದಿದೆ",
+  expiredDailyLimitBody:
+    "ಈ ಸ್ಥಳ ಪ್ರತಿ ಅತಿಥಿಗೆ ದಿನಕ್ಕೆ ನಿಗದಿತ WiFi ಸಮಯ ನೀಡುತ್ತದೆ, ನಿಮ್ಮದು ಮುಗಿದಿದೆ. ನಾಳೆ ಮತ್ತೆ ಹೊಸದಾಗಿ ಆರಂಭವಾಗುತ್ತದೆ.",
   useOtpInsteadLabel: "ಬದಲಿಗೆ OTP ಬಳಸಿ",
   failureSubtitle: "ನಿಮ್ಮ ವಿವರಗಳನ್ನು ಪರಿಶೀಲಿಸಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
   failureHelp: "ಸಮಸ್ಯೆ ಮುಂದುವರಿದರೆ ಇಲ್ಲಿನ staff ಅನ್ನು ಕೇಳಿ.",
@@ -2518,6 +2589,14 @@ const ML: Dict = {
   expiredDurationMinutes: "{n} മിനിറ്റ്",
   expiredDurationHours: "{n} മണിക്കൂർ",
   expiredDurationHour: "1 മണിക്കൂർ",
+  expiredIdleTitle: "നിഷ്ക്രിയമായിരുന്നതിനാൽ നിങ്ങളെ sign out ചെയ്തു",
+  expiredIdleBody:
+    "ഈ device {n} നിശ്ശബ്ദമായിരുന്നു, അതിനാൽ ഇവിടത്തെ WiFi സ്ഥലം ഒഴിവാക്കാൻ അതിനെ sign out ചെയ്തു. തുടരാൻ വീണ്ടും sign in ചെയ്യൂ.",
+  expiredIdleBodyNoDuration:
+    "ഈ device കുറച്ചു നേരം നിശ്ശബ്ദമായിരുന്നു, അതിനാൽ ഇവിടത്തെ WiFi സ്ഥലം ഒഴിവാക്കാൻ അതിനെ sign out ചെയ്തു. തുടരാൻ വീണ്ടും sign in ചെയ്യൂ.",
+  expiredDailyLimitTitle: "ഇന്നത്തെ WiFi സമയം തീർന്നു",
+  expiredDailyLimitBody:
+    "ഈ സ്ഥലം ഓരോ അതിഥിക്കും ദിവസേന നിശ്ചിത WiFi സമയം നൽകുന്നു, നിങ്ങളുടേത് തീർന്നു. നാളെ വീണ്ടും പുതുതായി തുടങ്ങും.",
   useOtpInsteadLabel: "പകരം OTP ഉപയോഗിക്കൂ",
   failureSubtitle: "നിങ്ങളുടെ വിവരങ്ങൾ പരിശോധിച്ച് വീണ്ടും ശ്രമിക്കൂ.",
   failureHelp: "പ്രശ്നം തുടർന്നാൽ സ്ഥാപനത്തിലെ ജീവനക്കാരോട് ചോദിക്കൂ.",
@@ -2786,6 +2865,14 @@ const PA: Dict = {
   expiredDurationMinutes: "{n} ਮਿੰਟ",
   expiredDurationHours: "{n} ਘੰਟੇ",
   expiredDurationHour: "1 ਘੰਟਾ",
+  expiredIdleTitle: "ਨਿਸ਼ਕਿਰਿਆ ਰਹਿਣ ਕਾਰਨ ਤੁਹਾਨੂੰ sign out ਕੀਤਾ ਗਿਆ",
+  expiredIdleBody:
+    "ਇਹ device {n} ਸ਼ਾਂਤ ਰਿਹਾ, ਇਸ ਲਈ ਇੱਥੋਂ ਦੀ WiFi ਨੇ ਜਗ੍ਹਾ ਖਾਲੀ ਕਰਨ ਲਈ ਇਸਨੂੰ sign out ਕਰ ਦਿੱਤਾ। ਅੱਗੇ ਵਧਣ ਲਈ ਫਿਰ ਤੋਂ sign in ਕਰੋ।",
+  expiredIdleBodyNoDuration:
+    "ਇਹ device ਕੁਝ ਦੇਰ ਸ਼ਾਂਤ ਰਿਹਾ, ਇਸ ਲਈ ਇੱਥੋਂ ਦੀ WiFi ਨੇ ਜਗ੍ਹਾ ਖਾਲੀ ਕਰਨ ਲਈ ਇਸਨੂੰ sign out ਕਰ ਦਿੱਤਾ। ਅੱਗੇ ਵਧਣ ਲਈ ਫਿਰ ਤੋਂ sign in ਕਰੋ।",
+  expiredDailyLimitTitle: "ਅੱਜ ਦਾ WiFi ਸਮਾਂ ਵਰਤਿਆ ਜਾ ਚੁੱਕਾ ਹੈ",
+  expiredDailyLimitBody:
+    "ਇਹ ਥਾਂ ਹਰ ਮਹਿਮਾਨ ਨੂੰ ਰੋਜ਼ਾਨਾ ਤੈਅ WiFi ਸਮਾਂ ਦਿੰਦੀ ਹੈ, ਅਤੇ ਤੁਹਾਡਾ ਪੂਰਾ ਹੋ ਗਿਆ ਹੈ। ਕੱਲ੍ਹ ਤੋਂ ਫਿਰ ਨਵਾਂ ਸ਼ੁਰੂ ਹੋਵੇਗਾ।",
   useOtpInsteadLabel: "ਇਸਦੀ ਥਾਂ OTP ਵਰਤੋ",
   failureSubtitle: "ਆਪਣੀ ਜਾਣਕਾਰੀ ਵੇਖੋ ਤੇ ਫਿਰ ਕੋਸ਼ਿਸ਼ ਕਰੋ।",
   failureHelp: "ਸਮੱਸਿਆ ਰਹੇ ਤਾਂ ਸਟਾਫ਼ ਨੂੰ ਪੁੱਛੋ।",

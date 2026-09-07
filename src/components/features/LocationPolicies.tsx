@@ -37,6 +37,7 @@ import {
   latestVersion,
   deactivatePolicy,
   sessionPolicyRules,
+  fupTimeLimitRules,
 } from "@/services/policy-engine";
 
 // DevicePolicyRules.max_devices_per_guest (backend) is a required int >= 1
@@ -54,15 +55,29 @@ const UNLIMITED_DEVICES_SENTINEL = 9999;
 // is a separate policy and why the three companion fields mirror
 // guest/constants.py rather than policy/constants.py; read it there.
 
-// Rules the backend stores but no code path reads. Each is declared on
-// BandwidthPolicyRules, round-trips through save/reload perfectly, and is
-// enforced by nothing -- confirmed against the backend: the only consumer
-// of a BANDWIDTH resolve is queue_management, and it reads exactly
-// download_rate_kbps and upload_rate_kbps. Rather than leave three
-// controls that look like they work, they are disabled with the reason.
-// (Bandwidth and Devices Per User are real: bandwidth drives the router
-// queue, and Devices Per User is enforced through the paired DEVICE
-// policy's max_devices_per_guest.)
+// A rule the backend stores but no code path reads. `data_limit` is declared
+// on BandwidthPolicyRules, round-trips through save/reload perfectly, and is
+// enforced by nothing -- confirmed against the backend: the only consumer of
+// a BANDWIDTH resolve is queue_management, and it reads exactly
+// download_rate_kbps and upload_rate_kbps. Rather than leave a control that
+// looks like it works, it is disabled with the reason.
+//
+// This note used to sit on three controls. Idle Timeout and Maximum Daily
+// Session Limit have come off it because they are now genuinely enforced end
+// to end, each by being written to the policy type that actually reads it
+// rather than to the bandwidth policy that never did:
+//
+//   * Idle Timeout      -> SESSION policy's `idle_timeout_minutes`, sent as
+//                          the RFC 2865 Idle-Timeout attribute on the guest's
+//                          RADIUS Access-Accept.
+//   * Max Daily Session -> FUP policy's `daily_time_limit_minutes`, accrued
+//                          into GuestQuotaUsage.minutes_used by the
+//                          five-minutely sweep and enforced at login.
+//
+// The note stays, unchanged, on the data limit below -- which is still stored
+// and still read by nothing. It is deliberately not removed wholesale just
+// because two of its three users left: an honest disclaimer on a control that
+// does nothing is worth more than a tidy form.
 const NOT_ENFORCED_NOTE = "Not enforced yet — saving this has no effect on guests.";
 
 const BANDWIDTH_KBPS: Record<string, number> = {
@@ -94,14 +109,38 @@ const SESSION_TIMEOUT_MINUTES: Record<string, number> = {
   "8 hr": 480,
   "24 hr": 1440,
 };
-const IDLE_TIMEOUT_MINUTES: Record<string, number | null> = {
-  "No Limit": null,
+// "No Limit" is deliberately NOT an option here, and its absence is the
+// honest half of making this control real.
+//
+// An idle timeout is the only thing on this fleet that reaps an abandoned
+// session promptly. The routers run `keepalive-timeout=none` -- a fix for a
+// confirmed incident where phones locking their screens were hard-logged-out
+// at RouterOS's factory two-minute keepalive -- so with the idle timeout also
+// off, nothing closes a session a guest walked away from: slots stay held
+// against `shared-users`, device counts only ever rise, and RADIUS never
+// receives an Accounting-Stop. That is the incident the 30-minute default
+// exists to close (see HOTSPOT_IDLE_TIMEOUT in RouterDetailTabs.tsx and
+// DEFAULT_IDLE_TIMEOUT_MINUTES in the backend's guest/constants.py).
+//
+// So "No Limit" could not be honoured without re-opening that. And offering
+// it while quietly applying 30 minutes is precisely what this screen was
+// already doing: the option existed, was the value an unconfigured location
+// read back as, and the router idled those guests out at 30 minutes anyway.
+// Removing it is what makes every value left on this list true.
+const IDLE_TIMEOUT_MINUTES: Record<string, number> = {
   "5 min": 5,
   "10 min": 10,
   "15 min": 15,
   "30 min": 30,
   "1 hr": 60,
 };
+
+// What a location with no SESSION policy of its own is actually doing.
+// Mirrors the backend's DEFAULT_IDLE_TIMEOUT_MINUTES, which in turn mirrors
+// what the router setup script writes onto the device -- so the form opens
+// showing the real current behaviour rather than a blank.
+const DEFAULT_IDLE_TIMEOUT_LABEL = "30 min";
+
 const DAILY_LIMIT_MINUTES: Record<string, number | null> = {
   "No Limit": null,
   "1 hr": 60,
@@ -134,7 +173,7 @@ const BANDWIDTH = [
 ];
 const SESSION_TIMEOUT = ["30 min", "1 hr", "2 hr", "4 hr", "8 hr", "24 hr"];
 const DAILY_LIMIT = ["No Limit", "1 hr", "2 hr", "4 hr", "8 hr"];
-const IDLE_TIMEOUT = ["No Limit", "5 min", "10 min", "15 min", "30 min", "1 hr"];
+const IDLE_TIMEOUT = ["5 min", "10 min", "15 min", "30 min", "1 hr"];
 const DEVICES = ["Unlimited", "1", "2", "3", "4", "5"];
 const DATA_UNITS = ["MB", "GB"];
 const RESETS = ["Per session", "Daily", "Weekly", "Monthly"];
@@ -310,7 +349,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
     bandwidth: "",
     sessionTimeout: "",
     dailyLimit: "No Limit",
-    idleTimeout: "",
+    idleTimeout: DEFAULT_IDLE_TIMEOUT_LABEL,
     devicesPerUser: "",
     dataLimit: null,
   });
@@ -325,6 +364,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   const [realIds, setRealIds] = useState<Record<string, string>>({}); // businessUnit(=policy name) -> real bandwidth-policy id
   const [deviceRealIds, setDeviceRealIds] = useState<Record<string, string>>({}); // businessUnit -> real DEVICE-policy id
   const [sessionRealIds, setSessionRealIds] = useState<Record<string, string>>({}); // businessUnit -> real SESSION-policy id
+  const [fupRealIds, setFupRealIds] = useState<Record<string, string>>({}); // businessUnit -> real FUP-policy id
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState<number>(10);
@@ -339,10 +379,11 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
       try {
         const org = await resolveOrgId();
         setOrgId(org);
-        const [realAll, deviceDetailsAll, sessionDetailsAll] = await Promise.all([
+        const [realAll, deviceDetailsAll, sessionDetailsAll, fupDetailsAll] = await Promise.all([
           bandwidthPolicyService.list(org),
           listPolicyDetails("device", org).catch(() => []),
           listPolicyDetails("session", org).catch(() => []),
+          listPolicyDetails("fup", org).catch(() => []),
         ]);
         // Deactivated (deleted) policies are excluded from both id maps --
         // bandwidthPolicyService.list()/listPolicyDetails() return every
@@ -378,6 +419,27 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
             latestVersion(d)?.rules?.session_timeout_minutes as number | undefined,
           ]),
         );
+        // Idle Timeout rides on the same SESSION policy as the session
+        // length -- one policy, two settings, one lookup on the guest side.
+        const idleByName = new Map(
+          sessionDetails.map((d) => [
+            d.name,
+            latestVersion(d)?.rules?.idle_timeout_minutes as number | undefined,
+          ]),
+        );
+        // FUP policies are name-keyed the same way -- see handleSave.
+        const fupDetails = fupDetailsAll.filter((d) => d.is_active);
+        // Keyed on presence, not on truthiness -- `null` is a real, chosen
+        // value here ("No Limit"), not an absent one. Reading it with `??`
+        // would fall through to the stale bandwidth copy and show a venue
+        // the cap they had just cleared, which is the same class of bug as
+        // writing to a field nothing reads.
+        const dailyByName = new Map<string, number | null>(
+          fupDetails.map((d) => [
+            d.name,
+            (latestVersion(d)?.rules?.daily_time_limit_minutes ?? null) as number | null,
+          ]),
+        );
         setPolicies(
           real.map((p) => {
             const maxDevices = deviceByName.get(p.name);
@@ -401,8 +463,26 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                 SESSION_TIMEOUT_MINUTES,
                 "",
               ),
-              dailyLimit: labelFromMinutes(p.dailyLimitMinutes, DAILY_LIMIT_MINUTES, "No Limit"),
-              idleTimeout: labelFromMinutes(p.idleTimeoutMinutes, IDLE_TIMEOUT_MINUTES, ""),
+              // Prefer the real FUP policy -- that is the one the accrual
+              // sweep and the login gate resolve. A location saved before
+              // this fix has only the (unread) bandwidth copy, so fall back
+              // to it so the row and the Edit form still show what was
+              // chosen; the next save writes a real FUP policy for it.
+              dailyLimit: labelFromMinutes(
+                dailyByName.has(p.name) ? dailyByName.get(p.name) : p.dailyLimitMinutes,
+                DAILY_LIMIT_MINUTES,
+                "No Limit",
+              ),
+              // Same shape for the idle timeout, against the SESSION policy.
+              // The fallback is the platform default rather than a blank:
+              // a location with no SESSION policy is not "unset", it is
+              // running the 30 minutes its router already applies, and
+              // showing an empty box would misdescribe that as nothing.
+              idleTimeout: labelFromMinutes(
+                idleByName.get(p.name) ?? p.idleTimeoutMinutes,
+                IDLE_TIMEOUT_MINUTES,
+                DEFAULT_IDLE_TIMEOUT_LABEL,
+              ),
               devicesPerUser,
               dataLimit: p.dataLimit ?? null,
             };
@@ -411,6 +491,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         setRealIds(Object.fromEntries(real.map((p) => [p.name, p.id])));
         setDeviceRealIds(Object.fromEntries(deviceDetails.map((d) => [d.name, d.id])));
         setSessionRealIds(Object.fromEntries(sessionDetails.map((d) => [d.name, d.id])));
+        setFupRealIds(Object.fromEntries(fupDetails.map((d) => [d.name, d.id])));
       } catch {
         // Leave policies empty -- the "no policies yet" state is accurate.
       }
@@ -473,11 +554,22 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
     if (!f.bandwidth) e.bandwidth = "Required.";
     if (!f.sessionTimeout) e.sessionTimeout = "Required.";
     if (!f.devicesPerUser) e.devicesPerUser = "Required.";
-    // Idle Timeout is no longer required, and the "idle can't exceed
-    // session" cross-check is gone with it: the control is disabled
-    // because nothing enforces the value (see NOT_ENFORCED_NOTE), and a
-    // required field that cannot be filled would block every save. The
-    // data-limit quota check goes for the same reason.
+    // Idle Timeout is required again, and the "idle can't exceed session"
+    // cross-check with it. Both were dropped when the control was disabled
+    // for being unenforced -- a required field nobody can fill blocks every
+    // save. Now that the value reaches the router, the checks earn their
+    // place back: an idle timeout longer than the session timeout can never
+    // fire, because the session ends first, so saving one is silently
+    // choosing "no idle timeout" by a route the form does not admit to.
+    //
+    // The data-limit quota check stays gone -- that control is still
+    // disabled and still unenforced.
+    if (!f.idleTimeout) e.idleTimeout = "Required.";
+    const idleMins = IDLE_TIMEOUT_MINUTES[f.idleTimeout];
+    const sessionMins = SESSION_TIMEOUT_MINUTES[f.sessionTimeout];
+    if (idleMins && sessionMins && idleMins > sessionMins) {
+      e.idleTimeout = "Must not be longer than the session timeout.";
+    }
     setErrs(e);
     return !Object.keys(e).length;
   };
@@ -585,15 +677,23 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         setDeviceRealIds((prev) => ({ ...prev, [f.businessUnit]: createdDevice.id }));
       }
 
-      // Session Timeout -- the real one. See sessionPolicyRules /
-      // SESSION_POLICY_DEFAULTS in policy-engine.ts for why this is a
-      // separate policy rather than a field on the bandwidth one. Same
-      // name-keyed upsert + location assignment shape as the DEVICE policy
-      // directly above.
+      // Session Timeout and Idle Timeout -- the real ones. See
+      // sessionPolicyRules / SESSION_POLICY_DEFAULTS in policy-engine.ts for
+      // why this is a separate policy rather than a field on the bandwidth
+      // one. Same name-keyed upsert + location assignment shape as the
+      // DEVICE policy directly above.
+      //
+      // The idle timeout goes onto this same SESSION policy rather than a
+      // policy of its own: it is resolved by the same guest-login lookup,
+      // out of the same memoized read, and splitting it across two policy
+      // types would mean two assignments to keep in step for one screen.
       const sessionMinutes = SESSION_TIMEOUT_MINUTES[f.sessionTimeout];
       if (sessionMinutes) {
         const existingSessionId = sessionRealIds[f.businessUnit];
-        const sessionRules = sessionPolicyRules(sessionMinutes);
+        const sessionRules = sessionPolicyRules(
+          sessionMinutes,
+          IDLE_TIMEOUT_MINUTES[f.idleTimeout] ?? IDLE_TIMEOUT_MINUTES[DEFAULT_IDLE_TIMEOUT_LABEL],
+        );
         if (existingSessionId) {
           await updatePolicyRules({
             id: existingSessionId,
@@ -621,6 +721,53 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
           }
           setSessionRealIds((prev) => ({ ...prev, [f.businessUnit]: createdSession.id }));
         }
+      }
+
+      // Maximum Daily Session Limit -- the real one. An FUP policy, because
+      // `daily_time_limit_minutes` there is the only daily-time field the
+      // backend actually reads; the bandwidth policy's `daily_limit_minutes`
+      // (still written above for backward-compatible reads) has no consumer
+      // anywhere. See fupTimeLimitRules in policy-engine.ts.
+      //
+      // Not guarded by a truthiness check, unlike the session block above:
+      // "No Limit" is a real, selectable answer here and maps to null, and
+      // an operator clearing a limit they previously set must produce a new
+      // policy version that says so. Skipping the write on a falsy value
+      // would leave the old cap standing and make the limit impossible to
+      // remove -- the mirror image of the bug this whole change fixes.
+      const dailyMinutes = DAILY_LIMIT_MINUTES[f.dailyLimit] ?? null;
+      const existingFupId = fupRealIds[f.businessUnit];
+      const fupRules = fupTimeLimitRules(dailyMinutes);
+      if (existingFupId) {
+        await updatePolicyRules({
+          id: existingFupId,
+          rules: fupRules,
+          publish: true,
+          archive: false,
+          organizationId: orgId ?? undefined,
+        });
+      } else if (dailyMinutes !== null) {
+        // Only worth creating a policy for a real cap. A brand-new location
+        // choosing "No Limit" already has no limit; writing an FUP policy
+        // full of nulls to say so would add a resolvable policy and an
+        // assignment that change nothing.
+        const createdFup = await createPolicyWithRules({
+          policyType: "fup",
+          name: f.businessUnit,
+          description: null,
+          rules: fupRules,
+          publish: true,
+          organizationId: orgId ?? undefined,
+        });
+        if (locationId) {
+          await createPolicyAssignment({
+            policyId: createdFup.id,
+            scopeType: "location",
+            scopeId: locationId,
+            organizationId: orgId ?? undefined,
+          });
+        }
+        setFupRealIds((prev) => ({ ...prev, [f.businessUnit]: createdFup.id }));
       }
 
       const row: Policy = { id: saved.id, ...f, dataLimit };
@@ -725,6 +872,16 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         if (sessionId) {
           deactivatePolicy(sessionId, orgId ?? undefined).catch(() => {});
         }
+        // And the FUP policy, for the same reason and with sharper teeth:
+        // a daily time limit left in force after its location was deleted
+        // does not merely linger, it locks guests out -- `_enforce_fup_quota`
+        // refuses the login of anyone who has already spent the allowance,
+        // and there would no longer be a screen anywhere showing that a cap
+        // exists to explain why.
+        const fupId = businessUnit ? fupRealIds[businessUnit] : undefined;
+        if (fupId) {
+          deactivatePolicy(fupId, orgId ?? undefined).catch(() => {});
+        }
       }
       setConfirming(null);
       if (confirmTimer.current) clearTimeout(confirmTimer.current);
@@ -765,7 +922,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                   bandwidth: "",
                   sessionTimeout: "",
                   dailyLimit: "No Limit",
-                  idleTimeout: "",
+                  idleTimeout: DEFAULT_IDLE_TIMEOUT_LABEL,
                   devicesPerUser: "",
                   dataLimit: null,
                 });
@@ -957,12 +1114,13 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                 <Select
                   id="it"
                   label="Idle Timeout"
+                  required
                   value={f.idleTimeout}
                   onChange={(v) => setField("idleTimeout", v)}
                   options={IDLE_TIMEOUT}
                   placeholder="Choose idle timeout"
-                  caption={NOT_ENFORCED_NOTE}
-                  disabled
+                  caption="Sign a device out after this much inactivity."
+                  err={errs.idleTimeout}
                 />
                 <Select
                   id="dl"
@@ -971,8 +1129,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                   onChange={(v) => setField("dailyLimit", v)}
                   options={DAILY_LIMIT}
                   placeholder="Choose daily limit"
-                  caption={NOT_ENFORCED_NOTE}
-                  disabled
+                  caption="Total time one guest may be online per day."
                 />
               </div>
             </div>
@@ -1084,10 +1241,17 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                       <TableCell>{p.sessionTimeout}</TableCell>
                       {/* "No Limit"/"Unlimited" rows are muted so a stricter,
                       set value on another row visually stands out instead
-                      of every policy reading with equal weight. */}
+                      of every policy reading with equal weight.
+
+                      Idle Timeout has no "No Limit" any more (see
+                      IDLE_TIMEOUT_MINUTES), so the muting there now marks
+                      the default instead: a location still on the platform
+                      default is the one nobody has made a decision about,
+                      which is the same "nothing set here" signal the muting
+                      existed to give. */}
                       <TableCell
                         className={
-                          p.idleTimeout === "No Limit"
+                          p.idleTimeout === DEFAULT_IDLE_TIMEOUT_LABEL
                             ? "text-slate-400 dark:text-slate-500"
                             : undefined
                         }
