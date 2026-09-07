@@ -36,6 +36,27 @@ import { rbacService } from "@/services/rbac.service";
  * 403 from that endpoint. Modules with no clean single backend-domain
  * match (dashboard, workspace-*, rbac, guests, portals, ...) are left
  * exactly as the static table decides, same as before this change.
+ *
+ * EVERY PREFIX HERE MUST NAME A REAL `PermissionModule`. This table asks
+ * for `<prefix>.read` and denies the module when the caller does not hold
+ * it -- so a prefix that names no seeded module is not a harmless no-op,
+ * it denies that module to EVERYONE whose key set was fetched
+ * successfully. It fails CLOSED, not open.
+ *
+ * Two entries were doing exactly that: `port-forwarding -> port_forwarding`
+ * and `queue-management -> queue_management`. Neither is a member of
+ * `PermissionModule`; the backend's `app/domains/port_forwarding` router
+ * is guarded by `firewall.*` and `app/domains/queue_management` by
+ * `bandwidth.*` (read straight off their `RequirePermission(...)`
+ * dependencies), so both prefixes were inferred from the frontend module
+ * id rather than checked. `customerNavPermissions.ts` had already caught
+ * and documented the port-forwarding half of this -- and recorded, wrongly,
+ * that it "fails open there, so it is a latent no-op". It does not. Both
+ * are corrected here to the domains that actually guard those endpoints.
+ *
+ * The seeded key list is vendored as `BACKEND_PERMISSION_KEYS`
+ * (src/lib/backendPermissionKeys.generated.ts) if you need to check a new
+ * prefix without leaving this repo.
  */
 const MODULE_PERMISSION_PREFIX: Partial<Record<ModuleId, string>> = {
   organizations: "organizations",
@@ -54,8 +75,12 @@ const MODULE_PERMISSION_PREFIX: Partial<Record<ModuleId, string>> = {
   "isp-routing": "isp_routing",
   firewall: "firewall",
   "mac-auth": "mac_authorization",
-  "queue-management": "queue_management",
-  "port-forwarding": "port_forwarding",
+  // Not `queue_management`/`port_forwarding` -- neither is a
+  // PermissionModule. See this table's own note above: those two prefixes
+  // denied their modules to every caller. Read off the backend routers'
+  // real `RequirePermission(...)` dependencies.
+  "queue-management": "bandwidth",
+  "port-forwarding": "firewall",
   "guest-access": "guest_access",
   "guest-teams": "guest_teams",
   hotspot: "hotspot",

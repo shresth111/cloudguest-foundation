@@ -803,12 +803,39 @@ jobs:
       # directions, so a tidy-up that "restores consistency" with the
       # `.read` entries around it fails here instead of in production.
       #
-      # Floor 42, observed green at 42.
+      # AND THE KEYS THEMSELVES ARE NOW CHECKED, not just the filter. The
+      # previous version of this suite pinned five keys a human had read
+      # off the backend's decorators -- which is exactly how
+      # `dashboard.read` got in: it was never read off anything. Section 5b
+      # now asserts every key the table demands is a member of the
+      # backend's real seeded key list (vendored; see the drift job below),
+      # and 5c asserts the sidebar says out loud when a permission is the
+      # reason a section is missing.
+      #
+      # Floor 57, observed green at 57.
       - name: customer sidebar permissions
         run: |
           ./scripts/ci-gated-test.sh \
-            "customer-nav-permissions" 42 "all customer nav permission checks passed" \
+            "customer-nav-permissions" 57 "all customer nav permission checks passed" \
             bun run test:customer-nav-permissions
+
+      # --- Vendored backend permission keys -------------------------------
+      #
+      # The other direction of the same guard. The job above checks this
+      # repo against `src/lib/backendPermissionKeys.generated.ts`; this
+      # checks that file against the backend's own `rbac/seed.py`, so the
+      # backend renaming or dropping a key surfaces here rather than as a
+      # nav row that quietly stops rendering in production.
+      #
+      # Skips (exit 0) when the backend checkout is not present, which is
+      # the normal case for a frontend-only runner: this repo builds and
+      # deploys on its own, and failing every unrelated PR because a
+      # sibling directory is missing only teaches people to ignore the
+      # check. Set CLOUDGUEST_BACKEND to a checkout to make it bite. The
+      # committed key list is still asserted against by the job above,
+      # which needs no backend checkout at all.
+      - name: vendored permission keys are current
+        run: bun run test:permission-key-drift
 
       # --- Campaign results ----------------------------------------------
       #
