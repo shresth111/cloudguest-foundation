@@ -83,10 +83,10 @@ function toVlan(v: BackendVlan): Vlan {
 // page as a dead Edit icon (and a page that never loaded any real rows in
 // the first place).
 //
-// The header is no longer resolved here: `attachOrganizationHeader`
+// The header is no longer resolved here: `attachOrganizationScope`
 // (services/api.ts) puts it on every request from an organization-scoped
-// session, and deliberately puts nothing on a GLOBAL-scope one, so a
-// master-console session still spans every organization. That also drops the
+// session, and puts `X-Organization-Scope: all` on a master-console one, so
+// that session still spans every organization. That also drops the
 // `await resolveOrganizationId()` that used to stand in front of each of
 // these reads -- it made the first VLAN request wait on `/me/organizations`
 // before it could even be issued.

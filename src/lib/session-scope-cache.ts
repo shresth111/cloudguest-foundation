@@ -14,7 +14,7 @@
  *
  * In both cases the next request carries an explicit `X-Organization-Id` for
  * the *previous* tenant. That header wins over the interceptor's default
- * (`attachOrganizationHeader` returns early when one is already set), so an
+ * (`attachOrganizationScope` returns early when one is already set), so an
  * account that belongs to both organizations silently reads the wrong one,
  * and the restored operator — who bypasses the membership check via the
  * global-scope path — reads the impersonated tenant's data.

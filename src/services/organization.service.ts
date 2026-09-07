@@ -1,4 +1,4 @@
-import { api } from "@/services/api";
+import { api, crossOrganizationHeaders } from "@/services/api";
 import { isDemo } from "@/services/customer.service";
 import type {
   CreateOrgPayload,
@@ -119,6 +119,14 @@ export const organizationService = {
         page_size: q.pageSize,
         search: q.search || undefined,
       },
+      // The tenant *directory*, not tenant data: for a platform operator this
+      // is always the full list, whichever organization they currently have
+      // selected -- the master Customers table and the scope picker itself
+      // both depend on that, and the picker could not offer an organization it
+      // was already scoped away from. `crossOrganizationHeaders()` returns
+      // nothing for an org-scoped session, which then correctly sees only its
+      // own organization and its children.
+      headers: crossOrganizationHeaders(),
     });
     let rows = data.items.map(toOrganization);
     // The list endpoint has no status filter param -- filter client-side over

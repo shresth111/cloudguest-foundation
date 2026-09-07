@@ -85,7 +85,7 @@ export function HotspotManagement({ locationId }: { locationId?: string } = {}) 
 
   // No org id is resolved or threaded here, and this query has no `enabled`
   // gate. The endpoint still scopes on X-Organization-Id, but
-  // `attachOrganizationHeader` (services/api.ts) attaches it to every request
+  // `attachOrganizationScope` (services/api.ts) attaches it to every request
   // an organization-scoped session makes, and attaches nothing for a
   // GLOBAL-scope one -- so the unscoped /network view still spans every org.
   //
