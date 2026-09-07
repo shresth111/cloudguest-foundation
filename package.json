@@ -50,6 +50,7 @@
     "test:whitelist-only": "node scripts/test-whitelist-only-guardrails.mjs",
     "test:whitelist-refusal": "node scripts/test-portal-whitelist-refusal.mjs",
     "test:portal-error-boundary": "node scripts/test-portal-error-boundary.mjs",
+    "test:portal-search-retention": "node scripts/test-portal-search-retention.mjs",
     "check:node": "node scripts/check-node-version.mjs"
   },
   "dependencies": {

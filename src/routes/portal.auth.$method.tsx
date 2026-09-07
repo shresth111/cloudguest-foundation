@@ -26,6 +26,7 @@ import type {
   RuntimePortalConfig,
   RuntimeSession,
 } from "@/types/portal-runtime";
+import { usePortalLinkSearch } from "@/components/portal-runtime/usePortalLinkSearch";
 
 export const Route = createFileRoute("/portal/auth/$method")({
   errorComponent: PortalErrorScreen,
@@ -96,7 +97,7 @@ function AuthMethodPage() {
     setSession,
   } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/auth/$method" });
-  const portalSearch = { organizationId, locationId, routerId };
+  const portalSearch = usePortalLinkSearch();
   const hasPhoto = !!config?.backgroundImageUrl;
   const m = (METHODS as string[]).includes(method) ? (method as RuntimeAuthMethod) : null;
 

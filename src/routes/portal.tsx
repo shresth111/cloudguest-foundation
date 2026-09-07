@@ -1,6 +1,5 @@
 import { createFileRoute, Outlet, SearchParamError } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { z } from "zod";
 
 // Real incident: a now-removed admin "Open live guest flow" preview button
 // (see src/routes/preview.portal.$locationId.tsx's own history) used to
@@ -15,8 +14,8 @@ import { z } from "zod";
 // stale bookmark/copied link built before this fix can still exist and
 // get hit directly -- checked here the same way a *missing* value already
 // is (as a normal, expected case, not a schema-level throw -- see
-// searchSchema's own comment above on why validation intentionally
-// doesn't throw for this route).
+// `portalSearchSchema`'s own comments in src/lib/portal-search.ts on
+// why validation intentionally doesn't throw for this route).
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function looksLikeRealId(v: string | undefined): v is string {
   return !!v && UUID_RE.test(v);
@@ -29,92 +28,11 @@ import {
 import { PortalCard, PG_FONT_STACK } from "@/components/portal-runtime/PortalShell";
 import { PortalDefaultBrandBadge } from "@/components/portal-runtime/PortalDefaultBrandBadge";
 import { PortalErrorScreen } from "@/components/portal-runtime/PortalErrorScreen";
-
-// A real captive-portal redirect from a NAS/router would encode equivalent
-// identity (MAC/AP/NAS-ID query params in a vendor-specific format) -- there
-// is no live NAS in this environment to generate one, so these three are
-// taken as explicit, required search params instead.
-//
-// There used to be a fourth, optional `mac` param here, read by
-// src/routes/portal.index.tsx to attempt a "MAC-whitelist bypass" login by
-// POSTing it straight to the backend's `/guest/login/mac`. That was a real
-// authentication bypass: an unauthenticated browser claiming any MAC string
-// in a query param got a full guest session for it, with no server-side
-// proof the caller was ever near the real device. It has been removed on
-// both sides -- the backend endpoint no longer exists at all. A
-// pre-whitelisted device's auto-connect is now granted the only place a
-// MAC address can genuinely be trusted: RADIUS's own Authorize call, which
-// only ever runs behind the NAS's shared secret and carries the NAS's own
-// asserted `Calling-Station-Id`, never a browser's claim (see
-// `app.domains.guest.service.RadiusService.authorize`'s docstring on the
-// backend). A whitelisted device is granted access before it ever reaches
-// this captive portal at all -- there is nothing left for this frontend to
-// do for that case.
-const searchSchema = z.object({
-  // Optional here (not .min(1) required, as this used to be) -- a missing
-  // one is an expected, real-world case (see IncompletePortalLinkError's
-  // own doc comment: a stale bookmark, a hand-typed URL, a cropped QR
-  // code), not a validation failure. Making validateSearch throw for it
-  // meant this route's SSR response came back as a real HTTP 500 even
-  // though the errorComponent below was already rendering the correct,
-  // friendly, fully-intentional UI for it -- a monitoring/crawler-visible
-  // "server error" for a page that was working exactly as designed.
-  // PortalRuntimeLayout now checks presence itself and renders
-  // IncompletePortalLinkError directly as a normal successful render
-  // (200) when any are missing, instead of relying on this schema to
-  // throw and the router's error-boundary machinery to catch it.
-  organizationId: z.string().min(1).optional(),
-  locationId: z.string().min(1).optional(),
-  routerId: z.string().min(1).optional(),
-  // Populated when the hotspot's own login page redirects here with
-  // RouterOS's `$(mac)` substitution -- the one place a MAC address is
-  // trustworthy without RADIUS (it's what generated this very redirect,
-  // not a caller's unverified claim). Optional/additive: every existing
-  // portal link without it keeps working exactly as before, just without
-  // GET /agent/authorized-macs ever having a MAC to report for that
-  // session. See GuestSignInCard's login call for where this is used.
-  mac: z.string().optional(),
-  // Populated the same way, from RouterOS's `$(ip)` substitution -- the
-  // guest's real LAN-side IP as assigned by this router's own DHCP, the
-  // only address a `/queue/simple` rule on *this* router can actually
-  // match. Without it, the backend falls back to the raw HTTP request's
-  // own source address (`guest/router.py`'s `request.client.host`), which
-  // behind this deployment's reverse proxy is always the proxy's own
-  // internal Docker address, never the guest's -- so every dynamic
-  // bandwidth queue this platform ever created targeted an address no
-  // guest traffic could match, regardless of the configured Mbps (bug
-  // report: "queue sahi se nahi lag rhai, 10 ya 20 mbps koi farak nahi
-  // padta"). See GuestSignInCard/AuthMethodForms' login calls for where
-  // this threads through as `ip_address`.
-  ip: z.string().optional(),
-  // The guest's own chosen portal language, put here by `buildSessionUrl`
-  // so it survives portal.success.tsx's full-document POST to the NAS --
-  // the one boundary on this flow where React state and (on iOS's Captive
-  // Network Assistant) localStorage both disappear. Declared on the schema
-  // so `search: (prev) => prev` carries it through client-side navigations
-  // too; `PortalRuntimeContext` reads it straight off `window.location`,
-  // because it also has to work on the first render of the fresh document
-  // the NAS itself navigated to. Free text and never trusted as-is --
-  // `readLanguageFromUrl` validates it against `RUNTIME_LANGUAGES` and
-  // ignores anything else.
-  lang: z.string().optional(),
-  // The site the guest was actually trying to reach before the hotspot
-  // intercepted them -- RouterOS's `$(link-orig)` substitution. Used by
-  // portal.success.tsx/portal.redirect.tsx as the "Continue browsing"
-  // target once real internet access is granted, falling back to the
-  // location's own configured redirectUrl (or nothing) when absent --
-  // see GuestSignInCard/PortalRuntimeContext for how this threads through.
-  dst: z.string().optional(),
-  // RouterOS's `$(link-login-only)` substitution -- see
-  // PortalRuntimeContext's `hotspotLoginUrl` docstring for why this portal
-  // must POST to it once login succeeds here, not just create a session in
-  // this platform's own database.
-  "link-login-only": z.string().optional(),
-});
+import { portalSearchSchema, portalSearchMiddlewares } from "@/lib/portal-search";
 
 /**
  * A real NAS/router redirect always supplies all three search params (see
- * `searchSchema` above) -- but this URL can also reach a browser with one
+ * `portalSearchSchema` in src/lib/portal-search.ts) -- but this URL can also reach a browser with one
  * missing any other way a link can go wrong: a bookmark saved before a
  * redirect finished building its query string, a hand-typed URL, a QR code
  * that got cropped/mistyped when printed, a plain reload/OS captive-portal
@@ -213,7 +131,17 @@ export const Route = createFileRoute("/portal")({
   // exactly the "noticeably long blank screen" the founder saw live.
   // Enabling SSR lets the server send real, branded markup (this route's
   // actual loading/welcome screen) in the first response instead.
-  validateSearch: searchSchema,
+  validateSearch: portalSearchSchema,
+  // The one thing that makes every `/portal/*` navigation carry the NAS's
+  // `mac`/`ip`/`dst`/`link-login-only` whether or not its author
+  // remembered to. TanStack Router collects search middlewares from the
+  // DESTINATION's matched route chain, so declaring it here covers every
+  // route under `/portal`, from every caller. Six hand-built
+  // `{ organizationId, locationId, routerId }` search objects had already
+  // silently dropped the MAC in production -- see
+  // `src/lib/portal-search.ts`'s docstring for the incident, and
+  // `scripts/test-portal-search-retention.mjs` for the regression test.
+  search: { middlewares: portalSearchMiddlewares },
   head: () => ({
     meta: [
       { title: "WyFy" },

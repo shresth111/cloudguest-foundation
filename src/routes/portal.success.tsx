@@ -12,6 +12,7 @@ import {
 } from "@/context/PortalRuntimeContext";
 import { buildSessionUrl } from "@/lib/portal-session-url";
 import { PORTAL_SLOW_NOTICE_DELAY_MS } from "@/lib/portal-post-connect";
+import { usePortalLinkSearch } from "@/components/portal-runtime/usePortalLinkSearch";
 
 // v4 §6.1: the same "taking longer than expected" threshold
 // portal.index.tsx's own loading screen already uses, for the identical
@@ -189,7 +190,7 @@ function SuccessPage() {
   // control beside it already carries its own opaque `bg-indigo-50` fill.
   const hasPhoto = !!config?.backgroundImageUrl;
   const navigate = useNavigate({ from: "/portal/success" });
-  const portalSearch = { organizationId, locationId, routerId };
+  const portalSearch = usePortalLinkSearch();
   const [showSlowNotice, setShowSlowNotice] = useState(false);
   const [showEscapeHatch, setShowEscapeHatch] = useState(false);
   // Bumped by `retry()` purely to re-run the timeout-timer effect below

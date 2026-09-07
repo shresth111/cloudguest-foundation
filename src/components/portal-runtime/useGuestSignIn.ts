@@ -18,6 +18,7 @@ import { DEMO_OTP_CODE, buildDemoSession } from "@/lib/portal-demo";
 import { isWhitelistOnlyRefusal } from "@/lib/portal-whitelist-refusal";
 import type { RuntimeAuthMethod, RuntimeSession } from "@/types/portal-runtime";
 import type { AppError } from "@/services/api";
+import { usePortalLinkSearch } from "@/components/portal-runtime/usePortalLinkSearch";
 
 type OtpChannel = "sms" | "email" | "whatsapp";
 
@@ -56,7 +57,7 @@ export function useGuestSignIn() {
     setRefusedContactKind,
   } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/welcome" });
-  const portalSearch = { organizationId, locationId, routerId };
+  const portalSearch = usePortalLinkSearch();
 
   /**
    * Whitelist-only refusal -> `/portal/not-listed`, from either of the two

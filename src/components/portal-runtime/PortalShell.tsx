@@ -10,6 +10,7 @@ import { LanguageSwitcher } from "./LanguageSwitcher";
 import { A11yMenu } from "./A11yMenu";
 import { DEFAULT_PORTAL_LOGO_SRC } from "./PortalGuestUi";
 import { PortalFootnoteMark } from "./PortalDefaultBrandBadge";
+import { usePortalLinkSearch } from "@/components/portal-runtime/usePortalLinkSearch";
 
 /** The product name, deliberately NOT translated and deliberately not a
  * per-language string: it is a proper noun, and the whole point of §3 P5 is
@@ -426,15 +427,19 @@ export function PortalShell({
   constrained = false,
   showBrandPanel = true,
 }: Props) {
-  const { config, highContrast, largeText, organizationId, locationId, routerId, t } =
-    usePortalRuntime();
-  // Every portal.* route requires these three as real, required search
-  // params (see src/routes/portal.tsx's own searchSchema) -- built
-  // explicitly from the real runtime context here (rather than
-  // `search={(prev) => prev}`) because PortalShell itself is shared
-  // across routes with different search shapes, so there's no single
-  // `from` route TanStack Router could type that callback against.
-  const portalSearch = { organizationId, locationId, routerId };
+  const { config, highContrast, largeText, t } = usePortalRuntime();
+  // Sourced from the real runtime context rather than `(prev) => prev`
+  // because PortalShell is shared across routes with different search
+  // shapes (there is no single `from` route TanStack Router could type that
+  // callback against), and because the context can hold IDs recovered from
+  // storage that the current URL is missing -- see `usePortalLinkSearch`.
+  //
+  // This used to be a hand-written `{ organizationId, locationId, routerId }`
+  // literal, which silently truncated the NAS's mac/ip/dst/link-login-only
+  // out of every link this shell renders. `/portal`'s `retainSearchParams`
+  // middleware now makes that truncation impossible for any caller; see
+  // src/lib/portal-search.ts.
+  const portalSearch = usePortalLinkSearch();
   // `min-h-full`, not `h-full` -- the sole `constrained` caller (the Portal
   // Preview's laptop mockup) used to pair `h-full` with a fixed-height
   // parent box, which clipped (or forced an internal scrollbar on) any
