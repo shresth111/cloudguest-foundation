@@ -43,6 +43,7 @@
     "test:csv-export": "node scripts/test-csv-export.mjs",
     "test:guest-identity": "node scripts/test-guest-identity.mjs",
     "test:report-team-options": "node scripts/test-report-team-options.mjs",
+    "test:guest-mac-visibility": "node scripts/test-guest-mac-visibility.mjs",
     "test:diagnostics-verdict": "node scripts/test-diagnostics-verdict.mjs",
     "test:connection-verdicts": "node scripts/test-connection-verdicts.mjs",
     "format": "prettier --write .",

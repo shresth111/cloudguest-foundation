@@ -766,18 +766,23 @@ function mockRun(reportType: string, campaignType?: string, ratePerGb?: number):
 //
 // - "guest-session-log" reuses the existing, already-real GET
 //   /guest-sessions (fetchRealSessions below, same endpoint every other
-//   real report in this file already calls) for every column except the
-//   resolved device MAC. **Assumption, flagged here and in this feature's
-//   PR**: the spec leaves that MAC gap to be closed one of two ways -- a
-//   bulk GET /guest-devices endpoint, or denormalizing `mac_address`
-//   directly onto GuestSessionResponse via a join -- and defers the choice
-//   to whichever the backend engineer finds less invasive. This code
-//   assumes the denormalized-field approach (see RealGuestSession's own
-//   `mac_address` doc comment below): if the backend ships the bulk
-//   endpoint instead, `mac_address` simply stays absent on every row and
-//   the Device MAC column honestly renders "--" (fmtCell's existing null
-//   handling) until this file is updated to call that endpoint too --
-//   never a fabricated MAC either way.
+//   real report in this file already calls), now including the resolved
+//   device MAC.
+//
+//   That assumption is now settled. The spec left the MAC gap to be closed
+//   one of two ways -- a bulk GET /guest-devices endpoint, or denormalizing
+//   the MAC onto GuestSessionResponse -- and this file guessed at the
+//   denormalized field, reading an `s.mac_address` that never existed. The
+//   backend had in fact shipped the bulk endpoint, which no caller ever
+//   used, so the Device MAC column rendered "--" on every row for every
+//   auth method, and it was reported as "the MAC doesn't appear when a
+//   guest logs in with a voucher". It was never voucher-specific and the
+//   device row was always there.
+//
+//   The backend has since denormalized it after all, as
+//   `GuestSessionResponse.device_mac`, resolved from one bulk lookup per
+//   page. That is the field read below. GET /guest-devices still exists
+//   and still has no caller here.
 // - "login-access-log" calls `GET /guest-login-history`, confirmed missing
 //   from the real backend as of this spec (§7: "New endpoint needed,
 //   confirmed missing"). Written against that section's documented
@@ -848,11 +853,18 @@ interface RealGuestSession {
   ip_address?: string | null;
   auth_method?: string | null;
   disconnect_reason?: string | null;
-  // NOT on GuestSessionResponse as of this writing -- see REAL_REPORT_TYPES'
-  // own doc comment above for the two ways the backend might close this gap
-  // and why this field is written as optional/best-effort rather than
-  // assumed present.
-  mac_address?: string | null;
+  // The backend closed this gap by denormalizing the MAC onto the session
+  // response: GuestSessionResponse.device_mac is resolved server-side from
+  // one bulk device lookup per page, so device_id (an opaque UUID FK) is no
+  // longer the only device information a session row carries.
+  //
+  // It is NOT masked. The backend's app/common/masking.py::mask_mac is a
+  // documented no-op ("MAC addresses are shown unmasked platform-wide by
+  // explicit product decision") and this repo's own lib/masking.ts::maskMac
+  // mirrors it. A null here is genuinely no device on record -- a login
+  // that presented no MAC, or a device outside the caller's org scope --
+  // never a hidden value the unmask flow would reveal.
+  device_mac?: string | null;
 }
 
 // GET /guest-sessions caps page_size at 100 (backend/app/domains/guest/router.py's
@@ -1066,7 +1078,7 @@ async function realGuestSessionLog(
         name: identity.name,
         mobile: identity.phone || null,
         ip: s.ip_address ?? null,
-        mac: s.mac_address ?? null, // "--" until the backend closes this gap -- see RealGuestSession's own doc comment.
+        mac: s.device_mac ?? null, // Resolved server-side; null means genuinely no device, not a masked value.
         device: deviceLabelFrom(s.user_agent),
         authMethod: s.auth_method ?? null,
         sessionStart: s.started_at,

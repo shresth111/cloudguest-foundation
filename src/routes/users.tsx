@@ -546,7 +546,22 @@ function CustomerUsersPage() {
                           {masked ? maskPhone(u.phone) : u.phone}
                         </TableCell>
                         <TableCell className="font-mono text-xs hidden sm:table-cell">
-                          {masked ? maskMac(u.mac) : u.mac}
+                          {/* "Unknown" is the service's honest marker for a
+                              session whose device could not be resolved. Render
+                              it as muted prose, not in the mono face the real
+                              addresses use, so it cannot be misread as a value
+                              -- and so it is visibly different from a MAC that
+                              is simply short. maskMac is a no-op (see
+                              lib/masking.ts), so nothing here is hidden. */}
+                          {u.mac === "Unknown" ? (
+                            <span className="font-sans text-muted-foreground">
+                              No device on record
+                            </span>
+                          ) : masked ? (
+                            maskMac(u.mac)
+                          ) : (
+                            u.mac
+                          )}
                         </TableCell>
                         <TableCell className="font-mono text-xs hidden xl:table-cell">
                           {u.ip || "—"}

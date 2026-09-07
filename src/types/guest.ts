@@ -25,6 +25,19 @@ export interface Guest {
   locationName: string | null;
   identifier: string;
   displayName: string | null;
+  /** Every MAC this guest's devices have, newest-seen first, so
+   * `macAddresses[0]` is their current device. The backend returns the
+   * whole list rather than picking one: a guest may own several devices
+   * and there is no single true "the MAC", so choosing a winner silently
+   * would hide the rest exactly when someone is tracing a device.
+   *
+   * Not masked -- the backend's mask_mac is a documented no-op, mirrored
+   * by this repo's own maskMac. An empty array means no device on record. */
+  macAddresses: string[];
+  /** How many devices this guest has, so a single-cell rendering can show
+   * `macAddresses[0]` with an honest "+N" rather than implying it is the
+   * only one. */
+  deviceCount: number;
   firstSeenAt: string;
   lastSeenAt: string;
   totalVisitCount: number;

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Plus, Trash2, Download, Printer, Mail, Eye, Ticket } from "lucide-react";
+import { Plus, Trash2, Download, Printer, Mail, Eye, Ticket, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,7 +35,12 @@ import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { voucherService } from "@/services/voucher.service";
 import { resolveOrgId } from "@/services/customer.service";
-import type { Voucher as BackendVoucherModel, VoucherBatchStats } from "@/types/voucher";
+import type {
+  Voucher as BackendVoucherModel,
+  VoucherBatchStats,
+  VoucherRedemption,
+} from "@/types/voucher";
+import { maskMac } from "@/lib/masking";
 
 interface Voucher {
   code: string;
@@ -220,6 +225,11 @@ export function VouchersPage({ locationId }: { locationId?: string }) {
   const [viewVouchers, setViewVouchers] = useState<BackendVoucherModel[]>([]);
   const [viewStats, setViewStats] = useState<VoucherBatchStats | null>(null);
   const [viewLoading, setViewLoading] = useState(false);
+  // Observed redemption facts (device MAC, IP) keyed by voucher id --
+  // resolved separately from the voucher rows themselves because the
+  // voucher table holds no link to a device; see
+  // voucherService.listRedemptions.
+  const [viewRedemptions, setViewRedemptions] = useState<Map<string, VoucherRedemption>>(new Map());
 
   // Export CSV / download PDF / email -- real backend endpoints
   // (voucher.service.ts's exportCsv/downloadPdf/emailPdf, backed by
@@ -292,6 +302,7 @@ export function VouchersPage({ locationId }: { locationId?: string }) {
     setViewLoading(true);
     setViewVouchers([]);
     setViewStats(null);
+    setViewRedemptions(new Map());
     try {
       const [vouchers, stats] = await Promise.all([
         voucherService.listVouchers(b.id, b.organizationId),
@@ -299,6 +310,11 @@ export function VouchersPage({ locationId }: { locationId?: string }) {
       ]);
       setViewVouchers(vouchers.rows);
       setViewStats(stats);
+      // Sequenced after the codes, not raced with them: this is the
+      // secondary detail, and the dialog is useful without it. Only
+      // vouchers that have actually been used can have a session.
+      const usedIds = vouchers.rows.filter((v) => v.useCount > 0).map((v) => v.id);
+      setViewRedemptions(await voucherService.listRedemptions(usedIds, b.organizationId));
     } catch {
       toast.error("Could not load this batch's vouchers.");
     } finally {
@@ -309,6 +325,7 @@ export function VouchersPage({ locationId }: { locationId?: string }) {
     setViewBatch(null);
     setViewVouchers([]);
     setViewStats(null);
+    setViewRedemptions(new Map());
     setEmailTo("");
   };
 
@@ -768,13 +785,17 @@ export function VouchersPage({ locationId }: { locationId?: string }) {
                       <TableHead className="text-xs">Code</TableHead>
                       <TableHead className="text-xs">Status</TableHead>
                       <TableHead className="text-xs">Uses</TableHead>
+                      {/* Observed by the network, not typed by the guest --
+                          see the caveat note under this table. */}
+                      <TableHead className="text-xs">Device MAC</TableHead>
+                      <TableHead className="text-xs">IP Address</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {viewVouchers.length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={3}
+                          colSpan={5}
                           className="py-6 text-center text-xs text-muted-foreground"
                         >
                           No vouchers in this batch.
@@ -793,11 +814,68 @@ export function VouchersPage({ locationId }: { locationId?: string }) {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-xs">{vch.useCount}</TableCell>
+                          {(() => {
+                            const r = viewRedemptions.get(vch.id);
+                            // An unused voucher has no session by
+                            // definition; say so, rather than showing the
+                            // same blank as a voucher whose session we
+                            // could not resolve.
+                            if (vch.useCount === 0) {
+                              return (
+                                <>
+                                  <TableCell className="text-xs text-muted-foreground">
+                                    Not redeemed
+                                  </TableCell>
+                                  <TableCell className="text-xs text-muted-foreground">—</TableCell>
+                                </>
+                              );
+                            }
+                            return (
+                              <>
+                                <TableCell className="font-mono text-xs">
+                                  {r?.deviceMac ? (
+                                    <span className="flex items-center gap-1.5">
+                                      {maskMac(r.deviceMac)}
+                                      {r.sessionCount > 1 && (
+                                        <Badge
+                                          variant="outline"
+                                          className="rounded-full px-1.5 py-0 text-[10px] font-normal"
+                                          title={`Used in ${r.sessionCount} sessions; this is the most recent.`}
+                                        >
+                                          +{r.sessionCount - 1}
+                                        </Badge>
+                                      )}
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted-foreground">—</span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="font-mono text-xs">
+                                  {r?.ipAddress ?? <span className="text-muted-foreground">—</span>}
+                                </TableCell>
+                              </>
+                            );
+                          })()}
                         </TableRow>
                       ))
                     )}
                   </TableBody>
                 </Table>
+              </div>
+              {/* Provenance caveat. The voucher table stores a
+                  self-reported "redeemed by" string typed by the guest;
+                  Device MAC and IP above are observed by the network. The
+                  one thing worse than a missing MAC is a made-up one shown
+                  as verified, so the difference is stated rather than
+                  implied by styling alone. */}
+              <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[11px] text-muted-foreground">
+                <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+                <p>
+                  Device MAC and IP are recorded by the network for the most recent session that
+                  used each code. A code used more than once shows a{" "}
+                  <span className="font-medium">+N</span> badge and may have run on other devices.
+                  Anything a guest typed at the portal is self-reported and is not shown here.
+                </p>
               </div>
               <div className="space-y-2 rounded-lg border p-3">
                 <p className="text-xs font-medium text-muted-foreground">

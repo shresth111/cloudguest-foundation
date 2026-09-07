@@ -21,6 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { maskMac } from "@/lib/masking";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
@@ -123,6 +124,7 @@ export function GuestListTable() {
                   <TableHead>Guest</TableHead>
                   <TableHead>Organization</TableHead>
                   <TableHead>Location</TableHead>
+                  <TableHead>Device MAC</TableHead>
                   <TableHead className="text-right">Visits</TableHead>
                   <TableHead>First seen</TableHead>
                   <TableHead>Last seen</TableHead>
@@ -150,6 +152,28 @@ export function GuestListTable() {
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {g.locationName ?? "—"}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {g.macAddresses.length === 0 ? (
+                        // Honest emptiness, and it is not a masked value:
+                        // maskMac is a documented no-op mirroring the
+                        // backend's, so there is nothing an unmask would
+                        // reveal here. The guest simply has no device row.
+                        <span className="text-muted-foreground">No device on record</span>
+                      ) : (
+                        <span className="flex items-center gap-1.5">
+                          {maskMac(g.macAddresses[0])}
+                          {g.deviceCount > 1 && (
+                            <Badge
+                              variant="outline"
+                              className="rounded-full px-1.5 py-0 text-[10px] font-normal"
+                              title={g.macAddresses.map((m) => maskMac(m)).join("\n")}
+                            >
+                              +{g.deviceCount - 1}
+                            </Badge>
+                          )}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{g.totalVisitCount}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">
