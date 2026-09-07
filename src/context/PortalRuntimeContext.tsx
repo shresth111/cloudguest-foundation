@@ -13,6 +13,7 @@ import type {
   RuntimeAuthMethod,
   RuntimeLanguage,
   RuntimePortalConfig,
+  RuntimeEndedSession,
   RuntimeSession,
 } from "@/types/portal-runtime";
 import {
@@ -379,6 +380,23 @@ interface PortalRuntimeState {
   toggleLargeText: () => void;
   selectedMethod?: RuntimeAuthMethod;
   setSelectedMethod: (m?: RuntimeAuthMethod) => void;
+  /** Why this device's PREVIOUS session ended, when `/portal/` found one
+   * that ended recently enough to be worth mentioning -- see
+   * `portalRuntimeService.checkLastEndedSession`. Read by
+   * `/portal/expired` to pick its copy.
+   *
+   * Deliberately NOT persisted, unlike `session` next to it: it describes
+   * one arrival at the portal, not a standing fact about the device.
+   * Rehydrating it from storage on a later load would tell a guest "you
+   * were disconnected" about an event they have long since stopped
+   * noticing -- which is the exact failure the freshness window on the
+   * backend exists to prevent, and it would sail straight past that
+   * window because storage has no clock. Undefined is a normal, common
+   * state: `/portal/expired` is also reached by a guest tapping Disconnect
+   * and by the success/session screens losing their session object, and
+   * the screen falls back to its generic copy for those. */
+  endedSession?: RuntimeEndedSession;
+  setEndedSession: (s?: RuntimeEndedSession) => void;
   otpTarget?: string;
   setOtpTarget: (v?: string) => void;
   session?: RuntimeSession;
@@ -530,6 +548,7 @@ export function PortalRuntimeProvider({
   const [highContrast, setHighContrast] = useState(false);
   const [largeText, setLargeText] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState<RuntimeAuthMethod | undefined>();
+  const [endedSession, setEndedSession] = useState<RuntimeEndedSession | undefined>();
   const [otpTarget, setOtpTarget] = useState<string | undefined>();
   const [session, setSessionState] = useState<RuntimeSession | undefined>(() =>
     loadPersistedSession(),
@@ -743,6 +762,8 @@ export function PortalRuntimeProvider({
       toggleLargeText: () => setLargeText((v) => !v),
       selectedMethod,
       setSelectedMethod,
+      endedSession,
+      setEndedSession,
       otpTarget,
       setOtpTarget,
       session,
@@ -772,6 +793,7 @@ export function PortalRuntimeProvider({
       highContrast,
       largeText,
       selectedMethod,
+      endedSession,
       otpTarget,
       session,
       setSession,
