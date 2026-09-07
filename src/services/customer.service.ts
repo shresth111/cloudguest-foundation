@@ -9,6 +9,7 @@ import type { IspLink } from "@/types/isp";
 import { deriveLocationLiveness } from "@/lib/location-liveness";
 import type { LocationLiveness, RawRouterLiveness } from "@/lib/location-liveness";
 import { avgSessionMinutes, sessionStartsByHour, sessionsOpenByHour } from "@/lib/session-metrics";
+import { identityFromGuest } from "@/lib/guest-identity";
 // getDashboard()'s SLA-uptime leg reads the same `/isp/links` list the
 // dashboard's own WAN cards read, so it goes through the same service --
 // see that call site's comment. `isp.service` imports only `api` and the
@@ -858,17 +859,16 @@ interface RawIspHealthCheckBucket {
  * the guest actually gave at sign-in) even though the backend fully
  * captures it (`Guest.identifier`/`display_name`) and the UI already has
  * working `maskEmail`/`maskPhone` display logic wired up -- built and
- * proven out against demo data, just never connected to the real API. */
-export function identityFromGuest(guest: RawGuest | undefined): {
-  name: string;
-  email: string;
-  phone: string;
-} {
-  const name = guest?.display_name || "Guest";
-  const identifier = guest?.identifier ?? "";
-  const isEmail = identifier.includes("@");
-  return { name, email: isEmail ? identifier : "", phone: !isEmail ? identifier : "" };
-}
+ * proven out against demo data, just never connected to the real API.
+ *
+ * The resolution itself now lives in `lib/guest-identity.ts` and is
+ * re-exported here so existing importers keep working. It moved because
+ * the placeholder this function used to fall back to was itself the next
+ * defect: `display_name` is NULL on virtually every real row (the venue
+ * setting that would collect it defaults to off), so every real guest
+ * rendered as one repeated placeholder word. See that module for the full
+ * data story and for why a blank name is the honest answer. */
+export { identityFromGuest };
 
 function timeAgo(d: string): string {
   const m = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
@@ -1359,7 +1359,12 @@ export const customerService = {
         const identity = identityFromGuest(s.guest_id ? guestsById.get(s.guest_id) : undefined);
         return {
           id: s.id,
-          name: identity.name,
+          // `label`, not `name`: this list shows only a name and an email,
+          // so there is nowhere else for the guest's identifier to appear.
+          // A guest with no name on file (almost all of them -- see
+          // lib/guest-identity.ts) shows as their phone/email rather than
+          // as the literal word "Guest", which made every row identical.
+          name: identity.label,
           email: identity.email,
           device: deviceLabelFrom(s.user_agent),
           time: timeAgo(s.started_at),
@@ -1396,9 +1401,7 @@ export const customerService = {
         const identity = DEMO_GUEST_IDENTITIES[i % DEMO_GUEST_IDENTITIES.length];
         const durationMinutes = 15 + (i % 6) * 10;
         const status = (i < 16 ? "online" : i < 20 ? "idle" : "offline") as
-          | "online"
-          | "offline"
-          | "idle";
+          "online" | "offline" | "idle";
         // Demo has no real GuestSession row to read started_at/ended_at
         // from, so these are derived to stay consistent with the fixture's
         // own `duration` figure above: connectedAt is `durationMinutes` ago,
@@ -1516,7 +1519,11 @@ export const customerService = {
           // otherwise they stay an honest "Unknown"/blank rather than
           // fabricating one from that UUID.
           id: s.id,
-          name: identity.name,
+          // `label` -- see getDashboard's identical call above. The Users
+          // table does have its own Phone column, but its Name column is
+          // the row's primary identity and a screen full of "Guest" told
+          // an operator nothing at all; the identifier at least says who.
+          name: identity.label,
           email: identity.email,
           phone: identity.phone,
           device: deviceLabelFrom(s.user_agent),

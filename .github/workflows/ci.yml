@@ -913,6 +913,42 @@ jobs:
             "csv-export" 27 "all CSV export checks passed" \
             bun run test:csv-export
 
+      # --- Reports must not invent identity ---
+      #
+      # Two defects from the same founder QA pass, same underlying habit:
+      # the frontend filling a gap in real data with something that looks
+      # like real data.
+      #
+      # 1. Every real guest rendered as the literal word "Guest".
+      #    `Guest.display_name` is NULL on virtually every row -- the only
+      #    backend write path is the post-connect profile card, which only
+      #    renders when a venue turns on `collect_guest_name`, and that
+      #    defaults to false. The old fallback replaced the phone/email in
+      #    `Guest.identifier` (NOT NULL, always present) with a word that
+      #    reads like a name, so every row looked identical.
+      #
+      # 2. The Team filter offered "Sales Team", "Executive VIP",
+      #    "Contractors", "Maintenance Staff" to every account. Those were
+      #    a frontend literal -- not seeded, not returned by any query --
+      #    shown to real venues that have never created a guest team.
+      #
+      # Both regress the same way: someone sees a blank column or an empty
+      # dropdown, reads it as broken, and "fixes" it with a placeholder.
+      # These suites make that fail loudly instead.
+      #
+      # Floors are the full check counts at the time of writing.
+      - name: Guest identity is never invented
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "guest-identity" 29 "all guest identity checks passed" \
+            bun run test:guest-identity
+
+      - name: Report team filter offers no invented teams
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "report-team-options" 24 "all report team option checks passed" \
+            bun run test:report-team-options
+
       # --- Connection Tools: a failed check must not read as a success ---
       #
       # The backend records a ping that reached nothing as
