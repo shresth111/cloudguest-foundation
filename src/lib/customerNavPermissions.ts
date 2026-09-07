@@ -22,7 +22,7 @@ import type { CustomerNavGroup } from "@/lib/customerNav";
  * ----------------------------------
  * Each entry was checked against the `RequirePermission(...)` decorators on
  * the endpoint the screen actually calls, not inferred from the nav id.
- * Two would have been wrong if inferred:
+ * Three would have been wrong if inferred:
  *
  *   - `port-forwarding` is guarded by **`firewall.*`**, not a
  *     `port_forwarding` module (no such module exists in
@@ -30,6 +30,9 @@ import type { CustomerNavGroup } from "@/lib/customerNav";
  *     `MODULE_PERMISSION_PREFIX` still carries the wrong guess for this
  *     one; it fails open there, so it is a latent no-op rather than a bug.
  *   - `admin-logs` is guarded by **`audit_logs.*`**, not `admin_logs`.
+ *   - `dashboard` is **`dashboard.view`**, not `dashboard.read` -- see that
+ *     entry's own note below. This one was NOT verified when it was
+ *     written, and it cost the founder access to his own dashboard.
  *
  * WHY EACH ENTRY IS A LIST
  * ------------------------
@@ -64,7 +67,25 @@ import type { CustomerNavGroup } from "@/lib/customerNav";
  */
 const NAV_PERMISSION_KEYS: Record<string, readonly string[]> = {
   // Overview
-  dashboard: ["dashboard.read"],
+  // `view`, NOT `read`. DASHBOARD is the one module in the entire backend
+  // seed whose only action is `view`:
+  //
+  //     MODULE_ACTIONS[PermissionModule.DASHBOARD] == (_A.VIEW,)
+  //
+  // Six modules (analytics, reports, monitoring, alerts, audit_logs,
+  // ai_assistant) carry both `view` and `read`, and the entries just below
+  // are keyed on `.read`, which is why `dashboard.read` looked like house
+  // style and read as correct in review. It was not. No such permission
+  // row is seeded, so no role can hold it, so `granted.has()` never
+  // matched and the Dashboard row was filtered out of the sidebar for
+  // EVERY customer -- including the organization owner, who holds every
+  // one of his role's 246 grants. Nothing errored, nothing 403'd; the row
+  // was simply not there, which is indistinguishable from a product that
+  // never had one.
+  //
+  // `dashboard.view` needs no data repair and no migration: all 17 seeded
+  // system roles hold it, from Super Admin down to Guest Operator.
+  dashboard: ["dashboard.view"],
   users: ["guest_users.read", "guest_sessions.read"],
   reports: ["reports.read", "analytics.read"],
   alerts: ["alerts.read", "monitoring.read"],

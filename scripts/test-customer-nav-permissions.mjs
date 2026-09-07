@@ -157,7 +157,7 @@ for (const [label, value] of [
 console.log("\nthe filter can only ever remove");
 
 const EVERY_KEY_IMAGINABLE = [
-  "dashboard.read",
+  "dashboard.view",
   "guest_users.read",
   "reports.read",
   "alerts.read",
@@ -209,12 +209,12 @@ console.log("\nunmapped nav ids default to visible");
 
 check(
   "how-it-works survives an unrelated grant set",
-  navItemAllowed("how-it-works", new Set(["dashboard.read"])),
+  navItemAllowed("how-it-works", new Set(["dashboard.view"])),
 );
 check("how-it-works survives an empty grant set", navItemAllowed("how-it-works", new Set()));
 check(
   "a hypothetical future nav id is shown, not hidden",
-  navItemAllowed("some-feature-added-next-year", new Set(["dashboard.read"])),
+  navItemAllowed("some-feature-added-next-year", new Set(["dashboard.view"])),
 );
 
 // Every nav id must be either mapped or knowingly unmapped -- this catches
@@ -239,7 +239,7 @@ console.log("\na staff member who picked 'Owner' is still narrowed to their role
 
 // What a front-desk role realistically holds: see guests, hand out
 // vouchers, raise a ticket. No network, no staff admin, no logs.
-const FRONT_DESK = ["dashboard.read", "guest_users.read", "voucher.read", "support_tickets.read"];
+const FRONT_DESK = ["dashboard.view", "guest_users.read", "voucher.read", "support_tickets.read"];
 const frontDeskIds = idsOf(filterNavGroupsByPermissions(ownerNav, FRONT_DESK));
 
 check(
@@ -289,6 +289,29 @@ check(
 check(
   "voip is gated on qos.read",
   navItemAllowed("voip", new Set(["qos.read"])) && !navItemAllowed("voip", new Set(["voip.read"])),
+);
+// THE ONE THAT WAS ACTUALLY WRONG. `dashboard: ["dashboard.read"]` shipped
+// and hid the Dashboard row from every customer including the organization
+// owner. DASHBOARD's only seeded action is `view` -- it is the sole module
+// in the backend seed with no `read` at all -- so the required key named a
+// permission that does not exist, `granted.has()` returned false forever,
+// and the row was filtered out with no error anywhere to explain it.
+//
+// Both halves of this assertion matter. The first is the fix; the second
+// stops a future tidy-up from "restoring consistency" with the `.read`
+// entries around it and putting the founder back where he started.
+check(
+  "dashboard is gated on dashboard.view (there is no dashboard.read to hold)",
+  navItemAllowed("dashboard", new Set(["dashboard.view"])) &&
+    !navItemAllowed("dashboard", new Set(["dashboard.read"])),
+);
+// And the end-to-end shape of the bug: an organization owner holding a
+// realistic grant set must be able to see the Dashboard row.
+check(
+  "an owner-shaped grant set keeps the Dashboard row",
+  idsOf(
+    filterNavGroupsByPermissions(ownerNav, ["dashboard.view", "guest_users.read", "reports.read"]),
+  ).includes("dashboard"),
 );
 
 // ---------------------------------------------------------------------------

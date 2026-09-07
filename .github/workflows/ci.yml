@@ -795,11 +795,19 @@ jobs:
       # be WRONG if inferred from the nav id (port-forwarding is gated on
       # firewall.*, admin-logs on audit_logs.*).
       #
-      # Floor 35, observed green at 35.
+      # `dashboard.read` was added to that key table and hid the Dashboard
+      # row from every customer, the organization owner included -- the
+      # DASHBOARD module's only seeded action is `view`, so the required
+      # key named a permission no role can hold and the set test returned
+      # false forever. Section 5 now pins `dashboard.view` in both
+      # directions, so a tidy-up that "restores consistency" with the
+      # `.read` entries around it fails here instead of in production.
+      #
+      # Floor 42, observed green at 42.
       - name: customer sidebar permissions
         run: |
           ./scripts/ci-gated-test.sh \
-            "customer-nav-permissions" 35 "all customer nav permission checks passed" \
+            "customer-nav-permissions" 42 "all customer nav permission checks passed" \
             bun run test:customer-nav-permissions
 
       # --- Campaign results ----------------------------------------------
