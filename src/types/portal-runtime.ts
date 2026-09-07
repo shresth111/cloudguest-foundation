@@ -528,6 +528,39 @@ export function hasGatingContentStep(config: RuntimePortalConfig | null | undefi
  * fields) -- returned once, at login. There is no guest-facing endpoint to
  * refresh this later, so it's persisted client-side (sessionStorage) rather
  * than re-fetched. */
+/**
+ * Why the *previous* session on this device ended, in the only vocabulary
+ * a guest is ever shown -- the client mirror of the backend's
+ * `GuestSessionEndedReason`.
+ *
+ * Two members, and neither is derived from the backend's free-text
+ * `disconnect_reason` column (which carries operator notes, NAS jargon
+ * and the portal's own prose, and never reaches the browser). An ending
+ * the guest must not be told about -- an operator's block above all --
+ * produces no `RuntimeEndedSession` at all rather than a third member
+ * here, so there is no value in this union that the expired screen has to
+ * remember to special-case.
+ *
+ *  - `timed_out`    the session ran its allotted time
+ *  - `disconnected` a normal, non-punitive end: the WiFi dropped, the
+ *                   router restarted, or the guest signed out
+ */
+export type RuntimeEndedSessionReason = "timed_out" | "disconnected";
+
+/**
+ * The whole of what the portal knows about a session that has just ended
+ * -- see `portalRuntimeService.checkLastEndedSession`. Unlike
+ * `RuntimeSession` below this is never persisted: it describes a single
+ * arrival at the portal, and re-showing "you were disconnected" on a
+ * later load from storage would be showing a guest a stale event.
+ */
+export interface RuntimeEndedSession {
+  reason: RuntimeEndedSessionReason;
+  /** The venue's own session length, for copy like "sessions here last 4
+   * hours". Null when the ended session carried no timeout. */
+  sessionTimeoutMinutes: number | null;
+}
+
 export interface RuntimeSession {
   guestId: string;
   /** The phone/email this guest verified via OTP/password/voucher, or (see

@@ -10,6 +10,7 @@ import {
   toPortalSurvey,
   type RuntimeAuthMethod,
   type RuntimePortalConfig,
+  type RuntimeEndedSession,
   type RuntimeSession,
   type RuntimeSessionAuthMethod,
 } from "@/types/portal-runtime";
@@ -181,6 +182,27 @@ interface BackendGuestLoginResponse {
   has_opened_review_link?: boolean;
   session: BackendGuestSession;
   device: BackendGuestDevice | null;
+}
+
+/**
+ * `GET /guest/session/last-ended`. Deliberately not a
+ * `BackendGuestLoginResponse` -- see that endpoint's own docstring on the
+ * backend for why the two sibling questions ("is this device connected?"
+ * / "did it just stop being connected?") are answered by two routes with
+ * two response models rather than one widened one. The short version:
+ * this one is keyed on a MAC with no live session behind it, so it cannot
+ * carry the guest's unmasked `identifier`, their ids, or the raw
+ * `disconnect_reason` (which holds operators' private notes about
+ * guests). Two fields is the whole payload, and that is the point.
+ */
+interface BackendGuestLastEndedSession {
+  /** Closed two-member enum, derived on the backend from
+   * `GuestSession.status` -- never the free-text `disconnect_reason`. */
+  reason: "timed_out" | "disconnected";
+  /** Venue policy (identical for every guest at the location), not guest
+   * data -- which is why it is safe to return here at all. Lets the
+   * screen say how long sessions last rather than only that one ended. */
+  session_timeout_minutes: number | null;
 }
 
 interface BackendGuestTeamMember {
@@ -365,6 +387,37 @@ export const portalRuntimeService = {
       { params: { router_id: params.routerId, device_mac: params.deviceMac }, timeout: 6000 },
     );
     return data ? toRuntimeSession(data) : null;
+  },
+
+  /**
+   * "This device had a session on this router and it has just ended" --
+   * asked by `/portal/` only once `checkActiveSession` above has answered
+   * no, so a connected guest never triggers it.
+   *
+   * `null` for every kind of no, and the caller cannot tell them apart:
+   * no such device, nothing ended recently, or an ending the guest must
+   * not be told about (an operator's block, most importantly -- that
+   * guest belongs on the ordinary sign-in page, where the refusal is
+   * worded correctly and, since backend #169, without the operator's
+   * private note). Treat `null` as "show the normal welcome screen" and
+   * never try to distinguish further; the backend collapses the cases on
+   * purpose.
+   *
+   * Same 6s timeout as `checkActiveSession` and for the same reason: this
+   * runs on a fresh, sometimes-flaky pre-auth network path, and
+   * `/portal/`'s routing waits on it.
+   */
+  async checkLastEndedSession(params: {
+    routerId: string;
+    deviceMac: string;
+  }): Promise<RuntimeEndedSession | null> {
+    const { data } = await guestPortalApi.get<BackendGuestLastEndedSession | null>(
+      "/guest/session/last-ended",
+      { params: { router_id: params.routerId, device_mac: params.deviceMac }, timeout: 6000 },
+    );
+    return data
+      ? { reason: data.reason, sessionTimeoutMinutes: data.session_timeout_minutes }
+      : null;
   },
 
   async requestOtp(params: {

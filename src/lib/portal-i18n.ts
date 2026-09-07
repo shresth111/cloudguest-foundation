@@ -315,6 +315,27 @@ const EN: Dict = {
   connectingSubtitle: "Just a moment.",
   expiredSubtitle: "You've been disconnected from the network.",
   expiredHelp: "Sign in again to continue using guest WiFi.",
+  // ---- /portal/expired: the session that just ended --------------
+  // Reached when a returning guest's device arrives at the portal and the
+  // backend reports a session that ended within the last hour (see
+  // `checkLastEndedSession`). The guest did nothing wrong, and the only
+  // thing they actually noticed is that the internet stopped -- so the
+  // first line names that, and the second says it is normal and what to do.
+  // "Nothing is broken" is doing real work: without this screen the same
+  // moment read as "the WiFi is broken again", which is the complaint this
+  // exists to answer.
+  // `{n}` is substituted at the call site with `.replace()` (word order
+  // moves per language), and never carries an operator's or the NAS's own
+  // words -- the backend sends a two-value enum, never `disconnect_reason`.
+  expiredTimedOutTitle: "Your WiFi time is up",
+  expiredTimedOutBody:
+    "Guest WiFi here runs for {n} at a time. Nothing is broken — sign in again to carry on.",
+  expiredDroppedTitle: "You're no longer connected",
+  expiredDroppedBody:
+    "This device dropped off the WiFi. That happens if it sleeps, moves out of range, or the network restarts. Sign in again to get back online.",
+  expiredDurationMinutes: "{n} minutes",
+  expiredDurationHours: "{n} hours",
+  expiredDurationHour: "1 hour",
   useOtpInsteadLabel: "Use a one-time code instead",
   failureSubtitle: "Please check your details and try again.",
   failureHelp: "If the issue continues, please ask venue staff for assistance.",
@@ -578,6 +599,31 @@ const HI: Dict = {
   connectingSubtitle: "बस एक क्षण।",
   expiredSubtitle: "आपको नेटवर्क से डिस्कनेक्ट कर दिया गया है।",
   expiredHelp: "गेस्ट वाई-फाई का उपयोग जारी रखने के लिए फिर से साइन इन करें।",
+  couponCopied: "क्लिपबोर्ड पर कॉपी हो गया",
+  offer: "ऑफ़र",
+  useCode: "कोड इस्तेमाल करें",
+  validUntil: "इस तारीख़ तक मान्य",
+  // ---- /portal/expired: the session that just ended --------------
+  // Reached when a returning guest's device arrives at the portal and the
+  // backend reports a session that ended within the last hour (see
+  // `checkLastEndedSession`). The guest did nothing wrong, and the only
+  // thing they actually noticed is that the internet stopped -- so the
+  // first line names that, and the second says it is normal and what to do.
+  // "Nothing is broken" is doing real work: without this screen the same
+  // moment read as "the WiFi is broken again", which is the complaint this
+  // exists to answer.
+  // `{n}` is substituted at the call site with `.replace()` (word order
+  // moves per language), and never carries an operator's or the NAS's own
+  // words -- the backend sends a two-value enum, never `disconnect_reason`.
+  expiredTimedOutTitle: "आपका वाई-फ़ाई समय पूरा हो गया",
+  expiredTimedOutBody:
+    "यहाँ गेस्ट वाई-फ़ाई एक बार में {n} चलता है। कुछ खराब नहीं हुआ — जारी रखने के लिए फिर से साइन इन करें।",
+  expiredDroppedTitle: "आप अब कनेक्टेड नहीं हैं",
+  expiredDroppedBody:
+    "इस डिवाइस का वाई-फ़ाई छूट गया। ऐसा तब होता है जब डिवाइस स्लीप में जाए, रेंज से बाहर हो, या नेटवर्क रीस्टार्ट हो। वापस ऑनलाइन आने के लिए फिर से साइन इन करें।",
+  expiredDurationMinutes: "{n} मिनट",
+  expiredDurationHours: "{n} घंटे",
+  expiredDurationHour: "1 घंटा",
   useOtpInsteadLabel: "इसके बजाय OTP का उपयोग करें",
   failureSubtitle: "कृपया अपनी जानकारी जांचें और फिर कोशिश करें।",
   failureHelp: "समस्या बनी रहे तो कृपया वेन्यू स्टाफ से सहायता लें।",
@@ -835,6 +881,33 @@ const BN: Dict = {
   connectingSubtitle: "একটু অপেক্ষা করুন।",
   expiredSubtitle: "আপনাকে নেটওয়ার্ক থেকে disconnect করা হয়েছে।",
   expiredHelp: "Guest WiFi ব্যবহার চালিয়ে যেতে আবার sign in করুন।",
+  couponCopied: "Clipboard-এ copy হয়েছে",
+  offer: "অফার",
+  poweredByTemplate: "চালিত {brand} দ্বারা",
+  useCode: "Code ব্যবহার করুন",
+  validUntil: "বৈধ এই তারিখ পর্যন্ত",
+  welcomeEyebrow: "স্বাগতম",
+  // ---- /portal/expired: the session that just ended --------------
+  // Reached when a returning guest's device arrives at the portal and the
+  // backend reports a session that ended within the last hour (see
+  // `checkLastEndedSession`). The guest did nothing wrong, and the only
+  // thing they actually noticed is that the internet stopped -- so the
+  // first line names that, and the second says it is normal and what to do.
+  // "Nothing is broken" is doing real work: without this screen the same
+  // moment read as "the WiFi is broken again", which is the complaint this
+  // exists to answer.
+  // `{n}` is substituted at the call site with `.replace()` (word order
+  // moves per language), and never carries an operator's or the NAS's own
+  // words -- the backend sends a two-value enum, never `disconnect_reason`.
+  expiredTimedOutTitle: "আপনার WiFi-এর সময় শেষ",
+  expiredTimedOutBody:
+    "এখানে Guest WiFi একবারে {n} চলে। কিছু খারাপ হয়নি — চালিয়ে যেতে আবার sign in করুন।",
+  expiredDroppedTitle: "আপনি আর connected নেই",
+  expiredDroppedBody:
+    "এই device-টি WiFi থেকে ছুটে গেছে। device ঘুমিয়ে গেলে, range-এর বাইরে গেলে বা network restart হলে এমন হয়। আবার online হতে sign in করুন।",
+  expiredDurationMinutes: "{n} মিনিট",
+  expiredDurationHours: "{n} ঘণ্টা",
+  expiredDurationHour: "1 ঘণ্টা",
   useOtpInsteadLabel: "বদলে OTP ব্যবহার করুন",
   failureSubtitle: "আপনার তথ্য দেখে আবার চেষ্টা করুন।",
   failureHelp: "সমস্যা চলতে থাকলে এখানকার স্টাফকে জিজ্ঞেস করুন।",
@@ -1074,6 +1147,33 @@ const MR: Dict = {
   connectingSubtitle: "फक्त एक क्षण.",
   expiredSubtitle: "तुम्ही network वरून disconnect झाला आहात.",
   expiredHelp: "Guest WiFi वापरत राहण्यासाठी पुन्हा sign in करा.",
+  couponCopied: "Clipboard वर copy झालं",
+  offer: "ऑफर",
+  poweredByTemplate: "{brand} द्वारे संचालित",
+  useCode: "Code वापरा",
+  validUntil: "या तारखेपर्यंत वैध",
+  welcomeEyebrow: "स्वागत आहे",
+  // ---- /portal/expired: the session that just ended --------------
+  // Reached when a returning guest's device arrives at the portal and the
+  // backend reports a session that ended within the last hour (see
+  // `checkLastEndedSession`). The guest did nothing wrong, and the only
+  // thing they actually noticed is that the internet stopped -- so the
+  // first line names that, and the second says it is normal and what to do.
+  // "Nothing is broken" is doing real work: without this screen the same
+  // moment read as "the WiFi is broken again", which is the complaint this
+  // exists to answer.
+  // `{n}` is substituted at the call site with `.replace()` (word order
+  // moves per language), and never carries an operator's or the NAS's own
+  // words -- the backend sends a two-value enum, never `disconnect_reason`.
+  expiredTimedOutTitle: "तुमची WiFi ची वेळ संपली",
+  expiredTimedOutBody:
+    "इथे Guest WiFi एका वेळी {n} चालतं। काही बिघडलेलं नाही — पुढे चालू ठेवण्यासाठी पुन्हा sign in करा।",
+  expiredDroppedTitle: "तुम्ही आता connected नाही",
+  expiredDroppedBody:
+    "हे device WiFi वरून सुटलं। device sleep मध्ये गेलं, range बाहेर गेलं किंवा network restart झालं तर असं होतं। पुन्हा online होण्यासाठी sign in करा।",
+  expiredDurationMinutes: "{n} मिनिटे",
+  expiredDurationHours: "{n} तास",
+  expiredDurationHour: "1 तास",
   useOtpInsteadLabel: "त्याऐवजी OTP वापरा",
   failureSubtitle: "तुमची माहिती तपासा आणि पुन्हा प्रयत्न करा.",
   failureHelp: "समस्या राहिली तर इथल्या staff ला विचारा.",
@@ -1316,6 +1416,33 @@ const TE: Dict = {
   connectingSubtitle: "ఒక్క క్షణం.",
   expiredSubtitle: "మిమ్మల్ని నెట్‌వర్క్ నుంచి డిస్‌కనెక్ట్ చేశాం.",
   expiredHelp: "గెస్ట్ WiFi వాడటం కొనసాగించడానికి మళ్లీ సైన్ ఇన్ అవ్వండి.",
+  couponCopied: "క్లిప్‌బోర్డ్‌కు కాపీ అయ్యింది",
+  offer: "ఆఫర్",
+  poweredByTemplate: "{brand} ద్వారా అందించబడింది",
+  useCode: "కోడ్ వాడండి",
+  validUntil: "ఈ తేదీ వరకు చెల్లుతుంది",
+  welcomeEyebrow: "స్వాగతం",
+  // ---- /portal/expired: the session that just ended --------------
+  // Reached when a returning guest's device arrives at the portal and the
+  // backend reports a session that ended within the last hour (see
+  // `checkLastEndedSession`). The guest did nothing wrong, and the only
+  // thing they actually noticed is that the internet stopped -- so the
+  // first line names that, and the second says it is normal and what to do.
+  // "Nothing is broken" is doing real work: without this screen the same
+  // moment read as "the WiFi is broken again", which is the complaint this
+  // exists to answer.
+  // `{n}` is substituted at the call site with `.replace()` (word order
+  // moves per language), and never carries an operator's or the NAS's own
+  // words -- the backend sends a two-value enum, never `disconnect_reason`.
+  expiredTimedOutTitle: "మీ WiFi సమయం ముగిసింది",
+  expiredTimedOutBody:
+    "ఇక్కడ గెస్ట్ WiFi ఒకసారికి {n} పని చేస్తుంది. ఏదీ పాడవలేదు — కొనసాగడానికి మళ్లీ సైన్ ఇన్ అవ్వండి.",
+  expiredDroppedTitle: "మీరు ఇప్పుడు కనెక్ట్‌లో లేరు",
+  expiredDroppedBody:
+    "ఈ పరికరం WiFi నుంచి తెగిపోయింది. పరికరం స్లీప్‌లోకి వెళ్లినా, రేంజ్ దాటినా, నెట్‌వర్క్ రీస్టార్ట్ అయినా ఇలా జరుగుతుంది. మళ్లీ ఆన్‌లైన్ కావడానికి సైన్ ఇన్ అవ్వండి.",
+  expiredDurationMinutes: "{n} నిమిషాలు",
+  expiredDurationHours: "{n} గంటలు",
+  expiredDurationHour: "1 గంట",
   useOtpInsteadLabel: "బదులుగా OTP వాడండి",
   failureSubtitle: "మీ వివరాలు చూసుకుని మళ్లీ ప్రయత్నించండి.",
   failureHelp: "సమస్య కొనసాగితే సిబ్బందిని అడగండి.",
@@ -1560,6 +1687,33 @@ const TA: Dict = {
   connectingSubtitle: "சில நொடிகள்.",
   expiredSubtitle: "நெட்வொர்க்கிலிருந்து துண்டிக்கப்பட்டீர்கள்.",
   expiredHelp: "விருந்தினர் WiFi-ஐ தொடர்ந்து பயன்படுத்த மீண்டும் நுழையுங்கள்.",
+  couponCopied: "கிளிப்போர்டுக்கு நகலெடுக்கப்பட்டது",
+  offer: "சலுகை",
+  poweredByTemplate: "{brand} வழங்குகிறது",
+  useCode: "குறியீட்டைப் பயன்படுத்துங்கள்",
+  validUntil: "இந்த தேதி வரை செல்லுபடியாகும்",
+  welcomeEyebrow: "வரவேற்கிறோம்",
+  // ---- /portal/expired: the session that just ended --------------
+  // Reached when a returning guest's device arrives at the portal and the
+  // backend reports a session that ended within the last hour (see
+  // `checkLastEndedSession`). The guest did nothing wrong, and the only
+  // thing they actually noticed is that the internet stopped -- so the
+  // first line names that, and the second says it is normal and what to do.
+  // "Nothing is broken" is doing real work: without this screen the same
+  // moment read as "the WiFi is broken again", which is the complaint this
+  // exists to answer.
+  // `{n}` is substituted at the call site with `.replace()` (word order
+  // moves per language), and never carries an operator's or the NAS's own
+  // words -- the backend sends a two-value enum, never `disconnect_reason`.
+  expiredTimedOutTitle: "உங்கள் WiFi நேரம் முடிந்தது",
+  expiredTimedOutBody:
+    "இங்கு விருந்தினர் WiFi ஒரு முறைக்கு {n} இயங்கும். எதுவும் பழுதாகவில்லை — தொடர மீண்டும் நுழையுங்கள்.",
+  expiredDroppedTitle: "நீங்கள் இப்போது இணைப்பில் இல்லை",
+  expiredDroppedBody:
+    "இந்தச் சாதனம் WiFi-இலிருந்து விலகிவிட்டது. சாதனம் உறங்கினாலோ, வரம்பை மீறினாலோ, நெட்வொர்க் மறுதொடக்கம் ஆனாலோ இப்படி நடக்கும். மீண்டும் ஆன்லைனுக்கு வர நுழையுங்கள்.",
+  expiredDurationMinutes: "{n} நிமிடங்கள்",
+  expiredDurationHours: "{n} மணி நேரம்",
+  expiredDurationHour: "1 மணி நேரம்",
   useOtpInsteadLabel: "மாற்றாக OTP பயன்படுத்துங்கள்",
   failureSubtitle: "உங்கள் விவரங்களைச் சரிபார்த்து மீண்டும் முயலுங்கள்.",
   failureHelp: "சிக்கல் தொடர்ந்தால் இட ஊழியரிடம் கேளுங்கள்.",
@@ -1801,6 +1955,33 @@ const GU: Dict = {
   connectingSubtitle: "બસ એક ક્ષણ.",
   expiredSubtitle: "તમે network પરથી disconnect થયા છો.",
   expiredHelp: "Guest WiFi વાપરવાનું ચાલુ રાખવા ફરી sign in કરો.",
+  couponCopied: "Clipboard પર copy થયું",
+  offer: "ઓફર",
+  poweredByTemplate: "{brand} દ્વારા સંચાલિત",
+  useCode: "Code વાપરો",
+  validUntil: "આ તારીખ સુધી માન્ય",
+  welcomeEyebrow: "સ્વાગત છે",
+  // ---- /portal/expired: the session that just ended --------------
+  // Reached when a returning guest's device arrives at the portal and the
+  // backend reports a session that ended within the last hour (see
+  // `checkLastEndedSession`). The guest did nothing wrong, and the only
+  // thing they actually noticed is that the internet stopped -- so the
+  // first line names that, and the second says it is normal and what to do.
+  // "Nothing is broken" is doing real work: without this screen the same
+  // moment read as "the WiFi is broken again", which is the complaint this
+  // exists to answer.
+  // `{n}` is substituted at the call site with `.replace()` (word order
+  // moves per language), and never carries an operator's or the NAS's own
+  // words -- the backend sends a two-value enum, never `disconnect_reason`.
+  expiredTimedOutTitle: "તમારો WiFi સમય પૂરો રહ્યો",
+  expiredTimedOutBody:
+    "અહીં Guest WiFi એક વખતે {n} ચાલે છે. કંઈ બગડ્યું નથી — ચાલુ રાખવા ફરી sign in કરો.",
+  expiredDroppedTitle: "તમે હવે connected નથી",
+  expiredDroppedBody:
+    "આ device WiFi પરથી છૂટી ગયું. device sleep માં જાય, range બહાર જાય કે network restart થાય ત્યારે આવું થાય છે. ફરી online થવા sign in કરો.",
+  expiredDurationMinutes: "{n} મિનિટ",
+  expiredDurationHours: "{n} કલાક",
+  expiredDurationHour: "1 કલાક",
   useOtpInsteadLabel: "એના બદલે OTP વાપરો",
   failureSubtitle: "તમારી વિગતો તપાસીને ફરી પ્રયત્ન કરો.",
   failureHelp: "સમસ્યા ચાલુ રહે તો અહીંના સ્ટાફને પૂછો.",
@@ -2039,6 +2220,34 @@ const KN: Dict = {
   connectingSubtitle: "ಒಂದು ಕ್ಷಣ.",
   expiredSubtitle: "ನಿಮ್ಮನ್ನು network ನಿಂದ disconnect ಮಾಡಲಾಗಿದೆ.",
   expiredHelp: "Guest WiFi ಬಳಕೆ ಮುಂದುವರಿಸಲು ಮತ್ತೆ sign in ಮಾಡಿ.",
+  changeEmailLabel: "Email ಬದಲಿಸಿ",
+  couponCopied: "Clipboard ಗೆ copy ಆಗಿದೆ",
+  offer: "ಆಫರ್",
+  poweredByTemplate: "{brand} ಒದಗಿಸಿದೆ",
+  useCode: "Code ಬಳಸಿ",
+  validUntil: "ಈ ದಿನಾಂಕದವರೆಗೆ ಮಾನ್ಯ",
+  welcomeEyebrow: "ಸ್ವಾಗತ",
+  // ---- /portal/expired: the session that just ended --------------
+  // Reached when a returning guest's device arrives at the portal and the
+  // backend reports a session that ended within the last hour (see
+  // `checkLastEndedSession`). The guest did nothing wrong, and the only
+  // thing they actually noticed is that the internet stopped -- so the
+  // first line names that, and the second says it is normal and what to do.
+  // "Nothing is broken" is doing real work: without this screen the same
+  // moment read as "the WiFi is broken again", which is the complaint this
+  // exists to answer.
+  // `{n}` is substituted at the call site with `.replace()` (word order
+  // moves per language), and never carries an operator's or the NAS's own
+  // words -- the backend sends a two-value enum, never `disconnect_reason`.
+  expiredTimedOutTitle: "ನಿಮ್ಮ WiFi ಸಮಯ ಮುಗಿದಿದೆ",
+  expiredTimedOutBody:
+    "ಇಲ್ಲಿ Guest WiFi ಒಂದು ಬಾರಿಗೆ {n} ನಡೆಯುತ್ತದೆ. ಏನೂ ಕೆಟ್ಟಿಲ್ಲ — ಮುಂದುವರಿಸಲು ಮತ್ತೆ sign in ಮಾಡಿ.",
+  expiredDroppedTitle: "ನೀವು ಈಗ connected ಆಗಿಲ್ಲ",
+  expiredDroppedBody:
+    "ಈ device WiFi ನಿಂದ ಕಳಚಿಕೊಂಡಿದೆ. device sleep ಗೆ ಹોದರೆ, range ಮೀರಿದರೆ ಅಥವಾ network restart ಆದರೆ ಹೀಗಾಗುತ್ತದೆ. ಮತ್ತೆ online ಆಗಲು sign in ಮಾಡಿ.",
+  expiredDurationMinutes: "{n} ನಿಮಿಷ",
+  expiredDurationHours: "{n} ಗಂಟೆ",
+  expiredDurationHour: "1 ಗಂಟೆ",
   useOtpInsteadLabel: "ಬದಲಿಗೆ OTP ಬಳಸಿ",
   failureSubtitle: "ನಿಮ್ಮ ವಿವರಗಳನ್ನು ಪರಿಶೀಲಿಸಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
   failureHelp: "ಸಮಸ್ಯೆ ಮುಂದುವರಿದರೆ ಇಲ್ಲಿನ staff ಅನ್ನು ಕೇಳಿ.",
@@ -2281,6 +2490,34 @@ const ML: Dict = {
   connectingSubtitle: "ഒരു നിമിഷം.",
   expiredSubtitle: "നിങ്ങളെ നെറ്റ്‌വർക്കിൽ നിന്ന് വിച്ഛേദിച്ചു.",
   expiredHelp: "Guest WiFi തുടർന്ന് ഉപയോഗിക്കാൻ വീണ്ടും sign in ചെയ്യൂ.",
+  changeEmailLabel: "Email മാറ്റൂ",
+  couponCopied: "Clipboard-ലേക്ക് copy ചെയ്തു",
+  offer: "ഓഫർ",
+  poweredByTemplate: "{brand} നൽകുന്നു",
+  useCode: "Code ഉപയോഗിക്കൂ",
+  validUntil: "ഈ തീയതി വരെ സാധുവാണ്",
+  welcomeEyebrow: "സ്വാഗതം",
+  // ---- /portal/expired: the session that just ended --------------
+  // Reached when a returning guest's device arrives at the portal and the
+  // backend reports a session that ended within the last hour (see
+  // `checkLastEndedSession`). The guest did nothing wrong, and the only
+  // thing they actually noticed is that the internet stopped -- so the
+  // first line names that, and the second says it is normal and what to do.
+  // "Nothing is broken" is doing real work: without this screen the same
+  // moment read as "the WiFi is broken again", which is the complaint this
+  // exists to answer.
+  // `{n}` is substituted at the call site with `.replace()` (word order
+  // moves per language), and never carries an operator's or the NAS's own
+  // words -- the backend sends a two-value enum, never `disconnect_reason`.
+  expiredTimedOutTitle: "നിങ്ങളുടെ WiFi സമയം കഴിഞ്ഞു",
+  expiredTimedOutBody:
+    "ഇവിടെ Guest WiFi ഒരു തവണ {n} പ്രവർത്തിക്കും. ഒന്നും കേടായിട്ടില്ല — തുടരാൻ വീണ്ടും sign in ചെയ്യൂ.",
+  expiredDroppedTitle: "നിങ്ങൾ ഇപ്പോൾ connected അല്ല",
+  expiredDroppedBody:
+    "ഈ device WiFi-യിൽ നിന്ന് വിട്ടുപോയി. device sleep-ലേക്ക് പോയാലും, range വിട്ടാലും, network restart ആയാലും ഇങ്ങനെ സംഭവിക്കാം. വീണ്ടും online ആകാൻ sign in ചെയ്യൂ.",
+  expiredDurationMinutes: "{n} മിനിറ്റ്",
+  expiredDurationHours: "{n} മണിക്കൂർ",
+  expiredDurationHour: "1 മണിക്കൂർ",
   useOtpInsteadLabel: "പകരം OTP ഉപയോഗിക്കൂ",
   failureSubtitle: "നിങ്ങളുടെ വിവരങ്ങൾ പരിശോധിച്ച് വീണ്ടും ശ്രമിക്കൂ.",
   failureHelp: "പ്രശ്നം തുടർന്നാൽ സ്ഥാപനത്തിലെ ജീവനക്കാരോട് ചോദിക്കൂ.",
@@ -2521,6 +2758,34 @@ const PA: Dict = {
   connectingSubtitle: "ਬੱਸ ਇੱਕ ਪਲ।",
   expiredSubtitle: "ਤੁਹਾਨੂੰ network ਤੋਂ disconnect ਕਰ ਦਿੱਤਾ ਗਿਆ ਹੈ।",
   expiredHelp: "Guest WiFi ਵਰਤਦੇ ਰਹਿਣ ਲਈ ਫਿਰ ਤੋਂ sign in ਕਰੋ।",
+  changeEmailLabel: "Email ਬਦਲੋ",
+  couponCopied: "Clipboard 'ਤੇ copy ਹੋ ਗਿਆ",
+  offer: "ਆਫ਼ਰ",
+  poweredByTemplate: "{brand} ਵੱਲੋਂ ਸੰਚਾਲਿਤ",
+  useCode: "Code ਵਰਤੋ",
+  validUntil: "ਇਸ ਤਾਰੀਖ਼ ਤੱਕ ਵੈਧ",
+  welcomeEyebrow: "ਜੀ ਆਇਆਂ ਨੂੰ",
+  // ---- /portal/expired: the session that just ended --------------
+  // Reached when a returning guest's device arrives at the portal and the
+  // backend reports a session that ended within the last hour (see
+  // `checkLastEndedSession`). The guest did nothing wrong, and the only
+  // thing they actually noticed is that the internet stopped -- so the
+  // first line names that, and the second says it is normal and what to do.
+  // "Nothing is broken" is doing real work: without this screen the same
+  // moment read as "the WiFi is broken again", which is the complaint this
+  // exists to answer.
+  // `{n}` is substituted at the call site with `.replace()` (word order
+  // moves per language), and never carries an operator's or the NAS's own
+  // words -- the backend sends a two-value enum, never `disconnect_reason`.
+  expiredTimedOutTitle: "ਤੁਹਾਡਾ WiFi ਸਮਾਂ ਪੂਰਾ ਹੋ ਗਿਆ",
+  expiredTimedOutBody:
+    "ਇੱਥੇ Guest WiFi ਇੱਕ ਵਾਰ ਵਿੱਚ {n} ਚੱਲਦਾ ਹੈ। ਕੁਝ ਖਰਾਬ ਨਹੀਂ ਹੋਇਆ — ਅੱਗੇ ਵਧਣ ਲਈ ਫਿਰ ਤੋਂ sign in ਕਰੋ।",
+  expiredDroppedTitle: "ਤੁਸੀਂ ਹੁਣ connected ਨਹੀਂ ਹੋ",
+  expiredDroppedBody:
+    "ਇਹ device WiFi ਤੋਂ ਟੁੱਟ ਗਿਆ। device sleep ਵਿੱਚ ਜਾਵੇ, range ਤੋਂ ਬਾਹਰ ਹੋਵੇ ਜਾਂ network restart ਹੋਵੇ ਤਾਂ ਇੰਞ ਹੁੰਦਾ ਹੈ। ਫਿਰ ਤੋਂ online ਹੋਣ ਲਈ sign in ਕਰੋ।",
+  expiredDurationMinutes: "{n} ਮਿੰਟ",
+  expiredDurationHours: "{n} ਘੰਟੇ",
+  expiredDurationHour: "1 ਘੰਟਾ",
   useOtpInsteadLabel: "ਇਸਦੀ ਥਾਂ OTP ਵਰਤੋ",
   failureSubtitle: "ਆਪਣੀ ਜਾਣਕਾਰੀ ਵੇਖੋ ਤੇ ਫਿਰ ਕੋਸ਼ਿਸ਼ ਕਰੋ।",
   failureHelp: "ਸਮੱਸਿਆ ਰਹੇ ਤਾਂ ਸਟਾਫ਼ ਨੂੰ ਪੁੱਛੋ।",

@@ -27,6 +27,7 @@ function PortalLoading() {
     session,
     setSession,
     setGuestIdentifier,
+    setEndedSession,
     organizationId,
     locationId,
     hotspotLoginUrl,
@@ -54,6 +55,26 @@ function PortalLoading() {
     enabled: !session && !!deviceMac,
     staleTime: 0,
   });
+
+  // Only asked once the live-session check above has come back empty, and
+  // only for a device the router actually identified. This is the whole
+  // answer to "how does the portal learn this device had a session and it
+  // ended": not from a disconnect event -- the guest's browser is closed
+  // when their session ends, and (see the backend endpoint's docstring) a
+  // router-side drop may never reach the platform as an event at all --
+  // but from the guest's own next arrival, which is the one moment they
+  // are definitely present and definitely wondering what happened.
+  const { data: endedSessionResult, isFetched: endedSessionChecked } = useQuery({
+    queryKey: ["portal-last-ended-session", routerId, deviceMac],
+    queryFn: () => portalRuntimeService.checkLastEndedSession({ routerId, deviceMac: deviceMac! }),
+    enabled: !session && !!deviceMac && liveSessionChecked && !liveSession,
+    staleTime: 0,
+  });
+
+  useEffect(() => {
+    if (!endedSessionResult) return;
+    setEndedSession(endedSessionResult);
+  }, [endedSessionResult, setEndedSession]);
 
   useEffect(() => {
     if (!liveSession) return;
@@ -184,11 +205,42 @@ function PortalLoading() {
       return;
     }
 
+    // `/portal/expired` sits between "closed" and "welcome", and the order
+    // of those three is the whole design.
+    //
+    // Closed still wins over expired. A guest whose session ended *because*
+    // the venue shut for the night needs "we're closed, come back during
+    // opening hours" -- an explanation with a real next step. "Your session
+    // ended, sign in again" would be technically true and practically a
+    // trap: the sign-in they were just invited to make is the one the
+    // closed screen exists to refuse. Ordering it this way also means the
+    // backend never needed a "venue closed" ending reason; this branch
+    // already covers it, and by the time the venue reopens the ending is
+    // long outside the freshness window anyway.
+    //
+    // Expired then wins over welcome, which is the actual bug being fixed:
+    // a returning guest whose session just ended used to fall into the
+    // final `welcome` bucket and get a form identical to a first-time
+    // visitor's, with nothing anywhere connecting it to the internet having
+    // just stopped.
+    //
+    // `endedSessionChecked` gates this the same way `liveSessionChecked`
+    // gates the branch above, and for the same reason: navigating before
+    // the answer is in would race a returning guest onto the plain welcome
+    // screen and then leave them there, since this effect does not run
+    // again after a `replace` navigation. A device with no `deviceMac` --
+    // an older portal link with no `$(mac)` substitution -- never enables
+    // the query, so `endedSessionChecked` stays false forever for it; the
+    // `!deviceMac` half of the guard is what stops that stranding the guest
+    // on this spinner instead of sending them to sign in.
     const target = hasSession
       ? "/portal/success"
       : config.isOpenNow === false
         ? "/portal/closed"
-        : "/portal/welcome";
+        : endedSessionResult
+          ? "/portal/expired"
+          : "/portal/welcome";
+    if (!hasSession && config.isOpenNow !== false && deviceMac && !endedSessionChecked) return;
     navigate({ to: target, replace: true, search: (prev) => prev });
   }, [
     isLoading,
@@ -197,6 +249,8 @@ function PortalLoading() {
     deviceMac,
     liveSession,
     liveSessionChecked,
+    endedSessionResult,
+    endedSessionChecked,
     hotspotLoginUrl,
     navigate,
     // Read by `buildSessionUrl` on the document-load branch above. Stable
