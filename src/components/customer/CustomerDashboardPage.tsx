@@ -1360,9 +1360,14 @@ function DeviceStatusCard({ locationId, onManage }: { locationId: string; onMana
                    * honestly named -- unlike the same arithmetic beside the
                    * word "Up", which is the bug @/lib/device-liveness exists
                    * to prevent. */}
-                  {downCount} down · longest{" "}
-                  {formatAge(
-                    devices
+                  {downCount} down
+                  {(() => {
+                    // `ConnectedDevice.last_seen_at` is nullable, so a device
+                    // can be DOWN with no timestamp at all -- in which case
+                    // this filter empties and indexing [0] threw, taking the
+                    // whole card down. "N down" on its own is still true; a
+                    // crash is not a better answer than a missing clause.
+                    const oldest = devices
                       .filter(
                         (d): d is typeof d & { lastSeenAt: string } =>
                           d.status === "down" && d.lastSeenAt != null,
@@ -1370,9 +1375,9 @@ function DeviceStatusCard({ locationId, onManage }: { locationId: string; onMana
                       .sort(
                         (a, b) =>
                           new Date(a.lastSeenAt).getTime() - new Date(b.lastSeenAt).getTime(),
-                      )[0].lastSeenAt,
-                    Date.now(),
-                  )}
+                      )[0];
+                    return oldest ? ` · longest ${formatAge(oldest.lastSeenAt, Date.now())}` : "";
+                  })()}
                 </span>
               ) : unknownCount > 0 ? (
                 // Never conflated with "up" -- a device just registered (or
