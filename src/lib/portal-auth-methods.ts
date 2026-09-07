@@ -26,6 +26,61 @@ export const AUTH_METHOD_PRIORITY: RuntimeAuthMethod[] = [
   "voucher",
 ];
 
+/**
+ * THE SINGLE SWITCH THAT RETIRES PASSWORD SIGN-IN FROM THE GUEST PORTAL.
+ * Flip it back to `true` and every venue whose stored
+ * `username_password_enabled` is still on gets it back, unchanged. That is
+ * the whole reversal; there is nothing else to undo on this side.
+ *
+ * WHY: asked for twice by the founder. Password sign-in is the
+ * returning-guest shortcut -- verify once by OTP, set a password, use
+ * phone/email + password from then on. It is real and it works, so
+ * removing it has a real cost, stated plainly because it will otherwise be
+ * rediscovered in a support ticket: **every returning guest goes back to
+ * doing an OTP on every visit.**
+ *
+ * WHY A CONSTANT AND NOT DELETION. Three reasons, in order of weight.
+ *
+ *  1. `username_password` is still a real value of `RuntimeAuthMethod` and
+ *     still appears as `auth_method` on live and historical
+ *     `guest_sessions` rows. The enum member, its label key, its i18n
+ *     strings and `PasswordSignInForm` all stay reachable and correct --
+ *     deleting them would break rendering of data that already exists.
+ *  2. The backend endpoint deliberately stays in place, still gated by the
+ *     venue's own flag, so a venue that has it on today keeps working
+ *     until someone turns it off. That is the difference between a
+ *     rollout and an outage. Hiding the UI is therefore only half the
+ *     removal by design, not by oversight -- and because the set-password
+ *     prompt goes with it (see `passwordSignInOffered`), the set of guests
+ *     who own a usable password can only shrink from here.
+ *  3. A constant is one grep away from the thing to change. A deletion
+ *     spread across five files is not.
+ *
+ * Enforced in `isEnabled` below, which is the single place every guest-
+ * facing surface and the admin preview both resolve methods through -- so
+ * there is no second list that can disagree, which is the property this
+ * module's own docstring exists to guarantee.
+ */
+export const PASSWORD_SIGN_IN_OFFERED = false;
+
+/**
+ * Does this config offer password sign-in to a guest right now?
+ *
+ * The venue's own flag AND the platform switch above. Exported because two
+ * surfaces outside the method list ask the same question and must get the
+ * same answer: `portal.verify.tsx`'s "set a password for next time?"
+ * hand-off after a successful OTP, and `portal.session.tsx`'s set-password
+ * nudge. Both used to read `config.usernamePasswordEnabled` directly,
+ * which would have left a guest being invited to create a credential that
+ * nothing would ever offer to accept -- a strictly worse outcome than
+ * either keeping the feature or removing it.
+ */
+export function passwordSignInOffered(
+  config: Pick<RuntimePortalConfig, "usernamePasswordEnabled"> | null | undefined,
+): boolean {
+  return PASSWORD_SIGN_IN_OFFERED && !!config?.usernamePasswordEnabled;
+}
+
 export const AUTH_METHOD_LABEL_KEY: Record<RuntimeAuthMethod, string> = {
   otp_sms: "mobileOtp",
   otp_email: "emailOtp",
@@ -57,7 +112,12 @@ function isEnabled(config: RuntimePortalConfig, method: RuntimeAuthMethod): bool
     case "otp_whatsapp":
       return config.otpWhatsappEnabled;
     case "username_password":
-      return config.usernamePasswordEnabled;
+      // Not `config.usernamePasswordEnabled` -- see
+      // `PASSWORD_SIGN_IN_OFFERED`. This is the chokepoint the whole
+      // module is built around, so retiring the method here retires it
+      // from the sign-in landing form, the "use X instead" fallback
+      // links, the full method menu and the admin preview at once.
+      return passwordSignInOffered(config);
     case "voucher":
       return config.voucherEnabled;
   }

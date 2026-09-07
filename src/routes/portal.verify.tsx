@@ -22,6 +22,7 @@ import { scriptClassOf } from "@/lib/portal-script";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
 import { friendlyGuestAuthError } from "@/lib/portal-guest-errors";
 import { useOtpResendCooldown } from "@/lib/portal-otp-cooldown";
+import { passwordSignInOffered } from "@/lib/portal-auth-methods";
 import type { AppError } from "@/services/api";
 
 export const Route = createFileRoute("/portal/verify")({
@@ -108,7 +109,12 @@ function VerifyPage() {
       // continuing on to the success screen. A password login itself
       // never reaches here (see portal.auth.$method.tsx's own onLoggedIn),
       // so this can only ever fire right after a real OTP verification.
-      const offerPasswordSetup = config?.usernamePasswordEnabled && !session.hasPassword;
+      // `passwordSignInOffered`, not `config.usernamePasswordEnabled`
+      // directly: password sign-in is retired from the guest portal (see
+      // that helper and `PASSWORD_SIGN_IN_OFFERED`), and inviting a guest
+      // to create a credential no sign-in form will ever offer to accept
+      // is worse than either keeping the feature or removing it.
+      const offerPasswordSetup = passwordSignInOffered(config) && !session.hasPassword;
       navigate({
         to: offerPasswordSetup ? "/portal/set-password" : "/portal/success",
         search: (prev) => prev,

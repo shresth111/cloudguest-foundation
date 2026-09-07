@@ -13,7 +13,8 @@ import { PortalDefaultBrandBadge } from "@/components/portal-runtime/PortalDefau
 import { VenueLogo } from "@/components/portal-runtime/VenueLogo";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { scriptClassOf } from "@/lib/portal-script";
-import { otherAuthMethods } from "@/lib/portal-auth-methods";
+import { enabledAuthMethods, otherAuthMethods } from "@/lib/portal-auth-methods";
+import { useEffect } from "react";
 import {
   MobileForm,
   EmailForm,
@@ -100,6 +101,39 @@ function AuthMethodPage() {
   const portalSearch = usePortalLinkSearch();
   const hasPhoto = !!config?.backgroundImageUrl;
   const m = (METHODS as string[]).includes(method) ? (method as RuntimeAuthMethod) : null;
+
+  // A METHOD THIS VENUE DOES NOT OFFER MUST NOT RENDER ITS FORM.
+  //
+  // `METHODS` above is a structural check -- "is this a known method
+  // name" -- and it was the only one. So `/portal/auth/username_password`
+  // typed by hand, or reached from a bookmark, rendered a full password
+  // form on a venue that has password sign-in off, and every submission
+  // was refused by the backend's own `_require_method_enabled`. Same for
+  // `/portal/auth/otp_whatsapp` at a venue with no WhatsApp template.
+  //
+  // It matters more now: password sign-in is retired from the portal (see
+  // `PASSWORD_SIGN_IN_OFFERED`), and a form still reachable by URL is
+  // exactly the "the UI is gone but the door is open" half-removal that
+  // makes a retirement not a retirement.
+  //
+  // Sent to `/portal/auth` rather than shown "unknown method". That route
+  // is a `beforeLoad` redirect on to `/portal/welcome` -- the real sign-in
+  // card, which offers exactly what this venue has enabled and shows its
+  // own honest `noMethodsAvailable` copy when that is nothing. So the
+  // guest gets a way forward instead of a dead end (the `!m` branch below
+  // renders a bare "unknown method" line with no links at all). `/portal/auth`
+  // and not `/portal/welcome` directly, because it is already the "go back
+  // and pick again" target portal.verify/portal.failure/portal.set-password
+  // all link to, and one destination for that intent is worth one extra
+  // client-side hop.
+  //
+  // Gated on `config` being resolved -- acting while it is still loading
+  // would bounce every guest off their own chosen method on first paint.
+  const offered = config ? enabledAuthMethods(config) : null;
+  const notOffered = !!m && offered !== null && !offered.includes(m);
+  useEffect(() => {
+    if (notOffered) navigate({ to: "/portal/auth", replace: true, search: (prev) => prev });
+  }, [notOffered, navigate]);
 
   const onSent = (target: string, authMethod: RuntimeAuthMethod) => {
     setOtpTarget(target);
@@ -223,28 +257,34 @@ function AuthMethodPage() {
         </div>
 
         <PortalCard>
-          {m === "otp_sms" && (
+          {/* `!notOffered` on every form: the redirect above is an effect,
+           * so this render still happens once before it runs. Without this
+           * the guest sees a one-frame flash of a form their venue does
+           * not offer -- and, for the password form specifically, a
+           * credential field that would be refused if they were fast
+           * enough to submit it. */}
+          {m === "otp_sms" && !notOffered && (
             <MobileForm
               organizationId={organizationId}
               locationId={locationId}
               onSent={(target) => onSent(target, "otp_sms")}
             />
           )}
-          {m === "otp_email" && (
+          {m === "otp_email" && !notOffered && (
             <EmailForm
               organizationId={organizationId}
               locationId={locationId}
               onSent={(target) => onSent(target, "otp_email")}
             />
           )}
-          {m === "otp_whatsapp" && (
+          {m === "otp_whatsapp" && !notOffered && (
             <WhatsAppForm
               organizationId={organizationId}
               locationId={locationId}
               onSent={(target) => onSent(target, "otp_whatsapp")}
             />
           )}
-          {m === "username_password" && (
+          {m === "username_password" && !notOffered && (
             <PasswordForm
               organizationId={organizationId}
               locationId={locationId}
@@ -252,7 +292,7 @@ function AuthMethodPage() {
               onLoggedIn={onPasswordLoggedIn}
             />
           )}
-          {m === "voucher" && (
+          {m === "voucher" && !notOffered && (
             <VoucherForm
               organizationId={organizationId}
               locationId={locationId}
@@ -261,7 +301,7 @@ function AuthMethodPage() {
             />
           )}
           {!m && <p className="pg-meta text-[var(--pg-ink-muted)]">{t("unknownMethodLabel")}</p>}
-          {m && <OtherMethodsLinks config={config} current={m} />}
+          {m && !notOffered && <OtherMethodsLinks config={config} current={m} />}
         </PortalCard>
       </div>
     </PortalShell>

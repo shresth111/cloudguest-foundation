@@ -11,6 +11,7 @@ import {
   persistHotspotSubmit,
 } from "@/context/PortalRuntimeContext";
 import { buildSessionUrl } from "@/lib/portal-session-url";
+import { nasAuthorizedFromSearch } from "@/lib/portal-nas-state";
 import { PORTAL_SLOW_NOTICE_DELAY_MS } from "@/lib/portal-post-connect";
 import { usePortalLinkSearch } from "@/components/portal-runtime/usePortalLinkSearch";
 
@@ -80,7 +81,22 @@ const APPLE_CAPTIVE_SUCCESS_URL = "http://captive.apple.com/hotspot-detect.html"
  * reports the same "Macintosh" UA as an iPadOS 13+ Safari, and the one
  * signal that still separates them is a touch screen (`maxTouchPoints`),
  * which a MacBook reports as 0. Classic iPhone/iPod/older-iPad UAs are
- * matched directly. */
+ * matched directly.
+ *
+ * ⚠ WHAT THIS CANNOT ANSWER, stated here because reading it as more than
+ * it is cost a real guest-facing defect. A user agent identifies a DEVICE.
+ * It cannot distinguish the CNA websheet from ordinary Safari on that same
+ * iPhone, and those two need opposite treatment: in the sheet Apple's URL
+ * dismisses it and is never seen, while in Safari it strands the guest on
+ * a bare page whose entire body is the word "Success" -- no venue
+ * branding, no countdown, no way back. That was the founder's QA report
+ * ("login redirect is just a message 'success'"), reached by opening the
+ * gateway address `10.5.50.1` while already connected.
+ *
+ * The signal that DOES answer it comes from the router, not the browser --
+ * `nasAuthorizedFromSearch`, see src/lib/portal-nas-state.ts. This
+ * predicate is now only consulted once that check has already ruled out an
+ * already-authorized client. */
 function isAppleCaptiveClient(): boolean {
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent || "";
@@ -207,6 +223,50 @@ function SuccessPage() {
   const hotspotLoginSubmitted = useRef(false);
 
   function attemptSubmit() {
+    if (!session || hotspotLoginSubmitted.current) return;
+
+    // THE ROUTER'S OWN ANSWER, AND IT OUTRANKS EVERYTHING BELOW.
+    //
+    // RouterOS serves `alogin.html`/`status.html` only to a client its
+    // hotspot has ALREADY authorized -- so when the page that redirected
+    // this browser here was one of those, the gate is open, there is
+    // nothing to POST, and the guest belongs on the real connected
+    // screen. Nothing else on this page can establish that: an app-level
+    // `session` says nothing about the NAS (real incident #4, see
+    // portal.index.tsx), and a user agent says nothing about which
+    // browser context is looking (see `isAppleCaptiveClient`).
+    //
+    // This is the fix for the founder's QA report. An already-connected
+    // iPhone opening the gateway address `10.5.50.1` got `status.html`,
+    // came through here with a session and a `link-login-only`, re-fired
+    // a login the NAS had already granted, and -- because the UA said
+    // "Apple" -- was handed to `captive.apple.com`, ending on a bare page
+    // reading only "Success". Every step of that is now skipped.
+    //
+    // Deliberately ABOVE the `hotspotLoginUrl`/`guestIdentifier` guards
+    // rather than folded in with them: an authorized client needs neither
+    // (there is no POST to build), and a guest whose `guestIdentifier`
+    // was lost to a reload used to sit on the spinner here until the 15s
+    // escape hatch while their internet already worked perfectly.
+    //
+    // `undefined` -- a router provisioned before `hspage` existed, which
+    // today is the whole fleet -- deliberately falls through to the
+    // unchanged behaviour below. See portal-nas-state.ts on why this is
+    // three-valued and why `undefined` must never be read as `false`.
+    if (nasAuthorizedFromSearch(window.location.search) === true) {
+      hotspotLoginSubmitted.current = true;
+      // A real document load, for the same reason the cooldown branch
+      // below uses one: it is the only thing that actually asks the
+      // network. If the gate somehow is not open after all, the NAS
+      // intercepts this and reissues a portal URL with a fresh
+      // `link-login-only`, which lands back here able to POST. The claim
+      // "you're connected" is never made on evidence we do not have.
+      window.location.assign(
+        buildSessionUrl(organizationId, locationId, routerId, language, deviceMac),
+      );
+      return;
+    }
+
     // No guestIdentifier means there's no real phone/email this platform
     // ever verified for this browsing session (e.g. a page reload that
     // lost it) -- submitting anything else is guaranteed to be rejected
@@ -214,7 +274,7 @@ function SuccessPage() {
     // skips rather than firing a doomed request. This is itself one of
     // the real reasons a guest can land here and never leave without the
     // timeout/retry below: there is nothing in flight at all to wait for.
-    if (!session || !hotspotLoginUrl || !guestIdentifier || hotspotLoginSubmitted.current) return;
+    if (!hotspotLoginUrl || !guestIdentifier) return;
     hotspotLoginSubmitted.current = true;
 
     // Where RouterOS sends the browser once its own hotspot-login processing
@@ -233,6 +293,14 @@ function SuccessPage() {
     // their own browser with full internet. The backend session already
     // exists, so nothing about `/portal/session` is needed inside the sheet.
     // Every other client keeps the unchanged `/portal/session` hand-off.
+    //
+    // Reachable ONLY for a client the NAS has NOT already authorized --
+    // the guard at the top of this function returned for the other case.
+    // That ordering is what keeps this branch to the situation it was
+    // written for (a fresh gate-opening login, where on iOS the sheet is
+    // what is looking) instead of firing for every Apple device that ever
+    // loads this page, which is how a guest ended up stranded on Apple's
+    // one-word "Success" page in ordinary Safari.
     const dst = isAppleCaptiveClient()
       ? APPLE_CAPTIVE_SUCCESS_URL
       : buildSessionUrl(organizationId, locationId, routerId, language, deviceMac);

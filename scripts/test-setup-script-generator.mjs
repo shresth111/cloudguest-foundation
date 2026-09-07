@@ -6074,6 +6074,75 @@ for (const [variant, script] of FULL_SCRIPTS) {
         "certificate, not to the router",
     );
   }
+
+  // 13.4b WHICH PAGE THE ROUTER SERVED, CARRIED TO THE PORTAL.
+  //
+  // RouterOS picks between these five files by whether the requesting
+  // client is already through its hotspot gate. That is a fact only the
+  // router holds, and until now it was thrown away at the redirect -- so
+  // `portal.success.tsx` fell back to a USER-AGENT test to decide whether
+  // to hand the guest to `captive.apple.com`, which cannot tell iOS's
+  // captive websheet apart from ordinary Safari on the same iPhone. The
+  // founder's QA pass found the consequence: an already-connected iPhone
+  // opening the gateway address `10.5.50.1` was re-logged-in and then
+  // dropped on Apple's diagnostic page, whose entire body is the word
+  // "Success".
+  //
+  // Each page must therefore stamp its OWN basename, and the two that
+  // RouterOS only ever serves to an already-authorized client
+  // (alogin/status) must be distinguishable from the ones it serves to an
+  // unauthenticated one (login/rlogin/logout). A single hoisted URL
+  // shared by all five -- which is what this used to be -- silently
+  // reintroduces the defect while every other check here stays green.
+  const expectedPage = {
+    "login.html": "login",
+    "rlogin.html": "rlogin",
+    "alogin.html": "alogin",
+    "status.html": "status",
+    "logout.html": "logout",
+  };
+  const seenPages = new Set();
+  for (const page of pages) {
+    // Anchored on the `(` the label wraps the basename in, NOT a bare
+    // `includes(file)`. `login.html` is a substring of `rlogin.html` and
+    // `alogin.html` -- the identical collision `portalFileMatchPattern`'s
+    // own "THE LEADING SLASH IS LOAD-BEARING" note documents for the
+    // RouterOS side, and it silently mismatched three of five pages when
+    // this check was first written the naive way.
+    const file = Object.keys(expectedPage).find((f) => page.label.includes(`(${f})`));
+    check(
+      `13.4b: ${page.label} is one of the five known stock pages`,
+      !!file,
+      `label ${page.label} matched none of ${Object.keys(expectedPage).join(", ")}`,
+    );
+    if (!file) continue;
+    // Every `hspage=` occurrence in this page's script -- the redirect URL
+    // appears more than once per page (the `location.replace` and the
+    // no-script fallback), so the assertion is that they AGREE, not that
+    // there is exactly one.
+    const stamps = [...page.script.matchAll(/&hspage=([a-z]+)/g)].map((m) => m[1]);
+    check(
+      `13.4b: ${file} stamps hspage at all`,
+      stamps.length > 0,
+      "without it the portal cannot tell an already-authorized client from a fresh one, and " +
+        "falls back to a user-agent guess -- the exact defect that stranded an iPhone on " +
+        "Apple's one-word 'Success' page",
+    );
+    check(
+      `13.4b: ${file} stamps hspage=${expectedPage[file]}, and only that`,
+      stamps.length > 0 && stamps.every((s) => s === expectedPage[file]),
+      `stamped ${JSON.stringify(stamps)}, expected every occurrence to be ` +
+        `"${expectedPage[file]}" -- a page carrying two different values is worse than one ` +
+        `carrying none, because the portal reads the first and acts on it`,
+    );
+    for (const s of stamps) seenPages.add(s);
+  }
+  check(
+    "13.4b: the five pages stamp five DIFFERENT values, not one hoisted URL",
+    seenPages.size === 5,
+    `only ${seenPages.size} distinct hspage value(s) across ${pages.length} pages -- a shared ` +
+      `URL makes alogin/status indistinguishable from login/rlogin, which is the whole signal`,
+  );
 }
 
 console.log("\n-- 13.6 a mistyped LAN port names the LAN, not the WAN --");

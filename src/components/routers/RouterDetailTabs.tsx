@@ -1278,12 +1278,30 @@ export interface PortalOverrideConfig {
  * persisted session or a live `checkActiveSession` lookup sends an
  * already-authenticated guest straight to `/portal/session`, anyone else to
  * the normal sign-in flow) decide what to do with them, instead of this
- * script guessing per file. An unused param costs nothing. */
-function buildPortalUrl(portalUrl: PortalOverrideConfig): string {
+ * script guessing per file. An unused param costs nothing.
+ *
+ * `hspage` is the ONE param that is not a RouterOS substitution and not the
+ * same for every file: it names which stock page this copy was written
+ * into. RouterOS chooses that page by whether the requesting client is
+ * already through its hotspot gate (`login`/`rlogin` = not yet,
+ * `alogin`/`status` = already, `logout` = just signed out), so stamping it
+ * hands the portal the one fact no user-agent test can establish. See
+ * cloudguest-foundation's `src/lib/portal-nas-state.ts` for the
+ * guest-facing defect this closes -- an already-connected iPhone opening
+ * the gateway address was re-logged-in and then dumped on Apple's bare
+ * "Success" page. Additive: an older device with no `hspage` on its pages
+ * keeps today's behaviour exactly, because the portal treats "absent" as
+ * "the router did not say" rather than as a `false`. */
+function buildPortalUrl(portalUrl: PortalOverrideConfig, file: string): string {
+  // `login.html` -> `login`. The portal validates this against its own
+  // closed set (`parseNasPage`), so a value it does not recognize is
+  // ignored rather than acted on.
+  const page = file.replace(/\.html$/, "");
   return (
     `${portalUrl.frontendBase}/portal?organizationId=${portalUrl.organizationId}` +
     `&locationId=${portalUrl.locationId}&routerId=${portalUrl.routerId}` +
-    `&mac=$(mac)&ip=$(ip)&dst=$(link-orig)&link-login-only=$(link-login-only)`
+    `&mac=$(mac)&ip=$(ip)&dst=$(link-orig)&link-login-only=$(link-login-only)` +
+    `&hspage=${page}`
   );
 }
 
@@ -1477,9 +1495,12 @@ function buildPortalOverrideFileSetLines(
   portalUrl: PortalOverrideConfig,
   generatedAt: string,
 ): { label: string; line: string }[] {
-  const url = buildPortalUrl(portalUrl);
   const marker = portalMarker(portalUrl, generatedAt);
   return PORTAL_OVERRIDE_FILES.map((page) => {
+    // Per file now, not hoisted: `hspage` is what differs between them.
+    // See `buildPortalUrl`. Everything else in the URL is identical, so
+    // this stays one shape written five times, not five shapes.
+    const url = buildPortalUrl(portalUrl, page.file);
     const pattern = portalFileMatchPattern(page.file);
     const contents = escapeForRouterOsString(buildPortalRedirectHtml(url, page, marker));
     // ONE entered line. `$pfHits` is bound and consumed inside it, because

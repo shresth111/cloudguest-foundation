@@ -146,8 +146,36 @@ const SuccessPage = Route.component;
 // --- fake browser -----------------------------------------------------
 const THROWING = "throwing";
 
-/** @param {"throwing"|"working"} mode @param {Record<string,string>} seed */
-function installBrowser(mode, seed = {}) {
+/**
+ * Replaces the global `navigator` for the duration of one case.
+ *
+ * `isAppleCaptiveClient()` reads the BARE global, not `window.navigator`,
+ * and on Node `globalThis.navigator` is an accessor -- a plain assignment
+ * is silently discarded (verified: it keeps returning `Node.js/26`), which
+ * would make every Apple-branch check below pass vacuously against a
+ * non-Apple UA. `defineProperty` is what actually replaces it.
+ *
+ * @param {"apple"|"android"|"none"} kind
+ */
+function installNavigator(kind) {
+  const value =
+    kind === "apple"
+      ? { userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X)", maxTouchPoints: 5 }
+      : kind === "android"
+        ? { userAgent: "Mozilla/5.0 (Linux; Android 14; Pixel 8)", maxTouchPoints: 5 }
+        : undefined;
+  Object.defineProperty(globalThis, "navigator", { value, configurable: true, writable: true });
+}
+
+/**
+ * @param {"throwing"|"working"} mode
+ * @param {Record<string,string>} seed
+ * @param {string} search location.search for this case -- the NAS page
+ *   marker (`hspage`) rides on it, and `attemptSubmit` reads it live
+ *   because this page is reachable both as a client-side hop and as a
+ *   fresh document the NAS navigated to.
+ */
+function installBrowser(mode, seed = {}, search = "") {
   const store = new Map(Object.entries(seed));
   const throwingStorage = {
     getItem() {
@@ -168,10 +196,19 @@ function installBrowser(mode, seed = {}) {
   const calls = [];
   const submits = [];
   const assigns = [];
+  // Every field `submitHotspotLogin` builds, so a case can assert on the
+  // `dst` the NAS is actually told to redirect to. Without this the stub
+  // swallowed the fields and the Apple hand-off -- the whole subject of
+  // cases 4-7 below -- was untestable.
+  const posted = [];
   globalThis.window = {
     sessionStorage: mode === THROWING ? throwingStorage : workingStorage,
     localStorage: mode === THROWING ? throwingStorage : workingStorage,
-    location: { origin: "https://portal.example.com", assign: (u) => assigns.push(u) },
+    location: {
+      origin: "https://portal.example.com",
+      search,
+      assign: (u) => assigns.push(u),
+    },
     setTimeout: () => 0,
     clearTimeout: () => {},
     matchMedia: () => ({ matches: false }),
@@ -180,17 +217,24 @@ function installBrowser(mode, seed = {}) {
     documentElement: { classList: { toggle() {} }, style: {} },
     body: { appendChild() {} },
     head: { appendChild() {} },
-    createElement: () => ({
-      style: {},
-      appendChild() {},
-      setAttribute() {},
-      submit() {
-        calls.push("submit");
-        submits.push(true);
-      },
-    }),
+    createElement: () => {
+      const el = {
+        style: {},
+        fields: {},
+        appendChild(child) {
+          if (child && typeof child.name === "string") el.fields[child.name] = child.value;
+        },
+        setAttribute() {},
+        submit() {
+          calls.push("submit");
+          submits.push(true);
+          posted.push({ action: el.action, ...el.fields });
+        },
+      };
+      return el;
+    },
   };
-  return { calls, submits, assigns, store };
+  return { calls, submits, assigns, posted, store };
 }
 class DOMExceptionish extends Error {}
 
@@ -277,6 +321,158 @@ console.log("portal captive-network-assistant storage safety");
     !h.navigateCalls.some((args) => JSON.stringify(args).includes("/portal/session")),
     JSON.stringify(h.navigateCalls),
   );
+}
+
+// =====================================================================
+// 4-10. THE NAS HAND-OFF: "10.5.50.1 redirecting to captive.apple.com,
+//       also only showing success".
+//
+// Founder's QA pass, live router. Both of those reports are one chain.
+// `captive.apple.com/hotspot-detect.html` is Apple's own captive-detection
+// endpoint and its entire body is the word `Success` -- so "redirecting to
+// captive.apple.com" and "the login redirect is just a message 'success'"
+// are the same screen, described from two ends. It is not our page, it
+// carries no venue branding, no countdown and no way back.
+//
+// The redirect itself is deliberate and must NOT be deleted: inside iOS's
+// Captive Network Assistant that body is what makes the sheet mark the
+// network online and dismiss, and a MacBook was confirmed live reaching
+// full internet through it. The defect was that it was chosen by
+// `isAppleCaptiveClient()`, a USER-AGENT test, which cannot tell the CNA
+// websheet apart from ordinary Safari on the same iPhone -- so an
+// already-connected guest who simply opened the gateway address got a
+// pointless re-login and then Apple's diagnostic page.
+//
+// The fix is to ask the router instead: RouterOS serves `alogin.html` /
+// `status.html` ONLY to a client its hotspot has already authorized, and
+// those pages now stamp `hspage` on the portal URL. These cases drive the
+// REAL `attemptSubmit` over both answers and over the third one that
+// matters most -- "the router did not say", which is every device in the
+// field until it is re-provisioned, and which must behave exactly as it
+// does today.
+{
+  const APPLE = "http://captive.apple.com/hotspot-detect.html";
+  const SESSION_PREFIX = "https://portal.example.com/portal/session?";
+
+  // 4 + 5. The router says this client is already through the gate.
+  for (const page of ["status", "alogin"]) {
+    installNavigator("apple");
+    const browser = installBrowser("working", {}, `?hspage=${page}&organizationId=org-1`);
+    renderAndRunEffects(RUNTIME);
+    check(
+      `hspage=${page}: no hotspot POST -- the NAS already authorized this client`,
+      browser.submits.length === 0,
+      `form.submit() called ${browser.submits.length}x for a client that is already online`,
+    );
+    check(
+      `hspage=${page}: lands on the real /portal/session, not Apple's page`,
+      browser.assigns.length === 1 && browser.assigns[0].startsWith(SESSION_PREFIX),
+      JSON.stringify(browser.assigns),
+    );
+    check(
+      `hspage=${page}: never navigates an ordinary browser to captive.apple.com`,
+      !browser.assigns.some((u) => u.startsWith(APPLE)) &&
+        !browser.posted.some((p) => p.dst === APPLE),
+      "this is the founder's screenshot: a bare page reading only 'Success'",
+    );
+  }
+
+  // 6. A FRESH login on the same device. The Apple hand-off is the
+  //    confirmed-live fix for the CNA and must survive untouched -- this
+  //    check exists so nobody "fixes" the above by deleting it.
+  {
+    installNavigator("apple");
+    const browser = installBrowser("working", {}, "?hspage=login&organizationId=org-1");
+    renderAndRunEffects(RUNTIME);
+    check(
+      "hspage=login: the gate-opening POST still fires",
+      browser.submits.length === 1,
+      `form.submit() called ${browser.submits.length}x`,
+    );
+    check(
+      "hspage=login: an Apple client is still handed to captive.apple.com so the CNA closes",
+      browser.posted.length === 1 && browser.posted[0].dst === APPLE,
+      JSON.stringify(browser.posted),
+    );
+  }
+
+  // 7. THE WHOLE FLEET TODAY. No router in the field stamps `hspage` yet
+  //    -- those pages live in the device's own flash/hotspot/ directory
+  //    and this repo cannot deploy to one. "Absent" must therefore mean
+  //    "the router did not say" and degrade to exactly today's behaviour,
+  //    never to "not authorized" and never to "authorized".
+  {
+    installNavigator("apple");
+    const browser = installBrowser("working", {}, "?organizationId=org-1");
+    renderAndRunEffects(RUNTIME);
+    check(
+      "no hspage (every router in the field today): behaviour is unchanged -- POST fires",
+      browser.submits.length === 1,
+      `form.submit() called ${browser.submits.length}x`,
+    );
+    check(
+      "no hspage: the Apple hand-off is unchanged too",
+      browser.posted.length === 1 && browser.posted[0].dst === APPLE,
+      JSON.stringify(browser.posted),
+    );
+  }
+
+  // 8. A value outside the closed set -- a stale link, a guest editing the
+  //    address bar. Must be read as "did not say", never as "authorized":
+  //    treating it as authorized would skip the one POST that opens the
+  //    gate, on the word of an untrusted query param.
+  {
+    installNavigator("apple");
+    const browser = installBrowser("working", {}, "?hspage=totallybogus&organizationId=org-1");
+    renderAndRunEffects(RUNTIME);
+    check(
+      "an unrecognized hspage never suppresses the gate-opening POST",
+      browser.submits.length === 1,
+      "an untrusted query value must not be able to leave a guest with no internet",
+    );
+  }
+
+  // 9. The already-authorized branch must not depend on Web Storage.
+  //    Inside the CNA, storage THROWS rather than returning null -- the
+  //    original incident this whole suite exists for. The branch runs
+  //    before any persistence call for exactly that reason.
+  {
+    installNavigator("apple");
+    const browser = installBrowser(THROWING, {}, "?hspage=status&organizationId=org-1");
+    let threw = null;
+    try {
+      renderAndRunEffects(RUNTIME);
+    } catch (e) {
+      threw = e;
+    }
+    check("hspage=status still works when storage throws", threw === null, String(threw));
+    check(
+      "hspage=status with throwing storage still reaches /portal/session",
+      browser.assigns.length === 1 && browser.assigns[0].startsWith(SESSION_PREFIX),
+      JSON.stringify(browser.assigns),
+    );
+  }
+
+  // 10. A guest whose `guestIdentifier` was lost to a reload, on a router
+  //     that says the gate is open. This used to sit on the "Just a
+  //     moment" spinner until the 15s escape hatch appeared -- there is
+  //     nothing to POST, so nothing was ever in flight -- while their
+  //     internet already worked perfectly. The router's answer needs no
+  //     identifier, which is why the branch sits above that guard.
+  {
+    installNavigator("apple");
+    const browser = installBrowser("working", {}, "?hspage=alogin&organizationId=org-1");
+    const { ...runtime } = RUNTIME;
+    delete runtime.guestIdentifier;
+    renderAndRunEffects(runtime);
+    check(
+      "hspage=alogin with no guestIdentifier still leaves the spinner",
+      browser.assigns.length === 1 && browser.assigns[0].startsWith(SESSION_PREFIX),
+      JSON.stringify(browser.assigns),
+    );
+  }
+
+  installNavigator("none");
 }
 
 console.log(failures === 0 ? "\nall checks passed" : `\n${failures} check(s) failed`);

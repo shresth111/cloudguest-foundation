@@ -23,6 +23,7 @@ import { portalRuntimeService } from "@/services/portal-runtime.service";
 import { campaignPortalService } from "@/services/campaign-portal.service";
 import type { AppError } from "@/services/api";
 import { usePortalLinkSearch } from "@/components/portal-runtime/usePortalLinkSearch";
+import { passwordSignInOffered } from "@/lib/portal-auth-methods";
 
 export const Route = createFileRoute("/portal/session")({
   errorComponent: PortalErrorScreen,
@@ -300,8 +301,13 @@ function SessionPage() {
   const [reviewCardShownThisSession, setReviewCardShownThisSession] = useState(false);
 
   // Same eligibility rule portal.success.tsx used to gate its own
-  // set-password nudge with -- relocated here, not re-derived.
-  const showPasswordNudge = !!(config?.usernamePasswordEnabled && session && !session.hasPassword);
+  // set-password nudge with -- relocated here, not re-derived. Now asked
+  // through `passwordSignInOffered` rather than reading
+  // `config.usernamePasswordEnabled` directly, so this nudge disappears
+  // with the sign-in method itself: a guest must never be asked to save a
+  // password that nothing will subsequently offer to accept. See
+  // `PASSWORD_SIGN_IN_OFFERED`.
+  const showPasswordNudge = !!(passwordSignInOffered(config) && session && !session.hasPassword);
 
   // Previously this button only cleared local app state (setSession) and
   // navigated away -- the real GuestSession on the backend (and the
