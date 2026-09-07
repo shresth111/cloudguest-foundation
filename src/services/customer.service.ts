@@ -1850,6 +1850,7 @@ export const customerService = {
               mac_address: string;
               ip_address: string;
               hostname: string | null;
+              vendor: string | null;
               connected_at: string;
               last_seen_at: string;
             }[];
@@ -1862,7 +1863,12 @@ export const customerService = {
           devices: (data?.items ?? []).map((d) => ({
             mac: d.mac_address,
             ip: d.ip_address,
-            device: d.hostname ?? "Unknown",
+            // Show the MAC address rather than a bare "Unknown" when the
+            // router hasn't reported a hostname/vendor yet -- an empty
+            // device column is worse than the identifier we do have. The
+            // backend vendor lookup is a deliberately tiny OUI table, so
+            // unknown-vendor is the common case, not an error.
+            device: d.hostname ?? d.vendor ?? d.mac_address,
             firstSeen: timeAgo(d.connected_at),
             lastSeen: timeAgo(d.last_seen_at),
           })),

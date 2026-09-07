@@ -888,8 +888,8 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
       toast.success("Open hours applied");
       return;
     }
-    if (!configId) {
-      toast.error("No portal config found for this location yet.");
+    if (!locationId) {
+      toast.error("No location selected.");
       return;
     }
     // Every "open" day needs real start/end times before saving -- the
@@ -904,13 +904,34 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
     }
     setSaving(true);
     try {
-      await businessHoursService.save(configId, {
+      // A location with no captive_portal_configs row yet has nothing to
+      // PUT to -- resolve returns no config and this used to refuse to
+      // save at all ("No portal config found for this location yet."),
+      // which is how "Open Hours not working at all" showed up on a fresh
+      // venue. Lazily create the location's own config first, then save
+      // the business-hours fields onto it.
+      let id = configId;
+      if (!id) {
+        const orgId = await resolveOrgId();
+        const { data } = await api.post<{ id: string }>(
+          "/captive-portal-configs",
+          {
+            organization_id: orgId,
+            location_id: locationId,
+            name: "Guest WiFi Login",
+          },
+          { headers: { "X-Organization-Id": orgId } },
+        );
+        id = data.id;
+        setConfigId(id);
+      }
+      await businessHoursService.save(id, {
         enabled,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
         schedule,
         closedMessage,
       });
-      const refreshed = await businessHoursService.get(locationId!);
+      const refreshed = await businessHoursService.get(locationId);
       setIsOpenNow(refreshed.isOpenNow);
       toast.success("Open hours applied");
     } catch (err) {

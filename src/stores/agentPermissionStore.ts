@@ -62,6 +62,11 @@ const SEED_ROLES: AgentRole[] = [
     ],
   },
   { id: "role-marketing", name: "Marketing", features: ["campaigns", "portal", "reports"] },
+  {
+    id: "role-auditor",
+    name: "Auditor",
+    features: ["reports", "admin-logs", "network-activity", "users"],
+  },
 ];
 
 const SEED_AGENTS: AgentRecord[] = [
