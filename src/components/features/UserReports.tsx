@@ -28,12 +28,19 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
+import { resolveOrgId, deviceLabelFrom, type RawGuest } from "@/services/customer.service";
 import {
-  resolveOrgId,
   identityFromGuest,
-  deviceLabelFrom,
-  type RawGuest,
-} from "@/services/customer.service";
+  shouldExplainMissingGuestNames,
+  GUEST_NAME_NOT_COLLECTED_NOTICE,
+} from "@/lib/guest-identity";
+import {
+  DEMO_TEAMS,
+  resolveTeamOptions,
+  NO_TEAMS_NOTICE,
+  TEAMS_LOOKUP_FAILED_NOTICE,
+} from "@/lib/report-team-options";
+import { guestService } from "@/services/guest.service";
 import { useCustomerLocations, useIsDemo } from "@/hooks/useCustomerDashboard";
 import { maskEmail, maskMac, maskPhone } from "@/components/features/HeaderControls";
 import { csvField, downloadCsv } from "@/lib/csv-export";
@@ -50,7 +57,10 @@ const CATEGORIES = [
 type Category = (typeof CATEGORIES)[number];
 
 const UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
-const TEAMS = ["Sales Team", "Executive VIP", "Contractors", "Maintenance Staff"];
+// The team list a real account sees now comes from GET /guest-teams (see
+// lib/report-team-options.ts). `DEMO_TEAMS` is fixtures, reachable only
+// through resolveTeamOptions' `demo` branch -- it must never be rendered
+// for a real venue, which is exactly what this file used to do.
 const CAMPAIGN_TYPES = [
   "All Types",
   "Banner Campaign",
@@ -532,7 +542,7 @@ function mockRow(
       r.newUsers = Math.floor(Math.random() * 15);
       break;
     case "team-report":
-      r.team = TEAMS[i % TEAMS.length];
+      r.team = DEMO_TEAMS[i % DEMO_TEAMS.length];
       r.members = Math.floor(Math.random() * 15) + 3;
       r.data = Math.random() * 20000;
       r.sessions = Math.floor(Math.random() * 200) + 20;
@@ -794,7 +804,17 @@ const REAL_REPORT_TYPES = new Set([
 ]);
 
 const UNAVAILABLE_REASON: Record<string, string> = {
-  "team-report": "Guest teams aren't tied to usage totals in the real backend yet.",
+  // The team *list* is now real (GET /guest-teams backs the filter above).
+  // The usage rollup still isn't, and the gap is not just plumbing:
+  // GET /guest-teams/{id} returns member_count, active_session_count and
+  // total_bandwidth_bytes, which is a snapshot of right now -- but this
+  // report's "Sessions" column reads as sessions over a period, and its
+  // Data Used as data over that period. Wiring the snapshot into columns
+  // that imply a range would be the same dishonest relabel called out for
+  // campaign-performance below, so it stays unavailable until the columns
+  // and the endpoint agree. See this PR's description for the follow-up.
+  "team-report":
+    "This venue's guest teams are real and listed above, but per-team usage totals aren't computed for a date range in the backend yet -- only a live snapshot, which these columns would misrepresent.",
   "campaign-performance":
     "GET /campaigns/{id}/results now returns real engagement counts (impressions/responses/skipped/clicked), but this report's Sent/Delivered/Opened/Clicked columns have no backend equivalent -- campaigns are served in-session, not through a delivery channel with those stages. Needs a column relabel (e.g. Impressions/Responses/Skipped/Clicked) before it can show real data honestly.",
   "campaign-daywise":
@@ -1547,6 +1567,13 @@ export function ReportPanel({
   const [comboFilter, setComboFilter] = useState("");
   const [activeIdx, setActiveIdx] = useState(0);
   const comboRef = useRef<HTMLDivElement>(null);
+  // Real guest teams for this account (GET /guest-teams via
+  // guestService.listTeams, the same call the Guests > Teams screen makes).
+  // `null` means "not fetched yet"; `[]` genuinely means this venue has
+  // none, which is a state the UI must show rather than paper over -- see
+  // lib/report-team-options.ts.
+  const [realTeams, setRealTeams] = useState<string[] | null>(null);
+  const [teamsFailed, setTeamsFailed] = useState(false);
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [running, setRunning] = useState(false);
   const [rows, setRows] = useState<Row[] | null>(null);
@@ -1580,6 +1607,44 @@ export function ReportPanel({
   const needsTeam = NEEDS_TEAM.has(reportType);
   const needsCampaignType = NEEDS_CAMPAIGN_TYPE.has(reportType);
   const needsRate = NEEDS_RATE.has(reportType);
+
+  // Fetch the account's real teams the first time a report that filters by
+  // team is selected. Demo accounts never fetch -- resolveTeamOptions
+  // answers them from fixtures without consulting the API at all.
+  useEffect(() => {
+    if (!needsTeam || demo || realTeams !== null || teamsFailed) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const orgId = await resolveOrgId();
+        const teams = await guestService.listTeams(orgId);
+        if (cancelled) return;
+        // Only teams a guest could actually be in right now: an expired or
+        // revoked team is not an option to run a usage report against.
+        setRealTeams(teams.filter((t) => t.status === "active").map((t) => t.name));
+      } catch {
+        if (!cancelled) setTeamsFailed(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [needsTeam, demo, realTeams, teamsFailed]);
+
+  const teamOptions = useMemo(
+    () => resolveTeamOptions({ demo, teams: realTeams, failed: teamsFailed }),
+    [demo, realTeams, teamsFailed],
+  );
+
+  // A real report whose every Name cell is blank is not a broken join --
+  // this product does not ask guests for a name unless the venue opts in
+  // (see lib/guest-identity.ts). Say so, once, above the table, rather
+  // than letting the operator guess. Never on demo, whose fixtures all
+  // carry names.
+  const explainMissingNames = useMemo(
+    () => !demo && shouldExplainMissingGuestNames(rows),
+    [demo, rows],
+  );
 
   const filteredCombos = useMemo(() => {
     const q = comboFilter.toLowerCase();
@@ -1722,7 +1787,10 @@ export function ReportPanel({
         e.to = "Pick a range of 90 days or less.";
     }
     if (needsSingle && !singleDate) e.singleDate = "Required.";
-    if (needsTeam && !team) e.team = "Select a team.";
+    // Only demand a team when there is one to pick. A venue with no teams
+    // gets the empty state below instead of an error telling it to choose
+    // from a list that is legitimately empty.
+    if (needsTeam && teamOptions.kind === "ready" && !team) e.team = "Select a team.";
     if (needsCampaignType && !campaignType) e.campaignType = "Select a campaign type.";
     if (needsRate && ratePerGb && parseFloat(ratePerGb) < 0)
       e.ratePerGb = "Rate can't be negative.";
@@ -1800,6 +1868,7 @@ export function ReportPanel({
     needsTeam,
     needsCampaignType,
     needsRate,
+    teamOptions,
     locationsByName,
     customerLocations,
   ]);
@@ -1975,30 +2044,54 @@ export function ReportPanel({
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             {needsTeam && (
               <div>
-                <label htmlFor="ur-team" className={labelCls}>
-                  Team <span className="text-destructive">*</span>
-                </label>
-                <select
-                  id="ur-team"
-                  value={team}
-                  onChange={(e) => {
-                    setTeam(e.target.value);
-                    setErrs((p) => {
-                      const n = { ...p };
-                      delete n.team;
-                      return n;
-                    });
-                  }}
-                  className={inputCls}
-                >
-                  <option value="">Choose team</option>
-                  {TEAMS.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-                <Err k="team" />
+                {teamOptions.kind === "ready" ? (
+                  <>
+                    <label htmlFor="ur-team" className={labelCls}>
+                      Team <span className="text-destructive">*</span>
+                    </label>
+                    <select
+                      id="ur-team"
+                      value={team}
+                      onChange={(e) => {
+                        setTeam(e.target.value);
+                        setErrs((p) => {
+                          const n = { ...p };
+                          delete n.team;
+                          return n;
+                        });
+                      }}
+                      className={inputCls}
+                    >
+                      <option value="">Choose team</option>
+                      {teamOptions.options.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
+                    <Err k="team" />
+                  </>
+                ) : (
+                  // Not a select at all: there is nothing to select. An
+                  // empty-but-enabled dropdown reads as a loading bug, and
+                  // a dropdown holding invented names (what this used to
+                  // render) is worse still. No <label htmlFor> here either
+                  // -- there is no form control to label, and pointing one
+                  // at a <p> is not a valid association.
+                  <>
+                    <p className={labelCls}>Team</p>
+                    <p
+                      className="rounded-lg border border-dashed border-input bg-muted/30 px-3 py-2 text-sm text-muted-foreground"
+                      aria-live={teamOptions.kind === "loading" ? "polite" : undefined}
+                    >
+                      {teamOptions.kind === "loading"
+                        ? "Loading this venue's teams…"
+                        : teamOptions.kind === "error"
+                          ? TEAMS_LOOKUP_FAILED_NOTICE
+                          : NO_TEAMS_NOTICE}
+                    </p>
+                  </>
+                )}
               </div>
             )}
             {needsCampaignType && (
@@ -2261,6 +2354,12 @@ export function ReportPanel({
               </div>
             </CardHeader>
             <CardContent>
+              {explainMissingNames && (
+                <p className="mb-4 flex items-start gap-2 rounded-lg border border-dashed border-input bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                  <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  <span>{GUEST_NAME_NOT_COLLECTED_NOTICE}</span>
+                </p>
+              )}
               <div className="hidden print:block mb-4">
                 <h3 className="text-base font-semibold tracking-tight">{rt?.label}</h3>
                 <p className="text-xs text-muted-foreground">
