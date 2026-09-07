@@ -1047,10 +1047,10 @@
       "fallback": "The walled-garden ip list could not be read.",
       "rules": {
         "0": {
-          "why": "The portal's IP (40.80.86.193) is set in the HTTPS list."
+          "why": "The portal's IP (13.203.112.174) is set in the HTTPS list."
         },
         "1": {
-          "why": "The entry exists but its IP is not 40.80.86.193. The portal's IP may have changed -- run the walled garden block again, it will update the old entry."
+          "why": "The entry exists but its IP is not 13.203.112.174. The portal's IP may have changed -- run the walled garden block again, it will update the old entry."
         },
         "2": {
           "why": "The entry was found but its dst-address could not be read. Run `/ip hotspot walled-garden ip print detail`."

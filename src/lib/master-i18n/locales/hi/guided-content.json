@@ -1047,10 +1047,10 @@
       "fallback": "walled-garden ip list पढ़ी नहीं जा सकी।",
       "rules": {
         "0": {
-          "why": "HTTPS वाली list में portal का IP (40.80.86.193) set है।"
+          "why": "HTTPS वाली list में portal का IP (13.203.112.174) set है।"
         },
         "1": {
-          "why": "Entry तो है पर उसका IP 40.80.86.193 नहीं है। Portal का IP बदला हो सकता है -- walled garden block दोबारा चलाओ, वो पुरानी entry update कर देगा।"
+          "why": "Entry तो है पर उसका IP 13.203.112.174 नहीं है। Portal का IP बदला हो सकता है -- walled garden block दोबारा चलाओ, वो पुरानी entry update कर देगा।"
         },
         "2": {
           "why": "Entry मिल गई पर उसका dst-address पढ़ा नहीं जा सका। `/ip hotspot walled-garden ip print detail` चलाओ।"

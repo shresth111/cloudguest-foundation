@@ -47,17 +47,31 @@ import type { OutputAssertion } from "./analyse";
  * Literals this module compares device output against.
  *
  * `PORTAL_IP` is read out of `phases.content.ts`'s own `expect` for
- * `wg-ip` (`dst-address=40.80.86.193`). It is compared for a WARNING, never
+ * `wg-ip` (`dst-address=13.203.112.174`). It is compared for a WARNING, never
  * for a FAIL -- the portal's public IP can legitimately change, and the
  * content's own fix for that case is "re-run the block, it updates the
  * entry". A FAIL there would send installers chasing a healthy router.
  *
- * That legitimate-change case is no longer hypothetical: this was
- * `20.219.51.94`, the app VM on the OLD Azure subscription, which was
- * deallocated during the 2026-08-21/22 migration. Verified 2026-08-22 by
- * resolving `portal.wyfyguest.com`.
+ * That legitimate-change case is no longer hypothetical, and it has now
+ * happened TWICE. It was `20.219.51.94`, the app VM on the old Azure
+ * subscription, deallocated during the 2026-08-21/22 migration. It was then
+ * `40.80.86.193`, the app VM on the NEXT Azure subscription, which the
+ * 2026-08-27 move to AWS ap-south-1 left behind in turn -- and that value
+ * sat here for ten days while every healthy router in the fleet resolved
+ * something else, so this WARNING fired on all of them and told the
+ * installer to suspect an ISP hijack that was not happening. That is the
+ * precise failure the "WARNING, never FAIL" rule above exists to soften and
+ * a stale literal exists to cause.
+ *
+ * Verified 2026-09-07: `auth.wyfyguest.com` resolves to `13.203.112.174` on
+ * both 1.1.1.1 and 8.8.8.8, reverse-resolves to
+ * `ec2-13-203-112-174.ap-south-1.compute.amazonaws.com`, and
+ * `https://auth.wyfyguest.com/portal` answers 200 with a certificate that
+ * validates. `wifi.`, `portal.`, `app.` and `master.` all resolve there too
+ * -- one host, five names -- so this address moves whenever that host does.
+ * **Re-verify against DNS rather than trusting this literal.**
  */
-const PORTAL_IP = "40.80.86.193";
+const PORTAL_IP = "13.203.112.174";
 const PORTAL_HOST = "auth.wyfyguest.com";
 /** The WireGuard tunnel subnet the RADIUS server must be reachable on. */
 const TUNNEL_SUBNET = "10.20.0.0/24";

@@ -574,7 +574,7 @@ export const PROTECTED_TOKENS: Lit[] = [
   "hub.wyfyguest.com",
   "10.5.50.1",
   "10.20.0.1",
-  "40.80.86.193",
+  "13.203.112.174",
   // counter names
   "accepts",
   "rejects",
