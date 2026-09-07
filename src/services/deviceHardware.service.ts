@@ -23,6 +23,22 @@
  * `app.domains.monitored_hardware`'s module docstring): a real join
  * against `connected_devices`' own router-synced presence data, never a
  * ping this frontend or backend invents.
+ *
+ * `lastSeenAt` was called `statusChangedAt` until 2026-09-07, and the
+ * wrong name is what produced the "4 mins up" bug: it is not when the
+ * status changed, it is when the network last observed the MAC, and a
+ * screen that believed the name printed the heartbeat age under the word
+ * "up". Renamed here rather than papered over at the three call sites,
+ * because the name was the whole defect. See `@/lib/device-liveness`.
+ *
+ * `uptimeSeconds`/`uptimeRecordedAt` are the real, separate fact the
+ * backend now sends (BE `uptime_seconds`/`uptime_recorded_at`): seconds
+ * since the device last booted, read off `/system/resource` by the
+ * existing RouterOS-API health sweep and served out of
+ * `router_health_snapshots`. They are `null` for anything that is not a
+ * router this platform manages -- a third-party AP, printer or camera has
+ * no uptime source at all -- and that null must never be backfilled from
+ * `lastSeenAt`.
  */
 import { api } from "@/services/api";
 import { resolveOrgId } from "@/services/customer.service";
@@ -37,8 +53,15 @@ export interface MonitoredDeviceRow {
   floor: string;
   status: "up" | "down" | "unknown";
   /** Real `ConnectedDevice.last_seen_at` when the backend has ever
-   * observed this MAC, `null` for "unknown" (never seen). */
-  statusChangedAt: string | null;
+   * observed this MAC, `null` for "unknown" (never seen). "We heard from
+   * it then" -- NOT "it has been running since then". */
+  lastSeenAt: string | null;
+  /** Seconds since the device itself last booted, or `null` where this
+   * platform has no way to know. Never derived from `lastSeenAt`. */
+  uptimeSeconds: number | null;
+  /** When `uptimeSeconds` was read off the device. `null` whenever
+   * `uptimeSeconds` is. */
+  uptimeRecordedAt: string | null;
 }
 
 interface RawMonitoredHardware {
@@ -50,6 +73,8 @@ interface RawMonitoredHardware {
   floor: string | null;
   status: "up" | "down" | "unknown";
   last_seen_at: string | null;
+  uptime_seconds: number | null;
+  uptime_recorded_at: string | null;
 }
 
 function toRow(r: RawMonitoredHardware): MonitoredDeviceRow {
@@ -61,7 +86,12 @@ function toRow(r: RawMonitoredHardware): MonitoredDeviceRow {
     type: r.device_type as DeviceType,
     floor: r.floor ?? "",
     status: r.status,
-    statusChangedAt: r.last_seen_at,
+    lastSeenAt: r.last_seen_at,
+    // `?? null` rather than a bare read: an older backend that predates
+    // these fields sends neither, and `undefined` would slip past every
+    // `!= null` guard downstream as though it were a number.
+    uptimeSeconds: r.uptime_seconds ?? null,
+    uptimeRecordedAt: r.uptime_recorded_at ?? null,
   };
 }
 

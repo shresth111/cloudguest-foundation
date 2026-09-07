@@ -51,7 +51,9 @@ import {
 import { StatCard } from "@/components/ui-ext/StatCard";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { FLOORS, DEVICE_TYPES, formatSince, type DeviceType } from "@/stores/deviceStore";
+import { DEVICE_TYPES, type DeviceType } from "@/stores/deviceStore";
+import { describeLiveness } from "@/lib/device-liveness";
+import { floorSuggestions, normalizeFloor } from "@/lib/device-floors";
 import { DEVICE_TYPE_META, normalizeMac } from "@/lib/device-presentation";
 import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
 import { maskEmail, maskMac, maskPhone } from "@/components/features/HeaderControls";
@@ -347,11 +349,13 @@ export function BasicDevicesView() {
 // module's own use, and re-exported so existing callers keep working.
 export { DEVICE_TYPE_META, normalizeMac };
 
+// Floor is optional and free text -- see AddDeviceDialog's own note and
+// @/lib/device-floors. No guessed default.
 const emptyHardwareForm = {
   name: "",
   mac: "",
   type: "Access Point" as DeviceType,
-  floor: FLOORS[FLOORS.length - 1],
+  floor: "",
 };
 
 const STRICT_MAC_RE = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
@@ -590,12 +594,13 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
                                   : "bg-muted-foreground/50",
                             )}
                           />
-                          {d.status === "up"
-                            ? "Up"
-                            : d.status === "down"
-                              ? "Down"
-                              : "Not yet observed"}
-                          {d.statusChangedAt && ` · ${formatSince(d.statusChangedAt)}`}
+                          {/* Was "Up · 4m", where 4m was the age of
+                           * last_seen_at, not an uptime. Each duration now
+                           * names its own measurement -- @/lib/device-liveness. */}
+                          {(() => {
+                            const live = describeLiveness(d);
+                            return live.detail ? `${live.state} · ${live.detail}` : live.state;
+                          })()}
                         </span>
                       </TableCell>
                       <TableCell className="text-right">
@@ -721,22 +726,21 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label>Floor</Label>
-                    <Select
+                    <Label htmlFor="hardware-floor">Floor</Label>
+                    <Input
+                      id="hardware-floor"
+                      list="hardware-floor-suggestions"
                       value={form.floor}
-                      onValueChange={(v) => setForm({ ...form, floor: v })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {FLOORS.map((f) => (
-                          <SelectItem key={f} value={f}>
-                            {f}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Optional — e.g. GF, 3F, B1"
+                      maxLength={50}
+                      onChange={(e) => setForm({ ...form, floor: e.target.value })}
+                      onBlur={(e) => setForm({ ...form, floor: normalizeFloor(e.target.value) })}
+                    />
+                    <datalist id="hardware-floor-suggestions">
+                      {floorSuggestions(devices).map((f) => (
+                        <option key={f} value={f} />
+                      ))}
+                    </datalist>
                   </div>
                 </div>
               </div>

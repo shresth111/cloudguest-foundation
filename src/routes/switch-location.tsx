@@ -44,13 +44,9 @@ import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
 import { useCustomerLocations, customerKeys } from "@/hooks/useCustomerDashboard";
 import type { CustomerLocationSummary } from "@/services/customer.service";
-import {
-  FLOORS,
-  DEVICE_TYPES,
-  formatSince,
-  deriveCpu,
-  type DeviceType,
-} from "@/stores/deviceStore";
+import { DEVICE_TYPES, deriveCpu, type DeviceType } from "@/stores/deviceStore";
+import { describeLiveness } from "@/lib/device-liveness";
+import { floorsInUse, unplacedCount } from "@/lib/device-floors";
 import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { HighlightedText } from "@/components/ui-ext/HighlightedText";
@@ -426,7 +422,10 @@ function CustomerHomePage() {
         d.mac.toLowerCase().includes(deviceSearch.toLowerCase()),
     )
     .filter((d) => !typeFilter || d.type === typeFilter)
-    .filter((d) => !floorFilter || d.floor === floorFilter);
+    // floorFilter === "" is a real choice ("devices with no floor recorded"),
+    // distinct from null ("no floor filter at all") -- so this tests against
+    // null explicitly rather than truthiness, which would swallow it.
+    .filter((d) => floorFilter === null || d.floor.trim() === floorFilter);
   const downCount = devices.filter((d) => d.status === "down").length;
   const totalDownAcrossLocations = allDevices.filter((d) => d.status === "down").length;
 
@@ -1103,9 +1102,13 @@ function CustomerHomePage() {
           ) : (
             <>
               <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4">
-                {/* Only floors that actually hold hardware -- disabled "No devices"
-                 * tiles were pure noise and unclickable by design. */}
-                {FLOORS.filter((f) => devices.some((d) => d.floor === f)).map((f) => {
+                {/* The venue's own floors, derived from its hardware rows --
+                 * NOT a hardcoded ladder filtered down. This used to be
+                 * a filter over a six-item constant, which dropped any
+                 * floor outside the
+                 * six built-in labels: a device on "B1" was stored fine and
+                 * then vanished from these tiles. See @/lib/device-floors. */}
+                {floorsInUse(devices).map((f) => {
                   const onFloor = devices.filter((d) => d.floor === f);
 
                   const down = onFloor.filter((d) => d.status === "down").length;
@@ -1180,14 +1183,14 @@ function CustomerHomePage() {
                       <p className="text-xs text-white/50">
                         {downCount} of {devices.length} devices down
                       </p>
-                      {(typeFilter || floorFilter || deviceSearch) && (
+                      {(typeFilter || floorFilter !== null || deviceSearch) && (
                         <span className="rounded-full bg-[#6C4EFF]/20 px-2 py-0.5 text-[10px] font-semibold text-indigo-200">
                           {filteredDevices.length} shown
                         </span>
                       )}
                     </div>
                     <div className="flex items-center gap-2">
-                      {(typeFilter || floorFilter || deviceSearch) && (
+                      {(typeFilter || floorFilter !== null || deviceSearch) && (
                         <button
                           type="button"
                           aria-label="Clear all device filters"
@@ -1256,7 +1259,7 @@ function CustomerHomePage() {
                   {/* Floor filter chips */}
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-[11px] font-medium text-white/40">Floor:</span>
-                    {FLOORS.filter((f) => devices.some((d) => d.floor === f)).map((f) => {
+                    {floorsInUse(devices).map((f) => {
                       const count = devices.filter((d) => d.floor === f).length;
                       const active = floorFilter === f;
                       return (
@@ -1278,6 +1281,27 @@ function CustomerHomePage() {
                         </button>
                       );
                     })}
+                    {/* Floor is optional on the backend (nullable String(50)),
+                     * and a single-storey venue leaves it blank for every
+                     * device. Without this chip those rows are filterable by
+                     * nothing and invisible in the tiles above. */}
+                    {unplacedCount(devices) > 0 && (
+                      <button
+                        type="button"
+                        aria-pressed={floorFilter === ""}
+                        aria-label={`Filter by devices with no floor recorded (${unplacedCount(devices)})`}
+                        onClick={() => setFloorFilter(floorFilter === "" ? null : "")}
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
+                          floorFilter === ""
+                            ? "border-[#6C4EFF]/60 bg-[#6C4EFF]/15 text-indigo-200 ring-1 ring-[#6C4EFF]/40"
+                            : "border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/[0.08] hover:text-white",
+                        )}
+                      >
+                        No floor
+                        <span className="text-[10px] opacity-70">{unplacedCount(devices)}</span>
+                      </button>
+                    )}
                   </div>
                 </div>
                 {visibleSelectedIds.length > 0 && (
@@ -1432,12 +1456,30 @@ function CustomerHomePage() {
                                 </span>
                               </td>
                               <td className="px-3 py-2 text-xs text-white/50">
-                                {d.status === "up"
-                                  ? "Up"
-                                  : d.status === "down"
-                                    ? "Down"
-                                    : "Never observed"}
-                                {d.statusChangedAt && ` · ${formatSince(d.statusChangedAt)}`}
+                                {/* Every duration here names its own
+                                 * measurement. This cell used to read
+                                 * "Up · 4m", where the 4m was the age of
+                                 * last_seen_at -- see @/lib/device-liveness. */}
+                                {(() => {
+                                  const live = describeLiveness(d);
+                                  return (
+                                    <>
+                                      {live.state}
+                                      {live.detail && (
+                                        <span
+                                          className={cn(
+                                            live.detailKind === "uptime"
+                                              ? "text-white/60"
+                                              : "text-white/40",
+                                          )}
+                                        >
+                                          {" · "}
+                                          {live.detail}
+                                        </span>
+                                      )}
+                                    </>
+                                  );
+                                })()}
                               </td>
                               <td className="px-3 py-2">
                                 {cpu === null ? (

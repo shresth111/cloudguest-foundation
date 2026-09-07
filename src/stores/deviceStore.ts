@@ -1,9 +1,18 @@
 /**
- * Monitored network hardware (Access Points, Printers, Routers, Cameras) --
- * added manually from a location's Devices page by MAC address, type, and
- * floor. Up/down status and "since" duration are derived from the MAC
- * itself (a stand-in for a real ping/poll feed) so a device's status is
- * stable across renders instead of flickering randomly.
+ * DEMO-ONLY fixture for monitored network hardware (Access Points,
+ * Printers, Routers, Cameras). Real accounts have used
+ * `services/deviceHardware.service.ts` against `GET /monitored-hardware`
+ * since that file replaced this one; `hooks/useMonitoredHardware.ts` is
+ * the single switch between the two. Everything here is invented from a
+ * MAC hash, which is why it may only ever be reached through that hook's
+ * `isDemo()` branch.
+ *
+ * The floor list used to live here too -- `FLOORS = ["5F"..."GF"]`, six
+ * hardcoded strings that a real account was shown as if they were its own
+ * floors, and which were also used to *filter* the floor tiles, so a
+ * device on any other floor silently disappeared from them. That has moved
+ * to `@/lib/device-floors`, which derives a venue's floors from its own
+ * hardware rows. Nothing hardcodes a floor list any more.
  */
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
@@ -20,11 +29,22 @@ export interface MonitoredDevice {
   type: DeviceType;
   floor: string;
   status: "up" | "down";
-  /** ISO timestamp of the last observed status change -- drives the "since" duration. */
-  statusChangedAt: string;
+  /** ISO timestamp the fixture last "saw" this device. Named for what it
+   * is: this is the demo counterpart of the backend's `last_seen_at`, and
+   * naming it after a status *change* is what let the UI print it as an
+   * uptime.
+   * See `@/lib/device-liveness`. */
+  lastSeenAt: string;
+  /** Fixture uptime, in seconds. Demo accounts get one for every device so
+   * the screen exercises the real label; a REAL account only ever gets
+   * this from the backend, and gets `null` for anything that is not a
+   * managed router. */
+  uptimeSeconds: number;
+  /** Fixture reading timestamp -- always "just now", so the demo never
+   * renders the stale-reading branch. */
+  uptimeRecordedAt: string;
 }
 
-export const FLOORS = ["10F", "9F", "8F", "7F", "6F", "5F", "4F", "3F", "2F", "1F", "GF"];
 export const DEVICE_TYPES: DeviceType[] = ["Access Point", "Printer", "Router", "Camera", "Other"];
 
 function seededRand(seed: number) {
@@ -37,13 +57,26 @@ function hashMac(mac: string) {
   return Array.from(mac.toUpperCase()).reduce((a, c) => a + c.charCodeAt(0) * 31, 7);
 }
 
-/** Derives a stable simulated status + "since" timestamp from a MAC address. */
-export function deriveStatus(mac: string): { status: "up" | "down"; statusChangedAt: string } {
+/** Derives a stable simulated status, last-seen time and uptime from a MAC
+ * address. The two timestamps are deliberately unrelated to each other --
+ * that is the point of the fact they represent, and a fixture where they
+ * always agreed would hide the very bug this shape exists to prevent. */
+export function deriveStatus(mac: string): {
+  status: "up" | "down";
+  lastSeenAt: string;
+  uptimeSeconds: number;
+  uptimeRecordedAt: string;
+} {
   const rand = seededRand(hashMac(mac));
   const isUp = rand() > 0.18;
   const hoursAgo = Math.floor(rand() * 96) + 1;
-  const statusChangedAt = new Date(Date.now() - hoursAgo * 3600 * 1000).toISOString();
-  return { status: isUp ? "up" : "down", statusChangedAt };
+  const lastSeenAt = new Date(Date.now() - hoursAgo * 3600 * 1000).toISOString();
+  return {
+    status: isUp ? "up" : "down",
+    lastSeenAt,
+    uptimeSeconds: Math.floor(rand() * 400000) + 600,
+    uptimeRecordedAt: new Date().toISOString(),
+  };
 }
 
 /** Derives a stable simulated CPU load (%) for an "up" device from its MAC. Null when down. */
@@ -53,18 +86,6 @@ export function deriveCpu(mac: string, status: "up" | "down"): number | null {
   rand();
   rand(); // skip past the values deriveStatus already consumed for this seed family
   return Math.round(rand() * 80) + 5;
-}
-
-/** Formats an ISO timestamp into a short "since" duration, e.g. "2d 4h" or "18m". */
-export function formatSince(iso: string): string {
-  const ms = Date.now() - new Date(iso).getTime();
-  const mins = Math.max(0, Math.floor(ms / 60000));
-  const days = Math.floor(mins / 1440);
-  const hours = Math.floor((mins % 1440) / 60);
-  const minutes = mins % 60;
-  if (days > 0) return `${days}d ${hours}h`;
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  return `${minutes}m`;
 }
 
 function seedDevice(
@@ -109,6 +130,13 @@ export const useDeviceStore = create<DeviceState>()(
         })),
       removeDevice: (id) => set((s) => ({ devices: s.devices.filter((d) => d.id !== id) })),
     }),
-    { name: "cg-monitored-devices", version: 2 },
+    // Bumped to 3 for the rename of the old status-change field to
+    // `lastSeenAt`, and the
+    // two new uptime fields. No `migrate` on purpose: this store holds
+    // nothing but regenerable demo fixtures, so discarding a v2 payload
+    // reseeds it correctly, whereas carrying one forward would leave rows
+    // whose `uptimeSeconds` is `undefined` -- the exact value every
+    // `!= null` guard downstream is written to exclude.
+    { name: "cg-monitored-devices", version: 3 },
   ),
 );
