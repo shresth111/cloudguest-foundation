@@ -243,6 +243,24 @@ jobs:
             "portal search retention: all checks passed" \
             bun run test:portal-search-retention
 
+      # Which organization every request is about. A founder holding
+      # `Super Admin` at GLOBAL scope opened a report about his own venue on
+      # 7 Sep 2026 and read numbers blended across all fourteen
+      # organizations in the database, most of them demo and QA fixtures.
+      # He was entitled to every row, so nothing failed and nothing was
+      # marked -- a count summed over fourteen tenants renders exactly like
+      # one summed over one. The cause was the request interceptor
+      # deliberately omitting the org header for GLOBAL-scoped sessions,
+      # which the backend read as "every organization". Neither tsc nor
+      # eslint can see a header that is not attached, so this drives the
+      # real interceptor over the sessions that matter.
+      - name: organization scope header
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "org-scope-header" 14 \
+            "org-scope-header: all checks passed" \
+            bun run test:org-scope-header
+
       - name: firewall rule ordering
         run: |
           ./scripts/ci-gated-test.sh \

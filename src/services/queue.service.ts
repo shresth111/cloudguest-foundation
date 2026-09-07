@@ -1,4 +1,4 @@
-import { api } from "@/services/api";
+import { api, crossOrganizationHeaders } from "@/services/api";
 import type {
   CreateQueueAssignmentPayload,
   CreateQueueProfilePayload,
@@ -104,13 +104,20 @@ function toAssignment(a: BackendQueueAssignment): QueueAssignment {
   };
 }
 
-// Queue profiles/assignments are platform-wide here (no org selector on
-// this page) -- omitting X-Organization-Id resolves CurrentOrganization to
-// null server-side, same justified choice as policy.service.ts.
+// Queue profiles/assignments are platform-wide here (no org selector on this
+// page), same justified choice as policy.service.ts. That used to be
+// expressed by *omitting* X-Organization-Id and letting the backend read the
+// omission as "every organization" -- the implicit default this change
+// removes. `crossOrganizationHeaders()` says the same thing out loud, and
+// says nothing at all for a session that may not read across tenants, which
+// then gets its own organization from the interceptor as it should.
+const platformWide = () => ({ headers: crossOrganizationHeaders() });
+
 export const queueService = {
   async listProfiles(page = 1, pageSize = 100): Promise<QueueProfileListResult> {
     const { data } = await api.get<BackendQueueProfileListResponse>("/queue/profiles", {
       params: { page, page_size: pageSize },
+      ...platformWide(),
     });
     return {
       rows: data.items.map(toProfile),
@@ -122,40 +129,49 @@ export const queueService = {
   },
 
   async createProfile(payload: CreateQueueProfilePayload): Promise<QueueProfile> {
-    const { data } = await api.post<BackendQueueProfile>("/queue/profiles", {
-      name: payload.name,
-      description: payload.description ?? null,
-      download_rate_kbps: payload.downloadRateKbps,
-      upload_rate_kbps: payload.uploadRateKbps,
-      burst_download_kbps: payload.burstDownloadKbps ?? null,
-      burst_upload_kbps: payload.burstUploadKbps ?? null,
-      burst_threshold_kbps: payload.burstThresholdKbps ?? null,
-      burst_time_seconds: payload.burstTimeSeconds ?? null,
-      priority: payload.priority ?? 8,
-      is_active: payload.isActive ?? true,
-    });
+    const { data } = await api.post<BackendQueueProfile>(
+      "/queue/profiles",
+      {
+        name: payload.name,
+        description: payload.description ?? null,
+        download_rate_kbps: payload.downloadRateKbps,
+        upload_rate_kbps: payload.uploadRateKbps,
+        burst_download_kbps: payload.burstDownloadKbps ?? null,
+        burst_upload_kbps: payload.burstUploadKbps ?? null,
+        burst_threshold_kbps: payload.burstThresholdKbps ?? null,
+        burst_time_seconds: payload.burstTimeSeconds ?? null,
+        priority: payload.priority ?? 8,
+        is_active: payload.isActive ?? true,
+      },
+      platformWide(),
+    );
     return toProfile(data);
   },
 
   async updateProfile(id: string, payload: UpdateQueueProfilePayload): Promise<QueueProfile> {
-    const { data } = await api.put<BackendQueueProfile>(`/queue/profiles/${id}`, {
-      name: payload.name,
-      description: payload.description,
-      download_rate_kbps: payload.downloadRateKbps,
-      upload_rate_kbps: payload.uploadRateKbps,
-      priority: payload.priority,
-      is_active: payload.isActive,
-    });
+    const { data } = await api.put<BackendQueueProfile>(
+      `/queue/profiles/${id}`,
+      {
+        name: payload.name,
+        description: payload.description,
+        download_rate_kbps: payload.downloadRateKbps,
+        upload_rate_kbps: payload.uploadRateKbps,
+        priority: payload.priority,
+        is_active: payload.isActive,
+      },
+      platformWide(),
+    );
     return toProfile(data);
   },
 
   async deleteProfile(id: string): Promise<void> {
-    await api.delete(`/queue/profiles/${id}`);
+    await api.delete(`/queue/profiles/${id}`, platformWide());
   },
 
   async listAssignments(page = 1, pageSize = 50): Promise<QueueAssignmentListResult> {
     const { data } = await api.get<BackendQueueAssignmentListResponse>("/queue/assignments", {
       params: { page, page_size: pageSize },
+      ...platformWide(),
     });
     return {
       rows: data.items.map(toAssignment),
@@ -167,32 +183,44 @@ export const queueService = {
   },
 
   async createAssignment(payload: CreateQueueAssignmentPayload): Promise<QueueAssignment> {
-    const { data } = await api.post<BackendQueueAssignment>("/queue/assign", {
-      target_type: payload.targetType,
-      target_id: payload.targetId ?? null,
-      router_id: payload.routerId ?? null,
-      location_id: payload.locationId ?? null,
-      queue_profile_id: payload.queueProfileId ?? null,
-      priority_override: payload.priorityOverride ?? null,
-    });
+    const { data } = await api.post<BackendQueueAssignment>(
+      "/queue/assign",
+      {
+        target_type: payload.targetType,
+        target_id: payload.targetId ?? null,
+        router_id: payload.routerId ?? null,
+        location_id: payload.locationId ?? null,
+        queue_profile_id: payload.queueProfileId ?? null,
+        priority_override: payload.priorityOverride ?? null,
+      },
+      platformWide(),
+    );
     return toAssignment(data);
   },
 
   async expireAssignment(id: string): Promise<void> {
-    await api.delete(`/queue/assign/${id}`);
+    await api.delete(`/queue/assign/${id}`, platformWide());
   },
 
   async applyQueue(assignmentId: string): Promise<QueueAssignment> {
-    const { data } = await api.post<BackendQueueAssignment>("/queue/apply", {
-      assignment_id: assignmentId,
-    });
+    const { data } = await api.post<BackendQueueAssignment>(
+      "/queue/apply",
+      {
+        assignment_id: assignmentId,
+      },
+      platformWide(),
+    );
     return toAssignment(data);
   },
 
   async removeQueue(assignmentId: string): Promise<QueueAssignment> {
-    const { data } = await api.post<BackendQueueAssignment>("/queue/remove", {
-      assignment_id: assignmentId,
-    });
+    const { data } = await api.post<BackendQueueAssignment>(
+      "/queue/remove",
+      {
+        assignment_id: assignmentId,
+      },
+      platformWide(),
+    );
     return toAssignment(data);
   },
 

@@ -68,9 +68,9 @@ function toRule(r: BackendPortForwardingRule): PortForwardingRule {
 // scope").
 //
 // Nothing here sets that header any more, and no method takes an
-// `organizationId`: `attachOrganizationHeader` (services/api.ts) puts it on
-// every request from an organization-scoped session, and deliberately puts
-// nothing on a GLOBAL-scope one -- so the master console's platform-wide
+// `organizationId`: `attachOrganizationScope` (services/api.ts) puts it on
+// every request from an organization-scoped session, and puts
+// `X-Organization-Scope: all` on a master-console one -- so that platform-wide
 // /network view still spans every org, exactly as when this module threaded
 // the id by hand. Do not re-add it: the caller then has to *resolve* the id
 // before it can read, that resolution lands in the React Query key, and the

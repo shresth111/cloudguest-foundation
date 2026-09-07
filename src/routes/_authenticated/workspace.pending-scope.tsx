@@ -7,7 +7,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 // scoped to your organization alone -- showing it as-is would risk exposing
 // other customers' records". That is not a sentence to put in front of a
 // venue owner, and the premise behind it is no longer true anyway:
-// `attachOrganizationHeader` (api.ts) is applied in the shared request
+// `attachOrganizationScope` (api.ts) is applied in the shared request
 // interceptor and sets X-Organization-Id on every request from a session
 // without a global-scope role.
 //

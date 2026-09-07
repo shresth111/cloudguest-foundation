@@ -78,7 +78,7 @@ export function DnsManagement() {
   const [creating, setCreating] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<DnsRecord | null>(null);
 
-  // No org id is resolved or threaded here. `attachOrganizationHeader`
+  // No org id is resolved or threaded here. `attachOrganizationScope`
   // (services/api.ts) puts X-Organization-Id on every request from an
   // organization-scoped session, which is the only kind that reaches this
   // route. Resolving it here instead put it in the React Query key, and

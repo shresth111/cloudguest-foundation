@@ -9,16 +9,34 @@ export const USER_STORAGE_KEY = "cloudguest_user";
 // auth.service.ts, which imports this module, so that would be a cycle.
 export const ROLES_STORAGE_KEY = "cloudguest_roles";
 export const ORGS_STORAGE_KEY = "cloudguest_organizations";
-/** Which organization a multi-org member is currently acting as. There is
- * no org-picker UI yet -- this exists so that when one is built it has a
- * single place to write to, and so the value survives a reload. Ignored
- * unless it names an org the session is actually a member of. */
+/** Which organization the session is currently acting as, or the string
+ * `"all"` for a platform operator who has deliberately chosen to look
+ * across every tenant at once. Written by `setOrganizationScope`, read by
+ * `resolveOrganizationScope`; survives a reload. */
 export const ACTIVE_ORG_STORAGE_KEY = "cg.activeOrgId";
 
 /** Every tenant-scoped endpoint resolves its organization from this
- * header. See `attachOrganizationHeader` below for why it is a default
+ * header. See `attachOrganizationScope` below for why it is a default
  * rather than something each call site remembers. */
 export const ORG_HEADER = "X-Organization-Id";
+
+/** How a request says "every organization", out loud.
+ *
+ * Sending no `X-Organization-Id` used to mean exactly this, implicitly.
+ * That is the bug: a founder holding a GLOBAL-scoped `Super Admin` role
+ * opened a report about his own venue, the interceptor below skipped the
+ * org header *because* he held that role, and the backend answered with
+ * all fourteen organizations in the database -- most of them demo and QA
+ * fixtures. He was entitled to every row, so nothing failed; the numbers
+ * were simply about a different thing than the page said they were.
+ *
+ * The backend now requires a request to say which of the two it means.
+ * This header is how you say "all", and it is only ever attached because
+ * someone selected "All organizations". */
+export const ORG_SCOPE_HEADER = "X-Organization-Scope";
+
+/** The one value {@link ORG_SCOPE_HEADER} takes. */
+export const ALL_ORGANIZATIONS = "all";
 
 /** The sentinel access token a demo session stores (see AuthContext's
  * `login`). Demo sessions never talk to the backend, so they must not
@@ -180,21 +198,56 @@ function safeLocalGetJson<T>(key: string): T | null {
 }
 
 /**
+ * What a request is about: one organization, or explicitly all of them.
+ *
+ * There is deliberately no third "unspecified" state. That state is what
+ * this whole change exists to remove -- see {@link ORG_SCOPE_HEADER}.
+ */
+export type OrganizationScope = { kind: "organization"; organizationId: string } | { kind: "all" };
+
+/** Organization ids the session is actually a member of, from the list
+ * `AuthContext.persistSession` stores at login -- no extra round trip, and
+ * available synchronously, which a request interceptor needs. */
+function membershipOrganizationIds(): string[] {
+  const memberships = safeLocalGetJson<{ organizationId?: string }[]>(ORGS_STORAGE_KEY);
+  if (!Array.isArray(memberships)) return [];
+  return memberships
+    .map((m) => m?.organizationId)
+    .filter((id): id is string => typeof id === "string" && id.length > 0);
+}
+
+/**
+ * True when the browser is currently showing the master (operator) console.
+ *
+ * Read here, in the transport layer, because the interceptor must answer
+ * synchronously and the alternative -- a React context -- is not available
+ * to it. It is not a heuristic about intent: `/master`'s own route guard
+ * (`src/routes/master.tsx`) *already* refuses to render for any session
+ * without a GLOBAL-scoped role, and the console's entire purpose is the
+ * cross-tenant view. Being on that surface is the deliberate, visible
+ * choice; the org picker in its header is where an operator narrows it.
+ *
+ * The customer dashboard is never `/master`, which is the half that
+ * matters: a platform admin looking at a venue's numbers now resolves to
+ * that venue, not to the estate.
+ */
+function isMasterConsoleSurface(): boolean {
+  if (typeof window === "undefined") return false;
+  const path = window.location?.pathname ?? "";
+  return path === "/master" || path.startsWith("/master/") || path === "/master-login";
+}
+
+/**
  * True for a master-console operator, using the same predicate the
  * `/master` route guard, `authGuards.ts` and `roles.ts` already use:
  * a role assignment held at GLOBAL scope.
  *
- * This is the reason the org header below is a *conditional* default and
- * not an unconditional one. On the backend, the absence of
- * `X-Organization-Id` does not mean "no scope" -- it means PLATFORM-WIDE
- * scope, and a good deal of the master console depends on exactly that:
- * `master.health.tsx`, `master.audit.tsx`, `master.operators.tsx`,
- * `queue.service.ts` and
- * `router-provisioning.service.ts`'s enrollment queue all deliberately
- * send no org header so they see every organization at once. Attaching one
- * for those users would silently narrow the master console to a single
- * tenant -- a worse bug than the one this fixes. Operators already hold
- * their permissions at global scope, so they need nothing added.
+ * Only such a session may resolve to `{ kind: "all" }`. A tenant session
+ * that somehow has `"all"` stored (a shared browser, a stale key) falls
+ * back to its own membership rather than sending a request the backend
+ * would 403 -- and a 403 is what it *would* get, because the backend
+ * refuses a cross-tenant read from a non-global caller rather than
+ * quietly narrowing it.
  */
 function hasGlobalScopeRole(): boolean {
   const roles = safeLocalGetJson<{ scopeType?: string }[]>(ROLES_STORAGE_KEY);
@@ -202,63 +255,135 @@ function hasGlobalScopeRole(): boolean {
 }
 
 /**
- * The organization the current session should be scoped to, read from the
- * membership list `AuthContext.persistSession` already stores at login --
- * no extra round trip, and available synchronously, which a request
- * interceptor needs.
+ * The scope every request from this session carries, or `null` when the
+ * session belongs to nothing yet (pre-login, or a guest portal call).
  *
- * Multi-org members: prefer an explicitly chosen org, but only if the
- * session is still a member of it (a stale id left over from a previous
- * account would otherwise 403 every request). Otherwise fall back to the
- * first membership, which is the same organization `WorkspaceProvider`
- * already treats as active (`organizations[0]`), so the header agrees with
- * what the workspace UI is showing rather than contradicting it.
+ * Resolution, in order:
+ *
+ * 1. **An explicit stored choice**, if it is still valid for this session.
+ *    `"all"` is valid only for a GLOBAL-scoped session; a specific id is
+ *    valid if the session is a member of it, or holds a GLOBAL role (an
+ *    operator browsing a tenant is not a member of it and never will be).
+ *    A stale id left over from a previous account is discarded rather than
+ *    sent, which is what the membership check was already for.
+ * 2. **The master console**, for an operator who has not chosen: that
+ *    surface is the cross-tenant view.
+ * 3. **The session's own organization** -- the same one `WorkspaceProvider`
+ *    treats as active (`organizations[0]`), so the header agrees with what
+ *    the workspace UI is showing rather than contradicting it.
+ *
+ * Note what is *not* here: there is no rule that turns "I don't know" into
+ * "all organizations". A GLOBAL-scoped session outside the master console
+ * with no membership at all resolves to `null`, sends nothing, and gets a
+ * 400 telling it to pick -- which is the correct, visible outcome, and the
+ * one the founder's report should have produced instead of a silent
+ * fourteen-tenant blend.
  */
-export function resolveActiveOrganizationId(): string | null {
-  const memberships = safeLocalGetJson<{ organizationId?: string }[]>(ORGS_STORAGE_KEY);
-  if (!Array.isArray(memberships)) return null;
-  const ids = memberships
-    .map((m) => m?.organizationId)
-    .filter((id): id is string => typeof id === "string" && id.length > 0);
-  if (ids.length === 0) return null;
-  const chosen = safeLocalGet(ACTIVE_ORG_STORAGE_KEY);
-  return chosen && ids.includes(chosen) ? chosen : ids[0];
+export function resolveOrganizationScope(): OrganizationScope | null {
+  const ids = membershipOrganizationIds();
+  const isOperator = hasGlobalScopeRole();
+  const stored = safeLocalGet(ACTIVE_ORG_STORAGE_KEY);
+
+  if (stored === ALL_ORGANIZATIONS) {
+    if (isOperator) return { kind: "all" };
+  } else if (stored && (isOperator || ids.includes(stored))) {
+    return { kind: "organization", organizationId: stored };
+  }
+
+  if (isOperator && isMasterConsoleSurface()) return { kind: "all" };
+  if (ids.length > 0) return { kind: "organization", organizationId: ids[0] };
+  return null;
 }
 
-/** Records which organization a multi-org member is acting as. Nothing
- * calls this yet -- it is the write half of `resolveActiveOrganizationId`,
- * kept next to it so a future org picker does not re-invent the key. */
+/** The active organization id, or `null` when the session is scoped to
+ * every organization or to none. Kept for call sites that genuinely need
+ * an id rather than a scope. */
+export function resolveActiveOrganizationId(): string | null {
+  const scope = resolveOrganizationScope();
+  return scope?.kind === "organization" ? scope.organizationId : null;
+}
+
+/** Records the deliberate choice. `OrganizationScopePicker` is the UI that
+ * calls this; nothing else should. */
+export function setOrganizationScope(scope: OrganizationScope): void {
+  safeLocalSet(
+    ACTIVE_ORG_STORAGE_KEY,
+    scope.kind === "all" ? ALL_ORGANIZATIONS : scope.organizationId,
+  );
+}
+
+/** Back-compat alias for the id-only setter. */
 export function setActiveOrganizationId(organizationId: string): void {
-  safeLocalSet(ACTIVE_ORG_STORAGE_KEY, organizationId);
+  setOrganizationScope({ kind: "organization", organizationId });
 }
 
 /**
- * Sends `X-Organization-Id` by default for organization-scoped sessions.
+ * Headers for a call that is deliberately about every organization at once.
+ *
+ * For the handful of pages that are cross-tenant by construction and live
+ * *outside* the master console -- the platform policy console
+ * (`/policies/*`) and queue management (`/network/queue-management`) -- where
+ * `resolveOrganizationScope` would otherwise, correctly, scope the session to
+ * its own organization. Those call sites used to get their platform-wide
+ * answer by *omitting* the org header; saying it out loud is the whole point
+ * of this change, so they say it.
+ *
+ * Returns `undefined` for a session that may not read across tenants, so the
+ * interceptor's own organization header applies instead. Sending the opt-in
+ * regardless would turn those pages into a 403 for every ordinary customer,
+ * which is what the backend does to a non-global caller who asks -- it
+ * refuses rather than quietly narrowing, because a caller who thinks they are
+ * seeing everything and is not makes worse decisions than one who is told no.
+ */
+export function crossOrganizationHeaders(): Record<string, string> | undefined {
+  return hasGlobalScopeRole() ? { [ORG_SCOPE_HEADER]: ALL_ORGANIZATIONS } : undefined;
+}
+
+/**
+ * Attaches the session's tenancy to every request: either
+ * `X-Organization-Id: <one org>` or `X-Organization-Scope: all`.
+ *
+ * ## Why this is a default and not something call sites remember
  *
  * Without it the backend resolves those callers at GLOBAL scope, where an
  * org member holds nothing, so every tenant endpoint answers
  * `Permission denied: '<perm>' is required at global scope` -- verified
  * live against `/guests`, `/guest-sessions`, `/connected-devices`,
- * `/voucher-batches`, `/campaigns`, `/audit/entries` and
- * `/admin-logs/*`, each of which 403s bare and 200s with the header.
+ * `/voucher-batches`, `/campaigns`, `/audit/entries` and `/admin-logs/*`,
+ * each of which 403s bare and 200s with the header. Several services
+ * (customer, portal, vlan, port-forwarding, isp, ...) already thread the
+ * header by hand on some calls; that convention demonstrably did not hold
+ * -- `/campaigns`, `/voucher-batches` and `/guest-analytics/summary` were
+ * each missing it and 403ing in production. A default closes the whole
+ * class instead of one call at a time.
  *
- * Several services (customer, portal, vlan, port-forwarding, isp, ...)
- * already thread this header by hand on some of their calls. That
- * convention demonstrably does not hold: `/campaigns`, `/voucher-batches`
- * and `/guest-analytics/summary` in customer.service.ts were each missing
- * it and 403ing in production. A default closes the whole class instead of
- * one call at a time. Explicit still wins -- a call site that sets the
- * header (including the master console fanning out across organizations)
- * keeps whatever it set.
+ * ## What changed, and why it is the fix
+ *
+ * This function used to `return` early for any session holding a
+ * GLOBAL-scoped role, on the reasoning that "the absence of
+ * `X-Organization-Id` means PLATFORM-WIDE scope, and a good deal of the
+ * master console depends on exactly that". The reasoning was right about
+ * the backend and wrong about the population: the founder holds
+ * `Super Admin` at global scope *and* `Organization Owner` on his own
+ * venue, and he spends his time on the customer dashboard, not in the
+ * master console. So every report he opened about `WyFy Guest` went out
+ * with no tenancy at all and came back blended across fourteen
+ * organizations.
+ *
+ * The master console still gets its platform-wide view -- it now says so,
+ * via `X-Organization-Scope: all`, which is a thing a request states
+ * rather than a thing it omits. Explicit still wins: a call site that sets
+ * either header keeps whatever it set.
  */
-function attachOrganizationHeader(config: InternalAxiosRequestConfig, token: string): void {
+function attachOrganizationScope(config: InternalAxiosRequestConfig, token: string): void {
   if (token === DEMO_ACCESS_TOKEN) return;
   // Case-insensitive on AxiosHeaders, so a call site using the
   // `X-Organization-ID` spelling is still respected rather than doubled.
-  if (config.headers.get?.(ORG_HEADER)) return;
-  if (hasGlobalScopeRole()) return;
-  const organizationId = resolveActiveOrganizationId();
-  if (organizationId) config.headers.set?.(ORG_HEADER, organizationId);
+  if (config.headers.get?.(ORG_HEADER) || config.headers.get?.(ORG_SCOPE_HEADER)) return;
+  const scope = resolveOrganizationScope();
+  if (!scope) return;
+  if (scope.kind === "all") config.headers.set?.(ORG_SCOPE_HEADER, ALL_ORGANIZATIONS);
+  else config.headers.set?.(ORG_HEADER, scope.organizationId);
 }
 
 /**
@@ -341,7 +466,7 @@ api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
 
   if (token) {
     config.headers.set?.("Authorization", `Bearer ${token}`);
-    attachOrganizationHeader(config, token);
+    attachOrganizationScope(config, token);
   }
   return config;
 });

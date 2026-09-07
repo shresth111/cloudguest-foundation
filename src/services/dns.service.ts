@@ -28,8 +28,10 @@ interface BackendDnsRecord {
 // it, every call here 403s for a real customer.
 // Tenant scope rides on `X-Organization-Id`, which the api client attaches to
 // every request from an organization-scoped session (see
-// `attachOrganizationHeader` in services/api.ts) and deliberately omits for a
-// GLOBAL-scope one, so a master-console view still spans every organization.
+// `attachOrganizationScope` in services/api.ts). A master-console view still
+// spans every organization -- it now says so with `X-Organization-Scope: all`
+// rather than by omitting the org header, which is the implicit default that
+// gave a GLOBAL-scoped founder a fourteen-tenant report about his own venue.
 // Nothing here sets that header by hand any more and no method takes an
 // `organizationId`. Do not re-add one: the caller then has to *resolve* the id
 // before it can read, that resolution ends up in the React Query key, and the

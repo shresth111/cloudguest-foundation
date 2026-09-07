@@ -11,7 +11,7 @@
 // policy.service.ts's own file comments for the identical reasoning on
 // each of these choices (no PolicyAssignment wiring, no reactivate path,
 // platform-wide X-Organization-Id omission).
-import { api } from "@/services/api";
+import { api, crossOrganizationHeaders } from "@/services/api";
 import type { PolicyStatus } from "@/types/policy";
 
 export interface BackendPolicy {
@@ -74,7 +74,15 @@ export function statusOf(detail: BackendPolicyDetail): PolicyStatus {
 // routing-policy.service.ts) keep the original platform-wide, no-header
 // behavior, unchanged.
 function orgHeaders(organizationId?: string) {
-  return organizationId ? { headers: { "X-Organization-Id": organizationId } } : undefined;
+  if (organizationId) return { headers: { "X-Organization-Id": organizationId } };
+  // No org named: the master admin Policy console, which is genuinely
+  // platform-wide. It used to get that by *omitting* the header and letting
+  // the backend read the omission as "every organization" -- the default
+  // this whole change exists to remove. Same behaviour, now stated. Returns
+  // undefined for a session that may not read across tenants, so the
+  // interceptor's own org header applies to it instead.
+  const headers = crossOrganizationHeaders();
+  return headers ? { headers } : undefined;
 }
 
 export async function fetchPolicyDetail(

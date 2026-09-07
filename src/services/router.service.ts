@@ -632,7 +632,7 @@ export const routerService = {
     return data;
   },
 
-  // No `organizationId` argument: `attachOrganizationHeader` (services/api.ts)
+  // No `organizationId` argument: `attachOrganizationScope` (services/api.ts)
   // supplies X-Organization-Id for every organization-scoped session, and its
   // one caller (DhcpManagement's pool dialog) used to have to resolve that id
   // first -- which is what put it in a React Query key and refetched.

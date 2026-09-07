@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { MasterSearch } from "@/components/master/MasterSearch";
+import { OrganizationScopePicker } from "@/components/master/OrganizationScopePicker";
 
 export interface MasterNavItem {
   to: string;
@@ -328,6 +329,12 @@ export function MasterShell({ title, children }: { title: string; children: Reac
             </button>
             <h1 className="text-base font-semibold tracking-tight">{title}</h1>
             <div className="ml-auto flex items-center gap-1.5">
+              {/* Which organizations this console is reading. Sits with the
+                  other two platform-scope controls, and is the first thing on
+                  the row for a reason: every number on every page below it is
+                  scoped by this, and until it existed that scope was an
+                  invisible default (all of them). */}
+              <OrganizationScopePicker />
               <MasterSearch />
               {/* Platform-wide: every organization's alerts, not just one --
                   a genuinely different data scope from the customer bell
