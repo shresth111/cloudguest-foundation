@@ -163,6 +163,6 @@ export const useAgentPermissions = create<AgentPermissionState>()(
         return [...granted];
       },
     }),
-    { name: "cg-agent-permissions", version: 2 },
+    { name: "cg-agent-permissions", version: 3 },
   ),
 );
