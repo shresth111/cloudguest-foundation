@@ -226,6 +226,23 @@ jobs:
             "portal error boundary: all checks passed" \
             bun run test:portal-error-boundary
 
+      # The NAS's mac/ip/dst/link-login-only surviving every client-side
+      # navigation under /portal. A real guest signed in twice on 7 Sep 2026
+      # because six hand-built `{ organizationId, locationId, routerId }`
+      # search objects truncated the URL; `device_mac` is optional on three
+      # of the four backend login schemas, so the MAC-less login was
+      # ACCEPTED and wrote a session row the router's bypass list never saw.
+      # The fix is a `retainSearchParams` middleware on /portal, which no
+      # type checker can prove is still installed -- so this suite drives a
+      # real router through the real production URL and asserts the MAC
+      # comes out the other end.
+      - name: portal search-param retention
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "portal-search-retention" 40 \
+            "portal search retention: all checks passed" \
+            bun run test:portal-search-retention
+
       - name: firewall rule ordering
         run: |
           ./scripts/ci-gated-test.sh \

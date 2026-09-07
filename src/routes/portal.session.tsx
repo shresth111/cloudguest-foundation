@@ -22,6 +22,7 @@ import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
 import { campaignPortalService } from "@/services/campaign-portal.service";
 import type { AppError } from "@/services/api";
+import { usePortalLinkSearch } from "@/components/portal-runtime/usePortalLinkSearch";
 
 export const Route = createFileRoute("/portal/session")({
   errorComponent: PortalErrorScreen,
@@ -224,8 +225,6 @@ function SessionPage() {
     session,
     setSession,
     setGuestIdentifier,
-    organizationId,
-    locationId,
     routerId,
     destinationUrl,
     deviceMac,
@@ -257,7 +256,7 @@ function SessionPage() {
     setGuestIdentifier(liveSession.identifier);
   }, [liveSession, setSession, setGuestIdentifier]);
   const navigate = useNavigate({ from: "/portal/session" });
-  const portalSearch = { organizationId, locationId, routerId };
+  const portalSearch = usePortalLinkSearch();
   const continueUrl = destinationUrl || config?.redirectUrl;
   const [now, setNow] = useState(0);
   const [disconnectError, setDisconnectError] = useState<string | null>(null);

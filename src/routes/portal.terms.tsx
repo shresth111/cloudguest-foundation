@@ -9,6 +9,7 @@ import {
   PortalTextPlate,
 } from "@/components/portal-runtime/PortalShell";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
+import { usePortalLinkSearch } from "@/components/portal-runtime/usePortalLinkSearch";
 
 /** Which of the two sections this page ever renders gets which mark --
  * keyed on the section's own (English, not yet i18n-wired -- pre-existing,
@@ -119,8 +120,8 @@ const DEFAULT_SECTIONS: {
 ];
 
 function TermsPage() {
-  const { config, t, organizationId, locationId, routerId } = usePortalRuntime();
-  const portalSearch = { organizationId, locationId, routerId };
+  const { config, t } = usePortalRuntime();
+  const portalSearch = usePortalLinkSearch();
   const hasPhoto = !!config?.backgroundImageUrl;
 
   const sections = [
