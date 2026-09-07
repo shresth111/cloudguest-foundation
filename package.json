@@ -56,6 +56,7 @@
     "test:portal-search-retention": "node scripts/test-portal-search-retention.mjs",
     "test:org-scope-header": "node scripts/test-organization-scope-header.mjs",
     "test:session-rules": "node scripts/test-session-rules-enforcement.mjs",
+    "test:single-home": "node scripts/test-single-home-settings.mjs",
     "check:node": "node scripts/check-node-version.mjs"
   },
   "dependencies": {
