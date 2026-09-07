@@ -1,4 +1,4 @@
-import type { CustomerNavGroup } from "@/lib/customerNav";
+import type { CustomerNavGroup, CustomerNavItem } from "@/lib/customerNav";
 
 /**
  * Which real backend permission keys make a customer nav item meaningful.
@@ -34,6 +34,13 @@ import type { CustomerNavGroup } from "@/lib/customerNav";
  *     entry's own note below. This one was NOT verified when it was
  *     written, and it cost the founder access to his own dashboard.
  *
+ * "Verified" is now mechanical rather than a promise in a comment. Every
+ * key below is asserted by `scripts/test-customer-nav-permissions.mjs` to
+ * be a member of `BACKEND_PERMISSION_KEYS` -- the backend's own seeded key
+ * list, generated from `rbac/seed.py` by
+ * `scripts/generate-backend-permission-keys.mjs` and committed here. A key
+ * the backend does not seed now fails a test instead of hiding a screen.
+ *
  * WHY EACH ENTRY IS A LIST
  * ------------------------
  * An item shows if the caller holds **any** key in its list. Several
@@ -65,7 +72,7 @@ import type { CustomerNavGroup } from "@/lib/customerNav";
  * customer out of a feature they bought. Those costs are not symmetric,
  * and this file resolves every ambiguity toward the customer.
  */
-const NAV_PERMISSION_KEYS: Record<string, readonly string[]> = {
+export const NAV_PERMISSION_KEYS: Record<string, readonly string[]> = {
   // Overview
   // `view`, NOT `read`. DASHBOARD is the one module in the entire backend
   // seed whose only action is `view`:
@@ -161,4 +168,41 @@ export function filterNavGroupsByPermissions(
   return groups
     .map((g) => ({ ...g, items: g.items.filter((item) => navItemAllowed(item.id, granted)) }))
     .filter((g) => g.items.length > 0);
+}
+
+/**
+ * The items `filterNavGroupsByPermissions` would remove from `groups`.
+ *
+ * WHY THIS EXISTS
+ * ---------------
+ * The fail-open rules above cover the three non-answers -- `null`,
+ * `undefined`, `[]`. They deliberately do not cover the fourth case: a
+ * real grant set that happens to be short. That one MUST narrow the nav;
+ * narrowing it is the entire point of this file.
+ *
+ * But narrowing it *silently* is what let `dashboard.read` survive. A row
+ * the filter removed and a row that was never built render identically:
+ * absent. There was no error, no 403, no empty state -- just a menu with
+ * one fewer item than it should have had, which looks exactly like a
+ * deliberate product decision. That is why nobody caught it until the
+ * founder went looking for his own dashboard.
+ *
+ * So the sidebar now renders one quiet line -- "N sections hidden by your
+ * permissions", naming them on hover -- whenever this returns anything.
+ * It grants nothing and unhides nothing; the backend still enforces every
+ * request and should. What it changes is that a permission becomes the
+ * *explanation* for a gap rather than an invisible cause of one. A user
+ * who can see that six sections are hidden can go ask their owner for
+ * them. A user looking at a shorter menu cannot even form the question.
+ *
+ * Returns `[]` for the fail-open non-answers, since nothing is being
+ * hidden in those cases.
+ */
+export function navItemsHiddenByPermissions(
+  groups: CustomerNavGroup[],
+  permissions: readonly string[] | null | undefined,
+): CustomerNavItem[] {
+  if (!permissions || permissions.length === 0) return [];
+  const granted = new Set(permissions);
+  return groups.flatMap((g) => g.items.filter((item) => !navItemAllowed(item.id, granted)));
 }
