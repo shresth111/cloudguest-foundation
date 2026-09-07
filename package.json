@@ -55,6 +55,7 @@
     "test:portal-error-boundary": "node scripts/test-portal-error-boundary.mjs",
     "test:portal-search-retention": "node scripts/test-portal-search-retention.mjs",
     "test:org-scope-header": "node scripts/test-organization-scope-header.mjs",
+    "test:session-rules": "node scripts/test-session-rules-enforcement.mjs",
     "check:node": "node scripts/check-node-version.mjs"
   },
   "dependencies": {

@@ -153,10 +153,67 @@ export const SESSION_POLICY_DEFAULTS = {
   reconnect_grace_minutes: 30,
 } as const;
 
-/** The full SessionPolicyRules body for a chosen session length. All four
- * fields, because the schema forbids a partial one -- see above. */
-export function sessionPolicyRules(sessionTimeoutMinutes: number) {
-  return { session_timeout_minutes: sessionTimeoutMinutes, ...SESSION_POLICY_DEFAULTS };
+/** The full SessionPolicyRules body for a chosen session length and idle
+ * timeout. All fields, because the schema forbids a partial one -- see above.
+ *
+ * `idleTimeoutMinutes` is the venue's Idle Timeout: how long a guest's device
+ * may pass zero bytes before the router signs it out. It is a genuinely
+ * different setting from the session length and not a variant of it --
+ * `session_timeout_minutes` is absolute elapsed time and ends a guest who is
+ * actively browsing, while this one never ends a guest who is using the WiFi
+ * at all. It rides on the SESSION policy because that is the policy type the
+ * guest login path already resolves, and because the backend reads both out
+ * of one memoized lookup.
+ *
+ * It is required rather than optional. Omitting it would write a SESSION
+ * policy that expresses no opinion about idleness, and the backend would fall
+ * back to its own default -- which is the correct behaviour for a policy
+ * written before this field existed, but the wrong thing for a form that has
+ * an Idle Timeout control the operator just used. A caller with no value to
+ * pass should pass the default explicitly rather than leaving it out. */
+export function sessionPolicyRules(sessionTimeoutMinutes: number, idleTimeoutMinutes: number) {
+  return {
+    session_timeout_minutes: sessionTimeoutMinutes,
+    idle_timeout_minutes: idleTimeoutMinutes,
+    ...SESSION_POLICY_DEFAULTS,
+  };
+}
+
+// ============================================================================
+// Maximum Daily Session Limit is an FUP policy, not a bandwidth one -- the
+// exact same class of bug the SESSION block above describes, found in the
+// same screen, one control to the right.
+//
+// LocationPolicies.tsx wrote the chosen value into the BANDWIDTH policy's
+// `daily_limit_minutes`. The backend accepts it (BandwidthPolicyRules
+// declares the field) and reads it nowhere: the only consumer of a BANDWIDTH
+// resolve is queue_management, which reads the two rate fields and nothing
+// else. There is no code path anywhere that looks at `daily_limit_minutes`.
+//
+// The field that IS enforced is `daily_time_limit_minutes` on a
+// PolicyType.FUP policy. That machinery is real and already complete:
+// `GuestQuotaUsage.minutes_used` accumulates guest-level connected time,
+// `run_fup_time_accrual_sweep` accrues into it every five minutes and expires
+// the sessions of a guest who crosses the cap, and `_enforce_fup_quota`
+// refuses their next login until the period rolls over. None of it needed
+// building -- the dashboard was simply writing to the wrong field, on the
+// wrong policy type.
+//
+// Unlike SessionPolicyRules, FUPPolicyRules has no required fields: every
+// period's cap is independently optional and `None` means "no cap for that
+// period". So this writes exactly the one field the screen controls and
+// leaves the data caps -- which remain unenforced, and still say so on the
+// form -- untouched.
+// ============================================================================
+
+/** The FUPPolicyRules body for a chosen daily connected-time allowance.
+ *
+ * `null` means "no daily time limit", and must be written explicitly rather
+ * than by omitting the field: a venue clearing a limit they previously set
+ * needs the new policy version to actually say there is no limit. Omitting it
+ * would leave the previous version's value standing as the current one. */
+export function fupTimeLimitRules(dailyTimeLimitMinutes: number | null) {
+  return { daily_time_limit_minutes: dailyTimeLimitMinutes };
 }
 
 export async function createPolicyWithRules(args: {

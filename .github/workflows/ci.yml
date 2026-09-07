@@ -855,6 +855,23 @@ jobs:
       - name: vendored permission keys are current
         run: bun run test:permission-key-drift
 
+      # --- Session rules actually reach the guest --------------------------
+      #
+      # Idle Timeout and Maximum Daily Session Limit were both captured,
+      # stored, echoed back on reload, and read by nothing: each was written
+      # into the BANDWIDTH policy, whose only consumer reads the two rate
+      # fields. Nothing errored at any layer -- the API returned 201, the
+      # value round-tripped, and the setting did nothing. The screen was
+      # honest about it and disabled both controls with a "not enforced" note.
+      #
+      # They are now aimed at the policy types that do enforce them (SESSION
+      # for the idle timeout, FUP for the daily limit). This guard pins that
+      # aim, and equally pins that the "not enforced" note stays on the one
+      # control -- the data limit -- that still cannot keep the promise.
+      # Losing that note to a tidy-up would restore the original lie.
+      - name: session rules enforcement
+        run: bun run test:session-rules
+
       # --- Campaign results ----------------------------------------------
       #
       # The read half of a feature whose write half shipped months ago: an

@@ -11,6 +11,7 @@ import {
   type RuntimeAuthMethod,
   type RuntimePortalConfig,
   type RuntimeEndedSession,
+  type RuntimeEndedSessionReason,
   type RuntimeSession,
   type RuntimeSessionAuthMethod,
 } from "@/types/portal-runtime";
@@ -193,16 +194,27 @@ interface BackendGuestLoginResponse {
  * this one is keyed on a MAC with no live session behind it, so it cannot
  * carry the guest's unmasked `identifier`, their ids, or the raw
  * `disconnect_reason` (which holds operators' private notes about
- * guests). Two fields is the whole payload, and that is the point.
+ * guests). Three fields is the whole payload, and the smallness is the
+ * point -- every one of them has to be safe in the hands of someone who
+ * merely observed the MAC.
  */
 interface BackendGuestLastEndedSession {
-  /** Closed two-member enum, derived on the backend from
-   * `GuestSession.status` -- never the free-text `disconnect_reason`. */
-  reason: "timed_out" | "disconnected";
+  /** Closed four-member enum, derived on the backend from
+   * `GuestSession.status` -- never the free-text `disconnect_reason`.
+   *
+   * Typed as the shared `RuntimeEndedSessionReason` rather than repeating
+   * the literals: this used to be its own inline copy of the union, which
+   * meant the wire type and the domain type could drift apart silently and
+   * a new backend member would be structurally accepted here while the
+   * screen had no copy for it. */
+  reason: RuntimeEndedSessionReason;
   /** Venue policy (identical for every guest at the location), not guest
    * data -- which is why it is safe to return here at all. Lets the
    * screen say how long sessions last rather than only that one ended. */
   session_timeout_minutes: number | null;
+  /** Venue policy on the same footing, for the idle-timeout copy. The value
+   * the ended session actually carried, not today's setting. */
+  idle_timeout_minutes: number | null;
 }
 
 interface BackendGuestTeamMember {
@@ -416,7 +428,11 @@ export const portalRuntimeService = {
       { params: { router_id: params.routerId, device_mac: params.deviceMac }, timeout: 6000 },
     );
     return data
-      ? { reason: data.reason, sessionTimeoutMinutes: data.session_timeout_minutes }
+      ? {
+          reason: data.reason,
+          sessionTimeoutMinutes: data.session_timeout_minutes,
+          idleTimeoutMinutes: data.idle_timeout_minutes ?? null,
+        }
       : null;
   },
 

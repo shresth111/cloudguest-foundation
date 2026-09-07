@@ -94,14 +94,22 @@ const SESSION_TIMEOUT_MINUTES: Record<string, number> = {
   "8 hr": 480,
   "24 hr": 1440,
 };
-const IDLE_TIMEOUT_MINUTES: Record<string, number | null> = {
-  "No Limit": null,
+// "No Limit" is deliberately absent -- see the long-form reasoning on
+// LocationPolicies.tsx's copy of this table. In short: the idle timeout is
+// the only prompt reaper of an abandoned session on this fleet (keepalive is
+// off by design, after a real false-logout incident), so "no idle timeout"
+// cannot be honoured, and offering it while applying 30 minutes anyway is
+// what this control was already doing.
+const IDLE_TIMEOUT_MINUTES: Record<string, number> = {
   "5 min": 5,
   "10 min": 10,
   "15 min": 15,
   "30 min": 30,
   "1 hr": 60,
 };
+
+// Mirrors the backend's DEFAULT_IDLE_TIMEOUT_MINUTES.
+const DEFAULT_IDLE_TIMEOUT_LABEL = "30 min";
 const DAILY_LIMIT_MINUTES: Record<string, number | null> = {
   "No Limit": null,
   "1 hr": 60,
@@ -298,7 +306,7 @@ const BANDWIDTH = [
   "80 Mbps",
 ];
 const SESSION_TIMEOUT = ["30 min", "1 hr", "2 hr", "4 hr", "8 hr", "24 hr"];
-const IDLE_TIMEOUT = ["No Limit", "5 min", "10 min", "15 min", "30 min", "1 hr"];
+const IDLE_TIMEOUT = ["5 min", "10 min", "15 min", "30 min", "1 hr"];
 const DEVICES = ["Unlimited", "1", "2", "3", "4", "5"];
 const DAILY_LIMIT = ["No Limit", "1 hr", "2 hr", "4 hr", "8 hr"];
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -559,6 +567,14 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
             latestVersion(d)?.rules?.session_timeout_minutes as number | undefined,
           ]),
         );
+        // Idle Timeout rides on the same SESSION policy -- one policy, two
+        // settings, one lookup on the guest side.
+        const idleByName = new Map(
+          sessionDetails.map((d) => [
+            d.name,
+            latestVersion(d)?.rules?.idle_timeout_minutes as number | undefined,
+          ]),
+        );
         setSessionRealIds(Object.fromEntries(sessionDetails.map((d) => [d.name, d.id])));
         // One assignments lookup per group -- listLocationMappings returns
         // *every* active location this group is mapped to in one call, so
@@ -612,7 +628,15 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                 SESSION_TIMEOUT_MINUTES,
                 "",
               ),
-              idleTimeout: labelFromMinutes(p.idleTimeoutMinutes, IDLE_TIMEOUT_MINUTES, ""),
+              // Same SESSION-policy-wins shape as the session timeout above.
+              // The fallback is the platform default, not a blank: a tier
+              // with no SESSION policy is not "unset", it is running the 30
+              // minutes its router already applies.
+              idleTimeout: labelFromMinutes(
+                idleByName.get(p.name) ?? p.idleTimeoutMinutes,
+                IDLE_TIMEOUT_MINUTES,
+                DEFAULT_IDLE_TIMEOUT_LABEL,
+              ),
               devicesPerUser,
               dailyLimit: labelFromMinutes(p.dailyLimitMinutes, DAILY_LIMIT_MINUTES, "No Limit"),
               loginHours: p.loginHours ?? null,
@@ -743,7 +767,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
     setName("");
     setBw("");
     setSt("");
-    setIt("");
+    setIt(DEFAULT_IDLE_TIMEOUT_LABEL);
     setDp("");
     setDl("No Limit");
     setLoginOn(false);
@@ -894,7 +918,16 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       // DEVICE policy directly above.
       const sessionMinutes = SESSION_TIMEOUT_MINUTES[st];
       if (sessionMinutes) {
-        const sessionRules = sessionPolicyRules(sessionMinutes);
+        // Idle Timeout rides on the same SESSION policy. This form's own
+        // Idle Timeout control has always been enabled and captioned
+        // "Disconnect after this much inactivity" -- a claim that was false
+        // until now, and false without even the disclaimer its sibling
+        // screen carried: the value went into the BANDWIDTH policy, which
+        // nothing reads. Sending it here is what makes that caption true.
+        const sessionRules = sessionPolicyRules(
+          sessionMinutes,
+          IDLE_TIMEOUT_MINUTES[it] ?? IDLE_TIMEOUT_MINUTES[DEFAULT_IDLE_TIMEOUT_LABEL],
+        );
         const existingSessionId = sessionRealIds[name];
         if (existingSessionId) {
           await updatePolicyRules({

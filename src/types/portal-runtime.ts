@@ -533,19 +533,33 @@ export function hasGatingContentStep(config: RuntimePortalConfig | null | undefi
  * a guest is ever shown -- the client mirror of the backend's
  * `GuestSessionEndedReason`.
  *
- * Two members, and neither is derived from the backend's free-text
+ * Four members, and none is derived from the backend's free-text
  * `disconnect_reason` column (which carries operator notes, NAS jargon
  * and the portal's own prose, and never reaches the browser). An ending
  * the guest must not be told about -- an operator's block above all --
- * produces no `RuntimeEndedSession` at all rather than a third member
+ * produces no `RuntimeEndedSession` at all rather than an extra member
  * here, so there is no value in this union that the expired screen has to
  * remember to special-case.
  *
- *  - `timed_out`    the session ran its allotted time
- *  - `disconnected` a normal, non-punitive end: the WiFi dropped, the
- *                   router restarted, or the guest signed out
+ *  - `timed_out`          the session ran its allotted time
+ *  - `idle_timed_out`     the device went quiet for longer than the venue's
+ *                         idle timeout and the router signed it out. Split
+ *                         from `timed_out` because the two are opposite
+ *                         experiences: one guest used all their time, the
+ *                         other used none of it and is usually surprised.
+ *  - `time_limit_reached` the guest has spent the venue's daily allowance
+ *                         of connected time. The only member for which
+ *                         "sign in again" is NOT the right advice -- the
+ *                         backend will refuse that login until the day
+ *                         rolls over, so the screen must not offer it.
+ *  - `disconnected`       a normal, non-punitive end: the WiFi dropped, the
+ *                         router restarted, or the guest signed out
  */
-export type RuntimeEndedSessionReason = "timed_out" | "disconnected";
+export type RuntimeEndedSessionReason =
+  | "timed_out"
+  | "idle_timed_out"
+  | "time_limit_reached"
+  | "disconnected";
 
 /**
  * The whole of what the portal knows about a session that has just ended
@@ -559,6 +573,13 @@ export interface RuntimeEndedSession {
   /** The venue's own session length, for copy like "sessions here last 4
    * hours". Null when the ended session carried no timeout. */
   sessionTimeoutMinutes: number | null;
+  /** The venue's own idle timeout, for copy like "after 15 minutes of
+   * inactivity". This is the value the ENDED session actually carried, not
+   * whatever is configured now, so the number a guest is shown is the one
+   * that really signed them out. Null when the ended session recorded none
+   * (any session that started before the backend began recording it), in
+   * which case the screen says why without naming a number. */
+  idleTimeoutMinutes: number | null;
 }
 
 export interface RuntimeSession {
