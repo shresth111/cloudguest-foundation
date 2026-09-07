@@ -1136,18 +1136,34 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
           </div>
 
           <hr className="my-6 border-slate-100 dark:border-slate-600" />
-          {/* Immediate-effect notice -- moved off a persistent, page-length
-            amber block (standing furniture every time this tab opens) into
-            a slim, contextual line right where it's actually relevant: the
-            moment before clicking Save. Same real warning (applies now,
-            including to already-connected guests), no longer competing
-            visually with the form itself. Support contact tucked behind
-            the same Tooltip pattern already used for individual field
-            help elsewhere on this page, instead of its own paragraph. */}
+          {/* When-it-applies notice -- a slim, contextual line right where
+            it's relevant: the moment before clicking Save. Support contact
+            tucked behind the same Tooltip pattern already used for
+            individual field help elsewhere on this page.
+
+            This used to read "Applies immediately -- including to guests
+            already connected", and that was not true of a single setting
+            on this form. Every one of them is resolved on the guest's own
+            login: the session and idle timeouts are written onto the
+            session row at that moment, and the bandwidth becomes a
+            SESSION-scoped queue assignment then too. Nothing on the
+            platform revisits a guest who is sitting connected, so a venue
+            that raised a speed and watched a guest's phone for a change
+            saw none, and the screen had told them to expect one.
+
+            The distinction is not pedantic. Bug report: "speed is only set
+            to 20 and not updating" -- and the backend half of that (a
+            returning guest whose session was reused never had their queue
+            re-resolved at all, so the speed was pinned to whatever applied
+            when they first signed in, for as long as they kept using the
+            network) is fixed alongside this. What is left is the honest
+            remainder: the new limits are waiting for each guest's next
+            connection, not chasing them down. */}
           <div className="flex flex-col items-center gap-3">
             <p className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
-              Applies immediately — including to guests already connected.
+              Applies the next time each guest connects — anyone online right now keeps their
+              current limits until then.
               <Tooltip
                 id="save-immediate-effect"
                 text="Double-check the limits above before saving. Need help? Contact support@wyfyguest.com."
