@@ -18,6 +18,7 @@ import { DEMO_OTP_CODE, buildDemoSession } from "@/lib/portal-demo";
 import { isWhitelistOnlyRefusal } from "@/lib/portal-whitelist-refusal";
 import type { RuntimeAuthMethod, RuntimeSession } from "@/types/portal-runtime";
 import type { AppError } from "@/services/api";
+import type { OpenGuestTeam } from "@/services/portal-runtime.service";
 import { usePortalLinkSearch } from "@/components/portal-runtime/usePortalLinkSearch";
 
 type OtpChannel = "sms" | "email" | "whatsapp";
@@ -106,6 +107,7 @@ export function useGuestSignIn() {
     dataConsentAccepted,
     setDataConsentAccepted,
     setRefusedContactKind,
+    setGroupJoinNotice,
   } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/welcome" });
   const portalSearch = usePortalLinkSearch();
@@ -162,6 +164,44 @@ export function useGuestSignIn() {
     () =>
       otpDraftRef.current?.channel ?? (hasOtpSms ? "sms" : hasOtpWhatsapp ? "whatsapp" : "email"),
   );
+
+  // ---- Guest-team picker (optional "which group do you belong to?") ----
+  //
+  // The venue's "Guest Groups" (app.domains.guest_teams) offered at
+  // sign-in: the dropdown shows exactly when some team is actually
+  // joinable right now, and a picked team is joined automatically once the
+  // OTP login succeeds (see verifyOtp's onSuccess). Fetch once per venue,
+  // only when OTP is a real sign-in path and this is a real device (demo
+  // and preview modes have no backend team store to ask).
+  const [openTeams, setOpenTeams] = useState<OpenGuestTeam[]>([]);
+  const [selectedTeamCode, setSelectedTeamCode] = useState("");
+  useEffect(() => {
+    if (demoMode || previewMode || !config || !hasOtp || !organizationId || !locationId) {
+      setOpenTeams([]);
+      setSelectedTeamCode("");
+      return;
+    }
+    let cancelled = false;
+    portalRuntimeService
+      .listOpenTeams({ organizationId, locationId })
+      .then((teams) => {
+        if (cancelled) return;
+        setOpenTeams(teams);
+        // A team that is no longer joinable must not stay selected.
+        if (selectedTeamCode && !teams.some((t) => t.teamCode === selectedTeamCode)) {
+          setSelectedTeamCode("");
+        }
+      })
+      .catch(() => {
+        // Honest empty state: a failure to list teams is not a reason to
+        // block sign-in -- the dropdown simply does not appear.
+        if (!cancelled) setOpenTeams([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demoMode, previewMode, config, hasOtp, organizationId, locationId]);
   const [tab, setTab] = useState<"otp" | "password">(() => {
     // An explicit hand-off (the expired screen's "Sign in again"/"Use OTP
     // instead" buttons, see src/routes/portal.expired.tsx) always wins.
@@ -400,6 +440,27 @@ export function useGuestSignIn() {
       // See PortalRuntimeState.guestIdentifier's docstring -- the NAS's own
       // RADIUS Authorize checks this exact value, not a hardcoded one.
       setGuestIdentifier(target.trim());
+      // Auto-join the guest team the guest picked in the "which group do
+      // you belong to?" dropdown, now that their identity is verified.
+      // Best-effort and never blocking: the backend enforces the member
+      // cap at join time (a team can fill between listing and verifying),
+      // and a failed join must not cost a verified guest their internet --
+      // the failure is surfaced as a non-blocking notice on the connected
+      // screen instead, where the existing team-code flow can retry.
+      const pickedTeam = openTeams.find((t) => t.teamCode === selectedTeamCode);
+      if (pickedTeam) {
+        try {
+          await portalRuntimeService.joinTeam({
+            teamCode: pickedTeam.teamCode,
+            identifier: target.trim(),
+            deviceMac,
+          });
+        } catch {
+          setGroupJoinNotice(
+            `${t("groupJoinFailedTitle")} "${pickedTeam.name}" — ${t("groupJoinRetryHint")}`,
+          );
+        }
+      }
       // v4 UX §6.5: the "tell us about yourself" profile prompt used to
       // branch here for new phone/WhatsApp guests, holding this session
       // in `pendingSession` until the guest filled it in or skipped. It's
@@ -877,6 +938,11 @@ export function useGuestSignIn() {
     onVerifyOtp,
     onChangeNumber,
     onResendOtp,
+    // guest-team picker ("which group do you belong to?") -- empty list =
+    // no dropdown (see the effect that loads it)
+    openTeams,
+    selectedTeamCode,
+    setSelectedTeamCode,
     // password tab state
     identifier,
     setIdentifier,

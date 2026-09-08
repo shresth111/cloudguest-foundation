@@ -325,6 +325,13 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   const [contentHeading, setContentHeading] = useState("");
   const [contentBody, setContentBody] = useState("");
   const [contentImageUrl, setContentImageUrl] = useState("");
+  // Pre-sign-in picture upload state (per-venue, unlike the org-level logo/
+  // background -- see handleContentImageUpload): an in-flight upload flag and
+  // a preview-load error (the stored URL may point at an object that was
+  // deleted, in which case the box should say so rather than show a broken
+  // image icon with no explanation).
+  const [contentImageUploading, setContentImageUploading] = useState(false);
+  const [contentImageError, setContentImageError] = useState(false);
   // The venue's own POST-login page (`login.postLoginHtml` /
   // `post_login_html`) -- what a guest sees after a successful sign-in,
   // instead of only being bounced to `redirectUrl`. Deliberately NOT one of
@@ -332,6 +339,17 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   // post-login one, and a venue can set both. "" means "no post-login page",
   // which leaves `/portal/redirect` exactly as it was before this existed.
   const [postLoginHtml, setPostLoginHtml] = useState("");
+  // What a guest sees the moment they're online -- ONE picker, per the
+  // founder's flow review ("session page, then a 3-2-1 timer, then the
+  // URL" was two pages too many). "default" = the built-in connected page;
+  // "redirect" = straight to `redirectUrl` (no intermediate page, see
+  // @/lib/portal-post-login); "html" = the venue's own post-login page
+  // with a slim session strip above it. Single-source on save: switching
+  // clears the other two fields, so a venue can never accidentally set two
+  // post-login destinations and rediscover the two-page flow.
+  const [afterConnectMode, setAfterConnectMode] = useState<"default" | "redirect" | "html">(
+    "default",
+  );
   // What the preview iframe below is actually showing, trailing the textarea
   // by a beat. Changing an iframe's `srcdoc` RELOADS the document, so binding
   // it straight to `postLoginHtml` would tear down and re-parse the whole
@@ -497,14 +515,30 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       terms: p.consent.termsText,
     }));
     setAuthMethods(p.loginMethods);
+    // Derive the after-connect destination from what is actually stored --
+    // single-source semantics (see the state's own comment): a stored
+    // post-login page wins over a redirect URL, and a legacy row that used
+    // the retired pre-login content-mode "redirect" (see the Before sign-in
+    // picker's own comment) reads as the same after-connect "redirect".
+    setAfterConnectMode(
+      hasPostLoginHtml(p.login.postLoginHtml)
+        ? "html"
+        : p.login.redirectUrl.trim() || p.content.mode === "redirect"
+          ? "redirect"
+          : "default",
+    );
     // "survey" is a retired content mode (guest surveys are Campaigns-only
     // now); `portalService` already coerces a legacy `content_mode: "survey"`
     // row to "login" via `toPortalContentMode`, so `p.content.mode` is always
     // one of the live modes here and never lands the editor in a dead state.
-    setContentMode(p.content.mode);
+    // A legacy "redirect" content-mode row likewise lands on "login" -- its
+    // actual behaviour (bounce after connect) is now the after-connect picker
+    // above, not a pre-login content step.
+    setContentMode(p.content.mode === "redirect" ? "login" : p.content.mode);
     setContentHeading(p.content.heading);
     setContentBody(p.content.body);
     setContentImageUrl(p.content.imageUrl);
+    setContentImageError(false);
     setPostLoginHtml(p.login.postLoginHtml || "");
     setVenueName(p.locationId ? p.locationName : "");
     setCollectGuestName(p.postConnect.collectGuestName);
@@ -647,13 +681,17 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       privacyPolicyUrl: null,
       splashHeadline: headline || null,
       splashWelcomeMessage: msg || null,
-      redirectUrl: form.redirectUrl || null,
+      // Single after-connect destination, matching the picker (see the
+      // state's own comment): only the chosen field reaches the runtime
+      // preview, so the preview can never show a venue the two-page flow
+      // the picker is designed to retire.
+      redirectUrl: afterConnectMode === "redirect" ? form.redirectUrl.trim() || null : null,
       // Post-login page. Carried on the runtime config so the shareable
       // /preview/portal/demo tab (which serializes this exact object) stays
       // in sync -- note that neither preview route renders a post-login
       // surface today; the authoring preview under the editor below is what
       // actually shows this. See the editor block's own comment.
-      postLoginHtml: postLoginHtml || null,
+      postLoginHtml: afterConnectMode === "html" ? postLoginHtml || null : null,
       // Content mode + its source fields -- every edit rebuilds this memo and
       // re-renders PortalContentBlock in the preview immediately (task 4).
       contentMode,
@@ -723,6 +761,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       headline,
       msg,
       authMethods,
+      afterConnectMode,
       contentMode,
       contentHeading,
       contentBody,
@@ -886,6 +925,72 @@ export function PortalPage({ locationId }: { locationId?: string }) {
     }
   };
 
+  // The "Before sign-in: show a picture" content image -- the ONE venue
+  // asset that is per-portal (per config row) rather than org-level like
+  // the logo/background: it is content for a specific location's portal,
+  // uploaded straight to that config via POST/DELETE
+  // /captive-portal-configs/{id}/content-image (see the backend domain).
+  // Same immediate-upload-on-pick shape as the logo/background above;
+  // the returned URL is held in `contentImageUrl` and travels with the
+  // normal Save Configuration patch (`content.imageUrl`), because the
+  // bytes live on the captive_portal_configs row itself, not on branding.
+  const handleContentImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const rejection = brandAssetRejectionReason(file);
+    if (rejection) {
+      toast.error(rejection);
+      return;
+    }
+    if (demo) {
+      setContentImageUrl(URL.createObjectURL(file));
+      toast.success("Picture added");
+      return;
+    }
+    if (!portalId || !orgId) return;
+    setContentImageUploading(true);
+    setContentImageError(false);
+    try {
+      const url = await portalService.uploadContentImage(portalId, file, orgId);
+      setContentImageUrl(url);
+      toast.success("Picture uploaded — save the portal to publish it");
+    } catch (err) {
+      toast.error(
+        axios.isAxiosError(err)
+          ? toAppError(err).message
+          : "Could not upload the picture — check the connection and try again.",
+      );
+    } finally {
+      setContentImageUploading(false);
+    }
+  };
+
+  const handleRemoveContentImage = async () => {
+    if (demo) {
+      setContentImageUrl("");
+      setContentImageError(false);
+      toast.success("Picture removed");
+      return;
+    }
+    if (!portalId || !orgId) return;
+    setContentImageUploading(true);
+    try {
+      await portalService.deleteContentImage(portalId, orgId);
+      setContentImageUrl("");
+      setContentImageError(false);
+      toast.success("Picture removed");
+    } catch (err) {
+      toast.error(
+        axios.isAxiosError(err)
+          ? toAppError(err).message
+          : "Could not remove the picture — check the connection and try again.",
+      );
+    } finally {
+      setContentImageUploading(false);
+    }
+  };
+
   // Mirrors the backend's accept/reject rule exactly (splashOverLimitBlocked:
   // code points over the trimmed value, and only when changed from the last
   // loaded/saved value) -- refuse at authoring time with a visible reason
@@ -953,7 +1058,18 @@ export function PortalPage({ locationId }: { locationId?: string }) {
         // `postLoginHtml` (toPortal on read, create()/update() on write) --
         // a field mapped on read only is silently dropped here, which is the
         // bug `fontFamily` shipped with.
-        login: { redirectUrl: form.redirectUrl, postLoginHtml },
+        // One after-connect destination, chosen by the picker -- the OTHER
+        // field goes out empty so the single-source semantics hold on the
+        // server too (empty string maps to SQL NULL in portal.service's
+        // whitelist -- see the note on redirectUrl/postLoginHtml). A legacy
+        // row with both set, saved once from here, becomes whichever one
+        // the venue picked.
+        login:
+          afterConnectMode === "html"
+            ? { redirectUrl: "", postLoginHtml }
+            : afterConnectMode === "redirect"
+              ? { redirectUrl: form.redirectUrl.trim(), postLoginHtml: "" }
+              : { redirectUrl: "", postLoginHtml: "" },
         loginMethods: authMethods as PortalLoginMethod[],
         // The Terms & Conditions textarea. This whole group was missing from
         // the patch -- no `consent` key at all -- so the field displayed,
@@ -1302,114 +1418,137 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                 </p>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label>Languages</Label>
-                  <Input
-                    value={form.lang}
-                    onChange={(e) => setForm({ ...form, lang: e.target.value })}
-                    className="h-9"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Redirect URL</Label>
-                  <Input
-                    value={form.redirectUrl}
-                    onChange={(e) => setForm({ ...form, redirectUrl: e.target.value })}
-                    className="h-9"
-                  />
-                </div>
+              <div className="space-y-1.5">
+                <Label>Languages</Label>
+                <Input
+                  value={form.lang}
+                  onChange={(e) => setForm({ ...form, lang: e.target.value })}
+                  className="h-9"
+                />
               </div>
 
-              {/* Post-login page. Sits directly under Redirect URL because the
-              two are the same decision -- what a guest sees the moment they
-              are online -- and because a venue that sets both needs to see
-              that they COMPOSE, not that one wins (the note under the
-              textarea says so, and the preview under it shows it).
-
-              Plain monospace <Textarea>, not a code editor: a code-editor
-              dependency is ~200KB of the customer dashboard's bundle to
-              syntax-highlight a field most venues will paste into once. */}
-              <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <Label htmlFor="post-login-html">Post-login page (HTML)</Label>
-                  {/* Bytes, not characters -- the backend column's cap is a
-                  byte cap, and one Devanagari code point is 3 bytes. A
-                  character count would tell a Hindi-writing venue they had
-                  3x the room they actually have. */}
-                  <span
-                    aria-live="polite"
-                    className={`text-xs tabular-nums ${
-                      postLoginBlocked ? "font-medium text-destructive" : "text-muted-foreground"
-                    }`}
+              {/* AFTER THEY CONNECT -- one destination, chosen here. The
+              founder's flow review ("after login: session page -> 3-2-1
+              timer -> URL") is fixed at the source: a venue picks ONE of
+              three, and the guest flow (see @/lib/portal-post-login, shared
+              by /portal/success and /portal/session) honours exactly that.
+              "html" also gets a slim "session started · remaining · MAC"
+              strip above the venue's own page -- see portal.session.tsx. */}
+              <div className="space-y-3 rounded-lg border p-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="after-connect-mode">After they connect</Label>
+                  <Select
+                    value={afterConnectMode}
+                    onValueChange={(v) => setAfterConnectMode(v as "default" | "redirect" | "html")}
                   >
-                    {postLoginBytes.toLocaleString()} / {POST_LOGIN_HTML_MAX_BYTES.toLocaleString()}{" "}
-                    bytes
-                  </span>
+                    <SelectTrigger id="after-connect-mode">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">Show the connected page</SelectItem>
+                      <SelectItem value="redirect">Send guests to a website</SelectItem>
+                      <SelectItem value="html">Show a custom HTML page</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                <Textarea
-                  id="post-login-html"
-                  rows={8}
-                  spellCheck={false}
-                  value={postLoginHtml}
-                  onChange={(e) => setPostLoginHtml(e.target.value)}
-                  placeholder={
-                    "<h2>Welcome!</h2>\n<p>Show your booking at the desk for a free coffee.</p>"
-                  }
-                  className="font-mono text-xs"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Shown to guests right after they sign in. Leave it empty to keep today&apos;s
-                  behaviour.{" "}
-                  {form.redirectUrl.trim() ? (
-                    <>
-                      Because a <span className="font-medium">Redirect URL</span> is also set,
-                      guests see this page with a <span className="font-medium">Continue</span>{" "}
-                      button to it. They are not sent on automatically, so the page stays up until
-                      they choose to leave.
-                    </>
-                  ) : (
-                    <>
-                      With no <span className="font-medium">Redirect URL</span> set, this page is
-                      where guests stay.
-                    </>
-                  )}
-                </p>
-                {/* The one thing a venue WILL get wrong if we don't say it.
-                This page runs on the same origin as the OTP screen, so the
-                HTML is rendered in a sandboxed frame with scripts disabled
-                -- an analytics or chat-widget snippet pasted here does
-                nothing at all, silently. Saying so here is cheaper than the
-                bug report. */}
-                <p className="text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">Scripts will not run.</span> For
-                  your guests&apos; safety this page is displayed in a sandbox, so{" "}
-                  <code>&lt;script&gt;</code> tags, analytics snippets, chat widgets and inline{" "}
-                  <code>onclick</code> handlers are ignored. HTML, CSS, images and links all work —
-                  links open in a new tab. Saving also runs the page through a safety filter, so the
-                  editor may come back slightly changed from what you pasted; that version is what
-                  guests get.
-                </p>
-                {hasPostLoginHtml(previewHtml) && (
+
+                {afterConnectMode === "default" && (
+                  <p className="text-xs text-muted-foreground">
+                    Guests land on the built-in &quot;you&apos;re connected&quot; page with their
+                    session details. No redirect, no extra page.
+                  </p>
+                )}
+
+                {afterConnectMode === "redirect" && (
                   <div className="space-y-1.5">
-                    <p className="text-xs font-medium">Preview</p>
-                    {/* The SAME component, with the SAME sandbox, that
-                    /portal/redirect renders for a real guest -- not a
-                    lookalike. That is the whole point: whatever gets
-                    silently dropped in this box is exactly what gets
-                    dropped on the guest's phone. */}
-                    <PostLoginHtmlFrame
-                      html={previewHtml}
-                      title="Post-login page preview"
-                      className="h-64 bg-white"
+                    <Label htmlFor="redirect-url">Website address</Label>
+                    <Input
+                      id="redirect-url"
+                      value={form.redirectUrl}
+                      onChange={(e) => setForm({ ...form, redirectUrl: e.target.value })}
+                      placeholder="https://wyfyguest.com/welcome"
+                      className="h-9"
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Guests are sent straight here the moment they&apos;re online — no intermediate
+                      portal page.
+                    </p>
                   </div>
                 )}
-                {postLoginBlocked && (
-                  <p className="text-xs text-destructive" role="alert">
-                    This page is {postLoginBytes.toLocaleString()} bytes — the limit is{" "}
-                    {POST_LOGIN_HTML_MAX_BYTES.toLocaleString()}. Shorten it to save.
-                  </p>
+
+                {afterConnectMode === "html" && (
+                  <>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <Label htmlFor="post-login-html">Custom HTML page</Label>
+                      {/* Bytes, not characters -- the backend column's cap is a
+                      byte cap, and one Devanagari code point is 3 bytes. A
+                      character count would tell a Hindi-writing venue they had
+                      3x the room they actually have. */}
+                      <span
+                        aria-live="polite"
+                        className={`text-xs tabular-nums ${
+                          postLoginBlocked
+                            ? "font-medium text-destructive"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        {postLoginBytes.toLocaleString()} /{" "}
+                        {POST_LOGIN_HTML_MAX_BYTES.toLocaleString()} bytes
+                      </span>
+                    </div>
+                    <Textarea
+                      id="post-login-html"
+                      rows={8}
+                      spellCheck={false}
+                      value={postLoginHtml}
+                      onChange={(e) => setPostLoginHtml(e.target.value)}
+                      placeholder={
+                        "<h2>Welcome!</h2>\n<p>Show your booking at the desk for a free coffee.</p>"
+                      }
+                      className="font-mono text-xs"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      This page IS what guests see right after they sign in, with a small
+                      &quot;session started&quot; bar above it. Leave it empty and pick the
+                      connected page instead if you don&apos;t want one.
+                    </p>
+                    {/* The one thing a venue WILL get wrong if we don't say it.
+                    This page runs on the same origin as the OTP screen, so the
+                    HTML is rendered in a sandboxed frame with scripts disabled
+                    -- an analytics or chat-widget snippet pasted here does
+                    nothing at all, silently. Saying so here is cheaper than the
+                    bug report. */}
+                    <p className="text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground">Scripts will not run.</span> For
+                      your guests&apos; safety this page is displayed in a sandbox, so{" "}
+                      <code>&lt;script&gt;</code> tags, analytics snippets, chat widgets and inline{" "}
+                      <code>onclick</code> handlers are ignored. HTML, CSS, images and links all
+                      work — links open in a new tab. Saving also runs the page through a safety
+                      filter, so the editor may come back slightly changed from what you pasted;
+                      that version is what guests get.
+                    </p>
+                    {hasPostLoginHtml(previewHtml) && (
+                      <div className="space-y-1.5">
+                        <p className="text-xs font-medium">Preview</p>
+                        {/* The SAME component, with the SAME sandbox, that
+                        /portal/session renders for a real guest -- not a
+                        lookalike. That is the whole point: whatever gets
+                        silently dropped in this box is exactly what gets
+                        dropped on the guest's phone. */}
+                        <PostLoginHtmlFrame
+                          html={previewHtml}
+                          title="Post-login page preview"
+                          className="h-64 bg-white"
+                        />
+                      </div>
+                    )}
+                    {postLoginBlocked && (
+                      <p className="text-xs text-destructive" role="alert">
+                        This page is {postLoginBytes.toLocaleString()} bytes — the limit is{" "}
+                        {POST_LOGIN_HTML_MAX_BYTES.toLocaleString()}. Shorten it to save.
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -1461,9 +1600,6 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                     <SelectItem value="login">Nothing — go straight to sign-in</SelectItem>
                     <SelectItem value="image">Show a picture (menu, offer, poster)</SelectItem>
                     <SelectItem value="text">Show a short message</SelectItem>
-                    <SelectItem value="redirect">
-                      Send guests to a page after they connect
-                    </SelectItem>
                   </SelectContent>
                 </Select>
 
@@ -1483,26 +1619,73 @@ export function PortalPage({ locationId }: { locationId?: string }) {
 
                 {contentMode === "image" && (
                   <div className="space-y-1.5">
-                    <Label htmlFor="content-image-url" className="text-xs">
-                      Picture link
-                    </Label>
-                    <Input
-                      id="content-image-url"
-                      value={contentImageUrl}
-                      onChange={(e) => setContentImageUrl(e.target.value)}
-                      placeholder="https://..."
-                      inputMode="url"
-                    />
-                    {/* The constraint a venue cannot see and will otherwise
-                      hit blind. There is no upload for this field -- the
-                      only upload endpoints this product has are the
-                      org-level logo and background (brand-asset.service.ts)
-                      -- so it is a link, and where the picture is hosted
-                      decides whether it loads at all before sign-in. */}
+                    <Label className="text-xs">Picture</Label>
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-20 w-32 shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-muted/40">
+                        {contentImageUploading ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                        ) : contentImageUrl ? (
+                          <img
+                            src={contentImageUrl}
+                            alt="Pre-sign-in picture"
+                            className="h-full w-full object-cover"
+                            onError={() => setContentImageError(true)}
+                          />
+                        ) : (
+                          <ImageUp className="h-5 w-5 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="cursor-pointer">
+                          <span className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+                            <ImageUp className="h-3.5 w-3.5" />
+                            {contentImageUrl ? "Replace picture" : "Upload picture"}
+                          </span>
+                          <input
+                            type="file"
+                            accept={BRAND_ASSET_ACCEPT_ATTR}
+                            className="hidden"
+                            disabled={contentImageUploading || (!demo && !portalId)}
+                            onChange={handleContentImageUpload}
+                          />
+                        </label>
+                        {contentImageUrl && (
+                          <button
+                            type="button"
+                            onClick={handleRemoveContentImage}
+                            disabled={contentImageUploading || (!demo && !portalId)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-destructive/50 hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Remove
+                          </button>
+                        )}
+                        {!demo && !portalId && (
+                          <p className="text-xs text-muted-foreground">
+                            Save the portal once first — uploads are attached to a saved portal.
+                          </p>
+                        )}
+                        {contentImageUrl && (
+                          <input
+                            type="text"
+                            value={contentImageUrl}
+                            readOnly
+                            aria-label="Uploaded picture URL"
+                            className="h-7 w-48 rounded-md border bg-muted/30 px-2 font-mono text-[10px] text-muted-foreground"
+                          />
+                        )}
+                      </div>
+                    </div>
+                    {contentImageError && (
+                      <p className="text-xs text-destructive" role="alert">
+                        This picture couldn&apos;t load — it may have been removed. Upload a new one
+                        or delete it.
+                      </p>
+                    )}
                     <p className="text-xs text-muted-foreground">
-                      A photo of your menu works well. Guests have not reached the internet yet at
-                      this point, so the picture must be one we host — ask support to add it. A link
-                      to a menu on another website will not load here.
+                      A photo of your menu works well. Uploaded pictures are hosted by us, so they
+                      load inside the hotspot&apos;s walled garden before guests reach the internet.
+                      PNG/JPEG/WebP/GIF up to 5 MB.
                     </p>
                   </div>
                 )}
@@ -1520,13 +1703,6 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                       placeholder="Kitchen closes at 10pm. Ask staff for today's specials."
                     />
                   </div>
-                )}
-
-                {contentMode === "redirect" && (
-                  <p className="text-xs text-muted-foreground">
-                    Sends guests to your <span className="font-medium">Redirect URL</span> above
-                    once they are online. Set one, or guests see the sign-in form as usual.
-                  </p>
                 )}
               </div>
 

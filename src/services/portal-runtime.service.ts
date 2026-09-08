@@ -236,6 +236,27 @@ interface BackendGuestTeamJoinResponse {
   membership: BackendGuestTeamMember;
 }
 
+/** One joinable guest team offered at sign-in by `GET /guest-teams/open` --
+ * deliberately a subset of the full GuestTeam shape: the login screen only
+ * needs enough to label the option and call the existing join endpoint. */
+export interface OpenGuestTeam {
+  id: string;
+  name: string;
+  teamCode: string;
+  maxMembers: number | null;
+  memberCount: number;
+}
+
+/** Wire shape of one row of `GET /guest-teams/open` (snake_case, matching
+ * the existing guest-team endpoints). */
+interface BackendOpenGuestTeam {
+  id: string;
+  name: string;
+  team_code: string;
+  max_members: number | null;
+  member_count: number;
+}
+
 function toRuntimeConfig(c: BackendCaptivePortalConfig): RuntimePortalConfig {
   return {
     id: c.id,
@@ -647,5 +668,38 @@ export const portalRuntimeService = {
       device_name: params.deviceName,
     });
     return { isNewMembership: data.is_new_membership };
+  },
+
+  /**
+   * Guest teams this venue's portal can offer a guest at sign-in -- only
+   * teams that are actually joinable right now (status active, not
+   * expired, and not full: unlimited `max_members` or a live member count
+   * under the cap). The login screen shows a "which group do you belong
+   * to?" dropdown exactly when this list is non-empty; the guest picks a
+   * team and is added to it automatically once their OTP login succeeds
+   * (see useGuestSignIn's join-after-verify). No auth, same posture as the
+   * existing `/guest-teams/join` endpoint -- team codes are the shareable
+   * join token, and only open teams are ever listed.
+   */
+  async listOpenTeams(params: {
+    organizationId: string;
+    locationId: string;
+  }): Promise<OpenGuestTeam[]> {
+    const { data } = await guestPortalApi.get<BackendOpenGuestTeam[]>("/guest-teams/open", {
+      params: {
+        organization_id: params.organizationId,
+        location_id: params.locationId,
+      },
+      timeout: 6000,
+    });
+    // The guest-portal api interceptor unwraps the envelope, so `data` is
+    // already the array of backend rows.
+    return (Array.isArray(data) ? data : []).map((t) => ({
+      id: t.id,
+      name: t.name,
+      teamCode: t.team_code,
+      maxMembers: t.max_members,
+      memberCount: t.member_count,
+    }));
   },
 };

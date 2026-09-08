@@ -231,6 +231,20 @@ jobs:
             "portal-auth-methods" 20 "all checks passed" \
             bun run test:portal-auth-methods
 
+      # The single-page post-login destination -- the founder's "session
+      # page, then a 3-2-1 timer, then the URL" complaint. One module
+      # (@/lib/portal-post-login) decides html/redirect/default, and two
+      # routes must both consume it: portal.success.tsx picks the NAS dst
+      # and portal.session.tsx renders the venue page / bounces / shows the
+      # connected page. A refactor that hardcodes either side back (success
+      # always sends to /portal/session, session re-grows a countdown
+      # button) reintroduces the two-page flow with every other test green.
+      - name: portal post-login destination
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "portal-post-login" 20 "all checks passed" \
+            bun run test:portal-post-login
+
       - name: portal sign-in fields
         run: |
           ./scripts/ci-gated-test.sh \

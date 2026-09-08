@@ -1,6 +1,6 @@
 import { PortalErrorScreen } from "@/components/portal-runtime/PortalErrorScreen";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Laptop, LogOut, KeyRound, Users2, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -25,6 +25,9 @@ import type { AppError } from "@/services/api";
 import { usePortalLinkSearch } from "@/components/portal-runtime/usePortalLinkSearch";
 import { passwordSignInOffered } from "@/lib/portal-auth-methods";
 import { scriptClassOf } from "@/lib/portal-script";
+import { PostLoginHtmlFrame } from "@/components/portal-runtime/PostLoginHtmlFrame";
+import { resolvePostLoginDestination } from "@/lib/portal-post-login";
+import { isCaptiveNetworkAssistant } from "@/lib/portal-cna";
 
 export const Route = createFileRoute("/portal/session")({
   errorComponent: PortalErrorScreen,
@@ -178,6 +181,43 @@ const NUDGE_ROW_CLASS =
 const NUDGE_CHIP_CLASS =
   "grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[color-mix(in_srgb,var(--pr-primary,#6366f1)_8%,var(--pg-surface,#fff))] text-[var(--pr-primary,#6366f1)]";
 
+/**
+ * Transient team-join failure notice from the sign-in screen (the guest
+ * picked a group in the "which group do you belong to?" dropdown and the
+ * automatic join after OTP verify hit a full team -- see useGuestSignIn's
+ * verifyOtp). Rendered on the session page next to the real team-code
+ * affordance, which is the retry path; dismissible, never blocking (the
+ * guest is already online -- membership must never gate connectivity).
+ */
+function TeamJoinNotice({
+  portalSearch,
+}: {
+  portalSearch: { organizationId: string; locationId: string; routerId: string };
+}) {
+  const { groupJoinNotice, setGroupJoinNotice, t } = usePortalRuntime();
+  if (!groupJoinNotice) return null;
+  return (
+    <div className="flex items-start gap-2 rounded-xl border border-[var(--pg-danger-border,#FECACA)] bg-[var(--pg-danger-bg,#FEF2F2)] px-3 py-2.5 text-[length:calc(0.8125rem*var(--pg-type-scale,1))] text-[var(--pg-ink)]">
+      <span className="min-w-0 flex-1">{groupJoinNotice}</span>
+      <Link
+        to="/portal/team"
+        search={portalSearch}
+        className="shrink-0 font-semibold text-[var(--pr-primary,#6366f1)] underline underline-offset-2 hover:opacity-80"
+      >
+        {t("retry")}
+      </Link>
+      <button
+        type="button"
+        onClick={() => setGroupJoinNotice(undefined)}
+        aria-label={t("skipAd")}
+        className="shrink-0 text-[var(--pg-ink-muted)] hover:text-[var(--pg-ink)]"
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
 /** The two stat rows share one real progressbar (role + aria-value*), one
  * track/fill recipe: flat venue-primary fill on a 15% tint track -- the
  * indigo gradient is retired for the same reason PG_PRIMARY_BTN went
@@ -230,6 +270,8 @@ function SessionPage() {
     routerId,
     destinationUrl,
     deviceMac,
+    groupJoinNotice,
+    setGroupJoinNotice,
   } = usePortalRuntime();
 
   // The NAS redirects here as a BRAND-NEW document once it has authorised
@@ -259,7 +301,14 @@ function SessionPage() {
   }, [liveSession, setSession, setGuestIdentifier]);
   const navigate = useNavigate({ from: "/portal/session" });
   const portalSearch = usePortalLinkSearch();
-  const continueUrl = destinationUrl || config?.redirectUrl;
+  // The single post-login destination decision -- html / redirect / default
+  // -- see @/lib/portal-post-login for the whole rule. This page renders
+  // it (html), bounces to it (redirect), or is it (default, unchanged).
+  const destination = resolvePostLoginDestination(config, destinationUrl);
+  // Never auto-redirect inside Apple's captive websheet: it cannot be
+  // navigated to an arbitrary page (it must be dismissed via the Apple URL
+  // on /portal/success), and trying reads as a broken redirect.
+  const inCna = isCaptiveNetworkAssistant();
   const [now, setNow] = useState(0);
   const [disconnectError, setDisconnectError] = useState<string | null>(null);
 
@@ -276,7 +325,10 @@ function SessionPage() {
   const { data: nextCampaign } = useQuery({
     queryKey: ["next-campaign", session?.sessionId],
     queryFn: () => campaignPortalService.getNextCampaign(session!.sessionId),
-    enabled: !!session?.sessionId,
+    // Only the built-in connected page shows campaigns: an owner-authored
+    // post-login page (or a bounce to a URL) is the destination, not a
+    // backdrop for one.
+    enabled: !!session?.sessionId && destination.mode === "default",
     staleTime: Infinity,
     retry: false,
   });
@@ -372,6 +424,25 @@ function SessionPage() {
     navigate({ to: "/portal/expired", replace: true, search: (prev) => prev });
   }, [hasExpiry, remainingMs, session, navigate, setSession]);
 
+  // The founder's flow fix ("then a 3-2-1 timer, then the URL"): a venue
+  // whose after-connect destination is a URL gets sent there directly --
+  // no countdown, no intermediate page. Fired once, after a real session
+  // is confirmed (a fresh login or the live recovery above); guarded so
+  // it never bounces a session that is about to be expired, and never
+  // navigates the Apple captive websheet to an arbitrary page.
+  const redirectFired = useRef(false);
+  useEffect(() => {
+    if (redirectFired.current) return;
+    if (destination.mode !== "redirect" || inCna) return;
+    if (!session || !destination.url) return;
+    if (hasExpiry && remainingMs <= 0) return;
+    redirectFired.current = true;
+    // A real document load: if the NAS gate is somehow still shut it
+    // intercepts this request and reissues a portal URL, self-correcting
+    // exactly as portal.success.tsx's own assigns do.
+    window.location.assign(destination.url);
+  }, [destination.mode, destination.url, inCna, session, hasExpiry, remainingMs]);
+
   const bytesUsed = (session?.bytesUploaded ?? 0) + (session?.bytesDownloaded ?? 0);
   const bytesLimit = (session?.dataLimitMb ?? 0) * 1024 * 1024;
   const usagePct = bytesLimit > 0 ? (bytesUsed / bytesLimit) * 100 : 0;
@@ -388,6 +459,111 @@ function SessionPage() {
   }, [hasExpiry, remainingMs, t]);
 
   if (!session || now === 0) return null;
+
+  // ===== OWNER-AUTHORED POST-LOGIN PAGE ("html" mode) =====
+  //
+  // The venue's custom page IS the connected page. A slim strip on top
+  // answers the one question that page can't ("is my session live, how
+  // much is left, which device"), and the page itself takes the rest --
+  // no hero, no stats cards, no nudges, no campaign: an owner-authored
+  // page was written to be the destination, and burying it under the
+  // built-in connected UI is exactly the extra-page flow the founder
+  // asked to remove. (The frame height rule is the same as
+  // portal.redirect.tsx's own -- auto-sizing an iframe needs script
+  // inside it, which PostLoginHtmlFrame's sandbox refuses.)
+  if (destination.mode === "html" && destination.html) {
+    const mac = session.deviceMacAddress || deviceMac;
+    return (
+      <PortalShell>
+        <div className="flex flex-1 flex-col gap-4">
+          <div className="pg-surface-card flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border border-[var(--pg-border)] bg-[var(--pg-surface)] px-4 py-2.5 shadow-[0_1px_2px_rgba(30,27,75,0.06)]">
+            <span className="inline-flex items-center gap-1.5 text-[length:calc(0.8125rem*var(--pg-type-scale,1))] font-semibold text-[var(--pg-ink)]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--pg-success,#059669)]" />
+              {t("sessionStartedLabel")}
+            </span>
+            {hasExpiry && (
+              <span className="pg-meta text-[var(--pg-ink-muted)]">
+                {t("sessionRemaining")}:{" "}
+                <span className="font-semibold tabular-nums text-[var(--pg-ink)]">
+                  {remainingLabel}
+                </span>
+              </span>
+            )}
+            {bytesLimit > 0 && (
+              <span className="pg-meta text-[var(--pg-ink-muted)]">
+                {formatBytes(bytesUsed)} / {formatBytes(bytesLimit)}
+              </span>
+            )}
+            {mac && <span className="pg-meta font-mono text-[var(--pg-ink-faint)]">{mac}</span>}
+          </div>
+          <PostLoginHtmlFrame
+            html={destination.html}
+            title={t("postLoginPageLabel")}
+            className="h-[68vh] min-h-[320px]"
+          />
+          {destination.url && (
+            <a
+              href={destination.url}
+              title={destination.url}
+              target="_blank"
+              rel="noreferrer"
+              className={`${PG_PRIMARY_BTN} flex items-center justify-center`}
+            >
+              {t("continueNowLabel")}
+            </a>
+          )}
+          <TeamJoinNotice portalSearch={portalSearch} />
+          <AlertBanner message={disconnectError} />
+          <button
+            type="button"
+            onClick={() => disconnect.mutate()}
+            disabled={disconnect.isPending}
+            className={cn(
+              PG_SECONDARY_BTN,
+              "flex items-center justify-center gap-2 hover:border-[var(--pg-danger-border,#FECACA)] hover:bg-[var(--pg-danger-bg,#FEF2F2)] hover:text-[var(--pg-danger,#DC2626)]",
+            )}
+          >
+            <LogOut className="h-4 w-4" />{" "}
+            {disconnect.isPending ? t("disconnectingLabel") : t("logout")}
+          </button>
+        </div>
+      </PortalShell>
+    );
+  }
+
+  // ===== "redirect" mode while the bounce is in flight =====
+  // The auto-bounce above fires as soon as a real session is confirmed;
+  // this keeps the screen honest in the gap (and doubles as the CNA
+  // fallback, where we deliberately do NOT navigate -- the connected page
+  // is the right resting place for the sheet).
+  if (destination.mode === "redirect" && destination.url) {
+    let host = destination.url;
+    try {
+      host = new URL(destination.url, window.location.origin).hostname;
+    } catch {
+      /* keep raw value */
+    }
+    return (
+      <PortalShell>
+        <div className="flex flex-1 flex-col items-center justify-center gap-4">
+          <p className="pg-meta text-center text-[var(--pg-ink-muted)]">
+            {t("openingSiteTemplate").split("{host}")[0]}
+            <span className="font-semibold text-[var(--pg-ink)]">{host}</span>
+            {t("openingSiteTemplate").split("{host}")[1]}
+          </p>
+          <a
+            href={destination.url}
+            title={destination.url}
+            target="_blank"
+            rel="noreferrer"
+            className={`${PG_SECONDARY_BTN} flex items-center justify-center`}
+          >
+            {t("continueNowLabel")}
+          </a>
+        </div>
+      </PortalShell>
+    );
+  }
 
   // A one-question `rating_5` survey is the "how was your visit?" star
   // prompt, and it is the ONE campaign shape that must not take the screen
@@ -597,15 +773,7 @@ function SessionPage() {
           <ChevronRight className="h-4 w-4 shrink-0 text-[var(--pg-ink-faint)]" />
         </Link>
 
-        {continueUrl && (
-          <button
-            type="button"
-            onClick={() => navigate({ to: "/portal/redirect", search: (prev) => prev })}
-            className={PG_PRIMARY_BTN}
-          >
-            {t("continue")}
-          </button>
-        )}
+        <TeamJoinNotice portalSearch={portalSearch} />
 
         <AlertBanner message={disconnectError} />
 

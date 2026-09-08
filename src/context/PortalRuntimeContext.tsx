@@ -481,6 +481,15 @@ interface PortalRuntimeState {
    * which is the overwhelmingly common case (`otp_sms_enabled`). */
   refusedContactKind?: "phone" | "email";
   setRefusedContactKind: (v?: "phone" | "email") => void;
+  /** Transient, non-blocking notice carried from the sign-in screen to
+   * /portal/session: the guest picked a team in the "which group do you
+   * belong to?" dropdown, the OTP login succeeded, but the automatic team
+   * join failed (e.g. the team filled between listing and joining). The
+   * session page renders it as an AlertBanner with a retry link; it is
+   * plain component state (never persisted -- it describes one login, not
+   * a standing fact, same rationale as `endedSession`). */
+  groupJoinNotice?: string;
+  setGroupJoinNotice: (v?: string) => void;
 }
 
 const Ctx = createContext<PortalRuntimeState | null>(null);
@@ -589,6 +598,7 @@ export function PortalRuntimeProvider({
   );
   const [dataConsentAccepted, setDataConsentAccepted] = useState(false);
   const [refusedContactKind, setRefusedContactKind] = useState<"phone" | "email" | undefined>();
+  const [groupJoinNotice, setGroupJoinNotice] = useState<string | undefined>();
 
   const setSession = useCallback((s: RuntimeSession | undefined) => {
     setSessionState(s);
@@ -805,6 +815,8 @@ export function PortalRuntimeProvider({
       setDataConsentAccepted,
       refusedContactKind,
       setRefusedContactKind,
+      groupJoinNotice,
+      setGroupJoinNotice,
     }),
     [
       organizationId,
@@ -832,6 +844,7 @@ export function PortalRuntimeProvider({
       setGuestIdentifier,
       dataConsentAccepted,
       refusedContactKind,
+      groupJoinNotice,
     ],
   );
 

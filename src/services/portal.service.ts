@@ -955,6 +955,41 @@ export const portalService = {
     };
   },
 
+  /** Uploads (replacing any existing) the per-venue "Before sign-in:
+   * show a picture" content image for one portal config. Unlike the
+   * org-level logo/background, this asset belongs to the config row
+   * itself (the picture is content for that location's portal), so the
+   * upload is keyed by config id and returns the stored public URL --
+   * which then travels with the normal Save Configuration patch as
+   * `content.imageUrl`.
+   *
+   * `Content-Type: undefined` is load-bearing, not decorative: the shared
+   * `api` instance sets a default `Content-Type: application/json`, which
+   * would win over the browser's multipart boundary generation for this
+   * FormData body -- the exact 422 "field 'file' required" bug
+   * brand-asset.service.ts documents (see its uploadBackgroundImage). */
+  async uploadContentImage(id: string, file: File, organizationId?: string): Promise<string> {
+    const formData = new FormData();
+    formData.append("file", file);
+    const { data } = await api.post<{ data: { content_image_url: string | null } }>(
+      `/captive-portal-configs/${id}/content-image`,
+      formData,
+      {
+        headers: {
+          ...(organizationId ? { "X-Organization-Id": organizationId } : undefined),
+          "Content-Type": undefined,
+        },
+      },
+    );
+    return data.data.content_image_url ?? "";
+  },
+
+  async deleteContentImage(id: string, organizationId?: string): Promise<void> {
+    await api.delete(`/captive-portal-configs/${id}/content-image`, {
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+    });
+  },
+
   organizations() {
     return ORGS.map(([id, name]) => ({ id, name }));
   },

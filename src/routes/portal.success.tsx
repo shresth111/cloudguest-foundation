@@ -14,6 +14,8 @@ import { buildSessionUrl } from "@/lib/portal-session-url";
 import { nasAuthorizedFromSearch } from "@/lib/portal-nas-state";
 import { PORTAL_SLOW_NOTICE_DELAY_MS } from "@/lib/portal-post-connect";
 import { usePortalLinkSearch } from "@/components/portal-runtime/usePortalLinkSearch";
+import { APPLE_CAPTIVE_SUCCESS_URL, isCaptiveNetworkAssistant } from "@/lib/portal-cna";
+import { resolvePostLoginDestination } from "@/lib/portal-post-login";
 
 // v4 §6.1: the same "taking longer than expected" threshold
 // portal.index.tsx's own loading screen already uses, for the identical
@@ -60,45 +62,10 @@ const HOTSPOT_RESUBMIT_COOLDOWN_MS = 10_000;
 // which *does* have an active session under that exact identifier.
 const HOTSPOT_FALLBACK_PASSWORD = "welcome123";
 
-// Apple's captive-detection success URL. iOS/iPadOS opens its Captive
-// Network Assistant (CNA) websheet the moment it joins a Wi-Fi it thinks is
-// captive, and it only marks the network "online" -- dismissing the sheet
-// and releasing every non-CNA app's traffic -- once its probe to this exact
-// HTTP URL returns Apple's fixed `...<TITLE>Success</TITLE>...Success...`
-// body. HTTP, never HTTPS: the CNA probes the plain-HTTP endpoint (RouterOS
-// serves that body itself through an open gate). Confirmed live: an iPhone
-// authenticated on the NAS (a MacBook on the same setup reached full
-// internet) but iOS kept every connection pinned to the portal host because
-// the CNA, left sitting in this heavy React SPA, never re-probed and so
-// never transitioned out of the captive state. macOS's captive handling is
-// far less aggressive, which is why MacBooks were unaffected.
-const APPLE_CAPTIVE_SUCCESS_URL = "http://captive.apple.com/hotspot-detect.html";
-
-/** True only when this browser context is iOS/iPadOS's Captive Network
- * Assistant websheet -- the one context that needs to be pointed back at
- * Apple's own detection URL to close.
- *
- * HOW TO TELL THE SHEET FROM ORDINARY SAFARI ON THE SAME DEVICE. A user
- * agent cannot: it identifies a DEVICE ("this is an iPhone"), and the CNA
- * websheet and Safari on that iPhone need opposite treatment -- the sheet
- * must be handed to `captive.apple.com` (whose "Success" body is what makes
- * it dismiss), while Safari must land on the real `/portal/session` page
- * (Android behaviour) instead of a bare one-word page with no way back.
- * The signal that separates them is Web Storage: the CNA treats storage
- * like private browsing and THROWS on access, exactly as this file's
- * persistence helpers already document (see `safeGet`/`persistHotspotSubmit`
- * -- the reason the whole CNA storage-safety suite exists). Ordinary Safari
- * reads and writes storage normally. So a storage probe answers the
- * question directly, where the user agent never could. */
-function isCaptiveNetworkAssistant(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    window.sessionStorage.getItem("__cna_probe__");
-    return false;
-  } catch {
-    return true;
-  }
-}
+// Apple's captive-detection success URL, and the storage-probe that tells
+// the CNA websheet from ordinary Safari -- see @/lib/portal-cna for both.
+// (They used to be defined here; portal.session.tsx now needs the same
+// probe so it never auto-redirects inside the websheet, hence the move.)
 
 /** Submits username/password to RouterOS's `$(link-login-only)` URL.
  *
@@ -190,8 +157,35 @@ function SuccessPage() {
     // identifier `/portal/session` can use to re-find this guest's session
     // when it lands as a new document on a browser whose storage throws.
     deviceMac,
+    // The guest's original pre-hotspot destination (RouterOS's `$(link-orig)`
+    // on this portal's own URL) -- the "send them back where they were
+    // going" half of the redirect-mode decision in @/lib/portal-post-login.
+    destinationUrl,
     t,
   } = usePortalRuntime();
+  // Single post-login destination decision -- see @/lib/portal-post-login.
+  // This page applies it to the NAS `dst`; /portal/session applies it to
+  // rendering. html -> session page (it renders the venue's page); redirect
+  // -> the URL itself (no intermediate portal page); default -> session
+  // page (unchanged).
+  const destination = resolvePostLoginDestination(config, destinationUrl);
+  const sessionTarget = () =>
+    buildSessionUrl(organizationId, locationId, routerId, language, deviceMac);
+  // The destination for the two assign branches that don't build a NAS
+  // POST (already-authorized, and no login URL at all): a redirect-mode
+  // venue's guest goes STRAIGHT to the URL on a real document load (the
+  // single-page rule), anyone else goes to /portal/session -- which then
+  // renders html-mode pages or the default connected page. Never
+  // captive.apple.com here: that is only for the actual gate-opening POST
+  // below (see its own comment), and pointing a non-POSTing client at it
+  // is exactly how a guest ended on the bare one-word "Success" page. The
+  // CNA check is the same storage probe the POST branch uses -- inside the
+  // websheet an arbitrary assign is meaningless, so the session page is
+  // the honest resting place there too.
+  const directTarget = () =>
+    !isCaptiveNetworkAssistant() && destination.mode === "redirect" && destination.url
+      ? destination.url
+      : sessionTarget();
   // captive-portal-v7-design-spec.md §1.1 (L1). This route is NOT in the
   // spec's own L1 route list, and that list is wrong: the slow/stuck
   // notice below renders past SLOW_NOTICE_DELAY_MS as plain text directly
@@ -258,9 +252,7 @@ function SuccessPage() {
       // intercepts this and reissues a portal URL with a fresh
       // `link-login-only`, which lands back here able to POST. The claim
       // "you're connected" is never made on evidence we do not have.
-      window.location.assign(
-        buildSessionUrl(organizationId, locationId, routerId, language, deviceMac),
-      );
+      window.location.assign(directTarget());
       return;
     }
 
@@ -289,9 +281,7 @@ function SuccessPage() {
     // on the bare one-word "Success" page.
     if (!hotspotLoginUrl) {
       hotspotLoginSubmitted.current = true;
-      window.location.assign(
-        buildSessionUrl(organizationId, locationId, routerId, language, deviceMac),
-      );
+      window.location.assign(directTarget());
       return;
     }
     hotspotLoginSubmitted.current = true;
@@ -313,12 +303,12 @@ function SuccessPage() {
     // internet. The backend session already exists, so nothing about
     // `/portal/session` is needed inside the sheet.
     //
-    // Every OTHER client -- Android, desktop, and ordinary Safari on that
-    // same iPhone (detected via storage access, see
-    // `isCaptiveNetworkAssistant`) -- keeps the unchanged `/portal/session`
-    // hand-off, so an iPhone user signs in with their own browser and lands
-    // on the real connected page exactly as an Android user does, instead
-    // of on Apple's bare one-word "Success" diagnostic page.
+    // Every OTHER client keeps the post-login destination decision made by
+    // @/lib/portal-post-login: a venue with a redirect URL set gets the
+    // guest sent STRAIGHT there by the NAS (no intermediate portal page --
+    // the "then a 3-2-1 timer, then the URL" flow the founder asked to
+    // remove), while html-mode and default venues land on `/portal/session`
+    // (which renders the venue's own page, or the built-in connected page).
     //
     // Reachable ONLY for a client the NAS has NOT already authorized --
     // the guard at the top of this function returned for the other case.
@@ -329,7 +319,9 @@ function SuccessPage() {
     // one-word "Success" page in ordinary Safari.
     const dst = isCaptiveNetworkAssistant()
       ? APPLE_CAPTIVE_SUCCESS_URL
-      : buildSessionUrl(organizationId, locationId, routerId, language, deviceMac);
+      : destination.mode === "redirect" && destination.url
+        ? destination.url
+        : sessionTarget();
 
     // Real incident, live captive-portal "flick flick" flash: a remount
     // landing back here within HOTSPOT_RESUBMIT_COOLDOWN_MS of this exact

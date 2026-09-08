@@ -192,6 +192,36 @@ export function OtpForm(sign: UseGuestSignInReturn) {
         className="space-y-3"
       >
         <StepProgress n={1} />
+        {/* Optional guest-team picker -- "which group do you belong to?".
+         * Shown only when the venue has a guest team (Devices & Team ->
+         * Guest Groups) that is actually joinable right now (active, not
+         * full); the selection is carried through the OTP flow and joined
+         * automatically on successful login (see useGuestSignIn's
+         * verifyOtp onSuccess). An optional, honest extra field: guests
+         * who are not part of a team leave it on the default. */}
+        {sign.openTeams.length > 0 && (
+          <div className="space-y-1.5">
+            <label
+              htmlFor="guest-team-select"
+              className="block text-[length:calc(0.8125rem*var(--pg-type-scale,1))] font-medium text-[var(--pg-ink)]"
+            >
+              {t("groupPickerLabel")}
+            </label>
+            <select
+              id="guest-team-select"
+              value={sign.selectedTeamCode}
+              onChange={(e) => sign.setSelectedTeamCode(e.target.value)}
+              className="w-full rounded-xl border border-[var(--pg-border)] bg-[var(--pg-surface)] px-3 py-2.5 text-[length:calc(0.9375rem*var(--pg-type-scale,1))] text-[var(--pg-ink)] outline-none transition-[border-color,box-shadow] focus:border-[var(--pr-primary,#6366f1)] focus:ring-4 focus:ring-[var(--pr-primary,#6366f1)]/15"
+            >
+              <option value="">{t("groupNoneOption")}</option>
+              {sign.openTeams.map((team) => (
+                <option key={team.id} value={team.teamCode}>
+                  {team.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         {/* v7 §7.2: this used to be a floating `<label>` with no `htmlFor`
          * sitting above a two-input row -- an element that named nothing,
          * for either a screen reader or a sighted guest trying to work out

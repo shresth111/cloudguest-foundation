@@ -74,6 +74,20 @@ const EN: Dict = {
   sessionRemaining: "Time remaining",
   dataUsage: "Data usage",
   device: "Device",
+  // The slim strip on top of an owner-authored post-login HTML page
+  // (portal.session.tsx "html" mode): the one line answering "is my
+  // session live, how much is left, which device" that the venue's own
+  // page cannot. See portal-post-login.ts for the mode rule.
+  sessionStartedLabel: "Session started",
+  openingSiteTemplate: "Opening {host}…",
+  // Guest-team picker on the OTP identifier screen -- see OtpForm.tsx. The
+  // dropdown only appears when the venue has a joinable team; "none" is the
+  // default and the honest answer for most guests.
+  groupPickerLabel: "Which group do you belong to?",
+  groupNoneOption: "None of these — continue as a general guest",
+  groupJoinFailedTitle: "Couldn't add you to",
+  groupJoinRetryHint:
+    "it may have filled up. You're still connected — retry from the team card below.",
   sessionExpired: "Your session has expired",
   reconnect: "Reconnect",
   extend: "Extend session",
