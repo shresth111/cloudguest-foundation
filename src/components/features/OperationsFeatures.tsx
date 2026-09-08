@@ -839,6 +839,9 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
   const demo = isDemo();
   const [configId, setConfigId] = useState<string | null>(null);
   const [enabled, setEnabled] = useState(false);
+  const [timezone, setTimezone] = useState(
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+  );
   const [schedule, setSchedule] = useState<BusinessHoursSchedule>({});
   const [closedMessage, setClosedMessage] = useState(
     "We're currently closed. Please check back during business hours.",
@@ -861,6 +864,13 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
         if (cancelled) return;
         setConfigId(cfg.configId);
         setEnabled(cfg.enabled);
+        // The venue's own stored timezone -- the one the schedule is
+        // actually evaluated in -- not the admin's browser zone. Saving
+        // the browser zone here used to silently re-anchor an already
+        // configured schedule (an IST venue edited from a UTC browser
+        // shifted every "closed" window by the offset, which is how
+        // guests got through after hours).
+        setTimezone(cfg.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
         setSchedule(cfg.schedule);
         setClosedMessage(cfg.closedMessage ?? closedMessage);
         setIsOpenNow(cfg.isOpenNow);
@@ -927,7 +937,7 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
       }
       await businessHoursService.save(id, {
         enabled,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+        timezone,
         schedule,
         closedMessage,
       });
@@ -947,6 +957,13 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
   const openDaysCount = BH_DAYS.filter(({ key }) => dayState(key).open).length;
   const liveStatusKnown = !demo && isOpenNow !== null;
   const currentlyOpen = liveStatusKnown ? isOpenNow : null;
+
+  // Warn when the schedule is enforced in a different zone than the one the
+  // admin is editing from -- the exact setup under which "I set 9am-9pm and
+  // guests still got in at 11pm" used to happen (the browser zone was saved
+  // over the venue zone on every Apply).
+  const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const timezoneMismatch = !demo && timezone !== browserTimezone;
 
   const kpiItems = [
     ...(liveStatusKnown
@@ -988,10 +1005,23 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
 
       {!loading && <KpiRow items={kpiItems} />}
 
+      {timezoneMismatch && (
+        <div
+          role="alert"
+          className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+        >
+          This schedule is enforced in {timezone.replace(/_/g, " ")} — not your browser's{" "}
+          {browserTimezone.replace(/_/g, " ")}. Times below are the venue's local time.
+        </div>
+      )}
+
       <Card className="border-0 shadow-sm">
         <CardHeader>
           <CardTitle className="text-sm">Weekly schedule</CardTitle>
-          <CardDescription>Tap a day to open it, then set when it starts and ends.</CardDescription>
+          <CardDescription>
+            Tap a day to open it, then set when it starts and ends. Times are in{" "}
+            {timezone.replace(/_/g, " ")}.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
