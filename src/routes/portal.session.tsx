@@ -365,7 +365,6 @@ function SessionPage() {
   useEffect(() => {
     if (!session || !hasExpiry || remainingMs > 0) return;
     navigate({ to: "/portal/expired", replace: true, search: (prev) => prev });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasExpiry, remainingMs, session, navigate]);
 
   const bytesUsed = (session?.bytesUploaded ?? 0) + (session?.bytesDownloaded ?? 0);

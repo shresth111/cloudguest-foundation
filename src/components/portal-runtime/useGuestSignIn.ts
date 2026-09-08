@@ -302,7 +302,6 @@ export function useGuestSignIn() {
     };
     if (phase === "phone" && !phone && !email && !target) writeOtpDraft(undefined);
     else writeOtpDraft(draft);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [venueKey, phase, otpChannel, phone, email, target]);
   // demoMode only (src/routes/preview.portal.demo.tsx): a short fake
   // "sending"/"verifying" spinner so the DUMMY flow feels like the real one
