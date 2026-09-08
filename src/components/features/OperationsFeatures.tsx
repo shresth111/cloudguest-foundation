@@ -997,6 +997,13 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
   const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const timezoneMismatch = !demo && timezone !== browserTimezone;
 
+  // A venue whose stored zone is outside BUSINESS_HOURS_TIMEZONES must
+  // still render (and stay selectable after a save round-trip) -- an
+  // unlisted Select value renders as blank. Append it as its own option.
+  const timezoneOptions = BUSINESS_HOURS_TIMEZONES.includes(timezone)
+    ? BUSINESS_HOURS_TIMEZONES
+    : [...BUSINESS_HOURS_TIMEZONES, timezone];
+
   const kpiItems = [
     ...(liveStatusKnown
       ? [
@@ -1089,7 +1096,7 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
                     <SelectValue placeholder="Select a timezone" />
                   </SelectTrigger>
                   <SelectContent>
-                    {BUSINESS_HOURS_TIMEZONES.map((tz) => (
+                    {timezoneOptions.map((tz) => (
                       <SelectItem key={tz} value={tz}>
                         {tz.replace(/_/g, " ")}
                       </SelectItem>
