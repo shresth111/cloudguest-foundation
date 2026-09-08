@@ -274,7 +274,29 @@ function SuccessPage() {
     // skips rather than firing a doomed request. This is itself one of
     // the real reasons a guest can land here and never leave without the
     // timeout/retry below: there is nothing in flight at all to wait for.
-    if (!hotspotLoginUrl || !guestIdentifier) return;
+    if (!guestIdentifier) return;
+
+    // A VALID session + identifier but NO hotspot-login URL (a QR code or
+    // bookmark link into the portal, where no RouterOS redirect supplied
+    // one): there is no POST to build, but this guest is genuinely
+    // authenticated and used to sit on the "Just a moment" spinner with
+    // nothing in flight until the 15s escape hatch looped them back into
+    // sign-in. Send them to the real resting page on a real document load
+    // instead -- the same self-correcting navigation the recently-submitted
+    // branch below uses: if the gate is somehow still shut the NAS
+    // intercepts and reissues a portal URL with a fresh link-login-only,
+    // which comes back through portal.index.tsx and lands here able to
+    // POST. Never the Apple captive URL here: that is only for the actual
+    // gate-opening POST below (see its own comment), and pointing a
+    // non-POSTing client at captive.apple.com is exactly how a guest ended
+    // on the bare one-word "Success" page.
+    if (!hotspotLoginUrl) {
+      hotspotLoginSubmitted.current = true;
+      window.location.assign(
+        buildSessionUrl(organizationId, locationId, routerId, language, deviceMac),
+      );
+      return;
+    }
     hotspotLoginSubmitted.current = true;
 
     // Where RouterOS sends the browser once its own hotspot-login processing

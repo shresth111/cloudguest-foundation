@@ -649,7 +649,11 @@ try {
 console.log("\n-- source invariants --");
 const read = (p) => readFileSync(join(ROOT, p), "utf8");
 
-const authForms = read("src/components/portal-runtime/AuthMethodForms.tsx");
+// VoucherForm lives in its own module (split out of AuthMethodForms so the
+// welcome surface can lazy-import it without dragging react-hook-form/zod
+// into the pre-auth bundle) -- the source invariants below assert against
+// THAT file, which is where the guards now live.
+const voucherForm = read("src/components/portal-runtime/VoucherForm.tsx");
 const tabSwitcher = read("src/components/portal-runtime/AuthTabSwitcher.tsx");
 const authRoute = read("src/routes/portal.auth.$method.tsx");
 const signInCard = read("src/components/portal-runtime/GuestSignInCard.tsx");
@@ -673,15 +677,15 @@ check(
 );
 check(
   "...and it is VoucherForm's own mutation",
-  voucherCallSites[0]?.endsWith("AuthMethodForms.tsx"),
+  voucherCallSites[0]?.endsWith("VoucherForm.tsx"),
   voucherCallSites[0],
 );
 
 // The demo branch must come BEFORE the mutation, and previewMode between
 // them -- the same order useGuestSignIn uses for every other method.
-const demoIdx = authForms.indexOf("if (demoMode) {", authForms.indexOf("const onSubmit"));
-const previewIdx = authForms.indexOf("if (previewMode) {", demoIdx);
-const mutateIdx = authForms.indexOf("login.mutate(v)", demoIdx);
+const demoIdx = voucherForm.indexOf("if (demoMode) {", voucherForm.indexOf("const onSubmit"));
+const previewIdx = voucherForm.indexOf("if (previewMode) {", demoIdx);
+const mutateIdx = voucherForm.indexOf("login.mutate(v)", demoIdx);
 check("VoucherForm's submit branches on demoMode", demoIdx > 0);
 check("...then on previewMode", previewIdx > demoIdx);
 check("...and only then reaches login.mutate", mutateIdx > previewIdx);

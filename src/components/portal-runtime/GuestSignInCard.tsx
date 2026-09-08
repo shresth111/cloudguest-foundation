@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { ArrowLeft, KeyRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { scriptClassOf } from "@/lib/portal-script";
@@ -12,8 +12,16 @@ import { AuthTabSwitcher, AuthMoreOptions } from "./AuthTabSwitcher";
 import { OtpForm } from "./OtpForm";
 import { PasswordSignInForm } from "./PasswordSignInForm";
 import { PortalContentBlock } from "./PortalContentBlock";
-import { VoucherForm } from "./AuthMethodForms";
 import { hasGatingContentStep } from "@/types/portal-runtime";
+
+// Lazy: VoucherForm is rendered on this card ONLY by the demo walkthrough
+// (sign.showVoucherForm is demoMode-gated), while the module it used to be
+// co-exported from (AuthMethodForms) statically carries react-hook-form +
+// zod for the legacy per-method route forms. Eagerly importing it here put
+// RHF/zod in the pre-auth welcome bundle every guest downloads; the split
+// (VoucherForm.tsx) + this lazy keeps them out unless a demo actually opens
+// the voucher step.
+const VoucherForm = lazy(() => import("./VoucherForm").then((m) => ({ default: m.VoucherForm })));
 
 /**
  * The guest sign-in card: centered logo mark, "Welcome to [venue]"
@@ -262,12 +270,20 @@ export function GuestSignInCard() {
               Demonstration only. Any code is accepted here — nothing is checked against a real
               voucher, and no voucher is redeemed or marked as used.
             </DemoNotice>
-            <VoucherForm
-              organizationId={organizationId}
-              locationId={locationId}
-              routerId={routerId}
-              onLoggedIn={sign.onVoucherStepLoggedIn}
-            />
+            <Suspense
+              fallback={
+                <div className="flex h-24 items-center justify-center">
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--pr-primary,#6366f1)] border-t-transparent" />
+                </div>
+              }
+            >
+              <VoucherForm
+                organizationId={organizationId}
+                locationId={locationId}
+                routerId={routerId}
+                onLoggedIn={sign.onVoucherStepLoggedIn}
+              />
+            </Suspense>
             <button
               type="button"
               onClick={sign.onCloseVoucherStep}
