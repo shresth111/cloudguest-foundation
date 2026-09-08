@@ -447,7 +447,13 @@ export function PortalShell({
   // floor, so this shell (and its fixed-height-turned-min-height parent)
   // can grow to fit whatever the real content needs instead of ever
   // clipping or needing to scroll.
-  const heightCls = constrained ? "min-h-full" : "min-h-dvh";
+  //
+  // The guest (non-constrained) case pairs Tailwind's `min-h-dvh` with a
+  // hand-written `pg-shell-dvh` rule in styles.css: engines without `dvh`
+  // (iOS CNA WebView <15.4, Chrome <108) ignore the utility entirely and
+  // get the rule's `min-height: 100vh` fallback instead of collapsing to
+  // natural height.
+  const heightCls = constrained ? "min-h-full" : "min-h-dvh pg-shell-dvh";
   const hasBackgroundImage = !!config?.backgroundImageUrl;
   const backdropPlan = usePortalBackdropPlan();
   // v7 Part 3 -- see the footer's own comment. The template is split rather

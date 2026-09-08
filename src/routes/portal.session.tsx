@@ -171,7 +171,7 @@ function ConnectedIllustration({ className }: { className?: string }) {
  * element itself -- an anchor inside a styled box can be focused while the
  * box shows nothing. */
 const NUDGE_ROW_CLASS =
-  "pg-surface-card flex items-center gap-3 rounded-[20px] border border-[var(--pg-border)] bg-[var(--pg-surface)] p-3.5 shadow-[0_1px_2px_rgba(30,27,75,0.06),0_8px_24px_-12px_rgba(30,27,75,0.18)] transition-[border-color,background-color] duration-200 hover:border-[var(--pr-primary,#6366f1)]/30 hover:bg-[color-mix(in_srgb,var(--pr-primary,#6366f1)_5%,var(--pg-surface,#fff))] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--pr-primary,#6366f1)]/15";
+  "pg-surface-card flex items-center gap-3 rounded-[20px] border border-[var(--pg-border)] bg-[var(--pg-surface)] p-4 shadow-[0_1px_2px_rgba(30,27,75,0.06),0_8px_24px_-12px_rgba(30,27,75,0.18)] transition-[border-color,background-color] duration-200 hover:border-[var(--pr-primary,#6366f1)]/30 hover:bg-[color-mix(in_srgb,var(--pr-primary,#6366f1)_5%,var(--pg-surface,#fff))] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--pr-primary,#6366f1)]/15";
 
 /** Icon chip inside a nudge row -- venue-primary at an 8% tint, same
  * recipe as the redesigned retry pills (spec §1.4 icon-disc family). */
@@ -352,6 +352,22 @@ function SessionPage() {
   const expiresAtMs = timeoutMinutes > 0 ? startedAtMs + timeoutMinutes * 60_000 : 0;
   const remainingMs = expiresAtMs > 0 ? Math.max(0, expiresAtMs - now) : 0;
   const hasExpiry = timeoutMinutes > 0;
+
+  // The countdown was decorative: it reached 00:00:00 and nothing happened,
+  // leaving the guest on a screen that said "connected" after their session
+  // had genuinely ended (the backend's own timeout sweep will have expired
+  // the row). Navigate once the clock hits zero -- the same destination the
+  // guest reaches by tapping Disconnect, and where the "sign in again" CTA
+  // lives. Guarded by `hasExpiry` so a no-expiry session (the common
+  // venue default) is never bounced, and idempotent because navigating
+  // clears the session (setSession(undefined) in the expired handling
+  // path below is not needed here -- leaving the page unmounts this one).
+  useEffect(() => {
+    if (!session || !hasExpiry || remainingMs > 0) return;
+    navigate({ to: "/portal/expired", replace: true, search: (prev) => prev });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasExpiry, remainingMs, session, navigate]);
+
   const bytesUsed = (session?.bytesUploaded ?? 0) + (session?.bytesDownloaded ?? 0);
   const bytesLimit = (session?.dataLimitMb ?? 0) * 1024 * 1024;
   const usagePct = bytesLimit > 0 ? (bytesUsed / bytesLimit) * 100 : 0;
@@ -522,7 +538,7 @@ function SessionPage() {
           </div>
         </PortalCard>
 
-        <PortalCard className="p-3.5">
+        <PortalCard className="p-4">
           <div className="flex items-center gap-3">
             <div className={NUDGE_CHIP_CLASS}>
               <Laptop className="h-5 w-5" />

@@ -38,6 +38,25 @@ function SectionCardTitle({ title }: { title: string }) {
   );
 }
 
+/** A venue-authored terms/privacy URL is free text, and this anchor lives
+ * on a page that is same-origin with the OTP/identifier screens -- the
+ * exact class of sink every other venue-authored navigation on this
+ * surface guards (see /portal/redirect's isSafeRedirectTarget). Only
+ * http/https survive; anything else (javascript:, data:, vbscript:) is
+ * refused by rendering no link at all. `rel="noreferrer"` alone does not
+ * stop a javascript: href. */
+function isSafeExternalUrl(candidate: string): boolean {
+  try {
+    // SSR-safe base: the protocol check is what matters, and a relative
+    // venue URL resolving against this neutral base still lands on http.
+    const base = typeof window !== "undefined" ? window.location.origin : "http://portal.invalid";
+    const parsed = new URL(candidate, base);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export const Route = createFileRoute("/portal/terms")({
   errorComponent: PortalErrorScreen,
   component: TermsPage,
@@ -217,7 +236,7 @@ function TermsPage() {
                       {s.text}
                     </p>
                   )}
-                  {s.url && (
+                  {s.url && isSafeExternalUrl(s.url) && (
                     <a
                       href={s.url}
                       target="_blank"

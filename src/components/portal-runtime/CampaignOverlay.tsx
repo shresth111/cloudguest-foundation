@@ -61,9 +61,12 @@ function QuestionField({
         {question.options.map((opt) => (
           <label
             key={opt}
-            className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-700 transition hover:border-indigo-300 has-[[data-state=checked]]:border-indigo-400 has-[[data-state=checked]]:bg-indigo-50/60"
+            className="flex cursor-pointer items-center gap-3 rounded-xl border border-[var(--pg-border)] bg-[var(--pg-surface)] px-3.5 py-3 text-sm text-[var(--pg-ink)] transition hover:border-[var(--pr-primary,#6366f1)]/50 has-[[data-state=checked]]:border-[var(--pr-primary,#6366f1)]/70 has-[[data-state=checked]]:bg-[color-mix(in_srgb,var(--pr-primary,#6366f1)_8%,var(--pg-surface,#fff))]"
           >
-            <RadioGroupItem value={opt} className="border-slate-300 text-indigo-600" />
+            <RadioGroupItem
+              value={opt}
+              className="border-[var(--pg-ink-faint)] text-[var(--pr-primary,#6366f1)]"
+            />
             {opt}
           </label>
         ))}
@@ -80,11 +83,11 @@ function QuestionField({
           return (
             <label
               key={opt}
-              className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-700 transition hover:border-indigo-300 has-[[data-state=checked]]:border-indigo-400 has-[[data-state=checked]]:bg-indigo-50/60"
+              className="flex cursor-pointer items-center gap-3 rounded-xl border border-[var(--pg-border)] bg-[var(--pg-surface)] px-3.5 py-3 text-sm text-[var(--pg-ink)] transition hover:border-[var(--pr-primary,#6366f1)]/50 has-[[data-state=checked]]:border-[var(--pr-primary,#6366f1)]/70 has-[[data-state=checked]]:bg-[color-mix(in_srgb,var(--pr-primary,#6366f1)_8%,var(--pg-surface,#fff))]"
             >
               <Checkbox
                 checked={checked}
-                className="border-slate-300 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600"
+                className="border-[var(--pg-ink-faint)] data-[state=checked]:bg-[var(--pr-primary,#6366f1)] data-[state=checked]:border-[var(--pr-primary,#6366f1)]"
                 onCheckedChange={(v) =>
                   onChange(v ? [...selected, opt] : selected.filter((o) => o !== opt))
                 }
@@ -113,7 +116,7 @@ function QuestionField({
               className="h-8 w-8 transition"
               strokeWidth={1.5}
               fill={n <= rating ? "#f59e0b" : "none"}
-              stroke={n <= rating ? "#f59e0b" : "#cbd5e1"}
+              stroke={n <= rating ? "#f59e0b" : "var(--pg-ink-faint)"}
             />
           </button>
         ))}
@@ -128,7 +131,7 @@ function QuestionField({
       onChange={(e) => onChange(e.target.value)}
       placeholder={t("answerPlaceholder")}
       rows={3}
-      className="rounded-xl border-slate-200 bg-white text-[15px] text-slate-900 placeholder:text-slate-400 focus-visible:border-indigo-400 focus-visible:ring-4 focus-visible:ring-indigo-500/15"
+      className="rounded-xl border-[var(--pg-border)] bg-[var(--pg-surface)] text-[length:calc(0.9375rem*var(--pg-type-scale,1))] text-[var(--pg-ink)] placeholder:text-[var(--pg-ink-muted)] focus-visible:border-[var(--pr-primary,#6366f1)] focus-visible:ring-4 focus-visible:ring-[var(--pr-primary,#6366f1)]/15"
     />
   );
 }
@@ -290,7 +293,7 @@ export function CampaignOverlay({ campaign, sessionId, onDone, constrained = fal
        * this surface" budget line actually true. */}
       <div className="flex flex-1 flex-col gap-5">
         <div className="flex items-center justify-between">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-indigo-600">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-[color-mix(in_srgb,var(--pr-primary,#6366f1)_10%,var(--pg-surface,#fff))] px-3 py-1 text-[length:calc(0.6875rem*var(--pg-type-scale,1))] font-semibold uppercase tracking-wide text-[var(--pr-primary,#6366f1)]">
             <MessageSquareText className="h-3.5 w-3.5" />
             {campaign.campaignType === "survey" ? t("surveyQuestion") : t("sponsored")}
           </span>
@@ -298,7 +301,7 @@ export function CampaignOverlay({ campaign, sessionId, onDone, constrained = fal
             <button
               type="button"
               onClick={skip}
-              className="flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+              className="flex min-h-6 items-center gap-1 rounded-full px-2.5 py-1 pg-meta font-medium text-[var(--pg-ink-muted)] transition hover:bg-[color-mix(in_srgb,var(--pg-ink)_6%,transparent)] hover:text-[var(--pg-ink)]"
             >
               {t("skipAd")} <X className="h-3.5 w-3.5" />
             </button>
@@ -313,9 +316,11 @@ export function CampaignOverlay({ campaign, sessionId, onDone, constrained = fal
                 .sort((a, b) => a.orderIndex - b.orderIndex)
                 .map((q) => (
                   <div key={q.id} className="space-y-2.5">
-                    <p className="text-sm font-semibold text-slate-800">
+                    <p className="pg-body font-semibold text-[var(--pg-ink)]">
                       {q.questionText}
-                      {q.isRequired && <span className="ml-1 text-red-500">*</span>}
+                      {q.isRequired && (
+                        <span className="ml-1 text-[var(--pg-danger,#DC2626)]">*</span>
+                      )}
                     </p>
                     <QuestionField
                       question={q}
@@ -348,24 +353,24 @@ export function CampaignOverlay({ campaign, sessionId, onDone, constrained = fal
               )}
               {bannerHasPromo ? (
                 <div className="flex flex-col items-center gap-4 px-6 py-8 text-center">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 pg-micro font-semibold uppercase tracking-wide text-amber-700">
                     <TicketPercent className="h-3.5 w-3.5" />
                     {t("offer")}
                   </span>
                   {asset?.headline && (
-                    <h2 className="text-xl font-bold tracking-tight text-slate-900">
-                      {asset.headline}
-                    </h2>
+                    <h2 className="pg-title text-[var(--pg-ink)]">{asset.headline}</h2>
                   )}
                   {asset?.subtext && (
-                    <p className="text-sm leading-relaxed text-slate-600">{asset.subtext}</p>
+                    <p className="pg-body leading-relaxed text-[var(--pg-ink-muted)]">
+                      {asset.subtext}
+                    </p>
                   )}
                   {asset?.couponCode && (
                     <button
                       type="button"
                       onClick={copyCoupon}
                       aria-label={`${t("useCode")} ${asset.couponCode}`}
-                      className="group inline-flex items-center gap-3 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 px-5 py-3 transition hover:border-amber-400 hover:bg-amber-100/70"
+                      className="group inline-flex min-h-6 items-center gap-3 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 px-5 py-3 transition hover:border-amber-400 hover:bg-amber-100/70"
                     >
                       <span className="font-mono text-lg font-bold tracking-[0.2em] text-amber-800">
                         {asset.couponCode}
@@ -378,10 +383,10 @@ export function CampaignOverlay({ campaign, sessionId, onDone, constrained = fal
                     </button>
                   )}
                   {couponCopied && (
-                    <p className="text-xs font-medium text-emerald-600">{t("couponCopied")}</p>
+                    <p className="pg-meta font-medium text-emerald-600">{t("couponCopied")}</p>
                   )}
                   {validUntilLabel && (
-                    <p className="text-xs text-slate-400">
+                    <p className="pg-meta text-[var(--pg-ink-muted)]">
                       {t("validUntil")} {validUntilLabel}
                     </p>
                   )}
@@ -389,7 +394,7 @@ export function CampaignOverlay({ campaign, sessionId, onDone, constrained = fal
               ) : (
                 !asset?.imageUrl && (
                   <div className="p-8 text-center">
-                    <p className="text-sm text-slate-500">{t("sponsorMessage")}</p>
+                    <p className="pg-body text-[var(--pg-ink-muted)]">{t("sponsorMessage")}</p>
                   </div>
                 )
               )}

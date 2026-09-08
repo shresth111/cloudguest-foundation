@@ -1485,3 +1485,18 @@
 @media (prefers-reduced-motion: reduce) {
   .m-dialog-panel-in, .m-drawer-panel-in, .m-backdrop-in { animation: none; }
 }
+
+/* Portal shell viewport floor (guest route) -- Tailwind's `min-h-dvh`
+ * utility compiles to a bare min-height: 100dvh, which engines without dvh
+ * (iOS CNA WebView <15.4, Chrome <108) ignore entirely, collapsing the
+ * shell to natural height. PortalShell.tsx pairs the utility with this
+ * class; the base rule gives a 100vh floor everywhere and the @supports
+ * block restores dvh on engines that understand it. */
+.pg-shell-dvh {
+  min-height: 100vh;
+}
+@supports (height: 100dvh) {
+  .pg-shell-dvh {
+    min-height: 100dvh;
+  }
+}

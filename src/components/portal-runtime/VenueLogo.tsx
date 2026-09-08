@@ -122,6 +122,10 @@ export function VenueLogo({
           src={logoUrl}
           alt={alt}
           onError={() => setFailed(true)}
+          // The venue logo is often hosted on a third-party CDN, and the
+          // page URL carries the NAS's link-login-only target and the
+          // device MAC -- never leak those in the Referer header.
+          referrerPolicy="no-referrer"
           className="h-full w-full object-contain"
         />
       </span>
@@ -132,6 +136,8 @@ export function VenueLogo({
       src={logoUrl}
       alt={alt}
       onError={() => setFailed(true)}
+      // Same no-referrer reasoning as the framed branch above.
+      referrerPolicy="no-referrer"
       // Height-constrained, width free: `object-contain` inside a fixed
       // WIDTH box (what this was before) preserves aspect ratio by
       // shrinking a horizontal lockup, not by widening its box -- measured

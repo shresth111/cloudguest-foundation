@@ -60,7 +60,7 @@ export function OtpForm(sign: UseGuestSignInReturn) {
   // a plain non-interactive statement below the submit button rather than
   // an opt-in row above it.
   const TermsNotice = (
-    <p className="text-center text-[13px] leading-snug text-[var(--pg-ink-muted)]">
+    <p className="text-center text-[length:calc(0.8125rem*var(--pg-type-scale,1))] leading-snug text-[var(--pg-ink-muted)]">
       {t("agreeToThe")}{" "}
       {sign.requiresTermsLink ? (
         <Link
@@ -120,7 +120,7 @@ export function OtpForm(sign: UseGuestSignInReturn) {
   //    (Checkbox's default, ~16px) -- a tap target shouldn't shrink with
   //    the text next to it.
   const DataConsentCheckbox = (
-    <div className="flex items-start justify-center gap-2 text-[12px] leading-snug text-[var(--pg-ink-muted)]">
+    <div className="flex items-start justify-center gap-2 text-[length:calc(0.75rem*var(--pg-type-scale,1))] leading-snug text-[var(--pg-ink-muted)]">
       <Checkbox
         id={dataConsentId}
         checked={sign.dataConsentAccepted}
@@ -256,7 +256,7 @@ export function OtpForm(sign: UseGuestSignInReturn) {
       >
         {sign.verifyOtpPending ? t("verifyingLabel") : t("verifyOtpConnect")}
       </button>
-      <div className="flex items-center justify-center gap-3 pt-0.5 text-xs">
+      <div className="flex items-center justify-center gap-3 pt-0.5 text-[length:calc(0.75rem*var(--pg-type-scale,1))]">
         {sign.resendCooldown > 0 ? (
           <span className="text-[var(--pg-ink-faint)]">
             {t("resendAvailableInTemplate").replace("{n}", String(sign.resendCooldown))}

@@ -72,7 +72,7 @@ export function PasswordSignInForm(sign: UseGuestSignInReturn) {
        * pattern. Same legal text/link as before (reused verbatim), now
        * below the button rather than an opt-in row above it. See OtpForm's
        * identical TermsNotice for the same reasoning. */}
-      <p className="text-center text-[13px] leading-snug text-[var(--pg-ink-muted)]">
+      <p className="text-center text-[length:calc(0.8125rem*var(--pg-type-scale,1))] leading-snug text-[var(--pg-ink-muted)]">
         {t("agreeToThe")}{" "}
         {sign.requiresTermsLink ? (
           <Link
@@ -90,7 +90,7 @@ export function PasswordSignInForm(sign: UseGuestSignInReturn) {
         <button
           type="button"
           onClick={() => sign.setTab("otp")}
-          className="block w-full text-center text-xs font-medium text-[var(--pg-ink-muted)] hover:text-[var(--pr-primary,#6366f1)] hover:underline"
+          className="block w-full text-center text-[length:calc(0.75rem*var(--pg-type-scale,1))] font-medium text-[var(--pg-ink-muted)] hover:text-[var(--pr-primary,#6366f1)] hover:underline"
         >
           {t("forgotUseOtp")}
         </button>

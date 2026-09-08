@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
@@ -27,6 +27,56 @@ const isOtpMethod = (m: RuntimeAuthMethod | undefined) =>
 
 const authMethodForChannel = (c: OtpChannel): "otp_sms" | "otp_email" | "otp_whatsapp" =>
   c === "sms" ? "otp_sms" : c === "whatsapp" ? "otp_whatsapp" : "otp_email";
+
+// ---- OTP draft persistence ------------------------------------------------
+//
+// The sign-in card lives on /portal/welcome, and its whole OTP state machine
+// (channel, phone/email, the "code sent" phase, the number the code went to)
+// is component state. A guest who taps the Terms link mid-flow navigates to
+// /portal/terms, which unmounts the card -- and every field with it. Coming
+// back meant re-typing the number from scratch and re-sending a code, which
+// is exactly the wrong moment to make a guest repeat themselves.
+//
+// The draft is scoped to the venue (a persisted draft from another location
+// must not leak into this one -- same rule loadPersistedSessionForVenue
+// applies to sessions) and deliberately EXCLUDES the one-time code itself:
+// a single-use secret has no business sitting in sessionStorage, and the
+// guest re-typing it from their SMS is cheap. The identifier/channel/phase
+// surviving is the whole win.
+interface OtpDraft {
+  venueKey: string;
+  phase: "phone" | "code";
+  channel: OtpChannel;
+  phone: string;
+  email: string;
+  target: string;
+}
+
+const OTP_DRAFT_KEY = "cloudguest_otp_draft";
+
+function readOtpDraft(venueKey: string): OtpDraft | undefined {
+  if (typeof window === "undefined") return undefined;
+  try {
+    const raw = window.sessionStorage.getItem(OTP_DRAFT_KEY);
+    if (!raw) return undefined;
+    const parsed = JSON.parse(raw) as Partial<OtpDraft>;
+    if (!parsed || parsed.venueKey !== venueKey) return undefined;
+    return parsed as OtpDraft;
+  } catch {
+    return undefined;
+  }
+}
+
+function writeOtpDraft(draft: OtpDraft | undefined): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (draft) window.sessionStorage.setItem(OTP_DRAFT_KEY, JSON.stringify(draft));
+    else window.sessionStorage.removeItem(OTP_DRAFT_KEY);
+  } catch {
+    // Storage unavailable (CNA websheet / private browsing) -- persistence
+    // is an optimization, never a precondition.
+  }
+}
 
 /**
  * v4 §6 (Component structure): all of `GuestSignInCard`'s mutation/state-
@@ -101,8 +151,15 @@ export function useGuestSignIn() {
   const hasPassword = methods.includes("username_password");
   const hasVoucher = methods.includes("voucher");
 
+  // OTP draft persistence (see the module-level OtpDraft notes): the venue
+  // key + one draft read, hoisted ABOVE the lazy state initializers below so
+  // otpChannel/phase/phone/email/target can all seed from the same object.
+  const venueKey = [organizationId, locationId, routerId].filter(Boolean).join(":");
+  const otpDraftRef = useRef<OtpDraft | undefined>(venueKey ? readOtpDraft(venueKey) : undefined);
+
   const [otpChannel, setOtpChannel] = useState<OtpChannel>(
-    hasOtpSms ? "sms" : hasOtpWhatsapp ? "whatsapp" : "email",
+    () =>
+      otpDraftRef.current?.channel ?? (hasOtpSms ? "sms" : hasOtpWhatsapp ? "whatsapp" : "email"),
   );
   const [tab, setTab] = useState<"otp" | "password">(() => {
     // An explicit hand-off (the expired screen's "Sign in again"/"Use OTP
@@ -203,7 +260,10 @@ export function useGuestSignIn() {
   );
 
   // ---- OTP tab state -------------------------------------------------
-  const [phase, setPhase] = useState<"phone" | "code">("phone");
+  // phase/otpChannel seed from the persisted OTP draft (hoisted above, next
+  // to otpChannel) -- see the module-level OtpDraft notes. `useRef` is not
+  // a reactive dependency: it is read once by these lazy initializers.
+  const [phase, setPhase] = useState<"phone" | "code">(() => otpDraftRef.current?.phase ?? "phone");
   // captive-portal-v7-design-spec.md §8.1: the dialling code is now a
   // fixed, non-editable prefix rather than a second editable text box, so
   // there is no "the guest has edited this themselves" case left to track
@@ -218,11 +278,32 @@ export function useGuestSignIn() {
     () => defaultCountryCode(config?.defaultLanguage, config?.locationCountry),
     [config?.defaultLanguage, config?.locationCountry],
   );
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [target, setTarget] = useState("");
+  const [phone, setPhone] = useState(() => otpDraftRef.current?.phone ?? "");
+  const [email, setEmail] = useState(() => otpDraftRef.current?.email ?? "");
+  const [target, setTarget] = useState(() => otpDraftRef.current?.target ?? "");
   const [code, setCode] = useState("");
   const [otpError, setOtpError] = useState<string | null>(null);
+
+  // Persist the OTP draft whenever any of its fields change (code
+  // deliberately excluded -- single-use secret, see module notes). A guest
+  // who leaves for the Terms page and comes back finds their number and
+  // "code sent" step intact. When the guest is back at the pristine
+  // start (phase "phone", nothing typed) the draft is removed rather than
+  // left to rot.
+  useEffect(() => {
+    if (!venueKey || !otpChannel) return;
+    const draft: OtpDraft = {
+      venueKey,
+      phase,
+      channel: otpChannel,
+      phone,
+      email,
+      target,
+    };
+    if (phase === "phone" && !phone && !email && !target) writeOtpDraft(undefined);
+    else writeOtpDraft(draft);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [venueKey, phase, otpChannel, phone, email, target]);
   // demoMode only (src/routes/preview.portal.demo.tsx): a short fake
   // "sending"/"verifying" spinner so the DUMMY flow feels like the real one
   // to a prospect, without any network call behind it. Ignored entirely by
@@ -345,6 +426,10 @@ export function useGuestSignIn() {
 
   async function afterLogin(session: RuntimeSession) {
     setSession(session);
+    // A successful login makes the OTP draft moot -- clear it so a later
+    // reload of the welcome page starts clean instead of re-offering a
+    // half-finished flow for a guest who is already connected.
+    writeOtpDraft(undefined);
     // Covers OTP/voucher logins too: the real backend already knows
     // whether this guest has a password (`hasPassword`, from the exact
     // same login response) even if it was set from a different device --

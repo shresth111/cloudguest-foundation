@@ -148,6 +148,13 @@ export const Route = createFileRoute("/portal")({
       { name: "description", content: "Connect to complimentary guest WiFi." },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { name: "theme-color", content: "#1E1B4B" },
+      // The guest URL carries the NAS's link-login-only target and the
+      // device MAC; venue-owned assets (logo, background) are often
+      // third-party hosted, and a Referer leaking that URL to their CDN
+      // is exactly the class of disclosure PostLoginHtmlFrame already
+      // blocks with its own no-referrer. Page-level policy covers the
+      // CSS-background request (no per-request attribute exists for it).
+      { name: "referrer", content: "no-referrer" },
     ],
   }),
   component: PortalRuntimeLayout,
