@@ -533,6 +533,38 @@ const DEMO_BH_SCHEDULE: BusinessHoursSchedule = Object.fromEntries(
   ]),
 ) as BusinessHoursSchedule;
 
+/**
+ * Pickable enforcement zones for the Open Hours schedule. Mirrors the same
+ * coarse list LocationWizard offers a new location (see that file's
+ * TIMEZONES) plus the handful of zones an India-first captive fleet most
+ * commonly needs. The default is deliberately *not* UTC: a venue that never
+ * touches this select used to stay on the DB column default ("UTC") and
+ * enforce 9am-9pm as UTC even when the venue was 9:30am IST -- the
+ * "guests got in after closing" report this screen's timezone handling
+ * was rebuilt for. A brand-new config seeds the venue's own zone via
+ * `timezone` state below instead of this list's first entry.
+ */
+const BUSINESS_HOURS_TIMEZONES = [
+  "UTC",
+  "Asia/Kolkata",
+  "Asia/Dubai",
+  "Asia/Singapore",
+  "Asia/Kuala_Lumpur",
+  "Asia/Bangkok",
+  "Asia/Hong_Kong",
+  "Asia/Shanghai",
+  "Asia/Tokyo",
+  "Australia/Sydney",
+  "Europe/London",
+  "Europe/Paris",
+  "Europe/Berlin",
+  "Europe/Amsterdam",
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+];
+
 /** Header-accent illustrations for the 5 views below that had an icon-badge
  * but no illustration yet -- same filled-flat-shape language established
  * elsewhere this session (see BlockUsers.tsx/CampaignsPage.tsx etc.).
@@ -1048,6 +1080,23 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
              * ~17rem, which is what one card needs for two `type="time"`
              * controls showing "hh:mm AM" side by side. */
             <div className="@container">
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <Label htmlFor="open-hours-timezone" className="text-sm font-medium">
+                  Timezone
+                </Label>
+                <Select value={timezone} onValueChange={setTimezone}>
+                  <SelectTrigger id="open-hours-timezone" className="w-64">
+                    <SelectValue placeholder="Select a timezone" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {BUSINESS_HOURS_TIMEZONES.map((tz) => (
+                      <SelectItem key={tz} value={tz}>
+                        {tz.replace(/_/g, " ")}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="grid grid-cols-1 gap-3 @[34rem]:grid-cols-2 @[52rem]:grid-cols-3 @[70rem]:grid-cols-4">
                 {BH_DAYS.map(({ key, label }) => {
                   const d = dayState(key);
