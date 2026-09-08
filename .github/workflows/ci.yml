@@ -12,8 +12,9 @@ name: CI
 #   eslint . ............ 0 errors, 56 warnings
 #   test:portal-cna ..... 21 checks (was 7; the NAS hand-off cases --
 #                         hspage / captive.apple.com -- landed 2026-09-07)
-#   test:portal-auth-methods  18 checks (new 2026-09-07: password sign-in
-#                         retired from the portal)
+#   test:portal-auth-methods  20 checks (2026-09-08: password sign-in made
+#                         opt-in per venue -- restored for legacy venues
+#                         whose flag is on, absent for OTP-only ones)
 #   test:signin-fields .. 23 checks
 #   test:fw-order ....... 7 checks
 #   test:output-analyser  116 checks
@@ -213,20 +214,21 @@ jobs:
             bun run test:portal-cna
 
       # Which sign-in methods a guest is actually offered. Password sign-in
-      # is retired from the portal by ONE constant
-      # (`PASSWORD_SIGN_IN_OFFERED` in src/lib/portal-auth-methods.ts), and
-      # `username_password_enabled` is still `true` in the stored config of
-      # every location provisioned before that -- so that boolean is the
-      # only thing between a live venue's config and a password form. A
-      # constant is invisible to tsc and eslint, and the "simplification"
-      # that restores it (reading the config directly again in `isEnabled`)
-      # looks like a cleanup. This drives the real module and also pins the
-      # half that is easy to forget: the set-password prompts go with it,
-      # and OTP/vouchers do not.
+      # is OPT-IN per venue: the platform switch
+      # (`PASSWORD_SIGN_IN_OFFERED` in src/lib/portal-auth-methods.ts)
+      # restores the form for exactly the venues whose stored
+      # `username_password_enabled` is on (legacy venues keep it, new
+      # venues default OTP-only), and the venue flag is the gate the admin
+      # toggles. A constant is invisible to tsc and eslint, and the
+      # "simplification" that breaks it (hardcoding the form on for every
+      # venue, or hiding it from venues whose flag is on) looks like a
+      # cleanup. This drives the real module and also pins the half that is
+      # easy to forget: the set-password prompts ask the same question, and
+      # OTP/vouchers survive untouched.
       - name: portal sign-in methods
         run: |
           ./scripts/ci-gated-test.sh \
-            "portal-auth-methods" 18 "all checks passed" \
+            "portal-auth-methods" 20 "all checks passed" \
             bun run test:portal-auth-methods
 
       - name: portal sign-in fields

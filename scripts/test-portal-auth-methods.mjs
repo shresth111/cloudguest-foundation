@@ -6,35 +6,36 @@
  *
  * WHY THIS EXISTS
  * ---------------
- * Password sign-in is retired from the guest portal (asked for twice by
- * the founder). The removal is one constant, `PASSWORD_SIGN_IN_OFFERED`,
- * enforced inside `isEnabled` -- the single chokepoint the real guest flow
- * (portal.welcome / portal.auth.index / portal.auth.$method) and the admin
- * preview (preview.portal.$locationId) both resolve methods through, which
- * is the property that module's own docstring exists to guarantee.
+ * Password sign-in on the guest portal is an OPT-IN venue flag: the
+ * platform switch `PASSWORD_SIGN_IN_OFFERED` restores the form for exactly
+ * the venues whose stored `username_password_enabled` is on (legacy venues
+ * that never turned it off keep it), while the backend default keeps new
+ * venues OTP-only. The switch is enforced inside `isEnabled` -- the single
+ * chokepoint the real guest flow (portal.welcome / portal.auth.index /
+ * portal.auth.$method) and the admin preview (preview.portal.$locationId)
+ * both resolve methods through, which is the property that module's own
+ * docstring exists to guarantee.
  *
  * A constant is exactly the kind of thing `tsc` and eslint cannot defend.
- * Nothing about `usernamePasswordEnabled: true` reaching a guest's screen
- * is a type error, and the venue flag is still `true` in production for
- * every location provisioned before this change -- so the ONLY thing
- * standing between a live venue's stored config and a password form is
- * this one boolean. That deserves a test that fails loudly, and it must
- * pin the two things a well-meaning refactor would break independently:
+ * The venue flag is still `true` in production for every location
+ * provisioned before the OTP-first default, so the ONLY things standing
+ * between a live venue's stored config and the right form set are this one
+ * boolean and the venue flag. That deserves a test that fails loudly, and
+ * it must pin the three things a well-meaning refactor would break
+ * independently:
  *
- *   1. Password is not offered even when the venue's own flag is on.
- *      (A refactor that "simplifies" `isEnabled` back to reading the
- *      config directly restores the form for every existing venue at
- *      once, silently.)
- *   2. Nothing ELSE was removed with it. OTP (all three channels) and
- *      vouchers are the methods guests are left with, and the priority
- *      order that decides which form a guest lands on must be unchanged
- *      apart from password's absence.
- *
- * It also pins the two set-password prompts, because they are the half of
- * this that is easy to forget: a guest invited to save a password that no
- * sign-in form will ever offer to accept is worse off than under either
- * keeping the feature or removing it. Both prompts ask
- * `passwordSignInOffered`, so asserting on that helper covers both.
+ *   1. Password is offered to exactly the venues whose own flag is on --
+ *      never to a venue that turned it off. (A refactor that "simplifies"
+ *      `isEnabled` back to reading the config directly is the intended
+ *      reading here; one that hardcodes the form back on platform-wide
+ *      would force password on every OTP-only venue at once.)
+ *   2. Nothing ELSE was removed. OTP (all three channels), password and
+ *      vouchers are the methods guests have, and the priority order that
+ *      decides which form a guest lands on must be unchanged: SMS OTP
+ *      first, then email OTP, WhatsApp OTP, password, then voucher last.
+ *   3. The set-password prompts agree: a guest must only be invited to
+ *      save a password at a venue whose flag is on. Both prompts ask
+ *      `passwordSignInOffered`, so asserting on that helper covers both.
  *
  * WHY IT LOOKS LIKE THIS: this repo has no test runner (see
  * `scripts/ci-gated-test.sh`). `portal-auth-methods.ts` imports nothing at
@@ -82,9 +83,9 @@ function check(name, condition, detail = "") {
 }
 
 /** A resolved config with every method the backend can report turned on --
- * which is close to what a real venue provisioned before this change
- * actually has stored, since `username_password_enabled` defaulted to
- * `true` for every location. */
+ * which is close to what a real venue provisioned before the OTP-first
+ * default actually has stored, since `username_password_enabled` defaulted
+ * to `true` for every location. */
 const ALL_ON = {
   otpSmsEnabled: true,
   otpEmailEnabled: true,
@@ -93,18 +94,37 @@ const ALL_ON = {
   voucherEnabled: true,
 };
 
+/** Same shape, password deliberately off -- every venue provisioned after
+ * the backend default flipped, or one whose admin turned it off. */
+const PW_OFF = {
+  otpSmsEnabled: true,
+  otpEmailEnabled: true,
+  otpWhatsappEnabled: true,
+  usernamePasswordEnabled: false,
+  voucherEnabled: true,
+};
+
+/** The only thing a password-only venue has enabled. */
+const PW_ONLY = {
+  otpSmsEnabled: false,
+  otpEmailEnabled: false,
+  otpWhatsappEnabled: false,
+  usernamePasswordEnabled: true,
+  voucherEnabled: false,
+};
+
 console.log("portal sign-in methods");
 
-// --- 1. Password sign-in is retired ----------------------------------
+// --- 1. Password sign-in is opt-in per venue --------------------------
 {
   check(
-    "the platform switch is off",
-    PASSWORD_SIGN_IN_OFFERED === false,
+    "the platform switch is on",
+    PASSWORD_SIGN_IN_OFFERED === true,
     `PASSWORD_SIGN_IN_OFFERED is ${PASSWORD_SIGN_IN_OFFERED}`,
   );
   check(
-    "password is NOT offered even when the venue's own flag is on",
-    !enabledAuthMethods(ALL_ON).includes("username_password"),
+    "password IS offered when the venue's own flag is on",
+    enabledAuthMethods(ALL_ON).includes("username_password"),
     JSON.stringify(enabledAuthMethods(ALL_ON)),
   );
   check(
@@ -113,25 +133,23 @@ console.log("portal sign-in methods");
     "if this fixture is ever flipped to false the check above proves nothing",
   );
   check(
-    "a venue with ONLY password enabled is offered nothing, not a password form",
-    enabledAuthMethods({
-      otpSmsEnabled: false,
-      otpEmailEnabled: false,
-      otpWhatsappEnabled: false,
-      usernamePasswordEnabled: true,
-      voucherEnabled: false,
-    }).length === 0,
-    "such a venue gets the portal's own 'contact reception' state, which is honest -- " +
-      "offering a form nothing will accept is not",
+    "password is NOT offered when the venue's own flag is off",
+    !enabledAuthMethods(PW_OFF).includes("username_password"),
+    JSON.stringify(enabledAuthMethods(PW_OFF)),
   );
   check(
-    "password is never the method a guest lands on",
-    primaryAuthMethod(ALL_ON) !== "username_password",
-    String(primaryAuthMethod(ALL_ON)),
+    "a venue with ONLY password enabled is offered password, not an empty state",
+    JSON.stringify(enabledAuthMethods(PW_ONLY)) === JSON.stringify(["username_password"]),
+    "offering the form is honest -- the backend flag is the gate, so the form will accept it",
   );
   check(
-    "password is never a 'use X instead' fallback link either",
-    !otherAuthMethods(ALL_ON, "otp_sms").includes("username_password"),
+    "password is what a password-only venue lands on",
+    primaryAuthMethod(PW_ONLY) === "username_password",
+    String(primaryAuthMethod(PW_ONLY)),
+  );
+  check(
+    "password is a 'use X instead' fallback link at a mixed venue",
+    otherAuthMethods(ALL_ON, "otp_sms").includes("username_password"),
     JSON.stringify(otherAuthMethods(ALL_ON, "otp_sms")),
   );
 }
@@ -139,10 +157,15 @@ console.log("portal sign-in methods");
 // --- 2. The set-password prompts go with it --------------------------
 {
   check(
-    "passwordSignInOffered is false for a venue with the flag on",
-    passwordSignInOffered(ALL_ON) === false,
+    "passwordSignInOffered is true for a venue with the flag on",
+    passwordSignInOffered(ALL_ON) === true,
     "portal.verify.tsx's post-OTP hand-off and portal.session.tsx's nudge both ask this -- " +
-      "a guest must never be asked to save a credential nothing will accept",
+      "the guest may be invited to save a password exactly when the venue will accept it",
+  );
+  check(
+    "passwordSignInOffered is false for a venue with the flag off",
+    passwordSignInOffered(PW_OFF) === false,
+    "a guest must never be asked to save a credential the venue will not accept",
   );
   check(
     "passwordSignInOffered tolerates a config that has not resolved yet",
@@ -161,8 +184,9 @@ console.log("portal sign-in methods");
   );
   check("vouchers survive", left.includes("voucher"), JSON.stringify(left));
   check(
-    "the four surviving methods keep their existing priority order",
-    JSON.stringify(left) === JSON.stringify(["otp_sms", "otp_email", "otp_whatsapp", "voucher"]),
+    "the five methods keep their existing priority order",
+    JSON.stringify(left) ===
+      JSON.stringify(["otp_sms", "otp_email", "otp_whatsapp", "username_password", "voucher"]),
     JSON.stringify(left),
   );
   check(
@@ -177,6 +201,7 @@ console.log("portal sign-in methods");
       otpSmsEnabled: false,
       otpEmailEnabled: false,
       otpWhatsappEnabled: false,
+      usernamePasswordEnabled: false,
     }) === "voucher",
   );
   check(
