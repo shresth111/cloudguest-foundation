@@ -74,34 +74,30 @@ const HOTSPOT_FALLBACK_PASSWORD = "welcome123";
 // far less aggressive, which is why MacBooks were unaffected.
 const APPLE_CAPTIVE_SUCCESS_URL = "http://captive.apple.com/hotspot-detect.html";
 
-/** True for iOS/iPadOS clients whose Captive Network Assistant needs to be
- * pointed back at Apple's own detection URL to close -- see
- * `APPLE_CAPTIVE_SUCCESS_URL`. Scoped deliberately narrow so the confirmed-
- * working desktop/MacBook flow is left exactly as it was: a real MacBook
- * reports the same "Macintosh" UA as an iPadOS 13+ Safari, and the one
- * signal that still separates them is a touch screen (`maxTouchPoints`),
- * which a MacBook reports as 0. Classic iPhone/iPod/older-iPad UAs are
- * matched directly.
+/** True only when this browser context is iOS/iPadOS's Captive Network
+ * Assistant websheet -- the one context that needs to be pointed back at
+ * Apple's own detection URL to close.
  *
- * ⚠ WHAT THIS CANNOT ANSWER, stated here because reading it as more than
- * it is cost a real guest-facing defect. A user agent identifies a DEVICE.
- * It cannot distinguish the CNA websheet from ordinary Safari on that same
- * iPhone, and those two need opposite treatment: in the sheet Apple's URL
- * dismisses it and is never seen, while in Safari it strands the guest on
- * a bare page whose entire body is the word "Success" -- no venue
- * branding, no countdown, no way back. That was the founder's QA report
- * ("login redirect is just a message 'success'"), reached by opening the
- * gateway address `10.5.50.1` while already connected.
- *
- * The signal that DOES answer it comes from the router, not the browser --
- * `nasAuthorizedFromSearch`, see src/lib/portal-nas-state.ts. This
- * predicate is now only consulted once that check has already ruled out an
- * already-authorized client. */
-function isAppleCaptiveClient(): boolean {
-  if (typeof navigator === "undefined") return false;
-  const ua = navigator.userAgent || "";
-  if (/iPad|iPhone|iPod/.test(ua)) return true;
-  return /Macintosh/.test(ua) && navigator.maxTouchPoints > 1;
+ * HOW TO TELL THE SHEET FROM ORDINARY SAFARI ON THE SAME DEVICE. A user
+ * agent cannot: it identifies a DEVICE ("this is an iPhone"), and the CNA
+ * websheet and Safari on that iPhone need opposite treatment -- the sheet
+ * must be handed to `captive.apple.com` (whose "Success" body is what makes
+ * it dismiss), while Safari must land on the real `/portal/session` page
+ * (Android behaviour) instead of a bare one-word page with no way back.
+ * The signal that separates them is Web Storage: the CNA treats storage
+ * like private browsing and THROWS on access, exactly as this file's
+ * persistence helpers already document (see `safeGet`/`persistHotspotSubmit`
+ * -- the reason the whole CNA storage-safety suite exists). Ordinary Safari
+ * reads and writes storage normally. So a storage probe answers the
+ * question directly, where the user agent never could. */
+function isCaptiveNetworkAssistant(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    window.sessionStorage.getItem("__cna_probe__");
+    return false;
+  } catch {
+    return true;
+  }
 }
 
 /** Submits username/password to RouterOS's `$(link-login-only)` URL.
@@ -234,7 +230,8 @@ function SuccessPage() {
     // screen. Nothing else on this page can establish that: an app-level
     // `session` says nothing about the NAS (real incident #4, see
     // portal.index.tsx), and a user agent says nothing about which
-    // browser context is looking (see `isAppleCaptiveClient`).
+    // browser context is looking (that takes the storage probe in
+    // `isCaptiveNetworkAssistant`).
     //
     // This is the fix for the founder's QA report. An already-connected
     // iPhone opening the gateway address `10.5.50.1` got `status.html`,
@@ -306,15 +303,22 @@ function SuccessPage() {
     // re-probes") is guaranteed by the NAS itself -- not by a fragile
     // client-side delay we'd have to guess at.
     //
-    // For iOS/iPadOS, `dst` is Apple's captive-detection URL rather than the
-    // real `/portal/session` page: landing the CNA websheet back in this
-    // heavy SPA is exactly what kept the sheet from ever re-probing (the
-    // confirmed root cause). Pointed at `captive.apple.com` through the now-
-    // open gate, the CNA gets Apple's "Success" body, marks the network
-    // online, dismisses, and releases all app traffic -- the guest then opens
-    // their own browser with full internet. The backend session already
-    // exists, so nothing about `/portal/session` is needed inside the sheet.
-    // Every other client keeps the unchanged `/portal/session` hand-off.
+    // For the CNA websheet specifically, `dst` is Apple's captive-detection
+    // URL rather than the real `/portal/session` page: landing the CNA
+    // websheet back in this heavy SPA is exactly what kept the sheet from
+    // ever re-probing (the confirmed root cause). Pointed at
+    // `captive.apple.com` through the now-open gate, the CNA gets Apple's
+    // "Success" body, marks the network online, dismisses, and releases all
+    // app traffic -- the guest then opens their own browser with full
+    // internet. The backend session already exists, so nothing about
+    // `/portal/session` is needed inside the sheet.
+    //
+    // Every OTHER client -- Android, desktop, and ordinary Safari on that
+    // same iPhone (detected via storage access, see
+    // `isCaptiveNetworkAssistant`) -- keeps the unchanged `/portal/session`
+    // hand-off, so an iPhone user signs in with their own browser and lands
+    // on the real connected page exactly as an Android user does, instead
+    // of on Apple's bare one-word "Success" diagnostic page.
     //
     // Reachable ONLY for a client the NAS has NOT already authorized --
     // the guard at the top of this function returned for the other case.
@@ -323,7 +327,7 @@ function SuccessPage() {
     // what is looking) instead of firing for every Apple device that ever
     // loads this page, which is how a guest ended up stranded on Apple's
     // one-word "Success" page in ordinary Safari.
-    const dst = isAppleCaptiveClient()
+    const dst = isCaptiveNetworkAssistant()
       ? APPLE_CAPTIVE_SUCCESS_URL
       : buildSessionUrl(organizationId, locationId, routerId, language, deviceMac);
 

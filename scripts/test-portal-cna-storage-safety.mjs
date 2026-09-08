@@ -377,12 +377,17 @@ console.log("portal captive-network-assistant storage safety");
     );
   }
 
-  // 6. A FRESH login on the same device. The Apple hand-off is the
-  //    confirmed-live fix for the CNA and must survive untouched -- this
-  //    check exists so nobody "fixes" the above by deleting it.
+  // 6. A FRESH login on the same device. The CNA hand-off is the
+  //    confirmed-live fix for the captive sheet and must survive untouched
+  //    -- this check exists so nobody "fixes" the above by deleting it.
+  //    The discriminator is now Web Storage, not the user agent: the CNA
+  //    websheet THROWS on storage access, ordinary Safari on the same
+  //    iPhone does not. So this case uses THROWING storage to stand in for
+  //    the sheet, and asserts the Apple hand-off fires for exactly that
+  //    context (see case 7 for the ordinary-Safari opposite).
   {
     installNavigator("apple");
-    const browser = installBrowser("working", {}, "?hspage=login&organizationId=org-1");
+    const browser = installBrowser(THROWING, {}, "?hspage=login&organizationId=org-1");
     renderAndRunEffects(RUNTIME);
     check(
       "hspage=login: the gate-opening POST still fires",
@@ -390,8 +395,31 @@ console.log("portal captive-network-assistant storage safety");
       `form.submit() called ${browser.submits.length}x`,
     );
     check(
-      "hspage=login: an Apple client is still handed to captive.apple.com so the CNA closes",
+      "hspage=login in the CNA (throwing storage): handed to captive.apple.com so the sheet closes",
       browser.posted.length === 1 && browser.posted[0].dst === APPLE,
+      JSON.stringify(browser.posted),
+    );
+  }
+
+  // 6b. The SAME fresh login in ORDINARY Safari -- an iPhone whose storage
+  //     works. The user agent is identical to the CNA's, but the sheet is
+  //     not what is looking: this is a real browser on the same device, and
+  //     it must land on the real /portal/session page (Android behaviour),
+  //     never on Apple's bare "Success" diagnostic page. This is the
+  //     founder's "login redirect is just a message 'success'" report.
+  {
+    installNavigator("apple");
+    const browser = installBrowser("working", {}, "?hspage=login&organizationId=org-1");
+    renderAndRunEffects(RUNTIME);
+    check(
+      "hspage=login in ordinary Safari (working storage): the gate-opening POST still fires",
+      browser.submits.length === 1,
+      `form.submit() called ${browser.submits.length}x`,
+    );
+    check(
+      "hspage=login in ordinary Safari: dst is the real /portal/session, not Apple's page",
+      browser.posted.length === 1 &&
+        browser.posted[0].dst.startsWith("https://portal.example.com/portal/session?"),
       JSON.stringify(browser.posted),
     );
   }
@@ -411,9 +439,19 @@ console.log("portal captive-network-assistant storage safety");
       `form.submit() called ${browser.submits.length}x`,
     );
     check(
-      "no hspage: the Apple hand-off is unchanged too",
-      browser.posted.length === 1 && browser.posted[0].dst === APPLE,
+      "no hspage in ordinary Safari (working storage): the Apple hand-off does NOT fire -- real page instead",
+      browser.posted.length === 1 &&
+        browser.posted[0].dst.startsWith("https://portal.example.com/portal/session?"),
       JSON.stringify(browser.posted),
+    );
+    check(
+      "no hspage in the CNA (throwing storage): the Apple hand-off still fires",
+      (() => {
+        const b2 = installBrowser(THROWING, {}, "?organizationId=org-1");
+        renderAndRunEffects(RUNTIME);
+        return b2.posted.length === 1 && b2.posted[0].dst === APPLE;
+      })(),
+      "the CNA must still be handed to captive.apple.com to close",
     );
   }
 
