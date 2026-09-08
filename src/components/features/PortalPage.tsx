@@ -128,6 +128,7 @@ const AUTH_OPTIONS: [PortalLoginMethod, string][] = [
   ["email_otp", "Email OTP"],
   ["whatsapp_otp", "WhatsApp OTP"],
   ["voucher", "Voucher"],
+  ["username_password", "Username & password"],
   ["pin", "Portal PIN"],
   ["social", "Social Login"],
 ];
@@ -664,7 +665,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       otpSmsEnabled: authMethods.includes("mobile_otp"),
       otpEmailEnabled: authMethods.includes("email_otp"),
       otpWhatsappEnabled: authMethods.includes("whatsapp_otp"),
-      usernamePasswordEnabled: false,
+      usernamePasswordEnabled: authMethods.includes("username_password"),
       voucherEnabled: authMethods.includes("voucher"),
       resolvedViaLocationOverride: true,
       isOpenNow: true,

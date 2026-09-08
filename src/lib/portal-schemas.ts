@@ -22,6 +22,13 @@ export const portalLoginMethodSchema = z.object({
   email_otp: z.boolean(),
   whatsapp_otp: z.boolean(),
   voucher: z.boolean(),
+  // Real, backend-enforced (`captive_portal_configs
+  // .username_password_enabled` -> `GuestAuthMethod.USERNAME_PASSWORD`) --
+  // the returning-guest password login from the venue-owner's portal flow.
+  // Defaults off (OTP-first venues); enabling it is the admin opt-in that
+  // makes the guest portal offer "Existing user? Sign in with your
+  // password". See `PortalLoginMethod` in src/types/portal.ts.
+  username_password: z.boolean(),
   // Real, backend-enforced (`captive_portal_configs.pin_login_enabled` ->
   // `GuestAuthMethod.PIN`), unlike `pms`/`social` below. See
   // `PortalLoginMethod` in src/types/portal.ts.

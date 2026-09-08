@@ -12,6 +12,14 @@ export type PortalLoginMethod =
   | "email_otp"
   | "whatsapp_otp"
   | "voucher"
+  /** Backend-enforced: `captive_portal_configs.username_password_enabled`
+   * gates `GuestService.login_via_password` (which is itself only offered
+   * to the guest when the platform switch and this flag agree -- see
+   * `portal-auth-methods.ts`'s `PASSWORD_SIGN_IN_OFFERED`). Defaults off on
+   * new venues (OTP-first provisioning); turning it on here is the admin
+   * opt-in that gives a venue the returning-guest password login from the
+   * venue-owner's captive-portal flow. */
+  | "username_password"
   /** Real, backend-enforced sign-in method: `captive_portal_configs
    * .pin_login_enabled` gates `GuestService.login_via_pin` / `POST
    * /guest/login/pin` (see the backend's own `_require_method_enabled`).
@@ -41,6 +49,7 @@ export const LOGIN_METHOD_LABEL: Record<PortalLoginMethod, string> = {
   email_otp: "Email OTP",
   whatsapp_otp: "WhatsApp OTP",
   voucher: "Voucher",
+  username_password: "Username & password",
   pin: "Portal PIN",
   pms: "PMS",
   social: "Social",

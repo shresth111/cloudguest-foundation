@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useEffect, useId, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Checkbox } from "@/components/ui/checkbox";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
@@ -53,6 +53,19 @@ import type { UseGuestSignInReturn } from "./useGuestSignIn";
 export function OtpForm(sign: UseGuestSignInReturn) {
   const { t } = usePortalRuntime();
   const dataConsentId = useId();
+  // Resend confirmation flash: `resentAt` bumps on every successful
+  // resend, and this mirrors it into a briefly-visible "New code sent"
+  // line on the code screen. Without it a resend was silent -- no toast,
+  // no state change -- which invited repeat taps (each spending another
+  // venue SMS). Tied to the code phase only: the phone step renders
+  // before any resend can exist, and the flash expires on its own.
+  const [resentVisible, setResentVisible] = useState(false);
+  useEffect(() => {
+    if (sign.resentAt <= 0) return;
+    setResentVisible(true);
+    const timer = window.setTimeout(() => setResentVisible(false), 2500);
+    return () => window.clearTimeout(timer);
+  }, [sign.resentAt]);
 
   // Consent is now implied by continuing -- no checkbox to tick, matching
   // the reference design's "By clicking Continue, you agree to..." pattern.
@@ -239,6 +252,17 @@ export function OtpForm(sign: UseGuestSignInReturn) {
         {t("sentCodeToPrefix")}{" "}
         <span className="font-semibold text-[var(--pg-ink)]">{sign.target}</span>
       </p>
+      {/* Resend confirmation (see the effect above) -- transient, polite,
+       * never an error banner. Uses the success tone's own token so it
+       * reads as confirmation, not as another problem to solve. */}
+      {resentVisible && (
+        <p
+          role="status"
+          className="text-center text-sm font-medium text-[var(--pg-success,#059669)]"
+        >
+          {t("codeResentConfirm")}
+        </p>
+      )}
       {/* v7 §7.2: `autoComplete` is a required, literal-typed prop -- SC
        * 3.3.8 (AA) is not left resting on the `input-otp` dependency's
        * internal default. */}
@@ -266,7 +290,7 @@ export function OtpForm(sign: UseGuestSignInReturn) {
             type="button"
             onClick={sign.onResendOtp}
             disabled={sign.sendOtpPending}
-            className="font-medium text-[var(--pr-primary,#6366f1)] hover:underline"
+            className="inline-flex min-h-9 items-center px-1.5 font-medium text-[var(--pr-primary,#6366f1)] hover:underline disabled:opacity-50"
           >
             {t("resend")}
           </button>
@@ -277,7 +301,7 @@ export function OtpForm(sign: UseGuestSignInReturn) {
         <button
           type="button"
           onClick={sign.onChangeNumber}
-          className="font-medium text-[var(--pg-ink-muted)] hover:text-[var(--pg-ink)] hover:underline"
+          className="inline-flex min-h-9 items-center px-1.5 font-medium text-[var(--pg-ink-muted)] hover:text-[var(--pg-ink)] hover:underline"
         >
           {/* The label has to follow the channel. A guest who signed in
               with an email address was being offered "Change number" --

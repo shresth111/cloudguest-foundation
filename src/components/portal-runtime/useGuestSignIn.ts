@@ -100,6 +100,7 @@ export function useGuestSignIn() {
     setSession,
     previewMode,
     demoMode,
+    guestIdentifier,
     setGuestIdentifier,
     t,
     dataConsentAccepted,
@@ -278,11 +279,44 @@ export function useGuestSignIn() {
     () => defaultCountryCode(config?.defaultLanguage, config?.locationCountry),
     [config?.defaultLanguage, config?.locationCountry],
   );
-  const [phone, setPhone] = useState(() => otpDraftRef.current?.phone ?? "");
-  const [email, setEmail] = useState(() => otpDraftRef.current?.email ?? "");
+  // Remembered-identifier prefill (reconnect journey): the last identifier
+  // this browser verified is persisted venue-agnostically (see
+  // PortalRuntimeState.guestIdentifier's docstring) -- set on every
+  // successful login and never cleared on logout/session-end. The OTP
+  // draft above only survives mid-flow interruptions (Terms back-nav), so
+  // a guest whose session ended and who returns to /portal/welcome to sign
+  // in again would otherwise face an empty field and re-type the whole
+  // number/email. Seed from the persisted identifier when there is no
+  // fresher draft, splitting phone vs email the same way the verify step
+  // does. A persisted identifier that came from a different channel shape
+  // (say an email while the guest now sits on the SMS tab) simply lands in
+  // the field that matches its shape; the other stays empty.
+  //
+  // The persisted phone identifier is full E.164 (dial code + national, the
+  // value that went over the wire), while the `phone` field below holds
+  // only the national part -- the dial code is the fixed, non-editable
+  // prefix above. So a remembered phone runs through the same
+  // normalization the field's own onChange applies, stripping the venue's
+  // dial code and the trunk prefix back off.
+  const rememberedIdentifier = guestIdentifier?.trim() ?? "";
+  const rememberedIsEmail = rememberedIdentifier.includes("@");
+  const [phone, setPhone] = useState(() => {
+    if (otpDraftRef.current?.phone) return otpDraftRef.current.phone;
+    if (!rememberedIdentifier || rememberedIsEmail) return "";
+    return normalizeNationalPhone(rememberedIdentifier, dialCode);
+  });
+  const [email, setEmail] = useState(
+    () => otpDraftRef.current?.email ?? (rememberedIsEmail ? rememberedIdentifier : ""),
+  );
   const [target, setTarget] = useState(() => otpDraftRef.current?.target ?? "");
   const [code, setCode] = useState("");
   const [otpError, setOtpError] = useState<string | null>(null);
+  // Monotonic counter bumped on every successful resend, so the OTP code
+  // screen can show a brief "code sent again" confirmation (see
+  // OtpForm). A timestamp alone would be useless -- the guest may sit on
+  // the code screen past any fixed window -- while a counter that only
+  // ever moves on an actual resend keeps the flash tied to the real event.
+  const [resentCount, setResentCount] = useState(0);
 
   // Persist the OTP draft whenever any of its fields change (code
   // deliberately excluded -- single-use secret, see module notes). A guest
@@ -386,11 +420,25 @@ export function useGuestSignIn() {
       // OTP-request gate above does not make this one redundant.
       if (handledAsWhitelistRefusal(e, otpChannel === "email" ? "email" : "phone")) return;
       setOtpError(friendlyGuestAuthError(e, "otp_verify"));
+      // A wrong or expired code is exactly the moment the old value must
+      // not sit in the field looking usable: the guest's next action after
+      // reading the error is to type the new code, and the stale six
+      // digits would otherwise have to be selected-and-deleted first (or,
+      // worse, re-submitted by habit). Clear, so the field is ready for
+      // the fresh code with nothing in the way.
+      setCode("");
     },
   });
 
   // ---- Password tab state --------------------------------------------
-  const [identifier, setIdentifier] = useState("");
+  // Identifier seeds from the same remembered value as the OTP fields
+  // above -- a returning password guest whose session ended is the exact
+  // "reconnect -> password login" case of the venue owner's flow, and they
+  // should not re-type the identifier they just used. Password login sends
+  // the raw identifier (the backend accepts phone or email verbatim), so
+  // no channel-shaped normalization applies here -- the E.164/email value
+  // is passed through as-is, matching what `setGuestIdentifier` persisted.
+  const [identifier, setIdentifier] = useState(rememberedIdentifier);
   const [password, setPassword] = useState("");
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
@@ -530,7 +578,14 @@ export function useGuestSignIn() {
       toast.info("Preview mode — connect a real device to test sign-in.");
       return;
     }
-    sendOtp.mutate(target);
+    // Per-call onSuccess on top of the mutation's own: the mutation-level
+    // handler transitions phone -> code, but a resend happens ON the code
+    // screen, where nothing would visibly change -- the very silence that
+    // invited repeat taps (each spending another venue SMS). Bump the
+    // resent counter so the code screen flashes "New code sent".
+    sendOtp.mutate(target, {
+      onSuccess: () => setResentCount((n) => n + 1),
+    });
   };
 
   const onVerifyOtp = () => {
@@ -700,16 +755,27 @@ export function useGuestSignIn() {
   // accepts a session_id from a just-completed, still-active OTP login,
   // started within the last few minutes -- see that endpoint's own
   // docstring; there is no other path to create one). That guest saw a
-  // password tab that could only ever fail for them. Gating the switcher
-  // itself on the same device flag, not just the initial selection, means
-  // a first-time device gets the single OTP form with nothing to pick
-  // between, and only a device that has actually set a password once
-  // graduates to seeing -- and defaulting to -- both tabs. A guest who
-  // forgets that password is still one tap away from OTP, either via this
-  // now-visible tab or `PasswordSignInForm`'s own "Forgot? Use OTP
-  // instead" link -- this only changes what a device with NO password
-  // history is offered, never what one WITH a password can still reach.
-  const showTabs = hasOtp && hasPassword && deviceHasPassword();
+  // password tab that could only ever fail for them.
+  //
+  // The original fix gated the switcher itself on the same device flag,
+  // which fixed the first-time guest but broke the RETURNING guest the
+  // password method exists for: a venue owner's captive-portal flow routes
+  // an existing user with a saved password to password login ("Existing
+  // user -> Password set? -> Password login"), and that guest is exactly
+  // the one arriving on a fresh device (new phone, cleared storage, iOS
+  // CNA websheet) with no `deviceHasPassword()` flag. Locking the tabs
+  // behind the flag forced that returning guest through OTP every visit --
+  // the very cost password login was built to avoid.
+  //
+  // Compromise: the tabs are visible whenever the venue offers both
+  // methods (a returning guest can always reach the password form), while
+  // the device flag still picks the *default* tab (lines above) so a
+  // first-time device opens on OTP with nothing to choose between. A
+  // first-time guest who taps the password tab gets the backend's generic
+  // 401 ("...If you haven't set a password yet, please sign in with a
+  // one-time code instead") and PasswordSignInForm's own "Forgot? Use OTP
+  // instead" link -- recoverable, not a dead end.
+  const showTabs = hasOtp && hasPassword;
   const showChannelSwitcher = !showTabs && hasOtp && enabledOtpChannels.length >= 2;
   const noMethods = !hasOtp && !hasPassword && !hasVoucher;
 
@@ -777,6 +843,7 @@ export function useGuestSignIn() {
     showChannelSwitcher,
     otpChannel,
     otpTabLabel,
+    resentAt: resentCount,
     enabledOtpChannels: enabledOtpChannels.map((c) => ({
       channel: c,
       label: OTP_CHANNEL_META[c].label,

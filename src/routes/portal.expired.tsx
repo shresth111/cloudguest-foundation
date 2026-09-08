@@ -67,10 +67,23 @@ function ExpiredPage() {
 
   const methods = config ? enabledAuthMethods(config) : [];
   const hasPassword = methods.includes("username_password");
-  const hasOtp = methods.includes("otp_sms") || methods.includes("otp_email");
-  const preferredOtp = methods.includes("otp_sms") ? "otp_sms" : "otp_email";
+  const hasOtp =
+    methods.includes("otp_sms") ||
+    methods.includes("otp_email") ||
+    methods.includes("otp_whatsapp");
+  // The OTP a guest is steered to from this screen. SMS is the default
+  // channel everywhere it is enabled; otherwise email; WhatsApp last --
+  // NOT gated out: a WhatsApp-only venue's returning guest must still get
+  // a real "Use WhatsApp OTP instead" action rather than the bare
+  // reconnect fallback (the old `hasOtp` omitted otp_whatsapp, which sent
+  // WhatsApp-only venues to generic copy).
+  const preferredOtp = methods.includes("otp_sms")
+    ? "otp_sms"
+    : methods.includes("otp_email")
+      ? "otp_email"
+      : "otp_whatsapp";
 
-  const goSignIn = (method: "username_password" | "otp_sms" | "otp_email") => {
+  const goSignIn = (method: "username_password" | "otp_sms" | "otp_email" | "otp_whatsapp") => {
     setSelectedMethod(method);
     navigate({ to: "/portal/welcome", search: (prev) => prev });
   };

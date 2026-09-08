@@ -50,6 +50,12 @@ const DEFAULTS: PortalWizardValues = {
     whatsapp_otp: false,
     voucher: false,
     // Off by default, mirroring the backing column's own default
+    // (`captive_portal_configs.username_password_enabled` defaults False on
+    // new venues): password login is the returning-guest opt-in, not a
+    // first-venue default. Turning it on here is what makes the guest
+    // portal offer "Existing user? Sign in with your password".
+    username_password: false,
+    // Off by default, mirroring the backing column's own default
     // (`captive_portal_configs.pin_login_enabled`): a PIN is a materially
     // weaker secret than an OTP, so a venue opts into it deliberately.
     pin: false,

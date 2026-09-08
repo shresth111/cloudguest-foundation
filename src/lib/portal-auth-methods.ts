@@ -27,41 +27,35 @@ export const AUTH_METHOD_PRIORITY: RuntimeAuthMethod[] = [
 ];
 
 /**
- * THE SINGLE SWITCH THAT RETIRES PASSWORD SIGN-IN FROM THE GUEST PORTAL.
- * Flip it back to `true` and every venue whose stored
- * `username_password_enabled` is still on gets it back, unchanged. That is
- * the whole reversal; there is nothing else to undo on this side.
+ * PLATFORM SWITCH FOR PASSWORD SIGN-IN.
  *
- * WHY: asked for twice by the founder. Password sign-in is the
- * returning-guest shortcut -- verify once by OTP, set a password, use
- * phone/email + password from then on. It is real and it works, so
- * removing it has a real cost, stated plainly because it will otherwise be
- * rediscovered in a support ticket: **every returning guest goes back to
- * doing an OTP on every visit.**
+ * True = password is offered to exactly the venues whose stored
+ * `username_password_enabled` is on (legacy venues that never turned it
+ * off keep it; brand-new venues default to off and stay OTP-only unless an
+ * admin enables it in the Portal tab). The backend flag is the gate --
+ * this constant just stops hiding that already-enforced setting from the
+ * guest UI. This is the deliberate opt-in hybrid posture: password login
+ * stays available to venues that want it without forcing it on new ones.
  *
- * WHY A CONSTANT AND NOT DELETION. Three reasons, in order of weight.
+ * WHY IT WAS FALSE: a founder-directed retirement of password sign-in.
+ * The retirement was reversed after a live-flow review showed the venue
+ * owner's own captive-portal flow includes password login ("Existing
+ * user -> Password set? -> Password login"), set-password ("SET IT /
+ * SKIP"), and reconnect-by-password -- and with the constant false those
+ * steps were structurally unreachable for every venue. Re-enabling the
+ * constant restores them for venues whose flag is still on, and nothing
+ * more: the default-off backend flag keeps new venues OTP-first.
  *
- *  1. `username_password` is still a real value of `RuntimeAuthMethod` and
- *     still appears as `auth_method` on live and historical
- *     `guest_sessions` rows. The enum member, its label key, its i18n
- *     strings and `PasswordSignInForm` all stay reachable and correct --
- *     deleting them would break rendering of data that already exists.
- *  2. The backend endpoint deliberately stays in place, still gated by the
- *     venue's own flag, so a venue that has it on today keeps working
- *     until someone turns it off. That is the difference between a
- *     rollout and an outage. Hiding the UI is therefore only half the
- *     removal by design, not by oversight -- and because the set-password
- *     prompt goes with it (see `passwordSignInOffered`), the set of guests
- *     who own a usable password can only shrink from here.
- *  3. A constant is one grep away from the thing to change. A deletion
- *     spread across five files is not.
+ * WHY A CONSTANT AND NOT DELETION (unchanged): `username_password` is
+ * still a real value of `RuntimeAuthMethod`, appears as `auth_method` on
+ * live/historical `guest_sessions` rows, and the backend endpoint stays
+ * flag-gated either way. Deleting the enum member, its i18n strings or
+ * `PasswordSignInForm` would break rendering of data that already exists.
  *
  * Enforced in `isEnabled` below, which is the single place every guest-
- * facing surface and the admin preview both resolve methods through -- so
- * there is no second list that can disagree, which is the property this
- * module's own docstring exists to guarantee.
+ * facing surface and the admin preview both resolve methods through.
  */
-export const PASSWORD_SIGN_IN_OFFERED = false;
+export const PASSWORD_SIGN_IN_OFFERED = true;
 
 /**
  * Does this config offer password sign-in to a guest right now?

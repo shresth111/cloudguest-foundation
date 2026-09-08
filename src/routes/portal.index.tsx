@@ -287,13 +287,8 @@ function PortalLoading() {
             // the column's `gap-3` instead of their own rhythm.
             <div className="space-y-3">
               <PortalTextPlate className="space-y-3">
-                <p className="pg-subtitle text-[var(--pg-ink)]">
-                  This venue's guest WiFi isn't set up yet
-                </p>
-                <p className="max-w-sm text-sm text-[var(--pg-ink-muted)]">
-                  No active sign-in configuration was found for this location. Please ask venue
-                  staff for assistance.
-                </p>
+                <p className="pg-subtitle text-[var(--pg-ink)]">{t("notSetUpTitle")}</p>
+                <p className="max-w-sm text-sm text-[var(--pg-ink-muted)]">{t("notSetUpBody")}</p>
               </PortalTextPlate>
             </div>
           ) : (
@@ -304,10 +299,9 @@ function PortalLoading() {
                * screen's `gap-3` rhythm for no legibility gain. */}
               <div className="space-y-3">
                 <PortalTextPlate className="space-y-3">
-                  <p className="pg-subtitle text-[var(--pg-ink)]">Having trouble connecting</p>
+                  <p className="pg-subtitle text-[var(--pg-ink)]">{t("troubleConnectingTitle")}</p>
                   <p className="max-w-sm pg-meta font-normal text-[var(--pg-ink-muted)]">
-                    This can happen right after joining the WiFi. Check your connection and try
-                    again.
+                    {t("troubleConnectingBody")}
                   </p>
                 </PortalTextPlate>
               </div>
@@ -316,7 +310,7 @@ function PortalLoading() {
                 onClick={retry}
                 className="mt-2 flex min-h-6 items-center gap-2 rounded-full bg-[color-mix(in_srgb,var(--pr-primary,#6366f1)_8%,var(--pg-surface,#fff))] px-5 py-2.5 pg-meta font-medium text-[var(--pr-primary,#6366f1)] hover:bg-[color-mix(in_srgb,var(--pr-primary,#6366f1)_14%,var(--pg-surface,#fff))]"
               >
-                <RefreshCw className="h-4 w-4" /> Try again
+                <RefreshCw className="h-4 w-4" /> {t("tryAgainCta")}
               </button>
             </>
           )}
@@ -403,7 +397,7 @@ function PortalLoading() {
               {config?.name ?? "Wyfy Guest"}
             </p>
             <p className="mt-1 pg-meta font-normal text-[var(--pg-ink-muted)]">
-              {showSlowNotice ? "Still connecting..." : t("loading")}
+              {showSlowNotice ? t("stillConnectingLabel") : t("loading")}
             </p>
           </PortalTextPlate>
         </div>
@@ -422,7 +416,7 @@ function PortalLoading() {
             onClick={retry}
             className="pg-enter flex min-h-6 items-center gap-2 rounded-full bg-[color-mix(in_srgb,var(--pr-primary,#6366f1)_8%,var(--pg-surface,#fff))] px-4 py-2 pg-meta font-medium text-[var(--pr-primary,#6366f1)] hover:bg-[color-mix(in_srgb,var(--pr-primary,#6366f1)_14%,var(--pg-surface,#fff))]"
           >
-            <RefreshCw className="h-3.5 w-3.5" /> Taking a while -- retry
+            <RefreshCw className="h-3.5 w-3.5" /> {t("slowRetryCta")}
           </button>
         )}
       </div>

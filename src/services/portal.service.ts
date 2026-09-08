@@ -333,6 +333,7 @@ const LOGIN_METHOD_FLAGS: Array<{
   { method: "email_otp", flag: "otp_email_enabled" },
   { method: "whatsapp_otp", flag: "otp_whatsapp_enabled" },
   { method: "voucher", flag: "voucher_enabled" },
+  { method: "username_password", flag: "username_password_enabled" },
   { method: "pin", flag: "pin_login_enabled" },
   // Kept, but worth knowing what it is: `social_login_enabled` is a
   // schema-only readiness flag. There is no OAuth integration anywhere in
@@ -354,6 +355,7 @@ function loginMethodFlags(methods: PortalLoginMethod[]): Partial<BackendCaptiveP
     otp_email_enabled: set.has("email_otp"),
     otp_whatsapp_enabled: set.has("whatsapp_otp"),
     voucher_enabled: set.has("voucher"),
+    username_password_enabled: set.has("username_password"),
     pin_login_enabled: set.has("pin"),
     social_login_enabled: set.has("social"),
   };
