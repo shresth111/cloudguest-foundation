@@ -359,13 +359,18 @@ function SessionPage() {
   // the row). Navigate once the clock hits zero -- the same destination the
   // guest reaches by tapping Disconnect, and where the "sign in again" CTA
   // lives. Guarded by `hasExpiry` so a no-expiry session (the common
-  // venue default) is never bounced, and idempotent because navigating
-  // clears the session (setSession(undefined) in the expired handling
-  // path below is not needed here -- leaving the page unmounts this one).
+  // venue default) is never bounced.
+  //
+  // The session is cleared along with navigating (same as Disconnect) --
+  // deliberately. This is a client-side route change inside one
+  // PortalRuntimeProvider, so a session left in place survives the
+  // navigation and would re-hydrate a stale "connected" on the very next
+  // portal load, long after the row behind it was expired.
   useEffect(() => {
     if (!session || !hasExpiry || remainingMs > 0) return;
+    setSession(undefined);
     navigate({ to: "/portal/expired", replace: true, search: (prev) => prev });
-  }, [hasExpiry, remainingMs, session, navigate]);
+  }, [hasExpiry, remainingMs, session, navigate, setSession]);
 
   const bytesUsed = (session?.bytesUploaded ?? 0) + (session?.bytesDownloaded ?? 0);
   const bytesLimit = (session?.dataLimitMb ?? 0) * 1024 * 1024;

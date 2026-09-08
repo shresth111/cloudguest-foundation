@@ -39,12 +39,30 @@ function PortalLoading() {
   const queryClient = useQueryClient();
 
   // A device that already has a locally-persisted session (rehydrated
-  // from sessionStorage -- see PortalRuntimeContext) never needs a live
-  // check; a device with none but a real `deviceMac` (RouterOS's own
-  // trustworthy `$(mac)`) might still have a live RADIUS-authorized
+  // from sessionStorage -- see PortalRuntimeContext) normally never needs
+  // a live check; a device with none but a real `deviceMac` (RouterOS's
+  // own trustworthy `$(mac)`) might still have a live RADIUS-authorized
   // session the browser just doesn't know about yet -- a fresh tab, a
-  // re-scanned QR code, a re-opened captive-portal redirect. Only that
-  // second case hits the backend.
+  // re-scanned QR code, a re-opened captive-portal redirect.
+  //
+  // EXCEPTION, AND WHY IT EXISTS: a load that arrives WITH a fresh NAS
+  // redirect (`hotspotLoginUrl`) is RouterOS telling us, in the same
+  // breath as it re-pages this browser, that this client is currently
+  // UNAUTHORIZED on the hotspot. A rehydrated app-level `session` can be
+  // stale against that: RouterOS's own Session-Timeout / Idle-Timeout
+  // reply attributes (delivered at login, see the backend's
+  // /radius/authorize) drop the guest's hotspot session and re-redirect
+  // them here AFTER the platform row was already ended -- the persisted
+  // session says "connected" while the NAS is asking for a login. Trusting
+  // it blind sent such a guest to /portal/success, whose hotspot-login
+  // POST used the dead session's identifier, got rejected by RADIUS
+  // Authorize (no ACTIVE row), and left them on the connecting spinner
+  // with only the 15s escape hatch -- no expired screen, no sign-in form.
+  // So a redirect-bearing load live-checks even when a persisted session
+  // exists: the backend is the only one that knows whether the session is
+  // genuinely still ACTIVE. A non-redirect load (QR code, bookmark,
+  // document load of the session URL) keeps the old behavior -- it
+  // self-corrects through the NAS document-load path below.
   const {
     data: liveSession,
     isFetched: liveSessionChecked,
@@ -52,7 +70,7 @@ function PortalLoading() {
   } = useQuery({
     queryKey: ["portal-active-session", routerId, deviceMac],
     queryFn: () => portalRuntimeService.checkActiveSession({ routerId, deviceMac: deviceMac! }),
-    enabled: !session && !!deviceMac,
+    enabled: !!deviceMac && (!session || !!hotspotLoginUrl),
     staleTime: 0,
   });
 
@@ -153,8 +171,21 @@ function PortalLoading() {
   // guest back through sign-in.
   useEffect(() => {
     if (isLoading || !config) return;
-    if (!session && deviceMac && !liveSessionChecked) return;
-    const hasSession = !!(session || liveSession);
+    // Wait for the live verdict whenever this load is one the check above
+    // actually runs for: a session-less device, or a fresh-NAS-redirect
+    // load with a persisted session that may be stale against the NAS.
+    if (deviceMac && (hotspotLoginUrl || !session) && !liveSessionChecked) return;
+    const liveSaysDead = !!hotspotLoginUrl && liveSessionChecked && !liveSession;
+    if (liveSaysDead && session) {
+      // The NAS redirected this client AND the backend reports no ACTIVE
+      // session for its MAC: the persisted session is the stale half of a
+      // session RouterOS already timed out (Session-Timeout/Idle-Timeout).
+      // Clear it so the target below sends this guest to expired/welcome --
+      // not to /portal/success, whose hotspot POST would use the dead
+      // session's identifier and be rejected into the connecting spinner.
+      setSession(undefined);
+    }
+    const hasSession = liveSaysDead ? false : !!(session || liveSession);
     // Real incident #4: an existing app-level session says nothing about
     // whether the NAS's own hotspot gate is *currently* open -- RouterOS
     // ties that state to the live pre-auth network attachment, which does
@@ -252,6 +283,7 @@ function PortalLoading() {
     endedSessionResult,
     endedSessionChecked,
     hotspotLoginUrl,
+    setSession,
     navigate,
     // Read by `buildSessionUrl` on the document-load branch above. Stable
     // for the life of this portal link (they come straight off the URL's
