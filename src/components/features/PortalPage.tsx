@@ -343,8 +343,6 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   // exactly as a guest sees it. Null in demo mode / when no image is set.
   const [bgImage, setBgImage] = useState<string | null>(null);
   const [form, setForm] = useState({
-    theme: "enterprise",
-    font: "inter",
     lang: "en, hi, ar",
     redirectUrl: "https://wyfyguest.com/welcome",
     // Empty, deliberately. This used to seed the textarea with the sentence
@@ -1304,32 +1302,6 @@ export function PortalPage({ locationId }: { locationId?: string }) {
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label>Theme</Label>
-                  <Select value={form.theme} onValueChange={(v) => setForm({ ...form, theme: v })}>
-                    <SelectTrigger className="h-9">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="enterprise">Enterprise Blue</SelectItem>
-                      <SelectItem value="dark">Dark</SelectItem>
-                      <SelectItem value="light">Light</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Font</Label>
-                  <Select value={form.font} onValueChange={(v) => setForm({ ...form, font: v })}>
-                    <SelectTrigger className="h-9">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="inter">Inter</SelectItem>
-                      <SelectItem value="poppins">Poppins</SelectItem>
-                      <SelectItem value="system">System</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
                 <div className="space-y-1.5">
                   <Label>Languages</Label>
                   <Input

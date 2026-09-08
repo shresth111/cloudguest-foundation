@@ -127,7 +127,16 @@ function VerifyPage() {
     mutationFn: () =>
       portalRuntimeService.requestOtp({
         identifier: otpTarget ?? "",
-        channel: selectedMethod === "otp_email" ? "email" : "sms",
+        // The channel must echo the one the code was actually sent on --
+        // mapping "anything not email" to sms meant a WhatsApp OTP was
+        // "resent" as an SMS to a number that may have no SMS service
+        // (wasted venue credit, failed resend for the guest).
+        channel:
+          selectedMethod === "otp_whatsapp"
+            ? "whatsapp"
+            : selectedMethod === "otp_email"
+              ? "email"
+              : "sms",
         organizationId,
         locationId,
       }),

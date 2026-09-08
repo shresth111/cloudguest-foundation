@@ -11,7 +11,9 @@
  * keep their own `config?.logoUrl ? <VenueLogo .../> : <Fallback/>` branch;
  * this only removes the duplicated `<img>` markup and its rationale.
  */
+import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { PortalDefaultBrandBadge } from "./PortalDefaultBrandBadge";
 
 const SIZE_CLASSES = {
   // GuestSignInCard's scale (v5 §3.3: logo shouldn't out-size its heading).
@@ -77,6 +79,20 @@ export function VenueLogo({
    * either screen asked for. */
   framed?: boolean;
 }) {
+  // A broken venue logo (asset deleted after upload, CDN hiccup) must not
+  // render the browser's broken-image glyph -- the worst possible first
+  // impression of a venue, indistinguishable from "no logo at all". On
+  // error we swap to the same default brand badge the no-logo branch
+  // renders, so a failed upload degrades exactly like an absent one.
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <PortalDefaultBrandBadge
+        size={size === "lg" ? 72 : size === "md" ? 56 : 48}
+        className={cn("shrink-0", size === "lg" ? "h-24 w-24 sm:h-32 sm:w-32" : undefined)}
+      />
+    );
+  }
   if (framed) {
     return (
       // `rounded-2xl` (this card family's own `rounded-[20px]` radius),
@@ -102,7 +118,12 @@ export function VenueLogo({
           className,
         )}
       >
-        <img src={logoUrl} alt={alt} className="h-full w-full object-contain" />
+        <img
+          src={logoUrl}
+          alt={alt}
+          onError={() => setFailed(true)}
+          className="h-full w-full object-contain"
+        />
       </span>
     );
   }
@@ -110,6 +131,7 @@ export function VenueLogo({
     <img
       src={logoUrl}
       alt={alt}
+      onError={() => setFailed(true)}
       // Height-constrained, width free: `object-contain` inside a fixed
       // WIDTH box (what this was before) preserves aspect ratio by
       // shrinking a horizontal lockup, not by widening its box -- measured

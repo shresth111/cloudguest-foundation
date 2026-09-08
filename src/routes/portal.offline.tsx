@@ -4,6 +4,7 @@ import { PortalShell, PortalTextPlate } from "@/components/portal-runtime/Portal
 import { PG_PRIMARY_BTN } from "@/components/portal-runtime/PortalGuestUi";
 import { GlyphOffline } from "@/components/portal-runtime/PortalGlyphs";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
+import { scriptClassOf } from "@/lib/portal-script";
 
 export const Route = createFileRoute("/portal/offline")({
   errorComponent: PortalErrorScreen,
@@ -42,7 +43,12 @@ function OfflinePage() {
             <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-[color-mix(in_srgb,var(--pg-ink,#1E1B4B)_6%,var(--pg-surface,#fff))] text-[var(--pg-ink-muted)]">
               <GlyphOffline className="h-8 w-8" />
             </div>
-            <h1 className="pg-subtitle mt-5 text-[var(--pg-ink)]">{t("offlineTitle")}</h1>
+            <h1
+              className="pg-subtitle mt-5 text-[var(--pg-ink)]"
+              data-pg-script={scriptClassOf(t("offlineTitle"))}
+            >
+              {t("offlineTitle")}
+            </h1>
             {/* `--pg-ink-muted`, not the hardcoded `text-slate-500` it replaces: v7
              * §1.5 retuned that token #64748B -> #475569, and a slate class does
              * not follow it. 3.36:1 -> 5.36:1 against this plate's own worst

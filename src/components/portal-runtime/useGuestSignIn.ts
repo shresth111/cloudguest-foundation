@@ -373,6 +373,10 @@ export function useGuestSignIn() {
   // screen. A guest never discovers the requirement only after already
   // waiting for and entering a code.
   const onSendOtp = () => {
+    // Double-submit guard: the submit button's `disabled` does not stop a
+    // second Enter-key form submission, and two rapid POST /otp/request
+    // calls mean two SMS/WhatsApp sends (real spend) for one guest.
+    if (sendOtp.isPending || demoBusy) return;
     const id = identifierForChannel.trim();
     const isPhoneChannel = otpChannel !== "email";
     // Was `id.replace(countryCode, "")` -- a substring replace against the
@@ -432,6 +436,7 @@ export function useGuestSignIn() {
   const onResendOtp = () => {
     // DEMO: no network -- just re-arm the cooldown and acknowledge. The demo
     // code already sits in the field, so there is nothing to actually resend.
+    if (sendOtp.isPending || demoBusy) return;
     if (demoMode) {
       resetCooldown();
       toast.info("Code re-sent (demo)");
@@ -445,6 +450,9 @@ export function useGuestSignIn() {
   };
 
   const onVerifyOtp = () => {
+    // Double-submit guard (same reasoning as onSendOtp): two rapid verifies
+    // would race two loginWithOtp calls into duplicate session creation.
+    if (verifyOtp.isPending || demoBusy) return;
     if (code.length !== 6) {
       setOtpError(t("errEnterCode"));
       return;

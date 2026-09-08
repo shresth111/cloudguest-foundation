@@ -266,6 +266,33 @@ function loadPersistedSession(): RuntimeSession | undefined {
   }
 }
 
+/** A persisted session is only trustworthy on the SAME venue/router it was
+ * created on. `cloudguest_portal_session` is a single origin-scoped key, so
+ * without this check a guest who signed in at Venue A hours ago and later
+ * opens a link for Venue B would be rehydrated straight into a false "you're
+ * connected" on a network where they have no session and the NAS will reject
+ * them. Called on every load; returns undefined when the ids don't match so
+ * the normal no-session path (live MAC check / sign-in) runs instead. */
+function loadPersistedSessionForVenue(
+  organizationId: string,
+  locationId: string,
+  routerId: string,
+): RuntimeSession | undefined {
+  const session = loadPersistedSession();
+  if (!session) return undefined;
+  if (
+    session.organizationId !== organizationId ||
+    session.routerId !== routerId ||
+    session.locationId !== locationId
+  ) {
+    // A stale record from another venue must not linger and re-trigger this
+    // mismatch on every later load of the current venue.
+    safeRemove(SESSION_STORAGE_KEY);
+    return undefined;
+  }
+  return session;
+}
+
 function persistSession(session: RuntimeSession | undefined) {
   if (session) safeSet(SESSION_STORAGE_KEY, JSON.stringify(session));
   else safeRemove(SESSION_STORAGE_KEY);
@@ -550,8 +577,12 @@ export function PortalRuntimeProvider({
   const [selectedMethod, setSelectedMethod] = useState<RuntimeAuthMethod | undefined>();
   const [endedSession, setEndedSession] = useState<RuntimeEndedSession | undefined>();
   const [otpTarget, setOtpTarget] = useState<string | undefined>();
+  // Session is seeded through the venue-checked loader: a persisted session
+  // from a DIFFERENT organization/location/router must never rehydrate a
+  // false "you're connected" (see loadPersistedSessionForVenue). The ids
+  // are fixed props of this provider, so this is safe to read once here.
   const [session, setSessionState] = useState<RuntimeSession | undefined>(() =>
-    loadPersistedSession(),
+    loadPersistedSessionForVenue(organizationId, locationId, routerId),
   );
   const [guestIdentifier, setGuestIdentifierState] = useState<string | undefined>(() =>
     loadPersistedIdentifier(),

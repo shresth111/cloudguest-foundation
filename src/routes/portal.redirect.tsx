@@ -6,6 +6,7 @@ import { PG_PRIMARY_BTN } from "@/components/portal-runtime/PortalGuestUi";
 import { GlyphRedirect } from "@/components/portal-runtime/PortalGlyphs";
 import { PostLoginHtmlFrame } from "@/components/portal-runtime/PostLoginHtmlFrame";
 import { hasPostLoginHtml } from "@/lib/post-login-html";
+import { scriptClassOf } from "@/lib/portal-script";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 
 export const Route = createFileRoute("/portal/redirect")({
@@ -209,7 +210,12 @@ function RedirectAffordance({ url, remaining }: { url: string; remaining: number
           <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-[var(--pr-primary,#6366f1)] text-[color:var(--pr-primary-foreground,#ffffff)] shadow-[0_2px_8px_-2px_rgba(30,27,75,0.18)]">
             <GlyphRedirect className="h-7 w-7" />
           </div>
-          <h1 className="pg-subtitle mt-5 text-[var(--pg-ink)]">{t("redirecting")}</h1>
+          <h1
+            className="pg-subtitle mt-5 text-[var(--pg-ink)]"
+            data-pg-script={scriptClassOf(t("redirecting"))}
+          >
+            {t("redirecting")}
+          </h1>
           {/* `--pg-ink-muted`, not the hardcoded `text-slate-500` it replaces: v7
            * §1.5 retuned that token #64748B -> #475569, and a slate class does
            * not follow it. 3.36:1 -> 5.36:1 against this plate's own worst

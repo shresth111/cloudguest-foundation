@@ -24,6 +24,7 @@ import { campaignPortalService } from "@/services/campaign-portal.service";
 import type { AppError } from "@/services/api";
 import { usePortalLinkSearch } from "@/components/portal-runtime/usePortalLinkSearch";
 import { passwordSignInOffered } from "@/lib/portal-auth-methods";
+import { scriptClassOf } from "@/lib/portal-script";
 
 export const Route = createFileRoute("/portal/session")({
   errorComponent: PortalErrorScreen,
@@ -452,7 +453,12 @@ function SessionPage() {
         <div className="mx-auto w-fit max-w-full text-center">
           <PortalTextPlate>
             <ConnectedIllustration className="mx-auto h-28 w-auto sm:h-32" />
-            <h1 className="pg-title mt-3 text-[var(--pg-ink)]">{t("connectedTitle")}</h1>
+            <h1
+              className="pg-title mt-3 text-[var(--pg-ink)]"
+              data-pg-script={scriptClassOf(t("connectedTitle"))}
+            >
+              {t("connectedTitle")}
+            </h1>
             {/* `--pg-ink-muted`, not the hardcoded `text-slate-500` it replaces: v7
              * §1.5 retuned that token #64748B -> #475569, and a slate class does
              * not follow it. 3.36:1 -> 5.36:1 against this plate's own worst

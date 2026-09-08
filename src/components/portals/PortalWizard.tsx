@@ -116,7 +116,6 @@ export function PortalWizard({
       branding: {
         primaryColor: v.branding.primaryColor,
         secondaryColor: v.branding.secondaryColor,
-        fontFamily: v.branding.fontFamily,
         borderRadius: v.branding.borderRadius,
         logoUrl: v.branding.logoUrl || undefined,
         backgroundUrl: v.branding.backgroundUrl || undefined,
@@ -305,31 +304,6 @@ export function PortalWizard({
                     onChange={(e) => setValue("branding.secondaryColor", e.target.value)}
                   />
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Font family</Label>
-                <Select
-                  value={values.branding.fontFamily}
-                  onValueChange={(v) => setValue("branding.fontFamily", v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[
-                      "Inter",
-                      "SF Pro Text",
-                      "Playfair Display",
-                      "Roboto",
-                      "Poppins",
-                      "IBM Plex Sans",
-                    ].map((f) => (
-                      <SelectItem key={f} value={f}>
-                        {f}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
               <div className="space-y-2">
                 <Label>Border radius: {values.branding.borderRadius}px</Label>
