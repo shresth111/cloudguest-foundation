@@ -44,6 +44,8 @@ import {
 } from "@/components/ui/select";
 import { StatCard } from "@/components/ui-ext";
 import type { StatTone } from "@/components/ui-ext";
+import { GuestHistoryDrawer } from "@/components/guests/GuestHistoryDrawer";
+import { cn } from "@/lib/utils";
 import { businessTypeIcon } from "@/lib/business-type-icons";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { useLocationResources } from "@/hooks/useWorkspace";
@@ -272,7 +274,7 @@ function LocationWorkspacePage() {
                 <GuestWifiTab resources={resources} />
               </TabsContent>
               <TabsContent value="guests">
-                <GuestsTab resources={resources} />
+                <GuestsTab resources={resources} organizationId={customer?.id} />
               </TabsContent>
               <TabsContent value="monitoring">
                 <MonitoringTab resources={resources} locationId={location.id} />
@@ -1112,7 +1114,18 @@ function PortalFact({ label, value }: { label: string; value: string }) {
 
 /* ---------- Guests ---------- */
 
-function GuestsTab({ resources }: { resources: LocationResources }) {
+function GuestsTab({
+  resources,
+  organizationId,
+}: {
+  resources: LocationResources;
+  organizationId?: string;
+}) {
+  const [selectedGuest, setSelectedGuest] = useState<{
+    guestId: string | null;
+    title: string;
+    subtitle?: string;
+  } | null>(null);
   if (resources.guestSessions.length === 0)
     return <EmptyState title="No guest sessions" body="No guest sessions found yet." />;
   return (
@@ -1132,7 +1145,18 @@ function GuestsTab({ resources }: { resources: LocationResources }) {
               </TableHeader>
               <TableBody>
                 {resources.guestSessions.map((g) => (
-                  <TableRow key={g.id}>
+                  <TableRow
+                    key={g.id}
+                    className={cn(g.guestId && "cursor-pointer")}
+                    onClick={() => {
+                      if (!g.guestId) return;
+                      setSelectedGuest({
+                        guestId: g.guestId,
+                        title: guestLabel(g),
+                        subtitle: new Date(g.startedAt).toLocaleString(),
+                      });
+                    }}
+                  >
                     <TableCell className="font-medium">{guestLabel(g)}</TableCell>
                     <TableCell>
                       <Badge variant="outline">
@@ -1153,6 +1177,16 @@ function GuestsTab({ resources }: { resources: LocationResources }) {
           </div>
         </CardContent>
       </Card>
+      <GuestHistoryDrawer
+        open={!!selectedGuest}
+        onOpenChange={(open) => {
+          if (!open) setSelectedGuest(null);
+        }}
+        guestId={selectedGuest?.guestId ?? null}
+        organizationId={organizationId}
+        masked={false}
+        seed={selectedGuest}
+      />
     </div>
   );
 }
