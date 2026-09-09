@@ -17,10 +17,12 @@
  *   - "redirect"-> the venue set a redirect URL (or the guest had a real
  *                 pre-hotspot destination, `destinationUrl`, which keeps
  *                 precedence exactly as the old session page's Continue
- *                 button gave it). No countdown, no intermediate page:
- *                 portal.success.tsx points the NAS `dst` straight at it
- *                 when a NAS POST is happening, and portal.session.tsx
- *                 bounces to it otherwise.
+ *                 button gave it -- EXCEPT for OS captive-detection probes,
+ *                 which are never "a real destination" and are ignored,
+ *                 see `isCaptiveProbeUrl`). No countdown, no intermediate
+ *                 page: portal.success.tsx points the NAS `dst` straight
+ *                 at it when a NAS POST is happening, and
+ *                 portal.session.tsx bounces to it otherwise.
  *   - "default" -> neither; the built-in connected page on
  *                 /portal/session is the destination (unchanged).
  *
@@ -61,6 +63,46 @@ export function isSafeRedirectTarget(candidate: string): boolean {
   }
 }
 
+/**
+ * OS captive-detection probes, which must never become a guest's
+ * post-login destination.
+ *
+ * WHY THIS EXISTS: on iOS the router's `$(link-orig)` IS Apple's probe
+ * (`http://captive.apple.com/hotspot-detect.html`), because the captive
+ * sheet's pre-auth request is the probe itself. The "send the guest back
+ * where they were going" rule therefore sent a freshly-logged-in iPhone
+ * straight to Apple's bare one-word "Success" page (founder QA: "login
+ * redirect is just a message 'success'"). Android never sees it the same
+ * way, because its pre-auth request and post-login flow do not coincide.
+ * The guest was not "going" anywhere when the OS probed -- these URLs are
+ * ignored as destinations, and the venue's own redirect URL (or the
+ * connected page) is used instead.
+ *
+ * The set covers the probes of the four captive-portal-aware OSes/apps:
+ * Apple (`captive.apple.com/hotspot-detect.html`), Windows NCSI
+ * (`*.msftconnecttest.com/redirect.txt`), Android/Chrome
+ * (`connectivitycheck.gstatic.com/generate_204`,
+ * `connectivitycheck.android.com`), and Firefox
+ * (`detectportal.firefox.com/canonical.html`). Anything not in the set is
+ * treated as a real destination.
+ */
+export function isCaptiveProbeUrl(candidate: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(candidate);
+  } catch {
+    return false;
+  }
+  const host = parsed.hostname.toLowerCase();
+  const path = parsed.pathname;
+  if (host === "captive.apple.com" || host.endsWith(".captive.apple.com")) return true;
+  if (host === "msftconnecttest.com" || host.endsWith(".msftconnecttest.com")) return true;
+  if (host === "connectivitycheck.android.com") return true;
+  if (host.endsWith(".gstatic.com") && path === "/generate_204") return true;
+  if (host === "detectportal.firefox.com") return true;
+  return false;
+}
+
 export interface PostLoginDestination {
   /** The mode that decides what portal.session.tsx renders. */
   mode: PostLoginMode;
@@ -79,7 +121,12 @@ export function resolvePostLoginDestination(
   destinationUrl?: string | null,
 ): PostLoginDestination {
   const html = hasPostLoginHtml(config?.postLoginHtml) ? config!.postLoginHtml : null;
-  const raw = destinationUrl || config?.redirectUrl || null;
+  // The guest's own pre-hotspot destination keeps precedence over the
+  // venue redirect -- except when it is an OS captive-detection probe
+  // (on iOS that is literally `captive.apple.com/hotspot-detect.html`),
+  // which is not a destination the guest chose and must never become one.
+  const guestUrl = destinationUrl && !isCaptiveProbeUrl(destinationUrl) ? destinationUrl : null;
+  const raw = guestUrl || config?.redirectUrl || null;
   const url = raw && isSafeRedirectTarget(raw) ? raw : undefined;
   const mode: PostLoginMode = html ? "html" : url ? "redirect" : "default";
   return { mode, html, url };

@@ -36,7 +36,7 @@ await build({
   alias: { "@": SRC },
 });
 
-const { resolvePostLoginDestination, isSafeRedirectTarget } = await import(
+const { resolvePostLoginDestination, isSafeRedirectTarget, isCaptiveProbeUrl } = await import(
   join(work, "bundle.mjs")
 );
 
@@ -100,6 +100,65 @@ console.log("post-login destination");
   check(
     "undefined config (not yet resolved) is default, not a crash",
     resolvePostLoginDestination(undefined).mode === "default",
+  );
+}
+
+// --- 1b. OS captive-detection probes are never a destination ----------
+//
+// Founder QA, live iPhone: the router's `$(link-orig)` on iOS IS Apple's
+// probe (`http://captive.apple.com/hotspot-detect.html`), so the "guest's
+// own pre-hotspot destination" rule sent a freshly-logged-in iPhone
+// straight back to Apple's bare one-word "Success" page. Android never
+// sees it (its pre-auth request and post-login flow don't coincide), which
+// is the whole "why does iOS show Success and Android doesn't" report.
+{
+  check(
+    "Apple's probe as destinationUrl does not create redirect mode",
+    resolvePostLoginDestination(CFG, "http://captive.apple.com/hotspot-detect.html").mode ===
+      "default",
+  );
+  check(
+    "the Apple probe never leaks through as the destination URL",
+    resolvePostLoginDestination(CFG, "http://captive.apple.com/hotspot-detect.html").url ===
+      undefined,
+  );
+  check(
+    "a probed destinationUrl does not shadow the venue's own redirect URL",
+    resolvePostLoginDestination(
+      { postLoginHtml: null, redirectUrl: "https://venue.example" },
+      "http://captive.apple.com/hotspot-detect.html",
+    ).url === "https://venue.example",
+  );
+  check(
+    "a real pre-hotspot destination still beats the venue redirect",
+    resolvePostLoginDestination(
+      { postLoginHtml: null, redirectUrl: "https://venue.example" },
+      "https://guest-was-going.example",
+    ).url === "https://guest-was-going.example",
+  );
+  check(
+    "isCaptiveProbeUrl recognises captive.apple.com",
+    isCaptiveProbeUrl("http://captive.apple.com/hotspot-detect.html") === true,
+  );
+  check(
+    "isCaptiveProbeUrl recognises https captive.apple.com",
+    isCaptiveProbeUrl("https://captive.apple.com/hotspot-detect.html") === true,
+  );
+  check(
+    "isCaptiveProbeUrl recognises Windows NCSI",
+    isCaptiveProbeUrl("http://www.msftconnecttest.com/redirect.txt") === true,
+  );
+  check(
+    "isCaptiveProbeUrl recognises Android generate_204",
+    isCaptiveProbeUrl("http://connectivitycheck.gstatic.com/generate_204") === true,
+  );
+  check(
+    "isCaptiveProbeUrl recognises Firefox probe",
+    isCaptiveProbeUrl("http://detectportal.firefox.com/canonical.html") === true,
+  );
+  check(
+    "isCaptiveProbeUrl leaves a real URL alone",
+    isCaptiveProbeUrl("https://guest-was-going.example/wifi") === false,
   );
 }
 
