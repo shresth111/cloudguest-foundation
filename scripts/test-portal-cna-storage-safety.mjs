@@ -422,6 +422,35 @@ console.log("portal captive-network-assistant storage safety");
     );
   }
 
+  // 6c. A venue WITH a redirect URL configured: real browsers go STRAIGHT
+  //     to it after login (redirect mode), but the CNA websheet must land on
+  //     the connected /portal/session page instead -- an external target is
+  //     meaningless inside the sheet, and sending it there is how a freshly
+  //     logged-in iPhone ended up on the venue's redirect URL (google.com)
+  //     instead of the connected page (QA: "status page like Android, no
+  //     google"). Same storage-throw discriminator as case 6.
+  {
+    const REDIRECT_CFG = { config: { postLoginHtml: null, redirectUrl: "https://google.com" } };
+    installNavigator("apple");
+    const safariBrowser = installBrowser("working", {}, "?hspage=login&organizationId=org-1");
+    renderAndRunEffects({ ...RUNTIME, ...REDIRECT_CFG });
+    check(
+      "hspage=login in ordinary Safari with a venue redirect: dst is the redirect URL",
+      safariBrowser.posted.length === 1 && safariBrowser.posted[0].dst === "https://google.com",
+      JSON.stringify(safariBrowser.posted),
+    );
+    installNavigator("apple");
+    const cnaBrowser = installBrowser(THROWING, {}, "?hspage=login&organizationId=org-1");
+    renderAndRunEffects({ ...RUNTIME, ...REDIRECT_CFG });
+    check(
+      "hspage=login in the CNA with a venue redirect: dst is /portal/session, never the redirect URL",
+      cnaBrowser.posted.length === 1 &&
+        cnaBrowser.posted[0].dst.startsWith(SESSION_PREFIX) &&
+        cnaBrowser.posted[0].dst !== "https://google.com",
+      JSON.stringify(cnaBrowser.posted),
+    );
+  }
+
   // 7. THE WHOLE FLEET TODAY. No router in the field stamps `hspage` yet
   //    -- those pages live in the device's own flash/hotspot/ directory
   //    and this repo cannot deploy to one. "Absent" must therefore mean
