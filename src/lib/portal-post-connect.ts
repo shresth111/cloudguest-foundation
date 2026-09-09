@@ -28,9 +28,12 @@
  *    `scripts/test-portal-cna-storage-safety.mjs`.
  *
  * ⚠ A LIMIT OF THIS WHOLE SURFACE, stated here because it is easy to
- * forget: iOS guests are handed off to `captive.apple.com` on success so
- * the CNA dismisses itself, which means a large share of guests never load
- * `/portal/session` at all and never see any of these cards. Nothing here
+ * forget: guests who sign in inside iOS's Captive Network Assistant DO load
+ * `/portal/session` (the portal no longer hands anyone to
+ * `captive.apple.com`), but iOS closes the sheet on its own once its
+ * captive re-probe passes through the open gate -- often before a guest can
+ * interact -- so these cards are at their strongest for guests in a real
+ * browser (Android, desktop, iOS Safari). Nothing here
  * assumes otherwise -- every rule is "if this page renders", never "each
  * guest will be asked once". Any counter built on these cards measures
  * guests who reached the page, not guests who connected.

@@ -6326,9 +6326,10 @@ export function buildRouterSetupScriptChunks(opts: {
       // both directions. On iOS that is not cosmetic: the Captive Network
       // Assistant holds the interface in the captive state and keeps app
       // traffic pinned to the portal host -- the confirmed-live failure
-      // `portal.success.tsx` already sends `dst` to `captive.apple.com`
-      // to escape, and an option-114 poll re-asserts exactly the state
-      // that escape exists to clear.
+      // the open NAS gate clears (the portal's own gate-opening login lets
+      // iOS's captive re-probe pass, which is what dismisses the sheet),
+      // and an option-114 poll re-asserts exactly the state
+      // that passing probe clears.
       //
       // WHAT THIS COSTS, HONESTLY. The chunk existed for one case: a
       // cabled macOS laptop never opens its Captive Network Assistant on

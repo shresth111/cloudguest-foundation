@@ -306,8 +306,9 @@ function SessionPage() {
   // it (html), bounces to it (redirect), or is it (default, unchanged).
   const destination = resolvePostLoginDestination(config, destinationUrl);
   // Never auto-redirect inside Apple's captive websheet: it cannot be
-  // navigated to an arbitrary page (it must be dismissed via the Apple URL
-  // on /portal/success), and trying reads as a broken redirect.
+  // navigated to an arbitrary page (iOS closes the sheet itself once its
+  // own captive re-probe succeeds through the now-open gate -- see
+  // @/lib/portal-cna), and trying reads as a broken redirect.
   const inCna = isCaptiveNetworkAssistant();
   const [now, setNow] = useState(0);
   const [disconnectError, setDisconnectError] = useState<string | null>(null);

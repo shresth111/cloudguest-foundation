@@ -14,20 +14,28 @@
  * That page is not ours. It is Apple's own captive-detection endpoint,
  * `http://captive.apple.com/hotspot-detect.html`, whose entire body is
  * `<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>`.
- * `portal.success.tsx` navigates there deliberately: inside iOS's Captive
- * Network Assistant that body is what makes the sheet mark the network
- * online and dismiss itself, which is the whole reason the redirect exists
- * (see `APPLE_CAPTIVE_SUCCESS_URL`'s own docstring, and the confirmed-live
- * incident behind it -- it must NOT simply be deleted).
+ * The portal used to navigate freshly-logged-in clients there deliberately,
+ * so that iOS's Captive Network Assistant would mark the network online and
+ * dismiss -- and that redirect is exactly what guests SAW as a bare
+ * one-word page after login (Android never shows it). The portal no longer
+ * points any client at that URL: the sheet is closed by iOS's OWN captive
+ * re-probe once the NAS gate is open (the probe reaches Apple's endpoint
+ * through the open gate and gets the Success body by itself) -- see
+ * @/lib/portal-cna. What is left of the original incident is the UA test
+ * that chose the URL for ORDINARY Safari too, which is what the router's
+ * `hspage` answer below replaces.
  *
- * The bug is not the redirect. It is that the redirect was chosen by
- * `isAppleCaptiveClient()`, a USER-AGENT test. A user agent answers "is
- * this an Apple touch device". It cannot answer "is this the CNA websheet
- * or is it ordinary Safari", and those two need opposite treatment:
+ * The bug was the redirect itself, chosen by `isAppleCaptiveClient()`, a
+ * USER-AGENT test. A user agent answers "is this an Apple touch device".
+ * It cannot answer "is this the CNA websheet or is it ordinary Safari" --
+ * and pointing EITHER at Apple's diagnostic page is wrong:
  *
- *   - CNA websheet   -> Apple's URL is right. The sheet dismisses and the
- *                       guest goes on with their own browser. They never
- *                       see the page at all.
+ *   - CNA websheet   -> navigating it to Apple's page is what left the
+ *                       sheet showing a bare one-word "Success" page after
+ *                       login. The sheet closes on its own once iOS's
+ *                       captive re-probe passes through the now-open NAS
+ *                       gate; it does not need the portal to navigate it
+ *                       anywhere (see @/lib/portal-cna).
  *   - ordinary Safari -> Apple's URL is a dead end. The guest is dropped
  *                       on a diagnostic page with no venue branding, no
  *                       session countdown, no disconnect button, and no

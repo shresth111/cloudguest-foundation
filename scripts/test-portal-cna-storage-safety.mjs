@@ -334,22 +334,18 @@ console.log("portal captive-network-assistant storage safety");
 // are the same screen, described from two ends. It is not our page, it
 // carries no venue branding, no countdown and no way back.
 //
-// The redirect itself is deliberate and must NOT be deleted: inside iOS's
-// Captive Network Assistant that body is what makes the sheet mark the
-// network online and dismiss, and a MacBook was confirmed live reaching
-// full internet through it. The defect was that it was chosen by
-// `isAppleCaptiveClient()`, a USER-AGENT test, which cannot tell the CNA
-// websheet apart from ordinary Safari on the same iPhone -- so an
-// already-connected guest who simply opened the gateway address got a
-// pointless re-login and then Apple's diagnostic page.
-//
-// The fix is to ask the router instead: RouterOS serves `alogin.html` /
-// `status.html` ONLY to a client its hotspot has already authorized, and
-// those pages now stamp `hspage` on the portal URL. These cases drive the
-// REAL `attemptSubmit` over both answers and over the third one that
-// matters most -- "the router did not say", which is every device in the
-// field until it is re-provisioned, and which must behave exactly as it
-// does today.
+// The portal used to hand freshly-logged-in clients to that URL on purpose,
+// on the theory that the CNA websheet had to be navigated there to close.
+// That redirect is exactly what a guest SAW as a bare one-word page after
+// login (Android never shows it), so the portal no longer points ANY
+// client at it -- CNA sheet and ordinary Safari alike land on the real
+// `/portal/session` page (Android behaviour). Closing the sheet is the
+// OS's own job: once the NAS gate is open, iOS's own captive re-probe
+// reaches Apple's endpoint through the open gate and gets the Success
+// body by itself. These cases drive the REAL `attemptSubmit` over both
+// `hspage` answers and over the third one that matters most -- "the router
+// did not say", which is every device in the field until it is
+// re-provisioned, and which must behave exactly as it does today.
 {
   const APPLE = "http://captive.apple.com/hotspot-detect.html";
   const SESSION_PREFIX = "https://portal.example.com/portal/session?";
@@ -377,14 +373,14 @@ console.log("portal captive-network-assistant storage safety");
     );
   }
 
-  // 6. A FRESH login on the same device. The CNA hand-off is the
-  //    confirmed-live fix for the captive sheet and must survive untouched
-  //    -- this check exists so nobody "fixes" the above by deleting it.
-  //    The discriminator is now Web Storage, not the user agent: the CNA
-  //    websheet THROWS on storage access, ordinary Safari on the same
-  //    iPhone does not. So this case uses THROWING storage to stand in for
-  //    the sheet, and asserts the Apple hand-off fires for exactly that
-  //    context (see case 7 for the ordinary-Safari opposite).
+  // 6. A FRESH login on the same device, inside the CNA websheet (Web
+  //    Storage THROWS -- the sheet treats storage like private browsing,
+  //    which is the discriminator the storage probe in portal-cna.ts is
+  //    built on). The gate-opening POST must still fire, and its `dst`
+  //    must be the real /portal/session page: the portal no longer hands
+  //    the sheet to captive.apple.com (the old hand-off is exactly the
+  //    bare "Success" page a guest saw after login), and the sheet closes
+  //    on its own once iOS's re-probe passes through the now-open gate.
   {
     installNavigator("apple");
     const browser = installBrowser(THROWING, {}, "?hspage=login&organizationId=org-1");
@@ -395,8 +391,10 @@ console.log("portal captive-network-assistant storage safety");
       `form.submit() called ${browser.submits.length}x`,
     );
     check(
-      "hspage=login in the CNA (throwing storage): handed to captive.apple.com so the sheet closes",
-      browser.posted.length === 1 && browser.posted[0].dst === APPLE,
+      "hspage=login in the CNA (throwing storage): dst is the real /portal/session, never captive.apple.com",
+      browser.posted.length === 1 &&
+        browser.posted[0].dst.startsWith(SESSION_PREFIX) &&
+        browser.posted[0].dst !== APPLE,
       JSON.stringify(browser.posted),
     );
   }
@@ -439,19 +437,23 @@ console.log("portal captive-network-assistant storage safety");
       `form.submit() called ${browser.submits.length}x`,
     );
     check(
-      "no hspage in ordinary Safari (working storage): the Apple hand-off does NOT fire -- real page instead",
+      "no hspage (any context): dst is the real /portal/session -- captive.apple.com never appears",
       browser.posted.length === 1 &&
         browser.posted[0].dst.startsWith("https://portal.example.com/portal/session?"),
       JSON.stringify(browser.posted),
     );
     check(
-      "no hspage in the CNA (throwing storage): the Apple hand-off still fires",
+      "no hspage in the CNA (throwing storage): same real destination, never Apple's page",
       (() => {
         const b2 = installBrowser(THROWING, {}, "?organizationId=org-1");
         renderAndRunEffects(RUNTIME);
-        return b2.posted.length === 1 && b2.posted[0].dst === APPLE;
+        return (
+          b2.posted.length === 1 &&
+          b2.posted[0].dst.startsWith("https://portal.example.com/portal/session?") &&
+          b2.posted[0].dst !== APPLE
+        );
       })(),
-      "the CNA must still be handed to captive.apple.com to close",
+      "the CNA lands on /portal/session like every other client; iOS closes the sheet itself",
     );
   }
 

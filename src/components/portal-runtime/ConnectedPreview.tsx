@@ -32,10 +32,12 @@ import type { RuntimeSession } from "@/types/portal-runtime";
  * operator switches which guest they are looking at -- honestly, one at a
  * time, exactly as the guest-side rules would produce them.
  *
- * ⚠ Coverage caveat, deliberately visible: a guest on iOS is handed off to
- * `captive.apple.com` on success so the Captive Network Assistant
- * dismisses, which means they never load `/portal/session` and never see
- * ANY of this. Nothing here pretends otherwise -- the surrounding card says
+ * ⚠ Coverage caveat, deliberately visible: a guest on iOS who signs in
+ * inside Apple's captive sheet DOES land on `/portal/session` (the portal
+ * no longer hands anyone to `captive.apple.com`), but iOS closes the sheet
+ * on its own once its re-probe passes -- often before a guest can
+ * interact, so the cards are at their strongest for guests in a real
+ * browser. Nothing here pretends otherwise -- the surrounding card says
  * so in the operator's own language.
  */
 

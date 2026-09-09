@@ -267,11 +267,14 @@ function PostConnectRow({
  * It carries the reach caveat, and that placement is deliberate: this is
  * the spot a venue owner looks at to answer "is this working", so it is
  * the spot where the denominator has to be honest. Every post-connect card
- * lives on `/portal/session`, and iPhone and iPad guests never load that
- * page -- `portal.success.tsx` hands them to `captive.apple.com` on
- * purpose, because that is the only thing that makes iOS's Captive Network
- * Assistant dismiss itself and release the guest's traffic. So these
- * counts are over Android and desktop guests, always.
+ * lives on `/portal/session`, which every device now lands on after login
+ * (the iOS Captive Network Assistant sheet included -- the portal no
+ * longer hands anyone to `captive.apple.com`). But iOS dismisses that
+ * sheet on its own as soon as its captive re-probe passes through the open
+ * gate, often before a guest can interact, so sustained interaction with
+ * these cards still effectively comes from real browsers -- Android,
+ * desktop, and iOS in Safari. So these counts are best read as "guests who
+ * reached the page in a browser", not "everyone who connected".
  *
  * Saying it here rather than only in a code comment or a help article is
  * the whole point. A count labelled plainly, that silently excludes every
@@ -1566,9 +1569,11 @@ export function PortalPage({ locationId }: { locationId?: string }) {
               It comes back because a venue asked for the one thing it is
               genuinely for: showing guests a MENU inside the captive portal.
               And this is the only surface that can. A menu shown after
-              connecting reaches Android and desktop guests only, because iOS
-              guests are handed to captive.apple.com the moment the gate
-              opens and never load `/portal/session`. This step runs BEFORE
+              connecting is at its strongest on Android and desktop (and iOS
+              browsing in Safari); iOS guests who sign in inside the CNA
+              sheet do land on this page, but the sheet closes itself once
+              iOS's own re-probe passes, so it is not a surface to bet a
+              menu on. This step runs BEFORE
               sign-in, on every device, on the one screen every guest sees.
 
               The catch, and the reason "Image" leads rather than an external
@@ -1821,18 +1826,20 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                   venue is deciding how many to make -- not in a help
                   article and not only in a code comment. The connected
                   screen is the only surface any of this renders on, and
-                  iOS guests never load it (portal.success.tsx hands them
-                  to captive.apple.com so the CNA dismisses and their
-                  traffic is released -- deliberate, and the fix for a real
-                  "authenticated but no internet" incident). Shown only
+                  every device now lands there after login -- but iOS
+                  closes the CNA sheet itself once its captive re-probe
+                  passes through the open gate, often before a guest can
+                  interact, so these asks are at their strongest for guests
+                  in a real browser (Android, desktop, iOS Safari). Shown only
                   once at least one ask is on: with nothing enabled there
                   is no reach to qualify, and the line would just be
                   noise. */}
                 {askCount > 0 && (
                   <p className="mt-2 border-t pt-2 text-xs text-muted-foreground">
-                    These reach guests on Android phones and laptops. iPhone and iPad guests are
-                    sent straight to the internet the moment they connect, so they never open the
-                    screen these cards are on.
+                    These reach guests on Android phones and laptops (and iPhones browsing in
+                    Safari). iPhones that sign in inside Apple's pop-up do open this screen, but iOS
+                    closes the pop-up on its own once the connection is live, so those guests rarely
+                    get to use it.
                   </p>
                 )}
               </div>
@@ -2125,17 +2132,19 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                 </div>
               </div>
               {/* Stated where the venue is looking at the screen it applies
-                  to. iOS guests are handed off to captive.apple.com on
-                  success so the Captive Network Assistant closes itself,
-                  which means they never load the connected screen at all --
-                  so these settings reach fewer guests than the sign-in
-                  screen does. We are not guessing at the share: the only
-                  device-mix figures available are seeded, not real. */}
+                  to. Every device now lands on the connected screen after
+                  login -- including Apple's captive sheet. iOS closes that
+                  sheet itself once its own re-probe passes through the open
+                  gate, often before a guest can interact, so these settings
+                  are still at their strongest for guests in a real browser
+                  (Android, desktop, iOS Safari). We are not guessing at the
+                  share: the only device-mix figures available are seeded,
+                  not real. */}
               {previewTab === "connected" && (
                 <p className="mt-3 rounded-lg bg-white/5 px-3 py-2 text-[11px] leading-relaxed text-white/60">
-                  Guests on iPhones and iPads are sent straight to the internet when they connect,
-                  so many of them never open this screen. Anything you switch on here reaches the
-                  guests who do.
+                  Every device lands on this screen after sign-in, but iPhones that sign in inside
+                  Apple's pop-up may have it closed again by iOS within moments. Anything you switch
+                  on here is seen most reliably by guests in a regular browser.
                 </p>
               )}
               <p className="mt-3 text-center text-[11px] text-white/50">

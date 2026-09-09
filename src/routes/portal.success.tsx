@@ -14,7 +14,7 @@ import { buildSessionUrl } from "@/lib/portal-session-url";
 import { nasAuthorizedFromSearch } from "@/lib/portal-nas-state";
 import { PORTAL_SLOW_NOTICE_DELAY_MS } from "@/lib/portal-post-connect";
 import { usePortalLinkSearch } from "@/components/portal-runtime/usePortalLinkSearch";
-import { APPLE_CAPTIVE_SUCCESS_URL, isCaptiveNetworkAssistant } from "@/lib/portal-cna";
+import { isCaptiveNetworkAssistant } from "@/lib/portal-cna";
 import { resolvePostLoginDestination } from "@/lib/portal-post-login";
 
 // v4 §6.1: the same "taking longer than expected" threshold
@@ -62,10 +62,12 @@ const HOTSPOT_RESUBMIT_COOLDOWN_MS = 10_000;
 // which *does* have an active session under that exact identifier.
 const HOTSPOT_FALLBACK_PASSWORD = "welcome123";
 
-// Apple's captive-detection success URL, and the storage-probe that tells
-// the CNA websheet from ordinary Safari -- see @/lib/portal-cna for both.
-// (They used to be defined here; portal.session.tsx now needs the same
-// probe so it never auto-redirects inside the websheet, hence the move.)
+// The storage-probe that tells the CNA websheet from ordinary Safari --
+// see @/lib/portal-cna. (It used to be defined here together with the
+// Apple captive-success URL; portal.session.tsx needs the same probe so it
+// never auto-redirects inside the websheet, hence the move. The Apple URL
+// itself no longer appears anywhere on this page: see the `dst` comment
+// below.)
 
 /** Submits username/password to RouterOS's `$(link-login-only)` URL.
  *
@@ -175,13 +177,12 @@ function SuccessPage() {
   // POST (already-authorized, and no login URL at all): a redirect-mode
   // venue's guest goes STRAIGHT to the URL on a real document load (the
   // single-page rule), anyone else goes to /portal/session -- which then
-  // renders html-mode pages or the default connected page. Never
-  // captive.apple.com here: that is only for the actual gate-opening POST
-  // below (see its own comment), and pointing a non-POSTing client at it
-  // is exactly how a guest ended on the bare one-word "Success" page. The
-  // CNA check is the same storage probe the POST branch uses -- inside the
+  // renders html-mode pages or the default connected page. The CNA check
+  // is the same storage probe the POST branch below uses: inside the
   // websheet an arbitrary assign is meaningless, so the session page is
-  // the honest resting place there too.
+  // the honest resting place there too -- this page never points any
+  // client at captive.apple.com (see the `dst` comment on the POST
+  // branch).
   const directTarget = () =>
     !isCaptiveNetworkAssistant() && destination.mode === "redirect" && destination.url
       ? destination.url
@@ -232,7 +233,10 @@ function SuccessPage() {
     // came through here with a session and a `link-login-only`, re-fired
     // a login the NAS had already granted, and -- because the UA said
     // "Apple" -- was handed to `captive.apple.com`, ending on a bare page
-    // reading only "Success". Every step of that is now skipped.
+    // reading only "Success". Every step of that chain is gone: the UA
+    // test is replaced by the router's own `hspage` answer, and no client
+    // is ever handed to captive.apple.com from this page (see the `dst`
+    // comment on the POST branch).
     //
     // Deliberately ABOVE the `hotspotLoginUrl`/`guestIdentifier` guards
     // rather than folded in with them: an authorized client needs neither
@@ -275,10 +279,8 @@ function SuccessPage() {
     // branch below uses: if the gate is somehow still shut the NAS
     // intercepts and reissues a portal URL with a fresh link-login-only,
     // which comes back through portal.index.tsx and lands here able to
-    // POST. Never the Apple captive URL here: that is only for the actual
-    // gate-opening POST below (see its own comment), and pointing a
-    // non-POSTing client at captive.apple.com is exactly how a guest ended
-    // on the bare one-word "Success" page.
+    // POST. Never captive.apple.com here: this page points no client at
+    // Apple's diagnostic page (see the `dst` comment on the POST branch).
     if (!hotspotLoginUrl) {
       hotspotLoginSubmitted.current = true;
       window.location.assign(directTarget());
@@ -293,35 +295,32 @@ function SuccessPage() {
     // re-probes") is guaranteed by the NAS itself -- not by a fragile
     // client-side delay we'd have to guess at.
     //
-    // For the CNA websheet specifically, `dst` is Apple's captive-detection
-    // URL rather than the real `/portal/session` page: landing the CNA
-    // websheet back in this heavy SPA is exactly what kept the sheet from
-    // ever re-probing (the confirmed root cause). Pointed at
-    // `captive.apple.com` through the now-open gate, the CNA gets Apple's
-    // "Success" body, marks the network online, dismisses, and releases all
-    // app traffic -- the guest then opens their own browser with full
-    // internet. The backend session already exists, so nothing about
-    // `/portal/session` is needed inside the sheet.
-    //
-    // Every OTHER client keeps the post-login destination decision made by
-    // @/lib/portal-post-login: a venue with a redirect URL set gets the
+    // Every client gets the same destination decision made by
+    // @/lib/portal-post-login -- a venue with a redirect URL set gets the
     // guest sent STRAIGHT there by the NAS (no intermediate portal page --
     // the "then a 3-2-1 timer, then the URL" flow the founder asked to
     // remove), while html-mode and default venues land on `/portal/session`
     // (which renders the venue's own page, or the built-in connected page).
+    // This deliberately includes iOS's Captive Network Assistant websheet:
+    // the sheet used to be pointed at Apple's own captive-detection URL
+    // (`captive.apple.com`, whose entire body is the word "Success") so
+    // that the sheet would mark the network online and dismiss -- but that
+    // redirect is what a guest actually SAW as a bare, unbranded one-word
+    // page after login (the founder's "login redirect is just a message
+    // 'success'" report), on a device where Android never sees it. Closing
+    // the sheet is the OS's own job and does not need this page to navigate
+    // there: once the NAS gate is open, iOS's own captive re-probe of
+    // `captive.apple.com/hotspot-detect.html` travels through the open gate
+    // and returns Apple's Success body by itself, which is what dismisses
+    // the sheet. This page therefore never sends any client to
+    // captive.apple.com -- the CNA websheet lands on `/portal/session` (or
+    // the venue's redirect target) exactly like Safari on Android, and iOS
+    // dismisses it in its own time.
     //
     // Reachable ONLY for a client the NAS has NOT already authorized --
     // the guard at the top of this function returned for the other case.
-    // That ordering is what keeps this branch to the situation it was
-    // written for (a fresh gate-opening login, where on iOS the sheet is
-    // what is looking) instead of firing for every Apple device that ever
-    // loads this page, which is how a guest ended up stranded on Apple's
-    // one-word "Success" page in ordinary Safari.
-    const dst = isCaptiveNetworkAssistant()
-      ? APPLE_CAPTIVE_SUCCESS_URL
-      : destination.mode === "redirect" && destination.url
-        ? destination.url
-        : sessionTarget();
+    const dst =
+      destination.mode === "redirect" && destination.url ? destination.url : sessionTarget();
 
     // Real incident, live captive-portal "flick flick" flash: a remount
     // landing back here within HOTSPOT_RESUBMIT_COOLDOWN_MS of this exact
