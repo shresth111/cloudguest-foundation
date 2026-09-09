@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -9,9 +10,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useWorkspaceScope } from "@/hooks/useWorkspace";
+import { useWorkspace } from "@/context/WorkspaceContext";
+import { GuestHistoryDrawer } from "@/components/guests/GuestHistoryDrawer";
 import { ScopeErrorBanner } from "@/components/workspace/ScopeErrorBanner";
 import { guestLabel } from "@/lib/guest-label";
 import { GUEST_AUTH_METHOD_LABEL } from "@/types/guest";
+import { cn } from "@/lib/utils";
 
 function statusVariant(s: string) {
   if (s === "online") return "default" as const;
@@ -75,22 +79,29 @@ export function RoutersOverview() {
 
 export function GuestsOverview() {
   const { aggregated, isError, refetchFailed } = useWorkspaceScope();
+  const { customer } = useWorkspace();
+  const [selectedGuest, setSelectedGuest] = useState<{
+    guestId: string | null;
+    title: string;
+    subtitle?: string;
+  } | null>(null);
   // The card was titled "Live guests (24)" over a table listing every
   // session loaded, including guests who disconnected days ago -- so an
   // owner reading it at 8am believed 24 people were on their WiFi. The
-  // count of people connected *now* is a different number, and it is the
-  // one they actually want; show both, labelled.
-  const onlineNow = aggregated.analytics.activeSessions;
+  // number of distinct people connected *now* is a different number, and
+  // it is the one they actually want; session rows are "visits" and stay
+  // honest as such.
+  const onlineNow = aggregated.analytics.activeGuests;
+  const totalVisits = aggregated.analytics.totalSessions;
   return (
     <>
       {isError ? <ScopeErrorBanner onRetry={refetchFailed} /> : null}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Guest visits</CardTitle>
+          <CardTitle className="text-base">Guests</CardTitle>
           <p className="text-sm text-muted-foreground">
-            {onlineNow === 1
-              ? "1 guest connected right now"
-              : `${onlineNow} guests connected right now`}
+            {onlineNow === 1 ? "1 guest connected now" : `${onlineNow} guests connected now`} ·{" "}
+            {totalVisits === 1 ? "1 total visit" : `${totalVisits} total visits`}
           </p>
         </CardHeader>
         <CardContent className="overflow-x-auto">
@@ -106,7 +117,18 @@ export function GuestsOverview() {
             </TableHeader>
             <TableBody>
               {aggregated.guestSessions.map((g) => (
-                <TableRow key={g.id}>
+                <TableRow
+                  key={g.id}
+                  className={cn(g.guestId && "cursor-pointer")}
+                  onClick={() => {
+                    if (!g.guestId) return;
+                    setSelectedGuest({
+                      guestId: g.guestId,
+                      title: guestLabel(g),
+                      subtitle: new Date(g.startedAt).toLocaleString(),
+                    });
+                  }}
+                >
                   <TableCell className="font-medium">{guestLabel(g)}</TableCell>
                   <TableCell>
                     <Badge variant={g.status === "active" ? "default" : "outline"}>
@@ -129,6 +151,16 @@ export function GuestsOverview() {
           </Table>
         </CardContent>
       </Card>
+      <GuestHistoryDrawer
+        open={!!selectedGuest}
+        onOpenChange={(open) => {
+          if (!open) setSelectedGuest(null);
+        }}
+        guestId={selectedGuest?.guestId ?? null}
+        organizationId={customer?.id}
+        masked={false}
+        seed={selectedGuest}
+      />
     </>
   );
 }

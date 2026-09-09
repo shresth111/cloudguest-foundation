@@ -53,9 +53,9 @@ export function LocationGrid() {
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div className="rounded-md bg-muted/40 p-2">
-                    <p className="text-xs text-muted-foreground">Guests</p>
+                    <p className="text-xs text-muted-foreground">Guests online</p>
                     <p className="text-sm font-semibold">
-                      {l.resources?.analytics.activeSessions ?? "—"}
+                      {l.resources?.analytics.activeGuests ?? "—"}
                     </p>
                   </div>
                   <div className="rounded-md bg-muted/40 p-2">

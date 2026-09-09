@@ -210,6 +210,12 @@ export interface CustomerUsersData {
   total: number;
   page: number;
   pageSize: number;
+  /** Distinct guests on file at this location (the /guests lookup's own
+   *  server total) -- the people-word number. The Users table's `total`
+   *  is session/visit rows, which count each reconnect; this is the
+   *  "how many people" answer. Undefined when the guests lookup failed
+   *  (a tile must show "—", never a fabricated session count). */
+  uniqueGuests: number | undefined;
 }
 
 type RawUserRow = CustomerUsersData["users"][number];
@@ -1456,6 +1462,7 @@ export const customerService = {
       return {
         users: f.slice((page - 1) * pageSize, page * pageSize),
         total: f.length,
+        uniqueGuests: f.length,
         page,
         pageSize,
       };
@@ -1486,7 +1493,7 @@ export const customerService = {
         // for the "every row hardcoded 'Guest'/blank" bug this fixes) --
         // same bulk-fetch-and-match-by-guest_id shape as the device lookup
         // above, best-effort for the same reason.
-        api.get<{ items: RawGuest[] }>("/guests", {
+        api.get<{ items: RawGuest[]; total_items?: number }>("/guests", {
           params: { location_id: locationId, page_size: 100 },
           ...orgHeaders,
         }),
@@ -1579,28 +1586,40 @@ export const customerService = {
         users = users.filter((u) => u.name.toLowerCase().includes(q));
       }
       if (status && status !== "all") users = users.filter((u) => u.status === status);
-      return { users, total: data?.total_items ?? users.length, page, pageSize };
+      // The people-number is the /guests lookup's own server total (distinct
+      // guests on file at this location), independent of the session page's
+      // search/status/pagination. A failed guest lookup leaves it undefined
+      // rather than substituting a session count under a people label.
+      const uniqueGuests =
+        guestsResult.status === "fulfilled" ? guestsResult.value.data?.total_items : undefined;
+      return { users, total: data?.total_items ?? users.length, uniqueGuests, page, pageSize };
     } catch {
-      return { users: [], total: 0, page, pageSize };
+      return { users: [], total: 0, uniqueGuests: 0, page, pageSize };
     }
   },
 
-  /** Real, location-wide "how many guests are online right now" count --
-   * NOT derived from the current page's rows (see this file's Users-page
-   * comment history for why that was misleading). A second, lightweight
-   * request against the same /guest-sessions endpoint with the real
-   * server-side `status=active` filter and `page_size=1`, reading only
-   * `total_items` -- never pulls the actual session rows just to count
-   * them. */
+  /** Real, location-wide "how many PEOPLE are online right now" count --
+   * distinct guest_ids among ACTIVE sessions (a guest on two devices
+   * counts once). NOT derived from the current page's rows (see this
+   * file's Users-page comment history for why that was misleading), and
+   * NOT the raw active-session total either -- QA: "guests are being
+   * counted separately even when a user is reconnecting." Active rows are
+   * bounded by seats on the network, so this walks at most a handful of
+   * 100-row pages to reach the true distinct count. */
   async getOnlineCount(locationId: string): Promise<number> {
     if (isDemo()) return 16; // matches getUsers()'s demo fixture (16 of 24 rows are "online")
     try {
       const orgId = await resolveOrgId();
-      const { data } = await api.get<{ total_items: number }>("/guest-sessions", {
-        params: { location_id: locationId, status: "active", page_size: 1 },
-        headers: { "X-Organization-Id": orgId },
-      });
-      return data?.total_items ?? 0;
+      const seen = new Set<string>();
+      for (let page = 1; page <= 10; page += 1) {
+        const { data } = await api.get<{ items: RawGuestSession[] }>("/guest-sessions", {
+          params: { location_id: locationId, status: "active", page, page_size: 100 },
+          headers: { "X-Organization-Id": orgId },
+        });
+        for (const s of data?.items ?? []) if (s.guest_id) seen.add(s.guest_id);
+        if ((data?.items?.length ?? 0) < 100) break;
+      }
+      return seen.size;
     } catch {
       return 0;
     }

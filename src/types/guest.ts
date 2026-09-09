@@ -55,6 +55,9 @@ export interface GuestSession {
    *  a fallback rather than an empty string. */
   guestIdentifier: string | null;
   deviceId: string | null;
+  /** MAC, when the backend response carries it (the admin list resolves
+   *  device MACs alongside sessions). Null otherwise. */
+  deviceMac: string | null;
   userAgent: string | null;
   routerId: string;
   routerName: string;
@@ -89,6 +92,10 @@ export interface SessionListQuery {
    * which silently caps every derived count at one 100-row page per org.
    */
   organizationId?: string;
+  /** Server-side per-guest filter: one guest's full connection history
+   *  with a real total_items (used by the guest-history drawer). Only
+   *  meaningful on the org-scoped path (with ``organizationId``). */
+  guestId?: string;
   page: number;
   pageSize: number;
 }

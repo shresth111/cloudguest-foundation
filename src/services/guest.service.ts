@@ -69,6 +69,10 @@ interface BackendGuestSession {
    *  fabricating an empty string in the meantime. */
   guest_identifier?: string | null;
   device_id: string | null;
+  /** MAC, emitted by the admin session-list endpoint (which resolves
+   *  device MACs alongside the sessions). Optional so older deployments
+   *  that omit it still parse. */
+  device_mac?: string | null;
   router_id: string;
   location_id: string;
   organization_id: string;
@@ -195,6 +199,7 @@ function toGuestSession(
     guestId: s.guest_id,
     guestIdentifier: s.guest_identifier ?? null,
     deviceId: s.device_id,
+    deviceMac: s.device_mac ?? null,
     userAgent: s.user_agent,
     routerId: s.router_id,
     routerName,
@@ -486,6 +491,7 @@ export const guestService = {
       };
       if (query.locationId && query.locationId !== "all") params.location_id = query.locationId;
       if (query.status && query.status !== "all") params.status = query.status;
+      if (query.guestId) params.guest_id = query.guestId;
 
       const { data } = await api.get<BackendListResponse<BackendGuestSession>>("/guest-sessions", {
         params,

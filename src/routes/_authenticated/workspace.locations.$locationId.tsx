@@ -916,7 +916,7 @@ function GuestWifiTab({ resources }: { resources: LocationResources }) {
           sub="all time"
           icon={Wifi}
         />
-        <Kpi label="Active now" value={resources.analytics.activeSessions} icon={Users} />
+        <Kpi label="Guests online now" value={resources.analytics.activeGuests} icon={Users} />
         <Kpi
           label="Data used"
           value={`${resources.analytics.dataConsumedGb.toFixed(1)} GB`}
@@ -1215,7 +1215,7 @@ function MonitoringTab({
           value={alertsQ.isLoading ? "…" : (alertsQ.data?.totalItems ?? alerts.length)}
           icon={AlertTriangle}
         />
-        <Kpi label="Guests online" value={resources.analytics.activeSessions} icon={Wifi} />
+        <Kpi label="Guests online" value={resources.analytics.activeGuests} icon={Wifi} />
         <Kpi
           label="Router last checked in"
           value={lastSeen ? relativeTime(lastSeen) : "Never"}

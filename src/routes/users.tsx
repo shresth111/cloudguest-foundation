@@ -37,6 +37,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { GuestHistoryDrawer } from "@/components/guests/GuestHistoryDrawer";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -169,6 +170,14 @@ function CustomerUsersPage() {
     status: string;
     guestId: string | null;
     mergedSessionCount?: number;
+  } | null>(null);
+  // The full connection-history drawer (QA: click a user -> details + a log
+  // of its connections). Opened from the visit slide-over; the drawer then
+  // owns the screen, showing the guest's whole story across page boundaries.
+  const [historyUser, setHistoryUser] = useState<{
+    guestId: string | null;
+    title: string;
+    subtitle?: string;
   } | null>(null);
   const [confirmDisconnect, setConfirmDisconnect] = useState<{
     id: string;
@@ -382,7 +391,11 @@ function CustomerUsersPage() {
                   <div>
                     <p className="text-xs font-medium text-muted-foreground">{t("totalGuests")}</p>
                     <p className="text-lg font-bold tracking-tight tabular-nums leading-tight">
-                      {data.total.toLocaleString()}
+                      {/* Distinct guests on file at this location -- the raw
+                       * session total counts every reconnect (QA). The guests
+                       * lookup failing leaves it undefined; fall back to the
+                       * visit total rather than showing a bare dash. */}
+                      {(data.uniqueGuests ?? data.total).toLocaleString()}
                     </p>
                   </div>
                 </div>
@@ -776,12 +789,30 @@ function CustomerUsersPage() {
                     </p>
                   </div>
                 </div>
-                <button
-                  onClick={() => setDetailUser(null)}
-                  className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+                <div className="flex items-center gap-1">
+                  {detailUser.guestId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHistoryUser({
+                          guestId: detailUser.guestId,
+                          title: detailUser.name,
+                          subtitle: masked ? maskEmail(detailUser.email) : detailUser.email,
+                        });
+                        setDetailUser(null);
+                      }}
+                      className="rounded-lg px-2 py-1.5 text-xs font-medium text-primary hover:bg-accent"
+                    >
+                      Full history
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setDetailUser(null)}
+                    className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
               <div className="flex-1 space-y-4 overflow-y-auto p-5">
                 <div
@@ -1005,6 +1036,28 @@ function CustomerUsersPage() {
         </AlertDialogContent>
       </AlertDialog>
       <CustomerCommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+      {/* Guest detail + connection history (QA: click a user -> details + a
+       * log of its connections). Org-scoped server-side history; falls back
+       * to the clicked visit's own card when the row has no guest id. */}
+      <GuestHistoryDrawer
+        open={!!historyUser}
+        onOpenChange={(open) => {
+          if (!open) setHistoryUser(null);
+        }}
+        guestId={historyUser?.guestId ?? null}
+        organizationId={activeLocation?.organizationId}
+        locationId={locationId}
+        masked={masked}
+        seed={
+          historyUser
+            ? {
+                guestId: historyUser.guestId,
+                title: historyUser.title,
+                subtitle: historyUser.subtitle,
+              }
+            : null
+        }
+      />
     </SidebarProvider>
   );
 }

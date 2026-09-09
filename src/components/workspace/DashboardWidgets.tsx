@@ -47,12 +47,6 @@ import { cn } from "@/lib/utils";
 
 const CHART_COLORS = ["#6366f1", "#22c55e", "#f59e0b", "#ef4444", "#06b6d4", "#a855f7"];
 
-function startOfToday(): number {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-}
-
 /**
  * Real, org-scoped counts this dashboard's own KPI row needs but that
  * useWorkspace()/useWorkspaceScope() don't already provide: total staff
@@ -123,13 +117,6 @@ export function DashboardWidgets() {
 
   const onlineRouters = aggregated.routers.filter((r) => r.status === "online").length;
   const offlineRouters = aggregated.routers.length - onlineRouters;
-  const todayGuests = aggregated.guestSessions.filter(
-    (g) => new Date(g.startedAt).getTime() >= startOfToday(),
-  );
-  // Key on guestId. The session payload carries no identifier, so keying on
-  // guestIdentifier collapsed every row into one empty string and made this
-  // tile read 1 for any venue with a session today and 0 otherwise.
-  const newGuestsToday = new Set(todayGuests.map((g) => g.guestId)).size;
 
   // A real, derived signal -- not a fabricated score. Router online-ratio
   // plus open-alert count, the only two real health inputs this workspace
@@ -170,14 +157,14 @@ export function DashboardWidgets() {
     },
     {
       label: "Online guests",
-      value: aggregated.analytics.activeSessions,
-      hint: "Currently connected",
+      value: aggregated.analytics.activeGuests,
+      hint: "Distinct people connected",
       icon: Users,
       tone: "success",
     },
     {
       label: "Today's logins",
-      value: newGuestsToday,
+      value: aggregated.analytics.uniqueTodayGuests,
       hint: "Unique guests since midnight",
       icon: Clock,
       tone: "default",
@@ -245,7 +232,7 @@ export function DashboardWidgets() {
 
   const perLocation = scope.map((s) => ({
     name: s.name.length > 14 ? s.name.slice(0, 14) + "…" : s.name,
-    guests: s.resources?.analytics.activeSessions ?? 0,
+    guests: s.resources?.analytics.activeGuests ?? 0,
     sessions: s.resources?.analytics.totalSessions ?? 0,
   }));
 
@@ -455,8 +442,8 @@ export function DashboardWidgets() {
               <XAxis dataKey="name" fontSize={11} />
               <YAxis fontSize={11} />
               <Tooltip />
-              <Bar dataKey="guests" fill="#22c55e" radius={4} />
-              <Bar dataKey="sessions" fill="#6366f1" radius={4} />
+              <Bar dataKey="guests" name="Guests online" fill="#22c55e" radius={4} />
+              <Bar dataKey="sessions" name="Sessions" fill="#6366f1" radius={4} />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>

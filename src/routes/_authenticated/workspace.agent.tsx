@@ -59,11 +59,7 @@ function AgentDashboardPage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Can module="guests-live" mode="hidden">
-          <StatCard
-            icon={Users}
-            label="Active guests"
-            value={aggregated.analytics.activeSessions}
-          />
+          <StatCard icon={Users} label="Active guests" value={aggregated.analytics.activeGuests} />
         </Can>
         <Can module="routers" mode="hidden">
           <StatCard
