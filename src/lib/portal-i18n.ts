@@ -697,6 +697,28 @@ const HI: Dict = {
   ipUnknownLabel: "IP अज्ञात",
   disconnectingLabel: "डिस्कनेक्ट किया जा रहा है…",
   // ---- end portal-redesign block ---------------------------------------
+  // ---- portal-i18n parity block ---------------------------------------
+  // The thirteen keys EN had and this dictionary did not. `translate()`
+  // falls back to EN silently and per key, so their absence did not break
+  // anything visibly -- it just served English mid-screen to a guest who
+  // had picked this language. See scripts/test-portal-i18n-parity.mjs.
+  sessionStartedLabel: "सेशन शुरू हुआ",
+  openingSiteTemplate: "{host} खोल रहे हैं…",
+  groupPickerLabel: "आप किस समूह से हैं?",
+  groupNoneOption: "इनमें से कोई नहीं — सामान्य मेहमान के रूप में आगे बढ़ें",
+  groupJoinFailedTitle: "आपको इसमें नहीं जोड़ा जा सका:",
+  groupJoinRetryHint:
+    "शायद इसमें जगह भर चुकी है। आप अब भी जुड़े हुए हैं — नीचे दिए टीम कार्ड से दोबारा कोशिश करें।",
+  notSetUpTitle: "इस वेन्यू का गेस्ट WiFi अभी सेट नहीं हुआ है",
+  notSetUpBody:
+    "इस जगह के लिए कोई चालू sign-in सेटअप नहीं मिला। कृपया वेन्यू के स्टाफ़ से मदद लें।",
+  troubleConnectingTitle: "कनेक्ट होने में दिक्कत आ रही है",
+  troubleConnectingBody:
+    "WiFi से जुड़ने के तुरंत बाद ऐसा हो सकता है। अपना कनेक्शन जाँचें और दोबारा कोशिश करें।",
+  tryAgainCta: "दोबारा कोशिश करें",
+  stillConnectingLabel: "अभी भी कनेक्ट हो रहा है…",
+  slowRetryCta: "थोड़ा समय लग रहा है — दोबारा कोशिश करें",
+  // ---- end parity block -------------------------------------------------
 };
 /* The eight Indian languages below match the marketing site's set exactly
  * (`wyfy-guest-website/src/i18n/ui/*.ts`), and each was transcreated from that
@@ -995,6 +1017,28 @@ const BN: Dict = {
   whyWeAskMobile: "আপনার একবারের sign-in কোড আমরা এই নম্বরে SMS-এ পাঠাই।",
   whyWeAskWhatsapp: "আপনার একবারের sign-in কোড আমরা এই WhatsApp নম্বরে পাঠাই।",
   // ---- end v7 Part 8 block --------------------------------------------
+  // ---- portal-i18n parity block ---------------------------------------
+  // The thirteen keys EN had and this dictionary did not. `translate()`
+  // falls back to EN silently and per key, so their absence did not break
+  // anything visibly -- it just served English mid-screen to a guest who
+  // had picked this language. See scripts/test-portal-i18n-parity.mjs.
+  sessionStartedLabel: "সেশন শুরু হয়েছে",
+  openingSiteTemplate: "{host} খোলা হচ্ছে…",
+  groupPickerLabel: "আপনি কোন গ্রুপের?",
+  groupNoneOption: "এর কোনোটিই নয় — সাধারণ অতিথি হিসেবে এগিয়ে যান",
+  groupJoinFailedTitle: "আপনাকে এতে যোগ করা গেল না:",
+  groupJoinRetryHint:
+    "সম্ভবত এতে আর জায়গা নেই। আপনি এখনও সংযুক্ত আছেন — নিচের টিম কার্ড থেকে আবার চেষ্টা করুন।",
+  notSetUpTitle: "এখানকার গেস্ট WiFi এখনও সেট আপ করা হয়নি",
+  notSetUpBody:
+    "এই জায়গার জন্য চালু কোনো sign-in সেটআপ পাওয়া যায়নি। অনুগ্রহ করে এখানকার কর্মীদের সাহায্য নিন।",
+  troubleConnectingTitle: "সংযোগ করতে সমস্যা হচ্ছে",
+  troubleConnectingBody:
+    "WiFi-তে যোগ দেওয়ার ঠিক পরেই এমন হতে পারে। আপনার সংযোগ দেখে নিয়ে আবার চেষ্টা করুন।",
+  tryAgainCta: "আবার চেষ্টা করুন",
+  stillConnectingLabel: "এখনও সংযোগ হচ্ছে…",
+  slowRetryCta: "একটু সময় লাগছে — আবার চেষ্টা করুন",
+  // ---- end parity block -------------------------------------------------
 };
 
 // Marathi (mr).
@@ -1272,6 +1316,28 @@ const MR: Dict = {
   whyWeAskMobile: "आम्ही तुमचा एक-वेळचा sign-in code याच नंबरवर SMS करतो.",
   whyWeAskWhatsapp: "आम्ही तुमचा एक-वेळचा sign-in code याच WhatsApp नंबरवर पाठवतो.",
   // ---- end v7 Part 8 block --------------------------------------------
+  // ---- portal-i18n parity block ---------------------------------------
+  // The thirteen keys EN had and this dictionary did not. `translate()`
+  // falls back to EN silently and per key, so their absence did not break
+  // anything visibly -- it just served English mid-screen to a guest who
+  // had picked this language. See scripts/test-portal-i18n-parity.mjs.
+  sessionStartedLabel: "सेशन सुरू झाले",
+  openingSiteTemplate: "{host} उघडत आहोत…",
+  groupPickerLabel: "तुम्ही कोणत्या गटातील आहात?",
+  groupNoneOption: "यापैकी काहीही नाही — सर्वसाधारण पाहुणे म्हणून पुढे जा",
+  groupJoinFailedTitle: "तुम्हाला यात जोडता आले नाही:",
+  groupJoinRetryHint:
+    "कदाचित यात जागा शिल्लक नाही. तुम्ही अजूनही जोडलेले आहात — खालील टीम कार्डवरून पुन्हा प्रयत्न करा.",
+  notSetUpTitle: "इथले गेस्ट WiFi अजून सेट केलेले नाही",
+  notSetUpBody:
+    "या ठिकाणासाठी सुरू असलेले कोणतेही sign-in सेटअप सापडले नाही. कृपया इथल्या कर्मचाऱ्यांची मदत घ्या.",
+  troubleConnectingTitle: "कनेक्ट होण्यात अडचण येत आहे",
+  troubleConnectingBody:
+    "WiFi ला जोडल्यानंतर लगेच असे होऊ शकते. तुमचे कनेक्शन तपासा आणि पुन्हा प्रयत्न करा.",
+  tryAgainCta: "पुन्हा प्रयत्न करा",
+  stillConnectingLabel: "अजूनही कनेक्ट होत आहे…",
+  slowRetryCta: "थोडा वेळ लागत आहे — पुन्हा प्रयत्न करा",
+  // ---- end parity block -------------------------------------------------
 };
 
 // Telugu (te).
@@ -1549,6 +1615,28 @@ const TE: Dict = {
   whyWeAskMobile: "మీ వన్-టైమ్ సైన్-ఇన్ కోడ్‌ను ఈ నంబర్‌కు SMSలో పంపుతాం.",
   whyWeAskWhatsapp: "మీ వన్-టైమ్ సైన్-ఇన్ కోడ్‌ను ఈ WhatsApp నంబర్‌కు పంపుతాం.",
   // ---- end v7 Part 8 block --------------------------------------------
+  // ---- portal-i18n parity block ---------------------------------------
+  // The thirteen keys EN had and this dictionary did not. `translate()`
+  // falls back to EN silently and per key, so their absence did not break
+  // anything visibly -- it just served English mid-screen to a guest who
+  // had picked this language. See scripts/test-portal-i18n-parity.mjs.
+  sessionStartedLabel: "సెషన్ ప్రారంభమైంది",
+  openingSiteTemplate: "{host} తెరుస్తున్నాం…",
+  groupPickerLabel: "మీరు ఏ గ్రూప్‌కి చెందినవారు?",
+  groupNoneOption: "వీటిలో ఏదీ కాదు — సాధారణ అతిథిగా కొనసాగండి",
+  groupJoinFailedTitle: "మిమ్మల్ని దీనిలో చేర్చలేకపోయాం:",
+  groupJoinRetryHint:
+    "బహుశా ఇందులో స్థలం నిండిపోయి ఉండవచ్చు. మీరు ఇంకా కనెక్ట్‌లోనే ఉన్నారు — కింది టీమ్ కార్డ్ నుంచి మళ్లీ ప్రయత్నించండి.",
+  notSetUpTitle: "ఇక్కడి గెస్ట్ WiFi ఇంకా సెటప్ కాలేదు",
+  notSetUpBody:
+    "ఈ ప్రదేశానికి పనిచేస్తున్న sign-in సెటప్ ఏదీ కనిపించలేదు. దయచేసి ఇక్కడి సిబ్బంది సహాయం తీసుకోండి.",
+  troubleConnectingTitle: "కనెక్ట్ కావడంలో ఇబ్బంది వస్తోంది",
+  troubleConnectingBody:
+    "WiFiకి చేరిన వెంటనే ఇలా జరగవచ్చు. మీ కనెక్షన్‌ను చూసుకుని మళ్లీ ప్రయత్నించండి.",
+  tryAgainCta: "మళ్లీ ప్రయత్నించండి",
+  stillConnectingLabel: "ఇంకా కనెక్ట్ అవుతోంది…",
+  slowRetryCta: "కొంచెం సమయం పడుతోంది — మళ్లీ ప్రయత్నించండి",
+  // ---- end parity block -------------------------------------------------
 };
 
 // Tamil (ta).
@@ -1830,6 +1918,28 @@ const TA: Dict = {
   whyWeAskMobile: "உங்கள் ஒருமுறை உள்நுழைவுக் குறியீட்டை இந்த எண்ணுக்கு SMS-இல் அனுப்புகிறோம்.",
   whyWeAskWhatsapp: "உங்கள் ஒருமுறை உள்நுழைவுக் குறியீட்டை இந்த WhatsApp எண்ணுக்கு அனுப்புகிறோம்.",
   // ---- end v7 Part 8 block --------------------------------------------
+  // ---- portal-i18n parity block ---------------------------------------
+  // The thirteen keys EN had and this dictionary did not. `translate()`
+  // falls back to EN silently and per key, so their absence did not break
+  // anything visibly -- it just served English mid-screen to a guest who
+  // had picked this language. See scripts/test-portal-i18n-parity.mjs.
+  sessionStartedLabel: "அமர்வு தொடங்கியது",
+  openingSiteTemplate: "{host} திறக்கிறோம்…",
+  groupPickerLabel: "நீங்கள் எந்தக் குழுவைச் சேர்ந்தவர்?",
+  groupNoneOption: "இவற்றில் எதுவும் இல்லை — பொது விருந்தினராகத் தொடரவும்",
+  groupJoinFailedTitle: "உங்களை இதில் சேர்க்க முடியவில்லை:",
+  groupJoinRetryHint:
+    "இதில் இடம் நிரம்பியிருக்கலாம். நீங்கள் இன்னும் இணைந்தே இருக்கிறீர்கள் — கீழே உள்ள குழு அட்டையிலிருந்து மீண்டும் முயற்சிக்கவும்.",
+  notSetUpTitle: "இந்த இடத்தின் விருந்தினர் WiFi இன்னும் அமைக்கப்படவில்லை",
+  notSetUpBody:
+    "இந்த இடத்திற்கு இயங்கும் sign-in அமைப்பு எதுவும் கிடைக்கவில்லை. இங்குள்ள ஊழியர்களின் உதவியைக் கேளுங்கள்.",
+  troubleConnectingTitle: "இணைவதில் சிக்கல் உள்ளது",
+  troubleConnectingBody:
+    "WiFi-யில் இணைந்த உடனேயே இப்படி நிகழலாம். உங்கள் இணைப்பைச் சரிபார்த்து மீண்டும் முயற்சிக்கவும்.",
+  tryAgainCta: "மீண்டும் முயற்சிக்கவும்",
+  stillConnectingLabel: "இன்னும் இணைக்கிறது…",
+  slowRetryCta: "சற்று நேரம் ஆகிறது — மீண்டும் முயற்சிக்கவும்",
+  // ---- end parity block -------------------------------------------------
 };
 
 // Gujarati (gu).
@@ -2105,6 +2215,27 @@ const GU: Dict = {
   whyWeAskMobile: "તમારો એક-વખતનો sign-in કોડ અમે આ નંબર પર SMS થી મોકલીએ છીએ.",
   whyWeAskWhatsapp: "તમારો એક-વખતનો sign-in કોડ અમે આ WhatsApp નંબર પર મોકલીએ છીએ.",
   // ---- end v7 Part 8 block --------------------------------------------
+  // ---- portal-i18n parity block ---------------------------------------
+  // The thirteen keys EN had and this dictionary did not. `translate()`
+  // falls back to EN silently and per key, so their absence did not break
+  // anything visibly -- it just served English mid-screen to a guest who
+  // had picked this language. See scripts/test-portal-i18n-parity.mjs.
+  sessionStartedLabel: "સેશન શરૂ થયું",
+  openingSiteTemplate: "{host} ખોલી રહ્યા છીએ…",
+  groupPickerLabel: "તમે કયા જૂથના છો?",
+  groupNoneOption: "આમાંથી કોઈ નહીં — સામાન્ય મહેમાન તરીકે આગળ વધો",
+  groupJoinFailedTitle: "તમને આમાં ઉમેરી શકાયા નહીં:",
+  groupJoinRetryHint:
+    "કદાચ આમાં જગ્યા ભરાઈ ગઈ છે. તમે હજી પણ જોડાયેલા છો — નીચેના ટીમ કાર્ડમાંથી ફરી પ્રયાસ કરો.",
+  notSetUpTitle: "અહીંનું ગેસ્ટ WiFi હજી સેટ થયું નથી",
+  notSetUpBody: "આ સ્થળ માટે ચાલુ કોઈ sign-in સેટઅપ મળ્યું નહીં. કૃપા કરીને અહીંના સ્ટાફની મદદ લો.",
+  troubleConnectingTitle: "કનેક્ટ થવામાં તકલીફ પડી રહી છે",
+  troubleConnectingBody:
+    "WiFi સાથે જોડાયા પછી તરત આવું થઈ શકે છે. તમારું કનેક્શન તપાસો અને ફરી પ્રયાસ કરો.",
+  tryAgainCta: "ફરી પ્રયાસ કરો",
+  stillConnectingLabel: "હજી કનેક્ટ થઈ રહ્યું છે…",
+  slowRetryCta: "થોડો સમય લાગી રહ્યો છે — ફરી પ્રયાસ કરો",
+  // ---- end parity block -------------------------------------------------
 };
 
 // Kannada (kn).
@@ -2381,6 +2512,28 @@ const KN: Dict = {
   whyWeAskMobile: "ನಿಮ್ಮ ಒಂದು ಬಾರಿಯ sign-in ಕೋಡ್ ಅನ್ನು ಈ ಸಂಖ್ಯೆಗೆ SMS ನಲ್ಲಿ ಕಳಿಸುತ್ತೇವೆ.",
   whyWeAskWhatsapp: "ನಿಮ್ಮ ಒಂದು ಬಾರಿಯ sign-in ಕೋಡ್ ಅನ್ನು ಈ WhatsApp ಸಂಖ್ಯೆಗೆ ಕಳಿಸುತ್ತೇವೆ.",
   // ---- end v7 Part 8 block --------------------------------------------
+  // ---- portal-i18n parity block ---------------------------------------
+  // The thirteen keys EN had and this dictionary did not. `translate()`
+  // falls back to EN silently and per key, so their absence did not break
+  // anything visibly -- it just served English mid-screen to a guest who
+  // had picked this language. See scripts/test-portal-i18n-parity.mjs.
+  sessionStartedLabel: "ಸೆಷನ್ ಆರಂಭವಾಗಿದೆ",
+  openingSiteTemplate: "{host} ತೆರೆಯುತ್ತಿದ್ದೇವೆ…",
+  groupPickerLabel: "ನೀವು ಯಾವ ಗುಂಪಿಗೆ ಸೇರಿದವರು?",
+  groupNoneOption: "ಇವುಗಳಲ್ಲಿ ಯಾವುದೂ ಅಲ್ಲ — ಸಾಮಾನ್ಯ ಅತಿಥಿಯಾಗಿ ಮುಂದುವರಿಯಿರಿ",
+  groupJoinFailedTitle: "ನಿಮ್ಮನ್ನು ಇದಕ್ಕೆ ಸೇರಿಸಲಾಗಲಿಲ್ಲ:",
+  groupJoinRetryHint:
+    "ಬಹುಶಃ ಇದರಲ್ಲಿ ಜಾಗ ತುಂಬಿರಬಹುದು. ನೀವು ಇನ್ನೂ ಸಂಪರ್ಕದಲ್ಲೇ ಇದ್ದೀರಿ — ಕೆಳಗಿನ ತಂಡದ ಕಾರ್ಡ್‌ನಿಂದ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
+  notSetUpTitle: "ಇಲ್ಲಿನ ಅತಿಥಿ WiFi ಇನ್ನೂ ಸಿದ್ಧವಾಗಿಲ್ಲ",
+  notSetUpBody:
+    "ಈ ಸ್ಥಳಕ್ಕೆ ಚಾಲ್ತಿಯಲ್ಲಿರುವ ಯಾವುದೇ sign-in ಸೆಟಪ್ ಸಿಗಲಿಲ್ಲ. ದಯವಿಟ್ಟು ಇಲ್ಲಿನ ಸಿಬ್ಬಂದಿಯ ಸಹಾಯ ಪಡೆಯಿರಿ.",
+  troubleConnectingTitle: "ಸಂಪರ್ಕವಾಗಲು ತೊಂದರೆಯಾಗುತ್ತಿದೆ",
+  troubleConnectingBody:
+    "WiFi ಸೇರಿದ ತಕ್ಷಣ ಹೀಗಾಗಬಹುದು. ನಿಮ್ಮ ಸಂಪರ್ಕವನ್ನು ಪರಿಶೀಲಿಸಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
+  tryAgainCta: "ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ",
+  stillConnectingLabel: "ಇನ್ನೂ ಸಂಪರ್ಕವಾಗುತ್ತಿದೆ…",
+  slowRetryCta: "ಸ್ವಲ್ಪ ಸಮಯ ತೆಗೆದುಕೊಳ್ಳುತ್ತಿದೆ — ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ",
+  // ---- end parity block -------------------------------------------------
 };
 
 // Malayalam (ml).
@@ -2660,6 +2813,28 @@ const ML: Dict = {
   whyWeAskMobile: "നിങ്ങളുടെ ഒറ്റത്തവണ sign-in കോഡ് ഈ നമ്പറിലേക്ക് SMS ആയി അയയ്ക്കും.",
   whyWeAskWhatsapp: "നിങ്ങളുടെ ഒറ്റത്തവണ sign-in കോഡ് ഈ WhatsApp നമ്പറിലേക്ക് അയയ്ക്കും.",
   // ---- end v7 Part 8 block --------------------------------------------
+  // ---- portal-i18n parity block ---------------------------------------
+  // The thirteen keys EN had and this dictionary did not. `translate()`
+  // falls back to EN silently and per key, so their absence did not break
+  // anything visibly -- it just served English mid-screen to a guest who
+  // had picked this language. See scripts/test-portal-i18n-parity.mjs.
+  sessionStartedLabel: "സെഷൻ തുടങ്ങി",
+  openingSiteTemplate: "{host} തുറക്കുന്നു…",
+  groupPickerLabel: "നിങ്ങൾ ഏത് ഗ്രൂപ്പിൽ പെട്ടയാളാണ്?",
+  groupNoneOption: "ഇവയൊന്നുമല്ല — സാധാരണ അതിഥിയായി തുടരുക",
+  groupJoinFailedTitle: "നിങ്ങളെ ഇതിൽ ചേർക്കാനായില്ല:",
+  groupJoinRetryHint:
+    "ഒരുപക്ഷേ ഇതിൽ സ്ഥലം നിറഞ്ഞിരിക്കാം. നിങ്ങൾ ഇപ്പോഴും കണക്ട് ചെയ്തിട്ടുണ്ട് — താഴെയുള്ള ടീം കാർഡിൽ നിന്ന് വീണ്ടും ശ്രമിക്കൂ.",
+  notSetUpTitle: "ഇവിടത്തെ ഗസ്റ്റ് WiFi ഇതുവരെ സജ്ജമാക്കിയിട്ടില്ല",
+  notSetUpBody:
+    "ഈ സ്ഥലത്തിന് സജീവമായ sign-in സജ്ജീകരണം ഒന്നും കണ്ടെത്തിയില്ല. ദയവായി ഇവിടത്തെ ജീവനക്കാരുടെ സഹായം തേടുക.",
+  troubleConnectingTitle: "കണക്ട് ചെയ്യാൻ ബുദ്ധിമുട്ട് നേരിടുന്നു",
+  troubleConnectingBody:
+    "WiFi-യിൽ ചേർന്ന ഉടനെ ഇങ്ങനെ സംഭവിക്കാം. നിങ്ങളുടെ കണക്ഷൻ പരിശോധിച്ച് വീണ്ടും ശ്രമിക്കൂ.",
+  tryAgainCta: "വീണ്ടും ശ്രമിക്കൂ",
+  stillConnectingLabel: "ഇപ്പോഴും കണക്ട് ചെയ്യുന്നു…",
+  slowRetryCta: "കുറച്ച് സമയമെടുക്കുന്നു — വീണ്ടും ശ്രമിക്കൂ",
+  // ---- end parity block -------------------------------------------------
 };
 
 // Punjabi (pa, Gurmukhi).
@@ -2936,6 +3111,28 @@ const PA: Dict = {
   whyWeAskMobile: "ਅਸੀਂ ਤੁਹਾਡਾ ਇੱਕ-ਵਾਰੀ sign-in code ਇਸੇ ਨੰਬਰ ’ਤੇ SMS ਰਾਹੀਂ ਭੇਜਦੇ ਹਾਂ।",
   whyWeAskWhatsapp: "ਅਸੀਂ ਤੁਹਾਡਾ ਇੱਕ-ਵਾਰੀ sign-in code ਇਸੇ WhatsApp ਨੰਬਰ ’ਤੇ ਭੇਜਦੇ ਹਾਂ।",
   // ---- end v7 Part 8 block --------------------------------------------
+  // ---- portal-i18n parity block ---------------------------------------
+  // The thirteen keys EN had and this dictionary did not. `translate()`
+  // falls back to EN silently and per key, so their absence did not break
+  // anything visibly -- it just served English mid-screen to a guest who
+  // had picked this language. See scripts/test-portal-i18n-parity.mjs.
+  sessionStartedLabel: "ਸੈਸ਼ਨ ਸ਼ੁਰੂ ਹੋਇਆ",
+  openingSiteTemplate: "{host} ਖੋਲ੍ਹ ਰਹੇ ਹਾਂ…",
+  groupPickerLabel: "ਤੁਸੀਂ ਕਿਸ ਗਰੁੱਪ ਨਾਲ ਹੋ?",
+  groupNoneOption: "ਇਹਨਾਂ ਵਿੱਚੋਂ ਕੋਈ ਨਹੀਂ — ਆਮ ਮਹਿਮਾਨ ਵਜੋਂ ਅੱਗੇ ਵਧੋ",
+  groupJoinFailedTitle: "ਤੁਹਾਨੂੰ ਇਸ ਵਿੱਚ ਸ਼ਾਮਲ ਨਹੀਂ ਕੀਤਾ ਜਾ ਸਕਿਆ:",
+  groupJoinRetryHint:
+    "ਸ਼ਾਇਦ ਇਸ ਵਿੱਚ ਥਾਂ ਭਰ ਚੁੱਕੀ ਹੈ। ਤੁਸੀਂ ਹਾਲੇ ਵੀ ਜੁੜੇ ਹੋਏ ਹੋ — ਹੇਠਾਂ ਦਿੱਤੇ ਟੀਮ ਕਾਰਡ ਤੋਂ ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ।",
+  notSetUpTitle: "ਇੱਥੋਂ ਦਾ ਗੈਸਟ WiFi ਹਾਲੇ ਸੈੱਟ ਨਹੀਂ ਹੋਇਆ",
+  notSetUpBody:
+    "ਇਸ ਥਾਂ ਲਈ ਕੋਈ ਚਾਲੂ sign-in ਸੈੱਟਅੱਪ ਨਹੀਂ ਮਿਲਿਆ। ਕਿਰਪਾ ਕਰਕੇ ਇੱਥੋਂ ਦੇ ਸਟਾਫ਼ ਤੋਂ ਮਦਦ ਲਵੋ।",
+  troubleConnectingTitle: "ਜੁੜਨ ਵਿੱਚ ਮੁਸ਼ਕਲ ਆ ਰਹੀ ਹੈ",
+  troubleConnectingBody:
+    "WiFi ਨਾਲ ਜੁੜਨ ਤੋਂ ਤੁਰੰਤ ਬਾਅਦ ਇੰਝ ਹੋ ਸਕਦਾ ਹੈ। ਆਪਣਾ ਕਨੈਕਸ਼ਨ ਜਾਂਚੋ ਅਤੇ ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ।",
+  tryAgainCta: "ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ",
+  stillConnectingLabel: "ਹਾਲੇ ਵੀ ਜੁੜ ਰਿਹਾ ਹੈ…",
+  slowRetryCta: "ਥੋੜ੍ਹਾ ਸਮਾਂ ਲੱਗ ਰਿਹਾ ਹੈ — ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ",
+  // ---- end parity block -------------------------------------------------
 };
 
 const DICTS: Record<RuntimeLanguage, Dict> = {
