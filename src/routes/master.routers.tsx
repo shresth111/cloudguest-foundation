@@ -57,7 +57,12 @@ import { isDemo } from "@/services/customer.service";
 import { useRouters, useUpdateRouterVendor } from "@/hooks/useRouters";
 import type { AppError } from "@/services/api";
 import type { RouterDevice } from "@/types/router";
+import type { NetworkIntegration } from "@/types/network-integration";
 import { deriveRouterLiveness, lastContactLabel } from "@/lib/location-liveness";
+import { isControllerManaged } from "@/lib/router-vendors";
+import { deriveIntegrationSetup } from "@/lib/network-integration-readiness";
+import { networkIntegrationService } from "@/services/network-integration.service";
+import { useQuery } from "@tanstack/react-query";
 
 export const Route = createFileRoute("/master/routers")({
   // Same pattern as master.customers.tsx's `open` -- MasterSearch (the
@@ -237,6 +242,60 @@ function RouterFleetScreen() {
   const updateVendor = useUpdateRouterVendor();
   const routers = fleetQuery.data?.rows ?? [];
   const loading = fleetQuery.isLoading;
+
+  /**
+   * A controller row's real answer lives on its network integration, and the
+   * worst thing that integration can be is half-configured: connected, and
+   * authorising nobody (see `lib/network-integration-readiness.ts`). From
+   * this table such a venue is indistinguishable from a working one -- a
+   * controller row looks the same either way, by design, because nothing
+   * here measures it.
+   *
+   * Fetched only when the fleet actually contains a controller, so a
+   * MikroTik-only estate issues no extra cross-tenant request. `retry: false`
+   * and no toast: an operator without `network_integrations.read` gets a 403,
+   * and the honest response to "we could not look" is to say nothing extra,
+   * not to raise an error about a feature they were not using.
+   */
+  const hasController = routers.some((r) => isControllerManaged(r.vendor));
+  const integrations = useQuery({
+    queryKey: ["master", "network-integrations", "fleet-join"],
+    queryFn: () => networkIntegrationService.listPlatformIntegrations({ page: 1, pageSize: 200 }),
+    enabled: !demo && hasController,
+    staleTime: 30_000,
+    retry: false,
+  });
+
+  /** locationId -> that venue's integrations. `null` -- not an empty map --
+   * when we could not read them, so "no integration for this venue" and "we
+   * did not look" stay different answers. */
+  const integrationsByLocation = useMemo(() => {
+    if (!integrations.data) return null;
+    const map = new Map<string, NetworkIntegration[]>();
+    for (const row of integrations.data.rows) {
+      if (!row.locationId) continue;
+      const at = map.get(row.locationId) ?? [];
+      at.push(row);
+      map.set(row.locationId, at);
+    }
+    return map;
+  }, [integrations.data]);
+
+  /**
+   * What to say next to a controller row, or null for "nothing to add".
+   *
+   * Three genuinely different answers, and the third is the one that has to
+   * stay separate: not knowing is not the same as knowing nothing is wrong.
+   */
+  function controllerWarning(r: RouterDevice): string | null {
+    if (!isControllerManaged(r.vendor)) return null;
+    if (!integrationsByLocation) return null; // we could not look
+    const here = integrationsByLocation.get(r.locationId) ?? [];
+    if (here.length === 0) return "No integration";
+    return here.every((i) => deriveIntegrationSetup(i).isHalfConfigured)
+      ? "Authorising nobody"
+      : null;
+  }
 
   useEffect(() => {
     if (fleetQuery.isError) {
@@ -514,28 +573,39 @@ function RouterFleetScreen() {
                     </MTd>
                     <MTd className="text-xs text-muted-foreground">{contactLabel(r, now)}</MTd>
                     <MTd>
-                      <MTag label={statusBadge(r).label} tone={statusBadge(r).tone} />
+                      <div className="flex flex-wrap items-center gap-1">
+                        <MTag label={statusBadge(r).label} tone={statusBadge(r).tone} />
+                        {controllerWarning(r) && (
+                          <MTag label={controllerWarning(r)!} tone="offline" />
+                        )}
+                      </div>
                     </MTd>
                     {!demo && (
                       <MTd className="text-right">
                         <div className="flex justify-end gap-1">
+                          {/* The setup-script generator emits RouterOS for an
+                              agent this device will never run. Offering it on
+                              a controller row is the same defect as the
+                              MikroTik-shaped detail drawer, one click away. */}
                           {/* THE ONLY PROVISIONING ENTRY POINT. This row
                            * carried three (Guided / Wizard / Advanced) and
                            * now carries one. The other two routes still
                            * exist but redirect here -- see
                            * `master.routers.guided.$routerId.tsx` and
                            * `master.routers.setup.$routerId.tsx` for why. */}
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              goToAdvanced(r.id);
-                            }}
-                            title="MikroTik setup script generator"
-                            className="inline-flex items-center gap-1 rounded-lg border border-primary bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground hover:bg-primary/90"
-                          >
-                            <FileCode2 className="h-3 w-3" /> Advanced
-                          </button>
+                          {!isControllerManaged(r.vendor) && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                goToAdvanced(r.id);
+                              }}
+                              title="MikroTik setup script generator"
+                              className="inline-flex items-center gap-1 rounded-lg border border-primary bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground hover:bg-primary/90"
+                            >
+                              <FileCode2 className="h-3 w-3" /> Advanced
+                            </button>
+                          )}
                         </div>
                       </MTd>
                     )}
@@ -590,10 +660,35 @@ function RouterFleetScreen() {
                       <p className="text-lg font-semibold tabular-nums">{contactLabel(sel, now)}</p>
                     </div>
                     <div className="rounded-lg border border-border p-2.5 text-center">
-                      <p className="text-[11px] font-medium text-muted-foreground">RouterOS</p>
-                      <p className="text-lg font-semibold">{sel.routerOsVersion ?? "—"}</p>
+                      <p className="text-[11px] font-medium text-muted-foreground">
+                        {isControllerManaged(sel.vendor) ? "Software" : "RouterOS"}
+                      </p>
+                      <p className="text-lg font-semibold">
+                        {isControllerManaged(sel.vendor)
+                          ? "On its controller"
+                          : (sel.routerOsVersion ?? "—")}
+                      </p>
                     </div>
                   </div>
+
+                  {/* The controller row itself can say almost nothing true
+                      (contract §11.5). What it CAN say is whether the venue's
+                      integration is actually letting anyone on. */}
+                  {controllerWarning(sel) && (
+                    <div className="space-y-1 rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-xs">
+                      <p className="font-medium text-destructive">{controllerWarning(sel)}</p>
+                      <p className="text-muted-foreground">
+                        {controllerWarning(sel) === "No integration"
+                          ? "This controller is registered in the fleet but this venue has no network integration, so nothing authorises its guests at all."
+                          : "This venue's network integration was connected and never finished, so guests here can complete the whole sign-in and still have no internet."}
+                      </p>
+                      <Link to="/master/integrations" search={{ q: sel.locationName || sel.name }}>
+                        <MButton variant="outline" className="mt-1">
+                          Open network integration
+                        </MButton>
+                      </Link>
+                    </div>
+                  )}
 
                   {!demo && (
                     <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-700 dark:text-amber-400">
@@ -622,7 +717,7 @@ function RouterFleetScreen() {
                     </div>
                   )}
 
-                  {!demo && (
+                  {!demo && !isControllerManaged(sel.vendor) && (
                     <div className="space-y-2">
                       <MButton
                         variant="primary"
