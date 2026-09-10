@@ -68,8 +68,8 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
     id: "engagement",
     label: "Engagement",
     items: [
-      { id: "campaigns", label: "Campaigns", icon: Megaphone, roles: ["owner"] },
       { id: "portal", label: "Portal", icon: Palette, roles: ["owner"] },
+      { id: "campaigns", label: "Campaigns", icon: Megaphone, roles: ["owner"] },
       { id: "vouchers", label: "Vouchers", icon: Ticket, roles: ["owner", "agent"] },
     ],
   },
