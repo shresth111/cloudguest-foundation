@@ -283,6 +283,32 @@ jobs:
             "portal search retention: all checks passed" \
             bun run test:portal-search-retention
 
+      # The guest's own IP address, as an Omada controller reported it.
+      # From controller v6.2.10 (current shipping firmware) TP-Link's doc
+      # 132060 says the authorization body "must contain" `clientIp`, in
+      # both the EAP and the gateway shape; doc 13080 (v5.0.15-v6.2.0) does
+      # not mention it at all, so this is a genuine new-firmware
+      # requirement. It is CAPTURED from the controller's redirect and never
+      # derived -- the portal sits behind a reverse proxy, so the request's
+      # own peer address is the proxy's, and authorizing a wrong address
+      # authorizes the wrong device or nobody.
+      #
+      # Two silent failure modes, neither visible to tsc, eslint or the
+      # build: the param being dropped by a `<Link>` (exactly the incident
+      # the suite above exists for), and the value being posted somewhere
+      # the backend does not parse -- nested or camelCased, which pydantic's
+      # `extra="ignore"` discards without a word, the way this integration's
+      # `credentials: {...}` bug already returned 201 with nothing stored.
+      # So this suite asserts the shape the BACKEND parses, and every part
+      # of it was verified to FAIL when reverted (13 checks red without the
+      # schema key, 4 without the route wiring, 7 with the field nested).
+      - name: portal clientIp capture
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "portal-client-ip" 40 \
+            "portal clientIp capture: all checks passed" \
+            bun run test:portal-client-ip
+
       # Which organization every request is about. A founder holding
       # `Super Admin` at GLOBAL scope opened a report about his own venue on
       # 7 Sep 2026 and read numbers blended across all fourteen

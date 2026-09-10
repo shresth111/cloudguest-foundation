@@ -189,6 +189,7 @@ function PortalRuntimeLayout() {
     mac,
     ip,
     dst,
+    clientIp,
   } = search;
   const linkLoginOnly = search["link-login-only"];
 
@@ -239,6 +240,13 @@ function PortalRuntimeLayout() {
       routerId={routerId}
       deviceMac={mac}
       deviceIp={ip}
+      // Omada's `clientIp`, straight off the controller's own redirect and
+      // deliberately a separate prop from `deviceIp` (RouterOS's `$(ip)`)
+      // -- see `portalSearchShape.clientIp` in src/lib/portal-search.ts for
+      // why the two vendors' addresses are never substituted for one
+      // another. Passed through untouched: this route captures, it does not
+      // derive.
+      clientIp={clientIp}
       destinationUrl={dst}
       hotspotLoginUrl={linkLoginOnly}
     >
