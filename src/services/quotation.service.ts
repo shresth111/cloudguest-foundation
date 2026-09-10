@@ -24,6 +24,8 @@ interface BackendQuotation {
   currency: string;
   valid_until: string;
   notes: string | null;
+  payment_terms: string | null;
+  terms_and_conditions: string | null;
   sent_at: string | null;
   email_error: string | null;
   created_at: string;
@@ -62,6 +64,8 @@ function toQuotation(q: BackendQuotation): Quotation {
     currency: q.currency,
     validUntil: q.valid_until,
     notes: q.notes,
+    paymentTerms: q.payment_terms,
+    termsAndConditions: q.terms_and_conditions,
     sentAt: q.sent_at,
     emailError: q.email_error,
     createdAt: q.created_at,
@@ -90,6 +94,8 @@ export const quotationService = {
       currency: payload.currency,
       valid_until: payload.validUntil,
       notes: payload.notes || undefined,
+      payment_terms: payload.paymentTerms || undefined,
+      terms_and_conditions: payload.termsAndConditions || undefined,
     });
     return toQuotation(data);
   },

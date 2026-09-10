@@ -23,6 +23,9 @@ export interface Quotation {
   currency: string;
   validUntil: string;
   notes: string | null;
+  /** Operator-editable generic copy printed as its own PDF section. */
+  paymentTerms: string | null;
+  termsAndConditions: string | null;
   sentAt: string | null;
   emailError: string | null;
   createdAt: string;
@@ -44,6 +47,10 @@ export interface CreateQuotationPayload {
   currency: string;
   validUntil: string;
   notes?: string;
+  /** Generic blocks the operator can edit before sending; the create form
+   *  prefills them, and clearing the textarea omits the section. */
+  paymentTerms?: string;
+  termsAndConditions?: string;
 }
 
 export const QUOTATION_STATUS_LABEL: Record<QuotationStatus, string> = {

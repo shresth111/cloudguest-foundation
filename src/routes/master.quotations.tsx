@@ -87,6 +87,23 @@ const VALIDITY_PRESETS: { label: string; days: number }[] = [
   { label: "1 month", days: 30 },
 ];
 
+/** Generic, editable starting copy for the two standing blocks on every
+ *  quotation -- the create form prefills them and the operator rewrites
+ *  whatever does not apply. Both start blank-able: clearing the textarea
+ *  omits the section from the PDF entirely (backend columns are nullable). */
+const DEFAULT_PAYMENT_TERMS = [
+  "50% advance with the purchase order; balance within 15 days of installation.",
+  "All prices are exclusive of applicable taxes unless stated otherwise.",
+].join("\n");
+
+const DEFAULT_TERMS_AND_CONDITIONS = [
+  "1. This quotation is valid until the date stated above.",
+  "2. Prices are quoted in the stated currency and exclude applicable taxes unless mentioned otherwise.",
+  "3. Any additional hardware, cabling or civil work is charged separately.",
+  "4. Delivery and installation timelines are confirmed at the time of order.",
+  "5. Support is available during business hours (Mon-Sat).",
+].join("\n");
+
 function money(amount: number, currency: string): string {
   try {
     return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);
@@ -120,6 +137,8 @@ function QuotationsScreen() {
   const [taxPercentage, setTaxPercentage] = useState("0");
   const [validUntil, setValidUntil] = useState(defaultValidUntil());
   const [notes, setNotes] = useState("");
+  const [paymentTerms, setPaymentTerms] = useState(DEFAULT_PAYMENT_TERMS);
+  const [termsAndConditions, setTermsAndConditions] = useState(DEFAULT_TERMS_AND_CONDITIONS);
   const [lineItems, setLineItems] = useState<QuotationLineItemInput[]>([emptyLineItem()]);
 
   async function refetch() {
@@ -164,6 +183,8 @@ function QuotationsScreen() {
     setTaxPercentage("0");
     setValidUntil(defaultValidUntil());
     setNotes("");
+    setPaymentTerms(DEFAULT_PAYMENT_TERMS);
+    setTermsAndConditions(DEFAULT_TERMS_AND_CONDITIONS);
     setLineItems([emptyLineItem()]);
   }
 
@@ -206,6 +227,8 @@ function QuotationsScreen() {
         currency,
         validUntil: new Date(validUntil).toISOString(),
         notes: notes.trim() || undefined,
+        paymentTerms: paymentTerms.trim() || undefined,
+        termsAndConditions: termsAndConditions.trim() || undefined,
       });
       setQuotations((prev) => [quotation, ...prev]);
       setCreateOpen(false);
@@ -640,10 +663,28 @@ function QuotationsScreen() {
               </div>
             </div>
 
+            <MField label="Payment terms">
+              <textarea
+                className={`${M_INPUT} min-h-24`}
+                placeholder="Advance %, balance window, tax note…"
+                value={paymentTerms}
+                onChange={(e) => setPaymentTerms(e.target.value)}
+              />
+            </MField>
+
+            <MField label="Terms & conditions">
+              <textarea
+                className={`${M_INPUT} min-h-32`}
+                placeholder="One point per line…"
+                value={termsAndConditions}
+                onChange={(e) => setTermsAndConditions(e.target.value)}
+              />
+            </MField>
+
             <MField label="Notes (optional)">
               <textarea
                 className={`${M_INPUT} min-h-20`}
-                placeholder="Payment terms, discounts, or anything else the client should know…"
+                placeholder="Anything else the client should know…"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
               />
