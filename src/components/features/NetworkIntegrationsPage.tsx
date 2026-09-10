@@ -457,7 +457,7 @@ export function NetworkIntegrationsPage({ locationId }: { locationId?: string })
                     site step and cannot re-ask for a secret nothing can read
                     back. That row is sent to the integration's own Replace
                     credentials action instead, which `setup.nextStep` says. */}
-                {deriveIntegrationSetup(r).gaps.some((g) => g.key !== "credentials") ? (
+                {setup.gaps.some((g) => g.key !== "credentials") ? (
                   <Button
                     size="sm"
                     onClick={() => {

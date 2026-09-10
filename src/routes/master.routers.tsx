@@ -281,6 +281,12 @@ function RouterFleetScreen() {
     return map;
   }, [integrations.data]);
 
+  /** Whether that map is the WHOLE picture. One page of 200 covers every
+   * estate this platform has today, but "I did not see it in the first 200"
+   * is not the same fact as "it does not exist" -- and the difference decides
+   * whether "No integration" below is a statement or a guess. */
+  const sawEveryIntegration = integrations.data ? !integrations.data.hasNext : false;
+
   /**
    * What to say next to a controller row, or null for "nothing to add".
    *
@@ -291,7 +297,10 @@ function RouterFleetScreen() {
     if (!isControllerManaged(r.vendor)) return null;
     if (!integrationsByLocation) return null; // we could not look
     const here = integrationsByLocation.get(r.locationId) ?? [];
-    if (here.length === 0) return "No integration";
+    // Absence is only evidence when the list was complete. Otherwise this
+    // says nothing rather than accusing a working venue of having no
+    // integration at all.
+    if (here.length === 0) return sawEveryIntegration ? "No integration" : null;
     return here.every((i) => deriveIntegrationSetup(i).isHalfConfigured)
       ? "Authorising nobody"
       : null;
@@ -583,16 +592,17 @@ function RouterFleetScreen() {
                     {!demo && (
                       <MTd className="text-right">
                         <div className="flex justify-end gap-1">
-                          {/* The setup-script generator emits RouterOS for an
-                              agent this device will never run. Offering it on
-                              a controller row is the same defect as the
-                              MikroTik-shaped detail drawer, one click away. */}
                           {/* THE ONLY PROVISIONING ENTRY POINT. This row
                            * carried three (Guided / Wizard / Advanced) and
                            * now carries one. The other two routes still
                            * exist but redirect here -- see
                            * `master.routers.guided.$routerId.tsx` and
-                           * `master.routers.setup.$routerId.tsx` for why. */}
+                           * `master.routers.setup.$routerId.tsx` for why.
+                           *
+                           * Not offered on a controller: it emits RouterOS
+                           * for an agent that device will never run, which is
+                           * the MikroTik-shaped detail drawer's defect one
+                           * click away. */}
                           {!isControllerManaged(r.vendor) && (
                             <button
                               type="button"
