@@ -54,3 +54,117 @@ export function routerVendorLabel(vendor: string | null | undefined): string {
   if (!vendor) return "—";
   return ROUTER_VENDOR_LABEL[vendor.toLowerCase()] ?? vendor;
 }
+
+// ---------------------------------------------------------------------------
+// Which tabs of the fleet detail drawer apply to which vendor.
+// ---------------------------------------------------------------------------
+
+/**
+ * The tabs `RouterDetailTabs` can render, in display order.
+ *
+ * This list used to be an anonymous array literal inside the component,
+ * which was fine while every row in Router Fleet was a MikroTik running
+ * this platform's own agent. It is not fine now: nine of these eleven tabs
+ * are, in one way or another, a conversation with that agent or with
+ * RouterOS, and a TP-Link Omada controller has neither.
+ */
+export interface RouterDetailTab {
+  key: string;
+  label: string;
+}
+
+export const ROUTER_DETAIL_TABS: readonly RouterDetailTab[] = [
+  { key: "overview", label: "Overview" },
+  { key: "setup-script", label: "Setup Script" },
+  { key: "wireguard", label: "WireGuard" },
+  { key: "wifi", label: "Guest WiFi" },
+  { key: "devices", label: "Connected Devices" },
+  { key: "monitoring", label: "Monitoring" },
+  { key: "analytics", label: "Analytics" },
+  { key: "config", label: "Configuration" },
+  { key: "provisioning", label: "Provisioning" },
+  { key: "diagnostics", label: "Diagnostics" },
+  { key: "audit", label: "Audit Logs" },
+];
+
+/**
+ * The tabs that still mean something for a controller-managed row, and why
+ * each of the others does not. Written as an allowlist rather than a
+ * denylist on purpose: a twelfth tab added later defaults to *hidden* for a
+ * controller, which is the safe direction. A new tab that does apply is a
+ * one-line addition here; a new agent-shaped tab that silently appeared on
+ * an Omada drawer would be this whole defect coming back.
+ *
+ *  - `overview`  — the `Router` row itself is real: name, MAC, venue, the
+ *                  organization it belongs to. Rendered vendor-aware (no
+ *                  RouterOS version, no health verdict, no "last seen").
+ *  - `audit`     — audit rows about this row are real records of things
+ *                  people did in this console. They exist regardless of
+ *                  what is at the other end of the row.
+ *
+ * Everything else is excluded because it cannot work, not because it is
+ * merely empty:
+ *  - `setup-script`  RouterOS script for an agent that will never run.
+ *  - `wireguard`     the backend now refuses this with a 422 — and it must,
+ *                    because the hub agent has no delete verb, so a peer
+ *                    allocated to a controller leaks an address forever.
+ *  - `devices`       populated by the router agent's device sync; an Omada
+ *                    venue's clients live on its network integration.
+ *  - `monitoring`    CPU/RAM/bandwidth/RADIUS from heartbeats nobody sends.
+ *  - `analytics`     per-router breakdowns keyed off the same heartbeats.
+ *  - `config`        RouterOS config preview/push/rollback.
+ *  - `provisioning`  provisioning tokens, backups, factory reset — all of
+ *                    them agent verbs.
+ *  - `diagnostics`   ping/traceroute *from the device*, via the agent.
+ *  - `wifi`          already an explanatory panel rather than a control
+ *                    surface, and the explanation it gives (MikroTik
+ *                    hotspot settings live in the customer dashboard) is
+ *                    the wrong one for a controller.
+ */
+export const CONTROLLER_MANAGED_TAB_KEYS: readonly string[] = ["overview", "audit"];
+
+/** The tabs to render for this vendor. */
+export function routerDetailTabsFor(vendor: string | null | undefined): RouterDetailTab[] {
+  if (!isControllerManaged(vendor)) return [...ROUTER_DETAIL_TABS];
+  return ROUTER_DETAIL_TABS.filter((t) => CONTROLLER_MANAGED_TAB_KEYS.includes(t.key));
+}
+
+/** The complement, so the drawer can *name* what it is not showing instead
+ * of leaving an operator to wonder whether the console is broken. Empty for
+ * every agent-managed vendor. */
+export function routerDetailTabsNotApplicableFor(
+  vendor: string | null | undefined,
+): RouterDetailTab[] {
+  if (!isControllerManaged(vendor)) return [];
+  return ROUTER_DETAIL_TABS.filter((t) => !CONTROLLER_MANAGED_TAB_KEYS.includes(t.key));
+}
+
+/**
+ * Clamp a requested tab to one this vendor actually has.
+ *
+ * `/routers/{id}?tab=wireguard` is a real, linkable URL, and a bookmark or
+ * a stale link must not land a controller's drawer on a tab whose trigger
+ * is not rendered -- Radix `Tabs` would then show no panel at all, which
+ * reads as a broken page rather than as a tab that does not apply.
+ */
+export function resolveRouterDetailTab(
+  vendor: string | null | undefined,
+  requested: string | null | undefined,
+): string {
+  const available = routerDetailTabsFor(vendor);
+  const wanted = requested ?? "";
+  return available.some((t) => t.key === wanted) ? wanted : available[0].key;
+}
+
+/**
+ * Whether this platform measures the liveness/health of the device itself.
+ *
+ * The single predicate behind every "Last seen", "Health" and "Last health
+ * check" field. All three read off columns that only a heartbeat writes, so
+ * on a controller they are permanently `null` -- and `null` rendered as
+ * "Never" is a measurement claim ("we looked and it never has"), where the
+ * truth is that nothing here ever looks.
+ */
+export function routerLivenessIsMeasured(vendor: string | null | undefined): boolean {
+  return isAgentManaged(vendor);
+}

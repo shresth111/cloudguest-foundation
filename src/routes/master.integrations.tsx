@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -91,7 +92,18 @@ import {
  * counts the backend already computes, and a sparkline over a count we poll
  * every few minutes would be decoration pretending to be a trend.
  */
+/**
+ * `?q=` exists so that the fleet drawer can *link* here rather than tell an
+ * operator to come and find the row themselves. A controller in Router Fleet
+ * has almost nothing true to say about itself (contract §11.5) and its whole
+ * honest answer is "the integration knows" — a pointer that lands on the
+ * unfiltered list of every tenant's controllers is a weaker version of that
+ * sentence. Optional, and the page behaves exactly as before without it.
+ */
+const searchSchema = z.object({ q: z.string().optional() });
+
 export const Route = createFileRoute("/master/integrations")({
+  validateSearch: searchSchema,
   component: PlatformIntegrationsScreen,
 });
 
@@ -165,8 +177,12 @@ const STATUS_OPTIONS: { value: "" | NetworkIntegrationStatus; label: string }[] 
 
 function PlatformIntegrationsScreen() {
   const qc = useQueryClient();
-  const [search, setSearch] = useState("");
-  const [q, setQ] = useState("");
+  const { q: initialQ } = Route.useSearch();
+  // Seeded from the URL, then owned by the input. Deliberately NOT synced
+  // back from `initialQ` on every render: that would fight an operator who
+  // edits the box, which is the failure mode a `useEffect` mirror always has.
+  const [search, setSearch] = useState(initialQ ?? "");
+  const [q, setQ] = useState(initialQ ?? "");
   const [status, setStatus] = useState<"" | NetworkIntegrationStatus>("");
   const [organizationId, setOrganizationId] = useState("");
   const [page, setPage] = useState(1);
