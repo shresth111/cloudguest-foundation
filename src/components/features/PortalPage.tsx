@@ -410,6 +410,34 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   const [previewTab, setPreviewTab] = useState<"signin" | "connected">("signin");
   const [previewScenario, setPreviewScenario] = useState<ConnectedPreviewScenario>("first_visit");
 
+  /**
+   * Whether the saved configuration was actually read.
+   *
+   * THE DEFECT THIS EXISTS FOR. `loadPortal()` used to be called as
+   * `loadPortal().catch(() => {})` with the comment "leave the form at its
+   * sensible defaults above". On this screen there is no such thing as a
+   * sensible default: every control here is a claim about what a venue's
+   * guests are being asked for right now. Mobile OTP and Voucher are
+   * initialised on, the review card off, the terms box empty -- so a failed
+   * read rendered a screen that says "your guests sign in with an OTP or a
+   * voucher, you ask them for nothing afterwards, and you publish no terms".
+   * That is indistinguishable from a venue whose settings really are those,
+   * and it is a lie about every venue whose settings are not.
+   *
+   * Worse than the reading is the writing. Save Configuration PATCHes what
+   * is on screen, and when there is no `portalId` it CREATEs. So an owner
+   * who opened this page during a blip, saw the wrong flags, and corrected
+   * one of them would have written the other six defaults over their real
+   * configuration -- or created a second config row for the venue.
+   *
+   * This is the same defect class already fixed on the Access Rules ->
+   * Sign-in Methods screen, which was later deleted as a duplicate of this
+   * one (see AUTH_OPTIONS' own note). The fix is the same: a failed load is
+   * visibly a failed load, and nothing that would write is usable until we
+   * have actually read.
+   */
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "failed">("loading");
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [portalId, setPortalId] = useState<string | null>(null);
   const [orgId, setOrgId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -559,11 +587,41 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   };
 
   useEffect(() => {
-    loadPortal().catch(() => {
-      // Real fetch failed -- leave the form at its sensible defaults above.
-    });
+    let cancelled = false;
+    setLoadState("loading");
+    setLoadError(null);
+    loadPortal()
+      .then(() => {
+        if (!cancelled) setLoadState("ready");
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        // The message is shown, not swallowed. `toAppError` is what every
+        // other screen here renders, so a 403 reads as a permissions problem
+        // and a network failure reads as a network one -- which are
+        // different things for the person reading it to do next.
+        setLoadError(
+          axios.isAxiosError(err)
+            ? toAppError(err).message
+            : "We could not read this venue's saved portal configuration.",
+        );
+        setLoadState("failed");
+      });
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demo, locationId]);
+
+  /**
+   * True while we cannot honestly say what this venue's settings are.
+   *
+   * Covers the failed read AND the in-flight one: a control that writes a
+   * flag on top of state we have not read yet is the same bug a few hundred
+   * milliseconds earlier. `demo` is exempt -- `loadPortal` returns
+   * immediately there and the demo workspace has nothing real to overwrite.
+   */
+  const editorLocked = !demo && loadState !== "ready";
 
   // See `previewHtml` above. 350ms is the usual "stopped typing" threshold --
   // long enough that a burst of typing costs one reload, short enough that
@@ -624,13 +682,22 @@ export function PortalPage({ locationId }: { locationId?: string }) {
     setRefreshing(true);
     try {
       await loadPortal();
+      // Doubles as the "Try again" on the failure banner above, so it has to
+      // clear that state as well as report success.
+      setLoadState("ready");
+      setLoadError(null);
       toast.success("Preview refreshed with the last saved configuration");
     } catch (err) {
-      toast.error(
-        axios.isAxiosError(err)
-          ? toAppError(err).message
-          : "Could not refresh — check the connection and try again.",
-      );
+      const message = axios.isAxiosError(err)
+        ? toAppError(err).message
+        : "Could not refresh — check the connection and try again.";
+      // A refresh that fails leaves the form holding whatever the LAST
+      // successful read put there, which may now be stale -- and if there
+      // was never a successful read, the defaults. Either way this page can
+      // no longer vouch for what it is showing, so it stops claiming to.
+      setLoadError(message);
+      setLoadState("failed");
+      toast.error(message);
     } finally {
       setRefreshing(false);
     }
@@ -1042,6 +1109,15 @@ export function PortalPage({ locationId }: { locationId?: string }) {
     // The Save button is disabled while blocked; this guard just keeps the
     // rule airtight if another code path ever calls saveConfig directly.
     if (saveBlocked) return;
+    // Same, for the state this page cannot see. A disabled fieldset stops
+    // the click; it does not stop a caller. Writing here would put this
+    // page's defaults over settings we never read.
+    if (editorLocked) {
+      toast.error(
+        "This venue's saved settings could not be read, so there is nothing safe to save over them yet. Use Try again first.",
+      );
+      return;
+    }
     if (demo) {
       toast.success("Portal configuration saved");
       return;
@@ -1237,6 +1313,34 @@ export function PortalPage({ locationId }: { locationId?: string }) {
           <PortalDesignIllustration />
         </div>
       </div>
+      {/* A failed load must LOOK like a failed load. Not a toast (gone in
+          four seconds, and this state does not go away), and not a silent
+          fall-through to defaults. */}
+      {loadState === "failed" && (
+        <div className="flex flex-wrap items-start gap-3 rounded-xl border border-destructive/40 bg-destructive/5 p-4">
+          <Info className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+          <div className="min-w-0 flex-1 space-y-1">
+            <p className="font-semibold">
+              This venue&apos;s saved portal settings could not be read
+            </p>
+            <p className="text-sm text-muted-foreground">{loadError}</p>
+            <p className="text-sm text-muted-foreground">
+              The controls below are showing this page&apos;s defaults, not your settings, so they
+              are locked — saving now would write those defaults over whatever is really stored.
+              Your guests are unaffected: nothing on this screen has changed for them.
+            </p>
+          </div>
+          <Button variant="outline" size="sm" disabled={refreshing} onClick={handleRefresh}>
+            {refreshing ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-2 h-4 w-4" />
+            )}
+            Try again
+          </Button>
+        </div>
+      )}
+
       <div className="grid gap-4 lg:grid-cols-2">
         {/* LEFT COLUMN. Two cards, not one, and the boundary is deliberate:
             Portal Configuration is the sign-in screen (headline, logo,
@@ -1244,7 +1348,16 @@ export function PortalPage({ locationId }: { locationId?: string }) {
             AFTER the gate. Mixing them is what would let someone drag the
             email field back onto the sign-in card, which is the one thing
             the guest-side design exists to prevent. */}
-        <div className="space-y-4">
+        {/* A `fieldset`, not a `disabled` prop on the Save button. Save is
+            the loudest writer on this page but it is not the only one, and
+            enumerating them by hand is how one gets missed on the next edit:
+            every switch, input, textarea, colour swatch and upload in here
+            edits state that Save then sends. A disabled fieldset disables
+            every form control it contains, including the ones added
+            tomorrow. Border/padding/margin zeroed and `min-w-0` because a
+            fieldset defaults to `min-width: min-content`, which would break
+            the grid column. */}
+        <fieldset disabled={editorLocked} className="m-0 min-w-0 space-y-4 border-0 p-0">
           <Card className="shadow-sm border-0">
             <CardHeader>
               <CardTitle className="flex items-center gap-2.5 text-sm">
@@ -1720,9 +1833,14 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                       whileTap={{ scale: 0.96 }}
                       className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 transition-colors ${authMethods.includes(k) ? "border-primary/50 bg-primary/5" : ""}`}
                     >
+                      {/* The visible text is a sibling `<span>`, not a
+                          `<label htmlFor>`, so this control had no
+                          accessible name at all: a screen reader announced
+                          seven unlabelled switches. */}
                       <Switch
                         checked={authMethods.includes(k)}
                         onCheckedChange={() => toggleAuth(k)}
+                        aria-label={v}
                       />
                       <span className="text-xs">{v}</span>
                     </motion.div>
@@ -1967,7 +2085,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
               </div>
             </CardContent>
           </Card>
-        </div>
+        </fieldset>
 
         <div className="space-y-4">
           <Card className="shadow-sm border-0 overflow-hidden bg-gradient-to-br from-[#1e1b4b] via-[#241f52] to-[#2b2461] text-white">
