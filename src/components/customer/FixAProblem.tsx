@@ -134,6 +134,10 @@ function routerContactLine(router: RouterDevice): string {
         name: router.name,
         status: router.status,
         last_seen_at: router.lastSeenAt,
+        // Without this the gate in `deriveRouterLiveness` never fires and a
+        // controller is reported to the venue owner as a router that never
+        // ran its setup script. See contract §11.5.
+        vendor: router.vendor,
       },
       now,
     ),

@@ -50,7 +50,12 @@ import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { useDeleteRouters, useRouters, useUpdateRouterStatus } from "@/hooks/useRouters";
 import { routerService } from "@/services/router.service";
 import type { RouterDevice, RouterListQuery, RouterStatus } from "@/types/router";
-import { RouterStatusBadge, HealthStatusBadge, MissingCredentialsBadge } from "./RouterStatusBadge";
+import {
+  RouterStatusBadge,
+  HealthStatusBadge,
+  MissingCredentialsBadge,
+  ControllerManagedBadge,
+} from "./RouterStatusBadge";
 import { RouterWizard } from "./RouterWizard";
 import type { AppError } from "@/services/api";
 
@@ -398,9 +403,11 @@ export function RouterTable() {
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-1">
                         <RouterStatusBadge status={r.status} />
+                        <ControllerManagedBadge vendor={r.vendor} />
                         <MissingCredentialsBadge
                           hasApiCredentials={r.hasApiCredentials}
                           status={r.status}
+                          vendor={r.vendor}
                         />
                       </div>
                     </TableCell>

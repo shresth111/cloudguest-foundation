@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import type { FieldPath, FieldValues, UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -47,7 +48,8 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { routerWizardSchema, type RouterWizardValues } from "@/lib/router-schemas";
-import { useCreateRouter } from "@/hooks/useRouters";
+import { useCreateRouter, useOnboardController } from "@/hooks/useRouters";
+import type { OnboardControllerResult } from "@/types/router";
 import { routerService } from "@/services/router.service";
 import { RouterModelCombobox } from "@/components/routers/RouterModelCombobox";
 import type { AppError } from "@/services/api";
@@ -64,13 +66,64 @@ import {
 } from "@/hooks/useProvisioning";
 import type { DeviceDiscoveryResult } from "@/types/provisioning";
 
-const STEPS = [
+const MIKROTIK_STEPS = [
   { key: "basic", title: "Basic information", description: "Router profile" },
   { key: "credentials", title: "Credentials", description: "API access (optional)" },
   { key: "services", title: "Services", description: "Config preferences" },
   { key: "provision", title: "Provision", description: "Discover & configure (optional)" },
 ] as const;
-const LAST_FORM_STEP = 2;
+
+/**
+ * The Omada path is three steps, not four -- contract §11.6.
+ *
+ * "Services" is dropped because those six toggles land in `Router.settings`
+ * and describe what to configure ON a MikroTik: FreeRADIUS, a WireGuard
+ * management tunnel, a RouterOS captive portal. None of them is a thing this
+ * platform does to an Omada controller, and offering them would promise
+ * configuration that never happens.
+ *
+ * "Provision" is dropped for the same reason the backend excludes these rows
+ * from the ZTP dashboard and refuses them a provisioning token: zero-touch
+ * provisioning begins with an enrollment request and ends with a platform
+ * agent checking in, and a controller does neither. What replaces it is a
+ * confirmation of what was actually created, and the one link that finishes
+ * the job.
+ */
+const OMADA_STEPS = [
+  { key: "basic", title: "Controller", description: "Identity & venue" },
+  { key: "omada", title: "Connection", description: "Address & credentials" },
+  { key: "done", title: "Connected", description: "Map the site to finish" },
+] as const;
+
+const VENDOR_CHOICES = [
+  {
+    id: "mikrotik" as const,
+    label: "MikroTik router",
+    description: "Provisioned and managed by this platform's own agent.",
+  },
+  {
+    id: "tplink_omada" as const,
+    label: "TP-Link Omada controller",
+    description: "Managed through its own controller; this platform integrates with it.",
+  },
+];
+
+const AUTH_MODE_CHOICES = [
+  {
+    id: "openapi" as const,
+    label: "Open API client",
+    // The operational difference, not the marketing one. Legacy credentials
+    // authorise guests but cannot read inventory at all, so a venue that picks
+    // them gets a working captive portal and permanently empty device/client
+    // tabs -- worth knowing before choosing rather than after.
+    description: "Controller v5.13+. Required for device, client and site listings.",
+  },
+  {
+    id: "legacy" as const,
+    label: "Hotspot operator",
+    description: "Older controllers. Authorises guests, but lists no devices or clients.",
+  },
+];
 
 interface Props {
   open: boolean;
@@ -78,6 +131,28 @@ interface Props {
 }
 
 const DEFAULTS: RouterWizardValues = {
+  // Defaults to MikroTik: every device this platform has ever registered is
+  // one, so the wizard opens on the path an operator almost always wants and
+  // the Omada branch is an explicit choice rather than something to dismiss.
+  vendor: "mikrotik",
+  // Present but empty for a MikroTik registration -- `routerWizardSchema`'s
+  // superRefine only validates these when `vendor === "tplink_omada"`, so one
+  // form object serves both vendors without swapping resolvers mid-flow (see
+  // that schema's own comment). `authMode` opens on "openapi" because legacy
+  // operator credentials cannot read sites, SSIDs, devices or clients at all
+  // -- they drive the captive portal and nothing else.
+  omada: {
+    baseUrl: "",
+    authMode: "openapi",
+    clientId: "",
+    clientSecret: "",
+    username: "",
+    password: "",
+    siteId: "",
+    siteName: "",
+    ssidId: "",
+    ssidName: "",
+  },
   basic: {
     name: "",
     locationId: "",
@@ -101,7 +176,9 @@ const DEFAULTS: RouterWizardValues = {
 export function RouterWizard({ open, onOpenChange }: Props) {
   const [step, setStep] = useState(0);
   const [createdRouter, setCreatedRouter] = useState<{ id: string; name: string } | null>(null);
+  const [onboarded, setOnboarded] = useState<OnboardControllerResult | null>(null);
   const create = useCreateRouter();
+  const onboard = useOnboardController();
   const { data: locations = [] } = useQuery({
     queryKey: ["routers", "location-options"],
     queryFn: () => routerService.locations(),
@@ -113,22 +190,42 @@ export function RouterWizard({ open, onOpenChange }: Props) {
     mode: "onBlur",
   });
 
+  const vendor = form.watch("vendor");
+  const isOmada = vendor === "tplink_omada";
+  const STEPS = isOmada ? OMADA_STEPS : MIKROTIK_STEPS;
+  // The last step that is a FORM (submit lives here); the one after it is the
+  // post-create panel, which is why both flows stop one short of `length`.
+  const LAST_FORM_STEP = STEPS.length - 2;
+  const pending = create.isPending || onboard.isPending;
+
   async function next() {
-    // Only reachable for step < LAST_FORM_STEP, i.e. "basic"/"credentials" --
-    // "provision" isn't a form field and is never trigger()-ed.
-    const key = STEPS[step].key as "basic" | "credentials" | "services";
-    const valid = await form.trigger(key);
+    // "provision"/"done" are not form fields and are never trigger()-ed, and
+    // the button that calls this is hidden past LAST_FORM_STEP.
+    const key = STEPS[step].key as "basic" | "credentials" | "services" | "omada";
+    // The vendor radio lives on the "basic" step but is a top-level field, so
+    // it is not covered by trigger("basic"). It cannot be invalid (it is a
+    // two-option enum with a default), but validating the pair keeps this
+    // honest if a third vendor ever arrives with its own constraints.
+    const valid = await form.trigger(key === "basic" ? ["vendor", "basic"] : [key]);
     if (valid) setStep((s) => Math.min(LAST_FORM_STEP, s + 1));
   }
 
   async function submit(values: RouterWizardValues) {
+    if (values.vendor === "tplink_omada") {
+      await submitOmada(values);
+      return;
+    }
     try {
       const r = await create.mutateAsync({
         locationId: values.basic.locationId,
         name: values.basic.name,
-        serialNumber: values.basic.serialNumber,
-        macAddress: values.basic.macAddress,
+        // Non-null by validation on this branch: `routerWizardSchema`'s
+        // refinement requires both for a MikroTik (they are optional on the
+        // field only so the Omada branch can omit them).
+        serialNumber: values.basic.serialNumber ?? "",
+        macAddress: values.basic.macAddress ?? "",
         model: values.basic.model,
+        vendor: values.vendor,
         managementIpAddress: values.basic.managementIpAddress || undefined,
         publicIpAddress: values.basic.publicIpAddress || undefined,
         apiUsername: values.credentials.apiUsername || undefined,
@@ -137,14 +234,60 @@ export function RouterWizard({ open, onOpenChange }: Props) {
       });
       toast.success(`${r.name} registered`);
       setCreatedRouter({ id: r.id, name: r.name });
-      setStep(3);
+      setStep(MIKROTIK_STEPS.length - 1);
     } catch (err) {
       toast.error((err as AppError).message || "Failed to add router");
     }
   }
 
+  /**
+   * Contract §11.6: one call writes the fleet device row and the network
+   * integration together, so a venue can never end up with one without the
+   * other.
+   *
+   * The organization is resolved from the chosen LOCATION rather than being
+   * asked for separately -- a platform operator picking a venue has already
+   * said which tenant they mean, and asking twice invites the two answers to
+   * disagree. The backend re-checks the pair regardless and refuses a location
+   * that belongs to someone else.
+   */
+  async function submitOmada(values: RouterWizardValues) {
+    const location = locations.find((l) => l.id === values.basic.locationId);
+    if (!location) {
+      toast.error("Select a location for this controller");
+      return;
+    }
+    try {
+      const result = await onboard.mutateAsync({
+        organizationId: location.organizationId,
+        locationId: values.basic.locationId,
+        name: values.basic.name,
+        controllerModel: values.basic.model,
+        baseUrl: values.omada.baseUrl?.trim() ?? "",
+        authMode: values.omada.authMode,
+        clientId: values.omada.clientId || undefined,
+        clientSecret: values.omada.clientSecret || undefined,
+        username: values.omada.username || undefined,
+        password: values.omada.password || undefined,
+        serialNumber: values.basic.serialNumber || undefined,
+        macAddress: values.basic.macAddress || undefined,
+      });
+      toast.success(`${values.basic.name} onboarded`);
+      setOnboarded(result);
+      // The secrets were only ever an in-flight draft. Clearing them here
+      // means they are gone from component state the moment they are no
+      // longer needed, rather than living until the dialog happens to close.
+      form.setValue("omada.clientSecret", "");
+      form.setValue("omada.password", "");
+      setStep(OMADA_STEPS.length - 1);
+    } catch (err) {
+      toast.error((err as AppError).message || "Failed to onboard controller");
+    }
+  }
+
   function finish() {
     onOpenChange(false);
+    setOnboarded(null);
     form.reset(DEFAULTS);
     setStep(0);
     setCreatedRouter(null);
@@ -159,13 +302,16 @@ export function RouterWizard({ open, onOpenChange }: Props) {
           form.reset(DEFAULTS);
           setStep(0);
           setCreatedRouter(null);
+          setOnboarded(null);
         }
       }}
     >
       <DialogContent className="max-w-3xl gap-0 overflow-hidden p-0">
         <DialogHeader className="border-b border-border/70 px-6 py-4">
-          <DialogTitle>Add router</DialogTitle>
-          <DialogDescription>Register a new router at a location you manage.</DialogDescription>
+          <DialogTitle>Add device</DialogTitle>
+          <DialogDescription>
+            Register a router or a Wi-Fi controller at a location you manage.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-0 md:grid-cols-[220px_1fr]">
@@ -218,10 +364,43 @@ export function RouterWizard({ open, onOpenChange }: Props) {
               <div className="flex-1 overflow-y-auto px-6 py-5">
                 {step === 0 && (
                   <div className="grid gap-4 sm:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="vendor"
+                      render={({ field }) => (
+                        <FormItem className="sm:col-span-2">
+                          <FormLabel>Device type</FormLabel>
+                          <FormControl>
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              {VENDOR_CHOICES.map((choice) => (
+                                <button
+                                  key={choice.id}
+                                  type="button"
+                                  onClick={() => field.onChange(choice.id)}
+                                  aria-pressed={field.value === choice.id}
+                                  className={cn(
+                                    "rounded-lg border px-3 py-2.5 text-left transition-colors",
+                                    field.value === choice.id
+                                      ? "border-primary bg-primary/5"
+                                      : "border-border hover:bg-muted/50",
+                                  )}
+                                >
+                                  <div className="text-sm font-medium">{choice.label}</div>
+                                  <div className="mt-0.5 text-xs text-muted-foreground">
+                                    {choice.description}
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                     <TextField
                       name="basic.name"
-                      label="Router name"
-                      placeholder="Lobby Router"
+                      label={isOmada ? "Controller name" : "Router name"}
+                      placeholder={isOmada ? "Lobby Controller" : "Lobby Router"}
                       form={form}
                     />
                     <SelectFieldOpts
@@ -235,12 +414,13 @@ export function RouterWizard({ open, onOpenChange }: Props) {
                       name="basic.model"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Router model</FormLabel>
+                          <FormLabel>{isOmada ? "Controller model" : "Router model"}</FormLabel>
                           <FormControl>
                             <RouterModelCombobox
                               value={field.value}
                               onValueChange={field.onChange}
                               placeholder="Select model"
+                              vendor={vendor}
                             />
                           </FormControl>
                           <FormMessage />
@@ -249,31 +429,115 @@ export function RouterWizard({ open, onOpenChange }: Props) {
                     />
                     <TextField
                       name="basic.serialNumber"
-                      label="Serial number"
-                      placeholder="SN01234567"
+                      label={isOmada ? "Serial number (hardware only)" : "Serial number"}
+                      placeholder={isOmada ? "Leave blank for software" : "SN01234567"}
                       form={form}
                     />
                     <TextField
                       name="basic.macAddress"
-                      label="MAC address"
-                      placeholder="AA:BB:CC:DD:EE:01"
+                      label={isOmada ? "MAC address (hardware only)" : "MAC address"}
+                      placeholder={isOmada ? "Leave blank for software" : "AA:BB:CC:DD:EE:01"}
                       form={form}
                     />
-                    <TextField
-                      name="basic.managementIpAddress"
-                      label="Management IP (optional)"
-                      placeholder="192.168.88.1"
-                      form={form}
-                    />
-                    <TextField
-                      name="basic.publicIpAddress"
-                      label="Public IP (optional)"
-                      placeholder="203.0.113.10"
-                      form={form}
-                    />
+                    {isOmada ? (
+                      <p className="sm:col-span-2 text-xs text-muted-foreground">
+                        An OC200 or OC300 has both printed on it — enter them so the fleet record
+                        matches the hardware. A software controller has neither: leave both blank
+                        and an identifier is generated for it. Nothing is invented in between, so
+                        enter both or neither.
+                      </p>
+                    ) : (
+                      <>
+                        <TextField
+                          name="basic.managementIpAddress"
+                          label="Management IP (optional)"
+                          placeholder="192.168.88.1"
+                          form={form}
+                        />
+                        <TextField
+                          name="basic.publicIpAddress"
+                          label="Public IP (optional)"
+                          placeholder="203.0.113.10"
+                          form={form}
+                        />
+                      </>
+                    )}
                   </div>
                 )}
-                {step === 1 && (
+                {step === 1 && isOmada && (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <TextField
+                      name="omada.baseUrl"
+                      label="Controller address"
+                      placeholder="https://controller.example.com:8043"
+                      form={form}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="omada.authMode"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Authentication</FormLabel>
+                          <FormControl>
+                            <div className="grid gap-2">
+                              {AUTH_MODE_CHOICES.map((choice) => (
+                                <button
+                                  key={choice.id}
+                                  type="button"
+                                  onClick={() => field.onChange(choice.id)}
+                                  aria-pressed={field.value === choice.id}
+                                  className={cn(
+                                    "rounded-lg border px-3 py-2 text-left transition-colors",
+                                    field.value === choice.id
+                                      ? "border-primary bg-primary/5"
+                                      : "border-border hover:bg-muted/50",
+                                  )}
+                                >
+                                  <div className="text-sm font-medium">{choice.label}</div>
+                                  <div className="mt-0.5 text-xs text-muted-foreground">
+                                    {choice.description}
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    {form.watch("omada.authMode") === "openapi" ? (
+                      <>
+                        <TextField name="omada.clientId" label="Client ID" form={form} />
+                        <TextField
+                          name="omada.clientSecret"
+                          label="Client secret"
+                          type="password"
+                          form={form}
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <TextField name="omada.username" label="Operator name" form={form} />
+                        <TextField
+                          name="omada.password"
+                          label="Operator password"
+                          type="password"
+                          form={form}
+                        />
+                      </>
+                    )}
+                    <p className="sm:col-span-2 text-xs text-muted-foreground">
+                      Sent to the controller from this platform's servers, never from your browser,
+                      and stored encrypted. No endpoint returns them again.
+                    </p>
+                    {/* Unlike the MikroTik path below, skipping credentials is
+                     * not offered at all: an integration without them cannot
+                     * authorise a single guest, so a row created that way
+                     * would be a registration that does nothing. The schema
+                     * requires them. */}
+                  </div>
+                )}
+                {step === 1 && !isOmada && (
                   <div className="grid gap-4 sm:grid-cols-2">
                     <TextField
                       name="credentials.apiUsername"
@@ -350,7 +614,12 @@ export function RouterWizard({ open, onOpenChange }: Props) {
                     />
                   </div>
                 )}
-                {step === 3 && createdRouter && <ProvisionStep router={createdRouter} />}
+                {step === 3 && !isOmada && createdRouter && (
+                  <ProvisionStep router={createdRouter} />
+                )}
+                {step === 2 && isOmada && onboarded && (
+                  <OnboardedStep result={onboarded} onDone={finish} />
+                )}
               </div>
 
               <div className="flex items-center justify-between gap-3 border-t border-border/70 bg-muted/20 px-6 py-3">
@@ -362,7 +631,9 @@ export function RouterWizard({ open, onOpenChange }: Props) {
                     type="button"
                     variant="outline"
                     onClick={() => setStep((s) => Math.max(0, s - 1))}
-                    disabled={step === 0 || step === 3}
+                    // Past the last form step the rows are already written, so
+                    // going "back" would offer to submit them a second time.
+                    disabled={step === 0 || step > LAST_FORM_STEP}
                   >
                     <ChevronLeft className="h-4 w-4" /> Back
                   </Button>
@@ -371,9 +642,11 @@ export function RouterWizard({ open, onOpenChange }: Props) {
                       Next <ChevronRight className="h-4 w-4" />
                     </Button>
                   ) : step === LAST_FORM_STEP ? (
-                    <Button type="submit" disabled={create.isPending}>
-                      {create.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                      <span className={create.isPending ? "ml-2" : ""}>Add router</span>
+                    <Button type="submit" disabled={pending}>
+                      {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+                      <span className={pending ? "ml-2" : ""}>
+                        {isOmada ? "Connect controller" : "Add router"}
+                      </span>
                     </Button>
                   ) : (
                     <Button type="button" onClick={finish}>
@@ -400,6 +673,75 @@ export function RouterWizard({ open, onOpenChange }: Props) {
  * create+start a job -> track it, which is the real value for "did the
  * device I just registered actually come up correctly."
  */
+/**
+ * What replaces "Provision" on the Omada path.
+ *
+ * There is no zero-touch provisioning to run here, and saying so plainly is
+ * the point -- the backend refuses these rows a provisioning token and leaves
+ * them out of the ZTP dashboard for the same reason.
+ *
+ * What it does instead is state exactly what was created and name the one
+ * thing still outstanding. The site and SSID cannot be chosen on this screen:
+ * listing them requires an authenticated call to the controller, which
+ * requires stored credentials, which requires the integration row that this
+ * step is the first moment to exist. So the mapping lives on the Integrations
+ * page, and until it is done the integration will not authorise anyone --
+ * which is why this says so rather than showing a success tick and leaving
+ * the operator to discover it from a guest complaint.
+ */
+function OnboardedStep({
+  result,
+  onDone,
+}: {
+  result: OnboardControllerResult;
+  onDone: () => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
+        <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+        <div className="text-sm">
+          <p className="font-medium text-emerald-700 dark:text-emerald-300">
+            {result.integrationName} is registered
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            A fleet record and a controller integration were created together, so guests at this
+            venue can be issued a session.
+          </p>
+        </div>
+      </div>
+
+      <dl className="grid gap-x-6 gap-y-2 rounded-lg border border-border/70 px-4 py-3 text-sm sm:grid-cols-2">
+        <div className="flex justify-between gap-3 sm:block">
+          <dt className="text-xs text-muted-foreground">Fleet serial</dt>
+          <dd className="font-mono text-xs">{result.routerSerialNumber}</dd>
+        </div>
+        <div className="flex justify-between gap-3 sm:block">
+          <dt className="text-xs text-muted-foreground">Identifier</dt>
+          <dd className="text-xs">
+            {result.syntheticIdentity ? "Generated (software controller)" : "From the hardware"}
+          </dd>
+        </div>
+      </dl>
+
+      <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-700 dark:text-amber-400">
+        <p className="font-medium">One step left before guests can get online.</p>
+        <p className="mt-1">
+          Open Integrations, pick this controller's site and its guest SSID, and test the
+          connection. Until then the integration stores credentials but authorises nobody.
+        </p>
+        <Link
+          to="/master/integrations"
+          onClick={onDone}
+          className="mt-2 inline-flex items-center gap-1 font-medium underline underline-offset-2"
+        >
+          Go to Integrations <ChevronRight className="h-3 w-3" />
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 function ProvisionStep({ router }: { router: { id: string; name: string } }) {
   const [discovery, setDiscovery] = useState<DeviceDiscoveryResult | null>(null);
   const [validated, setValidated] = useState<"idle" | "pass" | "fail">("idle");

@@ -18,7 +18,7 @@
  * kept verbatim where they still apply and inverted where the expression
  * they named moved back:
  *
- *   1. THE MENU IS THE 25 AGAIN. Seven groups, every feature its own row,
+ *   1. THE MENU IS ALL OF THEM. Seven groups, every feature its own row,
  *      rendered from `customerNav.ts` through the same two filters.
  *   2. THE SHELL IS STILL THE SHARED PRIMITIVE. `components/ui/sidebar.tsx`,
  *      not a hand-rolled `<aside>` -- cookie-persisted collapse, Cmd/Ctrl-B,
@@ -117,10 +117,14 @@ const {
 // 1. The menu is the 25 again.
 // ---------------------------------------------------------------------------
 
-console.log("\nthe customer menu is 25 features in seven groups");
+console.log("\nthe customer menu is 26 features in seven groups");
 
 check("there are seven groups", CUSTOMER_NAV_GROUPS.length === 7, `${CUSTOMER_NAV_GROUPS.length}`);
-check("there are 25 features", CUSTOMER_NAVS.length === 25, `${CUSTOMER_NAVS.length}`);
+// 26: main removed the "Notifications" preferences screen (25) and this
+// branch adds "Network Integrations" to the Network group (+1). Asserted
+// rather than derived on purpose -- it is what catches a row being dropped
+// by an unrelated refactor -- so moving it is a deliberate step.
+check("there are 26 features", CUSTOMER_NAVS.length === 26, `${CUSTOMER_NAVS.length}`);
 check(
   "the seven groups are the canonical ones",
   CUSTOMER_NAV_GROUPS.map((g) => g.id).join(",") ===

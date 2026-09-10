@@ -7,6 +7,7 @@ import {
   CreditCard,
   Server,
   Router,
+  Plug,
   LineChart,
   Activity,
   LifeBuoy,
@@ -51,6 +52,13 @@ export const MASTER_NAV: MasterNavItem[] = [
   { to: "/master/billing", label: "Subscriptions & Billing", icon: CreditCard, cap: "billing" },
   { to: "/master/nas", label: "NAS / RADIUS", icon: Server, cap: "nas" },
   { to: "/master/routers", label: "Router Fleet", icon: Router, cap: "routers" },
+  // Third-party network controllers a customer has connected themselves
+  // (TP-Link Omada today). Sits beside Router Fleet rather than inside it on
+  // purpose: a controller is not a router -- the platform holds credentials
+  // to it and reads from it, but does not provision or configure it -- and
+  // the two have different failure modes, different fields, and different
+  // people to call.
+  { to: "/master/integrations", label: "Network Integrations", icon: Plug, cap: "integrations" },
   { to: "/master/console", label: "Device Console", icon: TerminalSquare, cap: "console" },
   { to: "/master/analytics", label: "Global Analytics", icon: LineChart, cap: "analytics" },
   { to: "/master/health", label: "System Health", icon: Activity, cap: "health" },
@@ -89,7 +97,13 @@ const MASTER_NAV_GROUPS: { label: string; items: string[] }[] = [
   },
   {
     label: "Infrastructure",
-    items: ["/master/nas", "/master/routers", "/master/console", "/master/health"],
+    items: [
+      "/master/nas",
+      "/master/routers",
+      "/master/integrations",
+      "/master/console",
+      "/master/health",
+    ],
   },
   {
     label: "Operations",
@@ -134,6 +148,19 @@ const CAP_PERMISSIONS: Record<string, string[]> = {
   billing: ["billing.read"],
   nas: ["radius.read"],
   routers: ["routers.read"],
+  /** `/master/integrations` -- the cross-tenant view of every customer's own
+   * network controller. `network_integrations.read` is the module CONTRACT.md
+   * §4 adds to `PermissionModule`, and the platform routes require it at
+   * `ScopeType.GLOBAL`; a customer holding it at organization scope satisfies
+   * `can()` here but would still 403 on the endpoint, which is the same
+   * (harmless, cosmetic) direction every other cap in this table errs in --
+   * an operator session is the only one that ever reaches this shell at all
+   * (see the `/master` route guard). Read-only key deliberately: the
+   * enable/disable and test actions on that page are gated by the backend,
+   * and gating the nav item on a write permission would hide the read-only
+   * view from Platform Support, who are exactly the people who need to look
+   * at it during an incident. */
+  integrations: ["network_integrations.read"],
   console: ["device_console.read", "device_console.execute"],
   analytics: ["analytics.read", "analytics.view"],
   health: ["monitoring.read", "monitoring.view"],

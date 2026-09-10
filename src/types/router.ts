@@ -73,6 +73,54 @@ export interface CreateRouterPayload {
   settings?: Record<string, unknown>;
 }
 
+/**
+ * What the Master device-add wizard sends to register a TP-Link Omada
+ * controller -- contract §11.6.
+ *
+ * A separate payload from {@link CreateRouterPayload} because it creates a
+ * PAIR: the fleet device row *and* the network integration that actually
+ * talks to the controller. The endpoint behind it
+ * (`POST /network-integrations/platform/onboard`) writes both in one
+ * transaction, which is the point -- `guest_sessions.router_id` is NOT NULL,
+ * so an Omada venue with only one of the two rows still cannot log a guest in.
+ *
+ * `organizationId` is carried explicitly rather than taken from a header:
+ * this is a GLOBAL-scoped platform route, and the operator calling it has no
+ * organization of their own. The backend re-verifies that the location really
+ * belongs to that organization before writing anything.
+ *
+ * `serialNumber`/`macAddress` are optional and travel together. A hardware
+ * controller (OC200/OC300) has both on a sticker; a software controller has
+ * neither and the backend mints a deterministic, visibly-synthetic identity
+ * instead. Sending one without the other is refused.
+ */
+export interface OnboardControllerPayload {
+  organizationId: string;
+  locationId: string;
+  name: string;
+  controllerModel: string;
+  baseUrl: string;
+  authMode: "openapi" | "legacy";
+  clientId?: string;
+  clientSecret?: string;
+  username?: string;
+  password?: string;
+  serialNumber?: string;
+  macAddress?: string;
+}
+
+/** What came back: the integration id to continue configuring, and the fleet
+ * row it was linked to. */
+export interface OnboardControllerResult {
+  integrationId: string;
+  integrationName: string;
+  integrationStatus: string;
+  routerId: string;
+  routerSerialNumber: string;
+  routerVendor: string;
+  syntheticIdentity: boolean;
+}
+
 export const ROUTER_STATUS_LABEL: Record<RouterStatus, string> = {
   pending_provisioning: "Pending Provisioning",
   provisioning: "Provisioning",

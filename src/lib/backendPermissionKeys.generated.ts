@@ -16,7 +16,7 @@
 // motivated vendoring this, and `customerNavPermissions.ts` for the
 // consumer.
 //
-// 276 keys.
+// 283 keys.
 export const BACKEND_PERMISSION_KEYS: readonly string[] = [
   "ai_assistant.execute",
   "ai_assistant.manage",
@@ -100,6 +100,8 @@ export const BACKEND_PERMISSION_KEYS: readonly string[] = [
   "firewall.update",
   "guest_access.create",
   "guest_access.delete",
+  "guest_access.export",
+  "guest_access.import",
   "guest_access.manage",
   "guest_access.read",
   "guest_access.update",
@@ -177,6 +179,11 @@ export const BACKEND_PERMISSION_KEYS: readonly string[] = [
   "network_diagnostics.execute",
   "network_diagnostics.manage",
   "network_diagnostics.read",
+  "network_integrations.create",
+  "network_integrations.delete",
+  "network_integrations.manage",
+  "network_integrations.read",
+  "network_integrations.update",
   "notifications.create",
   "notifications.delete",
   "notifications.manage",

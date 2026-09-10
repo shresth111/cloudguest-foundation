@@ -44,6 +44,15 @@ const NetworkActivityLog = lazyView(
   "default",
 );
 const AgentsPage = lazyView(() => import("@/components/features/AgentsPage"), "AgentsPage");
+/** Lazy, like every other entry here -- and this one has to be. It pulls in
+ * `network-integration.service.ts` and the Omada connect wizard, none of
+ * which a venue owner touches on the way to a login form, and a static import
+ * in this module lands in the initial bundle for every route (see this file's
+ * own docstring for the measurement). */
+const NetworkIntegrationsPage = lazyView(
+  () => import("@/components/features/NetworkIntegrationsPage"),
+  "NetworkIntegrationsPage",
+);
 const TicketsPage = lazyView(() => import("@/components/features/TicketsPage"), "default");
 const DeviceHealthTrafficView = lazyView(
   () => import("@/components/customer/DeviceHealthTrafficView"),
@@ -145,6 +154,8 @@ function featureElement(id: string, ctx: { locationId?: string; masked?: boolean
       return <OpenHoursView locationId={ctx.locationId} />;
     case "isp-details":
       return <IspDetailsView />;
+    case "network-integrations":
+      return <NetworkIntegrationsPage locationId={ctx.locationId} />;
     case "admin-logs":
       return <AdminLogsView />;
     case "network-activity":

@@ -20,6 +20,7 @@ import {
   Server,
   Signal,
   Wifi,
+  Plug,
   Ban,
   LifeBuoy,
   Share2,
@@ -112,6 +113,21 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
       { id: "voip", label: "Call Priority", icon: Signal, roles: ["owner"] },
       { id: "website-blocking", label: "Website Blocking", icon: Ban, roles: ["owner"] },
       { id: "isp-details", label: "Internet Connection", icon: Globe, roles: ["owner"] },
+      // Owner-only, and not for tidiness: this screen owns the credentials
+      // to the venue's own network controller. Rotating them takes the
+      // guest WiFi down until the new ones work, and disconnecting stops
+      // guest authorisation outright -- neither is a front-desk action.
+      // Same three-layer shape as "admin-logs"/"network-activity": the nav
+      // narrows what is offered, `customerNavPermissions.ts` intersects it
+      // with the caller's real `network_integrations.read` grant, and the
+      // backend enforces every request on its own regardless.
+      //
+      // `Plug` is not used by any other row. That matters concretely: in the
+      // collapsed rail labels are hidden entirely, so a repeated glyph is
+      // two rows a customer cannot tell apart (see the Notifications/Alerts
+      // note in the Operations group and the icon-clash assertion in
+      // scripts/test-customer-nav-shell.mjs).
+      { id: "network-integrations", label: "Network Integrations", icon: Plug, roles: ["owner"] },
     ],
   },
   {

@@ -3,6 +3,8 @@ import { isDemo } from "@/services/customer.service";
 import type {
   CreateRouterPayload,
   DeviceInterface,
+  OnboardControllerPayload,
+  OnboardControllerResult,
   ProvisioningToken,
   RouterDevice,
   RouterListQuery,
@@ -385,6 +387,82 @@ export const MIKROTIK_MODEL_GROUPS: RouterModelGroup[] = [
   },
 ];
 
+// TP-Link Omada controller + access-point hardware, same shape and same
+// purpose as MIKROTIK_MODEL_GROUPS above: a *suggestion* list for the model
+// picker, not a validated enum (`model` is an unconstrained VARCHAR(100)
+// server-side, see RouterCreateRequest).
+//
+// Kept as a separate list rather than appended to the MikroTik one, because
+// pushing Omada hardware through a picker headed "hEX / hAP -- Home & SOHO"
+// would be actively misleading, and because MikroTik and Omada are parallel
+// deployments -- a venue is one or the other, so an operator adding an Omada
+// controller should never be scrolling past RouterBOARDs to find it.
+//
+// "Omada Software Controller" is a first-class entry on purpose. A software
+// controller is the most common deployment and it is not a box: it has no
+// model plate, so without an explicit option for it an operator would either
+// type something ad hoc or pick a hardware SKU that is not there. Note that
+// `RouterCreateRequest` still requires a serial number and a 17-character MAC
+// -- see CR-004 in /Users/shresth/wyfy-omada/CHANGE-REQUESTS.md, which asks
+// the backend what those should be for a software controller rather than
+// having the UI invent them.
+export const OMADA_MODEL_GROUPS: RouterModelGroup[] = [
+  {
+    series: "Controllers",
+    models: [
+      "Omada Software Controller",
+      "Omada Cloud-Based Controller",
+      "TP-Link OC200",
+      "TP-Link OC300",
+      "TP-Link OC400",
+    ],
+  },
+  {
+    series: "EAP -- Indoor access points",
+    models: [
+      "TP-Link EAP225",
+      "TP-Link EAP245",
+      "TP-Link EAP610",
+      "TP-Link EAP613",
+      "TP-Link EAP650",
+      "TP-Link EAP653",
+      "TP-Link EAP670",
+      "TP-Link EAP772",
+      "TP-Link EAP783",
+    ],
+  },
+  {
+    series: "EAP -- Outdoor & wall-plate",
+    models: [
+      "TP-Link EAP225-Outdoor",
+      "TP-Link EAP610-Outdoor",
+      "TP-Link EAP650-Outdoor",
+      "TP-Link EAP225-Wall",
+      "TP-Link EAP235-Wall",
+      "TP-Link EAP655-Wall",
+    ],
+  },
+  {
+    series: "Omada gateways & switches",
+    models: [
+      "TP-Link ER605",
+      "TP-Link ER707-M2",
+      "TP-Link ER7206",
+      "TP-Link ER8411",
+      "TP-Link SG2008P",
+      "TP-Link SG2210MP",
+      "TP-Link SG3428X",
+    ],
+  },
+];
+
+/** The suggestion list for a vendor. Defaults to MikroTik for any vendor
+ * string this build does not know, which is the safe direction: an unknown
+ * vendor still gets a working free-text picker rather than an empty one. */
+export function routerModelGroupsForVendor(vendor: string | undefined): RouterModelGroup[] {
+  return vendor === "tplink_omada" ? OMADA_MODEL_GROUPS : MIKROTIK_MODEL_GROUPS;
+}
+
 export const routerService = {
   /**
    * Location-scoped router listing for callers that already know both the
@@ -516,6 +594,84 @@ export const routerService = {
       });
     }
     return toRouter(data, loc?.name ?? "", loc?.organizationName ?? "");
+  },
+
+  /**
+   * Register a TP-Link Omada controller: the fleet device row and the network
+   * integration that drives it, created together -- contract §11.6.
+   *
+   * ## Why this lives here and not in `network-integration.service.ts`
+   *
+   * Because its caller is the Router Fleet's device-add wizard and its
+   * product is a fleet device. The customer-facing integration service is
+   * deliberately kept free of any router reference (its own contract test
+   * asserts that, per §10: an operator on the customer Integrations page must
+   * never be offered a "view router" affordance, because the row behind it is
+   * synthetic and would send them chasing hardware nobody installed). This is
+   * the Master side, where the fleet row is the entire point.
+   *
+   * ## No organization header
+   *
+   * A `/platform/` route, GLOBAL-scoped like every other one in this domain.
+   * Attaching `X-Organization-Id` here would narrow a platform operator to a
+   * single tenant while looking like it worked. The tenant is in the body
+   * instead, and the backend re-checks the location against it.
+   *
+   * ## The longer timeout
+   *
+   * Same reasoning as the connection test: this is a write, but the backend
+   * validates the controller URL by resolving it before it stores anything,
+   * and the controller may be at the far end of a hotel's ADSL line.
+   */
+  async onboardController(payload: OnboardControllerPayload): Promise<OnboardControllerResult> {
+    const { data } = await api.post<{
+      integration: { id: string; name: string; status: string };
+      router_id: string;
+      router_serial_number: string;
+      router_vendor: string;
+      synthetic_identity: boolean;
+    }>(
+      "/network-integrations/platform/onboard",
+      {
+        organization_id: payload.organizationId,
+        location_id: payload.locationId,
+        provider: "omada",
+        name: payload.name,
+        controller_model: payload.controllerModel,
+        base_url: payload.baseUrl,
+        auth_mode: payload.authMode,
+        // Top-level, matching `_CredentialFields` on the backend -- see
+        // `network-integration.service.ts`'s note on why a nested object here
+        // is silently dropped rather than rejected. Only the selected mode's
+        // pair is sent, so flipping the auth-mode radio cannot leak the other
+        // one into storage.
+        ...(payload.authMode === "openapi"
+          ? {
+              ...(payload.clientId ? { client_id: payload.clientId } : {}),
+              ...(payload.clientSecret ? { client_secret: payload.clientSecret } : {}),
+            }
+          : {
+              ...(payload.username ? { username: payload.username } : {}),
+              ...(payload.password ? { password: payload.password } : {}),
+            }),
+        // Omitted entirely rather than sent as null when absent: the backend
+        // reads "both absent" as "software controller, mint an identity", and
+        // an explicit null would take the same branch but says something
+        // different about intent.
+        ...(payload.serialNumber ? { serial_number: payload.serialNumber } : {}),
+        ...(payload.macAddress ? { mac_address: payload.macAddress } : {}),
+      },
+      { timeout: 60_000 },
+    );
+    return {
+      integrationId: data.integration.id,
+      integrationName: data.integration.name,
+      integrationStatus: data.integration.status,
+      routerId: data.router_id,
+      routerSerialNumber: data.router_serial_number,
+      routerVendor: data.router_vendor,
+      syntheticIdentity: data.synthetic_identity,
+    };
   },
 
   async updateStatus(ids: string[], status: RouterStatus): Promise<void> {

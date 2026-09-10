@@ -50,6 +50,8 @@
  *    here, from `last_seen_at`, the same way the backend's own readers do.
  */
 
+import { isControllerManaged, routerVendorLabel } from "@/lib/router-vendors";
+
 /**
  * Heartbeat staleness windows, mirroring the backend's own
  * `ROUTER_HEARTBEAT_WARNING_STALE_MINUTES` / `ROUTER_HEARTBEAT_OFFLINE_STALE_MINUTES`
@@ -90,6 +92,10 @@ export type RouterLivenessState =
   | "suspended"
   /** Retired. */
   | "retired"
+  /** Contract §11.5: a controller-managed device, which this platform never
+   * measures liveness for. Distinct from `unknown` (which means "we tried
+   * and cannot say") because here there was never a question to ask. */
+  | "not-applicable"
   /** We cannot say. Includes statuses this build does not recognise. */
   | "unknown";
 
@@ -166,6 +172,10 @@ export interface RawRouterLiveness {
   name?: string | null;
   status?: string | null;
   last_seen_at?: string | null;
+  /** Contract §11.5. Optional so every existing caller is unchanged; when
+   * absent the row is treated as agent-managed, which is what every row in
+   * this table was before TP-Link Omada existed. */
+  vendor?: string | null;
 }
 
 /**
@@ -228,6 +238,37 @@ export function deriveRouterLiveness(raw: RawRouterLiveness, now: Date): RouterL
   const ago = formatAgo(lastSeenIso, now);
 
   const base = { key, label, rawStatus };
+
+  // Contract §11.5, and this is the most damaging place it could be missed:
+  // this function feeds the venue owner's OWN dashboard.
+  //
+  // A TP-Link Omada controller is a `Router` row that no agent ever checks
+  // in for (§11.3), so it sits at `pending_provisioning` with a null
+  // `last_seen_at` forever. Falling through to that case below tells the
+  // customer their venue is BROKEN -- "Setup not started ... it has never
+  // contacted us" -- and instructs them to run a MikroTik setup script on a
+  // TP-Link controller. Every word of that is wrong, and it is wrong on the
+  // screen a worried venue owner opens first.
+  //
+  // `unknown` rather than `pass`: this platform genuinely does not measure
+  // whether the controller is up from here, and the rule this module is
+  // built on is that anything it cannot establish reports as unknown and
+  // never as live. What it can say honestly is where the real answer lives.
+  if (isControllerManaged(raw.vendor)) {
+    return {
+      ...base,
+      status: "unknown",
+      state: "not-applicable",
+      shortLabel: "Managed by controller",
+      detail:
+        `${label} is a ${routerVendorLabel(raw.vendor)} controller. This platform connects to ` +
+        "it through its own controller rather than running software on it, so there is no " +
+        "check-in to wait for here.",
+      nextStep: "Check this venue's network integration for its live connection status.",
+      lastContactIso: lastSeenIso,
+      lastContactKind: "none",
+    };
+  }
 
   switch (rawStatus) {
     case "online": {
