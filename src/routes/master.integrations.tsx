@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -33,6 +34,10 @@ import {
   M_INPUT,
 } from "@/components/master/MasterKit";
 import { relativeTime } from "@/lib/friendly";
+import {
+  deriveIntegrationSetup,
+  halfConfiguredIntegrations,
+} from "@/lib/network-integration-readiness";
 import type { AppError } from "@/services/api";
 import { networkIntegrationService } from "@/services/network-integration.service";
 import { organizationService } from "@/services/organization.service";
@@ -91,7 +96,18 @@ import {
  * counts the backend already computes, and a sparkline over a count we poll
  * every few minutes would be decoration pretending to be a trend.
  */
+/**
+ * `?q=` exists so that the fleet drawer can *link* here rather than tell an
+ * operator to come and find the row themselves. A controller in Router Fleet
+ * has almost nothing true to say about itself (contract §11.5) and its whole
+ * honest answer is "the integration knows" — a pointer that lands on the
+ * unfiltered list of every tenant's controllers is a weaker version of that
+ * sentence. Optional, and the page behaves exactly as before without it.
+ */
+const searchSchema = z.object({ q: z.string().optional() });
+
 export const Route = createFileRoute("/master/integrations")({
+  validateSearch: searchSchema,
   component: PlatformIntegrationsScreen,
 });
 
@@ -165,8 +181,12 @@ const STATUS_OPTIONS: { value: "" | NetworkIntegrationStatus; label: string }[] 
 
 function PlatformIntegrationsScreen() {
   const qc = useQueryClient();
-  const [search, setSearch] = useState("");
-  const [q, setQ] = useState("");
+  const { q: initialQ } = Route.useSearch();
+  // Seeded from the URL, then owned by the input. Deliberately NOT synced
+  // back from `initialQ` on every render: that would fight an operator who
+  // edits the box, which is the failure mode a `useEffect` mirror always has.
+  const [search, setSearch] = useState(initialQ ?? "");
+  const [q, setQ] = useState(initialQ ?? "");
   const [status, setStatus] = useState<"" | NetworkIntegrationStatus>("");
   const [organizationId, setOrganizationId] = useState("");
   const [page, setPage] = useState(1);
@@ -370,6 +390,53 @@ function PlatformIntegrationsScreen() {
           </div>
         ) : (
           <>
+            {/* An integration in this state looks entirely healthy from a
+                distance: a row, a tenant, a controller address, an amber
+                status word among six other status words. What is actually
+                true is that every guest at that venue finishes signing in
+                and gets no internet, and the venue reads that as the
+                platform being broken. Counted over THIS PAGE of results
+                only, and it says so -- the platform summary has no such
+                count, and quietly implying a fleet-wide number from 25 rows
+                would be a fabricated measurement. */}
+            {!list.isLoading && halfConfiguredIntegrations(rows).length > 0 && (
+              <div className="space-y-2 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                  <div>
+                    <p className="font-medium">
+                      {halfConfiguredIntegrations(rows).length} of the {rows.length} integrations on
+                      this page authorise nobody
+                    </p>
+                    <p className="text-muted-foreground">
+                      Each was connected to its controller and then left unfinished. Guests at these
+                      venues can complete the whole sign-in and still have no internet.
+                    </p>
+                  </div>
+                </div>
+                <ul className="ml-6 space-y-0.5 text-muted-foreground">
+                  {halfConfiguredIntegrations(rows).map((r) => {
+                    const setup = deriveIntegrationSetup(r);
+                    return (
+                      <li key={r.id}>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedId(r.id)}
+                          className="text-left underline-offset-2 hover:underline"
+                        >
+                          <span className="font-medium text-foreground">
+                            {r.organizationName || "Unknown customer"} ·{" "}
+                            {r.locationName || "no venue"}
+                          </span>{" "}
+                          — missing {setup.gaps.map((g) => g.label.toLowerCase()).join(", ")}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+
             <MTable
               loading={list.isLoading}
               head={
@@ -399,7 +466,17 @@ function PlatformIntegrationsScreen() {
                       <div className="font-mono text-xs text-muted-foreground">{r.baseUrl}</div>
                     </MTd>
                     <MTd>
-                      <StatusTag status={r.status} />
+                      <div className="flex flex-wrap items-center gap-1">
+                        <StatusTag status={r.status} />
+                        {/* Derived from the site/SSID/venue/credential
+                            columns, not from the status word. A row still
+                            reading `Connecting` with no site mapped is
+                            exactly as dead as an `unconfigured` one, and its
+                            status tag says nothing is wrong. */}
+                        {deriveIntegrationSetup(r).isHalfConfigured && (
+                          <MTag label="Authorising nobody" tone="offline" />
+                        )}
+                      </div>
                     </MTd>
                     {/* CR-002: an integration on hotspot operator
                         credentials cannot read inventory at all, so its
@@ -532,6 +609,7 @@ function IntegrationDrawer({
   });
 
   const busy = test.isPending || setEnabled.isPending;
+  const setup = deriveIntegrationSetup(integration);
 
   return (
     <MDrawer
@@ -583,11 +661,33 @@ function IntegrationDrawer({
             {!integration.isEnabled && integration.status !== "disabled" && (
               <MTag label="Switched off" tone="normal" />
             )}
+            {setup.isHalfConfigured && <MTag label="Authorising nobody" tone="offline" />}
           </div>
           <p className="text-sm text-muted-foreground">
             {NETWORK_INTEGRATION_STATUS_DETAIL[integration.status] ??
               "This integration is in a state this console does not recognise, so nothing is assumed about it."}
           </p>
+          {/* The status sentence above is one sentence for a state with up
+              to four separate causes. This says which, and what each one
+              costs the venue -- the operator reading this drawer is usually
+              the only person who can tell the customer. */}
+          {setup.isHalfConfigured && (
+            <div className="space-y-1 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
+              <p className="font-medium">{setup.title}</p>
+              <p className="text-muted-foreground">{setup.summary}</p>
+              <ul className="space-y-0.5 text-muted-foreground">
+                {setup.gaps.map((g) => (
+                  <li key={g.key}>
+                    <span className="font-medium text-foreground">{g.label}</span> — {g.detail}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-muted-foreground">
+                Only the customer can finish this: the site and guest network are chosen from their
+                own dashboard, under Network → Network Integrations.
+              </p>
+            </div>
+          )}
         </div>
 
         <DrawerSection title="Controller health">

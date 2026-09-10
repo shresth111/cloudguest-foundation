@@ -20,6 +20,7 @@ import {
   KeyRound,
   Loader2,
   Network,
+  Plug,
   RefreshCw,
   RotateCw,
   Router as RouterIcon,
@@ -61,7 +62,14 @@ import {
 } from "@/lib/diagnostics-presentation";
 import { PEER_STATUS_LABEL } from "@/types/router";
 import { deriveLanAddressing } from "@/lib/lan-addressing";
-import { RouterStatusBadge, HealthStatusBadge } from "./RouterStatusBadge";
+import { RouterStatusBadge, HealthStatusBadge, ControllerManagedBadge } from "./RouterStatusBadge";
+import {
+  isControllerManaged,
+  resolveRouterDetailTab,
+  routerDetailTabsFor,
+  routerDetailTabsNotApplicableFor,
+  routerVendorLabel,
+} from "@/lib/router-vendors";
 import {
   useAllocateWireGuardPeer,
   useGenerateProvisioningToken,
@@ -110,32 +118,34 @@ interface Props {
 }
 
 export function RouterDetailTabs({ router, initialTab = "overview" }: Props) {
-  const [tab, setTab] = useState(initialTab);
   const navigate = useNavigate();
+  // Contract §11.5. A TP-Link Omada controller is a `Router` row that no
+  // agent ever checks in for, so nine of the eleven tabs below are a
+  // conversation with software that is not running: the setup script, the
+  // WireGuard peer, the connected-device sync, the heartbeat monitoring, the
+  // RouterOS config push, the provisioning verbs and the on-device
+  // diagnostics. `routerDetailTabsFor` decides which survive; the ones that
+  // do not are NAMED on the overview rather than silently vanishing, because
+  // a drawer that is missing most of its tabs with no explanation reads as a
+  // broken console.
+  const controller = isControllerManaged(router.vendor);
+  const tabs = routerDetailTabsFor(router.vendor);
+  const notApplicable = routerDetailTabsNotApplicableFor(router.vendor);
+  // `?tab=wireguard` is a real, bookmarkable URL. Landing a controller on a
+  // trigger that is not rendered would leave Radix showing no panel at all.
+  const [tab, setTab] = useState(() => resolveRouterDetailTab(router.vendor, initialTab));
 
   return (
     <Tabs value={tab} onValueChange={setTab} className="space-y-6">
       <div className="overflow-x-auto">
         <TabsList className="h-auto flex-wrap gap-1 bg-muted/40 p-1">
-          {[
-            ["overview", "Overview"],
-            ["setup-script", "Setup Script"],
-            ["wireguard", "WireGuard"],
-            ["wifi", "Guest WiFi"],
-            ["devices", "Connected Devices"],
-            ["monitoring", "Monitoring"],
-            ["analytics", "Analytics"],
-            ["config", "Configuration"],
-            ["provisioning", "Provisioning"],
-            ["diagnostics", "Diagnostics"],
-            ["audit", "Audit Logs"],
-          ].map(([k, l]) => (
+          {tabs.map((t) => (
             <TabsTrigger
-              key={k}
-              value={k}
+              key={t.key}
+              value={t.key}
               className="rounded-lg px-3 py-1.5 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm"
             >
-              {l}
+              {t.label}
             </TabsTrigger>
           ))}
         </TabsList>
@@ -150,7 +160,15 @@ export function RouterDetailTabs({ router, initialTab = "overview" }: Props) {
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">Status</div>
-                <RouterStatusBadge status={router.status} />
+                {/* A controller sits at `pending_provisioning` forever, and
+                    `RouterStatusBadge` would render that as "Pending
+                    provisioning" -- a device somebody forgot to finish. It is
+                    not: there is nothing to provision. */}
+                {controller ? (
+                  <ControllerManagedBadge vendor={router.vendor} />
+                ) : (
+                  <RouterStatusBadge status={router.status} />
+                )}
               </div>
             </CardContent>
           </Card>
@@ -161,7 +179,15 @@ export function RouterDetailTabs({ router, initialTab = "overview" }: Props) {
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">Health</div>
-                <HealthStatusBadge status={router.healthStatus} />
+                {/* `healthStatus` is written by the health checker, which
+                    talks to the agent. On a controller it is null forever, and
+                    HealthStatusBadge's honest "unknown" is still one word too
+                    confident: "unknown" implies somebody looked. */}
+                {controller ? (
+                  <div className="text-sm font-semibold">Not measured here</div>
+                ) : (
+                  <HealthStatusBadge status={router.healthStatus} />
+                )}
               </div>
             </CardContent>
           </Card>
@@ -172,14 +198,97 @@ export function RouterDetailTabs({ router, initialTab = "overview" }: Props) {
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">API credentials</div>
+                {/* `routers.api_credential` is the MikroTik agent credential.
+                    A controller's credentials live encrypted on its network
+                    integration and there is no form on this page that could
+                    set them, so "Not set" would send an operator hunting for
+                    a control that does not exist. */}
                 <div className="text-sm font-semibold">
-                  {router.hasApiCredentials ? "Configured" : "Not set"}
+                  {controller
+                    ? "On its network integration"
+                    : router.hasApiCredentials
+                      ? "Configured"
+                      : "Not set"}
                 </div>
               </div>
             </CardContent>
           </Card>
-          <ProvisioningTokenCard routerId={router.id} />
+          {/* Minting a provisioning token for a controller is a verb with no
+              object -- nothing will ever exchange it, and the backend now
+              refuses to issue one. */}
+          {controller ? (
+            <Card className="rounded-2xl border-border/70 shadow-sm sm:col-span-2 lg:col-span-1">
+              <CardContent className="flex flex-col gap-2 p-4">
+                <div className="text-xs text-muted-foreground">Where the real answer is</div>
+                <p className="text-[11px] text-muted-foreground">
+                  Whether this controller is reachable, signed in and authorising guests is answered
+                  by its network integration, not by this row.
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    navigate({
+                      to: "/master/integrations",
+                      search: { q: router.locationName || router.name },
+                    })
+                  }
+                >
+                  <Plug className="mr-1.5 h-4 w-4" />
+                  Open network integration
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <ProvisioningTokenCard routerId={router.id} />
+          )}
         </div>
+
+        {/* Names what this drawer is deliberately not showing. Without it the
+            operator's reasonable conclusion from eight missing tabs is that
+            the console failed to load them. */}
+        {controller && (
+          <Card className="rounded-2xl border-sky-500/30 bg-sky-500/5">
+            <CardHeader>
+              <CardTitle className="text-base">
+                Managed through its {routerVendorLabel(router.vendor)} controller
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-muted-foreground">
+              <p>
+                This platform integrates with the controller instead of running its own software on
+                the device, so there is no agent here to talk to: no heartbeat, no RouterOS API, no
+                WireGuard peer. That is the intended arrangement, not a fault.
+              </p>
+              <p>
+                Which means {notApplicable.length} of this drawer&apos;s tabs do not apply and are
+                not shown —{" "}
+                <span className="text-foreground">
+                  {notApplicable.map((t) => t.label).join(", ")}
+                </span>
+                . Every one of them is an instruction to, or a measurement of, that missing agent.
+              </p>
+              <p>
+                The controller&apos;s live connection status, the site and guest network it has been
+                mapped to, and the access points and clients it reports are all on this venue&apos;s
+                network integration.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  navigate({
+                    to: "/master/integrations",
+                    search: { q: router.locationName || router.name },
+                  })
+                }
+              >
+                <Plug className="mr-1.5 h-4 w-4" />
+                Open network integration
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="rounded-2xl border-border/70">
           <CardHeader>
@@ -190,25 +299,40 @@ export function RouterDetailTabs({ router, initialTab = "overview" }: Props) {
               <Field label="Serial number" value={router.serialNumber} />
               <Field label="MAC address" value={router.macAddress} />
               <Field label="Model" value={router.model} />
-              <Field label="Vendor" value={router.vendor} />
-              <Field
-                label="RouterOS"
-                value={router.routerOsVersion ?? "Unknown (never reported)"}
-              />
+              <Field label="Vendor" value={routerVendorLabel(router.vendor)} />
+              {/* A controller does not run RouterOS. The row is dropped
+                  rather than filled with "Unknown (never reported)", which
+                  would read as a version we failed to collect. */}
+              {!controller && (
+                <Field
+                  label="RouterOS"
+                  value={router.routerOsVersion ?? "Unknown (never reported)"}
+                />
+              )}
               <Field label="Organization" value={router.organizationName} />
               <Field label="Location" value={router.locationName} />
               <Field label="Public IP" value={router.publicIpAddress ?? "—"} />
               <Field label="Management IP" value={router.managementIpAddress ?? "—"} />
+              {/* "Never" is a measurement claim: we looked, and it never
+                  did. For a controller nothing here ever looks. */}
               <Field
                 label="Last seen"
-                value={router.lastSeenAt ? new Date(router.lastSeenAt).toLocaleString() : "Never"}
+                value={
+                  controller
+                    ? "Not measured here"
+                    : router.lastSeenAt
+                      ? new Date(router.lastSeenAt).toLocaleString()
+                      : "Never"
+                }
               />
               <Field
                 label="Last health check"
                 value={
-                  router.lastHealthCheckAt
-                    ? new Date(router.lastHealthCheckAt).toLocaleString()
-                    : "Never"
+                  controller
+                    ? "Not measured here"
+                    : router.lastHealthCheckAt
+                      ? new Date(router.lastHealthCheckAt).toLocaleString()
+                      : "Never"
                 }
               />
               <Field label="Registered" value={new Date(router.createdAt).toLocaleString()} />
@@ -217,55 +341,64 @@ export function RouterDetailTabs({ router, initialTab = "overview" }: Props) {
         </Card>
       </TabsContent>
 
-      <TabsContent value="setup-script">
-        <EmptyState
-          icon={FileCode2}
-          title="Setup Script has moved to Master Console"
-          description="This tab used an older, DHCP-only script builder with no WireGuard/RADIUS options and a real, confirmed WinBox terminal paste-corruption bug on long pastes -- Master Console's Setup Script panel is the current, fixed, fully-capable version. Open this router there to generate it."
-          action={{
-            label: "Open in Master Console",
-            // `advanced`, not `open`. `open` lands on the fleet list with the
-            // browse drawer selected -- one more click from a button whose
-            // label promises the script panel, and the operator who followed
-            // it is the one who most needs to arrive there. `advanced` is the
-            // param that renders `RouterSetupScriptAdvanced` directly, and it
-            // is now the fleet's only provisioning entry point.
-            onClick: () => navigate({ to: "/master/routers", search: { advanced: router.id } }),
-          }}
-        />
-      </TabsContent>
-      <TabsContent value="wireguard">
-        <WireGuardTab routerId={router.id} />
-      </TabsContent>
-      <TabsContent value="wifi">
-        <EmptyState
-          icon={Wifi}
-          title="Guest WiFi isn't managed here"
-          description="Hotspot/SSID and captive portal settings for this router live in the customer's own dashboard, under Network -> Hotspot -- not in Master Console. There's no impersonation/view-as-customer feature yet to jump there directly from this screen."
-        />
-      </TabsContent>
-      <TabsContent value="devices">
-        <ConnectedDevicesTab routerId={router.id} />
-      </TabsContent>
-      <TabsContent value="monitoring">
-        <MonitoringTab router={router} />
-      </TabsContent>
-      <TabsContent value="analytics">
-        <ComingSoonPanel
-          icon={BarChart3}
-          title="Analytics"
-          description="Session, auth and usage breakdowns for this one router aren't broken out yet -- the guest/auth analytics endpoints this would need are org/location-scoped only today, with no per-router filter. See the Monitoring tab for real per-router CPU/RAM/bandwidth/RADIUS data, which is available now."
-        />
-      </TabsContent>
-      <TabsContent value="config">
-        <ConfigTab routerId={router.id} />
-      </TabsContent>
-      <TabsContent value="provisioning">
-        <ProvisioningTab routerId={router.id} />
-      </TabsContent>
-      <TabsContent value="diagnostics">
-        <DiagnosticsTab routerId={router.id} organizationId={router.organizationId} />
-      </TabsContent>
+      {/* Every panel below is conditional on the tab being applicable, not
+          merely on its trigger being hidden: `TabsContent` mounts its
+          children, so leaving them in place would keep agent-shaped queries
+          and mutations one `setTab` away from a device that cannot answer
+          them. */}
+      {!controller && (
+        <>
+          <TabsContent value="setup-script">
+            <EmptyState
+              icon={FileCode2}
+              title="Setup Script has moved to Master Console"
+              description="This tab used an older, DHCP-only script builder with no WireGuard/RADIUS options and a real, confirmed WinBox terminal paste-corruption bug on long pastes -- Master Console's Setup Script panel is the current, fixed, fully-capable version. Open this router there to generate it."
+              action={{
+                label: "Open in Master Console",
+                // `advanced`, not `open`. `open` lands on the fleet list with the
+                // browse drawer selected -- one more click from a button whose
+                // label promises the script panel, and the operator who followed
+                // it is the one who most needs to arrive there. `advanced` is the
+                // param that renders `RouterSetupScriptAdvanced` directly, and it
+                // is now the fleet's only provisioning entry point.
+                onClick: () => navigate({ to: "/master/routers", search: { advanced: router.id } }),
+              }}
+            />
+          </TabsContent>
+          <TabsContent value="wireguard">
+            <WireGuardTab routerId={router.id} />
+          </TabsContent>
+          <TabsContent value="wifi">
+            <EmptyState
+              icon={Wifi}
+              title="Guest WiFi isn't managed here"
+              description="Hotspot/SSID and captive portal settings for this router live in the customer's own dashboard, under Network -> Hotspot -- not in Master Console. There's no impersonation/view-as-customer feature yet to jump there directly from this screen."
+            />
+          </TabsContent>
+          <TabsContent value="devices">
+            <ConnectedDevicesTab routerId={router.id} />
+          </TabsContent>
+          <TabsContent value="monitoring">
+            <MonitoringTab router={router} />
+          </TabsContent>
+          <TabsContent value="analytics">
+            <ComingSoonPanel
+              icon={BarChart3}
+              title="Analytics"
+              description="Session, auth and usage breakdowns for this one router aren't broken out yet -- the guest/auth analytics endpoints this would need are org/location-scoped only today, with no per-router filter. See the Monitoring tab for real per-router CPU/RAM/bandwidth/RADIUS data, which is available now."
+            />
+          </TabsContent>
+          <TabsContent value="config">
+            <ConfigTab routerId={router.id} />
+          </TabsContent>
+          <TabsContent value="provisioning">
+            <ProvisioningTab routerId={router.id} />
+          </TabsContent>
+          <TabsContent value="diagnostics">
+            <DiagnosticsTab routerId={router.id} organizationId={router.organizationId} />
+          </TabsContent>
+        </>
+      )}
       <TabsContent value="audit">
         <RouterAuditTab routerId={router.id} />
       </TabsContent>

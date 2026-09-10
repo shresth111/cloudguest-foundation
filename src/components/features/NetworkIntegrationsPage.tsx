@@ -56,6 +56,10 @@ import { ErrorState } from "@/components/common/ErrorState";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { useCustomerLocations, useIsDemo } from "@/hooks/useCustomerDashboard";
 import { relativeTime } from "@/lib/friendly";
+import {
+  deriveIntegrationSetup,
+  halfConfiguredIntegrations,
+} from "@/lib/network-integration-readiness";
 import { cn } from "@/lib/utils";
 import type { AppError } from "@/services/api";
 import { networkIntegrationService } from "@/services/network-integration.service";
@@ -334,6 +338,14 @@ export function NetworkIntegrationsPage({ locationId }: { locationId?: string })
     return all.filter((r) => r.locationId === locationId || r.locationId === null);
   }, [list.data, locationId]);
 
+  /** The rows that exist, look plausible, and authorise nobody.
+   *
+   * Raised to the top of the page rather than left to be noticed on
+   * whichever row happens to be selected. An owner with three venues lands
+   * on the first one; if the second is the dead one, the only signal used to
+   * be an amber badge on a chip they had not clicked. */
+  const halfConfigured = useMemo(() => halfConfiguredIntegrations(rows), [rows]);
+
   // Keep the selection valid across refetches without an effect that fights
   // the user: only fall back to the first row when the current selection is
   // genuinely gone.
@@ -417,6 +429,56 @@ export function NetworkIntegrationsPage({ locationId }: { locationId?: string })
         />
       )}
 
+      {/* THE LOUD ONE. A half-configured integration is not a settings nit:
+          the guest completes the whole sign-in journey -- code delivered,
+          code accepted, "you're connected" -- and then has no internet,
+          which the venue reads as this platform being broken. It gets a
+          destructive banner above everything, naming the venue and what is
+          missing, with the button that fixes it. */}
+      {halfConfigured.length > 0 && (
+        <div className="space-y-3 rounded-xl border border-destructive/40 bg-destructive/5 p-4">
+          {halfConfigured.map((r) => {
+            const setup = deriveIntegrationSetup(r);
+            return (
+              <div key={r.id} className="flex flex-wrap items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+                <div className="min-w-0 flex-1 space-y-1">
+                  <p className="font-semibold text-foreground">{setup.title}</p>
+                  <p className="text-sm text-muted-foreground">{setup.summary}</p>
+                  <ul className="mt-1 space-y-0.5 text-sm text-muted-foreground">
+                    {setup.gaps.map((g) => (
+                      <li key={g.key}>
+                        <span className="font-medium text-foreground">{g.label}</span> — {g.detail}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                {/* No wizard for a credentials-only gap: it resumes at the
+                    site step and cannot re-ask for a secret nothing can read
+                    back. That row is sent to the integration's own Replace
+                    credentials action instead, which `setup.nextStep` says. */}
+                {setup.gaps.some((g) => g.key !== "credentials") ? (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setSelectedId(r.id);
+                      setResumeId(r.id);
+                      setWizardOpen(true);
+                    }}
+                  >
+                    Finish setup
+                  </Button>
+                ) : (
+                  <Button size="sm" variant="outline" onClick={() => setSelectedId(r.id)}>
+                    Open integration
+                  </Button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {rows.length > 1 && (
         <div className="flex flex-wrap gap-2">
           {rows.map((r) => (
@@ -434,6 +496,16 @@ export function NetworkIntegrationsPage({ locationId }: { locationId?: string })
               <Server className="h-4 w-4" />
               <span className="font-medium">{r.name}</span>
               <IntegrationStatusBadge status={r.status} />
+              {/* So the chip for the dead venue is distinguishable from the
+                  chips for the working ones without clicking it. */}
+              {deriveIntegrationSetup(r).isHalfConfigured && (
+                <Badge
+                  variant="outline"
+                  className="rounded-full bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400"
+                >
+                  Authorising nobody
+                </Badge>
+              )}
             </button>
           ))}
         </div>
@@ -569,7 +641,18 @@ function IntegrationDetail({
 
   const busy = test.isPending || sync.isPending || remove.isPending;
   const errored = isNetworkIntegrationErrored(integration.status);
-  const needsSetup = integration.status === "unconfigured";
+  /* Derived from the fields, not from `status`. A row still reading
+     `connecting` with no site mapped is exactly as dead as an
+     `unconfigured` one, and its status sentence -- "waiting on the
+     controller's first successful reply, this usually takes seconds" --
+     is a reassuring thing to say about a venue where nobody can get
+     online. See src/lib/network-integration-readiness.ts. */
+  const setup = deriveIntegrationSetup(integration);
+  /* The wizard resumes at the site step; it cannot re-ask for a credential
+     (nothing can read one back), so a row whose ONLY gap is credentials is
+     sent to Replace credentials instead of to a wizard that would show it
+     five filled-in steps and change nothing. */
+  const needsSetup = setup.gaps.some((g) => g.key !== "credentials");
 
   return (
     <div className="space-y-4">
@@ -646,6 +729,30 @@ function IntegrationDetail({
         </CardHeader>
 
         <CardContent className="space-y-4">
+          {/* Says what is missing and what its absence costs, item by item.
+              The status sentence above cannot do this job: it is one
+              sentence for a state that has up to four separate causes, each
+              with its own fix. */}
+          {setup.isHalfConfigured && (
+            <div className="space-y-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                <div>
+                  <p className="font-semibold text-foreground">{setup.title}</p>
+                  <p className="text-muted-foreground">{setup.summary}</p>
+                </div>
+              </div>
+              <ul className="ml-6 space-y-0.5 text-muted-foreground">
+                {setup.gaps.map((g) => (
+                  <li key={g.key}>
+                    <span className="font-medium text-foreground">{g.label}</span> — {g.detail}
+                  </li>
+                ))}
+              </ul>
+              <p className="ml-6 text-muted-foreground">{setup.nextStep}</p>
+            </div>
+          )}
+
           {/* The last error is shown whether or not the current status is an
               error one: a sync that failed at 03:00 and recovered at 03:05
               still explains why a chart has a hole in it. When the status is
@@ -1417,7 +1524,9 @@ function ConnectWizard({
   defaultLocationId,
   onClose,
 }: {
-  /** A row the customer is coming back to finish (status `unconfigured`).
+  /** A row the customer is coming back to finish -- one that
+   * `deriveIntegrationSetup` reports as half-configured, which is usually
+   * but not always the `unconfigured` status (see that module).
    * When present the wizard opens on the site step — the controller and
    * credentials are already stored and must not be re-asked, and there is no
    * way to re-ask for a credential we cannot read back anyway. */
