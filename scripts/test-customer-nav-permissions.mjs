@@ -180,6 +180,12 @@ const EVERY_KEY_IMAGINABLE = [
   "qos.read",
   "content_filtering.read",
   "isp.read",
+  // The module CONTRACT.md §4 adds for the Omada controller
+  // integration. Present here because this fixture is "a caller holding
+  // everything" -- a real key missing from it makes the assertion below
+  // fail for the right reason (the filter removed a row) with a
+  // misleading message (the filter is broken).
+  "network_integrations.read",
   "notifications.read",
   "network_diagnostics.read",
   "support_tickets.read",

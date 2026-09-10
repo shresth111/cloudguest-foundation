@@ -22,6 +22,7 @@ import {
   Network,
   Wifi,
   Server,
+  Plug,
   Share2,
   Signal,
   Globe,
@@ -98,6 +99,15 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
       { id: "voip", label: "Call Priority", icon: Signal },
       { id: "website-blocking", label: "Website Blocking", icon: Ban },
       { id: "isp-details", label: "Internet Connection", icon: Globe },
+      // Connect a venue's own TP-Link Omada controller so guest logins are
+      // enforced on its access points. Listed here (grantable, not `core`)
+      // exactly as "network-activity" is, and with the same caveat: real
+      // access still requires the owner login role (customerNav.ts's
+      // `roles: ["owner"]`), so granting it to an agent has no effect until
+      // that separate restriction is ever relaxed. It is in the catalog
+      // anyway so the Staff Access screen enumerates a complete feature set
+      // rather than a set with one silent hole in it.
+      { id: "network-integrations", label: "Network Integrations", icon: Plug },
     ],
   },
   {

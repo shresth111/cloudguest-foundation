@@ -74,6 +74,16 @@ const WebsiteBlockingView = lazyView(OPS, "WebsiteBlockingView");
 const DebuggingView = lazyView(OPS, "DebuggingView");
 const HotspotView = lazyView(OPS, "HotspotView");
 const GenericFeatureView = lazyView(OPS, "GenericFeatureView");
+/** Not part of the OperationsFeatures barrel -- its own module, so opening
+ * "Network Integrations" fetches only the Omada connect wizard and its
+ * service layer rather than the whole 446 kB ops chunk. Lazy for the same
+ * reason everything else on this shell is: `routeTree.gen.ts` statically
+ * imports every route, so a static import anywhere in this component tree is
+ * a chunk the browser fetches before first paint. */
+const NetworkIntegrationsView = lazyView(
+  () => import("@/components/features/NetworkIntegrationsPage"),
+  "NetworkIntegrationsPage",
+);
 import { Wifi, Activity } from "lucide-react";
 
 /**
@@ -257,6 +267,9 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                 /background-image redirects to /guest-portal at beforeLoad,
                 so nothing reaches this switch with that id. */}
               {feature === "isp-details" && <IspDetailsView locationId={locationId} />}
+              {feature === "network-integrations" && (
+                <NetworkIntegrationsView locationId={locationId} />
+              )}
               {feature === "admin-logs" && <AdminLogsView locationId={locationId} />}
               {feature === "network-activity" && <NetworkActivityLog masked={masked} />}
               {feature === "mac-auth" && <MacAuthView locationId={locationId} />}

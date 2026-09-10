@@ -24,6 +24,7 @@ import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as PortalRouteImport } from './routes/portal'
 import { Route as PortForwardingRouteImport } from './routes/port-forwarding'
 import { Route as PoliciesRouteImport } from './routes/policies'
+import { Route as NetworkIntegrationsRouteImport } from './routes/network-integrations'
 import { Route as NetworkActivityRouteImport } from './routes/network-activity'
 import { Route as MasterLoginRouteImport } from './routes/master-login'
 import { Route as MasterRouteImport } from './routes/master'
@@ -71,6 +72,7 @@ import { Route as MasterQuotationsRouteImport } from './routes/master.quotations
 import { Route as MasterOperatorsRouteImport } from './routes/master.operators'
 import { Route as MasterNasRouteImport } from './routes/master.nas'
 import { Route as MasterLocationsRouteImport } from './routes/master.locations'
+import { Route as MasterIntegrationsRouteImport } from './routes/master.integrations'
 import { Route as MasterHealthRouteImport } from './routes/master.health'
 import { Route as MasterDemoRequestsRouteImport } from './routes/master.demo-requests'
 import { Route as MasterCustomersRouteImport } from './routes/master.customers'
@@ -262,6 +264,11 @@ const PortForwardingRoute = PortForwardingRouteImport.update({
 const PoliciesRoute = PoliciesRouteImport.update({
   id: '/policies',
   path: '/policies',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NetworkIntegrationsRoute = NetworkIntegrationsRouteImport.update({
+  id: '/network-integrations',
+  path: '/network-integrations',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NetworkActivityRoute = NetworkActivityRouteImport.update({
@@ -496,6 +503,11 @@ const MasterNasRoute = MasterNasRouteImport.update({
 const MasterLocationsRoute = MasterLocationsRouteImport.update({
   id: '/locations',
   path: '/locations',
+  getParentRoute: () => MasterRoute,
+} as any)
+const MasterIntegrationsRoute = MasterIntegrationsRouteImport.update({
+  id: '/integrations',
+  path: '/integrations',
   getParentRoute: () => MasterRoute,
 } as any)
 const MasterHealthRoute = MasterHealthRouteImport.update({
@@ -1189,6 +1201,7 @@ export interface FileRoutesByFullPath {
   '/master': typeof MasterRouteWithChildren
   '/master-login': typeof MasterLoginRoute
   '/network-activity': typeof NetworkActivityRoute
+  '/network-integrations': typeof NetworkIntegrationsRoute
   '/policies': typeof PoliciesRoute
   '/port-forwarding': typeof PortForwardingRoute
   '/portal': typeof PortalRouteWithChildren
@@ -1226,6 +1239,7 @@ export interface FileRoutesByFullPath {
   '/master/customers': typeof MasterCustomersRoute
   '/master/demo-requests': typeof MasterDemoRequestsRoute
   '/master/health': typeof MasterHealthRoute
+  '/master/integrations': typeof MasterIntegrationsRoute
   '/master/locations': typeof MasterLocationsRoute
   '/master/nas': typeof MasterNasRoute
   '/master/operators': typeof MasterOperatorsRoute
@@ -1367,6 +1381,7 @@ export interface FileRoutesByTo {
   '/mac-auth': typeof MacAuthRoute
   '/master-login': typeof MasterLoginRoute
   '/network-activity': typeof NetworkActivityRoute
+  '/network-integrations': typeof NetworkIntegrationsRoute
   '/policies': typeof PoliciesRoute
   '/port-forwarding': typeof PortForwardingRoute
   '/reports': typeof ReportsRoute
@@ -1402,6 +1417,7 @@ export interface FileRoutesByTo {
   '/master/customers': typeof MasterCustomersRoute
   '/master/demo-requests': typeof MasterDemoRequestsRoute
   '/master/health': typeof MasterHealthRoute
+  '/master/integrations': typeof MasterIntegrationsRoute
   '/master/locations': typeof MasterLocationsRoute
   '/master/nas': typeof MasterNasRoute
   '/master/operators': typeof MasterOperatorsRoute
@@ -1545,6 +1561,7 @@ export interface FileRoutesById {
   '/master': typeof MasterRouteWithChildren
   '/master-login': typeof MasterLoginRoute
   '/network-activity': typeof NetworkActivityRoute
+  '/network-integrations': typeof NetworkIntegrationsRoute
   '/policies': typeof PoliciesRoute
   '/port-forwarding': typeof PortForwardingRoute
   '/portal': typeof PortalRouteWithChildren
@@ -1582,6 +1599,7 @@ export interface FileRoutesById {
   '/master/customers': typeof MasterCustomersRoute
   '/master/demo-requests': typeof MasterDemoRequestsRoute
   '/master/health': typeof MasterHealthRoute
+  '/master/integrations': typeof MasterIntegrationsRoute
   '/master/locations': typeof MasterLocationsRoute
   '/master/nas': typeof MasterNasRoute
   '/master/operators': typeof MasterOperatorsRoute
@@ -1727,6 +1745,7 @@ export interface FileRouteTypes {
     | '/master'
     | '/master-login'
     | '/network-activity'
+    | '/network-integrations'
     | '/policies'
     | '/port-forwarding'
     | '/portal'
@@ -1764,6 +1783,7 @@ export interface FileRouteTypes {
     | '/master/customers'
     | '/master/demo-requests'
     | '/master/health'
+    | '/master/integrations'
     | '/master/locations'
     | '/master/nas'
     | '/master/operators'
@@ -1905,6 +1925,7 @@ export interface FileRouteTypes {
     | '/mac-auth'
     | '/master-login'
     | '/network-activity'
+    | '/network-integrations'
     | '/policies'
     | '/port-forwarding'
     | '/reports'
@@ -1940,6 +1961,7 @@ export interface FileRouteTypes {
     | '/master/customers'
     | '/master/demo-requests'
     | '/master/health'
+    | '/master/integrations'
     | '/master/locations'
     | '/master/nas'
     | '/master/operators'
@@ -2082,6 +2104,7 @@ export interface FileRouteTypes {
     | '/master'
     | '/master-login'
     | '/network-activity'
+    | '/network-integrations'
     | '/policies'
     | '/port-forwarding'
     | '/portal'
@@ -2119,6 +2142,7 @@ export interface FileRouteTypes {
     | '/master/customers'
     | '/master/demo-requests'
     | '/master/health'
+    | '/master/integrations'
     | '/master/locations'
     | '/master/nas'
     | '/master/operators'
@@ -2264,6 +2288,7 @@ export interface RootRouteChildren {
   MasterRoute: typeof MasterRouteWithChildren
   MasterLoginRoute: typeof MasterLoginRoute
   NetworkActivityRoute: typeof NetworkActivityRoute
+  NetworkIntegrationsRoute: typeof NetworkIntegrationsRoute
   PoliciesRoute: typeof PoliciesRoute
   PortForwardingRoute: typeof PortForwardingRoute
   PortalRoute: typeof PortalRouteWithChildren
@@ -2399,6 +2424,13 @@ declare module '@tanstack/react-router' {
       path: '/policies'
       fullPath: '/policies'
       preLoaderRoute: typeof PoliciesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/network-integrations': {
+      id: '/network-integrations'
+      path: '/network-integrations'
+      fullPath: '/network-integrations'
+      preLoaderRoute: typeof NetworkIntegrationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/network-activity': {
@@ -2728,6 +2760,13 @@ declare module '@tanstack/react-router' {
       path: '/locations'
       fullPath: '/master/locations'
       preLoaderRoute: typeof MasterLocationsRouteImport
+      parentRoute: typeof MasterRoute
+    }
+    '/master/integrations': {
+      id: '/master/integrations'
+      path: '/integrations'
+      fullPath: '/master/integrations'
+      preLoaderRoute: typeof MasterIntegrationsRouteImport
       parentRoute: typeof MasterRoute
     }
     '/master/health': {
@@ -3833,6 +3872,7 @@ interface MasterRouteChildren {
   MasterCustomersRoute: typeof MasterCustomersRoute
   MasterDemoRequestsRoute: typeof MasterDemoRequestsRoute
   MasterHealthRoute: typeof MasterHealthRoute
+  MasterIntegrationsRoute: typeof MasterIntegrationsRoute
   MasterLocationsRoute: typeof MasterLocationsRoute
   MasterNasRoute: typeof MasterNasRoute
   MasterOperatorsRoute: typeof MasterOperatorsRoute
@@ -3851,6 +3891,7 @@ const MasterRouteChildren: MasterRouteChildren = {
   MasterCustomersRoute: MasterCustomersRoute,
   MasterDemoRequestsRoute: MasterDemoRequestsRoute,
   MasterHealthRoute: MasterHealthRoute,
+  MasterIntegrationsRoute: MasterIntegrationsRoute,
   MasterLocationsRoute: MasterLocationsRoute,
   MasterNasRoute: MasterNasRoute,
   MasterOperatorsRoute: MasterOperatorsRoute,
@@ -3939,6 +3980,7 @@ const rootRouteChildren: RootRouteChildren = {
   MasterRoute: MasterRouteWithChildren,
   MasterLoginRoute: MasterLoginRoute,
   NetworkActivityRoute: NetworkActivityRoute,
+  NetworkIntegrationsRoute: NetworkIntegrationsRoute,
   PoliciesRoute: PoliciesRoute,
   PortForwardingRoute: PortForwardingRoute,
   PortalRoute: PortalRouteWithChildren,

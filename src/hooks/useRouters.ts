@@ -1,7 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { routerService } from "@/services/router.service";
 import api from "@/services/api";
-import type { CreateRouterPayload, RouterListQuery, RouterStatus } from "@/types/router";
+import type {
+  CreateRouterPayload,
+  OnboardControllerPayload,
+  RouterListQuery,
+  RouterStatus,
+} from "@/types/router";
 
 export const routerKeys = {
   all: ["routers"] as const,
@@ -38,6 +43,34 @@ export function useCreateRouter() {
   return useMutation({
     mutationFn: (payload: CreateRouterPayload) => routerService.create(payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: routerKeys.all }),
+  });
+}
+
+/**
+ * Register a TP-Link Omada controller as a fleet device plus its network
+ * integration, in one call -- contract §11.6.
+ *
+ * Invalidates the router keys like `useCreateRouter` does, and the
+ * network-integration keys too, because this one call writes into both
+ * surfaces: leaving the Integrations list stale would show an operator who
+ * navigates straight there a page with no sign of the controller they just
+ * added.
+ */
+export function useOnboardController() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: OnboardControllerPayload) => routerService.onboardController(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: routerKeys.all });
+      // Both integration namespaces: the customer page keys off
+      // `["network-integrations", ...]` and the master console off
+      // `["master", "network-integrations", ...]`. A prefix invalidation of
+      // one does not reach the other, and this action is taken FROM the
+      // master console -- so missing that one is the more likely mistake and
+      // the more visible one.
+      qc.invalidateQueries({ queryKey: ["network-integrations"] });
+      qc.invalidateQueries({ queryKey: ["master", "network-integrations"] });
+    },
   });
 }
 

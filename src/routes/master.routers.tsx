@@ -19,7 +19,9 @@ import {
   CheckCircle2,
   ArrowLeft,
   WifiOff,
+  Server,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { MasterShell } from "@/components/master/MasterShell";
 import {
   MPageShell,
@@ -100,7 +102,7 @@ function RouterFleetRoute() {
   return <RouterFleetScreen />;
 }
 
-type Filter = "all" | "online" | "degraded" | "offline";
+type Filter = "all" | "online" | "degraded" | "offline" | "controller";
 
 const FLEET_LIST_QUERY = {
   page: 1,
@@ -128,14 +130,26 @@ const FLEET_LIST_QUERY = {
  * filter has no fourth bucket, and the one thing an unreadable router must
  * never do is sit in the group an operator scrolls past.
  */
-function displayStatus(r: RouterDevice, now: Date): "online" | "degraded" | "offline" {
+function displayStatus(
+  r: RouterDevice,
+  now: Date,
+): "online" | "degraded" | "offline" | "controller" {
   const live = deriveRouterLiveness(
-    { id: r.id, name: r.name, status: r.status, last_seen_at: r.lastSeenAt },
+    { id: r.id, name: r.name, status: r.status, last_seen_at: r.lastSeenAt, vendor: r.vendor },
     now,
   );
   // An unhealthy health check still demotes a router that is otherwise
   // live. It is independent evidence, and it was the one honest signal the
   // old implementation had.
+  // Contract §11.5. The fourth bucket exists because the three above are all
+  // claims about a device this platform measures, and there is no honest
+  // answer here among them: a controller-managed row is not online (nothing
+  // proved it), not offline (nothing said it stopped), and emphatically not
+  // degraded (nothing is wrong). Before this bucket existed it fell through
+  // to `degraded` and every Omada venue sat permanently in the group an
+  // operator is meant to act on -- which is how a "needs attention" filter
+  // stops being read at all.
+  if (live.state === "not-applicable") return "controller";
   if (live.status === "pass") return r.healthStatus === "unhealthy" ? "degraded" : "online";
   if (live.state === "setup-not-started" || live.state === "went-silent") return "offline";
   return "degraded";
@@ -158,7 +172,7 @@ function displayStatus(r: RouterDevice, now: Date): "online" | "degraded" | "off
 function contactLabel(r: RouterDevice, now: Date): string {
   return lastContactLabel(
     deriveRouterLiveness(
-      { id: r.id, name: r.name, status: r.status, last_seen_at: r.lastSeenAt },
+      { id: r.id, name: r.name, status: r.status, last_seen_at: r.lastSeenAt, vendor: r.vendor },
       now,
     ),
     now,
@@ -283,13 +297,15 @@ function RouterFleetScreen() {
     let online = 0;
     let degraded = 0;
     let offline = 0;
+    let controller = 0;
     for (const r of routers) {
       const s = displayStatus(r, now);
       if (s === "online") online++;
       else if (s === "degraded") degraded++;
+      else if (s === "controller") controller++;
       else offline++;
     }
-    return { total: routers.length, online, degraded, offline };
+    return { total: routers.length, online, degraded, offline, controller };
   }, [routers, now]);
 
   const advancedRouter = useMemo(
@@ -326,7 +342,7 @@ function RouterFleetScreen() {
   };
   const statusBadge = (r: RouterDevice) => {
     const live = deriveRouterLiveness(
-      { id: r.id, name: r.name, status: r.status, last_seen_at: r.lastSeenAt },
+      { id: r.id, name: r.name, status: r.status, last_seen_at: r.lastSeenAt, vendor: r.vendor },
       now,
     );
     return LIVENESS_BADGE[live.state] ?? { label: r.status, tone: "normal" };
@@ -401,7 +417,12 @@ function RouterFleetScreen() {
                 see, which remains true whether or not the other tile happens
                 to match today. The orphaned routers themselves still exist;
                 they are excluded from both counts now rather than resolved. */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div
+              className={cn(
+                "grid grid-cols-2 gap-3",
+                summary.controller > 0 ? "sm:grid-cols-5" : "sm:grid-cols-4",
+              )}
+            >
               <MStat label="At active locations" value={summary.total} icon={RouterIcon} />
               <MStat label="Online" value={summary.online} tone="success" icon={CheckCircle2} />
               <MStat
@@ -411,6 +432,14 @@ function RouterFleetScreen() {
                 icon={AlertTriangle}
               />
               <MStat label="Offline" value={summary.offline} tone="danger" icon={WifiOff} />
+              {/* Contract §11.5. Shown only when the fleet actually has one,
+               * and with no tone: these rows are neither healthy nor
+               * unhealthy from here, and colouring them either way would be
+               * this platform asserting something it never measured. The
+               * live answer is on the venue's network integration. */}
+              {summary.controller > 0 && (
+                <MStat label="Via controller" value={summary.controller} icon={Server} />
+              )}
             </div>
 
             {/* A short list and a complete one look identical, so say when
@@ -436,6 +465,11 @@ function RouterFleetScreen() {
                   { value: "online", label: "Online" },
                   { value: "degraded", label: "Degraded" },
                   { value: "offline", label: "Offline" },
+                  // Only offered once there is something to filter to, so a
+                  // MikroTik-only fleet's controls look exactly as they did.
+                  ...(summary.controller > 0
+                    ? [{ value: "controller" as const, label: "Controllers" }]
+                    : []),
                 ]}
               />
               <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5">

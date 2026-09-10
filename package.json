@@ -64,7 +64,9 @@
     "test:org-scope-header": "node scripts/test-organization-scope-header.mjs",
     "test:session-rules": "node scripts/test-session-rules-enforcement.mjs",
     "test:single-home": "node scripts/test-single-home-settings.mjs",
-    "check:node": "node scripts/check-node-version.mjs"
+    "check:node": "node scripts/check-node-version.mjs",
+    "test:network-integration": "node scripts/test-network-integration-contract.mjs",
+    "test:network-integration-render": "node scripts/test-network-integration-render.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

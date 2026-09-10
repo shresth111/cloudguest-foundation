@@ -627,5 +627,72 @@ check(
   "the summary tiles memoised on [routers] alone would keep the stale counts",
 );
 
+// ---------------------------------------------------------------------------
+// Contract §11.5: a controller-managed row is not a router that failed setup.
+// ---------------------------------------------------------------------------
+//
+// A TP-Link Omada controller is registered as a `Router` row so its venue's
+// guests can be issued a session at all (§11.3). No agent ever checks in for
+// it, so it sits at `pending_provisioning` with a null `last_seen_at`
+// forever -- which, without a vendor gate, lands in the `setup-not-started`
+// branch and tells the VENUE OWNER, on their own dashboard, that their
+// working network was never set up and that they should go run a MikroTik
+// setup script on a TP-Link controller.
+{
+  const controller = deriveRouterLiveness(
+    at({ status: "pending_provisioning", last_seen_at: null, vendor: "tplink_omada" }),
+    NOW,
+  );
+  check(
+    "controller-is-not-reported-as-setup-not-started",
+    controller.state === "not-applicable",
+    controller.state,
+  );
+  check(
+    "controller-is-not-claimed-to-be-live",
+    controller.status === "unknown",
+    "this platform does not measure a controller's liveness from here, so it must not claim it",
+  );
+  check(
+    "controller-is-not-told-to-run-a-setup-script",
+    !/setup script/i.test(controller.nextStep ?? ""),
+    controller.nextStep ?? "",
+  );
+  check(
+    "controller-is-pointed-at-its-integration-instead",
+    /integration/i.test(controller.nextStep ?? ""),
+    controller.nextStep ?? "",
+  );
+
+  // The gate must be narrow. An identical row with no vendor -- which is
+  // every row that existed before this feature -- keeps its old answer.
+  const legacyRow = deriveRouterLiveness(
+    at({ status: "pending_provisioning", last_seen_at: null }),
+    NOW,
+  );
+  check(
+    "a row with no vendor still reads as setup-not-started",
+    legacyRow.state === "setup-not-started",
+    legacyRow.state,
+  );
+  const mikrotik = deriveRouterLiveness(
+    at({ status: "pending_provisioning", last_seen_at: null, vendor: "mikrotik" }),
+    NOW,
+  );
+  check(
+    "an explicit mikrotik still reads as setup-not-started",
+    mikrotik.state === "setup-not-started",
+    mikrotik.state,
+  );
+}
+
+// The master fleet list needs its own bucket for these, or every Omada venue
+// sits permanently in the group an operator is meant to act on.
+check(
+  "master-console-does-not-count-a-controller-as-degraded",
+  /if \(live\.state === "not-applicable"\) return "controller";/.test(master),
+  "without this the fourth bucket does not exist and controllers fall through to degraded",
+);
+
 console.log(failures === 0 ? "\nall checks passed" : `\n${failures} check(s) failed`);
 process.exit(failures === 0 ? 0 : 1);

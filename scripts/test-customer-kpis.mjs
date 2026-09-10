@@ -378,9 +378,12 @@ console.log("\nno two nav items share an icon");
     dupes.length === 0,
     dupes.map(([icon, ids]) => `${icon} -> ${ids.join(", ")}`).join("; "),
   );
-  // 25, not 26: the "Notifications" preferences screen was removed from the
-  // customer dashboard along with its nav entry.
-  check("the nav still has every item", icons.length === 25, `found ${icons.length}`);
+  // 26: main removed the "Notifications" preferences screen (25), and
+  // "Network Integrations" (Omada controller connect) joined the Network
+  // group (+1). Counted rather than derived on purpose -- the point of this
+  // assertion is to notice a row disappearing, so the number moves only when
+  // a feature is deliberately added or removed.
+  check("the nav still has every item", icons.length === 26, `found ${icons.length}`);
 }
 
 console.log(

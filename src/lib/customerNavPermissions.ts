@@ -121,6 +121,13 @@ export const NAV_PERMISSION_KEYS: Record<string, readonly string[]> = {
   voip: ["qos.read"],
   "website-blocking": ["content_filtering.read"],
   "isp-details": ["isp.read"],
+  // A real module, added to the backend's `PermissionModule` alongside this
+  // feature (CONTRACT.md §4), with `MODULE_NARROWEST_SCOPE = LOCATION` --
+  // same profile as `mac_authorization` and `network_device` above, since an
+  // integration hangs off a location. One key, not a list: there is no second
+  // domain this screen legitimately reads, so an OR here would only widen the
+  // gate for no reason.
+  "network-integrations": ["network_integrations.read"],
   // Operations
   // Two keys, and the OR is the point. This page's primary job -- looking
   // a guest up and saying why they cannot get on -- reads guest sessions,

@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { MIKROTIK_MODEL_GROUPS } from "@/services/router.service";
+import { routerModelGroupsForVendor } from "@/services/router.service";
 
 interface RouterModelComboboxProps {
   value: string;
@@ -21,14 +21,28 @@ interface RouterModelComboboxProps {
   id?: string;
   className?: string;
   disabled?: boolean;
+  /** Which vendor's suggestion list to offer. Optional and defaulting to
+   * `"mikrotik"` so every existing call site keeps behaving exactly as it
+   * did -- this component is used by `RouterWizard` and
+   * `PlatformLocationWizard`, and neither should change because a second
+   * vendor now exists. */
+  vendor?: string;
 }
 
-// A searchable MikroTik hardware picker backed by MIKROTIK_MODEL_GROUPS, but
-// -- unlike a plain <Select> -- it also lets the tech commit whatever they
-// typed as a custom value. The backend `model` field is an unconstrained
-// VARCHAR(100), not an enum, so hardware that isn't in our suggestion list
-// (a niche SKU, or something released after this list was written) must
-// still be enterable.
+// A searchable hardware picker, backed by the suggestion list for the
+// selected vendor (`routerModelGroupsForVendor`), but -- unlike a plain
+// <Select> -- it also lets the tech commit whatever they typed as a custom
+// value. The backend `model` field is an unconstrained VARCHAR(100), not an
+// enum, so hardware that isn't in our suggestion list (a niche SKU, or
+// something released after this list was written) must still be enterable.
+//
+// It became vendor-aware when TP-Link Omada was added as a second vendor. The
+// list is SWAPPED, never merged: Omada controllers and EAPs pushed through a
+// picker grouped by MikroTik product series would be worse than no
+// suggestions at all, and a venue is either a MikroTik venue or an Omada
+// venue, never both. The free-text escape hatch above is why swapping is
+// safe -- an operator whose hardware is in neither list is no worse off than
+// they were before.
 export function RouterModelCombobox({
   value,
   onValueChange,
@@ -36,12 +50,14 @@ export function RouterModelCombobox({
   id,
   className,
   disabled,
+  vendor,
 }: RouterModelComboboxProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const groups = routerModelGroupsForVendor(vendor);
 
   const trimmed = search.trim();
-  const hasExactMatch = MIKROTIK_MODEL_GROUPS.some((g) =>
+  const hasExactMatch = groups.some((g) =>
     g.models.some((m) => m.toLowerCase() === trimmed.toLowerCase()),
   );
 
@@ -95,7 +111,7 @@ export function RouterModelCombobox({
                 </CommandItem>
               </CommandGroup>
             )}
-            {MIKROTIK_MODEL_GROUPS.map((group) => (
+            {groups.map((group) => (
               <CommandGroup key={group.series} heading={group.series}>
                 {group.models.map((m) => (
                   <CommandItem
