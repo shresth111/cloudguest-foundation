@@ -53,11 +53,39 @@ function emptyLineItem(): QuotationLineItemInput {
   return { description: "", quantity: 1, unitPrice: 0 };
 }
 
-function defaultValidUntil(): string {
+function validUntilFromDays(days: number): string {
   const d = new Date();
-  d.setDate(d.getDate() + 30);
+  d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
 }
+
+function defaultValidUntil(): string {
+  return validUntilFromDays(30);
+}
+
+/** How many days from today the picked validity date is -- shown under the
+ *  picker so a custom date ("10 days") is stated in the operator's own
+ *  terms, and a past date reads as a mistake rather than silently shipping. */
+function daysFromToday(dateStr: string): number | null {
+  const picked = new Date(`${dateStr}T00:00:00`).getTime();
+  if (Number.isNaN(picked)) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((picked - today.getTime()) / 86_400_000);
+}
+
+/** The quick validity choices the screen offers. A month was the only
+ *  duration anyone could get before, because 30 days was the hardcoded
+ *  default and the bare date picker made anything else look like an
+ *  off-piste edit. Short (1 week / 10 days) periods are a real sales shape
+ *  here, so they get a one-click preset; the date input next to them stays
+ *  for anything else. */
+const VALIDITY_PRESETS: { label: string; days: number }[] = [
+  { label: "1 week", days: 7 },
+  { label: "10 days", days: 10 },
+  { label: "15 days", days: 15 },
+  { label: "1 month", days: 30 },
+];
 
 function money(amount: number, currency: string): string {
   try {
@@ -498,12 +526,41 @@ function QuotationsScreen() {
                 />
               </MField>
               <MField label="Valid until">
+                <div className="flex flex-wrap gap-1.5">
+                  {VALIDITY_PRESETS.map((preset) => {
+                    const target = validUntilFromDays(preset.days);
+                    const active = validUntil === target;
+                    return (
+                      <button
+                        key={preset.days}
+                        type="button"
+                        onClick={() => setValidUntil(target)}
+                        className={`rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+                          active
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border text-muted-foreground hover:bg-muted"
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    );
+                  })}
+                </div>
                 <input
                   type="date"
                   className={M_INPUT}
                   value={validUntil}
                   onChange={(e) => setValidUntil(e.target.value)}
                 />
+                <p className="text-xs text-muted-foreground">
+                  {(() => {
+                    const days = daysFromToday(validUntil);
+                    if (days === null) return "Pick a validity date.";
+                    if (days < 0) return "That date is in the past.";
+                    if (days === 0) return "Valid until today.";
+                    return `Valid for ${days} day${days === 1 ? "" : "s"} from today.`;
+                  })()}
+                </p>
               </MField>
               <MField label="Currency">
                 <select
