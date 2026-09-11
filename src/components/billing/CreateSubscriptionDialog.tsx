@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import axios from "axios";
 import { CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -24,7 +23,7 @@ import {
 } from "@/components/ui/select";
 import { subscriptionSchema, type SubscriptionFormValues } from "@/lib/billing-schemas";
 import { useCreateSubscription, useOrganizationsList } from "@/hooks/useBilling";
-import { toAppError } from "@/services/api";
+import { requestErrorMessage } from "@/services/api";
 import type { Coupon, Plan } from "@/types/billing";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -104,9 +103,7 @@ export function CreateSubscriptionDialog({ open, onOpenChange, plans = [], coupo
         reset();
       },
       onError: (err) => {
-        const message = axios.isAxiosError(err)
-          ? toAppError(err).message
-          : "Failed to create subscription";
+        const message = requestErrorMessage(err, "Failed to create subscription");
         toast.error(message);
       },
     });

@@ -6,7 +6,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import axios from "axios";
 import {
   Activity,
   CheckCircle2,
@@ -57,7 +56,7 @@ import { floorSuggestions, normalizeFloor } from "@/lib/device-floors";
 import { DEVICE_TYPE_META, normalizeMac } from "@/lib/device-presentation";
 import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
 import { maskEmail, maskMac, maskPhone } from "@/components/features/HeaderControls";
-import { toAppError } from "@/services/api";
+import { requestErrorMessage } from "@/services/api";
 
 /** Realistic (but fake) guest identities shared by this file's demo/preview
  * views -- see customer.service.ts's own `DEMO_GUEST_IDENTITIES` for why
@@ -468,7 +467,7 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
       // only catches this location's own devices, so a genuine duplicate
       // at a different location of the same org still needs this real
       // error surfaced, not silently swallowed.
-      toast.error(axios.isAxiosError(err) ? toAppError(err).message : "Could not add this device.");
+      toast.error(requestErrorMessage(err, "Could not add this device."));
     } finally {
       setSubmitting(false);
     }
@@ -479,9 +478,7 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
       await removeDevice(id);
       toast.success(`${name} removed`);
     } catch (err) {
-      toast.error(
-        axios.isAxiosError(err) ? toAppError(err).message : "Could not remove this device.",
-      );
+      toast.error(requestErrorMessage(err, "Could not remove this device."));
     }
   };
 

@@ -283,6 +283,20 @@ jobs:
             "portal error boundary: all checks passed" \
             bun run test:portal-error-boundary
 
+      # `/portal/`'s "not set up" vs "trouble connecting" screens. The choice
+      # tested `isAxiosError(error)`, which `guestPortalApi`'s AppError
+      # rejections never are, so a 404 "Location not found" told guests to
+      # check their connection and they kept pressing Try again (prod nginx
+      # logs). tsc cannot see it -- `isAxiosError` narrows any value -- so the
+      # suite drives the real resolve through the real client against a local
+      # server and renders the real route. 6 checks go red on the old code.
+      - name: portal not-set-up screen
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "portal-not-set-up" 37 \
+            "portal not-set-up: all checks passed" \
+            bun run test:portal-not-set-up
+
       # The NAS's mac/ip/dst/link-login-only surviving every client-side
       # navigation under /portal. A real guest signed in twice on 7 Sep 2026
       # because six hand-built `{ organizationId, locationId, routerId }`

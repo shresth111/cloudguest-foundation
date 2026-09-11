@@ -2,7 +2,6 @@ import { PortalErrorScreen } from "@/components/portal-runtime/PortalErrorScreen
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { isAxiosError } from "axios";
 import { RefreshCw, Wifi } from "lucide-react";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { PortalShell, PortalTextPlate } from "@/components/portal-runtime/PortalShell";
@@ -10,6 +9,7 @@ import { PortalConnectingState } from "@/components/portal-runtime/PortalGuestUi
 import { VenueLogo } from "@/components/portal-runtime/VenueLogo";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
 import { buildSessionUrl } from "@/lib/portal-session-url";
+import { isPortalConfigMissing } from "@/lib/portal-guest-errors";
 
 export const Route = createFileRoute("/portal/")({
   errorComponent: PortalErrorScreen,
@@ -296,13 +296,16 @@ function PortalLoading() {
   ]);
 
   if (!isLoading && error) {
-    // A real response (404/400/etc) means the server looked this location
-    // up and genuinely found no active config -- a real setup problem, not
-    // something a retry fixes. No response at all (timeout, DNS hiccup,
-    // dropped connection) is exactly the "fresh guest device on a flaky
-    // pre-auth path" case this whole retry flow exists for -- most of these
-    // resolve themselves on a second try a few seconds later.
-    const isConfigMissing = isAxiosError(error) && !!error.response;
+    // A real 4xx (404 "Location not found", 400, ...) means the server looked
+    // this location up and genuinely found no active config -- a real setup
+    // problem, not something a retry fixes. No response at all (timeout, DNS
+    // hiccup, dropped connection) is exactly the "fresh guest device on a
+    // flaky pre-auth path" case this whole retry flow exists for -- most of
+    // these resolve themselves on a second try a few seconds later. Which
+    // statuses count, and the incident where this check could never be true
+    // (it tested for an AxiosError that `guestPortalApi` never rejects
+    // with): `isPortalConfigMissing`'s docstring.
+    const isConfigMissing = isPortalConfigMissing(error);
     return (
       <PortalShell>
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">

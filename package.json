@@ -62,6 +62,7 @@
     "test:whitelist-refusal": "node scripts/test-portal-whitelist-refusal.mjs",
     "test:portal-i18n-parity": "node scripts/test-portal-i18n-parity.mjs",
     "test:portal-error-boundary": "node scripts/test-portal-error-boundary.mjs",
+    "test:portal-not-set-up": "node scripts/test-portal-not-set-up.mjs",
     "test:portal-search-retention": "node scripts/test-portal-search-retention.mjs",
     "test:portal-client-ip": "node scripts/test-portal-client-ip.mjs",
     "test:portal-omada-params": "node scripts/test-portal-omada-params.mjs",

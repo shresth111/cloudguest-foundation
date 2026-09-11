@@ -9,7 +9,6 @@
  */
 import { useState } from "react";
 import { toast } from "sonner";
-import axios from "axios";
 import {
   Dialog,
   DialogContent,
@@ -25,7 +24,7 @@ import { cn } from "@/lib/utils";
 import { DEVICE_TYPES, type DeviceType } from "@/stores/deviceStore";
 import { floorSuggestions, normalizeFloor } from "@/lib/device-floors";
 import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
-import { toAppError } from "@/services/api";
+import { requestErrorMessage } from "@/services/api";
 
 const STRICT_MAC_RE = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
 
@@ -102,7 +101,7 @@ export function AddDeviceDialog({
       onOpenChange(false);
       onAdded?.();
     } catch (err) {
-      toast.error(axios.isAxiosError(err) ? toAppError(err).message : "Could not add this device.");
+      toast.error(requestErrorMessage(err, "Could not add this device."));
     } finally {
       setSubmitting(false);
     }

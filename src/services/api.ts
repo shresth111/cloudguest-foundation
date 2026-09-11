@@ -117,6 +117,44 @@ export function toAppError(error: AxiosError<BackendEnvelope<unknown>>): AppErro
   return { status, code: slugifyMessage(message), message, data };
 }
 
+/** True for the value `api` and `guestPortalApi` actually reject with.
+ *
+ * Both interceptors reject with `toAppError(error)` -- a plain object, not
+ * an `AxiosError` -- so `axios.isAxiosError(err)` on anything that came
+ * through them is always false. Code that branched on it silently took its
+ * "no response" path for every real server answer: the guest portal told a
+ * guest whose location 404'd to check their connection and try again, and
+ * the Portal editor hid a real 402 behind "check the connection". An
+ * `AxiosError` also carries `status`/`code`/`message`, hence the explicit
+ * exclusion. */
+export function isAppError(value: unknown): value is AppError {
+  if (!value || typeof value !== "object" || axios.isAxiosError(value)) return false;
+  const e = value as Partial<AppError>;
+  return (
+    (e.status === null || typeof e.status === "number") &&
+    typeof e.code === "string" &&
+    typeof e.message === "string"
+  );
+}
+
+/** Whatever a request rejected with, as an `AppError` -- or `null` when it
+ * is not a request failure at all (a thrown `TypeError`, a bug). Accepts a
+ * raw `AxiosError` too, for anything that calls axios without going
+ * through one of the two interceptors. */
+export function requestErrorOf(value: unknown): AppError | null {
+  if (axios.isAxiosError(value)) return toAppError(value as AxiosError<BackendEnvelope<unknown>>);
+  return isAppError(value) ? value : null;
+}
+
+/** The request failure's own message (the backend's, or toAppError's
+ * "Unable to reach the server"), else the caller's `fallback` for anything
+ * that was not a request failure. This is what every
+ * `axios.isAxiosError(err) ? toAppError(err).message : fallback` in this
+ * codebase meant, and -- see `isAppError` -- never did. */
+export function requestErrorMessage(value: unknown, fallback: string): string {
+  return requestErrorOf(value)?.message || fallback;
+}
+
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "/api/v1",
   timeout: 20000,
@@ -541,6 +579,27 @@ async function refreshAccessToken(): Promise<string | null> {
   return refreshPromise;
 }
 
+/** A `responseType: "blob"` request gets its ERROR body as a Blob too, so
+ * `toAppError` cannot read `envelope.message` off it and the failure
+ * surfaces as axios's generic "Request failed with status code 403" instead
+ * of the backend's reason. This interceptor is the last place the raw body
+ * exists -- a caller's `catch` receives an AppError with nothing left to
+ * read (analytics.service.ts's report export tried to decode it there and,
+ * for exactly that reason, never could) -- so decode it here. */
+async function decodeBlobErrorBody(error: AxiosError<BackendEnvelope<unknown>>): Promise<void> {
+  const body: unknown = error.response?.data;
+  if (!error.response || typeof Blob === "undefined" || !(body instanceof Blob)) return;
+  try {
+    const parsed = JSON.parse(await body.text()) as Record<string, unknown>;
+    // FastAPI's own `{ detail }` shape, for the errors that bypass the
+    // app-wide envelope handler.
+    if (!parsed.message && typeof parsed.detail === "string") parsed.message = parsed.detail;
+    (error.response as { data: unknown }).data = parsed;
+  } catch {
+    // Not JSON (an nginx HTML error page, say) -- nothing to recover.
+  }
+}
+
 api.interceptors.response.use(
   (response) => {
     // Unwrap the backend's { success, message, data, request_id } envelope.
@@ -550,6 +609,7 @@ api.interceptors.response.use(
     return response;
   },
   async (error: AxiosError<BackendEnvelope<unknown>>) => {
+    await decodeBlobErrorBody(error);
     const config = error.config as
       | (InternalAxiosRequestConfig & { _retried?: boolean })
       | undefined;
