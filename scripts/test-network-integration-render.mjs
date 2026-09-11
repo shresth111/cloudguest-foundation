@@ -192,6 +192,15 @@ const INTEGRATION = {
   clientCount: 37,
   activeAuthorizationCount: 12,
   hasCredentials: true,
+  // A guest-ready integration: a portal URL to paste into the controller,
+  // and nothing standing between it and its first authorized guest. Both
+  // halves, because the dashboard renders them into two separate fields --
+  // the controller's own `serverUrl` pattern rejects a value containing a
+  // scheme, so handing over one joined string is the likeliest paste error.
+  portalUrlScheme: "https",
+  portalUrlHostAndQuery:
+    "auth.wyfyguest.com/portal?organizationId=b1f2&locationId=c3d4&routerId=e5f6&netProvider=omada",
+  portalReadinessGaps: [],
   createdAt: "2026-09-01T00:00:00Z",
   updatedAt: "2026-09-10T09:00:00Z",
 };

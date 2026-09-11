@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   Building2,
   CheckCircle2,
+  Copy,
   Loader2,
   Plug,
   Power,
@@ -622,6 +623,8 @@ function IntegrationDrawer({
           <Row label="Active guest sessions" value={String(integration.activeAuthorizationCount)} />
         </DrawerSection>
 
+        <PortalLinkSection integration={integration} />
+
         <DrawerSection title="Sync">
           <Row
             label="Last sync"
@@ -704,6 +707,134 @@ function IntegrationDrawer({
         </DrawerSection>
       </div>
     </MDrawer>
+  );
+}
+
+/**
+ * The External Portal Server URL, on the Master console too.
+ *
+ * ## Why it is on BOTH dashboards and not only the customer one
+ *
+ * The Master-driven onboarding path
+ * (`create_integration_with_fleet_device`) is the only one that creates the
+ * synthetic fleet row, and therefore the only one that produces an
+ * integration a guest can actually sign in at. The person finishing that
+ * onboarding is standing in this console, not the customer's — so if the
+ * URL only existed on the customer page, the operator who most needs it
+ * would have to log in as the tenant to read it.
+ *
+ * It is the same two values, from the same API fields, decided once in
+ * `validators.build_external_portal_url`. Nothing is re-derived here: a
+ * second place that builds this string is a second place that can drift
+ * from the route the guest portal is actually mounted at.
+ *
+ * ## Why it is read-only here, exactly as it is there
+ *
+ * There is no rotate, no regenerate and no edit. The URL is a pure function
+ * of the venue's own ids; the only way it changes is if the integration is
+ * re-mapped, in which case it changes on its own and the old one stops
+ * naming that venue. A "new link" button would exist only to break a
+ * working venue until someone re-pasted it.
+ */
+function PortalLinkSection({ integration }: { integration: NetworkIntegration }) {
+  const scheme = integration.portalUrlScheme;
+  const hostAndQuery = integration.portalUrlHostAndQuery;
+  const gaps = integration.portalReadinessGaps ?? [];
+
+  if (!scheme || !hostAndQuery) {
+    return (
+      <DrawerSection title="Guest portal link">
+        <p className="text-sm text-muted-foreground">
+          {gaps.includes("fleet_device_missing")
+            ? "No link: this integration has no fleet device, so no guest session can be created for it. Onboard the controller from Router Fleet to pair one."
+            : gaps.includes("location_not_mapped")
+              ? "No link: this integration is not mapped to a location, so no venue's guests resolve to it."
+              : "No link is available for this integration yet."}
+        </p>
+      </DrawerSection>
+    );
+  }
+
+  // The host alone, for the pre-auth entry. Off the URL the server built,
+  // never re-derived: the host an operator is told to permit must by
+  // construction be the host their guests are sent to.
+  const host = hostAndQuery.split("/")[0];
+
+  return (
+    <DrawerSection title="Guest portal setup">
+      <p className="text-xs text-muted-foreground">
+        Two settings on the controller. Guests cannot sign in until <strong>both</strong> are done.
+      </p>
+
+      <p className="pt-1 text-xs font-medium text-foreground">1. External Portal Server</p>
+      <p className="text-xs text-muted-foreground">
+        Site View &rarr; Network Config &rarr; Authentication &rarr; Portal &rarr; Authentication
+        Type <strong>External Portal Server</strong> &rarr; Host Type <strong>URL</strong>. Two
+        separate fields — the controller rejects a URL that contains the scheme.
+      </p>
+      <CopyableRow label="Scheme" value={scheme} />
+      <CopyableRow label="URL" value={hostAndQuery} />
+
+      {/* Observed on real hardware 2026-09-11, from an associated but
+          unauthorized client: DNS resolves, TCP 443 connects, and every
+          HTTPS request times out — our own portal host included. Omada does
+          NOT auto-permit the external portal server it is itself
+          redirecting to. The redirect chain is entirely correct and the
+          page hangs for 20 seconds. Nothing in the controller's UI reports
+          it, which is why this is a numbered step and not a footnote. */}
+      <p className="pt-2 text-xs font-medium text-foreground">2. Pre-Authentication Access</p>
+      <p className="text-xs text-muted-foreground">
+        Settings &rarr; Authentication &rarr; Portal &rarr; Access Control &rarr;{" "}
+        <strong>Pre-Authentication Access</strong>, enabled, with one entry of type{" "}
+        <strong>URL</strong> for the host below. Without it the sign-in page never loads at all —
+        the request times out rather than failing.
+      </p>
+      <CopyableRow label="Pre-auth URL" value={host} />
+
+      {/* Two more silent failure modes, both measured the same day. The
+          8088 hop is the one our own security group broke; the resolved-IP
+          behaviour is what makes a single entry sufficient TODAY and is the
+          thing that will break quietly when DNS moves, which this estate
+          has already done once. */}
+      <p className="pt-2 text-xs text-muted-foreground">
+        Guest devices must also reach the controller itself on port 8088 (8843 with HTTPS Redirect
+        enabled) — the AP sends them to the controller&rsquo;s own portal entry before the
+        controller redirects them here.
+      </p>
+      <p className="text-xs text-muted-foreground">
+        A URL entry permits the resolved <strong>address</strong>, not the name, so this one entry
+        also covers the API origin — only because both names currently resolve to the same address.
+        That stops being true if they are ever moved apart.
+      </p>
+    </DrawerSection>
+  );
+}
+
+function CopyableRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-2 text-sm">
+      <span className="shrink-0 text-muted-foreground">{label}</span>
+      <div className="flex min-w-0 items-start gap-1.5">
+        <span className="break-all text-right font-mono text-xs">{value}</span>
+        <button
+          type="button"
+          aria-label={`Copy ${label}`}
+          onClick={() => {
+            // Best-effort. `navigator.clipboard` is absent on an insecure
+            // origin and rejects when the document is not focused; the value
+            // is on screen and selectable either way, and saying "Copied"
+            // when nothing was copied is the thing worth avoiding.
+            navigator.clipboard
+              ?.writeText(value)
+              .then(() => toast.success(`${label} copied`))
+              .catch(() => toast.error(`Could not copy — select the ${label} and copy it.`));
+          }}
+          className="mt-0.5 shrink-0 text-muted-foreground hover:text-foreground"
+        >
+          <Copy className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
   );
 }
 

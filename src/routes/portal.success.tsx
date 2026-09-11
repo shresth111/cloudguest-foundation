@@ -16,6 +16,8 @@ import { PORTAL_SLOW_NOTICE_DELAY_MS } from "@/lib/portal-post-connect";
 import { usePortalLinkSearch } from "@/components/portal-runtime/usePortalLinkSearch";
 import { isCaptiveNetworkAssistant } from "@/lib/portal-cna";
 import { resolvePostLoginDestination } from "@/lib/portal-post-login";
+import { buildPortalAuthorizeBody, normalizeOmadaText } from "@/lib/portal-authorize-body";
+import { guestPortalIntegrationService } from "@/services/network-integration.service";
 
 // v4 §6.1: the same "taking longer than expected" threshold
 // portal.index.tsx's own loading screen already uses, for the identical
@@ -163,14 +165,34 @@ function SuccessPage() {
     // on this portal's own URL) -- the "send them back where they were
     // going" half of the redirect-mode decision in @/lib/portal-post-login.
     destinationUrl,
+    // WHICH GATE THIS PAGE HAS TO OPEN. `"omada"` when the venue's own
+    // External Portal Server URL said so, undefined at every MikroTik
+    // venue. Read, never inferred -- see `PortalRuntimeState.netProvider`.
+    netProvider,
+    // What the Omada controller told us about this association, carried
+    // from its redirect. Only the controller could have known any of it.
+    omadaRedirect,
+    clientIp,
     t,
   } = usePortalRuntime();
+  // The controller's own landing page (doc 132060's `LANDING_PAGE`), fed
+  // through the SAME decision RouterOS's `dst` goes through rather than
+  // used raw. That is not treating the two as the same fact -- they answer
+  // different questions and come from different vendors -- it is reusing
+  // the two guards that apply to any post-login navigation sink whatever
+  // produced it: `isSafeRedirectTarget` (an admin- or NAS-supplied
+  // `javascript:` URL runs script in this origin) and `isCaptiveProbeUrl`
+  // (iOS's own captive probe must never become a guest's destination, or a
+  // freshly-connected iPhone lands on Apple's one-word "Success" page --
+  // the founder's own QA report). A venue is behind one vendor or the
+  // other, so exactly one of these two is ever defined.
+  const omadaLandingUrl = normalizeOmadaText(omadaRedirect?.redirectUrl) ?? undefined;
   // Single post-login destination decision -- see @/lib/portal-post-login.
   // This page applies it to the NAS `dst`; /portal/session applies it to
   // rendering. html -> session page (it renders the venue's page); redirect
   // -> the URL itself (no intermediate portal page); default -> session
   // page (unchanged).
-  const destination = resolvePostLoginDestination(config, destinationUrl);
+  const destination = resolvePostLoginDestination(config, destinationUrl ?? omadaLandingUrl);
   const sessionTarget = () =>
     buildSessionUrl(organizationId, locationId, routerId, language, deviceMac);
   // The destination for the two assign branches that don't build a NAS
@@ -213,8 +235,117 @@ function SuccessPage() {
   // -- `retry()` below explicitly clears this to allow a second real one.
   const hotspotLoginSubmitted = useRef(false);
 
+  /**
+   * THE OMADA GATE. The counterpart of `submitHotspotLogin` below, and the
+   * step that was missing entirely.
+   *
+   * At a MikroTik venue this page opens the gate with a full-document form
+   * POST to RouterOS's own `link-login-only` URL. An Omada controller has
+   * no such URL and no equivalent a browser may call: the credentials that
+   * authorize a client belong to a Hotspot Operator account on the
+   * controller, and a guest's browser must never hold them. So the request
+   * goes to our own backend, which holds the venue's credentials and talks
+   * to the controller server-side.
+   *
+   * `POST /network-integrations/portal/authorize` has existed, tested and
+   * correct, since the integration was built -- with no caller anywhere in
+   * this repo. This is it.
+   *
+   * ## What it sends, and what it refuses to invent
+   *
+   * Every controller-supplied value travels exactly as the controller
+   * spelled it, through `buildPortalAuthorizeBody` -- the single module
+   * that knows each field's wire name and type. Nothing here defaults,
+   * coerces or substitutes: `ssidName` is not the integration's configured
+   * SSID, `site` is not our stored site, `t` is not `Date.now()`, and an
+   * absent parameter stays absent all the way to the wire. A value we
+   * invented that happened to be plausible is the worse of the two
+   * failures, because the controller would accept it.
+   *
+   * ## Why `authorized: false` is not an error, and not a success either
+   *
+   * The call reaching the controller and the controller saying no are
+   * different outcomes from the call failing -- and neither of them is
+   * "you're connected". This page has already been through the version of
+   * this mistake where it claimed success on evidence it did not have (see
+   * `nasAuthorizedFromSearch` below, and the founder's QA report behind
+   * it). Both failure shapes land on the same honest state: the guest is
+   * NOT navigated anywhere, the submit guard is released so the retry
+   * button below can genuinely retry, and the existing slow/stuck notice
+   * is what they see.
+   */
+  async function authorizeOnController() {
+    if (!session) return;
+    const body = buildPortalAuthorizeBody(
+      {
+        session_id: session.sessionId,
+        // The venue this guest is standing in, off the portal's own
+        // runtime -- NOT read back off the session. The backend compares
+        // the two and refuses a mismatch, and that comparison is only worth
+        // something if these are the ids the portal actually believes in;
+        // echoing the session's own values back at it would compare a value
+        // to itself. (They agree by construction: the login call that
+        // created this session was made with these same three.)
+        organization_id: organizationId,
+        location_id: locationId,
+        provider: "omada",
+      },
+      omadaRedirect ?? {},
+      clientIp,
+    );
+
+    try {
+      const result = await guestPortalIntegrationService.authorizePortal(body);
+      if (!result.authorized) {
+        // The controller declined. Say nothing that is not true: no
+        // navigation, no "connected" claim, and the retry below is real.
+        hotspotLoginSubmitted.current = false;
+        return;
+      }
+      // A real document load, for the same reason every other branch on
+      // this page uses one: it is the only thing that actually asks the
+      // network. If the controller's authorization somehow has not taken
+      // effect, this request is intercepted and the guest comes back
+      // through the portal rather than sitting on a page that asserts
+      // success from memory.
+      window.location.assign(directTarget());
+    } catch {
+      // Reached nothing, or the backend refused. Every refusal there is
+      // one indistinguishable 403, so there is nothing to tell the guest
+      // apart -- and nothing to do but let them retry.
+      hotspotLoginSubmitted.current = false;
+    }
+  }
+
   function attemptSubmit() {
     if (!session || hotspotLoginSubmitted.current) return;
+
+    // THE OMADA BRANCH, AND IT IS FIRST.
+    //
+    // Deliberately above all three RouterOS guards below, because every one
+    // of them would swallow an Omada guest:
+    //
+    //   * `nasAuthorizedFromSearch` reads `hspage`, which only a RouterOS
+    //     override page ever stamps -- absent here, and `undefined` must
+    //     never be read as an answer;
+    //   * the `!guestIdentifier` return exists because RADIUS Authorize
+    //     looks a guest up by that exact string. The Omada call is keyed on
+    //     the SESSION ID, so a guest whose identifier was lost to a reload
+    //     can still be authorized -- returning early would strand them on
+    //     the spinner with nothing in flight;
+    //   * the `!hotspotLoginUrl` branch sends the guest to the connected
+    //     page on the assumption that there is no gate to open. At an Omada
+    //     venue there is never a `link-login-only`, and there IS a gate --
+    //     so that branch would take every single Omada guest to a page
+    //     telling them they are online, before anything had let them on.
+    //
+    // Mutually exclusive with the RouterOS path, not layered on top of it:
+    // a venue is behind one vendor or the other.
+    if (netProvider === "omada") {
+      hotspotLoginSubmitted.current = true;
+      void authorizeOnController();
+      return;
+    }
 
     // THE ROUTER'S OWN ANSWER, AND IT OUTRANKS EVERYTHING BELOW.
     //
@@ -385,7 +516,16 @@ function SuccessPage() {
     // closure, same pattern the rest of this hook already relied on
     // before this refactor).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, hotspotLoginUrl, guestIdentifier, organizationId, locationId, routerId, navigate]);
+  }, [
+    session,
+    hotspotLoginUrl,
+    guestIdentifier,
+    organizationId,
+    locationId,
+    routerId,
+    navigate,
+    netProvider,
+  ]);
 
   useEffect(() => {
     if (!session) navigate({ to: "/portal/expired", replace: true, search: (prev) => prev });

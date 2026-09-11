@@ -190,6 +190,22 @@ const portalSearchShape = {
   // guess, and a guess that happens to be a real address on that LAN is
   // the worse failure of the two.
   //
+  // AND A SECOND, SHARPER PROBLEM, MEASURED ON HARDWARE 2026-09-11. When
+  // the controller is OFF-SITE, this is not the client's address at all --
+  // it is the venue's public NAT address, identical for every guest there
+  // at once. The controller reports the source address of the HTTP request
+  // it received, and with the controller off-premises that is the venue's
+  // egress. Captured live: `clientIp=103.84.202.195` while the client was
+  // `192.168.1.114`.
+  //
+  // So on a WyfyGuest-hosted controller this value is a VENUE identifier,
+  // not a client identifier, and anything that treats it as the latter is
+  // wrong for every guest simultaneously. On a venue-hosted controller it
+  // is the real client address and the problem does not arise. CR-004
+  // makes it mandatory on v6.2.10+, which means the deployment model has
+  // to be settled before that firmware ships -- see the `clientIp`
+  // plumbing on `feat/clientip-vendor-sync`, which is where it lands.
+  //
   // Being IN this schema is what makes it survive the client-side hops
   // between the controller's document load and the authorize call, exactly
   // as `mac` did not until `retainSearchParams` existed -- see this file's
@@ -295,6 +311,32 @@ const portalSearchShape = {
   // different questions and come from different vendors; either may be
   // absent while the other is present.
   redirectUrl: omadaRedirectParam(),
+  // WHICH VENDOR'S GATE STANDS BETWEEN THIS GUEST AND THE INTERNET.
+  //
+  // Not a controller parameter -- Omada does not send this. It is part of
+  // the URL the venue's operator pasted into the controller's External
+  // Portal Server field, put there by the dashboard from the integration
+  // row (`validators.build_external_portal_url` on the backend). It is the
+  // one thing `/portal/success` needs in order to choose between the two
+  // mutually exclusive ways this flow can end:
+  //
+  //   "omada" -> POST /api/v1/network-integrations/portal/authorize, which
+  //              asks the venue's controller to let the device through;
+  //   absent  -> the existing RouterOS `link-login-only` form POST.
+  //
+  // A venue is behind one vendor or the other and never both. Inferring it
+  // instead ("`clientMac` is present, so it must be Omada") would put the
+  // decision in whichever parameter happened to survive the trip, on the
+  // one page where being wrong means the guest completes sign-in and gets
+  // no internet -- with the portal claiming success. The dashboard knew the
+  // provider for certain when it built the URL (it read it off the
+  // integration row); this carries that certainty forward rather than
+  // re-deriving a guess from the parameters that happen to be present.
+  //
+  // Declared here, like every other key, because being in this schema is
+  // what makes it survive the ~6 route transitions between the redirect
+  // and `/portal/success`. See this file's docstring.
+  netProvider: z.string().optional(),
   // The guest's own chosen portal language, put here by `buildSessionUrl`
   // so it survives portal.success.tsx's full-document POST to the NAS --
   // the one boundary on this flow where React state and (on iOS's Captive
