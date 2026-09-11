@@ -982,6 +982,31 @@ jobs:
       - name: device liveness labels match their data
         run: bun run test:device-liveness
 
+      # --- A router is only offered actions it can actually accept --------
+      #
+      # `RouterTable.tsx` chose Suspend vs Reinstate from "does this router
+      # look inactive?" rather than "does the backend accept this edge?",
+      # while `routers.$routerId.tsx` had already been gated against the real
+      # ROUTER_STATUS_TRANSITIONS graph. Two copies of one rule, and the list
+      # -- the screen operators actually use -- held the wrong copy.
+      #
+      # Three of its four wrong cases posted a transition the API rejects
+      # (suspend from pending_provisioning/provisioning, reinstate from the
+      # terminal decommissioned, and reinstate posting `online`, which is not
+      # an edge out of suspended and is a claim only a heartbeat may make).
+      # Because updateStatus sends one call for every selected id, one
+      # ineligible row in a bulk selection failed the entire batch.
+      #
+      # The rule now lives once, in `src/lib/router-actions.ts`. This suite
+      # asserts it against the backend graph AND asserts that both surfaces
+      # read it -- the second half matters more, because the defect was never
+      # a wrong rule, it was a second copy of one.
+      - name: router actions match the backend transition graph
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "router action gating" 40 "all router action gating checks passed" \
+            bun run test:router-action-gating
+
       # --- A venue's floors are the venue's, not a constant ---------------
       #
       # `FLOORS = ["5F".."GF"]` was shown to every venue as its floor list,
