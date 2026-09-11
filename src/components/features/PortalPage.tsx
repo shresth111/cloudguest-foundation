@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import axios from "axios";
 import { motion, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,7 +31,7 @@ import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { portalService } from "@/services/portal.service";
 import { resolveOrgId } from "@/services/customer.service";
 import { brandAssetService } from "@/services/brand-asset.service";
-import { toAppError } from "@/services/api";
+import { requestErrorMessage } from "@/services/api";
 import { SplashCharCounter } from "@/components/portals/SplashCharCounter";
 import {
   SPLASH_HEADLINE_MAX,
@@ -601,9 +600,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
         // and a network failure reads as a network one -- which are
         // different things for the person reading it to do next.
         setLoadError(
-          axios.isAxiosError(err)
-            ? toAppError(err).message
-            : "We could not read this venue's saved portal configuration.",
+          requestErrorMessage(err, "We could not read this venue's saved portal configuration."),
         );
         setLoadState("failed");
       });
@@ -688,9 +685,10 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       setLoadError(null);
       toast.success("Preview refreshed with the last saved configuration");
     } catch (err) {
-      const message = axios.isAxiosError(err)
-        ? toAppError(err).message
-        : "Could not refresh — check the connection and try again.";
+      const message = requestErrorMessage(
+        err,
+        "Could not refresh — check the connection and try again.",
+      );
       // A refresh that fails leaves the form holding whatever the LAST
       // successful read put there, which may now be stale -- and if there
       // was never a successful read, the defaults. Either way this page can
@@ -886,11 +884,11 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       // 'white_label' feature) behind a misleading network-error message
       // -- surfacing the backend's own real message (toAppError) instead
       // whenever this genuinely was a server response, not just a dropped
-      // connection.
+      // connection. The first fix tested `axios.isAxiosError(err)`, which
+      // `api`'s AppError rejections never are, so the 402 stayed swallowed
+      // until `requestErrorMessage`.
       toast.error(
-        axios.isAxiosError(err)
-          ? toAppError(err).message
-          : "Could not upload the logo — check the connection and try again.",
+        requestErrorMessage(err, "Could not upload the logo — check the connection and try again."),
       );
     } finally {
       setUploadingLogo(false);
@@ -912,9 +910,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       toast.success("Logo removed");
     } catch (err) {
       toast.error(
-        axios.isAxiosError(err)
-          ? toAppError(err).message
-          : "Could not remove the logo — check the connection and try again.",
+        requestErrorMessage(err, "Could not remove the logo — check the connection and try again."),
       );
     } finally {
       setUploadingLogo(false);
@@ -963,9 +959,10 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       // -- a 402 here means the plan doesn't include 'white_label', which
       // a generic "check the connection" would hide (see handleLogoUpload).
       toast.error(
-        axios.isAxiosError(err)
-          ? toAppError(err).message
-          : "Could not upload the background image — check the connection and try again.",
+        requestErrorMessage(
+          err,
+          "Could not upload the background image — check the connection and try again.",
+        ),
       );
     } finally {
       setUploadingBg(false);
@@ -986,9 +983,10 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       toast.success("Background image removed");
     } catch (err) {
       toast.error(
-        axios.isAxiosError(err)
-          ? toAppError(err).message
-          : "Could not remove the background image — check the connection and try again.",
+        requestErrorMessage(
+          err,
+          "Could not remove the background image — check the connection and try again.",
+        ),
       );
     } finally {
       setUploadingBg(false);
@@ -1027,9 +1025,10 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       toast.success("Picture uploaded — save the portal to publish it");
     } catch (err) {
       toast.error(
-        axios.isAxiosError(err)
-          ? toAppError(err).message
-          : "Could not upload the picture — check the connection and try again.",
+        requestErrorMessage(
+          err,
+          "Could not upload the picture — check the connection and try again.",
+        ),
       );
     } finally {
       setContentImageUploading(false);
@@ -1052,9 +1051,10 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       toast.success("Picture removed");
     } catch (err) {
       toast.error(
-        axios.isAxiosError(err)
-          ? toAppError(err).message
-          : "Could not remove the picture — check the connection and try again.",
+        requestErrorMessage(
+          err,
+          "Could not remove the picture — check the connection and try again.",
+        ),
       );
     } finally {
       setContentImageUploading(false);
@@ -1265,9 +1265,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       toast.error(
         postLoginHtmlLimitErrorMessage(err) ??
           splashLimitErrorMessage(err) ??
-          (axios.isAxiosError(err)
-            ? toAppError(err).message
-            : "Could not save — check the connection and try again."),
+          requestErrorMessage(err, "Could not save — check the connection and try again."),
       );
     }
   };

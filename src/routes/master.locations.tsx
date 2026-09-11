@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { z } from "zod";
 import { toast } from "sonner";
-import axios from "axios";
 import { Search, Plus, Trash2, Loader2, ExternalLink } from "lucide-react";
 import { MasterShell } from "@/components/master/MasterShell";
 import {
@@ -20,7 +19,7 @@ import {
 } from "@/components/master/MasterKit";
 import { locationService } from "@/services/location.service";
 import { organizationService } from "@/services/organization.service";
-import { toAppError } from "@/services/api";
+import { requestErrorMessage } from "@/services/api";
 import { isDemo } from "@/services/customer.service";
 import { PROPERTY_TYPE_LABEL, type Location, type PropertyType } from "@/types/location";
 import { businessTypeIcon } from "@/lib/business-type-icons";
@@ -144,9 +143,7 @@ function LocationsScreen() {
       setLocations(locs);
       setOrgs(orgList.rows.map((o) => ({ id: o.id, name: o.name })));
     } catch (err) {
-      const message = axios.isAxiosError(err)
-        ? toAppError(err).message
-        : "Could not load locations from the server.";
+      const message = requestErrorMessage(err, "Could not load locations from the server.");
       toast.error(message);
     } finally {
       setLoading(false);

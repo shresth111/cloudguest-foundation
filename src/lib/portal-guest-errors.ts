@@ -1,4 +1,4 @@
-import type { AppError } from "@/services/api";
+import { requestErrorOf, type AppError } from "@/services/api";
 
 /**
  * A real backend error reason is meant to be shown to the guest verbatim
@@ -73,4 +73,28 @@ export function friendlyGuestAuthError(
     (e.message === RAW_VALIDATION_MESSAGE || RAW_IDENTIFIER_PATTERN.test(e.message));
   if (!isRawValidationError && e.message) return e.message;
   return localizedFallback || FRIENDLY_BY_CONTEXT[context];
+}
+
+/**
+ * Did `/captive-portal/resolve` fail because this location has no portal to
+ * show (the "not set up" screen), rather than because the request never got
+ * a usable answer (the "trouble connecting" screen, with Try again)?
+ *
+ * Only a 4xx is a definitive "no". A 5xx is the platform's fault, not the
+ * venue's -- the resolve cache once 500'd every guest joining WiFi (backend
+ * `captive_portal/cache.py`) and nginx answers 502/504 while the backend
+ * restarts -- and a retry can clear it. 408 and 429 (resolve has its own
+ * rate-limit bucket, backend `middleware/rate_limit.py`) are the server
+ * saying "later", not "never". No response at all (`status: null`) is the
+ * flaky pre-auth path the retry exists for.
+ *
+ * Real incident: this was `isAxiosError(error) && !!error.response`, but
+ * `guestPortalApi` rejects with an `AppError`, never an `AxiosError` (see
+ * `isAppError`), so it was always false. Prod logs showed a guest getting
+ * 404 "Location not found" from resolve while the screen told them to
+ * check their connection -- and they kept pressing Try again.
+ */
+export function isPortalConfigMissing(error: unknown): boolean {
+  const status = requestErrorOf(error)?.status ?? null;
+  return status !== null && status >= 400 && status < 500 && status !== 408 && status !== 429;
 }

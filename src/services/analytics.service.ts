@@ -645,26 +645,21 @@ export const analyticsService = {
     const end = new Date();
     const start = new Date(end.getTime() - days * 86_400_000);
 
-    let response;
-    try {
-      response = await api.post<Blob>(
-        "/reports",
-        {
-          report_type: backendType,
-          start_date: start.toISOString(),
-          end_date: end.toISOString(),
-          export_format: input.format,
-        },
-        { headers, responseType: "blob" },
-      );
-    } catch (err) {
-      // responseType "blob" applies to the error body too, so the shared
-      // interceptor cannot read `envelope.message` off it and falls back to
-      // axios's generic "Request failed with status code 403". The backend's
-      // real explanation ("Permission denied: 'reports.export' is required
-      // at global scope") is inside that blob -- read it out.
-      throw await withBlobErrorMessage(err);
-    }
+    // responseType "blob" applies to the error body too. The backend's real
+    // explanation of a failure ("Permission denied: 'reports.export' is
+    // required at global scope") is inside that blob; `api`'s interceptor
+    // decodes it (`decodeBlobErrorBody`), so the AppError thrown here
+    // already carries it.
+    const response = await api.post<Blob>(
+      "/reports",
+      {
+        report_type: backendType,
+        start_date: start.toISOString(),
+        end_date: end.toISOString(),
+        export_format: input.format,
+      },
+      { headers, responseType: "blob" },
+    );
     const disposition = (response.headers as Record<string, string>)["content-disposition"];
     const match = disposition?.match(/filename="?([^"]+)"?/);
     const filename = match?.[1] ?? `${input.type}-report-${Date.now()}.${input.format}`;
@@ -740,28 +735,6 @@ const BACKEND_TO_REPORT_TYPE: Record<string, ReportType> = {
 };
 
 const ORG_SCOPED_REPORT_TYPES = new Set(["organization", "router", "guest", "network"]);
-
-/**
- * Recover the backend's own error message from a failed `responseType:
- * "blob"` request. The shared api interceptor builds an AppError by reading
- * `error.response.data.message`, which is a Blob here, so every report
- * failure reached the UI as axios's generic status-code string.
- */
-async function withBlobErrorMessage(err: unknown): Promise<unknown> {
-  const body = (err as { response?: { data?: unknown } })?.response?.data;
-  if (!(body instanceof Blob)) return err;
-  try {
-    const text = await body.text();
-    const parsed = JSON.parse(text) as { message?: string; detail?: string };
-    const message = parsed.message ?? parsed.detail;
-    if (message && err && typeof err === "object") {
-      (err as { message: string }).message = message;
-    }
-  } catch {
-    // A non-JSON error body tells us nothing useful; keep the original.
-  }
-  return err;
-}
 
 const RANGE_DAYS: Record<DateRangePreset, number> = {
   today: 1,
