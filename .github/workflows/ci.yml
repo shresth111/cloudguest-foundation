@@ -1027,6 +1027,31 @@ jobs:
       - name: device liveness labels match their data
         run: bun run test:device-liveness
 
+      # --- The fleet Status cell never prints a database enum -------------
+      #
+      # `master.routers.tsx` maps a derived `RouterLivenessState` to a badge
+      # through `LIVENESS_BADGE`, which was typed `Record<string, ...>` and
+      # was missing entries, and every miss fell through to a
+      # `?? { label: r.status }` fallback that prints the raw backend value.
+      # So an enrolled MikroTik whose heartbeat has never arrived -- status
+      # `provisioning`, the most common field failure on this fleet and the
+      # exact case `location-liveness.ts` was written for -- rendered the
+      # literal word `provisioning` in the Status cell.
+      #
+      # It shipped twice. #253 built the map; #258 hit the same fallback on
+      # controllers, added the one key it needed (`not-applicable`) and left
+      # the hole open, so `never-checked-in` stayed broken on the vendor that
+      # actually has customers.
+      #
+      # The map is now keyed by the union, so tsc is the real guard and this
+      # suite is the backstop: it derives the state list FROM the type rather
+      # than hard-coding it, so it cannot go stale the way the map did.
+      - name: every liveness state has a badge, and none leaks an enum
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "router liveness badge" 60 "all router liveness badge checks passed" \
+            bun run test:liveness-badge
+
       # --- A venue's floors are the venue's, not a constant ---------------
       #
       # `FLOORS = ["5F".."GF"]` was shown to every venue as its floor list,
