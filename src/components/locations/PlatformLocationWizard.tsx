@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import {
   AlertTriangle,
   Building2,
@@ -7,7 +8,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Copy,
+  Loader2,
   MapPin,
+  RotateCcw,
   Router as RouterIcon,
   Sparkles,
   SlidersHorizontal,
@@ -43,18 +46,26 @@ import { Separator } from "@/components/ui/separator";
 import { Stepper } from "@/components/ui-ext/Stepper";
 import { cn } from "@/lib/utils";
 
-import { api } from "@/services/api";
+import { api, requestErrorMessage } from "@/services/api";
 import { isDemo } from "@/services/customer.service";
 import { locationService } from "@/services/location.service";
 import { useProvisionLocation } from "@/hooks/useLocations";
+import { useOnboardController } from "@/hooks/useRouters";
 import {
   PROPERTY_TYPE_LABEL,
   type PropertyType,
   type ProvisionLocationPayload,
   type ProvisionLocationResult,
 } from "@/types/location";
+import type { OnboardControllerPayload, OnboardControllerResult } from "@/types/router";
 import { businessTypeIcon } from "@/lib/business-type-icons";
-import type { AppError } from "@/services/api";
+import {
+  AUTH_MODE_CHOICES,
+  TLS_MODE_CHOICES,
+  VENDOR_CHOICES,
+  omadaControllerIssues,
+  type RouterVendorId,
+} from "@/lib/router-schemas";
 
 // Same demo-session gap as location.service.ts's fetch helpers (see their
 // comment) -- GET /plans 401s under the Master Console's demo sign-in, which
@@ -100,7 +111,7 @@ const STEPS = [
   { key: "org", title: "Organization", desc: "Select or create", icon: Building2 },
   { key: "location", title: "Location", desc: "Site details", icon: MapPin },
   { key: "owner", title: "Owner", desc: "Location owner account", icon: UserCog },
-  { key: "router", title: "Router", desc: "First device", icon: RouterIcon },
+  { key: "router", title: "Device", desc: "Router or Omada controller", icon: RouterIcon },
   { key: "plan", title: "Plan", desc: "Assign a subscription plan", icon: Sparkles },
   {
     key: "features",
@@ -136,6 +147,10 @@ interface WizardState {
     timezone: string;
   };
   owner: { firstName: string; lastName: string; email: string };
+  /** Which kind of device the venue runs. A venue is one or the other --
+   * see `ROUTER_VENDORS` -- so only the chosen branch's fields are
+   * validated or sent. */
+  device: RouterVendorId;
   router: {
     name: string;
     serialNumber: string;
@@ -143,9 +158,71 @@ interface WizardState {
     model: string;
     managementIpAddress: string;
   };
+  controller: ControllerDraft;
   planId: string;
   featureOverrides: Record<string, FeatureOverrideState>;
 }
+
+/**
+ * A TP-Link Omada controller, as typed. Plain component state and nothing
+ * else: `password`/`clientSecret` are an in-flight draft that is never
+ * written to storage, never shown back (Review and the result screen leave
+ * them out), cleared once the controller is connected, and dropped with the
+ * rest of the state when the dialog closes. They are deliberately KEPT after
+ * a failed connect, so "Retry connecting controller" does not make the
+ * operator type them again.
+ */
+interface ControllerDraft {
+  name: string;
+  model: string;
+  baseUrl: string;
+  authMode: "legacy" | "openapi";
+  clientId: string;
+  clientSecret: string;
+  username: string;
+  password: string;
+  controllerId: string;
+  site: string;
+  ssid: string;
+  // No "insecure" here, unlike the device wizard: this is the path a new
+  // customer's first controller takes, and "accept any certificate" is not a
+  // choice to make in passing. The device wizard still offers it.
+  tlsMode: "strict" | "pinned";
+  tlsPinnedSha256: string;
+  serialNumber: string;
+  macAddress: string;
+}
+
+const DEFAULT_CONTROLLER: ControllerDraft = {
+  name: "",
+  model: "",
+  baseUrl: "",
+  // Hotspot operator, not Open API -- the opposite of the device wizard's
+  // default, on purpose. The controller lets a guest online only through
+  // the operator login, in either mode (cloud-guest OMADA_OPERATOR_RUNBOOK
+  // §2 item 1), so it is the one credential this venue cannot do without;
+  // Open API only adds inventory screens on top of it.
+  authMode: "legacy",
+  clientId: "",
+  clientSecret: "",
+  username: "",
+  password: "",
+  controllerId: "",
+  site: "",
+  ssid: "",
+  tlsMode: "strict",
+  tlsPinnedSha256: "",
+  serialNumber: "",
+  macAddress: "",
+};
+
+/** How the controller half of an Omada provision went. Separate from
+ * `result`, because the customer can exist while this is still failing --
+ * the two are different requests, not one transaction. */
+type ControllerOutcome =
+  | { status: "connecting" }
+  | { status: "connected"; result: OnboardControllerResult }
+  | { status: "failed"; message: string };
 
 const DEFAULT_STATE: WizardState = {
   org: { mode: "existing", name: "", slug: "", contactEmail: "" },
@@ -161,7 +238,11 @@ const DEFAULT_STATE: WizardState = {
     timezone: "UTC",
   },
   owner: { firstName: "", lastName: "", email: "" },
+  // MikroTik first, as in the device wizard: the path almost every venue
+  // takes, with Omada an explicit choice.
+  device: "mikrotik",
   router: { name: "", serialNumber: "", macAddress: "", model: "", managementIpAddress: "" },
+  controller: DEFAULT_CONTROLLER,
   planId: "",
   featureOverrides: {},
 };
@@ -218,7 +299,10 @@ export function PlatformLocationWizard({
   // toast would otherwise be left staring at an unchanged Review step with
   // no idea whether to retry or go hunting for a half-built account.
   const [failure, setFailure] = useState<string | null>(null);
+  const [controllerOutcome, setControllerOutcome] = useState<ControllerOutcome | null>(null);
   const provision = useProvisionLocation();
+  const onboard = useOnboardController();
+  const busy = provision.isPending || onboard.isPending;
 
   // Re-seed on every open (not just mount) -- the dialog instance is reused
   // across separate "New Location" clicks for different customers, so a
@@ -267,6 +351,7 @@ export function PlatformLocationWizard({
     setErrors({});
     setResult(null);
     setFailure(null);
+    setControllerOutcome(null);
   }
 
   function set<K extends keyof WizardState>(k: K, v: WizardState[K]) {
@@ -296,9 +381,13 @@ export function PlatformLocationWizard({
       if (!z.string().email().safeParse(state.owner.email).success)
         e["owner.email"] = "Invalid email";
     } else if (step === 3) {
-      (["name", "serialNumber", "macAddress", "model"] as const).forEach((k) => {
-        if (!state.router[k].trim()) e[`router.${k}`] = "Required";
-      });
+      if (state.device === "tplink_omada") {
+        Object.assign(e, controllerErrors(state.controller));
+      } else {
+        (["name", "serialNumber", "macAddress", "model"] as const).forEach((k) => {
+          if (!state.router[k].trim()) e[`router.${k}`] = "Required";
+        });
+      }
     } else if (step === 4) {
       if (!state.planId) e.planId = "Select a plan";
     }
@@ -336,10 +425,16 @@ export function PlatformLocationWizard({
         timezone: state.location.timezone,
       },
       owner: state.owner,
-      router: {
-        ...state.router,
-        managementIpAddress: state.router.managementIpAddress || undefined,
-      },
+      // No router for an Omada venue: there is none, and the controller is
+      // not something this endpoint can enroll. It is connected next, by
+      // `connectController`, once the location it belongs to exists.
+      router:
+        state.device === "mikrotik"
+          ? {
+              ...state.router,
+              managementIpAddress: state.router.managementIpAddress || undefined,
+            }
+          : undefined,
       planId: state.planId,
       featureOverrides: Object.entries(state.featureOverrides)
         .filter(([, v]) => v.isEnabled !== undefined || v.limitValue !== undefined)
@@ -350,16 +445,63 @@ export function PlatformLocationWizard({
         })),
     };
     setFailure(null);
+    let r: ProvisionLocationResult;
     try {
-      const r = await provision.mutateAsync(payload);
-      setResult(r);
-      toast.success(`${r.locationName} provisioned`);
-      onProvisioned?.(r.locationId);
+      r = await provision.mutateAsync(payload);
     } catch (err) {
-      const message = (err as unknown as AppError).message || "Provisioning failed";
+      const message = requestErrorMessage(err, "Provisioning failed");
       toast.error(message);
       setFailure(message);
+      return;
     }
+    setResult(r);
+    toast.success(`${r.locationName} provisioned`);
+    onProvisioned?.(r.locationId);
+    if (state.device === "tplink_omada") await connectController(r);
+  }
+
+  /**
+   * The second request of an Omada provision, and the only one a retry
+   * repeats.
+   *
+   * Two requests, not one transaction: `POST /locations/provision` has no
+   * controller fields, and onboarding needs the location id it returns. So
+   * by the time this runs the customer, location and owner already exist,
+   * and a failure here must never be reported as "provisioning failed" --
+   * an operator who believed that would provision the customer a second
+   * time. `r` is the provision result already on screen, which is why a
+   * retry can never re-provision: nothing on this path calls `provision`.
+   */
+  async function connectController(r: ProvisionLocationResult) {
+    setControllerOutcome({ status: "connecting" });
+    try {
+      const onboarded = await onboard.mutateAsync(onboardPayload(state.controller, r));
+      setControllerOutcome({ status: "connected", result: onboarded });
+      toast.success(`${onboarded.integrationName} connected`);
+      // The secrets have served their purpose; drop them now rather than
+      // when the dialog happens to close. Same as the device wizard.
+      setState((s) => ({ ...s, controller: { ...s.controller, password: "", clientSecret: "" } }));
+    } catch (err) {
+      // `requestErrorMessage`, not `(err as AppError).message`: the backend's
+      // own sentence is the one that says what the controller answered, and
+      // anything that is not a request failure gets a plain fallback rather
+      // than an empty banner.
+      const message = requestErrorMessage(err, "The controller could not be connected.");
+      toast.error("Controller not connected");
+      setControllerOutcome({ status: "failed", message });
+    }
+  }
+
+  function retryController() {
+    if (!result) return;
+    // The operator may have edited the details on the failure panel.
+    const e = controllerErrors(state.controller);
+    setErrors(e);
+    if (Object.keys(e).length > 0) {
+      toast.error("Please fix the highlighted fields");
+      return;
+    }
+    void connectController(result);
   }
 
   const orgOptions = orgs.data ?? [];
@@ -381,7 +523,8 @@ export function PlatformLocationWizard({
           </DialogTitle>
           <DialogDescription>
             Creates an organization (or reuses one), a location, its owner account, and its first
-            router in one transaction.
+            router in one transaction. A TP-Link Omada controller is connected straight after, as a
+            separate step.
           </DialogDescription>
         </DialogHeader>
 
@@ -395,7 +538,11 @@ export function PlatformLocationWizard({
                 icon: s.icon,
               }))}
               currentStep={step}
-              onStepClick={setStep}
+              // Locked once provisioned: going back would only offer to edit
+              // answers that are already saved, and on the Omada path it
+              // would put the controller form somewhere a retry does not read
+              // it from.
+              onStepClick={result ? undefined : setStep}
             />
           </aside>
 
@@ -426,8 +573,15 @@ export function PlatformLocationWizard({
                 )}
                 {step === 3 && (
                   <RouterStep
+                    device={state.device}
+                    setDevice={(v) => {
+                      set("device", v);
+                      setErrors({});
+                    }}
                     state={state.router}
                     setState={(v) => set("router", v)}
+                    controller={state.controller}
+                    setController={(v) => set("controller", v)}
                     errors={errors}
                   />
                 )}
@@ -456,6 +610,19 @@ export function PlatformLocationWizard({
                     result={result}
                     provisioning={provision.isPending}
                     failure={failure}
+                    controllerFailed={controllerOutcome?.status === "failed"}
+                  />
+                )}
+                {step === 6 && result && controllerOutcome && (
+                  <ControllerOutcomePanel
+                    outcome={controllerOutcome}
+                    locationName={result.locationName}
+                    controller={state.controller}
+                    setController={(v) => set("controller", v)}
+                    errors={errors}
+                    onRetry={retryController}
+                    retrying={onboard.isPending}
+                    onNavigate={() => onOpenChange(false)}
                   />
                 )}
               </div>
@@ -467,7 +634,7 @@ export function PlatformLocationWizard({
               </div>
               <div className="flex gap-2">
                 {step > 0 && !result && (
-                  <Button variant="ghost" size="sm" onClick={back} disabled={provision.isPending}>
+                  <Button variant="ghost" size="sm" onClick={back} disabled={busy}>
                     <ChevronLeft className="h-4 w-4" /> Back
                   </Button>
                 )}
@@ -477,12 +644,14 @@ export function PlatformLocationWizard({
                   </Button>
                 )}
                 {step === STEPS.length - 1 && !result && (
-                  <Button size="sm" onClick={runProvision} disabled={provision.isPending}>
+                  <Button size="sm" onClick={runProvision} disabled={busy}>
                     Provision location <Sparkles className="h-4 w-4" />
                   </Button>
                 )}
                 {result && (
-                  <Button size="sm" onClick={() => onOpenChange(false)}>
+                  // Not while the controller is still connecting: closing
+                  // would not stop the request, only hide how it ended.
+                  <Button size="sm" onClick={() => onOpenChange(false)} disabled={busy}>
                     Done
                   </Button>
                 )}
@@ -493,6 +662,86 @@ export function PlatformLocationWizard({
       </DialogContent>
     </Dialog>
   );
+}
+
+/**
+ * The controller draft's errors, keyed `controller.<field>`.
+ *
+ * The address, credential, certificate and hardware-identity rules are the
+ * device wizard's own (`omadaControllerIssues`), so the two ways of
+ * onboarding a controller cannot disagree about what is complete. This
+ * wizard adds two of its own: a name (the device wizard's lives in its
+ * separate "basic" schema) and a site, which the device wizard maps later
+ * but this one sends up front -- without it the backend reports
+ * `site_not_selected` and the controller authorises nobody.
+ */
+function controllerErrors(c: ControllerDraft): Record<string, string> {
+  const e: Record<string, string> = {};
+  if (c.name.trim().length < 2) e["controller.name"] = "Controller name is required";
+  if (!c.site.trim()) {
+    e["controller.site"] = "Required — the controller cannot let a guest online without it";
+  }
+  for (const issue of omadaControllerIssues({
+    serialNumber: c.serialNumber,
+    macAddress: c.macAddress,
+    omada: {
+      baseUrl: c.baseUrl,
+      authMode: c.authMode,
+      clientId: c.clientId,
+      clientSecret: c.clientSecret,
+      username: c.username,
+      password: c.password,
+      controllerId: c.controllerId,
+      tlsMode: c.tlsMode,
+      tlsPinnedSha256: c.tlsPinnedSha256,
+    },
+  })) {
+    // `basic.serialNumber` / `omada.baseUrl` -> `controller.serialNumber` /
+    // `controller.baseUrl`: the draft uses the same field names.
+    const key = `controller.${issue.path[1]}`;
+    e[key] ??= issue.message;
+  }
+  return e;
+}
+
+/** The onboard request for a controller at the location just provisioned. */
+function onboardPayload(c: ControllerDraft, r: ProvisionLocationResult): OnboardControllerPayload {
+  const serialNumber = c.serialNumber.trim();
+  const macAddress = c.macAddress.trim();
+  const site = c.site.trim();
+  return {
+    // From the provision result, never from the org picker: a "new
+    // organization" has no id until provisioning returns one.
+    organizationId: r.organizationId,
+    locationId: r.locationId,
+    name: c.name.trim(),
+    // The backend requires a model (it lands in the NOT NULL `routers.model`)
+    // but an operator may not know it. A controller with no serial/MAC is a
+    // software controller, and "Omada Software Controller" is that
+    // deployment's own entry in the model list; a hardware one with no model
+    // given gets a label that claims no particular SKU.
+    controllerModel:
+      c.model.trim() ||
+      (serialNumber && macAddress ? "Omada hardware controller" : "Omada Software Controller"),
+    baseUrl: c.baseUrl.trim(),
+    authMode: c.authMode,
+    clientId: c.authMode === "openapi" ? c.clientId.trim() || undefined : undefined,
+    clientSecret: c.authMode === "openapi" ? c.clientSecret || undefined : undefined,
+    username: c.username.trim() || undefined,
+    password: c.password || undefined,
+    controllerId: c.controllerId.trim() || undefined,
+    tlsMode: c.tlsMode,
+    tlsPinnedSha256: c.tlsMode === "pinned" ? c.tlsPinnedSha256.trim() : undefined,
+    serialNumber: serialNumber || undefined,
+    macAddress: macAddress || undefined,
+    // A hotspot operator login cannot list sites, so the typed value is both
+    // the id and the name -- what Omada puts on its own redirect's `site=`
+    // and what the authorize call sends back. Same as the customer page's
+    // typed-site path.
+    externalSiteId: site,
+    externalSiteName: site,
+    guestSsidName: c.ssid.trim() || undefined,
+  };
 }
 
 function StepHeader({ title, description }: { title: string; description: string }) {
@@ -810,6 +1059,61 @@ function OwnerStep({
 }
 
 function RouterStep({
+  device,
+  setDevice,
+  state,
+  setState,
+  controller,
+  setController,
+  errors,
+}: {
+  device: RouterVendorId;
+  setDevice: (v: RouterVendorId) => void;
+  state: WizardState["router"];
+  setState: (v: WizardState["router"]) => void;
+  controller: ControllerDraft;
+  setController: (v: ControllerDraft) => void;
+  errors: Record<string, string>;
+}) {
+  return (
+    <div>
+      <StepHeader
+        title="First device"
+        description="The venue's network: a MikroTik router enrolled now, or a TP-Link Omada controller connected right after the customer is created."
+      />
+      <div className="mb-4">
+        <Label>Device type</Label>
+        {/* Same two cards, labels and descriptions as the device wizard. */}
+        <div className="mt-1.5 grid gap-2 sm:grid-cols-2">
+          {VENDOR_CHOICES.map((choice) => (
+            <button
+              key={choice.id}
+              type="button"
+              onClick={() => setDevice(choice.id)}
+              aria-pressed={device === choice.id}
+              className={cn(
+                "rounded-lg border px-3 py-2.5 text-left transition-colors",
+                device === choice.id
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:bg-muted/50",
+              )}
+            >
+              <div className="text-sm font-medium">{choice.label}</div>
+              <div className="mt-0.5 text-xs text-muted-foreground">{choice.description}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+      {device === "tplink_omada" ? (
+        <ControllerFields state={controller} setState={setController} errors={errors} />
+      ) : (
+        <MikrotikFields state={state} setState={setState} errors={errors} />
+      )}
+    </div>
+  );
+}
+
+function MikrotikFields({
   state,
   setState,
   errors,
@@ -820,10 +1124,6 @@ function RouterStep({
 }) {
   return (
     <div>
-      <StepHeader
-        title="First router"
-        description="Every location needs at least one router enrolled at provisioning time."
-      />
       <div className="grid gap-3 md:grid-cols-2">
         <div>
           <Label>Router name</Label>
@@ -875,6 +1175,489 @@ function RouterStep({
             MikroTik CHR/hardware device). Leave blank for a records-only entry.
           </p>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** One labelled text input on the controller form. Labels are bound with
+ * `htmlFor` so the fields are reachable by name, not only by position. */
+function ControllerInput({
+  id,
+  label,
+  value,
+  onChange,
+  error,
+  help,
+  placeholder,
+  type,
+  mono,
+  className,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  error?: string;
+  help?: ReactNode;
+  placeholder?: string;
+  type?: "text" | "password";
+  mono?: boolean;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        id={id}
+        type={type ?? "text"}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className={mono ? "font-mono" : undefined}
+        // Keeps the browser's password manager from offering to save a
+        // customer's controller credential under the platform's own origin.
+        autoComplete={type === "password" ? "new-password" : "off"}
+        aria-invalid={error ? true : undefined}
+      />
+      {help && <p className="mt-1 text-xs text-muted-foreground">{help}</p>}
+      <ErrorText msg={error} />
+    </div>
+  );
+}
+
+function ChoiceCards<T extends string>({
+  label,
+  choices,
+  value,
+  onChange,
+  help,
+}: {
+  label: string;
+  choices: Array<{ id: T; label: string; description: string; badge?: string }>;
+  value: T;
+  onChange: (v: T) => void;
+  help?: string;
+}) {
+  return (
+    <div className="md:col-span-2">
+      <Label>{label}</Label>
+      <div className="mt-1.5 grid gap-2 sm:grid-cols-2">
+        {choices.map((choice) => (
+          <button
+            key={choice.id}
+            type="button"
+            onClick={() => onChange(choice.id)}
+            aria-pressed={value === choice.id}
+            className={cn(
+              "rounded-lg border px-3 py-2 text-left transition-colors",
+              value === choice.id
+                ? "border-primary bg-primary/5"
+                : "border-border hover:bg-muted/50",
+            )}
+          >
+            <div className="flex items-center gap-2 text-sm font-medium">
+              {choice.label}
+              {choice.badge && (
+                <Badge variant="secondary" className="text-[10px]">
+                  {choice.badge}
+                </Badge>
+              )}
+            </div>
+            <div className="mt-0.5 text-xs text-muted-foreground">{choice.description}</div>
+          </button>
+        ))}
+      </div>
+      {help && <p className="mt-1 text-xs text-muted-foreground">{help}</p>}
+    </div>
+  );
+}
+
+// Hotspot operator first and marked Recommended -- see DEFAULT_CONTROLLER.
+// The copy itself is the device wizard's (`AUTH_MODE_CHOICES`).
+const CONTROLLER_AUTH_CHOICES = [
+  ...AUTH_MODE_CHOICES.filter((c) => c.id === "legacy").map((c) => ({
+    ...c,
+    badge: "Recommended",
+  })),
+  ...AUTH_MODE_CHOICES.filter((c) => c.id !== "legacy"),
+];
+const CONTROLLER_TLS_CHOICES = TLS_MODE_CHOICES.filter(
+  (c): c is (typeof TLS_MODE_CHOICES)[number] & { id: "strict" | "pinned" } => c.id !== "insecure",
+);
+
+/**
+ * The TP-Link Omada controller, as far as onboarding needs it. Rendered on
+ * the Device step and again on the failure panel, so a typo the controller
+ * refused can be corrected before a retry without leaving the result
+ * screen.
+ */
+function ControllerFields({
+  state,
+  setState,
+  errors,
+}: {
+  state: ControllerDraft;
+  setState: (v: ControllerDraft) => void;
+  errors: Record<string, string>;
+}) {
+  const upd = <K extends keyof ControllerDraft>(k: K, v: ControllerDraft[K]) =>
+    setState({ ...state, [k]: v });
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      <ControllerInput
+        id="controller-name"
+        label="Controller name"
+        value={state.name}
+        onChange={(v) => upd("name", v)}
+        placeholder="Lobby Controller"
+        error={errors["controller.name"]}
+      />
+      <div>
+        <Label htmlFor="controller-model">Controller model (optional)</Label>
+        <RouterModelCombobox
+          id="controller-model"
+          value={state.model}
+          onValueChange={(v) => upd("model", v)}
+          placeholder="Select or type a model"
+          vendor="tplink_omada"
+        />
+      </div>
+      <ControllerInput
+        id="controller-address"
+        className="md:col-span-2"
+        label="Controller address"
+        value={state.baseUrl}
+        onChange={(v) => upd("baseUrl", v)}
+        placeholder="https://controller.example.com:8043"
+        mono
+        error={errors["controller.baseUrl"]}
+        help="Scheme, host and port only. This platform's servers connect to it, not your browser, so it must be reachable from the internet — usually port 8043 for a software controller, 443 for an OC200/OC300."
+      />
+      <ChoiceCards
+        label="Authentication"
+        choices={CONTROLLER_AUTH_CHOICES}
+        value={state.authMode}
+        onChange={(v) => upd("authMode", v)}
+        help="Guests are let online only through the hotspot operator account, whichever you choose — so it is always required. Open API adds the device and client lists on top."
+      />
+      {state.authMode === "openapi" && (
+        <>
+          <ControllerInput
+            id="controller-client-id"
+            label="Client ID"
+            value={state.clientId}
+            onChange={(v) => upd("clientId", v)}
+            error={errors["controller.clientId"]}
+          />
+          <ControllerInput
+            id="controller-client-secret"
+            label="Client secret"
+            type="password"
+            value={state.clientSecret}
+            onChange={(v) => upd("clientSecret", v)}
+            error={errors["controller.clientSecret"]}
+          />
+        </>
+      )}
+      {/* In both modes: the controller lets a guest online only through
+          this login, whatever reads its inventory. */}
+      <ControllerInput
+        id="controller-operator-name"
+        label="Hotspot operator name"
+        value={state.username}
+        onChange={(v) => upd("username", v)}
+        error={errors["controller.username"]}
+        help="The operator account from the controller's Hotspot Manager — not the controller admin login."
+      />
+      <ControllerInput
+        id="controller-operator-password"
+        label="Hotspot operator password"
+        type="password"
+        value={state.password}
+        onChange={(v) => upd("password", v)}
+        error={errors["controller.password"]}
+      />
+      <ControllerInput
+        id="controller-site"
+        label="Omada site"
+        value={state.site}
+        onChange={(v) => upd("site", v)}
+        placeholder="Default"
+        error={errors["controller.site"]}
+        help={
+          <>
+            The <code>site=</code> value in the guest's sign-in URL, or the site id; single-site
+            controllers often use <code>Default</code>.
+          </>
+        }
+      />
+      <ControllerInput
+        id="controller-ssid"
+        label="Guest SSID (optional)"
+        value={state.ssid}
+        onChange={(v) => upd("ssid", v)}
+        placeholder="Hotel-Guest"
+        help="The guest WiFi network's name, exactly as it is broadcast."
+      />
+      <ControllerInput
+        id="controller-omada-id"
+        className="md:col-span-2"
+        label="Omada ID (TP-Link cloud controllers only)"
+        value={state.controllerId}
+        onChange={(v) => upd("controllerId", v)}
+        placeholder="Leave blank for a controller reached directly"
+        mono
+      />
+      <ChoiceCards
+        label="Certificate"
+        choices={CONTROLLER_TLS_CHOICES}
+        value={state.tlsMode}
+        onChange={(v) => upd("tlsMode", v)}
+      />
+      {state.tlsMode === "pinned" && (
+        <ControllerInput
+          id="controller-tls-pin"
+          className="md:col-span-2"
+          label="Certificate fingerprint (SHA-256)"
+          value={state.tlsPinnedSha256}
+          onChange={(v) => upd("tlsPinnedSha256", v)}
+          placeholder="AB:CD:EF:… — 64 hexadecimal characters"
+          mono
+          error={errors["controller.tlsPinnedSha256"]}
+          help="Self-hosted controllers present a self-signed certificate, which the standard check refuses — pin its fingerprint instead."
+        />
+      )}
+      <ControllerInput
+        id="controller-serial"
+        label="Serial number (hardware only)"
+        value={state.serialNumber}
+        onChange={(v) => upd("serialNumber", v)}
+        placeholder="Leave blank for software"
+        mono
+        error={errors["controller.serialNumber"]}
+      />
+      <ControllerInput
+        id="controller-mac"
+        label="MAC address (hardware only)"
+        value={state.macAddress}
+        onChange={(v) => upd("macAddress", v)}
+        placeholder="Leave blank for software"
+        mono
+        error={errors["controller.macAddress"]}
+      />
+      <p className="text-xs text-muted-foreground md:col-span-2">
+        An OC200 or OC300 has both printed on it — enter them so the fleet record matches the
+        hardware. A software controller has neither: leave both blank and an identifier is generated
+        for it. Enter both or neither.
+      </p>
+      <p className="text-xs text-muted-foreground md:col-span-2">
+        Credentials are sent to the controller from this platform's servers, never from your
+        browser, and stored encrypted. No endpoint returns them again.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The controller half of an Omada provision, under the customer's own
+ * result card.
+ *
+ * The failure state is the one that matters. The customer, location and
+ * owner exist by now whatever happens here, so it says so first, shows the
+ * backend's own reason, and offers a retry that repeats only the onboard
+ * call -- never the provision, which would create the customer twice.
+ */
+function ControllerOutcomePanel({
+  outcome,
+  locationName,
+  controller,
+  setController,
+  errors,
+  onRetry,
+  retrying,
+  onNavigate,
+}: {
+  outcome: ControllerOutcome;
+  locationName: string;
+  controller: ControllerDraft;
+  setController: (v: ControllerDraft) => void;
+  errors: Record<string, string>;
+  onRetry: () => void;
+  retrying: boolean;
+  onNavigate: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+
+  if (outcome.status === "connecting") {
+    return (
+      <div
+        role="status"
+        className="mt-4 flex items-start gap-3 rounded-lg border border-border/70 bg-muted/20 p-3 text-sm"
+      >
+        <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
+        <div>
+          <p className="font-medium">Connecting {controller.name}…</p>
+          <p className="text-xs text-muted-foreground">
+            The platform checks the controller address before it saves anything, so this can take up
+            to a minute.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (outcome.status === "failed") {
+    return (
+      <div className="mt-4 space-y-3">
+        <div
+          role="alert"
+          className="flex gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-destructive">
+              The customer and location were created, but the controller was NOT connected.
+            </p>
+            {/* Verbatim: it is what the controller (or the platform's checks
+                on its address) actually answered. */}
+            <p className="text-sm text-muted-foreground">{outcome.message}</p>
+            <p className="text-xs text-muted-foreground">
+              Nothing needs to be provisioned again. Correct the details if needed and retry — only
+              the controller connection is attempted. If you close this dialog instead, connect it
+              later from Router Fleet → Add device, choosing {locationName}.
+            </p>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Button size="sm" onClick={onRetry} disabled={retrying}>
+                {retrying ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RotateCcw className="h-4 w-4" />
+                )}
+                Retry connecting controller
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setEditing((v) => !v)}>
+                {editing ? "Hide controller details" : "Edit controller details"}
+              </Button>
+            </div>
+          </div>
+        </div>
+        {editing && (
+          <div className="rounded-lg border border-border/70 p-3">
+            <ControllerFields state={controller} setState={setController} errors={errors} />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const r = outcome.result;
+  const scheme = r.portalUrlScheme;
+  const hostAndQuery = r.portalUrlHostAndQuery;
+  const gaps = r.portalReadinessGaps;
+  const integrationLink = (
+    <Link
+      to="/master/integrations"
+      search={{ q: r.integrationName }}
+      onClick={onNavigate}
+      className="inline-flex items-center gap-1 font-medium underline underline-offset-2"
+    >
+      Open {r.integrationName} in Network Integrations <ChevronRight className="h-3 w-3" />
+    </Link>
+  );
+
+  return (
+    <div className="mt-4 space-y-3">
+      <div className="flex items-start gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3">
+        <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+        <div className="text-sm">
+          <p className="font-medium text-emerald-700 dark:text-emerald-300">Controller connected</p>
+          <p className="text-xs text-muted-foreground">
+            {r.integrationName} is registered as this venue's device, with its site and guest
+            network.
+          </p>
+        </div>
+      </div>
+
+      {scheme && hostAndQuery ? (
+        <PortalSetupSteps scheme={scheme} hostAndQuery={hostAndQuery} />
+      ) : (
+        // The backend withholds the pair exactly when no guest could sign in
+        // through it, so there is nothing honest to paste yet.
+        <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400">
+          No guest portal link yet — the platform reports this controller cannot serve guests
+          {gaps.length > 0 ? ` (${gaps.join(", ")})` : ""}. The integration shows what is missing.
+        </p>
+      )}
+      {scheme && hostAndQuery && gaps.length > 0 && (
+        <p className="text-xs text-amber-700 dark:text-amber-400">
+          The platform still reports: {gaps.join(", ")}.
+        </p>
+      )}
+      <p className="text-xs">{integrationLink}</p>
+    </div>
+  );
+}
+
+/**
+ * The two things to set on the controller, with the values from the onboard
+ * response -- the backend's `build_external_portal_url`, never re-derived
+ * here. Same steps as the Master console's integration drawer
+ * (`PortalLinkSection` in master.integrations.tsx), which is where an
+ * operator who closed this dialog finds them again.
+ */
+function PortalSetupSteps({ scheme, hostAndQuery }: { scheme: string; hostAndQuery: string }) {
+  // The host alone, for the pre-auth entry, off the URL the server built: the
+  // host an operator permits must be the host their guests are sent to.
+  const host = hostAndQuery.split("/")[0];
+  return (
+    <div className="space-y-2 rounded-lg border border-border/70 p-3">
+      <p className="text-sm font-medium">Finish on the controller</p>
+      <p className="text-xs text-muted-foreground">
+        Guests cannot sign in until <strong>both</strong> are done.
+      </p>
+      <p className="pt-1 text-xs font-medium">1. External Portal Server</p>
+      <p className="text-xs text-muted-foreground">
+        Site View → Network Config → Authentication → Portal → External Portal Server, Host Type{" "}
+        <strong>URL</strong>. Two separate fields — the controller rejects a URL that contains the
+        scheme.
+      </p>
+      <CopyValueRow label="Scheme" value={scheme} />
+      <CopyValueRow label="URL" value={hostAndQuery} />
+      <p className="pt-2 text-xs font-medium">2. Pre-Authentication Access</p>
+      <p className="text-xs text-muted-foreground">
+        Add a Pre-Authentication Access entry of type <strong>URL</strong> for the portal host.
+        Without it the sign-in page never loads — the request times out rather than failing.
+      </p>
+      <CopyValueRow label="Portal host" value={host} />
+    </div>
+  );
+}
+
+function CopyValueRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-md bg-muted/30 px-2.5 py-1.5">
+      <span className="shrink-0 text-xs text-muted-foreground">{label}</span>
+      <div className="flex min-w-0 items-center gap-1.5">
+        <code className="break-all text-right text-xs">{value}</code>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 shrink-0"
+          aria-label={`Copy ${label}`}
+          onClick={() => {
+            // `navigator.clipboard` is absent on an insecure origin and
+            // rejects when the document is unfocused; the value stays on
+            // screen and selectable, and "Copied" when nothing was is the
+            // thing worth avoiding.
+            navigator.clipboard
+              ?.writeText(value)
+              .then(() => toast.success(`${label} copied`))
+              .catch(() => toast.error(`Could not copy — select the ${label} and copy it.`));
+          }}
+        >
+          <Copy className="h-3.5 w-3.5" />
+        </Button>
       </div>
     </div>
   );
@@ -1057,6 +1840,7 @@ function ReviewStep({
   result,
   provisioning,
   failure,
+  controllerFailed,
 }: {
   state: WizardState;
   orgs: Array<{ id: string; name: string }>;
@@ -1064,6 +1848,7 @@ function ReviewStep({
   result: ProvisionLocationResult | null;
   provisioning: boolean;
   failure: string | null;
+  controllerFailed: boolean;
 }) {
   const orgLabel =
     state.org.mode === "existing"
@@ -1075,7 +1860,11 @@ function ReviewStep({
     return (
       <div>
         <StepHeader
-          title="Location provisioned"
+          title={
+            controllerFailed
+              ? "Customer created — controller not connected"
+              : "Location provisioned"
+          }
           description="This temporary password is shown once — copy it now."
         />
         <Card className="border-primary/40 bg-primary/5">
@@ -1085,7 +1874,9 @@ function ReviewStep({
               label="Location"
               value={`${result.locationName} (${result.locationCode})`}
             />
-            <SummaryRow label="Router" value={result.routerName} />
+            {/* Null for an Omada venue, whose controller is reported in its
+                own panel below rather than as a router it is not. */}
+            {result.routerName && <SummaryRow label="Router" value={result.routerName} />}
             <SummaryRow label="Plan" value={result.planName} />
             <SummaryRow label="Owner" value={`${result.ownerName} · ${result.ownerEmail}`} />
             <div className="flex items-center justify-between rounded-lg bg-background/70 px-3 py-2">
@@ -1132,10 +1923,40 @@ function ReviewStep({
           label="Owner"
           value={`${state.owner.firstName} ${state.owner.lastName} · ${state.owner.email}`}
         />
-        <SummaryRow
-          label="Router"
-          value={`${state.router.name} (${state.router.model})${state.router.managementIpAddress ? ` · ${state.router.managementIpAddress}` : ""}`}
-        />
+        {state.device === "tplink_omada" ? (
+          // Everything the operator chose about the controller, and nothing
+          // secret: the operator password and client secret never appear.
+          <>
+            <SummaryRow
+              label="Omada controller"
+              value={`${state.controller.name}${state.controller.model ? ` (${state.controller.model})` : ""}`}
+            />
+            <SummaryRow label="Controller address" value={state.controller.baseUrl || "—"} />
+            <SummaryRow
+              label="Authentication"
+              value={
+                AUTH_MODE_CHOICES.find((c) => c.id === state.controller.authMode)?.label ??
+                state.controller.authMode
+              }
+            />
+            <SummaryRow
+              label="Omada site · Guest SSID"
+              value={`${state.controller.site || "—"} · ${state.controller.ssid || "—"}`}
+            />
+            <SummaryRow
+              label="Certificate"
+              value={
+                TLS_MODE_CHOICES.find((c) => c.id === state.controller.tlsMode)?.label ??
+                state.controller.tlsMode
+              }
+            />
+          </>
+        ) : (
+          <SummaryRow
+            label="Router"
+            value={`${state.router.name} (${state.router.model})${state.router.managementIpAddress ? ` · ${state.router.managementIpAddress}` : ""}`}
+          />
+        )}
         <SummaryRow label="Plan" value={planLabel} />
         <SummaryRow
           label="Custom features"
@@ -1146,6 +1967,13 @@ function ReviewStep({
           }
         />
       </div>
+      {state.device === "tplink_omada" && !provisioning && !failure && (
+        <p className="mt-4 text-xs text-muted-foreground">
+          Two steps: the customer, location and owner are created first, then the controller is
+          connected. If the controller cannot be reached, the customer still exists and you can
+          retry just the controller from the next screen.
+        </p>
+      )}
       {provisioning && <p className="mt-4 text-sm text-muted-foreground">Provisioning…</p>}
       {failure && !provisioning && (
         <div
