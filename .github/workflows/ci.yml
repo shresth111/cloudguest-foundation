@@ -1611,3 +1611,19 @@ jobs:
             "customer-wizard-omada" 53 \
             "customer wizard omada: all checks passed" \
             bun run test:customer-wizard-omada
+
+      # Router Fleet's setup screen for a TP-Link Omada controller. It said
+      # "coming soon" for a vendor that is fully supported; Omada has no
+      # script, only three controller settings. Drives the real drilldown in
+      # Chromium against a recording backend: the device's integration found
+      # by the routerId in its portal URL, the four steps with scheme and URL
+      # as separate values, readiness gaps in the backend's own words instead
+      # of the values, and MikroTik / the stub vendors unchanged.
+      #
+      # Floor 46, observed green at 46.
+      - name: omada guided setup
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "omada-guided-setup" 46 \
+            "omada guided setup: all checks passed" \
+            bun run test:omada-guided-setup
