@@ -113,12 +113,29 @@ jobs:
       # deciding to let it. Lower the number as warnings get fixed; raising
       # it should require saying why in the PR.
       #
+      # Raised 56 -> 58 here, and the reason is owed. This branch adds two
+      # exports to `PortalRuntimeContext.tsx`
+      # (`loadPersistedOmadaContext` / `persistOmadaContext`), so
+      # `react-refresh/only-export-components` fires twice more on a file
+      # that already trips it nine times on main. It is the same warning of
+      # the same kind, about Fast Refresh ergonomics, not correctness.
+      #
+      # The rule's own fix -- move them to a non-component module -- is the
+      # right one and is deliberately NOT done here: those two functions
+      # close over `safeGet`/`safeSet`/`safeCookieGet`/`safeCookieSet` and
+      # two storage-key constants that are module-private to that file, so
+      # extracting them means moving the storage layer too. That is a real
+      # refactor of a file the guest portal depends on, and it does not
+      # belong in the change that first needed it. Doing it would take all
+      # eleven warnings off this file at once; whoever does it should lower
+      # this number by eleven, not by two.
+      #
       # `.claude` is ignored in eslint.config.js -- without that ignore
       # eslint walked 45,184 files of stale agent worktrees. If this step
       # ever starts taking minutes instead of seconds, that ignore has
       # been lost.
       - name: eslint
-        run: bunx eslint . --max-warnings 56
+        run: bunx eslint . --max-warnings 58
 
   build:
     name: Production build

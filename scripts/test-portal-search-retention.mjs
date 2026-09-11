@@ -252,6 +252,79 @@ check(
   hop2,
 );
 
+/* ------------------------------------------------------------------ *
+ * 2b. The same two-hop path, Omada-flavoured.
+ *
+ * A controller's redirect carries nine parameters only it can supply, and
+ * `netProvider` -- stamped by `/omada/$token`'s loader after it read the
+ * provider off the integration row -- decides which vendor's gate
+ * `/portal/success` opens. Lose `netProvider` on one hop and the guest
+ * completes sign-in, is told they are connected, and is not, because the
+ * success page fired the RouterOS branch at a venue with no RouterOS. Lose
+ * `clientMac` and the authorize call names no device, which the backend now
+ * refuses outright.
+ *
+ * This is the 7 Sep incident's exact shape with the other vendor's
+ * parameters in it, so it is asserted over the same welcome -> terms ->
+ * back hops, from the same lossy caller.
+ * ------------------------------------------------------------------ */
+console.log("\n2b. the same hops, with an Omada controller's redirect");
+
+const OMADA_URL =
+  `/portal/welcome?organizationId=${ORG}&locationId=${LOC}&routerId=${RTR}` +
+  `&netProvider=omada&clientMac=${encodeURIComponent("AA-BB-CC-DD-EE-FF")}` +
+  `&clientIp=10.5.50.251&site=Default&apMac=${encodeURIComponent("11:11:11:11:11:11")}` +
+  `&ssidName=Guest%20WiFi&radioId=1&t=1757548800000` +
+  `&redirectUrl=${encodeURIComponent("https://example.com/welcome")}`;
+
+function carriesOmada(href) {
+  const q = new URLSearchParams(href.slice(href.indexOf("?") + 1));
+  return (
+    q.get("netProvider") === "omada" &&
+    q.get("clientMac") === "AA-BB-CC-DD-EE-FF" &&
+    q.get("clientIp") === "10.5.50.251" &&
+    q.get("site") === "Default" &&
+    q.get("apMac") === "11:11:11:11:11:11" &&
+    q.get("ssidName") === "Guest WiFi" &&
+    q.get("radioId") === "1" &&
+    q.get("t") === "1757548800000" &&
+    q.get("redirectUrl") === "https://example.com/welcome"
+  );
+}
+
+const ro1 = makeRouter(OMADA_URL);
+await ro1.load();
+check(
+  "the fixture really is an Omada redirect (all ten present before we navigate)",
+  carriesOmada(ro1.state.location.href),
+  ro1.state.location.href,
+);
+
+for (const [label, opts] of lossyShapes) {
+  const href = ro1.buildLocation({ to: "/portal/terms", ...opts }).href;
+  check(`omada welcome -> terms with ${label}`, carriesOmada(href), href);
+}
+
+const omadaHop1 = ro1.buildLocation({ to: "/portal/terms", search: THREE_KEYS }).href;
+const ro2 = makeRouter(omadaHop1);
+await ro2.load();
+const omadaHop2 = ro2.buildLocation({ to: "/portal/welcome", search: (prev) => prev }).href;
+check("omada hop 2 (the Terms page's Back link) keeps every parameter", carriesOmada(omadaHop2));
+
+const omadaSuccess = ro1.buildLocation({ to: "/portal/success", search: THREE_KEYS }).href;
+check(
+  "the parameters survive all the way to /portal/success, where they are used",
+  carriesOmada(omadaSuccess),
+  omadaSuccess,
+);
+
+const omadaOffPortal = ro1.buildLocation({ to: "/", search: {} }).href;
+check(
+  "navigating OFF /portal does not drag the guest's MAC onto an operator page",
+  !omadaOffPortal.includes("clientMac"),
+  omadaOffPortal,
+);
+
 /* The other real round trip: the sign-in card's voucher tab is a `<Link>`
  * to a route with a path param, which is the shape most likely to be
  * hand-built. */
@@ -312,7 +385,26 @@ check(
   /PORTAL_SEARCH_KEYS\s*=\s*Object\.keys\(portalSearchShape\)/.test(searchLibSrc),
   "a hand-written list is a second thing to remember, which is the bug",
 );
-for (const key of ["mac", "ip", "dst", "link-login-only"]) {
+for (const key of [
+  "mac",
+  "ip",
+  "dst",
+  "link-login-only",
+  // The Omada half. `netProvider` is not a controller parameter -- it is
+  // stamped by `/omada/$token`'s loader -- but it is retained by the same
+  // mechanism and losing it has the same cost.
+  "netProvider",
+  "clientMac",
+  "clientIp",
+  "site",
+  "apMac",
+  "ssidName",
+  "radioId",
+  "gatewayMac",
+  "vid",
+  "t",
+  "redirectUrl",
+]) {
   check(`the schema still declares \`${key}\``, PORTAL_SEARCH_KEYS.includes(key));
 }
 check(

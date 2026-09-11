@@ -23,6 +23,8 @@ function looksLikeRealId(v: string | undefined): v is string {
 import {
   PortalRuntimeProvider,
   loadPersistedRuntimeIds,
+  loadPersistedOmadaContext,
+  persistOmadaContext,
   persistRuntimeIds,
 } from "@/context/PortalRuntimeContext";
 import { PortalCard, PG_FONT_STACK } from "@/components/portal-runtime/PortalShell";
@@ -199,6 +201,7 @@ function PortalRuntimeLayout() {
     vid,
     t,
     redirectUrl,
+    netProvider: urlNetProvider,
   } = search;
   const linkLoginOnly = search["link-login-only"];
 
@@ -227,14 +230,60 @@ function PortalRuntimeLayout() {
   // `PortalRuntimeProvider`'s context value is a `useMemo` over its props:
   // a fresh object identity every render would invalidate it every render
   // and re-render every portal screen with it.
-  const omadaRedirect = useMemo(
+  const urlOmadaRedirect = useMemo(
     () => ({ clientMac, site, apMac, ssidName, radioId, gatewayMac, vid, t, redirectUrl }),
     [clientMac, site, apMac, ssidName, radioId, gatewayMac, vid, t, redirectUrl],
   );
 
+  // THE SECOND CHANNEL, for the same reason the three runtime IDs have one.
+  //
+  // `retainSearchParams` is a router middleware and covers client-side
+  // navigations only. This flow performs three full document loads that
+  // leave the router entirely (`portal.index.tsx`'s
+  // `window.location.assign`, `portal.success.tsx`'s hotspot form POST,
+  // `PortalErrorScreen`'s anchor), and an OS captive-portal re-probe can
+  // reopen the portal on a bare URL in a fresh tab at any time. Each is a
+  // place the controller's own parameters can fall off -- and unlike the
+  // three IDs there is no `looksLikeRealId` recovery for them, because
+  // only the controller ever knew what they were.
+  //
+  // Read once, at mount, exactly as `persistedIds` is: a value that changed
+  // mid-render would make the merged object below unstable and re-render
+  // every portal screen through the provider's `useMemo`.
+  const [persistedOmada] = useState(() => loadPersistedOmadaContext());
+
   const organizationId = urlOrganizationId ?? persistedIds?.organizationId;
   const locationId = urlLocationId ?? persistedIds?.locationId;
   const routerId = urlRouterId ?? persistedIds?.routerId;
+
+  // THE URL WINS, PER KEY. The mirror only fills a gap it left.
+  //
+  // Not "use the mirror when the URL looks empty" -- per key, because the
+  // two redirect shapes are partial by nature (an EAP redirect carries no
+  // `gatewayMac`/`vid`, a gateway redirect no `apMac`/`ssidName`/
+  // `radioId`) and a whole-object fallback would restore a previous
+  // association's parameters alongside this one's.
+  //
+  // And never the other way around. A mirror that could override a live
+  // redirect would send the controller this device's PREVIOUS association
+  // -- a different AP, a different radio, possibly a `clientIp` that has
+  // since changed lease -- as though it were the current one. That is the
+  // "a guess that happens to name a real device on that LAN" failure
+  // src/lib/portal-authorize-body.ts refuses by name, and it is worse than
+  // an absent value because the controller would accept it.
+  const netProvider = urlNetProvider ?? persistedOmada?.netProvider;
+  const effectiveClientIp = clientIp ?? persistedOmada?.clientIp;
+  const omadaRedirect = useMemo(() => {
+    const mirrored = persistedOmada?.redirect;
+    if (!mirrored) return urlOmadaRedirect;
+    const merged = { ...urlOmadaRedirect };
+    for (const [key, value] of Object.entries(mirrored)) {
+      if (merged[key as keyof typeof merged] === undefined && value !== undefined) {
+        merged[key as keyof typeof merged] = value as string | number;
+      }
+    }
+    return merged;
+  }, [urlOmadaRedirect, persistedOmada]);
 
   // Persist a genuinely-complete URL's three IDs so the fallback above has
   // something real to fall back to on a later load. Only ever writes what
@@ -254,6 +303,23 @@ function PortalRuntimeLayout() {
       });
     }
   }, [urlOrganizationId, urlLocationId, urlRouterId]);
+
+  // Mirror the controller's context, and ONLY what this URL itself just
+  // supplied -- never the merged values above, so a mirrored parameter
+  // cannot perpetuate itself across a fresh redirect that dropped it.
+  //
+  // Gated on `urlNetProvider`, which only `/omada/$token`'s loader stamps.
+  // That is what keeps a MikroTik venue from ever writing this key, and
+  // what makes "there is a mirror" and "this guest came through an Omada
+  // controller" the same statement.
+  useEffect(() => {
+    if (!urlNetProvider) return;
+    persistOmadaContext({
+      netProvider: urlNetProvider,
+      clientIp,
+      redirect: urlOmadaRedirect,
+    });
+  }, [urlNetProvider, clientIp, urlOmadaRedirect]);
 
   if (
     !looksLikeRealId(organizationId) ||
@@ -276,12 +342,17 @@ function PortalRuntimeLayout() {
       // why the two vendors' addresses are never substituted for one
       // another. Passed through untouched: this route captures, it does not
       // derive.
-      clientIp={clientIp}
+      clientIp={effectiveClientIp}
       // The other nine, grouped -- see the `omadaRedirect` memo above, and
       // `PortalRuntimeState.omadaRedirect` for why this one is an object
       // where `clientIp` is a flat prop (doc 132060's `t` collides with the
       // context's own i18n `t`).
       omadaRedirect={omadaRedirect}
+      // Which vendor's gate `/portal/success` has to open. Stamped by
+      // `/omada/$token`'s loader after it read the provider off the
+      // integration row, mirrored alongside the controller's own
+      // parameters, and never inferred here from which of them survived.
+      netProvider={netProvider}
       destinationUrl={dst}
       hotspotLoginUrl={linkLoginOnly}
     >

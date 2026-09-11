@@ -64,6 +64,23 @@
  * rejects it. We still send exactly what the redirect said: the only
  * alternative is a guess, and a guess that happens to name a real device on
  * that LAN is the worse of the two failures.
+ *
+ * A SECOND PROBLEM, MEASURED ON HARDWARE 2026-09-11, AND IT IS WORSE. When
+ * the controller sits off-site, `clientIp` is the VENUE'S PUBLIC NAT
+ * ADDRESS, not the client's -- the controller reports the source address of
+ * the HTTP request it received, so every guest at that venue arrives from
+ * the same one. Captured live: `clientIp=103.84.202.195` while the client
+ * was `192.168.1.114`.
+ *
+ * This module's job is unchanged by that: it carries what the controller
+ * said, and inventing a different value would be exactly the guess the rule
+ * above forbids. But nothing downstream may treat this field as a client
+ * identifier in the WyfyGuest-hosted-controller model, because it is not
+ * one. On a venue-hosted controller it is the real client address. CR-004
+ * makes the field mandatory on v6.2.10+, so this has to be settled before
+ * that firmware ships -- it belongs to the `feat/clientip-vendor-sync`
+ * work, and is recorded here because this is the file that spells the wire
+ * name.
  */
 
 /** The wire name, on our own API, at the top level of the body. Exported so
@@ -326,4 +343,51 @@ export function withOmadaRedirectParams<T extends object>(
   captured: OmadaRedirectCapture,
 ): T & OmadaAuthorizeFields {
   return { ...body, ...omadaAuthorizeFields(captured) };
+}
+
+/* ====================================================================== *
+ * The whole body, assembled.
+ *
+ * The four fields below are the ones NO redirect parameter supplies:
+ * `session_id` is the GuestSession this platform issued after OTP, and the
+ * venue triple comes off the portal token's own row server-side
+ * (`GET /network-integrations/portal/resolve/{token}`), never off anything
+ * the controller sent or a human typed. The comment above used to say how
+ * the venue is identified was "an open design question being answered
+ * elsewhere"; it has been answered, and this is where the two halves meet.
+ *
+ * Kept as a type in THIS module, next to the field map, for rule 1's sake:
+ * every wire name of this call is spelled in one file, so a nested or
+ * camelCased key is a type error here rather than a 200 with a field the
+ * backend's `extra="ignore"` dropped in silence.
+ * ====================================================================== */
+
+/** The four fields the controller cannot tell us. */
+export interface PortalAuthorizeIdentity {
+  session_id: string;
+  organization_id: string;
+  location_id: string;
+  provider: string;
+}
+
+/** The complete `POST /network-integrations/portal/authorize` body:
+ * identity, plus every value the controller supplied, all at the top
+ * level. `client_ip` is separate from the nine only because it shipped
+ * first (see `withClientIp`). */
+export type PortalAuthorizeBody = PortalAuthorizeIdentity &
+  OmadaAuthorizeFields & { client_ip: string | null };
+
+/**
+ * Build the body. The one place a caller should ever assemble this call.
+ *
+ * Composes the two existing helpers in the order their own docstrings
+ * describe (`withClientIp(withOmadaRedirectParams(base, captured), ip)`),
+ * so nothing about how a value is rendered is decided twice.
+ */
+export function buildPortalAuthorizeBody(
+  identity: PortalAuthorizeIdentity,
+  captured: OmadaRedirectCapture,
+  clientIp: string | null | undefined,
+): PortalAuthorizeBody {
+  return withClientIp(withOmadaRedirectParams(identity, captured), clientIp);
 }

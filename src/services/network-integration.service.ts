@@ -1,4 +1,6 @@
 import { api } from "@/services/api";
+import { guestPortalApi } from "@/services/guest-portal-api";
+import type { PortalAuthorizeBody } from "@/lib/portal-authorize-body";
 import { resolveOrganizationId as sharedResolveOrganizationId } from "./organization-id";
 import type {
   ControllerAuthMode,
@@ -20,6 +22,7 @@ import type {
   NetworkIntegrationStatusSnapshot,
   NetworkIntegrationSyncStatus,
   PlatformIntegrationQuery,
+  PortalAuthorizeResult,
   TestNetworkIntegrationPayload,
   UpdateNetworkIntegrationPayload,
 } from "@/types/network-integration";
@@ -136,8 +139,19 @@ interface BackendNetworkIntegration {
   client_count: number;
   active_authorization_count: number;
   has_credentials: boolean;
+  portal_url_scheme?: string | null;
+  portal_url_host_and_query?: string | null;
+  portal_readiness_gaps?: string[] | null;
   created_at: string;
   updated_at: string;
+}
+
+/** `POST /network-integrations/portal/authorize`. */
+interface BackendPortalAuthorize {
+  authorized?: boolean | null;
+  provider?: string | null;
+  expires_at?: string | null;
+  redirect_url?: string | null;
 }
 
 interface BackendNetworkIntegrationSite {
@@ -294,6 +308,17 @@ function toIntegration(i: BackendNetworkIntegration): NetworkIntegration {
     clientCount: i.client_count,
     activeAuthorizationCount: i.active_authorization_count,
     hasCredentials: i.has_credentials,
+    // Both `?? null` together, never `?? ""`. The backend withholds these
+    // as a pair when the integration cannot serve a guest at all, and an
+    // empty string would render as a copyable field containing nothing.
+    portalUrlScheme: i.portal_url_scheme ?? null,
+    portalUrlHostAndQuery: i.portal_url_host_and_query ?? null,
+    // `?? []` rather than `?? null`: an older backend that does not send the
+    // field is not the same statement as "this integration has no gaps", but
+    // the only honest behaviour for a dashboard that cannot know is to show
+    // the link and let the resolve endpoint be the authority -- which it is
+    // regardless of what this array says.
+    portalReadinessGaps: i.portal_readiness_gaps ?? [],
     createdAt: i.created_at,
     updatedAt: i.updated_at,
   };
@@ -810,5 +835,56 @@ export const networkIntegrationService = {
       { timeout: 60_000 },
     );
     return toConnectionTest(data);
+  },
+};
+
+// ---------------------------------------------------------------------------
+// The guest-facing half. Different client, and that is the whole point.
+// ---------------------------------------------------------------------------
+
+/**
+ * The one public portal call, on `guestPortalApi` and never on `api`.
+ *
+ * `api` carries an admin JWT, a 401-refresh-retry loop, and (via
+ * {@link resolveOrganizationId}) an `X-Organization-Id` header read out of
+ * `localStorage`. A guest's browser has none of those things and must not
+ * appear to: the org header in particular would be a *claim about which
+ * tenant this is*, sent by an unauthenticated caller, to an endpoint whose
+ * whole job is to check that claim against a real `GuestSession`. The
+ * backend ignores it on this route, so this is not a live vulnerability --
+ * it is the reason the wrong client must never be used here, stated before
+ * somebody reaches for the one the rest of this file uses.
+ *
+ * `guestPortalApi` is the same client `portal-runtime.service.ts` uses for
+ * `/captive-portal/resolve`, `/otp/request` and `/guest/login/otp` -- the
+ * calls that already happen on either side of this one in a guest's
+ * journey.
+ */
+export const guestPortalIntegrationService = {
+  /**
+   * Tell the venue's controller to let this guest's device online.
+   *
+   * The Omada equivalent of the MikroTik `link-login-only` form POST, and
+   * the step that was missing: this endpoint has existed, tested and
+   * correct, with no caller anywhere in this repo.
+   *
+   * The body is passed through verbatim. It is assembled by
+   * `src/lib/portal-authorize-body.ts`, which is the single place the wire
+   * names are spelled -- top level, snake_case, never nested. This method
+   * deliberately does not build or reshape it: the one shipped cross-repo
+   * bug in this integration was a frontend nesting fields under a key the
+   * backend's `extra="ignore"` then dropped without a word.
+   */
+  async authorizePortal(body: PortalAuthorizeBody): Promise<PortalAuthorizeResult> {
+    const { data } = await guestPortalApi.post<BackendPortalAuthorize>(
+      `${BASE}/portal/authorize`,
+      body,
+    );
+    return {
+      authorized: !!data.authorized,
+      provider: data.provider ?? null,
+      expiresAt: data.expires_at ?? null,
+      redirectUrl: data.redirect_url ?? null,
+    };
   },
 };

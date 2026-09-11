@@ -32,11 +32,33 @@ import { usePortalRuntime } from "@/context/PortalRuntimeContext";
  * bare URL), so the runtime context can hold real IDs the current URL does
  * not. Sourcing them from the context rather than from `prev` puts them back
  * on the URL instead of propagating the gap.
+ *
+ * ## And why `netProvider` is the fourth
+ *
+ * Same argument, sharper consequence. It says which vendor's gate stands
+ * between this guest and the internet, and `/portal/success` branches on
+ * it: `"omada"` means call the controller's authorize endpoint, anything
+ * else means the RouterOS `link-login-only` form POST. Lose it on one
+ * `<Link>` and a guest at an Omada venue completes sign-in, is told they
+ * are connected, and is not -- because the success page fired the wrong
+ * vendor's step, or none at all.
+ *
+ * `retainSearchParams` already carries it for a URL that has it; the
+ * context is what restores it for a URL that does not, out of the same
+ * mirror that restores the three IDs (`loadPersistedOmadaContext` in
+ * PortalRuntimeContext).
+ *
+ * The controller's own nine redirect parameters are deliberately NOT here.
+ * They reach the authorize call from the runtime context
+ * (`omadaRedirect`), never off a link's search object, so putting them on
+ * every `<Link>` would widen every portal URL by nine keys to no end --
+ * and would re-introduce, nine keys wider, the hand-built-search-object
+ * pattern this hook exists to prevent.
  */
 export function usePortalLinkSearch() {
-  const { organizationId, locationId, routerId } = usePortalRuntime();
+  const { organizationId, locationId, routerId, netProvider } = usePortalRuntime();
   return useMemo(
-    () => ({ organizationId, locationId, routerId }),
-    [organizationId, locationId, routerId],
+    () => ({ organizationId, locationId, routerId, netProvider }),
+    [organizationId, locationId, routerId, netProvider],
   );
 }
