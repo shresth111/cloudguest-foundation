@@ -17,6 +17,12 @@ import { PageSkeleton } from "@/components/common/LoadingSkeleton";
 import { RouterDetailTabs } from "@/components/routers/RouterDetailTabs";
 import { ControllerManagedBadge, RouterStatusBadge } from "@/components/routers/RouterStatusBadge";
 import { isControllerManaged } from "@/lib/router-vendors";
+import {
+  canReinstateRouter,
+  canSuspendRouter,
+  REINSTATE_TARGET_STATUS,
+  SUSPEND_TARGET_STATUS,
+} from "@/lib/router-actions";
 import { useDeleteRouters, useRouter, useUpdateRouterStatus } from "@/hooks/useRouters";
 import type { AppError } from "@/services/api";
 
@@ -46,13 +52,14 @@ function RouterDetailPage() {
   if (!router)
     return <ErrorState title="Router not found" description="This router may have been deleted." />;
 
-  // Mirrors the backend's real ROUTER_STATUS_TRANSITIONS graph: suspend is
-  // only legal from online/offline, reinstate only from suspended (and it
-  // lands on offline, not online -- only a device heartbeat may ever assert
-  // "online"). Every other status (pending_provisioning, provisioning,
-  // decommissioned) has neither edge, so the toggle has nothing valid to do.
-  const canSuspend = router.status === "online" || router.status === "offline";
-  const canReinstate = router.status === "suspended";
+  // The rule this page already had, now read from `@/lib/router-actions`
+  // instead of restated here. It was right -- it mirrors the backend's
+  // ROUTER_STATUS_TRANSITIONS graph -- but it was right in only one of the
+  // two places that ask the question, and `RouterTable.tsx` had its own,
+  // wrong copy. Sharing the module is the point: a second copy is what
+  // produced that divergence, so there is now exactly one.
+  const canSuspend = canSuspendRouter(router.status);
+  const canReinstate = canReinstateRouter(router.status);
   const showToggle = canSuspend || canReinstate;
 
   return (
@@ -98,7 +105,7 @@ function RouterDetailPage() {
                     try {
                       await updateStatus.mutateAsync({
                         ids: [router.id],
-                        status: canReinstate ? "offline" : "suspended",
+                        status: canReinstate ? REINSTATE_TARGET_STATUS : SUSPEND_TARGET_STATUS,
                       });
                       toast.success(canReinstate ? "Router reinstated" : "Router suspended");
                     } catch (err) {

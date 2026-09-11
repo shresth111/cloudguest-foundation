@@ -57,6 +57,14 @@ import {
   ControllerManagedBadge,
 } from "./RouterStatusBadge";
 import { isControllerManaged } from "@/lib/router-vendors";
+import {
+  canDecommissionRouter,
+  canReinstateRouter,
+  canSuspendRouter,
+  routerToggleUnavailableReason,
+  REINSTATE_TARGET_STATUS,
+  SUSPEND_TARGET_STATUS,
+} from "@/lib/router-actions";
 import { RouterWizard } from "./RouterWizard";
 import type { AppError } from "@/services/api";
 
@@ -180,13 +188,42 @@ export function RouterTable() {
     toast.success(`Exported ${rows.length} rows`);
   }
 
+  /**
+   * The selected routers that can actually accept `action`.
+   *
+   * The bulk bar had the same defect as the row menu, and it mattered more:
+   * it applied to whatever was ticked, with no status check at all, so one
+   * checkbox on a `pending_provisioning` router was enough to post a
+   * transition the backend refuses -- and `updateStatus` is a single call
+   * for every id, so the rejection took the whole batch with it. Selecting
+   * "all" on a page with one un-provisioned router meant nothing happened,
+   * with an error that named none of them.
+   */
+  function eligibleFor(action: "enable" | "disable" | "delete"): string[] {
+    const permits =
+      action === "enable"
+        ? canReinstateRouter
+        : action === "disable"
+          ? canSuspendRouter
+          : canDecommissionRouter;
+    return rows.filter((r) => selected.has(r.id) && permits(r.status)).map((r) => r.id);
+  }
+
   function bulk(action: "enable" | "disable" | "delete") {
-    const ids = Array.from(selected);
+    if (!selected.size) return;
+    const ids = eligibleFor(action);
+    const skipped = selected.size - ids.length;
     if (!ids.length) return;
+    // Name the skipped rows rather than silently narrowing the batch. An
+    // operator who ticked twelve and suspended nine needs to know which
+    // number is the real one.
+    const skippedNote = skipped
+      ? ` ${skipped} of the ${selected.size} selected cannot accept this and will be left alone.`
+      : "";
     if (action === "delete") {
       setConfirm({
         title: `Decommission ${ids.length} router${ids.length > 1 ? "s" : ""}?`,
-        description: "This decommissions the selected routers.",
+        description: `This decommissions the selected routers.${skippedNote}`,
         destructive: true,
         onConfirm: async () => {
           await remove.mutateAsync(ids);
@@ -196,10 +233,14 @@ export function RouterTable() {
       });
       return;
     }
-    const newStatus: RouterStatus = action === "enable" ? "online" : "suspended";
+    // `REINSTATE_TARGET_STATUS`, not "online". Reinstating used to post
+    // `online`, which is not an edge out of `suspended` and is a claim only
+    // a device heartbeat may make.
+    const newStatus: RouterStatus =
+      action === "enable" ? REINSTATE_TARGET_STATUS : SUSPEND_TARGET_STATUS;
     setConfirm({
       title: `${action === "enable" ? "Reinstate" : "Suspend"} ${ids.length} router${ids.length > 1 ? "s" : ""}?`,
-      description: `Selected routers will be marked as ${newStatus}.`,
+      description: `Selected routers will be marked as ${newStatus}.${skippedNote}`,
       onConfirm: async () => {
         await updateStatus.mutateAsync({ ids, status: newStatus });
         toast.success(`Marked as ${newStatus}`);
@@ -209,6 +250,11 @@ export function RouterTable() {
   }
 
   const selectedCount = selected.size;
+  const eligibleCounts = {
+    enable: eligibleFor("enable").length,
+    disable: eligibleFor("disable").length,
+    delete: eligibleFor("delete").length,
+  };
 
   return (
     <div className="space-y-4">
@@ -311,17 +357,71 @@ export function RouterTable() {
           <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
             <span className="font-medium">{selectedCount} selected</span>
             <div className="ml-auto flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={() => bulk("enable")}>
+              {/* Muted-and-inert rather than `disabled`, for the reason
+                  #258 documented: a `disabled` button takes no pointer
+                  events, so the `title` explaining itself can never fire.
+                  These keep pointer events and explain on hover, and the
+                  count in the label ("Suspend 9 of 12") means the common
+                  case needs no hover at all. */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => eligibleCounts.enable && bulk("enable")}
+                aria-disabled={!eligibleCounts.enable}
+                className={!eligibleCounts.enable ? "opacity-40" : undefined}
+                title={
+                  eligibleCounts.enable
+                    ? undefined
+                    : "None of the selected routers is suspended, so there is nothing to reinstate."
+                }
+              >
                 <PlayCircle className="h-4 w-4" />
-                <span className="ml-2">Reinstate</span>
+                <span className="ml-2">
+                  Reinstate
+                  {eligibleCounts.enable && eligibleCounts.enable !== selectedCount
+                    ? ` ${eligibleCounts.enable} of ${selectedCount}`
+                    : ""}
+                </span>
               </Button>
-              <Button variant="outline" size="sm" onClick={() => bulk("disable")}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => eligibleCounts.disable && bulk("disable")}
+                aria-disabled={!eligibleCounts.disable}
+                className={!eligibleCounts.disable ? "opacity-40" : undefined}
+                title={
+                  eligibleCounts.disable
+                    ? undefined
+                    : "Only routers that have come online can be suspended. None of the selected ones has."
+                }
+              >
                 <PauseCircle className="h-4 w-4" />
-                <span className="ml-2">Suspend</span>
+                <span className="ml-2">
+                  Suspend
+                  {eligibleCounts.disable && eligibleCounts.disable !== selectedCount
+                    ? ` ${eligibleCounts.disable} of ${selectedCount}`
+                    : ""}
+                </span>
               </Button>
-              <Button variant="destructive" size="sm" onClick={() => bulk("delete")}>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => eligibleCounts.delete && bulk("delete")}
+                aria-disabled={!eligibleCounts.delete}
+                className={!eligibleCounts.delete ? "opacity-40" : undefined}
+                title={
+                  eligibleCounts.delete
+                    ? undefined
+                    : "Every selected router is already decommissioned."
+                }
+              >
                 <Trash2 className="h-4 w-4" />
-                <span className="ml-2">Decommission</span>
+                <span className="ml-2">
+                  Decommission
+                  {eligibleCounts.delete && eligibleCounts.delete !== selectedCount
+                    ? ` ${eligibleCounts.delete} of ${selectedCount}`
+                    : ""}
+                </span>
               </Button>
             </div>
           </div>
@@ -468,7 +568,16 @@ export function RouterTable() {
                         onAction={(a) => {
                           if (a === "enable" || a === "disable") {
                             updateStatus.mutate(
-                              { ids: [r.id], status: a === "enable" ? "online" : "suspended" },
+                              {
+                                ids: [r.id],
+                                // Was `"online"`. `suspended -> online` is
+                                // not an edge the backend has, and `online`
+                                // is a claim only a device heartbeat may
+                                // make -- the detail page has always sent
+                                // `offline` here.
+                                status:
+                                  a === "enable" ? REINSTATE_TARGET_STATUS : SUSPEND_TARGET_STATUS,
+                              },
                               {
                                 onSuccess: () =>
                                   toast.success(
@@ -600,8 +709,15 @@ function RowActions({
   router: RouterDevice;
   onAction: (a: "enable" | "disable" | "delete") => void;
 }) {
-  const disabled =
-    r.status === "suspended" || r.status === "offline" || r.status === "decommissioned";
+  // Was: `suspended || offline || decommissioned ? Reinstate : Suspend`,
+  // which asked "does this look inactive?" instead of "does the backend
+  // accept this edge?" -- so a `pending_provisioning` router was offered
+  // Suspend, a terminal `decommissioned` one was offered Reinstate, and
+  // `offline` got Reinstate where the detail page correctly offers Suspend.
+  // See `@/lib/router-actions` for the transition graph this now mirrors.
+  const canSuspend = canSuspendRouter(r.status);
+  const canReinstate = canReinstateRouter(r.status);
+  const unavailableReason = routerToggleUnavailableReason(r.status);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -617,24 +733,41 @@ function RowActions({
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        {disabled ? (
+        {canReinstate && (
           <DropdownMenuItem onClick={() => onAction("enable")}>
             <PlayCircle className="h-4 w-4" />
             <span className="ml-2">Reinstate</span>
           </DropdownMenuItem>
-        ) : (
+        )}
+        {canSuspend && (
           <DropdownMenuItem onClick={() => onAction("disable")}>
             <PauseCircle className="h-4 w-4" />
             <span className="ml-2">Suspend</span>
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem
-          className="text-destructive focus:text-destructive"
-          onClick={() => onAction("delete")}
-        >
-          <Trash2 className="h-4 w-4" />
-          <span className="ml-2">Decommission</span>
-        </DropdownMenuItem>
+        {/* NOT a disabled <DropdownMenuItem>, and not simply omitted.
+            A disabled Radix item takes no pointer events, so neither a
+            `title` nor a tooltip on it can ever fire (#258 hit exactly this
+            and settled for muted styling plus `title`). An operator would be
+            left with a dead grey row and no way to find out why -- which is
+            the same unanswered question as hiding it, only noisier.
+            Rendering the reason as ordinary text sidesteps the whole problem:
+            a menu is already open when it is read, so nothing needs to be
+            hovered for the explanation to arrive. */}
+        {unavailableReason && (
+          <div className="px-2 py-1.5 text-xs leading-snug text-muted-foreground">
+            {unavailableReason}
+          </div>
+        )}
+        {canDecommissionRouter(r.status) && (
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
+            onClick={() => onAction("delete")}
+          >
+            <Trash2 className="h-4 w-4" />
+            <span className="ml-2">Decommission</span>
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
