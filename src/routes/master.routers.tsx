@@ -59,6 +59,7 @@ import type { AppError } from "@/services/api";
 import type { RouterDevice } from "@/types/router";
 import type { NetworkIntegration } from "@/types/network-integration";
 import { deriveRouterLiveness, lastContactLabel } from "@/lib/location-liveness";
+import type { RouterLivenessState } from "@/lib/location-liveness";
 import { isControllerManaged, routerVendorLabel } from "@/lib/router-vendors";
 import { deriveIntegrationSetup } from "@/lib/network-integration-readiness";
 import { networkIntegrationService } from "@/services/network-integration.service";
@@ -404,11 +405,36 @@ function RouterFleetScreen() {
   // true of the device, and `tone` follows the same verdict rather than
   // being decided separately (they disagreed: a router could read "online"
   // in grey-green while the summary counted it as offline).
-  const LIVENESS_BADGE: Record<string, { label: string; tone: string }> = {
+  // KEYED BY THE UNION, NOT BY `string`, AND DELIBERATELY SO. As
+  // `Record<string, ...>` this map compiled happily while missing entries,
+  // and every miss fell through to the `?? { label: r.status }` fallback
+  // below, which prints the raw backend enum. #258 filled in the one key it
+  // needed (`not-applicable`) but left the hole itself open, so the SAME
+  // defect was still live on `never-checked-in` -- an enrolled MikroTik
+  // whose heartbeat has never arrived, which is the most common field
+  // failure on this fleet and the exact case `location-liveness.ts` was
+  // written for. It rendered the literal word `provisioning` to an operator.
+  //
+  // `Record<RouterLivenessState, ...>` makes tsc refuse this file if a state
+  // is ever added to the union without a badge, so the next one cannot
+  // repeat this quietly. Verified by deleting a key: tsc fails with TS2741.
+  const LIVENESS_BADGE: Record<RouterLivenessState, { label: string; tone: string }> = {
     online: { label: "Live", tone: "online" },
     "heartbeat-late": { label: "Check-in late", tone: "warning" },
     "went-silent": { label: "Gone quiet", tone: "offline" },
-    "setup-not-started": { label: "Never checked in", tone: "offline" },
+    // The two never-been-up states are NOT interchangeable, and collapsing
+    // them costs an operator the one thing this badge is for -- what to do
+    // next. `setup-not-started` means the setup script was never run; the
+    // job is to go run it. `never-checked-in` means enrolment succeeded and
+    // the heartbeat never followed -- the "pasted the script, a syntax error
+    // ate the Heartbeat block" failure this module exists for: the device is
+    // on site and configured, and the job is to re-run that one block.
+    //
+    // Before this, `setup-not-started` wore the words "Never checked in"
+    // while the state actually NAMED `never-checked-in` had no entry at all,
+    // so the two were simultaneously indistinguishable and mislabelled.
+    "never-checked-in": { label: "Never checked in", tone: "offline" },
+    "setup-not-started": { label: "Setup not started", tone: "offline" },
     suspended: { label: "Suspended", tone: "suspended" },
     retired: { label: "Retired", tone: "normal" },
     // Not "offline". An unreadable router is not a dead one, and painting
@@ -429,7 +455,12 @@ function RouterFleetScreen() {
       { id: r.id, name: r.name, status: r.status, last_seen_at: r.lastSeenAt, vendor: r.vendor },
       now,
     );
-    return LIVENESS_BADGE[live.state] ?? { label: r.status, tone: "normal" };
+    // No `??` fallback any more. It was there to catch a missing key, but a
+    // fallback that prints `r.status` turns a rendering gap into a leaked
+    // database enum on the operator's screen -- it is the mechanism of this
+    // bug, not a safety net. With the map keyed by the union there is no key
+    // to miss, and the compiler is what catches the next one.
+    return LIVENESS_BADGE[live.state];
   };
 
   return (
