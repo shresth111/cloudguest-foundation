@@ -66,7 +66,9 @@
     "test:single-home": "node scripts/test-single-home-settings.mjs",
     "check:node": "node scripts/check-node-version.mjs",
     "test:network-integration": "node scripts/test-network-integration-contract.mjs",
-    "test:network-integration-render": "node scripts/test-network-integration-render.mjs"
+    "test:network-integration-render": "node scripts/test-network-integration-render.mjs",
+    "test:omada-disconnect": "node scripts/test-omada-disconnect-verdicts.mjs",
+    "test:omada-disconnect-render": "node scripts/test-omada-disconnect-render.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
