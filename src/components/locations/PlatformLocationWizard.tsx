@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import {
   AlertTriangle,
   Building2,
@@ -30,6 +31,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RouterModelCombobox } from "@/components/routers/RouterModelCombobox";
+import {
+  ChoiceCards,
+  OmadaConnectionFields,
+  type OmadaFieldErrors,
+} from "@/components/routers/OmadaControllerFields";
+import { OMADA_IDENTITY_NOTE, VENDOR_CHOICES } from "@/lib/omada-controller-choices";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -54,6 +61,16 @@ import {
   type ProvisionLocationResult,
 } from "@/types/location";
 import { businessTypeIcon } from "@/lib/business-type-icons";
+import {
+  EMPTY_FIRST_DEVICE,
+  describeFirstDevice,
+  describeProvisioningFailure,
+  firstDevicePayload,
+  validateFirstDevice,
+  withoutControllerSecrets,
+  type FirstDeviceKind,
+  type FirstDeviceState,
+} from "@/lib/provision-first-device";
 import type { AppError } from "@/services/api";
 
 // Same demo-session gap as location.service.ts's fetch helpers (see their
@@ -100,7 +117,7 @@ const STEPS = [
   { key: "org", title: "Organization", desc: "Select or create", icon: Building2 },
   { key: "location", title: "Location", desc: "Site details", icon: MapPin },
   { key: "owner", title: "Owner", desc: "Location owner account", icon: UserCog },
-  { key: "router", title: "Router", desc: "First device", icon: RouterIcon },
+  { key: "device", title: "First device", desc: "Router or Wi-Fi controller", icon: RouterIcon },
   { key: "plan", title: "Plan", desc: "Assign a subscription plan", icon: Sparkles },
   {
     key: "features",
@@ -136,13 +153,7 @@ interface WizardState {
     timezone: string;
   };
   owner: { firstName: string; lastName: string; email: string };
-  router: {
-    name: string;
-    serialNumber: string;
-    macAddress: string;
-    model: string;
-    managementIpAddress: string;
-  };
+  device: FirstDeviceState;
   planId: string;
   featureOverrides: Record<string, FeatureOverrideState>;
 }
@@ -161,7 +172,7 @@ const DEFAULT_STATE: WizardState = {
     timezone: "UTC",
   },
   owner: { firstName: "", lastName: "", email: "" },
-  router: { name: "", serialNumber: "", macAddress: "", model: "", managementIpAddress: "" },
+  device: EMPTY_FIRST_DEVICE,
   planId: "",
   featureOverrides: {},
 };
@@ -296,9 +307,7 @@ export function PlatformLocationWizard({
       if (!z.string().email().safeParse(state.owner.email).success)
         e["owner.email"] = "Invalid email";
     } else if (step === 3) {
-      (["name", "serialNumber", "macAddress", "model"] as const).forEach((k) => {
-        if (!state.router[k].trim()) e[`router.${k}`] = "Required";
-      });
+      Object.assign(e, validateFirstDevice(state.device));
     } else if (step === 4) {
       if (!state.planId) e.planId = "Select a plan";
     }
@@ -336,10 +345,7 @@ export function PlatformLocationWizard({
         timezone: state.location.timezone,
       },
       owner: state.owner,
-      router: {
-        ...state.router,
-        managementIpAddress: state.router.managementIpAddress || undefined,
-      },
+      ...firstDevicePayload(state.device),
       planId: state.planId,
       featureOverrides: Object.entries(state.featureOverrides)
         .filter(([, v]) => v.isEnabled !== undefined || v.limitValue !== undefined)
@@ -353,10 +359,13 @@ export function PlatformLocationWizard({
     try {
       const r = await provision.mutateAsync(payload);
       setResult(r);
+      // Controller secrets were an in-flight draft; gone the moment they
+      // are no longer needed.
+      setState((s) => ({ ...s, device: withoutControllerSecrets(s.device) }));
       toast.success(`${r.locationName} provisioned`);
       onProvisioned?.(r.locationId);
     } catch (err) {
-      const message = (err as unknown as AppError).message || "Provisioning failed";
+      const message = describeProvisioningFailure(err as unknown as AppError, state.device.kind);
       toast.error(message);
       setFailure(message);
     }
@@ -381,7 +390,7 @@ export function PlatformLocationWizard({
           </DialogTitle>
           <DialogDescription>
             Creates an organization (or reuses one), a location, its owner account, and its first
-            router in one transaction.
+            device — a router or a Wi-Fi controller — in one transaction.
           </DialogDescription>
         </DialogHeader>
 
@@ -425,9 +434,9 @@ export function PlatformLocationWizard({
                   />
                 )}
                 {step === 3 && (
-                  <RouterStep
-                    state={state.router}
-                    setState={(v) => set("router", v)}
+                  <FirstDeviceStep
+                    state={state.device}
+                    setState={(v) => set("device", v)}
                     errors={errors}
                   />
                 )}
@@ -809,73 +818,164 @@ function OwnerStep({
   );
 }
 
-function RouterStep({
+/** Device-type values the shared vendor cards use, mapped onto this
+ * wizard's first-device kinds. */
+const DEVICE_KIND_BY_VENDOR = { mikrotik: "router", tplink_omada: "network_controller" } as const;
+const VENDOR_BY_DEVICE_KIND: Record<FirstDeviceKind, "mikrotik" | "tplink_omada"> = {
+  router: "mikrotik",
+  network_controller: "tplink_omada",
+};
+
+/** `controller.omada.<field>` errors, as the shared Omada form wants them. */
+function omadaErrors(errors: Record<string, string>): OmadaFieldErrors {
+  const out: OmadaFieldErrors = {};
+  for (const [key, message] of Object.entries(errors)) {
+    if (key.startsWith("controller.omada.")) {
+      out[key.slice("controller.omada.".length) as keyof OmadaFieldErrors] = message;
+    }
+  }
+  return out;
+}
+
+function FirstDeviceStep({
   state,
   setState,
   errors,
 }: {
-  state: WizardState["router"];
-  setState: (v: WizardState["router"]) => void;
+  state: FirstDeviceState;
+  setState: (v: FirstDeviceState) => void;
   errors: Record<string, string>;
 }) {
+  const router = state.router;
+  const setRouter = (v: FirstDeviceState["router"]) => setState({ ...state, router: v });
+  const controller = state.controller;
+  const setController = (v: FirstDeviceState["controller"]) =>
+    setState({ ...state, controller: v });
+
   return (
     <div>
       <StepHeader
-        title="First router"
-        description="Every location needs at least one router enrolled at provisioning time."
+        title="First device"
+        description="Every location is provisioned with one device guests connect through: a MikroTik router, or a TP-Link Omada controller at a venue with no MikroTik."
       />
-      <div className="grid gap-3 md:grid-cols-2">
-        <div>
-          <Label>Router name</Label>
-          <Input
-            value={state.name}
-            onChange={(e) => setState({ ...state, name: e.target.value })}
-            placeholder="Lobby Router"
+      <div className="mb-4">
+        <Label>Device type</Label>
+        <div className="mt-1">
+          <ChoiceCards
+            value={VENDOR_BY_DEVICE_KIND[state.kind]}
+            onChange={(vendor) => setState({ ...state, kind: DEVICE_KIND_BY_VENDOR[vendor] })}
+            choices={VENDOR_CHOICES}
+            columns={2}
           />
-          <ErrorText msg={errors["router.name"]} />
-        </div>
-        <div>
-          <Label>Model</Label>
-          <RouterModelCombobox
-            value={state.model}
-            onValueChange={(v) => setState({ ...state, model: v })}
-            placeholder="Select or type a model"
-          />
-          <ErrorText msg={errors["router.model"]} />
-        </div>
-        <div>
-          <Label>Serial number</Label>
-          <Input
-            value={state.serialNumber}
-            onChange={(e) => setState({ ...state, serialNumber: e.target.value })}
-            className="font-mono"
-          />
-          <ErrorText msg={errors["router.serialNumber"]} />
-        </div>
-        <div>
-          <Label>MAC address</Label>
-          <Input
-            value={state.macAddress}
-            onChange={(e) => setState({ ...state, macAddress: e.target.value })}
-            placeholder="AA:BB:CC:DD:EE:01"
-            className="font-mono"
-          />
-          <ErrorText msg={errors["router.macAddress"]} />
-        </div>
-        <div className="md:col-span-2">
-          <Label>Management IP (optional)</Label>
-          <Input
-            value={state.managementIpAddress}
-            onChange={(e) => setState({ ...state, managementIpAddress: e.target.value })}
-            placeholder="20.219.19.32"
-            className="font-mono"
-          />
-          <p className="mt-1 text-xs text-muted-foreground">
-            The router's real, reachable IP -- lets the platform actually connect to it (e.g. a
-            MikroTik CHR/hardware device). Leave blank for a records-only entry.
-          </p>
         </div>
       </div>
+
+      {state.kind === "router" ? (
+        <div className="grid gap-3 md:grid-cols-2">
+          <div>
+            <Label>Router name</Label>
+            <Input
+              value={router.name}
+              onChange={(e) => setRouter({ ...router, name: e.target.value })}
+              placeholder="Lobby Router"
+            />
+            <ErrorText msg={errors["router.name"]} />
+          </div>
+          <div>
+            <Label>Model</Label>
+            <RouterModelCombobox
+              value={router.model}
+              onValueChange={(v) => setRouter({ ...router, model: v })}
+              placeholder="Select or type a model"
+            />
+            <ErrorText msg={errors["router.model"]} />
+          </div>
+          <div>
+            <Label>Serial number</Label>
+            <Input
+              value={router.serialNumber}
+              onChange={(e) => setRouter({ ...router, serialNumber: e.target.value })}
+              className="font-mono"
+            />
+            <ErrorText msg={errors["router.serialNumber"]} />
+          </div>
+          <div>
+            <Label>MAC address</Label>
+            <Input
+              value={router.macAddress}
+              onChange={(e) => setRouter({ ...router, macAddress: e.target.value })}
+              placeholder="AA:BB:CC:DD:EE:01"
+              className="font-mono"
+            />
+            <ErrorText msg={errors["router.macAddress"]} />
+          </div>
+          <div className="md:col-span-2">
+            <Label>Management IP (optional)</Label>
+            <Input
+              value={router.managementIpAddress}
+              onChange={(e) => setRouter({ ...router, managementIpAddress: e.target.value })}
+              placeholder="20.219.19.32"
+              className="font-mono"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              The router's real, reachable IP -- lets the platform actually connect to it (e.g. a
+              MikroTik CHR/hardware device). Leave blank for a records-only entry.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-5">
+          <div className="grid gap-3 md:grid-cols-2">
+            <div>
+              <Label>Controller name</Label>
+              <Input
+                value={controller.name}
+                onChange={(e) => setController({ ...controller, name: e.target.value })}
+                placeholder="Lobby Controller"
+              />
+              <ErrorText msg={errors["controller.name"]} />
+            </div>
+            <div>
+              <Label>Controller model</Label>
+              <RouterModelCombobox
+                value={controller.model}
+                onValueChange={(v) => setController({ ...controller, model: v })}
+                placeholder="Select model"
+                vendor="tplink_omada"
+              />
+              <ErrorText msg={errors["controller.model"]} />
+            </div>
+            <div>
+              <Label>Serial number (hardware only)</Label>
+              <Input
+                value={controller.serialNumber}
+                onChange={(e) => setController({ ...controller, serialNumber: e.target.value })}
+                placeholder="Leave blank for software"
+                className="font-mono"
+              />
+              <ErrorText msg={errors["controller.serialNumber"]} />
+            </div>
+            <div>
+              <Label>MAC address (hardware only)</Label>
+              <Input
+                value={controller.macAddress}
+                onChange={(e) => setController({ ...controller, macAddress: e.target.value })}
+                placeholder="Leave blank for software"
+                className="font-mono"
+              />
+              <ErrorText msg={errors["controller.macAddress"]} />
+            </div>
+            <p className="md:col-span-2 text-xs text-muted-foreground">{OMADA_IDENTITY_NOTE}</p>
+          </div>
+          <Separator />
+          <OmadaConnectionFields
+            value={controller.omada}
+            onChange={(omada) => setController({ ...controller, omada })}
+            errors={omadaErrors(errors)}
+            idPrefix="provision-omada"
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -1085,7 +1185,10 @@ function ReviewStep({
               label="Location"
               value={`${result.locationName} (${result.locationCode})`}
             />
-            <SummaryRow label="Router" value={result.routerName} />
+            <SummaryRow
+              label={result.deviceKind === "network_controller" ? "Wi-Fi controller" : "Router"}
+              value={result.routerName}
+            />
             <SummaryRow label="Plan" value={result.planName} />
             <SummaryRow label="Owner" value={`${result.ownerName} · ${result.ownerEmail}`} />
             <div className="flex items-center justify-between rounded-lg bg-background/70 px-3 py-2">
@@ -1110,6 +1213,7 @@ function ReviewStep({
             </div>
           </CardContent>
         </Card>
+        {result.deviceKind === "network_controller" && <ControllerNextStep result={result} />}
       </div>
     );
   }
@@ -1132,10 +1236,6 @@ function ReviewStep({
           label="Owner"
           value={`${state.owner.firstName} ${state.owner.lastName} · ${state.owner.email}`}
         />
-        <SummaryRow
-          label="Router"
-          value={`${state.router.name} (${state.router.model})${state.router.managementIpAddress ? ` · ${state.router.managementIpAddress}` : ""}`}
-        />
         <SummaryRow label="Plan" value={planLabel} />
         <SummaryRow
           label="Custom features"
@@ -1145,6 +1245,19 @@ function ReviewStep({
               : "None (plan defaults)"
           }
         />
+      </div>
+      <div className="mt-3 rounded-lg border bg-muted/20 px-3 py-2">
+        <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+          First device
+        </div>
+        <dl className="mt-1 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+          {describeFirstDevice(state.device).map(([label, value]) => (
+            <div key={label} className="flex justify-between gap-3">
+              <dt className="text-xs text-muted-foreground">{label}</dt>
+              <dd className="truncate font-medium">{value || "—"}</dd>
+            </div>
+          ))}
+        </dl>
       </div>
       {provisioning && <p className="mt-4 text-sm text-muted-foreground">Provisioning…</p>}
       {failure && !provisioning && (
@@ -1162,6 +1275,51 @@ function ReviewStep({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * What is still outstanding after a controller venue is provisioned.
+ *
+ * The controller is registered and mapped to the new venue, but its Omada
+ * site and guest network are not chosen yet -- with an operator account the
+ * controller cannot even be asked for them until an integration with stored
+ * credentials exists, and this is the first moment one does. Until they are
+ * set the integration authorises nobody, so this says so instead of leaving
+ * a success tick to be contradicted by the first guest.
+ *
+ * The page that finishes it is the venue's own Network Integrations page,
+ * which lives in the customer dashboard: the new owner reaches it with the
+ * credentials above, and platform staff through Customers -> View dashboard.
+ * There is no link straight into it from here because the Master console
+ * holds no customer session for that route to open under.
+ */
+function ControllerNextStep({ result }: { result: ProvisionLocationResult }) {
+  return (
+    <div className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-700 dark:text-amber-400">
+      <p className="font-medium">One step left before guests can get online.</p>
+      <ol className="mt-1 list-decimal space-y-1 pl-4">
+        <li>
+          On {result.locationName}'s dashboard, open <strong>Network Integrations</strong> and use{" "}
+          <strong>Finish setup</strong> on {result.routerName}: enter its Omada site and guest SSID.
+          The new owner can do this after signing in; platform staff can open it from{" "}
+          <strong>Customers → View dashboard</strong>.
+        </li>
+        <li>
+          On the controller, set the External Portal Server and the Pre-Authentication Access entry
+          shown in that integration's Omada portal panel.
+        </li>
+      </ol>
+      <p className="mt-1">
+        Until both are done the controller stores credentials but authorises nobody.
+      </p>
+      <Link
+        to="/master/customers"
+        className="mt-2 inline-flex items-center gap-1 font-medium underline underline-offset-2"
+      >
+        Go to Customers <ChevronRight className="h-3 w-3" />
+      </Link>
     </div>
   );
 }

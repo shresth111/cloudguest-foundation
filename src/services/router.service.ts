@@ -1,5 +1,6 @@
 import { api, type AppError } from "@/services/api";
 import { isDemo } from "@/services/customer.service";
+import { controllerOnboardBody } from "@/lib/controller-onboard-body";
 import type {
   CreateRouterPayload,
   DeviceInterface,
@@ -635,39 +636,7 @@ export const routerService = {
       {
         organization_id: payload.organizationId,
         location_id: payload.locationId,
-        provider: "omada",
-        name: payload.name,
-        controller_model: payload.controllerModel,
-        base_url: payload.baseUrl,
-        auth_mode: payload.authMode,
-        // Top-level, matching `_CredentialFields` on the backend -- see
-        // `network-integration.service.ts`'s note on why a nested object here
-        // is silently dropped rather than rejected. The app pair goes only
-        // with Open API; the hotspot operator pair goes with BOTH modes,
-        // because the controller only lets a guest online through the
-        // operator login -- an Open API controller onboarded without it
-        // could never authorise anyone (see `credentialsForMode`).
-        ...(payload.authMode === "openapi"
-          ? {
-              ...(payload.clientId ? { client_id: payload.clientId } : {}),
-              ...(payload.clientSecret ? { client_secret: payload.clientSecret } : {}),
-            }
-          : {}),
-        ...(payload.username ? { username: payload.username } : {}),
-        ...(payload.password ? { password: payload.password } : {}),
-        // Certificate trust and the Omada ID, omitted unless set so the
-        // backend's `strict` default stands.
-        ...(payload.controllerId?.trim() ? { controller_id: payload.controllerId.trim() } : {}),
-        ...(payload.tlsMode ? { tls_mode: payload.tlsMode } : {}),
-        ...(payload.tlsMode === "pinned" && payload.tlsPinnedSha256
-          ? { tls_pinned_sha256: payload.tlsPinnedSha256 }
-          : {}),
-        // Omitted entirely rather than sent as null when absent: the backend
-        // reads "both absent" as "software controller, mint an identity", and
-        // an explicit null would take the same branch but says something
-        // different about intent.
-        ...(payload.serialNumber ? { serial_number: payload.serialNumber } : {}),
-        ...(payload.macAddress ? { mac_address: payload.macAddress } : {}),
+        ...controllerOnboardBody(payload),
       },
       { timeout: 60_000 },
     );

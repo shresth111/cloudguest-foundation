@@ -47,11 +47,22 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import { routerWizardSchema, type RouterWizardValues } from "@/lib/router-schemas";
+import {
+  EMPTY_OMADA_DRAFT,
+  controllerFieldsFromDraft,
+  routerWizardSchema,
+  type RouterWizardValues,
+} from "@/lib/router-schemas";
 import { useCreateRouter, useOnboardController } from "@/hooks/useRouters";
 import type { OnboardControllerResult } from "@/types/router";
 import { routerService } from "@/services/router.service";
 import { RouterModelCombobox } from "@/components/routers/RouterModelCombobox";
+import {
+  ChoiceCards,
+  OmadaConnectionFields,
+  type OmadaFieldErrors,
+} from "@/components/routers/OmadaControllerFields";
+import { OMADA_IDENTITY_NOTE, VENDOR_CHOICES } from "@/lib/omada-controller-choices";
 import type { AppError } from "@/services/api";
 import {
   useCancelProvisionJob,
@@ -95,62 +106,6 @@ const OMADA_STEPS = [
   { key: "done", title: "Connected", description: "Map the site to finish" },
 ] as const;
 
-const VENDOR_CHOICES = [
-  {
-    id: "mikrotik" as const,
-    label: "MikroTik router",
-    description: "Provisioned and managed by this platform's own agent.",
-  },
-  {
-    id: "tplink_omada" as const,
-    label: "TP-Link Omada controller",
-    description: "Managed through its own controller; this platform integrates with it.",
-  },
-];
-
-const AUTH_MODE_CHOICES = [
-  {
-    id: "openapi" as const,
-    label: "Open API client",
-    // The operational difference, not the marketing one. Legacy credentials
-    // authorise guests but cannot read inventory at all, so a venue that picks
-    // them gets a working captive portal and permanently empty device/client
-    // tabs -- worth knowing before choosing rather than after.
-    // Needs the hotspot operator account as well -- the controller lets
-    // guests online only through that login, whatever lists its inventory.
-    description:
-      "Controller v5.13+. Lists devices, clients and sites; guest sign-in still uses the hotspot operator account below.",
-  },
-  {
-    id: "legacy" as const,
-    label: "Hotspot operator",
-    description: "Older controllers. Authorises guests, but lists no devices or clients.",
-  },
-];
-
-// Certificate trust, per controller. Same three modes and the same advice as
-// the customer page (`CONTROLLER_TLS_MODE_SUMMARY`), shortened for a form
-// that has less room. A self-hosted controller presents a self-signed
-// certificate and cannot pass the default check -- it needs `pinned`.
-const TLS_MODE_CHOICES = [
-  {
-    id: "strict" as const,
-    label: "Standard certificate check",
-    description: "A public-CA certificate: TP-Link cloud, or a controller behind your own HTTPS.",
-  },
-  {
-    id: "pinned" as const,
-    label: "Pinned certificate",
-    description:
-      "Self-hosted controllers (self-signed). Refuses any other certificate from then on.",
-  },
-  {
-    id: "insecure" as const,
-    label: "No certificate check",
-    description: "Last resort. Accepts any certificate, including one from somebody in the middle.",
-  },
-];
-
 interface Props {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -164,24 +119,9 @@ const DEFAULTS: RouterWizardValues = {
   // Present but empty for a MikroTik registration -- `routerWizardSchema`'s
   // superRefine only validates these when `vendor === "tplink_omada"`, so one
   // form object serves both vendors without swapping resolvers mid-flow (see
-  // that schema's own comment). `authMode` opens on "openapi" because legacy
-  // operator credentials cannot read sites, SSIDs, devices or clients at all
-  // -- they drive the captive portal and nothing else.
-  omada: {
-    baseUrl: "",
-    authMode: "openapi",
-    clientId: "",
-    clientSecret: "",
-    username: "",
-    password: "",
-    controllerId: "",
-    tlsMode: "strict",
-    tlsPinnedSha256: "",
-    siteId: "",
-    siteName: "",
-    ssidId: "",
-    ssidName: "",
-  },
+  // that schema's own comment). The empty draft itself is shared with Smart
+  // Location Provisioning's first-device step.
+  omada: EMPTY_OMADA_DRAFT,
   basic: {
     name: "",
     locationId: "",
@@ -290,19 +230,7 @@ export function RouterWizard({ open, onOpenChange }: Props) {
       const result = await onboard.mutateAsync({
         organizationId: location.organizationId,
         locationId: values.basic.locationId,
-        name: values.basic.name,
-        controllerModel: values.basic.model,
-        baseUrl: values.omada.baseUrl?.trim() ?? "",
-        authMode: values.omada.authMode,
-        clientId: values.omada.clientId || undefined,
-        clientSecret: values.omada.clientSecret || undefined,
-        username: values.omada.username || undefined,
-        password: values.omada.password || undefined,
-        serialNumber: values.basic.serialNumber || undefined,
-        macAddress: values.basic.macAddress || undefined,
-        controllerId: values.omada.controllerId || undefined,
-        tlsMode: values.omada.tlsMode,
-        tlsPinnedSha256: values.omada.tlsPinnedSha256 || undefined,
+        ...controllerFieldsFromDraft(values.basic, values.omada),
       });
       toast.success(`${values.basic.name} onboarded`);
       setOnboarded(result);
@@ -403,27 +331,12 @@ export function RouterWizard({ open, onOpenChange }: Props) {
                         <FormItem className="sm:col-span-2">
                           <FormLabel>Device type</FormLabel>
                           <FormControl>
-                            <div className="grid gap-2 sm:grid-cols-2">
-                              {VENDOR_CHOICES.map((choice) => (
-                                <button
-                                  key={choice.id}
-                                  type="button"
-                                  onClick={() => field.onChange(choice.id)}
-                                  aria-pressed={field.value === choice.id}
-                                  className={cn(
-                                    "rounded-lg border px-3 py-2.5 text-left transition-colors",
-                                    field.value === choice.id
-                                      ? "border-primary bg-primary/5"
-                                      : "border-border hover:bg-muted/50",
-                                  )}
-                                >
-                                  <div className="text-sm font-medium">{choice.label}</div>
-                                  <div className="mt-0.5 text-xs text-muted-foreground">
-                                    {choice.description}
-                                  </div>
-                                </button>
-                              ))}
-                            </div>
+                            <ChoiceCards
+                              value={field.value}
+                              onChange={field.onChange}
+                              choices={VENDOR_CHOICES}
+                              columns={2}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -473,10 +386,7 @@ export function RouterWizard({ open, onOpenChange }: Props) {
                     />
                     {isOmada ? (
                       <p className="sm:col-span-2 text-xs text-muted-foreground">
-                        An OC200 or OC300 has both printed on it — enter them so the fleet record
-                        matches the hardware. A software controller has neither: leave both blank
-                        and an identifier is generated for it. Nothing is invented in between, so
-                        enter both or neither.
+                        {OMADA_IDENTITY_NOTE}
                       </p>
                     ) : (
                       <>
@@ -497,123 +407,19 @@ export function RouterWizard({ open, onOpenChange }: Props) {
                   </div>
                 )}
                 {step === 1 && isOmada && (
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <TextField
-                      name="omada.baseUrl"
-                      label="Controller address"
-                      placeholder="https://controller.example.com:8043"
-                      form={form}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="omada.authMode"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Authentication</FormLabel>
-                          <FormControl>
-                            <div className="grid gap-2">
-                              {AUTH_MODE_CHOICES.map((choice) => (
-                                <button
-                                  key={choice.id}
-                                  type="button"
-                                  onClick={() => field.onChange(choice.id)}
-                                  aria-pressed={field.value === choice.id}
-                                  className={cn(
-                                    "rounded-lg border px-3 py-2 text-left transition-colors",
-                                    field.value === choice.id
-                                      ? "border-primary bg-primary/5"
-                                      : "border-border hover:bg-muted/50",
-                                  )}
-                                >
-                                  <div className="text-sm font-medium">{choice.label}</div>
-                                  <div className="mt-0.5 text-xs text-muted-foreground">
-                                    {choice.description}
-                                  </div>
-                                </button>
-                              ))}
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    {form.watch("omada.authMode") === "openapi" && (
-                      <>
-                        <TextField name="omada.clientId" label="Client ID" form={form} />
-                        <TextField
-                          name="omada.clientSecret"
-                          label="Client secret"
-                          type="password"
-                          form={form}
-                        />
-                      </>
-                    )}
-                    {/* In both modes. See `routerWizardSchema` for why an
-                        Open API controller still needs it. */}
-                    <TextField name="omada.username" label="Hotspot operator name" form={form} />
-                    <TextField
-                      name="omada.password"
-                      label="Hotspot operator password"
-                      type="password"
-                      form={form}
-                    />
-                    <TextField
-                      name="omada.controllerId"
-                      label="Omada ID (TP-Link cloud controllers only)"
-                      placeholder="Leave blank for a controller reached directly"
-                      form={form}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="omada.tlsMode"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Certificate check</FormLabel>
-                          <FormControl>
-                            <div className="grid gap-2">
-                              {TLS_MODE_CHOICES.map((choice) => (
-                                <button
-                                  key={choice.id}
-                                  type="button"
-                                  onClick={() => field.onChange(choice.id)}
-                                  aria-pressed={field.value === choice.id}
-                                  className={cn(
-                                    "rounded-lg border px-3 py-2 text-left transition-colors",
-                                    field.value === choice.id
-                                      ? "border-primary bg-primary/5"
-                                      : "border-border hover:bg-muted/50",
-                                  )}
-                                >
-                                  <div className="text-sm font-medium">{choice.label}</div>
-                                  <div className="mt-0.5 text-xs text-muted-foreground">
-                                    {choice.description}
-                                  </div>
-                                </button>
-                              ))}
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    {form.watch("omada.tlsMode") === "pinned" && (
-                      <TextField
-                        name="omada.tlsPinnedSha256"
-                        label="Certificate fingerprint (SHA-256)"
-                        placeholder="AB:CD:EF:… — 64 hexadecimal characters"
-                        form={form}
-                      />
-                    )}
-                    <p className="sm:col-span-2 text-xs text-muted-foreground">
-                      Sent to the controller from this platform's servers, never from your browser,
-                      and stored encrypted. No endpoint returns them again.
-                    </p>
-                    {/* Unlike the MikroTik path below, skipping credentials is
-                     * not offered at all: an integration without them cannot
-                     * authorise a single guest, so a row created that way
-                     * would be a registration that does nothing. The schema
-                     * requires them. */}
-                  </div>
+                  <OmadaConnectionFields
+                    value={form.watch("omada")}
+                    onChange={(next) =>
+                      form.setValue("omada", next, {
+                        shouldDirty: true,
+                        // Re-validate as the operator types only once a
+                        // Continue has already shown them errors, so a
+                        // fixed field clears without shouting at a fresh one.
+                        shouldValidate: Boolean(form.formState.errors.omada),
+                      })
+                    }
+                    errors={omadaFieldErrors(form.formState.errors.omada)}
+                  />
                 )}
                 {step === 1 && !isOmada && (
                   <div className="grid gap-4 sm:grid-cols-2">
@@ -1128,4 +934,16 @@ function ToggleField<T extends FieldValues>({
       )}
     />
   );
+}
+
+/** react-hook-form's nested error object for `omada`, flattened to the
+ * per-field messages `OmadaConnectionFields` renders. */
+function omadaFieldErrors(errors: unknown): OmadaFieldErrors {
+  const out: OmadaFieldErrors = {};
+  if (!errors || typeof errors !== "object") return out;
+  for (const [key, entry] of Object.entries(errors as Record<string, unknown>)) {
+    const message = (entry as { message?: unknown } | undefined)?.message;
+    if (typeof message === "string") out[key as keyof OmadaFieldErrors] = message;
+  }
+  return out;
 }

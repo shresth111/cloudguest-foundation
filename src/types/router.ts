@@ -94,9 +94,19 @@ export interface CreateRouterPayload {
  * neither and the backend mints a deterministic, visibly-synthetic identity
  * instead. Sending one without the other is refused.
  */
-export interface OnboardControllerPayload {
+export interface OnboardControllerPayload extends ControllerOnboardFields {
   organizationId: string;
   locationId: string;
+}
+
+/**
+ * One controller, described without saying where it goes -- the backend's
+ * `ControllerOnboardFields`. Shared by the two paths that register a
+ * controller with its fleet row: Master onboarding (above, which adds the
+ * tenant and venue) and Smart Location Provisioning's first device, where
+ * the tenant and venue are created by the same request.
+ */
+export interface ControllerOnboardFields {
   name: string;
   controllerModel: string;
   baseUrl: string;
