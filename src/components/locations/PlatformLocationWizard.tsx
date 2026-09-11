@@ -33,6 +33,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RouterModelCombobox } from "@/components/routers/RouterModelCombobox";
+import { OmadaPortalSetupSteps } from "@/components/network-integrations/OmadaPortalSetupSteps";
+import { describePortalReadinessGap } from "@/lib/network-integration-readiness";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -1580,85 +1582,34 @@ function ControllerOutcomePanel({
       </div>
 
       {scheme && hostAndQuery ? (
-        <PortalSetupSteps scheme={scheme} hostAndQuery={hostAndQuery} />
+        // The values from the onboard response -- the backend's
+        // `build_external_portal_url`, never re-derived here. The same shared
+        // steps the integration drawer and the Router Fleet setup screen
+        // render, which is where an operator who closed this dialog finds
+        // them again.
+        <div className="space-y-2 rounded-lg border border-border/70 p-3">
+          <p className="text-sm font-medium">Finish on the controller</p>
+          <OmadaPortalSetupSteps
+            scheme={scheme}
+            hostAndQuery={hostAndQuery}
+            guestSsidName={controller.ssid}
+          />
+        </div>
       ) : (
         // The backend withholds the pair exactly when no guest could sign in
         // through it, so there is nothing honest to paste yet.
         <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400">
           No guest portal link yet — the platform reports this controller cannot serve guests
-          {gaps.length > 0 ? ` (${gaps.join(", ")})` : ""}. The integration shows what is missing.
+          {gaps.length > 0 ? ` (${gaps.map(describePortalReadinessGap).join("; ")})` : ""}. The
+          integration shows what is missing.
         </p>
       )}
       {scheme && hostAndQuery && gaps.length > 0 && (
         <p className="text-xs text-amber-700 dark:text-amber-400">
-          The platform still reports: {gaps.join(", ")}.
+          The platform still reports: {gaps.map(describePortalReadinessGap).join("; ")}.
         </p>
       )}
       <p className="text-xs">{integrationLink}</p>
-    </div>
-  );
-}
-
-/**
- * The two things to set on the controller, with the values from the onboard
- * response -- the backend's `build_external_portal_url`, never re-derived
- * here. Same steps as the Master console's integration drawer
- * (`PortalLinkSection` in master.integrations.tsx), which is where an
- * operator who closed this dialog finds them again.
- */
-function PortalSetupSteps({ scheme, hostAndQuery }: { scheme: string; hostAndQuery: string }) {
-  // The host alone, for the pre-auth entry, off the URL the server built: the
-  // host an operator permits must be the host their guests are sent to.
-  const host = hostAndQuery.split("/")[0];
-  return (
-    <div className="space-y-2 rounded-lg border border-border/70 p-3">
-      <p className="text-sm font-medium">Finish on the controller</p>
-      <p className="text-xs text-muted-foreground">
-        Guests cannot sign in until <strong>both</strong> are done.
-      </p>
-      <p className="pt-1 text-xs font-medium">1. External Portal Server</p>
-      <p className="text-xs text-muted-foreground">
-        Site View → Network Config → Authentication → Portal → External Portal Server, Host Type{" "}
-        <strong>URL</strong>. Two separate fields — the controller rejects a URL that contains the
-        scheme.
-      </p>
-      <CopyValueRow label="Scheme" value={scheme} />
-      <CopyValueRow label="URL" value={hostAndQuery} />
-      <p className="pt-2 text-xs font-medium">2. Pre-Authentication Access</p>
-      <p className="text-xs text-muted-foreground">
-        Add a Pre-Authentication Access entry of type <strong>URL</strong> for the portal host.
-        Without it the sign-in page never loads — the request times out rather than failing.
-      </p>
-      <CopyValueRow label="Portal host" value={host} />
-    </div>
-  );
-}
-
-function CopyValueRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-2 rounded-md bg-muted/30 px-2.5 py-1.5">
-      <span className="shrink-0 text-xs text-muted-foreground">{label}</span>
-      <div className="flex min-w-0 items-center gap-1.5">
-        <code className="break-all text-right text-xs">{value}</code>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 shrink-0"
-          aria-label={`Copy ${label}`}
-          onClick={() => {
-            // `navigator.clipboard` is absent on an insecure origin and
-            // rejects when the document is unfocused; the value stays on
-            // screen and selectable, and "Copied" when nothing was is the
-            // thing worth avoiding.
-            navigator.clipboard
-              ?.writeText(value)
-              .then(() => toast.success(`${label} copied`))
-              .catch(() => toast.error(`Could not copy — select the ${label} and copy it.`));
-          }}
-        >
-          <Copy className="h-3.5 w-3.5" />
-        </Button>
-      </div>
     </div>
   );
 }

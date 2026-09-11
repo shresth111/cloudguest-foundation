@@ -491,12 +491,29 @@ check(
 /* The operator half. Without it nobody can complete setup at all: unlike
  * MikroTik, this platform does not write the equivalent page onto the
  * device -- a human reads this off a dashboard and types it into a
- * controller. */
+ * controller.
+ *
+ * The controller steps live in ONE shared component, rendered by every
+ * surface that hands them over. Each surface is checked against its own
+ * source plus that component's, and must actually render it -- a surface
+ * that stopped importing it would lose every step below without any of
+ * these checks noticing otherwise. */
+const SHARED_STEPS = "src/components/network-integrations/OmadaPortalSetupSteps.tsx";
+const rendersSharedSteps = (s) =>
+  /from "@\/components\/network-integrations\/OmadaPortalSetupSteps"/.test(s) &&
+  /<OmadaPortalSetupSteps\b/.test(s);
+for (const [name, rel] of [
+  ["the add-customer wizard", "src/components/locations/PlatformLocationWizard.tsx"],
+  ["router fleet's omada setup screen", "src/components/routers/OmadaGuidedSetupPanel.tsx"],
+]) {
+  check(`${name} renders the shared controller steps`, rendersSharedSteps(src(rel)));
+}
 for (const [name, rel] of [
   ["the customer dashboard", "src/components/features/NetworkIntegrationsPage.tsx"],
   ["the master console", "src/routes/master.integrations.tsx"],
 ]) {
-  const page = src(rel);
+  check(`${name} renders the shared controller steps`, rendersSharedSteps(src(rel)));
+  const page = `${src(rel)}\n${src(SHARED_STEPS)}`;
   check(
     `${name} shows the scheme and the URL as separate copyable values`,
     /portalUrlScheme/.test(page) && /portalUrlHostAndQuery/.test(page) && /Copy/.test(page),

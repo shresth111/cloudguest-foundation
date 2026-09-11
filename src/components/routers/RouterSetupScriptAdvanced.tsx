@@ -18,6 +18,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { MButton, MTag } from "@/components/master/MasterKit";
+import { OmadaGuidedSetupPanel } from "@/components/routers/OmadaGuidedSetupPanel";
 import {
   buildRouterSetupScriptChunks,
   chunksToMarkdown,
@@ -48,10 +49,13 @@ export const inputCls =
 
 /** Matches DeviceVendor in wyfy-device-gateway's contract (PRD section 4.1)
  * -- same string identifiers so this dropdown's value and the backend's
- * Router.vendor column always agree. MikroTik is the only one with a real
- * adapter/setup flow today; every other entry exists so this Master-console
- * screen can honestly say "not yet supported" instead of hiding the
- * hardware a customer actually has. */
+ * Router.vendor column always agree. Two vendors are supported today, in
+ * two different ways: MikroTik gets the setup script this file generates,
+ * and TP-Link Omada gets `OmadaGuidedSetupPanel` -- an Omada controller is
+ * onboarded through its network integration and configured in its own UI,
+ * so there is no script, only the values to type in. Every other entry
+ * exists so this Master-console screen can honestly say "not yet
+ * supported" instead of hiding the hardware a customer actually has. */
 export const DEVICE_VENDORS: { value: string; label: string }[] = [
   { value: "mikrotik", label: "MikroTik" },
   { value: "tplink_omada", label: "TP-Link Omada" },
@@ -65,12 +69,13 @@ function vendorLabel(value: string): string {
   return DEVICE_VENDORS.find((v) => v.value === value)?.label ?? value;
 }
 
-/** Honest empty state for every vendor besides MikroTik -- wyfy-device-gateway
- * (see PRD) only has a real, working adapter for MikroTik today; every other
- * vendor is a stub. Rather than let the one-paste script panel below
- * silently generate a MikroTik-flavored RouterOS script for hardware that
- * isn't MikroTik, this replaces it outright once a different vendor is
- * selected. Real per-vendor provisioning flows are Phase 2+, once a real
+/** Honest empty state for the vendors with no flow at all -- everything
+ * except MikroTik (the script below) and TP-Link Omada
+ * (`OmadaGuidedSetupPanel`). Those remaining vendors are stubs in
+ * wyfy-device-gateway (see PRD). Rather than let the one-paste script panel
+ * below silently generate a MikroTik-flavored RouterOS script for hardware
+ * that isn't MikroTik, this replaces it outright once such a vendor is
+ * selected. Real per-vendor flows for them are Phase 2+, once a real
  * adapter (e.g. UniFi) exists. */
 function VendorNotSupportedPanel({ vendor }: { vendor: string }) {
   const label = vendorLabel(vendor);
@@ -79,9 +84,9 @@ function VendorNotSupportedPanel({ vendor }: { vendor: string }) {
       <FileCode2 className="mx-auto h-5 w-5 text-muted-foreground" />
       <p className="text-sm font-medium text-foreground">{label} support is coming soon</p>
       <p className="mx-auto max-w-sm text-xs text-muted-foreground">
-        MikroTik is the only supported vendor today -- there's no setup script or provisioning flow
-        for {label} hardware yet. Switch the vendor back to MikroTik if this router is actually a
-        MikroTik device, or check back once {label} support ships.
+        MikroTik and TP-Link Omada are the supported vendors today -- there's no setup script or
+        provisioning flow for {label} hardware yet. Switch the vendor back to MikroTik if this
+        router is actually a MikroTik device, or check back once {label} support ships.
       </p>
     </div>
   );
@@ -1959,8 +1964,9 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
  * hand," at full page width instead of squeezed into the ~448px browse
  * drawer (`MDrawer`'s own `max-w-md`) that used to hold this directly.
  * Purely a layout shell around the same `RouterSetupScriptPanel` /
- * `VendorNotSupportedPanel` and the same `updateVendor` mutation the browse
- * drawer used to call -- no script-building/validation logic lives here. */
+ * `OmadaGuidedSetupPanel` / `VendorNotSupportedPanel` and the same
+ * `updateVendor` mutation the browse drawer used to call -- no
+ * script-building/validation logic lives here. */
 export function RouterSetupDrilldown({
   router,
   demo,
@@ -2034,6 +2040,8 @@ export function RouterSetupDrilldown({
           </div>
           {vendor === "mikrotik" ? (
             <RouterSetupScriptPanel router={router} />
+          ) : vendor === "tplink_omada" ? (
+            <OmadaGuidedSetupPanel router={router} />
           ) : (
             <VendorNotSupportedPanel vendor={vendor} />
           )}

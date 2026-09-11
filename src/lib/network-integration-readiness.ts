@@ -277,3 +277,28 @@ export function integrationGapTagLabel(i: IntegrationSetupInput): string | null 
 export function halfConfiguredIntegrations<T extends IntegrationSetupInput>(rows: T[]): T[] {
   return rows.filter((r) => deriveIntegrationSetup(r).isHalfConfigured);
 }
+
+// ---------------------------------------------------------------------------
+// The backend's own words for `portal_readiness_gaps`.
+// ---------------------------------------------------------------------------
+
+/**
+ * The backend's own sentence for each `portal_readiness_gaps` code --
+ * verbatim from `network_integration/constants.py`
+ * `PORTAL_READINESS_GAP_LABELS`, the strings `describe_portal_readiness_gaps`
+ * joins into the integration's error message. Copied rather than paraphrased
+ * so the Master console says exactly what the platform's own events say. An
+ * unknown code renders as itself rather than as a guess.
+ */
+export const PORTAL_READINESS_GAP_LABELS: Record<string, string> = {
+  credentials_missing: "no controller credentials have been saved",
+  guest_operator_missing:
+    "it has an Open API app but no hotspot operator account, and guest sign-in needs the operator account",
+  location_not_mapped: "it is not mapped to a location, so no venue's guests resolve to it",
+  site_not_selected: "no controller site has been selected",
+  fleet_device_missing: "it has no fleet device, so no guest session can be created for it",
+};
+
+export function describePortalReadinessGap(code: string): string {
+  return PORTAL_READINESS_GAP_LABELS[code] ?? code;
+}

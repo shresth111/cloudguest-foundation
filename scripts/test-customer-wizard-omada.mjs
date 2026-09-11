@@ -414,7 +414,9 @@ console.log("\n1. Omada: provision without a router, then onboard with the new i
   );
   check(
     "names the controller path to paste them into",
-    text.includes("Site View → Network Config → Authentication → Portal → External Portal Server"),
+    text.includes(
+      "Site View → Network Config → Authentication → Portal → (create or edit the portal for the guest SSID) → Authentication Type: External Portal Server → Host Type: URL",
+    ),
   );
   check(
     "reminds to add a Pre-Authentication Access entry for the portal host",

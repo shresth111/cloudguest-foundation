@@ -7,7 +7,6 @@ import {
   AlertTriangle,
   Building2,
   CheckCircle2,
-  Copy,
   Loader2,
   Plug,
   Power,
@@ -21,6 +20,7 @@ import {
 } from "lucide-react";
 
 import { MasterShell } from "@/components/master/MasterShell";
+import { OmadaPortalSetupSteps } from "@/components/network-integrations/OmadaPortalSetupSteps";
 import {
   MPageShell,
   MSectionHeader,
@@ -855,86 +855,14 @@ function PortalLinkSection({ integration }: { integration: NetworkIntegration })
     );
   }
 
-  // The host alone, for the pre-auth entry. Off the URL the server built,
-  // never re-derived: the host an operator is told to permit must by
-  // construction be the host their guests are sent to.
-  const host = hostAndQuery.split("/")[0];
-
   return (
     <DrawerSection title="Guest portal setup">
-      <p className="text-xs text-muted-foreground">
-        Two settings on the controller. Guests cannot sign in until <strong>both</strong> are done.
-      </p>
-
-      <p className="pt-1 text-xs font-medium text-foreground">1. External Portal Server</p>
-      <p className="text-xs text-muted-foreground">
-        Site View &rarr; Network Config &rarr; Authentication &rarr; Portal &rarr; Authentication
-        Type <strong>External Portal Server</strong> &rarr; Host Type <strong>URL</strong>. Two
-        separate fields — the controller rejects a URL that contains the scheme.
-      </p>
-      <CopyableRow label="Scheme" value={scheme} />
-      <CopyableRow label="URL" value={hostAndQuery} />
-
-      {/* Observed on real hardware 2026-09-11, from an associated but
-          unauthorized client: DNS resolves, TCP 443 connects, and every
-          HTTPS request times out — our own portal host included. Omada does
-          NOT auto-permit the external portal server it is itself
-          redirecting to. The redirect chain is entirely correct and the
-          page hangs for 20 seconds. Nothing in the controller's UI reports
-          it, which is why this is a numbered step and not a footnote. */}
-      <p className="pt-2 text-xs font-medium text-foreground">2. Pre-Authentication Access</p>
-      <p className="text-xs text-muted-foreground">
-        Settings &rarr; Authentication &rarr; Portal &rarr; Access Control &rarr;{" "}
-        <strong>Pre-Authentication Access</strong>, enabled, with one entry of type{" "}
-        <strong>URL</strong> for the host below. Without it the sign-in page never loads at all —
-        the request times out rather than failing.
-      </p>
-      <CopyableRow label="Pre-auth URL" value={host} />
-
-      {/* Two more silent failure modes, both measured the same day. The
-          8088 hop is the one our own security group broke; the resolved-IP
-          behaviour is what makes a single entry sufficient TODAY and is the
-          thing that will break quietly when DNS moves, which this estate
-          has already done once. */}
-      <p className="pt-2 text-xs text-muted-foreground">
-        Guest devices must also reach the controller itself on port 8088 (8843 with HTTPS Redirect
-        enabled) — the AP sends them to the controller&rsquo;s own portal entry before the
-        controller redirects them here.
-      </p>
-      <p className="text-xs text-muted-foreground">
-        A URL entry permits the resolved <strong>address</strong>, not the name, so this one entry
-        also covers the API origin — only because both names currently resolve to the same address.
-        That stops being true if they are ever moved apart.
-      </p>
+      <OmadaPortalSetupSteps
+        scheme={scheme}
+        hostAndQuery={hostAndQuery}
+        guestSsidName={integration.guestSsidName}
+      />
     </DrawerSection>
-  );
-}
-
-function CopyableRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-start justify-between gap-2 text-sm">
-      <span className="shrink-0 text-muted-foreground">{label}</span>
-      <div className="flex min-w-0 items-start gap-1.5">
-        <span className="break-all text-right font-mono text-xs">{value}</span>
-        <button
-          type="button"
-          aria-label={`Copy ${label}`}
-          onClick={() => {
-            // Best-effort. `navigator.clipboard` is absent on an insecure
-            // origin and rejects when the document is not focused; the value
-            // is on screen and selectable either way, and saying "Copied"
-            // when nothing was copied is the thing worth avoiding.
-            navigator.clipboard
-              ?.writeText(value)
-              .then(() => toast.success(`${label} copied`))
-              .catch(() => toast.error(`Could not copy — select the ${label} and copy it.`));
-          }}
-          className="mt-0.5 shrink-0 text-muted-foreground hover:text-foreground"
-        >
-          <Copy className="h-3.5 w-3.5" />
-        </button>
-      </div>
-    </div>
   );
 }
 

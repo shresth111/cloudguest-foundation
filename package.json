@@ -80,7 +80,8 @@
     "test:controller-venue-screens": "node scripts/test-controller-venue-network-screens.mjs",
     "test:controller-venue-nav": "node scripts/test-controller-venue-nav.mjs",
     "test:omada-onboarding-gaps": "node scripts/test-omada-onboarding-gaps.mjs",
-    "test:customer-wizard-omada": "node scripts/test-customer-wizard-omada.mjs"
+    "test:customer-wizard-omada": "node scripts/test-customer-wizard-omada.mjs",
+    "test:omada-guided-setup": "node scripts/test-omada-guided-setup.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
