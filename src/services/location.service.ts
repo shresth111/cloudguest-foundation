@@ -1,6 +1,6 @@
 import { api } from "@/services/api";
 import { isDemo } from "@/services/customer.service";
-import { controllerOnboardBody } from "@/services/router.service";
+import { controllerOnboardBody } from "@/lib/controller-onboard-body";
 import type {
   CreateLocationPayload,
   Location,

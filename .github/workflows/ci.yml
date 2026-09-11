@@ -1519,6 +1519,20 @@ jobs:
             "all omada onboarding-gap checks passed" \
             bun run test:omada-onboarding-gaps
 
+      # A new customer whose venue has only an Omada controller could not be
+      # provisioned: the wizard's first-device step demanded a router serial
+      # and MAC, so the only way through was to invent them. The step now
+      # takes a controller, validated and serialized by the same code as
+      # Routers -> Add router. The backend half is in cloud-guest.
+      #
+      # Floor 53, observed green at 53.
+      - name: provision omada venue
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "provision-omada-venue" 53 \
+            "all provision-omada-venue checks passed" \
+            bun run test:provision-omada-venue
+
       # The same surface, rendered -- including #258's rule that a
       # half-configured integration is dead and says so rather than showing a
       # working-looking page.
