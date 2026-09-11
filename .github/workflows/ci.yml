@@ -1291,3 +1291,46 @@ jobs:
             "whitelist-refusal" 45 \
             "whitelist-only refusal: all checks passed" \
             bun run test:whitelist-refusal
+
+      # ---------------------------------------------------------------
+      # Omada per-guest disconnect (cloud-guest #214).
+      #
+      # What it protects: the endpoint answers with THREE booleans and the
+      # entire history of this feature is people collapsing them into one.
+      # Two readings cost real money if they regress:
+      #
+      #   * `disconnected: true, had_active_authorization: false` is a
+      #     SUCCESS -- the guest's grant had already lapsed, so the end
+      #     state asked for now holds. Rendered as a warning, it teaches
+      #     operators to press the button twice and then call support.
+      #   * a 502/504 means NOTHING CHANGED -- the backend calls the
+      #     controller before it writes any row and raises on failure. An
+      #     operator who believes a half-action occurred resets the AP next.
+      #
+      # It also pins the correction to CHANGE-REQUESTS.md CR-006, which
+      # told the frontend to disable this for `legacy` integrations and
+      # enable it for `openapi`. That is backwards -- the disconnect rides
+      # the hotspot operator session in either mode, and `legacy` is what
+      # this fleet runs. The gate is the backend's 501, and the suite
+      # greps the shipped module to keep `authMode` out of it entirely.
+      #
+      # Floor 63, observed green at 63.
+      - name: omada per-guest disconnect verdicts
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "omada-disconnect" 63 \
+            "omada disconnect verdicts: all checks passed" \
+            bun run test:omada-disconnect
+
+      # The same feature, rendered. Also the MikroTik guarantee: the row
+      # menu control is gated on the venue having an Omada integration at
+      # all, so a MikroTik venue renders nothing new. Asserted here rather
+      # than asserted in a commit message.
+      #
+      # Floor 31, observed green at 31.
+      - name: omada per-guest disconnect render
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "omada-disconnect-render" 31 \
+            "omada disconnect render: all checks passed" \
+            bun run test:omada-disconnect-render

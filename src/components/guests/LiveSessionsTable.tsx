@@ -68,6 +68,7 @@ import { guestService } from "@/services/guest.service";
 import type { GuestSession, GuestSessionStatus, SessionListQuery } from "@/types/guest";
 import type { AppError } from "@/services/api";
 import { GuestAuthMethodBadge, GuestSessionStatusBadge } from "./GuestBadges";
+import { OmadaDisconnectDialog, OmadaDisconnectMenuItem } from "./OmadaSessionDisconnect";
 
 const PAGE_SIZES = [10, 20, 50];
 
@@ -133,6 +134,10 @@ export function LiveSessionsTable() {
   // here (a separate report/export is the right place for that).
   const status: GuestSessionStatus | "all" = "active";
   const [locationId, setLocationId] = useState<string | "all">("all");
+  /** The row whose Omada controller access is being ended, if any. Held
+   *  here rather than in the row menu because the dialog has to outlive
+   *  the menu that opened it. Null on a MikroTik venue, always. */
+  const [omadaTarget, setOmadaTarget] = useState<GuestSession | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [confirm, setConfirm] = useState<null | {
@@ -336,6 +341,9 @@ export function LiveSessionsTable() {
                                 View guest
                               </Link>
                             </DropdownMenuItem>
+                            {/* Omada venues only: renders null everywhere
+                                else, so a MikroTik row menu is unchanged. */}
+                            <OmadaDisconnectMenuItem session={r} onSelect={setOmadaTarget} />
                             {canPauseOrTerminate && (
                               <>
                                 <DropdownMenuItem
@@ -513,6 +521,8 @@ export function LiveSessionsTable() {
           setConfirm(null);
         }}
       />
+
+      <OmadaDisconnectDialog session={omadaTarget} onClose={() => setOmadaTarget(null)} />
 
       <Dialog
         open={!!reasonDialog}
