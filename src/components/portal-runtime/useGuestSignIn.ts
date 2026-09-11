@@ -4,6 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Smartphone, Mail, Ticket, MessageCircle } from "lucide-react";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
+import { normalizeOmadaText } from "@/lib/portal-authorize-body";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
 import { enabledAuthMethods } from "@/lib/portal-auth-methods";
 import { deviceHasPassword, markDeviceHasPassword } from "@/lib/portal-returning-guest";
@@ -94,8 +95,10 @@ export function useGuestSignIn() {
     organizationId,
     locationId,
     routerId,
-    deviceMac,
-    deviceIp,
+    deviceMac: routerOsMac,
+    deviceIp: routerOsIp,
+    clientIp,
+    omadaRedirect,
     selectedMethod,
     setSelectedMethod,
     setSession,
@@ -111,6 +114,50 @@ export function useGuestSignIn() {
   } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/welcome" });
   const portalSearch = usePortalLinkSearch();
+
+  /**
+   * WHICH DEVICE THIS LOGIN IS FOR, AT EITHER KIND OF VENUE.
+   *
+   * `deviceMac` on the context is RouterOS's `$(mac)` substitution and is
+   * undefined at an Omada venue -- no MikroTik hotspot ever redirected this
+   * browser. The Omada controller's own redirect carries the same fact
+   * under its own name, `clientMac`, and it is exactly as trustworthy for
+   * exactly the same reason: it was produced by the box that intercepted
+   * this device, not claimed by the browser.
+   *
+   * WITHOUT THIS, NO OMADA GUEST GETS ONLINE. Two independent failures, and
+   * the second one is new:
+   *
+   *  1. A MAC-less login writes `guest_sessions.device_id = NULL`, which
+   *     makes the session invisible to the portal's own "already
+   *     connected?" check and to login dedup -- the 7 Sep incident, where a
+   *     guest signed in, succeeded, and was asked to sign in again.
+   *  2. `POST /network-integrations/portal/authorize` now requires the
+   *     `client_mac` it is asked to authorize to BE the session's own
+   *     device (the fix for a guest who signed in honestly putting a
+   *     stranger's phone on the WiFi). A session with no device cannot
+   *     satisfy that and is refused -- so at an Omada venue a MAC-less
+   *     login does not merely risk a second sign-in, it guarantees the
+   *     authorize call fails and the guest never gets internet at all.
+   *
+   * `??`, not a merge: a venue is behind one vendor or the other and the
+   * two redirects never both fire. RouterOS's value wins where present
+   * purely because it is the one already proven in production; where it is
+   * absent there is no MikroTik redirect to have produced one.
+   *
+   * `normalizeOmadaText` because TanStack's search parser JSON.parses raw
+   * values, so a MAC that happens to be all digits and separators could
+   * arrive as something other than a string -- and because
+   * present-but-empty must become "absent", never `""`.
+   */
+  const deviceMac = routerOsMac ?? normalizeOmadaText(omadaRedirect?.clientMac) ?? undefined;
+  /** The same rule for the address. RouterOS's `$(ip)` is what a
+   * `/queue/simple` rule on that router matches; Omada's `clientIp` is what
+   * its controller reported. Never substituted for one another as a
+   * *concept* (see `portalSearchShape.clientIp`), but this platform's own
+   * login call takes one `ip_address` and at any given venue only one of
+   * the two exists. */
+  const deviceIp = routerOsIp ?? clientIp ?? undefined;
 
   /**
    * Whitelist-only refusal -> `/portal/not-listed`, from either of the two

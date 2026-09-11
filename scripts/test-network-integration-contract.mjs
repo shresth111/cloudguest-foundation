@@ -76,17 +76,40 @@ writeFileSync(
    let nextData = {};
    export function setNext(d) { nextData = d; }
    export function reset() { calls.length = 0; nextData = {}; }
-   function record(method, url, body, config) {
-     calls.push({ method, url, body, params: config?.params, headers: config?.headers ?? {} });
+   function record(client, method, url, body, config) {
+     calls.push({
+       client,
+       method,
+       url,
+       body,
+       params: config?.params,
+       headers: config?.headers ?? {},
+     });
      return { data: nextData };
    }
    export const api = {
-     async get(url, config) { return record("get", url, undefined, config); },
-     async post(url, body, config) { return record("post", url, body, config); },
-     async patch(url, body, config) { return record("patch", url, body, config); },
-     async put(url, body, config) { return record("put", url, body, config); },
-     async delete(url, config) { return record("delete", url, undefined, config); },
+     async get(url, config) { return record("api", "get", url, undefined, config); },
+     async post(url, body, config) { return record("api", "post", url, body, config); },
+     async patch(url, body, config) { return record("api", "patch", url, body, config); },
+     async put(url, body, config) { return record("api", "put", url, body, config); },
+     async delete(url, config) { return record("api", "delete", url, undefined, config); },
    };
+   // The UNAUTHENTICATED client, recorded separately so a test can assert
+   // which of the two a given call went out on. That distinction is the
+   // point for the portal routes: \`api\` carries an admin JWT, a
+   // 401-refresh-retry loop and an X-Organization-Id header read out of
+   // localStorage -- and a guest's browser has none of those things and
+   // must not appear to. The org header in particular would be a claim
+   // about which tenant this is, sent by an unauthenticated caller, on the
+   // two endpoints whose whole job is to establish that answer server-side.
+   export const guestPortalApi = {
+     async get(url, config) { return record("guest", "get", url, undefined, config); },
+     async post(url, body, config) { return record("guest", "post", url, body, config); },
+   };
+   // \`guest-portal-api.ts\` imports this from \`@/services/api\`; it is never
+   // called here (nothing in this suite makes a request fail), but it has
+   // to exist for the module to link.
+   export function toAppError(e) { return e; }
    export default api;`,
 );
 
@@ -103,7 +126,7 @@ writeFileSync(
 const entry = join(outdir, "entry.mjs");
 writeFileSync(
   entry,
-  `export { networkIntegrationService } from "${p("src/services/network-integration.service.ts")}";
+  `export { networkIntegrationService, guestPortalIntegrationService } from "${p("src/services/network-integration.service.ts")}";
    export * from "${p("src/types/network-integration.ts")}";
    export { calls, setNext, reset } from "${norm(apiStub)}";`,
 );
@@ -118,6 +141,7 @@ await build({
   logLevel: "silent",
   alias: {
     "@/services/api": apiStub,
+    "@/services/guest-portal-api": apiStub,
     "@/types/network-integration": p("src/types/network-integration.ts"),
     "@/services/organization-id": orgStub,
   },
@@ -807,6 +831,20 @@ console.log("\nnothing in the Omada views assumes a router exists behind the int
     ["the service", strip(service)],
     ["the types", strip(readFileSync(join(ROOT, "src/types/network-integration.ts"), "utf8"))],
   ]) {
+    // Still an absolute rule, and now for a better reason than the one
+    // originally written here.
+    //
+    // The old premise was "an Omada integration's parent is a LOCATION;
+    // there is no router row to link to". CONTRACT §11.3 settled the
+    // opposite: `guest_sessions.router_id` is NOT NULL, so an Omada-only
+    // venue keeps a SYNTHETIC fleet row, and the guest portal URL really
+    // does carry a `routerId`.
+    //
+    // The rule survives anyway, because that URL is assembled SERVER-side
+    // (`validators.build_external_portal_url`) and reaches this repo as an
+    // opaque pair of strings. So no frontend module has any business
+    // naming a router id -- and a module that starts to is one that has
+    // begun rebuilding the URL locally, which is the drift this catches.
     check(`${name} never mentions a routerId`, !/routerId|router_id/.test(src));
     check(
       `${name} does not reach for the router service`,

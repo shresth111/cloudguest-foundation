@@ -106,6 +106,22 @@ const SERVICE_STUB = `export const portalRuntimeService = {
   checkActiveSession: async () => undefined,
 };
 `;
+/* portal.success.tsx now also reaches the controller-authorize endpoint for
+ * Omada venues. Stubbed for the same reason portalRuntimeService is: this
+ * suite bundles with `platform: "neutral"`, and the real module imports
+ * axios, whose node adapter pulls in `http`/`https`/`util` and fails to
+ * resolve. Nothing here calls it -- the MikroTik path this file exercises
+ * never enters the Omada branch -- but it has to link. */
+const NETWORK_INTEGRATION_SERVICE_STUB = `export const guestPortalIntegrationService = {
+  resolvePortalVenue: async () => undefined,
+  authorizePortal: async () => ({
+    authorized: false,
+    provider: null,
+    expiresAt: null,
+    redirectUrl: null,
+  }),
+};
+`;
 
 const stub = (name, contents) => {
   const file = join(work, name);
@@ -136,6 +152,10 @@ await build({
     "@/components/portal-runtime/PortalShell": stub("shell-stub.js", NOOP_COMPONENT_STUB),
     "@/components/portal-runtime/PortalGuestUi": stub("ui-stub.js", NOOP_COMPONENT_STUB),
     "@/services/portal-runtime.service": stub("service-stub.js", SERVICE_STUB),
+    "@/services/network-integration.service": stub(
+      "ni-service-stub.js",
+      NETWORK_INTEGRATION_SERVICE_STUB,
+    ),
     "@": SRC,
   },
 });

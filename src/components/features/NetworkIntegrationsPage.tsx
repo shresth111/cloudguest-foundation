@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Server,
   ShieldCheck,
+  Copy,
   Signal,
   Trash2,
   Users,
@@ -872,6 +873,8 @@ function IntegrationDetail({
               }
             />
           </div>
+
+          <PortalLinkPanel integration={integration} />
         </CardContent>
       </Card>
 
@@ -1013,6 +1016,248 @@ function IntegrationDetail({
           }}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * The Omada portal link, and whether it will actually let a guest on.
+ *
+ * ## Why this screen exists at all
+ *
+ * An Omada controller's captive portal redirects guests to a URL its
+ * operator types into the controller by hand. Nothing in this platform
+ * generates that configuration (unlike the MikroTik path, where the
+ * override page is written onto the device by the provisioning script), so
+ * this block is the ONLY way an operator can learn the URL for their venue.
+ * Without it the whole guest flow has no entry point.
+ *
+ * ## Two fields, not one string
+ *
+ * The controller takes the scheme and the host+path+query in SEPARATE
+ * inputs, and its own `serverUrl` validation pattern REJECTS a value that
+ * contains a scheme. Handing over one `https://…` string would produce the
+ * single most likely paste error, so the two values are rendered and copied
+ * separately, with the joined form offered only as something to open in a
+ * browser to check. Both come straight off the API -- the shape is decided
+ * once, server-side, in `validators.build_external_portal_url`, which is
+ * also where the pattern is checked against TP-Link's published regex.
+ *
+ * ## It is the same URL a MikroTik venue's router already serves
+ *
+ * Same `/portal` route, same three ids. The controller appends its own
+ * parameters to the configured query string with `&` (observed on hardware,
+ * 2026-09-11), so an Omada guest lands on exactly the captive portal a
+ * MikroTik guest lands on. There is no second entry point, and nothing
+ * about this page's URL is Omada-shaped except `netProvider`.
+ *
+ * ## The link is shown, and it is not a secret
+ *
+ * It sits in every guest's address bar at this venue within minutes of
+ * being pasted. Rendering it is the point. It is deliberately NOT treated
+ * like `hasCredentials` two fields up, which is the opposite kind of value
+ * and may never be shown.
+ *
+ * ## And there is no link at all when there could not be one
+ *
+ * The backend withholds both halves together whenever the integration has
+ * no mapped location or no fleet device -- there is no `locationId` or
+ * `routerId` to put in the URL, and `guest_sessions.router_id` is NOT NULL,
+ * so a guest arriving at a partial link would complete OTP and fail at
+ * session creation. Handing an operator something to paste that turns every
+ * guest away is exactly the "writes a row, changes nothing on a device"
+ * failure CONTRACT §11.5 names. `portalReadinessGaps` supplies the reason.
+ *
+ * `FLEET_DEVICE_MISSING` is the one an operator cannot fix themselves: a
+ * self-service integration legitimately has no fleet device, which makes
+ * it inventory-and-telemetry only until someone at Wyfy pairs it with one.
+ * That is an existing product boundary, and it was invisible until the
+ * guest flow made it decide whether anyone can sign in.
+ */
+const PORTAL_READINESS_GAP_COPY: Record<string, string> = {
+  credentials_missing: "no controller credentials have been saved yet",
+  location_not_mapped: "it is not mapped to one of your venues yet",
+  site_not_selected: "no Omada site has been selected yet",
+  fleet_device_missing:
+    "this controller has not been registered as a device on your account — contact support to finish it; you cannot complete this step yourself",
+};
+
+function CopyableValue({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+      <div className="mt-1 flex items-center gap-2">
+        <code className="min-w-0 flex-1 truncate rounded-md border border-border bg-background px-2 py-1.5 font-mono text-xs text-foreground">
+          {value}
+        </code>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            // Best-effort: `navigator.clipboard` is unavailable on an
+            // insecure origin and rejects when the document is not focused.
+            // The value is on screen and selectable either way, so a failed
+            // copy is an inconvenience rather than a dead end — and saying
+            // "Copied" when nothing was copied is the thing worth avoiding.
+            navigator.clipboard
+              ?.writeText(value)
+              .then(() => toast.success(`${label} copied`))
+              .catch(() =>
+                toast.error(
+                  `Could not copy — select the ${label.toLowerCase()} and copy it manually.`,
+                ),
+              );
+          }}
+        >
+          <Copy className="mr-1.5 h-3.5 w-3.5" />
+          Copy
+        </Button>
+      </div>
+      {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+function PortalLinkPanel({ integration }: { integration: NetworkIntegration }) {
+  // `?? []` even though the type says it is always an array. A backend that
+  // has not shipped the field yet would otherwise throw here, and this panel
+  // sits inside the integration detail card, so a throw white-screens the
+  // whole page over a value that is advisory.
+  const gaps = integration.portalReadinessGaps ?? [];
+  const scheme = integration.portalUrlScheme;
+  const hostAndQuery = integration.portalUrlHostAndQuery;
+
+  // The backend withholds the URL as a pair whenever the integration could
+  // not serve a guest, so the presence of a link IS the readiness check --
+  // there is no state where this renders a copyable URL beside a warning
+  // that it will not work. `gaps` only supplies the reason.
+  if (!scheme || !hostAndQuery) {
+    return (
+      <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4">
+        <div className="flex items-start gap-2">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-foreground">
+              Guests cannot sign in at this venue yet
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {gaps.length > 0
+                ? `There is no guest sign-in link to give the controller because ${gaps
+                    .map((g) => PORTAL_READINESS_GAP_COPY[g] ?? g)
+                    .join(", and ")}.`
+                : "No guest sign-in link is available for this integration yet. Contact support."}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // The host on its own, for the pre-authentication access entry below.
+  // Taken off the URL the server built rather than re-derived, so the host
+  // an operator is told to permit is by construction the host their guests
+  // are actually sent to. Those two drifting apart is a walled garden that
+  // lets nobody in.
+  const host = hostAndQuery.split("/")[0];
+
+  return (
+    <div className="mt-4 rounded-lg border border-border bg-muted/30 p-4">
+      <p className="text-sm font-medium text-foreground">Omada portal configuration</p>
+      <p className="mt-1 max-w-2xl text-xs text-muted-foreground">
+        Two things to set on the controller. Guests cannot sign in until <strong>both</strong> are
+        done, and skipping the second produces the failure that is hardest to spot: everything looks
+        configured and the sign-in page simply never loads.
+      </p>
+
+      {/* ---- Step 1 ---------------------------------------------------- */}
+      <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-foreground">
+        1. External Portal Server
+      </p>
+      <p className="mt-1 max-w-2xl text-xs text-muted-foreground">
+        Site View &rarr; Network Config &rarr; Authentication &rarr; Portal &rarr; your portal
+        &rarr; Authentication Type <strong>External Portal Server</strong> &rarr; Host Type{" "}
+        <strong>URL</strong>. These are two separate fields on that form.
+      </p>
+      <div className="mt-2 grid gap-3 sm:grid-cols-2">
+        <CopyableValue label="Scheme" value={scheme} />
+        <CopyableValue
+          label="URL"
+          value={hostAndQuery}
+          // The controller's own `serverUrl` pattern rejects a value
+          // containing a scheme, so this is the mistake worth pre-empting in
+          // the copy rather than leaving the operator to decode a validation
+          // error on a screen we cannot see.
+          hint={`Without ${scheme}:// — the controller rejects it if the scheme is included here.`}
+        />
+      </div>
+
+      {/* ---- Step 2 ----------------------------------------------------
+          Measured on real hardware, 2026-09-11, from an associated but
+          unauthorized client: DNS resolves, TCP 443 connects (the AP
+          accepts it in order to intercept), and then EVERY HTTPS request
+          times out — including to our own portal host. Omada does not
+          auto-permit the external portal server it is itself redirecting
+          to. So the chain is: AP's redirect works, the controller's 302
+          works, and the guest's browser then hangs for 20 seconds on a URL
+          that is completely correct. There is nothing in the controller's
+          UI that reports this, which is why it is step 2 and not a
+          footnote. With the entry applied the same request returns 200 in
+          ~80 ms. */}
+      <p className="mt-5 text-xs font-semibold uppercase tracking-wide text-foreground">
+        2. Pre-Authentication Access
+      </p>
+      <p className="mt-1 max-w-2xl text-xs text-muted-foreground">
+        Settings &rarr; Authentication &rarr; Portal &rarr; Access Control &rarr;{" "}
+        <strong>Pre-Authentication Access</strong>. Turn it on and add one entry of type{" "}
+        <strong>URL</strong> for the host below. Without it a guest&rsquo;s browser reaches the
+        sign-in page over HTTPS and the request simply times out — the redirect is correct and the
+        page never appears.
+      </p>
+      <div className="mt-2">
+        <CopyableValue label="Pre-authentication URL" value={host} />
+      </div>
+
+      <details className="mt-3">
+        <summary className="cursor-pointer text-xs text-muted-foreground">
+          Two more things worth knowing before you test it
+        </summary>
+        {/* Both observed on real hardware, 2026-09-11, and neither is in
+            TP-Link's documentation. Each one on its own produces a guest
+            who never reaches the portal, so they belong next to the fields
+            rather than in a runbook nobody opens. */}
+        <ul className="mt-2 list-disc space-y-1.5 pl-4 text-xs text-muted-foreground">
+          <li>
+            The guest&rsquo;s phone is sent to <strong>your controller</strong> first, not to us —
+            the access point answers with a redirect to the controller&rsquo;s own portal page on{" "}
+            <strong>port 8088</strong> (8843 with HTTPS Redirect enabled). Guest devices must be
+            able to reach the controller on that port, or the sign-in page never appears at all.
+          </li>
+          <li>
+            A URL entry permits the <strong>address</strong> the name resolves to, not the name.
+            Today that means the single entry above also covers the API the sign-in page calls,
+            because both names point at the same address — so one entry is enough. That is a fact
+            about today&rsquo;s DNS, not a rule: if those names are ever moved apart, this entry
+            stops being sufficient and the page will load and then hang instead. It also means the
+            entry permits anything else sharing that address.
+          </li>
+        </ul>
+      </details>
+
+      <details className="mt-2">
+        <summary className="cursor-pointer text-xs text-muted-foreground">
+          Full link, for opening in a browser to check it works
+        </summary>
+        <p className="mt-2 break-all font-mono text-xs text-muted-foreground">
+          {`${scheme}://${hostAndQuery}`}
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Do not paste this into the controller — it is the two fields above joined together, and
+          the controller will not accept it.
+        </p>
+      </details>
     </div>
   );
 }

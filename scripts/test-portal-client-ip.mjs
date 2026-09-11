@@ -227,8 +227,22 @@ check(
   "reading it off `window.location` instead would bypass the schema and the middleware",
 );
 check(
+  // `effectiveClientIp`, not `clientIp`, since the storage mirror landed:
+  // the URL's value still wins, and the mirror only fills a gap the URL
+  // left (see `loadPersistedOmadaContext` in PortalRuntimeContext). Both
+  // spellings are accepted so this asserts the WIRING -- that the captured
+  // address reaches the provider under its own name -- rather than pinning
+  // one variable name. The rule that actually matters is the next check.
   "portal.tsx passes it to PortalRuntimeProvider as its own prop",
-  /clientIp=\{clientIp\}/.test(portalRouteSrc),
+  /clientIp=\{(clientIp|effectiveClientIp)\}/.test(portalRouteSrc),
+);
+check(
+  "...and the URL still wins over the mirror",
+  !/clientIp = persistedOmada/.test(portalRouteSrc) &&
+    (!/effectiveClientIp/.test(portalRouteSrc) ||
+      /const effectiveClientIp = clientIp \?\? persistedOmada/.test(portalRouteSrc)),
+  "a mirror that could override a live redirect would send the controller this " +
+    "device's PREVIOUS address",
 );
 check(
   "...and does NOT feed it into deviceIp (the MikroTik value)",
@@ -237,8 +251,13 @@ check(
 
 const ctxSrc = readFileSync(join(ROOT, "src/context/PortalRuntimeContext.tsx"), "utf8");
 check(
+  // At least two: one on `PortalRuntimeState`, one on the provider's
+  // `Props`. It was exactly two until the Omada storage mirror added a
+  // third on `PersistedOmadaContext` -- which is the same value being
+  // carried through a third channel, not a fourth concept, so the floor is
+  // asserted rather than the exact count.
   "PortalRuntimeContext declares clientIp on its props and its state",
-  (ctxSrc.match(/^\s{2}clientIp\?: string;$/gm) ?? []).length === 2,
+  (ctxSrc.match(/^\s{2}clientIp\?: string;$/gm) ?? []).length >= 2,
 );
 check(
   "...and puts it on the context value",

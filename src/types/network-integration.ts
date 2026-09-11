@@ -209,8 +209,68 @@ export interface NetworkIntegration {
    * thing the API will ever say about it and the only thing the UI needs:
    * "on file / not on file" plus a Replace action. */
   hasCredentials: boolean;
+  /** The External Portal Server URL a venue operator pastes into their
+   * Omada controller, split the way TP-Link's own form splits it: a
+   * `Scheme` field and a `URL` field.
+   *
+   * IT IS THE MIKROTIK URL. Same `/portal` route, same three ids, same
+   * page -- because the controller *appends* its own parameters to a
+   * configured query string with `&` (observed on real hardware
+   * 2026-09-11, not inferred from the documentation's template). So an
+   * Omada guest sees exactly the captive portal a MikroTik guest sees,
+   * and there is no second entry point to keep in step with the first.
+   *
+   * SHOWN IN FULL, on purpose, and NOT the same category as
+   * `hasCredentials` above. A credential is a secret this platform holds
+   * on a customer's behalf and may never render; this is a URL that will
+   * be in every one of that venue's guests' address bars within minutes of
+   * being pasted, and the dashboard is the only place its operator can
+   * learn it -- unlike MikroTik, where this platform writes the equivalent
+   * page onto the device itself.
+   *
+   * TWO FIELDS BECAUSE THE CONTROLLER HAS TWO. `serverUrl`'s own
+   * validation pattern contains no scheme, so an operator who pastes a
+   * whole `https://...` string gets a validation error. Both are `null`
+   * together, and only when the integration cannot serve a guest at all --
+   * see `portalReadinessGaps`. */
+  portalUrlScheme: string | null;
+  portalUrlHostAndQuery: string | null;
+  /** Everything standing between this integration and its first authorized
+   * guest, from the backend's own `portal_readiness_gaps` -- the same
+   * predicate `GET /portal/resolve/{token}` refuses on.
+   *
+   * Empty means a guest can sign in. Non-empty means the resolve endpoint
+   * would answer every guest with a 404, so the portal-configuration block
+   * names the gap instead of handing over a link that will turn everyone
+   * away. Machine-readable on purpose: the dashboard has to ACT on this,
+   * and parsing it out of `lastErrorMessage`'s English sentence is the
+   * coupling `NetworkIntegrationErrorCode` exists to avoid.
+   *
+   * `fleet_device_missing` is the one an operator cannot fix themselves --
+   * a self-service integration legitimately has no fleet device, which
+   * makes it inventory-and-telemetry only until someone pairs it with one.
+   * An existing product boundary, invisible until the guest flow made it
+   * decide whether anybody can sign in. */
+  portalReadinessGaps: string[];
   createdAt: string;
   updatedAt: string;
+}
+
+/** What `POST /network-integrations/portal/authorize` answered.
+ *
+ * `authorized: false` is a real, non-exceptional outcome: the call reached
+ * the controller and the controller declined. That is different from the
+ * call failing, and the portal must not report it as success -- the
+ * MikroTik half of this flow has its own postmortem about a page that said
+ * "you're connected" on evidence it did not have. */
+export interface PortalAuthorizeResult {
+  authorized: boolean;
+  provider: string | null;
+  expiresAt: string | null;
+  /** Echoed back from the request. The controller chose it, this platform
+   * never fetches it, and it is handed to the guest's own browser to
+   * navigate to. */
+  redirectUrl: string | null;
 }
 
 /** A site as the controller itself reports it -- live read, not a stored

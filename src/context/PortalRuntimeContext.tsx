@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
+import type { OmadaRedirectCapture } from "@/lib/portal-authorize-body";
 import type {
   RuntimeAuthMethod,
   RuntimeLanguage,
@@ -256,6 +257,94 @@ function persistRuntimeIds(ids: PersistedRuntimeIds) {
   safeCookieSet(RUNTIME_IDS_STORAGE_KEY, raw, RUNTIME_IDS_COOKIE_MAX_AGE_SECONDS);
 }
 
+/* ------------------------------------------------------------------ *
+ * The Omada mirror.
+ * ------------------------------------------------------------------ */
+
+const OMADA_CTX_STORAGE_KEY = "cloudguest_portal_omada_ctx";
+
+/**
+ * WHY THE URL IS NOT ENOUGH, EVEN WITH `retainSearchParams`.
+ *
+ * `retainSearchParams` is a *router* middleware, so it covers client-side
+ * navigations and nothing else. The portal performs three full document
+ * loads that leave the router entirely -- `portal.index.tsx`'s
+ * `window.location.assign(buildSessionUrl(...))`, `portal.success.tsx`'s
+ * hotspot form POST, and `PortalErrorScreen`'s plain anchor -- and an OS
+ * captive-portal re-probe can reopen the portal on a bare URL in a fresh
+ * tab at any moment. Each of those is a place the controller's own
+ * parameters can fall off, and they are not recoverable: only the
+ * controller knows them, and it has already spoken.
+ *
+ * What that costs, concretely: the authorize call names the device by
+ * `client_mac` and the venue by `site`. Lose either and the Omada venue's
+ * guest completes OTP, sees "you're connected", and has no internet -- the
+ * exact shape of the 7 Sep incident, Omada-flavoured. So the same
+ * two-channel mirror the runtime IDs already use is applied to the
+ * controller's context.
+ *
+ * **The URL always wins.** This is consulted only for keys the URL does not
+ * have. A mirror that could override a live redirect would let a guest's
+ * PREVIOUS association (different AP, different radio, possibly a different
+ * `clientIp` after a DHCP change) be sent to the controller as though it
+ * were this one -- which is the "a guess that happens to name a real device
+ * on that LAN" failure `src/lib/portal-authorize-body.ts` refuses by name.
+ *
+ * Not extended to `session`/`guestIdentifier`, for the reason
+ * `safeCookieSet` already gives: those identify a PERSON and have their own
+ * live-lookup recovery. This identifies one association of one device to
+ * one AP.
+ */
+interface PersistedOmadaContext {
+  netProvider: string;
+  clientIp?: string;
+  redirect: OmadaRedirectCapture;
+}
+
+function parsePersistedOmadaContext(raw: string | null): PersistedOmadaContext | undefined {
+  if (!raw) return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+  const value = parsed as Partial<PersistedOmadaContext> | null;
+  // `netProvider` is the load-bearing half: without it `/portal/success`
+  // does not know which gate to open, and a mirror that restored nine
+  // controller parameters but not which vendor they came from would leave
+  // the success page firing a RouterOS form POST with Omada's data. All or
+  // nothing, same rule as `parsePersistedRuntimeIds`.
+  if (!value || typeof value.netProvider !== "string" || !value.netProvider) {
+    return undefined;
+  }
+  const redirect =
+    value.redirect && typeof value.redirect === "object"
+      ? (value.redirect as OmadaRedirectCapture)
+      : {};
+  return {
+    netProvider: value.netProvider,
+    clientIp: typeof value.clientIp === "string" ? value.clientIp : undefined,
+    redirect,
+  };
+}
+
+function loadPersistedOmadaContext(): PersistedOmadaContext | undefined {
+  return (
+    parsePersistedOmadaContext(safeGet(OMADA_CTX_STORAGE_KEY)) ??
+    parsePersistedOmadaContext(safeCookieGet(OMADA_CTX_STORAGE_KEY))
+  );
+}
+
+function persistOmadaContext(value: PersistedOmadaContext) {
+  const raw = JSON.stringify(value);
+  // Both channels, unconditionally, for the reason `persistRuntimeIds`
+  // gives: neither can report whether the other worked, and on the browser
+  // that matters most (iOS's Captive Network Assistant) exactly one does.
+  safeSet(OMADA_CTX_STORAGE_KEY, raw);
+  safeCookieSet(OMADA_CTX_STORAGE_KEY, raw, RUNTIME_IDS_COOKIE_MAX_AGE_SECONDS);
+}
+
 function loadPersistedSession(): RuntimeSession | undefined {
   const raw = safeGet(SESSION_STORAGE_KEY);
   if (!raw) return undefined;
@@ -385,6 +474,51 @@ interface PortalRuntimeState {
    * inferred from the request's source address -- see
    * `portalSearchShape.clientIp` in src/lib/portal-search.ts. */
   clientIp?: string;
+  /** The rest of Omada's portal redirect (TP-Link doc 132060), captured
+   * verbatim: `clientMac`, `site`, `apMac`, `ssidName`, `radioId`,
+   * `gatewayMac`, `vid`, `t`, `redirectUrl`. That doc requires the
+   * External Portal Server to "preserve and return these parameters when
+   * interacting with the Omada Controller", so they are carried from the
+   * redirect that created this runtime all the way to the authorize call
+   * (`POST /api/v1/network-integrations/portal/authorize`), which spells
+   * them `client_mac`/`ssid_name`/`radio_id`/... -- see
+   * `OMADA_REDIRECT_FIELD_MAP` in src/lib/portal-authorize-body.ts, the
+   * one place that mapping is written down.
+   *
+   * ONE OBJECT, where `clientIp` above is a flat field. Not drift: doc
+   * 132060's timestamp parameter is named `t`, and `PortalRuntimeState`
+   * already has a `t` -- the i18n `translate` binding every portal screen
+   * calls. A flat Omada `t` would either shadow it or have to be renamed
+   * into something no longer traceable to the doc. Grouping keeps every
+   * wire name verbatim, which is what makes the field map above a
+   * one-to-one table instead of a set of judgement calls.
+   *
+   * Undefined on every MikroTik venue, and individually undefined for
+   * whichever shape a given redirect is not (an EAP redirect carries no
+   * `gatewayMac`/`vid`, a gateway redirect no `apMac`/`ssidName`/
+   * `radioId`). `string | number` per field because TanStack Router's
+   * search parser JSON.parses raw values, so the numeric ones arrive as
+   * numbers -- see `omadaRedirectParam` in src/lib/portal-search.ts.
+   *
+   * CAPTURED, NEVER DERIVED, exactly as `clientIp` is. `ssidName` is not
+   * the integration's configured SSID, `site` is not the integration's
+   * stored site, and `t` is not `Date.now()`. */
+  omadaRedirect?: OmadaRedirectCapture;
+  /** WHICH VENDOR'S GATE STANDS BETWEEN THIS GUEST AND THE INTERNET.
+   *
+   * `"omada"` when it was in the External Portal Server URL the venue's
+   * operator pasted into their controller -- put there by the dashboard,
+   * from the integration row, which is the only place that knows the answer
+   * for certain. Undefined at every MikroTik venue.
+   *
+   * `/portal/success` branches on it, and the branch is mutually
+   * exclusive: `"omada"` means call
+   * `POST /network-integrations/portal/authorize`, anything else means the
+   * existing RouterOS `link-login-only` form POST. Inferring it from which
+   * parameters happen to be present would put that decision in whatever
+   * survived the trip, on the one screen where being wrong means the guest
+   * completes sign-in, is told they are connected, and has no internet. */
+  netProvider?: string;
   destinationUrl?: string;
   /** RouterOS's `$(link-login-only)` substitution -- the URL this guest's
    * browser must POST username/password to for the NAS itself to actually
@@ -525,6 +659,14 @@ interface Props {
   /** Omada's `clientIp` from the controller's portal redirect -- see
    * `PortalRuntimeState.clientIp`'s own docstring. */
   clientIp?: string;
+  /** Omada's remaining redirect parameters from the controller's portal
+   * redirect -- see `PortalRuntimeState.omadaRedirect`'s own docstring,
+   * including why these nine are one object while `clientIp` is a flat
+   * field. */
+  omadaRedirect?: OmadaRedirectCapture;
+  /** Which vendor's gate this venue has -- see
+   * `PortalRuntimeState.netProvider`. */
+  netProvider?: string;
   destinationUrl?: string;
   hotspotLoginUrl?: string;
   children: ReactNode;
@@ -552,6 +694,8 @@ export function PortalRuntimeProvider({
   deviceMac,
   deviceIp,
   clientIp,
+  omadaRedirect,
+  netProvider,
   destinationUrl,
   hotspotLoginUrl,
   previewMode = false,
@@ -809,6 +953,8 @@ export function PortalRuntimeProvider({
       deviceMac,
       deviceIp,
       clientIp,
+      omadaRedirect,
+      netProvider,
       destinationUrl,
       hotspotLoginUrl,
       previewMode,
@@ -847,6 +993,8 @@ export function PortalRuntimeProvider({
       deviceMac,
       deviceIp,
       clientIp,
+      omadaRedirect,
+      netProvider,
       destinationUrl,
       hotspotLoginUrl,
       previewMode,
@@ -876,11 +1024,13 @@ export function PortalRuntimeProvider({
 
 export {
   loadPersistedRuntimeIds,
+  loadPersistedOmadaContext,
+  persistOmadaContext,
   persistRuntimeIds,
   loadPersistedHotspotSubmit,
   persistHotspotSubmit,
 };
-export type { PersistedRuntimeIds, PersistedHotspotSubmit };
+export type { PersistedRuntimeIds, PersistedHotspotSubmit, PersistedOmadaContext };
 
 export function usePortalRuntime() {
   const ctx = useContext(Ctx);

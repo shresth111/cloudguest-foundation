@@ -113,12 +113,29 @@ jobs:
       # deciding to let it. Lower the number as warnings get fixed; raising
       # it should require saying why in the PR.
       #
+      # Raised 56 -> 58 here, and the reason is owed. This branch adds two
+      # exports to `PortalRuntimeContext.tsx`
+      # (`loadPersistedOmadaContext` / `persistOmadaContext`), so
+      # `react-refresh/only-export-components` fires twice more on a file
+      # that already trips it nine times on main. It is the same warning of
+      # the same kind, about Fast Refresh ergonomics, not correctness.
+      #
+      # The rule's own fix -- move them to a non-component module -- is the
+      # right one and is deliberately NOT done here: those two functions
+      # close over `safeGet`/`safeSet`/`safeCookieGet`/`safeCookieSet` and
+      # two storage-key constants that are module-private to that file, so
+      # extracting them means moving the storage layer too. That is a real
+      # refactor of a file the guest portal depends on, and it does not
+      # belong in the change that first needed it. Doing it would take all
+      # eleven warnings off this file at once; whoever does it should lower
+      # this number by eleven, not by two.
+      #
       # `.claude` is ignored in eslint.config.js -- without that ignore
       # eslint walked 45,184 files of stale agent worktrees. If this step
       # ever starts taking minutes instead of seconds, that ignore has
       # been lost.
       - name: eslint
-        run: bunx eslint . --max-warnings 56
+        run: bunx eslint . --max-warnings 58
 
   build:
     name: Production build
@@ -308,6 +325,34 @@ jobs:
             "portal-client-ip" 40 \
             "portal clientIp capture: all checks passed" \
             bun run test:portal-client-ip
+
+      # The other nine parameters on that same redirect -- clientMac,
+      # site, apMac, ssidName, radioId, gatewayMac, vid, t, redirectUrl.
+      # Doc 132060: "Your External Portal Server must preserve and return
+      # these parameters when interacting with the Omada Controller."
+      # Preservation is the whole job, and all three ways it fails are
+      # invisible to tsc, eslint and the build:
+      #
+      #   1. a param dropped by a `<Link>` -- the incident the retention
+      #      suite above exists for;
+      #   2. a param REJECTED by our own schema -- TanStack's search parser
+      #      JSON.parses raw values, so radioId/vid/t arrive as numbers and
+      #      a z.string() would throw a SearchParamError that costs the
+      #      guest all nine, not just the numeric three;
+      #   3. a param posted where the backend does not read it -- nested or
+      #      camelCased, which pydantic's extra="ignore" discards without a
+      #      word, the way this integration's `credentials: {...}` bug
+      #      already returned 201 with nothing stored.
+      #
+      # So this suite drives the real router, the real schema and the real
+      # body builder, and asserts the names PortalAuthorizeRequest actually
+      # parses. Every part of it was verified to FAIL when reverted.
+      - name: portal Omada redirect params
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "portal-omada-params" 115 \
+            "portal Omada params: all checks passed" \
+            bun run test:portal-omada-params
 
       # Which organization every request is about. A founder holding
       # `Super Admin` at GLOBAL scope opened a report about his own venue on
@@ -1006,6 +1051,30 @@ jobs:
           ./scripts/ci-gated-test.sh \
             "router action gating" 40 "all router action gating checks passed" \
             bun run test:router-action-gating
+      # --- The fleet Status cell never prints a database enum -------------
+      #
+      # `master.routers.tsx` maps a derived `RouterLivenessState` to a badge
+      # through `LIVENESS_BADGE`, which was typed `Record<string, ...>` and
+      # was missing entries, and every miss fell through to a
+      # `?? { label: r.status }` fallback that prints the raw backend value.
+      # So an enrolled MikroTik whose heartbeat has never arrived -- status
+      # `provisioning`, the most common field failure on this fleet and the
+      # exact case `location-liveness.ts` was written for -- rendered the
+      # literal word `provisioning` in the Status cell.
+      #
+      # It shipped twice. #253 built the map; #258 hit the same fallback on
+      # controllers, added the one key it needed (`not-applicable`) and left
+      # the hole open, so `never-checked-in` stayed broken on the vendor that
+      # actually has customers.
+      #
+      # The map is now keyed by the union, so tsc is the real guard and this
+      # suite is the backstop: it derives the state list FROM the type rather
+      # than hard-coding it, so it cannot go stale the way the map did.
+      - name: every liveness state has a badge, and none leaks an enum
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "router liveness badge" 60 "all router liveness badge checks passed" \
+            bun run test:liveness-badge
 
       # --- A venue's floors are the venue's, not a constant ---------------
       #
