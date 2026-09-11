@@ -1454,3 +1454,114 @@ jobs:
             "omada-disconnect-render" 31 \
             "omada disconnect render: all checks passed" \
             bun run test:omada-disconnect-render
+
+      # --- The seven Omada/controller suites nothing was running -----------
+      #
+      # Every suite below was written on 2026-09-11 alongside the feature it
+      # covers, added to `package.json`, and gated NOWHERE -- not here, not in
+      # the Jenkinsfile. That is the same "nothing runs it" state that let
+      # `test:portal-cna` rot on `origin/main` and that the job above this one
+      # exists because of, reopened on the day's largest piece of work.
+      #
+      # It was not theoretical for twelve hours. `controller-fleet-honesty`
+      # shipped GREEN on #258's branch and was RED on `main` from the moment
+      # #262 landed: #258's fixture asserts a MikroTik row reads "Never
+      # checked in", and #262 -- correctly -- moved those words to the state
+      # that actually names them, leaving `setup-not-started` reading "Setup
+      # not started". Two PRs, both green in isolation, merged minutes apart,
+      # and the only thing that could have caught the combination was a suite
+      # no job invoked. The assertion is corrected in this commit; the gate is
+      # so that the next one is not found by reading.
+      #
+      # Floors are the counts observed green on 2026-09-11, at the merge of
+      # #206/#210/#211/#212/#214/#218/#254/#256/#257/#258/#262/#263.
+
+      # The guest half of the Omada flow: an Omada venue's portal has to call
+      # authorize at all. Before #256 it reached a dead end -- the screen
+      # rendered, nothing was ever sent to the controller, and the guest sat
+      # on a captive page with no internet and no error.
+      #
+      # Floor 72, observed green at 72.
+      - name: omada guest bridge
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "omada-guest-bridge" 72 \
+            "omada guest bridge: all checks passed" \
+            bun run test:omada-guest-bridge
+
+      # The shape of `/api/v1/network-integrations` as this frontend believes
+      # it. Most of that contract is INFERRED rather than pinned by
+      # CONTRACT.md (the type definitions say so), which makes a drift here
+      # silent in exactly the way the `credentials: {...}` bug was: pydantic's
+      # `extra="ignore"` returned 201 and stored nothing, and the test read
+      # the same wrong place and passed.
+      #
+      # Floor 126, observed green at 126.
+      - name: network integration contract
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "network-integration-contract" 126 \
+            "all network-integration contract checks passed" \
+            bun run test:network-integration
+
+      # The same surface, rendered -- including #258's rule that a
+      # half-configured integration is dead and says so rather than showing a
+      # working-looking page.
+      #
+      # Floor 51, observed green at 51.
+      - name: network integration render
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "network-integration-render" 51 \
+            "all network-integration render checks passed" \
+            bun run test:network-integration-render
+
+      # THE ONE THAT WAS ALREADY RED. A controller is not a router that has
+      # stopped answering, and every cell that describes it as one -- a raw
+      # `pending_provisioning` enum in the Status column, "Never heard from
+      # this router" about a check nothing here runs, an em-dash RouterOS
+      # version for a device that does not run RouterOS -- is a measurement
+      # claim nobody took. The MikroTik half is asserted positively in the
+      # same suite, so the fix cannot be "stop saying anything".
+      #
+      # Floor 29, observed green at 29.
+      - name: controller fleet honesty
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "controller-fleet-honesty" 29 \
+            "all checks passed" \
+            bun run test:controller-fleet-honesty
+
+      # The drawer behind those rows, which had its own copy of the same
+      # wording and its own way of getting it wrong.
+      #
+      # Floor 14, observed green at 14.
+      - name: controller fleet drawer
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "controller-fleet-drawer" 14 \
+            "all checks passed" \
+            bun run test:controller-fleet-drawer
+
+      # What a venue running on a controller is offered on its own network
+      # screens, and what it is not: the RouterOS script generator, the
+      # firewall editor and the rest are MikroTik-shaped and would fail
+      # silently against an Omada site.
+      #
+      # Floor 41, observed green at 41.
+      - name: controller venue network screens
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "controller-venue-screens" 41 \
+            "all checks passed" \
+            bun run test:controller-venue-screens
+
+      # And the nav that leads to them.
+      #
+      # Floor 21, observed green at 21.
+      - name: controller venue nav
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "controller-venue-nav" 21 \
+            "all checks passed" \
+            bun run test:controller-venue-nav

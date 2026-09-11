@@ -371,10 +371,29 @@ check(
 );
 
 // ---- the MikroTik path, asserted positively ----
+// `Setup not started`, not `Never checked in`, and the difference is the
+// point of the check rather than an accident of wording. This suite landed
+// with #258 on 2026-09-11, when `setup-not-started` still wore the words
+// "Never checked in". #262 landed hours later and separated the two
+// never-been-up states -- `setup-not-started` (the script was never run; go
+// run it) from `never-checked-in` (enrolment worked, the heartbeat never
+// followed; re-run that one block) -- because collapsing them costs an
+// operator the one thing the badge is for. `BASE_ROUTER` is
+// `pending_provisioning` with a null `lastSeenAt`, which is the first of the
+// two, so this is the label the MikroTik row must now carry.
+//
+// Both PRs were green on their own branches and this assertion was red the
+// moment they met, which nothing ran: see the CI job this suite is now gated
+// by. The product is right and this string was stale.
 check(
-  "fleet-mikrotik-still-says-never-checked-in",
-  /Never checked in/.test(fleetMikrotik),
+  "fleet-mikrotik-still-says-setup-not-started",
+  /Setup not started/.test(fleetMikrotik),
   "a MikroTik that never called home must still be reported as such",
+);
+check(
+  "fleet-mikrotik-not-labelled-never-checked-in",
+  !/Never checked in/.test(fleetMikrotik),
+  "that wording belongs to the enrolled-but-silent state, which this row is not in",
 );
 check(
   "fleet-mikrotik-still-says-never-heard-from",
