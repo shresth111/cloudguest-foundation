@@ -55,7 +55,7 @@
 import type { NetworkIntegration } from "@/types/network-integration";
 
 /** What is missing. One per thing an operator can go and do. */
-export type IntegrationGapKey = "credentials" | "venue" | "site" | "guestNetwork";
+export type IntegrationGapKey = "credentials" | "guestOperator" | "venue" | "site" | "guestNetwork";
 
 export interface IntegrationGap {
   key: IntegrationGapKey;
@@ -82,7 +82,9 @@ export type IntegrationSetupInput = Pick<
   | "guestSsidId"
   | "guestSsidName"
 > &
-  Partial<Pick<NetworkIntegration, "name" | "locationName" | "organizationName">>;
+  Partial<
+    Pick<NetworkIntegration, "name" | "locationName" | "organizationName" | "portalReadinessGaps">
+  >;
 
 export interface IntegrationSetupState {
   /**
@@ -113,7 +115,19 @@ export interface IntegrationSetupState {
   nextStep: string | null;
 }
 
-const GAP_ORDER: IntegrationGapKey[] = ["credentials", "venue", "site", "guestNetwork"];
+const GAP_ORDER: IntegrationGapKey[] = [
+  "credentials",
+  "guestOperator",
+  "venue",
+  "site",
+  "guestNetwork",
+];
+
+/** The gaps whose fix is Replace credentials rather than the setup wizard.
+ * The wizard resumes at the site step and cannot re-ask for a credential, so
+ * sending someone there for one of these would show them filled-in steps and
+ * change nothing. */
+export const CREDENTIAL_GAP_KEYS: readonly IntegrationGapKey[] = ["credentials", "guestOperator"];
 
 /**
  * The consequence sentence. Deliberately concrete about what a guest
@@ -135,6 +149,23 @@ function gapsFor(i: IntegrationSetupInput): IntegrationGap[] {
       detail:
         "No credentials are stored for this controller, so nothing here can sign in to it. " +
         "Add them with Replace credentials.",
+    });
+  }
+
+  // Read from the backend's own `portal_readiness_gaps`, not guessed from
+  // `authMode`: whether the stored credential set holds an operator login is
+  // something only the server can see (the credentials are never sent back),
+  // and the server decides it from the same place the authorise call does.
+  // Optional on the input, so a surface that does not carry the field
+  // reports nothing rather than inventing a gap.
+  if (i.hasCredentials && (i.portalReadinessGaps ?? []).includes("guest_operator_missing")) {
+    gaps.push({
+      key: "guestOperator",
+      label: "Hotspot operator account",
+      detail:
+        "This controller is connected with an Open API app only. The controller lets guests " +
+        "online through its hotspot operator account, so no guest gets on until one is added. " +
+        "Add it with Replace credentials.",
     });
   }
 
@@ -219,10 +250,9 @@ export function deriveIntegrationSetup(i: IntegrationSetupInput): IntegrationSet
     summary:
       `${who}${where} was connected but never finished: ${listLabels(gaps)} ` +
       `${gaps.length === 1 ? "is" : "are"} still missing. ${INTEGRATION_DEAD_CONSEQUENCE}`,
-    nextStep:
-      gaps.length === 1 && gaps[0].key === "credentials"
-        ? "Use Replace credentials on this integration."
-        : "Open this integration and use Finish setup.",
+    nextStep: gaps.every((g) => CREDENTIAL_GAP_KEYS.includes(g.key))
+      ? "Use Replace credentials on this integration."
+      : "Open this integration and use Finish setup.",
   };
 }
 

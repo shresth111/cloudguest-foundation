@@ -4,6 +4,7 @@ import type { PortalAuthorizeBody } from "@/lib/portal-authorize-body";
 import { resolveOrganizationId as sharedResolveOrganizationId } from "./organization-id";
 import type {
   ControllerAuthMode,
+  ControllerTlsMode,
   CreateNetworkIntegrationPayload,
   NetworkIntegration,
   NetworkIntegrationClient,
@@ -122,6 +123,8 @@ interface BackendNetworkIntegration {
   is_enabled: boolean;
   base_url: string;
   auth_mode: string;
+  tls_mode?: string | null;
+  tls_pinned_sha256?: string | null;
   controller_id: string | null;
   controller_version: string | null;
   external_site_id: string | null;
@@ -239,6 +242,12 @@ interface BackendConnectionTest {
   supports_openapi?: boolean | null;
   error_code?: string | null;
   message?: string | null;
+  tls_fingerprint_sha256?: string | null;
+  tls_chain_trusted?: boolean | null;
+  tls_matches_pin?: boolean | null;
+  tls_certificate_subject?: string | null;
+  tls_certificate_issuer?: string | null;
+  tls_certificate_expires_at?: string | null;
 }
 
 /** INFERRED, same caveat: this reads correctly whether `/{id}/status`
@@ -291,6 +300,10 @@ function toIntegration(i: BackendNetworkIntegration): NetworkIntegration {
     isEnabled: i.is_enabled,
     baseUrl: i.base_url,
     authMode: i.auth_mode as ControllerAuthMode,
+    // `strict` when absent: it is the column default, and an older backend
+    // that does not send the field has made no other decision.
+    tlsMode: (i.tls_mode as ControllerTlsMode | null | undefined) ?? "strict",
+    tlsPinnedSha256: i.tls_pinned_sha256 ?? null,
     controllerId: i.controller_id,
     controllerVersion: i.controller_version,
     externalSiteId: i.external_site_id,
@@ -403,6 +416,12 @@ function toConnectionTest(t: BackendConnectionTest): NetworkIntegrationConnectio
     supportsOpenApi: t.supports_openapi ?? null,
     errorCode: t.error_code ?? null,
     message: t.message ?? null,
+    tlsFingerprintSha256: t.tls_fingerprint_sha256 ?? null,
+    tlsChainTrusted: t.tls_chain_trusted ?? null,
+    tlsMatchesPin: t.tls_matches_pin ?? null,
+    tlsCertificateSubject: t.tls_certificate_subject ?? null,
+    tlsCertificateIssuer: t.tls_certificate_issuer ?? null,
+    tlsCertificateExpiresAt: t.tls_certificate_expires_at ?? null,
   };
 }
 
@@ -494,18 +513,25 @@ function unwrapPage<T>(payload: unknown, key: string): BackendPage<T> {
 }
 
 /**
- * Sends only the credential pair the selected auth mode actually uses.
+ * Sends only the credentials the selected auth mode actually uses.
  *
- * Not tidiness. The wizard keeps a draft of both pairs so that flipping the
- * auth-mode radio does not wipe what the user already typed — which means
- * that without this filter, choosing `openapi` after having typed an
- * operator password would POST that password to the backend, where it would
- * be encrypted and stored as part of a credential blob nothing ever uses.
- * A secret that is transmitted and retained for no reason is a secret that
- * can leak for no reason.
+ * - legacy  -> the hotspot operator pair, and never an Open API app pair.
+ * - openapi -> the app pair AND the operator pair.
  *
- * Empty strings are dropped too, so a rotation that only changes the secret
- * does not blank the client id.
+ * The second line used to strip the operator pair, on the theory that an
+ * Open API integration never used it. That theory was the bug: the
+ * controller authorises guests only through its operator login, in either
+ * mode, so an Open API integration stored without it could never let anybody
+ * online. The Open API form now asks for the operator account on purpose,
+ * and it is sent.
+ *
+ * What is still stripped is the pair a mode genuinely never reads: an app
+ * client secret typed into the draft and then abandoned by switching to
+ * legacy would otherwise be encrypted and kept for no reason, and a secret
+ * retained for no reason can leak for no reason.
+ *
+ * Empty strings are dropped too, so an absent field is absent rather than
+ * blank.
  */
 function credentialsForMode(
   authMode: ControllerAuthMode,
@@ -518,12 +544,28 @@ function credentialsForMode(
     const clientSecret = keep(credentials.clientSecret);
     if (clientId) out.client_id = clientId;
     if (clientSecret) out.client_secret = clientSecret;
-  } else {
-    const username = keep(credentials.username);
-    const password = keep(credentials.password);
-    if (username) out.username = username;
-    if (password) out.password = password;
   }
+  const username = keep(credentials.username);
+  const password = keep(credentials.password);
+  if (username) out.username = username;
+  if (password) out.password = password;
+  return out;
+}
+
+/** Certificate trust and the Omada ID, as the backend spells them. Keys are
+ * omitted rather than sent as `null` when the caller did not set them, so a
+ * create keeps the backend's `strict` default and a PATCH leaves both alone. */
+function trustFields(payload: {
+  controllerId?: string | null;
+  tlsMode?: ControllerTlsMode;
+  tlsPinnedSha256?: string | null;
+}): Record<string, string> {
+  const out: Record<string, string> = {};
+  const controllerId = payload.controllerId?.trim();
+  if (controllerId) out.controller_id = controllerId;
+  if (payload.tlsMode) out.tls_mode = payload.tlsMode;
+  const pin = payload.tlsPinnedSha256?.trim();
+  if (pin) out.tls_pinned_sha256 = pin;
   return out;
 }
 
@@ -576,6 +618,7 @@ export const networkIntegrationService = {
         // UNCONFIGURED, and the venue finds out when Test Connection cannot
         // authenticate. Only the selected mode's pair is included.
         ...credentialsForMode(payload.authMode, payload.credentials),
+        ...trustFields(payload),
         location_id: payload.locationId ?? null,
         external_site_id: payload.externalSiteId ?? null,
         external_site_name: payload.externalSiteName ?? null,
@@ -607,7 +650,28 @@ export const networkIntegrationService = {
         guest_ssid_name: payload.guestSsidName,
         session_duration_seconds: payload.sessionDurationSeconds,
         sync_interval_seconds: payload.syncIntervalSeconds,
+        ...trustFields(payload),
       },
+      { headers },
+    );
+    return toIntegration(data);
+  },
+
+  /**
+   * Register this controller as its venue's fleet device.
+   *
+   * The repair for an integration created from this page before the backend
+   * did that on its own: it shows `fleet_device_missing` and has no portal
+   * link, because every guest session needs a device to belong to.
+   * Idempotent -- a controller that is already registered comes back
+   * unchanged -- and refused with `NETWORK_INTEGRATION_LOCATION_REQUIRED`
+   * when the integration is not mapped to a venue yet.
+   */
+  async ensureFleetDevice(id: string): Promise<NetworkIntegration> {
+    const headers = await orgHeaders();
+    const { data } = await api.post<BackendNetworkIntegration>(
+      `${BASE}/${id}/fleet-device`,
+      undefined,
       { headers },
     );
     return toIntegration(data);
@@ -643,6 +707,9 @@ export const networkIntegrationService = {
         // Top-level, for the same reason as `create` above --
         // `TestConnectionRequest` extends the same `_CredentialFields`.
         ...credentialsForMode(payload.authMode, payload.credentials),
+        // A self-signed controller cannot pass a strict probe, so the draft
+        // test has to be able to carry the trust decision it is testing.
+        ...trustFields(payload),
       },
       { headers, timeout: 60_000 },
     );

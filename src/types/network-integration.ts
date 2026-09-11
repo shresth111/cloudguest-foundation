@@ -70,8 +70,13 @@ export const CONTROLLER_AUTH_MODE_LABEL: Record<ControllerAuthMode, string> = {
  * and telemetry need Open API.
  */
 export const CONTROLLER_AUTH_MODE_SUMMARY: Record<ControllerAuthMode, string> = {
+  // It does NOT say guest sign-in is enforced by the app. It used to, and it
+  // was false: the controller authorises guests only through a hotspot
+  // operator login, in either mode, so an Open API app on its own lists
+  // everything and lets nobody online. The operator account is collected
+  // alongside it, and this sentence says why.
   openapi:
-    "Everything: guest sign-in is enforced, and we can also list your sites, access points and connected clients. Needs Omada Controller 5.13 or newer.",
+    "We can list your sites, access points and connected clients, and — together with a hotspot operator account, which the controller uses to let guests online — enforce guest sign-in. Needs Omada Controller 5.13 or newer.",
   legacy:
     "Guest sign-in only — fully supported, and this is what the operator account exists for. We cannot read your sites, access points or connected clients with it, so those screens stay empty and the site and network names have to be typed in by hand. Works on Omada Controller 5.0.15 and newer.",
 };
@@ -91,6 +96,79 @@ export const CONTROLLER_AUTH_MODE_SUMMARY: Record<ControllerAuthMode, string> = 
  */
 export function authModeSupportsInventory(mode: ControllerAuthMode): boolean {
   return mode === "openapi";
+}
+
+/**
+ * Why an Open API integration also asks for the hotspot operator account.
+ *
+ * Shown next to the operator fields in the Open API form. The controller's
+ * only way to let a guest online is its external-portal endpoint, which takes
+ * an operator login whatever the integration reads inventory with -- so an
+ * app on its own syncs green and turns every guest away. The backend reports
+ * that state as the `guest_operator_missing` readiness gap.
+ */
+export const GUEST_OPERATOR_REQUIRED_NOTE =
+  "Guest sign-in needs this too. The controller only lets a guest online through its hotspot operator login — the Open API app lists your devices and clients but cannot authorise anyone. Create one under Hotspot Manager → Operators on the controller.";
+
+/**
+ * Whether a credential draft is complete for the mode it will be saved under.
+ *
+ * Open API needs the app pair AND the operator pair: saving the app alone is
+ * accepted by the API (it is a valid inventory credential), but it produces
+ * an integration that cannot authorise a single guest, which is not what
+ * anyone on this page is trying to set up. Half of either pair is incomplete.
+ */
+export function credentialsCompleteForMode(
+  mode: ControllerAuthMode,
+  c: NetworkIntegrationCredentials,
+): boolean {
+  const operator = !!c.username && !!c.password;
+  return mode === "openapi" ? !!c.clientId && !!c.clientSecret && operator : operator;
+}
+
+/**
+ * Certificate trust, per integration -- mirrors the backend's
+ * `ControllerTlsMode`.
+ *
+ * - `strict`   -- ordinary public-CA verification. The default.
+ * - `pinned`   -- the controller must present the certificate whose SHA-256
+ *   fingerprint was recorded. The intended answer for a self-hosted
+ *   controller, whose certificate is self-signed.
+ * - `insecure` -- no check at all, recorded as a decision. A last resort.
+ */
+export type ControllerTlsMode = "strict" | "pinned" | "insecure";
+
+export const CONTROLLER_TLS_MODE_LABEL: Record<ControllerTlsMode, string> = {
+  strict: "Standard certificate check",
+  pinned: "Trust this controller's certificate (pinned)",
+  insecure: "Do not check the certificate",
+};
+
+export const CONTROLLER_TLS_MODE_SUMMARY: Record<ControllerTlsMode, string> = {
+  strict:
+    "For a controller with a certificate from a public certificate authority — TP-Link cloud, or a controller behind your own HTTPS proxy.",
+  pinned:
+    "For a self-hosted controller, which presents a self-signed certificate. We record its fingerprint and refuse any other certificate from then on.",
+  insecure:
+    "Accepts any certificate, including one presented by somebody in the middle. Only for a controller whose certificate is replaced so often it cannot be pinned.",
+};
+
+/**
+ * Canonical form of a SHA-256 certificate fingerprint, or `null`.
+ *
+ * The same rule as the backend's `normalize_tls_fingerprint`: colons, spaces,
+ * hyphens and tabs are separators, case does not matter, and what is left
+ * must be exactly 64 hex characters. `openssl` prints `AB:CD:…`, browsers
+ * print space-separated pairs; refusing either would push an operator toward
+ * "do not check the certificate" instead.
+ */
+export function normalizeTlsFingerprint(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const candidate = raw
+    .trim()
+    .toLowerCase()
+    .replace(/[:\s-]/g, "");
+  return /^[0-9a-f]{64}$/.test(candidate) ? candidate : null;
 }
 
 /** Heading for that state. Shared so the tables, the KPI hints and the
@@ -158,6 +236,11 @@ export type KnownNetworkIntegrationErrorCode =
   | "OMADA_AUTHORIZATION_FAILED"
   | "OMADA_API_UNSUPPORTED"
   | "OMADA_SESSION_EXPIRED"
+  | "OMADA_TLS_UNTRUSTED"
+  | "OMADA_TLS_PIN_MISMATCH"
+  | "NETWORK_INTEGRATION_TLS_PIN_REQUIRED"
+  | "NETWORK_INTEGRATION_LOCATION_REQUIRED"
+  | "NETWORK_INTEGRATION_ENCRYPTION_KEY_NOT_CONFIGURED"
   | "NETWORK_INTEGRATION_NOT_FOUND"
   | "NETWORK_INTEGRATION_DISABLED"
   | "NETWORK_INTEGRATION_URL_REJECTED"
@@ -185,6 +268,11 @@ export interface NetworkIntegration {
    * browser never fetches it. */
   baseUrl: string;
   authMode: ControllerAuthMode;
+  /** Certificate trust for this controller. Public, like the fingerprint:
+   * a fingerprint is a hash of a certificate the controller hands to anyone
+   * who connects, so it is safe to show and is shown. */
+  tlsMode: ControllerTlsMode;
+  tlsPinnedSha256: string | null;
   controllerId: string | null;
   controllerVersion: string | null;
   externalSiteId: string | null;
@@ -246,11 +334,14 @@ export interface NetworkIntegration {
    * and parsing it out of `lastErrorMessage`'s English sentence is the
    * coupling `NetworkIntegrationErrorCode` exists to avoid.
    *
-   * `fleet_device_missing` is the one an operator cannot fix themselves --
-   * a self-service integration legitimately has no fleet device, which
-   * makes it inventory-and-telemetry only until someone pairs it with one.
-   * An existing product boundary, invisible until the guest flow made it
-   * decide whether anybody can sign in. */
+   * `fleet_device_missing` used to be one an operator could not fix
+   * themselves. The backend now registers the controller as the venue's
+   * device as soon as it is mapped to one, and an integration created
+   * before that is repaired with Register controller
+   * (`POST /{id}/fleet-device`).
+   *
+   * `guest_operator_missing` is an Open API integration with no hotspot
+   * operator account: it syncs, and it cannot let a single guest online. */
   portalReadinessGaps: string[];
   createdAt: string;
   updatedAt: string;
@@ -363,7 +454,9 @@ export interface NetworkIntegrationPlatformSummary {
  * Both modes are optional fields on one type rather than a discriminated
  * union because the form holds a draft of both while the user flips the auth
  * mode radio, and a union would force a cast at every keystroke. The service
- * layer only sends the pair the selected mode actually uses -- see
+ * layer only sends what the selected mode actually uses -- the operator pair
+ * in legacy mode, and the app pair plus the operator pair in Open API mode
+ * (guest sign-in needs the operator login in both) -- see
  * `network-integration.service.ts`'s `credentialsForMode`.
  */
 export interface NetworkIntegrationCredentials {
@@ -390,6 +483,12 @@ export interface CreateNetworkIntegrationPayload {
   guestSsidName?: string | null;
   sessionDurationSeconds?: number;
   syncIntervalSeconds?: number;
+  /** The Omada ID. Required for a TP-Link cloud controller (one cloud
+   * address fronts every controller in a region); discovered on its own for
+   * any other. */
+  controllerId?: string | null;
+  tlsMode?: ControllerTlsMode;
+  tlsPinnedSha256?: string | null;
 }
 
 /** Every field optional -- a PATCH sends only what changed. Credentials are
@@ -406,6 +505,11 @@ export interface UpdateNetworkIntegrationPayload {
   guestSsidName?: string | null;
   sessionDurationSeconds?: number;
   syncIntervalSeconds?: number;
+  /** Only ever set, never cleared: the backend ignores `null` here, and an
+   * Omada ID cannot be un-set (nothing could rediscover a cloud one). */
+  controllerId?: string;
+  tlsMode?: ControllerTlsMode;
+  tlsPinnedSha256?: string;
 }
 
 /** Body of the pre-save probe (`POST /network-integrations/test-connection`).
@@ -417,6 +521,9 @@ export interface TestNetworkIntegrationPayload {
   baseUrl: string;
   authMode: ControllerAuthMode;
   credentials: NetworkIntegrationCredentials;
+  controllerId?: string | null;
+  tlsMode?: ControllerTlsMode;
+  tlsPinnedSha256?: string | null;
 }
 
 /**
@@ -443,6 +550,16 @@ export interface NetworkIntegrationConnectionTest {
    * {@link describeIntegrationError} before it reaches a human. */
   errorCode: NetworkIntegrationErrorCode | null;
   message: string | null;
+  /** The certificate the controller actually presented -- on a failure as
+   * well as a success, which is the point: an `OMADA_TLS_UNTRUSTED` answer
+   * carries the fingerprint the operator is being asked to trust. All `null`
+   * when the backend could not look. */
+  tlsFingerprintSha256: string | null;
+  tlsChainTrusted: boolean | null;
+  tlsMatchesPin: boolean | null;
+  tlsCertificateSubject: string | null;
+  tlsCertificateIssuer: string | null;
+  tlsCertificateExpiresAt: string | null;
 }
 
 /**
@@ -602,7 +719,7 @@ export const NETWORK_INTEGRATION_STATUS_DETAIL: Record<NetworkIntegrationStatus,
   sync_error:
     "The credentials are fine and the last sign-in worked — a background refresh failed, so the device and client lists below may be out of date. This often clears itself on the next sync.",
   unconfigured:
-    "Connected to the controller, but no site and guest network have been chosen yet, so nothing is being authorised. Finish setup to start.",
+    "Connected to the controller, but setup is not finished, so nothing is being authorised yet. Finish setup to start — anything still missing is listed on this page.",
 };
 
 /** Semantic tone, not a colour. Each surface maps this onto its own design
@@ -663,6 +780,20 @@ export const NETWORK_INTEGRATION_ERROR_COPY: Record<KnownNetworkIntegrationError
     "The controller cannot answer that with the credentials in use. Reading sites, access points and clients needs an Open API app on Omada Controller 5.13 or newer; a hotspot operator account covers guest sign-in only. Controllers older than 5.0.15 are not supported at all.",
   OMADA_SESSION_EXPIRED:
     "Our session with the controller expired and could not be renewed. Usually transient — retry, and replace the credentials if it persists.",
+  // Neither is "check the URL and port" -- the controller answered. Both
+  // point at the certificate controls on the integration, which now exist.
+  OMADA_TLS_UNTRUSTED:
+    "The controller answered, but its HTTPS certificate is not one we trust — usual for a self-hosted controller, whose certificate is self-signed. The address and port are fine. Confirm the fingerprint shown with whoever runs the controller, then choose “Trust this controller's certificate”.",
+  // The one TLS error that can mean somebody is in the middle, so it does
+  // NOT tell anyone to re-pin straight away.
+  OMADA_TLS_PIN_MISMATCH:
+    "The controller presented a different certificate from the one we pinned. Find out why before trusting the new one — a reinstalled controller or a renewed certificate explains it; nothing else should.",
+  NETWORK_INTEGRATION_TLS_PIN_REQUIRED:
+    "Pinning needs the controller certificate's SHA-256 fingerprint (64 hexadecimal characters). Run Test connection to capture it.",
+  NETWORK_INTEGRATION_LOCATION_REQUIRED:
+    "Choose the venue this controller serves first. It is registered as that venue's device as soon as it is mapped.",
+  NETWORK_INTEGRATION_ENCRYPTION_KEY_NOT_CONFIGURED:
+    "Controller credentials can't be saved yet — the platform's encryption key isn't configured. Nothing was saved. Contact WyFy support.",
   NETWORK_INTEGRATION_NOT_FOUND: "This integration no longer exists. It may have been removed.",
   NETWORK_INTEGRATION_DISABLED:
     "This integration is switched off, so nothing is being sent to the controller.",

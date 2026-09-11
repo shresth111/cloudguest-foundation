@@ -436,9 +436,15 @@ await svc.create({
     "openapi create sends client_id/client_secret at the TOP LEVEL",
     sent.client_id === "cid" && sent.client_secret === "sec",
   );
+  // This used to assert the opposite -- "does NOT send the operator
+  // password it never used" -- and that assertion encoded the defect. The
+  // controller authorises guests only through its hotspot operator login, in
+  // either mode, so an Open API integration saved without it synced green and
+  // let nobody online. The Open API form now asks for the operator account on
+  // purpose, and it has to arrive.
   check(
-    "openapi create does NOT send the operator password it never used",
-    sent.username === undefined && sent.password === undefined,
+    "openapi create ALSO sends the hotspot operator login, which guest sign-in uses",
+    sent.username === "op" && sent.password === "pw",
     JSON.stringify(Object.keys(sent)),
   );
   check(

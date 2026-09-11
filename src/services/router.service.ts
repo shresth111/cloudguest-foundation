@@ -642,18 +642,26 @@ export const routerService = {
         auth_mode: payload.authMode,
         // Top-level, matching `_CredentialFields` on the backend -- see
         // `network-integration.service.ts`'s note on why a nested object here
-        // is silently dropped rather than rejected. Only the selected mode's
-        // pair is sent, so flipping the auth-mode radio cannot leak the other
-        // one into storage.
+        // is silently dropped rather than rejected. The app pair goes only
+        // with Open API; the hotspot operator pair goes with BOTH modes,
+        // because the controller only lets a guest online through the
+        // operator login -- an Open API controller onboarded without it
+        // could never authorise anyone (see `credentialsForMode`).
         ...(payload.authMode === "openapi"
           ? {
               ...(payload.clientId ? { client_id: payload.clientId } : {}),
               ...(payload.clientSecret ? { client_secret: payload.clientSecret } : {}),
             }
-          : {
-              ...(payload.username ? { username: payload.username } : {}),
-              ...(payload.password ? { password: payload.password } : {}),
-            }),
+          : {}),
+        ...(payload.username ? { username: payload.username } : {}),
+        ...(payload.password ? { password: payload.password } : {}),
+        // Certificate trust and the Omada ID, omitted unless set so the
+        // backend's `strict` default stands.
+        ...(payload.controllerId?.trim() ? { controller_id: payload.controllerId.trim() } : {}),
+        ...(payload.tlsMode ? { tls_mode: payload.tlsMode } : {}),
+        ...(payload.tlsMode === "pinned" && payload.tlsPinnedSha256
+          ? { tls_pinned_sha256: payload.tlsPinnedSha256 }
+          : {}),
         // Omitted entirely rather than sent as null when absent: the backend
         // reads "both absent" as "software controller, mint an identity", and
         // an explicit null would take the same branch but says something

@@ -160,7 +160,10 @@ const DETAIL_FRAGMENTS = {
   connection_failed: "could not reach the controller at all",
   disabled: "Switched off on purpose",
   sync_error: "background refresh failed",
-  unconfigured: "no site and guest network have been chosen yet",
+  // Not "no site and guest network have been chosen" any more: that was one
+  // of several reasons a row is unconfigured (an Open API app with no
+  // operator account is another), and the page lists which.
+  unconfigured: "setup is not finished",
 };
 
 const INTEGRATION = {

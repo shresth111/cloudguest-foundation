@@ -116,12 +116,38 @@ const AUTH_MODE_CHOICES = [
     // authorise guests but cannot read inventory at all, so a venue that picks
     // them gets a working captive portal and permanently empty device/client
     // tabs -- worth knowing before choosing rather than after.
-    description: "Controller v5.13+. Required for device, client and site listings.",
+    // Needs the hotspot operator account as well -- the controller lets
+    // guests online only through that login, whatever lists its inventory.
+    description:
+      "Controller v5.13+. Lists devices, clients and sites; guest sign-in still uses the hotspot operator account below.",
   },
   {
     id: "legacy" as const,
     label: "Hotspot operator",
     description: "Older controllers. Authorises guests, but lists no devices or clients.",
+  },
+];
+
+// Certificate trust, per controller. Same three modes and the same advice as
+// the customer page (`CONTROLLER_TLS_MODE_SUMMARY`), shortened for a form
+// that has less room. A self-hosted controller presents a self-signed
+// certificate and cannot pass the default check -- it needs `pinned`.
+const TLS_MODE_CHOICES = [
+  {
+    id: "strict" as const,
+    label: "Standard certificate check",
+    description: "A public-CA certificate: TP-Link cloud, or a controller behind your own HTTPS.",
+  },
+  {
+    id: "pinned" as const,
+    label: "Pinned certificate",
+    description:
+      "Self-hosted controllers (self-signed). Refuses any other certificate from then on.",
+  },
+  {
+    id: "insecure" as const,
+    label: "No certificate check",
+    description: "Last resort. Accepts any certificate, including one from somebody in the middle.",
   },
 ];
 
@@ -148,6 +174,9 @@ const DEFAULTS: RouterWizardValues = {
     clientSecret: "",
     username: "",
     password: "",
+    controllerId: "",
+    tlsMode: "strict",
+    tlsPinnedSha256: "",
     siteId: "",
     siteName: "",
     ssidId: "",
@@ -271,6 +300,9 @@ export function RouterWizard({ open, onOpenChange }: Props) {
         password: values.omada.password || undefined,
         serialNumber: values.basic.serialNumber || undefined,
         macAddress: values.basic.macAddress || undefined,
+        controllerId: values.omada.controllerId || undefined,
+        tlsMode: values.omada.tlsMode,
+        tlsPinnedSha256: values.omada.tlsPinnedSha256 || undefined,
       });
       toast.success(`${values.basic.name} onboarded`);
       setOnboarded(result);
@@ -505,7 +537,7 @@ export function RouterWizard({ open, onOpenChange }: Props) {
                         </FormItem>
                       )}
                     />
-                    {form.watch("omada.authMode") === "openapi" ? (
+                    {form.watch("omada.authMode") === "openapi" && (
                       <>
                         <TextField name="omada.clientId" label="Client ID" form={form} />
                         <TextField
@@ -515,16 +547,62 @@ export function RouterWizard({ open, onOpenChange }: Props) {
                           form={form}
                         />
                       </>
-                    ) : (
-                      <>
-                        <TextField name="omada.username" label="Operator name" form={form} />
-                        <TextField
-                          name="omada.password"
-                          label="Operator password"
-                          type="password"
-                          form={form}
-                        />
-                      </>
+                    )}
+                    {/* In both modes. See `routerWizardSchema` for why an
+                        Open API controller still needs it. */}
+                    <TextField name="omada.username" label="Hotspot operator name" form={form} />
+                    <TextField
+                      name="omada.password"
+                      label="Hotspot operator password"
+                      type="password"
+                      form={form}
+                    />
+                    <TextField
+                      name="omada.controllerId"
+                      label="Omada ID (TP-Link cloud controllers only)"
+                      placeholder="Leave blank for a controller reached directly"
+                      form={form}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="omada.tlsMode"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Certificate check</FormLabel>
+                          <FormControl>
+                            <div className="grid gap-2">
+                              {TLS_MODE_CHOICES.map((choice) => (
+                                <button
+                                  key={choice.id}
+                                  type="button"
+                                  onClick={() => field.onChange(choice.id)}
+                                  aria-pressed={field.value === choice.id}
+                                  className={cn(
+                                    "rounded-lg border px-3 py-2 text-left transition-colors",
+                                    field.value === choice.id
+                                      ? "border-primary bg-primary/5"
+                                      : "border-border hover:bg-muted/50",
+                                  )}
+                                >
+                                  <div className="text-sm font-medium">{choice.label}</div>
+                                  <div className="mt-0.5 text-xs text-muted-foreground">
+                                    {choice.description}
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    {form.watch("omada.tlsMode") === "pinned" && (
+                      <TextField
+                        name="omada.tlsPinnedSha256"
+                        label="Certificate fingerprint (SHA-256)"
+                        placeholder="AB:CD:EF:… — 64 hexadecimal characters"
+                        form={form}
+                      />
                     )}
                     <p className="sm:col-span-2 text-xs text-muted-foreground">
                       Sent to the controller from this platform's servers, never from your browser,

@@ -1504,6 +1504,21 @@ jobs:
             "all network-integration contract checks passed" \
             bun run test:network-integration
 
+      # Three setups that looked finished and signed nobody in: an Open API
+      # app with no hotspot operator account (the controller authorises
+      # guests only through that login), a customer-created integration with
+      # no fleet device, and a self-hosted or cloud controller with no way to
+      # set certificate trust or the Omada ID. Found writing the Omada
+      # operator runbook; the backend half is in cloud-guest.
+      #
+      # Floor 51, observed green at 51.
+      - name: omada onboarding gaps
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "omada-onboarding-gaps" 51 \
+            "all omada onboarding-gap checks passed" \
+            bun run test:omada-onboarding-gaps
+
       # The same surface, rendered -- including #258's rule that a
       # half-configured integration is dead and says so rather than showing a
       # working-looking page.

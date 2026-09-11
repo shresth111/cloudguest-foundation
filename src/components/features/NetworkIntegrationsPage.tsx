@@ -14,6 +14,7 @@ import {
   Server,
   ShieldCheck,
   Copy,
+  Lock,
   Signal,
   Trash2,
   Users,
@@ -58,6 +59,7 @@ import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { useCustomerLocations, useIsDemo } from "@/hooks/useCustomerDashboard";
 import { relativeTime } from "@/lib/friendly";
 import {
+  CREDENTIAL_GAP_KEYS,
   deriveIntegrationSetup,
   halfConfiguredIntegrations,
 } from "@/lib/network-integration-readiness";
@@ -68,14 +70,20 @@ import {
   authModeSupportsInventory,
   CONTROLLER_AUTH_MODE_LABEL,
   CONTROLLER_AUTH_MODE_SUMMARY,
+  CONTROLLER_TLS_MODE_LABEL,
+  CONTROLLER_TLS_MODE_SUMMARY,
+  credentialsCompleteForMode,
   describeIntegrationError,
+  GUEST_OPERATOR_REQUIRED_NOTE,
   isNetworkIntegrationErrored,
   LEGACY_INVENTORY_BODY,
   LEGACY_INVENTORY_TITLE,
   NETWORK_INTEGRATION_STATUS_DETAIL,
   NETWORK_INTEGRATION_STATUS_LABEL,
   NETWORK_INTEGRATION_STATUS_TONE,
+  normalizeTlsFingerprint,
   type ControllerAuthMode,
+  type ControllerTlsMode,
   type NetworkIntegration,
   type NetworkIntegrationClient,
   type NetworkIntegrationCredentials,
@@ -454,11 +462,12 @@ export function NetworkIntegrationsPage({ locationId }: { locationId?: string })
                     ))}
                   </ul>
                 </div>
-                {/* No wizard for a credentials-only gap: it resumes at the
+                {/* No wizard for a credential-only gap (none stored, or an
+                    Open API app with no operator account): it resumes at the
                     site step and cannot re-ask for a secret nothing can read
                     back. That row is sent to the integration's own Replace
                     credentials action instead, which `setup.nextStep` says. */}
-                {setup.gaps.some((g) => g.key !== "credentials") ? (
+                {setup.gaps.some((g) => !CREDENTIAL_GAP_KEYS.includes(g.key)) ? (
                   <Button
                     size="sm"
                     onClick={() => {
@@ -565,6 +574,7 @@ function IntegrationDetail({
   const [tab, setTab] = useState("devices");
   const [disconnectOpen, setDisconnectOpen] = useState(false);
   const [credentialsOpen, setCredentialsOpen] = useState(false);
+  const [trustOpen, setTrustOpen] = useState(false);
   const id = integration.id;
   /** CR-002: a hotspot operator credential cannot read sites, devices or
    * clients at all. The backend answers those endpoints with a normalized
@@ -650,10 +660,11 @@ function IntegrationDetail({
      online. See src/lib/network-integration-readiness.ts. */
   const setup = deriveIntegrationSetup(integration);
   /* The wizard resumes at the site step; it cannot re-ask for a credential
-     (nothing can read one back), so a row whose ONLY gap is credentials is
+     (nothing can read one back), so a row whose only gaps are credential
+     ones -- none stored, or an Open API app with no operator account -- is
      sent to Replace credentials instead of to a wizard that would show it
      five filled-in steps and change nothing. */
-  const needsSetup = setup.gaps.some((g) => g.key !== "credentials");
+  const needsSetup = setup.gaps.some((g) => !CREDENTIAL_GAP_KEYS.includes(g.key));
 
   return (
     <div className="space-y-4">
@@ -715,6 +726,10 @@ function IntegrationDetail({
             >
               <KeyRound className="mr-1.5 h-4 w-4" />
               Replace credentials
+            </Button>
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => setTrustOpen(true)}>
+              <Lock className="mr-1.5 h-4 w-4" />
+              Certificate &amp; Omada ID
             </Button>
             <Button
               size="sm"
@@ -852,6 +867,15 @@ function IntegrationDetail({
               value={integration.controllerVersion ? `Omada ${integration.controllerVersion}` : "—"}
             />
             <Detail label="Controller ID" value={text(integration.controllerId)} mono />
+            <Detail
+              label="Certificate check"
+              value={CONTROLLER_TLS_MODE_LABEL[integration.tlsMode] ?? integration.tlsMode}
+              hint={
+                integration.tlsMode === "pinned" && integration.tlsPinnedSha256
+                  ? `SHA-256 ${integration.tlsPinnedSha256}`
+                  : undefined
+              }
+            />
             <Detail label="Omada site" value={text(integration.externalSiteName)} />
             <Detail
               label="Wyfy Guest venue"
@@ -874,7 +898,11 @@ function IntegrationDetail({
             />
           </div>
 
-          <PortalLinkPanel integration={integration} />
+          <PortalLinkPanel
+            integration={integration}
+            onChanged={onChanged}
+            onAddOperatorAccount={() => setCredentialsOpen(true)}
+          />
         </CardContent>
       </Card>
 
@@ -1016,6 +1044,15 @@ function IntegrationDetail({
           }}
         />
       )}
+      {trustOpen && (
+        <TrustSettingsDialog
+          integration={integration}
+          onClose={(changed) => {
+            setTrustOpen(false);
+            if (changed) onChanged();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -1068,18 +1105,21 @@ function IntegrationDetail({
  * guest away is exactly the "writes a row, changes nothing on a device"
  * failure CONTRACT §11.5 names. `portalReadinessGaps` supplies the reason.
  *
- * `FLEET_DEVICE_MISSING` is the one an operator cannot fix themselves: a
- * self-service integration legitimately has no fleet device, which makes
- * it inventory-and-telemetry only until someone at Wyfy pairs it with one.
- * That is an existing product boundary, and it was invisible until the
- * guest flow made it decide whether anyone can sign in.
+ * `FLEET_DEVICE_MISSING` used to be the one an operator could not fix: only
+ * Wyfy's own onboarding registered a controller as a device. The backend
+ * now does it the moment the integration is mapped to a venue, and an
+ * integration created before that gets a Register controller button here.
+ *
+ * `GUEST_OPERATOR_MISSING` is an Open API app with no hotspot operator
+ * account -- the one setup that synced green and let nobody online.
  */
 const PORTAL_READINESS_GAP_COPY: Record<string, string> = {
   credentials_missing: "no controller credentials have been saved yet",
+  guest_operator_missing:
+    "it has an Open API app but no hotspot operator account, and the controller only lets guests online through that account",
   location_not_mapped: "it is not mapped to one of your venues yet",
   site_not_selected: "no Omada site has been selected yet",
-  fleet_device_missing:
-    "this controller has not been registered as a device on your account — contact support to finish it; you cannot complete this step yourself",
+  fleet_device_missing: "this controller has not been registered as this venue's device yet",
 };
 
 function CopyableValue({ label, value, hint }: { label: string; value: string; hint?: string }) {
@@ -1121,7 +1161,15 @@ function CopyableValue({ label, value, hint }: { label: string; value: string; h
   );
 }
 
-function PortalLinkPanel({ integration }: { integration: NetworkIntegration }) {
+function PortalLinkPanel({
+  integration,
+  onChanged,
+  onAddOperatorAccount,
+}: {
+  integration: NetworkIntegration;
+  onChanged: () => void;
+  onAddOperatorAccount: () => void;
+}) {
   // `?? []` even though the type says it is always an array. A backend that
   // has not shipped the field yet would otherwise throw here, and this panel
   // sits inside the integration detail card, so a throw white-screens the
@@ -1129,6 +1177,20 @@ function PortalLinkPanel({ integration }: { integration: NetworkIntegration }) {
   const gaps = integration.portalReadinessGaps ?? [];
   const scheme = integration.portalUrlScheme;
   const hostAndQuery = integration.portalUrlHostAndQuery;
+
+  // The repair for an integration created before the backend registered the
+  // controller as its venue's device on its own. Offered only once a venue
+  // is mapped: without one there is nowhere to register it, and the backend
+  // would refuse with NETWORK_INTEGRATION_LOCATION_REQUIRED anyway.
+  const canRegister = gaps.includes("fleet_device_missing") && !!integration.locationId;
+  const register = useMutation({
+    mutationFn: () => networkIntegrationService.ensureFleetDevice(integration.id),
+    onSuccess: () => {
+      toast.success("Controller registered for this venue.");
+      onChanged();
+    },
+    onError: (err) => toast.error(errorText(err, "Could not register the controller.")),
+  });
 
   // The backend withholds the URL as a pair whenever the integration could
   // not serve a guest, so the presence of a link IS the readiness check --
@@ -1150,6 +1212,31 @@ function PortalLinkPanel({ integration }: { integration: NetworkIntegration }) {
                     .join(", and ")}.`
                 : "No guest sign-in link is available for this integration yet. Contact support."}
             </p>
+            {(canRegister || gaps.includes("guest_operator_missing")) && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {gaps.includes("guest_operator_missing") && (
+                  <Button size="sm" variant="outline" onClick={onAddOperatorAccount}>
+                    <KeyRound className="mr-1.5 h-3.5 w-3.5" />
+                    Add operator account
+                  </Button>
+                )}
+                {canRegister && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={register.isPending}
+                    onClick={() => register.mutate()}
+                  >
+                    {register.isPending ? (
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Server className="mr-1.5 h-3.5 w-3.5" />
+                    )}
+                    Register controller
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1566,10 +1653,7 @@ function CredentialsDialog({
       toast.error(errorText(err, "Could not save the credentials. Nothing was changed.")),
   });
 
-  const complete =
-    authMode === "openapi"
-      ? !!creds.clientId && !!creds.clientSecret
-      : !!creds.username && !!creds.password;
+  const complete = credentialsCompleteForMode(authMode, creds);
 
   return (
     <Dialog
@@ -1682,32 +1766,7 @@ function CredentialFields({
   value: NetworkIntegrationCredentials;
   onChange: (next: NetworkIntegrationCredentials) => void;
 }) {
-  if (authMode === "openapi") {
-    return (
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="omada-client-id">Client ID</Label>
-          <Input
-            id="omada-client-id"
-            autoComplete="off"
-            value={value.clientId ?? ""}
-            onChange={(e) => onChange({ ...value, clientId: e.target.value })}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="omada-client-secret">Client secret</Label>
-          <Input
-            id="omada-client-secret"
-            type="password"
-            autoComplete="new-password"
-            value={value.clientSecret ?? ""}
-            onChange={(e) => onChange({ ...value, clientSecret: e.target.value })}
-          />
-        </div>
-      </div>
-    );
-  }
-  return (
+  const operatorFields = (
     <div className="grid gap-3 sm:grid-cols-2">
       <div className="space-y-1.5">
         <Label htmlFor="omada-operator">Operator name</Label>
@@ -1729,6 +1788,246 @@ function CredentialFields({
         />
       </div>
     </div>
+  );
+  if (authMode !== "openapi") return operatorFields;
+  // Open API: the app pair, AND the operator account. The second half is not
+  // optional in this form even though the API accepts an app on its own --
+  // the controller only lets guests online through the operator login, so an
+  // app-only integration is a venue where nobody gets on.
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="omada-client-id">Client ID</Label>
+          <Input
+            id="omada-client-id"
+            autoComplete="off"
+            value={value.clientId ?? ""}
+            onChange={(e) => onChange({ ...value, clientId: e.target.value })}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="omada-client-secret">Client secret</Label>
+          <Input
+            id="omada-client-secret"
+            type="password"
+            autoComplete="new-password"
+            value={value.clientSecret ?? ""}
+            onChange={(e) => onChange({ ...value, clientSecret: e.target.value })}
+          />
+        </div>
+      </div>
+      <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
+        <div>
+          <p className="text-sm font-medium text-foreground">Hotspot operator account</p>
+          <p className="text-xs text-muted-foreground">{GUEST_OPERATOR_REQUIRED_NOTE}</p>
+        </div>
+        {operatorFields}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Certificate trust and the Omada ID -- the three settings a self-hosted or
+ * a TP-Link cloud controller cannot connect without, and which used to exist
+ * on the API only.
+ *
+ * Controlled: the parent owns the draft so the wizard can send it with the
+ * pre-save probe (a self-signed controller cannot pass a strict one) and the
+ * settings dialog can send it with a PATCH. `observedFingerprint` is the
+ * certificate the last test actually saw; offering it as a one-click pin is
+ * what keeps "turn checking off" from being the path of least resistance.
+ */
+function TrustFields({
+  controllerId,
+  tlsMode,
+  pin,
+  observedFingerprint,
+  onChange,
+}: {
+  controllerId: string;
+  tlsMode: ControllerTlsMode;
+  pin: string;
+  observedFingerprint: string | null;
+  onChange: (next: { controllerId: string; tlsMode: ControllerTlsMode; pin: string }) => void;
+}) {
+  const pinValid = normalizeTlsFingerprint(pin) !== null;
+  return (
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <Label htmlFor="omada-controller-id">Omada ID (TP-Link cloud controllers)</Label>
+        <Input
+          id="omada-controller-id"
+          autoComplete="off"
+          placeholder="Leave blank for a controller you reach directly"
+          value={controllerId}
+          onChange={(e) => onChange({ controllerId: e.target.value, tlsMode, pin })}
+        />
+        <p className="text-xs text-muted-foreground">
+          One TP-Link cloud address serves every controller in a region, so a cloud controller
+          cannot be found without it. It is on the controller&rsquo;s API credentials screen and in
+          its web address. Any other controller reports it on its own.
+        </p>
+      </div>
+      <div className="space-y-2">
+        <Label>Certificate check</Label>
+        <RadioGroup
+          value={tlsMode}
+          onValueChange={(v) => onChange({ controllerId, tlsMode: v as ControllerTlsMode, pin })}
+          className="gap-2"
+        >
+          {(["strict", "pinned", "insecure"] as const).map((mode) => (
+            <label
+              key={mode}
+              className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/5"
+            >
+              <RadioGroupItem value={mode} className="mt-0.5" />
+              <span>
+                <span className="font-medium">{CONTROLLER_TLS_MODE_LABEL[mode]}</span>
+                <span className="block text-xs text-muted-foreground">
+                  {CONTROLLER_TLS_MODE_SUMMARY[mode]}
+                </span>
+              </span>
+            </label>
+          ))}
+        </RadioGroup>
+      </div>
+      {tlsMode === "pinned" && (
+        <div className="space-y-1.5">
+          <Label htmlFor="omada-tls-pin">Certificate fingerprint (SHA-256)</Label>
+          <Input
+            id="omada-tls-pin"
+            autoComplete="off"
+            className="font-mono text-xs"
+            placeholder="AB:CD:EF:… — 64 hexadecimal characters"
+            value={pin}
+            onChange={(e) => onChange({ controllerId, tlsMode, pin: e.target.value })}
+          />
+          {pin && !pinValid && (
+            <p className="text-xs text-destructive">
+              That is not a SHA-256 fingerprint — it needs 64 hexadecimal characters. Colons and
+              spaces are fine.
+            </p>
+          )}
+          {observedFingerprint && normalizeTlsFingerprint(pin) !== observedFingerprint && (
+            <div className="rounded-md border border-border bg-muted/30 p-2 text-xs">
+              <p className="text-muted-foreground">
+                The controller presented this certificate on the last test. Confirm it with whoever
+                runs the controller before trusting it.
+              </p>
+              <p className="mt-1 break-all font-mono text-foreground">{observedFingerprint}</p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="mt-2"
+                onClick={() => onChange({ controllerId, tlsMode, pin: observedFingerprint })}
+              >
+                Use this fingerprint
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Whether a trust draft can be sent: pinned needs a real fingerprint, the
+ * other two need nothing. Mirrors the backend's `validate_tls_trust`, so the
+ * form refuses what the API would refuse instead of round-tripping for a
+ * NETWORK_INTEGRATION_TLS_PIN_REQUIRED. */
+function trustDraftValid(tlsMode: ControllerTlsMode, pin: string): boolean {
+  return tlsMode !== "pinned" || normalizeTlsFingerprint(pin) !== null;
+}
+
+/** Certificate trust and the Omada ID for an integration that already
+ * exists. Test connection here uses the stored credentials and returns the
+ * certificate the controller is really presenting, on failure as well as
+ * success -- which is how an operator gets a fingerprint to pin without a
+ * terminal. */
+function TrustSettingsDialog({
+  integration,
+  onClose,
+}: {
+  integration: NetworkIntegration;
+  onClose: (changed: boolean) => void;
+}) {
+  const [draft, setDraft] = useState({
+    controllerId: integration.controllerId ?? "",
+    tlsMode: integration.tlsMode,
+    pin: integration.tlsPinnedSha256 ?? "",
+  });
+  const [observed, setObserved] = useState<string | null>(null);
+
+  const probe = useMutation({
+    mutationFn: () => networkIntegrationService.testConnection(integration.id),
+    onSuccess: (result) => {
+      setObserved(result.tlsFingerprintSha256);
+      if (result.ok) toast.success("The controller answered.");
+      else toast.error(describeIntegrationError(result.errorCode, result.message));
+    },
+    onError: (err) => toast.error(errorText(err, "The connection test could not be completed.")),
+  });
+
+  const save = useMutation({
+    mutationFn: () =>
+      networkIntegrationService.update(integration.id, {
+        // An Omada ID can be set or changed here but not cleared: nothing
+        // could rediscover a cloud controller's, and the API ignores null.
+        ...(draft.controllerId.trim() ? { controllerId: draft.controllerId.trim() } : {}),
+        tlsMode: draft.tlsMode,
+        ...(draft.tlsMode === "pinned" ? { tlsPinnedSha256: draft.pin } : {}),
+      }),
+    onSuccess: () => {
+      toast.success("Saved. The next check will use it.");
+      onClose(true);
+    },
+    onError: (err) => toast.error(errorText(err, "Could not save. Nothing was changed.")),
+  });
+
+  return (
+    <Dialog open onOpenChange={(next) => !next && onClose(false)}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Certificate &amp; Omada ID</DialogTitle>
+          <DialogDescription>
+            How we trust this controller&rsquo;s HTTPS certificate, and which controller a TP-Link
+            cloud address means. Changing either sets the integration back to
+            &ldquo;Connecting&rdquo; until the next check succeeds.
+          </DialogDescription>
+        </DialogHeader>
+        <TrustFields
+          controllerId={draft.controllerId}
+          tlsMode={draft.tlsMode}
+          pin={draft.pin}
+          observedFingerprint={observed}
+          onChange={setDraft}
+        />
+        <DialogFooter className="flex-wrap gap-2">
+          <Button
+            variant="outline"
+            disabled={probe.isPending}
+            onClick={() => probe.mutate()}
+            title="Signs in with the stored credentials and reports the certificate the controller presented."
+          >
+            {probe.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+            Test connection
+          </Button>
+          <Button variant="outline" onClick={() => onClose(false)}>
+            Cancel
+          </Button>
+          <Button
+            disabled={!trustDraftValid(draft.tlsMode, draft.pin) || save.isPending}
+            onClick={() => save.mutate()}
+          >
+            {save.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+            Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1789,6 +2088,16 @@ function ConnectWizard({
     resumeIntegration?.authMode ?? "openapi",
   );
   const [creds, setCreds] = useState<NetworkIntegrationCredentials>({});
+  // Certificate trust and the Omada ID. Sent with the pre-save probe as well
+  // as the create: a self-signed controller cannot pass a strict test, so a
+  // wizard that only applied trust after saving could never get that far.
+  const [trust, setTrust] = useState<{
+    controllerId: string;
+    tlsMode: ControllerTlsMode;
+    pin: string;
+  }>({ controllerId: "", tlsMode: "strict", pin: "" });
+  const [trustOpen, setTrustOpen] = useState(false);
+  const [observedFingerprint, setObservedFingerprint] = useState<string | null>(null);
   const [tested, setTested] = useState<{
     version: string | null;
     controllerId: string | null;
@@ -1838,10 +2147,22 @@ function ConnectWizard({
         baseUrl: baseUrl.trim(),
         authMode,
         credentials: creds,
+        controllerId: trust.controllerId,
+        tlsMode: trust.tlsMode,
+        tlsPinnedSha256: trust.tlsMode === "pinned" ? trust.pin : null,
       }),
     onSuccess: (result) => {
+      // Kept on failure too: an untrusted-certificate answer carries the
+      // fingerprint the operator is being asked to trust.
+      setObservedFingerprint(result.tlsFingerprintSha256);
       if (!result.ok) {
         setTested(null);
+        if (
+          result.errorCode === "OMADA_TLS_UNTRUSTED" ||
+          result.errorCode === "OMADA_TLS_PIN_MISMATCH"
+        ) {
+          setTrustOpen(true);
+        }
         toast.error(describeIntegrationError(result.errorCode, result.message));
         return;
       }
@@ -1866,7 +2187,16 @@ function ConnectWizard({
         baseUrl: baseUrl.trim(),
         authMode,
         credentials: creds,
-        locationId: defaultLocationId ?? null,
+        controllerId: trust.controllerId,
+        tlsMode: trust.tlsMode,
+        tlsPinnedSha256: trust.tlsMode === "pinned" ? trust.pin : null,
+        // No venue yet, on purpose. Mapping a venue is what registers the
+        // controller as that venue's device, and the venue step below is
+        // where the operator actually chooses it -- saving the page's
+        // default here would register the device at whichever venue the page
+        // was opened on, before the operator had picked one. An unmapped row
+        // is still listed on every venue's page, so it cannot be lost.
+        locationId: null,
       }),
     onSuccess: (created) => {
       setIntegrationId(created.id);
@@ -1896,8 +2226,16 @@ function ConnectWizard({
         guestSsidId: ssidId,
         guestSsidName: ssidName,
       }),
-    onSuccess: () => {
-      toast.success("Controller connected. Guest logins will be enforced on it from now on.");
+    onSuccess: (saved) => {
+      // Only claim enforcement when the backend agrees there is nothing left
+      // standing between this venue and its first guest.
+      if ((saved.portalReadinessGaps ?? []).length === 0) {
+        toast.success("Controller connected. Guest logins will be enforced on it from now on.");
+      } else {
+        toast.warning(
+          "Saved — but guests cannot sign in yet. The integration page lists what is still missing.",
+        );
+      }
       onClose(integrationId);
     },
     onError: (err) => toast.error(errorText(err, "Could not save the guest network.")),
@@ -1917,9 +2255,7 @@ function ConnectWizard({
   const busy = test.isPending || create.isPending || saveSiteAndVenue.isPending || finish.isPending;
 
   const credsComplete =
-    authMode === "openapi"
-      ? !!creds.clientId && !!creds.clientSecret
-      : !!creds.username && !!creds.password;
+    credentialsCompleteForMode(authMode, creds) && trustDraftValid(trust.tlsMode, trust.pin);
 
   return (
     <Dialog open onOpenChange={(next) => !next && handleClose()}>
@@ -2016,6 +2352,35 @@ function ConnectWizard({
                     setTested(null);
                   }}
                 />
+
+                {/* Collapsed by default: a controller with a public certificate
+                    reached directly needs none of it. Opened for the operator
+                    when a test comes back with a certificate error, because
+                    that is the moment they need it. */}
+                <details
+                  open={trustOpen}
+                  onToggle={(e) => setTrustOpen((e.target as HTMLDetailsElement).open)}
+                  className="rounded-lg border border-border p-3"
+                >
+                  <summary className="cursor-pointer text-sm font-medium text-foreground">
+                    Certificate &amp; Omada ID
+                    <span className="ml-2 font-normal text-muted-foreground">
+                      self-hosted or TP-Link cloud controllers
+                    </span>
+                  </summary>
+                  <div className="mt-3">
+                    <TrustFields
+                      controllerId={trust.controllerId}
+                      tlsMode={trust.tlsMode}
+                      pin={trust.pin}
+                      observedFingerprint={observedFingerprint}
+                      onChange={(next) => {
+                        setTrust(next);
+                        setTested(null);
+                      }}
+                    />
+                  </div>
+                </details>
 
                 {tested && (
                   <div className="flex items-start gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-sm">
