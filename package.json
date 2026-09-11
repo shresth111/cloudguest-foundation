@@ -62,6 +62,7 @@
     "test:portal-error-boundary": "node scripts/test-portal-error-boundary.mjs",
     "test:portal-search-retention": "node scripts/test-portal-search-retention.mjs",
     "test:portal-client-ip": "node scripts/test-portal-client-ip.mjs",
+    "test:portal-omada-params": "node scripts/test-portal-omada-params.mjs",
     "test:org-scope-header": "node scripts/test-organization-scope-header.mjs",
     "test:session-rules": "node scripts/test-session-rules-enforcement.mjs",
     "test:single-home": "node scripts/test-single-home-settings.mjs",

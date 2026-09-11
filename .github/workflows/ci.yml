@@ -309,6 +309,34 @@ jobs:
             "portal clientIp capture: all checks passed" \
             bun run test:portal-client-ip
 
+      # The other nine parameters on that same redirect -- clientMac,
+      # site, apMac, ssidName, radioId, gatewayMac, vid, t, redirectUrl.
+      # Doc 132060: "Your External Portal Server must preserve and return
+      # these parameters when interacting with the Omada Controller."
+      # Preservation is the whole job, and all three ways it fails are
+      # invisible to tsc, eslint and the build:
+      #
+      #   1. a param dropped by a `<Link>` -- the incident the retention
+      #      suite above exists for;
+      #   2. a param REJECTED by our own schema -- TanStack's search parser
+      #      JSON.parses raw values, so radioId/vid/t arrive as numbers and
+      #      a z.string() would throw a SearchParamError that costs the
+      #      guest all nine, not just the numeric three;
+      #   3. a param posted where the backend does not read it -- nested or
+      #      camelCased, which pydantic's extra="ignore" discards without a
+      #      word, the way this integration's `credentials: {...}` bug
+      #      already returned 201 with nothing stored.
+      #
+      # So this suite drives the real router, the real schema and the real
+      # body builder, and asserts the names PortalAuthorizeRequest actually
+      # parses. Every part of it was verified to FAIL when reverted.
+      - name: portal Omada redirect params
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "portal-omada-params" 115 \
+            "portal Omada params: all checks passed" \
+            bun run test:portal-omada-params
+
       # Which organization every request is about. A founder holding
       # `Super Admin` at GLOBAL scope opened a report about his own venue on
       # 7 Sep 2026 and read numbers blended across all fourteen

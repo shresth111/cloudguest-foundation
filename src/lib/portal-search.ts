@@ -98,6 +98,25 @@ import { z } from "zod";
 // backend). The `mac` below is a different thing entirely: it is reported
 // to `GET /agent/authorized-macs` so the router can add an already-signed-in
 // device to its bypass list, and it is never itself a credential.
+/**
+ * One Omada redirect parameter, exactly as TP-Link doc 132060 defines it
+ * and exactly as TanStack Router hands it over.
+ *
+ * Two primitives, not one, and a `.catch` on top -- both for reasons the
+ * comment block inside `portalSearchShape` spells out in full. The short
+ * version: the router's default search parser JSON.parses every raw value,
+ * so `radioId=1`/`vid=0`/`t=1757548800000` arrive as NUMBERS and a
+ * `z.string()` would reject a genuine controller redirect outright, taking
+ * every other parameter down with it; and a value that parses to neither
+ * primitive drops that one key rather than throwing a SearchParamError
+ * that costs the guest the whole redirect.
+ *
+ * No coercion here on purpose. This layer captures what the controller
+ * said; `src/lib/portal-authorize-body.ts` is the single place that
+ * renders each value into the shape its backend field takes.
+ */
+const omadaRedirectParam = () => z.union([z.string(), z.number()]).optional().catch(undefined);
+
 const portalSearchShape = {
   // Optional here (not .min(1) required, as this used to be) -- a missing
   // one is an expected, real-world case (see `IncompletePortalLinkError`'s
@@ -176,6 +195,106 @@ const portalSearchShape = {
   // as `mac` did not until `retainSearchParams` existed -- see this file's
   // docstring.
   clientIp: z.string().optional(),
+  // ------------------------------------------------------------------
+  // The rest of Omada's redirect, same source and same rule as `clientIp`
+  // above: TP-Link doc 132060, *External Portal Server, Omada Controller
+  // v6.2.10 or Above*. The controller 302s the guest's browser to the
+  // portal with one of two documented query strings --
+  //
+  //   EAP/AP:  ?clientMac=..&clientIp=..&apMac=..&ssidName=..&t=..
+  //            &radioId=..&site=..&redirectUrl=..
+  //   Gateway: ?clientMac=..&clientIp=..&gatewayMac=..&vid=..&t=..
+  //            &site=..&redirectUrl=..
+  //
+  // -- and the same doc states the requirement these entries exist to
+  // satisfy: "Your External Portal Server must preserve and return these
+  // parameters when interacting with the Omada Controller." Preserving
+  // them is what these lines do, and it is design-independent: however the
+  // venue itself ends up being identified (still an open question, and
+  // deliberately NOT answered here -- organizationId/locationId/routerId
+  // are untouched above), these nine values have to survive the trip from
+  // the controller's redirect to the authorize callback, because only the
+  // controller can tell us what they are.
+  //
+  // Being IN this schema is the whole mechanism. `PORTAL_SEARCH_KEYS` is
+  // derived from this shape and `retainSearchParams` consumes that list,
+  // so a param declared here is retained from the moment it exists and a
+  // param NOT declared here is stripped twice over: once by `z.object`,
+  // which drops every key it does not know, and again at the first
+  // `<Link>`. That is exactly how a guest's `mac` disappeared on 7 Sep
+  // 2026 -- see this file's docstring.
+  //
+  // TYPES, AND A TRAP THAT IS EASY TO MISS. These are not all strings by
+  // the time zod sees them. TanStack Router's default search parser runs
+  // JSON.parse over each raw value and keeps the parsed result when it
+  // succeeds, so a real redirect arrives with `radioId` as the NUMBER 1,
+  // `vid` as the NUMBER 0 and `t` as the NUMBER 1757548800000 -- and an
+  // SSID or site that happens to be spelled "5" arrives as a number too.
+  // A `z.string()` here would therefore REJECT the genuine article: the
+  // route's errorComponent would render IncompletePortalLinkError and the
+  // entire redirect -- every other parameter with it -- would be lost at
+  // the venues this work exists to support. Both primitives are accepted;
+  // `src/lib/portal-authorize-body.ts` is the single place that renders
+  // each one into the form the backend field takes.
+  //
+  // `.catch(undefined)` for the same reason, one step further out: a value
+  // JSON.parse turns into something neither primitive (`?vid=null`,
+  // `?t=[]`) drops that ONE key instead of throwing a SearchParamError
+  // that would cost the guest the whole redirect. Losing one parameter we
+  // could not have used anyway is strictly better than losing the eight
+  // beside it.
+  //
+  // CAPTURED, NEVER DERIVED -- the rule `clientIp` is already documented
+  // under. None of these has a local substitute: `ssidName` is not the
+  // integration's configured `guestSsidName`, `site` is not the stored
+  // site on the integration row, `t` is not `Date.now()`, and `redirectUrl`
+  // is not `dst` (see below). Absent stays absent all the way to the wire.
+  //
+  // Omada's own `clientMac`, which is NOT the `mac` param above. `mac` is
+  // RouterOS's `$(mac)` substitution on a MikroTik hotspot redirect and
+  // is reported to `GET /agent/authorized-macs`; `clientMac` comes from an
+  // Omada controller and is the device the controller's own authorize call
+  // names as `client_mac`. A venue is behind one vendor or the other, the
+  // two redirects never both fire, and substituting one for the other
+  // would authorize a MAC on a controller that never saw it.
+  clientMac: omadaRedirectParam(),
+  // The controller site the redirect came from. Required by the backend
+  // (`PortalAuthorizeRequest.site` has no default), and checked there
+  // against the integration's own stored site -- a mismatch means the
+  // redirect came from a controller this integration is not configured
+  // for. That check is only worth anything if the value is the
+  // CONTROLLER's; filling it in from the integration row would make it
+  // compare a value to itself.
+  site: omadaRedirectParam(),
+  // EAP/AP redirect only: the access point the guest associated with, and
+  // the SSID and radio they used. Absent on every gateway-mode redirect,
+  // which is a real shape and not a fault -- the backend takes all three
+  // as optional for exactly that reason.
+  apMac: omadaRedirectParam(),
+  // The SSID as the CONTROLLER spells it. Deliberately not the
+  // integration's configured `guestSsidName` (NetworkIntegrationsPage's
+  // own setup step), even though a correctly configured venue has the two
+  // agreeing: if they ever disagree, the controller's spelling is the one
+  // its authorize call will match, and ours is the one that is wrong.
+  ssidName: omadaRedirectParam(),
+  radioId: omadaRedirectParam(),
+  // Gateway redirect only: the gateway's MAC and the VLAN the client is
+  // on. Absent on every EAP/AP redirect.
+  gatewayMac: omadaRedirectParam(),
+  vid: omadaRedirectParam(),
+  // The controller's own timestamp for this redirect, echoed back so the
+  // controller can tie the authorization to the interception it issued.
+  // Never regenerated locally -- a fresh `Date.now()` would be a
+  // well-formed value describing a moment the controller knows nothing
+  // about.
+  t: omadaRedirectParam(),
+  // Where the CONTROLLER says to send the guest once it has authorized
+  // them (doc 132060's `LANDING_PAGE`). NOT the same thing as `dst` above:
+  // `dst` is RouterOS's `$(link-orig)`, the site this guest was personally
+  // trying to reach when the hotspot intercepted them. They answer
+  // different questions and come from different vendors; either may be
+  // absent while the other is present.
+  redirectUrl: omadaRedirectParam(),
   // The guest's own chosen portal language, put here by `buildSessionUrl`
   // so it survives portal.success.tsx's full-document POST to the NAS --
   // the one boundary on this flow where React state and (on iOS's Captive
