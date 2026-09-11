@@ -168,3 +168,69 @@ export function resolveRouterDetailTab(
 export function routerLivenessIsMeasured(vendor: string | null | undefined): boolean {
   return isAgentManaged(vendor);
 }
+
+// ---------------------------------------------------------------------------
+// Which customer-dashboard screens apply to a controller-managed venue.
+// ---------------------------------------------------------------------------
+
+/**
+ * The Network group's five configuration screens, which a venue whose only
+ * router is a vendor controller cannot use.
+ *
+ * The same allowlist-by-exclusion reasoning as `CONTROLLER_MANAGED_TAB_KEYS`
+ * above, one dashboard down. Every one of these writes RouterOS through a
+ * per-vendor adapter registry that has exactly one vendor in it, so on an
+ * Omada venue each ends in a typed refusal from the backend -- e.g.
+ * `get_vlan_adapter` raising `UnsupportedVlanVendorError`
+ * (`app/domains/vlan/device_adapters.py`). That refusal is correct and must
+ * stay; what is wrong is *when* the owner meets it. Failing closed after the
+ * form is filled is safe, and it is still the product telling a paying
+ * customer to do work that was never going to land.
+ *
+ *  - `vlans`            "Network Zones". VLAN interfaces on RouterOS.
+ *  - `dhcp`             "IP Addresses". DHCP pools/leases on RouterOS.
+ *  - `port-forwarding`  dst-nat rules on RouterOS.
+ *  - `voip`             "Call Priority". QoS/queue trees on RouterOS.
+ *  - `website-blocking`  content-filter rules, pushed to RouterOS.
+ *
+ * Deliberately NOT in this list, and each for a reason:
+ *  - `isp-details`           the venue's ISP/circuit is a record about the
+ *                            building, true whoever runs the WiFi.
+ *  - `network-integrations`  the screen this whole state is configured on.
+ *                            Excluding it would strand the owner.
+ *  - everything outside the Network group: guests, sessions, vouchers,
+ *    portal, reports and campaigns all run on our side of the wire and are
+ *    unaffected by who owns the access points.
+ */
+export const CONTROLLER_UNSUPPORTED_FEATURE_IDS: readonly string[] = [
+  "vlans",
+  "dhcp",
+  "port-forwarding",
+  "voip",
+  "website-blocking",
+];
+
+export function featureAppliesToControllerVenue(featureId: string): boolean {
+  return !CONTROLLER_UNSUPPORTED_FEATURE_IDS.includes(featureId);
+}
+
+/**
+ * The one sentence a venue owner is owed in place of one of those screens.
+ *
+ * Written once, here, because it is said in two places that must not drift:
+ * the sidebar row's tooltip and the panel the page itself renders. It names
+ * the vendor rather than saying "your controller", because the owner bought
+ * a box with a brand on it and that is the word they will search for.
+ */
+export function controllerVenueFeatureReason(vendor: string | null | undefined): string {
+  // A missing vendor string is a real case, not a defensive one: this reason
+  // is rendered from a venue summary that may have been persisted by an
+  // older build of this app, before rows carried a vendor at all. Name the
+  // brand when we have it and stay vendor-neutral when we do not, rather
+  // than letting `routerVendorLabel`'s "—" fallback reach the sentence.
+  const who = vendor ? `a ${routerVendorLabel(vendor)} controller` : "a network controller";
+  return (
+    `This venue's network is managed by ${who}, not by a WyfyGuest-managed router, ` +
+    "so this is configured in that controller rather than here."
+  );
+}

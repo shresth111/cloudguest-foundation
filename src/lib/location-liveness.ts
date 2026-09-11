@@ -133,6 +133,17 @@ export interface RouterLiveness {
   lastContactKind: LastContactKind;
   /** The raw backend status, for support conversations. Never rendered as the answer. */
   rawStatus: string;
+  /**
+   * The raw `routers.vendor` this verdict was derived from, carried through
+   * so a consumer that needs to NAME the vendor does not have to re-fetch
+   * the row or parse it back out of `detail`.
+   *
+   * Optional, and every reader must treat it as possibly absent: these
+   * objects are persisted into `localStorage` inside the active-venue
+   * summary (`customerStore`), so a browser that last loaded a build
+   * predating this field will hand one back without it.
+   */
+  vendor?: string | null;
 }
 
 export type LocationLivenessState =
@@ -237,7 +248,12 @@ export function deriveRouterLiveness(raw: RawRouterLiveness, now: Date): RouterL
   const age = minutesSince(lastSeenIso, now);
   const ago = formatAgo(lastSeenIso, now);
 
-  const base = { key, label, rawStatus };
+  const base = {
+    key,
+    label,
+    rawStatus,
+    vendor: typeof raw.vendor === "string" ? raw.vendor : null,
+  };
 
   // Contract §11.5, and this is the most damaging place it could be missed:
   // this function feeds the venue owner's OWN dashboard.
@@ -447,8 +463,20 @@ export function deriveRouterLiveness(raw: RawRouterLiveness, now: Date): RouterL
  * the provisioning-token exchange, so calling it a check-in would report
  * the router as having reported in when it never has. Each
  * `LastContactKind` gets its own sentence for exactly that reason.
+ *
+ * And a fourth, which has to come first. A controller-managed row (contract
+ * §11.5) also carries `lastContactKind: "none"`, because nothing ever
+ * contacts it -- but "Never heard from this router" is a *measurement*
+ * claim, and it is the wrong one: it says we listened and nothing came,
+ * when the truth is that nothing here ever listens. This is the exact
+ * sentence `RouterDetailTabs` already refuses to print for a controller
+ * ("Not measured here"); every list and tile that links to that drawer
+ * reads through this function, so saying it once here is what stops the
+ * fleet list, the fleet drawer, the venue liveness card and Fix-a-Problem
+ * from each contradicting the drawer separately.
  */
 export function lastContactLabel(router: RouterLiveness, now: Date = new Date()): string {
+  if (router.state === "not-applicable") return "Not measured here";
   if (router.lastContactKind === "none") return "Never heard from this router";
   const ago = formatAgo(router.lastContactIso, now);
   if (ago === null) return "Last contact time unknown";
@@ -660,4 +688,63 @@ export function livenessTone(state: LocationLivenessState): LivenessTone {
     case "unknown":
       return "neutral";
   }
+}
+
+/**
+ * Is this venue's network run entirely by a vendor controller?
+ *
+ * Contract §11.5, asked at venue scope rather than at router scope, for the
+ * customer dashboard's Network group: VLANs, DHCP, port forwarding, traffic
+ * priority and website blocking are all RouterOS writes, and a venue whose
+ * only `Router` row is a TP-Link Omada controller has nothing for them to
+ * write to. The backend already refuses -- `get_vlan_adapter` and its peers
+ * raise on an unregistered vendor -- but it refuses at apply time, which is
+ * after the owner has filled in the form.
+ *
+ * Deliberately phrased over `state === "not-applicable"`, the state
+ * `deriveRouterLiveness` already assigns to a controller-managed row, rather
+ * than re-reading `vendor` here. There is one definition of "this platform
+ * does not reach that device directly" and it lives in `router-vendors.ts`;
+ * a second one keyed off a vendor string in a second module is how the two
+ * drift.
+ *
+ * EVERY AMBIGUITY RESOLVES TOWARD LEAVING THE SCREEN ALONE.
+ *
+ *  - No routers read, or the read failed (`routers` is empty): `false`. We
+ *    do not know, and a venue owner losing Port Forwarding because a request
+ *    timed out would be a worse bug than the one this fixes.
+ *  - A MIXED venue -- a MikroTik and a controller at the same site: `false`.
+ *    The MikroTik is real, the screens genuinely act on it, and the five
+ *    forms still work. `every`, not `some`, for exactly this case.
+ *
+ * So the only venue this returns `true` for is one where every router is a
+ * controller, which is the only venue where all five screens are certain to
+ * fail. A MikroTik-only venue can never reach `true`, because
+ * `deriveRouterLiveness` never assigns `not-applicable` to an agent-managed
+ * vendor.
+ */
+export function locationIsControllerManaged(
+  liveness: LocationLiveness | null | undefined,
+): boolean {
+  const routers = liveness?.routers ?? [];
+  if (routers.length === 0) return false;
+  return routers.every((r) => r.state === "not-applicable");
+}
+
+/**
+ * The raw vendor string of the controller running this venue, for copy that
+ * needs to name it ("a TP-Link Omada controller"), or `null` when there is
+ * nothing to name.
+ *
+ * `null` on two different grounds, both of which the caller must render
+ * without a brand: a venue that is not controller-managed at all, and a
+ * venue summary persisted before `RouterLiveness` carried `vendor`. See
+ * `controllerVenueFeatureReason`, which takes exactly this and stays
+ * vendor-neutral when it is null.
+ */
+export function locationControllerVendor(
+  liveness: LocationLiveness | null | undefined,
+): string | null {
+  if (!locationIsControllerManaged(liveness)) return null;
+  return liveness?.routers.find((r) => r.vendor)?.vendor ?? null;
 }
