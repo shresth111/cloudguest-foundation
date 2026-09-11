@@ -56,6 +56,7 @@ import {
   MissingCredentialsBadge,
   ControllerManagedBadge,
 } from "./RouterStatusBadge";
+import { isControllerManaged } from "@/lib/router-vendors";
 import { RouterWizard } from "./RouterWizard";
 import type { AppError } from "@/services/api";
 
@@ -393,8 +394,24 @@ export function RouterTable() {
                     <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">
                       {r.model}
                     </TableCell>
+                    {/* A controller does not run RouterOS. "—" is this
+                        column's "no version on file", which is a different
+                        fact from "this device has no such version at all" --
+                        the detail drawer this row links to drops the field
+                        entirely rather than conflate them
+                        (`RouterDetailTabs`), and a list that disagrees with
+                        its own detail view is the defect §11.5 exists for. */}
                     <TableCell className="text-xs tabular-nums">
-                      {r.routerOsVersion ?? "—"}
+                      {isControllerManaged(r.vendor) ? (
+                        <span
+                          className="text-muted-foreground"
+                          title="A controller does not run RouterOS. Its software version lives on the controller itself."
+                        >
+                          Not applicable
+                        </span>
+                      ) : (
+                        (r.routerOsVersion ?? "—")
+                      )}
                     </TableCell>
                     <TableCell className="text-xs tabular-nums">
                       <div>{r.publicIpAddress ?? "—"}</div>
@@ -402,8 +419,24 @@ export function RouterTable() {
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-1">
-                        <RouterStatusBadge status={r.status} />
-                        <ControllerManagedBadge vendor={r.vendor} />
+                        {/* A controller sits at `pending_provisioning`
+                            forever -- nothing provisions it, so nothing ever
+                            moves it on -- and `RouterStatusBadge` renders
+                            that as "Pending provisioning": a device somebody
+                            forgot to finish. This is the venue owner's OWN
+                            list, so that badge told a hotel whose guest WiFi
+                            is working that its network was half-installed.
+                            `ControllerManagedBadge` was already rendered
+                            beside it; it now stands in place of the status
+                            word rather than next to a contradiction of
+                            itself. Same substitution `RouterDetailTabs`
+                            makes on the Status tile of the drawer this row
+                            links to. */}
+                        {isControllerManaged(r.vendor) ? (
+                          <ControllerManagedBadge vendor={r.vendor} />
+                        ) : (
+                          <RouterStatusBadge status={r.status} />
+                        )}
                         <MissingCredentialsBadge
                           hasApiCredentials={r.hasApiCredentials}
                           status={r.status}
@@ -412,10 +445,22 @@ export function RouterTable() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <HealthStatusBadge status={r.healthStatus} />
+                      {/* `healthStatus` is written by the health checker,
+                          which talks to the router agent. On a controller it
+                          is null forever, and even `HealthStatusBadge`'s
+                          honest "Unknown" is a word too confident: unknown
+                          implies somebody looked. */}
+                      {isControllerManaged(r.vendor) ? (
+                        <span className="text-xs text-muted-foreground">Not measured here</span>
+                      ) : (
+                        <HealthStatusBadge status={r.healthStatus} />
+                      )}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {relative(r.lastSeenAt)}
+                      {/* `relative(null)` is "Never" -- a measurement claim,
+                          and the wrong one. Nothing here ever checks a
+                          controller, so there is no "never" to report. */}
+                      {isControllerManaged(r.vendor) ? "Not measured here" : relative(r.lastSeenAt)}
                     </TableCell>
                     <TableCell className="text-right">
                       <RowActions

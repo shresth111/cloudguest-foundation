@@ -28,6 +28,12 @@ import {
   filterNavGroupsByPermissions,
   navItemsHiddenByPermissions,
 } from "@/lib/customerNavPermissions";
+import { locationControllerVendor, locationIsControllerManaged } from "@/lib/location-liveness";
+import {
+  controllerVenueFeatureReason,
+  featureAppliesToControllerVenue,
+} from "@/lib/router-vendors";
+import { useCustomerStore } from "@/stores/customerStore";
 import { DataMaskingOtpDialog } from "@/components/features/HeaderControls";
 import { useMyPermissions } from "@/hooks/useCustomerDashboard";
 import type { useDataMasking } from "@/hooks/useCustomerDashboard";
@@ -137,6 +143,21 @@ export function CustomerSidebar({ activeFeatureId, subtitle, dataMasking }: Cust
   // false for demo, failed and empty alike, so all three still fall through
   // to the fail-open full nav.
   const showSkeleton = permissionsLoading && !permissions;
+  // Contract §11.5. The active venue's own liveness already knows this --
+  // `deriveRouterLiveness` marks a controller row `not-applicable` -- so the
+  // nav asks that rather than inventing a second notion of "is this a
+  // controller". Read straight off the store, the same place `subtitle` and
+  // every other venue fact on this shell comes from.
+  //
+  // Fails open in every direction it can: a venue with no liveness yet, a
+  // venue whose routers could not be read, and a MIXED venue (a MikroTik
+  // beside the controller, where the five screens act on the MikroTik and
+  // genuinely work) all render exactly the nav they render today.
+  const activeLocation = useCustomerStore((s) => s.activeLocation);
+  const controllerManaged = locationIsControllerManaged(activeLocation?.liveness);
+  const controllerReason = controllerVenueFeatureReason(
+    locationControllerVendor(activeLocation?.liveness),
+  );
 
   return (
     <Sidebar
@@ -247,11 +268,28 @@ export function CustomerSidebar({ activeFeatureId, subtitle, dataMasking }: Cust
                     const Icon = item.icon;
                     const active = item.id === activeFeatureId;
                     const label = t(`customerItem.${item.id}`, item.label);
+                    // Contract §11.5. Muted, titled, and still a link --
+                    // not removed, and not a dead `disabled` button.
+                    //
+                    // Removed loses the question: a row that was never there
+                    // and a row this venue cannot use look identical, and an
+                    // absence cannot be asked why. `disabled` loses the
+                    // ANSWER: a disabled button takes no pointer events, so
+                    // neither its `title` nor a Radix tooltip on it ever
+                    // fires, and the owner gets a grey row with no way to
+                    // find out what it means. Left as a link, it costs one
+                    // click to read the whole explanation, and the
+                    // destination is a panel with no form on it -- so
+                    // nothing here can still be filled in and refused.
+                    const viaController = controllerManaged
+                      ? !featureAppliesToControllerVenue(item.id)
+                      : false;
                     return (
                       <SidebarMenuItem key={item.id}>
                         <SidebarMenuButton
                           asChild
                           isActive={active}
+                          className={cn(viaController && "opacity-60")}
                           // The collapsed rail is icons only, so the tooltip
                           // is the label. The primitive renders it as a real
                           // Radix tooltip and hides it when expanded, rather
@@ -263,6 +301,7 @@ export function CustomerSidebar({ activeFeatureId, subtitle, dataMasking }: Cust
                             to={customerFeatureHref(item.id)}
                             aria-current={active ? "page" : undefined}
                             className="relative"
+                            title={viaController ? controllerReason : undefined}
                           >
                             {/* Active-page accent bar -- a 3px violet rail on
                              * the row's leading edge so the current section
@@ -285,6 +324,19 @@ export function CustomerSidebar({ activeFeatureId, subtitle, dataMasking }: Cust
                     );
                   })}
                 </SidebarMenu>
+                {/* One quiet line, in the group it is about, and only when
+                    something in that group is actually greyed -- the same
+                    treatment (and the same reasoning) as the
+                    "hidden by your permissions" note below. A tooltip on a
+                    muted row is only found by the owner who already hovers
+                    it; this is the sentence for the one who does not. */}
+                {controllerManaged &&
+                  !collapsed &&
+                  group.items.some((item) => !featureAppliesToControllerVenue(item.id)) && (
+                    <p className="px-2 pt-1 text-[11px] leading-snug text-sidebar-foreground/55">
+                      {controllerReason}
+                    </p>
+                  )}
               </SidebarGroupContent>
             </SidebarGroup>
           ))

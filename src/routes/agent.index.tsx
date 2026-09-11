@@ -15,6 +15,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { FEATURE_GROUPS, FEATURE_BY_ID, renderFeature } from "@/config/customerFeatures";
 import { useAgentPermissions } from "@/stores/agentPermissionStore";
+import { useCustomerStore } from "@/stores/customerStore";
+import { locationControllerVendor, locationIsControllerManaged } from "@/lib/location-liveness";
+import { featureAppliesToControllerVenue } from "@/lib/router-vendors";
+import { ControllerManagedFeatureNotice } from "@/components/customer/ControllerManagedFeatureNotice";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
 import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
 
@@ -45,6 +49,11 @@ function AgentDashboard() {
 
   const active = granted.has(feature) ? feature : firstFeature;
   const activeLabel = FEATURE_BY_ID[active]?.label ?? "Dashboard";
+  // Same read, same fail-open rules, as `CustomerFeaturePage` and
+  // `CustomerSidebar` -- see `locationIsControllerManaged`.
+  const activeLocation = useCustomerStore((s) => s.activeLocation);
+  const controllerManaged = locationIsControllerManaged(activeLocation?.liveness);
+  const controllerVendor = locationControllerVendor(activeLocation?.liveness);
   const handleLogout = async () => {
     await logout();
     navigate({ to: "/login", replace: true });
@@ -207,8 +216,22 @@ function AgentDashboard() {
            * actual, effective setting rather than just a static label: flip
            * it off for this agent and the Users view now shows real guest
            * email/phone, flip it back on and they're redacted again. */}
+          {/* Contract §11.5. The second door onto the same five RouterOS
+           * forms: the owner's sidebar filters them by login role, this
+           * shell does not -- it renders whatever the owner granted, from
+           * `FEATURE_GROUPS` directly. Gating one door and not the other
+           * would leave a member of staff able to fill in a Port Forwarding
+           * rule that the backend refuses on vendor. Same predicate, same
+           * panel, so the two doors cannot drift. */}
           <div className="mx-auto max-w-7xl">
-            {renderFeature(active, { masked: agent.dataMasking })}
+            {controllerManaged && !featureAppliesToControllerVenue(active) ? (
+              <ControllerManagedFeatureNotice
+                featureLabel={activeLabel}
+                vendor={controllerVendor}
+              />
+            ) : (
+              renderFeature(active, { masked: agent.dataMasking })
+            )}
           </div>
         </main>
       </div>

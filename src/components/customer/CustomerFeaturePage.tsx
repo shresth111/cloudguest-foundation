@@ -22,6 +22,9 @@ import {
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { CustomerHeader } from "@/components/customer/CustomerHeader";
 import { CUSTOMER_NAVS, customerFeatureHref } from "@/lib/customerNav";
+import { locationControllerVendor, locationIsControllerManaged } from "@/lib/location-liveness";
+import { featureAppliesToControllerVenue } from "@/lib/router-vendors";
+import { ControllerManagedFeatureNotice } from "@/components/customer/ControllerManagedFeatureNotice";
 import { AgentsPage } from "@/components/features/AgentsPage";
 import { CampaignsPage } from "@/components/features/CampaignsPage";
 import { VouchersPage } from "@/components/features/VouchersPage";
@@ -130,6 +133,27 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
   const masked = dataMasking.masked;
   const [changePwOpen, setChangePwOpen] = useState(false);
   const [tfaOpen, setTfaOpen] = useState(false);
+
+  // Contract §11.5, customer side. The five Network-group screens below are
+  // RouterOS writes, and at a venue whose only router is a vendor controller
+  // there is no RouterOS to write to -- the backend refuses, but not until
+  // the owner has filled in the form.
+  //
+  // Read off the active venue's liveness, which is where the vendor already
+  // is: `deriveRouterLiveness` assigns `state: "not-applicable"` to a
+  // controller row, and `locationIsControllerManaged` is `every`, not
+  // `some`, so a venue with a MikroTik alongside the controller keeps all
+  // five screens -- they act on the MikroTik and they work. A venue whose
+  // routers could not be read keeps them too. A MikroTik-only venue can
+  // never reach this branch at all.
+  //
+  // The vendor STRING is read separately and is allowed to be null (a venue
+  // summary persisted before `RouterLiveness` carried one). The gate is the
+  // boolean; the vendor only decides whether the copy can name a brand.
+  const controllerGated =
+    locationIsControllerManaged(activeLocation?.liveness) &&
+    !featureAppliesToControllerVenue(feature);
+  const controllerVendor = locationControllerVendor(activeLocation?.liveness);
 
   const handleLogout = async () => {
     await logout();
@@ -273,11 +297,30 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
               {feature === "admin-logs" && <AdminLogsView locationId={locationId} />}
               {feature === "network-activity" && <NetworkActivityLog masked={masked} />}
               {feature === "mac-auth" && <MacAuthView locationId={locationId} />}
-              {feature === "port-forwarding" && <PortForwardingView locationId={locationId} />}
-              {feature === "dhcp" && <DhcpView locationId={locationId} />}
-              {feature === "vlans" && <VlansView locationId={locationId} />}
-              {feature === "voip" && <VoipView locationId={locationId} />}
-              {feature === "website-blocking" && <WebsiteBlockingView locationId={locationId} />}
+              {/* The five RouterOS screens. On a controller-managed venue
+                  the view is NOT MOUNTED -- this is not a disabled form over
+                  a live one. Each of these components fetches its own rules
+                  on mount and offers Add/Edit/Apply, and a form that submits
+                  into a typed backend refusal is the defect being fixed; a
+                  greyed-out copy of it, still fetching, would be the same
+                  defect with worse manners. What replaces it says which
+                  controller owns the setting and links to it. */}
+              {controllerGated ? (
+                <ControllerManagedFeatureNotice
+                  featureLabel={CUSTOMER_NAVS.find((n) => n.id === feature)?.label ?? feature}
+                  vendor={controllerVendor}
+                />
+              ) : (
+                <>
+                  {feature === "port-forwarding" && <PortForwardingView locationId={locationId} />}
+                  {feature === "dhcp" && <DhcpView locationId={locationId} />}
+                  {feature === "vlans" && <VlansView locationId={locationId} />}
+                  {feature === "voip" && <VoipView locationId={locationId} />}
+                  {feature === "website-blocking" && (
+                    <WebsiteBlockingView locationId={locationId} />
+                  )}
+                </>
+              )}
               {/* `masked` matters here now: this page looks a guest up by
                   phone number, so it renders an identifier the account
                   holder's own masking preference applies to. */}

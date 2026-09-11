@@ -68,7 +68,11 @@
     "test:network-integration": "node scripts/test-network-integration-contract.mjs",
     "test:network-integration-render": "node scripts/test-network-integration-render.mjs",
     "test:omada-disconnect": "node scripts/test-omada-disconnect-verdicts.mjs",
-    "test:omada-disconnect-render": "node scripts/test-omada-disconnect-render.mjs"
+    "test:omada-disconnect-render": "node scripts/test-omada-disconnect-render.mjs",
+    "test:controller-fleet-honesty": "node scripts/test-controller-fleet-honesty.mjs",
+    "test:controller-fleet-drawer": "node scripts/test-controller-fleet-drawer.mjs",
+    "test:controller-venue-screens": "node scripts/test-controller-venue-network-screens.mjs",
+    "test:controller-venue-nav": "node scripts/test-controller-venue-nav.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
