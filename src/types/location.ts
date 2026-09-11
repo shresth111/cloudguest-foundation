@@ -1,3 +1,5 @@
+import type { ControllerOnboardFields } from "@/types/router";
+
 export type LocationStatus = "active" | "inactive" | "suspended" | "archived";
 
 export type PropertyType =
@@ -156,7 +158,12 @@ export interface ProvisionLocationPayload {
     designation?: string;
     department?: string;
   };
-  router: {
+  /**
+   * The venue's first device: exactly one of `router` (a MikroTik) and
+   * `networkController` (a TP-Link Omada controller, for a venue with no
+   * MikroTik at all). The backend refuses neither and both.
+   */
+  router?: {
     name: string;
     serialNumber: string;
     macAddress: string;
@@ -164,10 +171,17 @@ export interface ProvisionLocationPayload {
     managementIpAddress?: string;
     publicIpAddress?: string;
   };
+  /** Registered through Master onboarding's own backend path, in the same
+   * transaction as the rest of provisioning. No serial or MAC is required: a
+   * software controller has neither and the backend generates a
+   * locally-administered identity. Needs `network_integrations.create`. */
+  networkController?: ControllerOnboardFields;
   planId: string;
   featureOverrides?: Array<{ featureKey: string; isEnabled?: boolean; limitValue?: number }>;
   couponCode?: string;
 }
+
+export type ProvisionedDeviceKind = "router" | "network_controller";
 
 export interface ProvisionLocationResult {
   organizationId: string;
@@ -177,8 +191,15 @@ export interface ProvisionLocationResult {
   locationCode: string;
   planId: string;
   planName: string;
+  /** Which kind of first device the location was provisioned with. */
+  deviceKind: ProvisionedDeviceKind;
+  /** The fleet row: the MikroTik, or the row representing the controller. */
   routerId: string;
   routerName: string;
+  /** The controller integration, for a `network_controller` first device --
+   * its site and guest network are mapped on the venue's Network
+   * Integrations page. Null for a MikroTik. */
+  networkIntegrationId: string | null;
   ownerUserId: string;
   ownerName: string;
   ownerUsername: string;

@@ -3,6 +3,7 @@ import { isDemo } from "@/services/customer.service";
 import type {
   CreateRouterPayload,
   DeviceInterface,
+  ControllerOnboardFields,
   OnboardControllerPayload,
   OnboardControllerResult,
   ProvisioningToken,
@@ -463,6 +464,50 @@ export function routerModelGroupsForVendor(vendor: string | undefined): RouterMo
   return vendor === "tplink_omada" ? OMADA_MODEL_GROUPS : MIKROTIK_MODEL_GROUPS;
 }
 
+/**
+ * The wire body for one controller -- `ControllerOnboardFields` on the
+ * backend. One serializer for both paths that send it (Master onboarding and
+ * Smart Location Provisioning's `network_controller`), so the rules below
+ * cannot drift between them.
+ */
+export function controllerOnboardBody(fields: ControllerOnboardFields): Record<string, unknown> {
+  return {
+    provider: "omada",
+    name: fields.name,
+    controller_model: fields.controllerModel,
+    base_url: fields.baseUrl,
+    auth_mode: fields.authMode,
+    // Top-level, matching `_CredentialFields` on the backend -- see
+    // `network-integration.service.ts`'s note on why a nested object here
+    // is silently dropped rather than rejected. The app pair goes only
+    // with Open API; the hotspot operator pair goes with BOTH modes,
+    // because the controller only lets a guest online through the
+    // operator login -- an Open API controller onboarded without it
+    // could never authorise anyone (see `credentialsForMode`).
+    ...(fields.authMode === "openapi"
+      ? {
+          ...(fields.clientId ? { client_id: fields.clientId } : {}),
+          ...(fields.clientSecret ? { client_secret: fields.clientSecret } : {}),
+        }
+      : {}),
+    ...(fields.username ? { username: fields.username } : {}),
+    ...(fields.password ? { password: fields.password } : {}),
+    // Certificate trust and the Omada ID, omitted unless set so the
+    // backend's `strict` default stands.
+    ...(fields.controllerId?.trim() ? { controller_id: fields.controllerId.trim() } : {}),
+    ...(fields.tlsMode ? { tls_mode: fields.tlsMode } : {}),
+    ...(fields.tlsMode === "pinned" && fields.tlsPinnedSha256
+      ? { tls_pinned_sha256: fields.tlsPinnedSha256 }
+      : {}),
+    // Omitted entirely rather than sent as null when absent: the backend
+    // reads "both absent" as "software controller, mint an identity", and
+    // an explicit null would take the same branch but says something
+    // different about intent.
+    ...(fields.serialNumber ? { serial_number: fields.serialNumber } : {}),
+    ...(fields.macAddress ? { mac_address: fields.macAddress } : {}),
+  };
+}
+
 export const routerService = {
   /**
    * Location-scoped router listing for callers that already know both the
@@ -635,39 +680,7 @@ export const routerService = {
       {
         organization_id: payload.organizationId,
         location_id: payload.locationId,
-        provider: "omada",
-        name: payload.name,
-        controller_model: payload.controllerModel,
-        base_url: payload.baseUrl,
-        auth_mode: payload.authMode,
-        // Top-level, matching `_CredentialFields` on the backend -- see
-        // `network-integration.service.ts`'s note on why a nested object here
-        // is silently dropped rather than rejected. The app pair goes only
-        // with Open API; the hotspot operator pair goes with BOTH modes,
-        // because the controller only lets a guest online through the
-        // operator login -- an Open API controller onboarded without it
-        // could never authorise anyone (see `credentialsForMode`).
-        ...(payload.authMode === "openapi"
-          ? {
-              ...(payload.clientId ? { client_id: payload.clientId } : {}),
-              ...(payload.clientSecret ? { client_secret: payload.clientSecret } : {}),
-            }
-          : {}),
-        ...(payload.username ? { username: payload.username } : {}),
-        ...(payload.password ? { password: payload.password } : {}),
-        // Certificate trust and the Omada ID, omitted unless set so the
-        // backend's `strict` default stands.
-        ...(payload.controllerId?.trim() ? { controller_id: payload.controllerId.trim() } : {}),
-        ...(payload.tlsMode ? { tls_mode: payload.tlsMode } : {}),
-        ...(payload.tlsMode === "pinned" && payload.tlsPinnedSha256
-          ? { tls_pinned_sha256: payload.tlsPinnedSha256 }
-          : {}),
-        // Omitted entirely rather than sent as null when absent: the backend
-        // reads "both absent" as "software controller, mint an identity", and
-        // an explicit null would take the same branch but says something
-        // different about intent.
-        ...(payload.serialNumber ? { serial_number: payload.serialNumber } : {}),
-        ...(payload.macAddress ? { mac_address: payload.macAddress } : {}),
+        ...controllerOnboardBody(payload),
       },
       { timeout: 60_000 },
     );

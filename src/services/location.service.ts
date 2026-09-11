@@ -1,5 +1,6 @@
 import { api } from "@/services/api";
 import { isDemo } from "@/services/customer.service";
+import { controllerOnboardBody } from "@/services/router.service";
 import type {
   CreateLocationPayload,
   Location,
@@ -376,8 +377,10 @@ export const locationService = {
         locationCode: `LOC-DEMO-${Math.floor(Math.random() * 9000 + 1000)}`,
         planId: payload.planId,
         planName: "Demo Plan",
+        deviceKind: payload.networkController ? "network_controller" : "router",
         routerId: `router-demo-${Date.now()}`,
-        routerName: payload.router.name,
+        routerName: payload.networkController?.name ?? payload.router?.name ?? "",
+        networkIntegrationId: payload.networkController ? `integration-demo-${Date.now()}` : null,
         ownerUserId: `user-demo-${Date.now()}`,
         ownerName: `${payload.owner.firstName} ${payload.owner.lastName}`,
         ownerUsername: payload.owner.email.split("@")[0],
@@ -395,8 +398,12 @@ export const locationService = {
       location_code: string;
       plan_id: string;
       plan_name: string;
+      // Absent on a backend older than cloud-guest's controller-first-device
+      // change, which only ever provisioned routers.
+      device_kind?: "router" | "network_controller";
       router_id: string;
       router_name: string;
+      network_integration_id?: string | null;
       owner_user_id: string;
       owner_name: string;
       owner_username: string;
@@ -441,14 +448,23 @@ export const locationService = {
         designation: payload.owner.designation,
         department: payload.owner.department,
       },
-      router: {
-        name: payload.router.name,
-        serial_number: payload.router.serialNumber,
-        mac_address: payload.router.macAddress,
-        model: payload.router.model,
-        management_ip_address: payload.router.managementIpAddress,
-        public_ip_address: payload.router.publicIpAddress,
-      },
+      // Exactly one first device. Each key is omitted -- not sent as null --
+      // when unused, so the backend's "exactly one" check sees one.
+      ...(payload.router
+        ? {
+            router: {
+              name: payload.router.name,
+              serial_number: payload.router.serialNumber,
+              mac_address: payload.router.macAddress,
+              model: payload.router.model,
+              management_ip_address: payload.router.managementIpAddress,
+              public_ip_address: payload.router.publicIpAddress,
+            },
+          }
+        : {}),
+      ...(payload.networkController
+        ? { network_controller: controllerOnboardBody(payload.networkController) }
+        : {}),
       plan_id: payload.planId,
       feature_overrides: (payload.featureOverrides ?? []).map((f) => ({
         feature_key: f.featureKey,
@@ -465,8 +481,10 @@ export const locationService = {
       locationCode: data.location_code,
       planId: data.plan_id,
       planName: data.plan_name,
+      deviceKind: data.device_kind ?? "router",
       routerId: data.router_id,
       routerName: data.router_name,
+      networkIntegrationId: data.network_integration_id ?? null,
       ownerUserId: data.owner_user_id,
       ownerName: data.owner_name,
       ownerUsername: data.owner_username,
