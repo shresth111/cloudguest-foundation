@@ -1,5 +1,5 @@
 import { createFileRoute, Outlet, SearchParamError } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 // Real incident: a now-removed admin "Open live guest flow" preview button
 // (see src/routes/preview.portal.$locationId.tsx's own history) used to
@@ -190,6 +190,15 @@ function PortalRuntimeLayout() {
     ip,
     dst,
     clientIp,
+    clientMac,
+    site,
+    apMac,
+    ssidName,
+    radioId,
+    gatewayMac,
+    vid,
+    t,
+    redirectUrl,
   } = search;
   const linkLoginOnly = search["link-login-only"];
 
@@ -201,6 +210,27 @@ function PortalRuntimeLayout() {
   // in PortalRuntimeContext.tsx for the concrete, confirmed-live ways that
   // happens even after a guest is already connected).
   const [persistedIds] = useState(() => loadPersistedRuntimeIds());
+
+  // The rest of Omada's portal redirect, exactly as the controller sent it
+  // (TP-Link doc 132060, *External Portal Server, Omada Controller v6.2.10
+  // or Above*), which says in as many words: "Your External Portal Server
+  // must preserve and return these parameters when interacting with the
+  // Omada Controller." Preserving them starts here and finishes at the
+  // authorize call; `OMADA_REDIRECT_FIELD_MAP` in
+  // src/lib/portal-authorize-body.ts is where each one gets the backend's
+  // spelling. Nothing is derived, defaulted, coerced or renamed on the way
+  // through -- an absent parameter stays absent, and a value TanStack's
+  // search parser handed over as a number stays a number until the one
+  // module that knows what its backend field takes.
+  //
+  // Memoized on the nine values rather than rebuilt inline, because
+  // `PortalRuntimeProvider`'s context value is a `useMemo` over its props:
+  // a fresh object identity every render would invalidate it every render
+  // and re-render every portal screen with it.
+  const omadaRedirect = useMemo(
+    () => ({ clientMac, site, apMac, ssidName, radioId, gatewayMac, vid, t, redirectUrl }),
+    [clientMac, site, apMac, ssidName, radioId, gatewayMac, vid, t, redirectUrl],
+  );
 
   const organizationId = urlOrganizationId ?? persistedIds?.organizationId;
   const locationId = urlLocationId ?? persistedIds?.locationId;
@@ -247,6 +277,11 @@ function PortalRuntimeLayout() {
       // another. Passed through untouched: this route captures, it does not
       // derive.
       clientIp={clientIp}
+      // The other nine, grouped -- see the `omadaRedirect` memo above, and
+      // `PortalRuntimeState.omadaRedirect` for why this one is an object
+      // where `clientIp` is a flat prop (doc 132060's `t` collides with the
+      // context's own i18n `t`).
+      omadaRedirect={omadaRedirect}
       destinationUrl={dst}
       hotspotLoginUrl={linkLoginOnly}
     >

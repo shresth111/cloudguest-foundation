@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
+import type { OmadaRedirectCapture } from "@/lib/portal-authorize-body";
 import type {
   RuntimeAuthMethod,
   RuntimeLanguage,
@@ -385,6 +386,36 @@ interface PortalRuntimeState {
    * inferred from the request's source address -- see
    * `portalSearchShape.clientIp` in src/lib/portal-search.ts. */
   clientIp?: string;
+  /** The rest of Omada's portal redirect (TP-Link doc 132060), captured
+   * verbatim: `clientMac`, `site`, `apMac`, `ssidName`, `radioId`,
+   * `gatewayMac`, `vid`, `t`, `redirectUrl`. That doc requires the
+   * External Portal Server to "preserve and return these parameters when
+   * interacting with the Omada Controller", so they are carried from the
+   * redirect that created this runtime all the way to the authorize call
+   * (`POST /api/v1/network-integrations/portal/authorize`), which spells
+   * them `client_mac`/`ssid_name`/`radio_id`/... -- see
+   * `OMADA_REDIRECT_FIELD_MAP` in src/lib/portal-authorize-body.ts, the
+   * one place that mapping is written down.
+   *
+   * ONE OBJECT, where `clientIp` above is a flat field. Not drift: doc
+   * 132060's timestamp parameter is named `t`, and `PortalRuntimeState`
+   * already has a `t` -- the i18n `translate` binding every portal screen
+   * calls. A flat Omada `t` would either shadow it or have to be renamed
+   * into something no longer traceable to the doc. Grouping keeps every
+   * wire name verbatim, which is what makes the field map above a
+   * one-to-one table instead of a set of judgement calls.
+   *
+   * Undefined on every MikroTik venue, and individually undefined for
+   * whichever shape a given redirect is not (an EAP redirect carries no
+   * `gatewayMac`/`vid`, a gateway redirect no `apMac`/`ssidName`/
+   * `radioId`). `string | number` per field because TanStack Router's
+   * search parser JSON.parses raw values, so the numeric ones arrive as
+   * numbers -- see `omadaRedirectParam` in src/lib/portal-search.ts.
+   *
+   * CAPTURED, NEVER DERIVED, exactly as `clientIp` is. `ssidName` is not
+   * the integration's configured SSID, `site` is not the integration's
+   * stored site, and `t` is not `Date.now()`. */
+  omadaRedirect?: OmadaRedirectCapture;
   destinationUrl?: string;
   /** RouterOS's `$(link-login-only)` substitution -- the URL this guest's
    * browser must POST username/password to for the NAS itself to actually
@@ -525,6 +556,11 @@ interface Props {
   /** Omada's `clientIp` from the controller's portal redirect -- see
    * `PortalRuntimeState.clientIp`'s own docstring. */
   clientIp?: string;
+  /** Omada's remaining redirect parameters from the controller's portal
+   * redirect -- see `PortalRuntimeState.omadaRedirect`'s own docstring,
+   * including why these nine are one object while `clientIp` is a flat
+   * field. */
+  omadaRedirect?: OmadaRedirectCapture;
   destinationUrl?: string;
   hotspotLoginUrl?: string;
   children: ReactNode;
@@ -552,6 +588,7 @@ export function PortalRuntimeProvider({
   deviceMac,
   deviceIp,
   clientIp,
+  omadaRedirect,
   destinationUrl,
   hotspotLoginUrl,
   previewMode = false,
@@ -809,6 +846,7 @@ export function PortalRuntimeProvider({
       deviceMac,
       deviceIp,
       clientIp,
+      omadaRedirect,
       destinationUrl,
       hotspotLoginUrl,
       previewMode,
@@ -847,6 +885,7 @@ export function PortalRuntimeProvider({
       deviceMac,
       deviceIp,
       clientIp,
+      omadaRedirect,
       destinationUrl,
       hotspotLoginUrl,
       previewMode,
