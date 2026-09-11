@@ -66,7 +66,11 @@
     "test:single-home": "node scripts/test-single-home-settings.mjs",
     "check:node": "node scripts/check-node-version.mjs",
     "test:network-integration": "node scripts/test-network-integration-contract.mjs",
-    "test:network-integration-render": "node scripts/test-network-integration-render.mjs"
+    "test:network-integration-render": "node scripts/test-network-integration-render.mjs",
+    "test:controller-fleet-honesty": "node scripts/test-controller-fleet-honesty.mjs",
+    "test:controller-fleet-drawer": "node scripts/test-controller-fleet-drawer.mjs",
+    "test:controller-venue-screens": "node scripts/test-controller-venue-network-screens.mjs",
+    "test:controller-venue-nav": "node scripts/test-controller-venue-nav.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

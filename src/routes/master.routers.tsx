@@ -59,7 +59,7 @@ import type { AppError } from "@/services/api";
 import type { RouterDevice } from "@/types/router";
 import type { NetworkIntegration } from "@/types/network-integration";
 import { deriveRouterLiveness, lastContactLabel } from "@/lib/location-liveness";
-import { isControllerManaged } from "@/lib/router-vendors";
+import { isControllerManaged, routerVendorLabel } from "@/lib/router-vendors";
 import { deriveIntegrationSetup } from "@/lib/network-integration-readiness";
 import { networkIntegrationService } from "@/services/network-integration.service";
 import { useQuery } from "@tanstack/react-query";
@@ -189,11 +189,17 @@ function ControlButton({
   label,
   onClick,
   disabled,
+  disabledReason,
 }: {
   icon: typeof Power;
   label: string;
   onClick: () => void;
   disabled?: boolean;
+  /** Why it is disabled, when it is disabled for a reason other than the
+   * default one. A disabled control with no explanation is the thing this
+   * screen keeps being fixed for; optional so every existing call site
+   * keeps the wording it had. */
+  disabledReason?: string;
 }) {
   return (
     <button
@@ -201,7 +207,8 @@ function ControlButton({
       disabled={disabled}
       title={
         disabled
-          ? "Real device control isn't wired up yet -- use Device Console for real commands."
+          ? (disabledReason ??
+            "Real device control isn't wired up yet -- use Device Console for real commands.")
           : undefined
       }
       className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-left text-xs font-medium text-foreground transition-colors hover:border-primary hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-border disabled:hover:bg-background"
@@ -407,6 +414,15 @@ function RouterFleetScreen() {
     // Not "offline". An unreadable router is not a dead one, and painting
     // it red sends an operator to a site that may be perfectly fine.
     unknown: { label: "Can't tell", tone: "normal" },
+    // Contract §11.5, and the one key whose absence was itself the bug.
+    // Without it `statusBadge` fell through to the `?? { label: r.status }`
+    // below and printed the raw enum -- so a working Omada controller
+    // rendered the literal string `pending_provisioning` in the Status cell
+    // and again on the drawer's Status tile. Wording and tone match the
+    // "Via controller" summary tile above: neutral, because these rows are
+    // neither healthy nor unhealthy from here and colouring them either way
+    // asserts a measurement nobody took.
+    "not-applicable": { label: "Via controller", tone: "normal" },
   };
   const statusBadge = (r: RouterDevice) => {
     const live = deriveRouterLiveness(
@@ -578,7 +594,23 @@ function RouterFleetScreen() {
                     <MTd className="hidden text-sm md:table-cell">{r.model}</MTd>
                     <MTd className="hidden text-sm sm:table-cell">{r.organizationName}</MTd>
                     <MTd>
-                      <span className="font-mono text-xs">{r.routerOsVersion ?? "—"}</span>
+                      {/* A controller does not run RouterOS, so "—" (this
+                          column's "we have no version on file") would put it
+                          in the same cell as a MikroTik that simply has not
+                          reported one yet. The drawer already refuses to
+                          conflate those two -- it relabels the tile
+                          "Software / On its controller" -- and this list,
+                          which links to that drawer, must not disagree. */}
+                      {isControllerManaged(r.vendor) ? (
+                        <span
+                          className="text-xs text-muted-foreground"
+                          title="A controller does not run RouterOS. Its own software version lives on its controller."
+                        >
+                          Not applicable
+                        </span>
+                      ) : (
+                        <span className="font-mono text-xs">{r.routerOsVersion ?? "—"}</span>
+                      )}
                     </MTd>
                     <MTd className="text-xs text-muted-foreground">{contactLabel(r, now)}</MTd>
                     <MTd>
@@ -739,16 +771,41 @@ function RouterFleetScreen() {
                     </div>
                   )}
 
-                  {!demo && (sel.managementIpAddress || sel.publicIpAddress) && (
-                    <RemoteAccessCard routerId={sel.id} />
-                  )}
+                  {/* Remote access (WinBox/SSH over the platform's own
+                      tunnel) is an agent verb: it reaches the device through
+                      the hub, and a controller has no peer and never will --
+                      `wireguard/validators.py` refuses to allocate one with a
+                      422. Not merely hidden: mounting `RemoteAccessCard`
+                      would also fire its own read at a router that cannot
+                      answer. Replaced with the reason, per §11.5's rule that
+                      an excluded affordance is named rather than vanished. */}
+                  {!demo &&
+                    (sel.managementIpAddress || sel.publicIpAddress) &&
+                    (isControllerManaged(sel.vendor) ? (
+                      <p className="rounded-lg border border-border p-2.5 text-xs text-muted-foreground">
+                        Remote access runs over this platform's own tunnel to the router agent. A{" "}
+                        {routerVendorLabel(sel.vendor)} controller runs no agent and has no tunnel,
+                        so there is nothing here to connect to. Reach it through its own controller.
+                      </p>
+                    ) : (
+                      <RemoteAccessCard routerId={sel.id} />
+                    ))}
 
                   <div>
                     <p className="mb-2 text-xs font-medium text-muted-foreground">Power</p>
                     <div className="grid grid-cols-2 gap-2">
+                      {/* Disabled, not removed. `POST /routers/{id}/reboot`
+                          is an agent command, and its own confirm copy
+                          promises to "immediately restart the physical
+                          device" -- which for a controller row is a promise
+                          about hardware this platform cannot touch. An
+                          operator who cannot find Reboot files a ticket; one
+                          who sees why it is greyed out does not. */}
                       <ControlButton
                         icon={Power}
                         label="Reboot"
+                        disabled={isControllerManaged(sel.vendor)}
+                        disabledReason={`Reboot is sent to the router agent, which a ${routerVendorLabel(sel.vendor)} controller does not run. Restart it from its own controller.`}
                         onClick={() =>
                           demo ? act(`${sel.name}: reboot queued`) : setRebootTarget(sel)
                         }
@@ -761,9 +818,16 @@ function RouterFleetScreen() {
                       <MButton variant="outline" className="w-full justify-center">
                         Manage this router <RouterIcon className="h-3.5 w-3.5" />
                       </MButton>
+                      {/* This subtitle advertised the destination's eleven
+                          tabs. For a controller the destination renders two
+                          (`CONTROLLER_MANAGED_TAB_KEYS`), and every single
+                          thing named here is one of the nine it drops -- so
+                          the button promised four features and delivered
+                          none of them, one click away. */}
                       <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
-                        WireGuard tunnel, config rollback/backup, diagnostics, connected devices,
-                        and the audit log all live on the full router screen.
+                        {isControllerManaged(sel.vendor)
+                          ? "The full router screen carries this controller's own record and its audit log. Tunnel, config rollback, diagnostics and connected devices are agent features and do not apply to a controller."
+                          : "WireGuard tunnel, config rollback/backup, diagnostics, connected devices, and the audit log all live on the full router screen."}
                       </p>
                     </Link>
                   )}

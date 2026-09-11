@@ -15,7 +15,8 @@ import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { ErrorState } from "@/components/common/ErrorState";
 import { PageSkeleton } from "@/components/common/LoadingSkeleton";
 import { RouterDetailTabs } from "@/components/routers/RouterDetailTabs";
-import { RouterStatusBadge } from "@/components/routers/RouterStatusBadge";
+import { ControllerManagedBadge, RouterStatusBadge } from "@/components/routers/RouterStatusBadge";
+import { isControllerManaged } from "@/lib/router-vendors";
 import { useDeleteRouters, useRouter, useUpdateRouterStatus } from "@/hooks/useRouters";
 import type { AppError } from "@/services/api";
 
@@ -66,7 +67,17 @@ function RouterDetailPage() {
           </Link>
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-semibold tracking-tight">{router.name}</h1>
-            <RouterStatusBadge status={router.status} />
+            {/* The header wrapping a drawer that is already vendor-aware.
+                `RouterDetailTabs` below refuses to print "Pending
+                provisioning" for a controller -- there is nothing to
+                provision -- and then this heading printed it anyway, two
+                inches above, in larger type. Same substitution the drawer's
+                own Status tile makes, so the page agrees with itself. */}
+            {isControllerManaged(router.vendor) ? (
+              <ControllerManagedBadge vendor={router.vendor} />
+            ) : (
+              <RouterStatusBadge status={router.status} />
+            )}
           </div>
           <p className="text-sm text-muted-foreground">
             {router.model} · {router.locationName} · {router.publicIpAddress ?? "no public IP"}
