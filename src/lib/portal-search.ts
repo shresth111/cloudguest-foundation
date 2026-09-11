@@ -135,6 +135,47 @@ const portalSearchShape = {
   // padta"). See GuestSignInCard/AuthMethodForms' login calls for where
   // this threads through as `ip_address`.
   ip: z.string().optional(),
+  // Omada's own spelling, verbatim from the controller's portal redirect
+  // (`http(s)://PORTAL?clientMac=...&clientIp=CLIENT_IP&apMac=...`, TP-Link
+  // doc 132060, *External Portal Server, Omada Controller v6.2.10 or
+  // Above*). From v6.2.10 the controller's authorization body "must
+  // contain" `clientIp` in BOTH documented shapes -- the EAP/AP one and
+  // the gateway one -- so on current shipping firmware an authorize call
+  // without it is missing a mandatory field, and the guest may get no
+  // internet at all. The older doc 13080 (v5.0.15-v6.2.0) does not contain
+  // the string anywhere, which is what makes this a genuine new-firmware
+  // requirement rather than an omission we can ignore.
+  //
+  // NOT the same param as `ip` above, and never a substitute for it: `ip`
+  // is RouterOS's `$(ip)` substitution on a MikroTik hotspot redirect and
+  // is threaded to this platform's own login calls as `ip_address`;
+  // `clientIp` comes from an Omada controller's redirect and is threaded
+  // to the controller's own authorize call as `client_ip`. A venue has one
+  // vendor or the other, the two redirects never both fire, and conflating
+  // them would put one vendor's address into the other vendor's call.
+  //
+  // CAPTURED, NEVER DERIVED. This is the only place the guest's address
+  // can be learned honestly. It must not be inferred from the portal
+  // request's own source address: this portal is reached through a reverse
+  // proxy, so that address is the proxy's, and authorizing the wrong
+  // address either authorizes the wrong device or nobody. If Omada did not
+  // send it, the value that travels onward is `null` -- see
+  // `src/lib/portal-authorize-body.ts`, which is the only module that
+  // spells the wire name, and refuses to invent one.
+  //
+  // Known and deliberately NOT papered over: this is captured at redirect
+  // time, while authorization happens after the guest finishes OTP, which
+  // can be minutes later. If the DHCP lease changed in between, the
+  // address we send is stale and the controller will reject it. We still
+  // send exactly what the redirect said, because the alternative is a
+  // guess, and a guess that happens to be a real address on that LAN is
+  // the worse failure of the two.
+  //
+  // Being IN this schema is what makes it survive the client-side hops
+  // between the controller's document load and the authorize call, exactly
+  // as `mac` did not until `retainSearchParams` existed -- see this file's
+  // docstring.
+  clientIp: z.string().optional(),
   // The guest's own chosen portal language, put here by `buildSessionUrl`
   // so it survives portal.success.tsx's full-document POST to the NAS --
   // the one boundary on this flow where React state and (on iOS's Captive

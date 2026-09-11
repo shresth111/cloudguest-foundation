@@ -368,6 +368,23 @@ interface PortalRuntimeState {
    * `routes/portal.tsx`'s `searchSchema.ip` doc comment for the full
    * "why" (a queue rule bound to the wrong address enforces nothing). */
   deviceIp?: string;
+  /** Omada's `clientIp` -- the guest's address as the CONTROLLER reported
+   * it on its portal redirect (TP-Link doc 132060). Carried here so the
+   * captive-portal authorize call
+   * (`POST /api/v1/network-integrations/portal/authorize`) can send it as
+   * a top-level `client_ip`, which that controller's firmware requires
+   * from v6.2.10 onward.
+   *
+   * Distinct from `deviceIp` above on purpose -- that one is RouterOS's
+   * `$(ip)` and goes to this platform's own login calls as `ip_address`.
+   * A venue is behind one vendor or the other; neither value is ever a
+   * fallback for the other.
+   *
+   * Undefined whenever the redirect did not carry it (every MikroTik
+   * venue, and any Omada controller older than v6.2.10). It is never
+   * inferred from the request's source address -- see
+   * `portalSearchShape.clientIp` in src/lib/portal-search.ts. */
+  clientIp?: string;
   destinationUrl?: string;
   /** RouterOS's `$(link-login-only)` substitution -- the URL this guest's
    * browser must POST username/password to for the NAS itself to actually
@@ -505,6 +522,9 @@ interface Props {
    * `routes/portal.tsx`'s `searchSchema.ip` doc comment for the full
    * "why" (a queue rule bound to the wrong address enforces nothing). */
   deviceIp?: string;
+  /** Omada's `clientIp` from the controller's portal redirect -- see
+   * `PortalRuntimeState.clientIp`'s own docstring. */
+  clientIp?: string;
   destinationUrl?: string;
   hotspotLoginUrl?: string;
   children: ReactNode;
@@ -531,6 +551,7 @@ export function PortalRuntimeProvider({
   routerId,
   deviceMac,
   deviceIp,
+  clientIp,
   destinationUrl,
   hotspotLoginUrl,
   previewMode = false,
@@ -787,6 +808,7 @@ export function PortalRuntimeProvider({
       routerId,
       deviceMac,
       deviceIp,
+      clientIp,
       destinationUrl,
       hotspotLoginUrl,
       previewMode,
@@ -824,6 +846,7 @@ export function PortalRuntimeProvider({
       routerId,
       deviceMac,
       deviceIp,
+      clientIp,
       destinationUrl,
       hotspotLoginUrl,
       previewMode,
