@@ -107,6 +107,10 @@ export interface OnboardControllerPayload {
   password?: string;
   serialNumber?: string;
   macAddress?: string;
+  /** Omada ID -- required for a TP-Link cloud controller. */
+  controllerId?: string;
+  tlsMode?: "strict" | "pinned" | "insecure";
+  tlsPinnedSha256?: string;
 }
 
 /** What came back: the integration id to continue configuring, and the fleet

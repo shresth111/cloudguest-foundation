@@ -77,7 +77,8 @@
     "test:controller-fleet-honesty": "node scripts/test-controller-fleet-honesty.mjs",
     "test:controller-fleet-drawer": "node scripts/test-controller-fleet-drawer.mjs",
     "test:controller-venue-screens": "node scripts/test-controller-venue-network-screens.mjs",
-    "test:controller-venue-nav": "node scripts/test-controller-venue-nav.mjs"
+    "test:controller-venue-nav": "node scripts/test-controller-venue-nav.mjs",
+    "test:omada-onboarding-gaps": "node scripts/test-omada-onboarding-gaps.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

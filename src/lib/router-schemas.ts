@@ -78,6 +78,10 @@ export const omadaControllerSchema = z.object({
   clientSecret: z.string().max(500).optional().or(z.literal("")),
   username: z.string().trim().max(200).optional().or(z.literal("")),
   password: z.string().max(500).optional().or(z.literal("")),
+  /** Omada ID -- required only for a TP-Link cloud controller. */
+  controllerId: z.string().trim().max(128).optional().or(z.literal("")),
+  tlsMode: z.enum(["strict", "pinned", "insecure"]),
+  tlsPinnedSha256: z.string().trim().max(200).optional().or(z.literal("")),
   /** Omada's own site identifier. In legacy mode there is nothing to list, so
    * this holds the site NAME the operator typed -- which is what Omada itself
    * puts on the portal redirect's `site` parameter and what the authorize
@@ -157,9 +161,24 @@ export const routerWizardSchema = z
     if (omada.authMode === "openapi") {
       require("clientId", omada.clientId, "Client ID is required");
       require("clientSecret", omada.clientSecret, "Client secret is required");
-    } else {
-      require("username", omada.username, "Operator name is required");
-      require("password", omada.password, "Operator password is required");
+    }
+    // The operator account in BOTH modes. The controller only lets a guest
+    // online through its hotspot operator login; an Open API app on its own
+    // lists devices and authorises nobody, so onboarding one without the
+    // operator account registers a venue where no guest can get on.
+    require("username", omada.username, "Operator name is required — guest sign-in uses it");
+    require("password", omada.password, "Operator password is required — guest sign-in uses it");
+    // Same rule as the backend's `validate_tls_trust`: pinned without a real
+    // SHA-256 fingerprint is refused rather than quietly downgraded.
+    if (omada.tlsMode === "pinned") {
+      const pin = (omada.tlsPinnedSha256 ?? "").toLowerCase().replace(/[:\s-]/g, "");
+      if (!/^[0-9a-f]{64}$/.test(pin)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["omada", "tlsPinnedSha256"],
+          message: "Enter the certificate's SHA-256 fingerprint (64 hexadecimal characters)",
+        });
+      }
     }
   });
 
