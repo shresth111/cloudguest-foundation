@@ -625,7 +625,14 @@ export const routerService = {
    */
   async onboardController(payload: OnboardControllerPayload): Promise<OnboardControllerResult> {
     const { data } = await api.post<{
-      integration: { id: string; name: string; status: string };
+      integration: {
+        id: string;
+        name: string;
+        status: string;
+        portal_url_scheme?: string | null;
+        portal_url_host_and_query?: string | null;
+        portal_readiness_gaps?: string[] | null;
+      };
       router_id: string;
       router_serial_number: string;
       router_vendor: string;
@@ -668,6 +675,15 @@ export const routerService = {
         // different about intent.
         ...(payload.serialNumber ? { serial_number: payload.serialNumber } : {}),
         ...(payload.macAddress ? { mac_address: payload.macAddress } : {}),
+        // Site and SSID, only when given -- the device wizard maps them later.
+        ...(payload.externalSiteId?.trim()
+          ? { external_site_id: payload.externalSiteId.trim() }
+          : {}),
+        ...(payload.externalSiteName?.trim()
+          ? { external_site_name: payload.externalSiteName.trim() }
+          : {}),
+        ...(payload.guestSsidId?.trim() ? { guest_ssid_id: payload.guestSsidId.trim() } : {}),
+        ...(payload.guestSsidName?.trim() ? { guest_ssid_name: payload.guestSsidName.trim() } : {}),
       },
       { timeout: 60_000 },
     );
@@ -679,6 +695,13 @@ export const routerService = {
       routerSerialNumber: data.router_serial_number,
       routerVendor: data.router_vendor,
       syntheticIdentity: data.synthetic_identity,
+      // `integration` is the backend's full `NetworkIntegrationResponse`, so
+      // the portal URL comes back with it -- same `?? null` pairing as
+      // `toIntegration` in network-integration.service.ts, so an absent field
+      // never renders as a copyable empty string.
+      portalUrlScheme: data.integration.portal_url_scheme ?? null,
+      portalUrlHostAndQuery: data.integration.portal_url_host_and_query ?? null,
+      portalReadinessGaps: data.integration.portal_readiness_gaps ?? [],
     };
   },
 

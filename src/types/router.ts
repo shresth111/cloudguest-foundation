@@ -111,6 +111,15 @@ export interface OnboardControllerPayload {
   controllerId?: string;
   tlsMode?: "strict" | "pinned" | "insecure";
   tlsPinnedSha256?: string;
+  /** The Omada site and guest SSID, when the caller already knows them. The
+   * device wizard leaves them out (it maps them afterwards on Integrations);
+   * the customer wizard collects them up front, because a hotspot operator
+   * login cannot list sites and the value is typed in either way. Without a
+   * site the backend reports `site_not_selected` and authorises nobody. */
+  externalSiteId?: string;
+  externalSiteName?: string;
+  guestSsidId?: string;
+  guestSsidName?: string;
 }
 
 /** What came back: the integration id to continue configuring, and the fleet
@@ -123,6 +132,14 @@ export interface OnboardControllerResult {
   routerSerialNumber: string;
   routerVendor: string;
   syntheticIdentity: boolean;
+  /** The External Portal Server URL the operator pastes into Omada, split as
+   * the controller's form splits it -- same fields, same meaning, as
+   * `NetworkIntegration.portalUrlScheme`/`portalUrlHostAndQuery`. Both null
+   * when the integration cannot serve a guest yet; `portalReadinessGaps`
+   * then says why. */
+  portalUrlScheme: string | null;
+  portalUrlHostAndQuery: string | null;
+  portalReadinessGaps: string[];
 }
 
 export const ROUTER_STATUS_LABEL: Record<RouterStatus, string> = {

@@ -1594,3 +1594,20 @@ jobs:
             "controller-venue-nav" 21 \
             "all checks passed" \
             bun run test:controller-venue-nav
+
+      # The Master console's Add customer wizard, for a venue whose network is
+      # a TP-Link Omada controller. Two requests, not one transaction: provision
+      # with no `router`, then onboard the controller with the ids it returned.
+      # Drives the real wizard in Chromium against a recording backend: no
+      # router key on the Omada provision, an onboard failure reported as
+      # "customer created, controller NOT connected", a retry that repeats only
+      # the onboard with the credentials still typed in, and the MikroTik
+      # payload byte-for-byte what it was.
+      #
+      # Floor 53, observed green at 53.
+      - name: customer wizard omada
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "customer-wizard-omada" 53 \
+            "customer wizard omada: all checks passed" \
+            bun run test:customer-wizard-omada

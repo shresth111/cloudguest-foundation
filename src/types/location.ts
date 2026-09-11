@@ -156,7 +156,11 @@ export interface ProvisionLocationPayload {
     designation?: string;
     department?: string;
   };
-  router: {
+  /** The venue's first MikroTik router. Omitted for a venue whose network is
+   * a TP-Link Omada controller: that is not a router this endpoint can
+   * enroll, so the customer is provisioned without one and the controller
+   * is onboarded afterwards through `POST /network-integrations/platform/onboard`. */
+  router?: {
     name: string;
     serialNumber: string;
     macAddress: string;
@@ -177,8 +181,9 @@ export interface ProvisionLocationResult {
   locationCode: string;
   planId: string;
   planName: string;
-  routerId: string;
-  routerName: string;
+  /** Null when the provision carried no router (an Omada venue). */
+  routerId: string | null;
+  routerName: string | null;
   ownerUserId: string;
   ownerName: string;
   ownerUsername: string;

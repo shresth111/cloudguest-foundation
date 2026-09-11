@@ -376,8 +376,8 @@ export const locationService = {
         locationCode: `LOC-DEMO-${Math.floor(Math.random() * 9000 + 1000)}`,
         planId: payload.planId,
         planName: "Demo Plan",
-        routerId: `router-demo-${Date.now()}`,
-        routerName: payload.router.name,
+        routerId: payload.router ? `router-demo-${Date.now()}` : null,
+        routerName: payload.router?.name ?? null,
         ownerUserId: `user-demo-${Date.now()}`,
         ownerName: `${payload.owner.firstName} ${payload.owner.lastName}`,
         ownerUsername: payload.owner.email.split("@")[0],
@@ -395,8 +395,9 @@ export const locationService = {
       location_code: string;
       plan_id: string;
       plan_name: string;
-      router_id: string;
-      router_name: string;
+      // Nullable (or absent) when the request carried no router.
+      router_id?: string | null;
+      router_name?: string | null;
       owner_user_id: string;
       owner_name: string;
       owner_username: string;
@@ -441,14 +442,22 @@ export const locationService = {
         designation: payload.owner.designation,
         department: payload.owner.department,
       },
-      router: {
-        name: payload.router.name,
-        serial_number: payload.router.serialNumber,
-        mac_address: payload.router.macAddress,
-        model: payload.router.model,
-        management_ip_address: payload.router.managementIpAddress,
-        public_ip_address: payload.router.publicIpAddress,
-      },
+      // Left out entirely, not sent as null, when there is no router (an
+      // Omada venue): the backend reads the field's absence as "provision
+      // without a router". A backend older than that contract 422s on it,
+      // which is why this must not deploy ahead of it.
+      ...(payload.router
+        ? {
+            router: {
+              name: payload.router.name,
+              serial_number: payload.router.serialNumber,
+              mac_address: payload.router.macAddress,
+              model: payload.router.model,
+              management_ip_address: payload.router.managementIpAddress,
+              public_ip_address: payload.router.publicIpAddress,
+            },
+          }
+        : {}),
       plan_id: payload.planId,
       feature_overrides: (payload.featureOverrides ?? []).map((f) => ({
         feature_key: f.featureKey,
@@ -465,8 +474,8 @@ export const locationService = {
       locationCode: data.location_code,
       planId: data.plan_id,
       planName: data.plan_name,
-      routerId: data.router_id,
-      routerName: data.router_name,
+      routerId: data.router_id ?? null,
+      routerName: data.router_name ?? null,
       ownerUserId: data.owner_user_id,
       ownerName: data.owner_name,
       ownerUsername: data.owner_username,
