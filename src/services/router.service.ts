@@ -1,4 +1,5 @@
 import { api, type AppError } from "@/services/api";
+import { isControllerState } from "@/lib/router-vendors";
 import { isDemo } from "@/services/customer.service";
 import type {
   CreateRouterPayload,
@@ -48,6 +49,12 @@ const DEMO_ROUTERS: RouterDevice[] = [
     lastHealthCheckAt: new Date().toISOString(),
     healthStatus: "healthy",
     hasApiCredentials: true,
+    // A demo MikroTik is agent-managed, so it has no controller state --
+    // which is the same thing a real agent-managed row reports.
+    controllerState: null,
+    controllerStateReason: null,
+    controllerLastContactedAt: null,
+    vendorClaimIsContradicted: false,
     settings: {},
     createdAt: new Date(Date.now() - 90 * 86400000).toISOString(),
     updatedAt: new Date().toISOString(),
@@ -71,6 +78,12 @@ const DEMO_ROUTERS: RouterDevice[] = [
     lastHealthCheckAt: new Date().toISOString(),
     healthStatus: "healthy",
     hasApiCredentials: true,
+    // A demo MikroTik is agent-managed, so it has no controller state --
+    // which is the same thing a real agent-managed row reports.
+    controllerState: null,
+    controllerStateReason: null,
+    controllerLastContactedAt: null,
+    vendorClaimIsContradicted: false,
     settings: {},
     createdAt: new Date(Date.now() - 30 * 86400000).toISOString(),
     updatedAt: new Date().toISOString(),
@@ -94,6 +107,13 @@ interface BackendRouter {
   last_health_check_at: string | null;
   health_status: "healthy" | "unhealthy" | null;
   has_api_credentials: boolean;
+  // FIX-PLAN D2 / BE-2. OPTIONAL, deliberately: the two repos deploy
+  // separately, and a console that is ahead of the backend must read an
+  // absent field as "not told" rather than produce garbage.
+  controller_state?: string | null;
+  controller_state_reason?: string | null;
+  controller_last_contacted_at?: string | null;
+  vendor_claim_is_contradicted?: boolean | null;
   settings: Record<string, unknown>;
   created_at: string;
   updated_at: string;
@@ -160,6 +180,13 @@ function toRouter(r: BackendRouter, locationName: string, organizationName: stri
     lastHealthCheckAt: r.last_health_check_at,
     healthStatus: r.health_status,
     hasApiCredentials: r.has_api_credentials,
+    // Narrowed, not cast. `isControllerState` exists precisely so a state an
+    // older console does not recognise becomes an absence rather than a
+    // value with no words -- "an unknown is never spent as an answer".
+    controllerState: isControllerState(r.controller_state) ? r.controller_state : null,
+    controllerStateReason: r.controller_state_reason ?? null,
+    controllerLastContactedAt: r.controller_last_contacted_at ?? null,
+    vendorClaimIsContradicted: r.vendor_claim_is_contradicted === true,
     settings: r.settings,
     createdAt: r.created_at,
     updatedAt: r.updated_at,

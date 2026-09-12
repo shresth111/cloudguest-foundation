@@ -437,9 +437,65 @@ export const CONTROLLER_STATE_COPY: Record<ControllerState, ControllerStateCopy>
   },
 };
 
+/**
+ * What to DO about each state, in a venue owner's vocabulary.
+ *
+ * Separate from `CONTROLLER_STATE_COPY.sentence`, which says what is true.
+ * A sentence with no next step is the shape of every support ticket these
+ * consoles generate, and the two are separate because half the states are
+ * fixed by the customer and half by whoever runs the controller -- a single
+ * blended paragraph would send the wrong person to the wrong place.
+ *
+ * None of them names a control this platform does not have. "Check the
+ * integration" is real; "restart the controller" would be advice about
+ * somebody else's hardware, which rule 3 forbids this vocabulary from
+ * pretending to know anything about.
+ */
+export const CONTROLLER_STATE_NEXT_STEP: Record<ControllerState, string> = {
+  not_registered: "Add this controller's connection details to the venue's network integration.",
+  disabled: "Switch the integration back on when the venue should be signing guests in again.",
+  credentials_rejected:
+    "Replace the stored credentials with ones the controller accepts, then run a connection test.",
+  certificate_unverified:
+    "Check the certificate the controller is presenting before trusting it again — if it changed " +
+    "and nobody changed it, find out why first.",
+  unreachable:
+    "Check that the controller is running and reachable from the internet on its configured port. " +
+    "Nothing on this platform will clear this on its own.",
+  not_mapped:
+    "Choose which Omada site and guest network this venue uses, on the venue's network " +
+    "integration.",
+  reachable: "Nothing to do — this platform is talking to the controller.",
+};
+
 /** Rule 1's cell text, in one place so the fleet list, the fleet drawer, the
  * venue dashboard and Fix a Problem cannot drift. */
 export const NOT_MEASURED_HERE = "Not measured here";
+
+/**
+ * Is this controller state something an operator has to act on?
+ *
+ * Everything except `reachable`. Not a judgement about the controller's
+ * hardware -- five of the six say the controller is fine and something
+ * ELSE is missing -- but about the venue: in every one of them a guest
+ * finishes signing in and does not get online. `CONTROLLER_STATE_COPY`
+ * says so in each of their sentences, which is where that claim is made
+ * and checkable.
+ *
+ * `not_mapped` and `disabled` are faults here for the reason
+ * `location-liveness.ts` bucketed a half-configured integration as a fault
+ * long before this existed: a venue that authorises nobody, reported as
+ * fine, is the most expensive thing either console can say.
+ *
+ * The BUCKET a surface puts the row in is coarse (four of them). The WORDS
+ * come from `CONTROLLER_STATE_COPY`, which has seven. That is D2's split --
+ * the backend owns the value, this module owns the words -- and it is why
+ * a `not_mapped` row can sit in the fault bucket and still read
+ * "Authorising nobody" rather than "Controller down".
+ */
+export function controllerStateIsFault(state: ControllerState): boolean {
+  return state !== "reachable";
+}
 
 /**
  * `true` only for a value this build recognises.

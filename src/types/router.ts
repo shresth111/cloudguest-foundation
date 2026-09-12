@@ -1,3 +1,5 @@
+import type { ControllerState } from "@/lib/router-vendors";
+
 export type RouterStatus =
   | "pending_provisioning"
   | "provisioning"
@@ -27,6 +29,30 @@ export interface RouterDevice {
   lastHealthCheckAt: string | null;
   healthStatus: HealthStatus;
   hasApiCredentials: boolean;
+  /**
+   * FIX-PLAN D2. The backend's single answer about the controller that runs
+   * this row's network, or `null` when there is no such controller --
+   * meaning an agent manages this device and `status`/`lastSeenAt` are the
+   * answer instead. Judged by EVIDENCE, so a mislabelled MikroTik is null
+   * here too and this can never contradict a heartbeat.
+   *
+   * Narrowed through `isControllerState` in the mapper, so a state a newer
+   * backend grows arrives as `null` rather than as a value no copy table has
+   * words for.
+   */
+  controllerState: ControllerState | null;
+  /** The machine-readable why: an `OMADA_*` code, `site_not_selected`,
+   * `no_integration`, `integration_disabled`, `ok`. Never rendered raw --
+   * it distinguishes a certificate that was never trusted from one that
+   * CHANGED, which share a state. */
+  controllerStateReason: string | null;
+  /** When a scheduled sync last completed against the controller. NOT a
+   * liveness timestamp and never comparable with `lastSeenAt`: nothing
+   * heartbeats a controller. Rendered as "Last contacted the controller". */
+  controllerLastContactedAt: string | null;
+  /** The row's vendor says controller; its own data says an agent has run on
+   * it. Also the reason `controllerState` is null on such a row. */
+  vendorClaimIsContradicted: boolean;
   settings: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;

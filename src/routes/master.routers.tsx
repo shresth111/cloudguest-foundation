@@ -159,6 +159,11 @@ function displayStatus(
       // what it has been DOING rather than on what someone typed.
       routeros_version: r.routerOsVersion,
       has_api_credentials: r.hasApiCredentials,
+      // FIX-PLAN D2. The backend's own answer about the controller, so the
+      // bucket, the badge and the drawer stop deriving three of them.
+      controller_state: r.controllerState,
+      controller_state_reason: r.controllerStateReason,
+      controller_last_contacted_at: r.controllerLastContactedAt,
     },
     now,
   );
@@ -217,6 +222,9 @@ function contactLabel(r: RouterDevice, now: Date): string {
         health_status: r.healthStatus,
         routeros_version: r.routerOsVersion,
         has_api_credentials: r.hasApiCredentials,
+        controller_state: r.controllerState,
+        controller_state_reason: r.controllerStateReason,
+        controller_last_contacted_at: r.controllerLastContactedAt,
       },
       now,
     ),
@@ -563,6 +571,9 @@ function RouterFleetScreen() {
         health_status: r.healthStatus,
         routeros_version: r.routerOsVersion,
         has_api_credentials: r.hasApiCredentials,
+        controller_state: r.controllerState,
+        controller_state_reason: r.controllerStateReason,
+        controller_last_contacted_at: r.controllerLastContactedAt,
       },
       now,
     );
