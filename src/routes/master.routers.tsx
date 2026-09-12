@@ -47,11 +47,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { RemoteAccessCard } from "@/components/routers/RouterDetailTabs";
-import {
-  SELECTABLE_DEVICE_VENDORS,
-  inputCls,
-  RouterSetupDrilldown,
-} from "@/components/routers/RouterSetupScriptAdvanced";
+import { inputCls, RouterSetupDrilldown } from "@/components/routers/RouterSetupScriptAdvanced";
 import { routerService } from "@/services/router.service";
 import { isDemo } from "@/services/customer.service";
 import { useRouters, useUpdateRouterVendor } from "@/hooks/useRouters";
@@ -67,6 +63,8 @@ import {
   isControllerManagedRow,
   routerVendorLabel,
   vendorLooksWrong,
+  vendorLabel as vendorLabelFor,
+  vendorOptionsFor,
 } from "@/lib/router-vendors";
 import { deriveIntegrationSetup } from "@/lib/network-integration-readiness";
 import { networkIntegrationService } from "@/services/network-integration.service";
@@ -273,6 +271,12 @@ function RouterFleetScreen() {
   const [sel, setSel] = useState<RouterDevice | null>(null);
   const [rebootTarget, setRebootTarget] = useState<RouterDevice | null>(null);
   const [rebooting, setRebooting] = useState(false);
+  // A vendor change is now a deliberate, reasoned, GLOBAL-scoped request
+  // rather than a `<select>`'s `onChange` -- see `VendorChangeDialog`.
+  const [vendorChange, setVendorChange] = useState<{
+    router: RouterDevice;
+    vendor: string;
+  } | null>(null);
   const demo = isDemo();
 
   // A TICKING CLOCK, NOT A RENDER-TIME `new Date()`. Liveness here is an
@@ -365,16 +369,50 @@ function RouterFleetScreen() {
     }
   }, [fleetQuery.isError]);
 
+  /**
+   * WAS: fire `PUT /routers/{id} { vendor }` from the `<select>`'s
+   * `onChange`, immediately, with no confirmation, no reason and no undo.
+   *
+   * Two things were wrong with that, and the second hid the first.
+   *
+   * It wrote to a route that no longer accepts the field. `vendor` moved off
+   * `RouterUpdateRequest` onto GLOBAL-scoped
+   * `PUT /platform/routers/{id}/vendor`, and an unrecognised body key is
+   * ignored rather than refused -- so the request 200ed, the cache
+   * invalidated, the select snapped back, and nothing anywhere said the
+   * change had not happened.
+   *
+   * And the new route requires a written `reason`, stored in the audit
+   * entry, which an `onChange` has nowhere to put. So the interaction is the
+   * fix as much as the URL is: choosing a different type opens a dialog,
+   * and the write happens when somebody has said why.
+   */
   function handleVendorChange(router: RouterDevice, vendor: string) {
+    if (vendor === router.vendor) return;
+    setVendorChange({ router, vendor });
+  }
+
+  function submitVendorChange(input: { reason: string; override: boolean }) {
+    if (!vendorChange) return;
+    const { router, vendor } = vendorChange;
     updateVendor.mutate(
-      { id: router.id, vendor },
+      {
+        id: router.id,
+        vendor,
+        reason: input.reason,
+        overrideContradictingEvidence: input.override,
+      },
       {
         onSuccess: () => {
           setSel((prev) => (prev && prev.id === router.id ? { ...prev, vendor } : prev));
+          setVendorChange(null);
+          toast.success(`${router.name} is now recorded as ${vendorLabelFor(vendor)}`);
         },
-        onError: (err) => {
-          toast.error(err.message || "Could not update vendor");
-        },
+        // Deliberately NOT toasted and NOT closed. The refusal names the
+        // evidence the device produced about itself, and it is the one thing
+        // the operator has to read before deciding whether to overrule it --
+        // a toast that disappears is the wrong place for it. The dialog
+        // renders `updateVendor.error` and reveals the override.
       },
     );
   }
@@ -892,13 +930,16 @@ function RouterFleetScreen() {
                         disabled={updateVendor.isPending}
                         onChange={(e) => handleVendorChange(sel, e.target.value)}
                       >
-                        {/* Only the two vendors this platform implements.
-                            This `<select>` writes on change with no confirm
-                            and no undo, and "UniFi" was a live option whose
-                            value no adapter registry knows -- see
-                            SELECTABLE_DEVICE_VENDORS. */}
-                        {SELECTABLE_DEVICE_VENDORS.map((v) => (
-                          <option key={v.value} value={v.value}>
+                        {/* Only the two vendors this platform implements,
+                            plus this row's own value when it is neither.
+                            Rows carrying `unifi` exist -- that list was a
+                            live write surface for months -- and binding a
+                            `<select>` to a value with no matching option
+                            renders the FIRST option instead, showing
+                            "MikroTik" over a row the database calls
+                            something else. See `vendorOptionsFor`. */}
+                        {vendorOptionsFor(sel.vendor).map((v) => (
+                          <option key={v.value} value={v.value} disabled={v.disabled}>
                             {v.label}
                           </option>
                         ))}
@@ -987,6 +1028,17 @@ function RouterFleetScreen() {
           </>
         )}
 
+        <VendorChangeDialog
+          pending={vendorChange}
+          saving={updateVendor.isPending}
+          error={(updateVendor.error as AppError | null)?.message ?? null}
+          onCancel={() => {
+            updateVendor.reset();
+            setVendorChange(null);
+          }}
+          onConfirm={submitVendorChange}
+        />
+
         <AlertDialog
           open={!!rebootTarget}
           onOpenChange={(o) => !o && !rebooting && setRebootTarget(null)}
@@ -1018,5 +1070,130 @@ function RouterFleetScreen() {
         </AlertDialog>
       </MPageShell>
     </MasterShell>
+  );
+}
+
+/**
+ * The confirmation a vendor change now goes through.
+ *
+ * `routers.vendor` is the single most consequential column on a fleet row:
+ * it decides whether the alert evaluator judges the device, whether the ZTP
+ * dashboard lists it, whether the readiness checklist runs, and whether the
+ * device domains will speak to it at all. It was a bare `<select>` writing
+ * on change, with no confirmation, no reason and no undo -- and on 2026-09-10
+ * seven live MikroTiks were relabelled through it, which switched off
+ * monitoring for all seven and put nothing in its place.
+ *
+ * The backend now requires a written `reason` (min 8 characters, stored in
+ * the audit entry) and refuses a claim the device's own data contradicts.
+ * This dialog is where both of those meet an operator:
+ *
+ *  - the reason is typed before anything is sent, not reconstructed after;
+ *  - a refusal is rendered IN PLACE, verbatim, and is the whole point --
+ *    it names the evidence the device produced about itself, which is
+ *    exactly what someone about to overrule it needs to read. A toast would
+ *    take it away again;
+ *  - the override appears only after that refusal. Offering it up front
+ *    would make overruling a heartbeat a checkbox someone ticks on the way
+ *    past, which is the habit this entire change exists to break.
+ */
+function VendorChangeDialog({
+  pending,
+  saving,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  pending: { router: RouterDevice; vendor: string } | null;
+  saving: boolean;
+  error: string | null;
+  onCancel: () => void;
+  onConfirm: (input: { reason: string; override: boolean }) => void;
+}) {
+  const [reason, setReason] = useState("");
+  const [override, setOverride] = useState(false);
+  const key = pending ? `${pending.router.id}:${pending.vendor}` : "";
+  useEffect(() => {
+    setReason("");
+    setOverride(false);
+  }, [key]);
+
+  // The same minimum the schema enforces, checked here so the operator is
+  // not told about it by a 422.
+  const reasonOk = reason.trim().length >= 8;
+  // Only after the device has actually objected. `error` is the backend's
+  // own sentence; it ends by naming the override, so the control appearing
+  // next to it reads as the answer to what was just said.
+  const offerOverride = !!error && /override_contradicting_evidence/.test(error);
+
+  return (
+    <AlertDialog open={!!pending} onOpenChange={(o) => !o && !saving && onCancel()}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            Record {pending?.router.name} as {vendorLabelFor(pending?.vendor ?? "")}?
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            It is currently recorded as {vendorLabelFor(pending?.router.vendor ?? "mikrotik")}. This
+            decides whether the platform monitors this device, provisions it, and talks to it at all
+            — a wrong value does not mark it unsupported, it silently claims an agent is running on
+            it. The reason is stored in the audit trail.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="space-y-3">
+          <div>
+            <label
+              htmlFor="vendor-change-reason"
+              className="mb-1 block text-xs font-medium text-muted-foreground"
+            >
+              Why is this changing?
+            </label>
+            <textarea
+              id="vendor-change-reason"
+              className={cn(inputCls, "min-h-20 resize-y")}
+              value={reason}
+              disabled={saving}
+              placeholder="e.g. Replaced the hEX with an OC200 on 12 Sep; the old row is the same venue."
+              onChange={(e) => setReason(e.target.value)}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              At least 8 characters. Recorded verbatim beside the old and new values.
+            </p>
+          </div>
+          {error && (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-xs text-foreground">
+              {error}
+            </div>
+          )}
+          {offerOverride && (
+            <label className="flex cursor-pointer items-start gap-2 text-xs text-foreground">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={override}
+                disabled={saving}
+                onChange={(e) => setOverride(e.target.checked)}
+              />
+              <span>
+                This device has genuinely been replaced or re-purposed and the evidence above is
+                stale. Record the change anyway — the override is stored in the audit trail.
+              </span>
+            </label>
+          )}
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={saving}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={(e) => {
+              e.preventDefault();
+              onConfirm({ reason: reason.trim(), override });
+            }}
+            disabled={saving || !reasonOk || (offerOverride && !override)}
+          >
+            {saving ? "Recording…" : "Record device type"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

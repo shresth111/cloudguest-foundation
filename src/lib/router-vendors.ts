@@ -645,3 +645,94 @@ export function controllerDeviceMetricsReason(vendor: string | null | undefined)
 export function hasWritableRouter(rows: readonly VendorJudgeableRouter[]): boolean {
   return partitionRoutersByDeviceWrite(rows).writable.length > 0;
 }
+
+/** Matches DeviceVendor in wyfy-device-gateway's contract (PRD section 4.1)
+ * -- same string identifiers so this dropdown's value and the backend's
+ * Router.vendor column always agree. Two vendors are supported today, in
+ * two different ways: MikroTik gets the setup script this file generates,
+ * and TP-Link Omada gets `OmadaGuidedSetupPanel` -- an Omada controller is
+ * onboarded through its network integration and configured in its own UI,
+ * so there is no script, only the values to type in. Every other entry
+ * exists so this Master-console screen can honestly say "not yet
+ * supported" instead of hiding the hardware a customer actually has. */
+export const DEVICE_VENDORS: { value: string; label: string }[] = [
+  { value: "mikrotik", label: "MikroTik" },
+  { value: "tplink_omada", label: "TP-Link Omada" },
+  { value: "ruckus", label: "Ruckus" },
+  { value: "unifi", label: "UniFi" },
+  { value: "aruba", label: "Aruba" },
+  { value: "cisco_meraki", label: "Cisco Meraki" },
+];
+
+/**
+ * The vendors a control may WRITE. The two this platform implements.
+ *
+ * `DEVICE_VENDORS` above is a LABELLING table -- it exists so a screen can
+ * name hardware a customer actually has and say "not yet supported". Its own
+ * comment says exactly that. It was nonetheless wired straight into the
+ * Master fleet drawer's vendor `<select>`, which fires
+ * `PUT /routers/{id} {vendor}` on change: picking "UniFi" wrote
+ * `vendor="unifi"`, a value that is in no adapter registry and NOT in
+ * `CONTROLLER_MANAGED_VENDORS`, so the row was thereafter silently treated as
+ * an agent-managed MikroTik for ever. The comment described an intent the
+ * code did not implement, which is the same failure as the router.service
+ * comment claiming this wizard was mounted somewhere it was not.
+ *
+ * Separating the two lists makes the intent enforceable rather than
+ * aspirational: a screen that wants to NAME a vendor reads `DEVICE_VENDORS`;
+ * a control that wants to SET one reads this.
+ *
+ * This is only the write-surface half of FIX-PLAN D3b. The rest of it --
+ * moving `vendor` onto a GLOBAL-scoped route, a typed confirmation, an audit
+ * diff, and immutability once the device has spoken -- is backend work and is
+ * not done here.
+ */
+export const SELECTABLE_DEVICE_VENDORS: { value: string; label: string }[] = DEVICE_VENDORS.filter(
+  (v) => v.value === "mikrotik" || v.value === "tplink_omada",
+);
+
+/** The label for a vendor string, including one this platform does not
+ * implement -- `DEVICE_VENDORS` exists so a screen can NAME hardware
+ * honestly even where it cannot manage it. Exported because the vendor
+ * change dialog has to say, in words, what a row is being moved from. */
+export function vendorLabel(value: string): string {
+  return DEVICE_VENDORS.find((v) => v.value === value)?.label ?? value;
+}
+
+/**
+ * The options a vendor `<select>` should offer for a row that currently
+ * holds `current`.
+ *
+ * `SELECTABLE_DEVICE_VENDORS` on its own is not enough for a control bound
+ * to an existing value: a row already carrying `unifi` -- and rows do, this
+ * list was a live write surface for months -- binds a `<select>` to a value
+ * with no matching `<option>`, which renders as the first option instead.
+ * The screen would then show "MikroTik" for a row the database calls
+ * "unifi", which is a new lie in place of the old one.
+ *
+ * So the current value is kept, labelled, and marked unselectable. It can be
+ * read and moved away from; it cannot be chosen.
+ */
+export function vendorOptionsFor(
+  current: string | undefined,
+): { value: string; label: string; disabled?: boolean }[] {
+  const value = current || "mikrotik";
+  if (SELECTABLE_DEVICE_VENDORS.some((v) => v.value === value)) {
+    return SELECTABLE_DEVICE_VENDORS;
+  }
+  return [
+    { value, label: `${vendorLabel(value)} — not supported`, disabled: true },
+    ...SELECTABLE_DEVICE_VENDORS,
+  ];
+}
+
+/**
+ * ---------------------------------------------------------------------------
+ * The four above moved here from `RouterSetupScriptAdvanced.tsx` on
+ * 2026-09-12. FIX-PLAN D2 says this module owns the vendor vocabulary, and
+ * the mechanical reason is the one already recorded on `hasWritableRouter`:
+ * that file exports components, so every non-component export beside them
+ * trips `react-refresh/only-export-components`, and
+ * `eslint . --max-warnings 58` is the ratchet that reddens `main`.
+ * ---------------------------------------------------------------------------
+ */
