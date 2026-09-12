@@ -1655,6 +1655,12 @@ const DEMO_ROUTER: RouterDevice = {
   lastHealthCheckAt: new Date().toISOString(),
   healthStatus: "healthy",
   hasApiCredentials: true,
+  // Agent-managed, so no controller state -- the same absence a real
+  // MikroTik row reports. See `RouterDevice.controllerState`.
+  controllerState: null,
+  controllerStateReason: null,
+  controllerLastContactedAt: null,
+  vendorClaimIsContradicted: false,
   settings: {},
   createdAt: new Date(Date.now() - 60 * 86400000).toISOString(),
   updatedAt: new Date().toISOString(),

@@ -1652,11 +1652,14 @@ jobs:
       # `{vendor}` to `PUT /routers/{id}`, which ignores it, 200s, and
       # reports success.
       #
-      # Floor 133, observed green at 133.
+      # Floor 164, observed green at 164 -- was 133, raised by the 31 checks
+      # that join the D2 vocabulary to the backend's `controller_state`. The
+      # vocabulary shipped in #271 with zero consumers in src/ and the value
+      # in backend #239; this floor is what keeps them joined.
       - name: controller row evidence
         run: |
           ./scripts/ci-gated-test.sh \
-            "controller-row-evidence" 133 \
+            "controller-row-evidence" 164 \
             "All checks passed." \
             bun run test:controller-row-evidence
 

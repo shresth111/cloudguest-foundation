@@ -50,7 +50,16 @@
  *    here, from `last_seen_at`, the same way the backend's own readers do.
  */
 
-import { isControllerManagedRow, routerVendorLabel } from "@/lib/router-vendors";
+import {
+  CONTROLLER_STATE_COPY,
+  CONTROLLER_STATE_NEXT_STEP,
+  controllerStateIsFault,
+  controllerStateSentence,
+  isControllerManagedRow,
+  isControllerState,
+  routerVendorLabel,
+} from "@/lib/router-vendors";
+import type { ControllerState } from "@/lib/router-vendors";
 
 /**
  * Heartbeat staleness windows, mirroring the backend's own
@@ -182,6 +191,26 @@ export interface RouterLiveness {
    * predating this field will hand one back without it.
    */
   vendor?: string | null;
+  /**
+   * The backend's `controller_state`, carried through so a renderer can use
+   * D2's words (`CONTROLLER_STATE_COPY`) instead of the two coarse labels
+   * this module has room for.
+   *
+   * `state` above is the BUCKET -- four of them, because that is what a
+   * badge and a counter can hold. This is the VOCABULARY -- seven, because
+   * that is how many different next steps there are. D2's split exactly:
+   * the backend owns the value, `router-vendors.ts` owns the words, and a
+   * `not_mapped` row can therefore sit in the fault bucket and still read
+   * "Authorising nobody" rather than "Controller down".
+   *
+   * Optional for the same reason `vendor` is: these objects are persisted
+   * into `localStorage`, so a browser holding a summary from an older build
+   * hands one back without it.
+   */
+  controllerState?: ControllerState | null;
+  /** The last completed scheduled sync, for the `{ago}` in D2's sentence.
+   * Not a check-in and not comparable with `lastContactIso`. */
+  controllerLastContactedAt?: string | null;
 }
 
 export type LocationLivenessState =
@@ -246,6 +275,27 @@ export interface RawRouterLiveness {
    * on every caller, so a caller that supplies neither of these still gets
    * the mislabel protection from the timestamp alone.
    */
+  /**
+   * FIX-PLAN D2 / BE-2, snake_case because this is the wire shape and the
+   * venue path hands API items straight in.
+   *
+   * The BACKEND's answer about the controller, which this module could only
+   * ever guess at: `status === "offline" || health_status === "unhealthy"`
+   * was a heuristic over two columns nothing writes for a controller except
+   * the sync sweep, and it could not tell "we cannot reach it" from "nobody
+   * has chosen a site" -- two states with opposite next steps.
+   *
+   * Optional, and absent means "not told": the two repos deploy separately,
+   * and every branch below keeps the heuristic as its fallback so a console
+   * ahead of its backend degrades to what it did before rather than to
+   * silence.
+   */
+  controller_state?: string | null;
+  controller_state_reason?: string | null;
+  /** The last completed scheduled sync. NEVER rendered through
+   * `lastContactLabel` -- agent vocabulary ("Last check-in") must not touch
+   * a controller. */
+  controller_last_contacted_at?: string | null;
   routeros_version?: string | null;
   has_api_credentials?: boolean | null;
 }
@@ -351,11 +401,51 @@ export function deriveRouterLiveness(raw: RawRouterLiveness, now: Date): RouterL
       hasApiCredentials: raw.has_api_credentials,
     })
   ) {
-    // Negative evidence first. Nothing heartbeats a controller, so neither of
-    // these values can be the residue of a device that merely went quiet --
-    // both were written on purpose, by the integration sync sweep or by an
-    // operator. Reporting them is not a liveness measurement this platform is
-    // pretending to take; it is repeating a fact it was handed.
+    // THE BACKEND'S ANSWER FIRST, if it gave one. `controller_state` is one
+    // value computed once on the server from the integration row -- the
+    // whole point of FIX-PLAN D2 -- and it replaces the guess below with a
+    // fact. It also carries a distinction the guess never could: "we cannot
+    // reach this controller" and "nobody has chosen which Omada site to use"
+    // both used to read as `offline`, and their next steps are opposite.
+    //
+    // The bucket stays coarse. `state` is what a badge and a counter can
+    // hold, and adding five members to `RouterLivenessState` would mean five
+    // new badge entries, five new fleet buckets and five new filter chips
+    // for a distinction only the SENTENCE needs. So the fault states share
+    // `controller-reported-down` and get their words from
+    // `CONTROLLER_STATE_COPY`, which has all seven.
+    const declared = isControllerState(raw.controller_state) ? raw.controller_state : null;
+    const contactedIso = raw.controller_last_contacted_at ?? null;
+    if (declared) {
+      const copy = CONTROLLER_STATE_COPY[declared];
+      const ago = formatAgo(contactedIso, now);
+      return {
+        ...base,
+        status: controllerStateIsFault(declared) ? "fail" : "unknown",
+        state: controllerStateIsFault(declared) ? "controller-reported-down" : "not-applicable",
+        shortLabel: copy.label,
+        detail:
+          `${label} is a ${routerVendorLabel(raw.vendor)} controller. ` +
+          controllerStateSentence(declared, ago),
+        nextStep: CONTROLLER_STATE_NEXT_STEP[declared],
+        // Still `none`. `controller_last_contacted_at` is a sync, not a
+        // check-in, and putting it in `lastContactIso` would let
+        // `lastContactLabel` print "Last check-in" over a controller --
+        // the exact vocabulary rule this module exists to keep.
+        lastContactIso: lastSeenIso,
+        lastContactKind: "none",
+        controllerState: declared,
+        controllerLastContactedAt: contactedIso,
+      };
+    }
+
+    // FALLBACK, for a backend that has not deployed `controller_state` yet
+    // or has grown a state this build has no words for. Negative evidence
+    // first. Nothing heartbeats a controller, so neither of these values can
+    // be the residue of a device that merely went quiet -- both were written
+    // on purpose, by the integration sync sweep or by an operator. Reporting
+    // them is not a liveness measurement this platform is pretending to
+    // take; it is repeating a fact it was handed.
     const health = typeof raw.health_status === "string" ? raw.health_status.toLowerCase() : null;
     const markedDown = rawStatus === "offline" || health === "unhealthy";
     if (markedDown) {

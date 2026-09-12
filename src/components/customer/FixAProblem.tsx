@@ -120,11 +120,11 @@ import {
   deriveRouterLiveness,
   lastContactLabel,
   minutesSince,
+  stateIsControllerManaged,
 } from "@/lib/location-liveness";
 import {
   controllerRouterDeviceWriteReason,
   isAgentManaged,
-  isControllerManaged,
   routerVendorLabel,
 } from "@/lib/router-vendors";
 
@@ -435,10 +435,33 @@ export function FixAProblem({
         last_seen_at: router.lastSeenAt,
         vendor: router.vendor,
         health_status: router.healthStatus,
+        // AGENT EVIDENCE, which this projection was missing. Every other
+        // caller of `deriveRouterLiveness` passes both; without them the
+        // D3a gate is half-fed here and a mislabelled MikroTik reads as a
+        // controller on the one page a venue owner opens when something is
+        // wrong.
+        routeros_version: router.routerOsVersion,
+        has_api_credentials: router.hasApiCredentials,
+        // FIX-PLAN D2 -- the backend's answer, which is what makes the
+        // `measured` line below a fact rather than a second derivation.
+        controller_state: router.controllerState,
+        controller_state_reason: router.controllerStateReason,
+        controller_last_contacted_at: router.controllerLastContactedAt,
       },
       new Date(),
     );
-    const controller = isControllerManaged(router.vendor);
+    // BY EVIDENCE, NOT BY LABEL. This was `isControllerManaged(router.vendor)`
+    // -- the bare string -- and it was the last surface still keying this
+    // decision off what somebody typed. `deriveRouterLiveness` two lines up
+    // has always used the row predicate, so on a mislabelled MikroTik the
+    // two disagreed about the same row: `measured` said "we do not watch
+    // this device" while `reportedDown` was being computed as though we did.
+    //
+    // `controllerState` is non-null exactly when the backend judged this row
+    // controller-managed on the same evidence, so reading it is reading the
+    // one answer rather than making a second one. `vendorClaimIsContradicted`
+    // is why it can be null on a row whose vendor says otherwise.
+    const controller = stateIsControllerManaged(live.state);
     return {
       measured: !controller,
       reportedDown: live.state === "controller-reported-down",

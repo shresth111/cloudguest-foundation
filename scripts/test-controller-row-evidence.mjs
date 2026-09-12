@@ -415,6 +415,88 @@ check(
     !controllerStateSentence("reachable", null).includes("{ago}"),
 );
 
+/* ── 8b. ...and it is now WIRED, not just defined ──────────────────────── */
+
+console.log("\n8b. The backend's controller_state reaches the three surfaces");
+
+// Until now `CONTROLLER_STATE_COPY`, `isControllerState` and
+// `controllerStateSentence` had ZERO consumers in src/ -- this file was the
+// only thing that imported them. The vocabulary shipped with #271 and the
+// value with backend #239; this is the join.
+//
+// THE BUCKET STAYS COARSE AND THE WORDS GET FINER. `RouterLivenessState` is
+// what a badge, a counter and a filter chip can hold, so the six fault
+// states share one member; `CONTROLLER_STATE_COPY` has all seven, so the
+// sentence still tells a `not_mapped` venue something different from an
+// `unreachable` one. Adding five union members instead would have meant five
+// new badge entries, five new fleet buckets and five new chips for a
+// distinction only the sentence needs.
+
+const DECLARED = (state, extra = {}) =>
+  deriveRouterLiveness({ ...GENUINE, controller_state: state, ...extra }, NOW);
+
+check(
+  "reachable is not a fault, and does not borrow agent vocabulary",
+  DECLARED("reachable").state === "not-applicable" &&
+    DECLARED("reachable").status !== "fail" &&
+    DECLARED("reachable").shortLabel === "Controller reachable",
+  DECLARED("reachable").shortLabel,
+);
+for (const state of STATES.filter((s) => s !== "reachable")) {
+  const row = DECLARED(state);
+  check(
+    `${state} is a fault the venue owner is told about`,
+    row.state === "controller-reported-down" && row.status === "fail",
+    `${row.state}/${row.status}`,
+  );
+  check(
+    `${state} keeps its OWN words, not one shared "Controller down"`,
+    row.shortLabel === CONTROLLER_STATE_COPY[state].label,
+    row.shortLabel,
+  );
+  check(`${state} says what to do next`, !!row.nextStep && row.nextStep.length > 10);
+}
+// The two with opposite next steps, which the old `status === "offline"`
+// heuristic could not tell apart at all -- it had one answer for both.
+check(
+  "unreachable and not_mapped no longer read identically",
+  DECLARED("unreachable").shortLabel !== DECLARED("not_mapped").shortLabel &&
+    DECLARED("unreachable").nextStep !== DECLARED("not_mapped").nextStep,
+);
+check(
+  "a controller's sync time never becomes a check-in",
+  lastContactLabel(
+    DECLARED("reachable", {
+      controller_last_contacted_at: new Date(NOW.getTime() - 6e4).toISOString(),
+    }),
+    NOW,
+  ) === NOT_MEASURED_HERE,
+  "agent vocabulary must not touch a controller, whatever timestamp it has",
+);
+check(
+  "but the sync time does reach the sentence",
+  /minute|second|just now/i.test(
+    DECLARED("unreachable", {
+      controller_last_contacted_at: new Date(NOW.getTime() - 4 * 6e4).toISOString(),
+    }).detail,
+  ),
+);
+check(
+  "a state this build has no words for falls back rather than rendering blank",
+  DECLARED("teleported").state === "not-applicable",
+  "isControllerState refuses it and the pre-D2 heuristic answers instead",
+);
+check(
+  "and the fallback still reports a recorded fault",
+  DECLARED("teleported", { status: "offline" }).state === "controller-reported-down",
+);
+check(
+  "an agent-managed row is never given a controller state, whatever it carries",
+  deriveRouterLiveness({ ...MISLABELLED, controller_state: "unreachable" }, NOW).state !==
+    "controller-reported-down",
+  "evidence beats the label here too -- this row heartbeats",
+);
+
 /* ── 9. The D4 refusal copy ────────────────────────────────────────────── */
 
 console.log("\n9. Device-domain screens explain rather than vanish");
@@ -452,6 +534,44 @@ check(
 );
 
 const fleet = read("src/routes/master.routers.tsx");
+
+// The wiring itself, at source level: three surfaces, one value.
+const svc = read("src/services/router.service.ts");
+check(
+  "the mapper narrows the wire value instead of trusting it",
+  /isControllerState\(r\.controller_state\)/.test(svc),
+);
+check(
+  "and carries the contradiction flag the backend computes",
+  /vendorClaimIsContradicted: r\.vendor_claim_is_contradicted === true/.test(svc),
+);
+check(
+  "the Master fleet passes it into every liveness projection it builds",
+  (fleet.match(/controller_state: r\.controllerState,/g) ?? []).length === 3,
+  "displayStatus, contactLabel and statusBadge each build their own literal",
+);
+const fixProblemSrc = read("src/components/customer/FixAProblem.tsx");
+check(
+  "Fix a Problem passes it too",
+  /controller_state: router\.controllerState/.test(fixProblemSrc),
+);
+// Comments stripped first. The fix is explained in a comment that quotes the
+// call it replaced, and a negative regex over raw source would match its own
+// explanation -- the same reason `test-location-liveness.mjs` checks its
+// forbidden patterns "outside comments".
+const fixProblemCode = fixProblemSrc.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+check(
+  "and no longer decides 'do we measure this' from the bare vendor string",
+  !/isControllerManaged\(router\.vendor\)/.test(fixProblemCode) &&
+    /stateIsControllerManaged\(live\.state\)/.test(fixProblemCode),
+  "the label and the row predicate disagreed about the same row",
+);
+check(
+  "and now feeds the D3a evidence gate the evidence",
+  /routeros_version: router\.routerOsVersion/.test(fixProblemSrc) &&
+    /has_api_credentials: router\.hasApiCredentials/.test(fixProblemSrc),
+);
+
 check("the fleet renders the mismatch tag", /VENDOR_MISMATCH_LABEL/.test(fleet));
 check("the fleet buckets a down controller as offline", /controller-reported-down/.test(fleet));
 check(
