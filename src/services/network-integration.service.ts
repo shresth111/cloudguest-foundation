@@ -975,6 +975,75 @@ export const networkIntegrationService = {
     );
     return toConnectionTest(data);
   },
+
+  /**
+   * Credential rotation, performed BY AN OPERATOR ON A TENANT'S INTEGRATION.
+   *
+   * WHY THIS EXISTS ALONGSIDE `replaceCredentials`
+   * ---------------------------------------------
+   * Same route -- there is no `/platform/.../credentials`; `POST
+   * /{id}/credentials` is the only credential-replacement endpoint there is.
+   * What differs is WHO is calling, and therefore which organization header
+   * the request must carry.
+   *
+   * `replaceCredentials` sends `resolveOrganizationId()`, which reads
+   * `GET /me/organizations` -- MEMBERSHIP-scoped. A platform operator is not a
+   * member of the tenant whose controller they are repairing, and may hold no
+   * memberships at all, so that header is wrong here and can fail to resolve
+   * outright.
+   *
+   * This sends the INTEGRATION'S OWN organization id, which the fleet row
+   * already carries. That satisfies the `CurrentOrganization` dependency the
+   * by-id routes declare, while the route's explicit `scope=ScopeType.GLOBAL`
+   * is what actually authorises the call: `RequirePermission` resolves
+   * `scope or _infer_scope_type(context)`, so an explicit scope wins over
+   * anything inferred from a header, and the operator is checked at GLOBAL
+   * exactly as intended.
+   *
+   * WHY IT HAD TO BE BUILT NOW. A live integration sits in `auth_failed` --
+   * "the stored credentials are no longer valid, replace them to reconnect"
+   * -- and the only UI that could replace them was the customer Network
+   * Integrations page, which FIX-PLAN FE-0 retires because every route it
+   * calls is GLOBAL-scoped and 403s for a venue owner. Retiring that page
+   * without this would leave a rejected controller unfixable from any console
+   * by anybody.
+   */
+  async replacePlatformCredentials(
+    integration: Pick<NetworkIntegration, "id" | "organizationId">,
+    authMode: ControllerAuthMode,
+    credentials: NetworkIntegrationCredentials,
+  ): Promise<NetworkIntegration> {
+    const { data } = await api.post<BackendNetworkIntegration>(
+      `${BASE}/${integration.id}/credentials`,
+      {
+        auth_mode: authMode,
+        // Flat, not nested. `NetworkIntegrationCredentialRotateRequest`
+        // extends `_CredentialFields`, and Pydantic's default
+        // `extra="ignore"` means a nested `credentials: {...}` is accepted
+        // with a 2xx and silently dropped -- which is how this contract was
+        // broken once already.
+        ...credentialsForMode(authMode, credentials),
+      },
+      { headers: { "X-Organization-Id": integration.organizationId } },
+    );
+    return toIntegration(data);
+  },
+
+  /**
+   * Remove a tenant's integration, as an operator. Same header reasoning as
+   * `replacePlatformCredentials` above.
+   *
+   * `DELETE /{integration_id}` has existed all along and nothing in the Master
+   * console called it, so the fallback of "remove it and re-run provisioning"
+   * was not available either.
+   */
+  async deletePlatformIntegration(
+    integration: Pick<NetworkIntegration, "id" | "organizationId">,
+  ): Promise<void> {
+    await api.delete(`${BASE}/${integration.id}`, {
+      headers: { "X-Organization-Id": integration.organizationId },
+    });
+  },
 };
 
 // ---------------------------------------------------------------------------
