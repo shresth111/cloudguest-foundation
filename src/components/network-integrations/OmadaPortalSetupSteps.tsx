@@ -121,9 +121,9 @@ export function OmadaPortalSetupSteps({
       <StepTitle>Before you start — on the customer&rsquo;s controller</StepTitle>
       <Muted>
         <strong>The platform does not create any of these, and will not.</strong> The controller is
-        the customer&rsquo;s, and these are decisions about their network. Unlike a MikroTik venue,
-        provisioning does not configure the device for you — it records the venue and connects to
-        the controller the customer already runs.
+        the customer&rsquo;s, and a site, an adopted access point and an SSID are decisions about
+        their network rather than records about the venue. Provisioning records the venue and
+        connects to the controller they already run; it does not build their network for them.
       </Muted>
       <Muted>
         1. <strong>A site</strong> for this venue, under Sites. 2.{" "}
@@ -225,17 +225,35 @@ export function OmadaPortalSetupSteps({
         will look adopted and authorise nobody.
       </Muted>
 
-      {/* Said where a MikroTik operator would look for it. An Omada venue
-          getting no NAS row is correct, and silence about it reads as a
-          failure to someone who has watched provisioning create one every
-          other time. */}
-      <StepTitle>No NAS or RADIUS entry is created, and that is correct</StepTitle>
+      {/* THE QUESTION BEHIND THE QUESTION: "why does TP-Link feel like it did
+          less than MikroTik?" Answered in two sentences, because that answers
+          it better than any list of steps.
+
+          An earlier draft of this block claimed a MikroTik venue gets a NAS
+          record and an Omada venue does not. That is FALSE and is removed:
+          `location/provisioning_service.py` states plainly that RADIUS NAS
+          registration is not part of that flow in either case --
+          `RouterService.create_router` does not register a NAS. NAS is not a
+          vendor difference and must not be shown as one; presenting a
+          non-difference as a difference is how an operator ends up hunting
+          for a record that was never created for anybody.
+
+          Nothing here names the management tunnel or RADIUS internals: this
+          component also renders on the customer-facing Network Integrations
+          page, where that is a hard constraint. */}
+      <StepTitle>Why this felt different from a MikroTik venue</StepTitle>
       <Muted>
-        A MikroTik venue gets a NAS record because its captive portal authenticates over RADIUS. An
-        Omada venue does not and should not: guests are authorised through the controller&rsquo;s
-        External Portal Server API, which is not RADIUS. Nothing is missing, and nothing failed — if
-        you are checking because provisioning created one for your last venue and not this one, that
-        difference is the two vendors working as designed.
+        <strong>Provisioning did not do less for this venue.</strong> The customer, the location,
+        the owner account, permissions, billing and the plan are all created exactly as they are for
+        a MikroTik site — what differs is only the device half, because the two are configured in
+        opposite directions: a MikroTik is set up by a script this platform generates and someone
+        pastes into the router, while an Omada controller is set up by this platform calling the
+        controller&rsquo;s own API, which is what Configure controller does.
+      </Muted>
+      <Muted>
+        So the one manual thing above is the direct analogue of pasting that script:{" "}
+        <strong>on MikroTik you paste a script, on Omada you create an Open API app.</strong> After
+        that, both are automatic.
       </Muted>
     </div>
   );

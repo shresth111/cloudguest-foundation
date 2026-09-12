@@ -241,12 +241,37 @@ check(
   "so is the per-device licence and the Unactivated state",
   /Omada Central Standard licence/.test(steps) && /Unactivated/.test(steps),
 );
+// CORRECTED, and the correction is the assertion. An earlier draft of this
+// copy claimed a MikroTik venue gets a NAS record and an Omada venue does not.
+// That is false: `location/provisioning_service.py` states that RADIUS NAS
+// registration is not part of that flow in EITHER case -- `create_router`
+// registers no NAS. Presenting a non-difference as a vendor difference sends
+// an operator hunting for a record that was never created for anybody, so the
+// claim is now asserted ABSENT rather than present.
 check(
-  "and that no NAS row is created, where someone would look for it",
-  /No NAS or RADIUS entry is created, and that is correct/.test(steps),
-  "a MikroTik operator seeing NAS for one vendor and not the other assumes a failure",
+  "no NAS vendor-difference is claimed",
+  !/NAS record/.test(steps) && !/No NAS or RADIUS entry is created/.test(steps),
+  "NAS registration is not part of provisioning for any vendor",
 );
-check("the External Portal Server is distinguished from RADIUS", /which is not RADIUS/.test(steps));
+check(
+  "the real difference is named instead: which direction the device is configured from",
+  /Provisioning did not do less for this venue/.test(steps) && /pastes into the router/.test(steps),
+);
+check(
+  "and the one line an operator can hold on to",
+  /on MikroTik you paste a script, on Omada you create an Open API app/.test(steps),
+);
+check(
+  "parity names what IS created identically",
+  /the owner account, permissions, billing and the plan/.test(steps),
+);
+// This component also renders on the CUSTOMER-facing Network Integrations
+// page, so the product's hard constraint applies to every word of it.
+check(
+  "no tunnel or RADIUS internals reach this copy",
+  !/WireGuard/i.test(stripComments(steps)) && !/\bNAS\b/.test(stripComments(steps)),
+  "it renders on a customer surface",
+);
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) FAILED.`);
 process.exit(failures === 0 ? 0 : 1);
