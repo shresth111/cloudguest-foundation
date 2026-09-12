@@ -56,6 +56,8 @@ import {
 } from "@/lib/router-schemas";
 import { useCreateRouter, useOnboardController } from "@/hooks/useRouters";
 import type { OnboardControllerResult } from "@/types/router";
+import type { ControllerAuthMode } from "@/types/network-integration";
+import { OmadaSiteMapping } from "@/components/network-integrations/OmadaSiteMapping";
 import { routerService } from "@/services/router.service";
 import { RouterModelCombobox } from "@/components/routers/RouterModelCombobox";
 import type { AppError } from "@/services/api";
@@ -646,7 +648,14 @@ export function RouterWizard({ open, onOpenChange }: Props) {
                   <ProvisionStep router={createdRouter} />
                 )}
                 {step === 2 && isOmada && onboarded && (
-                  <OnboardedStep result={onboarded} onDone={finish} />
+                  <OnboardedStep
+                    result={onboarded}
+                    // Read off the form rather than the result: the onboard
+                    // response does not echo the auth mode back, and this is
+                    // the value that was just sent.
+                    authMode={form.getValues("omada.authMode")}
+                    onDone={finish}
+                  />
                 )}
               </div>
 
@@ -708,22 +717,39 @@ export function RouterWizard({ open, onOpenChange }: Props) {
  * the point -- the backend refuses these rows a provisioning token and leaves
  * them out of the ZTP dashboard for the same reason.
  *
- * What it does instead is state exactly what was created and name the one
- * thing still outstanding. The site and SSID cannot be chosen on this screen:
- * listing them requires an authenticated call to the controller, which
- * requires stored credentials, which requires the integration row that this
- * step is the first moment to exist. So the mapping lives on the Integrations
- * page, and until it is done the integration will not authorise anyone --
- * which is why this says so rather than showing a success tick and leaving
- * the operator to discover it from a guest complaint.
+ * What it does instead is state exactly what was created and then FINISH THE
+ * JOB, which it previously sent the operator to another dashboard to do.
+ *
+ * The old version's reasoning was an ordering argument and only half right:
+ * listing sites needs stored credentials, stored credentials need the
+ * integration row, and the row does not exist until onboarding returns --
+ * all true, and all satisfied by the time this renders, because `result`
+ * carries the id. So it said "Open Integrations, pick this controller's
+ * site", and OMADA_OPERATOR_RUNBOOK recorded the consequence: *"The admin
+ * onboarding wizard sends you to a screen with no site picker."* The
+ * mapping now happens here, on the screen that just created the thing.
+ *
+ * The success line is also no longer the overclaim it was. It said guests
+ * "can be issued a session" while the amber box below it said the
+ * integration "authorises nobody" -- two boxes on one screen contradicting
+ * each other. What is true at this moment is that the records exist; what
+ * makes guests work is the site, which is the control directly beneath.
  */
 function OnboardedStep({
   result,
+  authMode,
   onDone,
 }: {
   result: OnboardControllerResult;
+  /** What the operator just configured, so the mapping panel knows whether
+   * a picker can populate. See `OmadaSiteMapping`. */
+  authMode: ControllerAuthMode;
   onDone: () => void;
 }) {
+  // Set by the mapping panel on a successful save. Until then the amber
+  // "not yet authorising" notice stands, because until then it is true.
+  const [mappedSite, setMappedSite] = useState<string | null>(null);
+
   return (
     <div className="space-y-4">
       <div className="flex items-start gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
@@ -733,8 +759,8 @@ function OnboardedStep({
             {result.integrationName} is registered
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            A fleet record and a controller integration were created together, so guests at this
-            venue can be issued a session.
+            A fleet record and a controller integration were created together and linked to this
+            venue.
           </p>
         </div>
       </div>
@@ -752,20 +778,48 @@ function OnboardedStep({
         </div>
       </dl>
 
-      <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-700 dark:text-amber-400">
-        <p className="font-medium">One step left before guests can get online.</p>
-        <p className="mt-1">
-          Open Integrations, pick this controller's site and its guest SSID, and test the
-          connection. Until then the integration stores credentials but authorises nobody.
-        </p>
-        <Link
-          to="/master/integrations"
-          onClick={onDone}
-          className="mt-2 inline-flex items-center gap-1 font-medium underline underline-offset-2"
-        >
-          Go to Integrations <ChevronRight className="h-3 w-3" />
-        </Link>
+      {/* The step the operator used to be sent elsewhere for. */}
+      <div className="rounded-lg border border-border/70 px-4 py-3">
+        <OmadaSiteMapping
+          integrationId={result.integrationId}
+          authMode={authMode}
+          onSaved={({ siteName }) => setMappedSite(siteName)}
+        />
       </div>
+
+      {mappedSite ? (
+        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-xs text-emerald-700 dark:text-emerald-300">
+          <p className="font-medium">Site {mappedSite} mapped.</p>
+          <p className="mt-1">
+            Finish on the controller itself: point its External Portal Server at this platform. The
+            values to paste are on this integration in the Master console.
+          </p>
+          <Link
+            to="/master/integrations"
+            search={{ q: result.integrationName }}
+            onClick={onDone}
+            className="mt-2 inline-flex items-center gap-1 font-medium underline underline-offset-2"
+          >
+            Open {result.integrationName} <ChevronRight className="h-3 w-3" />
+          </Link>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-700 dark:text-amber-400">
+          <p className="font-medium">Not authorising guests yet.</p>
+          <p className="mt-1">
+            Set the site above. Without one the controller stores its credentials and refuses every
+            guest, after they have finished signing in.
+          </p>
+          <Link
+            to="/master/integrations"
+            search={{ q: result.integrationName }}
+            onClick={onDone}
+            className="mt-2 inline-flex items-center gap-1 font-medium underline underline-offset-2"
+          >
+            Do it later in Integrations <ChevronRight className="h-3 w-3" />
+          </Link>
+        </div>
+      )}
     </div>
   );
 }

@@ -34,6 +34,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RouterModelCombobox } from "@/components/routers/RouterModelCombobox";
 import { OmadaPortalSetupSteps } from "@/components/network-integrations/OmadaPortalSetupSteps";
+import { OmadaSiteMapping } from "@/components/network-integrations/OmadaSiteMapping";
 import { describePortalReadinessGap } from "@/lib/network-integration-readiness";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -1575,10 +1576,34 @@ function ControllerOutcomePanel({
         <div className="text-sm">
           <p className="font-medium text-emerald-700 dark:text-emerald-300">Controller connected</p>
           <p className="text-xs text-muted-foreground">
-            {r.integrationName} is registered as this venue's device, with its site and guest
-            network.
+            {r.integrationName} is registered as this venue's device, with the site and guest
+            network typed on the Device step.
           </p>
         </div>
+      </div>
+
+      {/*
+        Confirm-or-correct, and for an Open API controller it is usually a
+        correction.
+
+        The Device step asks for the site before anything exists to list, so
+        the typed value is sent as BOTH `external_site_id` and
+        `external_site_name` -- correct for a hotspot-operator login, where
+        the name genuinely is the identifier Omada puts on its redirect, and
+        usually WRONG for an Open API controller, whose real site id is an
+        opaque string the operator has no way to type. Now that the
+        integration exists it can be listed, so this is the first moment the
+        right id can be chosen. With operator-only credentials the panel
+        stays a text box and simply confirms what was typed.
+      */}
+      <div className="rounded-lg border border-border/70 p-3">
+        <OmadaSiteMapping
+          integrationId={r.integrationId}
+          authMode={controller.authMode}
+          initialSiteId={controller.site.trim()}
+          initialSiteName={controller.site.trim()}
+          initialSsidName={controller.ssid.trim()}
+        />
       </div>
 
       {scheme && hostAndQuery ? (

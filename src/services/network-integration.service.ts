@@ -864,6 +864,78 @@ export const networkIntegrationService = {
     return toIntegration(data);
   },
 
+  /**
+   * Correct an integration from the Master console.
+   *
+   * WHY THIS EXISTS SEPARATELY FROM `update`
+   * ----------------------------------------
+   * `update` is the org-scoped twin, and a master operator cannot call it:
+   * it sends `X-Organization-Id` from {@link resolveOrganizationId}, which
+   * THROWS for a session that belongs to no organization (see
+   * services/organization-id.ts) -- which is exactly what a global-scope
+   * operator is. So "fix the site on this customer's controller" was not
+   * merely missing a screen in the master console; the call underneath it
+   * could not be made at all.
+   *
+   * Same body as `update`, same field names -- the backend's request model
+   * for the platform route is the org route's, re-scoped. Only the path and
+   * the absent org header differ.
+   */
+  async updatePlatformIntegration(
+    id: string,
+    payload: UpdateNetworkIntegrationPayload,
+  ): Promise<NetworkIntegration> {
+    const { data } = await api.patch<BackendNetworkIntegration>(
+      `${BASE}/platform/integrations/${id}`,
+      {
+        name: payload.name,
+        is_enabled: payload.isEnabled,
+        location_id: payload.locationId,
+        external_site_id: payload.externalSiteId,
+        external_site_name: payload.externalSiteName,
+        guest_ssid_id: payload.guestSsidId,
+        guest_ssid_name: payload.guestSsidName,
+        session_duration_seconds: payload.sessionDurationSeconds,
+        sync_interval_seconds: payload.syncIntervalSeconds,
+        ...trustFields(payload),
+      },
+    );
+    return toIntegration(data);
+  },
+
+  /**
+   * The controller's sites and guest SSIDs, read as a platform operator.
+   *
+   * ## Why these are not the org-scoped `listSites`/`listSsids`
+   *
+   * Same reason as `updatePlatformIntegration` above: the org-scoped pair
+   * attaches an `X-Organization-Id` a master operator cannot resolve. These
+   * send none, per this section's rule.
+   *
+   * ## The 501 these are EXPECTED to return, and why that is not an error
+   *
+   * A hotspot-operator login cannot list inventory -- it drives the captive
+   * portal and nothing else -- so the backend answers **501** for an
+   * integration whose only credentials are that pair. That is a fact about
+   * the credential type, not a failure, and the caller is expected to catch
+   * it and offer manual entry instead. `OmadaSiteMapping` does exactly that;
+   * see its docstring. Since `116f7ca` an Open API app and an operator login
+   * can coexist on one integration, which is what makes a real picker
+   * possible at all.
+   *
+   * The 60s timeout matches the org-scoped pair: this is a live round trip
+   * to a controller that may be at the far end of a hotel's ADSL line.
+   */
+  async listPlatformSites(id: string): Promise<NetworkIntegrationSite[]> {
+    const { data } = await api.get<unknown>(`${BASE}/${id}/sites`, { timeout: 60_000 });
+    return unwrapRows<BackendNetworkIntegrationSite>(data, "sites").map(toSite);
+  },
+
+  async listPlatformSsids(id: string): Promise<NetworkIntegrationSsid[]> {
+    const { data } = await api.get<unknown>(`${BASE}/${id}/ssids`, { timeout: 60_000 });
+    return unwrapRows<BackendNetworkIntegrationSsid>(data, "ssids").map(toSsid);
+  },
+
   async listPlatformEvents(
     id: string,
     q: NetworkIntegrationEventQuery = {},
