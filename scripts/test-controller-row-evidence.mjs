@@ -14,10 +14,14 @@
  * label.
  *
  * The fix (FIX-PLAN D3a) is that eligibility is EVIDENCE-based: a row carrying
- * agent evidence -- it has checked in, or reports a RouterOS version, or has
- * an API credential on file -- is treated as agent-managed whatever its vendor
- * column says. A device that checked in and then stopped is down, and that
- * fact cannot depend on what someone typed in a dropdown afterwards.
+ * agent evidence -- it has checked in (`lastSeenAt`, written only by its
+ * heartbeat) or reports a RouterOS version (written only by the agent's status
+ * push) -- is treated as agent-managed whatever its vendor column says. A
+ * device that checked in and then stopped is down, and that fact cannot depend
+ * on what someone typed in a dropdown afterwards.
+ *
+ * Admin-entered fields are deliberately NOT evidence (FE-1.2) -- see the
+ * boundary case in section 1.
  *
  * THE ASSERTIONS THAT MATTER, in order of how badly a regression would hurt:
  *
@@ -48,7 +52,7 @@
  * Run: node scripts/test-controller-row-evidence.mjs
  */
 import { build } from "esbuild";
-import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -167,11 +171,27 @@ check("its venue reads not-live", venue.state === "not-live", `got ${venue.state
 for (const [label, row] of [
   ["last_seen_at", { vendor: "tplink_omada", lastSeenAt: TWO_DAYS_AGO }],
   ["routerOsVersion", { vendor: "tplink_omada", routerOsVersion: "7.14.3" }],
-  ["hasApiCredentials", { vendor: "tplink_omada", hasApiCredentials: true }],
 ]) {
   check(`${label} alone is agent evidence`, hasAgentEvidence(row));
   check(`${label} alone defeats the controller label`, !isControllerManagedRow(row));
 }
+
+// ...and the BOUNDARY, which matters as much as the rule. `routerOsVersion`
+// comes from the agent's status push and `lastSeenAt` from its heartbeat --
+// both are the DEVICE reporting in. `hasApiCredentials` is somebody typing a
+// username and a password into a form, and proves nothing about what is at the
+// other end of the row. Counting it would mean that filling in credentials
+// silently reclassified a controller as agent-managed: the same "somebody
+// typed something" failure this predicate exists to end, with an extra step
+// (FIX-PLAN FE-1.2).
+check(
+  "an admin-entered credential is NOT agent evidence",
+  !hasAgentEvidence({ vendor: "tplink_omada", hasApiCredentials: true }),
+);
+check(
+  "and does not defeat the controller label on its own",
+  isControllerManagedRow({ vendor: "tplink_omada", hasApiCredentials: true }),
+);
 
 /* ── 2. A genuine controller is still exempt ───────────────────────────── */
 
@@ -419,8 +439,7 @@ check("the fleet renders the mismatch tag", /VENDOR_MISMATCH_LABEL/.test(fleet))
 check("the fleet buckets a down controller as offline", /controller-reported-down/.test(fleet));
 check(
   "the fleet passes agent evidence into the derivation",
-  /routeros_version: r\.routerOsVersion/.test(fleet) &&
-    /has_api_credentials: r\.hasApiCredentials/.test(fleet),
+  /routeros_version: r\.routerOsVersion/.test(fleet),
 );
 check(
   "the vendor <select> offers only implemented vendors",
@@ -519,6 +538,40 @@ console.log("\n11. Network Integrations distinguishes 'failed' from 'empty'");
 // working one. What is added is this guard: the property that makes the
 // reported defect impossible is now asserted, so a future edit that collapses
 // the two branches fails here instead of being discovered in production.
+// FIX-PLAN FE-0: the customer surface is retired, so the panel must not offer
+// a way back to it. Backend `074d719` made every `network_integrations.*`
+// route GLOBAL and `rbac.seed`'s RETIRED_NON_GLOBAL_MODULES dropped the
+// org-scoped grants, so for a venue owner every call 403s. (That change is
+// merged and not yet deployed, which is why the page still answered when it
+// was loaded live -- a distinction worth recording, because it is exactly what
+// made this look like a false alarm.)
+const notice = read("src/components/customer/ControllerManagedFeatureNotice.tsx");
+check(
+  "the D4 notice offers no link to the retired page",
+  !/customerFeatureHref\("network-integrations"\)/.test(notice) && !/<Link/.test(notice),
+);
+check(
+  "it names a person instead of a destination",
+  /Your Wyfy Guest contact manages this venue/.test(notice),
+);
+check(
+  "the customer route file is gone",
+  !existsSync(join(ROOT, "src/routes/network-integrations.tsx")),
+);
+for (const [label, rel] of [
+  ["the customer nav", "src/lib/customerNav.ts"],
+  ["the feature catalog", "src/config/customerFeatureCatalog.ts"],
+  ["the customer shell", "src/components/customer/CustomerFeaturePage.tsx"],
+  ["the agent shell", "src/config/customerFeatures.tsx"],
+]) {
+  check(
+    `${label} no longer mounts or lists it`,
+    !/id: "network-integrations"|case "network-integrations"|feature === "network-integrations"/.test(
+      read(rel),
+    ),
+  );
+}
+
 const integrations = read("src/components/features/NetworkIntegrationsPage.tsx");
 check(
   "a failed load renders an error, not an empty state",
@@ -535,14 +588,6 @@ check(
 check(
   "and offers a retry",
   /onRetry=\{\(\) => list\.refetch\(\)\}/.test(integrations),
-);
-
-// The panel's call to action must point at a route that exists, since the
-// whole value of the panel is that it redirects rather than dead-ends.
-const notice = read("src/components/customer/ControllerManagedFeatureNotice.tsx");
-check(
-  "the notice's call to action targets Network Integrations",
-  /customerFeatureHref\("network-integrations"\)/.test(notice),
 );
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) FAILED.`);

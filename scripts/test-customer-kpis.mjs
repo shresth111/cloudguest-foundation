@@ -378,12 +378,14 @@ console.log("\nno two nav items share an icon");
     dupes.length === 0,
     dupes.map(([icon, ids]) => `${icon} -> ${ids.join(", ")}`).join("; "),
   );
-  // 26: main removed the "Notifications" preferences screen (25), and
-  // "Network Integrations" (Omada controller connect) joined the Network
-  // group (+1). Counted rather than derived on purpose -- the point of this
-  // assertion is to notice a row disappearing, so the number moves only when
-  // a feature is deliberately added or removed.
-  check("the nav still has every item", icons.length === 26, `found ${icons.length}`);
+  // 25: main removed the "Notifications" preferences screen (25), "Network
+  // Integrations" joined the Network group (26), and FIX-PLAN FE-0 has now
+  // retired it again (25) -- every `network_integrations.*` route is
+  // GLOBAL-scoped since backend `074d719`, so that row led a venue owner to a
+  // page that 403s. Counted rather than derived on purpose -- the point of
+  // this assertion is to notice a row disappearing, so the number moves only
+  // when a feature is deliberately added or removed. This is such a time.
+  check("the nav still has every item", icons.length === 25, `found ${icons.length}`);
 }
 
 console.log(

@@ -127,7 +127,6 @@ export const NAV_PERMISSION_KEYS: Record<string, readonly string[]> = {
   // integration hangs off a location. One key, not a list: there is no second
   // domain this screen legitimately reads, so an OR here would only widen the
   // gate for no reason.
-  "network-integrations": ["network_integrations.read"],
   // Operations
   // Two keys, and the OR is the point. This page's primary job -- looking
   // a guest up and saying why they cannot get on -- reads guest sessions,

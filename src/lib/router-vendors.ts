@@ -196,8 +196,13 @@ export function routerLivenessIsMeasured(vendor: string | null | undefined): boo
  * Deliberately NOT in this list, and each for a reason:
  *  - `isp-details`           the venue's ISP/circuit is a record about the
  *                            building, true whoever runs the WiFi.
- *  - `network-integrations`  the screen this whole state is configured on.
- *                            Excluding it would strand the owner.
+ *  - `network-integrations`  RETIRED from the customer dashboard entirely
+ *                            (FIX-PLAN FE-0) -- its route, nav row and
+ *                            catalog entry are gone, because backend
+ *                            `074d719` made every one of its endpoints
+ *                            GLOBAL-scoped. It is listed here only so this
+ *                            list is not read as a claim that it still
+ *                            renders.
  *  - everything outside the Network group: guests, sessions, vouchers,
  *    portal, reports and campaigns all run on our side of the wire and are
  *    unaffected by who owns the access points.
@@ -255,7 +260,24 @@ export interface RouterRowEvidence {
   lastSeenAt?: string | null;
   /** Read off the device by the agent. A controller has no RouterOS. */
   routerOsVersion?: string | null;
-  /** A RouterOS API credential is on file for this row. */
+  /**
+   * DELIBERATELY NOT EVIDENCE, and this is the one field where that needs
+   * saying -- FIX-PLAN FE-1.2.
+   *
+   * `routerOsVersion` is written only by the agent's status push and
+   * `lastSeenAt` only by its heartbeat: both are the DEVICE reporting in.
+   * `hasApiCredentials` is admin-entered -- an operator typing a username and
+   * a password into a form proves nothing about what is at the other end of
+   * the row. Counting it would mean that filling in credentials on a
+   * controller silently reclassified it as agent-managed, which is the same
+   * "somebody typed something" failure this predicate exists to end, just
+   * with an extra step. `managementIpAddress` and `publicIpAddress` are
+   * excluded for the same reason and are not modelled here at all.
+   *
+   * Kept on the interface so a caller that passes a whole `RouterDevice`
+   * type-checks, and so the exclusion is documented where someone would
+   * otherwise "fix" it back in.
+   */
   hasApiCredentials?: boolean | null;
 }
 
@@ -296,7 +318,9 @@ export function isControllerManagedRow(row: RouterRowEvidence | null | undefined
  * the label rather than silently overriding it. */
 export function hasAgentEvidence(row: RouterRowEvidence | null | undefined): boolean {
   if (!row) return false;
-  return Boolean(row.lastSeenAt) || Boolean(row.routerOsVersion) || row.hasApiCredentials === true;
+  // Only what the DEVICE reported. See `hasApiCredentials` above for why an
+  // admin-entered credential is not in this list.
+  return Boolean(row.lastSeenAt) || Boolean(row.routerOsVersion);
 }
 
 /**

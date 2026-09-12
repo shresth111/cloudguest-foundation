@@ -1,7 +1,4 @@
-import { Link } from "@tanstack/react-router";
-import { Plug, Server } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { customerFeatureHref } from "@/lib/customerNav";
+import { Server } from "lucide-react";
 import {
   CONTROLLER_UNSUPPORTED_HEADLINE,
   controllerUnsupportedCopy,
@@ -79,12 +76,30 @@ export function ControllerManagedFeatureNotice({
         this way at this venue. Everything else on your dashboard &mdash; guests, sessions,
         vouchers, the sign-in portal and reports &mdash; is unaffected.
       </p>
-      <Link to={customerFeatureHref("network-integrations")} className="mt-6 inline-block">
-        <Button variant="outline">
-          <Plug className="h-4 w-4" />
-          <span className="ml-2">See this venue&rsquo;s controller</span>
-        </Button>
-      </Link>
+      {/* NO BUTTON, DELIBERATELY -- FIX-PLAN FE-0 step 4.
+
+          This panel's own docstring argues that the deep link is its
+          load-bearing half: "'You cannot do this here' with no destination is
+          a support ticket; with one it is a redirect." That was right for as
+          long as a destination existed. It no longer does. Backend `074d719`
+          moved every `network_integrations.*` route to ScopeType.GLOBAL and
+          retired the org-scoped grants, so the page this button pointed at
+          403s on every call for a venue owner -- and its own route, nav row
+          and catalog entry have now been removed with it.
+
+          A button to a denial is worse than a sentence: it spends the trust
+          the rest of the panel is built on, at the exact moment the owner has
+          accepted that they cannot do the thing and is looking for who can.
+          So the answer to "then who?" is a person, not a link.
+
+          If the product wants the redirect back, the destination has to be
+          something a venue owner can actually open -- a read-only "your
+          controller" panel -- which is a new surface and a separate decision,
+          not a link fix. */}
+      <p className="mx-auto mt-6 max-w-xl text-sm text-muted-foreground">
+        Your Wyfy Guest contact manages this venue&rsquo;s controller. Tell us what you need changed
+        and we&rsquo;ll do it.
+      </p>
     </div>
   );
 }
