@@ -52,6 +52,8 @@ import {
   inputCls,
   RouterSetupDrilldown,
 } from "@/components/routers/RouterSetupScriptAdvanced";
+import { VendorChangeDialog, VendorSelect } from "@/components/routers/VendorChangeGuard";
+import type { PendingVendorChange } from "@/components/routers/VendorChangeGuard";
 import { routerService } from "@/services/router.service";
 import { isDemo } from "@/services/customer.service";
 import { useRouters, useUpdateRouterVendor } from "@/hooks/useRouters";
@@ -230,6 +232,9 @@ function RouterFleetScreen() {
   const [filter, setFilter] = useState<Filter>("all");
   const [q, setQ] = useState("");
   const [sel, setSel] = useState<RouterDevice | null>(null);
+  /** The vendor change waiting on a confirmation, or in flight. Null means
+   * every vendor control shows the value the server last gave us. */
+  const [vendorChange, setVendorChange] = useState<PendingVendorChange | null>(null);
   const [rebootTarget, setRebootTarget] = useState<RouterDevice | null>(null);
   const [rebooting, setRebooting] = useState(false);
   const demo = isDemo();
@@ -320,18 +325,62 @@ function RouterFleetScreen() {
     }
   }, [fleetQuery.isError]);
 
-  function handleVendorChange(router: RouterDevice, vendor: string) {
+  /**
+   * Asking to change a vendor, which is now all a `<select>` can do.
+   *
+   * Until 2026-09-11 this WAS the write: `onChange` went straight to
+   * `PUT /routers/{id}`, with no confirmation and no undo. Looking for the
+   * TP-Link option, the platform owner relabelled seven real rows --
+   * including the live lab hEX lite -- as `tplink_omada`, and each one
+   * silently left the online fleet count, lost its setup script and had
+   * reboot and every other agent action disabled. See
+   * `@/lib/router-vendor-change` for the full list and for the rules the
+   * dialog enforces.
+   *
+   * Both vendor controls on this page (the drilldown's, and the fleet
+   * drawer's) funnel through here, so there is exactly one place that can
+   * write a vendor and exactly one guard in front of it.
+   */
+  function requestVendorChange(router: RouterDevice, vendor: string) {
+    // A "change" to the value already stored is not a change, and must not
+    // put a confirmation in front of someone who selected what was already
+    // selected -- that is how guards get trained out of people.
+    if (vendor === (router.vendor || "mikrotik")) return;
+    setVendorChange({ router, next: vendor, phase: "confirming" });
+  }
+
+  function commitVendorChange() {
+    if (!vendorChange) return;
+    const { router, next } = vendorChange;
+    // Stays set, as `saving`, for the whole request: it is what keeps the
+    // dropdown showing the value being written instead of flicking back to
+    // the old one and then forward again when the list refetches.
+    setVendorChange({ router, next, phase: "saving" });
     updateVendor.mutate(
-      { id: router.id, vendor },
+      { id: router.id, vendor: next },
       {
         onSuccess: () => {
-          setSel((prev) => (prev && prev.id === router.id ? { ...prev, vendor } : prev));
+          setSel((prev) => (prev && prev.id === router.id ? { ...prev, vendor: next } : prev));
+          setVendorChange(null);
+          toast.success(
+            `${router.name}: vendor changed to ${routerVendorLabel(next)}. Nothing on the device changed.`,
+          );
         },
         onError: (err) => {
+          // Clearing the pending change is what reverts the dropdown: with
+          // nothing pending it renders the server's value again, which the
+          // failed request means is still the old one.
+          setVendorChange(null);
           toast.error(err.message || "Could not update vendor");
         },
       },
     );
+  }
+
+  /** What the control for this row should display, or null for "the stored
+   * value". */
+  function pendingVendorFor(routerId: string): string | null {
+    return vendorChange && vendorChange.router.id === routerId ? vendorChange.next : null;
   }
 
   const confirmReboot = async () => {
@@ -496,7 +545,8 @@ function RouterFleetScreen() {
             router={advancedRouter}
             demo={demo}
             vendorSaving={updateVendor.isPending}
-            onVendorChange={(vendor) => handleVendorChange(advancedRouter, vendor)}
+            vendorPending={pendingVendorFor(advancedRouter.id)}
+            onVendorChange={(vendor) => requestVendorChange(advancedRouter, vendor)}
           />
         ) : (
           <>
@@ -775,18 +825,14 @@ function RouterFleetScreen() {
                       <label className="mb-1 block text-xs font-medium text-muted-foreground">
                         Vendor
                       </label>
-                      <select
+                      <VendorSelect
                         className={inputCls}
                         value={sel.vendor || "mikrotik"}
+                        pending={pendingVendorFor(sel.id)}
+                        vendors={DEVICE_VENDORS}
                         disabled={updateVendor.isPending}
-                        onChange={(e) => handleVendorChange(sel, e.target.value)}
-                      >
-                        {DEVICE_VENDORS.map((v) => (
-                          <option key={v.value} value={v.value}>
-                            {v.label}
-                          </option>
-                        ))}
-                      </select>
+                        onRequestChange={(vendor) => requestVendorChange(sel, vendor)}
+                      />
                     </div>
                   )}
 
@@ -900,6 +946,15 @@ function RouterFleetScreen() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* One guard for both vendor controls on this page -- the drilldown's
+            and the fleet drawer's -- because there is one handler behind
+            them. A second copy is a second place to get the wording wrong. */}
+        <VendorChangeDialog
+          change={vendorChange}
+          onConfirm={commitVendorChange}
+          onCancel={() => setVendorChange(null)}
+        />
       </MPageShell>
     </MasterShell>
   );
