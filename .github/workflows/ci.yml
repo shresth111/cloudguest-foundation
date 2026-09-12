@@ -1646,11 +1646,13 @@ jobs:
       # the onboard with the credentials still typed in, and the MikroTik
       # payload byte-for-byte what it was.
       #
-      # Floor 53, observed green at 53.
+      # Floor 60, observed green at 60 -- was 53, raised by the six checks on
+      # the auth-mode default and its badge (Open API, not Hotspot operator)
+      # and by the one the Open API onboard adds.
       - name: customer wizard omada
         run: |
           ./scripts/ci-gated-test.sh \
-            "customer-wizard-omada" 53 \
+            "customer-wizard-omada" 60 \
             "customer wizard omada: all checks passed" \
             bun run test:customer-wizard-omada
 
