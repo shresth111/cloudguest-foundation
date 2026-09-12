@@ -81,7 +81,8 @@
     "test:controller-venue-nav": "node scripts/test-controller-venue-nav.mjs",
     "test:omada-onboarding-gaps": "node scripts/test-omada-onboarding-gaps.mjs",
     "test:customer-wizard-omada": "node scripts/test-customer-wizard-omada.mjs",
-    "test:omada-guided-setup": "node scripts/test-omada-guided-setup.mjs"
+    "test:omada-guided-setup": "node scripts/test-omada-guided-setup.mjs",
+    "test:vendor-change-guard": "node scripts/test-vendor-change-guard.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

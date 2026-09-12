@@ -1627,3 +1627,29 @@ jobs:
             "omada-guided-setup" 46 \
             "omada guided setup: all checks passed" \
             bun run test:omada-guided-setup
+
+      # The guard in front of changing a fleet row's vendor. That `<select>`
+      # used to write on `change` -- `PUT /routers/{id}` straight through, no
+      # confirmation, no undo -- and on 2026-09-10 the platform owner, hunting
+      # for the TP-Link option, relabelled SEVEN real rows as `tplink_omada`,
+      # including the live lab hEX lite. Each one lost its setup script to the
+      # Omada panel, left the Online fleet counter, had reboot and every other
+      # agent action disabled, and stopped being measured for liveness.
+      #
+      # Drives the REAL fleet screen in Chromium through the REAL
+      # `useUpdateRouterVendor` and `api` client against a recording backend:
+      # selection alone writes nothing, Cancel sends no request AND puts the
+      # dropdown back, a row that has actually reported in (RouterOS version /
+      # heartbeat) needs its own name typed, a refused PUT reverts the dropdown
+      # and surfaces the backend's own message, and BOTH vendor controls -- the
+      # setup drilldown's and the fleet drawer's -- go through the same guard.
+      #
+      # Floor 44, observed green at 44. Verified load-bearing: reverting
+      # `requestVendorChange` to the old direct `updateVendor.mutate(...)`
+      # fails gates 1 and 2 (exit 1, sentinel never printed).
+      - name: vendor change guard
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "vendor-change-guard" 44 \
+            "vendor change guard: all checks passed" \
+            bun run test:vendor-change-guard

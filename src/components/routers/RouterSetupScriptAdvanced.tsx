@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { MButton, MTag } from "@/components/master/MasterKit";
 import { OmadaGuidedSetupPanel } from "@/components/routers/OmadaGuidedSetupPanel";
+import { VendorSelect } from "@/components/routers/VendorChangeGuard";
 import {
   buildRouterSetupScriptChunks,
   chunksToMarkdown,
@@ -1971,11 +1972,19 @@ export function RouterSetupDrilldown({
   router,
   demo,
   vendorSaving,
+  vendorPending = null,
   onVendorChange,
 }: {
   router: RouterDevice;
   demo: boolean;
   vendorSaving: boolean;
+  /** A vendor the page is currently confirming or writing for this router,
+   * which the control shows in place of the stored value. `null` -- the
+   * default -- means "show what the server gave us", and is what a
+   * cancelled or failed change puts it back to. See `VendorSelect`. */
+  vendorPending?: string | null;
+  /** ASKS for a change. It must not write one: every vendor control on this
+   * screen goes through `master.routers.tsx`'s guard first. */
   onVendorChange: (vendor: string) => void;
 }) {
   const vendor = router.vendor || "mikrotik";
@@ -2025,18 +2034,14 @@ export function RouterSetupDrilldown({
         <>
           <div className="max-w-xs">
             <label className="mb-1 block text-xs font-medium text-muted-foreground">Vendor</label>
-            <select
+            <VendorSelect
               className={inputCls}
               value={vendor}
+              pending={vendorPending}
+              vendors={DEVICE_VENDORS}
               disabled={vendorSaving}
-              onChange={(e) => onVendorChange(e.target.value)}
-            >
-              {DEVICE_VENDORS.map((v) => (
-                <option key={v.value} value={v.value}>
-                  {v.label}
-                </option>
-              ))}
-            </select>
+              onRequestChange={onVendorChange}
+            />
           </div>
           {vendor === "mikrotik" ? (
             <RouterSetupScriptPanel router={router} />
