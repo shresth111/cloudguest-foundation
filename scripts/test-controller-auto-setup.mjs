@@ -126,14 +126,35 @@ check("and the drawer still renders it", /JSON\.stringify\(outcome\.raw, null, 2
 
 console.log("\n1b. A 200 with ok:false is a failure, and a 409 is a different one");
 
+// UPDATED FOR #279, which is also why these two were failing on `main`: this
+// suite is in no workflow and no npm script, so nothing noticed. Both
+// assertions described the shape the handler had BEFORE that fix and were
+// pinning the defect rather than the behaviour.
+//
+// The 409 carries two different things and the handler used to read the wrong
+// one: `data.code` names the REFUSAL, `data.missing` is the GAP LIST. Reading
+// the code as a gap produced an amber panel naming no fix -- the precise
+// failure the panel exists to prevent. `missing` is absent on the other
+// pre-write refusals, so the code survives as the fallback.
 check(
   "gaps are read off the 409, not off the success body",
-  /e\?\.status === 409 && typed/.test(pageCode) && /setConfigureGaps\(\[typed\]\)/.test(pageCode),
+  /e\?\.status === 409 && \(missing\.length > 0 \|\| typed\)/.test(pageCode) &&
+    /setConfigureGaps\(missing\.length > 0 \? missing : \[typed as string\]\)/.test(pageCode),
   "a response body only exists for a run that already passed its preconditions",
 );
 check(
+  "the gap LIST is preferred over the refusal CODE",
+  /const rawMissing = e\?\.data\?\.missing/.test(pageCode),
+  "data.code names the refusal; rendering it as a gap is a refusal with no next step",
+);
+check(
+  "and the wire casing is normalised to the copy table's keys",
+  /\.map\(\(g\) => g\.toUpperCase\(\)\)/.test(pageCode),
+  "the backend emits openapi_required; CONTROLLER_SETUP_GAP_COPY is keyed OPENAPI_REQUIRED",
+);
+check(
   "a fresh refusal clears a stale preview",
-  /setConfigureGaps\(\[typed\]\);[\s\S]{0,240}setPreviewed\(false\)/.test(pageCode),
+  /setConfigureGaps\(missing\.length > 0[\s\S]{0,300}setPreviewed\(false\)/.test(pageCode),
   "a preview left on screen under a refusal reads as though it still applies",
 );
 check(

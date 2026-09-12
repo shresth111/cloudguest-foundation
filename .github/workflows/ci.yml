@@ -1627,6 +1627,21 @@ jobs:
             "all checks passed" \
             bun run test:controller-venue-screens
 
+      # A rejected controller must be repairable from the Master console --
+      # the customer page that used to carry the control is retired, and its
+      # routes 403 for a venue owner anyway. Ungated until now, which is how
+      # the credential form kept its sign-in mode pinned to the row it was
+      # editing: the OPENAPI_REQUIRED gap told operators to store a client id
+      # and secret in a form that had nowhere to type one.
+      #
+      # Floor 43, observed green at 43.
+      - name: master integration repair
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "master-integration-repair" 43 \
+            "All checks passed." \
+            bun run test:master-integration-repair
+
       # Evidence beats the label: a vendor string is something somebody
       # typed, and it must never outrank what the device itself has done.
       # This suite shipped with #271 and was never gated, which is how the

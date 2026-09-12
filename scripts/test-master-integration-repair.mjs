@@ -100,12 +100,67 @@ check(
 );
 check(
   "completeness is judged by the shared predicate, not a local rule",
-  /credentialsCompleteForMode\(integration\.authMode, creds\)/.test(pageCode),
+  /credentialsCompleteForMode\(credsMode, creds\)/.test(pageCode),
   "the wizard and this form must agree on what a complete credential set is",
 );
 check(
   "the app pair is asked for only in openapi mode",
-  /integration\.authMode === "openapi" && \(/.test(pageCode),
+  /credsMode === "openapi" && \(/.test(pageCode),
+);
+
+/* ── 1b. The sign-in mode is a FIELD of this form ───────────────────────
+ *
+ * It used to be pinned to `integration.authMode`, and that made the one
+ * instruction this console gives for `OPENAPI_REQUIRED` unfollowable. The gap
+ * panel says "Use Replace credentials above to store a client ID and secret";
+ * on a `legacy` integration the form rendered only the operator pair, with no
+ * client fields and no control that could ask for them. So automatic setup --
+ * which `configure_controller` refuses for any non-`openapi` integration --
+ * was permanently out of reach for exactly the venues being told to reach for
+ * it, short of deleting the integration and re-adding it.
+ *
+ * The API always accepted the change: `NetworkIntegrationCredentialRotateRequest`
+ * takes `auth_mode` and `replacePlatformCredentials` always sent it. The
+ * caller just always sent back the value it already had.
+ */
+
+console.log("\n1b. The form can move an integration between sign-in modes");
+
+check(
+  "the mode is component state seeded from the row, not read off it",
+  /useState<ControllerAuthMode>\(integration\.authMode\)/.test(pageCode),
+);
+check("both modes are offered", /\["openapi", "legacy"\] as const/.test(pageCode));
+check(
+  "the request carries the CHOSEN mode",
+  /replacePlatformCredentials\(integration, credsMode, creds\)/.test(pageCode),
+  "sending integration.authMode is what made the mode unchangeable",
+);
+check(
+  "the current mode is marked as such",
+  /mode === integration\.authMode && \(/.test(pageCode) && /\(current\)/.test(page),
+);
+check(
+  "changing it says what it costs or buys, before saving",
+  /Configure controller becomes available/.test(page) &&
+    /Configure controller will refuse/.test(page),
+);
+check(
+  "cancelling puts the mode back",
+  /setCredsMode\(integration\.authMode\)/.test(pageCode),
+  "a half-made mode change must not survive a cancel",
+);
+check(
+  "the operator pair is still required in BOTH modes",
+  /Guests are let online only through the hotspot operator account, whichever is/.test(page),
+);
+check(
+  "the OPENAPI_REQUIRED gap offers the control instead of describing it",
+  /g === "OPENAPI_REQUIRED" && \(/.test(pageCode) && /Switch to Open API credentials/.test(page),
+);
+check(
+  "and that control opens the form already in the right mode",
+  /setCredsMode\("openapi"\);\s*\n\s*setCredsOpen\(true\);/.test(pageCode),
 );
 check(
   "the operator pair is always asked for",
