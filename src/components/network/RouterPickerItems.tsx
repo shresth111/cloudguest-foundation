@@ -75,15 +75,3 @@ export function ControllerRoutersNote({ rows }: { rows: readonly VendorJudgeable
   if (!note) return null;
   return <p className="text-[11px] leading-relaxed text-muted-foreground">{note}</p>;
 }
-
-/**
- * Whether this venue has any router these forms can act on at all.
- *
- * The case FE-3 calls out: at a controller-only venue reached through some
- * path the screen-level gate did not cover, the filtered list is EMPTY, and an
- * empty picker over a live form is the same defect wearing a different face.
- * Call sites render the D4 notice instead.
- */
-export function hasWritableRouter(rows: readonly VendorJudgeableRouter[]): boolean {
-  return partitionRoutersByDeviceWrite(rows).writable.length > 0;
-}

@@ -626,3 +626,22 @@ export function controllerDeviceMetricsReason(vendor: string | null | undefined)
     "happening on your network."
   );
 }
+
+/**
+ * Whether this venue has any router these forms can act on at all.
+ *
+ * The case FE-3 calls out: at a controller-only venue reached through some
+ * path the screen-level gate did not cover, the filtered list is EMPTY, and an
+ * empty picker over a live form is the same defect wearing a different face.
+ * Call sites render the D4 notice instead.
+ *
+ * Lives here rather than beside `RouterPickerItems`, where it was written.
+ * That module exports two components, and a non-component export alongside
+ * them trips `react-refresh/only-export-components` -- the 59th warning
+ * against a `--max-warnings 58` ratchet, which is what reddened `main` after
+ * the 2026-09-12 merges. Its sibling `partitionRoutersByDeviceWrite` is
+ * already here, so this is the address it should have had.
+ */
+export function hasWritableRouter(rows: readonly VendorJudgeableRouter[]): boolean {
+  return partitionRoutersByDeviceWrite(rows).writable.length > 0;
+}
