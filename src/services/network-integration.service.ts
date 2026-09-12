@@ -1136,6 +1136,40 @@ export const networkIntegrationService = {
   },
 
   /**
+   * Forget the stored hotspot operator login, keeping the Open API app.
+   *
+   * WHY A SEPARATE CALL AND NOT A FLAG ON ROTATION
+   * ----------------------------------------------
+   * `POST /{id}/credentials` overwrites the whole credential set and
+   * re-validates it against the mode, so in `openapi` mode it REQUIRES the
+   * client id and secret. An operator who cannot produce that secret a
+   * second time -- and the controller shows it once, on the screen that
+   * created it -- therefore cannot drop a wrong operator pair at all.
+   *
+   * That is not hypothetical. On 2026-09-13 a live venue had the
+   * controller's ADMIN account stored as its hotspot operator. Omada's
+   * hotspot login accepts operator accounts only, so it answered -30109 no
+   * matter what password was stored, and creating an operator of that name
+   * is refused by the controller because admin and operator names share one
+   * namespace. Meanwhile `configure-controller` will not mint a replacement
+   * account while any operator pair is stored. The venue was unfixable.
+   *
+   * After this call `Apply to controller` creates a dedicated operator and
+   * generates its password, so nobody types an operator password anywhere.
+   *
+   * Same header reasoning as `replacePlatformCredentials` above.
+   */
+  async clearPlatformOperatorLogin(
+    integration: Pick<NetworkIntegration, "id" | "organizationId">,
+  ): Promise<NetworkIntegration> {
+    const { data } = await api.delete<BackendNetworkIntegration>(
+      `${BASE}/${integration.id}/credentials/operator`,
+      { headers: { "X-Organization-Id": integration.organizationId } },
+    );
+    return toIntegration(data);
+  },
+
+  /**
    * Remove a tenant's integration, as an operator. Same header reasoning as
    * `replacePlatformCredentials` above.
    *
