@@ -100,8 +100,23 @@ check(
 );
 check(
   "completeness is judged by the shared predicate, not a local rule",
-  /credentialsCompleteForMode\(credsMode, creds\)/.test(pageCode),
+  /credentialsCompleteForMode\(credsMode, creds/.test(pageCode),
   "the wizard and this form must agree on what a complete credential set is",
+);
+/* The one place they are ALLOWED to differ, stated explicitly so it cannot
+ * be removed by accident.
+ *
+ * This form repairs; the wizard connects. Repair means "drop the operator
+ * pair so Configure controller can mint a working one", which is the fix the
+ * drawer's own dry-run report names -- and rotation being a wholesale
+ * overwrite, the only way to express it is to save the app alone. Requiring
+ * the operator pair here disabled the Save button for exactly that input and
+ * left a live venue with no route back (2026-09-13, stored operator was the
+ * controller's admin account, which Omada's hotspot login never accepts). */
+check(
+  "and repair may save the Open API app alone",
+  /operatorOptional: true/.test(pageCode),
+  "without it the documented recovery cannot be typed into the only form that performs it",
 );
 check(
   "the app pair is asked for only in openapi mode",
@@ -295,6 +310,24 @@ check(
   "guests are let online through the operator account whichever mode is chosen",
 );
 check("openapi rejects the operator pair alone", !credentialsCompleteForMode("openapi", operator));
+
+/* Repair is the exception, and it is behavioural, not just a call shape.
+ * `operatorOptional` is what lets the app be saved alone so `Configure
+ * controller` can create a dedicated operator -- but half an operator login
+ * stays a mistake, because the backend refuses a name with no password. */
+check(
+  "repair accepts the Open API app alone",
+  credentialsCompleteForMode("openapi", app, { operatorOptional: true }),
+  "this is the recovery the drawer's own dry run tells operators to perform",
+);
+check(
+  "repair still rejects half an operator pair",
+  !credentialsCompleteForMode("openapi", { ...app, username: "u" }, { operatorOptional: true }),
+);
+check(
+  "repair still needs the app pair",
+  !credentialsCompleteForMode("openapi", operator, { operatorOptional: true }),
+);
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) FAILED.`);
 process.exit(failures === 0 ? 0 : 1);

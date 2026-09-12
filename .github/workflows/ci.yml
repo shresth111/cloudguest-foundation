@@ -1638,7 +1638,7 @@ jobs:
       - name: master integration repair
         run: |
           ./scripts/ci-gated-test.sh \
-            "master-integration-repair" 43 \
+            "master-integration-repair" 47 \
             "All checks passed." \
             bun run test:master-integration-repair
 
