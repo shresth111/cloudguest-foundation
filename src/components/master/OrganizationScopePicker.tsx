@@ -38,7 +38,7 @@ import {
   setOrganizationScope,
   type OrganizationScope,
 } from "@/services/api";
-import { organizationService } from "@/services/organization.service";
+import { ORGANIZATIONS_MAX_PAGE_SIZE, organizationService } from "@/services/organization.service";
 
 /** Every query root whose data is scoped by the selected organization. Same
  * list `WorkspaceContext.setActiveLocationId` invalidates -- kept identical on
@@ -76,7 +76,11 @@ export function OrganizationScopePicker() {
 
   const { data } = useQuery({
     queryKey: ["organizations", "scope-picker"],
-    queryFn: () => organizationService.list({ page: 1, pageSize: 200 }),
+    // 200 here 422'd on every Master page load -- `GET /organizations` caps
+    // `page_size` at 100 and FastAPI rejects anything larger before the
+    // handler runs. `organizationService.list` now clamps regardless; this
+    // asks for what it can actually get.
+    queryFn: () => organizationService.list({ page: 1, pageSize: ORGANIZATIONS_MAX_PAGE_SIZE }),
     staleTime: 5 * 60_000,
   });
   // Memoised, not a bare `data?.rows ?? []`: that expression is a new array

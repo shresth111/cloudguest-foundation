@@ -100,6 +100,16 @@ function toOrganization(o: BackendOrganization): Organization {
   };
 }
 
+/**
+ * The largest `page_size` `GET /organizations` accepts.
+ *
+ * Mirrors the backend's own `Query(default=25, ge=1, le=100)` on that route.
+ * Over it, FastAPI rejects the request with a 422 before the handler runs --
+ * it is a validation bound, not a soft limit, so "ask for more and get what
+ * there is" does not apply.
+ */
+export const ORGANIZATIONS_MAX_PAGE_SIZE = 100;
+
 export const organizationService = {
   async list(q: OrgListQuery): Promise<OrgListResult> {
     if (isDemo()) {
@@ -116,7 +126,18 @@ export const organizationService = {
     const { data } = await api.get<BackendOrgListResponse>("/organizations", {
       params: {
         page: q.page,
-        page_size: q.pageSize,
+        // Clamped, because `GET /organizations` declares
+        // `page_size: int = Query(default=25, ge=1, le=100)` and FastAPI 422s
+        // anything over it BEFORE the handler runs. The scope picker in the
+        // Master shell header asked for 200, so every Master page load fired a
+        // request that could only ever fail -- four 422s per load, with
+        // nothing shown to the operator, because the failure is invisible to a
+        // caller that only reads the resolved value.
+        //
+        // Clamped here rather than only at that one call site: this is the
+        // single place that knows the endpoint's contract, and a cap enforced
+        // at one of five callers is a cap that the sixth will breach.
+        page_size: Math.min(q.pageSize, ORGANIZATIONS_MAX_PAGE_SIZE),
         search: q.search || undefined,
       },
       // The tenant *directory*, not tenant data: for a platform operator this
