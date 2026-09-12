@@ -43,6 +43,7 @@ import {
   deriveIntegrationSetup,
   halfConfiguredIntegrations,
 } from "@/lib/network-integration-readiness";
+import { cn } from "@/lib/utils";
 import type { AppError } from "@/services/api";
 import { networkIntegrationService } from "@/services/network-integration.service";
 import { organizationService } from "@/services/organization.service";
@@ -59,6 +60,7 @@ import {
   NETWORK_INTEGRATION_STATUS_DETAIL,
   NETWORK_INTEGRATION_STATUS_LABEL,
   NETWORK_INTEGRATION_STATUS_TONE,
+  type ControllerAuthMode,
   type ControllerSetupOutcome,
   type NetworkIntegration,
   type NetworkIntegrationCredentials,
@@ -782,13 +784,30 @@ function IntegrationDrawer({
   // repair. An operator who opened this drawer because the row said
   // "sign-in rejected" should not have to find the control as well.
   const [credsOpen, setCredsOpen] = useState(integration.status === "auth_failed");
+  /**
+   * THE SIGN-IN MODE IS A FIELD OF THIS FORM, not a property of the row it is
+   * editing.
+   *
+   * It used to be pinned to `integration.authMode`, which made the one
+   * instruction this console gives for `OPENAPI_REQUIRED` unfollowable: the
+   * gap panel says "Use Replace credentials above to store a client ID and
+   * secret", and a `legacy` integration's form rendered only the operator
+   * pair -- no client fields, no way to ask for them, no way out of legacy
+   * short of deleting the integration and re-adding it. Automatic setup was
+   * therefore permanently out of reach for exactly the venues the panel was
+   * telling to reach for it.
+   *
+   * The API has always accepted this. `NetworkIntegrationCredentialRotateRequest`
+   * takes `auth_mode`, and `replacePlatformCredentials` has always sent it --
+   * the caller just always sent the value it already had. The customer-side
+   * `CredentialsDialog` got this right and says so in its own docstring: "a
+   * venue that upgrades its controller to 5.13 can move from an operator
+   * account to an Open API app without deleting and re-adding".
+   */
+  const [credsMode, setCredsMode] = useState<ControllerAuthMode>(integration.authMode);
   const replaceCreds = useMutation({
     mutationFn: () =>
-      networkIntegrationService.replacePlatformCredentials(
-        integration,
-        integration.authMode,
-        creds,
-      ),
+      networkIntegrationService.replacePlatformCredentials(integration, credsMode, creds),
     onSuccess: () => {
       // Deliberately not "reconnected". This stores the new secret; it does
       // not prove the controller accepts it. Claiming otherwise would be a
@@ -836,7 +855,7 @@ function IntegrationDrawer({
   /** Operator pair always; app pair additionally for `openapi`. The same
    * predicate the connect wizard validates with, so the two cannot disagree
    * about what a complete credential set is. */
-  const credsComplete = credentialsCompleteForMode(integration.authMode, creds);
+  const credsComplete = credentialsCompleteForMode(credsMode, creds);
 
   // Every operation that can be in flight, so a control is never live
   // while another one is mid-write against the same controller. Both
@@ -951,10 +970,11 @@ function IntegrationDrawer({
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
               Stored encrypted and never shown again — replacing them is the only way to change
-              them. {CONTROLLER_AUTH_MODE_LABEL[integration.authMode]} mode
+              them. This controller signs in with{" "}
+              {CONTROLLER_AUTH_MODE_LABEL[integration.authMode].toLowerCase()}
               {integration.authMode === "openapi"
-                ? " needs the Open API client pair and the hotspot operator account."
-                : " needs the hotspot operator account."}
+                ? ", which needs the Open API client pair and the hotspot operator account."
+                : ", which needs the hotspot operator account. Replacing them is also how it moves to Open API."}
             </p>
             {!credsOpen ? (
               <MButton variant="outline" disabled={busy} onClick={() => setCredsOpen(true)}>
@@ -962,7 +982,55 @@ function IntegrationDrawer({
               </MButton>
             ) : (
               <div className="space-y-3 rounded-lg border border-border p-3">
-                {integration.authMode === "openapi" && (
+                {/* THE MODE IS PART OF THE FORM. See `credsMode`. Rendered
+                    first because it decides which fields below exist, and
+                    because an operator who came here from the
+                    OPENAPI_REQUIRED gap is here to change exactly this. */}
+                <div className="space-y-1">
+                  <span className="block text-xs font-medium text-muted-foreground">
+                    How should we sign in to the controller?
+                  </span>
+                  {/* Said once, above both, because it is true of both --
+                      the same wording the customer console and both wizards
+                      now use. */}
+                  <p className="text-xs text-muted-foreground">
+                    Guests are let online only through the hotspot operator account, whichever is
+                    chosen, so it is always required. Open API adds the device and client lists on
+                    top, and is what Configure controller needs.
+                  </p>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {(["openapi", "legacy"] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        disabled={busy}
+                        aria-pressed={credsMode === mode}
+                        onClick={() => setCredsMode(mode)}
+                        className={cn(
+                          "rounded-lg border px-3 py-1.5 text-left text-xs transition-colors disabled:opacity-50",
+                          credsMode === mode
+                            ? "border-primary bg-primary/5 font-medium"
+                            : "border-border hover:bg-muted/50",
+                        )}
+                      >
+                        {CONTROLLER_AUTH_MODE_LABEL[mode]}
+                        {mode === integration.authMode && (
+                          <span className="ml-1.5 font-normal text-muted-foreground">
+                            (current)
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  {credsMode !== integration.authMode && (
+                    <p className="pt-1 text-xs text-foreground">
+                      {credsMode === "openapi"
+                        ? "Saving moves this integration to Open API. The device and client lists become readable, and Configure controller becomes available."
+                        : "Saving moves this integration back to hotspot operator. The device and client lists stop being readable and Configure controller will refuse — pick this only for a controller below v5.13."}
+                    </p>
+                  )}
+                </div>
+                {credsMode === "openapi" && (
                   <>
                     <CredField
                       label="Client ID"
@@ -998,6 +1066,7 @@ function IntegrationDrawer({
                     disabled={replaceCreds.isPending}
                     onClick={() => {
                       setCreds({});
+                      setCredsMode(integration.authMode);
                       setCredsOpen(false);
                     }}
                   >
@@ -1010,7 +1079,7 @@ function IntegrationDrawer({
                     title={
                       credsComplete
                         ? undefined
-                        : integration.authMode === "openapi"
+                        : credsMode === "openapi"
                           ? "Fill in the client pair and the operator account."
                           : "Fill in the operator username and password."
                     }
@@ -1055,6 +1124,35 @@ function IntegrationDrawer({
                           {copy?.fix ??
                             "This build does not recognise that precondition — ask support."}
                         </span>
+                        {/* The one gap whose fix is a control ON THIS SCREEN
+                            gets that control, rather than a sentence pointing
+                            at one. Its copy already says "Use Replace
+                            credentials above"; until the form grew a mode
+                            field that instruction could not be carried out at
+                            all, and even now it asks the reader to scroll up,
+                            find the section, and know to change a setting the
+                            sentence does not mention. */}
+                        {/* UPPERCASE. The handler normalises the backend's
+                            lowercase `ControllerSetupGap` values to the
+                            uppercase union `CONTROLLER_SETUP_GAP_COPY` is
+                            keyed on, so by the time a gap reaches this list
+                            it is `OPENAPI_REQUIRED`. Comparing against the
+                            wire casing here would have made this button
+                            never render -- the same casing trap that made
+                            the whole panel print "unrecognised" until #279. */}
+                        {g === "OPENAPI_REQUIRED" && (
+                          <MButton
+                            variant="outline"
+                            className="mt-1.5"
+                            disabled={busy}
+                            onClick={() => {
+                              setCredsMode("openapi");
+                              setCredsOpen(true);
+                            }}
+                          >
+                            <KeyRound /> Switch to Open API credentials
+                          </MButton>
+                        )}
                       </li>
                     );
                   })}
