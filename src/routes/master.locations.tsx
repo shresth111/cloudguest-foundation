@@ -18,6 +18,7 @@ import {
   M_INPUT,
 } from "@/components/master/MasterKit";
 import { locationService } from "@/services/location.service";
+import { defaultTimezoneForCountry } from "@/lib/countries";
 import { organizationService } from "@/services/organization.service";
 import { requestErrorMessage } from "@/services/api";
 import { isDemo } from "@/services/customer.service";
@@ -197,7 +198,17 @@ function LocationsScreen() {
         stateProvince: form.stateProvince,
         postalCode: form.postalCode,
         country: form.country,
-        timezone: "Asia/Kolkata",
+        // Derived from the country rather than hardcoded. This read
+        // `"Asia/Kolkata"` unconditionally, so a venue created here with
+        // country `US` or `GB` was stamped with IST -- and timezone is the
+        // frame every timestamp that venue produces is read in (session start
+        // and end, report boundaries, business hours, voucher windows,
+        // campaign sends). Nothing downstream errors on a wrong one; the
+        // numbers just come out plausible and wrong. Falls back to IST only
+        // when the country is one `countries.ts` does not know, which
+        // preserves today's behaviour for exactly that case rather than
+        // silently moving existing venues to UTC.
+        timezone: defaultTimezoneForCountry(form.country) ?? "Asia/Kolkata",
       });
       toast.success(`Location "${form.name}" created`);
       setAddOpen(false);

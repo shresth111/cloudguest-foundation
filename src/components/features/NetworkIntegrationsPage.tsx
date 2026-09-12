@@ -2143,8 +2143,37 @@ function ConnectWizard({
 
   const busy = test.isPending || create.isPending || saveSiteAndVenue.isPending || finish.isPending;
 
-  const credsComplete =
-    credentialsCompleteForMode(authMode, creds) && trustDraftValid(trust.tlsMode, trust.pin);
+  /**
+   * Why each control is inert, in the operator's words, or null when it is
+   * not.
+   *
+   * One function rather than a `title` typed at each call site, because the
+   * condition and the explanation have to be the same thing -- a tooltip that
+   * names a field the button no longer waits for is worse than no tooltip. So
+   * the reason IS the predicate: `disabled={!!reason}`, everywhere.
+   *
+   * Ordered most-specific-first so the message names the ONE thing to do next
+   * rather than everything that is outstanding. "Enter the controller's
+   * address" while three fields are blank is a better instruction than a list.
+   */
+  const testBlockedReason: string | null = !baseUrl.trim()
+    ? "Enter the controller's address first."
+    : !trustDraftValid(trust.tlsMode, trust.pin)
+      ? "Pinned certificate mode needs the controller's SHA-256 fingerprint."
+      : !credentialsCompleteForMode(authMode, creds)
+        ? authMode === "openapi"
+          ? "Enter the Open API client ID and secret."
+          : "Enter the hotspot operator's username and password."
+        : null;
+
+  /** Step 1 cannot be left until the controller has actually answered -- the
+   * whole wizard is built on "nothing is saved until this succeeds", and the
+   * later steps read sites and SSIDs FROM the controller, so they have nothing
+   * to show until it authenticates. That is what step 3's "Pick a site from
+   * the controller" was silently waiting on. */
+  const continueBlockedReason: string | null =
+    testBlockedReason ??
+    (!tested ? "Test the connection first — it has to answer before we save anything." : null);
 
   return (
     <Dialog open onOpenChange={(next) => !next && handleClose()}>
@@ -2285,16 +2314,27 @@ function ConnectWizard({
                 )}
 
                 <div className="flex flex-wrap items-center gap-2">
+                  {/* A disabled control that does not say why is this
+                      codebase's characteristic bug wearing its quietest face.
+                      QA walked this wizard and found Test connection and
+                      Continue both inert with no `title`, no `aria-disabled`
+                      and no message -- while step 3 promised "Pick a site from
+                      the controller", a step you cannot reach until
+                      credentials authenticate, which nothing on screen said.
+                      The reason is computed once and used for both the tooltip
+                      and the visible hint, so the two cannot drift. */}
                   <Button
                     variant="outline"
-                    disabled={!baseUrl.trim() || !credsComplete || busy}
+                    disabled={!!testBlockedReason || busy}
+                    aria-disabled={!!testBlockedReason || busy}
+                    title={testBlockedReason ?? undefined}
                     onClick={() => test.mutate()}
                   >
                     {test.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
                     Test connection
                   </Button>
                   <p className="text-xs text-muted-foreground">
-                    Nothing is saved until this succeeds.
+                    {testBlockedReason ?? "Nothing is saved until this succeeds."}
                   </p>
                 </div>
               </div>
@@ -2469,24 +2509,48 @@ function ConnectWizard({
             {integrationId && step < 4 ? "Finish later" : "Cancel"}
           </Button>
           {step === 1 && (
-            <Button disabled={!tested || busy} onClick={() => create.mutate()}>
+            <Button
+              disabled={!!continueBlockedReason || busy}
+              aria-disabled={!!continueBlockedReason || busy}
+              title={continueBlockedReason ?? undefined}
+              onClick={() => create.mutate()}
+            >
               {create.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
               Continue
             </Button>
           )}
           {step === 2 && (
-            <Button disabled={!siteId || busy} onClick={() => setStep(3)}>
+            <Button
+              disabled={!siteId || busy}
+              aria-disabled={!siteId || busy}
+              title={!siteId ? "Pick which Omada site this venue is." : undefined}
+              onClick={() => setStep(3)}
+            >
               Continue
             </Button>
           )}
           {step === 3 && (
-            <Button disabled={!venueId || busy} onClick={() => saveSiteAndVenue.mutate()}>
+            <Button
+              disabled={!venueId || busy}
+              aria-disabled={!venueId || busy}
+              title={!venueId ? "Pick which of your venues this site belongs to." : undefined}
+              onClick={() => saveSiteAndVenue.mutate()}
+            >
               {saveSiteAndVenue.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
               Continue
             </Button>
           )}
           {step === 4 && (
-            <Button disabled={!ssidName || busy} onClick={() => finish.mutate()}>
+            <Button
+              disabled={!ssidName || busy}
+              aria-disabled={!ssidName || busy}
+              title={
+                !ssidName
+                  ? "Pick the guest network (SSID) this controller signs guests in on."
+                  : undefined
+              }
+              onClick={() => finish.mutate()}
+            >
               {finish.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
               Save
             </Button>
