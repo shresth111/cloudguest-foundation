@@ -305,8 +305,14 @@ const MIXED = [
   { id: "b", name: "Office Guest", vendor: "tplink_omada", lastSeenAt: null },
 ];
 const split = partitionRoutersByDeviceWrite(MIXED);
-check("the controller is not offered", split.writable.every((r) => r.id !== "b"));
-check("the MikroTik is offered", split.writable.some((r) => r.id === "a"));
+check(
+  "the controller is not offered",
+  split.writable.every((r) => r.id !== "b"),
+);
+check(
+  "the MikroTik is offered",
+  split.writable.some((r) => r.id === "a"),
+);
 check("the controller is accounted for", split.controllerManaged.length === 1);
 check(
   "a mislabelled MikroTik is NOT removed from its own venue's picker",
@@ -327,7 +333,14 @@ console.log("\n7. WireGuard/tunnel interfaces never reach a customer chart");
 // Observed live on the venue owner's own Devices screen: "Traffic by port"
 // listed `wg-cloudguard` -- Up, 258 KB in / 631 KB out -- beside ether1..5.
 check("wg-cloudguard is recognised as a tunnel", isTunnelInterfaceName("wg-cloudguard"));
-for (const name of ["wg0", "wg_mgmt", "WG-CloudGuard", "gre-tunnel1", "l2tp-out1", "ovpn-client1"]) {
+for (const name of [
+  "wg0",
+  "wg_mgmt",
+  "WG-CloudGuard",
+  "gre-tunnel1",
+  "l2tp-out1",
+  "ovpn-client1",
+]) {
   check(`${name} is recognised as a tunnel`, isTunnelInterfaceName(name));
 }
 for (const name of ["ether1", "ether5", "bridge", "sfp1", "wlan1", "wan"]) {
@@ -383,7 +396,10 @@ for (const s of STATES) {
 check("an unknown state is not accepted", !isControllerState("totally_fine"));
 check(
   "agent vocabulary is never borrowed for a controller badge",
-  STATES.every((s) => !/^(Online|Offline|Live|Gone quiet|Never checked in)$/.test(CONTROLLER_STATE_COPY[s].label)),
+  STATES.every(
+    (s) =>
+      !/^(Online|Offline|Live|Gone quiet|Never checked in)$/.test(CONTROLLER_STATE_COPY[s].label),
+  ),
 );
 check(
   "the healthy state is 'Controller reachable', not 'Online'",
@@ -431,7 +447,8 @@ const read = (rel) => readFileSync(join(ROOT, rel), "utf8");
 const liveness = read("src/lib/location-liveness.ts");
 check(
   "location-liveness judges the ROW, not the label",
-  /isControllerManagedRow\(/.test(liveness) && !/\bisControllerManaged\(raw\.vendor\)/.test(liveness),
+  /isControllerManagedRow\(/.test(liveness) &&
+    !/\bisControllerManaged\(raw\.vendor\)/.test(liveness),
 );
 
 const fleet = read("src/routes/master.routers.tsx");
@@ -446,7 +463,8 @@ check(
   // Lookbehind, because "SELECTABLE_DEVICE_VENDORS.map" contains
   // "DEVICE_VENDORS.map" -- a bare substring check passes for the wrong reason
   // and then fails for the right one.
-  /SELECTABLE_DEVICE_VENDORS\.map/.test(fleet) && !/(?<!SELECTABLE_)DEVICE_VENDORS\.map/.test(fleet),
+  /SELECTABLE_DEVICE_VENDORS\.map/.test(fleet) &&
+    !/(?<!SELECTABLE_)DEVICE_VENDORS\.map/.test(fleet),
 );
 
 const consoleScreen = read("src/routes/master.console.tsx");
@@ -585,10 +603,7 @@ check(
   "the error carries the real message rather than a generic one",
   /description=\{errorText\(\s*list\.error/.test(integrations),
 );
-check(
-  "and offers a retry",
-  /onRetry=\{\(\) => list\.refetch\(\)\}/.test(integrations),
-);
+check("and offers a retry", /onRetry=\{\(\) => list\.refetch\(\)\}/.test(integrations));
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) FAILED.`);
 process.exit(failures === 0 ? 0 : 1);
