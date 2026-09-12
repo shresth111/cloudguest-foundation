@@ -53,6 +53,7 @@
  * produced the bug above.
  */
 import type { RouterStatus } from "@/types/router";
+import { isControllerManaged, routerVendorLabel } from "@/lib/router-vendors";
 
 /**
  * Suspending is `-> suspended`, which only `online` and `offline` have.
@@ -92,9 +93,36 @@ export const SUSPEND_TARGET_STATUS: RouterStatus = "suspended";
  * These are deliberately about the DEVICE, not about the API. "This router
  * cannot be suspended" tells an operator nothing they can do; "it has not
  * been set up yet" tells them the next step is the setup script.
+ *
+ * WHY `vendor` IS A PARAMETER (contract §11.5)
+ * -------------------------------------------
+ * The `pending_provisioning` sentence below is the correct next step for a
+ * MikroTik and a falsehood for a controller. A controller-managed row sits
+ * at `pending_provisioning` PERMANENTLY -- nothing provisions it, so
+ * nothing ever moves it on -- and there is no setup script to run: an
+ * Omada controller is configured on the controller, not by a script this
+ * platform writes onto it. So the one status that most needs a reason was
+ * handing the operator the exact instruction `1b2a89b` set out to delete
+ * from every other cell in this row, in the menu that commit edited.
+ *
+ * Optional, so the detail page and any other caller that has no vendor to
+ * hand keeps the agent-managed wording it has today.
  */
-export function routerToggleUnavailableReason(status: RouterStatus): string | null {
+export function routerToggleUnavailableReason(
+  status: RouterStatus,
+  vendor?: string | null,
+): string | null {
   if (canSuspendRouter(status) || canReinstateRouter(status)) return null;
+  // Ahead of the status switch on purpose: for a controller the vendor is
+  // the whole explanation and the status is an artefact, so a status-first
+  // answer would bury the only true half.
+  if (isControllerManaged(vendor) && status !== "decommissioned") {
+    return (
+      `This is a ${routerVendorLabel(vendor)} controller, so there is no suspend step here. ` +
+      "Guest access is granted and withdrawn on the controller itself; this row is the fleet " +
+      "record that lets sessions be logged against it."
+    );
+  }
   switch (status) {
     case "pending_provisioning":
       return "This router has not been set up yet, so there is nothing to suspend. Run its setup script first.";

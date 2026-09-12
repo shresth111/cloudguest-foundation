@@ -56,7 +56,7 @@ import {
   MissingCredentialsBadge,
   ControllerManagedBadge,
 } from "./RouterStatusBadge";
-import { isControllerManaged } from "@/lib/router-vendors";
+import { isControllerManaged, routerVendorLabel } from "@/lib/router-vendors";
 import {
   canDecommissionRouter,
   canReinstateRouter,
@@ -82,6 +82,24 @@ function relative(iso: string | null) {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+/**
+ * The export, and why it repeats the table's vendor substitutions instead
+ * of dumping the wire values.
+ *
+ * Contract §11.5 was applied to the four cells below on screen -- RouterOS,
+ * Status, Health, Last seen -- and not here, so the file an operator
+ * downloads undid every one of them. A working Omada controller exported as
+ * `pending_provisioning` / `unknown` / an empty Last Seen: the exact
+ * "working venue described as a broken router" this table was fixed to stop
+ * saying, in the artefact that outlives the screen and gets mailed to
+ * people who never saw it.
+ *
+ * The four substitutions are the SAME strings the cells render, so a row
+ * read off the screen and the same row read out of the file cannot
+ * disagree. An agent-managed row's thirteen values are byte-for-byte what
+ * they were before this function learned about vendors -- the only branch
+ * is `isControllerManaged`, and a MikroTik never enters it.
+ */
 function toCsv(rows: RouterDevice[]) {
   const headers = [
     "ID",
@@ -98,8 +116,9 @@ function toCsv(rows: RouterDevice[]) {
     "Health",
     "Last Seen",
   ];
-  const lines = rows.map((r) =>
-    [
+  const lines = rows.map((r) => {
+    const controller = isControllerManaged(r.vendor);
+    return [
       r.id,
       r.name,
       r.organizationName,
@@ -107,16 +126,26 @@ function toCsv(rows: RouterDevice[]) {
       r.model,
       r.serialNumber,
       r.macAddress,
-      r.routerOsVersion ?? "",
+      // Matches the RouterOS cell: a controller does not run it at all,
+      // which is a different fact from "no version on file".
+      controller ? "Not applicable" : (r.routerOsVersion ?? ""),
       r.managementIpAddress ?? "",
       r.publicIpAddress ?? "",
-      r.status,
-      r.healthStatus ?? "unknown",
-      r.lastSeenAt ?? "",
+      // Matches the Status cell, which renders `ControllerManagedBadge`
+      // (the vendor label) in place of the stored enum. A controller sits
+      // at `pending_provisioning` forever because nothing provisions it.
+      controller ? routerVendorLabel(r.vendor) : r.status,
+      // Matches the Health cell. `healthStatus` is written by the health
+      // checker, which talks to the agent; even "unknown" implies somebody
+      // looked.
+      controller ? "Not measured here" : (r.healthStatus ?? "unknown"),
+      // Matches the Last seen cell. An empty cell reads as "never seen",
+      // which is a measurement claim nobody made.
+      controller ? "Not measured here" : (r.lastSeenAt ?? ""),
     ]
       .map((v) => `"${String(v).replace(/"/g, '""')}"`)
-      .join(","),
-  );
+      .join(",");
+  });
   return [headers.join(","), ...lines].join("\n");
 }
 
@@ -717,7 +746,10 @@ function RowActions({
   // See `@/lib/router-actions` for the transition graph this now mirrors.
   const canSuspend = canSuspendRouter(r.status);
   const canReinstate = canReinstateRouter(r.status);
-  const unavailableReason = routerToggleUnavailableReason(r.status);
+  // Vendor, not just status: a controller sits at `pending_provisioning`
+  // forever, and the status-only answer told the operator to run a setup
+  // script that does not exist for it. See `routerToggleUnavailableReason`.
+  const unavailableReason = routerToggleUnavailableReason(r.status, r.vendor);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
