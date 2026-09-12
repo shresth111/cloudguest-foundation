@@ -4,6 +4,9 @@ import type { PortalAuthorizeBody } from "@/lib/portal-authorize-body";
 import { resolveOrganizationId as sharedResolveOrganizationId } from "./organization-id";
 import type {
   ControllerAuthMode,
+  ControllerConfigureStep,
+  ControllerConfigureStepOutcome,
+  ControllerSetupOutcome,
   ControllerTlsMode,
   CreateNetworkIntegrationPayload,
   NetworkIntegration,
@@ -571,6 +574,63 @@ function trustFields(payload: {
 
 const BASE = "/network-integrations";
 
+/**
+ * Map `ControllerConfigureResponse`. Typed now, still never throws.
+ *
+ * The shape is known (snake_case: `integration_id`, `dry_run`, `ok`,
+ * `changed`, `steps[]`, `portal_id`, `guest_ssid_id`, `portal_url_scheme`,
+ * `portal_url_host_and_query`, `pre_auth_host`), so the fields are read
+ * directly rather than guessed at. What is deliberately kept from the
+ * defensive version is everything that makes a surprise survivable: each
+ * field is validated by type before use, an unrecognised `outcome` degrades
+ * rather than crashes, and the whole body is preserved in `raw` for the
+ * drawer's disclosure.
+ *
+ * That is not belt-and-braces for its own sake. This response is read during
+ * an incident, against a controller the operator cannot see, and a mapper that
+ * throws on an unexpected field would replace a real answer with a blank
+ * panel at exactly the wrong moment.
+ */
+function toControllerSetupStep(raw: unknown): ControllerConfigureStep {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const outcome = r.outcome;
+  return {
+    step: typeof r.step === "string" ? r.step : "unknown",
+    // An outcome this build does not know is reported as `failed` rather than
+    // silently treated as success -- the safe direction for a value that
+    // decides whether an operator thinks their controller is configured.
+    outcome: (["created", "updated", "unchanged", "skipped", "failed"] as const).includes(
+      outcome as ControllerConfigureStepOutcome,
+    )
+      ? (outcome as ControllerConfigureStepOutcome)
+      : "failed",
+    message: typeof r.message === "string" ? r.message : "",
+    providerCode: typeof r.provider_code === "number" ? r.provider_code : null,
+    details:
+      r.details && typeof r.details === "object" && !Array.isArray(r.details)
+        ? (r.details as Record<string, unknown>)
+        : {},
+  };
+}
+
+function toControllerSetupOutcome(raw: Record<string, unknown>): ControllerSetupOutcome {
+  const str = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
+  const bool = (v: unknown): boolean => v === true;
+  return {
+    integrationId: str(raw.integration_id),
+    dryRun: bool(raw.dry_run),
+    ok: bool(raw.ok),
+    changed: bool(raw.changed),
+    steps: Array.isArray(raw.steps) ? raw.steps.map(toControllerSetupStep) : [],
+    portalId: str(raw.portal_id),
+    guestSsidId: str(raw.guest_ssid_id),
+    portalUrlScheme: str(raw.portal_url_scheme),
+    portalUrlHostAndQuery: str(raw.portal_url_host_and_query),
+    preAuthHost: str(raw.pre_auth_host),
+    raw,
+  };
+}
+
 export const networkIntegrationService = {
   // -------------------------------------------------------------------------
   // Customer (org-scoped) routes.
@@ -967,6 +1027,52 @@ export const networkIntegrationService = {
     return toIntegration(data);
   },
 
+  /**
+   * Run the controller-side setup the backend has always been able to do.
+   *
+   * WHAT IT ACTUALLY DOES, and why nothing calling it was the whole problem.
+   * `_configure_controller` writes the External Portal Server URL onto the
+   * SSID, adds the Pre-Authentication Access entry, and CREATES THE HOTSPOT
+   * OPERATOR ACCOUNT ITSELF -- generating the password with `secrets` and
+   * encrypting it before the controller is asked to create it. Every console
+   * ignored the route, so operators were being talked through doing all of
+   * that by hand, including inventing and remembering an operator password
+   * the platform was willing to generate and store for them.
+   *
+   * `dryRun` changes nothing, by design, and the drawer will not let anyone
+   * apply without previewing first. That is not only caution: it is also how
+   * the real `ControllerSetupOutcome` shape gets observed, since it could not
+   * be read from any source available when this was written (see that type).
+   *
+   * `takeOverSsidPortal` OVERWRITES a portal configuration somebody else put
+   * on that SSID. It is a separate, deliberately-confirmed flag rather than
+   * something the happy path turns on quietly.
+   *
+   * Org header: the integration's own, for the same reason as
+   * `replacePlatformCredentials` -- an operator is not a member of the tenant
+   * they are configuring, and the route's explicit GLOBAL scope is what
+   * authorises the call.
+   */
+  async configurePlatformController(
+    integration: Pick<NetworkIntegration, "id" | "organizationId">,
+    opts: { dryRun: boolean; takeOverSsidPortal?: boolean },
+  ): Promise<ControllerSetupOutcome> {
+    const { data } = await api.post<Record<string, unknown>>(
+      `${BASE}/platform/integrations/${integration.id}/configure-controller`,
+      {
+        dry_run: opts.dryRun,
+        take_over_ssid_portal: opts.takeOverSsidPortal ?? false,
+      },
+      {
+        headers: { "X-Organization-Id": integration.organizationId },
+        // Same extended budget as the other calls that reach the controller:
+        // this one makes several round trips to it, not one.
+        timeout: 90_000,
+      },
+    );
+    return toControllerSetupOutcome(data);
+  },
+
   async testPlatformConnection(id: string): Promise<NetworkIntegrationConnectionTest> {
     const { data } = await api.post<BackendConnectionTest>(
       `${BASE}/platform/integrations/${id}/test-connection`,
@@ -974,6 +1080,75 @@ export const networkIntegrationService = {
       { timeout: 60_000 },
     );
     return toConnectionTest(data);
+  },
+
+  /**
+   * Credential rotation, performed BY AN OPERATOR ON A TENANT'S INTEGRATION.
+   *
+   * WHY THIS EXISTS ALONGSIDE `replaceCredentials`
+   * ---------------------------------------------
+   * Same route -- there is no `/platform/.../credentials`; `POST
+   * /{id}/credentials` is the only credential-replacement endpoint there is.
+   * What differs is WHO is calling, and therefore which organization header
+   * the request must carry.
+   *
+   * `replaceCredentials` sends `resolveOrganizationId()`, which reads
+   * `GET /me/organizations` -- MEMBERSHIP-scoped. A platform operator is not a
+   * member of the tenant whose controller they are repairing, and may hold no
+   * memberships at all, so that header is wrong here and can fail to resolve
+   * outright.
+   *
+   * This sends the INTEGRATION'S OWN organization id, which the fleet row
+   * already carries. That satisfies the `CurrentOrganization` dependency the
+   * by-id routes declare, while the route's explicit `scope=ScopeType.GLOBAL`
+   * is what actually authorises the call: `RequirePermission` resolves
+   * `scope or _infer_scope_type(context)`, so an explicit scope wins over
+   * anything inferred from a header, and the operator is checked at GLOBAL
+   * exactly as intended.
+   *
+   * WHY IT HAD TO BE BUILT NOW. A live integration sits in `auth_failed` --
+   * "the stored credentials are no longer valid, replace them to reconnect"
+   * -- and the only UI that could replace them was the customer Network
+   * Integrations page, which FIX-PLAN FE-0 retires because every route it
+   * calls is GLOBAL-scoped and 403s for a venue owner. Retiring that page
+   * without this would leave a rejected controller unfixable from any console
+   * by anybody.
+   */
+  async replacePlatformCredentials(
+    integration: Pick<NetworkIntegration, "id" | "organizationId">,
+    authMode: ControllerAuthMode,
+    credentials: NetworkIntegrationCredentials,
+  ): Promise<NetworkIntegration> {
+    const { data } = await api.post<BackendNetworkIntegration>(
+      `${BASE}/${integration.id}/credentials`,
+      {
+        auth_mode: authMode,
+        // Flat, not nested. `NetworkIntegrationCredentialRotateRequest`
+        // extends `_CredentialFields`, and Pydantic's default
+        // `extra="ignore"` means a nested `credentials: {...}` is accepted
+        // with a 2xx and silently dropped -- which is how this contract was
+        // broken once already.
+        ...credentialsForMode(authMode, credentials),
+      },
+      { headers: { "X-Organization-Id": integration.organizationId } },
+    );
+    return toIntegration(data);
+  },
+
+  /**
+   * Remove a tenant's integration, as an operator. Same header reasoning as
+   * `replacePlatformCredentials` above.
+   *
+   * `DELETE /{integration_id}` has existed all along and nothing in the Master
+   * console called it, so the fallback of "remove it and re-run provisioning"
+   * was not available either.
+   */
+  async deletePlatformIntegration(
+    integration: Pick<NetworkIntegration, "id" | "organizationId">,
+  ): Promise<void> {
+    await api.delete(`${BASE}/${integration.id}`, {
+      headers: { "X-Organization-Id": integration.organizationId },
+    });
   },
 };
 

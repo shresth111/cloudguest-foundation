@@ -560,10 +560,34 @@ export const routerService = {
    * moved both fields onto `PUT /platform/routers/{id}/management-access`,
    * which is GLOBAL-scope-only.
    *
-   * This wizard is only ever rendered from `/routers` and `/master/routers`,
-   * both of which already require a global-scope role assignment
-   * (`_authenticated.tsx`'s `isOperator` gate and `master.tsx`'s), so the
-   * second call is reachable by every caller that can reach the first.
+   * WHERE THIS WIZARD IS ACTUALLY MOUNTED (corrected 2026-09-12).
+   *
+   * This comment used to assert "`/routers` and `/master/routers`". Half of
+   * that was false and still is: `RouterWizard` is mounted in exactly ONE
+   * place, `_authenticated/routers.index.tsx`, and `/master/routers` has never
+   * rendered it. Worse, `/routers` is an ORPHAN -- no link in either console
+   * reaches it, and on the `master.wyfyguest.com` hostname
+   * `_authenticated.tsx` redirects every non-`/master` path back to `/master`,
+   * so an operator cannot navigate there at all; only typing the
+   * `app.wyfyguest.com` URL from memory gets you in.
+   *
+   * That does NOT mean the console cannot onboard a controller. It can, and
+   * does, through a different and better-built surface: `/master/customers` ->
+   * Add Customer -> "Smart location provisioning", whose step 4 offers
+   * MikroTik / TP-Link Omada with the full connection form and validates per
+   * field on Continue. Verified against a real controller.
+   *
+   * So this wizard is a duplicate awaiting a decision -- delete or consolidate
+   * -- not a missing entry point to be wired up. Do not add a second link to
+   * it; that would make two Omada onboarding flows to keep in agreement, and
+   * the two that already exist disagree with each other about recommended auth
+   * mode, certificate options and whether operator credentials are mandatory.
+   *
+   * `/routers` requires a global-scope role assignment
+   * (`_authenticated.tsx`'s `isOperator` gate), so the second call below is
+   * reachable by every caller that can reach the first. `RouterWizard` also
+   * checks that scope itself, because it is a component and the guarantee
+   * above is a property of its mount point rather than of it.
    *
    * The credential push is deliberately NOT swallowed: if it fails, the
    * router exists but the platform holds no credential for it, and the

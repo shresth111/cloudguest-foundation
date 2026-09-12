@@ -154,8 +154,14 @@ function featureElement(id: string, ctx: { locationId?: string; masked?: boolean
       return <OpenHoursView locationId={ctx.locationId} />;
     case "isp-details":
       return <IspDetailsView />;
-    case "network-integrations":
-      return <NetworkIntegrationsPage locationId={ctx.locationId} />;
+    // Retired from the customer dashboard -- FIX-PLAN FE-0. Backend
+    // `074d719` moved every `network_integrations.*` route to
+    // ScopeType.GLOBAL and `rbac.seed`'s RETIRED_NON_GLOBAL_MODULES dropped
+    // the org-scoped grants, so for a venue owner this page 403s on every
+    // call. The component is deliberately NOT deleted: its five-step wizard,
+    // its seven honest status states and its auth-mode-aware inventory
+    // gating are the console's only complete connect flow and are moving to
+    // `master.integrations.tsx` (FE-0 step 3, not done here).
     case "admin-logs":
       return <AdminLogsView />;
     case "network-activity":

@@ -127,7 +127,6 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
       // two rows a customer cannot tell apart (see the Notifications/Alerts
       // note in the Operations group and the icon-clash assertion in
       // scripts/test-customer-nav-shell.mjs).
-      { id: "network-integrations", label: "Network Integrations", icon: Plug, roles: ["owner"] },
     ],
   },
   {

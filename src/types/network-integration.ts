@@ -144,6 +144,27 @@ export const CONTROLLER_TLS_MODE_LABEL: Record<ControllerTlsMode, string> = {
   insecure: "Do not check the certificate",
 };
 
+/**
+ * The modes a person may newly CHOOSE. `insecure` is not one of them.
+ *
+ * Deliberately narrower than `ControllerTlsMode`, which stays three-valued
+ * because rows already stored as `insecure` exist and must still render with
+ * their real label rather than as a blank or a lie. The type is what the
+ * system can HOLD; this is what a form may OFFER, and the two are different
+ * questions.
+ *
+ * Why it is excluded: the case "Do not check the certificate" was written for
+ * is a self-hosted controller presenting a self-signed certificate, and
+ * `pinned` handles that properly -- verified against a real controller, where
+ * `tls_mode: "pinned"` plus the SHA-256 fingerprint passes the TLS gate
+ * exactly as `strict` does. So the insecure option buys nothing pinning does
+ * not, on the connection that carries the credentials guests are authorised
+ * with. The Master console's controller step already filtered it out; the
+ * venue wizard still offered it, and one product cannot answer "is insecure
+ * allowed?" two different ways on two screens.
+ */
+export const ASSIGNABLE_TLS_MODES: readonly ControllerTlsMode[] = ["strict", "pinned"];
+
 export const CONTROLLER_TLS_MODE_SUMMARY: Record<ControllerTlsMode, string> = {
   strict:
     "For a controller with a certificate from a public certificate authority — TP-Link cloud, or a controller behind your own HTTPS proxy.",
@@ -845,4 +866,173 @@ export const NETWORK_INTEGRATION_ERROR_STATUSES: readonly NetworkIntegrationStat
 
 export function isNetworkIntegrationErrored(status: NetworkIntegrationStatus): boolean {
   return NETWORK_INTEGRATION_ERROR_STATUSES.includes(status);
+}
+
+// ---------------------------------------------------------------------------
+// Automatic controller setup.
+// ---------------------------------------------------------------------------
+
+/**
+ * Why `POST .../configure-controller` will refuse, in the order they must be
+ * fixed.
+ *
+ * The backend computes these (`_controller_setup_gaps`) and returns them; this
+ * list mirrors the enum so the console can say what closes each one. The order
+ * is load-bearing -- it is a dependency chain, not a set. Telling an operator
+ * to pick a site before the credentials that can list sites are stored sends
+ * them to a screen that cannot answer.
+ */
+export type ControllerSetupGap =
+  | "INTEGRATION_DISABLED"
+  | "PROVIDER_UNSUPPORTED"
+  | "OPENAPI_REQUIRED"
+  | "CREDENTIALS_MISSING"
+  | "LOCATION_NOT_MAPPED"
+  | "SITE_NOT_SELECTED"
+  | "FLEET_DEVICE_MISSING"
+  | "GUEST_SSID_MISSING";
+
+export const CONTROLLER_SETUP_GAP_ORDER: readonly ControllerSetupGap[] = [
+  "INTEGRATION_DISABLED",
+  "PROVIDER_UNSUPPORTED",
+  "OPENAPI_REQUIRED",
+  "CREDENTIALS_MISSING",
+  "LOCATION_NOT_MAPPED",
+  "SITE_NOT_SELECTED",
+  "FLEET_DEVICE_MISSING",
+  "GUEST_SSID_MISSING",
+];
+
+/**
+ * What each gap means and what closes it.
+ *
+ * `fix` is the sentence an operator acts on. It names a control on a screen
+ * they can reach, because "the integration is not ready" with no next step is
+ * the shape of every support ticket this console generates.
+ */
+export const CONTROLLER_SETUP_GAP_COPY: Record<ControllerSetupGap, { title: string; fix: string }> =
+  {
+    INTEGRATION_DISABLED: {
+      title: "This integration is switched off",
+      fix: "Enable it from this drawer, then run the preview again.",
+    },
+    PROVIDER_UNSUPPORTED: {
+      title: "Automatic setup does not support this provider",
+      fix: "Only TP-Link Omada can be configured automatically. This one has to be set up in its own interface.",
+    },
+    OPENAPI_REQUIRED: {
+      // The one that catches real venues. Automatic setup writes SSID portal
+      // settings and creates the hotspot operator account, and a legacy operator
+      // credential can do neither -- it authorises guests and nothing else. The
+      // live QA venue was onboarded in Hotspot-operator mode, which the Master
+      // wizard marks "Recommended", so it could never have been
+      // auto-configured. That badge is wrong, and this is the third thing it
+      // costs.
+      title: "This integration signs in with a hotspot operator account",
+      fix: "Automatic setup needs an Open API client. Use Replace credentials above to store a client ID and secret, then run the preview again.",
+    },
+    CREDENTIALS_MISSING: {
+      title: "No Open API client is stored",
+      fix: "Use Replace credentials above to store the client ID and client secret.",
+    },
+    LOCATION_NOT_MAPPED: {
+      title: "This integration is not attached to a venue",
+      fix: "Map it to one of the customer's locations before configuring the controller.",
+    },
+    SITE_NOT_SELECTED: {
+      title: "No Omada site has been chosen",
+      fix: "Pick which site on the controller this venue is, in the site and guest-network mapping below.",
+    },
+    FLEET_DEVICE_MISSING: {
+      title: "The venue has no device row",
+      fix: "This integration was created without a fleet device. Re-run provisioning for this venue, or onboard the controller from Router Fleet.",
+    },
+    GUEST_SSID_MISSING: {
+      title: "No guest network has been chosen",
+      fix: "Pick the SSID guests connect to, in the site and guest-network mapping below.",
+    },
+  };
+
+/** `true` only for a gap this build recognises -- an unknown one is shown
+ * verbatim rather than dropped, because a precondition nobody renders is a
+ * button that refuses with no reason given. */
+export function isControllerSetupGap(value: unknown): value is ControllerSetupGap {
+  return typeof value === "string" && value in CONTROLLER_SETUP_GAP_COPY;
+}
+
+/**
+ * One step of a configure run -- `ControllerConfigureStepResponse`.
+ *
+ * ON A DRY RUN, `outcome` IS WHAT *WOULD* HAPPEN, not a placeholder. That is
+ * what makes the enforced preview worth reading rather than a yes/no: it tells
+ * an operator `created` vs `unchanged` per step before anything is written.
+ */
+export type ControllerConfigureStepOutcome =
+  | "created"
+  | "updated"
+  | "unchanged"
+  | "skipped"
+  | "failed";
+
+export interface ControllerConfigureStep {
+  /** One of `ssid_takeover`, `portal`, `pre_auth_access`, `hotspot_operator`.
+   * Typed as a string because an unrecognised step must still render. */
+  step: string;
+  outcome: ControllerConfigureStepOutcome;
+  message: string;
+  /** The controller's own raw error code on a failed step, for support. */
+  providerCode: number | null;
+  /** Identifiers and counts -- portal id, entries preserved. Never a
+   * credential, per the schema's own docstring. */
+  details: Record<string, unknown>;
+}
+
+/** What each step is, in an operator's words. `ssid_takeover` appears only
+ * when take-over actually released the SSID from another portal. */
+export const CONTROLLER_CONFIGURE_STEP_LABEL: Record<string, string> = {
+  ssid_takeover: "Released the SSID from its previous portal",
+  portal: "Guest portal on the SSID",
+  pre_auth_access: "Pre-authentication access rule",
+  hotspot_operator: "Hotspot operator account",
+};
+
+export const CONTROLLER_CONFIGURE_OUTCOME_LABEL: Record<ControllerConfigureStepOutcome, string> = {
+  created: "Created",
+  updated: "Updated",
+  unchanged: "Already correct",
+  skipped: "Skipped",
+  failed: "Failed",
+};
+
+/**
+ * What a configure run reports back -- `ControllerConfigureResponse`.
+ *
+ * Typed against the real schema. `raw` is KEPT as a backstop rather than
+ * dropped now that the shape is known: this is one of the few responses in the
+ * product an operator may need verbatim mid-incident, a field added
+ * server-side should reach the screen without a frontend release, and the
+ * mapper that fills it still never throws.
+ *
+ * TWO FAILURE PATHS, AND ONLY ONE OF THEM IS AN HTTP ERROR:
+ *  - A run that got past its preconditions and then had a step fail returns
+ *    **200** with `ok: false` and the envelope's `success` false. The steps
+ *    still describe what happened, so a false envelope must not suppress them.
+ *  - A refusal BEFORE any write -- an unmet precondition, a foreign portal on
+ *    the SSID, a shared site -- is a **409 with a typed `data.code`**, and
+ *    never this body. So the gap list comes from the error, not from here.
+ */
+export interface ControllerSetupOutcome {
+  integrationId: string | null;
+  dryRun: boolean;
+  /** False when any step failed. Not the only failure path -- see above. */
+  ok: boolean;
+  changed: boolean;
+  steps: ControllerConfigureStep[];
+  portalId: string | null;
+  guestSsidId: string | null;
+  portalUrlScheme: string | null;
+  portalUrlHostAndQuery: string | null;
+  preAuthHost: string | null;
+  /** Everything the backend returned, unmodified. */
+  raw: Record<string, unknown>;
 }

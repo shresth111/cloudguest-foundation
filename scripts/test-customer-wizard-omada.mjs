@@ -273,7 +273,10 @@ async function openAndFillCustomer() {
   // Location.
   await field(page, "Location name").fill("Seaside Hotel");
   await dialog(page).locator('div:has(> label:text-is("Country")) button[role="combobox"]').click();
-  await page.getByRole("option", { name: "IN", exact: true }).click();
+  // "India (IN)", not the bare code: the picker showed raw ISO codes, which
+  // an operator had to already know how to read, and choosing one left the
+  // timezone on UTC. See `scripts/test-location-country-timezone.mjs`.
+  await page.getByRole("option", { name: "India (IN)", exact: true }).click();
   await field(page, "State / Region").fill("Goa");
   await field(page, "City").fill("Panaji");
   await field(page, "Postal code").fill("403001");

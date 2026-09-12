@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   Building2,
   CheckCircle2,
+  KeyRound,
   Loader2,
   Plug,
   Power,
@@ -15,6 +16,7 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  Trash2,
   Users,
   Wifi,
 } from "lucide-react";
@@ -33,6 +35,7 @@ import {
   MTd,
   MTr,
   MDrawer,
+  MDialog,
   M_INPUT,
 } from "@/components/master/MasterKit";
 import { relativeTime } from "@/lib/friendly";
@@ -46,11 +49,19 @@ import { organizationService } from "@/services/organization.service";
 import {
   authModeSupportsInventory,
   CONTROLLER_AUTH_MODE_LABEL,
+  CONTROLLER_CONFIGURE_OUTCOME_LABEL,
+  CONTROLLER_CONFIGURE_STEP_LABEL,
+  CONTROLLER_SETUP_GAP_COPY,
+  CONTROLLER_SETUP_GAP_ORDER,
+  credentialsCompleteForMode,
+  isControllerSetupGap,
   describeIntegrationError,
   NETWORK_INTEGRATION_STATUS_DETAIL,
   NETWORK_INTEGRATION_STATUS_LABEL,
   NETWORK_INTEGRATION_STATUS_TONE,
+  type ControllerSetupOutcome,
   type NetworkIntegration,
+  type NetworkIntegrationCredentials,
   type NetworkIntegrationStatus,
   type NetworkIntegrationStatusTone,
 } from "@/types/network-integration";
@@ -157,6 +168,35 @@ const TAG_TONE: Record<NetworkIntegrationStatusTone, string> = {
   info: "info",
 };
 
+/** Gaps in the backend's documented fix order, with anything unrecognised
+ * last rather than dropped. The order is a dependency chain: choosing a site
+ * before storing the credentials that can list sites sends an operator to a
+ * screen that cannot answer. */
+function orderedGaps(gaps: string[]): string[] {
+  const rank = (g: string) => {
+    const i = CONTROLLER_SETUP_GAP_ORDER.indexOf(g as never);
+    return i === -1 ? Number.MAX_SAFE_INTEGER : i;
+  };
+  return [...gaps].sort((a, b) => rank(a) - rank(b));
+}
+
+/**
+ * A count, or an em dash when there is no count to show.
+ *
+ * `?? 0` is the shape this page shipped with, and it is a claim: "zero
+ * tenants have connected a controller" is a statement about the estate, and
+ * it was being made whenever `/platform/summary` had not answered or had
+ * failed. Against a table that simultaneously showed a row, it read as the
+ * page contradicting itself -- which is exactly how it was reported.
+ *
+ * An unresolved number is not zero. Same rule the rest of this codebase
+ * follows for `null` health, `null` metrics source and an unread router list:
+ * an absence is rendered as an absence.
+ */
+function statValue(n: number | null | undefined): string | number {
+  return typeof n === "number" ? n : "—";
+}
+
 function StatusTag({ status }: { status: NetworkIntegrationStatus }) {
   const tone = NETWORK_INTEGRATION_STATUS_TONE[status] ?? "neutral";
   return (
@@ -259,7 +299,7 @@ function PlatformIntegrationsScreen() {
         <MSectionHeader
           eyebrow="Infrastructure"
           title="Network Integrations"
-          description="Customer-owned network controllers this platform authorises guests through. Read-only apart from the enable/disable switch and a connectivity probe."
+          description="Customer-owned network controllers this platform authorises guests through. Open a row to probe it, replace its credentials, switch it off or remove it."
           actions={
             <MButton variant="outline" onClick={refresh} disabled={list.isFetching}>
               {list.isFetching ? <Loader2 className="animate-spin" /> : <RefreshCw />} Refresh
@@ -267,58 +307,73 @@ function PlatformIntegrationsScreen() {
           }
         />
 
+        {/* THE TILES AND THE TABLE ARE TWO DIFFERENT REQUESTS, and they were
+            allowed to contradict each other. `/platform/summary` and
+            `/platform/integrations` are separate endpoints with separate
+            caches, so the tiles read 0 / 0 / 0 on one load and 1 / 1 / 1 on
+            the next with the SAME single row in the table both times.
+
+            The mechanism was `?? 0`. A summary that has not resolved, or that
+            failed outright, rendered as a confident zero -- "no tenants have
+            connected a controller" is a statement, and it was being made
+            about a request that had not answered. `loading` only covered the
+            first case, and only while `isLoading` was true.
+
+            `statValue` renders an em dash for both absences instead. A tile
+            that cannot answer must not answer. */}
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <MStat
             label="Tenants connected"
-            value={summary.data?.tenantCount ?? 0}
+            value={statValue(summary.data?.tenantCount)}
             icon={Building2}
             loading={summary.isLoading}
           />
           <MStat
             label="Integrations"
-            value={summary.data?.integrationCount ?? 0}
+            value={statValue(summary.data?.integrationCount)}
             icon={Plug}
             loading={summary.isLoading}
           />
           <MStat
             label="Connected"
-            value={summary.data?.connectedCount ?? 0}
+            value={statValue(summary.data?.connectedCount)}
             icon={CheckCircle2}
             tone="success"
             loading={summary.isLoading}
           />
           <MStat
             label="Needs attention"
-            value={summary.data?.errorCount ?? 0}
+            value={statValue(summary.data?.errorCount)}
             icon={AlertTriangle}
             // Toned by what the number IS, not by a fixed colour: a zero
-            // error count painted red trains operators to ignore red.
+            // error count painted red trains operators to ignore red. An
+            // UNKNOWN count is not zero either, so it is not painted calm.
             tone={(summary.data?.errorCount ?? 0) > 0 ? "danger" : "default"}
             accent={(summary.data?.errorCount ?? 0) > 0}
             loading={summary.isLoading}
           />
           <MStat
             label="Switched off"
-            value={summary.data?.disabledCount ?? 0}
+            value={statValue(summary.data?.disabledCount)}
             icon={PowerOff}
             loading={summary.isLoading}
           />
           <MStat
             label="Controller devices"
-            value={summary.data?.deviceCount ?? 0}
+            value={statValue(summary.data?.deviceCount)}
             icon={RadioTower}
             loading={summary.isLoading}
           />
           <MStat
             label="Clients seen"
-            value={summary.data?.clientCount ?? 0}
+            value={statValue(summary.data?.clientCount)}
             icon={Wifi}
             tone="info"
             loading={summary.isLoading}
           />
           <MStat
             label="Active guest sessions"
-            value={summary.data?.activeAuthorizationCount ?? 0}
+            value={statValue(summary.data?.activeAuthorizationCount)}
             icon={Users}
             tone="success"
             delta={
@@ -610,7 +665,168 @@ function IntegrationDrawer({
     onError: (err) => toast.error(errorText(err, "Could not change this integration.")),
   });
 
-  const busy = test.isPending || setEnabled.isPending;
+  /**
+   * Automatic controller setup -- the thing the backend has always been able
+   * to do and no console ever called.
+   *
+   * `_configure_controller` writes the External Portal Server URL onto the
+   * SSID, adds the Pre-Authentication Access entry, and creates the hotspot
+   * operator account itself, generating and encrypting the password. Because
+   * nothing invoked it, operators were being walked through all of that by
+   * hand -- including inventing and remembering an operator password the
+   * platform was willing to generate for them. "Provision a TP-Link customer
+   * and nothing appears on the Omada side" is that gap, exactly.
+   *
+   * PREVIEW BEFORE APPLY IS ENFORCED, not suggested. `outcome` has to hold a
+   * dry run before Apply is enabled. This writes to a customer's live
+   * controller; an operator should read what it intends to do first. It is
+   * also how the real response shape gets observed -- see
+   * `ControllerSetupOutcome`, which is deliberately loose because that shape
+   * could not be read from any source available when this was written.
+   */
+  const [outcome, setOutcome] = useState<ControllerSetupOutcome | null>(null);
+  const [previewed, setPreviewed] = useState(false);
+  /**
+   * Preconditions the backend refused on, read off a 409 rather than a
+   * response body.
+   *
+   * A refusal before any write -- an unmet precondition, a foreign portal on
+   * the SSID, a shared site -- comes back as `409` with a typed `data.code`,
+   * and never as a `ControllerConfigureResponse`. So a gap list read off the
+   * success body would be permanently empty: a body only exists for a run that
+   * already got past its preconditions.
+   */
+  const [configureGaps, setConfigureGaps] = useState<string[]>([]);
+  const [takeOver, setTakeOver] = useState(false);
+  const [confirmTakeOver, setConfirmTakeOver] = useState(false);
+
+  const configure = useMutation({
+    mutationFn: (dryRun: boolean) =>
+      networkIntegrationService.configurePlatformController(integration, {
+        dryRun,
+        takeOverSsidPortal: takeOver,
+      }),
+    onSuccess: (result, dryRun) => {
+      setOutcome(result);
+      // Got far enough to return a body, so nothing is blocking it any more.
+      setConfigureGaps([]);
+      if (dryRun) {
+        setPreviewed(true);
+        toast.success("Preview complete — nothing was changed on the controller.");
+      } else {
+        // NOT "the venue is live". This changed the controller's
+        // configuration, which is a different claim from a guest being able
+        // to get online: the portal URL can be right and the venue still down
+        // for reasons this never touched. The probe and a real guest are
+        // separate proofs, and the copy says so rather than letting a green
+        // toast imply the whole chain works.
+        toast.success(
+          "Controller configuration applied. That is not yet proof a guest can get online — run Test connectivity, then try a real device.",
+        );
+        onChanged();
+      }
+    },
+    onError: (err) => {
+      // The 409 path. `data.code` is the typed precondition; `code` is the
+      // envelope's own. Either may carry it depending on how the error was
+      // shaped, and an unrecognised value is still rendered rather than
+      // dropped -- see the gap list, which prints anything it does not know.
+      const e = err as unknown as AppError;
+      const typed = (e?.data?.code ?? e?.code) as string | undefined;
+      if (e?.status === 409 && typed) {
+        setConfigureGaps([typed]);
+        // A stale preview describes a run that is now refused, and leaving it
+        // on screen under a fresh refusal reads as though it still applies.
+        setOutcome(null);
+        setPreviewed(false);
+        return;
+      }
+      toast.error(errorText(err, "The controller could not be configured."));
+    },
+  });
+
+  /**
+   * Credential replacement -- the action the `auth_failed` status text has
+   * always named and no console has ever offered.
+   *
+   * "The controller rejected our sign-in. The stored credentials are no longer
+   * valid -- replace them to reconnect." That sentence was true, and the only
+   * UI that could act on it was the customer Network Integrations page, which
+   * FIX-PLAN FE-0 retires because every route it calls is GLOBAL-scoped and
+   * 403s for a venue owner. Without this, retiring that page leaves a rejected
+   * controller unfixable by anyone, from anywhere.
+   */
+  const [creds, setCreds] = useState<NetworkIntegrationCredentials>({});
+  // Open already when the integration is in the state this form exists to
+  // repair. An operator who opened this drawer because the row said
+  // "sign-in rejected" should not have to find the control as well.
+  const [credsOpen, setCredsOpen] = useState(integration.status === "auth_failed");
+  const replaceCreds = useMutation({
+    mutationFn: () =>
+      networkIntegrationService.replacePlatformCredentials(
+        integration,
+        integration.authMode,
+        creds,
+      ),
+    onSuccess: () => {
+      // Deliberately not "reconnected". This stores the new secret; it does
+      // not prove the controller accepts it. Claiming otherwise would be a
+      // green toast with nothing behind it, which is the defect class this
+      // console keeps being fixed for. The probe is one button away, and the
+      // copy points at it.
+      toast.success(
+        "New credentials stored. Run Test connectivity to confirm the controller takes them.",
+      );
+      setCreds({});
+      setCredsOpen(false);
+      onChanged();
+    },
+    onError: (err) => toast.error(errorText(err, "Could not replace the credentials.")),
+  });
+
+  /**
+   * Delete. `DELETE /{integration_id}` has existed all along with nothing in
+   * this console calling it, so even the fallback -- remove it and re-run
+   * provisioning -- was unavailable.
+   *
+   * Guarded by typing the name, the same bar `/master/locations` uses for
+   * deleting a venue and for the same reason: this strands a venue's guest
+   * sign-in entirely, the rows read near-identically, and the failure mode is
+   * acting on the wrong one rather than not meaning to act at all.
+   */
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteTyped, setDeleteTyped] = useState("");
+  const deleteConfirmed =
+    deleteTyped.trim().toLowerCase() === integration.name.trim().toLowerCase();
+  const remove = useMutation({
+    mutationFn: () => networkIntegrationService.deletePlatformIntegration(integration),
+    onSuccess: () => {
+      toast.warning(
+        `Deleted — ${integration.locationName || "this venue"} has no controller integration now, and its guests cannot be signed in until one is connected again.`,
+      );
+      setConfirmDelete(false);
+      setDeleteTyped("");
+      onClose();
+      onChanged();
+    },
+    onError: (err) => toast.error(errorText(err, "Could not delete this integration.")),
+  });
+
+  /** Operator pair always; app pair additionally for `openapi`. The same
+   * predicate the connect wizard validates with, so the two cannot disagree
+   * about what a complete credential set is. */
+  const credsComplete = credentialsCompleteForMode(integration.authMode, creds);
+
+  // Every operation that can be in flight, so a control is never live
+  // while another one is mid-write against the same controller. Both
+  // sides of this merge defined their own `busy`; keeping either alone
+  // would leave the other's buttons clickable during its own run.
+  const busy =
+    test.isPending ||
+    setEnabled.isPending ||
+    configure.isPending ||
+    replaceCreds.isPending ||
+    remove.isPending;
   const setup = deriveIntegrationSetup(integration);
 
   return (
@@ -624,6 +840,17 @@ function IntegrationDrawer({
           <MButton variant="outline" disabled={busy} onClick={() => test.mutate()}>
             {test.isPending ? <Loader2 className="animate-spin" /> : <ShieldCheck />} Test
             connectivity
+          </MButton>
+          <MButton
+            variant="outline"
+            disabled={busy}
+            className="text-destructive hover:border-destructive hover:bg-destructive/10"
+            onClick={() => {
+              setDeleteTyped("");
+              setConfirmDelete(true);
+            }}
+          >
+            <Trash2 /> Delete
           </MButton>
           {integration.isEnabled ? (
             <MButton
@@ -691,6 +918,237 @@ function IntegrationDrawer({
             </div>
           )}
         </div>
+
+        {/* CREDENTIAL REPLACEMENT, placed directly under the status sentence
+            that asks for it. `auth_failed` reads "the stored credentials are
+            no longer valid -- replace them to reconnect", and until now that
+            instruction had no control anywhere in any console to carry it
+            out. Collapsed by default so it does not sit open over a healthy
+            integration, and opened automatically when the status IS the one
+            this repairs. */}
+        <DrawerSection title="Credentials">
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Stored encrypted and never shown again — replacing them is the only way to change
+              them. {CONTROLLER_AUTH_MODE_LABEL[integration.authMode]} mode
+              {integration.authMode === "openapi"
+                ? " needs the Open API client pair and the hotspot operator account."
+                : " needs the hotspot operator account."}
+            </p>
+            {!credsOpen ? (
+              <MButton variant="outline" disabled={busy} onClick={() => setCredsOpen(true)}>
+                <KeyRound /> Replace credentials
+              </MButton>
+            ) : (
+              <div className="space-y-3 rounded-lg border border-border p-3">
+                {integration.authMode === "openapi" && (
+                  <>
+                    <CredField
+                      label="Client ID"
+                      value={creds.clientId ?? ""}
+                      onChange={(v) => setCreds((c) => ({ ...c, clientId: v }))}
+                    />
+                    <CredField
+                      label="Client secret"
+                      secret
+                      value={creds.clientSecret ?? ""}
+                      onChange={(v) => setCreds((c) => ({ ...c, clientSecret: v }))}
+                    />
+                  </>
+                )}
+                <CredField
+                  label="Operator username"
+                  value={creds.username ?? ""}
+                  onChange={(v) => setCreds((c) => ({ ...c, username: v }))}
+                />
+                <CredField
+                  label="Operator password"
+                  secret
+                  value={creds.password ?? ""}
+                  onChange={(v) => setCreds((c) => ({ ...c, password: v }))}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Saving stores them. It does not prove the controller accepts them — run Test
+                  connectivity afterwards.
+                </p>
+                <div className="flex flex-wrap justify-end gap-2">
+                  <MButton
+                    variant="outline"
+                    disabled={replaceCreds.isPending}
+                    onClick={() => {
+                      setCreds({});
+                      setCredsOpen(false);
+                    }}
+                  >
+                    Cancel
+                  </MButton>
+                  <MButton
+                    variant="primary"
+                    disabled={!credsComplete || busy}
+                    aria-disabled={!credsComplete || busy}
+                    title={
+                      credsComplete
+                        ? undefined
+                        : integration.authMode === "openapi"
+                          ? "Fill in the client pair and the operator account."
+                          : "Fill in the operator username and password."
+                    }
+                    onClick={() => replaceCreds.mutate()}
+                  >
+                    {replaceCreds.isPending && <Loader2 className="animate-spin" />}
+                    Save credentials
+                  </MButton>
+                </div>
+              </div>
+            )}
+          </div>
+        </DrawerSection>
+
+        <DrawerSection title="Configure the controller">
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Sets the guest portal URL on the SSID, adds the pre-authentication access rule, and
+              creates the hotspot operator account on the controller — the steps otherwise done by
+              hand in Omada. Preview first; nothing is written until you apply.
+            </p>
+
+            {/* GAPS COME FROM THE 409, NOT FROM THE SUCCESS BODY. A refusal
+                before any write -- an unmet precondition, a foreign portal on
+                the SSID, a shared site -- is a 409 carrying a typed
+                `data.code`, and never a `ControllerConfigureResponse`. Reading
+                gaps off the response would mean they never appeared at all,
+                because a response only exists for a run that got past them. */}
+            {configureGaps.length > 0 && (
+              <div className="space-y-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
+                <p className="text-sm font-medium">Not ready yet — fix this first:</p>
+                <ol className="space-y-1.5">
+                  {orderedGaps(configureGaps).map((g) => {
+                    const copy = isControllerSetupGap(g) ? CONTROLLER_SETUP_GAP_COPY[g] : null;
+                    return (
+                      <li key={g} className="text-sm">
+                        <span className="font-medium">{copy?.title ?? g}</span>
+                        <span className="block text-xs text-muted-foreground">
+                          {/* An unrecognised precondition is printed verbatim
+                              rather than dropped: one nobody renders is a
+                              refusal with no reason given. */}
+                          {copy?.fix ??
+                            "This build does not recognise that precondition — ask support."}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </div>
+            )}
+
+            {outcome && (
+              <div className="space-y-2 rounded-lg border border-border bg-muted/40 p-3">
+                <p className="text-sm font-medium">
+                  {outcome.dryRun
+                    ? "What this would change"
+                    : outcome.changed
+                      ? "What was changed"
+                      : "Nothing needed changing"}
+                </p>
+
+                {/* `ok: false` arrives with HTTP 200 and a false envelope, so
+                    the steps are the only place the reason exists. Surfaced
+                    loudly rather than left to the toast, which is gone by the
+                    time anyone reads the detail. */}
+                {!outcome.ok && (
+                  <p className="text-sm font-medium text-destructive">
+                    {outcome.dryRun
+                      ? "Some steps would fail. The controller is unchanged."
+                      : "Some steps failed — the controller is only partly configured."}
+                  </p>
+                )}
+
+                {outcome.steps.length > 0 ? (
+                  <ul className="space-y-1.5">
+                    {outcome.steps.map((st, i) => (
+                      <li key={`${st.step}-${i}`} className="text-sm">
+                        <span className="font-medium">
+                          {CONTROLLER_CONFIGURE_STEP_LABEL[st.step] ?? st.step}
+                        </span>{" "}
+                        <span
+                          className={
+                            st.outcome === "failed" ? "text-destructive" : "text-muted-foreground"
+                          }
+                        >
+                          — {CONTROLLER_CONFIGURE_OUTCOME_LABEL[st.outcome] ?? st.outcome}
+                        </span>
+                        {st.message && (
+                          <span className="block text-xs text-muted-foreground">{st.message}</span>
+                        )}
+                        {/* The controller's own error number, for the support
+                            conversation that follows a failure. */}
+                        {st.outcome === "failed" && st.providerCode != null && (
+                          <span className="block text-xs text-muted-foreground">
+                            Controller error code {st.providerCode}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-muted-foreground">The controller reported no steps.</p>
+                )}
+
+                {/* Kept from the version written before the schema was known.
+                    This is a response an operator may need verbatim during an
+                    incident, and a field added server-side should reach the
+                    screen without a frontend release. */}
+                <details className="mt-1">
+                  <summary className="cursor-pointer text-xs text-muted-foreground">
+                    Exactly what the controller reported
+                  </summary>
+                  <pre className="mt-2 max-h-64 overflow-auto rounded bg-background p-2 text-[11px] leading-relaxed">
+                    {JSON.stringify(outcome.raw, null, 2)}
+                  </pre>
+                </details>
+              </div>
+            )}
+
+            <label className="flex cursor-pointer items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={takeOver}
+                onChange={(e) => {
+                  // Turning it ON is a decision; turning it off is not.
+                  if (e.target.checked) setConfirmTakeOver(true);
+                  else setTakeOver(false);
+                }}
+              />
+              <span>
+                Take over the SSID&rsquo;s existing portal
+                <span className="block text-xs text-muted-foreground">
+                  Overwrites a portal configuration already on that guest network.
+                </span>
+              </span>
+            </label>
+
+            <div className="flex flex-wrap gap-2">
+              <MButton variant="outline" disabled={busy} onClick={() => configure.mutate(true)}>
+                {configure.isPending ? <Loader2 className="animate-spin" /> : <ShieldCheck />}
+                Preview changes
+              </MButton>
+              <MButton
+                variant="primary"
+                disabled={!previewed || busy}
+                aria-disabled={!previewed || busy}
+                title={
+                  previewed
+                    ? undefined
+                    : "Run the preview first — this writes to a live controller."
+                }
+                onClick={() => configure.mutate(false)}
+              >
+                Apply to controller
+              </MButton>
+            </div>
+          </div>
+        </DrawerSection>
 
         <DrawerSection title="Controller health">
           <Row label="Address" value={integration.baseUrl} mono />
@@ -833,6 +1291,130 @@ function IntegrationDrawer({
           )}
         </DrawerSection>
       </div>
+
+      {/* Taking over an SSID's portal overwrites configuration somebody else
+          put there -- possibly the customer's own IT, possibly another
+          vendor. It is off by default and turning it on is confirmed, because
+          the damage is invisible from here: the run reports success either
+          way, and what broke is whatever the previous portal was doing. */}
+      <MDialog
+        open={confirmTakeOver}
+        onClose={() => setConfirmTakeOver(false)}
+        title="Take over this SSID's portal?"
+      >
+        <div className="space-y-4 p-5">
+          <p className="text-sm text-muted-foreground">
+            {integration.guestSsidName ? (
+              <>
+                <span className="font-semibold text-foreground">{integration.guestSsidName}</span>{" "}
+                already has a portal configured on it.
+              </>
+            ) : (
+              "The guest network may already have a portal configured on it."
+            )}{" "}
+            Applying with this on replaces that configuration with ours. Whatever it was doing
+            stops, and nothing on this screen will be able to tell you what it was.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Leave it off unless you know the existing portal is ours or is unused.
+          </p>
+          <div className="flex flex-wrap justify-end gap-2">
+            <MButton variant="outline" onClick={() => setConfirmTakeOver(false)}>
+              Leave it alone
+            </MButton>
+            <MButton
+              variant="primary"
+              onClick={() => {
+                setTakeOver(true);
+                setConfirmTakeOver(false);
+                // A previous preview was computed without take-over, so it no
+                // longer describes what Apply would do.
+                setPreviewed(false);
+                setOutcome(null);
+              }}
+            >
+              Take it over
+            </MButton>
+          </div>
+        </div>
+      </MDialog>
+
+      {/* Typed-name guard, the same bar `/master/locations` uses for deleting
+          a venue. Deleting an integration is not undoing a setting: guests at
+          that venue stop being able to sign in at all, and nothing they see
+          says why. The rows on this page read near-identically (same provider,
+          similar names, one per tenant), so the failure mode is acting on the
+          wrong one rather than not meaning to act. */}
+      <MDialog
+        open={confirmDelete}
+        onClose={() => {
+          setConfirmDelete(false);
+          setDeleteTyped("");
+        }}
+        title="Delete this integration?"
+      >
+        <div className="space-y-4 p-5">
+          <p className="text-sm">
+            <span className="font-semibold">{integration.name}</span>
+            <span className="block text-sm text-muted-foreground">
+              {integration.organizationName || "Unknown customer"} ·{" "}
+              {integration.locationName || "no venue mapped"}
+            </span>
+          </p>
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3">
+            <p className="text-sm font-medium text-destructive">
+              Guests at this venue stop being signed in.
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              This removes the connection to the customer&rsquo;s controller, its stored credentials
+              and its site and guest-network mapping. Nothing a guest sees will say why. It is
+              undone only by connecting the controller again from the start.
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              If the controller is only rejecting our sign-in, Replace credentials above fixes that
+              without this.
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <label
+              htmlFor="confirm-delete-integration"
+              className="block text-xs font-medium text-muted-foreground"
+            >
+              Type <span className="font-semibold text-foreground">{integration.name}</span> to
+              confirm
+            </label>
+            <input
+              id="confirm-delete-integration"
+              className={M_INPUT}
+              autoComplete="off"
+              value={deleteTyped}
+              onChange={(e) => setDeleteTyped(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-wrap justify-end gap-2">
+            <MButton
+              variant="outline"
+              onClick={() => {
+                setConfirmDelete(false);
+                setDeleteTyped("");
+              }}
+            >
+              Cancel
+            </MButton>
+            <MButton
+              variant="primary"
+              className="bg-destructive text-destructive-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+              disabled={!deleteConfirmed || remove.isPending}
+              aria-disabled={!deleteConfirmed || remove.isPending}
+              title={deleteConfirmed ? undefined : "Type the integration's name to confirm."}
+              onClick={() => remove.mutate()}
+            >
+              {remove.isPending && <Loader2 className="animate-spin" />}
+              Delete this integration
+            </MButton>
+          </div>
+        </div>
+      </MDialog>
     </MDrawer>
   );
 }
@@ -890,6 +1472,41 @@ function PortalLinkSection({ integration }: { integration: NetworkIntegration })
         guestSsidName={integration.guestSsidName}
       />
     </DrawerSection>
+  );
+}
+
+/**
+ * One credential input.
+ *
+ * `type="password"` plus `autoComplete="off"` on the secret halves: not
+ * theatre, but the difference between an operator's browser offering to save
+ * a customer's controller secret into a shared machine's password manager and
+ * it not doing that. The value lives in the drawer's `useState` and is cleared
+ * on success and on cancel -- it is a draft in flight, never state this page
+ * keeps.
+ */
+function CredField({
+  label,
+  value,
+  onChange,
+  secret,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  secret?: boolean;
+}) {
+  return (
+    <div className="space-y-1">
+      <label className="block text-xs font-medium text-muted-foreground">{label}</label>
+      <input
+        className={M_INPUT}
+        type={secret ? "password" : "text"}
+        autoComplete="off"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </div>
   );
 }
 

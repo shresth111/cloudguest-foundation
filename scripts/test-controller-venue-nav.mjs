@@ -28,8 +28,13 @@
  *   1. THE FORM IS NOT MOUNTED. Opening Port Forwarding at a controller venue
  *      renders no "Add" control and none of the view's own headings. Absent,
  *      not disabled: each of these views fetches its rules on mount.
- *   2. WHAT IS THERE INSTEAD NAMES THE VENDOR AND LINKS ON. "You cannot do
- *      this here" with no destination is a support ticket.
+ *   2. WHAT IS THERE INSTEAD NAMES THE VENDOR AND NAMES WHO CAN DO IT. It used
+ *      to link on to Network Integrations -- "you cannot do this here" with no
+ *      destination is a support ticket -- but backend `074d719` made every
+ *      route on that page GLOBAL-scoped, so for a venue owner it 403s, and it
+ *      has been retired from the customer dashboard (FIX-PLAN FE-0). A button
+ *      to a denial is worse than a sentence, so the panel now names a person
+ *      and the assertion is the stronger one: no link at all.
  *   3. THE NAV ROW SURVIVES, MUTED, WITH THE REASON ON IT. Hiding it would
  *      replace one lie with a silence nobody can question.
  *   4. AN UNGATED SCREEN AT THE SAME VENUE STILL MOUNTS. The gate is five
@@ -276,14 +281,26 @@ console.log("\ncontroller venue: the five Network screens");
       !(await r.page.locator("form").count()),
     "the view fetches its rules and offers Add/Edit on mount; it must not mount at all",
   );
+  // Copy updated 2026-09-12 to FIX-PLAN D4's wording. The ASSERTIONS are not
+  // weakened -- they still require a headline that says where the setting
+  // lives, the vendor named in full, the specific noun for THIS screen (so a
+  // generic panel cannot satisfy every screen's test), and the deep link that
+  // is the load-bearing half of the panel. Only the strings moved.
   check(
     "omada-port-forwarding-explains-itself",
-    /Port Forwarding is configured on this venue's controller/.test(r.text) &&
-      /TP-Link Omada controller/.test(r.text),
+    /Configured in Omada, not here\./.test(r.text) &&
+      /TP-Link Omada controller/.test(r.text) &&
+      /Port forwarding rules for this venue are set in Omada's own interface/.test(r.text),
+  );
+  // Also inverted, same reason: the destination no longer exists for a venue
+  // owner. The panel must offer no route out and name a person instead.
+  check(
+    "omada-port-forwarding-offers-no-dead-link",
+    (await r.page.getByRole("link", { name: /Network Integrations|See this venue.s controller/ }).count()) === 0,
   );
   check(
-    "omada-port-forwarding-links-to-the-integration",
-    (await r.page.getByRole("link", { name: /Open Network Integrations/ }).count()) === 1,
+    "omada-port-forwarding-names-who-can-do-it",
+    /Your Wyfy Guest contact manages this venue/.test(r.text),
   );
 
   const network = r.rows.filter((row) => NETWORK_LABELS.includes(row.label));
@@ -308,10 +325,18 @@ console.log("\ncontroller venue: the five Network screens");
       .map((n) => n.label)
       .join(", ")}`,
   );
+  // INVERTED 2026-09-12, FIX-PLAN FE-0. This used to require the row to be
+  // present and unmuted, because it was "the screen this state is configured
+  // on" and excluding it would strand the owner. Backend `074d719` moved every
+  // `network_integrations.*` route to ScopeType.GLOBAL and `rbac.seed`'s
+  // RETIRED_NON_GLOBAL_MODULES dropped the org-scoped grants, so a venue owner
+  // now 403s on every call that page makes. A row leading to a denial strands
+  // the owner harder than no row does -- so the route, the nav entry and the
+  // catalog entry are gone, and this asserts they stay gone.
   check(
-    "omada-nav-keeps-network-integrations-usable",
-    r.rows.some((row) => row.label === "Network Integrations" && !row.muted),
-    "excluding the screen this state is configured on would strand the owner",
+    "omada-nav-no-longer-offers-network-integrations",
+    !r.rows.some((row) => row.label === "Network Integrations"),
+    "the page it led to 403s for a venue owner since backend 074d719",
   );
   await r.page.close();
 }

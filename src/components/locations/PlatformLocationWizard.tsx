@@ -24,6 +24,7 @@ import { OMADA_SITE_ID_EXAMPLE, omadaSiteIdError } from "@/lib/omada-site-id";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { COUNTRY_OPTIONS, TIMEZONE_OPTIONS, defaultTimezoneForCountry } from "@/lib/countries";
 import {
   Dialog,
   DialogContent,
@@ -97,18 +98,6 @@ const DEMO_PLANS: BackendPlan[] = [
     base_price: "9999.00",
     currency: "INR",
   },
-];
-
-const COUNTRIES = ["US", "GB", "IN", "SG", "AE", "DE", "AU", "CA"];
-const TIMEZONES = [
-  "UTC",
-  "Asia/Kolkata",
-  "Asia/Singapore",
-  "Asia/Dubai",
-  "America/Los_Angeles",
-  "America/New_York",
-  "Europe/London",
-  "Europe/Berlin",
 ];
 
 const STEPS = [
@@ -908,6 +897,32 @@ function LocationStep({
 }) {
   const upd = <K extends keyof WizardState["location"]>(k: K, v: WizardState["location"][K]) =>
     setState({ ...state, [k]: v });
+
+  /**
+   * Timezone follows Country until the operator says otherwise.
+   *
+   * Picking "India" used to leave Timezone on UTC, and nothing downstream
+   * complains about that -- session times, report boundaries, business hours,
+   * voucher windows and campaign sends are all read through this field, so a
+   * venue provisioned five and a half hours out produces numbers that are
+   * plausible and wrong for as long as nobody checks. Two questions, where the
+   * operator only reliably knows the answer to one.
+   *
+   * `timezoneTouched` is why this is a default rather than a derivation:
+   * several of these countries span multiple zones, so the moment an operator
+   * chooses one deliberately -- a venue in Perth, not Sydney -- Country stops
+   * overriding it. Without that flag the next Country keystroke would silently
+   * undo their choice, which is a worse bug than the one being fixed, because
+   * it only bites the person who knew better.
+   */
+  const [timezoneTouched, setTimezoneTouched] = useState(false);
+  const onCountryChange = (code: string) => {
+    const tz = defaultTimezoneForCountry(code);
+    // An unknown country leaves the timezone alone rather than resetting it to
+    // UTC -- see `defaultTimezoneForCountry`'s own note on why it returns null.
+    setState({ ...state, country: code, ...(tz && !timezoneTouched ? { timezone: tz } : {}) });
+  };
+
   return (
     <div>
       <StepHeader
@@ -969,14 +984,17 @@ function LocationStep({
         </div>
         <div>
           <Label>Country</Label>
-          <Select value={state.country} onValueChange={(v) => upd("country", v)}>
+          <Select value={state.country} onValueChange={onCountryChange}>
             <SelectTrigger>
-              <SelectValue />
+              <SelectValue placeholder="Select a country" />
             </SelectTrigger>
             <SelectContent>
-              {COUNTRIES.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
+              {/* Names, not bare ISO codes. `IN` and `ID` sit four rows apart
+                  in an alphabet of two-letter codes, and a picker that needs
+                  you to already know the answer is not a picker. */}
+              {COUNTRY_OPTIONS.map((c) => (
+                <SelectItem key={c.code} value={c.code}>
+                  {c.name} ({c.code})
                 </SelectItem>
               ))}
             </SelectContent>
@@ -1003,18 +1021,29 @@ function LocationStep({
         </div>
         <div>
           <Label>Timezone</Label>
-          <Select value={state.timezone} onValueChange={(v) => upd("timezone", v)}>
+          <Select
+            value={state.timezone}
+            onValueChange={(v) => {
+              setTimezoneTouched(true);
+              upd("timezone", v);
+            }}
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {TIMEZONES.map((t) => (
+              {TIMEZONE_OPTIONS.map((t) => (
                 <SelectItem key={t} value={t}>
                   {t}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {timezoneTouched
+              ? "Set manually — changing the country will not override it."
+              : "Follows the country until you change it. Every session time, report boundary and business-hours rule for this venue is read in this zone."}
+          </p>
         </div>
         <div className="md:col-span-2">
           <Label>Address</Label>

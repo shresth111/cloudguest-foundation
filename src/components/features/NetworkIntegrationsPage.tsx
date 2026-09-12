@@ -71,6 +71,7 @@ import {
   authModeSupportsInventory,
   CONTROLLER_AUTH_MODE_LABEL,
   CONTROLLER_AUTH_MODE_SUMMARY,
+  ASSIGNABLE_TLS_MODES,
   CONTROLLER_TLS_MODE_LABEL,
   CONTROLLER_TLS_MODE_SUMMARY,
   credentialsCompleteForMode,
@@ -1592,6 +1593,14 @@ function AuthModeField({
   return (
     <div className="space-y-2">
       <Label>How should we sign in to the controller?</Label>
+      {/* Said once, above both options, because it is true of both and reading
+          it as a property of one of them is the misunderstanding that made the
+          two wizards look like they disagreed. Matches the Master console's
+          own wording on the same decision. */}
+      <p className="text-xs text-muted-foreground">
+        The hotspot operator account is always required — it is the only way the controller lets a
+        guest online. Open API is an addition on top of it, not an alternative to it.
+      </p>
       {/* THE TRADE-OFF IS STATED HERE, NOT DISCOVERED LATER. CR-002: an
           operator credential cannot read sites, access points or clients, so
           picking it silently costs the customer the device and client screens
@@ -1610,7 +1619,23 @@ function AuthModeField({
           <span>
             <span className="font-medium">
               {CONTROLLER_AUTH_MODE_LABEL.openapi}
-              <span className="ml-2 font-normal text-primary">Recommended</span>
+              {/* Not "Recommended". The Master console's controller step puts
+                  that badge on Hotspot operator, this one put it on Open API,
+                  and one product cannot recommend two opposite answers to the
+                  same question on two screens.
+
+                  Neither badge was describing the real relationship, which is
+                  that these are not alternatives at all: guests are let online
+                  only through the hotspot operator account WHICHEVER is
+                  chosen, and Open API is an addition on top that makes the
+                  device and client lists readable. This component's own
+                  validator has always enforced exactly that --
+                  `credentialsCompleteForMode` requires `username` and
+                  `password` in both modes, and additionally `clientId` and
+                  `clientSecret` for openapi -- so the form could never produce
+                  an integration that cannot authorise a guest. Only the copy
+                  disagreed with the code. */}
+              <span className="ml-2 font-normal text-muted-foreground">adds device lists</span>
             </span>
             <span className="block text-xs text-muted-foreground">
               A client ID and client secret from the controller's Settings → Platform Integration →
@@ -1767,7 +1792,25 @@ function TrustFields({
           onValueChange={(v) => onChange({ controllerId, tlsMode: v as ControllerTlsMode, pin })}
           className="gap-2"
         >
-          {(["strict", "pinned", "insecure"] as const).map((mode) => (
+          {/* No "insecure" -- FIX-PLAN alignment with the Master console's own
+              controller step (`CONTROLLER_TLS_CHOICES`, which filters it out).
+              The two wizards offered different security options for the same
+              decision, and "either insecure is an option or it is not" is the
+              right way to settle that. It is not: a self-hosted controller
+              presents a self-signed certificate, which is the case "No
+              certificate check" existed for, and `pinned` covers it properly
+              -- verified against a real controller, `tls_mode: "pinned"` plus
+              the SHA-256 fingerprint passes the TLS gate exactly as `strict`
+              does. Accepting any certificate, "including one from somebody in
+              the middle" by its own description, buys nothing that pinning
+              does not, on a connection that carries the credentials guests are
+              authorised with.
+
+              An integration already stored as `insecure` still RENDERS
+              correctly -- `CONTROLLER_TLS_MODE_LABEL` and `_SUMMARY` keep all
+              three keys, and this is the create/edit control only. What it can
+              no longer be is newly chosen. */}
+          {ASSIGNABLE_TLS_MODES.map((mode) => (
             <label
               key={mode}
               className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/5"
@@ -1986,7 +2029,22 @@ function ConnectWizard({
     tlsMode: ControllerTlsMode;
     pin: string;
   }>({ controllerId: "", tlsMode: "strict", pin: "" });
-  const [trustOpen, setTrustOpen] = useState(false);
+  /**
+   * Open by default -- the section holds the one control a self-hosted
+   * controller MUST set.
+   *
+   * It was collapsed, on the reasoning that most operators do not need it and
+   * it can be opened when a test returns a certificate error. That reasoning
+   * has the population backwards: a self-hosted controller presenting a
+   * self-signed certificate is the norm on this fleet, not the exception, and
+   * `strict` cannot succeed for one. So the default hid the setting from
+   * precisely the operators who needed it, and revealed it only after a
+   * failure they could have been spared.
+   *
+   * Costs an operator on TP-Link cloud one glance at a section they can leave
+   * alone; saves everyone else a failed connection test and a hunt.
+   */
+  const [trustOpen, setTrustOpen] = useState(true);
   const [observedFingerprint, setObservedFingerprint] = useState<string | null>(null);
   const [tested, setTested] = useState<{
     version: string | null;
@@ -2144,8 +2202,37 @@ function ConnectWizard({
 
   const busy = test.isPending || create.isPending || saveSiteAndVenue.isPending || finish.isPending;
 
-  const credsComplete =
-    credentialsCompleteForMode(authMode, creds) && trustDraftValid(trust.tlsMode, trust.pin);
+  /**
+   * Why each control is inert, in the operator's words, or null when it is
+   * not.
+   *
+   * One function rather than a `title` typed at each call site, because the
+   * condition and the explanation have to be the same thing -- a tooltip that
+   * names a field the button no longer waits for is worse than no tooltip. So
+   * the reason IS the predicate: `disabled={!!reason}`, everywhere.
+   *
+   * Ordered most-specific-first so the message names the ONE thing to do next
+   * rather than everything that is outstanding. "Enter the controller's
+   * address" while three fields are blank is a better instruction than a list.
+   */
+  const testBlockedReason: string | null = !baseUrl.trim()
+    ? "Enter the controller's address first."
+    : !trustDraftValid(trust.tlsMode, trust.pin)
+      ? "Pinned certificate mode needs the controller's SHA-256 fingerprint."
+      : !credentialsCompleteForMode(authMode, creds)
+        ? authMode === "openapi"
+          ? "Enter the Open API client ID and secret."
+          : "Enter the hotspot operator's username and password."
+        : null;
+
+  /** Step 1 cannot be left until the controller has actually answered -- the
+   * whole wizard is built on "nothing is saved until this succeeds", and the
+   * later steps read sites and SSIDs FROM the controller, so they have nothing
+   * to show until it authenticates. That is what step 3's "Pick a site from
+   * the controller" was silently waiting on. */
+  const continueBlockedReason: string | null =
+    testBlockedReason ??
+    (!tested ? "Test the connection first — it has to answer before we save anything." : null);
 
   return (
     <Dialog open onOpenChange={(next) => !next && handleClose()}>
@@ -2286,16 +2373,27 @@ function ConnectWizard({
                 )}
 
                 <div className="flex flex-wrap items-center gap-2">
+                  {/* A disabled control that does not say why is this
+                      codebase's characteristic bug wearing its quietest face.
+                      QA walked this wizard and found Test connection and
+                      Continue both inert with no `title`, no `aria-disabled`
+                      and no message -- while step 3 promised "Pick a site from
+                      the controller", a step you cannot reach until
+                      credentials authenticate, which nothing on screen said.
+                      The reason is computed once and used for both the tooltip
+                      and the visible hint, so the two cannot drift. */}
                   <Button
                     variant="outline"
-                    disabled={!baseUrl.trim() || !credsComplete || busy}
+                    disabled={!!testBlockedReason || busy}
+                    aria-disabled={!!testBlockedReason || busy}
+                    title={testBlockedReason ?? undefined}
                     onClick={() => test.mutate()}
                   >
                     {test.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
                     Test connection
                   </Button>
                   <p className="text-xs text-muted-foreground">
-                    Nothing is saved until this succeeds.
+                    {testBlockedReason ?? "Nothing is saved until this succeeds."}
                   </p>
                 </div>
               </div>
@@ -2470,7 +2568,12 @@ function ConnectWizard({
             {integrationId && step < 4 ? "Finish later" : "Cancel"}
           </Button>
           {step === 1 && (
-            <Button disabled={!tested || busy} onClick={() => create.mutate()}>
+            <Button
+              disabled={!!continueBlockedReason || busy}
+              aria-disabled={!!continueBlockedReason || busy}
+              title={continueBlockedReason ?? undefined}
+              onClick={() => create.mutate()}
+            >
               {create.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
               Continue
             </Button>
@@ -2480,18 +2583,50 @@ function ConnectWizard({
               as beside the field, so a malformed value cannot be carried
               forward by pressing Continue. See src/lib/omada-site-id.ts. */}
           {step === 2 && (
-            <Button disabled={!isOmadaSiteId(siteId) || busy} onClick={() => setStep(3)}>
+            <Button
+              disabled={!isOmadaSiteId(siteId) || busy}
+              aria-disabled={!isOmadaSiteId(siteId) || busy}
+              // Both halves of this button arrived separately and both are
+              // load-bearing: the id check (a site NAME cannot be carried
+              // forward) and the stated reason (a disabled control with no
+              // explanation is the defect the title was added to fix). The
+              // reason has to distinguish "nothing picked yet" from "picked
+              // the wrong kind of thing", or the stricter check reads as a
+              // dead button.
+              title={
+                !siteId
+                  ? "Pick which Omada site this venue is."
+                  : !isOmadaSiteId(siteId)
+                    ? (omadaSiteIdError(siteId) ?? undefined)
+                    : undefined
+              }
+              onClick={() => setStep(3)}
+            >
               Continue
             </Button>
           )}
           {step === 3 && (
-            <Button disabled={!venueId || busy} onClick={() => saveSiteAndVenue.mutate()}>
+            <Button
+              disabled={!venueId || busy}
+              aria-disabled={!venueId || busy}
+              title={!venueId ? "Pick which of your venues this site belongs to." : undefined}
+              onClick={() => saveSiteAndVenue.mutate()}
+            >
               {saveSiteAndVenue.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
               Continue
             </Button>
           )}
           {step === 4 && (
-            <Button disabled={!ssidName || busy} onClick={() => finish.mutate()}>
+            <Button
+              disabled={!ssidName || busy}
+              aria-disabled={!ssidName || busy}
+              title={
+                !ssidName
+                  ? "Pick the guest network (SSID) this controller signs guests in on."
+                  : undefined
+              }
+              onClick={() => finish.mutate()}
+            >
               {finish.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
               Save
             </Button>
