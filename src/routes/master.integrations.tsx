@@ -21,6 +21,7 @@ import {
 
 import { MasterShell } from "@/components/master/MasterShell";
 import { OmadaPortalSetupSteps } from "@/components/network-integrations/OmadaPortalSetupSteps";
+import { OmadaSiteMapping } from "@/components/network-integrations/OmadaSiteMapping";
 import {
   MPageShell,
   MSectionHeader,
@@ -721,6 +722,32 @@ function IntegrationDrawer({
             }
           />
           <Row label="Active guest sessions" value={String(integration.activeAuthorizationCount)} />
+        </DrawerSection>
+
+        {/*
+          Correction after the fact, which the Master console could not do
+          at all: the site/SSID editor lived only on the customer dashboard,
+          and its `PATCH /network-integrations/{id}` is org-scoped -- a call
+          a global-scope operator cannot make, because `resolveOrganizationId`
+          throws for a session with no organization. So a wrong site on a
+          customer's controller meant signing in as that customer to fix it.
+          `updatePlatformIntegration` is the global-scope twin.
+
+          Keyed by id so switching drawers rebuilds the form: without it the
+          previous controller's site would sit in these fields as though it
+          belonged to this one.
+        */}
+        <DrawerSection title="Site & guest network">
+          <OmadaSiteMapping
+            key={integration.id}
+            integrationId={integration.id}
+            authMode={integration.authMode}
+            initialSiteId={integration.externalSiteId}
+            initialSiteName={integration.externalSiteName}
+            initialSsidId={integration.guestSsidId}
+            initialSsidName={integration.guestSsidName}
+            onSaved={onChanged}
+          />
         </DrawerSection>
 
         <PortalLinkSection integration={integration} />
