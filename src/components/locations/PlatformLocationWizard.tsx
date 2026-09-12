@@ -190,12 +190,23 @@ const DEFAULT_CONTROLLER: ControllerDraft = {
   name: "",
   model: "",
   baseUrl: "",
-  // Hotspot operator, not Open API -- the opposite of the device wizard's
-  // default, on purpose. The controller lets a guest online only through
-  // the operator login, in either mode (cloud-guest OMADA_OPERATOR_RUNBOOK
-  // §2 item 1), so it is the one credential this venue cannot do without;
-  // Open API only adds inventory screens on top of it.
-  authMode: "legacy",
+  // Open API. This used to default to Hotspot operator, with a comment
+  // arguing that the operator login is the one credential a venue cannot do
+  // without -- which is true, and is not an argument for this default,
+  // because THIS FORM COLLECTS THE OPERATOR LOGIN IN BOTH MODES. `username`
+  // and `password` are asked for unconditionally a few hundred lines down;
+  // `openapi` adds a client id and secret on top. So the old default did not
+  // secure the credential it was defending, it only withheld the other one.
+  //
+  // What it did do is foreclose automatic setup. `configure_controller`
+  // refuses anything that is not `openapi` -- `OPENAPI_REQUIRED`, one of the
+  // `ControllerSetupGap` values -- because the thing it does is write the
+  // SSID's portal settings and create the hotspot operator account, and a
+  // legacy operator credential can do neither. A venue onboarded through
+  // this wizard therefore could not be configured by the platform at all,
+  // and its device and client screens were permanently empty. See
+  // CONTROLLER_SETUP_GAP_COPY.OPENAPI_REQUIRED, which names this wizard.
+  authMode: "openapi",
   clientId: "",
   clientSecret: "",
   username: "",
@@ -1316,15 +1327,35 @@ function ChoiceCards<T extends string>({
   );
 }
 
-// Hotspot operator first and marked Recommended -- see DEFAULT_CONTROLLER.
-// The copy itself is the device wizard's (`AUTH_MODE_CHOICES`).
-const CONTROLLER_AUTH_CHOICES = [
-  ...AUTH_MODE_CHOICES.filter((c) => c.id === "legacy").map((c) => ({
-    ...c,
-    badge: "Recommended",
-  })),
-  ...AUTH_MODE_CHOICES.filter((c) => c.id !== "legacy"),
-];
+// Open API first and marked Recommended -- see DEFAULT_CONTROLLER. The copy
+// itself is the device wizard's (`AUTH_MODE_CHOICES`), which already lists
+// `openapi` first, so the order needs no rearranging any more.
+//
+// THIS BADGE WAS ON "HOTSPOT OPERATOR", AND IT WAS THE EXPENSIVE KIND OF
+// WRONG. It cost three things, in ascending order of cost:
+//
+//  1. A contradiction. The customer console's own mode picker put
+//     "Recommended" on Open API. One product cannot recommend two opposite
+//     answers to the same question on two screens. That half is already
+//     gone -- `NetworkIntegrationsPage` dropped its badge rather than argue
+//     -- so this is the remaining half, and the two now agree.
+//  2. Permanently empty device and client screens for every venue onboarded
+//     through this wizard, because operator credentials cannot read
+//     inventory at all.
+//  3. Automatic setup foreclosed outright. `configure_controller` refuses a
+//     non-`openapi` integration (`OPENAPI_REQUIRED`), so "Configure
+//     controller" -- the step that writes the portal URL, adds the
+//     pre-authentication rule and creates the operator account, i.e. the
+//     direct analogue of pasting the MikroTik script -- could never run.
+//     The live QA venue is exactly this: onboarded in Hotspot-operator
+//     mode, and refused by its own Preview.
+//
+// It is still a choice, not a requirement: a controller below v5.13 has no
+// Open API screen at all, and that venue must pick Hotspot operator. The
+// badge points at the answer that works when both work.
+const CONTROLLER_AUTH_CHOICES = AUTH_MODE_CHOICES.map((c) =>
+  c.id === "openapi" ? { ...c, badge: "Recommended" } : c,
+);
 const CONTROLLER_TLS_CHOICES = TLS_MODE_CHOICES.filter(
   (c): c is (typeof TLS_MODE_CHOICES)[number] & { id: "strict" | "pinned" } => c.id !== "insecure",
 );
@@ -1382,7 +1413,7 @@ function ControllerFields({
         choices={CONTROLLER_AUTH_CHOICES}
         value={state.authMode}
         onChange={(v) => upd("authMode", v)}
-        help="Guests are let online only through the hotspot operator account, whichever you choose — so it is always required. Open API adds the device and client lists on top."
+        help="Guests are let online only through the hotspot operator account, whichever you choose — so it is always required, and this form asks for it either way. Open API adds the device and client lists on top, and is what “Configure controller” needs: without it the portal URL, the pre-authentication rule and the operator account all have to be created by hand on the controller. Pick Hotspot operator only for a controller below v5.13, which has no Open API screen."
       />
       {state.authMode === "openapi" && (
         <>

@@ -291,13 +291,25 @@ async function openAndFillCustomer() {
   return page;
 }
 
-async function fillOmada(page, overrides = {}) {
+async function fillOmada(page, overrides = {}, { authMode = "legacy" } = {}) {
   await dialog(page)
     .getByRole("button", { name: /TP-Link Omada controller/ })
     .click();
+  // The device step now DEFAULTS to Open API -- see `DEFAULT_CONTROLLER`.
+  // Callers that mean the hotspot-operator shape say so, which is what the
+  // operator does on a controller below v5.13; the default itself is
+  // asserted separately below.
+  if (authMode === "legacy") {
+    await dialog(page)
+      .getByRole("button", { name: /Hotspot operator/ })
+      .click();
+  }
   const values = {
     "Controller name": "Seaside Controller",
     "Controller address": "https://ctl.example.com:8043",
+    ...(authMode === "openapi"
+      ? { "Client ID": "omada-client", "Client secret": "omada-secret" }
+      : {}),
     "Hotspot operator name": "wyfy-operator",
     "Hotspot operator password": OPERATOR_PASSWORD,
     "Omada site id": SITE_ID,
@@ -382,7 +394,7 @@ console.log("\n1. Omada: provision without a router, then onboard with the new i
       onb?.body.provider === "omada",
   );
   check(
-    "hotspot operator is the default auth mode, and its login is sent",
+    "the chosen hotspot-operator mode is sent, with its login",
     onb?.body.auth_mode === "legacy" &&
       onb?.body.username === "wyfy-operator" &&
       onb?.body.password === OPERATOR_PASSWORD,
@@ -574,6 +586,63 @@ console.log("\n3. Omada: the draft is validated before anything is created");
     openapi.includes("Client ID is required") && openapi.includes("Operator password is required"),
   );
   check("no request was made", !requests.some((r) => r.method === "POST"));
+  await page.close();
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n3b. Omada: the recommended mode is the one the platform can configure");
+{
+  // WHY THIS IS A TEST AND NOT A COMMENT
+  //
+  // This step used to default to Hotspot operator and put "Recommended" on
+  // it, while the customer console's own picker recommended Open API -- one
+  // product, two opposite answers to the same question. The expensive half
+  // was not the contradiction: `configure_controller` REFUSES a non-`openapi`
+  // integration (`OPENAPI_REQUIRED`), so every venue onboarded here was
+  // permanently ineligible for the automatic setup that writes the portal
+  // URL, adds the pre-authentication rule and creates the operator account.
+  // The live QA venue is exactly that, and its own Preview refuses it.
+  //
+  // The badge and the default are the whole fix, so they are asserted on the
+  // rendered step rather than read off the source.
+  const page = await openAndFillCustomer();
+  await dialog(page)
+    .getByRole("button", { name: /TP-Link Omada controller/ })
+    .click();
+  const openApiCard = dialog(page).getByRole("button", { name: /Open API client/ });
+  const operatorCard = dialog(page).getByRole("button", { name: /^Hotspot operator/ });
+  check(
+    "Open API is the default, not Hotspot operator",
+    (await openApiCard.getAttribute("aria-pressed")) === "true" &&
+      (await operatorCard.getAttribute("aria-pressed")) !== "true",
+  );
+  check("the Recommended badge is on Open API", /Recommended/.test(await openApiCard.innerText()));
+  check("and nowhere else on the step", !/Recommended/.test(await operatorCard.innerText()));
+  check(
+    "the help text says why: Configure controller needs it",
+    (await dialog(page).innerText()).includes("Configure controller"),
+  );
+  check(
+    "the client id and secret fields are therefore asked for up front",
+    await dialog(page).getByLabel("Client ID", { exact: true }).isVisible(),
+  );
+  // The operator login is still required in this mode -- the controller lets
+  // a guest online through no other credential -- which is why moving the
+  // default costs the venue nothing.
+  await fillOmada(page, {}, { authMode: "openapi" });
+  await finishToReview(page);
+  await provisionButton(page).click();
+  await dialog(page).getByText("Location provisioned").waitFor();
+  const [onb] = onboards();
+  check(
+    "the onboard sends openapi WITH the operator login, not instead of it",
+    onb?.body.auth_mode === "openapi" &&
+      onb?.body.client_id === "omada-client" &&
+      onb?.body.client_secret === "omada-secret" &&
+      onb?.body.username === "wyfy-operator" &&
+      onb?.body.password === OPERATOR_PASSWORD,
+    JSON.stringify({ mode: onb?.body.auth_mode, user: onb?.body.username }),
+  );
   await page.close();
 }
 
