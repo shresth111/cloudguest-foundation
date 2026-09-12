@@ -84,34 +84,68 @@ await build({
 const { CONTROLLER_SETUP_GAP_COPY, CONTROLLER_SETUP_GAP_ORDER, isControllerSetupGap } =
   await import(`file://${outfile}`);
 
-/* ── 1. The mapper tolerates a shape it has never seen ─────────────────── */
+/* ── 1. The mapper reads the real shape, and still survives a surprise ─── */
 
-console.log("\n1. The outcome mapper never throws and never drops");
+console.log("\n1. The outcome mapper reads ControllerConfigureResponse");
 
 check(
-  "the response is preserved verbatim in `raw`",
-  /raw,\n  \};/.test(serviceCode) || /\braw,/.test(serviceCode),
-  "an unverified contract must not be narrowed on the way in",
+  "the real snake_case fields are read",
+  /integrationId: str\(raw\.integration_id\)/.test(serviceCode) &&
+    /dryRun: bool\(raw\.dry_run\)/.test(serviceCode) &&
+    /preAuthHost: str\(raw\.pre_auth_host\)/.test(serviceCode),
 );
 check(
-  "both snake_case and camelCase are accepted",
-  /pick\("dry_run", "dryRun"\)/.test(serviceCode),
-  "guessing the casing wrong should not blank the panel",
+  "steps are mapped individually",
+  /steps: Array\.isArray\(raw\.steps\) \? raw\.steps\.map\(toControllerSetupStep\) : \[\]/.test(
+    serviceCode,
+  ),
+  "a non-array must not throw",
 );
 check(
-  "array fields tolerate non-strings rather than throwing",
-  /typeof x === "string" \? x : JSON\.stringify\(x\)/.test(serviceCode),
+  "an unrecognised step outcome degrades to `failed`, not to success",
+  /\? \(outcome as ControllerConfigureStepOutcome\)\s*\n?\s*: "failed"/.test(serviceCode),
+  "this value decides whether an operator believes their controller is configured",
 );
 check(
-  "booleans are only read when they ARE booleans",
-  /typeof v === "boolean" \? v : undefined/.test(serviceCode),
-  "a truthy string must not be reported as applied:true",
+  "provider_code is only read when it is a number",
+  /typeof r\.provider_code === "number" \? r\.provider_code : null/.test(serviceCode),
 );
 check(
-  "the drawer renders the raw payload for the operator to read",
-  /JSON\.stringify\(outcome\.raw, null, 2\)/.test(pageCode),
-  "showing the real answer beats showing this build's guess at it",
+  "`ok` and `changed` are strict booleans",
+  /const bool = \(v: unknown\): boolean => v === true/.test(serviceCode),
+  "a truthy string must not read as ok",
 );
+check(
+  "the whole body is still preserved verbatim",
+  /\braw,/.test(serviceCode),
+  "a field added server-side should reach the screen without a frontend release",
+);
+check("and the drawer still renders it", /JSON\.stringify\(outcome\.raw, null, 2\)/.test(pageCode));
+
+/* ── 1b. The two failure paths ─────────────────────────────────────────── */
+
+console.log("\n1b. A 200 with ok:false is a failure, and a 409 is a different one");
+
+check(
+  "gaps are read off the 409, not off the success body",
+  /e\?\.status === 409 && typed/.test(pageCode) && /setConfigureGaps\(\[typed\]\)/.test(pageCode),
+  "a response body only exists for a run that already passed its preconditions",
+);
+check(
+  "a fresh refusal clears a stale preview",
+  /setConfigureGaps\(\[typed\]\);[\s\S]{0,240}setPreviewed\(false\)/.test(pageCode),
+  "a preview left on screen under a refusal reads as though it still applies",
+);
+check(
+  "ok:false is surfaced even though the HTTP status was 200",
+  /\{!outcome\.ok && \(/.test(pageCode),
+);
+check(
+  "and says whether anything was written",
+  /Some steps would fail\. The controller is unchanged\./.test(page) &&
+    /only partly configured/.test(page),
+);
+check("a successful run clears any previous gaps", /setConfigureGaps\(\[\]\)/.test(pageCode));
 
 /* ── 2. Preview before apply ───────────────────────────────────────────── */
 
@@ -167,7 +201,7 @@ check(
   /copy\?\.title \?\? g/.test(pageCode),
   "a precondition nobody renders is a refusal with no reason given",
 );
-check("gaps are sorted before rendering", /orderedGaps\(outcome\.gaps\)/.test(pageCode));
+check("gaps are sorted before rendering", /orderedGaps\(configureGaps\)/.test(pageCode));
 
 /* ── 4. Taking over someone else's portal ──────────────────────────────── */
 

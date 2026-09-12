@@ -940,32 +940,78 @@ export function isControllerSetupGap(value: unknown): value is ControllerSetupGa
 }
 
 /**
- * What a configure run reports back.
+ * One step of a configure run -- `ControllerConfigureStepResponse`.
  *
- * DELIBERATELY LOOSE, AND THIS IS NOT LAZINESS. The backend's
- * `ControllerSetupOutcome` shape could not be read from any source available
- * when this was written -- it post-dates the backend checkout to hand and
- * appears in none of the contract documents. Inventing a field map and
- * rendering against it is precisely how the credential contract broke once
- * already: the frontend sent a shape the backend ignored, got a 201, stored
- * nothing, and the test asserted the same wrong place and passed.
+ * ON A DRY RUN, `outcome` IS WHAT *WOULD* HAPPEN, not a placeholder. That is
+ * what makes the enforced preview worth reading rather than a yes/no: it tells
+ * an operator `created` vs `unchanged` per step before anything is written.
+ */
+export type ControllerConfigureStepOutcome =
+  | "created"
+  | "updated"
+  | "unchanged"
+  | "skipped"
+  | "failed";
+
+export interface ControllerConfigureStep {
+  /** One of `ssid_takeover`, `portal`, `pre_auth_access`, `hotspot_operator`.
+   * Typed as a string because an unrecognised step must still render. */
+  step: string;
+  outcome: ControllerConfigureStepOutcome;
+  message: string;
+  /** The controller's own raw error code on a failed step, for support. */
+  providerCode: number | null;
+  /** Identifiers and counts -- portal id, entries preserved. Never a
+   * credential, per the schema's own docstring. */
+  details: Record<string, unknown>;
+}
+
+/** What each step is, in an operator's words. `ssid_takeover` appears only
+ * when take-over actually released the SSID from another portal. */
+export const CONTROLLER_CONFIGURE_STEP_LABEL: Record<string, string> = {
+  ssid_takeover: "Released the SSID from its previous portal",
+  portal: "Guest portal on the SSID",
+  pre_auth_access: "Pre-authentication access rule",
+  hotspot_operator: "Hotspot operator account",
+};
+
+export const CONTROLLER_CONFIGURE_OUTCOME_LABEL: Record<ControllerConfigureStepOutcome, string> = {
+  created: "Created",
+  updated: "Updated",
+  unchanged: "Already correct",
+  skipped: "Skipped",
+  failed: "Failed",
+};
+
+/**
+ * What a configure run reports back -- `ControllerConfigureResponse`.
  *
- * So every known-shaped field is optional and everything is preserved in
- * `raw`, which the drawer renders faithfully. The first real dry run -- which
- * changes nothing by definition, and is the only thing this UI lets you do
- * first -- shows the true shape, and this type can then be tightened against
- * something observed rather than assumed.
+ * Typed against the real schema. `raw` is KEPT as a backstop rather than
+ * dropped now that the shape is known: this is one of the few responses in the
+ * product an operator may need verbatim mid-incident, a field added
+ * server-side should reach the screen without a frontend release, and the
+ * mapper that fills it still never throws.
+ *
+ * TWO FAILURE PATHS, AND ONLY ONE OF THEM IS AN HTTP ERROR:
+ *  - A run that got past its preconditions and then had a step fail returns
+ *    **200** with `ok: false` and the envelope's `success` false. The steps
+ *    still describe what happened, so a false envelope must not suppress them.
+ *  - A refusal BEFORE any write -- an unmet precondition, a foreign portal on
+ *    the SSID, a shared site -- is a **409 with a typed `data.code`**, and
+ *    never this body. So the gap list comes from the error, not from here.
  */
 export interface ControllerSetupOutcome {
-  /** Whether anything was actually written. False for a dry run. */
-  applied?: boolean;
-  dryRun?: boolean;
-  /** Human-readable lines describing each change made or planned. */
-  changes?: string[];
-  /** Preconditions that stopped the run, if it was refused. */
-  gaps?: string[];
-  /** Everything the backend returned, unmodified. Rendered when the fields
-   * above do not account for it, so an operator sees the real answer rather
-   * than this build's guess at it. */
+  integrationId: string | null;
+  dryRun: boolean;
+  /** False when any step failed. Not the only failure path -- see above. */
+  ok: boolean;
+  changed: boolean;
+  steps: ControllerConfigureStep[];
+  portalId: string | null;
+  guestSsidId: string | null;
+  portalUrlScheme: string | null;
+  portalUrlHostAndQuery: string | null;
+  preAuthHost: string | null;
+  /** Everything the backend returned, unmodified. */
   raw: Record<string, unknown>;
 }
