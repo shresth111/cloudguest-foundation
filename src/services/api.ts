@@ -647,11 +647,22 @@ api.interceptors.response.use(
         (config.headers as Record<string, string>).Authorization = `Bearer ${newToken}`;
         return api.request(config);
       }
-      // Demo mode: skip session expiry redirect for demo tokens
-      const currentToken = safeLocalGet(TOKEN_STORAGE_KEY);
-      if (currentToken === "demo-access-token") {
-        return Promise.reject(toAppError(error));
-      }
+      // The demo session used to be EXEMPTED here -- a 401 on a
+      // `demo-access-token` returned without `clearSession()` and without
+      // the redirect. That exemption is removed, and the reason is not
+      // tidiness:
+      //
+      // An operator ran `POST /users/{id}/force-logout` against the demo
+      // accounts on 2026-09-12. The backend did its job -- `tokens_invalidated_at`
+      // was set and every subsequent request 401s with "Session has been
+      // terminated" -- and the console went on rendering a signed-in demo
+      // admin, because this branch swallowed each 401 and tore nothing down.
+      // "Log this account out" had no reachable meaning in the product.
+      //
+      // A demo session is still not a real session (see AuthContext's
+      // `demo-access-token`: it is minted client-side and the backend never
+      // issues or accepts it), so a 401 on it can only mean the API has
+      // declined -- which is exactly when the shell should stop pretending.
       clearSession();
       goToSessionExpired();
     }
