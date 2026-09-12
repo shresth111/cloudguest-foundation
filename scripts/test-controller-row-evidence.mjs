@@ -490,5 +490,60 @@ check(
   /activeIsController\s*\?\s*`\$\{routerVendorLabel/.test(devices),
 );
 
+/* ── 11. A refusal must never be painted as an emptiness ───────────────── */
+
+console.log("\n11. Network Integrations distinguishes 'failed' from 'empty'");
+
+// WHY THIS IS ASSERTED HERE. It was reported on 2026-09-12 that the customer
+// `/network-integrations` page swallows a 403 into a calm "No controller
+// connected", and that the notice panel this branch adds therefore ends in a
+// call to action that denies. Checked against the code and against the
+// backend: NEITHER half held.
+//
+//   * `app/domains/network_integration/router.py` does NOT gate every route
+//     at GLOBAL. Only the eight `/platform/*` routes carry
+//     `scope=ScopeType.GLOBAL`; the sixteen tenant routes ("",
+//     "/{integration_id}", "/test-connection", ...) pass no `scope=` at all,
+//     and `RequirePermission` then resolves it via `_infer_scope_type`, which
+//     yields ORGANIZATION from the `X-Organization-Id` header the customer
+//     shell already sends. An Organization Owner holding the key at org scope
+//     passes. (That the reporter's own `GET /me/permissions` showed the key is
+//     evidence FOR this, not against it.)
+//   * This page does not swallow: `isError` renders an `ErrorState` with the
+//     real message and a retry, and the empty state is explicitly guarded on
+//     `!list.isError`, so a denial cannot reach it. The observed
+//     "No controller connected" means the call SUCCEEDED and returned zero
+//     rows -- which is what a venue with no integration should see.
+//
+// Nothing was changed on that surface, because changing it would have broken a
+// working one. What is added is this guard: the property that makes the
+// reported defect impossible is now asserted, so a future edit that collapses
+// the two branches fails here instead of being discovered in production.
+const integrations = read("src/components/features/NetworkIntegrationsPage.tsx");
+check(
+  "a failed load renders an error, not an empty state",
+  /\{list\.isError && \(\s*<ErrorState/.test(integrations),
+);
+check(
+  "the empty state is unreachable while the load is failing",
+  /!list\.isLoading && !list\.isError && rows\.length === 0/.test(integrations),
+);
+check(
+  "the error carries the real message rather than a generic one",
+  /description=\{errorText\(\s*list\.error/.test(integrations),
+);
+check(
+  "and offers a retry",
+  /onRetry=\{\(\) => list\.refetch\(\)\}/.test(integrations),
+);
+
+// The panel's call to action must point at a route that exists, since the
+// whole value of the panel is that it redirects rather than dead-ends.
+const notice = read("src/components/customer/ControllerManagedFeatureNotice.tsx");
+check(
+  "the notice's call to action targets Network Integrations",
+  /customerFeatureHref\("network-integrations"\)/.test(notice),
+);
+
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) FAILED.`);
 process.exit(failures === 0 ? 0 : 1);
