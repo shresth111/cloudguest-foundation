@@ -825,6 +825,42 @@ function IntegrationDrawer({
   });
 
   /**
+   * FORGET THE STORED HOTSPOT OPERATOR LOGIN.
+   *
+   * `Replace credentials` above cannot do this. It overwrites the whole set
+   * and re-validates against the mode, so in Open API mode it demands the
+   * client id and secret -- and the controller shows that secret once, on
+   * the screen that created it. An operator who no longer has it cannot drop
+   * a wrong operator pair by any route.
+   *
+   * WHY IT HAD TO BE BUILT. 2026-09-13, a live venue: the controller's ADMIN
+   * account was stored as the integration's hotspot operator. Omada's
+   * hotspot login accepts operator accounts only, so it answered -30109
+   * whatever the password was; creating an operator of that name is refused
+   * by the controller because admin and operator names share one namespace;
+   * and `Apply to controller` will not mint a replacement while any operator
+   * pair is stored. Every door was shut. The dry run said so in as many
+   * words -- "save only the Open API app's credentials and run this again"
+   * -- and that was the one rotation nobody could perform.
+   *
+   * Not destructive in the way Delete is: the Open API app is untouched, and
+   * `Apply to controller` afterwards creates a dedicated operator account
+   * and generates its own password. So it is a plain button, not a
+   * type-the-name confirmation. Open API rows only -- in legacy mode that
+   * pair is the entire credential and the backend refuses with 409.
+   */
+  const clearOperator = useMutation({
+    mutationFn: () => networkIntegrationService.clearPlatformOperatorLogin(integration),
+    onSuccess: () => {
+      toast.success(
+        "Stored operator login forgotten. Run Apply to controller to create a dedicated one.",
+      );
+      onChanged();
+    },
+    onError: (err) => toast.error(errorText(err, "Could not clear the stored operator login.")),
+  });
+
+  /**
    * Delete. `DELETE /{integration_id}` has existed all along with nothing in
    * this console calling it, so even the fallback -- remove it and re-run
    * provisioning -- was unavailable.
@@ -977,9 +1013,25 @@ function IntegrationDrawer({
                 : ", which needs the hotspot operator account. Replacing them is also how it moves to Open API."}
             </p>
             {!credsOpen ? (
-              <MButton variant="outline" disabled={busy} onClick={() => setCredsOpen(true)}>
-                <KeyRound /> Replace credentials
-              </MButton>
+              <div className="flex flex-wrap gap-2">
+                <MButton variant="outline" disabled={busy} onClick={() => setCredsOpen(true)}>
+                  <KeyRound /> Replace credentials
+                </MButton>
+                {/* Only offered where it is both possible and useful: an
+                    Open API row that actually has an operator pair stored.
+                    In legacy mode that pair is the whole credential and the
+                    backend refuses it. */}
+                {integration.authMode === "openapi" && (
+                  <MButton
+                    variant="outline"
+                    disabled={busy || clearOperator.isPending}
+                    onClick={() => clearOperator.mutate()}
+                    title="Drops the stored hotspot operator login and keeps the Open API app. Apply to controller then creates a dedicated operator account."
+                  >
+                    Forget operator login
+                  </MButton>
+                )}
+              </div>
             ) : (
               <div className="space-y-3 rounded-lg border border-border p-3">
                 {/* THE MODE IS PART OF THE FORM. See `credsMode`. Rendered
