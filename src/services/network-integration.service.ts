@@ -4,6 +4,9 @@ import type { PortalAuthorizeBody } from "@/lib/portal-authorize-body";
 import { resolveOrganizationId as sharedResolveOrganizationId } from "./organization-id";
 import type {
   ControllerAuthMode,
+  ControllerConfigureStep,
+  ControllerConfigureStepOutcome,
+  ControllerSetupOutcome,
   ControllerTlsMode,
   CreateNetworkIntegrationPayload,
   NetworkIntegration,
@@ -571,6 +574,63 @@ function trustFields(payload: {
 
 const BASE = "/network-integrations";
 
+/**
+ * Map `ControllerConfigureResponse`. Typed now, still never throws.
+ *
+ * The shape is known (snake_case: `integration_id`, `dry_run`, `ok`,
+ * `changed`, `steps[]`, `portal_id`, `guest_ssid_id`, `portal_url_scheme`,
+ * `portal_url_host_and_query`, `pre_auth_host`), so the fields are read
+ * directly rather than guessed at. What is deliberately kept from the
+ * defensive version is everything that makes a surprise survivable: each
+ * field is validated by type before use, an unrecognised `outcome` degrades
+ * rather than crashes, and the whole body is preserved in `raw` for the
+ * drawer's disclosure.
+ *
+ * That is not belt-and-braces for its own sake. This response is read during
+ * an incident, against a controller the operator cannot see, and a mapper that
+ * throws on an unexpected field would replace a real answer with a blank
+ * panel at exactly the wrong moment.
+ */
+function toControllerSetupStep(raw: unknown): ControllerConfigureStep {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const outcome = r.outcome;
+  return {
+    step: typeof r.step === "string" ? r.step : "unknown",
+    // An outcome this build does not know is reported as `failed` rather than
+    // silently treated as success -- the safe direction for a value that
+    // decides whether an operator thinks their controller is configured.
+    outcome: (["created", "updated", "unchanged", "skipped", "failed"] as const).includes(
+      outcome as ControllerConfigureStepOutcome,
+    )
+      ? (outcome as ControllerConfigureStepOutcome)
+      : "failed",
+    message: typeof r.message === "string" ? r.message : "",
+    providerCode: typeof r.provider_code === "number" ? r.provider_code : null,
+    details:
+      r.details && typeof r.details === "object" && !Array.isArray(r.details)
+        ? (r.details as Record<string, unknown>)
+        : {},
+  };
+}
+
+function toControllerSetupOutcome(raw: Record<string, unknown>): ControllerSetupOutcome {
+  const str = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
+  const bool = (v: unknown): boolean => v === true;
+  return {
+    integrationId: str(raw.integration_id),
+    dryRun: bool(raw.dry_run),
+    ok: bool(raw.ok),
+    changed: bool(raw.changed),
+    steps: Array.isArray(raw.steps) ? raw.steps.map(toControllerSetupStep) : [],
+    portalId: str(raw.portal_id),
+    guestSsidId: str(raw.guest_ssid_id),
+    portalUrlScheme: str(raw.portal_url_scheme),
+    portalUrlHostAndQuery: str(raw.portal_url_host_and_query),
+    preAuthHost: str(raw.pre_auth_host),
+    raw,
+  };
+}
+
 export const networkIntegrationService = {
   // -------------------------------------------------------------------------
   // Customer (org-scoped) routes.
@@ -965,6 +1025,52 @@ export const networkIntegrationService = {
       `${BASE}/platform/integrations/${id}/disable`,
     );
     return toIntegration(data);
+  },
+
+  /**
+   * Run the controller-side setup the backend has always been able to do.
+   *
+   * WHAT IT ACTUALLY DOES, and why nothing calling it was the whole problem.
+   * `_configure_controller` writes the External Portal Server URL onto the
+   * SSID, adds the Pre-Authentication Access entry, and CREATES THE HOTSPOT
+   * OPERATOR ACCOUNT ITSELF -- generating the password with `secrets` and
+   * encrypting it before the controller is asked to create it. Every console
+   * ignored the route, so operators were being talked through doing all of
+   * that by hand, including inventing and remembering an operator password
+   * the platform was willing to generate and store for them.
+   *
+   * `dryRun` changes nothing, by design, and the drawer will not let anyone
+   * apply without previewing first. That is not only caution: it is also how
+   * the real `ControllerSetupOutcome` shape gets observed, since it could not
+   * be read from any source available when this was written (see that type).
+   *
+   * `takeOverSsidPortal` OVERWRITES a portal configuration somebody else put
+   * on that SSID. It is a separate, deliberately-confirmed flag rather than
+   * something the happy path turns on quietly.
+   *
+   * Org header: the integration's own, for the same reason as
+   * `replacePlatformCredentials` -- an operator is not a member of the tenant
+   * they are configuring, and the route's explicit GLOBAL scope is what
+   * authorises the call.
+   */
+  async configurePlatformController(
+    integration: Pick<NetworkIntegration, "id" | "organizationId">,
+    opts: { dryRun: boolean; takeOverSsidPortal?: boolean },
+  ): Promise<ControllerSetupOutcome> {
+    const { data } = await api.post<Record<string, unknown>>(
+      `${BASE}/platform/integrations/${integration.id}/configure-controller`,
+      {
+        dry_run: opts.dryRun,
+        take_over_ssid_portal: opts.takeOverSsidPortal ?? false,
+      },
+      {
+        headers: { "X-Organization-Id": integration.organizationId },
+        // Same extended budget as the other calls that reach the controller:
+        // this one makes several round trips to it, not one.
+        timeout: 90_000,
+      },
+    );
+    return toControllerSetupOutcome(data);
   },
 
   async testPlatformConnection(id: string): Promise<NetworkIntegrationConnectionTest> {

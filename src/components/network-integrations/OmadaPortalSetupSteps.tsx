@@ -109,6 +109,55 @@ export function OmadaPortalSetupSteps({
         Guests cannot sign in until steps 1–3 are done on the controller. Step 4 checks it.
       </Muted>
 
+      {/* THE TWO ENDS THAT WERE MISSING, and their absence is what produced
+          "I provisioned a TP-Link customer and nothing appeared on the Omada
+          side". The steps below began at "attach a portal to the guest SSID"
+          and quietly assumed a site, an adopted AP, a guest SSID and an Open
+          API app already existed -- which are exactly the things an operator
+          coming from MikroTik expects provisioning to have created, because
+          for MikroTik it does. They are not created here, deliberately: the
+          controller belongs to the customer. Saying so is the difference
+          between a prerequisite and a thing someone waits for. */}
+      <StepTitle>Before you start — on the customer&rsquo;s controller</StepTitle>
+      <Muted>
+        <strong>The platform does not create any of these, and will not.</strong> The controller is
+        the customer&rsquo;s, and a site, an adopted access point and an SSID are decisions about
+        their network rather than records about the venue. Provisioning records the venue and
+        connects to the controller they already run; it does not build their network for them.
+      </Muted>
+      <Muted>
+        1. <strong>A site</strong> for this venue, under Sites. 2.{" "}
+        <strong>The access points adopted</strong> into that site. 3. <strong>A guest SSID</strong>{" "}
+        the public connects to. 4. <strong>An Open API app</strong>, under Settings → Platform
+        Integration → Open API, which is what the client ID and client secret come from.
+      </Muted>
+      <Muted>
+        The Open API app is the one people skip. Without it the integration can still authorise
+        guests, but <strong>Configure controller cannot run</strong> and the device and client lists
+        stay permanently empty — hotspot-operator credentials cannot read inventory at all.
+      </Muted>
+
+      {/* The automatic path first. Steps 1 and 2 below are precisely what
+          `_configure_controller` does -- the portal URL, the
+          pre-authentication entry, and the hotspot operator account it
+          generates and stores itself -- and reading the manual steps as the
+          only route is why operators were being talked through inventing an
+          operator password by hand. */}
+      <StepTitle>The quickest route: Configure controller</StepTitle>
+      <Muted>
+        <strong>Steps 1 and 2 below are done for you</strong> by Configure controller on this
+        venue&rsquo;s integration: it writes the External Portal Server URL, adds the
+        Pre-Authentication Access entry, and creates the hotspot operator account — generating and
+        storing the password, so nobody has to invent or remember one. Preview it first; it reports
+        what it will change before it changes anything.
+      </Muted>
+      <Muted>
+        It needs an <strong>Open API</strong> client (the prerequisite above). With hotspot-operator
+        credentials it refuses, and the steps below are the fallback. Do them by hand when you want
+        the audit trail, when the controller is managed by someone who will not share an Open API
+        app, or when automatic setup has refused and you need the venue live now.
+      </Muted>
+
       <StepTitle>1. External Portal Server</StepTitle>
       <Muted>{OMADA_EXTERNAL_PORTAL_PATH}</Muted>
       <Muted>
@@ -158,6 +207,53 @@ export function OmadaPortalSetupSteps({
         Connect a phone to {ssid ? <strong>{ssid}</strong> : "the guest SSID"}. The sign-in
         page&rsquo;s address should contain <code>site=</code> and <code>clientMac=</code>. After
         signing in, the phone should browse normally.
+      </Muted>
+
+      {/* Cloud-hosted controllers, asked about specifically and both facts
+          cheaper to read here than to discover after a purchase. */}
+      <StepTitle>If the controller is TP-Link&rsquo;s cloud, not your own</StepTitle>
+      <Muted>
+        <strong>The Omada ID is required.</strong> One cloud address fronts every controller in a
+        region, so without that id nothing can tell which controller is yours — it is on the
+        controller&rsquo;s API credentials screen and in its web address, and it goes in the
+        Certificate &amp; Omada ID section when connecting.
+      </Muted>
+      <Muted>
+        <strong>Its devices need a paid licence.</strong> An access point adopted by a cloud-based
+        controller requires an Omada Central Standard licence <em>per device</em>. Until one is
+        bought the device adopts successfully and then sits <code>Unactivated</code> and inert — it
+        will look adopted and authorise nobody.
+      </Muted>
+
+      {/* THE QUESTION BEHIND THE QUESTION: "why does TP-Link feel like it did
+          less than MikroTik?" Answered in two sentences, because that answers
+          it better than any list of steps.
+
+          An earlier draft of this block claimed a MikroTik venue gets a NAS
+          record and an Omada venue does not. That is FALSE and is removed:
+          `location/provisioning_service.py` states plainly that RADIUS NAS
+          registration is not part of that flow in either case --
+          `RouterService.create_router` does not register a NAS. NAS is not a
+          vendor difference and must not be shown as one; presenting a
+          non-difference as a difference is how an operator ends up hunting
+          for a record that was never created for anybody.
+
+          Nothing here names the management tunnel or RADIUS internals: this
+          component also renders on the customer-facing Network Integrations
+          page, where that is a hard constraint. */}
+      <StepTitle>Why this felt different from a MikroTik venue</StepTitle>
+      <Muted>
+        <strong>Provisioning did not do less for this venue.</strong> The customer, the location,
+        the owner account, permissions, billing and the plan are all created exactly as they are for
+        a MikroTik site — what differs is only the device half, because the two are configured in
+        opposite directions: a MikroTik is set up by a script this platform generates and someone
+        pastes into the router, while an Omada controller is set up by this platform calling the
+        controller&rsquo;s own API, which is what Configure controller does.
+      </Muted>
+      <Muted>
+        So the one manual thing above is the direct analogue of pasting that script:{" "}
+        <strong>on MikroTik you paste a script, on Omada you create an Open API app.</strong> After
+        that, both are automatic.
       </Muted>
     </div>
   );

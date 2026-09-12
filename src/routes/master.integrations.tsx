@@ -49,11 +49,17 @@ import { organizationService } from "@/services/organization.service";
 import {
   authModeSupportsInventory,
   CONTROLLER_AUTH_MODE_LABEL,
+  CONTROLLER_CONFIGURE_OUTCOME_LABEL,
+  CONTROLLER_CONFIGURE_STEP_LABEL,
+  CONTROLLER_SETUP_GAP_COPY,
+  CONTROLLER_SETUP_GAP_ORDER,
   credentialsCompleteForMode,
+  isControllerSetupGap,
   describeIntegrationError,
   NETWORK_INTEGRATION_STATUS_DETAIL,
   NETWORK_INTEGRATION_STATUS_LABEL,
   NETWORK_INTEGRATION_STATUS_TONE,
+  type ControllerSetupOutcome,
   type NetworkIntegration,
   type NetworkIntegrationCredentials,
   type NetworkIntegrationStatus,
@@ -161,6 +167,18 @@ const TAG_TONE: Record<NetworkIntegrationStatusTone, string> = {
   neutral: "normal",
   info: "info",
 };
+
+/** Gaps in the backend's documented fix order, with anything unrecognised
+ * last rather than dropped. The order is a dependency chain: choosing a site
+ * before storing the credentials that can list sites sends an operator to a
+ * screen that cannot answer. */
+function orderedGaps(gaps: string[]): string[] {
+  const rank = (g: string) => {
+    const i = CONTROLLER_SETUP_GAP_ORDER.indexOf(g as never);
+    return i === -1 ? Number.MAX_SAFE_INTEGER : i;
+  };
+  return [...gaps].sort((a, b) => rank(a) - rank(b));
+}
 
 /**
  * A count, or an em dash when there is no count to show.
@@ -648,6 +666,86 @@ function IntegrationDrawer({
   });
 
   /**
+   * Automatic controller setup -- the thing the backend has always been able
+   * to do and no console ever called.
+   *
+   * `_configure_controller` writes the External Portal Server URL onto the
+   * SSID, adds the Pre-Authentication Access entry, and creates the hotspot
+   * operator account itself, generating and encrypting the password. Because
+   * nothing invoked it, operators were being walked through all of that by
+   * hand -- including inventing and remembering an operator password the
+   * platform was willing to generate for them. "Provision a TP-Link customer
+   * and nothing appears on the Omada side" is that gap, exactly.
+   *
+   * PREVIEW BEFORE APPLY IS ENFORCED, not suggested. `outcome` has to hold a
+   * dry run before Apply is enabled. This writes to a customer's live
+   * controller; an operator should read what it intends to do first. It is
+   * also how the real response shape gets observed -- see
+   * `ControllerSetupOutcome`, which is deliberately loose because that shape
+   * could not be read from any source available when this was written.
+   */
+  const [outcome, setOutcome] = useState<ControllerSetupOutcome | null>(null);
+  const [previewed, setPreviewed] = useState(false);
+  /**
+   * Preconditions the backend refused on, read off a 409 rather than a
+   * response body.
+   *
+   * A refusal before any write -- an unmet precondition, a foreign portal on
+   * the SSID, a shared site -- comes back as `409` with a typed `data.code`,
+   * and never as a `ControllerConfigureResponse`. So a gap list read off the
+   * success body would be permanently empty: a body only exists for a run that
+   * already got past its preconditions.
+   */
+  const [configureGaps, setConfigureGaps] = useState<string[]>([]);
+  const [takeOver, setTakeOver] = useState(false);
+  const [confirmTakeOver, setConfirmTakeOver] = useState(false);
+
+  const configure = useMutation({
+    mutationFn: (dryRun: boolean) =>
+      networkIntegrationService.configurePlatformController(integration, {
+        dryRun,
+        takeOverSsidPortal: takeOver,
+      }),
+    onSuccess: (result, dryRun) => {
+      setOutcome(result);
+      // Got far enough to return a body, so nothing is blocking it any more.
+      setConfigureGaps([]);
+      if (dryRun) {
+        setPreviewed(true);
+        toast.success("Preview complete — nothing was changed on the controller.");
+      } else {
+        // NOT "the venue is live". This changed the controller's
+        // configuration, which is a different claim from a guest being able
+        // to get online: the portal URL can be right and the venue still down
+        // for reasons this never touched. The probe and a real guest are
+        // separate proofs, and the copy says so rather than letting a green
+        // toast imply the whole chain works.
+        toast.success(
+          "Controller configuration applied. That is not yet proof a guest can get online — run Test connectivity, then try a real device.",
+        );
+        onChanged();
+      }
+    },
+    onError: (err) => {
+      // The 409 path. `data.code` is the typed precondition; `code` is the
+      // envelope's own. Either may carry it depending on how the error was
+      // shaped, and an unrecognised value is still rendered rather than
+      // dropped -- see the gap list, which prints anything it does not know.
+      const e = err as unknown as AppError;
+      const typed = (e?.data?.code ?? e?.code) as string | undefined;
+      if (e?.status === 409 && typed) {
+        setConfigureGaps([typed]);
+        // A stale preview describes a run that is now refused, and leaving it
+        // on screen under a fresh refusal reads as though it still applies.
+        setOutcome(null);
+        setPreviewed(false);
+        return;
+      }
+      toast.error(errorText(err, "The controller could not be configured."));
+    },
+  });
+
+  /**
    * Credential replacement -- the action the `auth_failed` status text has
    * always named and no console has ever offered.
    *
@@ -719,7 +817,16 @@ function IntegrationDrawer({
    * about what a complete credential set is. */
   const credsComplete = credentialsCompleteForMode(integration.authMode, creds);
 
-  const busy = test.isPending || setEnabled.isPending || replaceCreds.isPending || remove.isPending;
+  // Every operation that can be in flight, so a control is never live
+  // while another one is mid-write against the same controller. Both
+  // sides of this merge defined their own `busy`; keeping either alone
+  // would leave the other's buttons clickable during its own run.
+  const busy =
+    test.isPending ||
+    setEnabled.isPending ||
+    configure.isPending ||
+    replaceCreds.isPending ||
+    remove.isPending;
   const setup = deriveIntegrationSetup(integration);
 
   return (
@@ -897,6 +1004,152 @@ function IntegrationDrawer({
           </div>
         </DrawerSection>
 
+        <DrawerSection title="Configure the controller">
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Sets the guest portal URL on the SSID, adds the pre-authentication access rule, and
+              creates the hotspot operator account on the controller — the steps otherwise done by
+              hand in Omada. Preview first; nothing is written until you apply.
+            </p>
+
+            {/* GAPS COME FROM THE 409, NOT FROM THE SUCCESS BODY. A refusal
+                before any write -- an unmet precondition, a foreign portal on
+                the SSID, a shared site -- is a 409 carrying a typed
+                `data.code`, and never a `ControllerConfigureResponse`. Reading
+                gaps off the response would mean they never appeared at all,
+                because a response only exists for a run that got past them. */}
+            {configureGaps.length > 0 && (
+              <div className="space-y-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
+                <p className="text-sm font-medium">Not ready yet — fix this first:</p>
+                <ol className="space-y-1.5">
+                  {orderedGaps(configureGaps).map((g) => {
+                    const copy = isControllerSetupGap(g) ? CONTROLLER_SETUP_GAP_COPY[g] : null;
+                    return (
+                      <li key={g} className="text-sm">
+                        <span className="font-medium">{copy?.title ?? g}</span>
+                        <span className="block text-xs text-muted-foreground">
+                          {/* An unrecognised precondition is printed verbatim
+                              rather than dropped: one nobody renders is a
+                              refusal with no reason given. */}
+                          {copy?.fix ??
+                            "This build does not recognise that precondition — ask support."}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </div>
+            )}
+
+            {outcome && (
+              <div className="space-y-2 rounded-lg border border-border bg-muted/40 p-3">
+                <p className="text-sm font-medium">
+                  {outcome.dryRun
+                    ? "What this would change"
+                    : outcome.changed
+                      ? "What was changed"
+                      : "Nothing needed changing"}
+                </p>
+
+                {/* `ok: false` arrives with HTTP 200 and a false envelope, so
+                    the steps are the only place the reason exists. Surfaced
+                    loudly rather than left to the toast, which is gone by the
+                    time anyone reads the detail. */}
+                {!outcome.ok && (
+                  <p className="text-sm font-medium text-destructive">
+                    {outcome.dryRun
+                      ? "Some steps would fail. The controller is unchanged."
+                      : "Some steps failed — the controller is only partly configured."}
+                  </p>
+                )}
+
+                {outcome.steps.length > 0 ? (
+                  <ul className="space-y-1.5">
+                    {outcome.steps.map((st, i) => (
+                      <li key={`${st.step}-${i}`} className="text-sm">
+                        <span className="font-medium">
+                          {CONTROLLER_CONFIGURE_STEP_LABEL[st.step] ?? st.step}
+                        </span>{" "}
+                        <span
+                          className={
+                            st.outcome === "failed" ? "text-destructive" : "text-muted-foreground"
+                          }
+                        >
+                          — {CONTROLLER_CONFIGURE_OUTCOME_LABEL[st.outcome] ?? st.outcome}
+                        </span>
+                        {st.message && (
+                          <span className="block text-xs text-muted-foreground">{st.message}</span>
+                        )}
+                        {/* The controller's own error number, for the support
+                            conversation that follows a failure. */}
+                        {st.outcome === "failed" && st.providerCode != null && (
+                          <span className="block text-xs text-muted-foreground">
+                            Controller error code {st.providerCode}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-muted-foreground">The controller reported no steps.</p>
+                )}
+
+                {/* Kept from the version written before the schema was known.
+                    This is a response an operator may need verbatim during an
+                    incident, and a field added server-side should reach the
+                    screen without a frontend release. */}
+                <details className="mt-1">
+                  <summary className="cursor-pointer text-xs text-muted-foreground">
+                    Exactly what the controller reported
+                  </summary>
+                  <pre className="mt-2 max-h-64 overflow-auto rounded bg-background p-2 text-[11px] leading-relaxed">
+                    {JSON.stringify(outcome.raw, null, 2)}
+                  </pre>
+                </details>
+              </div>
+            )}
+
+            <label className="flex cursor-pointer items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={takeOver}
+                onChange={(e) => {
+                  // Turning it ON is a decision; turning it off is not.
+                  if (e.target.checked) setConfirmTakeOver(true);
+                  else setTakeOver(false);
+                }}
+              />
+              <span>
+                Take over the SSID&rsquo;s existing portal
+                <span className="block text-xs text-muted-foreground">
+                  Overwrites a portal configuration already on that guest network.
+                </span>
+              </span>
+            </label>
+
+            <div className="flex flex-wrap gap-2">
+              <MButton variant="outline" disabled={busy} onClick={() => configure.mutate(true)}>
+                {configure.isPending ? <Loader2 className="animate-spin" /> : <ShieldCheck />}
+                Preview changes
+              </MButton>
+              <MButton
+                variant="primary"
+                disabled={!previewed || busy}
+                aria-disabled={!previewed || busy}
+                title={
+                  previewed
+                    ? undefined
+                    : "Run the preview first — this writes to a live controller."
+                }
+                onClick={() => configure.mutate(false)}
+              >
+                Apply to controller
+              </MButton>
+            </div>
+          </div>
+        </DrawerSection>
+
         <DrawerSection title="Controller health">
           <Row label="Address" value={integration.baseUrl} mono />
           <Row
@@ -1038,6 +1291,53 @@ function IntegrationDrawer({
           )}
         </DrawerSection>
       </div>
+
+      {/* Taking over an SSID's portal overwrites configuration somebody else
+          put there -- possibly the customer's own IT, possibly another
+          vendor. It is off by default and turning it on is confirmed, because
+          the damage is invisible from here: the run reports success either
+          way, and what broke is whatever the previous portal was doing. */}
+      <MDialog
+        open={confirmTakeOver}
+        onClose={() => setConfirmTakeOver(false)}
+        title="Take over this SSID's portal?"
+      >
+        <div className="space-y-4 p-5">
+          <p className="text-sm text-muted-foreground">
+            {integration.guestSsidName ? (
+              <>
+                <span className="font-semibold text-foreground">{integration.guestSsidName}</span>{" "}
+                already has a portal configured on it.
+              </>
+            ) : (
+              "The guest network may already have a portal configured on it."
+            )}{" "}
+            Applying with this on replaces that configuration with ours. Whatever it was doing
+            stops, and nothing on this screen will be able to tell you what it was.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Leave it off unless you know the existing portal is ours or is unused.
+          </p>
+          <div className="flex flex-wrap justify-end gap-2">
+            <MButton variant="outline" onClick={() => setConfirmTakeOver(false)}>
+              Leave it alone
+            </MButton>
+            <MButton
+              variant="primary"
+              onClick={() => {
+                setTakeOver(true);
+                setConfirmTakeOver(false);
+                // A previous preview was computed without take-over, so it no
+                // longer describes what Apply would do.
+                setPreviewed(false);
+                setOutcome(null);
+              }}
+            >
+              Take it over
+            </MButton>
+          </div>
+        </div>
+      </MDialog>
 
       {/* Typed-name guard, the same bar `/master/locations` uses for deleting
           a venue. Deleting an integration is not undoing a setting: guests at
