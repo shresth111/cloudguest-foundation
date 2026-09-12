@@ -70,6 +70,7 @@ import {
   authModeSupportsInventory,
   CONTROLLER_AUTH_MODE_LABEL,
   CONTROLLER_AUTH_MODE_SUMMARY,
+  ASSIGNABLE_TLS_MODES,
   CONTROLLER_TLS_MODE_LABEL,
   CONTROLLER_TLS_MODE_SUMMARY,
   credentialsCompleteForMode,
@@ -1591,6 +1592,14 @@ function AuthModeField({
   return (
     <div className="space-y-2">
       <Label>How should we sign in to the controller?</Label>
+      {/* Said once, above both options, because it is true of both and reading
+          it as a property of one of them is the misunderstanding that made the
+          two wizards look like they disagreed. Matches the Master console's
+          own wording on the same decision. */}
+      <p className="text-xs text-muted-foreground">
+        The hotspot operator account is always required — it is the only way the controller lets a
+        guest online. Open API is an addition on top of it, not an alternative to it.
+      </p>
       {/* THE TRADE-OFF IS STATED HERE, NOT DISCOVERED LATER. CR-002: an
           operator credential cannot read sites, access points or clients, so
           picking it silently costs the customer the device and client screens
@@ -1609,7 +1618,23 @@ function AuthModeField({
           <span>
             <span className="font-medium">
               {CONTROLLER_AUTH_MODE_LABEL.openapi}
-              <span className="ml-2 font-normal text-primary">Recommended</span>
+              {/* Not "Recommended". The Master console's controller step puts
+                  that badge on Hotspot operator, this one put it on Open API,
+                  and one product cannot recommend two opposite answers to the
+                  same question on two screens.
+
+                  Neither badge was describing the real relationship, which is
+                  that these are not alternatives at all: guests are let online
+                  only through the hotspot operator account WHICHEVER is
+                  chosen, and Open API is an addition on top that makes the
+                  device and client lists readable. This component's own
+                  validator has always enforced exactly that --
+                  `credentialsCompleteForMode` requires `username` and
+                  `password` in both modes, and additionally `clientId` and
+                  `clientSecret` for openapi -- so the form could never produce
+                  an integration that cannot authorise a guest. Only the copy
+                  disagreed with the code. */}
+              <span className="ml-2 font-normal text-muted-foreground">adds device lists</span>
             </span>
             <span className="block text-xs text-muted-foreground">
               A client ID and client secret from the controller's Settings → Platform Integration →
@@ -1766,7 +1791,25 @@ function TrustFields({
           onValueChange={(v) => onChange({ controllerId, tlsMode: v as ControllerTlsMode, pin })}
           className="gap-2"
         >
-          {(["strict", "pinned", "insecure"] as const).map((mode) => (
+          {/* No "insecure" -- FIX-PLAN alignment with the Master console's own
+              controller step (`CONTROLLER_TLS_CHOICES`, which filters it out).
+              The two wizards offered different security options for the same
+              decision, and "either insecure is an option or it is not" is the
+              right way to settle that. It is not: a self-hosted controller
+              presents a self-signed certificate, which is the case "No
+              certificate check" existed for, and `pinned` covers it properly
+              -- verified against a real controller, `tls_mode: "pinned"` plus
+              the SHA-256 fingerprint passes the TLS gate exactly as `strict`
+              does. Accepting any certificate, "including one from somebody in
+              the middle" by its own description, buys nothing that pinning
+              does not, on a connection that carries the credentials guests are
+              authorised with.
+
+              An integration already stored as `insecure` still RENDERS
+              correctly -- `CONTROLLER_TLS_MODE_LABEL` and `_SUMMARY` keep all
+              three keys, and this is the create/edit control only. What it can
+              no longer be is newly chosen. */}
+          {ASSIGNABLE_TLS_MODES.map((mode) => (
             <label
               key={mode}
               className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/5"
@@ -1985,7 +2028,22 @@ function ConnectWizard({
     tlsMode: ControllerTlsMode;
     pin: string;
   }>({ controllerId: "", tlsMode: "strict", pin: "" });
-  const [trustOpen, setTrustOpen] = useState(false);
+  /**
+   * Open by default -- the section holds the one control a self-hosted
+   * controller MUST set.
+   *
+   * It was collapsed, on the reasoning that most operators do not need it and
+   * it can be opened when a test returns a certificate error. That reasoning
+   * has the population backwards: a self-hosted controller presenting a
+   * self-signed certificate is the norm on this fleet, not the exception, and
+   * `strict` cannot succeed for one. So the default hid the setting from
+   * precisely the operators who needed it, and revealed it only after a
+   * failure they could have been spared.
+   *
+   * Costs an operator on TP-Link cloud one glance at a section they can leave
+   * alone; saves everyone else a failed connection test and a hunt.
+   */
+  const [trustOpen, setTrustOpen] = useState(true);
   const [observedFingerprint, setObservedFingerprint] = useState<string | null>(null);
   const [tested, setTested] = useState<{
     version: string | null;

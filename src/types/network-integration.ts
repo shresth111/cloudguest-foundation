@@ -144,6 +144,27 @@ export const CONTROLLER_TLS_MODE_LABEL: Record<ControllerTlsMode, string> = {
   insecure: "Do not check the certificate",
 };
 
+/**
+ * The modes a person may newly CHOOSE. `insecure` is not one of them.
+ *
+ * Deliberately narrower than `ControllerTlsMode`, which stays three-valued
+ * because rows already stored as `insecure` exist and must still render with
+ * their real label rather than as a blank or a lie. The type is what the
+ * system can HOLD; this is what a form may OFFER, and the two are different
+ * questions.
+ *
+ * Why it is excluded: the case "Do not check the certificate" was written for
+ * is a self-hosted controller presenting a self-signed certificate, and
+ * `pinned` handles that properly -- verified against a real controller, where
+ * `tls_mode: "pinned"` plus the SHA-256 fingerprint passes the TLS gate
+ * exactly as `strict` does. So the insecure option buys nothing pinning does
+ * not, on the connection that carries the credentials guests are authorised
+ * with. The Master console's controller step already filtered it out; the
+ * venue wizard still offered it, and one product cannot answer "is insecure
+ * allowed?" two different ways on two screens.
+ */
+export const ASSIGNABLE_TLS_MODES: readonly ControllerTlsMode[] = ["strict", "pinned"];
+
 export const CONTROLLER_TLS_MODE_SUMMARY: Record<ControllerTlsMode, string> = {
   strict:
     "For a controller with a certificate from a public certificate authority — TP-Link cloud, or a controller behind your own HTTPS proxy.",
