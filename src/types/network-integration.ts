@@ -113,17 +113,36 @@ export const GUEST_OPERATOR_REQUIRED_NOTE =
 /**
  * Whether a credential draft is complete for the mode it will be saved under.
  *
- * Open API needs the app pair AND the operator pair: saving the app alone is
- * accepted by the API (it is a valid inventory credential), but it produces
- * an integration that cannot authorise a single guest, which is not what
- * anyone on this page is trying to set up. Half of either pair is incomplete.
+ * Open API normally needs the app pair AND the operator pair: an app on its
+ * own syncs green and turns every guest away, which is not what anyone
+ * setting a venue up is trying to build.
+ *
+ * `operatorOptional` exists because that rule, applied to REPAIR, is what
+ * made a live venue unrecoverable on 2026-09-13. Its stored operator was the
+ * controller's admin account -- an account type Omada's hotspot login never
+ * accepts -- and the fix its own dry-run report named was "save only the Open
+ * API app's credentials and run this again", because dropping the operator
+ * pair is what lets `Configure controller` mint a working one. Rotation is a
+ * wholesale overwrite, so "save the app alone" is the only way to express
+ * that. This predicate disabled the Save button for exactly that input, so
+ * the one documented repair could not be typed into the only form that
+ * performs it.
+ *
+ * Pass it where a later step creates the operator (the Master drawer, whose
+ * Configure controller section does precisely that). Leave it off for
+ * first-time connection, where nothing follows to fill the gap.
  */
 export function credentialsCompleteForMode(
   mode: ControllerAuthMode,
   c: NetworkIntegrationCredentials,
+  { operatorOptional = false }: { operatorOptional?: boolean } = {},
 ): boolean {
   const operator = !!c.username && !!c.password;
-  return mode === "openapi" ? !!c.clientId && !!c.clientSecret && operator : operator;
+  if (mode !== "openapi") return operator;
+  if (!c.clientId || !c.clientSecret) return false;
+  // Half an operator login is still incomplete -- the backend refuses it
+  // rather than storing a name with no password.
+  return operatorOptional ? !c.username === !c.password : operator;
 }
 
 /**
