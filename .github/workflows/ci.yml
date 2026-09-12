@@ -314,6 +314,23 @@ jobs:
             "portal search retention: all checks passed" \
             bun run test:portal-search-retention
 
+      # A captive-portal redirect must never resolve to a staff sign-in
+      # form. Observed in production 2026-09-12: the bare host, carrying
+      # Omada's own eight redirect parameters, rendered the venue's OPERATOR
+      # sign-in page -- email and password, inside the OS captive-network
+      # sheet, for a guest who did nothing but join the WiFi. It needs no
+      # attacker: an operator who pastes `auth.wyfyguest.com` into the
+      # controller instead of `auth.wyfyguest.com/portal?...` produces it
+      # for every guest at that venue. The guard is a `beforeLoad` on three
+      # route files and nothing in tsc or eslint can see it being deleted,
+      # so this suite drives a real router through the real production URL.
+      - name: captive-portal redirect never reaches a sign-in form
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "capport-misroute" 20 \
+            "All captive-portal misroute checks passed." \
+            bun run test:capport-misroute
+
       # The guest's own IP address, as an Omada controller reported it.
       # From controller v6.2.10 (current shipping firmware) TP-Link's doc
       # 132060 says the authorization body "must contain" `clientIp`, in

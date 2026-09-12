@@ -1,12 +1,31 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
 import { LoginPage } from "@/components/auth/LoginPage";
 import { MasterLoginPage } from "@/components/auth/MasterLoginPage";
 import { CustomerDashboardPage } from "@/components/customer/CustomerDashboardPage";
+import { captivePortalRedirect } from "@/lib/captive-portal-redirect";
 
 export const Route = createFileRoute("/")({
+  // A captive-portal redirect that landed one path segment short of
+  // `/portal` must never be answered with the venue's own staff login --
+  // see src/lib/captive-portal-redirect.ts for the production observation
+  // and the rule. This is the worst of the three sign-in surfaces to get
+  // wrong, because the bare host is what an operator produces by pasting
+  // `auth.wyfyguest.com` into the controller's URL field instead of
+  // `auth.wyfyguest.com/portal?...`, and every guest at that venue then
+  // lands here.
+  //
+  // In `beforeLoad`, not in the component: this route is server-rendered,
+  // so the guard runs on the server and the guest gets a redirect rather
+  // than a document containing an email-and-password form. An effect could
+  // only navigate away AFTER that form had already been delivered and
+  // painted.
+  beforeLoad: ({ location }) => {
+    const target = captivePortalRedirect(location.search as Record<string, unknown>);
+    if (target) throw redirect(target);
+  },
   component: IndexRedirect,
 });
 

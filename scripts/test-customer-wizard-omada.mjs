@@ -249,6 +249,9 @@ const { chromium } = await import("playwright");
 const browser = await chromium.launch();
 
 const OPERATOR_PASSWORD = "op-Secret-9731";
+/* A real Omada site id -- our own controller's, read off its portal redirect
+ * on 2026-09-12. 24 lowercase hex; a site NAME in this field is refused. */
+const SITE_ID = "6aa3913c3ee1605f71ac35a1";
 const provisions = () => requests.filter((r) => r.path === "/locations/provision");
 const onboards = () => requests.filter((r) => r.path === "/network-integrations/platform/onboard");
 const dialog = (page) => page.locator('[role="dialog"]');
@@ -294,7 +297,7 @@ async function fillOmada(page, overrides = {}) {
     "Controller address": "https://ctl.example.com:8043",
     "Hotspot operator name": "wyfy-operator",
     "Hotspot operator password": OPERATOR_PASSWORD,
-    "Omada site": "Default",
+    "Omada site id": SITE_ID,
     "Guest SSID (optional)": "Seaside-Guest",
     ...overrides,
   };
@@ -334,7 +337,7 @@ console.log("\n1. Omada: provision without a router, then onboard with the new i
     review.includes("Seaside Controller") &&
       review.includes("https://ctl.example.com:8043") &&
       review.includes("Hotspot operator") &&
-      review.includes("Default · Seaside-Guest") &&
+      review.includes(`${SITE_ID} · Seaside-Guest`) &&
       review.includes("Pinned certificate"),
     review.slice(0, 600),
   );
@@ -386,9 +389,14 @@ console.log("\n1. Omada: provision without a router, then onboard with the new i
     !("client_id" in (onb?.body ?? {})) && !("client_secret" in (onb?.body ?? {})),
   );
   check(
-    "site goes up front as both id and name, SSID as its name",
-    onb?.body.external_site_id === "Default" &&
-      onb?.body.external_site_name === "Default" &&
+    "the site id goes up front, and NOT as the name too, SSID as its name",
+    onb?.body.external_site_id === SITE_ID &&
+      // Deliberately absent. `external_site_name` is the human label read
+      // back on later screens; a hotspot operator login cannot list sites
+      // (CR-002) so nobody knows it yet, and copying the id in was what
+      // made the id-versus-name error invisible. See
+      // src/lib/omada-site-id.ts.
+      !onb?.body.external_site_name &&
       onb?.body.guest_ssid_name === "Seaside-Guest",
     JSON.stringify(onb?.body),
   );
@@ -522,7 +530,7 @@ console.log("\n3. Omada: the draft is validated before anything is created");
   await fillOmada(page, {
     "Controller address": "http://ctl.example.com:8043/omada",
     "Hotspot operator password": "",
-    "Omada site": "",
+    "Omada site id": "",
   });
   await cont(page);
   const text = await dialog(page).innerText();
@@ -530,6 +538,19 @@ console.log("\n3. Omada: the draft is validated before anything is created");
   check("refuses plain http", /Use https:\/\//.test(text), text.slice(0, 800));
   check("requires the operator password", text.includes("Operator password is required"));
   check("requires the site", /Required — the controller cannot let a guest online/.test(text));
+
+  // The site is an ID, not a name. Typing the name -- which the old field
+  // label, placeholder and help text all invited, and which is exactly what
+  // the live QA integration was stored with -- must be refused here rather
+  // than stored and passed into every controller call. See
+  // src/lib/omada-site-id.ts.
+  await dialog(page).getByLabel("Omada site id", { exact: true }).fill("wyfyguest");
+  await cont(page);
+  check(
+    "refuses a site NAME where the site id belongs",
+    /looks like a site name, not a site id/.test(await dialog(page).innerText()),
+  );
+  await dialog(page).getByLabel("Omada site id", { exact: true }).fill(SITE_ID);
 
   await dialog(page)
     .getByLabel("Controller address", { exact: true })

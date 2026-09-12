@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
+import { OMADA_SITE_ID_EXAMPLE, omadaSiteIdError } from "@/lib/omada-site-id";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -681,9 +682,13 @@ export function PlatformLocationWizard({
 function controllerErrors(c: ControllerDraft): Record<string, string> {
   const e: Record<string, string> = {};
   if (c.name.trim().length < 2) e["controller.name"] = "Controller name is required";
-  if (!c.site.trim()) {
-    e["controller.site"] = "Required — the controller cannot let a guest online without it";
-  }
+  // The site is an ID, not a name -- see src/lib/omada-site-id.ts for the
+  // two measurements that settle it and for the field copy that produced
+  // the opposite. Refused here rather than stored: the backend refuses it
+  // too, and a value that gets past both turns away every guest at the
+  // venue with a 403 that names nothing.
+  const siteError = omadaSiteIdError(c.site);
+  if (siteError) e["controller.site"] = siteError;
   for (const issue of omadaControllerIssues({
     serialNumber: c.serialNumber,
     macAddress: c.macAddress,
@@ -737,12 +742,18 @@ function onboardPayload(c: ControllerDraft, r: ProvisionLocationResult): Onboard
     tlsPinnedSha256: c.tlsMode === "pinned" ? c.tlsPinnedSha256.trim() : undefined,
     serialNumber: serialNumber || undefined,
     macAddress: macAddress || undefined,
-    // A hotspot operator login cannot list sites, so the typed value is both
-    // the id and the name -- what Omada puts on its own redirect's `site=`
-    // and what the authorize call sends back. Same as the customer page's
-    // typed-site path.
+    // The typed value is the site ID -- validated as one by
+    // `controllerErrors` above, and it is what Omada puts on its own
+    // redirect's `site=` and what the authorize call sends back.
+    //
+    // It is deliberately NOT also sent as `external_site_name`. That field
+    // is the human label an operator reads back on every later screen, and
+    // a hotspot operator login cannot list sites (CR-002), so at this point
+    // nobody knows it. Copying the id in was what made the two fields
+    // indistinguishable and hid the id-versus-name error; leaving it unset
+    // renders as an honest "—" until the Open API picker or an edit fills
+    // it in.
     externalSiteId: site,
-    externalSiteName: site,
     guestSsidName: c.ssid.trim() || undefined,
   };
 }
@@ -1383,15 +1394,17 @@ function ControllerFields({
       />
       <ControllerInput
         id="controller-site"
-        label="Omada site"
+        label="Omada site id"
         value={state.site}
         onChange={(v) => upd("site", v)}
-        placeholder="Default"
+        placeholder={OMADA_SITE_ID_EXAMPLE}
         error={errors["controller.site"]}
         help={
           <>
-            The <code>site=</code> value in the guest's sign-in URL, or the site id; single-site
-            controllers often use <code>Default</code>.
+            The <code>site=</code> value in the guest&apos;s sign-in URL — 24 letters and digits,
+            not the site&apos;s name. Open the guest WiFi on a phone and read it out of the address
+            bar when the sign-in page appears. <code>Default</code> is a name and will not work, on
+            a single-site controller either.
           </>
         }
       />
@@ -1583,25 +1596,22 @@ function ControllerOutcomePanel({
       </div>
 
       {/*
-        Confirm-or-correct, and for an Open API controller it is usually a
-        correction.
+        Confirm-or-correct, and for an Open API controller it is where the
+        human-readable site NAME first becomes knowable.
 
-        The Device step asks for the site before anything exists to list, so
-        the typed value is sent as BOTH `external_site_id` and
-        `external_site_name` -- correct for a hotspot-operator login, where
-        the name genuinely is the identifier Omada puts on its redirect, and
-        usually WRONG for an Open API controller, whose real site id is an
-        opaque string the operator has no way to type. Now that the
-        integration exists it can be listed, so this is the first moment the
-        right id can be chosen. With operator-only credentials the panel
-        stays a text box and simply confirms what was typed.
+        The Device step asks for the site id before anything exists to list,
+        so it sends `external_site_id` alone -- an id is all a hotspot
+        operator login can ever establish (CR-002). Now that the integration
+        exists, an Open API controller can be listed, so this is the first
+        moment the site can be picked from the real list and its name
+        recorded alongside the id. With operator-only credentials the panel
+        stays a text box and simply confirms the id that was typed.
       */}
       <div className="rounded-lg border border-border/70 p-3">
         <OmadaSiteMapping
           integrationId={r.integrationId}
           authMode={controller.authMode}
           initialSiteId={controller.site.trim()}
-          initialSiteName={controller.site.trim()}
           initialSsidName={controller.ssid.trim()}
         />
       </div>

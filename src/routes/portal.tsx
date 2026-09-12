@@ -308,10 +308,22 @@ function PortalRuntimeLayout() {
   // supplied -- never the merged values above, so a mirrored parameter
   // cannot perpetuate itself across a fresh redirect that dropped it.
   //
-  // Gated on `urlNetProvider`, which only `/omada/$token`'s loader stamps.
+  // Gated on `urlNetProvider`, which is present only because the backend
+  // baked it into the External Portal Server URL the venue's operator
+  // pasted into their controller (`validators.build_external_portal_url`).
   // That is what keeps a MikroTik venue from ever writing this key, and
   // what makes "there is a mirror" and "this guest came through an Omada
   // controller" the same statement.
+  //
+  // It used to say "`/omada/$token`'s loader stamps it". That route was
+  // designed and then deliberately not built: the path-token entry hop
+  // existed only to work around a misreading of doc 132060's redirect
+  // TEMPLATE, which was taken as evidence that a controller might join its
+  // parameters to a configured query string with a second `?`. Hardware
+  // said otherwise -- it joins with `&` -- so Omada guests land on this
+  // same `/portal` route as MikroTik guests, with no second entry point.
+  // There is no `/omada/$token` route, no loader and no backend half; see
+  // ~/wyfy-omada/GUEST-BRIDGE-CONTRACT.md §1.
   useEffect(() => {
     if (!urlNetProvider) return;
     persistOmadaContext({
@@ -348,9 +360,9 @@ function PortalRuntimeLayout() {
       // where `clientIp` is a flat prop (doc 132060's `t` collides with the
       // context's own i18n `t`).
       omadaRedirect={omadaRedirect}
-      // Which vendor's gate `/portal/success` has to open. Stamped by
-      // `/omada/$token`'s loader after it read the provider off the
-      // integration row, mirrored alongside the controller's own
+      // Which vendor's gate `/portal/success` has to open. Baked into the
+      // configured portal URL by the backend, which read the provider off
+      // the integration row, mirrored alongside the controller's own
       // parameters, and never inferred here from which of them survived.
       netProvider={netProvider}
       destinationUrl={dst}

@@ -798,8 +798,17 @@ check(
     /enabled: step === 4 && !!integrationId && canListInventory/.test(page),
 );
 check(
-  "the wizard offers a typed site name in legacy mode instead of a picker that cannot populate",
-  /step === 2 && !canListInventory/.test(page) && /omada-site-name/.test(page),
+  "the wizard offers a typed site ID in legacy mode instead of a picker that cannot populate",
+  /step === 2 && !canListInventory/.test(page) && /omada-site-id/.test(page),
+);
+// The field collects an ID, never a display name. A name stored here is
+// passed through as `site_id` into every controller call and compared
+// against the `site=` on Omada's own redirect -- which carries the id -- so
+// it turns away every guest at the venue with an opaque 403. Refused at the
+// field rather than stored. See src/lib/omada-site-id.ts.
+check(
+  "the typed site field refuses a display name",
+  /isOmadaSiteId\(siteId\)/.test(page) && /omadaSiteIdError\(siteId\)/.test(page),
 );
 check(
   "and a typed SSID name",

@@ -256,8 +256,9 @@ check(
  * 2b. The same two-hop path, Omada-flavoured.
  *
  * A controller's redirect carries nine parameters only it can supply, and
- * `netProvider` -- stamped by `/omada/$token`'s loader after it read the
- * provider off the integration row -- decides which vendor's gate
+ * `netProvider` -- baked into the configured External Portal Server URL
+ * by the backend, which read the provider off the integration row --
+ * decides which vendor's gate
  * `/portal/success` opens. Lose `netProvider` on one hop and the guest
  * completes sign-in, is told they are connected, and is not, because the
  * success page fired the RouterOS branch at a venue with no RouterOS. Lose
@@ -390,9 +391,9 @@ for (const key of [
   "ip",
   "dst",
   "link-login-only",
-  // The Omada half. `netProvider` is not a controller parameter -- it is
-  // stamped by `/omada/$token`'s loader -- but it is retained by the same
-  // mechanism and losing it has the same cost.
+  // The Omada half. `netProvider` is not a controller parameter -- the
+  // backend bakes it into the configured portal URL -- but it is retained
+  // by the same mechanism and losing it has the same cost.
   "netProvider",
   "clientMac",
   "clientIp",
