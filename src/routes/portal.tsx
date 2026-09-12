@@ -202,6 +202,13 @@ function PortalRuntimeLayout() {
     t,
     redirectUrl,
     netProvider: urlNetProvider,
+    portalMode: urlPortalMode,
+    // The RADIUS-mode (`authType 2`) half of a controller redirect. Same
+    // rule as the nine above: captured, never derived.
+    target,
+    targetPort,
+    scheme,
+    originUrl,
   } = search;
   const linkLoginOnly = search["link-login-only"];
 
@@ -230,9 +237,45 @@ function PortalRuntimeLayout() {
   // `PortalRuntimeProvider`'s context value is a `useMemo` over its props:
   // a fresh object identity every render would invalidate it every render
   // and re-render every portal screen with it.
+  // THIRTEEN values, not nine: the four RADIUS-mode ones ride in the same
+  // object rather than in a second parallel capture. A redirect is
+  // captured before anything decides which contract it belongs to, the two
+  // sets do not collide (an `authType 4` redirect carries no `target`, an
+  // `authType 2` redirect carries no `site` and no `t`), and each consumer
+  // reads only its own contract's fields -- see `OmadaPortalRedirect` in
+  // PortalRuntimeContext.tsx. A second object would mean a second thing to
+  // persist, a second thing to merge and a second thing to forget.
   const urlOmadaRedirect = useMemo(
-    () => ({ clientMac, site, apMac, ssidName, radioId, gatewayMac, vid, t, redirectUrl }),
-    [clientMac, site, apMac, ssidName, radioId, gatewayMac, vid, t, redirectUrl],
+    () => ({
+      clientMac,
+      site,
+      apMac,
+      ssidName,
+      radioId,
+      gatewayMac,
+      vid,
+      t,
+      redirectUrl,
+      target,
+      targetPort,
+      scheme,
+      originUrl,
+    }),
+    [
+      clientMac,
+      site,
+      apMac,
+      ssidName,
+      radioId,
+      gatewayMac,
+      vid,
+      t,
+      redirectUrl,
+      target,
+      targetPort,
+      scheme,
+      originUrl,
+    ],
   );
 
   // THE SECOND CHANNEL, for the same reason the three runtime IDs have one.
@@ -272,6 +315,11 @@ function PortalRuntimeLayout() {
   // src/lib/portal-authorize-body.ts refuses by name, and it is worse than
   // an absent value because the controller would accept it.
   const netProvider = urlNetProvider ?? persistedOmada?.netProvider;
+  // Same per-key rule, and the same direction: the URL wins, the mirror
+  // only fills a gap it left. An absent value on both means the default
+  // contract, which is what every venue is on until somebody deliberately
+  // moves one.
+  const portalMode = urlPortalMode ?? persistedOmada?.portalMode;
   const effectiveClientIp = clientIp ?? persistedOmada?.clientIp;
   const omadaRedirect = useMemo(() => {
     const mirrored = persistedOmada?.redirect;
@@ -316,10 +364,11 @@ function PortalRuntimeLayout() {
     if (!urlNetProvider) return;
     persistOmadaContext({
       netProvider: urlNetProvider,
+      portalMode: urlPortalMode,
       clientIp,
       redirect: urlOmadaRedirect,
     });
-  }, [urlNetProvider, clientIp, urlOmadaRedirect]);
+  }, [urlNetProvider, urlPortalMode, clientIp, urlOmadaRedirect]);
 
   if (
     !looksLikeRealId(organizationId) ||
@@ -353,6 +402,13 @@ function PortalRuntimeLayout() {
       // integration row, mirrored alongside the controller's own
       // parameters, and never inferred here from which of them survived.
       netProvider={netProvider}
+      // WHICH OF THAT VENDOR'S TWO CONTRACTS. Stamped into the pasted URL
+      // by the backend from `network_integrations.portal_mode`, mirrored
+      // alongside the controller's own parameters, and never inferred here
+      // from which of them survived. Where the redirect's own shape
+      // disagrees with it, the disagreement becomes a refusal rather than
+      // a silent switch of contract -- see `portalSearchShape.portalMode`.
+      portalMode={portalMode}
       destinationUrl={dst}
       hotspotLoginUrl={linkLoginOnly}
     >

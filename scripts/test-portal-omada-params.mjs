@@ -665,8 +665,13 @@ check(
 
 const ctxSrc = readFileSync(join(ROOT, "src/context/PortalRuntimeContext.tsx"), "utf8");
 check(
+  // `OmadaPortalRedirect` since 2026-09-12: the same captured object now
+  // also carries the `authType 2` parameters (`target`, `targetPort`,
+  // `scheme`, `originUrl`), which are inert on this contract -- see that
+  // type's own docstring. The assertion still pins what it was written to
+  // pin: one declaration on the props, one on the state, both typed.
   "PortalRuntimeContext declares omadaRedirect on its props and its state",
-  (ctxSrc.match(/^\s{2}omadaRedirect\?: OmadaRedirectCapture;$/gm) ?? []).length === 2,
+  (ctxSrc.match(/^\s{2}omadaRedirect\?: OmadaPortalRedirect;$/gm) ?? []).length === 2,
 );
 check(
   "...and puts it on the context value",

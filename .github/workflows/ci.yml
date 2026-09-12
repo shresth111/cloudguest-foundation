@@ -368,6 +368,31 @@ jobs:
             "portal Omada params: all checks passed" \
             bun run test:portal-omada-params
 
+      # Omada's SECOND captive-portal contract (`authType 2` + External Web
+      # Portal), where the guest's browser submits to the CONTROLLER and the
+      # controller asks our FreeRADIUS -- the reverse of the flow the suite
+      # above covers. Three silent regressions this catches, each verified
+      # to fail when reverted:
+      #
+      #   1. the page starts INFERRING the contract from which parameters
+      #      arrived instead of the stored `portalMode`, so a firmware
+      #      revision that adds or drops one moves a whole venue onto the
+      #      wrong path -- with the portal claiming success;
+      #   2. the submit moves to `/portal/radius/auth`, the XHR endpoint,
+      #      which delivers the request and cannot read the answer
+      #      cross-origin (measured on the live controller: no
+      #      `Access-Control-Allow-Origin`, and a preflight allowing only
+      #      OPTIONS);
+      #   3. the submit becomes a `fetch`, which hangs iOS's Captive
+      #      Network Assistant forever -- the exact incident
+      #      `submitHotspotLogin` was rewritten to fix for MikroTik.
+      - name: portal Omada RADIUS mode
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "portal-radius-mode" 31 \
+            "portal RADIUS mode: all checks passed" \
+            bun run test:portal-radius-mode
+
       # Which organization every request is about. A founder holding
       # `Super Admin` at GLOBAL scope opened a report about his own venue on
       # 7 Sep 2026 and read numbers blended across all fourteen
