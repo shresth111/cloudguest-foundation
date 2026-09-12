@@ -167,10 +167,7 @@ check(
   "...but only while the operator has not chosen one",
   /!timezoneTouched \? \{ timezone: tz \}/.test(wizard),
 );
-check(
-  "choosing a timezone marks it as touched",
-  /setTimezoneTouched\(true\)/.test(wizard),
-);
+check("choosing a timezone marks it as touched", /setTimezoneTouched\(true\)/.test(wizard));
 check(
   "and the screen says which of the two is happening",
   /Follows the country until you change it/.test(wizard) &&

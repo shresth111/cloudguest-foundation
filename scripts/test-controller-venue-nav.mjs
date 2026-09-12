@@ -296,7 +296,9 @@ console.log("\ncontroller venue: the five Network screens");
   // owner. The panel must offer no route out and name a person instead.
   check(
     "omada-port-forwarding-offers-no-dead-link",
-    (await r.page.getByRole("link", { name: /Network Integrations|See this venue.s controller/ }).count()) === 0,
+    (await r.page
+      .getByRole("link", { name: /Network Integrations|See this venue.s controller/ })
+      .count()) === 0,
   );
   check(
     "omada-port-forwarding-names-who-can-do-it",
