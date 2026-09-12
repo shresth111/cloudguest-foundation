@@ -266,8 +266,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       removeStored(PRE_IMPERSONATION_SESSION_KEY);
       removeStored(IMPERSONATION_EXPIRES_AT_KEY);
 
-      // Demo mode: bypass backend if using test credentials
-      if (creds.email === "admin@example.com" && creds.password === "test") {
+      // Demo mode: bypass the backend for one hardcoded credential pair.
+      //
+      // OFF UNLESS EXPLICITLY ENABLED AT BUILD TIME. This branch mints a
+      // complete session -- Super Admin, global scope -- entirely in the
+      // browser, and both strings it matches on ship in the public bundle.
+      // The backend refuses the token it issues, so this was never data
+      // access; what it was is a console that *presents* as a global admin
+      // to anyone who reads the JS, and until PR #282 it also survived a
+      // real `force-logout` because the 401 handler exempted it.
+      //
+      // It is kept rather than deleted because it is how the product is
+      // demonstrated. Set `VITE_ENABLE_DEMO_LOGIN=true` for a demo or local
+      // build; production ships without it and the credentials simply fail
+      // like any others.
+      if (
+        import.meta.env.VITE_ENABLE_DEMO_LOGIN === "true" &&
+        creds.email === "admin@example.com" &&
+        creds.password === "test"
+      ) {
         const demoSession: AuthSession = {
           user: {
             id: "u-001",
