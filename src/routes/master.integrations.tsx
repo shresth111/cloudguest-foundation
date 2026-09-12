@@ -727,14 +727,35 @@ function IntegrationDrawer({
       }
     },
     onError: (err) => {
-      // The 409 path. `data.code` is the typed precondition; `code` is the
-      // envelope's own. Either may carry it depending on how the error was
-      // shaped, and an unrecognised value is still rendered rather than
-      // dropped -- see the gap list, which prints anything it does not know.
+      // The 409 path, and BOTH halves of it matter -- verified against the
+      // live QA venue on 2026-09-12, where this rendered
+      // "NETWORK_INTEGRATION_AUTOCONFIG_PRECONDITIONS - this build does not
+      // recognise that precondition" instead of the one gap that was
+      // actually unmet.
+      //
+      //   {"data": {"code": "NETWORK_INTEGRATION_AUTOCONFIG_PRECONDITIONS",
+      //             "missing": ["openapi_required"]}}
+      //
+      // `data.code` names the REFUSAL; `data.missing` is the gap list. They
+      // are different things, and rendering the code as a gap produces an
+      // amber panel that names no fix -- the precise failure the panel exists
+      // to prevent. `missing` is absent on the other pre-write refusals (a
+      // foreign portal on the SSID, a shared site), so the code stays as the
+      // fallback rather than leaving those silent.
+      //
+      // Casing is the second half: the backend emits `ControllerSetupGap`
+      // values lowercase (`openapi_required`) while `CONTROLLER_SETUP_GAP_COPY`
+      // and `CONTROLLER_SETUP_GAP_ORDER` are keyed on the uppercase union.
+      // Without this normalisation a correct list still renders as
+      // unrecognised, so the two bugs hid each other.
       const e = err as unknown as AppError;
       const typed = (e?.data?.code ?? e?.code) as string | undefined;
-      if (e?.status === 409 && typed) {
-        setConfigureGaps([typed]);
+      const rawMissing = e?.data?.missing;
+      const missing = Array.isArray(rawMissing)
+        ? rawMissing.filter((g): g is string => typeof g === "string").map((g) => g.toUpperCase())
+        : [];
+      if (e?.status === 409 && (missing.length > 0 || typed)) {
+        setConfigureGaps(missing.length > 0 ? missing : [typed as string]);
         // A stale preview describes a run that is now refused, and leaving it
         // on screen under a fresh refusal reads as though it still applies.
         setOutcome(null);
