@@ -10,6 +10,21 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
 import type { OmadaRedirectCapture } from "@/lib/portal-authorize-body";
+import type { OmadaRadiusRedirect } from "@/lib/portal-radius-submit";
+
+/** Everything an Omada controller can put on a portal redirect, across
+ * BOTH of its captive-portal contracts.
+ *
+ * An intersection rather than a union, because a redirect is captured
+ * before anything decides which contract it belongs to, and the two field
+ * sets do not overlap where it matters: `authType 4` sends `site`/`t`,
+ * `authType 2` sends `target`/`targetPort`/`scheme`/`originUrl`, and each
+ * is simply absent in the other. The modules that consume this each read
+ * only their own contract's fields -- `portal-authorize-body.ts` maps the
+ * `authType 4` set onto our authorize body, `portal-radius-submit.ts`
+ * builds the `authType 2` form -- so a field from the wrong contract is
+ * inert rather than wrong. */
+export type OmadaPortalRedirect = OmadaRedirectCapture & OmadaRadiusRedirect;
 import type {
   RuntimeAuthMethod,
   RuntimeLanguage,
@@ -297,8 +312,16 @@ const OMADA_CTX_STORAGE_KEY = "cloudguest_portal_omada_ctx";
  */
 interface PersistedOmadaContext {
   netProvider: string;
+  /** Which contract this venue is on, mirrored alongside the rest. A
+   * mirror that restored the controller's parameters but not the contract
+   * would leave `/portal/success` submitting a RADIUS venue's guest to
+   * this platform's own authorize endpoint -- the exact "all or nothing"
+   * rule `netProvider` above is already held to. Absent means the default
+   * (External Portal Server), which is also what every pre-existing
+   * mirror written before this field existed means. */
+  portalMode?: string;
   clientIp?: string;
-  redirect: OmadaRedirectCapture;
+  redirect: OmadaPortalRedirect;
 }
 
 function parsePersistedOmadaContext(raw: string | null): PersistedOmadaContext | undefined {
@@ -320,10 +343,11 @@ function parsePersistedOmadaContext(raw: string | null): PersistedOmadaContext |
   }
   const redirect =
     value.redirect && typeof value.redirect === "object"
-      ? (value.redirect as OmadaRedirectCapture)
+      ? (value.redirect as OmadaPortalRedirect)
       : {};
   return {
     netProvider: value.netProvider,
+    portalMode: typeof value.portalMode === "string" ? value.portalMode : undefined,
     clientIp: typeof value.clientIp === "string" ? value.clientIp : undefined,
     redirect,
   };
@@ -503,7 +527,7 @@ interface PortalRuntimeState {
    * CAPTURED, NEVER DERIVED, exactly as `clientIp` is. `ssidName` is not
    * the integration's configured SSID, `site` is not the integration's
    * stored site, and `t` is not `Date.now()`. */
-  omadaRedirect?: OmadaRedirectCapture;
+  omadaRedirect?: OmadaPortalRedirect;
   /** WHICH VENDOR'S GATE STANDS BETWEEN THIS GUEST AND THE INTERNET.
    *
    * `"omada"` when it was in the External Portal Server URL the venue's
@@ -519,6 +543,17 @@ interface PortalRuntimeState {
    * survived the trip, on the one screen where being wrong means the guest
    * completes sign-in, is told they are connected, and has no internet. */
   netProvider?: string;
+  /** WHICH OF OMADA'S TWO CONTRACTS THIS VENUE IS ON -- `"radius"` for
+   * `authType 2` + External Web Portal, absent (or `"external_portal"`)
+   * for the proven External Portal Server path.
+   *
+   * Read off the URL the venue's operator pasted into their controller,
+   * which the dashboard built from `network_integrations.portal_mode` --
+   * the single stored answer. `/portal/success` dispatches on it, and
+   * where the redirect's own shape disagrees the disagreement becomes a
+   * refusal rather than a silent switch of contract. Never inferred here:
+   * see `portalSearchShape.portalMode`. */
+  portalMode?: string;
   destinationUrl?: string;
   /** RouterOS's `$(link-login-only)` substitution -- the URL this guest's
    * browser must POST username/password to for the NAS itself to actually
@@ -663,10 +698,13 @@ interface Props {
    * redirect -- see `PortalRuntimeState.omadaRedirect`'s own docstring,
    * including why these nine are one object while `clientIp` is a flat
    * field. */
-  omadaRedirect?: OmadaRedirectCapture;
+  omadaRedirect?: OmadaPortalRedirect;
   /** Which vendor's gate this venue has -- see
    * `PortalRuntimeState.netProvider`. */
   netProvider?: string;
+  /** Which of Omada's two contracts this venue is on -- see
+   * `PortalRuntimeState.portalMode`. */
+  portalMode?: string;
   destinationUrl?: string;
   hotspotLoginUrl?: string;
   children: ReactNode;
@@ -696,6 +734,7 @@ export function PortalRuntimeProvider({
   clientIp,
   omadaRedirect,
   netProvider,
+  portalMode,
   destinationUrl,
   hotspotLoginUrl,
   previewMode = false,
@@ -955,6 +994,7 @@ export function PortalRuntimeProvider({
       clientIp,
       omadaRedirect,
       netProvider,
+      portalMode,
       destinationUrl,
       hotspotLoginUrl,
       previewMode,
@@ -995,6 +1035,7 @@ export function PortalRuntimeProvider({
       clientIp,
       omadaRedirect,
       netProvider,
+      portalMode,
       destinationUrl,
       hotspotLoginUrl,
       previewMode,

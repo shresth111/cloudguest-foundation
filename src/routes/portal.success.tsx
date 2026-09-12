@@ -17,6 +17,7 @@ import { usePortalLinkSearch } from "@/components/portal-runtime/usePortalLinkSe
 import { isCaptiveNetworkAssistant } from "@/lib/portal-cna";
 import { resolvePostLoginDestination } from "@/lib/portal-post-login";
 import { buildPortalAuthorizeBody, normalizeOmadaText } from "@/lib/portal-authorize-body";
+import { buildOmadaRadiusSubmission, submitOmadaRadiusLogin } from "@/lib/portal-radius-submit";
 import { guestPortalIntegrationService } from "@/services/network-integration.service";
 
 // v4 §6.1: the same "taking longer than expected" threshold
@@ -169,6 +170,11 @@ function SuccessPage() {
     // External Portal Server URL said so, undefined at every MikroTik
     // venue. Read, never inferred -- see `PortalRuntimeState.netProvider`.
     netProvider,
+    // WHICH OF OMADA'S TWO GATES. `"radius"` when the venue is on
+    // `authType 2` + External Web Portal, where this platform is not in
+    // the authorization path at all. Read, never inferred -- see
+    // `PortalRuntimeState.portalMode`.
+    portalMode,
     // What the Omada controller told us about this association, carried
     // from its redirect. Only the controller could have known any of it.
     omadaRedirect,
@@ -317,6 +323,72 @@ function SuccessPage() {
     }
   }
 
+  /**
+   * THE OMADA RADIUS GATE (`authType 2`), and it is the MikroTik shape,
+   * not the Omada one.
+   *
+   * On this contract our backend is never called: the guest's browser
+   * submits to the venue's controller, the controller sends a RADIUS
+   * Access-Request to this platform's FreeRADIUS, and the controller opens
+   * the gate on the Access-Accept. So the mechanism here is the same
+   * top-level HTML form POST `submitHotspotLogin` uses for RouterOS --
+   * a different URL and different field names, the same navigation, for
+   * the same reason (an embedded `fetch` hangs iOS's Captive Network
+   * Assistant forever, and the controller's XHR endpoint cannot be read
+   * cross-origin anyway). The contract itself lives in
+   * `@/lib/portal-radius-submit`.
+   *
+   * ## The identifier is load-bearing here, unlike the other Omada branch
+   *
+   * `authorizeOnController` above is keyed on the SESSION ID, so a guest
+   * whose identifier was lost to a reload can still be authorized. This
+   * path cannot: `username` is what our FreeRADIUS looks an ACTIVE
+   * `GuestSession` up by (`RadiusService.authorize` is a session lookup,
+   * not a password check). Without it there is nothing to submit, so this
+   * releases the guard and leaves the guest on the retry screen rather
+   * than posting a credential that is certain to be rejected -- and a
+   * rejection here is not a styled error, it is a raw JSON blob rendered
+   * by the browser (see the module docstring).
+   *
+   * ## A refusal is a configuration disagreement, and it is not guessed past
+   *
+   * The venue's stored mode says RADIUS; the redirect says where to
+   * submit. If the redirect carries no `target`/`targetPort`/`scheme`,
+   * the controller is still configured for the other contract -- or this
+   * is a portal URL captured before the venue moved. Only the controller
+   * ever knew its own address, so there is nothing to fall back to, and
+   * inventing one would post this guest's identifier to whatever we
+   * guessed.
+   */
+  function submitRadiusLogin() {
+    if (!guestIdentifier) {
+      hotspotLoginSubmitted.current = false;
+      return;
+    }
+    const submission = buildOmadaRadiusSubmission(omadaRedirect ?? {}, {
+      identifier: guestIdentifier,
+      // The same placeholder the RouterOS branch sends, and for the same
+      // reason: no RADIUS path in this product checks it. FreeRADIUS sets
+      // `control:Auth-Type` from our own backend's session lookup before
+      // `pap`/`chap` ever run, so the credential in the packet is never
+      // verified -- in PAP or CHAP mode alike.
+      password: HOTSPOT_FALLBACK_PASSWORD,
+      // `originUrl` is this contract's `dst`: where the controller sends
+      // the browser on its 302 after the Access-Accept. Same decision as
+      // every other post-login navigation on this page.
+      landingUrl: directTarget(),
+    });
+    if ("refused" in submission) {
+      // Nothing is in flight, so the existing slow/stuck notice and the
+      // retry control are the honest state. No navigation, and above all
+      // no claim of success.
+      hotspotLoginSubmitted.current = false;
+      return;
+    }
+    submitOmadaRadiusLogin(submission);
+    persistHotspotSubmit({ identifier: guestIdentifier, at: Date.now() });
+  }
+
   function attemptSubmit() {
     if (!session || hotspotLoginSubmitted.current) return;
 
@@ -343,6 +415,18 @@ function SuccessPage() {
     // a venue is behind one vendor or the other.
     if (netProvider === "omada") {
       hotspotLoginSubmitted.current = true;
+      // WHICH OMADA CONTRACT, FROM THE STORED ANSWER. `portalMode` comes
+      // off the URL the venue's operator pasted, which the backend built
+      // from `network_integrations.portal_mode` -- the one place that
+      // knows. It is not sniffed from the redirect's parameters here, and
+      // the two branches are mutually exclusive: on `authType 2` our
+      // backend is not in the authorization path at all, so calling
+      // `authorizeOnController` for a RADIUS venue would ask the
+      // controller to do something it is no longer configured to do.
+      if (portalMode === "radius") {
+        submitRadiusLogin();
+        return;
+      }
       void authorizeOnController();
       return;
     }
@@ -525,6 +609,7 @@ function SuccessPage() {
     routerId,
     navigate,
     netProvider,
+    portalMode,
   ]);
 
   useEffect(() => {

@@ -337,6 +337,57 @@ const portalSearchShape = {
   // what makes it survive the ~6 route transitions between the redirect
   // and `/portal/success`. See this file's docstring.
   netProvider: z.string().optional(),
+  // WHICH OF OMADA'S TWO CAPTIVE-PORTAL CONTRACTS THIS VENUE IS ON.
+  //
+  // Also not a controller parameter, and carried for exactly the same
+  // reason as `netProvider` above: the backend stamps it into the URL the
+  // operator pastes, from `network_integrations.portal_mode`, which is the
+  // only place the answer is known for certain.
+  //
+  //   absent / "external_portal" -> the proven External Portal Server
+  //          contract (`authType 4`): our backend calls the controller.
+  //   "radius" -> `authType 2` + External Web Portal: the guest's browser
+  //          submits to the CONTROLLER, which then asks our FreeRADIUS.
+  //
+  // The redirect's own shape does distinguish the two -- a RADIUS redirect
+  // carries `target`/`targetPort`/`scheme` and carries no `site` and no
+  // `t` -- and that shape is used only to REFUSE, never to decide. A venue
+  // recorded as RADIUS whose redirect carries no `target` has nowhere to
+  // submit, and `portal-radius-submit.ts` refuses rather than guessing the
+  // controller's address; a venue recorded as External Portal Server whose
+  // redirect carries no `site` is refused by the backend's own
+  // configured-site check. Neither case silently switches contract.
+  // Sniffing would put the decision in whichever parameter a firmware
+  // revision happens to send, on the one page where being wrong means the
+  // guest posts their identifier to the wrong place entirely.
+  portalMode: z.string().optional(),
+  // The RADIUS-mode redirect's own parameters (`authType 2`), captured
+  // under the controller's spellings exactly as the `authType 4` ones
+  // above are. Same rule: captured, never derived.
+  //
+  // `target`/`targetPort`/`scheme` are the load-bearing three -- they are
+  // the controller telling this page WHERE to submit the guest's
+  // identifier, which is the whole architectural difference between the
+  // two contracts. Without them there is nothing to submit to, and
+  // `portal-radius-submit.ts` refuses rather than guessing an address.
+  target: omadaRedirectParam(),
+  targetPort: omadaRedirectParam(),
+  scheme: omadaRedirectParam(),
+  // `authType 2`'s spelling of "where this guest was going". The
+  // `authType 4` redirect calls the same idea `redirectUrl` above, and the
+  // controller encodes this one only partially (`=` and `&` are
+  // percent-encoded, `://` and `?` are not), which a standard query parser
+  // recovers intact. Kept separate rather than folded into `redirectUrl`:
+  // they come from different contracts and either may be absent while the
+  // other is present.
+  originUrl: omadaRedirectParam(),
+  // Two undocumented parameters this controller adds and TP-Link's own
+  // documentation does not mention. Declared so they are captured rather
+  // than silently dropped; nothing reads them. `hostname` is the
+  // controller's PRIVATE VPC address, which it puts in a URL a guest's
+  // browser can see -- recorded, not used.
+  hostname: omadaRedirectParam(),
+  serverPort: omadaRedirectParam(),
   // The guest's own chosen portal language, put here by `buildSessionUrl`
   // so it survives portal.success.tsx's full-document POST to the NAS --
   // the one boundary on this flow where React state and (on iOS's Captive
