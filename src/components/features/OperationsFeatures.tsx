@@ -10,6 +10,11 @@ import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { toast } from "sonner";
 import {
+  controllerRouterDeviceWriteReason,
+  isControllerManaged,
+  routerVendorLabel,
+} from "@/lib/router-vendors";
+import {
   Activity,
   AlertTriangle,
   ArrowLeftRight,
@@ -2749,6 +2754,21 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
   }, [selectedRouterId, demo]);
 
   const selectedRouter = routers.find((r) => r.id === selectedRouterId) ?? null;
+  /**
+   * Contract §11.5. Everything on this screen splits cleanly in two:
+   *
+   *  - RECORDS about the venue's line -- provider, bandwidth, DNS, which link
+   *    is primary. Ours, stored by us, true whoever runs the WiFi. They stay.
+   *  - CONVERSATIONS WITH THE DEVICE -- the health check, failover, failback
+   *    and the policy-routing rules. Every one of those reaches RouterOS, and
+   *    on a controller row there is no RouterOS to reach: the health sweep
+   *    never runs, so a link attached here would sit at "unknown" for ever,
+   *    and failover/routing are refused by vendor.
+   *
+   * Only the second group is gated, and it is gated here rather than left to
+   * fail on click.
+   */
+  const ispDeviceControlsApply = !isControllerManaged(selectedRouter?.vendor);
 
   const openCreate = () => {
     setEditingLink(null);
@@ -3039,12 +3059,26 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
                 />
               </SelectTrigger>
               <SelectContent>
+                {/* Contract §11.5, and the ONE Network screen where a
+                    controller stays selectable. A venue's uplink is a record
+                    about the building -- true whoever runs the WiFi -- and at
+                    a controller-only venue this row is the only one there is
+                    to attach it to, so greying it out would take the record
+                    away rather than the false promise. What is gated instead
+                    is everything on this screen that talks to the device;
+                    see `ispDeviceControlsApply` below. */}
                 {routers.map((r) => (
                   <SelectItem key={r.id} value={r.id}>
                     {r.name}{" "}
                     <span className="text-muted-foreground">
                       ({r.locationName || r.serialNumber})
                     </span>
+                    {isControllerManaged(r.vendor) && (
+                      <span className="text-muted-foreground">
+                        {" "}
+                        · {routerVendorLabel(r.vendor)} controller
+                      </span>
+                    )}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -3101,7 +3135,22 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
             ]}
           />
 
-          {links.length > 0 && (
+          {/* §11.5: said once, above the sections it explains, rather than as
+              a tooltip on each disabled button. */}
+          {!ispDeviceControlsApply && (
+            <div className="rounded-lg border border-dashed border-border bg-muted/30 p-4">
+              <p className="text-sm text-muted-foreground">
+                {controllerRouterDeviceWriteReason(selectedRouter.vendor)}
+              </p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                You can still record this venue&apos;s uplinks here — provider, speed and which one
+                is the main line — and they are used in your reports. What we cannot do from here is
+                check them, switch between them or route traffic across them.
+              </p>
+            </div>
+          )}
+
+          {ispDeviceControlsApply && links.length > 0 && (
             <Card className="border-0 shadow-sm">
               <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
                 <div>
@@ -3298,8 +3347,12 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8"
-                              title="Check health now"
-                              disabled={checkingId === l.id}
+                              title={
+                                ispDeviceControlsApply
+                                  ? "Check health now"
+                                  : "Health checks run on the router itself, which we do not reach for a controller-managed venue."
+                              }
+                              disabled={checkingId === l.id || !ispDeviceControlsApply}
                               onClick={() => checkHealth(l)}
                             >
                               <RefreshCw
@@ -3358,99 +3411,106 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0">
-              <div>
-                <CardTitle className="text-sm">Routing Rules</CardTitle>
-                <CardDescription>
-                  Pin matching traffic (by VLAN, device, IP, source network, interface, or policy)
-                  to a specific uplink.
-                </CardDescription>
-              </div>
-              <Button size="sm" onClick={openCreateRule} disabled={links.length === 0}>
-                <Plus className="h-4 w-4" />
-                New Rule
-              </Button>
-            </CardHeader>
-            <CardContent className="overflow-x-auto p-0">
-              {rulesLoading ? (
-                <div className="p-4">
-                  <LoadingSkeleton rows={3} />
+          {/* §11.5: not mounted at all for a controller. A routing rule is a
+              RouterOS policy route; listing an empty table with a New Rule
+              button over a backend that refuses by vendor is the defect. */}
+          {ispDeviceControlsApply && (
+            <Card className="border-0 shadow-sm">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                <div>
+                  <CardTitle className="text-sm">Routing Rules</CardTitle>
+                  <CardDescription>
+                    Pin matching traffic (by VLAN, device, IP, source network, interface, or policy)
+                    to a specific uplink.
+                  </CardDescription>
                 </div>
-              ) : rules.length === 0 ? (
-                <EmptyState
-                  icon={ArrowLeftRight}
-                  title="No routing rules yet"
-                  description={
-                    links.length === 0
-                      ? "Add an ISP link above first, then pin specific traffic to it here."
-                      : 'Click "New Rule" above to pin matching traffic to a specific uplink.'
-                  }
-                />
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="text-xs font-medium">Name</TableHead>
-                      <TableHead className="text-xs font-medium">Type</TableHead>
-                      <TableHead className="text-xs font-medium">Match</TableHead>
-                      <TableHead className="text-xs font-medium">Uplink</TableHead>
-                      <TableHead className="text-xs font-medium">Priority</TableHead>
-                      <TableHead className="text-xs font-medium">Status</TableHead>
-                      <TableHead className="w-[80px] text-right text-xs font-medium">
-                        Actions
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {rules.map((r) => (
-                      <TableRow key={r.id} className="border-b">
-                        <TableCell className="font-medium">{r.name}</TableCell>
-                        <TableCell className="text-xs uppercase text-muted-foreground">
-                          {r.ruleType}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">{matchValueFromRule(r)}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {links.find((l) => l.id === r.ispLinkId)?.providerName ??
-                            r.ispLinkId.slice(0, 8)}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {r.priority}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={r.isEnabled ? "default" : "secondary"}>
-                            {r.isEnabled ? "Enabled" : "Disabled"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              title="Edit"
-                              onClick={() => openEditRule(r)}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-muted-foreground"
-                              title="Remove"
-                              onClick={() => removeRule(r)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
+                <Button size="sm" onClick={openCreateRule} disabled={links.length === 0}>
+                  <Plus className="h-4 w-4" />
+                  New Rule
+                </Button>
+              </CardHeader>
+              <CardContent className="overflow-x-auto p-0">
+                {rulesLoading ? (
+                  <div className="p-4">
+                    <LoadingSkeleton rows={3} />
+                  </div>
+                ) : rules.length === 0 ? (
+                  <EmptyState
+                    icon={ArrowLeftRight}
+                    title="No routing rules yet"
+                    description={
+                      links.length === 0
+                        ? "Add an ISP link above first, then pin specific traffic to it here."
+                        : 'Click "New Rule" above to pin matching traffic to a specific uplink.'
+                    }
+                  />
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-xs font-medium">Name</TableHead>
+                        <TableHead className="text-xs font-medium">Type</TableHead>
+                        <TableHead className="text-xs font-medium">Match</TableHead>
+                        <TableHead className="text-xs font-medium">Uplink</TableHead>
+                        <TableHead className="text-xs font-medium">Priority</TableHead>
+                        <TableHead className="text-xs font-medium">Status</TableHead>
+                        <TableHead className="w-[80px] text-right text-xs font-medium">
+                          Actions
+                        </TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+                    </TableHeader>
+                    <TableBody>
+                      {rules.map((r) => (
+                        <TableRow key={r.id} className="border-b">
+                          <TableCell className="font-medium">{r.name}</TableCell>
+                          <TableCell className="text-xs uppercase text-muted-foreground">
+                            {r.ruleType}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {matchValueFromRule(r)}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {links.find((l) => l.id === r.ispLinkId)?.providerName ??
+                              r.ispLinkId.slice(0, 8)}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {r.priority}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={r.isEnabled ? "default" : "secondary"}>
+                              {r.isEnabled ? "Enabled" : "Disabled"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                title="Edit"
+                                onClick={() => openEditRule(r)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground"
+                                title="Remove"
+                                onClick={() => removeRule(r)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
 

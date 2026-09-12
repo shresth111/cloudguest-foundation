@@ -48,7 +48,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { RemoteAccessCard } from "@/components/routers/RouterDetailTabs";
 import {
-  DEVICE_VENDORS,
+  SELECTABLE_DEVICE_VENDORS,
   inputCls,
   RouterSetupDrilldown,
 } from "@/components/routers/RouterSetupScriptAdvanced";
@@ -60,7 +60,14 @@ import type { RouterDevice } from "@/types/router";
 import type { NetworkIntegration } from "@/types/network-integration";
 import { deriveRouterLiveness, lastContactLabel } from "@/lib/location-liveness";
 import type { RouterLivenessState } from "@/lib/location-liveness";
-import { isControllerManaged, routerVendorLabel } from "@/lib/router-vendors";
+import {
+  VENDOR_MISMATCH_DETAIL,
+  VENDOR_MISMATCH_LABEL,
+  isControllerManaged,
+  isControllerManagedRow,
+  routerVendorLabel,
+  vendorLooksWrong,
+} from "@/lib/router-vendors";
 import { deriveIntegrationSetup } from "@/lib/network-integration-readiness";
 import { networkIntegrationService } from "@/services/network-integration.service";
 import { useQuery } from "@tanstack/react-query";
@@ -141,7 +148,20 @@ function displayStatus(
   now: Date,
 ): "online" | "degraded" | "offline" | "controller" {
   const live = deriveRouterLiveness(
-    { id: r.id, name: r.name, status: r.status, last_seen_at: r.lastSeenAt, vendor: r.vendor },
+    {
+      id: r.id,
+      name: r.name,
+      status: r.status,
+      last_seen_at: r.lastSeenAt,
+      vendor: r.vendor,
+      // Contract §11.5. Read only on the controller branch, and only so a
+      // controller row cannot absorb a fault recorded against it.
+      health_status: r.healthStatus,
+      // FIX-PLAN D3a. Agent evidence, so a mislabelled MikroTik is judged on
+      // what it has been DOING rather than on what someone typed.
+      routeros_version: r.routerOsVersion,
+      has_api_credentials: r.hasApiCredentials,
+    },
     now,
   );
   // An unhealthy health check still demotes a router that is otherwise
@@ -155,6 +175,18 @@ function displayStatus(
   // to `degraded` and every Omada venue sat permanently in the group an
   // operator is meant to act on -- which is how a "needs attention" filter
   // stops being read at all.
+  //
+  // ...but the bucket is for a controller with NOTHING recorded against it.
+  // A row carrying `status: "offline"` or `health_status: "unhealthy"` is not
+  // an absence of measurement, it is one: nothing heartbeats a controller, so
+  // neither value can be heartbeat residue -- both were written on purpose,
+  // by the integration sync sweep or by an operator. Without this split the
+  // bucket added to stop controllers reading as permanently Degraded became
+  // the place real outages went quiet: the live fleet read ONLINE 0 /
+  // DEGRADED 0 / OFFLINE 0 / VIA CONTROLLER 7 while a row in that very list
+  // was `offline` + `unhealthy`, last seen two days earlier. Vendor-awareness
+  // may suppress a claim this platform never made; never a fault it was told.
+  if (live.state === "controller-reported-down") return "offline";
   if (live.state === "not-applicable") return "controller";
   if (live.status === "pass") return r.healthStatus === "unhealthy" ? "degraded" : "online";
   if (live.state === "setup-not-started" || live.state === "went-silent") return "offline";
@@ -178,7 +210,16 @@ function displayStatus(
 function contactLabel(r: RouterDevice, now: Date): string {
   return lastContactLabel(
     deriveRouterLiveness(
-      { id: r.id, name: r.name, status: r.status, last_seen_at: r.lastSeenAt, vendor: r.vendor },
+      {
+        id: r.id,
+        name: r.name,
+        status: r.status,
+        last_seen_at: r.lastSeenAt,
+        vendor: r.vendor,
+        health_status: r.healthStatus,
+        routeros_version: r.routerOsVersion,
+        has_api_credentials: r.hasApiCredentials,
+      },
       now,
     ),
     now,
@@ -302,7 +343,11 @@ function RouterFleetScreen() {
    * stay separate: not knowing is not the same as knowing nothing is wrong.
    */
   function controllerWarning(r: RouterDevice): string | null {
-    if (!isControllerManaged(r.vendor)) return null;
+    // The ROW, not the label -- FIX-PLAN D3a. A mislabelled MikroTik has no
+    // integration by definition, and tagging it "No integration" would send an
+    // operator to connect a controller that does not exist. `vendorLooksWrong`
+    // below is what such a row gets instead, and it is the accurate complaint.
+    if (!isControllerManagedRow(rowEvidence(r))) return null;
     if (!integrationsByLocation) return null; // we could not look
     const here = integrationsByLocation.get(r.locationId) ?? [];
     // Absence is only evidence when the list was complete. Otherwise this
@@ -354,6 +399,19 @@ function RouterFleetScreen() {
     if (match) setSel(match);
     navigate({ to: "/master/routers", search: {}, replace: true });
   }, [openRouterId, routers, navigate]);
+
+  /** This page's projection of a fleet row into the evidence
+   * `router-vendors.ts` judges -- written once so the fleet list, the summary
+   * tiles, the warning tags and the drawer cannot disagree about what a row
+   * is. */
+  function rowEvidence(r: RouterDevice) {
+    return {
+      vendor: r.vendor,
+      lastSeenAt: r.lastSeenAt,
+      routerOsVersion: r.routerOsVersion,
+      hasApiCredentials: r.hasApiCredentials,
+    };
+  }
 
   const rows = useMemo(
     () =>
@@ -449,10 +507,25 @@ function RouterFleetScreen() {
     // neither healthy nor unhealthy from here and colouring them either way
     // asserts a measurement nobody took.
     "not-applicable": { label: "Via controller", tone: "normal" },
+    // Deliberately NOT the neutral tone above. This row is still reached
+    // through a controller, but a controller something recorded as offline or
+    // failing its health check -- a fault at a venue whose guests may be
+    // unable to get online. Painting it neutral on account of its vendor is
+    // exactly the absorption this state was added to stop.
+    "controller-reported-down": { label: "Controller down", tone: "offline" },
   };
   const statusBadge = (r: RouterDevice) => {
     const live = deriveRouterLiveness(
-      { id: r.id, name: r.name, status: r.status, last_seen_at: r.lastSeenAt, vendor: r.vendor },
+      {
+        id: r.id,
+        name: r.name,
+        status: r.status,
+        last_seen_at: r.lastSeenAt,
+        vendor: r.vendor,
+        health_status: r.healthStatus,
+        routeros_version: r.routerOsVersion,
+        has_api_credentials: r.hasApiCredentials,
+      },
       now,
     );
     // No `??` fallback any more. It was there to catch a missing key, but a
@@ -557,6 +630,22 @@ function RouterFleetScreen() {
               )}
             </div>
 
+            {/* What that tile does and does not mean. "Via controller" counts
+                controllers with NOTHING recorded against them -- a controller
+                marked offline, or one whose last health check failed, is
+                counted under Offline with every other device an operator has
+                to act on. Said out loud because the tile's previous meaning
+                ("every controller, whatever state it is in") is the reading an
+                operator arrives with, and it is the reading under which this
+                page showed 0/0/0/7 over a genuinely dead device. */}
+            {summary.controller > 0 && (
+              <p className="text-xs text-muted-foreground">
+                &ldquo;Via controller&rdquo; counts controllers this platform does not measure and
+                has nothing recorded against. A controller that is marked offline, or whose last
+                health check failed, is counted under Offline.
+              </p>
+            )}
+
             {/* A short list and a complete one look identical, so say when
                 it is short. `fetchAllRouters` keeps the page up when one
                 location's read fails -- right -- but it used to drop those
@@ -649,6 +738,19 @@ function RouterFleetScreen() {
                         <MTag label={statusBadge(r).label} tone={statusBadge(r).tone} />
                         {controllerWarning(r) && (
                           <MTag label={controllerWarning(r)!} tone="offline" />
+                        )}
+                        {/* FIX-PLAN FE-7.5. The row is labelled a controller
+                            and is behaving like an agent. Surfaced rather than
+                            silently compensated for: `isControllerManagedRow`
+                            already makes the mislabel harmless, and this is
+                            what gets the DATA fixed instead of the platform
+                            quietly working around it for ever. This tag is
+                            what would have made the seven relabelled MikroTiks
+                            visible on the screen an operator actually reads,
+                            instead of ONLINE 0 / DEGRADED 0 / OFFLINE 0 /
+                            VIA CONTROLLER 7 over a device that was down. */}
+                        {vendorLooksWrong(rowEvidence(r)) && (
+                          <MTag label={VENDOR_MISMATCH_LABEL} tone="offline" />
                         )}
                       </div>
                     </MTd>
@@ -747,6 +849,15 @@ function RouterFleetScreen() {
                   {/* The controller row itself can say almost nothing true
                       (contract §11.5). What it CAN say is whether the venue's
                       integration is actually letting anyone on. */}
+                  {/* FIX-PLAN FE-7.5, said in full where there is room for
+                      it. The row tag is four words; this is the sentence that
+                      tells an operator what to actually do about it. */}
+                  {vendorLooksWrong(rowEvidence(sel)) && (
+                    <div className="space-y-1 rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-xs">
+                      <p className="font-medium text-destructive">{VENDOR_MISMATCH_LABEL}</p>
+                      <p className="text-muted-foreground">{VENDOR_MISMATCH_DETAIL}</p>
+                    </div>
+                  )}
                   {controllerWarning(sel) && (
                     <div className="space-y-1 rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-xs">
                       <p className="font-medium text-destructive">{controllerWarning(sel)}</p>
@@ -781,7 +892,12 @@ function RouterFleetScreen() {
                         disabled={updateVendor.isPending}
                         onChange={(e) => handleVendorChange(sel, e.target.value)}
                       >
-                        {DEVICE_VENDORS.map((v) => (
+                        {/* Only the two vendors this platform implements.
+                            This `<select>` writes on change with no confirm
+                            and no undo, and "UniFi" was a live option whose
+                            value no adapter registry knows -- see
+                            SELECTABLE_DEVICE_VENDORS. */}
+                        {SELECTABLE_DEVICE_VENDORS.map((v) => (
                           <option key={v.value} value={v.value}>
                             {v.label}
                           </option>

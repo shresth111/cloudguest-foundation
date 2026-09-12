@@ -196,8 +196,13 @@ export function routerLivenessIsMeasured(vendor: string | null | undefined): boo
  * Deliberately NOT in this list, and each for a reason:
  *  - `isp-details`           the venue's ISP/circuit is a record about the
  *                            building, true whoever runs the WiFi.
- *  - `network-integrations`  the screen this whole state is configured on.
- *                            Excluding it would strand the owner.
+ *  - `network-integrations`  RETIRED from the customer dashboard entirely
+ *                            (FIX-PLAN FE-0) -- its route, nav row and
+ *                            catalog entry are gone, because backend
+ *                            `074d719` made every one of its endpoints
+ *                            GLOBAL-scoped. It is listed here only so this
+ *                            list is not read as a claim that it still
+ *                            renders.
  *  - everything outside the Network group: guests, sessions, vouchers,
  *    portal, reports and campaigns all run on our side of the wire and are
  *    unaffected by who owns the access points.
@@ -232,5 +237,392 @@ export function controllerVenueFeatureReason(vendor: string | null | undefined):
   return (
     `This venue's network is managed by ${who}, not by a WyfyGuest-managed router, ` +
     "so this is configured in that controller rather than here."
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Evidence beats the label -- FIX-PLAN D3a.
+// ---------------------------------------------------------------------------
+
+/**
+ * The columns that only this platform's own agent can write.
+ *
+ * Structural rather than `RouterDevice`, because this module is deliberately
+ * dependency-free (see the header) and several callers hold different
+ * projections of the same row. Every field is optional: a caller that does
+ * not have one is saying "I cannot see this evidence", which must never be
+ * read as "this evidence is absent".
+ */
+export interface RouterRowEvidence {
+  vendor?: string | null;
+  /** A heartbeat OR the provisioning-token exchange stamped this. Either way
+   * the device spoke to us, which a controller never does. */
+  lastSeenAt?: string | null;
+  /** Read off the device by the agent. A controller has no RouterOS. */
+  routerOsVersion?: string | null;
+  /**
+   * DELIBERATELY NOT EVIDENCE, and this is the one field where that needs
+   * saying -- FIX-PLAN FE-1.2.
+   *
+   * `routerOsVersion` is written only by the agent's status push and
+   * `lastSeenAt` only by its heartbeat: both are the DEVICE reporting in.
+   * `hasApiCredentials` is admin-entered -- an operator typing a username and
+   * a password into a form proves nothing about what is at the other end of
+   * the row. Counting it would mean that filling in credentials on a
+   * controller silently reclassified it as agent-managed, which is the same
+   * "somebody typed something" failure this predicate exists to end, just
+   * with an extra step. `managementIpAddress` and `publicIpAddress` are
+   * excluded for the same reason and are not modelled here at all.
+   *
+   * Kept on the interface so a caller that passes a whole `RouterDevice`
+   * type-checks, and so the exclusion is documented where someone would
+   * otherwise "fix" it back in.
+   */
+  hasApiCredentials?: boolean | null;
+}
+
+/**
+ * Whether this ROW is controller-managed: the vendor says so AND nothing on
+ * the row contradicts it.
+ *
+ * WHY THE LABEL ALONE IS NOT ENOUGH
+ * ---------------------------------
+ * `vendor` is a string somebody typed into a dropdown. In production it was
+ * typed onto seven live MikroTiks, and because every liveness, monitoring and
+ * alerting decision keyed off the label alone, that one edit switched
+ * monitoring off for all seven and put nothing in its place: the Master fleet
+ * read ONLINE 0 / DEGRADED 0 / OFFLINE 0 / VIA CONTROLLER 7 while one of
+ * those rows was `status: "offline"`, `health_status: "unhealthy"`, last seen
+ * two days earlier -- and nobody was told, because the alert evaluator's
+ * roster is filtered by the same label.
+ *
+ * A device that checked in and then stopped is down. That fact does not
+ * depend on what someone typed in a dropdown afterwards. So the question
+ * every liveness surface asks is this one, not `isControllerManaged`: a row
+ * carrying agent evidence is treated as agent-managed whatever its vendor
+ * column says, and a genuinely onboarded controller -- which has none of that
+ * evidence, because the onboard path leaves every agent column NULL -- is
+ * unaffected.
+ *
+ * `isControllerManaged(vendor)` stays for the pure-vendor question the device
+ * adapter registries ask ("can this vendor be written to at all"), where the
+ * label IS the subject.
+ */
+export function isControllerManagedRow(row: RouterRowEvidence | null | undefined): boolean {
+  if (!row) return false;
+  if (!isControllerManaged(row.vendor)) return false;
+  return !hasAgentEvidence(row);
+}
+
+/** The evidence itself, exported so a surface can say WHY it disagreed with
+ * the label rather than silently overriding it. */
+export function hasAgentEvidence(row: RouterRowEvidence | null | undefined): boolean {
+  if (!row) return false;
+  // Only what the DEVICE reported. See `hasApiCredentials` above for why an
+  // admin-entered credential is not in this list.
+  return Boolean(row.lastSeenAt) || Boolean(row.routerOsVersion);
+}
+
+/**
+ * A row labelled as a controller that is nonetheless behaving like an agent.
+ *
+ * Surfaced rather than silently resolved: `isControllerManagedRow` makes the
+ * mislabel harmless, and this makes it VISIBLE, so somebody corrects the data
+ * instead of the platform quietly compensating for it forever.
+ */
+export function vendorLooksWrong(row: RouterRowEvidence | null | undefined): boolean {
+  if (!row) return false;
+  return isControllerManaged(row.vendor) && hasAgentEvidence(row);
+}
+
+export const VENDOR_MISMATCH_LABEL = "Vendor looks wrong";
+export const VENDOR_MISMATCH_DETAIL =
+  "Recorded as a TP-Link Omada controller, but this device has been checking in like a " +
+  "MikroTik. Someone should confirm the vendor.";
+
+// ---------------------------------------------------------------------------
+// The one status vocabulary for a controller row -- FIX-PLAN D2.
+// ---------------------------------------------------------------------------
+
+/**
+ * The seven states a controller row can be in, in precedence order.
+ *
+ * The BACKEND computes the value (`controller_state` on the router read
+ * paths); this module owns the WORDS. That split is the point: three
+ * surfaces giving three different answers about one router in one session was
+ * the symptom of three independent derivations (the venue dashboard's
+ * `location-liveness.ts`, Fix a Problem's `connection-verdicts.ts` and the
+ * Master fleet's own local badge map). One server-computed value plus one
+ * copy table makes that contradiction structurally impossible rather than
+ * fixed three times over.
+ *
+ * THREE RULES EVERY SURFACE OBEYS, and they are why these strings read as
+ * they do:
+ *
+ *  1. Agent columns are never rendered for a controller row. `status`,
+ *     `health_status`, `last_seen_at` and `routeros_version` are written only
+ *     by a heartbeat; where a column must exist the cell reads
+ *     `NOT_MEASURED_HERE` -- never "Never", never "Unknown", never a raw enum.
+ *  2. Agent vocabulary is reserved. "Online", "Offline", "Live", "Gone quiet"
+ *     and "Never checked in" all mean AN AGENT CHECKED IN. A controller never
+ *     borrows them -- which is why the healthy state below is "Controller
+ *     reachable" and not "Online".
+ *  3. "Controller reachable" is a claim about US reaching the CONTROLLER. Not
+ *     about the venue's access points, and not about a guest's internet. No
+ *     surface may promote it into "the WiFi works".
+ *
+ * `certificate_unverified` is DEFINED but not yet claimed: the gateway cannot
+ * currently tell a TLS failure apart from any other network failure, so the
+ * backend collapses it into `unreachable`. Defining it now keeps the
+ * vocabulary complete; claiming it before it can be distinguished would be
+ * the unearned precision the rest of this module exists to prevent.
+ */
+export type ControllerState =
+  | "not_registered"
+  | "disabled"
+  | "credentials_rejected"
+  | "certificate_unverified"
+  | "unreachable"
+  | "not_mapped"
+  | "reachable";
+
+export type ControllerStateTone = "neutral" | "warning" | "danger" | "ok";
+
+export interface ControllerStateCopy {
+  label: string;
+  tone: ControllerStateTone;
+  /** One sentence. `{ago}` is substituted by `controllerStateSentence`. */
+  sentence: string;
+}
+
+export const CONTROLLER_STATE_COPY: Record<ControllerState, ControllerStateCopy> = {
+  not_registered: {
+    label: "Not connected",
+    tone: "neutral",
+    sentence: "This controller has no connection details yet, so it can't sign anyone in.",
+  },
+  disabled: {
+    label: "Turned off",
+    tone: "warning",
+    sentence:
+      "This integration is switched off. Guests can't sign in until someone turns it back on.",
+  },
+  credentials_rejected: {
+    label: "Sign-in rejected",
+    tone: "danger",
+    sentence:
+      "The controller refused the credentials we hold. They may have been changed in Omada.",
+  },
+  certificate_unverified: {
+    label: "Identity unverified",
+    tone: "danger",
+    sentence: "We reached the controller but couldn't verify its identity.",
+  },
+  unreachable: {
+    label: "Can't reach it",
+    tone: "danger",
+    sentence: "We last reached this controller {ago}. Until we can, guests can't sign in.",
+  },
+  not_mapped: {
+    label: "Authorising nobody",
+    tone: "warning",
+    sentence:
+      "We can reach this controller, but nobody has chosen which Omada site and guest network " +
+      "to use. Guests can't sign in until that's done.",
+  },
+  reachable: {
+    label: "Controller reachable",
+    tone: "ok",
+    sentence: "Last contacted the controller {ago}.",
+  },
+};
+
+/** Rule 1's cell text, in one place so the fleet list, the fleet drawer, the
+ * venue dashboard and Fix a Problem cannot drift. */
+export const NOT_MEASURED_HERE = "Not measured here";
+
+/**
+ * `true` only for a value this build recognises.
+ *
+ * A backend that grows an eighth state must not make an older console render
+ * `undefined`, and must not have it quietly rounded to the nearest known
+ * state -- an unrecognised state is an unknown, and this module's posture is
+ * that an unknown is never spent as an answer.
+ */
+export function isControllerState(value: unknown): value is ControllerState {
+  return typeof value === "string" && value in CONTROLLER_STATE_COPY;
+}
+
+/**
+ * The sentence for a state, with `{ago}` filled in.
+ *
+ * When the caller has no timestamp the clause is rewritten rather than
+ * printed with a placeholder or a guessed "recently".
+ */
+export function controllerStateSentence(state: ControllerState, ago: string | null): string {
+  const raw = CONTROLLER_STATE_COPY[state].sentence;
+  if (ago) return raw.replace("{ago}", ago);
+  return raw
+    .replace("We last reached this controller {ago}. ", "We can't reach this controller. ")
+    .replace("Last contacted the controller {ago}.", "We have reached this controller.");
+}
+
+// ---------------------------------------------------------------------------
+// Device-domain screens: refuse early and explain -- FIX-PLAN D4.
+// ---------------------------------------------------------------------------
+
+/**
+ * What each gated screen CONFIGURES, in a venue owner's words, and the verb
+ * that agrees with it.
+ *
+ * A table rather than a sentence per screen because it IS one sentence: only
+ * the noun changes, and six near-identical strings are six places for the
+ * wording to drift.
+ */
+const CONTROLLER_UNSUPPORTED_NOUNS: Record<string, { noun: string; verb: string }> = {
+  vlans: { noun: "Network zones (VLANs)", verb: "are" },
+  dhcp: { noun: "IP address ranges (DHCP)", verb: "are" },
+  "port-forwarding": { noun: "Port forwarding rules", verb: "are" },
+  voip: { noun: "Traffic priority", verb: "is" },
+  "website-blocking": { noun: "Website blocking", verb: "is" },
+  "isp-details": { noun: "Internet connection details", verb: "are" },
+};
+
+export const CONTROLLER_UNSUPPORTED_HEADLINE = "Configured in Omada, not here.";
+
+/**
+ * The panel body for a gated screen.
+ *
+ * States what is true, why, and -- crucially -- what we DO do, because the
+ * owner's next thought after "not here" is "then what am I paying for": we
+ * connect to the controller to sign guests in, we do not configure the
+ * network for it. That second half is the difference between a refusal and an
+ * explanation.
+ *
+ * Null for a feature that is not gated, so a call site cannot render this
+ * panel over a screen that works.
+ */
+export function controllerUnsupportedCopy(
+  featureId: string,
+  venueName: string | null | undefined,
+): string | null {
+  const entry = CONTROLLER_UNSUPPORTED_NOUNS[featureId];
+  if (!entry) return null;
+  const who = venueName?.trim() || "This venue";
+  return (
+    `${who} runs on a TP-Link Omada controller. ${entry.noun} for this venue ${entry.verb} ` +
+    "set in Omada's own interface — we connect to the controller to sign guests in, we don't " +
+    "configure the network for it."
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Router pickers -- FIX-PLAN FE-3.
+// ---------------------------------------------------------------------------
+
+/** The minimum a picker row has to carry for this module to judge it. */
+export interface VendorJudgeableRouter extends RouterRowEvidence {
+  id: string;
+  name: string;
+}
+
+/**
+ * Split a venue's routers into the ones a device-domain form may target and
+ * the ones it may not.
+ *
+ * WHY THIS EXISTS SEPARATELY FROM THE SCREEN-LEVEL GATE
+ * ----------------------------------------------------
+ * `CONTROLLER_UNSUPPORTED_FEATURE_IDS` gates a whole SCREEN, and only when
+ * EVERY router at the venue is a controller (`locationIsControllerManaged` is
+ * `every`, not `some`) -- deliberately, because at a MIXED venue those screens
+ * act on the MikroTik and they genuinely work.
+ *
+ * A mixed venue is exactly where the second gate was missing, and it is what
+ * was observed in production: the screen renders, correctly, and then its
+ * "New zone" picker lists every router the venue has -- controller included,
+ * with no badge and no warning. The owner picks it, fills in the whole form,
+ * and the backend refuses by vendor on submit (`get_vlan_adapter` raising
+ * `UnsupportedVlanVendorError`). The same defect as the screen-level one, one
+ * level down, surviving the screen-level fix because that fix was keyed on
+ * the VENUE rather than on the row being written to.
+ *
+ * Judged with `isControllerManagedRow`, not the bare vendor: a mislabelled
+ * MikroTik must not vanish from its own venue's picker.
+ *
+ * Returned as a pair rather than as a filter so callers are pushed to NAME
+ * what they removed. A router that silently disappears from a picker is a
+ * support ticket ("where did my second device go"); one named as absent, with
+ * a reason, is not.
+ */
+export function partitionRoutersByDeviceWrite<T extends VendorJudgeableRouter>(
+  rows: readonly T[],
+): { writable: T[]; controllerManaged: T[] } {
+  const writable: T[] = [];
+  const controllerManaged: T[] = [];
+  for (const r of rows) {
+    if (isControllerManagedRow(r)) controllerManaged.push(r);
+    else writable.push(r);
+  }
+  return { writable, controllerManaged };
+}
+
+/**
+ * The line under a picker that has left rows out. Null when nothing was
+ * excluded, so every call site is one conditional render.
+ */
+export function excludedControllerRoutersNote(
+  controllerManaged: readonly VendorJudgeableRouter[],
+): string | null {
+  const n = controllerManaged.length;
+  if (n === 0) return null;
+  if (n === 1) {
+    return (
+      "One device at this venue is a TP-Link Omada controller and isn't listed here — " +
+      "it's configured in Omada."
+    );
+  }
+  return (
+    `${n} devices at this venue are TP-Link Omada controllers and aren't listed here — ` +
+    "they're configured in Omada."
+  );
+}
+
+/**
+ * The same fact said about ONE already-selected router rather than about a
+ * filtered list.
+ *
+ * Used where excluding the row is the wrong fix because there is nothing to
+ * fall back to -- Internet Connection, where the venue's uplink is a record
+ * about the building and the controller may be the only `Router` row it has.
+ * The record is legitimate; what is unavailable is every control that talks
+ * to the device.
+ */
+export function controllerRouterDeviceWriteReason(vendor: string | null | undefined): string {
+  const who = vendor ? `a ${routerVendorLabel(vendor)} controller` : "a network controller";
+  return (
+    `This is ${who} rather than a WyfyGuest-managed router, so we do not reach the device ` +
+    "itself from here. Anything that has to be sent to it — health checks, failover and " +
+    "traffic routing — is done in that controller."
+  );
+}
+
+/**
+ * What the Devices screen says instead of an empty chart -- FIX-PLAN D5.
+ *
+ * That screen's charts are CPU, memory and per-interface octet counters, all
+ * written by measurement paths a controller has no part in (the agent's
+ * RouterOS reads, and the SNMP sweep against the device). On a controller row
+ * they are permanently empty -- and an empty chart with an axis on it is a
+ * measurement claim: it says we looked and there was nothing, where the truth
+ * is that nothing here looks. Never a per-port chart, a RouterOS version or a
+ * model string for a controller venue.
+ */
+export function controllerDeviceMetricsReason(vendor: string | null | undefined): string {
+  const who = vendor ? `a ${routerVendorLabel(vendor)} controller` : "a network controller";
+  return (
+    `This is ${who} and its readings live in that controller, not here. This platform ` +
+    "measures a device it runs software on; it does not poll a controller for CPU, memory " +
+    "or per-port traffic, so there is nothing on this chart to show rather than nothing " +
+    "happening on your network."
   );
 }

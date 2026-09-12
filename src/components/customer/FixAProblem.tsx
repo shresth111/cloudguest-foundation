@@ -121,6 +121,12 @@ import {
   lastContactLabel,
   minutesSince,
 } from "@/lib/location-liveness";
+import {
+  controllerRouterDeviceWriteReason,
+  isAgentManaged,
+  isControllerManaged,
+  routerVendorLabel,
+} from "@/lib/router-vendors";
 
 /** `lastContactLabel` needs the derived liveness, not the wire row -- and
  * `deriveRouterLiveness` is what knows that `last_seen_at` on a still-
@@ -394,18 +400,68 @@ export function FixAProblem({
     };
   }, [locationId, demo, refreshKey]);
 
-  const router = routers[0] ?? null;
+  /**
+   * Which router this page is ABOUT -- contract §11.5.
+   *
+   * `routers[0]` was wrong at a mixed venue in the one way that matters: if
+   * the controller happened to sort first, every router-shaped check on this
+   * page ran against a device none of them can reach, and Zone A told the
+   * owner they had lost contact with a router that has never been in contact
+   * by design. An agent-managed router is preferred because it is the only
+   * kind any of these checks can actually run against; the controller is
+   * still the subject when it is all this venue has, and the copy below then
+   * says so rather than pretending.
+   */
+  const router = useMemo(
+    () => routers.find((r) => isAgentManaged(r.vendor)) ?? routers[0] ?? null,
+    [routers],
+  );
   const routerOrgId = router?.organizationId;
 
+  /**
+   * Everything §11.5 needs, derived through `deriveRouterLiveness` rather
+   * than by re-reading `vendor` here: there is one definition of "this
+   * platform does not reach that device" and it lives in `router-vendors.ts`.
+   */
+  const controllerSignals = useMemo(() => {
+    if (demo || !router) {
+      return { measured: true, reportedDown: false, vendorLabel: null as string | null };
+    }
+    const live = deriveRouterLiveness(
+      {
+        id: router.id,
+        name: router.name,
+        status: router.status,
+        last_seen_at: router.lastSeenAt,
+        vendor: router.vendor,
+        health_status: router.healthStatus,
+      },
+      new Date(),
+    );
+    const controller = isControllerManaged(router.vendor);
+    return {
+      measured: !controller,
+      reportedDown: live.state === "controller-reported-down",
+      vendorLabel: controller && router.vendor ? routerVendorLabel(router.vendor) : null,
+    };
+  }, [router, demo]);
+
   /** Contact is judged on heartbeat age, never on a probe -- a probe is
-   * what fails during the outage this has to describe. */
+   * what fails during the outage this has to describe.
+   *
+   * `null` for a controller, and that is not a defensive default: a device
+   * nothing ever checks in from has no heartbeat age to be stale, so any
+   * boolean here would be an invented measurement. `venueVerdict` is told
+   * separately (`routerLivenessMeasured`) so it cannot mistake this null for
+   * "we have not looked yet". */
   const routerReachable = useMemo<boolean | null>(() => {
     if (demo) return true;
     if (!router) return null;
+    if (!controllerSignals.measured) return null;
     const mins = minutesSince(router.lastSeenAt, new Date());
     if (mins == null) return null;
     return mins < HEARTBEAT_SILENT_AFTER_MINUTES;
-  }, [router, demo]);
+  }, [router, demo, controllerSignals.measured]);
 
   const readings = useMemo<LinkReading[]>(() => {
     if (demo) return DEMO_LINKS;
@@ -439,8 +495,11 @@ export function FixAProblem({
           : (router?.lastSeenAt ?? null),
         routerReachable,
         guestsOnline,
+        routerLivenessMeasured: controllerSignals.measured,
+        controllerReportedDown: controllerSignals.reportedDown,
+        controllerVendorLabel: controllerSignals.vendorLabel,
       }),
-    [routers.length, readings, router, routerReachable, guestsOnline, demo],
+    [routers.length, readings, router, routerReachable, guestsOnline, demo, controllerSignals],
   );
 
   const reload = useCallback(() => setRefreshKey((k) => k + 1), []);
@@ -481,11 +540,18 @@ export function FixAProblem({
             routerId={router?.id ?? ""}
             routerOrgId={routerOrgId}
             routerReachable={routerReachable}
+            deviceChecksApply={controllerSignals.measured}
+            controllerVendor={router?.vendor ?? null}
           />
         </div>
       )}
 
-      {venue.status !== "no-router" && (
+      {/* Zone E is the raw output of the checks Zone C runs. At a
+          controller-managed venue Zone C runs none, so this would be a
+          permanently empty "What we checked" panel over a list nothing can
+          write to -- an absence that reads as a failure. Hidden rather than
+          emptied; Zone C states why in its place. */}
+      {controllerSignals.measured && venue.status !== "no-router" && (
         <ZoneEWhatWeChecked demo={demo} routerId={router?.id ?? ""} routerOrgId={routerOrgId} />
       )}
     </div>
@@ -851,11 +917,19 @@ function ZoneCSiteCheck({
   routerId,
   routerOrgId,
   routerReachable,
+  deviceChecksApply,
+  controllerVendor,
 }: {
   demo: boolean;
   routerId: string;
   routerOrgId?: string;
   routerReachable: boolean | null;
+  /** False when this venue's router is controller-managed -- contract §11.5.
+   * Separate from `controllerVendor` because the vendor STRING is allowed to
+   * be missing (an older persisted venue summary) while the gate is not. */
+  deviceChecksApply: boolean;
+  /** Raw `routers.vendor`, for copy that can name the brand. */
+  controllerVendor: string | null;
 }) {
   const [host, setHost] = useState("");
   const [busy, setBusy] = useState(false);
@@ -966,6 +1040,37 @@ function ZoneCSiteCheck({
       setBusy(false);
     }
   };
+
+  // Contract §11.5. Both halves of this check are device work: the blocking
+  // rules are RouterOS content-filter rows (a controller venue has none and
+  // can create none), and the reachability half is `/tool ping` FROM the
+  // device, which `network_diagnostics` refuses by vendor. An input and a
+  // button over two calls that cannot succeed is precisely the shape this
+  // codebase keeps producing -- so say what is true instead of offering it.
+  if (!deviceChecksApply) {
+    return (
+      <Card className="border-0 shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Globe className="h-4 w-4 text-primary" /> A guest can&apos;t open one particular site?
+          </CardTitle>
+          <CardDescription>Not something we can test from here at this venue.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-lg border border-dashed border-border bg-muted/30 p-4">
+            <p className="text-sm text-muted-foreground">
+              {controllerRouterDeviceWriteReason(controllerVendor)}
+            </p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Website blocking and the &ldquo;try it from your router&rdquo; test both run on the
+              router itself, so they are done in that controller. The guest lookup beside this still
+              works normally — it reads sign-in records, not your network.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="border-0 shadow-sm">

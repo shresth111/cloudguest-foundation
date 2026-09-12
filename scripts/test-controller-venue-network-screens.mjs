@@ -24,11 +24,14 @@
  *      Each of these views loads its own rules on mount and offers
  *      Add/Edit/Apply; a greyed-out copy of it, still fetching, is the same
  *      defect with better manners.
- *   2. WHAT REPLACES IT SAYS WHY, AND WHERE TO GO. "This venue's network is
- *      managed by a TP-Link Omada controller" plus a link to Network
- *      Integrations. A venue owner who cannot find Port Forwarding files a
- *      support ticket; one who is told where it moved does not. This is why
- *      the nav row is muted rather than removed.
+ *   2. WHAT REPLACES IT SAYS WHY, AND WHO CAN DO IT. A venue owner who cannot
+ *      find Port Forwarding files a support ticket; one who is told where it
+ *      moved does not. This is why the nav row is muted rather than removed.
+ *      It used to say where to GO -- a link to Network Integrations -- but
+ *      backend `074d719` made every route on that page GLOBAL-scoped, so for
+ *      a venue owner it 403s and it has been retired from the customer
+ *      dashboard (FIX-PLAN FE-0). The panel now names a person instead, and
+ *      the assertion below is the stronger one: no link at all.
  *   3. THE GATE IS `every`, NOT `some`. A MIXED venue -- a MikroTik and a
  *      controller at one site -- keeps all five screens, because they act on
  *      the MikroTik and they work.
@@ -377,10 +380,24 @@ check(
   /guests, sessions, vouchers, the sign-in portal and reports/.test(notice),
   "the failure mode being fixed is a working venue reading as a broken one",
 );
+// INVERTED 2026-09-12, FIX-PLAN FE-0 step 4. This used to require the deep
+// link, on the reasoning that "'you cannot do this here' with no destination
+// is a support ticket; with one it is a redirect". That was right for as long
+// as a destination existed. Backend `074d719` moved every
+// `network_integrations.*` route to ScopeType.GLOBAL and retired the
+// org-scoped grants, so the page 403s for a venue owner and its customer
+// route, nav row and catalog entry are now gone. A button to a denial is
+// worse than a sentence, so the assertion is now the stronger one: the panel
+// must offer NO link at all, and must name a person instead.
 check(
-  "notice-links-to-network-integrations",
-  /href="\/network-integrations"/.test(notice),
-  "'you cannot do this here' with no destination is a support ticket",
+  "notice-does-not-link-to-the-retired-page",
+  !/href="\/network-integrations"/.test(notice),
+  "a call to action that 403s spends the trust the rest of the panel is built on",
+);
+check(
+  "notice-names-who-can-do-it-instead",
+  /Your Wyfy Guest contact manages this venue/.test(notice),
+  "an owner who accepts they cannot do it is looking for who can",
 );
 check(
   "notice-offers-no-form",

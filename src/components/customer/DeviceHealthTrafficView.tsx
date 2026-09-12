@@ -54,11 +54,17 @@ import { useDeviceHealthHistory, useLocationDevices } from "@/hooks/useDeviceHea
 import {
   formatMbps,
   formatOctets,
+  isTunnelInterfaceName,
   metricsSourceLabel,
   readingSpanLabel,
   toInterfaceSeries,
 } from "@/lib/device-health";
 import type { DeviceHealthReading } from "@/types/deviceHealth";
+import {
+  controllerDeviceMetricsReason,
+  isControllerManaged,
+  routerVendorLabel,
+} from "@/lib/router-vendors";
 
 /** Short clock label for an axis tick. */
 function timeLabel(iso: string): string {
@@ -111,7 +117,22 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
   const activeId = selectedId ?? deviceList[0]?.id;
   const activeDevice = deviceList.find((d) => d.id === activeId);
 
-  const history = useDeviceHealthHistory(activeId);
+  /**
+   * Contract §11.5. This whole card is CPU, memory and per-interface octet
+   * counters, and all three come from a measurement path a controller has no
+   * part in: the router agent's RouterOS reads and the SNMP sweep against the
+   * device. `/device-health/{id}/history` for a controller row therefore
+   * returns nothing, forever -- and this card rendered that as per-port
+   * RouterOS charts, a model string and a "via Not recorded" provenance
+   * badge, for a device the dashboard one screen away calls a TP-Link Omada
+   * controller.
+   *
+   * The request is not made at all rather than made and explained away: it
+   * cannot answer, and "no readings recorded yet" (which is what it would
+   * produce) is a measurement claim -- it says we looked.
+   */
+  const activeIsController = isControllerManaged(activeDevice?.vendor);
+  const history = useDeviceHealthHistory(activeIsController ? undefined : activeId);
   const readings: DeviceHealthReading[] = useMemo(
     () => history.data?.readings ?? [],
     [history.data],
@@ -134,8 +155,15 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
   // during the window after the very first reading arrives, when it
   // demonstrably is. That window used to be permanent (nothing populated
   // these counters at all), which is why one message was once enough.
-  const hasCounters = readings.some(
-    (r) => r.interfaceTrafficCounters != null && r.interfaceTrafficCounters.length > 0,
+  //
+  // Counted over the interfaces this screen may actually SHOW, not over every
+  // interface the device reported: the management tunnel is filtered out by
+  // `toInterfaceSeries` (it must never appear on a customer surface), and a
+  // device whose only counter was the tunnel would otherwise satisfy this
+  // check and then render an empty chart under "port traffic is being
+  // measured" -- true of the device, and not of anything on this page.
+  const hasCounters = readings.some((r) =>
+    (r.interfaceTrafficCounters ?? []).some((c) => !isTunnelInterfaceName(c.ifName)),
   );
   const hasRateData = series.some((s) => s.points.some((p) => p.downMbps != null));
 
@@ -201,11 +229,22 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
                   {deviceList.map((d) => (
                     <SelectItem key={d.id} value={d.id}>
                       <span className="flex items-center gap-2">
-                        <span
-                          aria-hidden="true"
-                          className={`h-2 w-2 shrink-0 rounded-full ${healthTone(d.healthStatus)}`}
-                        />
+                        {/* No health dot on a controller. The dot is a
+                            verdict on a health check nothing runs here, and
+                            its muted "unknown" colour reads as "we looked and
+                            could not tell" rather than "nothing looks". */}
+                        {!isControllerManaged(d.vendor) && (
+                          <span
+                            aria-hidden="true"
+                            className={`h-2 w-2 shrink-0 rounded-full ${healthTone(d.healthStatus)}`}
+                          />
+                        )}
                         {d.name}
+                        {isControllerManaged(d.vendor) && (
+                          <span className="text-muted-foreground">
+                            ({routerVendorLabel(d.vendor)} controller)
+                          </span>
+                        )}
                       </span>
                     </SelectItem>
                   ))}
@@ -219,9 +258,18 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span className="flex items-center gap-1.5">
               <RouterIcon className="h-3.5 w-3.5" />
-              {activeDevice.model || activeDevice.vendor || "Network device"}
+              {/* Vendor label first for a controller, and never the `model`
+                  column: on a synthesised controller row that column carries
+                  whatever was typed at onboarding, which in production was a
+                  MikroTik model string sitting under a TP-Link Omada badge. */}
+              {activeIsController
+                ? `${routerVendorLabel(activeDevice.vendor)} controller`
+                : activeDevice.model || activeDevice.vendor || "Network device"}
             </span>
-            {latest && (
+            {/* No provenance badge either. `metricsSourceLabel(null)` renders
+                "Not recorded", which is a statement about a reading; there is
+                no reading here to have a source. */}
+            {!activeIsController && latest && (
               <>
                 <span aria-hidden="true">·</span>
                 <span>Last reading {whenLabel(latest.recordedAt)}</span>
@@ -251,6 +299,11 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
             No network devices have been added to this venue yet. Once one is set up, its
             performance history appears here.
           </EmptyNote>
+        ) : activeIsController ? (
+          // Contract §11.5. Before the charts, the spinners and every
+          // "no readings yet" branch below -- all of which would be saying
+          // something about a measurement, and there is none to speak of.
+          <EmptyNote>{controllerDeviceMetricsReason(activeDevice?.vendor)}</EmptyNote>
         ) : history.isLoading ? (
           <Skeleton className="h-48 w-full" />
         ) : history.isError ? (

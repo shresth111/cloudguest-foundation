@@ -107,7 +107,6 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
       // that separate restriction is ever relaxed. It is in the catalog
       // anyway so the Staff Access screen enumerates a complete feature set
       // rather than a set with one silent hole in it.
-      { id: "network-integrations", label: "Network Integrations", icon: Plug },
     ],
   },
   {

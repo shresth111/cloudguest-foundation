@@ -55,6 +55,8 @@ import {
   type RouterWizardValues,
 } from "@/lib/router-schemas";
 import { useCreateRouter, useOnboardController } from "@/hooks/useRouters";
+import { useAuth } from "@/context/AuthContext";
+import { hasGlobalScopeRole } from "@/lib/roles";
 import type { OnboardControllerResult } from "@/types/router";
 import type { ControllerAuthMode } from "@/types/network-integration";
 import { OmadaSiteMapping } from "@/components/network-integrations/OmadaSiteMapping";
@@ -170,6 +172,28 @@ export function RouterWizard({ open, onOpenChange }: Props) {
     defaultValues: DEFAULTS,
     mode: "onBlur",
   });
+
+  /**
+   * Defence in depth, not a fix for a live bug -- FIX-PLAN D1 corrected this.
+   *
+   * VERIFIED, not assumed: a venue owner cannot reach this wizard at all.
+   * `_authenticated.tsx` redirects any session without a global-scope role
+   * away from every path under that layout except `/c/*`, `/customer/*`,
+   * `/workspace/*` and `/select-space`. The one route that mounts this
+   * component, `/routers`, is therefore already operator-only -- so today this
+   * is always `true` and nothing here changes behaviour. (That route is also
+   * an orphan no link reaches; see `router.service.ts`'s `create` for why this
+   * wizard is awaiting a delete-or-consolidate decision rather than a second
+   * entry point.)
+   *
+   * It is still written down in code rather than left in a comment, because
+   * the Omada branch submits to `POST /network-integrations/platform/onboard`
+   * at `ScopeType.GLOBAL`, this is a COMPONENT and mountable anywhere, and
+   * "the route guard upstream makes this safe" is an invariant nothing
+   * enforces. The failure it prevents is a three-step form ending in a 403.
+   */
+  const { roles } = useAuth();
+  const canOnboardController = hasGlobalScopeRole(roles);
 
   const vendor = form.watch("vendor");
   const isOmada = vendor === "tplink_omada";
@@ -356,25 +380,51 @@ export function RouterWizard({ open, onOpenChange }: Props) {
                           <FormLabel>Device type</FormLabel>
                           <FormControl>
                             <div className="grid gap-2 sm:grid-cols-2">
-                              {VENDOR_CHOICES.map((choice) => (
-                                <button
-                                  key={choice.id}
-                                  type="button"
-                                  onClick={() => field.onChange(choice.id)}
-                                  aria-pressed={field.value === choice.id}
-                                  className={cn(
-                                    "rounded-lg border px-3 py-2.5 text-left transition-colors",
-                                    field.value === choice.id
-                                      ? "border-primary bg-primary/5"
-                                      : "border-border hover:bg-muted/50",
-                                  )}
-                                >
-                                  <div className="text-sm font-medium">{choice.label}</div>
-                                  <div className="mt-0.5 text-xs text-muted-foreground">
-                                    {choice.description}
-                                  </div>
-                                </button>
-                              ))}
+                              {VENDOR_CHOICES.map((choice) => {
+                                // The Omada branch submits to
+                                // `POST /network-integrations/platform/onboard`,
+                                // which is gated at `ScopeType.GLOBAL`. Offer
+                                // it only to a caller who holds that scope --
+                                // otherwise the choice leads to three steps of
+                                // form and a 403 at the end. Gated rather than
+                                // rerouted: there is no org-scoped onboard
+                                // endpoint to route to, and the org-scoped
+                                // thing a venue owner CAN do (connect a
+                                // controller they already have) lives on the
+                                // Network Integrations screen, which the
+                                // fallback below names.
+                                const locked =
+                                  choice.id === "tplink_omada" && !canOnboardController;
+                                return (
+                                  <button
+                                    key={choice.id}
+                                    type="button"
+                                    onClick={() => !locked && field.onChange(choice.id)}
+                                    disabled={locked}
+                                    aria-pressed={field.value === choice.id}
+                                    title={
+                                      locked
+                                        ? "Onboarding a controller is a platform-operator action. A venue connects its own controller from Network Integrations."
+                                        : undefined
+                                    }
+                                    className={cn(
+                                      "rounded-lg border px-3 py-2.5 text-left transition-colors",
+                                      locked && "cursor-not-allowed opacity-50",
+                                      field.value === choice.id
+                                        ? "border-primary bg-primary/5"
+                                        : "border-border hover:bg-muted/50",
+                                      locked && "hover:bg-transparent",
+                                    )}
+                                  >
+                                    <div className="text-sm font-medium">{choice.label}</div>
+                                    <div className="mt-0.5 text-xs text-muted-foreground">
+                                      {locked
+                                        ? "Platform operators only. Connect a controller you already have from Network Integrations."
+                                        : choice.description}
+                                    </div>
+                                  </button>
+                                );
+                              })}
                             </div>
                           </FormControl>
                           <FormMessage />

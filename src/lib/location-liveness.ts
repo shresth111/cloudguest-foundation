@@ -50,7 +50,7 @@
  *    here, from `last_seen_at`, the same way the backend's own readers do.
  */
 
-import { isControllerManaged, routerVendorLabel } from "@/lib/router-vendors";
+import { isControllerManagedRow, routerVendorLabel } from "@/lib/router-vendors";
 
 /**
  * Heartbeat staleness windows, mirroring the backend's own
@@ -96,8 +96,46 @@ export type RouterLivenessState =
    * measures liveness for. Distinct from `unknown` (which means "we tried
    * and cannot say") because here there was never a question to ask. */
   | "not-applicable"
+  /**
+   * Contract §11.5, and the other half of it: a controller-managed row that
+   * something nonetheless recorded as DOWN.
+   *
+   * `not-applicable` is an answer about the *absence* of a heartbeat, and it
+   * is the right answer to that absence. It is the wrong answer to a row
+   * whose `status` says `offline` or whose `health_status` says `unhealthy`,
+   * because neither of those is a heartbeat's silence -- both are a value
+   * somebody's code deliberately wrote, and the only writers for a
+   * controller row are the integration sync sweep and an operator. Folding
+   * them into "we do not measure this" is how the Master fleet came to read
+   * ONLINE 0 / DEGRADED 0 / OFFLINE 0 / VIA CONTROLLER 7 with a row in that
+   * very list sitting at `status: "offline"`, `health_status: "unhealthy"`,
+   * last seen two days earlier. The vendor gate had stopped being a
+   * correction and become a place for outages to go quiet.
+   *
+   * So the rule is narrow and one-directional: vendor-awareness may suppress
+   * a claim this platform never measured, and may never suppress a negative
+   * one it was handed.
+   */
+  | "controller-reported-down"
   /** We cannot say. Includes statuses this build does not recognise. */
   | "unknown";
+
+/**
+ * Both controller states, for every caller that means "this row is reached
+ * through its vendor's controller" rather than "this row has nothing to
+ * report".
+ *
+ * Exists because adding `controller-reported-down` would otherwise silently
+ * flip two venue-scoped decisions the wrong way: `locationIsControllerManaged`
+ * gates the five RouterOS screens on `every` router being `not-applicable`, so
+ * a controller-only venue whose controller was marked unhealthy would have had
+ * all five forms handed BACK to it -- forms the backend still refuses by
+ * vendor. The vendor fact and the health fact are independent and must stay
+ * independent.
+ */
+export function stateIsControllerManaged(state: RouterLivenessState): boolean {
+  return state === "not-applicable" || state === "controller-reported-down";
+}
 
 /**
  * What a `lastContactIso` timestamp actually is. The distinction is not
@@ -187,6 +225,29 @@ export interface RawRouterLiveness {
    * absent the row is treated as agent-managed, which is what every row in
    * this table was before TP-Link Omada existed. */
   vendor?: string | null;
+  /**
+   * `routers.health_status`, when the caller has it.
+   *
+   * Only read on the controller branch, and only to stop it swallowing a
+   * fault -- see `controller-reported-down`. On an agent-managed row this
+   * field is deliberately ignored here: heartbeat staleness is the liveness
+   * answer for those, and `master.routers.tsx` has always applied
+   * `healthStatus === "unhealthy"` as a separate demotion on top of it
+   * rather than as part of it. Folding it in here would change what every
+   * agent-managed row reports, which is a different change from this one.
+   */
+  health_status?: string | null;
+  /**
+   * Agent evidence -- FIX-PLAN D3a. Only consulted to decide whether to
+   * BELIEVE a controller vendor label, never to judge an agent-managed row.
+   *
+   * Optional, and absent means "this caller cannot see it", never "it is
+   * null": `last_seen_at` above is evidence in its own right and is present
+   * on every caller, so a caller that supplies neither of these still gets
+   * the mislabel protection from the timestamp alone.
+   */
+  routeros_version?: string | null;
+  has_api_credentials?: boolean | null;
 }
 
 /**
@@ -270,7 +331,57 @@ export function deriveRouterLiveness(raw: RawRouterLiveness, now: Date): RouterL
   // whether the controller is up from here, and the rule this module is
   // built on is that anything it cannot establish reports as unknown and
   // never as live. What it can say honestly is where the real answer lives.
-  if (isControllerManaged(raw.vendor)) {
+  // FIX-PLAN D3a: the ROW, not the label. A row whose vendor says
+  // "controller" but which has been checking in, reports a RouterOS version,
+  // or has an API credential on file is an agent-managed device that somebody
+  // mislabelled -- and it falls through to the heartbeat ladder below, where a
+  // device that stopped checking in is reported as down. That is the whole of
+  // the production defect: one dropdown edit against seven live MikroTiks
+  // switched their monitoring off and put nothing in its place, because every
+  // decision keyed off the label alone. A device that checked in and then
+  // stopped is down; that fact cannot depend on what was typed afterwards.
+  //
+  // A legitimately onboarded controller has none of that evidence -- the
+  // onboard path leaves every agent column NULL -- so it is unaffected.
+  if (
+    isControllerManagedRow({
+      vendor: raw.vendor,
+      lastSeenAt: raw.last_seen_at,
+      routerOsVersion: raw.routeros_version,
+      hasApiCredentials: raw.has_api_credentials,
+    })
+  ) {
+    // Negative evidence first. Nothing heartbeats a controller, so neither of
+    // these values can be the residue of a device that merely went quiet --
+    // both were written on purpose, by the integration sync sweep or by an
+    // operator. Reporting them is not a liveness measurement this platform is
+    // pretending to take; it is repeating a fact it was handed.
+    const health = typeof raw.health_status === "string" ? raw.health_status.toLowerCase() : null;
+    const markedDown = rawStatus === "offline" || health === "unhealthy";
+    if (markedDown) {
+      const what =
+        rawStatus === "offline" && health === "unhealthy"
+          ? "is marked offline and its last health check failed"
+          : rawStatus === "offline"
+            ? "is marked offline"
+            : "failed its last health check";
+      return {
+        ...base,
+        status: "fail",
+        state: "controller-reported-down",
+        shortLabel: "Controller down",
+        detail:
+          `${label} is a ${routerVendorLabel(raw.vendor)} controller and it ${what}. ` +
+          "That is not a missed check-in — this platform never waits for one here — it is a " +
+          "state recorded against this controller, so guests at this venue may not be able to " +
+          "get online.",
+        nextStep:
+          "Check this venue's network integration, then the controller itself. " +
+          "Nothing on this platform will clear this on its own.",
+        lastContactIso: lastSeenIso,
+        lastContactKind: "none",
+      };
+    }
     return {
       ...base,
       status: "unknown",
@@ -476,7 +587,10 @@ export function deriveRouterLiveness(raw: RawRouterLiveness, now: Date): RouterL
  * from each contradicting the drawer separately.
  */
 export function lastContactLabel(router: RouterLiveness, now: Date = new Date()): string {
-  if (router.state === "not-applicable") return "Not measured here";
+  // Both controller states, not just `not-applicable`: a controller that has
+  // been recorded as down is still a device this platform never listens to,
+  // so "Never heard from this router" would be exactly as false there.
+  if (stateIsControllerManaged(router.state)) return "Not measured here";
   if (router.lastContactKind === "none") return "Never heard from this router";
   const ago = formatAgo(router.lastContactIso, now);
   if (ago === null) return "Last contact time unknown";
@@ -497,6 +611,13 @@ export function lastContactLabel(router: RouterLiveness, now: Date = new Date())
  * router the API happened to return first.
  */
 const NOT_LIVE_PRIORITY: RouterLivenessState[] = [
+  // First, because it is the only state here that is a recorded fault at a
+  // venue whose guests may be offline right now, and because the two
+  // controller states MUST be ordered explicitly: an omitted state scores
+  // `indexOf === -1` and therefore sorts ahead of everything, which would
+  // have made `not-applicable` -- "nothing to do here" -- the spokesperson
+  // for a venue that also had a genuinely dead MikroTik.
+  "controller-reported-down",
   "never-checked-in",
   "setup-not-started",
   "went-silent",
@@ -505,6 +626,9 @@ const NOT_LIVE_PRIORITY: RouterLivenessState[] = [
   "heartbeat-late",
   "online",
   "unknown",
+  // Last: there is no action behind it, so it never speaks for a location
+  // that has any other router with something to say.
+  "not-applicable",
 ];
 
 /**
@@ -728,7 +852,7 @@ export function locationIsControllerManaged(
 ): boolean {
   const routers = liveness?.routers ?? [];
   if (routers.length === 0) return false;
-  return routers.every((r) => r.state === "not-applicable");
+  return routers.every((r) => stateIsControllerManaged(r.state));
 }
 
 /**

@@ -117,14 +117,18 @@ const {
 // 1. The menu is the 25 again.
 // ---------------------------------------------------------------------------
 
-console.log("\nthe customer menu is 26 features in seven groups");
+console.log("\nthe customer menu is 25 features in seven groups");
 
 check("there are seven groups", CUSTOMER_NAV_GROUPS.length === 7, `${CUSTOMER_NAV_GROUPS.length}`);
-// 26: main removed the "Notifications" preferences screen (25) and this
-// branch adds "Network Integrations" to the Network group (+1). Asserted
-// rather than derived on purpose -- it is what catches a row being dropped
-// by an unrelated refactor -- so moving it is a deliberate step.
-check("there are 26 features", CUSTOMER_NAVS.length === 26, `${CUSTOMER_NAVS.length}`);
+// 25: main removed the "Notifications" preferences screen (25), a branch
+// added "Network Integrations" to the Network group (26), and FIX-PLAN FE-0
+// has now retired that row again (25) -- backend `074d719` made every
+// `network_integrations.*` route GLOBAL-scoped and dropped the org-scoped
+// grants, so for a venue owner the page it led to 403s on every call.
+// Asserted rather than derived on purpose -- it is what catches a row being
+// dropped by an unrelated refactor -- so moving it is a deliberate step, and
+// this is one.
+check("there are 25 features", CUSTOMER_NAVS.length === 25, `${CUSTOMER_NAVS.length}`);
 check(
   "the seven groups are the canonical ones",
   CUSTOMER_NAV_GROUPS.map((g) => g.id).join(",") ===

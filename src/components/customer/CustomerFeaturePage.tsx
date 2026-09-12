@@ -83,10 +83,6 @@ const GenericFeatureView = lazyView(OPS, "GenericFeatureView");
  * reason everything else on this shell is: `routeTree.gen.ts` statically
  * imports every route, so a static import anywhere in this component tree is
  * a chunk the browser fetches before first paint. */
-const NetworkIntegrationsView = lazyView(
-  () => import("@/components/features/NetworkIntegrationsPage"),
-  "NetworkIntegrationsPage",
-);
 import { Wifi, Activity } from "lucide-react";
 
 /**
@@ -291,9 +287,14 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                 /background-image redirects to /guest-portal at beforeLoad,
                 so nothing reaches this switch with that id. */}
               {feature === "isp-details" && <IspDetailsView locationId={locationId} />}
-              {feature === "network-integrations" && (
-                <NetworkIntegrationsView locationId={locationId} />
-              )}
+              {/* No "network-integrations" branch -- FIX-PLAN FE-0. Backend
+                  `074d719` moved every `network_integrations.*` route to
+                  ScopeType.GLOBAL and `rbac.seed`'s RETIRED_NON_GLOBAL_MODULES
+                  dropped the org-scoped grants, so this page 403s on every
+                  call for a venue owner. Its route, nav row and catalog entry
+                  are gone with it; the component stays because it is the
+                  console's only complete connect flow and is moving to the
+                  Master console (FE-0 step 3, not done here). */}
               {feature === "admin-logs" && <AdminLogsView locationId={locationId} />}
               {feature === "network-activity" && <NetworkActivityLog masked={masked} />}
               {feature === "mac-auth" && <MacAuthView locationId={locationId} />}
@@ -307,7 +308,9 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                   controller owns the setting and links to it. */}
               {controllerGated ? (
                 <ControllerManagedFeatureNotice
+                  featureId={feature}
                   featureLabel={CUSTOMER_NAVS.find((n) => n.id === feature)?.label ?? feature}
+                  venueName={activeLocation?.name ?? null}
                   vendor={controllerVendor}
                 />
               ) : (

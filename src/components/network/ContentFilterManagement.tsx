@@ -43,6 +43,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ControllerRoutersNote, RouterPickerItems } from "@/components/network/RouterPickerItems";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   AlertDialog,
@@ -306,11 +307,10 @@ export function ContentFilterManagement({ locationId }: { locationId?: string } 
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All routers</SelectItem>
-                {routers.rows.map((r) => (
-                  <SelectItem key={r.id} value={r.id}>
-                    {r.name}
-                  </SelectItem>
-                ))}
+                {/* Contract §11.5: the two kinds of device are listed
+                    apart, and only the ones this platform configures are
+                    selectable. See RouterPickerItems. */}
+                <RouterPickerItems rows={routers.rows} />
               </SelectContent>
             </Select>
             <div className="relative w-64 max-w-full">
@@ -595,11 +595,11 @@ function RuleDialog({
                     <SelectValue placeholder="Select router" />
                   </SelectTrigger>
                   <SelectContent>
-                    {routers.map((r) => (
-                      <SelectItem key={r.id} value={r.id}>
-                        {r.name}
-                      </SelectItem>
-                    ))}
+                    {/* Contract §11.5. A controller is listed here but not
+                        selectable: the backend refuses this write by vendor,
+                        and meeting that refusal after the form is filled in
+                        is the defect this closes. */}
+                    <RouterPickerItems rows={routers} />
                   </SelectContent>
                 </Select>
               )}
@@ -609,6 +609,9 @@ function RuleDialog({
                 {form.formState.errors.routerId.message}
               </p>
             )}
+            {/* Names what was greyed out and why. Renders nothing at a venue
+                with no controller. */}
+            <ControllerRoutersNote rows={routers} />
           </div>
           <div className="sm:col-span-2 space-y-1.5">
             <Label className="text-xs font-medium">Name</Label>

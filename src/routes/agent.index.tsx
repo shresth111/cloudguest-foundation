@@ -226,7 +226,9 @@ function AgentDashboard() {
           <div className="mx-auto max-w-7xl">
             {controllerManaged && !featureAppliesToControllerVenue(active) ? (
               <ControllerManagedFeatureNotice
+                featureId={active}
                 featureLabel={activeLabel}
+                venueName={activeLocation?.name ?? null}
                 vendor={controllerVendor}
               />
             ) : (

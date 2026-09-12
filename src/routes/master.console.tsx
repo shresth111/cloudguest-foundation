@@ -15,6 +15,7 @@ import {
 import { routerService } from "@/services/router.service";
 import { provisioningService, type ConsoleCommandResult } from "@/services/provisioning.service";
 import type { RouterDevice } from "@/types/router";
+import { isControllerManagedRow, routerVendorLabel } from "@/lib/router-vendors";
 import type { AppError } from "@/services/api";
 
 export const Route = createFileRoute("/master/console")({
@@ -118,12 +119,29 @@ function DeviceConsoleScreen() {
                 disabled={loadingRouters}
               >
                 <option value="">{loadingRouters ? "Loading routers…" : "Select a router…"}</option>
-                {routers.map((r) => (
-                  <option key={r.id} value={r.id} disabled={!r.hasApiCredentials}>
-                    {r.name} · {r.locationName} / {r.organizationName}
-                    {!r.hasApiCredentials ? " (no credentials)" : ""}
-                  </option>
-                ))}
+                {/* Two different reasons a row cannot be a target, and they
+                    must not share a label. "(no credentials)" is fixable --
+                    add credentials and this row works. A controller has no
+                    RouterOS to send a command to at all: this screen runs raw
+                    RouterOS immediately, with no undo and no safe-command
+                    allowlist, and it was listing the Omada-vendored row as a
+                    perfectly ordinary target with no suffix whatsoever, while
+                    correctly marking credential-less MikroTiks. Judged on the
+                    ROW (FIX-PLAN D3a), so a mislabelled MikroTik that really
+                    does answer RouterOS stays usable. */}
+                {routers.map((r) => {
+                  const controller = isControllerManagedRow(r);
+                  return (
+                    <option key={r.id} value={r.id} disabled={controller || !r.hasApiCredentials}>
+                      {r.name} · {r.locationName} / {r.organizationName}
+                      {controller
+                        ? ` (${routerVendorLabel(r.vendor)} controller — no RouterOS)`
+                        : !r.hasApiCredentials
+                          ? " (no credentials)"
+                          : ""}
+                    </option>
+                  );
+                })}
               </select>
             </MField>
 
