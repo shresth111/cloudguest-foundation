@@ -18,14 +18,30 @@
  *    for the venue. An unexplainable number is worse than no number: it
  *    spends the trust the rest of the page needs, and there is a whole
  *    competitor doing it badly to learn from.
- * 4. NEVER CLAIM WIRELESS. The fleet is MikroTik hEX lite / RB750r2 -- a
- *    five-port *wired* router with no radio. Signal strength, SNR, channel
- *    use and airtime are not weakly supported, they are absent; the menu
- *    does not exist on the hardware. So "the link is fine and the problem
- *    is in the wireless, which we cannot see" is a designed, first-class
- *    result here (`wireless-boundary`), not a fallback -- because it is
- *    frequently the true answer, and a green tick over a broken venue
+ * 4. NEVER CLAIM WIRELESS. On the agent-managed fleet -- MikroTik hEX lite /
+ *    RB750r2, a five-port *wired* router with no radio -- signal strength,
+ *    SNR, channel use and airtime are not weakly supported, they are absent;
+ *    the menu does not exist on the hardware. So "the link is fine and the
+ *    problem is in the wireless, which we cannot see" is a designed,
+ *    first-class result here (`wireless-boundary`), not a fallback -- because
+ *    it is frequently the true answer, and a green tick over a broken venue
  *    costs more than an honest boundary.
+ *
+ *    This rule used to open "The fleet is MikroTik hEX lite / RB750r2", flat,
+ *    and that sentence is no longer true: `routers.vendor` now also carries
+ *    `tplink_omada`, and this module had ZERO vendor awareness -- which is
+ *    how a controller venue came to be told "We lost contact with your router
+ *    1 day ago" and "Check the lights on your provider's box and on your
+ *    router", about a device that has no lights here and was never in contact
+ *    by design. The conclusion survives for a different reason on a
+ *    controller venue (we see nothing about its radios either, because we do
+ *    not poll them), but the premise had to be corrected rather than left
+ *    quietly wrong.
+ *
+ * 5. CONTRACT §11.5: EVERY RUNG THAT TALKS ABOUT "YOUR ROUTER" IS A CLAIM
+ *    ABOUT AN AGENT-MANAGED DEVICE. `routerLivenessMeasured` gates them. A
+ *    controller never checks in, so its silence is not evidence of anything
+ *    and must never be spent as though it were.
  *
  * What is deliberately NOT here yet: the login-history and OTP rungs.
  * Those need `GET /guest-login-history` to grow an `identifier` filter.
@@ -72,6 +88,38 @@ export interface VenueSignals {
   routerReachable: boolean | null;
   /** Guests connected right now, or null when we could not count them. */
   guestsOnline: number | null;
+  /**
+   * Contract §11.5. False when this venue's network is run by a vendor
+   * controller, so nothing here ever waits for a check-in.
+   *
+   * WHY THIS SIGNAL HAD TO EXIST. The two unreachable rungs below are the
+   * loudest thing this page says, and every word of both is about a device
+   * this platform runs software on: "we lost contact with your router", "we
+   * reach your router through your own internet connection", "check the
+   * lights on your provider's box and on your router". On an Omada venue all
+   * of that is false, and it was being said -- observed in production against
+   * a controller row whose `last_seen_at` was two days old, which is not a
+   * missed heartbeat because there is no heartbeat: that timestamp is the row
+   * being written. Meanwhile the owner's own Dashboard, reading the same
+   * router through `deriveRouterLiveness`, correctly said there is no
+   * check-in to wait for here. Two surfaces, opposite answers, one router.
+   *
+   * Defaults to `true` (undefined means measured) so every pre-existing
+   * caller and test is unchanged.
+   */
+  routerLivenessMeasured?: boolean;
+  /**
+   * Something recorded this controller as offline or unhealthy.
+   *
+   * Separate from `routerLivenessMeasured` because they are opposite kinds of
+   * fact: one says this platform never looks, the other says it was handed a
+   * result. Not measuring must never silence a fault it was told about -- see
+   * `location-liveness.ts`'s `controller-reported-down`.
+   */
+  controllerReportedDown?: boolean;
+  /** "TP-Link Omada", or null when the venue summary predates the vendor
+   * field. The copy below stays correct either way. */
+  controllerVendorLabel?: string | null;
   /** Injectable for tests. */
   now?: number;
 }
@@ -84,6 +132,12 @@ export type VenueStatus =
   | "on-backup"
   | "internet-slow"
   | "internet-up"
+  /** §11.5: the venue's controller is recorded as down. */
+  | "controller-down"
+  /** §11.5: nothing is wrong that we know of, and we do not measure the
+   * device, so there is no reading to report. Distinct from `unknown`, whose
+   * copy blames a recent setup or a failed check. */
+  | "controller-not-measured"
   | "unknown";
 
 export interface VenueVerdict {
@@ -195,8 +249,37 @@ export function venueVerdict(signals: VenueSignals): VenueVerdict {
   const anyUp = up.length > 0;
   const allDown = links.length > 0 && links.every((l) => l.status === "down");
 
+  // §11.5, and it comes before the link rungs on purpose: a controller that is
+  // down stops guests logging in whether or not the venue's line is carrying
+  // traffic, so "your internet is working" would be a true sentence answering
+  // the wrong question at the worst moment.
+  const measured = signals.routerLivenessMeasured !== false;
+  const brand = signals.controllerVendorLabel;
+  const controllerNoun = brand ? `${brand} controller` : "network controller";
+  if (!measured && signals.controllerReportedDown) {
+    return {
+      ...base,
+      status: "controller-down",
+      tone: "danger",
+      headline: `Your ${controllerNoun} is showing as down.`,
+      meaning:
+        `Your WiFi is run by your ${controllerNoun}, and it is currently recorded as offline ` +
+        "or failing its health check. While that is true, guests here may not be able to get " +
+        "online even if your internet line is fine." +
+        guestsClause(signals.guestsOnline),
+      action:
+        "Check the controller itself, and that it can still reach the internet. This will not " +
+        "clear on its own from our side.",
+    };
+  }
+
   // Unreachable, and nothing tells us the line survived.
-  if (signals.routerReachable === false && !anyUp) {
+  //
+  // `measured &&`: both unreachable rungs are claims about a device this
+  // platform hears from on a schedule. A controller does not check in at all,
+  // so its silence is not evidence of anything and must never be spent as if
+  // it were -- least of all on this page, which a worried owner opens first.
+  if (measured && signals.routerReachable === false && !anyUp) {
     const lostAge = ageMs(signals.routerLastSeenAt, now);
     return {
       ...base,
@@ -216,7 +299,7 @@ export function venueVerdict(signals: VenueSignals): VenueVerdict {
   }
 
   // Unreachable, but a link is demonstrably carrying traffic.
-  if (signals.routerReachable === false && anyUp) {
+  if (measured && signals.routerReachable === false && anyUp) {
     return {
       ...base,
       status: "router-unreachable-internet-ok",
@@ -281,6 +364,27 @@ export function venueVerdict(signals: VenueSignals): VenueVerdict {
       headline: "Your internet is working.",
       meaning: null,
       action: null,
+    };
+  }
+
+  // §11.5. The generic unknown below blames a recent setup or a check that did
+  // not land -- both of which invite the owner to wait and refresh. Neither is
+  // true here and no amount of waiting changes it: nothing on this platform
+  // measures a controller, so the absence is permanent and is not a fault.
+  if (!measured) {
+    return {
+      ...base,
+      status: "controller-not-measured",
+      tone: "neutral",
+      headline: "Your WiFi is run by your controller, so there's no reading to show here.",
+      meaning:
+        `This venue's network is managed by your ${controllerNoun}. We connect to it through ` +
+        "that controller rather than running our software on it, so there is no check-in for " +
+        "us to wait for and nothing here has gone wrong." +
+        guestsClause(signals.guestsOnline),
+      action:
+        "Guest sign-ins, sessions and the lookup below all still work as normal. For the " +
+        "network itself, check your controller.",
     };
   }
 
@@ -367,6 +471,28 @@ export function guestVerdict(signals: GuestSignals): GuestVerdict {
 
   // 1. An outage outranks anything about one guest, and saying otherwise
   //    sends someone to fiddle with a phone while the venue is dark.
+  //
+  //    §11.5 gets its own rung rather than joining the one below: a
+  //    controller recorded as down is a venue-wide fault and must outrank a
+  //    guest lookup, but "your internet is down" would be a claim about the
+  //    ISP line that nothing here established -- the line may be perfectly
+  //    fine and the controller still not letting anyone on.
+  if (signals.venue === "controller-down") {
+    return {
+      finding: "venue-outage",
+      tone: "danger",
+      confidence: "certain",
+      headline: "Your controller is down — this affects everyone, not just them.",
+      meaning:
+        "There's nothing wrong with this guest's phone. While your controller is down, guests " +
+        "here may not be able to join the WiFi at all.",
+      action:
+        "Check the controller before troubleshooting any single guest. Tell your guests it's " +
+        "the network rather than their devices — it saves them restarting phones that are fine.",
+      checked: ["Your venue's controller"],
+      notChecked: [],
+    };
+  }
   if (signals.venue === "internet-down" || signals.venue === "router-unreachable-internet-down") {
     return {
       finding: "venue-outage",

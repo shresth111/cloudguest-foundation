@@ -65,6 +65,33 @@ export const DEVICE_VENDORS: { value: string; label: string }[] = [
   { value: "cisco_meraki", label: "Cisco Meraki" },
 ];
 
+/**
+ * The vendors a control may WRITE. The two this platform implements.
+ *
+ * `DEVICE_VENDORS` above is a LABELLING table -- it exists so a screen can
+ * name hardware a customer actually has and say "not yet supported". Its own
+ * comment says exactly that. It was nonetheless wired straight into the
+ * Master fleet drawer's vendor `<select>`, which fires
+ * `PUT /routers/{id} {vendor}` on change: picking "UniFi" wrote
+ * `vendor="unifi"`, a value that is in no adapter registry and NOT in
+ * `CONTROLLER_MANAGED_VENDORS`, so the row was thereafter silently treated as
+ * an agent-managed MikroTik for ever. The comment described an intent the
+ * code did not implement, which is the same failure as the router.service
+ * comment claiming this wizard was mounted somewhere it was not.
+ *
+ * Separating the two lists makes the intent enforceable rather than
+ * aspirational: a screen that wants to NAME a vendor reads `DEVICE_VENDORS`;
+ * a control that wants to SET one reads this.
+ *
+ * This is only the write-surface half of FIX-PLAN D3b. The rest of it --
+ * moving `vendor` onto a GLOBAL-scoped route, a typed confirmation, an audit
+ * diff, and immutability once the device has spoken -- is backend work and is
+ * not done here.
+ */
+export const SELECTABLE_DEVICE_VENDORS: { value: string; label: string }[] = DEVICE_VENDORS.filter(
+  (v) => v.value === "mikrotik" || v.value === "tplink_omada",
+);
+
 function vendorLabel(value: string): string {
   return DEVICE_VENDORS.find((v) => v.value === value)?.label ?? value;
 }

@@ -2,7 +2,11 @@ import { Link } from "@tanstack/react-router";
 import { Plug, Server } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { customerFeatureHref } from "@/lib/customerNav";
-import { controllerVenueFeatureReason } from "@/lib/router-vendors";
+import {
+  CONTROLLER_UNSUPPORTED_HEADLINE,
+  controllerUnsupportedCopy,
+  controllerVenueFeatureReason,
+} from "@/lib/router-vendors";
 
 /**
  * What a venue owner sees in place of a Network screen their venue cannot
@@ -31,26 +35,41 @@ import { controllerVenueFeatureReason } from "@/lib/router-vendors";
  * destination is a support ticket; with one it is a redirect.
  */
 export function ControllerManagedFeatureNotice({
+  featureId,
   featureLabel,
+  venueName,
   vendor,
 }: {
+  /** The screen's id (`"vlans"`), which selects the noun and verb in
+   * `controllerUnsupportedCopy` -- FIX-PLAN D4's table. */
+  featureId: string;
   /** The screen the owner was trying to open, in their own vocabulary --
-   * "Port Forwarding", not "port-forwarding". */
+   * "Port Forwarding", not "port-forwarding". Used only in the fallback
+   * sentence, for a feature id the D4 table does not cover. */
   featureLabel: string;
+  /** This venue's name, so the panel addresses the place rather than "this
+   * venue" in the abstract. Null is fine; the copy degrades cleanly. */
+  venueName: string | null;
   /** Raw `routers.vendor`, or null when the venue summary predates the
    * field. The copy stays correct either way. */
   vendor: string | null;
 }) {
+  // FIX-PLAN D4's exact copy where the feature is in its table; the older
+  // vendor-neutral sentence otherwise, so a screen this panel is reused for
+  // later still says something true rather than nothing.
+  const planned = controllerUnsupportedCopy(featureId, venueName);
   return (
     <div className="rounded-xl border border-dashed border-border bg-card/40 px-6 py-12 text-center">
       <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
         <Server className="h-6 w-6 text-muted-foreground" />
       </div>
       <h3 className="text-base font-semibold text-foreground">
-        {featureLabel} is configured on this venue&rsquo;s controller
+        {planned
+          ? CONTROLLER_UNSUPPORTED_HEADLINE
+          : `${featureLabel} is configured on this venue's controller`}
       </h3>
       <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">
-        {controllerVenueFeatureReason(vendor)}
+        {planned ?? controllerVenueFeatureReason(vendor)}
       </p>
       {/* Named, not implied. An owner who reads "configured elsewhere" and
           is not told which five things moved will try the other four one at
@@ -63,7 +82,7 @@ export function ControllerManagedFeatureNotice({
       <Link to={customerFeatureHref("network-integrations")} className="mt-6 inline-block">
         <Button variant="outline">
           <Plug className="h-4 w-4" />
-          <span className="ml-2">Open Network Integrations</span>
+          <span className="ml-2">See this venue&rsquo;s controller</span>
         </Button>
       </Link>
     </div>

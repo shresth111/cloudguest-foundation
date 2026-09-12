@@ -276,14 +276,20 @@ console.log("\ncontroller venue: the five Network screens");
       !(await r.page.locator("form").count()),
     "the view fetches its rules and offers Add/Edit on mount; it must not mount at all",
   );
+  // Copy updated 2026-09-12 to FIX-PLAN D4's wording. The ASSERTIONS are not
+  // weakened -- they still require a headline that says where the setting
+  // lives, the vendor named in full, the specific noun for THIS screen (so a
+  // generic panel cannot satisfy every screen's test), and the deep link that
+  // is the load-bearing half of the panel. Only the strings moved.
   check(
     "omada-port-forwarding-explains-itself",
-    /Port Forwarding is configured on this venue's controller/.test(r.text) &&
-      /TP-Link Omada controller/.test(r.text),
+    /Configured in Omada, not here\./.test(r.text) &&
+      /TP-Link Omada controller/.test(r.text) &&
+      /Port forwarding rules for this venue are set in Omada's own interface/.test(r.text),
   );
   check(
     "omada-port-forwarding-links-to-the-integration",
-    (await r.page.getByRole("link", { name: /Open Network Integrations/ }).count()) === 1,
+    (await r.page.getByRole("link", { name: /See this venue.s controller/ }).count()) === 1,
   );
 
   const network = r.rows.filter((row) => NETWORK_LABELS.includes(row.label));

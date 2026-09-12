@@ -307,7 +307,9 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                   controller owns the setting and links to it. */}
               {controllerGated ? (
                 <ControllerManagedFeatureNotice
+                  featureId={feature}
                   featureLabel={CUSTOMER_NAVS.find((n) => n.id === feature)?.label ?? feature}
+                  venueName={activeLocation?.name ?? null}
                   vendor={controllerVendor}
                 />
               ) : (

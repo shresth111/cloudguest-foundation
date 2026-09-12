@@ -55,8 +55,27 @@ const SUPPORT_SLUGS = new Set([
   "platform-support",
 ]);
 
+/**
+ * A platform operator: someone holding a role assignment at GLOBAL scope.
+ *
+ * The same predicate `_authenticated.tsx`, `master.tsx`, `authGuards.ts`,
+ * `api.ts` and `legacyRoleBucket` below had each open-coded. Named here
+ * because it is now also a decision inside a COMPONENT rather than only in a
+ * route guard: `RouterWizard`'s Omada branch submits to
+ * `POST /network-integrations/platform/onboard`, which the backend gates at
+ * `ScopeType.GLOBAL`. Every route that mounts that wizard happens to require
+ * this today, so the choice cannot currently be reached without it -- but the
+ * wizard is a component, mountable anywhere, and "the route guard upstream
+ * makes this safe" is an invariant held in a comment rather than in code. A
+ * venue owner who ever did reach it would fill in a long form and collect a
+ * 403 on the last step.
+ */
+export function hasGlobalScopeRole(roles: RoleAssignment[] | null | undefined): boolean {
+  return (roles ?? []).some((r) => r.scopeType === "global");
+}
+
 export function legacyRoleBucket(roles: RoleAssignment[]): LegacyRoleBucket {
-  if (roles.some((r) => r.scopeType === "global")) return "super_admin";
+  if (hasGlobalScopeRole(roles)) return "super_admin";
   if (roles.some((r) => ORG_ADMIN_SLUGS.has(r.roleSlug))) return "org_admin";
   if (roles.some((r) => LOCATION_MANAGER_SLUGS.has(r.roleSlug))) return "location_manager";
   if (roles.some((r) => SUPPORT_SLUGS.has(r.roleSlug))) return "support_engineer";
