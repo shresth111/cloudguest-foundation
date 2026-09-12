@@ -64,6 +64,7 @@
     "test:portal-error-boundary": "node scripts/test-portal-error-boundary.mjs",
     "test:portal-not-set-up": "node scripts/test-portal-not-set-up.mjs",
     "test:portal-search-retention": "node scripts/test-portal-search-retention.mjs",
+    "test:capport-misroute": "node scripts/test-captive-portal-never-staff-login.mjs",
     "test:portal-client-ip": "node scripts/test-portal-client-ip.mjs",
     "test:portal-omada-params": "node scripts/test-portal-omada-params.mjs",
     "test:omada-guest-bridge": "node scripts/test-omada-guest-bridge.mjs",

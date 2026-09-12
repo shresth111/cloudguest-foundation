@@ -64,6 +64,7 @@ import {
   halfConfiguredIntegrations,
 } from "@/lib/network-integration-readiness";
 import { cn } from "@/lib/utils";
+import { OMADA_SITE_ID_EXAMPLE, isOmadaSiteId, omadaSiteIdError } from "@/lib/omada-site-id";
 import type { AppError } from "@/services/api";
 import { networkIntegrationService } from "@/services/network-integration.service";
 import {
@@ -2398,42 +2399,42 @@ function ConnectWizard({
               </div>
             )}
 
-            {/* CR-002: the site name cannot be looked up in legacy mode, so
-                it is typed in — and the field says exactly where to find the
-                right value, because getting it wrong is not obvious until a
-                guest fails to get online. Omada puts the site on its own
-                portal redirect as the `site` query parameter, which is the
-                authoritative spelling: it is the string the authorize call
-                will be made with. */}
+            {/* CR-002: sites cannot be looked up in legacy mode, so the
+                value is typed in — and the field says exactly where to find
+                it, because getting it wrong is not obvious until a guest
+                fails to get online. What is typed is the site ID, not the
+                site name: Omada puts the site on its own portal redirect as
+                the `site` query parameter and that parameter always carries
+                the id (verified against a live controller, 2026-09-12), and
+                the id is also what every controller call is addressed with.
+                See src/lib/omada-site-id.ts. */}
             {step === 2 && !canListInventory && (
               <div className="space-y-3">
                 <div>
-                  <p className="text-sm font-medium text-foreground">Type the Omada site name</p>
+                  <p className="text-sm font-medium text-foreground">Type the Omada site id</p>
                   <p className="text-xs text-muted-foreground">
                     A hotspot operator account cannot list sites, so this one has to be entered by
                     hand. Guest sign-in still works normally.
                   </p>
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="omada-site-name">Site</Label>
+                  <Label htmlFor="omada-site-id">Site id</Label>
                   <Input
-                    id="omada-site-name"
-                    placeholder="Default"
-                    value={siteName}
-                    onChange={(e) => {
-                      setSiteName(e.target.value);
-                      // In legacy mode the name IS the identifier -- it is
-                      // what Omada's own redirect carries and what the
-                      // authorize call sends back. Kept in both fields rather
-                      // than inventing an id we do not have.
-                      setSiteId(e.target.value.trim());
-                    }}
+                    id="omada-site-id"
+                    placeholder={OMADA_SITE_ID_EXAMPLE}
+                    value={siteId}
+                    onChange={(e) => setSiteId(e.target.value)}
+                    aria-invalid={siteId.trim() && !isOmadaSiteId(siteId) ? true : undefined}
                   />
+                  {siteId.trim() && !isOmadaSiteId(siteId) ? (
+                    <p className="text-xs text-destructive">{omadaSiteIdError(siteId)}</p>
+                  ) : null}
                   <p className="text-xs text-muted-foreground">
-                    Must match the site exactly as Omada spells it. The reliable way to check: open
-                    your guest WiFi on a phone, and read the <code>site=</code> value out of the
-                    address bar when the sign-in page appears. Most single-site controllers use{" "}
-                    <code>Default</code>.
+                    It is the site <strong>id</strong> — 24 letters and digits — not the site&apos;s
+                    name. The reliable way to read it: open your guest WiFi on a phone, and take the{" "}
+                    <code>site=</code> value out of the address bar when the sign-in page appears.{" "}
+                    <code>Default</code> is a name and will not work, on a single-site controller
+                    either.
                   </p>
                 </div>
               </div>
@@ -2577,11 +2578,28 @@ function ConnectWizard({
               Continue
             </Button>
           )}
+          {/* The id has to be an id, not a name -- the picker branch can
+              only produce one, and the typed branch is checked here as well
+              as beside the field, so a malformed value cannot be carried
+              forward by pressing Continue. See src/lib/omada-site-id.ts. */}
           {step === 2 && (
             <Button
-              disabled={!siteId || busy}
-              aria-disabled={!siteId || busy}
-              title={!siteId ? "Pick which Omada site this venue is." : undefined}
+              disabled={!isOmadaSiteId(siteId) || busy}
+              aria-disabled={!isOmadaSiteId(siteId) || busy}
+              // Both halves of this button arrived separately and both are
+              // load-bearing: the id check (a site NAME cannot be carried
+              // forward) and the stated reason (a disabled control with no
+              // explanation is the defect the title was added to fix). The
+              // reason has to distinguish "nothing picked yet" from "picked
+              // the wrong kind of thing", or the stricter check reads as a
+              // dead button.
+              title={
+                !siteId
+                  ? "Pick which Omada site this venue is."
+                  : !isOmadaSiteId(siteId)
+                    ? (omadaSiteIdError(siteId) ?? undefined)
+                    : undefined
+              }
               onClick={() => setStep(3)}
             >
               Continue

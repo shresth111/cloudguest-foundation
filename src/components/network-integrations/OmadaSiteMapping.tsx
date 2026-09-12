@@ -59,6 +59,7 @@
  * value we do.
  */
 import { useState } from "react";
+import { OMADA_SITE_ID_EXAMPLE, omadaSiteIdError } from "@/lib/omada-site-id";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Check, RefreshCw, Info } from "lucide-react";
 import { toast } from "sonner";
@@ -174,7 +175,16 @@ export function OmadaSiteMapping({
       // site and the readiness gaps that depend on it.
       qc.invalidateQueries({ queryKey: ["network-integrations"] });
       toast.success("Site and guest network saved");
-      onSaved?.({ siteName: siteName.trim(), ssidName: ssidName.trim() });
+      // The site id when no name is known, which is every legacy
+      // integration: a hotspot operator account cannot list sites (CR-002),
+      // so the typed branch establishes an id and nothing else. Callers use
+      // this purely to confirm what was mapped (`RouterWizard` renders
+      // "Site {x} mapped."), and an empty string there silently renders no
+      // confirmation at all.
+      onSaved?.({
+        siteName: siteName.trim() || siteId.trim(),
+        ssidName: ssidName.trim(),
+      });
     },
     onError: (err) =>
       toast.error(requestErrorMessage(err, "Could not save the site and guest network.")),
@@ -183,7 +193,15 @@ export function OmadaSiteMapping({
   // A site is the load-bearing half: without one the integration authorises
   // nobody. An SSID is genuinely optional -- the controller reports it on
   // the redirect either way -- so it never blocks the save.
-  const canSave = siteName.trim().length > 0 && !save.isPending;
+  //
+  // Gated on the ID, not the name. The picker sets both; the typed branch
+  // can only ever establish an id (CR-002: a hotspot operator account
+  // cannot list sites, so there is no name to look up). `external_site_id`
+  // is the field every controller call and the portal site-check read --
+  // see src/lib/omada-site-id.ts -- so an empty name is survivable and an
+  // empty or malformed id is not.
+  const siteIdError = pickSite ? null : omadaSiteIdError(siteId);
+  const canSave = siteId.trim().length > 0 && !siteIdError && !save.isPending;
 
   return (
     <div className="space-y-4" data-testid="omada-site-mapping">
@@ -197,7 +215,7 @@ export function OmadaSiteMapping({
 
       {/* ── The site ─────────────────────────────────────────────────── */}
       <div className="space-y-1.5">
-        <Label htmlFor="omada-mapping-site">Omada site</Label>
+        <Label htmlFor="omada-mapping-site">{pickSite ? "Omada site" : "Omada site id"}</Label>
         {pickSite ? (
           <SitePicker
             sites={sites.data ?? []}
@@ -211,15 +229,14 @@ export function OmadaSiteMapping({
           <>
             <Input
               id="omada-mapping-site"
-              placeholder="Default"
-              value={siteName}
-              onChange={(e) => {
-                setSiteName(e.target.value);
-                // The typed value IS the identifier here -- see the module
-                // docstring. Kept in both rather than minting a fake id.
-                setSiteId(e.target.value.trim());
-              }}
+              placeholder={OMADA_SITE_ID_EXAMPLE}
+              value={siteId}
+              onChange={(e) => setSiteId(e.target.value)}
+              aria-invalid={siteIdError ? true : undefined}
             />
+            {siteIdError && siteId.trim() ? (
+              <p className="text-xs text-destructive">{siteIdError}</p>
+            ) : null}
             <ManualSiteHelp legacy={!canListInventory} />
           </>
         )}
@@ -280,7 +297,7 @@ export function OmadaSiteMapping({
           )}
           <span className="ml-1.5">Save site and network</span>
         </Button>
-        {!siteName.trim() && (
+        {!siteId.trim() && (
           <span className="text-xs text-muted-foreground">A site is required.</span>
         )}
       </div>
@@ -370,9 +387,11 @@ function ManualSiteHelp({ legacy }: { legacy: boolean }) {
             : "This controller's credentials could not list sites, so the value is typed in. Guest sign-in is unaffected."}
         </p>
         <p>
-          It must match the site exactly as Omada spells it. The reliable way to check: connect a
-          phone to the guest WiFi and read the <code>site=</code> value out of the address bar when
-          the sign-in page appears. Single-site controllers usually use <code>Default</code>.
+          It is the site <strong>id</strong> — 24 letters and digits — not the site&apos;s name. The
+          reliable way to read it: connect a phone to the guest WiFi and take the <code>site=</code>{" "}
+          value out of the address bar when the sign-in page appears. That parameter always carries
+          the id. <code>Default</code> is a name and will not work, on a single-site controller
+          either.
         </p>
       </div>
     </div>
