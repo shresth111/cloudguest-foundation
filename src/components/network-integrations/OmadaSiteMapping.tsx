@@ -175,7 +175,16 @@ export function OmadaSiteMapping({
       // site and the readiness gaps that depend on it.
       qc.invalidateQueries({ queryKey: ["network-integrations"] });
       toast.success("Site and guest network saved");
-      onSaved?.({ siteName: siteName.trim(), ssidName: ssidName.trim() });
+      // The site id when no name is known, which is every legacy
+      // integration: a hotspot operator account cannot list sites (CR-002),
+      // so the typed branch establishes an id and nothing else. Callers use
+      // this purely to confirm what was mapped (`RouterWizard` renders
+      // "Site {x} mapped."), and an empty string there silently renders no
+      // confirmation at all.
+      onSaved?.({
+        siteName: siteName.trim() || siteId.trim(),
+        ssidName: ssidName.trim(),
+      });
     },
     onError: (err) =>
       toast.error(requestErrorMessage(err, "Could not save the site and guest network.")),
