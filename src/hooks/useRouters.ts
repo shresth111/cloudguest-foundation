@@ -158,11 +158,29 @@ export function useRevokeWireGuardPeer() {
   });
 }
 
+/**
+ * Record a fleet row's device type.
+ *
+ * Went through `PUT /routers/{id}` with a bare `{ vendor }` until today.
+ * That route no longer has a `vendor` field -- it moved to a GLOBAL-scoped
+ * route of its own -- and an unrecognised key is ignored rather than
+ * refused, so the call 200ed and wrote nothing while the console reported
+ * success. `routerService.changeVendor` has the whole story.
+ */
 export function useUpdateRouterVendor() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, vendor }: { id: string; vendor: string }) =>
-      api.put(`/routers/${id}`, { vendor }),
+    mutationFn: (input: {
+      id: string;
+      vendor: string;
+      reason: string;
+      overrideContradictingEvidence?: boolean;
+    }) =>
+      routerService.changeVendor(input.id, {
+        vendor: input.vendor,
+        reason: input.reason,
+        overrideContradictingEvidence: input.overrideContradictingEvidence,
+      }),
     onSuccess: () => qc.invalidateQueries({ queryKey: routerKeys.all }),
   });
 }

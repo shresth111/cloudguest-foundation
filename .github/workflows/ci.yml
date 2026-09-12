@@ -1627,6 +1627,24 @@ jobs:
             "all checks passed" \
             bun run test:controller-venue-screens
 
+      # Evidence beats the label: a vendor string is something somebody
+      # typed, and it must never outrank what the device itself has done.
+      # This suite shipped with #271 and was never gated, which is how the
+      # SECOND vendor `<select>` -- the Advanced drilldown's, firing the same
+      # write as the drawer's -- kept offering Ruckus, UniFi, Aruba and Cisco
+      # Meraki after the first one was narrowed. It also pins the vendor
+      # write to its GLOBAL-scoped route: the console spent a day sending
+      # `{vendor}` to `PUT /routers/{id}`, which ignores it, 200s, and
+      # reports success.
+      #
+      # Floor 133, observed green at 133.
+      - name: controller row evidence
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "controller-row-evidence" 133 \
+            "All checks passed." \
+            bun run test:controller-row-evidence
+
       # And the nav that leads to them.
       #
       # Floor 21, observed green at 21.

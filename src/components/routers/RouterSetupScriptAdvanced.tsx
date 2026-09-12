@@ -18,6 +18,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { MButton, MTag } from "@/components/master/MasterKit";
+import { vendorLabel, vendorOptionsFor } from "@/lib/router-vendors";
 import { OmadaGuidedSetupPanel } from "@/components/routers/OmadaGuidedSetupPanel";
 import {
   buildRouterSetupScriptChunks,
@@ -46,55 +47,6 @@ import type { RotatingSecret } from "@/lib/setup-script-secrets";
 
 export const inputCls =
   "w-full rounded-lg border border-border bg-card px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground focus:border-primary";
-
-/** Matches DeviceVendor in wyfy-device-gateway's contract (PRD section 4.1)
- * -- same string identifiers so this dropdown's value and the backend's
- * Router.vendor column always agree. Two vendors are supported today, in
- * two different ways: MikroTik gets the setup script this file generates,
- * and TP-Link Omada gets `OmadaGuidedSetupPanel` -- an Omada controller is
- * onboarded through its network integration and configured in its own UI,
- * so there is no script, only the values to type in. Every other entry
- * exists so this Master-console screen can honestly say "not yet
- * supported" instead of hiding the hardware a customer actually has. */
-export const DEVICE_VENDORS: { value: string; label: string }[] = [
-  { value: "mikrotik", label: "MikroTik" },
-  { value: "tplink_omada", label: "TP-Link Omada" },
-  { value: "ruckus", label: "Ruckus" },
-  { value: "unifi", label: "UniFi" },
-  { value: "aruba", label: "Aruba" },
-  { value: "cisco_meraki", label: "Cisco Meraki" },
-];
-
-/**
- * The vendors a control may WRITE. The two this platform implements.
- *
- * `DEVICE_VENDORS` above is a LABELLING table -- it exists so a screen can
- * name hardware a customer actually has and say "not yet supported". Its own
- * comment says exactly that. It was nonetheless wired straight into the
- * Master fleet drawer's vendor `<select>`, which fires
- * `PUT /routers/{id} {vendor}` on change: picking "UniFi" wrote
- * `vendor="unifi"`, a value that is in no adapter registry and NOT in
- * `CONTROLLER_MANAGED_VENDORS`, so the row was thereafter silently treated as
- * an agent-managed MikroTik for ever. The comment described an intent the
- * code did not implement, which is the same failure as the router.service
- * comment claiming this wizard was mounted somewhere it was not.
- *
- * Separating the two lists makes the intent enforceable rather than
- * aspirational: a screen that wants to NAME a vendor reads `DEVICE_VENDORS`;
- * a control that wants to SET one reads this.
- *
- * This is only the write-surface half of FIX-PLAN D3b. The rest of it --
- * moving `vendor` onto a GLOBAL-scoped route, a typed confirmation, an audit
- * diff, and immutability once the device has spoken -- is backend work and is
- * not done here.
- */
-export const SELECTABLE_DEVICE_VENDORS: { value: string; label: string }[] = DEVICE_VENDORS.filter(
-  (v) => v.value === "mikrotik" || v.value === "tplink_omada",
-);
-
-function vendorLabel(value: string): string {
-  return DEVICE_VENDORS.find((v) => v.value === value)?.label ?? value;
-}
 
 /** Honest empty state for the vendors with no flow at all -- everything
  * except MikroTik (the script below) and TP-Link Omada
@@ -2058,8 +2010,18 @@ export function RouterSetupDrilldown({
               disabled={vendorSaving}
               onChange={(e) => onVendorChange(e.target.value)}
             >
-              {DEVICE_VENDORS.map((v) => (
-                <option key={v.value} value={v.value}>
+              {/* NOT `DEVICE_VENDORS`. This `<select>` writes, and that list
+                  is a LABELLING table -- its own comment says so. The fleet
+                  drawer's copy of this control was narrowed to the two
+                  vendors the platform implements; this one was left behind,
+                  so Ruckus, UniFi, Aruba and Cisco Meraki stayed live,
+                  selectable write options on the Advanced screen. Picking
+                  one put the row into a vendor no adapter registry knows,
+                  which every predicate reads as an agent-managed MikroTik:
+                  the device is then monitored by nothing, and looks fine.
+                  See `vendorOptionsFor`. */}
+              {vendorOptionsFor(vendor).map((v) => (
+                <option key={v.value} value={v.value} disabled={v.disabled}>
                   {v.label}
                 </option>
               ))}

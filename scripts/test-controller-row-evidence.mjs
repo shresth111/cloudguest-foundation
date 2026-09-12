@@ -458,13 +458,45 @@ check(
   "the fleet passes agent evidence into the derivation",
   /routeros_version: r\.routerOsVersion/.test(fleet),
 );
+// BOTH vendor <select>s, not one. This assertion used to name only the fleet
+// drawer's, and the Advanced drilldown's copy -- same `handleVendorChange`,
+// same write -- kept offering Ruckus, UniFi, Aruba and Cisco Meraki for
+// another day. `vendorOptionsFor` is the shared answer, so asserting the
+// call is asserting both.
+const advanced = read("src/components/routers/RouterSetupScriptAdvanced.tsx");
+for (const [where, source] of [
+  ["the fleet drawer", fleet],
+  ["the Advanced drilldown", advanced],
+]) {
+  check(
+    `${where}'s vendor <select> offers only implemented vendors`,
+    // Lookbehind, because "SELECTABLE_DEVICE_VENDORS.map" contains
+    // "DEVICE_VENDORS.map" -- a bare substring check passes for the wrong
+    // reason and then fails for the right one.
+    /vendorOptionsFor\([^)]*\)\.map/.test(source) &&
+      !/(?<!SELECTABLE_)DEVICE_VENDORS\.map/.test(source),
+  );
+}
 check(
-  "the vendor <select> offers only implemented vendors",
-  // Lookbehind, because "SELECTABLE_DEVICE_VENDORS.map" contains
-  // "DEVICE_VENDORS.map" -- a bare substring check passes for the wrong reason
-  // and then fails for the right one.
-  /SELECTABLE_DEVICE_VENDORS\.map/.test(fleet) &&
-    !/(?<!SELECTABLE_)DEVICE_VENDORS\.map/.test(fleet),
+  "a vendor outside the vocabulary stays visible rather than rendering as MikroTik",
+  /not supported/.test(read("src/lib/router-vendors.ts")),
+);
+check(
+  "the vendor write goes to the GLOBAL-scoped route, not PUT /routers/{id}",
+  /platform\/routers\/\$\{routerId\}\/vendor/.test(read("src/services/router.service.ts")) &&
+    !/api\.put\(`\/routers\/\$\{id\}`, \{ vendor \}\)/.test(read("src/hooks/useRouters.ts")),
+);
+check(
+  "and carries a written reason the audit entry can store",
+  /reason: input\.reason/.test(read("src/services/router.service.ts")),
+);
+check(
+  "the change is confirmed, not fired from onChange",
+  /VendorChangeDialog/.test(fleet) && /setVendorChange\(\{ router, vendor \}\)/.test(fleet),
+);
+check(
+  "the override is offered only after the device has objected",
+  /offerOverride = !!error/.test(fleet),
 );
 
 const consoleScreen = read("src/routes/master.console.tsx");

@@ -818,6 +818,46 @@ export const routerService = {
     await api.delete(`/routers/${routerId}/wireguard-peer`);
   },
 
+  /**
+   * Record what kind of device a fleet row is.
+   *
+   * `PUT /platform/routers/{id}/vendor`, GLOBAL-scoped, not
+   * `PUT /routers/{id}`. The console sent `{ vendor }` to the latter until
+   * today, and the backend REMOVED `vendor` from `RouterUpdateRequest` when
+   * it moved the field onto this route -- the same move `api_username` /
+   * `api_secret` made onto `management-access`, and for the same reason:
+   * `PUT /routers/{id}` is `routers.update` at ORGANIZATION scope, which
+   * every venue owner holds, so a customer could relabel their own device
+   * and switch off its monitoring.
+   *
+   * A request body pydantic does not recognise is IGNORED, not refused, so
+   * the old call kept returning 200 and changing nothing. The console
+   * invalidated its cache, the select snapped back to the old value, and no
+   * error was ever shown. Exactly the failure mode already recorded in this
+   * codebase for the nested-vs-flat credentials shape: a 200 that stored
+   * nothing.
+   *
+   * `reason` is required by the schema (min 8 characters) and is stored in
+   * the `ROUTER_UPDATED` audit entry beside the old and new values --
+   * because the question asked afterwards is always "why", and for the seven
+   * rows relabelled in 2026-09 nothing could answer it.
+   *
+   * `overrideContradictingEvidence` is sent only when the operator has been
+   * shown the backend's refusal and has said, in writing, to proceed anyway.
+   * It is never sent speculatively: the refusal exists precisely because a
+   * heartbeat outranks a dropdown.
+   */
+  async changeVendor(
+    routerId: string,
+    input: { vendor: string; reason: string; overrideContradictingEvidence?: boolean },
+  ): Promise<void> {
+    await api.put(`/platform/routers/${routerId}/vendor`, {
+      vendor: input.vendor,
+      reason: input.reason,
+      ...(input.overrideContradictingEvidence ? { override_contradicting_evidence: true } : {}),
+    });
+  },
+
   /** Real, immediate `/system reboot` on the physical device -- every
    * connected guest drops and the router is unreachable for its normal
    * ~1-2 minute boot cycle. Throws (via the shared api instance's
