@@ -846,3 +846,126 @@ export const NETWORK_INTEGRATION_ERROR_STATUSES: readonly NetworkIntegrationStat
 export function isNetworkIntegrationErrored(status: NetworkIntegrationStatus): boolean {
   return NETWORK_INTEGRATION_ERROR_STATUSES.includes(status);
 }
+
+// ---------------------------------------------------------------------------
+// Automatic controller setup.
+// ---------------------------------------------------------------------------
+
+/**
+ * Why `POST .../configure-controller` will refuse, in the order they must be
+ * fixed.
+ *
+ * The backend computes these (`_controller_setup_gaps`) and returns them; this
+ * list mirrors the enum so the console can say what closes each one. The order
+ * is load-bearing -- it is a dependency chain, not a set. Telling an operator
+ * to pick a site before the credentials that can list sites are stored sends
+ * them to a screen that cannot answer.
+ */
+export type ControllerSetupGap =
+  | "INTEGRATION_DISABLED"
+  | "PROVIDER_UNSUPPORTED"
+  | "OPENAPI_REQUIRED"
+  | "CREDENTIALS_MISSING"
+  | "LOCATION_NOT_MAPPED"
+  | "SITE_NOT_SELECTED"
+  | "FLEET_DEVICE_MISSING"
+  | "GUEST_SSID_MISSING";
+
+export const CONTROLLER_SETUP_GAP_ORDER: readonly ControllerSetupGap[] = [
+  "INTEGRATION_DISABLED",
+  "PROVIDER_UNSUPPORTED",
+  "OPENAPI_REQUIRED",
+  "CREDENTIALS_MISSING",
+  "LOCATION_NOT_MAPPED",
+  "SITE_NOT_SELECTED",
+  "FLEET_DEVICE_MISSING",
+  "GUEST_SSID_MISSING",
+];
+
+/**
+ * What each gap means and what closes it.
+ *
+ * `fix` is the sentence an operator acts on. It names a control on a screen
+ * they can reach, because "the integration is not ready" with no next step is
+ * the shape of every support ticket this console generates.
+ */
+export const CONTROLLER_SETUP_GAP_COPY: Record<ControllerSetupGap, { title: string; fix: string }> =
+  {
+    INTEGRATION_DISABLED: {
+      title: "This integration is switched off",
+      fix: "Enable it from this drawer, then run the preview again.",
+    },
+    PROVIDER_UNSUPPORTED: {
+      title: "Automatic setup does not support this provider",
+      fix: "Only TP-Link Omada can be configured automatically. This one has to be set up in its own interface.",
+    },
+    OPENAPI_REQUIRED: {
+      // The one that catches real venues. Automatic setup writes SSID portal
+      // settings and creates the hotspot operator account, and a legacy operator
+      // credential can do neither -- it authorises guests and nothing else. The
+      // live QA venue was onboarded in Hotspot-operator mode, which the Master
+      // wizard marks "Recommended", so it could never have been
+      // auto-configured. That badge is wrong, and this is the third thing it
+      // costs.
+      title: "This integration signs in with a hotspot operator account",
+      fix: "Automatic setup needs an Open API client. Use Replace credentials above to store a client ID and secret, then run the preview again.",
+    },
+    CREDENTIALS_MISSING: {
+      title: "No Open API client is stored",
+      fix: "Use Replace credentials above to store the client ID and client secret.",
+    },
+    LOCATION_NOT_MAPPED: {
+      title: "This integration is not attached to a venue",
+      fix: "Map it to one of the customer's locations before configuring the controller.",
+    },
+    SITE_NOT_SELECTED: {
+      title: "No Omada site has been chosen",
+      fix: "Pick which site on the controller this venue is, in the site and guest-network mapping below.",
+    },
+    FLEET_DEVICE_MISSING: {
+      title: "The venue has no device row",
+      fix: "This integration was created without a fleet device. Re-run provisioning for this venue, or onboard the controller from Router Fleet.",
+    },
+    GUEST_SSID_MISSING: {
+      title: "No guest network has been chosen",
+      fix: "Pick the SSID guests connect to, in the site and guest-network mapping below.",
+    },
+  };
+
+/** `true` only for a gap this build recognises -- an unknown one is shown
+ * verbatim rather than dropped, because a precondition nobody renders is a
+ * button that refuses with no reason given. */
+export function isControllerSetupGap(value: unknown): value is ControllerSetupGap {
+  return typeof value === "string" && value in CONTROLLER_SETUP_GAP_COPY;
+}
+
+/**
+ * What a configure run reports back.
+ *
+ * DELIBERATELY LOOSE, AND THIS IS NOT LAZINESS. The backend's
+ * `ControllerSetupOutcome` shape could not be read from any source available
+ * when this was written -- it post-dates the backend checkout to hand and
+ * appears in none of the contract documents. Inventing a field map and
+ * rendering against it is precisely how the credential contract broke once
+ * already: the frontend sent a shape the backend ignored, got a 201, stored
+ * nothing, and the test asserted the same wrong place and passed.
+ *
+ * So every known-shaped field is optional and everything is preserved in
+ * `raw`, which the drawer renders faithfully. The first real dry run -- which
+ * changes nothing by definition, and is the only thing this UI lets you do
+ * first -- shows the true shape, and this type can then be tightened against
+ * something observed rather than assumed.
+ */
+export interface ControllerSetupOutcome {
+  /** Whether anything was actually written. False for a dry run. */
+  applied?: boolean;
+  dryRun?: boolean;
+  /** Human-readable lines describing each change made or planned. */
+  changes?: string[];
+  /** Preconditions that stopped the run, if it was refused. */
+  gaps?: string[];
+  /** Everything the backend returned, unmodified. Rendered when the fields
+   * above do not account for it, so an operator sees the real answer rather
+   * than this build's guess at it. */
+  raw: Record<string, unknown>;
+}

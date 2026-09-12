@@ -33,6 +33,7 @@ import {
   MTd,
   MTr,
   MDrawer,
+  MDialog,
   M_INPUT,
 } from "@/components/master/MasterKit";
 import { relativeTime } from "@/lib/friendly";
@@ -46,10 +47,14 @@ import { organizationService } from "@/services/organization.service";
 import {
   authModeSupportsInventory,
   CONTROLLER_AUTH_MODE_LABEL,
+  CONTROLLER_SETUP_GAP_COPY,
+  CONTROLLER_SETUP_GAP_ORDER,
+  isControllerSetupGap,
   describeIntegrationError,
   NETWORK_INTEGRATION_STATUS_DETAIL,
   NETWORK_INTEGRATION_STATUS_LABEL,
   NETWORK_INTEGRATION_STATUS_TONE,
+  type ControllerSetupOutcome,
   type NetworkIntegration,
   type NetworkIntegrationStatus,
   type NetworkIntegrationStatusTone,
@@ -156,6 +161,18 @@ const TAG_TONE: Record<NetworkIntegrationStatusTone, string> = {
   neutral: "normal",
   info: "info",
 };
+
+/** Gaps in the backend's documented fix order, with anything unrecognised
+ * last rather than dropped. The order is a dependency chain: choosing a site
+ * before storing the credentials that can list sites sends an operator to a
+ * screen that cannot answer. */
+function orderedGaps(gaps: string[]): string[] {
+  const rank = (g: string) => {
+    const i = CONTROLLER_SETUP_GAP_ORDER.indexOf(g as never);
+    return i === -1 ? Number.MAX_SAFE_INTEGER : i;
+  };
+  return [...gaps].sort((a, b) => rank(a) - rank(b));
+}
 
 function StatusTag({ status }: { status: NetworkIntegrationStatus }) {
   const tone = NETWORK_INTEGRATION_STATUS_TONE[status] ?? "neutral";
@@ -610,7 +627,58 @@ function IntegrationDrawer({
     onError: (err) => toast.error(errorText(err, "Could not change this integration.")),
   });
 
-  const busy = test.isPending || setEnabled.isPending;
+  /**
+   * Automatic controller setup -- the thing the backend has always been able
+   * to do and no console ever called.
+   *
+   * `_configure_controller` writes the External Portal Server URL onto the
+   * SSID, adds the Pre-Authentication Access entry, and creates the hotspot
+   * operator account itself, generating and encrypting the password. Because
+   * nothing invoked it, operators were being walked through all of that by
+   * hand -- including inventing and remembering an operator password the
+   * platform was willing to generate for them. "Provision a TP-Link customer
+   * and nothing appears on the Omada side" is that gap, exactly.
+   *
+   * PREVIEW BEFORE APPLY IS ENFORCED, not suggested. `outcome` has to hold a
+   * dry run before Apply is enabled. This writes to a customer's live
+   * controller; an operator should read what it intends to do first. It is
+   * also how the real response shape gets observed -- see
+   * `ControllerSetupOutcome`, which is deliberately loose because that shape
+   * could not be read from any source available when this was written.
+   */
+  const [outcome, setOutcome] = useState<ControllerSetupOutcome | null>(null);
+  const [previewed, setPreviewed] = useState(false);
+  const [takeOver, setTakeOver] = useState(false);
+  const [confirmTakeOver, setConfirmTakeOver] = useState(false);
+
+  const configure = useMutation({
+    mutationFn: (dryRun: boolean) =>
+      networkIntegrationService.configurePlatformController(integration, {
+        dryRun,
+        takeOverSsidPortal: takeOver,
+      }),
+    onSuccess: (result, dryRun) => {
+      setOutcome(result);
+      if (dryRun) {
+        setPreviewed(true);
+        toast.success("Preview complete — nothing was changed on the controller.");
+      } else {
+        // NOT "the venue is live". This changed the controller's
+        // configuration, which is a different claim from a guest being able
+        // to get online: the portal URL can be right and the venue still down
+        // for reasons this never touched. The probe and a real guest are
+        // separate proofs, and the copy says so rather than letting a green
+        // toast imply the whole chain works.
+        toast.success(
+          "Controller configuration applied. That is not yet proof a guest can get online — run Test connectivity, then try a real device.",
+        );
+        onChanged();
+      }
+    },
+    onError: (err) => toast.error(errorText(err, "The controller could not be configured.")),
+  });
+
+  const busy = test.isPending || setEnabled.isPending || configure.isPending;
   const setup = deriveIntegrationSetup(integration);
 
   return (
@@ -691,6 +759,116 @@ function IntegrationDrawer({
             </div>
           )}
         </div>
+
+        <DrawerSection title="Configure the controller">
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Sets the guest portal URL on the SSID, adds the pre-authentication access rule, and
+              creates the hotspot operator account on the controller — the steps otherwise done by
+              hand in Omada. Preview first; nothing is written until you apply.
+            </p>
+
+            {/* Gaps, in the backend's own fix order. A disabled button with no
+                reason is what this replaces: the preconditions are computed
+                server-side and returned, so the console can name each one and
+                what closes it instead of refusing silently. */}
+            {outcome?.gaps && outcome.gaps.length > 0 && (
+              <div className="space-y-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
+                <p className="text-sm font-medium">
+                  Not ready yet — {outcome.gaps.length} thing
+                  {outcome.gaps.length === 1 ? "" : "s"} to fix first, in this order:
+                </p>
+                <ol className="space-y-1.5">
+                  {orderedGaps(outcome.gaps).map((g) => {
+                    const copy = isControllerSetupGap(g) ? CONTROLLER_SETUP_GAP_COPY[g] : null;
+                    return (
+                      <li key={g} className="text-sm">
+                        <span className="font-medium">{copy?.title ?? g}</span>
+                        <span className="block text-xs text-muted-foreground">
+                          {/* An unrecognised gap is printed verbatim rather
+                              than dropped: a precondition nobody renders is a
+                              refusal with no reason given. */}
+                          {copy?.fix ??
+                            "This build does not recognise that precondition — ask support."}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </div>
+            )}
+
+            {outcome && (!outcome.gaps || outcome.gaps.length === 0) && (
+              <div className="space-y-2 rounded-lg border border-border bg-muted/40 p-3">
+                <p className="text-sm font-medium">
+                  {outcome.applied ? "What was changed" : "What this will change"}
+                </p>
+                {outcome.changes && outcome.changes.length > 0 ? (
+                  <ul className="space-y-1 text-sm text-muted-foreground">
+                    {outcome.changes.map((c, i) => (
+                      <li key={i}>· {c}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    The controller reported nothing to change.
+                  </p>
+                )}
+                {/* The response verbatim. Rendered because this build cannot
+                    claim to know the full shape of it, and showing an operator
+                    the real answer beats showing them this build's guess at
+                    it. Collapsed, so it is available without being in the way. */}
+                <details className="mt-1">
+                  <summary className="cursor-pointer text-xs text-muted-foreground">
+                    Exactly what the controller reported
+                  </summary>
+                  <pre className="mt-2 max-h-64 overflow-auto rounded bg-background p-2 text-[11px] leading-relaxed">
+                    {JSON.stringify(outcome.raw, null, 2)}
+                  </pre>
+                </details>
+              </div>
+            )}
+
+            <label className="flex cursor-pointer items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={takeOver}
+                onChange={(e) => {
+                  // Turning it ON is a decision; turning it off is not.
+                  if (e.target.checked) setConfirmTakeOver(true);
+                  else setTakeOver(false);
+                }}
+              />
+              <span>
+                Take over the SSID&rsquo;s existing portal
+                <span className="block text-xs text-muted-foreground">
+                  Overwrites a portal configuration already on that guest network.
+                </span>
+              </span>
+            </label>
+
+            <div className="flex flex-wrap gap-2">
+              <MButton variant="outline" disabled={busy} onClick={() => configure.mutate(true)}>
+                {configure.isPending ? <Loader2 className="animate-spin" /> : <ShieldCheck />}
+                Preview changes
+              </MButton>
+              <MButton
+                variant="primary"
+                disabled={!previewed || busy}
+                aria-disabled={!previewed || busy}
+                title={
+                  previewed
+                    ? undefined
+                    : "Run the preview first — this writes to a live controller."
+                }
+                onClick={() => configure.mutate(false)}
+              >
+                Apply to controller
+              </MButton>
+            </div>
+          </div>
+        </DrawerSection>
 
         <DrawerSection title="Controller health">
           <Row label="Address" value={integration.baseUrl} mono />
@@ -833,6 +1011,53 @@ function IntegrationDrawer({
           )}
         </DrawerSection>
       </div>
+
+      {/* Taking over an SSID's portal overwrites configuration somebody else
+          put there -- possibly the customer's own IT, possibly another
+          vendor. It is off by default and turning it on is confirmed, because
+          the damage is invisible from here: the run reports success either
+          way, and what broke is whatever the previous portal was doing. */}
+      <MDialog
+        open={confirmTakeOver}
+        onClose={() => setConfirmTakeOver(false)}
+        title="Take over this SSID's portal?"
+      >
+        <div className="space-y-4 p-5">
+          <p className="text-sm text-muted-foreground">
+            {integration.guestSsidName ? (
+              <>
+                <span className="font-semibold text-foreground">{integration.guestSsidName}</span>{" "}
+                already has a portal configured on it.
+              </>
+            ) : (
+              "The guest network may already have a portal configured on it."
+            )}{" "}
+            Applying with this on replaces that configuration with ours. Whatever it was doing
+            stops, and nothing on this screen will be able to tell you what it was.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Leave it off unless you know the existing portal is ours or is unused.
+          </p>
+          <div className="flex flex-wrap justify-end gap-2">
+            <MButton variant="outline" onClick={() => setConfirmTakeOver(false)}>
+              Leave it alone
+            </MButton>
+            <MButton
+              variant="primary"
+              onClick={() => {
+                setTakeOver(true);
+                setConfirmTakeOver(false);
+                // A previous preview was computed without take-over, so it no
+                // longer describes what Apply would do.
+                setPreviewed(false);
+                setOutcome(null);
+              }}
+            >
+              Take it over
+            </MButton>
+          </div>
+        </div>
+      </MDialog>
     </MDrawer>
   );
 }

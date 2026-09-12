@@ -4,6 +4,7 @@ import type { PortalAuthorizeBody } from "@/lib/portal-authorize-body";
 import { resolveOrganizationId as sharedResolveOrganizationId } from "./organization-id";
 import type {
   ControllerAuthMode,
+  ControllerSetupOutcome,
   ControllerTlsMode,
   CreateNetworkIntegrationPayload,
   NetworkIntegration,
@@ -571,6 +572,39 @@ function trustFields(payload: {
 
 const BASE = "/network-integrations";
 
+/**
+ * Map a configure-controller response WITHOUT asserting its shape.
+ *
+ * Reads the fields it hopes for, keeps everything regardless, and never
+ * throws on an unexpected body. The alternative -- a strict mapper against a
+ * schema nobody here has seen -- would silently drop whatever it did not
+ * expect, which on this endpoint means an operator being shown "nothing
+ * changed" about a run that changed things.
+ *
+ * `snake_case` and `camelCase` are both accepted for the same reason: this is
+ * reading an unverified contract, and guessing wrong about the casing alone
+ * should not blank the panel.
+ */
+function toControllerSetupOutcome(raw: Record<string, unknown>): ControllerSetupOutcome {
+  const pick = (...keys: string[]): unknown => {
+    for (const k of keys) {
+      if (raw[k] !== undefined && raw[k] !== null) return raw[k];
+    }
+    return undefined;
+  };
+  const asStrings = (v: unknown): string[] | undefined =>
+    Array.isArray(v) ? v.map((x) => (typeof x === "string" ? x : JSON.stringify(x))) : undefined;
+  const asBool = (v: unknown): boolean | undefined => (typeof v === "boolean" ? v : undefined);
+
+  return {
+    applied: asBool(pick("applied", "was_applied")),
+    dryRun: asBool(pick("dry_run", "dryRun")),
+    changes: asStrings(pick("changes", "actions", "steps", "changes_made")),
+    gaps: asStrings(pick("gaps", "setup_gaps", "blockers")),
+    raw,
+  };
+}
+
 export const networkIntegrationService = {
   // -------------------------------------------------------------------------
   // Customer (org-scoped) routes.
@@ -965,6 +999,52 @@ export const networkIntegrationService = {
       `${BASE}/platform/integrations/${id}/disable`,
     );
     return toIntegration(data);
+  },
+
+  /**
+   * Run the controller-side setup the backend has always been able to do.
+   *
+   * WHAT IT ACTUALLY DOES, and why nothing calling it was the whole problem.
+   * `_configure_controller` writes the External Portal Server URL onto the
+   * SSID, adds the Pre-Authentication Access entry, and CREATES THE HOTSPOT
+   * OPERATOR ACCOUNT ITSELF -- generating the password with `secrets` and
+   * encrypting it before the controller is asked to create it. Every console
+   * ignored the route, so operators were being talked through doing all of
+   * that by hand, including inventing and remembering an operator password
+   * the platform was willing to generate and store for them.
+   *
+   * `dryRun` changes nothing, by design, and the drawer will not let anyone
+   * apply without previewing first. That is not only caution: it is also how
+   * the real `ControllerSetupOutcome` shape gets observed, since it could not
+   * be read from any source available when this was written (see that type).
+   *
+   * `takeOverSsidPortal` OVERWRITES a portal configuration somebody else put
+   * on that SSID. It is a separate, deliberately-confirmed flag rather than
+   * something the happy path turns on quietly.
+   *
+   * Org header: the integration's own, for the same reason as
+   * `replacePlatformCredentials` -- an operator is not a member of the tenant
+   * they are configuring, and the route's explicit GLOBAL scope is what
+   * authorises the call.
+   */
+  async configurePlatformController(
+    integration: Pick<NetworkIntegration, "id" | "organizationId">,
+    opts: { dryRun: boolean; takeOverSsidPortal?: boolean },
+  ): Promise<ControllerSetupOutcome> {
+    const { data } = await api.post<Record<string, unknown>>(
+      `${BASE}/platform/integrations/${integration.id}/configure-controller`,
+      {
+        dry_run: opts.dryRun,
+        take_over_ssid_portal: opts.takeOverSsidPortal ?? false,
+      },
+      {
+        headers: { "X-Organization-Id": integration.organizationId },
+        // Same extended budget as the other calls that reach the controller:
+        // this one makes several round trips to it, not one.
+        timeout: 90_000,
+      },
+    );
+    return toControllerSetupOutcome(data);
   },
 
   async testPlatformConnection(id: string): Promise<NetworkIntegrationConnectionTest> {
