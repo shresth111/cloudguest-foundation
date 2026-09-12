@@ -109,6 +109,15 @@ function LocationsScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Location | null>(null);
+  /** What the operator has typed into the confirmation field. Compared
+   * case-insensitively and trimmed -- the point is to make them read the name
+   * and find it on the row, not to test their typing. */
+  const [deleteTyped, setDeleteTyped] = useState("");
+  /** Trimmed and case-insensitive: the point is to make the operator read the
+   * name and match it against the row, not to test their typing. */
+  const deleteConfirmed =
+    !!confirmDelete && deleteTyped.trim().toLowerCase() === confirmDelete.name.trim().toLowerCase();
   const [locations, setLocations] = useState<Location[]>([]);
   const [orgs, setOrgs] = useState<{ id: string; name: string }[]>([]);
 
@@ -230,13 +239,39 @@ function LocationsScreen() {
     }
   }
 
+  /**
+   * THERE WAS ALREADY A GUARD, AND IT WAS THE WRONG KIND.
+   *
+   * This read `window.confirm("Delete location ...? This cannot be undone.")`
+   * -- which is why a QA pass reported the delete as unguarded and was not
+   * wrong to: a native dialog is auto-dismissed by Playwright unless the run
+   * handles `dialog` explicitly, and a browser that has been told to "prevent
+   * this page from creating additional dialogs" suppresses it outright. A
+   * guard that a driver silently dismisses and a browser can switch off is not
+   * a guard on the one irreversible action on this page.
+   *
+   * It also could not say what it needed to say. A location is not a row: it
+   * is a venue with guest sessions, vouchers, portal configuration, routers
+   * and possibly a network integration hanging off it, and `window.confirm`
+   * takes one line of unstyled text. Replaced -- not added on top of -- with a
+   * real dialog that names the venue, names what goes with it, and asks the
+   * operator to type the name.
+   *
+   * Typing the name is deliberate. This list shows several venues per tenant
+   * in the same city ("sector 37 d" and "huda city center" are two live rows),
+   * the delete buttons are identical and adjacent, and until this change the
+   * table did not render the name at all. The failure mode is not "meant to
+   * cancel and confirmed"; it is "deleted the right-looking wrong row". Typing
+   * the name is the only confirmation that catches that one.
+   */
   async function handleDelete(l: Location) {
-    if (!window.confirm(`Delete location "${l.name}"? This cannot be undone.`)) return;
     setDeletingId(l.id);
     try {
       await locationService.remove([l.id], l.organizationId);
       toast.success(`Location "${l.name}" deleted`);
       setLocations((prev) => prev.filter((x) => x.id !== l.id));
+      setConfirmDelete(null);
+      setDeleteTyped("");
     } catch {
       toast.error("Could not delete the location.");
     } finally {
@@ -272,6 +307,14 @@ function LocationsScreen() {
           head={
             <>
               <MTh>Site Code</MTh>
+              {/* The venue's own NAME, which this table did not show at all.
+                  A row was identifiable only by its site code or by the
+                  accessible name on its delete button -- which is genuinely
+                  how a QA pass had to find a location it had just created.
+                  Client + City does not disambiguate either: two live rows are
+                  "sector 37 d" and "huda city center", different tenants, same
+                  city. The name is what an operator was told on the phone. */}
+              <MTh>Name</MTh>
               <MTh>Client</MTh>
               <MTh>Type</MTh>
               <MTh className="hidden sm:table-cell">City</MTh>
@@ -286,6 +329,7 @@ function LocationsScreen() {
                 <MTd className="text-center text-muted-foreground" />
                 <MTd />
                 <MTd />
+                <MTd />
                 <MTd className="hidden sm:table-cell" />
                 <MTd />
                 <MTd />
@@ -298,7 +342,8 @@ function LocationsScreen() {
                     <MTd className="font-mono text-sm font-bold text-primary">
                       {l.locationCode ?? "—"}
                     </MTd>
-                    <MTd className="font-semibold">{l.organizationName}</MTd>
+                    <MTd className="font-semibold">{l.name}</MTd>
+                    <MTd className="text-sm text-muted-foreground">{l.organizationName}</MTd>
                     <MTd className="text-sm">
                       <span className="inline-flex items-center gap-1.5">
                         <TypeIcon className="h-3.5 w-3.5 text-muted-foreground" />
@@ -328,7 +373,10 @@ function LocationsScreen() {
                         <button
                           aria-label={`Delete ${l.name}`}
                           disabled={deletingId === l.id}
-                          onClick={() => handleDelete(l)}
+                          onClick={() => {
+                            setDeleteTyped("");
+                            setConfirmDelete(l);
+                          }}
                           className="inline-flex items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
                         >
                           {deletingId === l.id ? (
@@ -443,6 +491,91 @@ function LocationsScreen() {
               </MField>
             </div>
           </div>
+        </MDialog>
+
+        {/* The delete confirmation. Names the venue, names what goes with it,
+            and requires the name to be typed -- see `handleDelete`. */}
+        <MDialog
+          open={!!confirmDelete}
+          onClose={() => {
+            setConfirmDelete(null);
+            setDeleteTyped("");
+          }}
+          title="Delete this location?"
+        >
+          {confirmDelete && (
+            <div className="space-y-4 p-5">
+              <p className="text-sm">
+                <span className="font-semibold">{confirmDelete.name}</span>
+                {confirmDelete.locationCode ? (
+                  <span className="ml-1.5 font-mono text-xs text-muted-foreground">
+                    {confirmDelete.locationCode}
+                  </span>
+                ) : null}
+                <span className="block text-sm text-muted-foreground">
+                  {confirmDelete.city ? `${confirmDelete.city} · ` : ""}
+                  {confirmDelete.organizationName}
+                </span>
+              </p>
+
+              {/* Categories, not counts. A count would have to be fetched per
+                  entity and this dialog has not fetched anything -- naming
+                  "3 routers" without having looked would be the kind of
+                  confident, unverified number this console keeps being fixed
+                  for. What IS certain is which kinds of record hang off a
+                  location, and that is what the operator needs to weigh. */}
+              <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3">
+                <p className="text-sm font-medium text-destructive">
+                  This cannot be undone, and it is not only this row.
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  A venue carries its guest sessions and their history, its vouchers, its sign-in
+                  portal configuration, any routers or controllers registered to it and any network
+                  integration connected to it. Guests at this venue stop being able to sign in.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="confirm-delete-name"
+                  className="block text-xs font-medium text-muted-foreground"
+                >
+                  Type <span className="font-semibold text-foreground">{confirmDelete.name}</span>{" "}
+                  to confirm
+                </label>
+                <input
+                  id="confirm-delete-name"
+                  className={M_INPUT}
+                  autoComplete="off"
+                  value={deleteTyped}
+                  onChange={(e) => setDeleteTyped(e.target.value)}
+                />
+              </div>
+
+              <div className="flex flex-wrap justify-end gap-2">
+                <MButton
+                  variant="outline"
+                  onClick={() => {
+                    setConfirmDelete(null);
+                    setDeleteTyped("");
+                  }}
+                >
+                  Cancel
+                </MButton>
+                <MButton
+                  variant="primary"
+                  className="bg-destructive text-destructive-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={!deleteConfirmed || deletingId === confirmDelete.id}
+                  aria-disabled={!deleteConfirmed || deletingId === confirmDelete.id}
+                  title={deleteConfirmed ? undefined : "Type the location's name to confirm."}
+                  onClick={() => handleDelete(confirmDelete)}
+                >
+                  {deletingId === confirmDelete.id && <Loader2 className="animate-spin" />}
+                  Delete this location
+                </MButton>
+              </div>
+            </div>
+          )}
         </MDialog>
       </MPageShell>
     </MasterShell>
