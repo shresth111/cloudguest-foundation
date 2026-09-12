@@ -888,10 +888,19 @@ function IntegrationDrawer({
     onError: (err) => toast.error(errorText(err, "Could not delete this integration.")),
   });
 
-  /** Operator pair always; app pair additionally for `openapi`. The same
-   * predicate the connect wizard validates with, so the two cannot disagree
-   * about what a complete credential set is. */
-  const credsComplete = credentialsCompleteForMode(credsMode, creds);
+  /** App pair required; the operator pair OPTIONAL in Open API mode.
+   *
+   * The same predicate the connect wizard uses, with the one flag that
+   * distinguishes repair from first-time setup. Saving the app alone here is
+   * the documented recovery from a wrong operator account -- `Configure
+   * controller`, immediately below this section, then creates a dedicated
+   * one and generates its password. Requiring the operator pair here made
+   * that repair impossible to type, which is how a live venue ended up with
+   * no route back at all (see `credentialsCompleteForMode`). Half a pair is
+   * still refused: a name with no password is a mistake, not a choice. */
+  const credsComplete = credentialsCompleteForMode(credsMode, creds, {
+    operatorOptional: true,
+  });
 
   // Every operation that can be in flight, so a control is never live
   // while another one is mid-write against the same controller. Both
@@ -1108,6 +1117,17 @@ function IntegrationDrawer({
                   value={creds.password ?? ""}
                   onChange={(v) => setCreds((c) => ({ ...c, password: v }))}
                 />
+                {/* Said where the decision is made, not only in a tooltip.
+                    Leaving the operator boxes empty is the repair, and it
+                    reads as an omission unless something says otherwise. */}
+                {credsMode === "openapi" && (
+                  <p className="text-xs text-muted-foreground">
+                    Leave the operator boxes <strong>empty</strong> unless you are deliberately
+                    storing an account you already made. Configure controller, below, creates a
+                    dedicated operator and generates its password — and it only does so when no
+                    operator login is stored.
+                  </p>
+                )}
                 <p className="text-xs text-muted-foreground">
                   Saving stores them. It does not prove the controller accepts them — run Test
                   connectivity afterwards.
@@ -1132,7 +1152,7 @@ function IntegrationDrawer({
                       credsComplete
                         ? undefined
                         : credsMode === "openapi"
-                          ? "Fill in the client pair and the operator account."
+                          ? "Fill in the Open API client pair. The operator account is optional — leave both boxes empty and Configure controller will create one."
                           : "Fill in the operator username and password."
                     }
                     onClick={() => replaceCreds.mutate()}
