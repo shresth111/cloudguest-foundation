@@ -22,6 +22,7 @@ import {
   MapPin,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { ControllerDevicesCard } from "@/components/customer/ControllerDevicesCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -488,6 +489,9 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35 }}
     >
+      {/* Read-only controller inventory (Omada venues); renders nothing for a
+          MikroTik venue, leaving the manual hardware card below unchanged. */}
+      <ControllerDevicesCard locationId={locationId} />
       <Card className="border-0 shadow-sm">
         <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
           <div className="flex items-start gap-2.5">
