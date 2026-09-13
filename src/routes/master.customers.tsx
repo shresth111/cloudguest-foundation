@@ -175,11 +175,35 @@ function CustomersScreen() {
   // "primary contact user id" the backend doesn't expose today, not a
   // guess invented for this feature alone.
   async function resolveImpersonationTarget(org: Enriched) {
-    const { items } = await rbacService.listUsers(
-      { page: 1, pageSize: 5, search: org.contactEmail },
-      org.id,
-    );
-    return items.find((u) => u.email.toLowerCase() === org.contactEmail.toLowerCase()) ?? null;
+    const wanted = org.contactEmail.trim().toLowerCase();
+    if (wanted) {
+      const { items } = await rbacService.listUsers(
+        { page: 1, pageSize: 5, search: org.contactEmail },
+        org.id,
+      );
+      const exact = items.find((u) => u.email.toLowerCase() === wanted);
+      if (exact) return exact;
+    }
+
+    // The email match is a heuristic, and it breaks the moment an org's
+    // contact address is not byte-identical to its owner's login. Seen live
+    // on a venue provisioned by the Master wizard: contact
+    // `qa-omada@wyfyguest.com`, owner account `qa-omada-owner@wyfyguest.com`.
+    // The org had exactly one member, that member WAS the owner, and "View
+    // as this customer" still failed with "Could not find ...'s primary
+    // contact account" -- leaving nobody able to open that customer's
+    // dashboard at all, because an operator's own session is sent to
+    // /master on every host (see `lib/authGuards.ts`).
+    //
+    // So fall back to the org's roster, and only when it is unambiguous: a
+    // single member is that customer's account by definition. With several,
+    // this still gives up rather than guess -- picking "probably the owner"
+    // out of a roster would start a real operator session against an
+    // identity nobody chose, and `GET /users` does not return roles to
+    // choose by (`RbacUser` carries none; only `UserDetail` does, which
+    // would be one request per member).
+    const { items: roster } = await rbacService.listUsers({ page: 1, pageSize: 2 }, org.id);
+    return roster.length === 1 ? roster[0] : null;
   }
 
   async function handleConfirmImpersonate() {
