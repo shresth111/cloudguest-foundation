@@ -238,6 +238,13 @@ jobs:
       # hostname. This pins both directions at every door.
       - name: consoles never mix hostnames
         run: bun run test:consoles-never-mix
+      # The customer read of their Omada controller's device inventory must
+      # never guess a status up to "ok" (inventing a device list from a state
+      # it doesn't understand), must keep an empty-ok distinct from
+      # no-controller, and must send the org-scoped header to the customer
+      # endpoint (not a GLOBAL network-integrations route).
+      - name: controller devices read
+        run: bun run test:controller-devices
 
       # Validation and submission must agree on ONE spelling of the email
       # address. They did not: every auth form validated `email.trim()` and
