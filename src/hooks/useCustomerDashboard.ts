@@ -421,7 +421,7 @@ export function useDataMasking() {
         setVerifying(false);
       }
     },
-    [demo, pendingTarget],
+    [demo, pendingTarget, setMasked],
   );
 
   const cancel = useCallback(() => {
