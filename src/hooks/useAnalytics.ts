@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { analyticsService } from "@/services/analytics.service";
 import { locationService } from "@/services/location.service";
+import { resolveOrganizationId } from "@/services/organization-id";
 import type {
   AnalyticsSettings,
   DateRangePreset,
@@ -14,6 +15,27 @@ export function useAnalyticsSnapshot(range: DateRangePreset) {
     queryKey: ["analytics", "snapshot", range],
     queryFn: () => analyticsService.getSnapshot(range),
     staleTime: 30_000,
+  });
+}
+
+/**
+ * The current session's own organization id, resolved once via the shared
+ * `/me/organizations` resolver. The customer Analytics pages
+ * (analytics.guest/network/device/isp/executive) need it because the
+ * `/analytics/*` endpoints use `RequireOrganization` (a hard requirement,
+ * not the optional `CurrentOrganization` most domains use) — an explicit
+ * org id is passed rather than relying on the request interceptor, so the
+ * global-super-admin-on-the-customer-dashboard case (who would otherwise
+ * send `X-Organization-Scope: all` and 400 against `RequireOrganization`)
+ * still resolves to a single org. `retry: false` because a session that
+ * belongs to no org is a stable answer, not a transient failure.
+ */
+export function useResolvedOrganizationId() {
+  return useQuery({
+    queryKey: ["analytics", "resolved-organization-id"],
+    queryFn: () => resolveOrganizationId(),
+    staleTime: 5 * 60_000,
+    retry: false,
   });
 }
 

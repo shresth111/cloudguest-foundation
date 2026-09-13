@@ -46,6 +46,8 @@ import { maskEmail, maskMac, maskPhone } from "@/components/features/HeaderContr
 import { csvField, downloadCsv } from "@/lib/csv-export";
 import { voucherService } from "@/services/voucher.service";
 import type { VoucherBatch } from "@/types/voucher";
+import { campaignService } from "@/services/campaign.service";
+import type { CampaignType } from "@/types/campaign";
 
 const CATEGORIES = [
   "Guest Activity Report",
@@ -167,8 +169,8 @@ const VOUCHER_REPORT_TYPES: ReportType[] = [
 const CAMPAIGN_REPORT_TYPES: ReportType[] = [
   {
     id: "campaign-performance",
-    label: "Campaign Funnel By Date Range",
-    desc: "Sent, delivered, opened and clicked per campaign.",
+    label: "Campaign Engagement By Type",
+    desc: "Impressions, survey responses, skips and clicks per campaign.",
   },
   {
     id: "campaign-daywise",
@@ -177,8 +179,8 @@ const CAMPAIGN_REPORT_TYPES: ReportType[] = [
   },
   {
     id: "top-campaigns",
-    label: "Top Campaigns By Click-Through Rate (This Month)",
-    desc: "Best-performing campaigns by click-through rate.",
+    label: "Top Campaigns By Impressions",
+    desc: "Best-performing campaigns by impressions and click rate.",
   },
 ];
 const DATA_REPORT_TYPES: ReportType[] = [
@@ -196,8 +198,8 @@ const DATA_REPORT_TYPES: ReportType[] = [
 const SMS_REPORT_TYPES: ReportType[] = [
   {
     id: "otp-delivery",
-    label: "OTP Delivery & Latency By Date Range",
-    desc: "Every OTP sent, its delivery status and latency.",
+    label: "OTP Requests & Verification By Date Range",
+    desc: "Every OTP request, its channel and whether it was verified.",
   },
   {
     id: "sms-daywise",
@@ -309,13 +311,19 @@ const COLUMNS: Record<string, ColumnDef[]> = {
     { key: "redeemedAt", label: "Redeemed At", sortType: "date" },
   ],
 
+  // Real engagement counters from GET /campaigns/{id}/results
+  // (impressions/responses/skipped/clicked) -- NOT the fabricated
+  // Sent/Delivered/Opened delivery-funnel columns this report used to
+  // show. Campaigns are served in-session, not through a delivery channel,
+  // so those stages don't exist; these four counters do. CTR is
+  // clicked/impressions, both real. See realCampaignPerformance below.
   "campaign-performance": [
     { key: "rank", label: "#", sortType: "number" },
     { key: "campaign", label: "Campaign", sortType: "string" },
     { key: "type", label: "Type", sortType: "string" },
-    { key: "sent", label: "Sent", sortType: "number" },
-    { key: "delivered", label: "Delivered", sortType: "number" },
-    { key: "opened", label: "Opened", sortType: "number" },
+    { key: "impressions", label: "Impressions", sortType: "number" },
+    { key: "responses", label: "Responses", sortType: "number" },
+    { key: "skipped", label: "Skipped", sortType: "number" },
     { key: "clicked", label: "Clicked", sortType: "number" },
     { key: "ctr", label: "CTR", sortType: "string" },
   ],
@@ -326,11 +334,13 @@ const COLUMNS: Record<string, ColumnDef[]> = {
     { key: "delivered", label: "Delivered", sortType: "number" },
     { key: "opened", label: "Opened", sortType: "number" },
   ],
+  // Ranked by real impressions (was fabricated "Reach"); CTR is
+  // clicked/impressions, both real counters. See realTopCampaigns below.
   "top-campaigns": [
     { key: "rank", label: "Rank", sortType: "number" },
     { key: "campaign", label: "Campaign", sortType: "string" },
     { key: "type", label: "Type", sortType: "string" },
-    { key: "reach", label: "Reach", sortType: "number" },
+    { key: "impressions", label: "Impressions", sortType: "number" },
     { key: "ctr", label: "CTR", sortType: "string" },
   ],
 
@@ -357,12 +367,23 @@ const COLUMNS: Record<string, ColumnDef[]> = {
     { key: "cost", label: "Est. Cost", sortType: "number" },
   ],
 
+  // Real per-request rows from GET /otp/requests (identifier, channel,
+  // created_at, verified_at/is_consumed). Deliberately NOT the old
+  // "Status: Delivered/Failed" + "Latency (ms)" columns: this platform's
+  // OTP path has no gateway delivery-status and no latency measurement (the
+  // SMS provider only logs, it persists neither), so those would be
+  // fabricated. "Verified" is is_consumed -- a real, recorded outcome. See
+  // realOtpRequests below.
   "otp-delivery": [
     { key: "rank", label: "#", sortType: "number" },
-    { key: "mobile", label: "Mobile Number", sortType: "string" },
-    { key: "sentAt", label: "Sent At", sortType: "date" },
-    { key: "status", label: "Status", sortType: "string" },
-    { key: "latencyMs", label: "Latency (ms)", sortType: "number" },
+    // "identifier" (not "mobile") because an OTP identifier can be an email
+    // (channel = email) as well as a phone -- routing through fmtCell's
+    // shape-aware maskRedeemedIdentifier masks either, where maskPhone would
+    // leave an email unmasked.
+    { key: "identifier", label: "Identifier", sortType: "string" },
+    { key: "channel", label: "Channel", sortType: "string" },
+    { key: "requestedAt", label: "Requested At", sortType: "date" },
+    { key: "verified", label: "Verified", sortType: "string" },
   ],
   "sms-daywise": [
     { key: "date", label: "Date", sortType: "date" },
@@ -413,7 +434,10 @@ const NEEDS_RANGE = new Set([
   "daywise-unique",
   "voucher-usage",
   "voucher-batch",
-  "campaign-performance",
+  // campaign-performance is NOT range-scoped: GET /campaigns/{id}/results
+  // returns lifetime engagement totals, not a windowed count, so a date
+  // picker there would be a dead control implying a filter the data can't
+  // honor. It's filtered by campaign type instead (NEEDS_CAMPAIGN_TYPE).
   "campaign-daywise",
   "data-consumption",
   "data-by-location",
@@ -574,19 +598,19 @@ function mockRow(
       break;
 
     case "campaign-performance": {
-      const sent = Math.floor(Math.random() * 5000) + 500;
-      const delivered = Math.floor(sent * (0.9 + Math.random() * 0.09));
-      const opened = Math.floor(delivered * Math.random() * 0.6);
-      const clicked = Math.floor(opened * Math.random() * 0.4);
+      const impressions = Math.floor(Math.random() * 5000) + 500;
+      const responses = Math.floor(impressions * Math.random() * 0.5);
+      const skipped = Math.floor((impressions - responses) * Math.random() * 0.5);
+      const clicked = Math.floor(impressions * Math.random() * 0.3);
       r.campaign = ["Welcome Back Offer", "Weekend Special", "New Menu Launch", "Loyalty Reward"][
         i % 4
       ];
       r.type = pickCampaignType();
-      r.sent = sent;
-      r.delivered = delivered;
-      r.opened = opened;
+      r.impressions = impressions;
+      r.responses = responses;
+      r.skipped = skipped;
       r.clicked = clicked;
-      r.ctr = `${((clicked / sent) * 100).toFixed(1)}%`;
+      r.ctr = `${((clicked / impressions) * 100).toFixed(1)}%`;
       break;
     }
     case "campaign-daywise": {
@@ -599,10 +623,10 @@ function mockRow(
       break;
     }
     case "top-campaigns": {
-      const reach = Math.floor(Math.random() * 8000) + 1000;
+      const impressions = Math.floor(Math.random() * 8000) + 1000;
       r.campaign = ["Welcome Back Offer", "Weekend Special", "New Menu Launch"][i % 3];
       r.type = pickCampaignType();
-      r.reach = reach;
+      r.impressions = impressions;
       r.ctr = `${(Math.random() * 12 + 2).toFixed(1)}%`;
       break;
     }
@@ -630,10 +654,10 @@ function mockRow(
     }
 
     case "otp-delivery":
-      r.mobile = phone(i);
-      r.sentAt = new Date(Date.now() - Math.random() * 86400000 * 3).toISOString();
-      r.status = Math.random() > 0.08 ? "Delivered" : "Failed";
-      r.latencyMs = Math.floor(Math.random() * 4000) + 300;
+      r.identifier = phone(i);
+      r.channel = ["sms", "email", "whatsapp"][i % 3];
+      r.requestedAt = new Date(Date.now() - Math.random() * 86400000 * 3).toISOString();
+      r.verified = Math.random() > 0.2 ? "Yes" : "No";
       break;
     case "sms-daywise": {
       const sent = Math.floor(Math.random() * 1200) + 200;
@@ -809,6 +833,13 @@ const REAL_REPORT_TYPES = new Set([
   "voucher-batch",
   "guest-session-log",
   "login-access-log",
+  // Real engagement counters via GET /campaigns + /campaigns/{id}/results
+  // (campaign.service.ts's listAll/listResults) -- see realCampaignPerformance/
+  // realTopCampaigns below.
+  "campaign-performance",
+  "top-campaigns",
+  // Real per-request OTP rows via GET /otp/requests -- see realOtpRequests below.
+  "otp-delivery",
 ]);
 
 const UNAVAILABLE_REASON: Record<string, string> = {
@@ -822,16 +853,11 @@ const UNAVAILABLE_REASON: Record<string, string> = {
   // campaign-performance below, so it stays unavailable until the columns
   // and the endpoint agree. See this PR's description for the follow-up.
   "team-report":
-    "This venue's guest teams are real and listed above, but per-team usage totals aren't computed for a date range in the backend yet -- only a live snapshot, which these columns would misrepresent.",
-  "campaign-performance":
-    "GET /campaigns/{id}/results now returns real engagement counts (impressions/responses/skipped/clicked), but this report's Sent/Delivered/Opened/Clicked columns have no backend equivalent -- campaigns are served in-session, not through a delivery channel with those stages. Needs a column relabel (e.g. Impressions/Responses/Skipped/Clicked) before it can show real data honestly.",
+    "This venue's guest teams are real and listed above, but per-team usage totals aren't computed for a date range in the backend yet -- only a live snapshot (GET /guest-teams/{id}: member_count, active_session_count, total_bandwidth_bytes now). This report's Sessions/Data columns read as totals over the picked period; wiring the live snapshot into them would misrepresent it, and no session row links to a team member, so the range figures can't be derived. Stays unavailable until the columns and a real per-period team aggregate agree.",
   "campaign-daywise":
-    "Campaign delivery/open/click metrics aren't tracked in the real backend yet.",
-  "top-campaigns":
-    "GET /campaigns/{id}/results now returns real engagement counts (impressions/responses/skipped/clicked), but this report's Reach/CTR columns assume delivery-channel semantics campaigns don't have -- campaigns are served in-session, not through a delivery channel. Needs a column relabel before it can show real data honestly.",
-  "otp-delivery":
-    "GET /otp/requests returns real per-request rows (identifier, channel, created_at, verified_at, is_consumed), but this report needs three things that endpoint doesn't have yet: start_date/end_date query params for server-side date filtering, a true provider delivery-status field (a delivered-but-never-verified request looks identical to one that never arrived in this data), and a latency field.",
-  "sms-daywise": "Per-message SMS delivery status isn't logged in the real backend yet.",
+    "Per-day campaign engagement isn't available: GET /campaigns/{id}/results returns lifetime totals only, with no daily breakdown, so a day-by-day trend can't be built without fabricating the buckets. The lifetime per-campaign view is the 'Campaign Engagement By Type' report above.",
+  "sms-daywise":
+    "Per-message SMS delivery status isn't logged anywhere in the real backend: OTP SMS goes through a logging-only provider that persists no send/delivery row, and nothing enqueues SMS to the notification-delivery table. A day-wise sent/delivered/failed rate would fabricate delivery stages that don't exist. The honest OTP view is the 'OTP Requests & Verification' report above.",
 };
 
 // Same real /guest-sessions row shape as customer.service.ts's own
@@ -1537,6 +1563,149 @@ async function realLoginAccessLog(
     }));
 }
 
+// ── campaign engagement (real, GET /campaigns + /campaigns/{id}/results) ──
+// The picker labels ("Banner Campaign" etc.) map to the real CampaignType
+// enum; "All Types" / anything unmapped means no filter.
+const CAMPAIGN_TYPE_FILTER: Record<string, CampaignType> = {
+  "Banner Campaign": "banner",
+  "Survey/Feedback Campaign": "survey",
+  "Redirect Campaign": "redirect",
+};
+
+interface CampaignEngagementRow {
+  campaign: string;
+  type: CampaignType;
+  impressions: number | null;
+  responses: number | null;
+  skipped: number | null;
+  clicked: number | null;
+  ctr: string;
+}
+
+/** One row per campaign in scope, joined to its real engagement counters.
+ *
+ * `campaignService.listResults` fans out per campaign with allSettled and
+ * OMITS any campaign whose counters couldn't be fetched (see
+ * test-campaign-results.mjs) -- so a campaign with no results entry keeps
+ * `null` counters here (rendered "—"), never a fabricated 0 that would read
+ * as "shown to nobody". CTR is clicked/impressions, both real; undefined
+ * (0 impressions or missing data) renders "—", not "0.0%". */
+async function fetchCampaignEngagement(
+  locationId: string,
+  campaignType?: string,
+): Promise<CampaignEngagementRow[]> {
+  const campaigns = await campaignService.listAll(locationId);
+  const wanted = campaignType ? CAMPAIGN_TYPE_FILTER[campaignType] : undefined;
+  const scoped = wanted ? campaigns.filter((c) => c.campaignType === wanted) : campaigns;
+  const results = await campaignService.listResults(scoped.map((c) => c.id));
+  const rows = scoped.map((c) => {
+    const r = results[c.id];
+    const impressions = r ? r.totalImpressions : null;
+    const clicked = r ? r.totalClicked : null;
+    const ctr =
+      impressions != null && clicked != null && impressions > 0
+        ? `${((clicked / impressions) * 100).toFixed(1)}%`
+        : "—";
+    return {
+      campaign: c.name,
+      type: c.campaignType,
+      impressions,
+      responses: r ? r.totalResponses : null,
+      skipped: r ? r.totalSkipped : null,
+      clicked,
+      ctr,
+    };
+  });
+  // Most-engaged first (impressions desc, unknown last) so the default rank
+  // order is meaningful before the user sorts.
+  return rows.sort((a, b) => (b.impressions ?? -1) - (a.impressions ?? -1));
+}
+
+async function realCampaignPerformance(locationId: string, campaignType?: string): Promise<Row[]> {
+  const rows = await fetchCampaignEngagement(locationId, campaignType);
+  return rows.map((r, i) => ({
+    rank: i + 1,
+    campaign: r.campaign,
+    type: r.type,
+    impressions: r.impressions,
+    responses: r.responses,
+    skipped: r.skipped,
+    clicked: r.clicked,
+    ctr: r.ctr,
+  }));
+}
+
+const TOP_CAMPAIGNS_LIMIT = 10;
+
+async function realTopCampaigns(locationId: string, campaignType?: string): Promise<Row[]> {
+  const rows = await fetchCampaignEngagement(locationId, campaignType);
+  return rows.slice(0, TOP_CAMPAIGNS_LIMIT).map((r, i) => ({
+    rank: i + 1,
+    campaign: r.campaign,
+    type: r.type,
+    impressions: r.impressions,
+    ctr: r.ctr,
+  }));
+}
+
+// ── OTP requests (real, GET /otp/requests) ──
+interface RealOtpRequest {
+  id: string;
+  identifier: string;
+  channel: string;
+  created_at: string;
+  is_consumed?: boolean;
+  verified_at?: string | null;
+}
+
+/** "OTP Requests & Verification By Date Range" -- one row per real
+ * OtpRequest, newest first.
+ *
+ * GET /otp/requests has no server-side date filter (its GenericRepository
+ * paginate is equality-only), so rows are paged DESC by created_at and
+ * filtered to the picked [from, to) window client-side; because the sort is
+ * DESC, the loop stops as soon as it pages past the window's start rather
+ * than fetching the whole table. Org scope is applied by the request
+ * interceptor; `location_id` narrows to the picked venue.
+ *
+ * "Verified" is the real `is_consumed` outcome. There is deliberately no
+ * delivery-status or latency column: this platform's OTP SMS goes through a
+ * logging-only provider that persists no gateway delivery row, so those
+ * would be fabricated (see UNAVAILABLE_REASON's old otp-delivery note and
+ * this feature's PR). */
+async function realOtpRequests(locationId: string, from: string, to: string): Promise<Row[]> {
+  const fromMs = new Date(from).getTime();
+  const toMs = new Date(to).getTime() + 86400000; // inclusive end-of-day
+  const rows: Row[] = [];
+  for (let page = 1; page <= MAX_REPORT_PAGES; page++) {
+    const { data } = await api.get<{ items: RealOtpRequest[]; has_next?: boolean }>(
+      "/otp/requests",
+      {
+        params: { location_id: locationId, page, page_size: SESSIONS_PAGE_SIZE },
+      },
+    );
+    const items = data?.items ?? [];
+    let pagedPastWindow = false;
+    for (const it of items) {
+      const createdMs = new Date(it.created_at).getTime();
+      if (createdMs < fromMs) {
+        pagedPastWindow = true; // DESC order: everything after this is older too
+        continue;
+      }
+      if (createdMs >= toMs) continue; // newer than the window end
+      rows.push({
+        rank: rows.length + 1,
+        identifier: it.identifier,
+        channel: it.channel,
+        requestedAt: it.created_at,
+        verified: it.is_consumed || it.verified_at ? "Yes" : "No",
+      });
+    }
+    if (pagedPastWindow || !data?.has_next) break;
+  }
+  return rows;
+}
+
 // ── one reusable panel: business unit + report-type picker + date range + results table ──
 /** `masked` is the current viewer's data-masking state -- the owner's own
  * (always-on, see CustomerHeader's read-only OtpMaskToggle) or, when this
@@ -1735,6 +1904,7 @@ export function ReportPanel({
           "lastSeen",
           "redeemedAt",
           "sentAt",
+          "requestedAt",
           "attemptedAt",
         ].includes(key)
       )
@@ -1852,6 +2022,12 @@ export function ReportPanel({
           data = loc ? await realGuestSessionLog(orgId, loc.id, from, to) : [];
         } else if (reportType === "login-access-log") {
           data = loc ? await realLoginAccessLog(orgId, loc.id, from, to) : [];
+        } else if (reportType === "campaign-performance") {
+          data = loc ? await realCampaignPerformance(loc.id, campaignType) : [];
+        } else if (reportType === "top-campaigns") {
+          data = loc ? await realTopCampaigns(loc.id, campaignType) : [];
+        } else if (reportType === "otp-delivery") {
+          data = loc ? await realOtpRequests(loc.id, from, to) : [];
         } else {
           data = await realDataByLocation(orgId, customerLocations ?? [], from, to, rate);
         }
@@ -2274,11 +2450,15 @@ export function ReportPanel({
                 </div>
               </>
             )}
-            {(reportType === "top-users" ||
-              reportType === "top-vouchers" ||
-              reportType === "top-campaigns") && (
+            {(reportType === "top-users" || reportType === "top-vouchers") && (
               <p className="text-xs text-muted-foreground md:col-span-2">
                 This report always covers the current month.
+              </p>
+            )}
+            {(reportType === "top-campaigns" || reportType === "campaign-performance") && (
+              <p className="text-xs text-muted-foreground md:col-span-2">
+                Engagement counts are lifetime totals per campaign (impressions, responses, skips
+                and clicks recorded to date), not limited to a date range.
               </p>
             )}
           </div>
