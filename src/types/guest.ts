@@ -265,6 +265,22 @@ export interface GuestTeamMember {
   isActive: boolean;
 }
 
+/** One row of a team's active roster (`GET /guest-teams/{id}/members`),
+ * enriched with the guest's own display identity so an admin can tell who
+ * they are removing. `identifier`/`displayName` come straight off the guest
+ * row and are `null` only when that row is gone (shown as an unknown member,
+ * never dropped) — never fabricated. Distinct from `GuestTeamMember` (the
+ * join-membership shape), whose `identifier` is always the value the guest
+ * presented at join time. */
+export interface GuestTeamRosterMember {
+  membershipId: string;
+  guestId: string;
+  identifier: string | null;
+  displayName: string | null;
+  joinedAt: string;
+  isActive: boolean;
+}
+
 export interface CreateGuestTeamPayload {
   organizationId: string;
   locationId?: string;
