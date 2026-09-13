@@ -6507,7 +6507,7 @@ export function buildRouterSetupScriptChunks(opts: {
         `:local cpNet [:len [/ip dhcp-server network find where dhcp-option-set="cloudguest-opts"]]`,
         `:local cpSet [:len [/ip dhcp-server option sets find where name="cloudguest-opts"]]`,
         `:local cpOpt [:len [/ip dhcp-server option find where name="cloudguest-captive-portal"]]`,
-        `:if ($cpNet > 0) do={ /ip dhcp-server network set [find where dhcp-option-set="cloudguest-opts"] !dhcp-option-set }`,
+        `:if ($cpNet > 0) do={ /ip dhcp-server network set [find where dhcp-option-set="cloudguest-opts"] dhcp-option-set="" }`,
         `:if ($cpSet > 0) do={ /ip dhcp-server option sets remove [find where name="cloudguest-opts"] }`,
         `:if ($cpOpt > 0) do={ /ip dhcp-server option remove [find where name="cloudguest-captive-portal"] }`,
         `:local cpTotal ($cpNet + $cpSet + $cpOpt)`,

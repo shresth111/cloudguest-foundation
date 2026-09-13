@@ -5275,7 +5275,7 @@ for (const [variant, script] of FULL_SCRIPTS) {
     `${variant}: an option left by an earlier paste is actively removed`,
     /\/ip dhcp-server option remove \[find where name="cloudguest-captive-portal"\]/.test(script) &&
       /\/ip dhcp-server option sets remove \[find where name="cloudguest-opts"\]/.test(script) &&
-      /\/ip dhcp-server network set \[find where dhcp-option-set="cloudguest-opts"\] !dhcp-option-set/.test(
+      /\/ip dhcp-server network set \[find where dhcp-option-set="cloudguest-opts"\] dhcp-option-set=""/.test(
         script,
       ),
     "the fleet's routers already carry this option; not writing it again leaves every one of " +
