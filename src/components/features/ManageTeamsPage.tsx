@@ -26,7 +26,7 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { cn } from "@/lib/utils";
 import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import { guestService } from "@/services/guest.service";
-import type { Guest } from "@/types/guest";
+import type { Guest, GuestTeamRosterMember } from "@/types/guest";
 import { resolveOrgId } from "@/services/customer.service";
 
 const UNITS = ["Mumbai HQ", "Delhi Office", "Bangalore DC", "Chennai Office"]; // Matches this demo account's real location roster (see customer.service.ts DEMO_LOCATIONS) instead of unrelated placeholder hospitality names that clashed with the rest of the demo persona.
@@ -368,7 +368,45 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
 
   // Manage Team dialog
   const [manageTeam, setManageTeam] = useState<Team | null>(null);
-  const openManage = (t: Team) => setManageTeam(t);
+  // The open team's active roster -- who is actually in the team right now,
+  // each with the guest's own identifier so removal can name a real person.
+  // Demo mode has no backend roster (the demo store never modelled members),
+  // so it stays empty there and the members section is hidden.
+  const [members, setMembers] = useState<GuestTeamRosterMember[]>([]);
+  const [membersState, setMembersState] = useState<"idle" | "loading" | "loaded" | "error">("idle");
+  const [removingGuestId, setRemovingGuestId] = useState<string | null>(null);
+  const openManage = (t: Team) => {
+    setManageTeam(t);
+    setMembers([]);
+    if (demo) {
+      setMembersState("idle");
+      return;
+    }
+    setMembersState("loading");
+    (async () => {
+      try {
+        const roster = await guestService.listTeamMembers(t.id, orgId ?? undefined);
+        setMembers(roster);
+        setMembersState("loaded");
+      } catch {
+        setMembersState("error");
+      }
+    })();
+  };
+
+  const removeMember = async (guestId: string) => {
+    if (!manageTeam || demo) return;
+    setRemovingGuestId(guestId);
+    try {
+      await guestService.removeTeamMember(manageTeam.id, guestId);
+      setMembers((prev) => prev.filter((m) => m.guestId !== guestId));
+      toast.success("Member removed");
+    } catch {
+      toast.error("Could not remove this member — check the connection and try again.");
+    } finally {
+      setRemovingGuestId(null);
+    }
+  };
 
   // `saveManage` used to live here. It wrote the edited name/location/
   // member count into local `teams` state, toasted "<name> updated" and
@@ -906,7 +944,9 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
           <DialogHeader>
             <DialogTitle>Team details</DialogTitle>
             <DialogDescription>
-              What this team is set to today. Editing isn&apos;t available yet.
+              {demo
+                ? "What this team is set to today. Editing isn't available yet."
+                : "Team name and size are read-only, but you can remove members below."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -916,7 +956,15 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
             </div>
             <div>
               <label className={labelCls}>Members</label>
-              <p className="text-sm font-medium text-foreground">{manageTeam?.members ?? 0}</p>
+              <p className="text-sm font-medium text-foreground">
+                {demo
+                  ? (manageTeam?.members ?? 0)
+                  : membersState === "loaded"
+                    ? members.length
+                    : membersState === "loading"
+                      ? "…"
+                      : "—"}
+              </p>
             </div>
             <div>
               <label className={labelCls}>Shared data used</label>
@@ -930,6 +978,54 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
               <label className={labelCls}>Status</label>
               <p className="text-sm font-medium capitalize text-foreground">{manageTeam?.status}</p>
             </div>
+            {!demo && (
+              <div>
+                <label className={labelCls}>Manage members</label>
+                {membersState === "loading" && (
+                  <p className="text-sm text-muted-foreground">Loading members…</p>
+                )}
+                {membersState === "error" && (
+                  <p className="text-sm text-muted-foreground">
+                    Couldn&apos;t load this team&apos;s members. Close and reopen to try again.
+                  </p>
+                )}
+                {membersState === "loaded" && members.length === 0 && (
+                  <p className="text-sm text-muted-foreground">No one has joined this team yet.</p>
+                )}
+                {membersState === "loaded" && members.length > 0 && (
+                  <ul className="divide-y rounded-xl border">
+                    {members.map((m) => (
+                      <li
+                        key={m.membershipId}
+                        className="flex items-center justify-between gap-3 px-3 py-2"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-foreground">
+                            {m.displayName || m.identifier || "Unknown member"}
+                          </p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {m.displayName && m.identifier ? `${m.identifier} · ` : ""}
+                            Joined {new Date(m.joinedAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={removingGuestId === m.guestId}
+                          onClick={() => removeMember(m.guestId)}
+                        >
+                          {removingGuestId === m.guestId ? "Removing…" : "Remove"}
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  Removing a member ends their team membership and any active session. They can
+                  rejoin with the team code.
+                </p>
+              </div>
+            )}
             <div className="rounded-xl border border-dashed bg-muted/40 p-3">
               <p className="text-xs text-muted-foreground">
                 Renaming a team or changing its size isn&apos;t something we can save yet, so

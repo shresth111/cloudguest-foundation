@@ -16,6 +16,7 @@ import type {
   GuestSession,
   GuestTeam,
   GuestTeamMember,
+  GuestTeamRosterMember,
   GuestTeamRevokeResult,
   GuestTeamSummary,
   OtpSuccessRate,
@@ -174,6 +175,16 @@ interface BackendGuestTeamRevokeResponse {
   member_count: number;
   terminated_session_ids: string[];
   failed_member_ids: string[];
+}
+
+interface BackendGuestTeamMemberWithIdentity {
+  id: string;
+  team_id: string;
+  guest_id: string;
+  identifier: string | null;
+  display_name: string | null;
+  joined_at: string;
+  is_active: boolean;
 }
 
 function toGuest(g: BackendGuest, locationName: string | null, organizationName: string): Guest {
@@ -766,6 +777,31 @@ export const guestService = {
 
   async removeTeamMember(teamId: string, guestId: string, reason?: string): Promise<void> {
     await api.delete(`/guest-teams/${teamId}/members/${guestId}`, { data: { reason } });
+  },
+
+  /** The active roster of one team — every current member with the guest's
+   * own identifier/display name — the read that lets `removeTeamMember`
+   * above actually be offered from a UI (you cannot remove a member without
+   * first knowing who is in the team; `getTeam`'s summary only carries a
+   * count). `organizationId`, when known, goes out as `X-Organization-Id` so
+   * the `guest_teams.read` check resolves for an org-scoped customer session,
+   * matching `createTeam`/`revokeTeam`'s own header handling. */
+  async listTeamMembers(teamId: string, organizationId?: string): Promise<GuestTeamRosterMember[]> {
+    const { data } = await api.get<{
+      items: BackendGuestTeamMemberWithIdentity[];
+      total_items: number;
+    }>(
+      `/guest-teams/${teamId}/members`,
+      organizationId ? { headers: { "X-Organization-Id": organizationId } } : undefined,
+    );
+    return (data?.items ?? []).map((m) => ({
+      membershipId: m.id,
+      guestId: m.guest_id,
+      identifier: m.identifier,
+      displayName: m.display_name,
+      joinedAt: m.joined_at,
+      isActive: m.is_active,
+    }));
   },
 
   async revokeTeam(
