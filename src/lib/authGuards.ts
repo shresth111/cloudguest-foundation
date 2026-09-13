@@ -27,6 +27,32 @@ export function requireCustomerSession(
   auth: RouterAuthContext | undefined,
   location: { href: string },
 ) {
+  // The mirror image of the redirect at the bottom of this function (see
+  // #289: `/master` typed into the customer host is sent to the Master
+  // Console's own hostname). The two consoles are two products on two
+  // addresses and neither belongs on the other's -- but only one direction
+  // was ever enforced.
+  //
+  // The customer surface leaks onto the master hostname through the routes
+  // that are NOT inside the `_authenticated` layout -- /agents, /users,
+  // /switch-location and the rest of the top-level customer routes. That
+  // layout has its own "nothing but /master on the master host" guard; these
+  // routes never passed through it, so they rendered the customer dashboard,
+  // customer sidebar and customer branding at master.wyfyguest.com. Asked
+  // for directly: "master dashboard alag khule aur customer alag, ek mai mix
+  // na kro".
+  //
+  // Sent to the same path on the customer host rather than to /master, so
+  // the destination is the page the visitor actually asked for.
+  //
+  // Only the definitive production master hostname redirects out: local dev
+  // and previews (localhost, *.pages.dev) serve both consoles from one
+  // origin and must keep behaving exactly as before.
+  if (typeof window !== "undefined" && window.location.hostname === MASTER_CONSOLE_HOSTNAME) {
+    window.location.href = `https://${CUSTOMER_APP_HOSTNAME}${location.href}`;
+    // Stop this navigation resolving against a page we are leaving.
+    throw redirect({ to: "/master" });
+  }
   // Mirrors /master's own guard exactly: `auth` starts `undefined` until
   // AuthRouterContextSync's effect (see __root.tsx) pushes the real,
   // client-only (localStorage-derived) status into router context on
