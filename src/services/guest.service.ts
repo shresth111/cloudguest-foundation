@@ -74,6 +74,15 @@ interface BackendGuestSession {
    *  that omit it still parse. */
   device_mac?: string | null;
   router_id: string;
+  /** Human-readable router name, resolved and denormalized onto
+   *  GuestSessionResponse by the backend from one bulk lookup per page
+   *  (the router-side twin of device_mac). Optional so older deployments
+   *  that omit it still parse -- the mapper falls back to router_id, which
+   *  is what the Router column/CSV showed before this field existed. An
+   *  Omada venue runs every session against one synthetic fleet router
+   *  whose id is meaningless to a customer; this is the name that replaces
+   *  it. */
+  router_name?: string | null;
   location_id: string;
   organization_id: string;
   auth_method: GuestSession["authMethod"];
@@ -497,7 +506,7 @@ export const guestService = {
         params,
         headers: { "X-Organization-Id": query.organizationId },
       });
-      let rows = data.items.map((s) => toGuestSession(s, "", "", s.router_id));
+      let rows = data.items.map((s) => toGuestSession(s, "", "", s.router_name ?? s.router_id));
       // `search` has no server-side equivalent on this endpoint; narrowing the
       // page we already hold is the honest best-effort, and total_items stays
       // the unfiltered server total rather than a number we invented.
@@ -512,7 +521,7 @@ export const guestService = {
     let rows = await fanOutPerOrg<GuestSession>("/guest-sessions", (raw, org) => {
       const s = raw as BackendGuestSession;
       const loc = locations.find((l) => l.id === s.location_id);
-      return toGuestSession(s, loc?.name ?? "", org.name, s.router_id);
+      return toGuestSession(s, loc?.name ?? "", org.name, s.router_name ?? s.router_id);
     });
     if (query.status && query.status !== "all")
       rows = rows.filter((s) => s.status === query.status);
@@ -533,7 +542,7 @@ export const guestService = {
   async sessionsForGuest(guestId: string): Promise<GuestSession[]> {
     const rows = await fanOutPerOrg<GuestSession>("/guest-sessions", (raw, org) => {
       const s = raw as BackendGuestSession;
-      return toGuestSession(s, "", org.name, s.router_id);
+      return toGuestSession(s, "", org.name, s.router_name ?? s.router_id);
     });
     return rows.filter((s) => s.guestId === guestId);
   },

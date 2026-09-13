@@ -783,15 +783,18 @@ function mockRun(reportType: string, campaignType?: string, ratePerGb?: number):
 //   `GuestSessionResponse.device_mac`, resolved from one bulk lookup per
 //   page. That is the field read below. GET /guest-devices still exists
 //   and still has no caller here.
-// - "login-access-log" calls `GET /guest-login-history`, confirmed missing
-//   from the real backend as of this spec (§7: "New endpoint needed,
-//   confirmed missing"). Written against that section's documented
-//   contract (`location_id`/`start_date`/`end_date`/`page`/`page_size`
-//   query params, `{items, has_next}` response shape mirroring
-//   GET /guest-sessions exactly) since a BE engineer is adding it in
-//   parallel -- **assumption flagged here and in this feature's PR**: if
-//   the shipped endpoint's param names or response envelope differ,
-//   fetchRealLoginHistory below is the only place that needs to change.
+// - "login-access-log" calls `GET /guest-login-history`, which is now
+//   SHIPPED and live on the real backend (admin_router in
+//   app/domains/guest/router.py, gated by the guest_sessions.read
+//   permission, tested in tests/unit/test_guest_network_activity_log_
+//   router.py). The spec's §7 note that no such endpoint existed was a
+//   stale premise: the endpoint landed with exactly the documented contract --
+//   `location_id`/`start_date`/`end_date`/`page`/`page_size` query params
+//   and the `{items, has_next}` response envelope mirroring GET
+//   /guest-sessions -- so fetchRealLoginHistory below needs no adjustment.
+//   It is vendor-agnostic: it lists GuestLoginHistory rows, which every
+//   auth path (OTP/voucher/password/pin) writes regardless of whether the
+//   venue is a MikroTik/RADIUS or a TP-Link Omada site.
 const REAL_REPORT_TYPES = new Set([
   "data-consumption",
   "data-by-location",
@@ -1470,18 +1473,18 @@ interface RealGuestLoginAttempt {
   attempted_at: string;
 }
 
-// GET /guest-login-history -- confirmed missing from the real backend as of
-// this report's own spec (docs/ipdr-logs-syslog-spec.md §7: "New endpoint
-// needed, confirmed missing" -- GuestLoginHistory today is only consumed
-// internally by analytics aggregates, e.g. OTP success rate, never listed
-// through its own route). Written against that section's documented
-// contract exactly -- same location_id/start_date/end_date/page/page_size
-// query params and {items, has_next} response envelope as GET
-// /guest-sessions, since a BE engineer is adding this endpoint in parallel.
-// **Assumption flagged in this feature's PR**: if the shipped endpoint's
-// param names or response shape differ from this contract, this function is
-// the only place that needs to change. Same 100-row-page/has_next
-// pagination discipline as fetchRealSessions/fetchRealVoucherRedemptions.
+// GET /guest-login-history -- SHIPPED and live on the real backend
+// (app/domains/guest/router.py admin_router, permission guest_sessions.read,
+// covered by tests/unit/test_guest_network_activity_log_router.py). The
+// spec's §7 note that no such endpoint existed (docs/ipdr-logs-syslog-spec.md)
+// is stale: the endpoint landed with exactly the documented contract -- same
+// location_id/start_date/end_date/page/page_size query params and the
+// {items, has_next} response envelope as GET /guest-sessions -- so this
+// function matches it as-is. GuestLoginHistory rows are written by every
+// auth path (OTP/voucher/password/pin), so this listing is vendor-agnostic
+// and works for a TP-Link Omada venue exactly as for a MikroTik one. Same
+// 100-row-page/has_next pagination discipline as
+// fetchRealSessions/fetchRealVoucherRedemptions.
 async function fetchRealLoginHistory(
   orgId: string,
   locationId: string,
