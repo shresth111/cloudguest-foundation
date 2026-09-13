@@ -1190,6 +1190,35 @@ jobs:
             "campaign-results" 28 "all campaign results checks passed" \
             bun run test:campaign-results
 
+      # --- Portal content-image upload double-unwrap ---------------------
+      #
+      # `portalService.uploadContentImage` read `data.data.content_image_url`
+      # off a response the shared interceptor had already unwrapped once, so
+      # the value lived one level up (`data.content_image_url`) and the read
+      # threw: the backend stored the image, the UI reported failure. tsc
+      # could not see it (the response was typed `{ data: {...} }`), so this
+      # bundles the real service against a stubbed api that returns the
+      # post-interceptor shape and asserts the URL comes back.
+      - name: portal content-image upload
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "portal-content-image" 5 "all checks passed" \
+            bun run test:portal-content-image
+
+      # --- Ticket update org scope ---------------------------------------
+      #
+      # A customer's "Mark resolved" called `ticketService.update` with no
+      # `X-Organization-Id`; the backend rejects a tenant caller who names no
+      # org (`MissingScopeContextError`), so the button 403'd for every real
+      # customer while the header-less shape is what the Master console needs.
+      # Bundles the real service and asserts the header is sent iff
+      # `asCustomer` is set, and that TicketsPage passes it.
+      - name: ticket update org scope
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "ticket-update-scope" 4 "all checks passed" \
+            bun run test:ticket-update-scope
+
       # --- CSV export escaping -------------------------------------------
       #
       # Security-relevant, not cosmetic: guest-supplied free text reaches

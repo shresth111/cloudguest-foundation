@@ -157,13 +157,34 @@ export const ticketService = {
     return toTicket(data);
   },
 
-  async update(ticketId: string, payload: UpdateTicketPayload): Promise<SupportTicket> {
-    const { data } = await api.patch<BackendTicket>(`/support-tickets/${ticketId}`, {
-      status: payload.status,
-      priority: payload.priority,
-      assigned_to_user_id: payload.assignedToUserId,
-      resolution_notes: payload.resolutionNotes,
-    });
+  /** Patch a ticket (status/priority/assignment/resolution notes).
+   *
+   * ``asCustomer: true`` sends ``X-Organization-Id`` -- required for the
+   * customer dashboard's own "Mark resolved" action (``TicketsPage``).
+   * ``PATCH /support-tickets/{id}`` is gated on ``support_tickets.manage``,
+   * which the Organization Owner/Admin roles hold, but the backend's
+   * ``CurrentOrganization`` scope resolver rejects a tenant caller who
+   * names no organization (``MissingScopeContextError``) -- so without this
+   * header a real customer's resolve button failed every time. Omitted /
+   * false keeps the no-header, platform-level call shape the Master console
+   * (``master.tickets.tsx``) relies on, mirroring ``listReplies`` /
+   * ``addReply``. */
+  async update(
+    ticketId: string,
+    payload: UpdateTicketPayload,
+    opts?: { asCustomer?: boolean },
+  ): Promise<SupportTicket> {
+    const headers = opts?.asCustomer ? { "X-Organization-Id": await resolveOrgId() } : undefined;
+    const { data } = await api.patch<BackendTicket>(
+      `/support-tickets/${ticketId}`,
+      {
+        status: payload.status,
+        priority: payload.priority,
+        assigned_to_user_id: payload.assignedToUserId,
+        resolution_notes: payload.resolutionNotes,
+      },
+      { headers },
+    );
     return toTicket(data);
   },
 

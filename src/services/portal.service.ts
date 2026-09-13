@@ -971,7 +971,17 @@ export const portalService = {
   async uploadContentImage(id: string, file: File, organizationId?: string): Promise<string> {
     const formData = new FormData();
     formData.append("file", file);
-    const { data } = await api.post<{ data: { content_image_url: string | null } }>(
+    // The endpoint returns the full config object (BE
+    // `captive_portal/router.py`'s `POST .../content-image` responds with
+    // `ApiResponse[CaptivePortalConfigResponse]`), so `content_image_url`
+    // is a TOP-LEVEL field. The shared response interceptor
+    // (`services/api.ts`) already strips the `{success,message,data}`
+    // envelope exactly once, so `data` here is that config object -- read
+    // `content_image_url` directly. The previous code reached one `.data`
+    // level too deep (there is no second `data` after the interceptor), so
+    // it was always `undefined` and threw a TypeError: the image was stored
+    // by the backend but the UI reported the upload as failed.
+    const { data } = await api.post<{ content_image_url: string | null }>(
       `/captive-portal-configs/${id}/content-image`,
       formData,
       {
@@ -981,7 +991,7 @@ export const portalService = {
         },
       },
     );
-    return data.data.content_image_url ?? "";
+    return data.content_image_url ?? "";
   },
 
   async deleteContentImage(id: string, organizationId?: string): Promise<void> {

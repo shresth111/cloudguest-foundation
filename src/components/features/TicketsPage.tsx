@@ -502,7 +502,7 @@ export default function TicketsPage({ locationId }: { locationId?: string } = {}
       return;
     }
     try {
-      await ticketService.update(id, { status: "resolved" });
+      await ticketService.update(id, { status: "resolved" }, { asCustomer: true });
       toast.success("Marked resolved");
       refetch();
     } catch {
