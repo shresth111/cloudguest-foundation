@@ -257,9 +257,18 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
     // Inline, field-level validation instead of a toast: a toast disappears
     // and never tells the visitor *which* field is wrong, and screen readers
     // never get pointed back at the offending input.
+    // Validation and submission must agree on ONE spelling of the address.
+    // They used to disagree: every check below ran against `email.trim()`
+    // while `login()` was handed the raw `email`, so a single stray space --
+    // which a phone keyboard appends after autocomplete, and a paste from a
+    // welcome email carries invisibly -- passed validation and was then sent
+    // verbatim. The backend found no such user, the visitor saw only
+    // "Login failed" with an address that looked correct on screen, and five
+    // of those locked the account for `account_lockout_minutes`.
+    const trimmedEmail = email.trim();
     const nextErrors: { email?: string; password?: string } = {};
-    if (!email.trim()) nextErrors.email = "Enter your email address.";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
+    if (!trimmedEmail) nextErrors.email = "Enter your email address.";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail))
       nextErrors.email = "Enter a valid email address.";
     if (!password) nextErrors.password = "Enter your password.";
     setErrors(nextErrors);
@@ -275,7 +284,7 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
     try {
       // Store role before login so AuthContext can use it
       localStorage.setItem("cg_login_role", role);
-      await login({ email, password });
+      await login({ email: trimmedEmail, password });
       toast.success(`Welcome back, ${role}!`);
       // Small delay to let AuthRouterContextSync propagate before navigation
       setTimeout(() => {
@@ -309,7 +318,9 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
     setSettingNewPassword(true);
     try {
       localStorage.setItem("cg_login_role", role);
-      await login({ email, password, newPassword });
+      // Same trimming as handleSubmit -- this dialog re-submits the very
+      // address that just authenticated, so it must spell it identically.
+      await login({ email: email.trim(), password, newPassword });
       toast.success("Password set. Welcome!");
       setMustChangePasswordOpen(false);
       setTimeout(() => {

@@ -52,7 +52,10 @@ export function ForgotPasswordPage({ onBack }: { onBack?: () => void } = {}) {
   const onSubmit = async (values: FormValues) => {
     setSubmitting(true);
     try {
-      await authService.forgotPassword(values.email);
+      // Trimmed for the same reason the sign-in forms trim: this screen's
+      // reply never reveals whether the address matched, so an untrimmed
+      // one fails completely silently.
+      await authService.forgotPassword(values.email.trim());
       setSent(true);
     } catch (err) {
       toast.error((err as AppError).message || "Failed to send reset link");

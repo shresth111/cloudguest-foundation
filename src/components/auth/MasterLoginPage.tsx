@@ -323,13 +323,18 @@ export function MasterLoginPage({ redirectTo }: { redirectTo?: string } = {}) {
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!forgotEmail) {
+    // A stray space is worse here than on the sign-in form: the response is
+    // deliberately account-existence-agnostic, so a mistyped address produces
+    // the same cheerful "link is on its way" as a correct one and the mail
+    // that never arrives looks like a mail-delivery problem.
+    const trimmedForgotEmail = forgotEmail.trim();
+    if (!trimmedForgotEmail) {
       toast.error("Enter your operator email");
       return;
     }
     setForgotSubmitting(true);
     try {
-      await authService.forgotPassword(forgotEmail);
+      await authService.forgotPassword(trimmedForgotEmail);
       // Deliberately account-existence-agnostic wording (same as
       // forgot-password.tsx's own copy) -- doesn't confirm or deny whether
       // that email belongs to a real operator account.
@@ -344,13 +349,17 @@ export function MasterLoginPage({ redirectTo }: { redirectTo?: string } = {}) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
+    // Trimmed for the same reason as the customer LoginPage: an address with
+    // a stray space reaches the backend verbatim, matches no operator, and
+    // five of those lock the account for `account_lockout_minutes`.
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !password) {
       toast.error("Please enter email and password");
       return;
     }
     setLoading(true);
     try {
-      const session = await login({ email, password });
+      const session = await login({ email: trimmedEmail, password });
       // Valid credentials only prove *someone* logged in, not that they're
       // a platform operator -- a perfectly real customer/org-owner account
       // (e.g. a location owner created via the provisioning wizard) has
