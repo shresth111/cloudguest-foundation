@@ -314,12 +314,16 @@ Recommend, as part of this v1 (not a separate project):
     since every session already has a `device_id` and MAC never changes
     after session creation. Pick whichever the implementing engineer finds
     less invasive; both are small.
-  - **New endpoint needed, confirmed missing**: no list endpoint for
-    `GuestLoginHistory` exists in `guest/router.py` today (only consumed
-    internally by analytics aggregates, e.g. OTP success rate) — add
-    `GET /guest-login-history?location_id=&start_date=&end_date=&page=&page_size=`
-    following the exact pagination/RBAC shape `guest-sessions` already
-    uses.
+  - **SHIPPED** (this note previously said no such list endpoint existed —
+    that premise is now stale): the list endpoint for
+    `GuestLoginHistory` exists in `guest/router.py` as
+    `GET /guest-login-history?location_id=&start_date=&end_date=&page=&page_size=`,
+    with exactly the pagination/response shape `guest-sessions` uses and the
+    `{items, has_next}` envelope the frontend reads. It is vendor-agnostic:
+    `GuestLoginHistory` rows are written by every auth path
+    (OTP/voucher/password/pin), so the log is populated for a TP-Link Omada
+    venue exactly as for a MikroTik/RADIUS one. Covered by
+    `tests/unit/test_guest_network_activity_log_router.py`.
   - RBAC: owner-only (`RequireRole("organization-owner")`), matching
     `admin_logs`'s existing pattern exactly — this is equally
     security-sensitive data.
