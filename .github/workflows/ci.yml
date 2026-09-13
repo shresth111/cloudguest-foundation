@@ -230,6 +230,19 @@ jobs:
             "portal-cna-storage-safety" 21 "all checks passed" \
             bun run test:portal-cna
 
+      # Validation and submission must agree on ONE spelling of the email
+      # address. They did not: every auth form validated `email.trim()` and
+      # then submitted the raw value, so a trailing space -- appended by a
+      # phone keyboard's autocomplete, or carried invisibly out of a pasted
+      # welcome email -- sailed past the on-screen checks and reached the
+      # backend verbatim. It matched no user, the visitor saw "Login failed"
+      # beside an address that read correctly, and five of those locked the
+      # account for 30 minutes. On the forgot-password paths it is quieter
+      # still: those replies never reveal whether the address matched, so the
+      # reset mail simply never comes and looks like a mail problem.
+      - name: auth forms submit trimmed emails
+        run: bun run test:auth-email-trimmed
+
       # Which sign-in methods a guest is actually offered. Password sign-in
       # is OPT-IN per venue: the platform switch
       # (`PASSWORD_SIGN_IN_OFFERED` in src/lib/portal-auth-methods.ts)
