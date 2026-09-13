@@ -10,6 +10,7 @@ import { CommandPalette } from "@/components/command-palette/CommandPalette";
 import { ActivityFeed } from "@/components/activity-feed/ActivityFeed";
 import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
 import { useSyncDashboardLanguage } from "@/lib/i18n/useSyncDashboardLanguage";
+import { isImpersonationSessionActive } from "@/lib/impersonation-host";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -52,7 +53,13 @@ export const Route = createFileRoute("/_authenticated")({
     if (
       typeof window !== "undefined" &&
       window.location.hostname === "master.wyfyguest.com" &&
-      !location.pathname.startsWith("/master")
+      !location.pathname.startsWith("/master") &&
+      // Except for an operator's "View as this customer" session: it can only
+      // live on this host (its token is in this origin's localStorage), and
+      // /master refuses its non-global token, so this redirect bounced it to
+      // /master-login. The isOperator check below still confines it to the
+      // customer-safe paths. See src/lib/impersonation-host.ts.
+      !isImpersonationSessionActive()
     ) {
       throw redirect({ to: "/master" });
     }

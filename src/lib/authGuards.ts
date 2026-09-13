@@ -1,6 +1,7 @@
 import { redirect } from "@tanstack/react-router";
 import type { RouterAuthContext } from "@/context/AuthContext";
 import { TOKEN_STORAGE_KEY } from "@/services/api";
+import { isImpersonationSessionActive } from "@/lib/impersonation-host";
 
 /** The customer dashboard's production hostname. */
 const CUSTOMER_APP_HOSTNAME = "app.wyfyguest.com";
@@ -48,7 +49,16 @@ export function requireCustomerSession(
   // Only the definitive production master hostname redirects out: local dev
   // and previews (localhost, *.pages.dev) serve both consoles from one
   // origin and must keep behaving exactly as before.
-  if (typeof window !== "undefined" && window.location.hostname === MASTER_CONSOLE_HOSTNAME) {
+  //
+  // The one exception is an operator's "View as this customer" session,
+  // which is started on, and can only live on, the master host: its token is
+  // in master.wyfyguest.com's localStorage, so sending it across to the
+  // customer host arrives signed out. See src/lib/impersonation-host.ts.
+  if (
+    typeof window !== "undefined" &&
+    window.location.hostname === MASTER_CONSOLE_HOSTNAME &&
+    !isImpersonationSessionActive()
+  ) {
     window.location.href = `https://${CUSTOMER_APP_HOSTNAME}${location.href}`;
     // Stop this navigation resolving against a page we are leaving.
     throw redirect({ to: "/master" });
