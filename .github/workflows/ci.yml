@@ -230,6 +230,15 @@ jobs:
             "portal-cna-storage-safety" 21 "all checks passed" \
             bun run test:portal-cna
 
+      # The Master Console and the customer app are two products on two
+      # hostnames, and neither may render on the other's. #288/#289 enforced
+      # it for the master routes and the bare root; the top-level customer
+      # routes (/agents, /users, /switch-location) still leaked the customer
+      # dashboard onto master.wyfyguest.com because their guard never read the
+      # hostname. This pins both directions at every door.
+      - name: consoles never mix hostnames
+        run: bun run test:consoles-never-mix
+
       # Validation and submission must agree on ONE spelling of the email
       # address. They did not: every auth form validated `email.trim()` and
       # then submitted the raw value, so a trailing space -- appended by a
@@ -242,16 +251,6 @@ jobs:
       # reset mail simply never comes and looks like a mail problem.
       - name: auth forms submit trimmed emails
         run: bun run test:auth-email-trimmed
-
-      # "View as this customer" could not reach a single page it exists to
-      # show. Two master-hostname guards (the bare root, and the
-      # authenticated layout) sent every customer route to /master, and
-      # /master rejected the impersonated session -- it carries the target's
-      # organization-scoped roles, never a global one -- and bounced it to
-      # /master-login. Both guards must consult the active token's own
-      # impersonation claim, the same source the banner uses.
-      - name: impersonation reaches the customer pages
-        run: bun run test:impersonation-routing
 
       # Which sign-in methods a guest is actually offered. Password sign-in
       # is OPT-IN per venue: the platform switch

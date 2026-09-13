@@ -10,7 +10,6 @@ import { CommandPalette } from "@/components/command-palette/CommandPalette";
 import { ActivityFeed } from "@/components/activity-feed/ActivityFeed";
 import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
 import { useSyncDashboardLanguage } from "@/lib/i18n/useSyncDashboardLanguage";
-import { getActiveImpersonationClaim } from "@/lib/jwt";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -50,25 +49,10 @@ export const Route = createFileRoute("/_authenticated")({
     // back button lands back on the real Master Console instead of the old
     // theme. ssr:false on this route means window is always safe to read
     // here (beforeLoad only runs client-side).
-    //
-    // The one surface that legitimately IS the customer's own, on this
-    // hostname, is an active impersonation: "View as this customer" exists
-    // precisely to render the customer's pages for an operator, and the
-    // impersonation session's token is the customer's. Without this
-    // exception the redirect above fired on every customer route the
-    // impersonated session tried to reach (/c/*, /switch-location,
-    // /workspace/*), sending it to /master, which master.tsx then rejected
-    // -- an impersonated session carries the target's ORGANIZATION-scoped
-    // roles, never a global one -- and on to /master-login. The feature
-    // could not reach a single one of the pages it exists to show.
-    // Read from the ACTIVE token's own claim, the same source
-    // ImpersonationBanner derives its presence from, so the banner and this
-    // guard can never disagree about whether an impersonation is running.
     if (
       typeof window !== "undefined" &&
       window.location.hostname === "master.wyfyguest.com" &&
-      !location.pathname.startsWith("/master") &&
-      getActiveImpersonationClaim() === null
+      !location.pathname.startsWith("/master")
     ) {
       throw redirect({ to: "/master" });
     }

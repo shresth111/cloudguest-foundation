@@ -6,7 +6,6 @@ import { LoginPage } from "@/components/auth/LoginPage";
 import { MasterLoginPage } from "@/components/auth/MasterLoginPage";
 import { CustomerDashboardPage } from "@/components/customer/CustomerDashboardPage";
 import { captivePortalRedirect } from "@/lib/captive-portal-redirect";
-import { getActiveImpersonationClaim } from "@/lib/jwt";
 
 export const Route = createFileRoute("/")({
   // A captive-portal redirect that landed one path segment short of
@@ -79,30 +78,7 @@ function IndexRedirect() {
   const navigate = useNavigate();
   const hostname = useHostname();
   const activeLocationId = useCustomerStore((s) => s.activeLocationId);
-  // An operator who clicked "View as this customer" is deliberately wearing
-  // a customer identity, and the whole point of that is to see what the
-  // customer sees -- so the hostname stops deciding on its own. Without
-  // this, the master-host branch below fired on the impersonated session
-  // too: master.customers.tsx's `navigate({ to: "/" })` landed here,
-  // this effect sent it straight on to /master, and master.tsx's own
-  // beforeLoad rejected it (an impersonated session holds the target's
-  // ORGANIZATION-scoped roles, never a global one) and bounced it to
-  // /master-login. "View as this customer" therefore ended, every single
-  // time, on the operator sign-in screen -- with the impersonation session
-  // live and its countdown banner running above the login form. Reported
-  // live: "ye view as a customer muje app.wyfyguest pr uske dashboard pr
-  // nahi le jata hai".
-  //
-  // Derived from the ACTIVE token's own `impersonation` claim rather than a
-  // separate flag, for the same reason ImpersonationBanner does it that way
-  // (see `getActiveImpersonationClaim`): the banner and this redirect must
-  // never be able to disagree about whether an impersonation is running.
-  // Read in the same effect-gated way as `hostname` above -- it touches
-  // localStorage, so it cannot be read in the render body without the
-  // server's render disagreeing with the client's first paint.
-  const [isImpersonating, setIsImpersonating] = useState(false);
-  useEffect(() => setIsImpersonating(getActiveImpersonationClaim() !== null), []);
-  const isMaster = hostname === "master.wyfyguest.com" && !isImpersonating;
+  const isMaster = hostname === "master.wyfyguest.com";
 
   useEffect(() => {
     if (!isReady || !isAuthenticated || !user) return;
