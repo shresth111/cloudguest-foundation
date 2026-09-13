@@ -2,6 +2,11 @@ import { redirect } from "@tanstack/react-router";
 import type { RouterAuthContext } from "@/context/AuthContext";
 import { TOKEN_STORAGE_KEY } from "@/services/api";
 
+/** The customer dashboard's production hostname. */
+const CUSTOMER_APP_HOSTNAME = "app.wyfyguest.com";
+/** The Master Console's own production hostname -- see `src/routes/index.tsx`. */
+const MASTER_CONSOLE_HOSTNAME = "master.wyfyguest.com";
+
 /**
  * Auth boundary for the `/customer/*` surface -- the mirror image of
  * `/master`'s own `beforeLoad` guard (see that route file's comment for
@@ -73,6 +78,37 @@ export function requireCustomerSession(
     // customer-appropriate "your account isn't fully set up" state here.
     const isOperator = auth?.roles?.some((r) => r.scopeType === "global") ?? false;
     if (isOperator) {
+      // ...but only on the hostname the Master Console is actually served
+      // from. This redirect used to fire on every host, so signing in at
+      // **app.wyfyguest.com** with an operator account rendered the Master
+      // Console at `app.wyfyguest.com/master`: operator branding, the whole
+      // tenant list, MRR and "Add Customer", all under the address customers
+      // are given. Reported from a live session: "ye kya bug hai
+      // app.wyfyguest.com se master wala portal aagaya hai".
+      //
+      // Not a privilege escalation -- every `/master/*` route is GLOBAL-scoped
+      // and this visitor holds a global role, so nothing was reachable that
+      // was not already theirs, and a customer (no global role) never enters
+      // this branch at all. It is a *surface* bug, and it has a second cost:
+      // an operator whose only role is global can never reach the customer
+      // dashboard to see what a customer sees, because every route out of
+      // here leads back to /master.
+      //
+      // `src/routes/index.tsx` already reads the hostname for exactly this
+      // distinction ("The Master Console is served from its own hostname");
+      // this guard simply never asked. Same `window`-only read, and the same
+      // reason it cannot be done in a render body -- but a `beforeLoad` guard
+      // is already client-only here, so there is no hydration concern.
+      //
+      // Anything that is not definitively the customer production host still
+      // redirects in-app, so local dev and previews (localhost, *.pages.dev),
+      // where both consoles share one origin, behave exactly as before.
+      const host = typeof window === "undefined" ? null : window.location.hostname;
+      if (host === CUSTOMER_APP_HOSTNAME) {
+        window.location.href = `https://${MASTER_CONSOLE_HOSTNAME}/master`;
+        // Stop this navigation resolving against a page we are leaving.
+        throw redirect({ to: "/login" });
+      }
       throw redirect({ to: "/master" });
     }
   }
