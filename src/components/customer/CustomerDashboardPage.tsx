@@ -1661,15 +1661,16 @@ export function CustomerDashboardPage() {
                         {d.kpis.failedLogins === 1 ? "" : "s"} today
                       </span>
                     )}
-                    {d.kpis.failedLogins === null && (
-                      <span
-                        title="The failed-login check could not read this venue's login audit log."
-                        className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/30 bg-amber-400/10 px-2.5 py-1 text-[11px] font-medium text-amber-100/80"
-                      >
-                        <AlertTriangle className="h-3 w-3" />
-                        Login check unavailable
-                      </span>
-                    )}
+                    {d.kpis.failedLogins === null &&
+                      user?.roles?.some((r) => r.role === "owner" || r.scopeType === "global") && (
+                        <span
+                          title="The failed-login check could not read this venue's login audit log."
+                          className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/30 bg-amber-400/10 px-2.5 py-1 text-[11px] font-medium text-amber-100/80"
+                        >
+                          <AlertTriangle className="h-3 w-3" />
+                          Login check unavailable
+                        </span>
+                      )}
                   </div>
 
                   {/* Three KPIs, equal weight -- one 3-column CSS grid with
@@ -1799,7 +1800,7 @@ export function CustomerDashboardPage() {
                 {/* Charts */}
                 <div>
                   <p className="mb-3 text-xs font-medium text-muted-foreground">
-                    Traffic and hardware, over the last 24 hours.
+                    Traffic and hardware, throughout today.
                   </p>
                   <div className="grid gap-6 lg:grid-cols-3">
                     <Card className="h-full lg:col-span-1 premium-card premium-card-hover">
@@ -1807,7 +1808,7 @@ export function CustomerDashboardPage() {
                         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]">
                           <TrendingUp className="h-3.5 w-3.5 text-white" />
                         </div>
-                        <CardTitle className="text-sm">Guests online, last 24h</CardTitle>
+                        <CardTitle className="text-sm">Guests online (by hour)</CardTitle>
                       </CardHeader>
                       <CardContent>
                         <div className="h-52">
@@ -1955,7 +1956,7 @@ export function CustomerDashboardPage() {
                         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]">
                           <Activity className="h-3.5 w-3.5 text-white" />
                         </div>
-                        <CardTitle className="text-sm">Sessions by hour</CardTitle>
+                        <CardTitle className="text-sm">Guest arrivals (by hour)</CardTitle>
                       </CardHeader>
                       <CardContent>
                         <div className="h-52">

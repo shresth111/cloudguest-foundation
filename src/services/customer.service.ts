@@ -1246,13 +1246,19 @@ export const customerService = {
     if (gR.status === "fulfilled") {
       for (const g of gR.value.data?.items ?? []) guestsById.set(g.id, g);
     }
-    const today = new Date().toISOString().slice(0, 10);
+    const now = new Date();
+    const localMidnightMs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const isStartedToday = (iso?: string | null) => {
+      if (!iso) return false;
+      const t = new Date(iso).getTime();
+      return Number.isFinite(t) && t >= localMidnightMs;
+    };
     // `null`, not 0, when this Owner-only read fails or is denied: a
     // failed /admin-logs/dashboard-logins fetch is not evidence of zero
     // failed logins. The pill renders only for a real number.
     const failedLoginsToday =
       lR.status === "fulfilled" && lR.value.data
-        ? (lR.value.data?.items ?? []).filter((l) => !l.success && l.created_at?.startsWith(today))
+        ? (lR.value.data?.items ?? []).filter((l) => !l.success && isStartedToday(l.created_at))
             .length
         : null;
 
@@ -1346,7 +1352,7 @@ export const customerService = {
         onlineUsers: activeSessionCount,
         routersOnline: liveness.routersOnline,
         totalRouters: liveness.routersTotal,
-        todayGuests: sessions.filter((s) => s.started_at?.startsWith(today)).length,
+        todayGuests: sessions.filter((s) => isStartedToday(s.started_at)).length,
         avgSession: avgSessionMinutes(sessions),
         // Real peak concurrency, not peak arrivals. This read
         // `Math.max(...hourly)` over session STARTS, so a venue where 30
