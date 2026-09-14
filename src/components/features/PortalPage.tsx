@@ -2009,7 +2009,8 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                 }}
               >
                 <p className="text-xs text-muted-foreground">
-                  Default is enabled. First-time guests verify once via Email or Mobile OTP, set their password, and sign in directly on future visits.
+                  Default is enabled. First-time guests verify once via Email or Mobile OTP, set
+                  their password, and sign in directly on future visits.
                 </p>
               </PostConnectRow>
 
