@@ -13,7 +13,7 @@ import { PortalDefaultBrandBadge } from "@/components/portal-runtime/PortalDefau
 import { VenueLogo } from "@/components/portal-runtime/VenueLogo";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { scriptClassOf } from "@/lib/portal-script";
-import { enabledAuthMethods, otherAuthMethods } from "@/lib/portal-auth-methods";
+import { enabledAuthMethods, otherAuthMethods, passwordSignInOffered } from "@/lib/portal-auth-methods";
 import { useEffect } from "react";
 import {
   MobileForm,
@@ -159,14 +159,15 @@ function AuthMethodPage() {
   };
 
   // A voucher login redeems and connects in one step (no separate OTP-style
-  // verify page) -- same "already fully authenticated" destination as a
-  // password login, and for the identical reason (no code left to verify).
+  // verify page). If the venue offers password setup / account creation and the guest
+  // does not yet have a password, offer the setup prompt before /portal/success.
   const onVoucherLoggedIn = (session: RuntimeSession) => {
     setSelectedMethod("voucher");
     setSession(session);
     toast.success("Connected");
+    const offerPasswordSetup = passwordSignInOffered(config) && !session.hasPassword;
     navigate({
-      to: "/portal/success",
+      to: offerPasswordSetup ? "/portal/set-password" : "/portal/success",
       search: (prev) => prev,
     });
   };
