@@ -50,6 +50,7 @@ interface RawGuestSession {
   started_at: string;
   ended_at?: string | null;
   ip_address?: string | null;
+  router_id?: string | null;
   device_id: string | null;
   // The MAC of THIS session's own device, resolved server-side by the
   // backend from session.device_id (GuestSessionResponse.device_mac).
@@ -1332,8 +1333,15 @@ export const customerService = {
     // rather than trusting a session row that's outlived its router.
     // Keyed off "we know nothing is checking in" -- when liveness is
     // `unknown` there are no grounds to zero a real count either.
-    const activeSessionCount =
-      liveness.routersOnline === 0 ? 0 : sessions.filter((s) => s.status === "active").length;
+    // If specific routers are offline, exclude their active sessions so
+    // stale DB rows don't inflate live online guests.
+    const offlineRouterIds = new Set(
+      liveness.routers.filter((r) => r.key && r.status === "fail").map((r) => r.key),
+    );
+    const activeSessions = sessions.filter(
+      (s) => s.status === "active" && (!s.router_id || !offlineRouterIds.has(s.router_id)),
+    );
+    const activeSessionCount = liveness.routersOnline === 0 ? 0 : activeSessions.length;
     return {
       liveness,
       health: {

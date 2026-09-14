@@ -10,6 +10,8 @@ import {
   CheckCircle,
   XCircle,
   AlertTriangle,
+  Ticket,
+  QrCode,
 } from "lucide-react";
 import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
 import {
@@ -527,6 +529,91 @@ export function CustomerDashboardPage() {
                   <LocationLivenessExplainer liveness={d.liveness} />
                 </div>
 
+                {/* Quick Actions -- 1-click access to most frequent operational tasks */}
+                <div className="rounded-2xl border border-border/70 bg-card/60 p-3.5 backdrop-blur-sm shadow-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Quick Actions
+                    </p>
+                    <span className="text-[11px] text-muted-foreground/80">
+                      Common front-desk &amp; venue tasks
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                    <button
+                      type="button"
+                      onClick={() => handleNav("vouchers")}
+                      className="group flex items-center gap-2.5 rounded-xl border border-border/80 bg-background/80 p-2.5 text-left transition-all hover:border-primary/50 hover:bg-primary/5 hover:shadow-sm"
+                    >
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-600 transition-colors group-hover:bg-primary group-hover:text-white dark:text-indigo-400">
+                        <Ticket className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs font-medium text-foreground group-hover:text-primary">
+                          Create Voucher
+                        </p>
+                        <p className="truncate text-[10px] text-muted-foreground">
+                          Issue WiFi pass
+                        </p>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleNav("debugging")}
+                      className="group flex items-center gap-2.5 rounded-xl border border-border/80 bg-background/80 p-2.5 text-left transition-all hover:border-amber-500/50 hover:bg-amber-500/5 hover:shadow-sm"
+                    >
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600 transition-colors group-hover:bg-amber-500 group-hover:text-white dark:text-amber-400">
+                        <Wifi className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs font-medium text-foreground group-hover:text-amber-600 dark:group-hover:text-amber-400">
+                          Fix a Problem
+                        </p>
+                        <p className="truncate text-[10px] text-muted-foreground">
+                          Rescue guest WiFi
+                        </p>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleNav("portal")}
+                      className="group flex items-center gap-2.5 rounded-xl border border-border/80 bg-background/80 p-2.5 text-left transition-all hover:border-violet-500/50 hover:bg-violet-500/5 hover:shadow-sm"
+                    >
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600 transition-colors group-hover:bg-violet-500 group-hover:text-white dark:text-violet-400">
+                        <QrCode className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs font-medium text-foreground group-hover:text-violet-600 dark:group-hover:text-violet-400">
+                          Splash &amp; QR
+                        </p>
+                        <p className="truncate text-[10px] text-muted-foreground">
+                          Portal branding
+                        </p>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleNav("users")}
+                      className="group flex items-center gap-2.5 rounded-xl border border-border/80 bg-background/80 p-2.5 text-left transition-all hover:border-emerald-500/50 hover:bg-emerald-500/5 hover:shadow-sm"
+                    >
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 transition-colors group-hover:bg-emerald-500 group-hover:text-white dark:text-emerald-400">
+                        <Users className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs font-medium text-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
+                          Live Guests
+                        </p>
+                        <p className="truncate text-[10px] text-muted-foreground">
+                          Active sessions
+                        </p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
                 {/* Charts */}
                 <div>
                   <p className="mb-3 text-xs font-medium text-muted-foreground">
@@ -550,7 +637,13 @@ export function CustomerDashboardPage() {
                            * genuinely empty array and an all-zero one) is
                            * what actually catches "no guest activity today." */}
                           {d.usersTrend.every((h) => h.users === 0) ? (
-                            <ChartEmptyState label="No guest activity yet today." />
+                            <ChartEmptyState
+                              label="No guest activity yet today."
+                              action={{
+                                label: "Preview Splash Portal",
+                                onClick: () => handleNav("portal"),
+                              }}
+                            />
                           ) : (
                             // Settles in rather than popping on mount -- Magic
                             // UI's "Blur Fade" idea, wrapping the chart's
@@ -588,6 +681,9 @@ export function CustomerDashboardPage() {
                                     tickLine={false}
                                     axisLine={false}
                                     interval={3}
+                                    tickFormatter={(val: string) =>
+                                      `${String(val).padStart(2, "0")}:00`
+                                    }
                                   />
                                   <YAxis
                                     tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
@@ -615,6 +711,13 @@ export function CustomerDashboardPage() {
                                       fontSize: 12,
                                       boxShadow: "0 8px 24px -12px rgb(0 0 0 / 0.35)",
                                     }}
+                                    formatter={(value: unknown) => [
+                                      `${typeof value === "number" ? value : 0} guests`,
+                                      "Online",
+                                    ]}
+                                    labelFormatter={(label: unknown) =>
+                                      `Hour ${String(label).padStart(2, "0")}:00`
+                                    }
                                   />
                                   <Area
                                     type="monotone"
@@ -695,7 +798,13 @@ export function CustomerDashboardPage() {
                            * an empty one, so the "all zero" check (not just
                            * "empty") is what actually catches a quiet day. */}
                           {d.hourlySessions.every((h) => h.sessions === 0) ? (
-                            <ChartEmptyState label="No session activity yet today." />
+                            <ChartEmptyState
+                              label="No session activity yet today."
+                              action={{
+                                label: "Generate Voucher",
+                                onClick: () => handleNav("vouchers"),
+                              }}
+                            />
                           ) : (
                             <BlurFade inView className="h-full w-full" blur="4px" offset={4}>
                               <ResponsiveContainer width="100%" height="100%">
@@ -728,6 +837,10 @@ export function CustomerDashboardPage() {
                                     tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
                                     tickLine={false}
                                     axisLine={false}
+                                    interval={3}
+                                    tickFormatter={(val: string) =>
+                                      `${String(val).padStart(2, "0")}:00`
+                                    }
                                   />
                                   <YAxis
                                     tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
@@ -755,6 +868,13 @@ export function CustomerDashboardPage() {
                                       fontSize: 12,
                                       boxShadow: "0 8px 24px -12px rgb(0 0 0 / 0.35)",
                                     }}
+                                    formatter={(value: unknown) => [
+                                      `${typeof value === "number" ? value : 0} arrivals`,
+                                      "Joined",
+                                    ]}
+                                    labelFormatter={(label: unknown) =>
+                                      `Hour ${String(label).padStart(2, "0")}:00`
+                                    }
                                   />
                                   <Bar
                                     dataKey="sessions"
@@ -836,10 +956,19 @@ export function CustomerDashboardPage() {
                         </CardHeader>
                         <CardContent className="p-0">
                           {d.recentUsers.length === 0 ? (
-                            <p className="px-6 py-8 text-center text-xs text-muted-foreground">
-                              No guests have connected yet — check back once someone joins the
-                              network.
-                            </p>
+                            <div className="flex flex-col items-center justify-center px-6 py-8 text-center">
+                              <p className="text-xs text-muted-foreground">
+                                No guests have connected yet — check back once someone joins the
+                                network.
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => handleNav("portal")}
+                                className="mt-2 text-xs font-medium text-primary hover:underline"
+                              >
+                                Test Splash Page →
+                              </button>
+                            </div>
                           ) : (
                             <Table>
                               <TableHeader>

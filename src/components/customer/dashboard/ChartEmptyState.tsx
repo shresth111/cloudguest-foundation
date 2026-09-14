@@ -5,7 +5,13 @@
  * feels designed instead of a bare sentence on white. Purely decorative --
  * aria-hidden.
  */
-export function ChartEmptyState({ label }: { label: string }) {
+export function ChartEmptyState({
+  label,
+  action,
+}: {
+  label: string;
+  action?: { label: string; onClick: () => void };
+}) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-2 py-6 text-center">
       <svg aria-hidden="true" viewBox="0 0 100 70" className="h-14 w-20" fill="none">
@@ -23,6 +29,15 @@ export function ChartEmptyState({ label }: { label: string }) {
         <circle cx="50" cy="22" r="3" fill="#22d3ee" opacity="0.6" />
       </svg>
       <p className="text-xs text-muted-foreground">{label}</p>
+      {action && (
+        <button
+          type="button"
+          onClick={action.onClick}
+          className="mt-0.5 inline-flex items-center text-xs font-medium text-primary transition-colors hover:text-primary/80 hover:underline"
+        >
+          {action.label} →
+        </button>
+      )}
     </div>
   );
 }
