@@ -1,5 +1,6 @@
 import { redirect } from "@tanstack/react-router";
 import type { RouterAuthContext } from "@/context/AuthContext";
+import { isHonouredDemoToken } from "@/lib/demo-host";
 import { TOKEN_STORAGE_KEY } from "@/services/api";
 import { isImpersonationSessionActive } from "@/lib/impersonation-host";
 
@@ -96,10 +97,10 @@ export function requireCustomerSession(
   // login()) hardcodes a global-scope "Super Admin" role on its fake session --
   // it was never meant to represent a real operator, and login.tsx sends it
   // straight to /customer on submit. Same check customer.service.ts's own
-  // isDemo() uses, so this stays in lockstep with the rest of the demo path.
+  // isDemo() uses, so this stays in lockstep with the rest of the demo path --
+  // including that it is honoured only on the demo host (src/lib/demo-host.ts).
   const isDemoSession =
-    typeof window !== "undefined" &&
-    localStorage.getItem(TOKEN_STORAGE_KEY) === "demo-access-token";
+    typeof window !== "undefined" && isHonouredDemoToken(localStorage.getItem(TOKEN_STORAGE_KEY));
 
   const hasCustomerRole = auth?.roles?.some((r) => r.scopeType !== "global") ?? true;
   if (auth?.status === "authenticated" && !hasCustomerRole && !isDemoSession) {
