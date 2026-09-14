@@ -159,15 +159,14 @@ function AuthMethodPage() {
   };
 
   // A voucher login redeems and connects in one step (no separate OTP-style
-  // verify page). If the venue offers password setup / account creation and the guest
-  // does not yet have a password, offer the setup prompt before /portal/success.
+  // verify page) -- same "already fully authenticated" destination as a
+  // password login, and for the identical reason (no code left to verify).
   const onVoucherLoggedIn = (session: RuntimeSession) => {
     setSelectedMethod("voucher");
     setSession(session);
     toast.success("Connected");
-    const offerPasswordSetup = passwordSignInOffered(config) && !session.hasPassword;
     navigate({
-      to: offerPasswordSetup ? "/portal/set-password" : "/portal/success",
+      to: "/portal/success",
       search: (prev) => prev,
     });
   };
