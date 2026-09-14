@@ -316,7 +316,12 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   // fields. Save is disabled only when the user edits an over-limit field
   // and leaves it over.
   const [savedSplash, setSavedSplash] = useState({ headline: "", msg: "" });
-  const [authMethods, setAuthMethods] = useState<string[]>(["mobile_otp", "voucher"]);
+  const [authMethods, setAuthMethods] = useState<string[]>([
+    "mobile_otp",
+    "email_otp",
+    "username_password",
+    "voucher",
+  ]);
   // Content mode + its per-mode source fields (see PortalContentBlock /
   // constants.PortalContentMode). "login" (default) leaves the sign-in
   // screen exactly as it is; image/text/redirect each feed the Live Preview
@@ -1989,6 +1994,23 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                   is not built yet.
                 </p>
                 <NoDataYet />
+              </PostConnectRow>
+
+              <PostConnectRow
+                title="Account creation on first sign-in"
+                description="Prompt first-time OTP guests to set a password so they can sign in directly on future visits."
+                checked={authMethods.includes("username_password")}
+                onCheckedChange={(checked) => {
+                  if (checked && !authMethods.includes("username_password")) {
+                    setAuthMethods([...authMethods, "username_password"]);
+                  } else if (!checked && authMethods.includes("username_password")) {
+                    setAuthMethods(authMethods.filter((m) => m !== "username_password"));
+                  }
+                }}
+              >
+                <p className="text-xs text-muted-foreground">
+                  Default is enabled. First-time guests verify once via Email or Mobile OTP, set their password, and sign in directly on future visits.
+                </p>
               </PostConnectRow>
 
               <p className="pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">

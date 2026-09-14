@@ -6,7 +6,7 @@ import { Smartphone, Mail, Ticket, MessageCircle } from "lucide-react";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { normalizeOmadaText } from "@/lib/portal-authorize-body";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
-import { enabledAuthMethods } from "@/lib/portal-auth-methods";
+import { enabledAuthMethods, passwordSignInOffered } from "@/lib/portal-auth-methods";
 import { deviceHasPassword, markDeviceHasPassword } from "@/lib/portal-returning-guest";
 import { friendlyGuestAuthError } from "@/lib/portal-guest-errors";
 import {
@@ -597,12 +597,13 @@ export function useGuestSignIn() {
     portalRuntimeService
       .recordConsent({ guestId: session.guestId, captivePortalConfigId: config?.id })
       .catch(() => undefined);
-    // Real navigation target: the brief "connecting" transitional screen,
-    // which fires the real hotspot-login POST and lands the guest on
-    // /portal/session once it completes -- see portal.success.tsx's own
-    // docstring.
+    // First (or any) OTP-verified login by a guest who hasn't set a
+    // password yet, on a portal that offers password login / account creation --
+    // offer the skippable "save a password for next time?" account setup prompt
+    // before continuing on to the success screen.
+    const offerPasswordSetup = passwordSignInOffered(config) && !session.hasPassword;
     navigate({
-      to: "/portal/success",
+      to: offerPasswordSetup ? "/portal/set-password" : "/portal/success",
       search: (prev) => prev,
     });
   }
