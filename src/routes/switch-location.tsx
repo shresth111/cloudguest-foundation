@@ -310,6 +310,67 @@ function HeroManagerIllustration() {
   );
 }
 
+function HeroRotatingQuote() {
+  const [quoteIndex, setQuoteIndex] = useState(0);
+
+  useEffect(() => {
+    const t = setInterval(() => setQuoteIndex((i) => (i + 1) % QUOTES.length), 5000);
+    return () => clearInterval(t);
+  }, []);
+
+  return (
+    <div className="mt-6 flex items-center gap-2 text-sm text-white/60">
+      <Quote className="h-3.5 w-3.5 shrink-0 text-white/30" />
+      <span className="relative inline-grid grid-cols-1 grid-rows-1">
+        <AnimatePresence initial={false}>
+          <motion.span
+            key={quoteIndex}
+            className="col-start-1 row-start-1"
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.35 }}
+          >
+            {QUOTES[quoteIndex]}
+          </motion.span>
+        </AnimatePresence>
+      </span>
+    </div>
+  );
+}
+
+function LiveUpdateTracker({ onRefetch }: { onRefetch: () => void }) {
+  const [secondsAgo, setSecondsAgo] = useState(0);
+
+  useEffect(() => {
+    const t = setInterval(() => setSecondsAgo((s) => s + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const handleRefetch = () => {
+    setSecondsAgo(0);
+    onRefetch();
+  };
+
+  return (
+    <span className="flex items-center gap-1.5 text-xs text-white/50">
+      <span className="relative flex h-1.5 w-1.5">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
+        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+      </span>
+      Live · updated {secondsAgo}s ago
+      <button
+        type="button"
+        onClick={handleRefetch}
+        aria-label="Refresh location data"
+        className="ml-1 rounded-md p-1 text-white/50 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+      >
+        <RefreshCw className="h-3 w-3" aria-hidden="true" />
+      </button>
+    </span>
+  );
+}
+
 function CustomerHomePage() {
   const navigate = useNavigate();
   const { user, logout, organizations } = useAuth();
@@ -334,9 +395,7 @@ function CustomerHomePage() {
   const [addDeviceOpen, setAddDeviceOpen] = useState(false);
 
   const [deviceLocationId, setDeviceLocationId] = useState("");
-  const [secondsAgo, setSecondsAgo] = useState(0);
   const [deviceSheetOpen, setDeviceSheetOpen] = useState(false);
-  const [quoteIndex, setQuoteIndex] = useState(0);
   const searchRef = useRef<HTMLInputElement>(null);
 
   // "/" jumps to the venue search from anywhere on the page (ignored while
@@ -353,16 +412,6 @@ function CustomerHomePage() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
-
-  useEffect(() => {
-    const t = setInterval(() => setSecondsAgo((s) => s + 1), 1000);
-    return () => clearInterval(t);
-  }, []);
-
-  useEffect(() => {
-    const t = setInterval(() => setQuoteIndex((i) => (i + 1) % QUOTES.length), 5000);
-    return () => clearInterval(t);
   }, []);
 
   // Debounce the raw input so typing doesn't re-filter the grid on every
@@ -407,7 +456,6 @@ function CustomerHomePage() {
   };
   const doRefetch = () => {
     refetch();
-    setSecondsAgo(0);
   };
 
   // Each location has its own hardware -- default the monitoring panel to the first
@@ -687,20 +735,7 @@ function CustomerHomePage() {
                 </div>
               )}
 
-              <div className="mt-6 flex items-center gap-2 text-sm text-white/60">
-                <Quote className="h-3.5 w-3.5 shrink-0 text-white/30" />
-                <AnimatePresence mode="wait">
-                  <motion.span
-                    key={quoteIndex}
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.4 }}
-                  >
-                    {QUOTES[quoteIndex]}
-                  </motion.span>
-                </AnimatePresence>
-              </div>
+              <HeroRotatingQuote />
             </motion.div>
 
             <motion.div
@@ -739,21 +774,7 @@ function CustomerHomePage() {
             )}
           </div>
           <div className="flex items-center gap-2">
-            <span className="flex items-center gap-1.5 text-xs text-white/50">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              </span>
-              Live · updated {secondsAgo}s ago
-              <button
-                type="button"
-                onClick={doRefetch}
-                aria-label="Refresh location data"
-                className="ml-1 rounded-md p-1 text-white/50 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-              >
-                <RefreshCw className="h-3 w-3" aria-hidden="true" />
-              </button>
-            </span>
+            <LiveUpdateTracker onRefetch={doRefetch} />
             <button
               type="button"
               onClick={() => setDeviceSheetOpen(true)}

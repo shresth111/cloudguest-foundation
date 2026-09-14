@@ -532,7 +532,7 @@ function CustomerUsersPage() {
                         key={u.id}
                         initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: i * 0.03 }}
+                        transition={{ delay: Math.min(i * 0.015, 0.15) }}
                         onClick={() => setDetailUser(u)}
                         className="cursor-pointer border-b border-l-2 border-l-transparent transition-colors last:border-b-0 hover:border-l-[#6C4EFF] hover:bg-accent/50"
                       >

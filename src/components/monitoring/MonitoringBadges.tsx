@@ -11,7 +11,7 @@ import type {
 import { cn } from "@/lib/utils";
 
 const sevMap: Record<AlertSeverity, string> = {
-  critical: "bg-red-500/15 text-red-500 border-red-500/30",
+  critical: "bg-rose-500/15 text-rose-500 border-rose-500/30",
   warning: "bg-amber-500/15 text-amber-600 border-amber-500/30",
   info: "bg-muted text-muted-foreground border-border",
 };
@@ -25,7 +25,7 @@ export function SeverityBadge({ severity }: { severity: AlertSeverity }) {
 }
 
 const statusMap: Record<AlertStatus, string> = {
-  triggered: "bg-red-500/15 text-red-500 border-red-500/30",
+  triggered: "bg-rose-500/15 text-rose-500 border-rose-500/30",
   acknowledged: "bg-amber-500/15 text-amber-600 border-amber-500/30",
   resolved: "bg-emerald-500/15 text-emerald-500 border-emerald-500/30",
 };
@@ -41,7 +41,7 @@ export function AlertStatusBadge({ status }: { status: AlertStatus }) {
 const healthMap: Record<HealthStatus, string> = {
   healthy: "bg-emerald-500/15 text-emerald-500 border-emerald-500/30",
   degraded: "bg-amber-500/15 text-amber-600 border-amber-500/30",
-  unhealthy: "bg-red-500/15 text-red-500 border-red-500/30",
+  unhealthy: "bg-rose-500/15 text-rose-500 border-rose-500/30",
   unknown: "bg-muted text-muted-foreground border-border",
 };
 
@@ -54,7 +54,7 @@ export function HealthBadge({ status }: { status: HealthStatus }) {
 }
 
 const incStatusMap: Record<IncidentStatus, string> = {
-  open: "bg-red-500/15 text-red-500 border-red-500/30",
+  open: "bg-rose-500/15 text-rose-500 border-rose-500/30",
   investigating: "bg-amber-500/15 text-amber-600 border-amber-500/30",
   resolved: "bg-emerald-500/15 text-emerald-500 border-emerald-500/30",
   closed: "bg-muted text-muted-foreground border-border",
@@ -70,7 +70,7 @@ export function IncidentStatusBadge({ status }: { status: IncidentStatus }) {
 
 const notificationStatusMap: Record<NotificationStatus, string> = {
   sent: "bg-emerald-500/15 text-emerald-500 border-emerald-500/30",
-  failed: "bg-red-500/15 text-red-500 border-red-500/30",
+  failed: "bg-rose-500/15 text-rose-500 border-rose-500/30",
 };
 
 export function NotificationStatusBadge({ status }: { status: NotificationStatus }) {
@@ -96,9 +96,9 @@ const lifecycleMap: Record<RouterLifecycleStage, string> = {
   provisioning: "bg-amber-500/15 text-amber-600 border-amber-500/30",
   provisioned: "bg-amber-500/15 text-amber-600 border-amber-500/30",
   online: "bg-emerald-500/15 text-emerald-500 border-emerald-500/30",
-  offline: "bg-red-500/15 text-red-500 border-red-500/30",
+  offline: "bg-rose-500/15 text-rose-500 border-rose-500/30",
   warning: "bg-amber-500/15 text-amber-600 border-amber-500/30",
-  failed: "bg-red-500/15 text-red-500 border-red-500/30",
+  failed: "bg-rose-500/15 text-rose-500 border-rose-500/30",
 };
 
 export function LifecycleStageBadge({ stage }: { stage: RouterLifecycleStage }) {
