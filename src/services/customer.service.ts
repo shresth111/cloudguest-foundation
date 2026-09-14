@@ -1178,10 +1178,10 @@ export const customerService = {
       // recent 100 sessions, whenever they happened" and then bucketed
       // them by hour-of-day under a "last 24h" heading -- at a quiet venue
       // that silently charted weeks of history as though it were today.
-      // `page_size` is capped at 100 server-side (guest/router.py), so a
-      // very busy venue can still truncate; that is a real remaining
-      // limitation, not something to paper over here.
-      api.get<{ items: RawGuestSession[] }>("/guest-sessions", {
+      // `page_size` is capped at 100 server-side (guest/router.py). The
+      // response includes `total_items`, allowing `todayGuests` to avoid
+      // truncating for busy venues with >100 sessions.
+      api.get<{ items: RawGuestSession[]; total_items?: number }>("/guest-sessions", {
         params: {
           location_id: locationId,
           start_date: new Date(Date.now() - 24 * 3_600_000).toISOString(),
@@ -1240,7 +1240,9 @@ export const customerService = {
     // `null`, not `[]`, on failure -- see listLocations()'s identical
     // comment. A failed routers read is not a report of zero routers.
     const routers = rR.status === "fulfilled" ? (rR.value.data?.items ?? []) : null;
-    const sessions = sR.status === "fulfilled" ? (sR.value.data?.items ?? []) : [];
+    const sessionPayload = sR.status === "fulfilled" ? sR.value.data : null;
+    const sessions = sessionPayload?.items ?? [];
+    const totalSessionsInRange = sessionPayload?.total_items ?? sessions.length;
     const alerts = aR.status === "fulfilled" ? (aR.value.data?.items ?? []) : [];
     const guestsById = new Map<string, RawGuest>();
     if (gR.status === "fulfilled") {
@@ -1352,7 +1354,21 @@ export const customerService = {
         onlineUsers: activeSessionCount,
         routersOnline: liveness.routersOnline,
         totalRouters: liveness.routersTotal,
-        todayGuests: sessions.filter((s) => isStartedToday(s.started_at)).length,
+        todayGuests: (() => {
+          const todayInPage = sessions.filter((s) => isStartedToday(s.started_at)).length;
+          // Sessions are returned newest-first from the backend. If the oldest
+          // session on page 1 is also from today, all 100 rows in this page started
+          // today, and additional today-sessions exist up to totalSessionsInRange.
+          const oldestSession = sessions[sessions.length - 1];
+          if (
+            totalSessionsInRange > sessions.length &&
+            oldestSession &&
+            isStartedToday(oldestSession.started_at)
+          ) {
+            return Math.max(todayInPage, totalSessionsInRange);
+          }
+          return todayInPage;
+        })(),
         avgSession: avgSessionMinutes(sessions),
         // Real peak concurrency, not peak arrivals. This read
         // `Math.max(...hourly)` over session STARTS, so a venue where 30
