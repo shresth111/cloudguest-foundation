@@ -1,4 +1,5 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { isImpersonationSessionActive } from "@/lib/impersonation-host";
 
 /** The customer dashboard's production hostname. */
 const CUSTOMER_APP_HOSTNAME = "app.wyfyguest.com";
@@ -62,6 +63,15 @@ export const Route = createFileRoute("/master")({
       throw redirect({ to: "/master-login", search: redirectSearch });
     }
     const isOperator = context.auth?.roles?.some((r) => r.scopeType === "global") ?? false;
+    // An operator's own "View as this customer" session is refused here just
+    // like any other non-global token -- it must never regain operator scope.
+    // It is sent back to the customer view it is impersonating rather than to
+    // /master-login, though: signing in on that form starts a fresh login and
+    // silently discards the operator's parked session (login() clears it),
+    // while the banner's END SESSION restores it properly.
+    if (context.auth?.status === "authenticated" && !isOperator && isImpersonationSessionActive()) {
+      throw redirect({ to: "/", replace: true });
+    }
     if (context.auth?.status === "authenticated" && !isOperator) {
       throw redirect({ to: "/master-login", search: redirectSearch });
     }

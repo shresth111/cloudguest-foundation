@@ -238,6 +238,17 @@ jobs:
       # hostname. This pins both directions at every door.
       - name: consoles never mix hostnames
         run: bun run test:consoles-never-mix
+      # The one exception to the rule above: an operator's "View as this
+      # customer" session can only live on master.wyfyguest.com (its token is
+      # in that origin's localStorage). Every customer guard bounced it to
+      # /master or app.wyfyguest.com, so it landed on /master-login; and END
+      # SESSION navigated before router context held the restored operator.
+      # Drives the real guards, including the boundaries that must still hold.
+      - name: impersonation on the master host
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "impersonation-master-host" 12 "all checks passed" \
+            bun run test:impersonation-master-host
       # The customer read of their Omada controller's device inventory must
       # never guess a status up to "ok" (inventing a device list from a state
       # it doesn't understand), must keep an empty-ok distinct from

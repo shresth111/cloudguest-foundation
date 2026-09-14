@@ -107,8 +107,14 @@ interface AuthContextValue {
   /** Restores whatever real session `beginImpersonation` preserved (or, if
    * none is found, fails safe to signed-out) and discards the
    * impersonation token. Does not navigate -- same division of labor as
-   * `logout()`, the caller decides where to go. */
-  endImpersonation: () => void;
+   * `logout()`, the caller decides where to go.
+   *
+   * Returns the restored auth slice so the caller can push it into router
+   * context BEFORE navigating: `AuthRouterContextSync` (__root.tsx) only
+   * syncs it in an effect after the next render, so a `navigate()` made in
+   * the same tick runs `/master`'s guard against the still-impersonated
+   * roles and lands on `/master-login` (measured on prod). */
+  endImpersonation: () => RouterAuthContext;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -509,7 +515,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [queryClient, user, roles, organizations],
   );
 
-  const endImpersonation = useCallback(() => {
+  const endImpersonation = useCallback((): RouterAuthContext => {
     const preSession = readStoredJson<PreImpersonationSession>(PRE_IMPERSONATION_SESSION_KEY);
     queryClient.clear();
     useCustomerStore.getState().clearLocation();
@@ -527,7 +533,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setOrganizations([]);
       setPermissions(new Set());
       setStatus("anonymous");
-      return;
+      return { status: "anonymous", roles: [] };
     }
 
     writeStored(TOKEN_STORAGE_KEY, preSession.accessToken);
@@ -552,6 +558,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .myPermissions()
       .then((perms) => setPermissions(new Set(perms)))
       .catch(() => {});
+
+    return { status: "authenticated", roles: preSession.roles };
   }, [queryClient]);
 
   const value = useMemo<AuthContextValue>(
