@@ -19,6 +19,7 @@ import {
   ORGS_STORAGE_KEY,
 } from "@/services/api";
 import { getImpersonationClaim } from "@/lib/jwt";
+import { DEMO_ACCESS_TOKEN, isDemoLogin, isHonouredDemoToken } from "@/lib/demo-host";
 import type {
   AuthSession,
   LoginCredentials,
@@ -107,8 +108,14 @@ interface AuthContextValue {
   /** Restores whatever real session `beginImpersonation` preserved (or, if
    * none is found, fails safe to signed-out) and discards the
    * impersonation token. Does not navigate -- same division of labor as
-   * `logout()`, the caller decides where to go. */
-  endImpersonation: () => void;
+   * `logout()`, the caller decides where to go.
+   *
+   * Returns the restored auth slice so the caller can push it into router
+   * context BEFORE navigating: `AuthRouterContextSync` (__root.tsx) only
+   * syncs it in an effect after the next render, so a `navigate()` made in
+   * the same tick runs `/master`'s guard against the still-impersonated
+   * roles and lands on `/master-login` (measured on prod). */
+  endImpersonation: () => RouterAuthContext;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -200,6 +207,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // A demo token on a host that does not serve the demo is not a session.
+      // Checked BEFORE the synchronous rehydrate below: that sets
+      // "authenticated" immediately, so a hand-planted `demo-access-token`
+      // on app.wyfyguest.com would otherwise paint a signed-in console until
+      // a backend 401 tore it down. Purged rather than sent to the backend --
+      // there is nothing to confirm, and the visitor gets the sign-in form,
+      // not "your session expired".
+      if (token === DEMO_ACCESS_TOKEN && !isHonouredDemoToken(token)) {
+        clearStoredSession();
+        if (!cancelled) setStatus("anonymous");
+        return;
+      }
+
       // Rehydrate synchronously from storage first so nothing flashes while
       // /auth/me and /me/permissions confirm the session in the background.
       setUser(storedUser);
@@ -207,8 +227,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setOrganizations(readStoredJson<OrganizationMembership[]>(ORGS_STORAGE_KEY) ?? []);
       setStatus("authenticated");
 
-      // Demo mode: skip backend calls for demo sessions
-      if (token === "demo-access-token") {
+      // Demo mode: skip backend calls for demo sessions (demo host only --
+      // see the purge above).
+      if (isHonouredDemoToken(token)) {
         setPermissions(new Set(["*"]));
         return;
       }
@@ -268,7 +289,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Demo mode: bypass the backend for one hardcoded credential pair.
       //
-      // OFF UNLESS EXPLICITLY ENABLED AT BUILD TIME. This branch mints a
+      // OFF EXCEPT ON THE DEMO HOST OR A DEMO BUILD. This branch mints a
       // complete session -- Super Admin, global scope -- entirely in the
       // browser, and both strings it matches on ship in the public bundle.
       // The backend refuses the token it issues, so this was never data
@@ -277,14 +298,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // real `force-logout` because the 401 handler exempted it.
       //
       // It is kept rather than deleted because it is how the product is
-      // demonstrated. Set `VITE_ENABLE_DEMO_LOGIN=true` for a demo or local
-      // build; production ships without it and the credentials simply fail
-      // like any others.
-      if (
-        import.meta.env.VITE_ENABLE_DEMO_LOGIN === "true" &&
-        creds.email === "admin@example.com" &&
-        creds.password === "test"
-      ) {
+      // demonstrated. The production bundle enables it only when the page is
+      // served from demo.wyfyguest.com (src/lib/demo-host.ts);
+      // `VITE_ENABLE_DEMO_LOGIN=true` still enables it everywhere for a demo
+      // or local build. On app./master./portal./auth. the credentials go to
+      // the backend and fail like any others.
+      if (isDemoLogin(creds)) {
         const demoSession: AuthSession = {
           user: {
             id: "u-001",
@@ -301,7 +320,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             status: "active",
           },
           tokens: {
-            accessToken: "demo-access-token",
+            accessToken: DEMO_ACCESS_TOKEN,
             refreshToken: "demo-refresh-token",
             tokenType: "Bearer",
             expiresIn: 3600,
@@ -509,7 +528,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [queryClient, user, roles, organizations],
   );
 
-  const endImpersonation = useCallback(() => {
+  const endImpersonation = useCallback((): RouterAuthContext => {
     const preSession = readStoredJson<PreImpersonationSession>(PRE_IMPERSONATION_SESSION_KEY);
     queryClient.clear();
     useCustomerStore.getState().clearLocation();
@@ -527,7 +546,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setOrganizations([]);
       setPermissions(new Set());
       setStatus("anonymous");
-      return;
+      return { status: "anonymous", roles: [] };
     }
 
     writeStored(TOKEN_STORAGE_KEY, preSession.accessToken);
@@ -552,6 +571,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .myPermissions()
       .then((perms) => setPermissions(new Set(perms)))
       .catch(() => {});
+
+    return { status: "authenticated", roles: preSession.roles };
   }, [queryClient]);
 
   const value = useMemo<AuthContextValue>(

@@ -1,6 +1,8 @@
 import { redirect } from "@tanstack/react-router";
 import type { RouterAuthContext } from "@/context/AuthContext";
+import { isHonouredDemoToken } from "@/lib/demo-host";
 import { TOKEN_STORAGE_KEY } from "@/services/api";
+import { isImpersonationSessionActive } from "@/lib/impersonation-host";
 
 /** The customer dashboard's production hostname. */
 const CUSTOMER_APP_HOSTNAME = "app.wyfyguest.com";
@@ -48,7 +50,16 @@ export function requireCustomerSession(
   // Only the definitive production master hostname redirects out: local dev
   // and previews (localhost, *.pages.dev) serve both consoles from one
   // origin and must keep behaving exactly as before.
-  if (typeof window !== "undefined" && window.location.hostname === MASTER_CONSOLE_HOSTNAME) {
+  //
+  // The one exception is an operator's "View as this customer" session,
+  // which is started on, and can only live on, the master host: its token is
+  // in master.wyfyguest.com's localStorage, so sending it across to the
+  // customer host arrives signed out. See src/lib/impersonation-host.ts.
+  if (
+    typeof window !== "undefined" &&
+    window.location.hostname === MASTER_CONSOLE_HOSTNAME &&
+    !isImpersonationSessionActive()
+  ) {
     window.location.href = `https://${CUSTOMER_APP_HOSTNAME}${location.href}`;
     // Stop this navigation resolving against a page we are leaving.
     throw redirect({ to: "/master" });
@@ -86,10 +97,10 @@ export function requireCustomerSession(
   // login()) hardcodes a global-scope "Super Admin" role on its fake session --
   // it was never meant to represent a real operator, and login.tsx sends it
   // straight to /customer on submit. Same check customer.service.ts's own
-  // isDemo() uses, so this stays in lockstep with the rest of the demo path.
+  // isDemo() uses, so this stays in lockstep with the rest of the demo path --
+  // including that it is honoured only on the demo host (src/lib/demo-host.ts).
   const isDemoSession =
-    typeof window !== "undefined" &&
-    localStorage.getItem(TOKEN_STORAGE_KEY) === "demo-access-token";
+    typeof window !== "undefined" && isHonouredDemoToken(localStorage.getItem(TOKEN_STORAGE_KEY));
 
   const hasCustomerRole = auth?.roles?.some((r) => r.scopeType !== "global") ?? true;
   if (auth?.status === "authenticated" && !hasCustomerRole && !isDemoSession) {

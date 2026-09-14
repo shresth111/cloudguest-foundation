@@ -6,6 +6,7 @@ import { LoginPage } from "@/components/auth/LoginPage";
 import { MasterLoginPage } from "@/components/auth/MasterLoginPage";
 import { CustomerDashboardPage } from "@/components/customer/CustomerDashboardPage";
 import { captivePortalRedirect } from "@/lib/captive-portal-redirect";
+import { isImpersonationSessionActive } from "@/lib/impersonation-host";
 
 export const Route = createFileRoute("/")({
   // A captive-portal redirect that landed one path segment short of
@@ -74,11 +75,23 @@ function useHostname() {
 // hung this page forever behind the spinner below -- see the effect's
 // own comment for the full write-up.
 function IndexRedirect() {
-  const { isAuthenticated, isReady, user } = useAuth();
+  const { isAuthenticated, isReady, user, roles } = useAuth();
   const navigate = useNavigate();
   const hostname = useHostname();
   const activeLocationId = useCustomerStore((s) => s.activeLocationId);
-  const isMaster = hostname === "master.wyfyguest.com";
+  // An operator's "View as this customer" session is a CUSTOMER session that
+  // happens to live on the master host (its token is in this origin's
+  // localStorage). Treating it as the master console sent it to /master, whose
+  // guard refuses its non-global token -> /master-login. Measured on prod: the
+  // impersonation banner appeared above the Super Admin sign-in form. It gets
+  // the customer dashboard here instead. Read only once `hostname` is known,
+  // i.e. client-side, so it cannot cause a hydration mismatch. The roles check
+  // keeps an operator token from ever being routed into the customer view.
+  const isImpersonating =
+    hostname !== null &&
+    isImpersonationSessionActive() &&
+    !roles.some((r) => r.scopeType === "global");
+  const isMaster = hostname === "master.wyfyguest.com" && !isImpersonating;
 
   useEffect(() => {
     if (!isReady || !isAuthenticated || !user) return;

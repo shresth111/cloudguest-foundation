@@ -238,6 +238,17 @@ jobs:
       # hostname. This pins both directions at every door.
       - name: consoles never mix hostnames
         run: bun run test:consoles-never-mix
+      # The one exception to the rule above: an operator's "View as this
+      # customer" session can only live on master.wyfyguest.com (its token is
+      # in that origin's localStorage). Every customer guard bounced it to
+      # /master or app.wyfyguest.com, so it landed on /master-login; and END
+      # SESSION navigated before router context held the restored operator.
+      # Drives the real guards, including the boundaries that must still hold.
+      - name: impersonation on the master host
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "impersonation-master-host" 12 "all checks passed" \
+            bun run test:impersonation-master-host
       # The customer read of their Omada controller's device inventory must
       # never guess a status up to "ok" (inventing a device list from a state
       # it doesn't understand), must keep an empty-ok distinct from
@@ -258,6 +269,21 @@ jobs:
       # reset mail simply never comes and looks like a mail problem.
       - name: auth forms submit trimmed emails
         run: bun run test:auth-email-trimmed
+
+      # The demo login (admin@example.com / test) mints a Super Admin session
+      # in the browser with no backend. #284 turned it off in production; it
+      # is back ONLY on demo.wyfyguest.com, which serves the same bundle, so
+      # the hostname is the only thing deciding. This pins all three halves:
+      # the predicate per host; the real hosts sending those credentials to
+      # the backend and purging a hand-planted demo-access-token before
+      # anything renders as signed in; and every guard on the demo host
+      # keeping the session on that host (localStorage is per-origin, so a
+      # cross-host redirect arrives signed out).
+      - name: demo login lives on the demo host only
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "demo-login-host" 72 "demo-login host checks passed" \
+            bun run test:demo-login-host
 
       # Which sign-in methods a guest is actually offered. Password sign-in
       # is OPT-IN per venue: the platform switch

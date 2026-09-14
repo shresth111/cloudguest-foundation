@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import { ShieldAlert } from "lucide-react";
 import { useAuth, IMPERSONATION_EXPIRES_AT_KEY } from "@/context/AuthContext";
 import { getActiveImpersonationClaim } from "@/lib/jwt";
@@ -51,6 +51,7 @@ function formatCountdown(msRemaining: number): string {
 export function ImpersonationBanner() {
   const { user, endImpersonation } = useAuth();
   const navigate = useNavigate();
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [nowMs, setNowMs] = useState(0);
   const endedRef = useRef(false);
@@ -72,7 +73,13 @@ export function ImpersonationBanner() {
   function endSession() {
     if (endedRef.current) return;
     endedRef.current = true;
-    endImpersonation();
+    const restored = endImpersonation();
+    // Hand the restored operator session to the router's guards NOW, not on
+    // AuthRouterContextSync's next effect: the navigate() below runs
+    // `/master`'s guard straight away, and against the stale impersonated
+    // roles it refused the operator and landed on /master-login even though
+    // the operator's session was already restored in storage.
+    router.update({ context: { ...router.options.context, auth: restored } });
     // Same "operator's most likely next stop" as the entry point itself
     // (see master.customers.tsx) -- back to the Customers list they left,
     // not just the Master Console's bare index.
