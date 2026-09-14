@@ -1,4 +1,5 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from "axios";
+import { isHonouredDemoToken } from "@/lib/demo-host";
 
 export const TOKEN_STORAGE_KEY = "cloudguest_token";
 export const REFRESH_TOKEN_STORAGE_KEY = "cloudguest_refresh_token";
@@ -37,11 +38,6 @@ export const ORG_SCOPE_HEADER = "X-Organization-Scope";
 
 /** The one value {@link ORG_SCOPE_HEADER} takes. */
 export const ALL_ORGANIZATIONS = "all";
-
-/** The sentinel access token a demo session stores (see AuthContext's
- * `login`). Demo sessions never talk to the backend, so they must not
- * have a real org id attached to anything. */
-const DEMO_ACCESS_TOKEN = "demo-access-token";
 
 export interface AppError {
   status: number | null;
@@ -414,7 +410,9 @@ export function crossOrganizationHeaders(): Record<string, string> | undefined {
  * either header keeps whatever it set.
  */
 function attachOrganizationScope(config: InternalAxiosRequestConfig, token: string): void {
-  if (token === DEMO_ACCESS_TOKEN) return;
+  // A demo session (demo host only, see src/lib/demo-host.ts) never talks to
+  // the backend, so it must not have a real org id attached to anything.
+  if (isHonouredDemoToken(token)) return;
   // Case-insensitive on AxiosHeaders, so a call site using the
   // `X-Organization-ID` spelling is still respected rather than doubled.
   if (config.headers.get?.(ORG_HEADER) || config.headers.get?.(ORG_SCOPE_HEADER)) return;
@@ -495,7 +493,7 @@ api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
 
   if (
     token &&
-    token !== DEMO_ACCESS_TOKEN &&
+    !isHonouredDemoToken(token) &&
     isTokenSpent(token) &&
     !NO_PROACTIVE_REFRESH_PATHS.some((p) => config.url?.includes(p))
   ) {
@@ -637,6 +635,18 @@ api.interceptors.response.use(
       const sentToken = String(
         (config.headers as Record<string, unknown> | undefined)?.Authorization ?? "",
       ).replace(/^Bearer /, "");
+      // A demo session on the demo host (src/lib/demo-host.ts) has nothing to
+      // refresh and nothing to tear down: it is the product being shown, and
+      // the backend refusing its token is the expected answer to every call,
+      // not news. Without this,
+      // the first page that makes one un-fixtured request (the Master
+      // Console's alerts poll does, measured) spends `demo-refresh-token`,
+      // fails, and drops the demo on /session-expired. Everywhere else the
+      // demo token is not honoured, so this is false and the teardown below
+      // stands exactly as the comment further down explains.
+      if (isHonouredDemoToken(sentToken)) {
+        return Promise.reject(toAppError(error));
+      }
       const storedToken = safeLocalGet(TOKEN_STORAGE_KEY);
       const alreadyRefreshed = Boolean(storedToken) && storedToken !== sentToken;
 
@@ -663,6 +673,8 @@ api.interceptors.response.use(
       // `demo-access-token`: it is minted client-side and the backend never
       // issues or accepts it), so a 401 on it can only mean the API has
       // declined -- which is exactly when the shell should stop pretending.
+      // (The one place pretending IS the product, the demo host, returned
+      // above before spending a refresh.)
       clearSession();
       goToSessionExpired();
     }

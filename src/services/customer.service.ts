@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import { isHonouredDemoToken } from "@/lib/demo-host";
 import { resolveOrganizationId as sharedResolveOrganizationId } from "./organization-id";
 // Straight from api.ts, which is where these now live -- AuthContext only
 // re-exports them, and importing it here would drag React into a module
@@ -698,9 +699,12 @@ const DEMO_NAV: NavItem[] = [
 
 /* ── Helpers ───────────────────────────────────────────────── */
 
+/** A demo session on a host that serves the demo (src/lib/demo-host.ts).
+ *  The sentinel token alone is not enough: planted on app.wyfyguest.com it
+ *  would otherwise render every page from fixtures as a signed-in console. */
 export function isDemo(): boolean {
   if (typeof window === "undefined") return false;
-  return localStorage.getItem("cloudguest_token") === "demo-access-token";
+  return isHonouredDemoToken(localStorage.getItem("cloudguest_token"));
 }
 
 interface MyOrganizationMembership {
