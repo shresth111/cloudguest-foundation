@@ -13,7 +13,7 @@ import { PortalDefaultBrandBadge } from "@/components/portal-runtime/PortalDefau
 import { VenueLogo } from "@/components/portal-runtime/VenueLogo";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { scriptClassOf } from "@/lib/portal-script";
-import { enabledAuthMethods, otherAuthMethods, passwordSignInOffered } from "@/lib/portal-auth-methods";
+import { enabledAuthMethods, otherAuthMethods } from "@/lib/portal-auth-methods";
 import { useEffect } from "react";
 import {
   MobileForm,
