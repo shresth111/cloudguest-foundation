@@ -276,10 +276,6 @@ export function CustomerDashboardPage() {
         <CustomerHeader
           title={
             <div className="flex min-w-0 flex-1 items-center gap-3">
-              <Wifi className="h-5 w-5 shrink-0 text-white/70" />
-              <p className="truncate text-sm font-semibold text-white">
-                {activeLocation?.name ?? "Dashboard"}
-              </p>
               {/* Was a three-way ternary over `activeLocation?.status`
                * whose else-branch was a red dot -- so a location that had
                * simply not loaded yet, or whose routers could not be read,

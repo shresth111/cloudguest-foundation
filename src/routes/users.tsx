@@ -341,11 +341,7 @@ function CustomerUsersPage() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <CustomerHeader
-          title={
-            <p className="truncate text-sm font-semibold">
-              {t("title")} · {activeLocation?.name ?? ""}
-            </p>
-          }
+          title={<p className="truncate text-sm font-semibold">{t("title")}</p>}
           locationId={locationId}
           planExpiryIso={planExpiryIso}
           onOpenSearch={() => setPaletteOpen(true)}
