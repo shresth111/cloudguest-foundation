@@ -3,6 +3,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import {
   Smartphone,
   Laptop,
+  Fingerprint,
   Calendar,
   Search,
   Pencil,
@@ -54,6 +55,7 @@ import type { WhitelistOnlyBlocker } from "@/lib/whitelist-only";
 import type { Portal } from "@/types/portal";
 import { maskMac } from "@/components/features/HeaderControls";
 import type { AnyAccessRule } from "@/types/guest";
+import { customerFeatureHref } from "@/lib/customerNav";
 
 // ── helpers ─────────────────────────────────────────────────────
 const pad2 = (n: number) => String(n).padStart(2, "0");
@@ -80,7 +82,6 @@ const fmtDT = (iso: string) => {
 // check with an unhandled naive-vs-aware TypeError (fixed independently on
 // the backend, but this is the real, zone-correct fix at the source).
 const toUtcIso = (dtLocal: string) => (dtLocal ? new Date(dtLocal).toISOString() : undefined);
-const MAC_RE = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const COUNTRIES = [
   { code: "+91", label: "🇮🇳 +91" },
@@ -132,7 +133,6 @@ interface Entry {
 type FormData = {
   mobileCC: string;
   mobile: string;
-  mac: string;
   name: string;
   email: string;
   businessUnit: string;
@@ -331,14 +331,18 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
   const { data: locations } = useCustomerLocations();
   const realUnits = useMemo(() => (locations ?? []).map((l) => l.name), [locations]);
   const units = demo ? UNITS : realUnits;
-  const [tab, setTab] = useState<Tab>("number");
+  // Numbers only. A device tab used to live here too, and did the same
+  // job as Trusted Devices through a second table the owner had to keep in
+  // step by hand -- so devices are added on Trusted Devices alone now.
+  // Device rows written here before (none in production when this changed)
+  // still take effect and are listed separately below, removable but not
+  // creatable.
   const [entries, setEntries] = useState<Entry[]>(demo ? SEED : []);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [f, setF] = useState<FormData>({
     mobileCC: "+91",
     mobile: "",
-    mac: "",
     name: "",
     email: "",
     businessUnit: demo ? UNITS[0] : "",
@@ -578,13 +582,13 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
     const q = search.toLowerCase();
     return entries.filter(
       (e) =>
-        e.tab === tab &&
+        e.tab === "number" &&
         (!q ||
           e.name.toLowerCase().includes(q) ||
           e.identifier.toLowerCase().includes(q) ||
           e.businessUnit.toLowerCase().includes(q)),
     );
-  }, [entries, tab, search]);
+  }, [entries, search]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages - 1);
@@ -593,13 +597,8 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
   // ── validators ────────────────────────────────────────────────
   const validate = (): Errors => {
     const e: Errors = {};
-    if (tab === "number") {
-      if (!f.mobile || f.mobile.length !== 10 || !/^\d{10}$/.test(f.mobile))
-        e.mobile = "Mobile must be exactly 10 digits.";
-    } else {
-      if (!f.mac || !MAC_RE.test(f.mac))
-        e.mac = "That doesn't look like a device address. Example: AA:BB:CC:DD:EE:FF";
-    }
+    if (!f.mobile || f.mobile.length !== 10 || !/^\d{10}$/.test(f.mobile))
+      e.mobile = "Mobile must be exactly 10 digits.";
     if (!f.name) e.name = "Name is required.";
     if (!f.email || !EMAIL_RE.test(f.email)) e.email = "Enter a valid email address.";
     // No start-date validation any more: there is no start field on an
@@ -631,12 +630,11 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
     setErrs(v);
     if (Object.keys(v).length) return;
 
-    const identifier = tab === "number" ? toE164(f.mobileCC, f.mobile) : f.mac.toUpperCase();
+    const identifier = toE164(f.mobileCC, f.mobile);
     const resetForm = () =>
       setF({
         mobileCC: "+91",
         mobile: "",
-        mac: "",
         name: "",
         email: "",
         businessUnit: demo ? UNITS[0] : (units[0] ?? ""),
@@ -650,7 +648,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
             x.id === editingId
               ? {
                   ...x,
-                  tab,
+                  tab: "number",
                   identifier,
                   name: f.name,
                   email: f.email,
@@ -665,7 +663,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
       } else {
         const entry: Entry = {
           id: `e${Date.now()}`,
-          tab,
+          tab: "number",
           identifier,
           locationId: null,
           name: f.name,
@@ -678,7 +676,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
       }
       resetForm();
       setPage(0);
-      setToast(tab === "number" ? "Number allowed." : "Device allowed.");
+      setToast("Number allowed.");
       setTimeout(() => setToast(null), 2500);
       return;
     }
@@ -697,11 +695,10 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
     const ruleLocationId = matchedLoc?.id ?? locationId;
     try {
       const rule = await guestService.createAccessRule({
-        kind: tab === "number" ? "identifier" : "device",
+        kind: "identifier",
         organizationId: orgId,
         locationId: ruleLocationId,
-        identifier: tab === "number" ? identifier : undefined,
-        macAddress: tab === "device" ? identifier : undefined,
+        identifier,
         ruleType: "whitelist",
         reason: f.name,
         email: f.email,
@@ -732,7 +729,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
       }
       resetForm();
       setPage(0);
-      setToast(tab === "number" ? "Number allowed." : "Device allowed.");
+      setToast("Number allowed.");
       setTimeout(() => setToast(null), 2500);
     } catch {
       setToast("Could not save — check the connection and try again.");
@@ -741,14 +738,12 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
   };
 
   const startEdit = (entry: Entry) => {
-    setTab(entry.tab);
     setErrs({});
     setEditingId(entry.id);
-    const phone = entry.tab === "number" ? splitE164(entry.identifier) : null;
+    const phone = splitE164(entry.identifier);
     setF({
-      mobileCC: phone?.cc ?? "+91",
-      mobile: phone?.national ?? "",
-      mac: entry.tab === "device" ? entry.identifier : "",
+      mobileCC: phone.cc,
+      mobile: phone.national,
       name: entry.name === "—" ? "" : entry.name,
       email: entry.email,
       businessUnit: entry.businessUnit || (demo ? UNITS[0] : (units[0] ?? "")),
@@ -763,7 +758,6 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
     setF({
       mobileCC: "+91",
       mobile: "",
-      mac: "",
       name: "",
       email: "",
       businessUnit: demo ? UNITS[0] : (units[0] ?? ""),
@@ -804,7 +798,10 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
   // Purely-derived counts (no new fetch) scoped to the tab currently being
   // viewed -- same read-only KPI-strip pattern used this session on
   // OpenHoursView/DebuggingView/ManageTeamsPage.
-  const tabEntries = useMemo(() => entries.filter((e) => e.tab === tab), [entries, tab]);
+  const tabEntries = useMemo(() => entries.filter((e) => e.tab === "number"), [entries]);
+  // Device rows written by the old device tab. Still enforced by
+  // the backend, so they are shown rather than silently hidden.
+  const legacyDeviceEntries = useMemo(() => entries.filter((e) => e.tab === "device"), [entries]);
   const activeCount = tabEntries.filter((e) => isActive(e.endDate)).length;
   const expiredCount = tabEntries.length - activeCount;
 
@@ -822,7 +819,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
           <div>
             <h1 className="text-lg font-semibold tracking-tight">Always Allowed</h1>
             <p className="text-sm text-muted-foreground">
-              Allow specific numbers or devices to bypass the captive portal.
+              Guest numbers that are always let in. Devices live on Trusted Devices.
             </p>
           </div>
         </div>
@@ -1088,16 +1085,10 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
         </div>
         <div className="flex items-center gap-3 rounded-2xl border-0 bg-card p-4 shadow-sm">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
-            {tab === "number" ? (
-              <Smartphone className="h-5 w-5 text-white" />
-            ) : (
-              <Laptop className="h-5 w-5 text-white" />
-            )}
+            <Smartphone className="h-5 w-5 text-white" />
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-medium uppercase text-muted-foreground">
-              Total {tab === "number" ? "numbers" : "devices"}
-            </p>
+            <p className="text-xs font-medium uppercase text-muted-foreground">Total numbers</p>
             <p className="truncate text-lg font-bold">{tabEntries.length}</p>
           </div>
         </div>
@@ -1110,40 +1101,6 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
         </div>
       )}
 
-      {/* tab switcher */}
-      <div className="inline-flex rounded-xl border bg-muted/50 p-1 max-sm:flex">
-        <button
-          onClick={() => {
-            setTab("number");
-            setErrs({});
-            setPage(0);
-          }}
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors max-sm:flex-1 max-sm:justify-center",
-            tab === "number"
-              ? "bg-card text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          <Smartphone className="h-4 w-4" /> Allow a Number
-        </button>
-        <button
-          onClick={() => {
-            setTab("device");
-            setErrs({});
-            setPage(0);
-          }}
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors max-sm:flex-1 max-sm:justify-center",
-            tab === "device"
-              ? "bg-card text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          <Laptop className="h-4 w-4" /> Allow a Device
-        </button>
-      </div>
-
       {/* form card */}
       <form
         ref={formRef}
@@ -1152,15 +1109,9 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
       >
         <CardHeader className="flex flex-row items-center gap-2.5 space-y-0">
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
-            {tab === "number" ? (
-              <Smartphone className="h-3.5 w-3.5 text-white" />
-            ) : (
-              <Laptop className="h-3.5 w-3.5 text-white" />
-            )}
+            <Smartphone className="h-3.5 w-3.5 text-white" />
           </span>
-          <CardTitle className="text-sm">
-            {tab === "number" ? "Allow a number" : "Allow a device"}
-          </CardTitle>
+          <CardTitle className="text-sm">Allow a number</CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
           {/* Who's Allowed -- identity fields grouped together (was a flat
@@ -1172,71 +1123,41 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
               <h3 className="text-sm font-semibold text-foreground">Who's Allowed</h3>
             </div>
             <p className="mb-4 text-xs text-muted-foreground">
-              {tab === "number"
-                ? "The number that skips the portal, and who it belongs to."
-                : "The device that skips the portal, and who it belongs to."}
+              The number that is let in, and who it belongs to. To let a device straight onto the
+              WiFi without signing in, add it on Trusted Devices instead.
             </p>
             <div className="grid gap-4 md:grid-cols-2">
               {/* Mobile / MAC */}
-              {tab === "number" ? (
-                <div className="space-y-1.5">
-                  <Label>
-                    Mobile Number <span className="text-destructive">*</span>
-                  </Label>
-                  <div className="flex gap-2">
-                    <Select value={f.mobileCC} onValueChange={(v) => setField("mobileCC", v)}>
-                      <SelectTrigger className="w-28 shrink-0">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {COUNTRIES.map((c) => (
-                          <SelectItem key={c.code} value={c.code}>
-                            {c.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Input
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={10}
-                      placeholder="10-digit mobile number"
-                      value={f.mobile}
-                      onChange={(e) =>
-                        setField("mobile", e.target.value.replace(/\D/g, "").slice(0, 10))
-                      }
-                    />
-                  </div>
-                  <Err k="mobile" />
-                </div>
-              ) : (
-                <div className="space-y-1.5">
-                  {/* "Always Allowed" in the header, "MAC Address" on the
-                    control -- the rename stopped at the title. The term
-                    still belongs in the hint, because that is the exact
-                    phrase the owner reads off the device's WiFi settings. */}
-                  <Label>
-                    Device address <span className="text-destructive">*</span>
-                  </Label>
+              <div className="space-y-1.5">
+                <Label>
+                  Mobile Number <span className="text-destructive">*</span>
+                </Label>
+                <div className="flex gap-2">
+                  <Select value={f.mobileCC} onValueChange={(v) => setField("mobileCC", v)}>
+                    <SelectTrigger className="w-28 shrink-0">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {COUNTRIES.map((c) => (
+                        <SelectItem key={c.code} value={c.code}>
+                          {c.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Input
                     type="text"
-                    placeholder="AA:BB:CC:DD:EE:FF"
-                    value={f.mac}
+                    inputMode="numeric"
+                    maxLength={10}
+                    placeholder="10-digit mobile number"
+                    value={f.mobile}
                     onChange={(e) =>
-                      setField(
-                        "mac",
-                        e.target.value
-                          .toUpperCase()
-                          .replace(/[^0-9A-F]/g, "")
-                          .replace(/(.{2})(?!$)/g, "$1:")
-                          .slice(0, 17),
-                      )
+                      setField("mobile", e.target.value.replace(/\D/g, "").slice(0, 10))
                     }
-                    className="font-mono"
                   />
-                  <Err k="mac" />
                 </div>
-              )}
+                <Err k="mobile" />
+              </div>
 
               <div className="space-y-1.5">
                 <Label>
@@ -1258,12 +1179,11 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
 
               <div className="space-y-1.5">
                 <Label>
-                  {tab === "number" ? "Name" : "Device label"}{" "}
-                  <span className="text-destructive">*</span>
+                  Name <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   type="text"
-                  placeholder={tab === "number" ? "Guest name" : "e.g. Office Printer"}
+                  placeholder="Guest name"
                   value={f.name}
                   onChange={(e) => setField("name", e.target.value)}
                 />
@@ -1334,7 +1254,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
               </Button>
             )}
             <Button type="submit" size="lg" className="px-8">
-              {editingId ? "Save Changes" : tab === "number" ? "Allow Number" : "Allow Device"}
+              {editingId ? "Save Changes" : "Allow Number"}
             </Button>
           </div>
         </CardContent>
@@ -1348,9 +1268,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
               <ShieldCheck className="h-3.5 w-3.5 text-white" />
             </span>
             <div>
-              <CardTitle className="text-sm">
-                Always Allowed {tab === "number" ? "Guests" : "Devices"}
-              </CardTitle>
+              <CardTitle className="text-sm">Always Allowed Guests</CardTitle>
               {/* Not "for this location": listAccessRules takes an org id
                 and no location filter, so this table is every allow rule
                 in the account. Saying "this location" made a rule saved
@@ -1379,9 +1297,9 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
             <EmptyState
               icon={ShieldCheck}
               title="Nothing allowed yet"
-              description="Fill the form above to let a trusted number or device skip the portal."
+              description="Fill the form above to add a guest's number to the list."
               action={{
-                label: "Allow a number or device",
+                label: "Allow a number",
                 onClick: () => formRef.current?.querySelector<HTMLInputElement>("input")?.focus(),
               }}
             />
@@ -1400,16 +1318,12 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-2.5">
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                        {tab === "number" ? (
-                          <Smartphone className="h-4 w-4" />
-                        ) : (
-                          <Laptop className="h-4 w-4" />
-                        )}
+                        <Smartphone className="h-4 w-4" />
                       </span>
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-foreground">{e.name}</p>
                         <p className="truncate font-mono text-xs text-muted-foreground">
-                          {e.tab === "device" ? maskMac(e.identifier) : e.identifier}
+                          {e.identifier}
                         </p>
                       </div>
                     </div>
@@ -1499,6 +1413,55 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
           )}
         </CardContent>
       </div>
+
+      {/* Device rows written by the old device tab. The backend
+       * still honours them, so hiding them would leave an owner with an
+       * entry that grants access and no way to see or remove it. */}
+      {legacyDeviceEntries.length > 0 && (
+        <div
+          className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4"
+          data-testid="whitelist-legacy-devices"
+        >
+          <div className="flex items-start gap-2.5">
+            <Fingerprint className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">Devices added here before</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                Devices are now added on{" "}
+                <a href={customerFeatureHref("mac-auth")} className="font-medium underline">
+                  Trusted Devices
+                </a>
+                . These older entries still work until you remove them; add the device there first
+                if it should keep its access.
+              </p>
+              <ul className="mt-3 space-y-1.5">
+                {legacyDeviceEntries.map((e) => (
+                  <li
+                    key={e.id}
+                    className="flex items-center justify-between gap-3 rounded-lg bg-card px-3 py-2 text-xs"
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      <Laptop className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <span className="truncate font-medium">{e.name}</span>
+                      <span className="truncate font-mono text-muted-foreground">
+                        {maskMac(e.identifier)}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={`Remove ${e.name}`}
+                      onClick={() => handleDelete(e.id)}
+                      className="inline-flex shrink-0 items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
