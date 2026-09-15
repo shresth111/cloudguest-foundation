@@ -105,6 +105,13 @@ import {
 import { isDemo, resolveOrgId } from "@/services/customer.service";
 import { macAuthorizationService } from "@/services/mac-authorization.service";
 import {
+  isTrustExpired,
+  localDateTimeInputMin,
+  validUntilError,
+  validUntilLabel,
+  validUntilPayload,
+} from "@/lib/trusted-device-expiry";
+import {
   businessHoursService,
   type BusinessHoursDay,
   type BusinessHoursSchedule,
@@ -4073,7 +4080,7 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
   }, [data, synced]);
 
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ mac: "", type: "permanent", expiresAt: "", comment: "" });
+  const [form, setForm] = useState({ mac: "", validUntil: "", comment: "" });
   const [macError, setMacError] = useState<string | null>(null);
   const [expiryError, setExpiryError] = useState<string | null>(null);
 
@@ -4093,32 +4100,20 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
       toast.error(msg);
       return;
     }
-    // "Temporary" used to send no expiry at all: `expires_at` went up as
-    // null and the row came back rendering as "Never" in the Expires
-    // column -- i.e. picking Temporary produced a permanent entry, which
-    // on an access-control list is the worst direction to be wrong in.
-    // CreateMacAuthorizationPayload.expiresAt and the service's
-    // `expires_at` mapping were already there; only this dialog never
-    // collected a date. Same rule the operator console's twin of this
-    // screen already enforces (MacAuthorizationManagement.tsx's
-    // `.refine(... "Expiry required for temporary entries")`).
-    const isTemporary = form.type === "temporary";
-    if (isTemporary && !form.expiresAt) {
-      const msg = "Pick when access should end, or choose Always.";
-      setExpiryError(msg);
-      toast.error(msg);
+    // "Valid until" is optional: empty trusts the device until it is
+    // removed; a time makes the entry temporary and the backend stops
+    // trusting it at that instant (see lib/trusted-device-expiry.ts). A
+    // past time is refused here and again server-side.
+    const expiryMsg = validUntilError(form.validUntil, Date.now());
+    if (expiryMsg) {
+      setExpiryError(expiryMsg);
+      toast.error(expiryMsg);
       return;
     }
-    if (isTemporary && new Date(form.expiresAt).getTime() <= Date.now()) {
-      const msg = "That time is in the past — pick a later one.";
-      setExpiryError(msg);
-      toast.error(msg);
-      return;
-    }
-    const expiresAt = isTemporary ? new Date(form.expiresAt).toISOString() : null;
+    const { authorizationType, expiresAt } = validUntilPayload(form.validUntil);
     const payload = {
       macAddress: normalizedMac,
-      authorizationType: form.type as "permanent" | "temporary",
+      authorizationType,
       expiresAt,
       comment: form.comment || null,
       isEnabled: true,
@@ -4151,7 +4146,7 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
         ]);
       }
       toast.success("Device trusted");
-      setForm({ mac: "", type: "permanent", expiresAt: "", comment: "" });
+      setForm({ mac: "", validUntil: "", comment: "" });
       setMacError(null);
       setExpiryError(null);
       setOpen(false);
@@ -4248,8 +4243,7 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
               <TableHeader>
                 <TableRow>
                   <TableHead className="text-xs font-medium">Device address</TableHead>
-                  <TableHead className="text-xs font-medium">Access</TableHead>
-                  <TableHead className="text-xs font-medium">Ends</TableHead>
+                  <TableHead className="text-xs font-medium">Valid until</TableHead>
                   <TableHead className="text-xs font-medium">Note</TableHead>
                   <TableHead className="text-xs font-medium">Active</TableHead>
                   <TableHead className="text-right text-xs font-medium">Action</TableHead>
@@ -4259,20 +4253,18 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
                 {entries.map((e) => (
                   <TableRow key={e.id} className="border-b">
                     <TableCell className="font-mono text-xs">{e.mac}</TableCell>
-                    <TableCell className="text-xs">
-                      {e.type === "temporary" ? "Until a date" : "Always"}
-                    </TableCell>
-                    {/* A row saved before the dialog collected an expiry can
-                      be temporary with no date at all. That used to render
-                      as "Never" -- the same word a genuinely permanent
-                      entry gets -- which read as a deliberate choice
-                      rather than as missing data. Say which it is. */}
                     <TableCell className="text-xs text-muted-foreground">
-                      {e.expiresAt
-                        ? new Date(e.expiresAt).toLocaleString()
-                        : e.type === "temporary"
-                          ? "Not set — never ends"
-                          : "Never"}
+                      <span className="inline-flex flex-wrap items-center gap-1.5">
+                        {validUntilLabel(e.expiresAt, e.type)}
+                        {isTrustExpired(e.expiresAt, Date.now()) && (
+                          <span
+                            className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+                            data-testid="trusted-device-expired"
+                          >
+                            Expired
+                          </span>
+                        )}
+                      </span>
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {e.comment || "—"}
@@ -4346,46 +4338,28 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
               {macError && <p className="text-xs font-medium text-destructive">{macError}</p>}
             </div>
             <div className="space-y-2">
-              <Label>Allow access</Label>
-              <Select
-                value={form.type}
-                onValueChange={(v) => {
-                  setForm({ ...form, type: v, expiresAt: v === "permanent" ? "" : form.expiresAt });
-                  setExpiryError(null);
+              <Label htmlFor="trusted-valid-until">Valid until (optional)</Label>
+              <Input
+                id="trusted-valid-until"
+                type="datetime-local"
+                value={form.validUntil}
+                min={localDateTimeInputMin(Date.now())}
+                onChange={(e) => {
+                  setForm({ ...form, validUntil: e.target.value });
+                  if (expiryError) setExpiryError(null);
                 }}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="permanent">Always</SelectItem>
-                  <SelectItem value="temporary">Until a date</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {form.type === "temporary" && (
-              <div className="space-y-2">
-                <Label>Access ends</Label>
-                <Input
-                  type="datetime-local"
-                  value={form.expiresAt}
-                  onChange={(e) => {
-                    setForm({ ...form, expiresAt: e.target.value });
-                    if (expiryError) setExpiryError(null);
-                  }}
-                  className={cn(
-                    expiryError && "border-destructive focus-visible:ring-destructive/20",
-                  )}
-                  aria-invalid={!!expiryError}
-                />
-                <p className="text-[11px] text-muted-foreground">
-                  After this the device signs in like any other guest.
-                </p>
-                {expiryError && (
-                  <p className="text-xs font-medium text-destructive">{expiryError}</p>
+                className={cn(
+                  expiryError && "border-destructive focus-visible:ring-destructive/20",
                 )}
-              </div>
-            )}
+                aria-invalid={!!expiryError}
+                data-testid="trusted-device-valid-until"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Leave empty to trust this device until you remove it. After this time, in your own
+                time zone, the device signs in like any other guest.
+              </p>
+              {expiryError && <p className="text-xs font-medium text-destructive">{expiryError}</p>}
+            </div>
             <div className="space-y-2">
               <Label>Note (optional)</Label>
               <Input
