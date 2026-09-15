@@ -222,10 +222,13 @@ type PlanTier = "calm" | "warn" | "urgent";
  * color, whether the CTA pulses -- is driven by it. */
 function planTier(daysLeft: number | null): PlanTier {
   if (daysLeft === null) return "calm";
-  if (daysLeft <= 7) return "urgent";
-  if (daysLeft <= 30) return "warn";
+  if (daysLeft <= 3) return "urgent";
+  if (daysLeft <= RENEWAL_VISIBLE_DAYS) return "warn";
   return "calm";
 }
+
+/** The renewal pill is hidden until renewal is this close. */
+const RENEWAL_VISIBLE_DAYS = 7;
 
 const TIER_STYLE: Record<PlanTier, { text: string; bar: string; ring: string }> = {
   calm: { text: "text-indigo-300", bar: "bg-indigo-400", ring: "99,102,241" },
@@ -298,11 +301,10 @@ export function PlanRenewalTicket({
             ? `${daysLeft}d left`
             : `Renews ${expiryLabel}`;
 
-  // The demo-request CTA stub used to ride along on this ticket (a single
-  // boarding-pass object: renewal stub | "Book a Demo" stub). The customer
-  // asked for the demo CTA gone from the dashboard header; the renewal
-  // countdown itself is real account state and stays.
-  if (!statusLabel) return null;
+  // Only shown once renewal is actually close (or past). A calm "30d left" /
+  // "Renews <date>" pill on every page read as filler to venue owners, so
+  // outside the last week the header stays quiet.
+  if (!statusLabel || daysLeft === null || daysLeft > RENEWAL_VISIBLE_DAYS) return null;
 
   return (
     <div

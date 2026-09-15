@@ -203,8 +203,7 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
             // without meaning to. See CustomerPageScope for why that
             // matters once lists are scoped server-side.
             <p className="truncate text-sm font-semibold capitalize">
-              {CUSTOMER_NAVS.find((n) => n.id === feature)?.label ?? feature} ·{" "}
-              {activeLocation?.name ?? ""}
+              {CUSTOMER_NAVS.find((n) => n.id === feature)?.label ?? feature}
             </p>
           }
           locationId={locationId}

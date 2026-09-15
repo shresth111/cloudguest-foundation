@@ -8,11 +8,12 @@ import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { PlanRenewalTicket } from "@/components/features/HeaderControls";
 import { DashboardLanguageSwitcher } from "@/components/layout/DashboardLanguageSwitcher";
 import { customerFeatureHref } from "@/lib/customerNav";
+import { LocationSwitcher } from "@/components/customer/LocationSwitcher";
 
 interface CustomerHeaderProps {
-  /** Left-side content -- each page composes its own (page title, location
-   * name, optionally a live status dot), everything to the right is
-   * identical across every customer page and lives here. */
+  /** Left-side content after the venue switcher -- each page composes its
+   * own (page title, optionally a live status dot). The venue name itself
+   * is rendered by `LocationSwitcher`, so titles must not repeat it. */
   title: ReactNode;
   locationId: string;
   /** Real ISO renewal date (e.g. `current_period_end`/`renewalDate` from
@@ -70,7 +71,10 @@ export function CustomerHeader({
           optical left edge, and aria-label="Toggle Sidebar" comes from the
           primitive rather than being spelled here. */}
       <SidebarTrigger className="-ml-1 h-10 w-10 shrink-0 text-white/70 hover:bg-white/10 hover:text-white" />
-      <div className="min-w-0 flex-1">{title}</div>
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <LocationSwitcher />
+        <div className="min-w-0">{title}</div>
+      </div>
 
       {/* Plan renewal + demo CTA is one perforated "ticket" object, not a
           rounded pill. See HeaderControls.tsx for the reasoning. Defaults to
