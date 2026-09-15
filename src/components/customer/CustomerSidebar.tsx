@@ -108,7 +108,7 @@ export interface CustomerSidebarProps {
   dataMasking: ReturnType<typeof useDataMasking>;
 }
 
-export function CustomerSidebar({ activeFeatureId, subtitle, dataMasking }: CustomerSidebarProps) {
+export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSidebarProps) {
   const { t } = useTranslation("nav", { i18n });
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
@@ -222,17 +222,12 @@ export function CustomerSidebar({ activeFeatureId, subtitle, dataMasking }: Cust
             16px of vertical padding would make it 52.5px inside a 47px
             content box and spill back over the border we just pinned. */}
         <div className="flex items-center gap-2.5 px-2 group-data-[collapsible=icon]:px-0">
-          <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]">
-            <img src="/brand/mark-compact-white.svg" alt="" className="h-4.5 w-4.5" />
-          </div>
+          <img src="/brand/mark-primary-blue.svg" alt="" className="h-8 w-8 shrink-0" />
           <div className="flex min-w-0 flex-col group-data-[collapsible=icon]:hidden">
             <span className="truncate text-sm font-bold tracking-tight">Wyfy Guest</span>
-            {/* The venue this whole shell is scoped to. Every list behind
-                these rows is filtered to it -- see the scope line each
-                feature page renders for the same reason. */}
-            <span className="truncate text-[11px] text-sidebar-foreground/50">
-              {subtitle ?? "Your venue"}
-            </span>
+            {/* The venue name lives in the top bar's LocationSwitcher, not
+                here as well. */}
+            <span className="truncate text-[11px] text-sidebar-foreground/50">Customer Portal</span>
           </div>
         </div>
       </SidebarHeader>
