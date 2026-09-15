@@ -11,6 +11,8 @@ import { deriveLocationLiveness } from "@/lib/location-liveness";
 import type { LocationLiveness, RawRouterLiveness } from "@/lib/location-liveness";
 import { avgSessionMinutes, sessionStartsByHour, sessionsOpenByHour } from "@/lib/session-metrics";
 import { identityFromGuest } from "@/lib/guest-identity";
+import { dashboardRangeWindow } from "@/lib/dashboard-range";
+import type { DashboardRange, DashboardRangeWindow } from "@/lib/dashboard-range";
 // getDashboard()'s SLA-uptime leg reads the same `/isp/links` list the
 // dashboard's own WAN cards read, so it goes through the same service --
 // see that call site's comment. `isp.service` imports only `api` and the
@@ -190,6 +192,64 @@ export interface CustomerDashboardData {
   recentAlerts: { type: "error" | "warning" | "success" | "info"; msg: string; time: string }[];
   deviceDistribution: { name: string; value: number }[];
   hourlySessions: { hour: string; sessions: number }[];
+}
+
+/** `getDashboardSeries()`'s result -- see `/guest-analytics/dashboard-series`. */
+export interface DashboardSeries {
+  bucket: "hour" | "day";
+  /** Distinct guests with a session started in the window. */
+  guests: number;
+  sessions: number;
+  /** `null` when no session started in the window -- not a "0 min". */
+  avgSessionMinutes: number | null;
+  peakOnline: number;
+  /** Every bucket in the window, zero-filled, ascending. */
+  series: { bucketStart: string; arrivals: number; online: number }[];
+  osBreakdown: { name: string; value: number }[];
+}
+
+interface RawDashboardSeries {
+  start: string;
+  end: string;
+  bucket: "hour" | "day";
+  guests: number;
+  sessions: number;
+  avg_session_seconds: number | null;
+  peak_online: number;
+  series: { bucket_start: string; arrivals: number; online: number }[];
+  os_breakdown: { name: string; count: number }[];
+}
+
+/** Demo host only (`isDemo()` is honoured nowhere else -- see #300). */
+function demoDashboardSeries(win: DashboardRangeWindow): DashboardSeries {
+  const step = win.bucket === "hour" ? 3_600_000 : 86_400_000;
+  const first = new Date(win.start);
+  if (win.bucket === "hour") first.setMinutes(0, 0, 0);
+  const series: DashboardSeries["series"] = [];
+  for (let t = first.getTime(), i = 0; t < win.end.getTime(); t += step, i++) {
+    series.push({
+      bucketStart: new Date(t).toISOString(),
+      arrivals: 10 + ((i * 13) % 40),
+      online: 20 + ((i * 17) % 120),
+    });
+  }
+  const sessions = series.reduce((s, b) => s + b.arrivals, 0);
+  return {
+    bucket: win.bucket,
+    guests: Math.round(sessions * 0.8),
+    sessions,
+    avgSessionMinutes: 34,
+    peakOnline: Math.max(...series.map((b) => b.online)),
+    series,
+    osBreakdown: [
+      { name: "iOS", value: 35 },
+      { name: "Android", value: 28 },
+      { name: "Windows", value: 18 },
+      { name: "macOS", value: 12 },
+      { name: "Linux", value: 5 },
+      { name: "Other", value: 2 },
+    ],
+  };
 }
 
 export interface CustomerUsersData {
@@ -1433,6 +1493,46 @@ export const customerService = {
         msg: a.status === "resolved" ? `Resolved: ${a.message}` : a.message,
         time: timeAgo(a.triggered_at),
       })),
+    };
+  },
+
+  /**
+   * Guest analytics for the dashboard's selected date range, aggregated
+   * server-side (`GET /guest-analytics/dashboard-series`). Counts come from
+   * every session in the window, not the first page of `/guest-sessions`,
+   * so a busy venue or a 30-day range is not silently truncated at 100 rows.
+   * Errors propagate: a failed read renders as an error state, never as zeros.
+   */
+  async getDashboardSeries(locationId: string, range: DashboardRange): Promise<DashboardSeries> {
+    const win = dashboardRangeWindow(range);
+    if (isDemo()) return demoDashboardSeries(win);
+    const orgId = await resolveOrgId();
+    const { data } = await api.get<RawDashboardSeries>("/guest-analytics/dashboard-series", {
+      params: {
+        location_id: locationId,
+        start_date: win.start.toISOString(),
+        end_date: win.end.toISOString(),
+        bucket: win.bucket,
+        tz_offset_minutes: win.tzOffsetMinutes,
+      },
+      headers: { "X-Organization-Id": orgId, "X-Location-Id": locationId },
+    });
+    if (!data || !Array.isArray(data.series) || typeof data.guests !== "number") {
+      throw new Error("Unexpected /guest-analytics/dashboard-series response");
+    }
+    return {
+      bucket: data.bucket,
+      guests: data.guests,
+      sessions: data.sessions,
+      avgSessionMinutes:
+        data.avg_session_seconds == null ? null : Math.round(data.avg_session_seconds / 60),
+      peakOnline: data.peak_online,
+      series: (data.series ?? []).map((b) => ({
+        bucketStart: b.bucket_start,
+        arrivals: b.arrivals,
+        online: b.online,
+      })),
+      osBreakdown: (data.os_breakdown ?? []).map((o) => ({ name: o.name, value: o.count })),
     };
   },
 
