@@ -164,8 +164,8 @@ export function RoleTable({ onEdit, onCreate, onCompare }: Props) {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete role?</AlertDialogTitle>
             <AlertDialogDescription>
-              Users assigned to "{confirmDelete?.name}" will lose the permissions it grants. This
-              cannot be undone.
+              "{confirmDelete?.name}" will be deleted. A role still assigned to users can't be
+              deleted — reassign them first. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
