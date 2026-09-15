@@ -1018,6 +1018,15 @@ jobs:
             "customer-kpis" 47 "all customer KPI checks passed" \
             bun run test:customer-kpis
 
+      # Open Hours persists only on an explicit Save: dirty must mean a real
+      # difference, validation must match the backend's schedule validator,
+      # and the view must stay wired to the real PUT (no preview, no Apply).
+      - name: open hours draft and save
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "open-hours-draft" 32 "all open hours draft checks passed" \
+            bun run test:open-hours-draft
+
       # --- Customer sidebar permission filter ----------------------------
       #
       # "Each staff member sees only what their job needs" used to be
