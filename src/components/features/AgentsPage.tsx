@@ -5,9 +5,10 @@
  * renamed, re-permissioned, or deleted. Backed by the shared
  * agentPermissionStore so the /agent surface reflects changes immediately.
  */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Plus,
   Trash2,
@@ -16,6 +17,7 @@ import {
   ExternalLink,
   Check,
   Lock,
+  Pencil,
   Users2,
   UserCog2,
 } from "lucide-react";
@@ -33,6 +35,14 @@ import { useAgentPermissions, LOCATIONS } from "@/stores/agentPermissionStore";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { useAuth } from "@/context/AuthContext";
 import { rbacService } from "@/services/rbac.service";
+import { rbacKeys } from "@/hooks/useRbac";
+import {
+  DeleteRoleDialog,
+  EditRoleDialog,
+  RoleForm,
+  type RoleFormValue,
+} from "@/components/features/StaffAccessRoleForm";
+import { isBuiltInRole, isProtectedOwnerRole } from "@/lib/staffAccessRoles";
 import { resolveOrgId } from "@/services/customer.service";
 import type { AppError } from "@/services/api";
 import type { Permission, PermissionGroup, Role as RbacRole, ScopeType } from "@/types/rbac";
@@ -66,10 +76,17 @@ function slugify(name: string): string {
   );
 }
 
-interface RoleDraft {
-  name: string;
-  description: string;
-  permissionKeys: Set<string>;
+const EMPTY_ROLE_FORM: RoleFormValue = {
+  name: "",
+  scopeType: "organization",
+  permissionKeys: new Set(),
+};
+
+/** The backend's own reason (e.g. "Role 'X' is still assigned to 2 staff
+ * members...") when there is one, else a generic fallback. */
+function roleErrorMessage(err: unknown, fallback: string): string {
+  const message = (err as Partial<AppError> | null)?.message;
+  return message ? message : `${fallback} Check the connection and try again.`;
 }
 
 const inputCls =
@@ -174,6 +191,7 @@ function StaffAccessIllustration() {
 
 export function AgentsPage({ locationId }: { locationId?: string } = {}) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const demo = useIsDemo();
   const { user: currentUser } = useAuth();
   const {
@@ -196,63 +214,69 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
   const [realPermissionGroups, setRealPermissionGroups] = useState<PermissionGroup[]>([]);
   const [realPermissions, setRealPermissions] = useState<Permission[]>([]);
 
+  /** Loads (or reloads) the real users/roles/permission catalog. Re-run
+   * after a role edit or delete rather than patching local state: editing a
+   * built-in role replaces it with an organization-owned copy under a new
+   * id and moves staff onto it, so both lists change at once. */
+  const loadRealData = useCallback(async () => {
+    try {
+      const org = await resolveOrgId();
+      setOrgId(org);
+      const [users, roleList, groups, perms] = await Promise.all([
+        rbacService.listUsers({ page: 1, pageSize: 50 }, org),
+        rbacService.listRoles(org),
+        rbacService.listPermissionGroups(org),
+        rbacService.listPermissions(undefined, org),
+      ]);
+      setRealRoles(roleList);
+      // Resolve each user's actual assigned role (GET /users doesn't
+      // return it inline -- a separate GET /users/{id}/roles per row is
+      // the only way) so the list shows the real role name -- notably
+      // "Organization Owner" for whoever holds it, instead of every real
+      // agent always reading "No role" -- and so isOwnerRole below can
+      // reliably tell the Owner's own row apart from every other agent.
+      const withRoles = await Promise.all(
+        users.items.map(async (u): Promise<RealAgent> => {
+          const base = {
+            id: u.id,
+            name: u.fullName,
+            email: u.email,
+            mobile: u.phone ?? "",
+            status: (u.isActive ? "active" : "inactive") as RealAgent["status"],
+            dataMasking: u.dataMaskingEnabled,
+          };
+          try {
+            const assignments = await rbacService.listUserRoleAssignments(u.id, org);
+            const active = assignments.find((a) => a.isActive && a.organizationId === org);
+            const role = active ? roleList.find((r) => r.id === active.roleId) : undefined;
+            return { ...base, roleId: role?.id ?? "", roleName: role?.name ?? "—" };
+          } catch {
+            return { ...base, roleId: "", roleName: "—" };
+          }
+        }),
+      );
+      // The Organization Owner is the one granting/managing agent access
+      // from this very page -- not one of the agents being managed --
+      // so exclude that row from the list entirely rather than just
+      // hiding its delete button (see isOwnerRole below, kept as a
+      // defense-in-depth guard in case this filter ever misses a row,
+      // e.g. a role lookup that failed above).
+      setRealAgents(
+        withRoles.filter(
+          (a) => roleList.find((r) => r.id === a.roleId)?.slug !== "organization-owner",
+        ),
+      );
+      setRealPermissionGroups(groups.slice().sort((a, b) => a.sortOrder - b.sortOrder));
+      setRealPermissions(perms.filter((p) => p.isActive));
+    } catch {
+      // Leave real lists empty -- the "no agents yet" state is accurate.
+    }
+  }, []);
+
   useEffect(() => {
     if (demo) return;
-    (async () => {
-      try {
-        const org = await resolveOrgId();
-        setOrgId(org);
-        const [users, roleList, groups, perms] = await Promise.all([
-          rbacService.listUsers({ page: 1, pageSize: 50 }, org),
-          rbacService.listRoles(org),
-          rbacService.listPermissionGroups(org),
-          rbacService.listPermissions(undefined, org),
-        ]);
-        setRealRoles(roleList);
-        // Resolve each user's actual assigned role (GET /users doesn't
-        // return it inline -- a separate GET /users/{id}/roles per row is
-        // the only way) so the list shows the real role name -- notably
-        // "Organization Owner" for whoever holds it, instead of every real
-        // agent always reading "No role" -- and so isOwnerRole below can
-        // reliably tell the Owner's own row apart from every other agent.
-        const withRoles = await Promise.all(
-          users.items.map(async (u): Promise<RealAgent> => {
-            const base = {
-              id: u.id,
-              name: u.fullName,
-              email: u.email,
-              mobile: u.phone ?? "",
-              status: (u.isActive ? "active" : "inactive") as RealAgent["status"],
-              dataMasking: u.dataMaskingEnabled,
-            };
-            try {
-              const assignments = await rbacService.listUserRoleAssignments(u.id, org);
-              const active = assignments.find((a) => a.isActive && a.organizationId === org);
-              const role = active ? roleList.find((r) => r.id === active.roleId) : undefined;
-              return { ...base, roleId: role?.id ?? "", roleName: role?.name ?? "—" };
-            } catch {
-              return { ...base, roleId: "", roleName: "—" };
-            }
-          }),
-        );
-        // The Organization Owner is the one granting/managing agent access
-        // from this very page -- not one of the agents being managed --
-        // so exclude that row from the list entirely rather than just
-        // hiding its delete button (see isOwnerRole below, kept as a
-        // defense-in-depth guard in case this filter ever misses a row,
-        // e.g. a role lookup that failed above).
-        setRealAgents(
-          withRoles.filter(
-            (a) => roleList.find((r) => r.id === a.roleId)?.slug !== "organization-owner",
-          ),
-        );
-        setRealPermissionGroups(groups.slice().sort((a, b) => a.sortOrder - b.sortOrder));
-        setRealPermissions(perms.filter((p) => p.isActive));
-      } catch {
-        // Leave real lists empty -- the "no agents yet" state is accurate.
-      }
-    })();
-  }, [demo]);
+    void loadRealData();
+  }, [demo, loadRealData]);
 
   const agents = demo ? storeAgents : realAgents.map((a) => ({ ...a, locations: [] as string[] }));
   const roleOptions = demo
@@ -294,105 +318,71 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
   // -- Real (non-demo) role editor: driven by the real permission catalog,
   // not the local store/feature catalog above. See the module docstring.
   const [selectedRealRoleId, setSelectedRealRoleId] = useState<string | null>(null);
-  const [roleDraft, setRoleDraft] = useState<RoleDraft | null>(null);
-  const [savingRole, setSavingRole] = useState(false);
   const [creatingRealRole, setCreatingRealRole] = useState(false);
-  const [newRealRole, setNewRealRole] = useState<{
-    name: string;
-    scopeType: ScopeType;
-    permissionKeys: Set<string>;
-  }>({ name: "", scopeType: "organization", permissionKeys: new Set() });
+  const [newRealRole, setNewRealRole] = useState<RoleFormValue>(EMPTY_ROLE_FORM);
   const [creatingRealRoleBusy, setCreatingRealRoleBusy] = useState(false);
+  const [editingRole, setEditingRole] = useState<RbacRole | null>(null);
+  const [deletingRole, setDeletingRole] = useState<RbacRole | null>(null);
 
   const selectedRealRole = realRoles.find((r) => r.id === selectedRealRoleId) ?? null;
 
-  // Default to the first role once the real list loads (mirrors the demo
-  // store, which has this synchronously at mount since it isn't async).
+  // Default to the first role once the real list loads, and fall back to it
+  // again when the selected role disappears (deleted, or replaced by this
+  // organization's own copy after an edit).
   useEffect(() => {
-    if (!demo && !selectedRealRoleId && realRoles.length > 0)
+    if (demo || realRoles.length === 0) return;
+    if (!selectedRealRoleId || !realRoles.some((r) => r.id === selectedRealRoleId))
       setSelectedRealRoleId(realRoles[0].id);
   }, [demo, realRoles, selectedRealRoleId]);
 
-  // Re-seed the draft from the canonical role whenever the *selection*
-  // changes -- deliberately not on every realRoles update, so an in-flight
-  // edit isn't clobbered by an unrelated list refresh.
-  useEffect(() => {
-    if (!selectedRealRoleId) {
-      setRoleDraft(null);
-      return;
-    }
-    const role = realRoles.find((r) => r.id === selectedRealRoleId);
-    if (role)
-      setRoleDraft({
-        name: role.name,
-        description: role.description ?? "",
-        permissionKeys: new Set(role.permissions),
-      });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedRealRoleId]);
+  /** Edit and delete refetch the page's lists and anything else reading
+   * roles through react-query (the Master console's role table). */
+  const refreshAfterRoleChange = async () => {
+    await loadRealData();
+    queryClient.invalidateQueries({ queryKey: rbacKeys.roles });
+    queryClient.invalidateQueries({ queryKey: rbacKeys.kpis });
+  };
 
-  const roleDirty = !!(
-    selectedRealRole &&
-    roleDraft &&
-    (roleDraft.name !== selectedRealRole.name ||
-      roleDraft.description !== (selectedRealRole.description ?? "") ||
-      roleDraft.permissionKeys.size !== selectedRealRole.permissions.length ||
-      !selectedRealRole.permissions.every((k) => roleDraft.permissionKeys.has(k)))
-  );
-
-  function toggleDraftPermission(key: string) {
-    if (!roleDraft || selectedRealRole?.isSystemRole) return;
-    setRoleDraft((d) => {
-      if (!d) return d;
-      const next = new Set(d.permissionKeys);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return { ...d, permissionKeys: next };
-    });
-  }
-
-  const saveRealRole = async () => {
-    if (!selectedRealRole || !roleDraft) return;
-    setSavingRole(true);
+  const saveEditedRole = async (role: RbacRole, value: RoleFormValue) => {
     try {
       const updated = await rbacService.updateRole(
-        selectedRealRole.id,
+        role.id,
         {
-          name: roleDraft.name.trim() || selectedRealRole.name,
-          description: roleDraft.description,
-          permissionKeys: Array.from(roleDraft.permissionKeys),
+          name: value.name.trim() || role.name,
+          permissionKeys: Array.from(value.permissionKeys),
         },
         orgId ?? undefined,
       );
-      setRealRoles((p) => p.map((r) => (r.id === updated.id ? updated : r)));
-      toast.success("Role saved");
-    } catch {
-      toast.error("Could not save the role — check the connection and try again.");
-    } finally {
-      setSavingRole(false);
+      setEditingRole(null);
+      toast.success(
+        updated.id === role.id
+          ? "Role saved"
+          : `Saved "${updated.name}" as your organization's own role`,
+      );
+      await refreshAfterRoleChange();
+      // A built-in role comes back as this organization's copy under a new
+      // id. Selected only after the refetch: the fallback-to-first-role
+      // effect above would otherwise reset a selection the old list lacks.
+      setSelectedRealRoleId(updated.id);
+    } catch (err) {
+      toast.error(roleErrorMessage(err, "Could not save the role."));
+      throw err;
     }
   };
 
-  const revertRoleDraft = () => {
-    if (!selectedRealRole) return;
-    setRoleDraft({
-      name: selectedRealRole.name,
-      description: selectedRealRole.description ?? "",
-      permissionKeys: new Set(selectedRealRole.permissions),
-    });
+  const confirmDeleteRole = async (role: RbacRole) => {
+    try {
+      await rbacService.deleteRole(role.id, orgId ?? undefined);
+      setDeletingRole(null);
+      toast.success("Role deleted");
+      await refreshAfterRoleChange();
+    } catch (err) {
+      // e.g. 409 "Role 'X' is still assigned to 2 staff members. Reassign
+      // them to another role first" -- the backend's reason is the message.
+      toast.error(roleErrorMessage(err, "Could not delete the role."));
+      throw err;
+    }
   };
-
-  // No delete-role affordance here: confirmed live against the local
-  // backend that DELETE /roles/{id} 403s for Organization Owner
-  // ("'roles.delete' is required at organization scope") -- the seeded
-  // system role only grants roles.{create,read,update,assign} (see
-  // seed.py's ROLES module OPERATE-level grant, which deliberately
-  // excludes MANAGE/DELETE). Surfacing a delete button that always
-  // fails would recreate exactly the "looks like it works but doesn't"
-  // problem this fix exists to remove -- an org owner who wants a role
-  // gone should deactivate it (rename to make that obvious, or just stop
-  // assigning it) rather than delete it, until/unless that permission
-  // grant changes.
 
   const createRealRole = async () => {
     if (!newRealRole.name.trim()) {
@@ -422,23 +412,14 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
       setRealRoles((p) => [role, ...p]);
       setSelectedRealRoleId(role.id);
       setCreatingRealRole(false);
-      setNewRealRole({ name: "", scopeType: "organization", permissionKeys: new Set() });
+      setNewRealRole(EMPTY_ROLE_FORM);
       toast.success("Role created");
-    } catch {
-      toast.error("Could not create the role — check the connection and try again.");
+    } catch (err) {
+      toast.error(roleErrorMessage(err, "Could not create the role."));
     } finally {
       setCreatingRealRoleBusy(false);
     }
   };
-
-  function toggleNewRolePermission(key: string) {
-    setNewRealRole((r) => {
-      const next = new Set(r.permissionKeys);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return { ...r, permissionKeys: next };
-    });
-  }
 
   const selected = agents.find((a) => a.id === selectedId) ?? agents[0] ?? null;
   const selectedRole = roles.find((r) => r.id === selectedRoleId) ?? null;
@@ -935,8 +916,8 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
             Roles here are real RBAC roles — permissions are the platform's fine-grained permission
             keys (e.g. <code className="rounded bg-background px-1 py-0.5">campaigns.read</code>),
             grouped below by module. A role's scope (Organization vs Location) is fixed at creation
-            and can't be changed later. Edits aren't saved until you hit{" "}
-            <strong>Save changes</strong>.
+            and can't be changed later. Built-in roles can be edited too: saving one creates your
+            organization's own copy, so other organizations aren't affected.
           </p>
           <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
             <div className="space-y-3">
@@ -957,30 +938,13 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
               {creatingRealRole && (
                 <Card className="rounded-2xl border-primary/40">
                   <CardContent className="space-y-2 p-4">
-                    <Input
-                      placeholder="Role name"
-                      value={newRealRole.name}
-                      onChange={(e) => setNewRealRole((r) => ({ ...r, name: e.target.value }))}
-                      className="h-9"
+                    <RoleForm
+                      value={newRealRole}
+                      onChange={setNewRealRole}
+                      permissionGroups={realPermissionGroups}
+                      permissions={realPermissions}
+                      locationId={locationId}
                     />
-                    <div>
-                      <label className={labelCls}>Scope</label>
-                      <select
-                        value={newRealRole.scopeType}
-                        onChange={(e) =>
-                          setNewRealRole((r) => ({ ...r, scopeType: e.target.value as ScopeType }))
-                        }
-                        className={inputCls}
-                      >
-                        <option value="organization">
-                          {SCOPE_TYPE_LABEL.organization} — assignable anywhere in your organization
-                        </option>
-                        <option value="location" disabled={!locationId}>
-                          {SCOPE_TYPE_LABEL.location} — assignable at this location only
-                          {!locationId ? " (open from a location)" : ""}
-                        </option>
-                      </select>
-                    </div>
                     <div className="flex gap-2 pt-1">
                       <Button
                         size="sm"
@@ -999,49 +963,6 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
                         Cancel
                       </Button>
                     </div>
-                    {realPermissionGroups.length > 0 && (
-                      <div className="max-h-64 space-y-3 overflow-y-auto rounded-lg border p-2.5">
-                        {realPermissionGroups.map((g) => {
-                          const items = realPermissions.filter((p) => p.permissionGroupId === g.id);
-                          if (items.length === 0) return null;
-                          return (
-                            <div key={g.id}>
-                              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                                {g.name}
-                              </p>
-                              <div className="grid gap-1 sm:grid-cols-2">
-                                {items.map((p) => {
-                                  const on = newRealRole.permissionKeys.has(p.key);
-                                  return (
-                                    <button
-                                      key={p.id}
-                                      type="button"
-                                      onClick={() => toggleNewRolePermission(p.key)}
-                                      className={cn(
-                                        "flex items-center gap-2 rounded-lg border px-2 py-1.5 text-left text-xs",
-                                        on ? "border-primary/50 bg-primary/5" : "hover:bg-accent",
-                                      )}
-                                    >
-                                      <span
-                                        className={cn(
-                                          "grid h-4 w-4 shrink-0 place-items-center rounded border",
-                                          on
-                                            ? "border-primary bg-primary text-primary-foreground"
-                                            : "border-border",
-                                        )}
-                                      >
-                                        {on && <Check className="h-3 w-3" />}
-                                      </span>
-                                      <span className="min-w-0 flex-1 truncate">{p.name}</span>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
                   </CardContent>
                 </Card>
               )}
@@ -1068,12 +989,12 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
                     <span
                       className={cn(
                         "grid h-9 w-9 shrink-0 place-items-center rounded-lg",
-                        r.isSystemRole
+                        isProtectedOwnerRole(r)
                           ? "bg-muted text-muted-foreground"
                           : "bg-primary/10 text-primary",
                       )}
                     >
-                      {r.isSystemRole ? (
+                      {isProtectedOwnerRole(r) ? (
                         <Lock className="h-4 w-4" />
                       ) : (
                         <UserCog2 className="h-4 w-4" />
@@ -1083,7 +1004,7 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
                       <p className="truncate text-sm font-medium">{r.name}</p>
                       <p className="truncate text-xs text-muted-foreground">
                         {r.permissions.length} permissions · {SCOPE_TYPE_LABEL[r.scopeType]}
-                        {r.isSystemRole ? " · system" : ""}
+                        {isBuiltInRole(r) ? " · built-in" : ""}
                       </p>
                     </div>
                   </button>
@@ -1091,99 +1012,60 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
               </div>
             </div>
 
-            {selectedRealRole && roleDraft ? (
+            {selectedRealRole ? (
               <div className="space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card p-4">
                   <div className="flex min-w-0 items-center gap-3">
                     <span
                       className={cn(
                         "grid h-11 w-11 shrink-0 place-items-center rounded-xl",
-                        selectedRealRole.isSystemRole
+                        isProtectedOwnerRole(selectedRealRole)
                           ? "bg-muted text-muted-foreground"
                           : "bg-primary/10 text-primary",
                       )}
                     >
-                      {selectedRealRole.isSystemRole ? (
+                      {isProtectedOwnerRole(selectedRealRole) ? (
                         <Lock className="h-5 w-5" />
                       ) : (
                         <UserCog2 className="h-5 w-5" />
                       )}
                     </span>
                     <div className="min-w-0">
-                      {selectedRealRole.isSystemRole ? (
-                        <p className="font-semibold">{selectedRealRole.name}</p>
-                      ) : (
-                        <input
-                          value={roleDraft.name}
-                          onChange={(e) => setRoleDraft((d) => d && { ...d, name: e.target.value })}
-                          className="w-full rounded-lg border border-transparent bg-transparent px-1 font-semibold outline-none hover:border-input focus:border-primary"
-                        />
-                      )}
-                      <p className="px-1 text-xs text-muted-foreground">
+                      <p className="font-semibold">{selectedRealRole.name}</p>
+                      <p className="text-xs text-muted-foreground">
                         {SCOPE_TYPE_LABEL[selectedRealRole.scopeType]} scope
-                        {selectedRealRole.isSystemRole ? " · system role, locked" : ""}
+                        {isBuiltInRole(selectedRealRole) ? " · built-in role" : ""}
+                        {isProtectedOwnerRole(selectedRealRole)
+                          ? " · locked, it keeps your organization able to manage staff access"
+                          : ""}
                       </p>
                     </div>
                   </div>
-                  {!selectedRealRole.isSystemRole && (
+                  {!isProtectedOwnerRole(selectedRealRole) && (
                     <div className="flex flex-wrap items-center gap-2">
                       <Button
                         size="sm"
-                        variant="ghost"
+                        variant="outline"
                         className="h-8 text-xs"
-                        onClick={() =>
-                          setRoleDraft(
-                            (d) =>
-                              d && {
-                                ...d,
-                                permissionKeys: new Set(realPermissions.map((p) => p.key)),
-                              },
-                          )
-                        }
+                        onClick={() => setEditingRole(selectedRealRole)}
                       >
-                        Select All
+                        <Pencil className="h-3.5 w-3.5" /> Edit
                       </Button>
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-8 text-xs"
-                        onClick={() =>
-                          setRoleDraft((d) => d && { ...d, permissionKeys: new Set() })
-                        }
+                        className="h-8 text-xs text-destructive"
+                        onClick={() => setDeletingRole(selectedRealRole)}
                       >
-                        Deselect All
-                      </Button>
-                      {roleDirty && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-8 text-xs"
-                          onClick={revertRoleDraft}
-                        >
-                          Revert
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        className="h-8 text-xs"
-                        onClick={saveRealRole}
-                        disabled={!roleDirty || savingRole}
-                      >
-                        {savingRole ? "Saving…" : "Save changes"}
+                        <Trash2 className="h-3.5 w-3.5" /> Delete
                       </Button>
                     </div>
                   )}
                 </div>
 
-                {roleDirty && !selectedRealRole.isSystemRole && (
-                  <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
-                    You have unsaved changes — hit Save changes to apply them.
-                  </p>
-                )}
-
                 <Card className="rounded-2xl border-0 shadow-sm">
                   <CardHeader>
-                    <CardTitle className="text-base">Select Permissions</CardTitle>
+                    <CardTitle className="text-base">Permissions</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-5">
                     {realPermissionGroups.map((g) => {
@@ -1196,18 +1078,14 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
                           </p>
                           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                             {items.map((p) => {
-                              const on = roleDraft.permissionKeys.has(p.key);
-                              const disabled = selectedRealRole.isSystemRole;
+                              const on = selectedRealRole.permissions.includes(p.key);
                               return (
-                                <button
+                                <div
                                   key={p.id}
-                                  disabled={disabled}
-                                  onClick={() => toggleDraftPermission(p.key)}
                                   title={p.description ?? p.key}
                                   className={cn(
-                                    "flex items-center gap-2.5 rounded-xl border p-2.5 text-left text-sm transition-colors",
-                                    on ? "border-primary/50 bg-primary/5" : "hover:bg-accent",
-                                    disabled && "cursor-not-allowed opacity-60",
+                                    "flex items-center gap-2.5 rounded-xl border p-2.5 text-left text-sm",
+                                    on ? "border-primary/50 bg-primary/5" : "opacity-60",
                                   )}
                                 >
                                   <span className="min-w-0 flex-1 truncate font-medium">
@@ -1223,7 +1101,7 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
                                   >
                                     {on && <Check className="h-3.5 w-3.5" />}
                                   </span>
-                                </button>
+                                </div>
                               );
                             })}
                           </div>
@@ -1235,10 +1113,24 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
               </div>
             ) : (
               <div className="flex items-center justify-center rounded-2xl border border-dashed p-16 text-sm text-muted-foreground">
-                Select or create a role to edit its permissions.
+                Select or create a role to see its permissions.
               </div>
             )}
           </div>
+
+          <EditRoleDialog
+            role={editingRole}
+            onClose={() => setEditingRole(null)}
+            onSave={saveEditedRole}
+            permissionGroups={realPermissionGroups}
+            permissions={realPermissions}
+            locationId={locationId}
+          />
+          <DeleteRoleDialog
+            role={deletingRole}
+            onClose={() => setDeletingRole(null)}
+            onConfirm={confirmDeleteRole}
+          />
         </div>
       )}
 
