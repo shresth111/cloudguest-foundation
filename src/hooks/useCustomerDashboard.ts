@@ -70,6 +70,7 @@ export const customerKeys = {
   sidebar: ["customer", "sidebar"] as const,
   locations: ["customer", "locations"] as const,
   dashboard: (locationId: string) => ["customer", "dashboard", locationId] as const,
+  whitelistOnly: (locationId: string) => ["customer", "whitelist-only", locationId] as const,
   users: (locationId: string, params?: Record<string, unknown>) =>
     ["customer", "users", locationId, params] as const,
   onlineNow: (locationId: string) => ["customer", "users", "online-now", locationId] as const,
@@ -127,6 +128,26 @@ export function useCustomerDashboard(locationId: string) {
     // page-load values on a screen that stays open at the front desk.
     refetchInterval: 60_000,
     retry: 1,
+  });
+}
+
+/** Whether Whitelisting (whitelist-only mode) is on at this venue, for the
+ * dashboard's persistent notice. One request, cached for a minute; the
+ * Whitelisting screen invalidates it the moment the switch is saved.
+ * Demo accounts have no real portal config, so they never fetch. A failed
+ * read resolves to "unknown" (`isError`), never to a guessed OFF. */
+export function useWhitelistOnlyStatus(locationId: string) {
+  return useQuery({
+    queryKey: customerKeys.whitelistOnly(locationId),
+    queryFn: async () => {
+      if (isDemo()) return false;
+      const orgId = await resolveOrgId();
+      return customerService.whitelistOnlyEnabled(orgId, locationId);
+    },
+    enabled: !!locationId,
+    staleTime: 60_000,
+    refetchInterval: 5 * 60_000,
+    retry: false,
   });
 }
 

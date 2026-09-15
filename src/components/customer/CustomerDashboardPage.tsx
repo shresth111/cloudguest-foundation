@@ -10,6 +10,7 @@ import {
   Info,
   Laptop,
   Router,
+  ShieldAlert,
   Users,
   Wifi,
   XCircle,
@@ -52,6 +53,7 @@ import {
   useDashboardSeries,
   useIsDemo,
   useDataMasking,
+  useWhitelistOnlyStatus,
 } from "@/hooks/useCustomerDashboard";
 import {
   LocationLivenessBadge,
@@ -284,6 +286,7 @@ export function CustomerDashboardPage() {
   const [range, setRange] = useState<DashboardRange>("24h");
   const { data: d, isLoading, isError, refetch } = useCustomerDashboard(locationId);
   const series = useDashboardSeries(locationId, range);
+  const whitelistOnly = useWhitelistOnlyStatus(locationId);
   const demoFlag = useIsDemo();
   const billing = useMyBillingDashboard(
     demoFlag ? undefined : activeLocation?.organizationId,
@@ -462,6 +465,40 @@ export function CustomerDashboardPage() {
               <RangeSelect value={range} onChange={setRange} />
             </div>
           </div>
+
+          {/* Whitelisting (whitelist-only mode) changes who can get online at
+           * all, so it stays on screen for as long as it is on -- read from
+           * the venue's own active portal config, the same place the
+           * backend reads it. Nothing when it is off or unknown. */}
+          {whitelistOnly.data === true && (
+            <div
+              role="status"
+              data-testid="dashboard-whitelist-only-notice"
+              className="flex flex-col gap-3 rounded-2xl border border-amber-300/70 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-amber-800/60 dark:bg-amber-950/40"
+            >
+              <div className="flex min-w-0 items-start gap-3">
+                <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                    Whitelisting is ON — only listed guests can connect
+                  </p>
+                  <p className="mt-0.5 text-xs leading-relaxed text-amber-900/80 dark:text-amber-200/80">
+                    Guests not on the list are refused at sign-in. Anyone already online who is not
+                    listed loses access the next time the router re-checks them, at the latest when
+                    their session ends.
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={() => handleNav("whitelist")}
+              >
+                Manage list
+              </Button>
+            </div>
+          )}
 
           {/* Why the venue is not live, and what to do. Nothing when it is. */}
           {d && <LocationLivenessExplainer liveness={d.liveness} />}

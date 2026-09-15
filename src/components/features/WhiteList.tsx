@@ -4,6 +4,7 @@ import {
   Smartphone,
   Laptop,
   Fingerprint,
+  Upload,
   Calendar,
   Search,
   Pencil,
@@ -56,6 +57,9 @@ import type { Portal } from "@/types/portal";
 import { maskMac } from "@/components/features/HeaderControls";
 import type { AnyAccessRule } from "@/types/guest";
 import { customerFeatureHref } from "@/lib/customerNav";
+import { useQueryClient } from "@tanstack/react-query";
+import { customerKeys } from "@/hooks/useCustomerDashboard";
+import { WhitelistCsvUpload } from "@/components/features/WhitelistCsvUpload";
 
 // ── helpers ─────────────────────────────────────────────────────
 const pad2 = (n: number) => String(n).padStart(2, "0");
@@ -359,6 +363,11 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
   // already-existing endpoints. See handleSubmit/handleDelete below.
   const [editingId, setEditingId] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const queryClient = useQueryClient();
+  const [csvOpen, setCsvOpen] = useState(false);
+  // Bumped after a CSV upload so the list below re-reads the server.
+  const [reloadKey, setReloadKey] = useState(0);
+  const [listTruncated, setListTruncated] = useState(false);
 
   // ── whitelist-only mode ───────────────────────────────────────
   // The per-property switch. Stored on that property's own captive-portal
@@ -487,6 +496,9 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
       );
       setWlConfig(updated);
       setWlEnabled(updated.whitelistOnly.enabled);
+      // The dashboard's "Whitelisting is ON" notice reads this same flag;
+      // make it agree now rather than after its cache goes stale.
+      void queryClient.invalidateQueries({ queryKey: customerKeys.whitelistOnly(wlLocationId) });
       setWlMessage(updated.whitelistOnly.deniedMessage);
       setWlMessageDirty(false);
       // The moment it goes on is the moment the count starts mattering --
@@ -554,7 +566,10 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
         // resolveOrgId doc comment.
         const org = await resolveOrgId();
         setOrgId(org);
-        const rules = await guestService.listAccessRules(org);
+        // Every page, not the first 100: a CSV upload can put thousands on
+        // this list, and the whitelist-only readiness check below counts it.
+        const { rules, truncated } = await guestService.listWhitelistRules(org);
+        setListTruncated(truncated);
         setEntries(
           rules
             .filter((r) => r.ruleType === "whitelist")
@@ -565,7 +580,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [demo, locationId, locations]);
+  }, [demo, locationId, locations, reloadKey]);
 
   // Default the picker to the location this page is already scoped to,
   // once its real name is known (mirrors TicketsPage.tsx's equivalent effect).
@@ -817,9 +832,10 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
             <ShieldCheck className="h-4.5 w-4.5 text-white" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold tracking-tight">Always Allowed</h1>
+            <h1 className="text-lg font-semibold tracking-tight">Only Allowed / Whitelisting</h1>
             <p className="text-sm text-muted-foreground">
-              Guest numbers that are always let in. Devices live on Trusted Devices.
+              The guests on this list are always let in. Switch Whitelisting on and they are the
+              only ones who can connect. Devices live on Trusted Devices.
             </p>
           </div>
         </div>
@@ -850,13 +866,16 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
               <h2 className="text-sm font-semibold">Only allow the guests on this list</h2>
               <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
                 {wlEnabled
-                  ? `On. Only the numbers and devices below get online at ${wlLocationName || "this property"}.`
+                  ? `On. Only the guests on the list below get online at ${wlLocationName || "this property"}.`
                   : `Off. Every guest signs in on the WiFi login page and gets online — this is how ${wlLocationName || "this property"} works today.`}
               </p>
               <p className="mt-2 max-w-2xl text-xs leading-relaxed text-muted-foreground">
-                Turning this on does not hide your WiFi and drops nobody. Everyone still reaches
-                your login page. People on this list sign in and get through; everyone else is
-                refused on that page, in your words, and is never sent a verification code.
+                Turning this on does not hide your WiFi. Everyone still reaches your login page.
+                People on this list sign in and get through; everyone else is refused on that page,
+                in your words, and is never sent a verification code. Nobody is cut off on the spot:
+                a guest already online who is not on the list loses access the next time the router
+                re-checks them, at the latest when their session ends. Trusted Devices stay
+                connected.
               </p>
             </div>
           </div>
@@ -1018,7 +1037,8 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
                 <p>
                   From the moment you save, a guest who is not on the list still reaches your WiFi
                   login page and is refused there. They are not sent a verification code and no
-                  session starts for them.
+                  session starts for them. Guests already online who are not on the list lose access
+                  the next time the router re-checks them, at the latest when their session ends.
                 </p>
                 <p>
                   This changes {wlLocationName || "this property"} only. Your other properties keep
@@ -1095,6 +1115,23 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
       </div>
 
       {/* toast */}
+      <WhitelistCsvUpload
+        open={csvOpen}
+        onOpenChange={setCsvOpen}
+        organizationId={orgId}
+        locations={(locations ?? []).map((l) => ({ id: l.id, name: l.name }))}
+        defaultLocationId={wlLocationId || locationId}
+        existing={entries
+          .filter((e) => e.tab === "number")
+          .map((e) => ({
+            identifier: e.identifier,
+            locationId: e.locationId,
+            active: isActive(e.endDate),
+          }))}
+        demo={demo}
+        onImported={() => setReloadKey((k) => k + 1)}
+      />
+
       {toast && (
         <div className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-foreground px-5 py-2.5 text-sm font-medium text-background shadow-lg">
           {toast}
@@ -1268,7 +1305,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
               <ShieldCheck className="h-3.5 w-3.5 text-white" />
             </span>
             <div>
-              <CardTitle className="text-sm">Always Allowed Guests</CardTitle>
+              <CardTitle className="text-sm">Whitelisted guests</CardTitle>
               {/* Not "for this location": listAccessRules takes an org id
                 and no location filter, so this table is every allow rule
                 in the account. Saying "this location" made a rule saved
@@ -1276,20 +1313,37 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
               <p className="text-xs text-muted-foreground">
                 Everything currently allowed across your account.
               </p>
+              {listTruncated && (
+                <p className="text-xs text-amber-700 dark:text-amber-300">
+                  Showing the first 6,000 entries. Use search to find a specific guest.
+                </p>
+              )}
             </div>
           </div>
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Search…"
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(0);
-              }}
-              className={cn(inputCls, "w-48 py-1.5 pl-8")}
-            />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setCsvOpen(true)}
+              data-testid="whitelist-csv-open"
+            >
+              <Upload className="mr-1.5 h-4 w-4" />
+              Upload CSV
+            </Button>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search…"
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(0);
+                }}
+                className={cn(inputCls, "w-48 py-1.5 pl-8")}
+              />
+            </div>
           </div>
         </CardHeader>
         <CardContent className={paged.length > 0 ? "px-4 pb-4 pt-0" : "p-0"}>

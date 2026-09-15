@@ -322,9 +322,11 @@ const nav = await import(outfile);
 
 const whitelistItem = nav.CUSTOMER_NAVS.find((i) => i.id === "whitelist");
 check("whitelist is still its own sidebar destination", Boolean(whitelistItem));
+// Renamed from "Always Allowed" at the founder's request (2026-09): the
+// page's real job is the per-venue whitelist-only switch.
 check(
-  'it is still labelled "Always Allowed"',
-  whitelistItem?.label === "Always Allowed",
+  'it is labelled "Whitelisting"',
+  whitelistItem?.label === "Whitelisting",
   whitelistItem?.label,
 );
 check(

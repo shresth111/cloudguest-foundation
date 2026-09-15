@@ -79,7 +79,10 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
     label: "Access & Policy",
     items: [
       { id: "policies", label: "Access Rules", icon: ShieldCheck, roles: ["owner"] },
-      { id: "whitelist", label: "Always Allowed", icon: Shield, roles: ["owner"] },
+      // "Always Allowed" until 2026-09: renamed at the founder's request, because
+      // the page's real job is the per-venue whitelist-only switch. Same id and
+      // route (/whitelist); the heading reads "Only Allowed / Whitelisting".
+      { id: "whitelist", label: "Whitelisting", icon: Shield, roles: ["owner"] },
       { id: "mac-auth", label: "Trusted Devices", icon: Fingerprint, roles: ["owner"] },
       // Renamed from "Business Hours" (same id/route/data) -- see
       // customerFeatureCatalog.ts's own note.

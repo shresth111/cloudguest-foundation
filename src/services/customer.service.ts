@@ -1,4 +1,6 @@
 import { api } from "@/services/api";
+import { isWhitelistOnlyOn } from "@/lib/whitelist-status";
+import type { PortalConfigFlagRow } from "@/lib/whitelist-status";
 import { isHonouredDemoToken } from "@/lib/demo-host";
 import { resolveOrganizationId as sharedResolveOrganizationId } from "./organization-id";
 // Straight from api.ts, which is where these now live -- AuthContext only
@@ -747,7 +749,7 @@ const DEMO_NAV: NavItem[] = [
   { id: "campaigns", label: "Campaigns", module: "campaigns" },
   { id: "vouchers", label: "Vouchers", module: "voucher" },
   { id: "policies", label: "Policies", module: "policy" },
-  { id: "whitelist", label: "Always Allowed", module: "guest_access" },
+  { id: "whitelist", label: "Whitelisting", module: "guest_access" },
   { id: "devices", label: "Devices", module: "connected_devices" },
   { id: "teams", label: "Guest Groups", module: "guest_teams" },
   { id: "agents", label: "Staff Access", module: "roles" },
@@ -1503,6 +1505,24 @@ export const customerService = {
    * so a busy venue or a 30-day range is not silently truncated at 100 rows.
    * Errors propagate: a failed read renders as an error state, never as zeros.
    */
+  /**
+   * Whether this venue is in whitelist-only mode right now -- one request,
+   * for the dashboard's "Whitelisting is ON" notice. Deliberately not
+   * `portalService.forLocation()`: that lists every config in the
+   * organization and hydrates org/location names, none of which a yes/no
+   * needs. The tenant comes from X-Organization-Id (the list endpoint
+   * filters by it); the venue is a filter inside that tenant, never a way
+   * out of it. See `lib/whitelist-status.ts` for how the answer is read.
+   */
+  async whitelistOnlyEnabled(organizationId: string, locationId: string): Promise<boolean> {
+    if (!locationId) return false;
+    const { data } = await api.get<{ items?: PortalConfigFlagRow[] }>("/captive-portal-configs", {
+      params: { location_id: locationId, page: 1, page_size: 25 },
+      headers: { "X-Organization-Id": organizationId, "X-Location-Id": locationId },
+    });
+    return isWhitelistOnlyOn(data?.items ?? [], locationId);
+  },
+
   async getDashboardSeries(locationId: string, range: DashboardRange): Promise<DashboardSeries> {
     const win = dashboardRangeWindow(range);
     if (isDemo()) return demoDashboardSeries(win);
