@@ -43,6 +43,7 @@
 import { api } from "@/services/api";
 import { resolveOrgId } from "@/services/customer.service";
 import type { DeviceType } from "@/stores/deviceStore";
+import type { ObservationIssue } from "@/lib/device-liveness";
 
 export interface MonitoredDeviceRow {
   id: string;
@@ -69,6 +70,11 @@ export interface MonitoredDeviceRow {
   /** When `uptimeSeconds` was read off the device. `null` whenever
    * `uptimeSeconds` is. */
   uptimeRecordedAt: string | null;
+  /** Why a non-up row has no trustworthy observation (BE
+   * `observation_issue`) -- e.g. `"router_auth_failed"` when the venue
+   * router rejects the platform's login, which must not be shown as
+   * "Never observed". `null` for up rows, and from an older backend. */
+  observationIssue?: ObservationIssue | null;
 }
 
 interface RawMonitoredHardware {
@@ -83,6 +89,7 @@ interface RawMonitoredHardware {
   connected_at: string | null;
   uptime_seconds: number | null;
   uptime_recorded_at: string | null;
+  observation_issue?: ObservationIssue | null;
 }
 
 function toRow(r: RawMonitoredHardware): MonitoredDeviceRow {
@@ -101,6 +108,7 @@ function toRow(r: RawMonitoredHardware): MonitoredDeviceRow {
     // `!= null` guard downstream as though it were a number.
     uptimeSeconds: r.uptime_seconds ?? null,
     uptimeRecordedAt: r.uptime_recorded_at ?? null,
+    observationIssue: r.observation_issue ?? null,
   };
 }
 

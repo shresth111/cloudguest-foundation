@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { DEVICE_TYPES } from "@/stores/deviceStore";
-import { formatAge } from "@/lib/device-liveness";
+import { formatAge, isRouterUnreadable } from "@/lib/device-liveness";
 import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
 import { DEVICE_TYPE_META } from "@/lib/device-presentation";
 import { BackgroundBoxes } from "@/components/aceternity/background-boxes";
@@ -30,8 +30,15 @@ export function DeviceStatusCard({
   onManage: () => void;
 }) {
   const { devices } = useMonitoredHardware(locationId);
-  const downCount = devices.filter((d) => d.status === "down").length;
-  const unknownCount = devices.filter((d) => d.status === "unknown").length;
+  // A device behind a router this platform cannot read is counted apart
+  // from both "down" and "not yet observed": its status is a fact about the
+  // router, and folding it into either bucket tells the owner something
+  // false about working hardware.
+  const unreadable = (d: (typeof devices)[number]) =>
+    d.status !== "up" && isRouterUnreadable(d.observationIssue);
+  const unreachableCount = devices.filter(unreadable).length;
+  const downCount = devices.filter((d) => d.status === "down" && !unreadable(d)).length;
+  const unknownCount = devices.filter((d) => d.status === "unknown" && !unreadable(d)).length;
 
   return (
     <Card className="premium-card premium-card-hover">
@@ -92,7 +99,11 @@ export function DeviceStatusCard({
                 if (typeDevices.length === 0) return null;
                 const meta = DEVICE_TYPE_META[type];
                 const Icon = meta.icon;
-                const typeDown = typeDevices.filter((d) => d.status === "down").length;
+                const typeDown = typeDevices.filter(
+                  (d) => d.status === "down" && !unreadable(d),
+                ).length;
+                const typeUp = typeDevices.filter((d) => d.status === "up").length;
+                const typeUnreachable = typeDevices.filter(unreadable).length;
                 return (
                   <div key={type} className="flex items-center justify-between gap-2">
                     <span className="flex min-w-0 items-center gap-2 text-sm">
@@ -112,10 +123,20 @@ export function DeviceStatusCard({
                     </span>
                     <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
                       <span className="font-semibold text-foreground">{typeDevices.length}</span>
+                      {/* "all up" only when every one of them IS up. It used
+                       * to be printed whenever none was down, so a single
+                       * never-observed access point read "1 · all up". */}
                       {typeDown > 0 ? (
                         <span className="text-rose-600 dark:text-rose-400"> · {typeDown} down</span>
-                      ) : (
+                      ) : typeUnreachable > 0 ? (
+                        <span className="text-amber-700 dark:text-amber-400">
+                          {" "}
+                          · {typeUnreachable} unconfirmed
+                        </span>
+                      ) : typeUp === typeDevices.length ? (
                         <span className="text-emerald-600 dark:text-emerald-400"> · all up</span>
+                      ) : (
+                        <span> · {typeDevices.length - typeUp} not yet seen</span>
                       )}
                     </span>
                   </div>
@@ -152,6 +173,13 @@ export function DeviceStatusCard({
                       )[0];
                     return oldest ? ` · longest ${formatAge(oldest.lastSeenAt, Date.now())}` : "";
                   })()}
+                </span>
+              ) : unreachableCount > 0 ? (
+                // The router could not be read, so these devices are not
+                // known to be missing or down -- say what actually failed.
+                <span className="inline-flex items-center gap-1 font-medium text-amber-700 dark:text-amber-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                  Can't reach router · {unreachableCount} unconfirmed
                 </span>
               ) : unknownCount > 0 ? (
                 // Never conflated with "up" -- a device just registered (or

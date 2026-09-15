@@ -571,38 +571,45 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{d.floor}</TableCell>
                       <TableCell>
-                        {/* "unknown" (never observed by the router's own sync
-                        yet -- e.g. just added) gets its own neutral
-                        treatment, never lumped in with a confirmed "Down"
-                        -- see useMonitoredHardware's own honesty note. */}
-                        <span
-                          className={cn(
-                            "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                            d.status === "up"
-                              ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600"
-                              : d.status === "down"
-                                ? "border-rose-500/20 bg-rose-500/10 text-rose-600"
-                                : "border-border bg-muted text-muted-foreground",
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              "h-1.5 w-1.5 rounded-full",
-                              d.status === "up"
-                                ? "bg-emerald-500"
-                                : d.status === "down"
-                                  ? "bg-rose-500"
-                                  : "bg-muted-foreground/50",
-                            )}
-                          />
-                          {/* Was "Up · 4m", where 4m was the age of
-                           * last_seen_at, not an uptime. Each duration now
-                           * names its own measurement -- @/lib/device-liveness. */}
-                          {(() => {
-                            const live = describeLiveness(d);
-                            return live.detail ? `${live.state} · ${live.detail}` : live.state;
-                          })()}
-                        </span>
+                        {/* The badge colour and words both come from
+                        describeLiveness: "unknown" (not seen yet) stays
+                        neutral, a confirmed "Down" is red, and a device
+                        behind a router we cannot read is amber and says so
+                        -- never "Never observed" for a working AP. */}
+                        {(() => {
+                          const live = describeLiveness(d);
+                          return (
+                            <span
+                              className={cn(
+                                "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                                live.tone === "up"
+                                  ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600"
+                                  : live.tone === "down"
+                                    ? "border-rose-500/20 bg-rose-500/10 text-rose-600"
+                                    : live.tone === "warning"
+                                      ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                                      : "border-border bg-muted text-muted-foreground",
+                              )}
+                            >
+                              <span
+                                className={cn(
+                                  "h-1.5 w-1.5 rounded-full",
+                                  live.tone === "up"
+                                    ? "bg-emerald-500"
+                                    : live.tone === "down"
+                                      ? "bg-rose-500"
+                                      : live.tone === "warning"
+                                        ? "bg-amber-500"
+                                        : "bg-muted-foreground/50",
+                                )}
+                              />
+                              {/* Was "Up · 4m", where 4m was the age of
+                               * last_seen_at, not an uptime. Each duration now
+                               * names its own measurement -- @/lib/device-liveness. */}
+                              {live.detail ? `${live.state} · ${live.detail}` : live.state}
+                            </span>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell className="text-right">
                         <button
