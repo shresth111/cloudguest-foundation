@@ -42,7 +42,11 @@
  */
 import { api } from "@/services/api";
 import { resolveOrgId } from "@/services/customer.service";
-import type { HardwareStatusReason, HardwareStatusSource } from "@/lib/device-liveness";
+import type {
+  HardwareStatusReason,
+  HardwareStatusSource,
+  ObservationIssue,
+} from "@/lib/device-liveness";
 import type { DeviceType } from "@/stores/deviceStore";
 
 export interface MonitoredDeviceRow {
@@ -84,6 +88,11 @@ export interface MonitoredDeviceRow {
   /** Why the status reads as it does (BE `status_reason`), a code whose
    * words belong to `@/lib/device-liveness`. */
   statusReason?: HardwareStatusReason;
+  /** Why a non-up row has no trustworthy observation (BE
+   * `observation_issue`) -- e.g. `"router_auth_failed"` when the venue
+   * router rejects the platform's login, which must not be shown as
+   * "Never observed". `null` for up rows, and from an older backend. */
+  observationIssue?: ObservationIssue | null;
 }
 
 interface RawMonitoredHardware {
@@ -100,6 +109,7 @@ interface RawMonitoredHardware {
   uptime_recorded_at: string | null;
   status_source?: HardwareStatusSource | null;
   status_reason?: HardwareStatusReason | null;
+  observation_issue?: ObservationIssue | null;
 }
 
 function toRow(r: RawMonitoredHardware): MonitoredDeviceRow {
@@ -124,6 +134,7 @@ function toRow(r: RawMonitoredHardware): MonitoredDeviceRow {
     // into "Not measured".
     statusSource: r.status_source ?? "measured",
     statusReason: r.status_reason ?? "liveness_probe",
+    observationIssue: r.observation_issue ?? null,
   };
 }
 

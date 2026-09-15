@@ -594,16 +594,15 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{d.floor}</TableCell>
                       <TableCell>
-                        {/* Three different facts, three different
-                        treatments. "unknown" (never observed by the
-                        router's own sync yet -- e.g. just added) gets its
-                        own neutral treatment, never lumped in with a
-                        confirmed "Down"; and a row NOTHING measures -- a
-                        controller-managed venue has no RouterOS session for
-                        the liveness sweep to probe through -- says so
-                        rather than borrowing either word. See
-                        useMonitoredHardware's own honesty note and
-                        @/lib/device-liveness. */}
+                        {/* The badge colour and words both come from
+                        describeLiveness: "unknown" (not seen yet) stays
+                        neutral, a confirmed "Down" is red, and a device
+                        behind a router we cannot read is amber and says so
+                        -- never "Never observed" for a working AP. A row
+                        NOTHING measures -- a controller-managed venue has no
+                        RouterOS session for the liveness sweep to probe
+                        through -- says so rather than borrowing any of
+                        those. See useMonitoredHardware's own honesty note. */}
                         {(() => {
                           const live = describeLiveness(d);
                           const measured = hardwareLivenessIsMeasured(d);
@@ -614,11 +613,13 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
                                 "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold",
                                 !measured
                                   ? "border-dashed border-border bg-transparent text-muted-foreground"
-                                  : d.status === "up"
+                                  : live.tone === "up"
                                     ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                                    : d.status === "down"
+                                    : live.tone === "down"
                                       ? "border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400"
-                                      : "border-border bg-muted text-muted-foreground",
+                                      : live.tone === "warning"
+                                        ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                                        : "border-border bg-muted text-muted-foreground",
                               )}
                             >
                               {/* No status dot for an unmeasured row: a dot
@@ -627,11 +628,13 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
                                 <span
                                   className={cn(
                                     "h-1.5 w-1.5 rounded-full",
-                                    d.status === "up"
+                                    live.tone === "up"
                                       ? "bg-emerald-500"
-                                      : d.status === "down"
+                                      : live.tone === "down"
                                         ? "bg-rose-500"
-                                        : "bg-muted-foreground/50",
+                                        : live.tone === "warning"
+                                          ? "bg-amber-500"
+                                          : "bg-muted-foreground/50",
                                   )}
                                 />
                               )}
