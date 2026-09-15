@@ -279,25 +279,34 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
   );
   const [orgId, setOrgId] = useState<string | null>(null);
 
+  // Re-reads the rule list from the server. Used on load, and again after a
+  // block request fails: a failed response does not mean nothing was
+  // saved. The backend commits the rule before it tries to reach the
+  // router, and an older backend then answered the create with a 502 when
+  // the router refused it -- so the dashboard said "Could not block", left
+  // the saved rule off this list, and the owner blocked the same guest
+  // again (four rules for one guest in about a minute, in production).
+  // Re-reading shows what really exists and lets the "already blocked"
+  // check stop the duplicate.
+  const reloadBlocked = useCallback(async (): Promise<number> => {
+    // /me/organizations instead of the platform-wide GET /organizations
+    // -- see customer.service.ts's resolveOrgId doc comment.
+    const org = await resolveOrgId();
+    setOrgId(org);
+    const rules = await guestService.listAccessRules(org);
+    const next = rules
+      .filter((r) => r.ruleType === "blocklist")
+      .map((r) => toBlockedUser(r, nameForLocation(r.locationId)));
+    setBlocked(next);
+    return next.length;
+  }, [nameForLocation]);
+
   useEffect(() => {
     if (demo) return;
-    (async () => {
-      try {
-        // /me/organizations instead of the platform-wide GET /organizations
-        // -- see customer.service.ts's resolveOrgId doc comment.
-        const org = await resolveOrgId();
-        setOrgId(org);
-        const rules = await guestService.listAccessRules(org);
-        setBlocked(
-          rules
-            .filter((r) => r.ruleType === "blocklist")
-            .map((r) => toBlockedUser(r, nameForLocation(r.locationId))),
-        );
-      } catch {
-        // Leave blocked empty -- the "no blocked numbers" state is accurate.
-      }
-    })();
-  }, [demo, locationId, nameForLocation]);
+    reloadBlocked().catch(() => {
+      // Leave blocked empty -- the "no blocked numbers" state is accurate.
+    });
+  }, [demo, locationId, reloadBlocked]);
 
   const [mode, setMode] = useState<Mode>("mobile");
   const [textarea, setTextarea] = useState("");
@@ -574,6 +583,25 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
       setToast(blockOutcomeMessage(created, identifierNoun));
       setTimeout(() => setToast(null), 6500);
     } catch {
+      // Some or all of the rules may have been saved even though the
+      // request failed -- see reloadBlocked. Show what the server holds
+      // before inviting a retry, so a retry cannot duplicate them.
+      const countBefore = blocked.length;
+      let reloadedCount: number | null = null;
+      try {
+        reloadedCount = await reloadBlocked();
+      } catch {
+        // Keep the current list; the toast below still applies.
+      }
+      if (reloadedCount !== null && reloadedCount > countBefore) {
+        setTextarea("");
+        setShowModal(false);
+        setToast(
+          "Saved, but we could not confirm they were taken off the WiFi — they may still be online. Check the list below.",
+        );
+        setTimeout(() => setToast(null), 6500);
+        return;
+      }
       setToast("Could not block — check the connection and try again.");
       setTimeout(() => setToast(null), 2500);
     }
