@@ -144,6 +144,12 @@ function body(url) {
   if (url === "/dashboard/organization") {
     return { routers_online: 1, routers_offline: 0, total_guests: 3, active_sessions: 1 };
   }
+  if (url === "/guest-analytics/dashboard-series") {
+    return { start: "", end: "", bucket: "hour", guests: 3, sessions: 4,
+             avg_session_seconds: 1500, peak_online: 2,
+             series: [{ bucket_start: new Date().toISOString(), arrivals: 1, online: 2 }],
+             os_breakdown: [{ name: "Android", count: 3 }] };
+  }
   if (url === "/isp/links") return page([LINK]);
   if (/^\\/isp\\/links\\/[^/]+\\/health-checks$/.test(url)) return page([]);
   if (/^\\/isp\\/links\\/[^/]+\\/health-checks\\/summary$/.test(url)) {
@@ -406,6 +412,11 @@ check(
   "routers-once",
   countOf(dash, `/locations/${LOC}/routers`) === 1,
   `GET /locations/{id}/routers issued ${countOf(dash, `/locations/${LOC}/routers`)} time(s), expected 1 -- ${listOf(dash, `/locations/${LOC}/routers`)}`,
+);
+check(
+  "dashboard-series-once",
+  countOf(dash, "/guest-analytics/dashboard-series") === 1,
+  `GET /guest-analytics/dashboard-series issued ${countOf(dash, "/guest-analytics/dashboard-series")} time(s), expected 1`,
 );
 check(
   "guest-sessions-once",

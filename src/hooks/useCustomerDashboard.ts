@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef, useSyncExternalStore } from "
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customerService, isDemo, resolveOrgId } from "@/services/customer.service";
 import type { CustomerUsersData } from "@/services/customer.service";
+import type { DashboardRange } from "@/lib/dashboard-range";
 import { guestService } from "@/services/guest.service";
 import { rbacService } from "@/services/rbac.service";
 import { useAuth } from "@/context/AuthContext";
@@ -122,6 +123,22 @@ export function useCustomerDashboard(locationId: string) {
     queryFn: () => customerService.getDashboard(locationId),
     enabled: !!locationId,
     staleTime: 15_000,
+    // "Currently online", router/ISP status and alerts should not freeze at
+    // page-load values on a screen that stays open at the front desk.
+    refetchInterval: 60_000,
+    retry: 1,
+  });
+}
+
+/** Range-aware guest analytics for the dashboard. Refreshes every minute
+ * while the page is open; the backend aggregates, so this is one request. */
+export function useDashboardSeries(locationId: string, range: DashboardRange) {
+  return useQuery({
+    queryKey: [...customerKeys.dashboard(locationId), "series", range] as const,
+    queryFn: () => customerService.getDashboardSeries(locationId, range),
+    enabled: !!locationId,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
     retry: 1,
   });
 }

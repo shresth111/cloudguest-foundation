@@ -348,7 +348,9 @@ check(
   "the dashboard hero no longer renders an Active sessions tile",
   !/label:\s*"Active sessions"/.test(dashboard),
 );
-check("the dashboard hero leads with Guests today", /label:\s*"Guests today"/.test(dashboard));
+// The tile now follows the date-range selector, so it is "Guests" for the
+// selected range rather than a fixed "Guests today".
+check("the dashboard leads with a Guests tile", /label:\s*"Guests"/.test(dashboard));
 check(
   "guests today is no longer demoted to the secondary stat strip",
   !/label:\s*"guests today"/.test(dashboard),
