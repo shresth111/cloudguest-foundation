@@ -1,5 +1,6 @@
 import { api } from "@/services/api";
 import { DENIAL_WINDOW_MS, countRecentDenials } from "@/lib/whitelist-only";
+import { WHITELIST_IMPORT_BATCH_SIZE, chunkRows } from "@/lib/whitelist-csv";
 import type {
   AccessCheckQuery,
   AccessCheckResult,
@@ -620,6 +621,48 @@ export const guestService = {
   },
 
   /**
+   * Every whitelist rule in one organization, for the Whitelisting screen.
+   *
+   * `listAccessRules` reads one page of 100, which was enough while the
+   * list was typed in one number at a time. With CSV upload a venue can hold
+   * thousands, and a screen that silently shows the first 100 would also
+   * under-count the list the whitelist-only switch is judged against. So
+   * this pages through (server-filtered to `rule_type=whitelist`) up to
+   * `maxPages`, and says when it stopped early.
+   */
+  async listWhitelistRules(
+    organizationId: string,
+    maxPages = 60,
+  ): Promise<{ rules: AnyAccessRule[]; truncated: boolean }> {
+    const headers = { "X-Organization-Id": organizationId };
+    const identifierRules: AnyAccessRule[] = [];
+    let truncated = false;
+    for (let page = 1; page <= maxPages; page++) {
+      const { data } = await api.get<
+        BackendListResponse<BackendAccessRule> & { has_next?: boolean }
+      >("/guest-access/rules", {
+        params: { page, page_size: 100, rule_type: "whitelist" },
+        headers,
+      });
+      identifierRules.push(...(data?.items ?? []).map(toAccessRule));
+      if (!data?.has_next) break;
+      if (page === maxPages) truncated = true;
+    }
+    let deviceRules: AnyAccessRule[] = [];
+    try {
+      const { data } = await api.get<BackendListResponse<BackendDeviceAccessRule>>(
+        "/guest-access/device-rules",
+        { params: { page_size: 100, rule_type: "whitelist" }, headers },
+      );
+      deviceRules = (data?.items ?? []).map(toDeviceAccessRule);
+    } catch {
+      // Device rows are the retired "allow a device" leftovers; failing to
+      // list them must not hide the guest list.
+    }
+    return { rules: [...identifierRules, ...deviceRules], truncated };
+  },
+
+  /**
    * How many guests one property turned away in the last 24 hours because
    * whitelist-only mode is on and they were not on the list.
    *
@@ -693,6 +736,89 @@ export const guestService = {
     return payload.kind === "identifier"
       ? toAccessRule(data as BackendAccessRule)
       : toDeviceAccessRule(data as BackendDeviceAccessRule);
+  },
+
+  /**
+   * Bulk-add whitelist entries through `POST /guest-access/rules/import`,
+   * one request per 1,000 rows (the backend's own batch limit).
+   *
+   * Scoped the way every other write here is: the organization rides in
+   * `X-Organization-Id`, which is what the backend resolves the tenant from
+   * and checks the body's `organization_id` against; every row is written to
+   * `locationId`. Batches run one after another so a failure stops the
+   * upload at a known point -- the result says how many rows were sent.
+   *
+   * The backend canonicalises each identifier again and upserts a repeat,
+   * so a row that raced onto the list between preview and upload is
+   * reported as `updated`, not duplicated.
+   */
+  async importWhitelistRules(input: {
+    organizationId: string;
+    locationId: string;
+    rows: { identifier: string; email?: string; reason?: string; expiresAt?: string }[];
+    batchSize?: number;
+  }): Promise<{
+    imported: number;
+    updated: number;
+    rejected: { row: number; identifier: string; reason: string }[];
+    sentRows: number;
+    error?: string;
+  }> {
+    const size = input.batchSize ?? WHITELIST_IMPORT_BATCH_SIZE;
+    const out = {
+      imported: 0,
+      updated: 0,
+      rejected: [] as { row: number; identifier: string; reason: string }[],
+      sentRows: 0,
+    };
+    let offset = 0;
+    for (const batch of chunkRows(input.rows, size)) {
+      try {
+        const { data } = await api.post<{
+          imported_count: number;
+          updated_count: number;
+          rejected: { row_number: number; identifier: string; reason: string }[];
+        }>(
+          "/guest-access/rules/import",
+          {
+            organization_id: input.organizationId,
+            location_id: input.locationId,
+            rule_type: "whitelist",
+            rules: batch.map((r) => ({
+              identifier: r.identifier,
+              email: r.email || null,
+              reason: r.reason || null,
+              expires_at: r.expiresAt || null,
+            })),
+          },
+          {
+            headers: {
+              "X-Organization-Id": input.organizationId,
+              "X-Location-Id": input.locationId,
+            },
+          },
+        );
+        out.imported += data?.imported_count ?? 0;
+        out.updated += data?.updated_count ?? 0;
+        for (const r of data?.rejected ?? []) {
+          out.rejected.push({
+            row: offset + r.row_number,
+            identifier: r.identifier,
+            reason: r.reason,
+          });
+        }
+        out.sentRows += batch.length;
+        offset += batch.length;
+      } catch (err) {
+        return {
+          ...out,
+          error:
+            (err instanceof Error && err.message) ||
+            "The upload stopped part-way. Nothing after the rows already sent was added.",
+        };
+      }
+    }
+    return out;
   },
 
   async deactivateAccessRule(

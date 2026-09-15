@@ -151,6 +151,12 @@ function body(url) {
              os_breakdown: [{ name: "Android", count: 3 }] };
   }
   if (url === "/isp/links") return page([LINK]);
+  // Whitelisting ON for this venue, so the dashboard notice renders and its
+  // one request is counted on the path that actually shows it.
+  if (url === "/captive-portal-configs") {
+    return page([{ id: "cfg-1", organization_id: ORG, location_id: LOC, is_active: true,
+                   is_default: false, whitelist_only_enabled: true }]);
+  }
   if (/^\\/isp\\/links\\/[^/]+\\/health-checks$/.test(url)) return page([]);
   if (/^\\/isp\\/links\\/[^/]+\\/health-checks\\/summary$/.test(url)) {
     return { bucket_unit: "hour", start: "", end: "", buckets: [] };
@@ -445,6 +451,25 @@ check(
   countOf(dash, `/organizations/${ORG}/locations`) === 0,
   `GET /organizations/{id}/locations issued ${countOf(dash, `/organizations/${ORG}/locations`)} time(s), expected 0`,
 );
+// The Whitelisting notice: one request, scoped by header, no fan-out. It
+// must not reuse the Whitelisting screen's `forLocation()`, which lists every
+// config in the organization and hydrates names it does not need.
+check(
+  "whitelist-status-once",
+  countOf(dash, "/captive-portal-configs") === 1,
+  `GET /captive-portal-configs issued ${countOf(dash, "/captive-portal-configs")} time(s), expected 1 -- ${listOf(dash, "/captive-portal-configs")}`,
+);
+{
+  const wl = dash.find((c) => c.url === "/captive-portal-configs");
+  check(
+    "whitelist-status-tenant-scoped-by-header",
+    Boolean(wl) &&
+      wl.orgHeader === ORG &&
+      wl.locationHeader === LOC &&
+      wl.params?.location_id === LOC,
+    JSON.stringify(wl),
+  );
+}
 // The shared resolver, still doing its job under three concurrent callers.
 check(
   "org-lookup-at-most-once",

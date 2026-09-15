@@ -63,7 +63,7 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
     group: "Access & Policy",
     items: [
       { id: "policies", label: "Access Rules", icon: ShieldCheck },
-      { id: "whitelist", label: "Always Allowed", icon: Shield },
+      { id: "whitelist", label: "Whitelisting", icon: Shield },
       { id: "mac-auth", label: "Trusted Devices", icon: Fingerprint },
       // Renamed from "Business Hours" -- the old label/visual design read
       // too close to a competitor's equivalent feature. Same id/route/
