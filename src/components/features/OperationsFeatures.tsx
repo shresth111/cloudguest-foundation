@@ -110,6 +110,12 @@ import {
   type BusinessHoursSchedule,
   type BusinessHoursWeekday,
 } from "@/services/business-hours.service";
+import {
+  normalizeOpenHoursDraft,
+  openHoursDraftsEqual,
+  validateOpenHoursSchedule,
+  type OpenHoursDraft,
+} from "@/lib/open-hours-draft";
 import { routerService } from "@/services/router.service";
 import { ispService } from "@/services/isp.service";
 import { DhcpManagement } from "@/components/network/DhcpManagement";
@@ -520,6 +526,11 @@ export function AlertsView() {
  * bug report "on/off karne par captive portal 'business is closed'
  * jaisa kuch nahi dikhata tha". Now a real save (PUT /captive-portal-
  * configs/{id}) and a real fetch on load, via businessHoursService.
+ *
+ * Edits are a local draft: nothing is sent until the explicit Save button
+ * (enabled only while the draft differs from the saved baseline and passes
+ * the same checks the backend runs -- see src/lib/open-hours-draft.ts).
+ * Discard restores the baseline.
  */
 const BH_DAYS: { key: BusinessHoursWeekday; label: string }[] = [
   { key: "monday", label: "Monday" },
@@ -629,8 +640,8 @@ function AlertsIllustration() {
 
 /** Sun/moon motif (not a clock face) so the header art reads as "when
  * guests can get online", not a generic settings-clock -- and so it pairs
- * visually with the Sun/Moon icons this view's own status tile and guest
- * preview use, and with the Moon already on the guest-facing closed screen
+ * visually with the Sun/Moon icons this view's own status tile uses, and
+ * with the Moon already on the guest-facing closed screen
  * (src/routes/portal.closed.tsx). */
 function OpenHoursIllustration() {
   const shouldReduceMotion = useReducedMotion();
@@ -886,34 +897,68 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
   const [isOpenNow, setIsOpenNow] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // Every control on this page edits a local draft only; nothing reaches
+  // the backend until Save. `saved` is the baseline the draft is compared
+  // against (what the server last confirmed), so Save is enabled only
+  // while there is a real difference and Discard can restore it.
+  const [saved, setSaved] = useState<OpenHoursDraft | null>(null);
+  // A load that failed for any reason other than "this location has no
+  // portal config yet" (404) leaves the page without the real baseline.
+  // Saving from there would PUT defaults over the venue's real schedule
+  // (or POST a second config), so Save stays off and the error is shown.
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const applyDraft = (d: OpenHoursDraft) => {
+    setEnabled(d.enabled);
+    setTimezone(d.timezone);
+    setSchedule(d.schedule);
+    setClosedMessage(d.closedMessage);
+  };
 
   useEffect(() => {
     if (demo) {
       setSchedule(DEMO_BH_SCHEDULE);
+      setSaved(
+        normalizeOpenHoursDraft({ enabled, timezone, schedule: DEMO_BH_SCHEDULE, closedMessage }),
+      );
       setLoading(false);
       return;
     }
     if (!locationId) return;
     let cancelled = false;
+    setLoadError(null);
     businessHoursService
       .get(locationId)
       .then((cfg) => {
         if (cancelled) return;
-        setConfigId(cfg.configId);
-        setEnabled(cfg.enabled);
         // The venue's own stored timezone -- the one the schedule is
         // actually evaluated in -- not the admin's browser zone. Saving
         // the browser zone here used to silently re-anchor an already
         // configured schedule (an IST venue edited from a UTC browser
         // shifted every "closed" window by the offset, which is how
         // guests got through after hours).
-        setTimezone(cfg.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
-        setSchedule(cfg.schedule);
-        setClosedMessage(cfg.closedMessage ?? closedMessage);
+        const loaded = normalizeOpenHoursDraft({
+          enabled: cfg.enabled,
+          timezone: cfg.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+          schedule: cfg.schedule,
+          closedMessage: cfg.closedMessage ?? closedMessage,
+        });
+        setConfigId(cfg.configId);
+        applyDraft(loaded);
+        setSaved(loaded);
         setIsOpenNow(cfg.isOpenNow);
       })
-      .catch(() => {
-        if (!cancelled) toast.error("Could not load open hours.");
+      .catch((err) => {
+        if (cancelled) return;
+        if ((err as AppError).status === 404) {
+          // No config for this location yet: the defaults on screen are
+          // the honest baseline, and Save creates the config.
+          setSaved(normalizeOpenHoursDraft({ enabled, timezone, schedule, closedMessage }));
+          return;
+        }
+        const message = (err as AppError).message || "Could not load open hours.";
+        setLoadError(message);
+        toast.error(message);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -930,24 +975,29 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
   const setDay = (key: BusinessHoursWeekday, patch: Partial<BusinessHoursDay>) =>
     setSchedule((prev) => ({ ...prev, [key]: { ...dayState(key), ...patch } }));
 
-  async function handleApply() {
+  const draft = normalizeOpenHoursDraft({ enabled, timezone, schedule, closedMessage });
+  const dirty = saved !== null && !openHoursDraftsEqual(draft, saved);
+  const dayErrors = validateOpenHoursSchedule(draft.schedule);
+  const hasErrors = Object.keys(dayErrors).length > 0;
+  const canSave = dirty && !hasErrors && !saving && !loading && loadError === null;
+
+  function handleDiscard() {
+    if (saved) applyDraft(saved);
+  }
+
+  async function handleSave() {
+    if (!canSave) return;
+    // Snapshot what is being sent: if the admin keeps editing while the
+    // request is in flight, those later edits must stay "unsaved".
+    const sent = draft;
     if (demo) {
-      toast.success("Open hours applied");
+      setSaved(sent);
+      toast.success("Open hours saved");
       return;
     }
     if (!locationId) {
       toast.error("No location selected.");
       return;
-    }
-    // Every "open" day needs real start/end times before saving -- the
-    // backend rejects a malformed schedule outright (see the real 400
-    // this used to be impossible to trigger, since nothing ever saved).
-    for (const { key, label } of BH_DAYS) {
-      const d = dayState(key);
-      if (d.open && (!d.start || !d.end)) {
-        toast.error(`${label}: set both a start and end time, or mark it closed.`);
-        return;
-      }
     }
     setSaving(true);
     try {
@@ -972,19 +1022,23 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
         id = data.id;
         setConfigId(id);
       }
-      await businessHoursService.save(id, {
-        enabled,
-        timezone,
-        schedule,
-        closedMessage,
-      });
-      const refreshed = await businessHoursService.get(locationId);
-      setIsOpenNow(refreshed.isOpenNow);
-      toast.success("Open hours applied");
+      await businessHoursService.save(id, sent);
+      setSaved(sent);
+      toast.success("Open hours saved");
     } catch (err) {
+      // The draft is left exactly as it was, so nothing typed is lost.
       toast.error((err as AppError).message || "Could not save open hours.");
+      return;
     } finally {
       setSaving(false);
+    }
+    // Refreshing the live "Right now" tile is best-effort: the save itself
+    // already succeeded, so a failed re-read must not report a failed save.
+    try {
+      const refreshed = await businessHoursService.get(locationId);
+      setIsOpenNow(refreshed.isOpenNow);
+    } catch {
+      /* keep the previous live status */
     }
   }
 
@@ -998,7 +1052,7 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
   // Warn when the schedule is enforced in a different zone than the one the
   // admin is editing from -- the exact setup under which "I set 9am-9pm and
   // guests still got in at 11pm" used to happen (the browser zone was saved
-  // over the venue zone on every Apply).
+  // over the venue zone on every save).
   const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const timezoneMismatch = !demo && timezone !== browserTimezone;
 
@@ -1029,6 +1083,22 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
     },
   ];
 
+  const saveActions = (
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      {dirty && (
+        <span className="text-xs text-muted-foreground">
+          {hasErrors ? "Fix the highlighted days to save" : "Unsaved changes"}
+        </span>
+      )}
+      <Button size="sm" variant="outline" onClick={handleDiscard} disabled={!dirty || saving}>
+        Discard
+      </Button>
+      <Button size="sm" onClick={handleSave} disabled={!canSave}>
+        {saving ? "Saving…" : "Save"}
+      </Button>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1037,15 +1107,21 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
             title="Open Hours"
             description="Guests can only sign in inside this schedule -- outside it, they see a closed message instead of the portal."
             icon={Sun}
-            action={
-              <Button size="sm" onClick={handleApply} disabled={loading || saving}>
-                {saving ? "Applying…" : "Apply"}
-              </Button>
-            }
+            action={saveActions}
           />
         </div>
         <OpenHoursIllustration />
       </div>
+
+      {loadError && (
+        <div
+          role="alert"
+          className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300"
+        >
+          Could not load this location's saved open hours ({loadError}). Saving is turned off so the
+          real schedule is not overwritten -- reload the page to try again.
+        </div>
+      )}
 
       {!loading && <KpiRow items={kpiItems} />}
 
@@ -1112,12 +1188,14 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
               <div className="grid grid-cols-1 gap-3 @[34rem]:grid-cols-2 @[52rem]:grid-cols-3 @[70rem]:grid-cols-4">
                 {BH_DAYS.map(({ key, label }) => {
                   const d = dayState(key);
+                  const error = dayErrors[key];
                   return (
                     <div
                       key={key}
                       className={cn(
                         "flex flex-col gap-2.5 rounded-2xl p-3.5 shadow-sm transition-colors",
                         d.open ? "bg-card" : "bg-muted/40",
+                        error && "ring-1 ring-rose-400",
                       )}
                     >
                       {/* `min-w-0` on both the row and the label group, and
@@ -1146,7 +1224,7 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
                         inputs below render `d.start ?? "09:00"` -- a
                         display fallback that was never written to state,
                         so a day you switched on and did not otherwise
-                        touch had start/end still undefined. Apply then
+                        touch had start/end still undefined. Saving then
                         failed the guard with "set both a start and end
                         time" while the pickers plainly read 09:00 and
                         18:00. Now what you see is what is stored. */}
@@ -1178,18 +1256,25 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
                           <div className="flex flex-wrap items-center gap-1.5">
                             <Input
                               type="time"
+                              className="h-8 min-w-[6.5rem] flex-1 px-2 text-xs"
+                              aria-label={`${label} opens`}
+                              aria-invalid={Boolean(error)}
                               value={d.start ?? "09:00"}
                               onChange={(e) => setDay(key, { start: e.target.value })}
-                              className="h-8 min-w-[6.5rem] flex-1 px-2 text-xs"
                             />
                             <span className="shrink-0 text-xs text-muted-foreground">–</span>
                             <Input
                               type="time"
+                              className="h-8 min-w-[6.5rem] flex-1 px-2 text-xs"
+                              aria-label={`${label} closes`}
+                              aria-invalid={Boolean(error)}
                               value={d.end ?? "18:00"}
                               onChange={(e) => setDay(key, { end: e.target.value })}
-                              className="h-8 min-w-[6.5rem] flex-1 px-2 text-xs"
                             />
                           </div>
+                          {error && (
+                            <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>
+                          )}
                           <button
                             type="button"
                             onClick={() => setDay(key, { start: "00:00", end: "23:59" })}
@@ -1219,67 +1304,39 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-5 lg:grid-cols-[1fr_14rem]">
-              <div className="space-y-4">
-                <label className="flex items-center justify-between gap-4 rounded-xl border-0 bg-muted/40 px-4 py-3 shadow-sm">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground">Enforce this schedule</p>
-                    <p className="text-xs text-muted-foreground">
-                      Outside open hours, guests are shown the closed message below instead of the
-                      sign-in page.
-                    </p>
-                  </div>
-                  <Switch checked={enabled} onCheckedChange={setEnabled} />
-                </label>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Message shown to guests while closed</Label>
-                  <Textarea
-                    value={closedMessage}
-                    onChange={(e) => setClosedMessage(e.target.value)}
-                    placeholder="We're currently closed."
-                    rows={3}
-                    className="resize-none"
-                  />
-                </div>
-              </div>
-              <div className="rounded-2xl bg-muted/40 p-4 shadow-sm">
-                <p className="mb-3 text-center text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Guest preview
-                </p>
-                <div className="rounded-xl bg-card p-4 text-center shadow-sm">
-                  <div
-                    className={cn(
-                      "mx-auto grid h-12 w-12 place-items-center rounded-full",
-                      currentlyOpen === false
-                        ? "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
-                        : "bg-amber-100 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400",
-                    )}
-                  >
-                    {currentlyOpen === false ? (
-                      <Moon className="h-6 w-6" />
-                    ) : (
-                      <Sun className="h-6 w-6" />
-                    )}
-                  </div>
-                  <p className="mt-3 text-xs font-semibold text-foreground">
-                    {currentlyOpen === null
-                      ? "Preview"
-                      : currentlyOpen
-                        ? "Open for guests"
-                        : "Currently closed"}
-                  </p>
-                  <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
-                    {currentlyOpen === false
-                      ? closedMessage.trim() ||
-                        "We're currently closed. Please check back during business hours."
-                      : "Shown to guests only while the portal is closed."}
+            <div className="space-y-4">
+              <label className="flex items-center justify-between gap-4 rounded-xl border-0 bg-muted/40 px-4 py-3 shadow-sm">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-foreground">Enforce this schedule</p>
+                  <p className="text-xs text-muted-foreground">
+                    Outside open hours, guests are shown the closed message below instead of the
+                    sign-in page.
                   </p>
                 </div>
+                <Switch checked={enabled} onCheckedChange={setEnabled} />
+              </label>
+              <div className="space-y-1.5">
+                <Label htmlFor="open-hours-closed-message" className="text-xs">
+                  Message shown to guests while closed
+                </Label>
+                <Textarea
+                  id="open-hours-closed-message"
+                  value={closedMessage}
+                  onChange={(e) => setClosedMessage(e.target.value)}
+                  placeholder="We're currently closed."
+                  rows={3}
+                  className="resize-none"
+                />
               </div>
             </div>
           </CardContent>
         </Card>
       )}
+
+      {/* Same controls again under the form: the page is long, and the
+      closed message -- the last thing edited -- sits far below the
+      header's Save. */}
+      {!loading && saveActions}
     </div>
   );
 }
