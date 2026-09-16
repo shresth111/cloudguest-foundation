@@ -3619,7 +3619,7 @@ function LogsEmptyState({ label }: { label: string }) {
           width="48"
           height="30"
           rx="6"
-          fill="#f5f0ff"
+          className="fill-muted"
           stroke="#a78bfa"
           strokeWidth="2"
         />

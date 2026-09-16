@@ -68,6 +68,24 @@ export interface GuestSession {
   authMethod: GuestAuthMethod;
   voucherId: string | null;
   status: GuestSessionStatus;
+  /** Whether the venue's network is still seeing this session's device --
+   *  `ConnectedDevice.is_active` for the session's own (router, MAC) pair,
+   *  resolved server-side.
+   *
+   *  `null` is "this platform has no observation to make" (the session
+   *  carries no device, or the router has never synced one), which is a
+   *  different answer from "gone" and must not render as offline. */
+  deviceOnline: boolean | null;
+  /** Is this guest on the network *now* -- the question the "Online"
+   *  indicator asks.
+   *
+   *  Deliberately not `status === "active"`. A session row stays active
+   *  until something ends it, so a guest whose device has dropped off the
+   *  network kept reading "Online" until the timeout sweep reached them --
+   *  and forever for a session with no `sessionTimeoutMinutes`, since the
+   *  sweep has nothing to expire against. Use this for presence, and
+   *  `status` for the session's own lifecycle; label them apart. */
+  isOnline: boolean;
   startedAt: string;
   endedAt: string | null;
   lastActivityAt: string;

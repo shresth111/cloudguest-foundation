@@ -18,6 +18,7 @@ import {
   Wifi,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { GuestPresenceBadge } from "@/components/guests/GuestBadges";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1164,9 +1165,7 @@ function GuestsTab({
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={g.status === "active" ? "default" : "outline"}>
-                        {g.status === "active" ? "Online" : "Ended"}
-                      </Badge>
+                      <GuestPresenceBadge isOnline={g.isOnline} status={g.status} />
                     </TableCell>
                     <TableCell>{g.dataMb.toFixed(1)} MB</TableCell>
                     <TableCell>{new Date(g.startedAt).toLocaleString()}</TableCell>

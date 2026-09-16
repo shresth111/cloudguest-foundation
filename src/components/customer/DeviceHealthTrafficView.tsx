@@ -41,6 +41,7 @@ import {
   Router as RouterIcon,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { TOOLTIP_STYLE } from "@/components/analytics/chart-theme";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -85,11 +86,11 @@ function whenLabel(iso: string | null): string {
   });
 }
 
-const TOOLTIP_STYLE = {
-  borderRadius: "12px",
-  border: "1px solid var(--border)",
-  fontSize: 12,
-} as const;
+// The chart tooltip is read from the shared theme, not spelled locally: the
+// local copy set only a border and font size, so recharts fell back to its
+// own light default box -- a white tooltip with dark text on a dark chart.
+// Every other chart in this app already uses this constant; this one now
+// does too. See `@/components/analytics/chart-theme`.
 
 function EmptyNote({ children }: { children: React.ReactNode }) {
   return (
