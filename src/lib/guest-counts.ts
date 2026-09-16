@@ -23,10 +23,17 @@ export function distinctGuestCount<T extends { guestId: string | null }>(
   return seen.size;
 }
 
-export function distinctActiveGuests<T extends { guestId: string | null; status: string }>(
+/** Distinct guests who are on the network *now* -- the people-word number
+ *  the dashboard labels "Online now".
+ *
+ *  Keyed on `isOnline` (the server's own answer: session active AND the
+ *  device not observed as gone), never on `status === "active"`. The two
+ *  differ for a guest whose device has dropped off the network while their
+ *  session row is still open, and that guest is not online. */
+export function distinctOnlineGuests<T extends { guestId: string | null; isOnline: boolean }>(
   rows: readonly T[],
 ): number {
-  return distinctGuestCount(rows, (row) => row.status === "active");
+  return distinctGuestCount(rows, (row) => row.isOnline);
 }
 
 /** Distinct guests whose session started at or after ``sinceMs`` -- the

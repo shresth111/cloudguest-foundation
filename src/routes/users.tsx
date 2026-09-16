@@ -104,7 +104,7 @@ function UsersEmptyState({ label }: { label: string }) {
           opacity="0.35"
         />
         <circle cx="50" cy="46" r="3" fill="#22d3ee" opacity="0.6" />
-        <circle cx="42" cy="34" r="14" stroke="#6C4EFF" strokeWidth="3" fill="#f5f0ff" />
+        <circle cx="42" cy="34" r="14" stroke="#6C4EFF" strokeWidth="3" className="fill-muted" />
         <path d="M52 44l9 9" stroke="#6C4EFF" strokeWidth="3.5" strokeLinecap="round" />
         <circle cx="42" cy="34" r="5" fill="#8B5CF6" opacity="0.3" />
       </svg>
@@ -607,9 +607,9 @@ function CustomerUsersPage() {
                             className={cn(
                               "inline-flex items-center gap-1.5 text-xs font-medium",
                               u.status === "online"
-                                ? "text-emerald-500"
+                                ? "text-emerald-500 dark:text-emerald-400"
                                 : u.status === "idle"
-                                  ? "text-amber-500"
+                                  ? "text-amber-500 dark:text-amber-400"
                                   : "text-muted-foreground",
                             )}
                           >

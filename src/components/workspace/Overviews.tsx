@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { GuestPresenceBadge } from "@/components/guests/GuestBadges";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -131,9 +132,7 @@ export function GuestsOverview() {
                 >
                   <TableCell className="font-medium">{guestLabel(g)}</TableCell>
                   <TableCell>
-                    <Badge variant={g.status === "active" ? "default" : "outline"}>
-                      {g.status === "active" ? "Online" : "Ended"}
-                    </Badge>
+                    <GuestPresenceBadge isOnline={g.isOnline} status={g.status} />
                   </TableCell>
                   <TableCell>{GUEST_AUTH_METHOD_LABEL[g.authMethod] ?? g.authMethod}</TableCell>
                   <TableCell>{new Date(g.startedAt).toLocaleString()}</TableCell>

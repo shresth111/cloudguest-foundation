@@ -4,7 +4,7 @@ import { guestService } from "@/services/guest.service";
 import type { RouterStatus } from "@/types/router";
 import type { GuestAuthMethod, GuestSessionStatus } from "@/types/guest";
 import { useWorkspace } from "@/context/WorkspaceContext";
-import { distinctActiveGuests, distinctGuestsSince } from "@/lib/guest-counts";
+import { distinctOnlineGuests, distinctGuestsSince } from "@/lib/guest-counts";
 
 function startOfTodayMs(): number {
   const start = new Date();
@@ -33,6 +33,9 @@ export interface LocationGuestSessionSummary {
   ipAddress: string | null;
   authMethod: GuestAuthMethod;
   status: GuestSessionStatus;
+  /** Server-derived presence -- see `GuestSession.isOnline`. Read this, not
+   *  `status`, for anything that asks whether the guest is on the network. */
+  isOnline: boolean;
   startedAt: string;
   /** Decimal megabytes (bytes / 1e6), matching how transfer volume is
    *  quoted on the rest of this surface -- not MiB. */
@@ -43,9 +46,12 @@ export interface LocationResources {
   routers: LocationRouterSummary[];
   guestSessions: LocationGuestSessionSummary[];
   analytics: {
-    /** Distinct people with an ACTIVE session right now (a guest on two
-     *  devices counts once) -- the people-word number. Exact: fetched
-     *  separately as active rows, not derived from the recent-page slice. */
+    /** Distinct people who are online right now (a guest on two devices
+     *  counts once) -- the people-word number the dashboard labels "Online
+     *  now". Exact: fetched separately as active rows, not derived from the
+     *  recent-page slice -- and counted on `isOnline`, not on the session's
+     *  own status, so a guest whose device has dropped is not counted. See
+     *  `lib/guest-presence`. */
     activeGuests: number;
     /** ACTIVE session rows right now -- the session-word number. */
     activeSessions: number;
@@ -99,6 +105,7 @@ async function fetchActiveSessions(
         ipAddress: s.ipAddress,
         authMethod: s.authMethod,
         status: s.status,
+        isOnline: s.isOnline,
         startedAt: s.startedAt,
         dataMb: (s.bytesUploaded + s.bytesDownloaded) / 1e6,
       });
@@ -149,6 +156,7 @@ async function fetchLocationResources(
     ipAddress: s.ipAddress,
     authMethod: s.authMethod,
     status: s.status,
+    isOnline: s.isOnline,
     startedAt: s.startedAt,
     dataMb: (s.bytesUploaded + s.bytesDownloaded) / 1e6,
   }));
@@ -159,7 +167,7 @@ async function fetchLocationResources(
     routers,
     guestSessions,
     analytics: {
-      activeGuests: distinctActiveGuests(activeSessions),
+      activeGuests: distinctOnlineGuests(activeSessions),
       activeSessions: activeSessions.length,
       totalSessions: sessionsResult.value.total,
       dataConsumedGb: guestSessions.reduce((sum, s) => sum + s.dataMb, 0) / 1000,
@@ -237,7 +245,7 @@ export function useWorkspaceScope(): {
       // People-counts are a UNION over the merged rows, never a sum of
       // per-location counts: the same guest on two locations must count
       // once in an "all locations" scope.
-      activeGuests: distinctActiveGuests(allGuestSessions),
+      activeGuests: distinctOnlineGuests(allGuestSessions),
       activeSessions: scope.reduce(
         (sum, s) => sum + (s.resources?.analytics.activeSessions ?? 0),
         0,

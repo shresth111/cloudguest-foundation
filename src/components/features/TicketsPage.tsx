@@ -154,9 +154,9 @@ function SupportHeadsetIllustration() {
       />
 
       {/* seated support figure with a headset */}
-      <path d="M46 128c-3-26 4-42 18-42h4c14 0 21 16 18 42z" fill="#f5f0ff" />
+      <path d="M46 128c-3-26 4-42 18-42h4c14 0 21 16 18 42z" className="fill-muted" />
       <path d="M52 92c0-11 7-19 16-19s16 8 16 19c-5-3-10-5-16-5s-11 2-16 5z" fill="#7c3aed" />
-      <circle cx="68" cy="72" r="15" fill="#f5f0ff" />
+      <circle cx="68" cy="72" r="15" className="fill-muted" />
       <path
         d="M53 70a15 15 0 0 1 30 0"
         stroke="white"

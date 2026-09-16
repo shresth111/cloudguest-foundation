@@ -79,8 +79,24 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
-export function useTheme() {
-  const ctx = useContext(ThemeContext);
-  if (!ctx) throw new Error("useTheme must be used within ThemeProvider");
-  return ctx;
+/**
+ * The theme, or `null` when no provider is mounted.
+ *
+ * Deliberately not a throw. This hook has exactly one consumer --
+ * `components/layout/ThemeToggle` -- and that is a purely cosmetic control:
+ * with nowhere to write the preference, rendering nothing is the honest
+ * behaviour, whereas throwing takes down the whole tree around it. That is
+ * not hypothetical: `CustomerHeader` (which now mounts the toggle) is
+ * mounted bare, with no provider, by the render harnesses in `scripts/`
+ * (`test-controller-venue-nav.mjs` renders `CustomerFeaturePage` inside a
+ * bare `QueryClientProvider`), and an SSR pass could reach it too. A console
+ * that will not render because of a theme button is a worse failure than a
+ * missing theme button.
+ *
+ * `| null` in the return type rather than a silent default so a future
+ * caller that genuinely needs a theme is forced by the type checker to say
+ * what it does without one.
+ */
+export function useTheme(): ThemeContextValue | null {
+  return useContext(ThemeContext) ?? null;
 }

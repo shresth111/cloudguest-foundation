@@ -13,6 +13,7 @@ import { avgSessionMinutes, sessionStartsByHour, sessionsOpenByHour } from "@/li
 import { identityFromGuest } from "@/lib/guest-identity";
 import { dashboardRangeWindow } from "@/lib/dashboard-range";
 import type { DashboardRange, DashboardRangeWindow } from "@/lib/dashboard-range";
+import { guestPresence } from "@/lib/guest-presence";
 // getDashboard()'s SLA-uptime leg reads the same `/isp/links` list the
 // dashboard's own WAN cards read, so it goes through the same service --
 // see that call site's comment. `isp.service` imports only `api` and the
@@ -50,6 +51,11 @@ interface RawLocationSummary {
 interface RawGuestSession {
   id: string;
   status: string;
+  /** Server-derived presence -- see `GuestSession.isOnline` in
+   *  `@/types/guest`. Optional so a backend that predates the field still
+   *  parses; the callers fall back to the old `status === "active"` reading
+   *  in that case. */
+  is_online?: boolean;
   started_at: string;
   ended_at?: string | null;
   ip_address?: string | null;
@@ -1465,6 +1471,13 @@ export const customerService = {
       // here.
       recentUsers: sessions.slice(0, 6).map((s) => {
         const identity = identityFromGuest(s.guest_id ? guestsById.get(s.guest_id) : undefined);
+        // Presence, not the session's own status -- see lib/guest-presence.
+        // A session row outlives the connection, so a guest whose device had
+        // dropped off the network kept showing here as online.
+        const presence = guestPresence({
+          isOnline: s.is_online ?? s.status === "active",
+          status: s.status,
+        });
         return {
           id: s.id,
           // `label`, not `name`: this list shows only a name and an email,
@@ -1476,7 +1489,7 @@ export const customerService = {
           email: identity.email,
           device: deviceLabelFrom(s.user_agent),
           time: timeAgo(s.started_at),
-          status: s.status === "active" ? ("online" as const) : ("offline" as const),
+          status: presence === "online" ? ("online" as const) : ("offline" as const),
         };
       }),
       // Resolved alerts (AlertStatus.RESOLVED) get their own "success"
