@@ -391,8 +391,6 @@ const EN: Dict = {
   termsBackToSignIn: "Back to sign in",
   nudgeSetPasswordTitle: "Set a password for next time",
   nudgeSetPasswordSubtitle: "Skip the code on your next visit",
-  nudgeTeamTitle: "Have a team code?",
-  nudgeTeamSubtitle: "Join your group's shared data and quota",
   noExpiryLabel: "No expiry set",
   // ===== post-login page (venue-authored HTML on /portal/redirect).
   // Kept as one additive block, all ten languages, so a parallel workstream
@@ -689,8 +687,6 @@ const HI: Dict = {
   termsBackToSignIn: "साइन इन पर वापस जाएं",
   nudgeSetPasswordTitle: "अगली बार के लिए पासवर्ड सेट करें",
   nudgeSetPasswordSubtitle: "अगली बार कोड की ज़रूरत नहीं पड़ेगी",
-  nudgeTeamTitle: "टीम कोड है?",
-  nudgeTeamSubtitle: "अपने समूह के साझा डेटा और कोटा से जुड़ें",
   noExpiryLabel: "कोई समय-सीमा नहीं",
   // ===== post-login page -- see the EN block. Same single key.
   postLoginPageLabel: "वेन्यू की ओर से संदेश",
@@ -1003,8 +999,6 @@ const BN: Dict = {
   termsBackToSignIn: "Sign in-এ ফিরে যান",
   nudgeSetPasswordTitle: "পরের বারের জন্য পাসওয়ার্ড সেট করুন",
   nudgeSetPasswordSubtitle: "পরের বার আর কোড লাগবে না",
-  nudgeTeamTitle: "Team কোড আছে?",
-  nudgeTeamSubtitle: "আপনার দলের শেয়ার করা ডেটা ও কোটায় যোগ দিন",
   noExpiryLabel: "কোনো মেয়াদ নেই",
   // ===== post-login page -- see the EN block. Same single key.
   postLoginPageLabel: "এখানকার তরফ থেকে বার্তা",
@@ -1302,8 +1296,6 @@ const MR: Dict = {
   termsBackToSignIn: "Sign in कडे परत",
   nudgeSetPasswordTitle: "पुढच्या वेळेसाठी पासवर्ड सेट करा",
   nudgeSetPasswordSubtitle: "पुढच्या भेटीत कोड लागणार नाही",
-  nudgeTeamTitle: "Team कोड आहे?",
-  nudgeTeamSubtitle: "तुमच्या गटाच्या शेअर केलेल्या डेटा व कोट्यात सामील व्हा",
   noExpiryLabel: "मुदत नाही",
   // ===== post-login page -- see the EN block. Same single key.
   postLoginPageLabel: "इथल्या ठिकाणाचा संदेश",
@@ -1601,8 +1593,6 @@ const TE: Dict = {
   termsBackToSignIn: "సైన్ ఇన్‌కు తిరిగి వెళ్లండి",
   nudgeSetPasswordTitle: "వచ్చేసారికి పాస్‌వర్డ్ సెట్ చేయండి",
   nudgeSetPasswordSubtitle: "వచ్చేసారి కోడ్ అవసరం ఉండదు",
-  nudgeTeamTitle: "టీమ్ కోడ్ ఉందా?",
-  nudgeTeamSubtitle: "మీ బృందపు షేర్డ్ డేటా, కోటాలో చేరండి",
   noExpiryLabel: "గడువు లేదు",
   // ===== post-login page -- see the EN block. Same single key.
   postLoginPageLabel: "ఇక్కడి నుంచి సందేశం",
@@ -1904,8 +1894,6 @@ const TA: Dict = {
   termsBackToSignIn: "நுழைவுக்குத் திரும்ப",
   nudgeSetPasswordTitle: "அடுத்த முறைக்கு கடவுச்சொல் அமையுங்கள்",
   nudgeSetPasswordSubtitle: "அடுத்த வருகையில் குறியீடு தேவையில்லை",
-  nudgeTeamTitle: "குழு குறியீடு உள்ளதா?",
-  nudgeTeamSubtitle: "உங்கள் குழுவின் பகிர்ந்த தரவு மற்றும் ஒதுக்கீட்டில் சேருங்கள்",
   noExpiryLabel: "காலக்கெடு இல்லை",
   // ===== post-login page -- see the EN block. Same single key.
   postLoginPageLabel: "இந்த இடத்தின் செய்தி",
@@ -2201,8 +2189,6 @@ const GU: Dict = {
   termsBackToSignIn: "Sign in પર પાછા જાઓ",
   nudgeSetPasswordTitle: "આગલી વખત માટે પાસવર્ડ સેટ કરો",
   nudgeSetPasswordSubtitle: "આગલી મુલાકાતે કોડની જરૂર નહીં પડે",
-  nudgeTeamTitle: "Team કોડ છે?",
-  nudgeTeamSubtitle: "તમારા ગ્રુપના શેર કરેલા ડેટા અને ક્વોટામાં જોડાઓ",
   noExpiryLabel: "કોઈ મુદત નથી",
   // ===== post-login page -- see the EN block. Same single key.
   postLoginPageLabel: "અહીંના તરફથી સંદેશ",
@@ -2498,8 +2484,6 @@ const KN: Dict = {
   termsBackToSignIn: "Sign in ಗೆ ಹಿಂತಿರುಗಿ",
   nudgeSetPasswordTitle: "ಮುಂದಿನ ಬಾರಿಗೆ ಪಾಸ್‌ವರ್ಡ್ ಸೆಟ್ ಮಾಡಿ",
   nudgeSetPasswordSubtitle: "ಮುಂದಿನ ಭೇಟಿಯಲ್ಲಿ ಕೋಡ್ ಬೇಕಿಲ್ಲ",
-  nudgeTeamTitle: "Team ಕೋಡ್ ಇದೆಯೇ?",
-  nudgeTeamSubtitle: "ನಿಮ್ಮ ಗುಂಪಿನ ಹಂಚಿದ ಡೇಟಾ ಮತ್ತು ಕೋಟಾಗೆ ಸೇರಿ",
   noExpiryLabel: "ಅವಧಿ ಇಲ್ಲ",
   // ===== post-login page -- see the EN block. Same single key.
   postLoginPageLabel: "ಇಲ್ಲಿಂದ ಸಂದೇಶ",
@@ -2799,8 +2783,6 @@ const ML: Dict = {
   termsBackToSignIn: "Sign in-ലേക്ക് മടങ്ങൂ",
   nudgeSetPasswordTitle: "അടുത്ത തവണത്തേക്ക് പാസ്‌വേഡ് സെറ്റ് ചെയ്യൂ",
   nudgeSetPasswordSubtitle: "അടുത്ത തവണ കോഡ് വേണ്ടിവരില്ല",
-  nudgeTeamTitle: "Team കോഡ് ഉണ്ടോ?",
-  nudgeTeamSubtitle: "നിങ്ങളുടെ സംഘത്തിന്റെ പങ്കിട്ട ഡേറ്റയിലും ക്വോട്ടയിലും ചേരൂ",
   noExpiryLabel: "കാലാവധി ഇല്ല",
   // ===== post-login page -- see the EN block. Same single key.
   postLoginPageLabel: "സ്ഥാപനത്തിൽ നിന്നുള്ള സന്ദേശം",
@@ -3097,8 +3079,6 @@ const PA: Dict = {
   termsBackToSignIn: "Sign in ’ਤੇ ਵਾਪਸ ਜਾਓ",
   nudgeSetPasswordTitle: "ਅਗਲੀ ਵਾਰ ਲਈ ਪਾਸਵਰਡ ਸੈੱਟ ਕਰੋ",
   nudgeSetPasswordSubtitle: "ਅਗਲੀ ਵਾਰ ਕੋਡ ਦੀ ਲੋੜ ਨਹੀਂ ਪਵੇਗੀ",
-  nudgeTeamTitle: "Team ਕੋਡ ਹੈ?",
-  nudgeTeamSubtitle: "ਆਪਣੇ ਗਰੁੱਪ ਦੇ ਸਾਂਝੇ ਡਾਟੇ ਤੇ ਕੋਟੇ ਵਿੱਚ ਸ਼ਾਮਲ ਹੋਵੋ",
   noExpiryLabel: "ਕੋਈ ਮਿਆਦ ਨਹੀਂ",
   // ===== post-login page -- see the EN block. Same single key.
   postLoginPageLabel: "ਇੱਥੋਂ ਦਾ ਸੁਨੇਹਾ",

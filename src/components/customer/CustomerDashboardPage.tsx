@@ -428,8 +428,68 @@ export function CustomerDashboardPage() {
           onLogout={handleLogout}
         />
 
-        <main className="mx-auto w-full max-w-7xl flex-1 space-y-6 px-4 py-6 sm:px-6 lg:px-8">
-          {/* 1. Page header */}
+        <main className="mx-auto w-full max-w-7xl flex-1 space-y-8 px-4 py-6 sm:px-6 lg:px-8">
+          {/* 1. System status bar -- FIRST on the page, above the header.
+           *
+           * Moved here from the bottom of the page at the owner's request.
+           * "All core systems operational" answers the question a venue
+           * opens this console to ask -- is my WiFi actually up right now?
+           * -- and it was the last element on the page: below three rows of
+           * charts, the bandwidth card, the recent-guests table, the alert
+           * list, the WAN card and the device card. A status you have to
+           * scroll to is not a status, it is a footnote.
+           *
+           * The WAN and device cards further down remain the DETAIL behind
+           * these three figures -- this bar is the verdict, they are the
+           * evidence, and the verdict reads first. */}
+          <div
+            className={cn(
+              "flex flex-col gap-3 rounded-2xl border px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between",
+              STATUS_BAR[isLoading ? "neutral" : tone].wrap,
+            )}
+          >
+            <div className="flex items-center gap-2.5">
+              <CheckCircle2
+                className={cn("h-5 w-5", STATUS_BAR[isLoading ? "neutral" : tone].icon)}
+              />
+              <span className="text-sm font-semibold">
+                {isLoading
+                  ? "Checking systems…"
+                  : tone === "live"
+                    ? STATUS_BAR.live.title
+                    : liveness.summary || STATUS_BAR[tone].title}
+              </span>
+            </div>
+            {d && (
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs">
+                <span className="inline-flex items-center gap-1.5">
+                  <CheckCircle2
+                    aria-hidden
+                    className={cn("h-3.5 w-3.5", CORE_ICON[livenessTone(d.liveness.state)])}
+                  />
+                  <span className="opacity-70">System</span>
+                  <span className="font-semibold">{d.health.systemHealth}</span>
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <Router
+                    aria-hidden
+                    className={cn("h-3.5 w-3.5", CORE_ICON[livenessTone(d.liveness.state)])}
+                  />
+                  <span className="opacity-70">Routers</span>
+                  <span className="font-semibold">{d.health.routersOnline}</span>
+                </span>
+                {/* No status tint: this names the active uplink, it is not a
+                    health measurement -- the WAN card carries that. */}
+                <span className="inline-flex items-center gap-1.5">
+                  <Activity aria-hidden className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="opacity-70">ISP</span>
+                  <span className="font-semibold">{d.health.isp}</span>
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* 2. Page header */}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <h1 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">
@@ -478,15 +538,15 @@ export function CustomerDashboardPage() {
             </div>
           )}
 
-          {/* 2. KPI row */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {/* 3. KPI row */}
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {kpis.map((k) => (
               <KpiCard key={k.label} {...k} />
             ))}
           </div>
 
-          {/* 3. Guests online · Devices by OS · Sessions by hour */}
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
+          {/* 4. Guests online · Devices by OS · Sessions by hour */}
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
             <div className={cn(CARD, "p-5 md:col-span-2")}>
               <CardHead
                 icon={<Users className="h-4 w-4" />}
@@ -672,8 +732,8 @@ export function CustomerDashboardPage() {
             </div>
           </div>
 
-          {/* 4. Bandwidth · Recent users · Recent alerts */}
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 xl:grid-cols-12">
+          {/* 5. Bandwidth · Recent users · Recent alerts */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-12">
             <div className="lg:col-span-2 xl:col-span-5 [&>div]:h-full">
               <BandwidthUtilizationCard
                 locationId={locationId}
@@ -822,58 +882,10 @@ export function CustomerDashboardPage() {
           </div>
 
           {/* Real uplink health and hardware -- the detail behind the status
-              bar's ISP and router figures. */}
-          <div className="grid items-start gap-5 lg:grid-cols-2">
+              bar's ISP and router figures at the top of this page. */}
+          <div className="grid items-start gap-6 lg:grid-cols-2">
             <WanStatusCard locationId={locationId} onManage={() => handleNav("isp-details")} />
             <DeviceStatusCard locationId={locationId} onManage={() => handleNav("devices")} />
-          </div>
-
-          {/* 5. System status bar */}
-          <div
-            className={cn(
-              "flex flex-col gap-3 rounded-2xl border px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between",
-              STATUS_BAR[isLoading ? "neutral" : tone].wrap,
-            )}
-          >
-            <div className="flex items-center gap-2.5">
-              <CheckCircle2
-                className={cn("h-5 w-5", STATUS_BAR[isLoading ? "neutral" : tone].icon)}
-              />
-              <span className="text-sm font-semibold">
-                {isLoading
-                  ? "Checking systems…"
-                  : tone === "live"
-                    ? STATUS_BAR.live.title
-                    : liveness.summary || STATUS_BAR[tone].title}
-              </span>
-            </div>
-            {d && (
-              <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs">
-                <span className="inline-flex items-center gap-1.5">
-                  <CheckCircle2
-                    aria-hidden
-                    className={cn("h-3.5 w-3.5", CORE_ICON[livenessTone(d.liveness.state)])}
-                  />
-                  <span className="opacity-70">System</span>
-                  <span className="font-semibold">{d.health.systemHealth}</span>
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <Router
-                    aria-hidden
-                    className={cn("h-3.5 w-3.5", CORE_ICON[livenessTone(d.liveness.state)])}
-                  />
-                  <span className="opacity-70">Routers</span>
-                  <span className="font-semibold">{d.health.routersOnline}</span>
-                </span>
-                {/* No status tint: this names the active uplink, it is not a
-                    health measurement -- the WAN card above carries that. */}
-                <span className="inline-flex items-center gap-1.5">
-                  <Activity aria-hidden className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="opacity-70">ISP</span>
-                  <span className="font-semibold">{d.health.isp}</span>
-                </span>
-              </div>
-            )}
           </div>
         </main>
       </div>

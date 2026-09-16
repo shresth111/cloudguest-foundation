@@ -2,7 +2,7 @@ import { PortalErrorScreen } from "@/components/portal-runtime/PortalErrorScreen
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Laptop, LogOut, KeyRound, Users2, ChevronRight } from "lucide-react";
+import { Laptop, LogOut, KeyRound, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PortalShell, PortalCard, PortalTextPlate } from "@/components/portal-runtime/PortalShell";
 import {
@@ -254,8 +254,8 @@ function UsageBar({ label, pct, className }: { label: string; pct: number; class
  * guest ever lands on and stays on, per the founder's own "login page,
  * then session page, that's it" requirement. Everything that used to be
  * split across a redundant second copy on `portal.success.tsx` --
- * the set-password nudge, the "Have a team code?" nudge, and a real,
- * currently-eligible Campaign -- now lives here instead, since this is
+ * the set-password nudge and a real, currently-eligible Campaign --
+ * now lives here instead, since this is
  * the page a guest actually spends real time on (success.tsx is a
  * transitional loader that navigates away within a few hundred ms, no
  * place for content that needs a guest's attention or interaction).
@@ -753,26 +753,17 @@ function SessionPage() {
           </Link>
         )}
 
-        {/* Real "Guest Teams" feature (app.domains.guest_teams) -- an
-            admin-created shared-code group a guest can optionally join
-            once already connected (see src/routes/portal.team.tsx's own
-            docstring for the full "additional step, not a login method or
-            a RADIUS bypass" reasoning). Always offered, not gated by any
-            captive-portal-config flag: a guest with no code just ignores
-            this card, and one with a wrong/unrelated code gets a real,
-            honest 404 from the join call itself. */}
-        <Link to="/portal/team" search={portalSearch} className={NUDGE_ROW_CLASS}>
-          <div className={NUDGE_CHIP_CLASS}>
-            <Users2 className="h-5 w-5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="pg-body font-semibold text-[var(--pg-ink)]">{t("nudgeTeamTitle")}</p>
-            <p className="truncate pg-meta font-normal text-[var(--pg-ink-muted)]">
-              {t("nudgeTeamSubtitle")}
-            </p>
-          </div>
-          <ChevronRight className="h-4 w-4 shrink-0 text-[var(--pg-ink-faint)]" />
-        </Link>
+        {/* The "Have a team code?" card that used to sit here is gone, at
+            the founder's request: the group question is asked ONCE, on the
+            sign-in screen, where the guest is already filling in
+            credentials AND already has the context for it -- see
+            `useGuestSignIn`'s own "which group do you belong to?" picker,
+            which joins the chosen team the moment the OTP verifies. Asking
+            again here was the same question twice, the second time after
+            the guest was already online and with none of that context.
+            `src/routes/portal.team.tsx` still exists and still works for a
+            guest who arrives holding a code from somewhere other than this
+            page -- the session page simply no longer advertises it. */}
 
         <TeamJoinNotice portalSearch={portalSearch} />
 
