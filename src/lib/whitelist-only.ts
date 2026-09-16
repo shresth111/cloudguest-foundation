@@ -1,5 +1,5 @@
 /**
- * Whitelist-only mode -- the pure decision layer behind the Always Allowed
+ * Whitelist-only mode -- the pure decision layer behind the Only Allowed
  * screen's per-property switch (`captive_portal_configs.whitelist_only_enabled`).
  *
  * OFF (every property's default, and today's behaviour): a guest signs in
@@ -8,7 +8,7 @@
  * ON for one property: the access resolver's "matched nothing" answer flips
  * from allow to deny (backend `guest_access.service`, PR #167). Everyone
  * still reaches the captive portal -- nobody is silently dropped off the
- * WiFi -- but a guest with no Always Allowed entry is refused *there*, in
+ * WiFi -- but a guest with no Only Allowed entry is refused *there*, in
  * the venue's own words, and never costs the venue an OTP SMS.
  *
  * Nothing in this file talks to the network or to React. It exists as its
@@ -48,7 +48,7 @@ export const RULE_EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
  * uppercase hex pairs. */
 export const RULE_MAC_RE = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
 
-/** One row of the Always Allowed list, in the shape `WhiteList.tsx` already
+/** One row of the Only Allowed list, in the shape `WhiteList.tsx` already
  * holds it. `endDate` is `""` for a rule with no expiry (`expires_at IS
  * NULL`), which the backend treats as *permanent*, not expired. */
 export interface WhitelistOnlyEntry {

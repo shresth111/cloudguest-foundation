@@ -8,7 +8,7 @@ type Dict = Record<string, string>;
 
 const EN: Dict = {
   // ---- /portal/not-listed: whitelist-only refusal -------------------
-  // A guest at a property that admits only its Always Allowed list, who
+  // A guest at a property that admits only its Only Allowed list, who
   // has just submitted and been refused. They have done nothing wrong and
   // cannot fix it themselves, so every string below points at the person
   // who can. `{contact}` is substituted with notListedContactPhone /
@@ -410,7 +410,7 @@ const EN: Dict = {
 
 const HI: Dict = {
   // ---- /portal/not-listed: whitelist-only refusal -------------------
-  // A guest at a property that admits only its Always Allowed list, who
+  // A guest at a property that admits only its Only Allowed list, who
   // has just submitted and been refused. They have done nothing wrong and
   // cannot fix it themselves, so every string below points at the person
   // who can. `{contact}` is substituted with notListedContactPhone /
@@ -742,7 +742,7 @@ const HI: Dict = {
 // Bengali (bn).
 const BN: Dict = {
   // ---- /portal/not-listed: whitelist-only refusal -------------------
-  // A guest at a property that admits only its Always Allowed list, who
+  // A guest at a property that admits only its Only Allowed list, who
   // has just submitted and been refused. They have done nothing wrong and
   // cannot fix it themselves, so every string below points at the person
   // who can. `{contact}` is substituted with notListedContactPhone /
@@ -1038,7 +1038,7 @@ const BN: Dict = {
 // Marathi (mr).
 const MR: Dict = {
   // ---- /portal/not-listed: whitelist-only refusal -------------------
-  // A guest at a property that admits only its Always Allowed list, who
+  // A guest at a property that admits only its Only Allowed list, who
   // has just submitted and been refused. They have done nothing wrong and
   // cannot fix it themselves, so every string below points at the person
   // who can. `{contact}` is substituted with notListedContactPhone /
@@ -1335,7 +1335,7 @@ const MR: Dict = {
 // Telugu (te).
 const TE: Dict = {
   // ---- /portal/not-listed: whitelist-only refusal -------------------
-  // A guest at a property that admits only its Always Allowed list, who
+  // A guest at a property that admits only its Only Allowed list, who
   // has just submitted and been refused. They have done nothing wrong and
   // cannot fix it themselves, so every string below points at the person
   // who can. `{contact}` is substituted with notListedContactPhone /
@@ -1632,7 +1632,7 @@ const TE: Dict = {
 // Tamil (ta).
 const TA: Dict = {
   // ---- /portal/not-listed: whitelist-only refusal -------------------
-  // A guest at a property that admits only its Always Allowed list, who
+  // A guest at a property that admits only its Only Allowed list, who
   // has just submitted and been refused. They have done nothing wrong and
   // cannot fix it themselves, so every string below points at the person
   // who can. `{contact}` is substituted with notListedContactPhone /
@@ -1933,7 +1933,7 @@ const TA: Dict = {
 // Gujarati (gu).
 const GU: Dict = {
   // ---- /portal/not-listed: whitelist-only refusal -------------------
-  // A guest at a property that admits only its Always Allowed list, who
+  // A guest at a property that admits only its Only Allowed list, who
   // has just submitted and been refused. They have done nothing wrong and
   // cannot fix it themselves, so every string below points at the person
   // who can. `{contact}` is substituted with notListedContactPhone /
@@ -2227,7 +2227,7 @@ const GU: Dict = {
 // Kannada (kn).
 const KN: Dict = {
   // ---- /portal/not-listed: whitelist-only refusal -------------------
-  // A guest at a property that admits only its Always Allowed list, who
+  // A guest at a property that admits only its Only Allowed list, who
   // has just submitted and been refused. They have done nothing wrong and
   // cannot fix it themselves, so every string below points at the person
   // who can. `{contact}` is substituted with notListedContactPhone /
@@ -2523,7 +2523,7 @@ const KN: Dict = {
 // Malayalam (ml).
 const ML: Dict = {
   // ---- /portal/not-listed: whitelist-only refusal -------------------
-  // A guest at a property that admits only its Always Allowed list, who
+  // A guest at a property that admits only its Only Allowed list, who
   // has just submitted and been refused. They have done nothing wrong and
   // cannot fix it themselves, so every string below points at the person
   // who can. `{contact}` is substituted with notListedContactPhone /
@@ -2822,7 +2822,7 @@ const ML: Dict = {
 // Punjabi (pa, Gurmukhi).
 const PA: Dict = {
   // ---- /portal/not-listed: whitelist-only refusal -------------------
-  // A guest at a property that admits only its Always Allowed list, who
+  // A guest at a property that admits only its Only Allowed list, who
   // has just submitted and been refused. They have done nothing wrong and
   // cannot fix it themselves, so every string below points at the person
   // who can. `{contact}` is substituted with notListedContactPhone /

@@ -20,7 +20,7 @@
     "portal": "Design the sign-in screen guests see — logo, colours, headline, languages and sign-in methods.",
     "vouchers": "Printable one-time codes guests redeem instead of signing in the usual way.",
     "policies": "The speed, device and time limits every guest connects under, plus blocked guests and access tiers.",
-    "whitelist": "Regulars and staff whose phone numbers skip the sign-in screen and connect automatically.",
+    "whitelist": "The guest numbers and devices you allow when this property is closed to everyone else.",
     "mac-auth": "Fixed equipment — a front-desk tablet, a POS terminal, a printer — that connects on its own.",
     "business-hours": "The days and hours guests are allowed to sign in, and what they see when you're closed.",
     "devices": "Your own network hardware and whether it's online, plus every guest device connected to it.",

@@ -303,7 +303,7 @@ check(
 );
 
 // ── 7. the screen itself ─────────────────────────────────────────────────
-console.log("\nthe switch on the Always Allowed screen");
+console.log("\nthe switch on the Only Allowed screen");
 const screen = readFileSync(join(ROOT, "src/components/features/WhiteList.tsx"), "utf8");
 check("the switch is rendered", /data-testid="whitelist-only-switch"/.test(screen));
 check(

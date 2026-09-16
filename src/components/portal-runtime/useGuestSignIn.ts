@@ -17,6 +17,7 @@ import {
 import { useOtpResendCooldown } from "@/lib/portal-otp-cooldown";
 import { DEMO_OTP_CODE, buildDemoSession } from "@/lib/portal-demo";
 import { isWhitelistOnlyRefusal } from "@/lib/portal-whitelist-refusal";
+import { isVenueClosedRefusal } from "@/lib/portal-venue-closed";
 import type { RuntimeAuthMethod, RuntimeSession } from "@/types/portal-runtime";
 import type { AppError } from "@/services/api";
 import type { OpenGuestTeam } from "@/services/portal-runtime.service";
@@ -190,6 +191,29 @@ export function useGuestSignIn() {
     if (previewMode || demoMode) return false;
     setRefusedContactKind(kind);
     navigate({ to: "/portal/not-listed", search: (prev) => prev });
+    return true;
+  }
+
+  /**
+   * Open Hours refusal -> `/portal/closed`, the same screen a guest gets when
+   * the venue is already closed as the portal loads (`portal.index.tsx` reads
+   * `config.isOpenNow`). Reaching it here means the venue closed while this
+   * card was already open, or the portal's config was a moment stale -- so
+   * without this the guest gets a red line under a form that cannot possibly
+   * work, instead of the closed screen and the venue's own message.
+   *
+   * Checked before the whitelist refusal, matching the backend's own order:
+   * `_require_method_enabled` (which calls `_require_venue_open`) runs before
+   * `_enforce_access_control`, so a venue that is both closed and
+   * whitelist-only refuses for being closed first.
+   *
+   * Returns true when it handled the error, so each caller can skip its own
+   * inline-error path -- this is a navigation, not a message under a field.
+   */
+  function handledAsVenueClosedRefusal(e: AppError): boolean {
+    if (!isVenueClosedRefusal(e, config?.businessHoursClosedMessage)) return false;
+    if (previewMode || demoMode) return false;
+    navigate({ to: "/portal/closed", search: (prev) => prev });
     return true;
   }
 
@@ -456,11 +480,12 @@ export function useGuestSignIn() {
       resetCooldown();
     },
     onError: (e: AppError) => {
-      // Refusal moment 1 of 2: the venue admits only its Always Allowed
+      // Refusal moment 1 of 2: the venue admits only its Only Allowed
       // list and this identifier is not on it. Checked before the cooldown
       // and the inline error, because neither applies -- no SMS was sent,
       // so there is nothing to wait out, and the answer is a screen rather
       // than a line of red text under the field.
+      if (handledAsVenueClosedRefusal(e)) return;
       if (handledAsWhitelistRefusal(e, otpChannel === "email" ? "email" : "phone")) return;
       // A real 429 from OtpRateLimiter carries the real cooldown --
       // surface exactly that, never an invented fixed wait.
@@ -526,6 +551,7 @@ export function useGuestSignIn() {
     onError: (e: AppError) => {
       // Refusal moment 2 of 2 -- see handledAsWhitelistRefusal for why the
       // OTP-request gate above does not make this one redundant.
+      if (handledAsVenueClosedRefusal(e)) return;
       if (handledAsWhitelistRefusal(e, otpChannel === "email" ? "email" : "phone")) return;
       setOtpError(friendlyGuestAuthError(e, "otp_verify"));
       // A wrong or expired code is exactly the moment the old value must
@@ -574,6 +600,7 @@ export function useGuestSignIn() {
       // password is refused exactly as a first-time one is. There is no
       // OTP-request gate in front of this call (nothing is spent to
       // reach it), which makes this the sole moment for that flow.
+      if (handledAsVenueClosedRefusal(e)) return;
       if (handledAsWhitelistRefusal(e, identifier.includes("@") ? "email" : "phone")) return;
       setPasswordError(friendlyGuestAuthError(e, "password"));
     },

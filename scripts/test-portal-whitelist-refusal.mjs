@@ -84,7 +84,8 @@ const outdir = mkdtempSync(join(tmpdir(), "portal-whitelist-refusal-"));
 const entry = join(outdir, "entry.mjs");
 writeFileSync(
   entry,
-  `export * from ${JSON.stringify(join(ROOT, "src/lib/portal-whitelist-refusal.ts"))};\n`,
+  `export * from ${JSON.stringify(join(ROOT, "src/lib/portal-whitelist-refusal.ts"))};\n` +
+    `export * from ${JSON.stringify(join(ROOT, "src/lib/portal-venue-closed.ts"))};\n`,
 );
 const bundle = join(outdir, "bundle.mjs");
 await build({
@@ -96,9 +97,12 @@ await build({
   logLevel: "silent",
   alias: { "@": join(ROOT, "src") },
 });
-const { isWhitelistOnlyRefusal, BACKEND_DEFAULT_WHITELIST_ONLY_DENIED_MESSAGE } = await import(
-  bundle
-);
+const {
+  isWhitelistOnlyRefusal,
+  BACKEND_DEFAULT_WHITELIST_ONLY_DENIED_MESSAGE,
+  isVenueClosedRefusal,
+  BACKEND_DEFAULT_VENUE_CLOSED_MESSAGE,
+} = await import(bundle);
 
 const err = (over = {}) => ({ status: 403, code: "forbidden", message: "", data: {}, ...over });
 
@@ -275,6 +279,68 @@ for (const key of [
 check(
   "the route substitutes the placeholder rather than printing it",
   screen.includes('replace("{contact}"'),
+);
+
+console.log("\n6. the third 403: the venue being closed (Open Hours)");
+// Open Hours is enforced at the same login chokepoint
+// (`GuestService._require_venue_open`), so its refusal lands on the same
+// sign-in card -- and must reach the closed screen rather than a red line
+// under a form that cannot work. Founder QA: "after complete login should
+// show mentioned message".
+check(
+  "the backend's own default closed message is recognised",
+  isVenueClosedRefusal(err({ message: BACKEND_DEFAULT_VENUE_CLOSED_MESSAGE })),
+);
+check(
+  "a venue's own closed message is recognised when the config is passed",
+  isVenueClosedRefusal(err({ message: "We open again at 8am." }), "We open again at 8am."),
+);
+check(
+  "...and whitespace/case skew between the stored and returned copy still matches",
+  isVenueClosedRefusal(err({ message: "  WE OPEN AGAIN AT 8AM.\n" }), "We open again at 8am."),
+);
+check(
+  "the real machine-readable code wins, whatever the message says",
+  isVenueClosedRefusal(err({ message: "rewritten copy", data: { code: "venue_closed" } })),
+);
+check(
+  "...and is read from error_code too",
+  isVenueClosedRefusal(err({ message: "x", data: { error_code: "VENUE_CLOSED" } })),
+);
+check(
+  "NEITHER OTHER REFUSAL IS MISROUTED TO THE CLOSED SCREEN",
+  !isVenueClosedRefusal(err({ message: BLOCKLIST }), VENUE) &&
+    !isVenueClosedRefusal(err({ message: BACKEND_DEFAULT_WHITELIST_ONLY_DENIED_MESSAGE }), VENUE),
+);
+check(
+  "a venue message that was never configured cannot widen the match",
+  !isVenueClosedRefusal(err({ message: "We open again at 8am." }), null),
+);
+for (const status of [400, 401, 404, 422, 500]) {
+  check(
+    `a ${status} carrying the very same text is not a closure (403 only)`,
+    !isVenueClosedRefusal(err({ status, message: BACKEND_DEFAULT_VENUE_CLOSED_MESSAGE }), VENUE),
+  );
+}
+check("the hook imports the closed-venue discriminator", hook.includes("isVenueClosedRefusal"));
+check(
+  "all three sign-in moments route a closed-venue refusal",
+  sendOtpBlock.includes("handledAsVenueClosedRefusal") &&
+    verifyBlock.includes("handledAsVenueClosedRefusal") &&
+    passwordBlock.includes("handledAsVenueClosedRefusal"),
+);
+check(
+  "...and being closed is checked BEFORE whitelist-only, matching the backend's own order",
+  sendOtpBlock.indexOf("handledAsVenueClosedRefusal") <
+    sendOtpBlock.indexOf("handledAsWhitelistRefusal") &&
+    passwordBlock.indexOf("handledAsVenueClosedRefusal") <
+      passwordBlock.indexOf("handledAsWhitelistRefusal"),
+);
+check(
+  "preview/demo flows never navigate to a real closure",
+  /previewMode \|\| demoMode/.test(
+    hook.slice(hook.indexOf("function handledAsVenueClosedRefusal"), hook.indexOf("const methods")),
+  ),
 );
 
 console.log(

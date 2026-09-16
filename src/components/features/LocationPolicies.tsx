@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/table";
 import { EmptyState } from "@/components/common/EmptyState";
 import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
+import { isLocationNamedPolicy } from "@/lib/policy-scope";
 import { bandwidthPolicyService } from "@/services/bandwidth-policy.service";
 import { resolveOrgId } from "@/services/customer.service";
 import {
@@ -343,6 +344,11 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   // instead. Same real-vs-demo split as WhiteList.tsx's units/realUnits.
   const { data: locations } = useCustomerLocations();
   const units = demo ? UNITS : (locations ?? []).map((l) => l.name);
+  // This screen's identity rule -- see lib/policy-scope.ts. Both halves
+  // below read it: the table (which rows are a location's own limits, as
+  // opposed to an Access Tier) and handleSave (which real location the
+  // chosen name resolves to).
+  const locationNames = useMemo(() => new Set((locations ?? []).map((l) => l.name)), [locations]);
   // ── state ─────────────────────────────────────────────────────
   const [f, setF] = useState<PolicyForm>({
     businessUnit: "",
@@ -399,7 +405,16 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         // resolve returning platform_default with empty rules. Filtering
         // here means a save after a delete creates a genuinely fresh,
         // active policy instead of reviving the dead one.
-        const real = realAll.filter((p) => p.status !== "archived");
+        //
+        // The second half of the filter is this screen's own identity rule
+        // (lib/policy-scope.ts): `GET /policies` returns every BANDWIDTH
+        // policy on the account, including every Access Tier, and a tier
+        // listed here read as one more location. Tiers are managed on their
+        // own tab; only policies named after one of this account's real
+        // locations are a location's limits.
+        const real = realAll.filter(
+          (p) => p.status !== "archived" && isLocationNamedPolicy(p.name, locationNames),
+        );
         const deviceDetails = deviceDetailsAll.filter((d) => d.is_active);
         // Real DEVICE policies are name-keyed the same way bandwidth
         // policies are (name === the location/"Business Unit" they were
@@ -496,7 +511,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         // Leave policies empty -- the "no policies yet" state is accurate.
       }
     })();
-  }, [demo, locationId]);
+  }, [demo, locationId, locationNames]);
 
   // Preselect the location this page is already scoped to.
   //
@@ -599,6 +614,20 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
     }
 
     try {
+      // The location these limits are FOR -- the one picked in the form
+      // above, resolved to its real id.
+      //
+      // This used to be `locationId`, the page's own scope, which is a
+      // different thing. The dropdown offers every location on the account,
+      // so an operator scoped to Mumbai who picked Delhi saved the policy
+      // named "Delhi Office" and then assigned it to Mumbai. And when the
+      // page is opened with no location scope at all -- the sidebar route
+      // rather than the per-location one -- `locationId` is undefined, so
+      // nothing was assigned anywhere: the limits saved, the table listed
+      // them, the toast said "Policies updated", and every guest kept the
+      // speed they had. Bug report: "Guest WiFi Limit not controlling the
+      // bandwidth". Both halves are this one line.
+      const targetLocationId = (locations ?? []).find((l) => l.name === f.businessUnit)?.id;
       const rateKbps = BANDWIDTH_KBPS[f.bandwidth] ?? 0;
       const existingId = realIds[f.businessUnit];
       const saved = await bandwidthPolicyService.save(
@@ -628,8 +657,8 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
       // concepts. bandwidthPolicyService.mapToLocation already exists
       // (CreateGroup.tsx's own "Map group" step uses it) and is
       // idempotent, so this is the one missing call, not new backend work.
-      if (locationId) {
-        await bandwidthPolicyService.mapToLocation(saved.id, locationId, orgId ?? undefined);
+      if (targetLocationId) {
+        await bandwidthPolicyService.mapToLocation(saved.id, targetLocationId, orgId ?? undefined);
       }
       setRealIds((prev) => ({ ...prev, [f.businessUnit]: saved.id }));
 
@@ -666,11 +695,11 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
           publish: true,
           organizationId: orgId ?? undefined,
         });
-        if (locationId) {
+        if (targetLocationId) {
           await createPolicyAssignment({
             policyId: createdDevice.id,
             scopeType: "location",
-            scopeId: locationId,
+            scopeId: targetLocationId,
             organizationId: orgId ?? undefined,
           });
         }
@@ -711,11 +740,11 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
             publish: true,
             organizationId: orgId ?? undefined,
           });
-          if (locationId) {
+          if (targetLocationId) {
             await createPolicyAssignment({
               policyId: createdSession.id,
               scopeType: "location",
-              scopeId: locationId,
+              scopeId: targetLocationId,
               organizationId: orgId ?? undefined,
             });
           }
@@ -759,11 +788,11 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
           publish: true,
           organizationId: orgId ?? undefined,
         });
-        if (locationId) {
+        if (targetLocationId) {
           await createPolicyAssignment({
             policyId: createdFup.id,
             scopeType: "location",
-            scopeId: locationId,
+            scopeId: targetLocationId,
             organizationId: orgId ?? undefined,
           });
         }
@@ -783,7 +812,16 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         return existing >= 0 ? prev.map((p, i) => (i === existing ? row : p)) : [row, ...prev];
       });
       setEditingId(null);
-      setToast(locationId ? "Policy saved and applied to this location." : "Policies updated.");
+      // Say where it landed, and say when it landed nowhere. The old copy
+      // read "Policies updated." whenever there was no page scope -- which is
+      // exactly the case where nothing was assigned and no guest was
+      // affected. A save that cannot reach a location is a real outcome and
+      // has to read like one.
+      setToast(
+        targetLocationId
+          ? `Limits saved and applied to ${f.businessUnit}.`
+          : "Limits saved, but not applied to any location — reopen this page from the location you want them on.",
+      );
       setTimeout(() => setToast(null), 2500);
     } catch {
       setToast("Could not save — check the connection and try again.");

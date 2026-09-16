@@ -79,7 +79,7 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
     label: "Access & Policy",
     items: [
       { id: "policies", label: "Access Rules", icon: ShieldCheck, roles: ["owner"] },
-      { id: "whitelist", label: "Always Allowed", icon: Shield, roles: ["owner"] },
+      { id: "whitelist", label: "Only Allowed", icon: Shield, roles: ["owner"] },
       { id: "mac-auth", label: "Trusted Devices", icon: Fingerprint, roles: ["owner"] },
       // Renamed from "Business Hours" (same id/route/data) -- see
       // customerFeatureCatalog.ts's own note.
