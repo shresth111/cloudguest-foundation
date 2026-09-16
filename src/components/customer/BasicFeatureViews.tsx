@@ -410,7 +410,7 @@ function HardwareEmptyState() {
           width="60"
           height="26"
           rx="8"
-          fill="#f5f0ff"
+          className="fill-muted"
           stroke="#4f46e5"
           strokeWidth="2.5"
         />
@@ -579,9 +579,9 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
                           className={cn(
                             "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold",
                             d.status === "up"
-                              ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600"
+                              ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                               : d.status === "down"
-                                ? "border-rose-500/20 bg-rose-500/10 text-rose-600"
+                                ? "border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400"
                                 : "border-border bg-muted text-muted-foreground",
                           )}
                         >
@@ -607,7 +607,7 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
                       <TableCell className="text-right">
                         <button
                           onClick={() => handleRemove(d.id, d.name)}
-                          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10"
+                          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-500/10"
                         >
                           <Trash2 className="h-3 w-3" />
                           Remove

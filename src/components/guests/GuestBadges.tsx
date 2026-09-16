@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { GUEST_PRESENCE_LABEL, guestPresence, type GuestPresence } from "@/lib/guest-presence";
 import type { AccessRuleType, GuestAuthMethod, GuestSessionStatus } from "@/types/guest";
 import {
   ACCESS_RULE_TYPE_LABEL,
@@ -20,6 +21,36 @@ export function GuestSessionStatusBadge({ status }: { status: GuestSessionStatus
     <Badge variant="outline" className={cn("rounded-full", STATUS_STYLES[status])}>
       <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
       {GUEST_SESSION_STATUS_LABEL[status]}
+    </Badge>
+  );
+}
+
+/**
+ * Presence -- "is this person on the WiFi right now?" -- as a badge.
+ *
+ * Reads the server's `isOnline`, never `status === "active"`: those differ
+ * exactly for a guest whose device has dropped off the network while their
+ * session row is still open, and that guest is not online. See
+ * `lib/guest-presence` for the full write-up.
+ */
+const PRESENCE_STYLES: Record<GuestPresence, string> = {
+  online: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400",
+  disconnected: "bg-zinc-500/10 text-zinc-600 border-zinc-500/20 dark:text-zinc-400",
+  ended: "bg-zinc-500/10 text-zinc-500 border-zinc-500/20 dark:text-zinc-500",
+};
+
+export function GuestPresenceBadge({
+  isOnline,
+  status,
+}: {
+  isOnline: boolean;
+  status: GuestSessionStatus;
+}) {
+  const presence = guestPresence({ isOnline, status });
+  return (
+    <Badge variant="outline" className={cn("rounded-full", PRESENCE_STYLES[presence])}>
+      <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
+      {GUEST_PRESENCE_LABEL[presence]}
     </Badge>
   );
 }

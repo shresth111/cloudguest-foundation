@@ -237,6 +237,12 @@ const COLUMNS: Record<string, ColumnDef[]> = {
     { key: "rank", label: "#", sortType: "number" },
     { key: "name", label: "Name", sortType: "string" },
     { key: "mobile", label: "Mobile Number", sortType: "string" },
+    // A guest signs in with a phone number *or* an email
+    // (Guest.identifier), and `guest-identity.ts` routes whichever one it was
+    // into `phone` or `email`. With only the phone column, every email-OTP
+    // guest rendered a blank identity row -- the value was in the payload and
+    // had nowhere to go.
+    { key: "email", label: "Email", sortType: "string" },
     { key: "devices", label: "Devices", sortType: "number" },
     { key: "data", label: "Data Used", sortType: "number" },
     { key: "lastSeen", label: "Last Seen", sortType: "date" },
@@ -245,6 +251,12 @@ const COLUMNS: Record<string, ColumnDef[]> = {
     { key: "rank", label: "#", sortType: "number" },
     { key: "name", label: "Name", sortType: "string" },
     { key: "mobile", label: "Mobile Number", sortType: "string" },
+    // A guest signs in with a phone number *or* an email
+    // (Guest.identifier), and `guest-identity.ts` routes whichever one it was
+    // into `phone` or `email`. With only the phone column, every email-OTP
+    // guest rendered a blank identity row -- the value was in the payload and
+    // had nowhere to go.
+    { key: "email", label: "Email", sortType: "string" },
     { key: "device", label: "Device", sortType: "string" },
     { key: "sessionStart", label: "Session Start", sortType: "date" },
     { key: "sessionEnd", label: "Session End", sortType: "date" },
@@ -255,6 +267,12 @@ const COLUMNS: Record<string, ColumnDef[]> = {
     { key: "rank", label: "#", sortType: "number" },
     { key: "name", label: "Name", sortType: "string" },
     { key: "mobile", label: "Mobile Number", sortType: "string" },
+    // A guest signs in with a phone number *or* an email
+    // (Guest.identifier), and `guest-identity.ts` routes whichever one it was
+    // into `phone` or `email`. With only the phone column, every email-OTP
+    // guest rendered a blank identity row -- the value was in the payload and
+    // had nowhere to go.
+    { key: "email", label: "Email", sortType: "string" },
     { key: "firstSeen", label: "First Seen", sortType: "date" },
     { key: "lastSeen", label: "Last Seen", sortType: "date" },
     { key: "totalPresence", label: "Total Presence", sortType: "string" },
@@ -264,6 +282,12 @@ const COLUMNS: Record<string, ColumnDef[]> = {
     { key: "rank", label: "Rank", sortType: "number" },
     { key: "name", label: "Name", sortType: "string" },
     { key: "mobile", label: "Mobile Number", sortType: "string" },
+    // A guest signs in with a phone number *or* an email
+    // (Guest.identifier), and `guest-identity.ts` routes whichever one it was
+    // into `phone` or `email`. With only the phone column, every email-OTP
+    // guest rendered a blank identity row -- the value was in the payload and
+    // had nowhere to go.
+    { key: "email", label: "Email", sortType: "string" },
     { key: "data", label: "Data Used", sortType: "number" },
     { key: "sessions", label: "Sessions", sortType: "number" },
   ],
@@ -403,6 +427,12 @@ const COLUMNS: Record<string, ColumnDef[]> = {
     { key: "rank", label: "#", sortType: "number" },
     { key: "name", label: "Name", sortType: "string" },
     { key: "mobile", label: "Mobile Number", sortType: "string" },
+    // A guest signs in with a phone number *or* an email
+    // (Guest.identifier), and `guest-identity.ts` routes whichever one it was
+    // into `phone` or `email`. With only the phone column, every email-OTP
+    // guest rendered a blank identity row -- the value was in the payload and
+    // had nowhere to go.
+    { key: "email", label: "Email", sortType: "string" },
     { key: "ip", label: "IP Address", sortType: "string" },
     { key: "mac", label: "Device MAC", sortType: "string" },
     { key: "device", label: "Device", sortType: "string" },
@@ -458,6 +488,16 @@ const NEEDS_RATE = new Set(["data-consumption", "data-by-location"]);
  * masked anything at all, unmasked or not, so an agent previewing with
  * "Data masking" ON still saw every guest's real number here. */
 const PHONE_COLUMNS = new Set(["mobile", "redeemedBy"]);
+
+/** The report columns carrying a guest-supplied email address.
+ *
+ * A guest signs in with a phone number *or* an email (`Guest.identifier`),
+ * and `identityFromGuest` routes whichever one it was into `phone` or
+ * `email`. Before this column existed, an email-OTP guest showed a blank
+ * identity row -- the value was in the payload with nowhere to render. It is
+ * the same shape of guest-self-reported free text as `PHONE_COLUMNS`, so it
+ * is masked the same way when masking is on. */
+const EMAIL_COLUMNS = new Set(["email"]);
 
 const MAC_ADDRESS_RE = /^([0-9a-f]{2}:){5}[0-9a-f]{2}$/i;
 
@@ -1068,6 +1108,7 @@ async function realUserSessions(
         rank: i + 1,
         name: identity.name,
         mobile: identity.phone || null,
+        email: identity.email || null,
         device: deviceLabelFrom(s.user_agent),
         sessionStart: s.started_at,
         sessionEnd: s.ended_at ?? null,
@@ -1106,6 +1147,7 @@ async function realGuestSessionLog(
         rank: i + 1,
         name: identity.name,
         mobile: identity.phone || null,
+        email: identity.email || null,
         ip: s.ip_address ?? null,
         mac: s.device_mac ?? null, // Resolved server-side; null means genuinely no device, not a masked value.
         device: deviceLabelFrom(s.user_agent),
@@ -1171,6 +1213,7 @@ async function realUserData(
         rank: i + 1,
         name: identity.name,
         mobile: identity.phone || null,
+        email: identity.email || null,
         devices: bucket.devices.size,
         data: bucket.data / 1e6,
         lastSeen: bucket.lastSeen,
@@ -1200,6 +1243,7 @@ async function realTopUsers(orgId: string, locationId: string): Promise<Row[]> {
         rank: i + 1,
         name: identity.name,
         mobile: identity.phone || null,
+        email: identity.email || null,
         data: bucket.data / 1e6,
         sessions: bucket.sessions,
       };
@@ -1248,6 +1292,7 @@ async function realUserPresence(orgId: string, locationId: string, date: string)
         rank: i + 1,
         name: identity.name,
         mobile: identity.phone || null,
+        email: identity.email || null,
         firstSeen: bucket.firstSeen,
         lastSeen: bucket.lastSeen,
         totalPresence: fmtDur(Math.round(bucket.totalMs / 60_000)),
@@ -1872,6 +1917,7 @@ export function ReportPanel({
       if (key === "redeemedBy" || key === "identifier")
         return masked ? maskRedeemedIdentifier(String(val)) : String(val);
       if (PHONE_COLUMNS.has(key)) return masked ? maskPhone(String(val)) : String(val);
+      if (EMAIL_COLUMNS.has(key)) return masked ? maskEmail(String(val)) : String(val);
       // "mac" (Guest Session Log) always routes through maskMac, matching
       // every other MAC display in this app (WhiteList.tsx, CustomerFeaturePage
       // .tsx's Devices table) -- currently a deliberate no-op (see maskMac's

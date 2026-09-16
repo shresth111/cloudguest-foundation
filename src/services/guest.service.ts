@@ -89,6 +89,12 @@ interface BackendGuestSession {
   auth_method: GuestSession["authMethod"];
   voucher_id: string | null;
   status: GuestSession["status"];
+  /** Whether the venue's network is still seeing this session's device.
+   *  Optional so an older deployment that does not send it still parses. */
+  device_online?: boolean | null;
+  /** Server-derived presence -- see `GuestSession.isOnline`. Optional for
+   *  the same reason. */
+  is_online?: boolean;
   started_at: string;
   ended_at: string | null;
   last_activity_at: string;
@@ -230,6 +236,12 @@ function toGuestSession(
     authMethod: s.auth_method,
     voucherId: s.voucher_id,
     status: s.status,
+    deviceOnline: s.device_online ?? null,
+    // Falls back to the old `status === "active"` reading when the backend
+    // does not send `is_online` at all (an older deployment), so the badge
+    // cannot regress to "always offline" against one that predates the
+    // field. `??` and not `||`: a real `false` must survive.
+    isOnline: s.is_online ?? s.status === "active",
     startedAt: s.started_at,
     endedAt: s.ended_at,
     lastActivityAt: s.last_activity_at,

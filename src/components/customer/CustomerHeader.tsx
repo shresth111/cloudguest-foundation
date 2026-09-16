@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { PlanRenewalTicket } from "@/components/features/HeaderControls";
 import { DashboardLanguageSwitcher } from "@/components/layout/DashboardLanguageSwitcher";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { customerFeatureHref } from "@/lib/customerNav";
 import { LocationSwitcher } from "@/components/customer/LocationSwitcher";
 
@@ -111,6 +112,13 @@ export function CustomerHeader({
           settings. Styled to match the refresh button beside it since the
           default ghost styling isn't legible on this header's dark gradient. */}
       <DashboardLanguageSwitcher className="h-9 w-9 text-white/70 hover:bg-white/10 hover:text-white" />
+      {/* Exactly the gap the language switcher had: the theme context, the
+          `.dark` class and the pre-paint script all work on every surface,
+          but the only place with a control was the operator console's
+          TopNavbar. A customer on a dark-OS machine got dark mode applied by
+          `prefers-color-scheme` with no way out of it -- and this console's
+          content well is token-driven, so the switch genuinely changes it. */}
+      <ThemeToggle className="h-9 w-9 text-white/70 hover:bg-white/10 hover:text-white" />
       <span className="[&_button]:text-white/70 [&_button:hover]:bg-white/10 [&_button:hover]:text-white">
         <NotificationBell scope="org" viewAllPath={customerFeatureHref("alerts")} />
       </span>

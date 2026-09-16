@@ -305,9 +305,12 @@ const LOAD_FONTS_SCRIPT = `(function(){
 // ThemeContext's own note) degrades to the OS default instead of throwing
 // before the app can boot. `<html>` carries `suppressHydrationWarning`
 // because this script mutates its class/style attributes out from under
-// React -- deliberately, and only on attributes no SSR'd markup depends on
-// (the sole theme-dependent component, ThemeToggle, lives in ssr:false chrome
-// and never renders on the server).
+// React -- deliberately, and only on attributes no SSR'd markup depends on.
+// `ThemeToggle` is the only theme-dependent component, and it cannot be the
+// exception: it is mounted in the operator console's TopNavbar and in
+// `CustomerHeader`, both of which live in chrome this app renders
+// client-side (the authenticated surface is `ssr: false`), and it renders
+// nothing at all when no `ThemeProvider` is above it -- see `useTheme`.
 const THEME_INIT_SCRIPT = `(function(){
   try {
     var t = null;
