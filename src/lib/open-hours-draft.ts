@@ -98,3 +98,61 @@ export function validateOpenHoursSchedule(
   }
   return errors;
 }
+
+/**
+ * The window an all-day venue is on. 23:59 rather than a second "00:00"
+ * because the backend's validator allows one window per day and requires
+ * `start < end` with no overnight case (captive_portal/validators.py) --
+ * the same rule `validateOpenHoursSchedule` above mirrors, and the same
+ * pair this page's own "Open all day" button writes.
+ */
+export const OPEN_HOURS_ALL_DAY_START = "00:00";
+export const OPEN_HOURS_ALL_DAY_END = "23:59";
+
+/** Open every day, all day. */
+export function openHoursEveryDay(): BusinessHoursSchedule {
+  const schedule: BusinessHoursSchedule = {};
+  for (const day of OPEN_HOURS_WEEKDAYS) {
+    schedule[day] = { open: true, start: OPEN_HOURS_ALL_DAY_START, end: OPEN_HOURS_ALL_DAY_END };
+  }
+  return schedule;
+}
+
+/**
+ * Whether the stored schedule says nothing at all -- the state a venue is
+ * in until somebody opens this screen for the first time.
+ *
+ * Deliberately "no entries", not "no day open". A venue that switched every
+ * day off has made a decision ("closed, and I will say when") and must keep
+ * it; only a schedule with nothing in it means "never configured".
+ */
+export function hasNoStoredSchedule(schedule: BusinessHoursSchedule | null | undefined): boolean {
+  return !schedule || Object.keys(schedule).length === 0;
+}
+
+/**
+ * The stored schedule, or the 24/7 default when there is nothing stored.
+ *
+ * The defect this closes: a venue that had never touched this screen had
+ * `business_hours_enabled = false` and `business_hours_schedule = {}` on the
+ * backend, which the backend correctly reads as "open 24/7" (`is_open_now`
+ * returns True the moment enforcement is off, captive_portal/validators.py)
+ * -- while this page drew seven "Closed all day" cards and an enforcement
+ * switch reading Off. The screen described the opposite of what guests were
+ * actually getting, and an operator who only edited the day grid saw their
+ * change do nothing, because the switch it depends on was already in the
+ * position they never looked at. Founder QA: "By default should be 24/7
+ * enabled".
+ *
+ * `enabled` is defaulted alongside the schedule for the same reason: the
+ * "nothing configured" state is one state, and half-defaulting it (a 24/7
+ * grid under an Off switch) would leave the same contradiction.
+ */
+export function openHoursOrDefault(stored: BusinessHoursSchedule | null | undefined): {
+  schedule: BusinessHoursSchedule;
+  enabledDefault: boolean;
+} {
+  return hasNoStoredSchedule(stored)
+    ? { schedule: openHoursEveryDay(), enabledDefault: true }
+    : { schedule: stored as BusinessHoursSchedule, enabledDefault: false };
+}

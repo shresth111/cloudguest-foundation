@@ -695,7 +695,7 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
         <div className="space-y-3">
           <p className="rounded-xl bg-muted/40 p-3 text-xs text-muted-foreground">
             Default Staff Role is a Read-Only role &amp; can't be modified. Its permissions are
-            limited to Dashboard, Access Rules &amp; Always Allowed by default.
+            limited to Dashboard, Access Rules &amp; Only Allowed by default.
           </p>
           <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
             <div className="space-y-3">

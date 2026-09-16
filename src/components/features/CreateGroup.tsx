@@ -20,6 +20,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
+import { isLocationNamedPolicy } from "@/lib/policy-scope";
 import { bandwidthPolicyService } from "@/services/bandwidth-policy.service";
 import { resolveOrgId } from "@/services/customer.service";
 import { guestService } from "@/services/guest.service";
@@ -520,6 +521,21 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   // resolves for a session timeout -- see the handleCreate block below.
   const [sessionRealIds, setSessionRealIds] = useState<Record<string, string>>({});
 
+  // Every location on this account. Lived further down beside
+  // `mapModalLock` until the load effect below needed it: that effect's
+  // dependency array is evaluated during render, so a set derived from a
+  // variable declared after it would be in its temporal dead zone.
+  const { data: allLocations } = useCustomerLocations();
+  // Which BANDWIDTH policies are a location's own limits rather than a tier
+  // -- this screen shows the other half. `GET /policies` returns both kinds
+  // and nothing in a row tells them apart, so a saved Guest WiFi Limit used
+  // to be listed here as one more tier, exactly mirroring the bug that put
+  // tiers on that screen. One rule, one home: lib/policy-scope.ts.
+  const locationNames = useMemo(
+    () => new Set((allLocations ?? []).map((l) => l.name)),
+    [allLocations],
+  );
+
   // The paired policies that must follow this group's bandwidth policy
   // everywhere it is assigned. Read straight off state so every mapping
   // handler below sends the same set and none can be forgotten.
@@ -544,7 +560,9 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         // group removed via handleDelete's deactivatePolicy() call would
         // otherwise silently reappear here on next load/reload. Drop
         // archived entries client-side so "deleted" actually stays deleted.
-        const active = real.filter((p) => p.status !== "archived");
+        const active = real.filter(
+          (p) => p.status !== "archived" && !isLocationNamedPolicy(p.name, locationNames),
+        );
         // Same filter for the paired DEVICE policies -- a deactivated
         // DEVICE policy has no reactivate path (see policy-engine.ts's
         // statusOf comment), so keeping a dead id keyed by name here would
@@ -652,7 +670,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         // Leave groups empty -- the "no groups yet" state is accurate.
       }
     })();
-  }, [demo, locationId]);
+  }, [demo, locationId, locationNames]);
 
   const [name, setName] = useState("");
   const [bw, setBw] = useState("");
@@ -707,7 +725,6 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   const [mapModalSaving, setMapModalSaving] = useState(false);
   const [mapModalSearch, setMapModalSearch] = useState("");
   const mapModalLock = useRef(false);
-  const { data: allLocations } = useCustomerLocations();
   const [step1Done, setStep1Done] = useState(false);
   // Bug report: "existing groups mai edit icon click nhi ho raha hai" --
   // the Pencil button had no onClick handler at all. Reuses handleClone's
