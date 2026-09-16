@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Laptop, Users2, ChevronRight } from "lucide-react";
+import { Laptop } from "lucide-react";
 import { PortalShell, PortalCard, PortalTextPlate } from "@/components/portal-runtime/PortalShell";
 import { GuestProfileNudge } from "@/components/portal-runtime/GuestProfileNudge";
 import { GoogleReviewNudge } from "@/components/portal-runtime/GoogleReviewNudge";
@@ -205,21 +205,6 @@ export function ConnectedPreview({ scenario }: { scenario: ConnectedPreviewScena
                 {session.ipAddress}
               </p>
             </div>
-          </div>
-        </PortalCard>
-
-        <PortalCard className="p-3.5">
-          <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[color-mix(in_srgb,var(--pr-primary,#6366f1)_8%,var(--pg-surface,#fff))] text-[var(--pr-primary,#6366f1)]">
-              <Users2 className="h-5 w-5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="pg-body font-semibold text-[var(--pg-ink)]">{t("nudgeTeamTitle")}</p>
-              <p className="truncate pg-meta font-normal text-[var(--pg-ink-muted)]">
-                {t("nudgeTeamSubtitle")}
-              </p>
-            </div>
-            <ChevronRight className="h-4 w-4 shrink-0 text-[var(--pg-ink-faint)]" />
           </div>
         </PortalCard>
       </div>
