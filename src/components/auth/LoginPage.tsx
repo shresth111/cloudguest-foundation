@@ -1,7 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { motion, useMotionValue, useSpring, useTransform, useReducedMotion } from "framer-motion";
-import { Loader2, Eye, EyeOff, ShieldCheck, UserRound, CalendarClock } from "lucide-react";
+import { Loader2, Eye, EyeOff, ShieldCheck, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,6 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import type { AppError } from "@/services/api";
-import { demoRequestService } from "@/services/demo-request.service";
 import { ForgotPasswordPage } from "@/components/auth/ForgotPasswordPage";
 
 // Moved out of `src/routes/login.tsx` -- same bug class already fixed once in
@@ -222,9 +221,6 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
   const [role, setRole] = useState<LoginRole>("owner");
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [demoOpen, setDemoOpen] = useState(false);
-  const [demoForm, setDemoForm] = useState({ name: "", email: "", company: "", message: "" });
-  const [demoSubmitting, setDemoSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const [capsLock, setCapsLock] = useState(false);
   const emailInputRef = useRef<HTMLInputElement>(null);
@@ -333,45 +329,12 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
     }
   };
 
-  const handleDemoSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!demoForm.name || !demoForm.email || !demoForm.company) {
-      toast.error("Please share your name, email, and company.");
-      return;
-    }
-    setDemoSubmitting(true);
-    try {
-      await demoRequestService.submit({
-        fullName: demoForm.name,
-        email: demoForm.email,
-        companyName: demoForm.company,
-        message: demoForm.message || undefined,
-      });
-      toast.success("Thanks! Our team will reach out to schedule your demo.");
-      setDemoForm({ name: "", email: "", company: "", message: "" });
-      setDemoOpen(false);
-    } catch (err) {
-      toast.error((err as AppError).message || "Could not submit your request. Please try again.");
-    } finally {
-      setDemoSubmitting(false);
-    }
-  };
-
   if (view === "forgot-password") {
     return <ForgotPasswordPage onBack={() => setView("login")} />;
   }
 
   return (
     <>
-      <motion.button
-        onClick={() => setDemoOpen(true)}
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.2, ease: "easeOut" }}
-        className="btn-glow fixed right-5 top-5 z-50 inline-flex items-center gap-2 rounded-full bg-[#6C4EFF] px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-[#6C4EFF]/20 backdrop-blur transition-colors hover:bg-[#5A3AE0]"
-      >
-        <CalendarClock className="h-4 w-4" /> Book a Demo
-      </motion.button>
       <div className="flex min-h-screen">
         {/* Left: brand hero -- same dark indigo/violet/fuchsia treatment as
          * the customer dashboard's hero band, for one consistent visual
@@ -861,82 +824,6 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
               <Button type="submit" disabled={settingNewPassword}>
                 {settingNewPassword ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 {settingNewPassword ? "Setting…" : "Set password & sign in"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={demoOpen} onOpenChange={setDemoOpen}>
-        <DialogContent
-          className="sm:max-w-md"
-          style={
-            {
-              "--primary": "#6C4EFF",
-              "--primary-foreground": "#ffffff",
-              "--ring": "#6366f1",
-            } as React.CSSProperties
-          }
-        >
-          <DialogHeader>
-            <DialogTitle>Book a Demo</DialogTitle>
-            <DialogDescription>
-              Tell us a bit about your business and our team will reach out to schedule a
-              walkthrough.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleDemoSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="demo-name">Full name</Label>
-              <Input
-                id="demo-name"
-                placeholder="Jane Doe"
-                value={demoForm.name}
-                onChange={(e) => setDemoForm({ ...demoForm, name: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="demo-email">Work email</Label>
-              <Input
-                id="demo-email"
-                type="email"
-                placeholder="jane@company.com"
-                value={demoForm.email}
-                onChange={(e) => setDemoForm({ ...demoForm, email: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="demo-company">Company</Label>
-              <Input
-                id="demo-company"
-                placeholder="Acme Hotels"
-                value={demoForm.company}
-                onChange={(e) => setDemoForm({ ...demoForm, company: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="demo-message">What are you looking for? (optional)</Label>
-              <textarea
-                id="demo-message"
-                placeholder="Tell us about your locations, network size, or specific needs…"
-                value={demoForm.message}
-                onChange={(e) => setDemoForm({ ...demoForm, message: e.target.value })}
-                rows={3}
-                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/10"
-              />
-            </div>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setDemoOpen(false)}
-                disabled={demoSubmitting}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={demoSubmitting}>
-                {demoSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                {demoSubmitting ? "Submitting…" : "Request Demo"}
               </Button>
             </DialogFooter>
           </form>
