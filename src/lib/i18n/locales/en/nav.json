@@ -101,7 +101,7 @@
     "portal": "Portal",
     "vouchers": "Vouchers",
     "policies": "Access Rules",
-    "whitelist": "Always Allowed",
+    "whitelist": "Only Allowed",
     "mac-auth": "Trusted Devices",
     "business-hours": "Open Hours",
     "devices": "Devices",

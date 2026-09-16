@@ -820,9 +820,18 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
             <ShieldCheck className="h-4.5 w-4.5 text-white" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold tracking-tight">Always Allowed</h1>
+            <h1 className="text-lg font-semibold tracking-tight">Only Allowed</h1>
+            {/* Was "Allow specific numbers or devices to bypass the captive
+             * portal." -- a promise this list has never kept, and the source
+             * of the "Always Allowed not working" report. Under the portal's
+             * default-allow a WHITELIST rule changes no decision at all
+             * (backend guest_access AccessDecisionResolver); it only decides
+             * anything once the switch below is on, and even then a listed
+             * guest signs in normally rather than skipping the page. The
+             * description now says what the list is actually consulted for. */}
             <p className="text-sm text-muted-foreground">
-              Allow specific numbers or devices to bypass the captive portal.
+              The numbers and devices allowed to get online once this property is closed to everyone
+              else.
             </p>
           </div>
         </div>
@@ -1211,10 +1220,11 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
                 </div>
               ) : (
                 <div className="space-y-1.5">
-                  {/* "Always Allowed" in the header, "MAC Address" on the
-                    control -- the rename stopped at the title. The term
-                    still belongs in the hint, because that is the exact
-                    phrase the owner reads off the device's WiFi settings. */}
+                  {/* "Only Allowed" in the header, "Device address" on the
+                    control -- the rename stopped at the title. The MAC
+                    itself still belongs in the hint, because that is the
+                    exact phrase the owner reads off the device's WiFi
+                    settings. */}
                   <Label>
                     Device address <span className="text-destructive">*</span>
                   </Label>
@@ -1349,7 +1359,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
             </span>
             <div>
               <CardTitle className="text-sm">
-                Always Allowed {tab === "number" ? "Guests" : "Devices"}
+                Only Allowed {tab === "number" ? "Guests" : "Devices"}
               </CardTitle>
               {/* Not "for this location": listAccessRules takes an org id
                 and no location filter, so this table is every allow rule

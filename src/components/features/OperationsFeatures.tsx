@@ -113,6 +113,8 @@ import {
 import {
   normalizeOpenHoursDraft,
   openHoursDraftsEqual,
+  openHoursOrDefault,
+  openHoursEveryDay,
   validateOpenHoursSchedule,
   type OpenHoursDraft,
 } from "@/lib/open-hours-draft";
@@ -937,10 +939,20 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
         // configured schedule (an IST venue edited from a UTC browser
         // shifted every "closed" window by the offset, which is how
         // guests got through after hours).
+        const { schedule: loadedSchedule, enabledDefault: defaulted } = openHoursOrDefault(
+          cfg.schedule,
+        );
         const loaded = normalizeOpenHoursDraft({
-          enabled: cfg.enabled,
+          // A venue whose stored schedule is empty has never configured this
+          // screen. It is not "closed every day" -- it is on the 24/7 default
+          // the backend has been applying all along (`is_open_now` returns
+          // True the moment enforcement is off). Showing the real state is
+          // also what makes the switch it depends on land in the position an
+          // operator expects, so editing the day grid below actually bites.
+          // See openHoursOrDefault's own note.
+          enabled: defaulted ? true : cfg.enabled,
           timezone: cfg.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-          schedule: cfg.schedule,
+          schedule: loadedSchedule,
           closedMessage: cfg.closedMessage ?? closedMessage,
         });
         setConfigId(cfg.configId);
@@ -952,8 +964,20 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
         if (cancelled) return;
         if ((err as AppError).status === 404) {
           // No config for this location yet: the defaults on screen are
-          // the honest baseline, and Save creates the config.
-          setSaved(normalizeOpenHoursDraft({ enabled, timezone, schedule, closedMessage }));
+          // the honest baseline, and Save creates the config. That baseline
+          // is the 24/7 default, not seven "Closed all day" rows under an
+          // Off switch -- an empty schedule and a disabled switch are what a
+          // venue with nothing configured actually has, and the backend has
+          // always read that pair as "open 24/7" (`is_open_now`). See
+          // openHoursOrDefault's own note.
+          const idle = normalizeOpenHoursDraft({
+            enabled: true,
+            timezone,
+            schedule: openHoursEveryDay(),
+            closedMessage,
+          });
+          applyDraft(idle);
+          setSaved(idle);
           return;
         }
         const message = (err as AppError).message || "Could not load open hours.";

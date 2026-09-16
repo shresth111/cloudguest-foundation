@@ -47,9 +47,14 @@ await build({
   outfile,
   logLevel: "silent",
 });
-const { normalizeOpenHoursDraft, openHoursDraftsEqual, validateOpenHoursSchedule } = await import(
-  `file://${outfile}`
-);
+const {
+  normalizeOpenHoursDraft,
+  openHoursDraftsEqual,
+  validateOpenHoursSchedule,
+  openHoursEveryDay,
+  hasNoStoredSchedule,
+  openHoursOrDefault,
+} = await import(`file://${outfile}`);
 
 const base = {
   enabled: true,
@@ -143,6 +148,44 @@ check(
   ) === JSON.stringify(["wednesday"]),
 );
 
+console.log("\nthe 24/7 default for a venue with nothing configured");
+const everyDay = openHoursEveryDay();
+check(
+  "all seven days are open",
+  Object.values(everyDay).every((d) => d.open === true),
+);
+check(
+  "each day runs 00:00-23:59 (the backend has no overnight window)",
+  Object.values(everyDay).every((d) => d.start === "00:00" && d.end === "23:59"),
+);
+check(
+  "the default passes the same validator the backend mirrors",
+  Object.keys(validateOpenHoursSchedule(everyDay)).length === 0,
+);
+check(
+  "an absent schedule is 'never configured'",
+  hasNoStoredSchedule(undefined) && hasNoStoredSchedule(null),
+);
+check("an empty object is 'never configured'", hasNoStoredSchedule({}));
+check(
+  "a venue that closed every day is NOT 'never configured'",
+  !hasNoStoredSchedule({ monday: { open: false }, tuesday: { open: false } }),
+);
+const defaulted = openHoursOrDefault({});
+check(
+  "an empty stored schedule yields the 24/7 grid",
+  defaulted.schedule.monday.start === "00:00" && defaulted.schedule.sunday.end === "23:59",
+);
+check("and defaults enforcement on with it", defaulted.enabledDefault === true);
+const keptSchedule = openHoursOrDefault({
+  monday: { open: true, start: "09:00", end: "21:00" },
+});
+check(
+  "a configured schedule is left exactly as stored",
+  keptSchedule.schedule.monday.end === "21:00" && keptSchedule.enabledDefault === false,
+);
+check("and is not padded out to seven days", Object.keys(keptSchedule.schedule).length === 1);
+
 console.log("\ncomponent wiring");
 const src = readFileSync(join(ROOT, "src/components/features/OperationsFeatures.tsx"), "utf8");
 const start = src.indexOf("export function OpenHoursView");
@@ -170,6 +213,11 @@ check(
   /toast\.error\(\(err as AppError\)\.message \|\| "Could not save open hours\."\)/.test(view),
 );
 check("uses the shared validator", /validateOpenHoursSchedule\(draft\.schedule\)/.test(view));
+check(
+  "a stored schedule is read through the shared 24/7-default helper",
+  /openHoursOrDefault\(\s*cfg\.schedule,?\s*\)/.test(view),
+);
+check("the no-config-yet branch seeds the same 24/7 grid", /openHoursEveryDay\(\)/.test(view));
 check("inputs do not auto-save", !/onChange=\{[^}]*businessHoursService/.test(view));
 
 console.log(`\n${checks} checks, ${failures} failed`);

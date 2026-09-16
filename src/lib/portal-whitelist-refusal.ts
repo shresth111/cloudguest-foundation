@@ -98,7 +98,7 @@ function codeOf(e: AppError): string | undefined {
 
 /**
  * True when `e` is the backend refusing this guest because the property
- * admits only guests on its Always Allowed list.
+ * admits only guests on its Only Allowed list.
  *
  * @param venueDeniedMessage the venue's own `whitelistOnlyDeniedMessage`
  *   from the resolved portal config, when it has set one. Passing it lets

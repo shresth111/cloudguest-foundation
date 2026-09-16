@@ -63,7 +63,12 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
     group: "Access & Policy",
     items: [
       { id: "policies", label: "Access Rules", icon: ShieldCheck },
-      { id: "whitelist", label: "Always Allowed", icon: Shield },
+      // Renamed from "Always Allowed" (founder QA). "Always" promised a
+      // bypass of the sign-in page that this list has never provided -- a
+      // WHITELIST rule is inert while the portal default-allows everyone,
+      // and only bites once "Only allow the guests on this list" is on. The
+      // name now says what the list is consulted for.
+      { id: "whitelist", label: "Only Allowed", icon: Shield },
       { id: "mac-auth", label: "Trusted Devices", icon: Fingerprint },
       // Renamed from "Business Hours" -- the old label/visual design read
       // too close to a competitor's equivalent feature. Same id/route/

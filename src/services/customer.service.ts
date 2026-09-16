@@ -753,7 +753,7 @@ const DEMO_NAV: NavItem[] = [
   { id: "campaigns", label: "Campaigns", module: "campaigns" },
   { id: "vouchers", label: "Vouchers", module: "voucher" },
   { id: "policies", label: "Policies", module: "policy" },
-  { id: "whitelist", label: "Always Allowed", module: "guest_access" },
+  { id: "whitelist", label: "Only Allowed", module: "guest_access" },
   { id: "devices", label: "Devices", module: "connected_devices" },
   { id: "teams", label: "Guest Groups", module: "guest_teams" },
   { id: "agents", label: "Staff Access", module: "roles" },
