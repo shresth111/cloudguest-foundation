@@ -1213,6 +1213,8 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
                       variant="ghost"
                       size="icon"
                       className="shrink-0 text-destructive"
+                      title={`Remove question ${i + 1}`}
+                      aria-label={`Remove question ${i + 1}`}
                       onClick={() => removeQuestion(q.id)}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -1684,6 +1686,8 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
                           variant="ghost"
                           size="icon"
                           className="text-destructive"
+                          title={`Delete ${c.name}`}
+                          aria-label={`Delete ${c.name}`}
                           onClick={() => removeCampaign(c.id)}
                         >
                           <Trash2 className="h-4 w-4" />

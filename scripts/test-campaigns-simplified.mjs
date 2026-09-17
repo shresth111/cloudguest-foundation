@@ -161,6 +161,34 @@ check(
   "the Campaigns page must not write captive-portal config",
 );
 
+console.log("\n6. every icon-only control has a name");
+// Found by opening the deployed page rather than by reading it: the row's
+// Delete button was a `<Button size="icon">` with neither a title nor an
+// aria-label, so it reached assistive tech as an unnamed button sitting
+// between two named ones ("Preview as a guest", "Copy campaign ID"). The
+// repo's own a11y gate is guest-portal-scoped by design
+// (scripts/check-a11y-invariants.mjs opens by saying so), so nothing could
+// see it.
+//
+// Scoped to this page deliberately. 101 icon-only buttons across 55 files
+// are in the same state -- that is its own piece of work with its own review,
+// not a rider on a layout change.
+const iconButtons = [...code.matchAll(/<Button\b[^>]*>/gs)]
+  .map((m) => m[0])
+  .filter((t) => /size="icon"/.test(t));
+const unnamed = iconButtons.filter((t) => !/(title|aria-label|aria-labelledby)=/.test(t));
+check(
+  // Not vacuous: an empty list would pass the assertion below.
+  "the page still renders icon-only buttons",
+  iconButtons.length >= 4,
+  `found ${iconButtons.length}`,
+);
+check(
+  `all ${iconButtons.length} icon-only buttons carry an accessible name`,
+  unnamed.length === 0,
+  unnamed.map((t) => t.replace(/\s+/g, " ").slice(0, 70)).join(" | "),
+);
+
 console.log(`\n${checks} checks, ${failures} failed`);
 if (failures > 0) process.exit(1);
 console.log("all campaigns simplification checks passed");
