@@ -13,26 +13,32 @@ import type { AppError } from "@/services/api";
  * whitelist-only refusal means "an operator wrote a rule about *everyone
  * else*" and this guest did nothing.
  *
- * **That distinction does not currently survive the trip to the browser.**
- * Both exceptions call `super().__init__(message, status_code=403)` with
- * no `data=`, so the app-wide handler (`app/common/exceptions.py`)
- * serialises both as `{success: false, message: <text>, data: {}}` with
- * an identical 403. This frontend's own `toAppError` (`src/services/
- * api.ts`) then collapses *every* 403 to `code: "forbidden"`. So on the
- * wire, today, the only thing that differs between the two is the human
- * `message` string.
+ * **That distinction did not survive the trip to the browser**, which is why
+ * this module exists. Both exceptions used to call
+ * `super().__init__(message, status_code=403)` with no `data=`, so the
+ * app-wide handler (`app/common/exceptions.py`) serialised both as
+ * `{success: false, message: <text>, data: {}}` behind an identical 403 --
+ * and this frontend's own `toAppError` (`src/services/api.ts`) collapses
+ * *every* 403 to `code: "forbidden"`. On the wire, the only thing differing
+ * between the two was the human `message` string.
  *
- * That is a real contract gap and it should be closed on the backend --
- * one line, `data={"code": "whitelist_only_access_denied"}` on the
- * exception. Until it is, this module is how the portal tells them apart,
- * and it is built so that closing the gap needs no change here: the code
- * check below runs *first* and wins, so the day the backend starts
- * sending one, the string matching stops being load-bearing.
+ * **The gap on the backend side is now closed.**
+ * `WhitelistOnlyAccessDeniedError` carries
+ * `data={"code": "whitelist_only_access_denied"}`
+ * (`app/domains/guest_access/exceptions.py`), and this module was built so
+ * that closing it needed no change here: the code check below runs *first*
+ * and wins, so the machine-readable path is the live one and the string
+ * matching is now only a fallback. A blocklist denial still carries its own
+ * distinct code (`guest_access_denied`), so the two are separable without
+ * reading either message.
  *
- * ## Why the string matching is safe, and not a guess
+ * ## Why the string matching is still here, and is not a guess
  *
- * This is not fuzzy matching on prose. A `WhitelistOnlyAccessDeniedError`
- * message is provably one of exactly two strings:
+ * Kept for the window between a backend deploy and this bundle's, and for a
+ * venue whose stored message is what a portal predating the code check would
+ * have to read. It is not fuzzy matching on prose: a
+ * `WhitelistOnlyAccessDeniedError` message is provably one of exactly two
+ * strings:
  *
  *   1. the venue's own `whitelist_only_denied_message`, which this portal
  *      *already has a copy of* from `GET /captive-portal/resolve`; or

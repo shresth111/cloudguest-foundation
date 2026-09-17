@@ -866,9 +866,10 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
                   : `Off. Every guest signs in on the WiFi login page and gets online — this is how ${wlLocationName || "this property"} works today.`}
               </p>
               <p className="mt-2 max-w-2xl text-xs leading-relaxed text-muted-foreground">
-                Turning this on does not hide your WiFi and drops nobody. Everyone still reaches
-                your login page. People on this list sign in and get through; everyone else is
-                refused on that page, in your words, and is never sent a verification code.
+                Turning this on does not hide your WiFi: everyone still reaches your login page, and
+                the people below keep working. Anyone already online who is not on the list is
+                disconnected within a few minutes, and everyone else is refused on that page, in
+                your words, and is never sent a verification code.
               </p>
             </div>
           </div>
