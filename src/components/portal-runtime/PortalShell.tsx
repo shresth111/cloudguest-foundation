@@ -613,7 +613,28 @@ export function PortalShell({
             // its own canvas" look left to open up -- matching the more
             // generous top/bottom margins in the reference design without
             // touching the fold-safety value.
-            "relative z-10 mx-auto flex w-full max-w-[420px] flex-col pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pb-[calc(3rem+env(safe-area-inset-bottom))] pt-[calc(12vh+env(safe-area-inset-top))] [@media(max-height:720px)]:pt-[calc(6vh+env(safe-area-inset-top))] sm:max-w-[460px] md:max-w-[520px]",
+            "relative z-10 mx-auto flex w-full max-w-[420px] flex-col pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pb-[calc(3rem+env(safe-area-inset-bottom))] sm:max-w-[460px] md:max-w-[520px]",
+            // The top band, sized against the right box.
+            //
+            // `12vh` measures the *browser window*, which is the correct
+            // reference on a real guest's phone (the shell is the viewport)
+            // and the wrong one inside the admin Portal Preview, where this
+            // shell is rendered in a phone-sized frame on a 1000px-tall
+            // desktop: 12% of that window is ~120px of empty band at the top
+            // of a 560px screen. Worse, the `max-height: 720px` override that
+            // exists to protect the fold also tested the *window*, which is
+            // almost never <= 720px, so it never fired where it was needed.
+            //
+            // `cqh` is 1% of the nearest size container, so the same 12%
+            // lands on the frame's own height and the ratio inside the phone
+            // now matches the ratio on a phone -- which is what "everything
+            // inside should be sized relative to the screen" means. With no
+            // size container above it (the real guest route, and any caller
+            // that never sets one), `cq` units fall back to the small
+            // viewport, so `constrained` is the only place this differs.
+            constrained
+              ? "pt-[calc(12cqh+env(safe-area-inset-top))]"
+              : "pt-[calc(12vh+env(safe-area-inset-top))] [@media(max-height:720px)]:pt-[calc(6vh+env(safe-area-inset-top))]",
             // See this component's own top-level comment on `constrained` --
             // these `lg:` classes assume this element's width tracks the
             // real browser viewport, which isn't true inside the Portal

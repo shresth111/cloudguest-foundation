@@ -4,18 +4,19 @@ import { useForm } from "react-hook-form";
 import { useState } from "react";
 import { z } from "zod";
 import { motion } from "framer-motion";
-import { CheckCircle2, KeyRound, Loader2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, KeyRound, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authService } from "@/services/auth.service";
+import { strongPasswordSchema } from "@/lib/password-policy";
 import type { AppError } from "@/services/api";
 
 const schema = z
   .object({
-    password: z.string().min(12, "At least 12 characters"),
+    password: strongPasswordSchema,
     confirm: z.string(),
   })
   .refine((v) => v.password === v.confirm, {
@@ -34,6 +35,8 @@ export const Route = createFileRoute("/reset-password")({
 function ResetPasswordPage() {
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [linkExpired, setLinkExpired] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { token } = Route.useSearch();
   const form = useForm<FormValues>({
@@ -42,11 +45,8 @@ function ResetPasswordPage() {
   });
 
   const onSubmit = async (values: FormValues) => {
-    if (!token) {
-      toast.error("This reset link is missing or invalid. Request a new one.");
-      return;
-    }
     setSubmitting(true);
+    setFormError(null);
     try {
       await authService.resetPassword(token, values.password);
       setDone(true);
@@ -54,7 +54,18 @@ function ResetPasswordPage() {
       // Let the success state land visually before handing off to /login.
       setTimeout(() => navigate({ to: "/login", replace: true }), 900);
     } catch (err) {
-      toast.error((err as AppError).message || "Failed to reset password");
+      const error = err as AppError;
+      if (error.status === 401) {
+        // The token itself is unusable -- already spent, or its hour ran out.
+        // No password the user can type here will change that, so offer a
+        // fresh link instead of leaving them retrying a dead page.
+        setLinkExpired(true);
+      } else {
+        // A rejected password (reused or too weak) leaves the link usable, so
+        // keep the form and say so somewhere that stays on screen -- a toast
+        // that scrolls away reads as "it just doesn't work".
+        setFormError(error.message || "Failed to reset password");
+      }
       setSubmitting(false);
     }
   };
@@ -92,14 +103,38 @@ function ResetPasswordPage() {
     );
   }
 
+  if (!token || linkExpired) {
+    return (
+      <AuthLayout
+        title="This link can't be used"
+        subtitle="Reset links are valid for one hour and can be used only once."
+        footer={
+          <Link to="/login" className="font-medium text-primary hover:underline">
+            Back to sign in
+          </Link>
+        }
+      >
+        <div className="flex flex-col items-center gap-4 rounded-lg border border-border bg-muted/30 px-6 py-8 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+            <AlertCircle className="h-6 w-6" />
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {linkExpired
+              ? "This reset link has already been used or has expired."
+              : "This reset link is missing its token."}
+          </p>
+          <Button asChild className="w-full">
+            <Link to="/forgot-password">Request a new link</Link>
+          </Button>
+        </div>
+      </AuthLayout>
+    );
+  }
+
   return (
     <AuthLayout
       title="Set a new password"
-      subtitle={
-        token
-          ? "Choose a strong password you haven't used before."
-          : "This link is missing its reset token — request a new one from the forgot password page."
-      }
+      subtitle="Choose a strong password you haven't used before."
       footer={
         <Link to="/login" className="font-medium text-primary hover:underline">
           Back to sign in
@@ -113,6 +148,15 @@ function ResetPasswordPage() {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3, delay: 0.1 }}
       >
+        {formError && (
+          <div
+            role="alert"
+            className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+          >
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{formError}</span>
+          </div>
+        )}
         <div className="space-y-2">
           <Label htmlFor="password">New password</Label>
           <Input

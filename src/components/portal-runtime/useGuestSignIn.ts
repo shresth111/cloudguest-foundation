@@ -241,13 +241,22 @@ export function useGuestSignIn() {
   // The venue's "Guest Groups" (app.domains.guest_teams) offered at
   // sign-in: the dropdown shows exactly when some team is actually
   // joinable right now, and a picked team is joined automatically once the
-  // OTP login succeeds (see verifyOtp's onSuccess). Fetch once per venue,
-  // only when OTP is a real sign-in path and this is a real device (demo
-  // and preview modes have no backend team store to ask).
+  // login succeeds (see joinPickedTeam). Fetch once per venue,
+  // only when some credential method is a real sign-in path and this is a
+  // real device (demo and preview modes have no backend team store to ask).
+  // Not OTP-only: the picker renders on the password tab too, so a venue
+  // whose guests sign in with a password still needs its groups listed.
   const [openTeams, setOpenTeams] = useState<OpenGuestTeam[]>([]);
   const [selectedTeamCode, setSelectedTeamCode] = useState("");
   useEffect(() => {
-    if (demoMode || previewMode || !config || !hasOtp || !organizationId || !locationId) {
+    if (
+      demoMode ||
+      previewMode ||
+      !config ||
+      (!hasOtp && !hasPassword) ||
+      !organizationId ||
+      !locationId
+    ) {
       setOpenTeams([]);
       setSelectedTeamCode("");
       return;
@@ -272,7 +281,7 @@ export function useGuestSignIn() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [demoMode, previewMode, config, hasOtp, organizationId, locationId]);
+  }, [demoMode, previewMode, config, hasOtp, hasPassword, organizationId, locationId]);
   const [tab, setTab] = useState<"otp" | "password">(() => {
     // An explicit hand-off (the expired screen's "Sign in again"/"Use OTP
     // instead" buttons, see src/routes/portal.expired.tsx) always wins.
@@ -512,27 +521,9 @@ export function useGuestSignIn() {
       // See PortalRuntimeState.guestIdentifier's docstring -- the NAS's own
       // RADIUS Authorize checks this exact value, not a hardcoded one.
       setGuestIdentifier(target.trim());
-      // Auto-join the guest team the guest picked in the "which group do
-      // you belong to?" dropdown, now that their identity is verified.
-      // Best-effort and never blocking: the backend enforces the member
-      // cap at join time (a team can fill between listing and verifying),
-      // and a failed join must not cost a verified guest their internet --
-      // the failure is surfaced as a non-blocking notice on the connected
-      // screen instead, where the existing team-code flow can retry.
-      const pickedTeam = openTeams.find((t) => t.teamCode === selectedTeamCode);
-      if (pickedTeam) {
-        try {
-          await portalRuntimeService.joinTeam({
-            teamCode: pickedTeam.teamCode,
-            identifier: target.trim(),
-            deviceMac,
-          });
-        } catch {
-          setGroupJoinNotice(
-            `${t("groupJoinFailedTitle")} "${pickedTeam.name}" — ${t("groupJoinRetryHint")}`,
-          );
-        }
-      }
+      // The guest team picked in the "which group do you belong to?"
+      // dropdown, now that their identity is verified -- see joinPickedTeam.
+      await joinPickedTeam(target.trim());
       // v4 UX §6.5: the "tell us about yourself" profile prompt used to
       // branch here for new phone/WhatsApp guests, holding this session
       // in `pendingSession` until the guest filled it in or skipped. It's
@@ -591,6 +582,10 @@ export function useGuestSignIn() {
       setPasswordError(null);
       setSelectedMethod("username_password");
       setGuestIdentifier(identifier.trim());
+      // Same picker, same join as the OTP tab -- see joinPickedTeam. Without
+      // this a group chosen on this tab was silently dropped, because the
+      // auto-join only ever ran on the OTP path.
+      await joinPickedTeam(identifier.trim());
       await afterLogin(session);
     },
     onError: (e: AppError) => {
@@ -605,6 +600,37 @@ export function useGuestSignIn() {
       setPasswordError(friendlyGuestAuthError(e, "password"));
     },
   });
+
+  /**
+   * Auto-join the guest team picked in the "which group do you belong to?"
+   * dropdown, now that the guest's identity is verified.
+   *
+   * Called from every successful credential path -- OTP and password, since
+   * `GuestGroupPicker` renders on both forms. It used to live in
+   * `verifyOtp`'s onSuccess alone, so a group chosen on the password tab was
+   * silently dropped and the guest ended up in no group at all.
+   *
+   * Best-effort and never blocking: the backend enforces the member cap at
+   * join time (a team can fill between listing and verifying), and a failed
+   * join must not cost a verified guest their internet -- the failure is
+   * surfaced as a non-blocking notice on the connected screen instead, where
+   * the existing team-code flow can retry.
+   */
+  async function joinPickedTeam(identifier: string) {
+    const pickedTeam = openTeams.find((t) => t.teamCode === selectedTeamCode);
+    if (!pickedTeam) return;
+    try {
+      await portalRuntimeService.joinTeam({
+        teamCode: pickedTeam.teamCode,
+        identifier,
+        deviceMac,
+      });
+    } catch {
+      setGroupJoinNotice(
+        `${t("groupJoinFailedTitle")} "${pickedTeam.name}" — ${t("groupJoinRetryHint")}`,
+      );
+    }
+  }
 
   async function afterLogin(session: RuntimeSession) {
     setSession(session);

@@ -1243,16 +1243,23 @@ jobs:
       # venue's own surveys rather than three hard-coded sample questions, and
       # each row carries exactly one status control.
       #
+      # The last two checks are the accessibility half, added after opening
+      # the deployed page: an icon-only <Button size="icon"> with no title and
+      # no aria-label reaches assistive tech as an unnamed button. It was
+      # invisible to scripts/check-a11y-invariants.mjs, which is scoped to the
+      # guest portal by its own first paragraph.
+      #
       # A removal is the easiest thing in this repo to undo without noticing:
       # the page looks bare, so a hero band comes back; a card looks empty, so
       # a plausible sample fills it. tsc, eslint and the build see none of
       # that, which is why it is gated rather than commented.
       #
-      # Floor 27, observed green at 27.
+      # Floor 29, observed green at 29. Verified to FAIL at 28 when both names
+      # are stripped off the row's Delete button.
       - name: campaigns page stays simplified
         run: |
           ./scripts/ci-gated-test.sh \
-            "campaigns-simplified" 27 "all campaigns simplification checks passed" \
+            "campaigns-simplified" 29 "all campaigns simplification checks passed" \
             bun run test:campaigns-simplified
 
       # --- Portal content-image upload double-unwrap ---------------------

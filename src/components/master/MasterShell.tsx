@@ -12,8 +12,6 @@ import {
   Activity,
   LifeBuoy,
   ScrollText,
-  Sun,
-  Moon,
   LogOut,
   Menu,
   X,
@@ -27,6 +25,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
+import { useTheme } from "@/context/ThemeContext";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { MasterSearch } from "@/components/master/MasterSearch";
 import { OrganizationScopePicker } from "@/components/master/OrganizationScopePicker";
@@ -223,7 +223,10 @@ export function MasterShell({ title, children }: { title: string; children: Reac
   const { user, logout } = useAuth();
   const caps = useOperatorCaps();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const [dark, setDark] = useState(false);
+  // The global theme, not a private one -- see the ThemeToggle below. `null`
+  // (no provider, e.g. a bare render harness) falls back to light rather than
+  // throwing; `.master-theme.dark` in styles.css only needs the class added.
+  const theme = useTheme();
   const [mobile, setMobile] = useState(false);
   const [menu, setMenu] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -247,7 +250,7 @@ export function MasterShell({ title, children }: { title: string; children: Reac
   };
 
   return (
-    <div className={cn("master-theme", dark && "dark")}>
+    <div className={cn("master-theme", theme?.theme === "dark" && "dark")}>
       <div className="flex min-h-screen bg-background text-foreground">
         {mobile && (
           <div
@@ -369,13 +372,15 @@ export function MasterShell({ title, children }: { title: string; children: Reac
                   platform alerts page exists yet, so there's no "view all"
                   link -- the dropdown itself is the real destination. */}
               <NotificationBell scope="platform" />
-              <button
-                onClick={() => setDark((d) => !d)}
-                className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-foreground"
-                aria-label="Toggle theme"
-              >
-                {dark ? <Sun className="h-4.5 w-4.5" /> : <Moon className="h-4.5 w-4.5" />}
-              </button>
+              {/* The one real theme switcher (components/layout/ThemeToggle),
+                  not a second private one. This console used to keep its own
+                  `useState(false)` and toggle the class itself: the preference
+                  was never persisted, never read the OS setting, and was out of
+                  step with every other surface -- so a dark-mode operator got a
+                  light master console, and the button forgot the choice on the
+                  next navigation. The `master-theme` wrapper below still scopes
+                  the palette; only the source of the boolean changed. */}
+              <ThemeToggle />
               <div className="relative">
                 <button
                   onClick={() => setMenu((m) => !m)}
