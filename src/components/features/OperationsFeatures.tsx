@@ -1129,7 +1129,7 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
         <div className="min-w-0 flex-1">
           <FeatureHeader
             title="Open Hours"
-            description="Guests can only sign in inside this schedule -- outside it, they see a closed message instead of the portal."
+            description="Guests can only sign in inside this schedule — outside it they are disconnected, and see a closed message instead of the portal."
             icon={Sun}
             action={saveActions}
           />
