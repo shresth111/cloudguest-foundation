@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,8 +17,6 @@ import {
   Download,
   ImageUp,
   Sparkles,
-  Smartphone,
-  QrCode,
   RefreshCw,
   ExternalLink,
   Info,
@@ -26,6 +24,7 @@ import {
   MessageSquareText,
   Trash2,
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { portalService } from "@/services/portal.service";
@@ -49,6 +48,7 @@ import {
 import { PostLoginHtmlFrame } from "@/components/portal-runtime/PostLoginHtmlFrame";
 import { PortalRuntimeProvider } from "@/context/PortalRuntimeContext";
 import { PortalShell } from "@/components/portal-runtime/PortalShell";
+import { PortalContentBlock } from "@/components/portal-runtime/PortalContentBlock";
 import { GuestSignInCard } from "@/components/portal-runtime/GuestSignInCard";
 import {
   ConnectedPreview,
@@ -64,6 +64,8 @@ import { DEMO_PORTAL_PREVIEW_STORAGE_KEY } from "@/lib/portal-preview-storage";
 import { BRAND_ASSET_ACCEPT_ATTR, brandAssetRejectionReason } from "@/lib/brand-asset-limits";
 import type { PortalLanguage, PortalLoginMethod } from "@/types/portal";
 import {
+  RUNTIME_LANGUAGES,
+  hasGatingContentStep,
   resolveLanguageSelection,
   type PortalContentMode,
   type RuntimePortalConfig,
@@ -90,6 +92,22 @@ const CONNECTED_PREVIEW_SCENARIOS: { id: ConnectedPreviewScenario; label: string
   { id: "returning", label: "Returning guest" },
   { id: "dwell", label: "30 minutes in" },
 ];
+
+/** The three screens a guest can be on, in the order they meet them. The
+ *  preview used to offer only two of these, which left the venue's own
+ *  pre-login screen -- configured right here on this page -- with no preview
+ *  at all. */
+type PreviewArea = "before" | "login" | "connected";
+const PREVIEW_AREAS: { id: PreviewArea; label: string }[] = [
+  { id: "before", label: "Before login" },
+  { id: "login", label: "Login" },
+  { id: "connected", label: "Connected" },
+];
+
+/** What the downloadable QR encodes. Same hostname the removed "QR Code
+ *  Access" card already showed, so this is not a new claim about the
+ *  product's entry point -- only the payload stops being decorative. */
+const PORTAL_QR_URL = "https://auth.wyfyguest.com";
 
 /** One entry per possible number of post-connect asks. The wording is the
  * whole point -- it is what makes an owner feel a fourth switch before they
@@ -131,84 +149,6 @@ const AUTH_OPTIONS: [PortalLoginMethod, string][] = [
   ["pin", "Portal PIN"],
   ["social", "Social Login"],
 ];
-
-function PortalDesignIllustration() {
-  const shouldReduceMotion = useReducedMotion();
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 84 52"
-      className="hidden h-12 w-auto shrink-0 sm:block"
-      fill="none"
-    >
-      <rect
-        x="6"
-        y="6"
-        width="34"
-        height="40"
-        rx="5"
-        fill="#2e2a5c"
-        stroke="#a78bfa"
-        strokeWidth="1.6"
-      />
-      <rect x="11" y="12" width="24" height="14" rx="2" fill="#1e1b4b" />
-      <motion.rect
-        x="11"
-        y="30"
-        width="24"
-        height="4"
-        rx="2"
-        fill="#4f46e5"
-        initial={shouldReduceMotion ? false : { scaleX: 0, opacity: 0 }}
-        animate={{ scaleX: 1, opacity: 1 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-        style={{ transformOrigin: "11px 32px" }}
-      />
-      <circle cx="15" cy="38" r="1.4" fill="#a78bfa" />
-      <circle cx="21" cy="38" r="1.4" fill="#a78bfa" fillOpacity="0.6" />
-      <circle cx="27" cy="38" r="1.4" fill="#a78bfa" fillOpacity="0.6" />
-      <motion.g
-        animate={shouldReduceMotion ? { opacity: 0.9 } : { y: [0, -1.5, 0] }}
-        transition={
-          shouldReduceMotion ? undefined : { duration: 2.4, repeat: Infinity, ease: "easeInOut" }
-        }
-      >
-        <rect
-          x="46"
-          y="10"
-          width="30"
-          height="30"
-          rx="6"
-          fill="#1e1b4b"
-          stroke="#22d3ee"
-          strokeWidth="1.8"
-        />
-        <path
-          d="M53 25l5 5 12-12"
-          stroke="#22d3ee"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </motion.g>
-      {[0, 1].map((i) => (
-        <motion.circle
-          key={i}
-          cx={61}
-          cy={25}
-          r={9 + i * 5}
-          stroke="#f0abfc"
-          strokeOpacity={0.35 - i * 0.12}
-          strokeWidth="1.2"
-          fill="none"
-          initial={shouldReduceMotion ? false : { opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.15 * i, ease: "easeOut" }}
-        />
-      ))}
-    </svg>
-  );
-}
 
 /**
  * One settings row on the "After they connect" card -- title and
@@ -369,7 +309,6 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   // exactly as a guest sees it. Null in demo mode / when no image is set.
   const [bgImage, setBgImage] = useState<string | null>(null);
   const [form, setForm] = useState({
-    lang: "en, hi, ar",
     redirectUrl: "https://wyfyguest.com/welcome",
     // Empty, deliberately. This used to seed the textarea with the sentence
     // "By connecting you agree to fair-use terms." -- harmless while the
@@ -411,7 +350,23 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   // every setting in that card is invisible on the sign-in screen, and a
   // preview that does not move while a venue flips switches is worse than
   // no preview.
-  const [previewTab, setPreviewTab] = useState<"signin" | "connected">("signin");
+  const [previewArea, setPreviewArea] = useState<PreviewArea>("login");
+  const qrRef = useRef<HTMLDivElement>(null);
+
+  /** Serialises the off-screen QR next to the phone. The button this replaces
+   *  fired a success toast over a hard-coded lucide glyph that was not a QR
+   *  code at all -- it downloaded nothing. */
+  function handleDownloadQr() {
+    const svg = qrRef.current?.querySelector("svg");
+    if (!svg) return;
+    const blob = new Blob([svg.outerHTML], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "wyfy-guest-portal-qr.svg";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
   const [previewScenario, setPreviewScenario] = useState<ConnectedPreviewScenario>("first_visit");
 
   /**
@@ -538,7 +493,6 @@ export function PortalPage({ locationId }: { locationId?: string }) {
     setForm((f) => ({
       ...f,
       redirectUrl: p.login.redirectUrl || f.redirectUrl,
-      lang: p.languages.join(", "),
       // `consent.termsText`, not `termsUrl`: this control is a prose
       // textarea and it always was -- reading it out of the URL column was
       // half of why it never round-tripped. And no `|| f.terms` fallback:
@@ -710,6 +664,13 @@ export function PortalPage({ locationId }: { locationId?: string }) {
     setAuthMethods((prev) => (prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]));
   };
 
+  // Every language the guest portal ships. The per-venue language picker is
+  // gone: translations are bundled for all of them regardless (see
+  // lib/portal-i18n.ts), the field only ever filtered which languages the
+  // guest's own switcher offered, and the product decision is that every
+  // venue offers all of them.
+  const langList = [...RUNTIME_LANGUAGES];
+
   // The real, unsaved-edits-aware config fed into the actual guest-facing
   // components below (GuestSignInCard/PortalShell) -- built straight from
   // this page's own live form state, not a fetch, so every keystroke/color
@@ -720,10 +681,6 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   // silently drift from what that real component actually expects --
   // see src/routes/preview.portal.$locationId.tsx for the equivalent
   // preview built from the last *saved* config instead of in-progress edits.
-  const langList = form.lang
-    .split(",")
-    .map((l) => l.trim())
-    .filter(Boolean);
   const livePreviewConfig: RuntimePortalConfig = useMemo(
     () => ({
       id: portalId ?? "live-preview",
@@ -828,7 +785,6 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       logo,
       bgImage,
       primary,
-      form.lang,
       form.terms,
       form.redirectUrl,
       headline,
@@ -1277,45 +1233,6 @@ export function PortalPage({ locationId }: { locationId?: string }) {
 
   return (
     <div className="space-y-5">
-      {/* Page intro -- this page previously opened straight into the form
-          with no title/context at all, the only page in the redesigned set
-          missing one. Icon-badge matches the established pattern (Dashboard
-          chart headers, Select Location sections). */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa] shadow-sm shadow-indigo-500/20">
-            <Sparkles className="h-4.5 w-4.5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight">Portal</h1>
-            <p className="text-xs text-muted-foreground">
-              Design what guests see the moment they connect.
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          {/* Real, shareable preview of the actual guest-facing captive portal
-              (background image, branding, live sign-in methods) -- for a
-              real account, pulls the real, currently-*saved*
-              captive_portal_configs/brandings data for this location; for a
-              demo session (no real org/location to fetch), a localStorage
-              snapshot of this page's own in-progress edits instead -- see
-              openExternalPreview above and /preview/portal/demo's own
-              docstring. Either way opens in a new tab. The "Live Preview"
-              card below renders that same real component tree too, but
-              inline on this page -- the two together cover both "open this
-              full-page, shareable" and "keep it visible while I keep
-              editing". Bug report this demo branch fixes: "demo account
-              mai capitive portal pr redirect nahi hota hai" -- previously
-              hidden outright in demo mode. */}
-          {(demo || (orgId && locationId)) && (
-            <Button variant="outline" size="sm" onClick={openExternalPreview}>
-              <ExternalLink className="mr-2 h-4 w-4" /> Preview Portal
-            </Button>
-          )}
-          <PortalDesignIllustration />
-        </div>
-      </div>
       {/* A failed load must LOOK like a failed load. Not a toast (gone in
           four seconds, and this state does not go away), and not a silent
           fall-through to defaults. */}
@@ -1344,7 +1261,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
         {/* LEFT COLUMN. Two cards, not one, and the boundary is deliberate:
             Portal Configuration is the sign-in screen (headline, logo,
             colours, auth methods, terms); "After they connect" is the screen
@@ -1478,12 +1395,6 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                     </button>
                   )}
                 </div>
-                <p className="mt-1.5 text-xs text-muted-foreground">
-                  Displayed at 32×32px on the real sign-in screen (inside a rounded color badge) --
-                  upload a square image, 256×256px, PNG with a transparent background, for a sharp,
-                  clean result. Shared across every location in this organization, same as the
-                  Background Image.
-                </p>
               </div>
 
               <div>
@@ -1529,21 +1440,9 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                   )}
                 </div>
                 <p className="mt-1.5 text-xs text-muted-foreground">
-                  Fills the whole sign-in screen behind the card, on phones held upright — upload a
-                  tall portrait photo, at least 1170×2532px, PNG/JPEG/WEBP/GIF up to 5 MB. Keep the
-                  middle of the frame free of anything important: the sign-in card sits over it.
-                  Like the logo, this is shared across every location in this organization. The Live
-                  Preview on the right updates as soon as the upload finishes.
+                  Fills the screen behind the sign-in card. Keep the middle free of anything
+                  important: the card sits over it.
                 </p>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Languages</Label>
-                <Input
-                  value={form.lang}
-                  onChange={(e) => setForm({ ...form, lang: e.target.value })}
-                  className="h-9"
-                />
               </div>
 
               {/* AFTER THEY CONNECT -- one destination, chosen here. The
@@ -1897,7 +1796,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
           </Card>
 
           {/* ═══ AFTER THEY CONNECT ═══ */}
-          <Card className="shadow-sm border-0" onFocusCapture={() => setPreviewTab("connected")}>
+          <Card className="shadow-sm border-0" onFocusCapture={() => setPreviewArea("connected")}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2.5 text-sm">
                 <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
@@ -2108,238 +2007,172 @@ export function PortalPage({ locationId }: { locationId?: string }) {
           </Card>
         </fieldset>
 
-        <div className="space-y-4">
-          <Card className="shadow-sm border-0 overflow-hidden bg-gradient-to-br from-[#1e1b4b] via-[#241f52] to-[#2b2461] text-white">
-            <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
-              <CardTitle className="flex items-center gap-2.5 text-sm text-white">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/10">
-                  <Smartphone className="h-3.5 w-3.5 text-white" />
-                </div>
-                Live Preview
-                <span className="ml-1 inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white/70">
-                  <span className="relative flex h-1.5 w-1.5">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75" />
-                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-cyan-400" />
-                  </span>
-                  Live
-                </span>
-              </CardTitle>
-              <div className="flex items-center gap-1">
-                {/* Same destination as the "Preview Portal" button at the top
-                  of the page (openExternalPreview above) -- added directly
-                  here too since that's easy to miss from inside this card.
-                  Shown whenever the top button would be (demo, or a real
-                  account once orgId/locationId have resolved). */}
-                {(demo || (orgId && locationId)) && (
-                  <button
-                    type="button"
-                    onClick={openExternalPreview}
-                    aria-label="Open this preview in a new tab"
-                    title="Open in a new tab"
-                    className="rounded-md p-1 text-white/60 transition-colors hover:bg-white/10 hover:text-white"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={handleRefresh}
-                  disabled={refreshing}
-                  aria-label="Refresh preview from the last saved configuration"
-                  title="Refresh from saved configuration"
-                  className="rounded-md p-1 text-white/60 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50"
-                >
-                  {refreshing ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-3.5 w-3.5" />
-                  )}
-                </button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {/* TWO TABS, and this is the fix for the blindest thing on
-                  this page. The preview used to render `GuestSignInCard`
-                  and only that -- the sign-in screen -- while every setting
-                  on the "After they connect" card affects `/portal/session`.
-                  A venue owner could flip five switches, watch the phone
-                  mockup not change once, and press Save with no idea what
-                  they had done to their guests. That is the difference
-                  between an editor and a settings list.
+        {/* The phone, stuck to the top of the viewport while the settings on
+            the left scroll past it.
 
-                  `Sign in` is exactly the previous render, unchanged.
-                  Focusing anything in the "After they connect" card switches
-                  to `Connected` automatically, the same way editing the
-                  headline implicitly shows the sign-in view. */}
-              <div
-                role="tablist"
-                aria-label="Preview screen"
-                className="mx-auto mb-3 flex w-full max-w-[340px] rounded-lg bg-white/10 p-1"
-              >
-                {(
-                  [
-                    ["signin", "Sign in"],
-                    ["connected", "Connected"],
-                  ] as const
-                ).map(([id, label]) => (
+            Rendered flush, with no surrounding card. It used to sit inside a
+            dark gradient Card with its own header, a pulsing "Live" badge and
+            two paragraphs of caption, which spent more vertical room on chrome
+            than on the phone itself -- and left the frame showing ~120px of
+            dead air at the top, because the guest shell sizes that band in
+            `vh` (the browser window) rather than against the frame. See
+            PortalShell's `constrained` branch. */}
+        <div className="lg:sticky lg:top-6">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            {/* Three buttons, one highlighted. The old control was a two-way
+                tab row (Sign in / Connected), which left the venue's own
+                pre-login screen unpreviewable -- the one screen configured on
+                this page that a venue could never look at. These are the three
+                screens a guest can actually be on, in the order they meet
+                them. */}
+            <div
+              role="group"
+              aria-label="Which guest screen to preview"
+              className="inline-flex rounded-lg border bg-muted p-0.5"
+            >
+              {PREVIEW_AREAS.map(({ id, label }) => {
+                const unavailable = id === "before" && !hasGatingContentStep(livePreviewConfig);
+                const selected = previewArea === id;
+                return (
                   <button
                     key={id}
                     type="button"
-                    role="tab"
-                    aria-selected={previewTab === id}
-                    onClick={() => setPreviewTab(id)}
-                    className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                      previewTab === id
-                        ? "bg-white text-[#1e1b4b]"
-                        : "text-white/70 hover:text-white"
-                    }`}
+                    aria-pressed={selected}
+                    disabled={unavailable}
+                    title={
+                      unavailable
+                        ? "This venue has no pre-login screen — set one under Before sign-in"
+                        : undefined
+                    }
+                    onClick={() => setPreviewArea(id)}
+                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                      selected
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }${unavailable ? " cursor-not-allowed opacity-40" : ""}`}
                   >
                     {label}
                   </button>
-                ))}
-              </div>
-
-              {/* Which guest, not which card. The mutual-exclusion rules are
-                  NOT simulated away: the preview runs the real resolver and
-                  shows ONE ask per screen, because a preview showing four
-                  cards at once would teach the venue a picture of their
-                  portal that no guest will ever see. To see the others, they
-                  switch guest. */}
-              {previewTab === "connected" && (
-                <div className="mx-auto mb-3 flex w-full max-w-[340px] flex-wrap items-center gap-1.5">
-                  <span className="text-[11px] text-white/50">Showing:</span>
-                  {CONNECTED_PREVIEW_SCENARIOS.map((sc) => (
-                    <button
-                      key={sc.id}
-                      type="button"
-                      onClick={() => setPreviewScenario(sc.id)}
-                      aria-pressed={previewScenario === sc.id}
-                      className={`rounded-full border px-2.5 py-0.5 text-[11px] transition-colors ${
-                        previewScenario === sc.id
-                          ? "border-white/40 bg-white/15 text-white"
-                          : "border-white/15 text-white/60 hover:text-white"
-                      }`}
-                    >
-                      {sc.label}
-                    </button>
-                  ))}
-                </div>
+                );
+              })}
+            </div>
+            <div className="flex items-center gap-1.5">
+              {(demo || (orgId && locationId)) && (
+                <Button variant="outline" size="sm" onClick={openExternalPreview}>
+                  <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Open in new tab
+                </Button>
               )}
-
-              {/* Phone frame -- a real device bezel wrapping the *actual*
-                guest-facing components (GuestSignInCard/PortalShell), not a
-                hand-drawn approximation of them. `livePreviewConfig` above
-                is rebuilt from this page's own live form state on every
-                render, so every keystroke/color pick/toggle re-renders this
-                exact real component immediately -- previously this panel
-                was a fully self-contained mockup (its own hardcoded phone
-                UI, an inert "Continue" button, a plain wifi glyph for the
-                logo) that never read `authMethods`/`headline` beyond a
-                couple of cosmetic props, and was an entirely different
-                component tree than what a guest's device actually renders. */}
-              <div className="mx-auto w-full max-w-[340px] rounded-[2rem] border-8 border-black/80 bg-black/80 p-1.5 shadow-xl">
-                {/* Fixed `h-[560px]`, not `min-h-[560px]` -- PortalShell's own
-                  `constrained` height class is `min-h-full`, and CSS only
-                  resolves a percentage `min-height` against a parent with a
-                  *definite* height. A `min-height`-only parent has no
-                  definite height (it sizes to its shorter real content),
-                  so PortalShell silently fell back to its natural,
-                  shorter-than-560px height, leaving this frame's own
-                  `bg-white` showing through as a jarring blank gap below the
-                  actual card -- not what a real phone screen looks like.
-                  `overflow-y-auto` (not `-hidden`) so content that's
-                  genuinely taller than one screen scrolls inside the frame,
-                  the same as it would on a real guest's phone, instead of
-                  being invisibly clipped off. */}
-                <div className="relative h-[560px] overflow-x-hidden overflow-y-auto rounded-[1.4rem] bg-white">
-                  <PortalRuntimeProvider
-                    organizationId={orgId ?? "preview"}
-                    locationId={locationId ?? "preview"}
-                    routerId="preview"
-                    previewMode
-                    presetConfig={livePreviewConfig}
-                    presetConfigLoading={false}
-                  >
-                    {previewTab === "connected" ? (
-                      <ConnectedPreview scenario={previewScenario} />
-                    ) : (
-                      <PortalShell constrained>
-                        <GuestSignInCard />
-                      </PortalShell>
-                    )}
-                  </PortalRuntimeProvider>
-                </div>
-              </div>
-              {/* Stated where the venue is looking at the screen it applies
-                  to. Every device now lands on the connected screen after
-                  login -- including Apple's captive sheet. iOS closes that
-                  sheet itself once its own re-probe passes through the open
-                  gate, often before a guest can interact, so these settings
-                  are still at their strongest for guests in a real browser
-                  (Android, desktop, iOS Safari). We are not guessing at the
-                  share: the only device-mix figures available are seeded,
-                  not real. */}
-              {previewTab === "connected" && (
-                <p className="mt-3 rounded-lg bg-white/5 px-3 py-2 text-[11px] leading-relaxed text-white/60">
-                  Every device lands on this screen after sign-in, but iPhones that sign in inside
-                  Apple's pop-up may have it closed again by iOS within moments. Anything you switch
-                  on here is seen most reliably by guests in a regular browser.
-                </p>
-              )}
-              <p className="mt-3 text-center text-[11px] text-white/50">
-                {previewTab === "connected"
-                  ? "This is the real connected screen, live-rendered with your unsaved settings above — one ask per screen, exactly as a guest gets it."
-                  : "This is the real guest sign-in component, live-rendered with your unsaved edits above."}
-                {!demo ? (
-                  <>
-                    {" "}
-                    For the exact, currently-saved config a guest would see right now, use{" "}
-                    <span className="font-medium text-white/80">Preview Portal</span> at the top of
-                    this page.
-                  </>
-                ) : (
-                  // Demo has no real "saved" config to distinguish this from
-                  // (see PortalPage.tsx's saveConfig demo branch) -- Preview
-                  // Portal here opens this same in-progress config full-page
-                  // in a new tab, not a different snapshot, so just point at
-                  // the external-link icon rather than implying otherwise.
-                  <>
-                    {" "}
-                    Use the <ExternalLink className="mb-0.5 inline h-3 w-3" /> icon above to open
-                    this in its own tab.
-                  </>
-                )}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-sm border-0">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2.5 text-sm">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
-                  <QrCode className="h-3.5 w-3.5 text-white" />
-                </div>
-                QR Code Access
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center gap-3">
-              <div
-                className="grid h-32 w-32 place-items-center rounded-2xl border-2"
-                style={{ borderColor: `${primary}55`, background: `${primary}0d` }}
-              >
-                <QrCode className="h-16 w-16" style={{ color: primary }} />
-              </div>
-              <p className="text-xs text-muted-foreground">auth.wyfyguest.com</p>
               <Button
                 variant="outline"
-                size="sm"
-                onClick={() => toast.success("QR code downloaded")}
+                size="icon"
+                onClick={handleRefresh}
+                disabled={refreshing}
+                aria-label="Refresh preview from the last saved configuration"
+                title="Refresh from saved configuration"
               >
-                <Download className="mr-1.5 h-3.5 w-3.5" />
-                Download QR
+                {refreshing ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3.5 w-3.5" />
+                )}
               </Button>
-            </CardContent>
-          </Card>
+              {/* Was a full Card with a 128px box, a caption line and a
+                  full-width button -- ~250px of the right column, for a
+                  download that only fired a toast. Now one icon, and a real
+                  SVG. */}
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleDownloadQr}
+                aria-label="Download the guest portal QR code"
+                title="Download QR code"
+              >
+                <Download className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Which guest, not which card. The mutual-exclusion rules are NOT
+              simulated away: the preview runs the real resolver and shows ONE
+              ask per screen, because a preview showing four cards at once
+              would teach the venue a picture of their portal that no guest
+              will ever see. To see the others, they switch guest. */}
+          {previewArea === "connected" && (
+            <div className="mb-3 flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] text-muted-foreground">Showing:</span>
+              {CONNECTED_PREVIEW_SCENARIOS.map((sc) => (
+                <button
+                  key={sc.id}
+                  type="button"
+                  onClick={() => setPreviewScenario(sc.id)}
+                  aria-pressed={previewScenario === sc.id}
+                  className={`rounded-full border px-2.5 py-0.5 text-[11px] transition-colors ${
+                    previewScenario === sc.id
+                      ? "border-foreground/30 bg-muted text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {sc.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* An iPhone 16 at its real logical size (393 x 852pt), shortened
+              only if the window cannot show that much -- so the frame keeps
+              the device's own proportions instead of being an arbitrary
+              340x560 box, and `container-type: size` is what lets the guest
+              shell size its own spacing against the *frame* rather than
+              against the browser window (see PortalShell). The real
+              components render inside it at 1:1: `livePreviewConfig` above is
+              rebuilt from this page's live form state on every render, so
+              every keystroke, colour pick and toggle re-renders the exact
+              component tree a guest's device renders. */}
+          <div className="mx-auto w-[393px] max-w-full rounded-[3.2rem] border-[10px] border-black bg-black p-1.5 shadow-2xl">
+            <div
+              className="relative overflow-hidden rounded-[2.6rem] bg-white"
+              style={{ height: "min(852px, calc(100vh - 11rem))", containerType: "size" }}
+            >
+              <div
+                aria-hidden
+                className="pointer-events-none absolute left-1/2 top-2.5 z-20 h-[22px] w-[86px] -translate-x-1/2 rounded-full bg-black"
+              />
+              <div className="h-full overflow-x-hidden overflow-y-auto">
+                <PortalRuntimeProvider
+                  organizationId={orgId ?? "preview"}
+                  locationId={locationId ?? "preview"}
+                  routerId="preview"
+                  previewMode
+                  presetConfig={livePreviewConfig}
+                  presetConfigLoading={false}
+                >
+                  {previewArea === "connected" ? (
+                    <ConnectedPreview scenario={previewScenario} />
+                  ) : previewArea === "before" ? (
+                    // Continue advances the *preview* to the next screen, which
+                    // is exactly what it does for a guest -- so the two screens
+                    // can be walked here rather than only looked at.
+                    <PortalShell constrained>
+                      <PortalContentBlock onContinue={() => setPreviewArea("login")} />
+                    </PortalShell>
+                  ) : (
+                    <PortalShell constrained>
+                      <GuestSignInCard />
+                    </PortalShell>
+                  )}
+                </PortalRuntimeProvider>
+              </div>
+            </div>
+          </div>
+
+          {/* Off-screen, and only ever serialised by handleDownloadQr. Rendered
+              always rather than on demand so the click handler stays
+              synchronous (Safari refuses a download started from an async
+              continuation that is no longer in the user-gesture's call
+              stack). */}
+          <div ref={qrRef} aria-hidden className="hidden">
+            <QRCodeSVG value={PORTAL_QR_URL} size={512} />
+          </div>
         </div>
       </div>
     </div>
