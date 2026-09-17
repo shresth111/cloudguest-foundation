@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { AlertBanner, PG_INPUT, PG_PRIMARY_BTN, SecurityTip } from "./PortalGuestUi";
 import { PG_FIELD_LABEL } from "./AuthFields";
+import { GuestGroupPicker } from "./GuestGroupPicker";
 import type { UseGuestSignInReturn } from "./useGuestSignIn";
 
 /**
@@ -31,6 +32,10 @@ export function PasswordSignInForm(sign: UseGuestSignInReturn) {
   const passwordId = `${id}-password`;
   return (
     <div className="space-y-3">
+      {/* The same "which group do you belong to?" picker the OTP tab shows.
+       * Without it here, a password guest's first sight of the question was
+       * after they were already connected -- see GuestGroupPicker. */}
+      <GuestGroupPicker {...sign} />
       <div>
         <Label htmlFor={identifierId} className={PG_FIELD_LABEL}>
           {t("mobileOrEmailLabel")}

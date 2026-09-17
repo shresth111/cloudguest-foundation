@@ -39,6 +39,12 @@ interface RawRouterStatus extends RawRouterLiveness {
 }
 interface RawGuestSessionStatus {
   status: string;
+  /** Server-derived presence -- the same `/guest-sessions` field
+   *  `RawGuestSession.is_online` documents. Declared here too because the
+   *  location picker's own "Guests online" count must not fall back to
+   *  reading `status` (see `listLocations`). Optional so a backend that
+   *  predates the field still parses. */
+  is_online?: boolean;
   bytes_downloaded?: number;
   bytes_uploaded?: number;
 }
@@ -1115,7 +1121,16 @@ export const customerService = {
           // falsy": when liveness is `unknown` we have no grounds to zero
           // a real session count either, so the honest figure stands.
           const nothingIsUp = liveness.routersOnline === 0;
-          const active = nothingIsUp ? 0 : sessions.filter((s) => s.status === "active").length;
+          // Presence, not the session row's own lifecycle -- the rule
+          // lib/guest-presence.ts states once for every surface. `is_online`
+          // is the server's own answer (session active AND the device not
+          // observed as gone), so a guest whose device dropped off the
+          // network stops counting here. `status` alone kept counting them
+          // until the timeout sweep, which never reaches a session that has
+          // no timeout at all.
+          const active = nothingIsUp
+            ? 0
+            : sessions.filter((s) => s.is_online ?? s.status === "active").length;
           return summaryFromLiveness(
             {
               id: loc.id,
@@ -1403,13 +1418,21 @@ export const customerService = {
     // rather than trusting a session row that's outlived its router.
     // Keyed off "we know nothing is checking in" -- when liveness is
     // `unknown` there are no grounds to zero a real count either.
-    // If specific routers are offline, exclude their active sessions so
-    // stale DB rows don't inflate live online guests.
+    // If specific routers are offline, exclude their sessions so stale DB
+    // rows don't inflate live online guests.
     const offlineRouterIds = new Set(
       liveness.routers.filter((r) => r.key && r.status === "fail").map((r) => r.key),
     );
+    // `is_online`, not `status === "active"`: an open session row whose
+    // device the network has stopped seeing is not an online guest, and the
+    // dashboard labelled it as one (lib/guest-presence.ts). The router
+    // exclusion above stays -- it covers the case the presence signal cannot,
+    // a whole venue whose routers are unreachable. The old `status` reading
+    // remains as the fallback for a backend that predates the field.
     const activeSessions = sessions.filter(
-      (s) => s.status === "active" && (!s.router_id || !offlineRouterIds.has(s.router_id)),
+      (s) =>
+        (s.is_online ?? s.status === "active") &&
+        (!s.router_id || !offlineRouterIds.has(s.router_id)),
     );
     const activeSessionCount = liveness.routersOnline === 0 ? 0 : activeSessions.length;
     return {
@@ -1715,7 +1738,13 @@ export const customerService = {
           connectedAt: s.started_at,
           disconnectedAt: s.ended_at ?? null,
           download: `${Math.round((s.bytes_downloaded || 0) / 1e6)} MB`,
-          status: (s.status === "active"
+          // Presence, not the session row's own status -- see
+          // lib/guest-presence.ts. This is the venue operator's primary "who
+          // is on my WiFi" screen, and it was reading `status === "active"`,
+          // so every device that had dropped off the network still showed a
+          // green "Online" dot. `paused -> idle` is unchanged: a paused
+          // session is not a dropped device.
+          status: ((s.is_online ?? s.status === "active")
             ? "online"
             : s.status === "paused"
               ? "idle"
@@ -1746,13 +1775,19 @@ export const customerService = {
   },
 
   /** Real, location-wide "how many PEOPLE are online right now" count --
-   * distinct guest_ids among ACTIVE sessions (a guest on two devices
-   * counts once). NOT derived from the current page's rows (see this
-   * file's Users-page comment history for why that was misleading), and
-   * NOT the raw active-session total either -- QA: "guests are being
-   * counted separately even when a user is reconnecting." Active rows are
-   * bounded by seats on the network, so this walks at most a handful of
-   * 100-row pages to reach the true distinct count. */
+   * distinct guest_ids among sessions whose device is actually on the
+   * network (a guest on two devices counts once). NOT derived from the
+   * current page's rows (see this file's Users-page comment history for why
+   * that was misleading), and NOT the raw active-session total either --
+   * QA: "guests are being counted separately even when a user is
+   * reconnecting." Active rows are bounded by seats on the network, so this
+   * walks at most a handful of 100-row pages to reach the true distinct
+   * count.
+   *
+   * `is_online`, not `status`, decides who is in the set: the query can only
+   * ask the API for `status=active` (an open row), but a row whose device has
+   * dropped off is still an open row, and counting it here made "Online now"
+   * contradict the presence badge on the very same guest. */
   async getOnlineCount(locationId: string): Promise<number> {
     if (isDemo()) return 16; // matches getUsers()'s demo fixture (16 of 24 rows are "online")
     try {
@@ -1763,7 +1798,9 @@ export const customerService = {
           params: { location_id: locationId, status: "active", page, page_size: 100 },
           headers: { "X-Organization-Id": orgId },
         });
-        for (const s of data?.items ?? []) if (s.guest_id) seen.add(s.guest_id);
+        for (const s of data?.items ?? []) {
+          if (s.guest_id && (s.is_online ?? s.status === "active")) seen.add(s.guest_id);
+        }
         if ((data?.items?.length ?? 0) < 100) break;
       }
       return seen.size;

@@ -67,7 +67,8 @@ import {
 import { guestService } from "@/services/guest.service";
 import type { GuestSession, GuestSessionStatus, SessionListQuery } from "@/types/guest";
 import type { AppError } from "@/services/api";
-import { GuestAuthMethodBadge, GuestSessionStatusBadge } from "./GuestBadges";
+import { GuestAuthMethodBadge, GuestPresenceBadge } from "./GuestBadges";
+import { GUEST_PRESENCE_LABEL, guestPresence } from "@/lib/guest-presence";
 import { OmadaDisconnectDialog, OmadaDisconnectMenuItem } from "./OmadaSessionDisconnect";
 
 const PAGE_SIZES = [10, 20, 50];
@@ -114,7 +115,8 @@ function toCsv(rows: GuestSession[]): string {
       r.lastActivityAt,
       r.bytesUploaded,
       r.bytesDownloaded,
-      r.status,
+      // Presence, matching the badge in the table -- see the Status column.
+      GUEST_PRESENCE_LABEL[guestPresence({ isOnline: r.isOnline, status: r.status })],
     ]
       .map((v) => `"${String(v).replace(/"/g, '""')}"`)
       .join(","),
@@ -325,7 +327,7 @@ export function LiveSessionsTable() {
                         {formatBytes(r.bytesUploaded)}
                       </TableCell>
                       <TableCell>
-                        <GuestSessionStatusBadge status={r.status} />
+                        <GuestPresenceBadge isOnline={r.isOnline} status={r.status} />
                       </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
