@@ -50,11 +50,15 @@ const ICON: Record<NotifCategory, typeof Bell> = {
   alert: AlertOctagon,
 };
 
+// Each tone needs its own dark text colour: the `text-*-600` values are
+// chosen to sit on a light card, and on the dark console card they were the
+// one chip set in this file with no legible counterpart (`*-400` is the same
+// hue, lifted for a dark background).
 const PRI_TONE: Record<NotifPriority, string> = {
-  low: "bg-slate-500/15 text-slate-600",
-  medium: "bg-sky-500/15 text-sky-600",
-  high: "bg-amber-500/15 text-amber-600",
-  critical: "bg-rose-500/15 text-rose-600",
+  low: "bg-slate-500/15 text-slate-600 dark:text-slate-300",
+  medium: "bg-sky-500/15 text-sky-600 dark:text-sky-300",
+  high: "bg-amber-500/15 text-amber-600 dark:text-amber-300",
+  critical: "bg-rose-500/15 text-rose-600 dark:text-rose-300",
 };
 
 function NotificationsPage() {
