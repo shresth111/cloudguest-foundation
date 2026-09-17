@@ -1,6 +1,10 @@
 import { api } from "@/services/api";
 import { guestPortalApi } from "@/services/guest-portal-api";
 import type { PortalAuthorizeBody } from "@/lib/portal-authorize-body";
+import {
+  PORTAL_RADIUS_AUTHORIZE_PATH,
+  type PortalRadiusAuthorizeBody,
+} from "@/lib/portal-radius-authorize";
 import { resolveOrganizationId as sharedResolveOrganizationId } from "./organization-id";
 import type {
   ControllerAuthMode,
@@ -27,6 +31,7 @@ import type {
   NetworkIntegrationSyncStatus,
   PlatformIntegrationQuery,
   PortalAuthorizeResult,
+  RadiusPortalAuthorizeResult,
   TestNetworkIntegrationPayload,
   UpdateNetworkIntegrationPayload,
 } from "@/types/network-integration";
@@ -158,6 +163,21 @@ interface BackendPortalAuthorize {
   provider?: string | null;
   expires_at?: string | null;
   redirect_url?: string | null;
+}
+
+/** The RADIUS-mode answer. PROVISIONAL -- see
+ * `src/lib/portal-radius-authorize.ts`. Every field optional because the
+ * backend contract is not published yet, and a missing one must read as
+ * "not said" rather than crash a guest's only path to the internet.
+ *
+ * No `redirect_url`: on this contract the portal decides where the guest
+ * lands (`resolvePostLoginDestination`), and echoing a URL back for it to
+ * obey would put that decision on the wire for no reason. */
+interface BackendRadiusPortalAuthorize {
+  authorized?: boolean | null;
+  provider?: string | null;
+  expires_at?: string | null;
+  error_code?: string | null;
 }
 
 interface BackendNetworkIntegrationSite {
@@ -1233,6 +1253,44 @@ export const guestPortalIntegrationService = {
       provider: data.provider ?? null,
       expiresAt: data.expires_at ?? null,
       redirectUrl: data.redirect_url ?? null,
+    };
+  },
+
+  /**
+   * The same thing for a venue on Omada RADIUS mode (`authType 2`).
+   *
+   * A SECOND METHOD, NOT A FLAG ON THE FIRST. The two calls do not share a
+   * request shape: an `authType 2` redirect carries no `site` and no `t`
+   * (both of which `PortalAuthorizeRequest` requires `site` of), and it
+   * carries `target`/`targetPort`/`scheme`/`originUrl` that the other
+   * never does. A single method with half its fields conditionally null is
+   * how one contract's absence gets read as the other's.
+   *
+   * Why the guest's browser stopped calling the controller directly, what
+   * was measured on hardware, and every wire name below -- all of it is in
+   * `src/lib/portal-radius-authorize.ts`, which assembles this body and is
+   * the only place it is spelled. As above, this method passes it through
+   * verbatim and reshapes nothing.
+   *
+   * THE PATH AND THE RESPONSE FIELDS ARE PROVISIONAL. The backend endpoint
+   * is a parallel change whose contract was not published when this
+   * shipped; see that module's docstring. `error_code` is read defensively
+   * for exactly that reason -- an absent one reads as "the backend did not
+   * say", which `radiusFailureOf` turns into `"unknown"` rather than into
+   * a specific claim.
+   */
+  async authorizeRadiusPortal(
+    body: PortalRadiusAuthorizeBody,
+  ): Promise<RadiusPortalAuthorizeResult> {
+    const { data } = await guestPortalApi.post<BackendRadiusPortalAuthorize>(
+      `${BASE}${PORTAL_RADIUS_AUTHORIZE_PATH}`,
+      body,
+    );
+    return {
+      authorized: !!data.authorized,
+      provider: data.provider ?? null,
+      expiresAt: data.expires_at ?? null,
+      errorCode: data.error_code ?? null,
     };
   },
 };

@@ -404,6 +404,29 @@ export interface PortalAuthorizeResult {
   redirectUrl: string | null;
 }
 
+/** What the Omada RADIUS-mode (`authType 2`) authorize call answered.
+ *
+ * Same "`authorized: false` is a real outcome" rule as
+ * {@link PortalAuthorizeResult}, plus the field that contract never had:
+ * a reason. On the browser-POST path this replaces, a failure was a raw
+ * JSON blob the browser had already navigated to, so there was nothing to
+ * read and nothing to style -- which is why nothing in this codebase ever
+ * read one.
+ *
+ * `errorCode` is the backend's own token, verbatim and unmapped. It is
+ * reduced to something a guest can act on by `radiusFailureOf` in
+ * `src/lib/portal-radius-authorize.ts`, which is also where the
+ * PROVISIONAL status of every one of these tokens is recorded. `null`
+ * means the backend did not say, which is not the same as "no reason".
+ *
+ * No `redirectUrl`: see `BackendRadiusPortalAuthorize` in the service. */
+export interface RadiusPortalAuthorizeResult {
+  authorized: boolean;
+  provider: string | null;
+  expiresAt: string | null;
+  errorCode: string | null;
+}
+
 /** A site as the controller itself reports it -- live read, not a stored
  * row, so counts here are a snapshot and may disagree with the integration's
  * own `deviceCount`/`clientCount` between syncs. */

@@ -3,8 +3,14 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { PortalShell, GUEST_LEGIBILITY_CARD_CLASS } from "@/components/portal-runtime/PortalShell";
-import { PortalConnectingState } from "@/components/portal-runtime/PortalGuestUi";
+import {
+  PortalShell,
+  PortalTextPlate,
+  GUEST_LEGIBILITY_CARD_CLASS,
+} from "@/components/portal-runtime/PortalShell";
+import { PortalConnectingState, PG_PRIMARY_BTN } from "@/components/portal-runtime/PortalGuestUi";
+import { GlyphFailure } from "@/components/portal-runtime/PortalGlyphs";
+import { scriptClassOf } from "@/lib/portal-script";
 import {
   usePortalRuntime,
   loadPersistedHotspotSubmit,
@@ -17,7 +23,14 @@ import { usePortalLinkSearch } from "@/components/portal-runtime/usePortalLinkSe
 import { isCaptiveNetworkAssistant } from "@/lib/portal-cna";
 import { resolvePostLoginDestination } from "@/lib/portal-post-login";
 import { buildPortalAuthorizeBody, normalizeOmadaText } from "@/lib/portal-authorize-body";
-import { buildOmadaRadiusSubmission, submitOmadaRadiusLogin } from "@/lib/portal-radius-submit";
+import {
+  buildPortalRadiusAuthorizeBody,
+  radiusFailureFromError,
+  radiusFailureIsRetryable,
+  radiusFailureMessageKey,
+  radiusFailureOf,
+  type RadiusAuthorizeFailure,
+} from "@/lib/portal-radius-authorize";
 import { guestPortalIntegrationService } from "@/services/network-integration.service";
 
 // v4 §6.1: the same "taking longer than expected" threshold
@@ -232,6 +245,30 @@ function SuccessPage() {
   // (a fresh attempt deserves its own fresh 4s/15s clock) -- the actual
   // submit-retry logic lives in `attemptSubmit`, not here.
   const [attempt, setAttempt] = useState(0);
+  /**
+   * WHY THIS PAGE CAN NOW SAY THAT SOMETHING WENT WRONG.
+   *
+   * Non-null renders the failure screen below INSTEAD of the connecting
+   * spinner. Only the Omada RADIUS branch ever sets it; every other branch
+   * on this page either navigates or leaves the existing slow/stuck notice
+   * as the honest state, and neither of those changed.
+   *
+   * ## Deliberately NOT seeded from `errorHint`
+   *
+   * The controller's own `errorHint` bounce is handled, and it is handled
+   * on the SIGN-IN card (`GuestSignInCard`), not here -- because that is
+   * where the bounced guest actually lands. Omada answers a failed
+   * `browserauth` by navigating the browser back to the configured portal
+   * URL with `?errorHint=...` appended, which is `/portal`, which resolves
+   * to `/portal/welcome`.
+   *
+   * Seeding it here as well would be actively wrong rather than merely
+   * redundant: `errorHint` is a retained portal search param (see
+   * `portalSearchShape`), so it rides along to this page on the guest's
+   * NEXT attempt -- and this screen would then render that stale failure
+   * before the fresh authorize call had even been answered.
+   */
+  const [radiusFailure, setRadiusFailure] = useState<RadiusAuthorizeFailure | null>(null);
 
   // Our own login (OTP/password/voucher) only just created a session in
   // this platform's own database -- the NAS's own gate is a completely
@@ -324,69 +361,92 @@ function SuccessPage() {
   }
 
   /**
-   * THE OMADA RADIUS GATE (`authType 2`), and it is the MikroTik shape,
-   * not the Omada one.
+   * THE OMADA RADIUS GATE (`authType 2`), AND THE BROWSER IS NO LONGER IN
+   * IT.
    *
-   * On this contract our backend is never called: the guest's browser
-   * submits to the venue's controller, the controller sends a RADIUS
-   * Access-Request to this platform's FreeRADIUS, and the controller opens
-   * the gate on the Access-Accept. So the mechanism here is the same
-   * top-level HTML form POST `submitHotspotLogin` uses for RouterOS --
-   * a different URL and different field names, the same navigation, for
-   * the same reason (an embedded `fetch` hangs iOS's Captive Network
-   * Assistant forever, and the controller's XHR endpoint cannot be read
-   * cross-origin anyway). The contract itself lives in
-   * `@/lib/portal-radius-submit`.
+   * This used to be a top-level HTML form POST from the guest's own
+   * browser to the venue controller's `POST /portal/radius/browserauth`.
+   * Measured on a real Android handset (2026-09-18): the browser refuses
+   * the navigation. That endpoint lives on the controller's own portal
+   * port behind a self-signed `CN=localhost` certificate, and every
+   * venue's controller has its own -- so this was not one venue's
+   * misconfiguration, it was the contract. Measured the same day: the
+   * identical call made SERVER-SIDE authorizes the client.
    *
-   * ## The identifier is load-bearing here, unlike the other Omada branch
+   * So this asks our backend, exactly as `authorizeOnController` above
+   * does for the External Portal Server contract. The whole payload and
+   * every failure token live in `@/lib/portal-radius-authorize`, which
+   * also records that the backend contract is PROVISIONAL.
    *
-   * `authorizeOnController` above is keyed on the SESSION ID, so a guest
-   * whose identifier was lost to a reload can still be authorized. This
-   * path cannot: `username` is what our FreeRADIUS looks an ACTIVE
-   * `GuestSession` up by (`RadiusService.authorize` is a session lookup,
-   * not a password check). Without it there is nothing to submit, so this
-   * releases the guard and leaves the guest on the retry screen rather
-   * than posting a credential that is certain to be rejected -- and a
-   * rejection here is not a styled error, it is a raw JSON blob rendered
-   * by the browser (see the module docstring).
+   * ## What the identifier stopped being
    *
-   * ## A refusal is a configuration disagreement, and it is not guessed past
+   * The old form POST carried `username` -- this guest's own verified
+   * phone or email -- from their browser to a host named by a query
+   * parameter, because that exact string is what our FreeRADIUS looks an
+   * ACTIVE `GuestSession` up by. So a guest whose identifier was lost to a
+   * reload could not be authorized at all, and the branch gave up.
    *
-   * The venue's stored mode says RADIUS; the redirect says where to
-   * submit. If the redirect carries no `target`/`targetPort`/`scheme`,
-   * the controller is still configured for the other contract -- or this
-   * is a portal URL captured before the venue moved. Only the controller
-   * ever knew its own address, so there is nothing to fall back to, and
-   * inventing one would post this guest's identifier to whatever we
-   * guessed.
+   * This body carries the SESSION ID and no credential, the same posture
+   * the other Omada branch takes; the backend resolves the identifier off
+   * the session it already owns. That guest can now be authorized, and the
+   * `!guestIdentifier` bail is gone with the reason for it.
+   *
+   * ## Three outcomes, and only one of them is a navigation
+   *
+   * `authorized` -> a real top-level document load, for the reason every
+   * other branch on this page uses one: it is the only thing that actually
+   * asks the network, and inside iOS's Captive Network Assistant a `fetch`
+   * hangs the websheet forever (2026-08-18 incident). The FETCH here is
+   * the authorize call, which is not the hop to `originUrl`; the hop to
+   * `originUrl` is still `window.location.assign`.
+   *
+   * `authorized: false`, or the call failing -> a REAL FAILURE SCREEN,
+   * which this contract has never had. The old path could not render one:
+   * the controller answered a rejected form navigation with a JSON blob
+   * and the browser had already navigated away. No navigation, no claim of
+   * success, and the guard is released so the retry is genuine.
    */
-  function submitRadiusLogin() {
-    if (!guestIdentifier) {
-      hotspotLoginSubmitted.current = false;
+  async function authorizeRadiusOnBackend() {
+    if (!session) return;
+    const built = buildPortalRadiusAuthorizeBody(
+      {
+        session_id: session.sessionId,
+        // The venue this guest is standing in, off the portal's own
+        // runtime -- the same three, for the same reason, as the other
+        // Omada branch above.
+        organization_id: organizationId,
+        location_id: locationId,
+        provider: "omada",
+      },
+      omadaRedirect ?? {},
+      clientIp,
+    );
+    if ("refused" in built) {
+      // A redirect parameter is present and is not what it claims to be.
+      // Nobody standing at this venue can fix that, so the screen says so
+      // rather than retrying a call that would carry the same bad value.
+      failRadius("not-configured");
       return;
     }
-    const submission = buildOmadaRadiusSubmission(omadaRedirect ?? {}, {
-      identifier: guestIdentifier,
-      // The same placeholder the RouterOS branch sends, and for the same
-      // reason: no RADIUS path in this product checks it. FreeRADIUS sets
-      // `control:Auth-Type` from our own backend's session lookup before
-      // `pap`/`chap` ever run, so the credential in the packet is never
-      // verified -- in PAP or CHAP mode alike.
-      password: HOTSPOT_FALLBACK_PASSWORD,
-      // `originUrl` is this contract's `dst`: where the controller sends
-      // the browser on its 302 after the Access-Accept. Same decision as
-      // every other post-login navigation on this page.
-      landingUrl: directTarget(),
-    });
-    if ("refused" in submission) {
-      // Nothing is in flight, so the existing slow/stuck notice and the
-      // retry control are the honest state. No navigation, and above all
-      // no claim of success.
-      hotspotLoginSubmitted.current = false;
-      return;
+
+    try {
+      const result = await guestPortalIntegrationService.authorizeRadiusPortal(built);
+      if (!result.authorized) {
+        failRadius(radiusFailureOf(result.errorCode));
+        return;
+      }
+      window.location.assign(directTarget());
+    } catch (error) {
+      failRadius(radiusFailureFromError(error));
     }
-    submitOmadaRadiusLogin(submission);
-    persistHotspotSubmit({ identifier: guestIdentifier, at: Date.now() });
+  }
+
+  /** One place the failure is recorded, so the guard release and the
+   * screen can never disagree. Releasing the guard is what makes the
+   * retry control below a real retry rather than a no-op. */
+  function failRadius(failure: RadiusAuthorizeFailure) {
+    hotspotLoginSubmitted.current = false;
+    setRadiusFailure(failure);
   }
 
   function attemptSubmit() {
@@ -424,7 +484,7 @@ function SuccessPage() {
       // `authorizeOnController` for a RADIUS venue would ask the
       // controller to do something it is no longer configured to do.
       if (portalMode === "radius") {
-        submitRadiusLogin();
+        void authorizeRadiusOnBackend();
         return;
       }
       void authorizeOnController();
@@ -633,11 +693,77 @@ function SuccessPage() {
 
   function retry() {
     hotspotLoginSubmitted.current = false;
+    // Clear the failure BEFORE re-attempting, not after: a retry that
+    // leaves the old screen up until its own answer arrives is a retry the
+    // guest cannot tell fired at all. The spinner comes back, and either a
+    // navigation or a fresh failure replaces it.
+    setRadiusFailure(null);
     setAttempt((a) => a + 1);
     attemptSubmit();
   }
 
   if (!session) return null;
+
+  /**
+   * THE FAILURE SCREEN THIS CONTRACT NEVER HAD.
+   *
+   * Same visual language as `/portal/failure` (danger disc, `GlyphFailure`,
+   * a plate that only backs itself when there is a photo behind it),
+   * rendered in place rather than navigated to: navigating would drop this
+   * page's `attempt` state and its retry, and `/portal/failure` can only
+   * say "authentication failed", which is not what happened. The guest
+   * authenticated perfectly well -- the network step after it did not.
+   *
+   * Two controls, and which ones appear is decided by the failure, not by
+   * layout taste. A `"rejected"` guest is NOT offered a retry, because the
+   * session the backend would look up is gone and the identical call
+   * produces the identical refusal; they are offered the thing that does
+   * work. Everyone else gets both.
+   */
+  if (radiusFailure) {
+    const retryable = radiusFailureIsRetryable(radiusFailure);
+    return (
+      <PortalShell showBrandPanel={false}>
+        <div className="flex flex-1 flex-col justify-center gap-5">
+          <div className="mx-auto w-fit max-w-full text-center">
+            <PortalTextPlate>
+              <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-[var(--pg-danger-bg,#FEF2F2)] text-[var(--pg-danger,#DC2626)]">
+                <GlyphFailure className="h-8 w-8" />
+              </div>
+              <h1
+                className="pg-subtitle mt-5 text-[var(--pg-ink)]"
+                data-pg-script={scriptClassOf(t("radiusFailTitle"))}
+              >
+                {t("radiusFailTitle")}
+              </h1>
+              <p className="mt-1 pg-meta text-[var(--pg-ink-muted)]">
+                {t(radiusFailureMessageKey(radiusFailure))}
+              </p>
+            </PortalTextPlate>
+          </div>
+          {retryable && (
+            <button
+              type="button"
+              onClick={retry}
+              className={`${PG_PRIMARY_BTN} flex items-center justify-center gap-2`}
+            >
+              <RefreshCw className="h-4 w-4" /> {t("retry")}
+            </button>
+          )}
+          <Link
+            to="/portal/welcome"
+            search={portalSearch}
+            className={cn(
+              "mx-auto pg-meta font-medium text-[var(--pg-ink-muted)] underline-offset-2 hover:text-[var(--pr-primary,#6366f1)] hover:underline",
+              hasPhoto && cn(GUEST_LEGIBILITY_CARD_CLASS, "rounded-full px-4 py-2"),
+            )}
+          >
+            {t("signInAgainLink")}
+          </Link>
+        </div>
+      </PortalShell>
+    );
+  }
 
   // `showBrandPanel={false}`: BrandPanel's copy ("Verify your device on
   // the right...") is sign-in-oriented, wrong context once there's
