@@ -55,6 +55,7 @@
     "gen:permission-keys": "node scripts/generate-backend-permission-keys.mjs",
     "test:permission-key-drift": "node scripts/generate-backend-permission-keys.mjs --check",
     "test:campaign-results": "node scripts/test-campaign-results.mjs",
+    "test:campaigns-simplified": "node scripts/test-campaigns-simplified.mjs",
     "test:portal-content-image": "node scripts/test-portal-content-image-upload.mjs",
     "test:ticket-update-scope": "node scripts/test-ticket-update-org-scope.mjs",
     "test:csv-export": "node scripts/test-csv-export.mjs",
