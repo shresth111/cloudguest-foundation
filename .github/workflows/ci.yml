@@ -1232,6 +1232,29 @@ jobs:
             "campaign-results" 28 "all campaign results checks passed" \
             bun run test:campaign-results
 
+      # --- Campaigns page: the removals stay removed ----------------------
+      #
+      # Every assertion in this suite pins something the founder asked to be
+      # TAKEN AWAY ("This Extra fancy banner is not required", "No Need for
+      # unnecessary descriptions like 'Feedback Made Easy ...'", "No need for
+      # post login redirect url from here", "we already have location selected
+      # and showing at top, no need to repeat same information 2 more time"),
+      # plus the two things that must stay real: the survey card reads the
+      # venue's own surveys rather than three hard-coded sample questions, and
+      # each row carries exactly one status control.
+      #
+      # A removal is the easiest thing in this repo to undo without noticing:
+      # the page looks bare, so a hero band comes back; a card looks empty, so
+      # a plausible sample fills it. tsc, eslint and the build see none of
+      # that, which is why it is gated rather than commented.
+      #
+      # Floor 27, observed green at 27.
+      - name: campaigns page stays simplified
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "campaigns-simplified" 27 "all campaigns simplification checks passed" \
+            bun run test:campaigns-simplified
+
       # --- Portal content-image upload double-unwrap ---------------------
       #
       # `portalService.uploadContentImage` read `data.data.content_image_url`
