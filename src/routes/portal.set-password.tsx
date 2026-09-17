@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
 import { markDeviceHasPassword } from "@/lib/portal-returning-guest";
+import { strongPasswordSchema } from "@/lib/password-policy";
 import type { AppError } from "@/services/api";
 
 export const Route = createFileRoute("/portal/set-password")({
@@ -22,22 +23,15 @@ export const Route = createFileRoute("/portal/set-password")({
   component: SetPasswordPage,
 });
 
-// Mirrors app.domains.auth.password.PasswordManager.validate_strength on
-// the backend (the exact hasher/policy this reuses -- see
-// GuestService.set_guest_password's docstring) -- purely to give the guest
-// immediate, specific feedback instead of a round-trip 400. The server is
-// still the real source of truth: a password that somehow slips past this
-// client-side check just surfaces the server's own message instead.
+// The client-side mirror of app.domains.auth.password.PasswordManager
+// .validate_strength (shared with the staff-facing reset page -- see
+// @/lib/password-policy) -- purely to give the guest immediate, specific
+// feedback instead of a round-trip 400. The server is still the real source
+// of truth: a password that somehow slips past this client-side check just
+// surfaces the server's own message instead.
 const passwordSetSchema = z
   .object({
-    password: z
-      .string()
-      .min(12, "At least 12 characters")
-      .max(128, "At most 128 characters")
-      .regex(/[A-Z]/, "At least one uppercase letter")
-      .regex(/[a-z]/, "At least one lowercase letter")
-      .regex(/\d/, "At least one digit")
-      .regex(/[!@#$%^&*\-_=+]/, "At least one special character (!@#$%^&*-_=+)"),
+    password: strongPasswordSchema,
     confirm: z.string(),
   })
   .refine((v) => v.password === v.confirm, {
