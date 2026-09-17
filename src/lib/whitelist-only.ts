@@ -11,6 +11,13 @@
  * WiFi -- but a guest with no Only Allowed entry is refused *there*, in
  * the venue's own words, and never costs the venue an OTP SMS.
  *
+ * And the half that landed after this module did: turning it on also ends
+ * the sessions of guests who are *already* online and not on the list
+ * (backend `service.enforce_whitelist_only_online_guests`, on its own Beat
+ * schedule). The two are the same decision asked at two moments -- cannot
+ * sign in, and cannot stay -- and the screen's own switch copy says so. A
+ * guest on the list is unaffected either way.
+ *
  * Nothing in this file talks to the network or to React. It exists as its
  * own module because the two interesting guardrails are data judgements
  * that have to be exactly right before a venue's WiFi closes to the public,

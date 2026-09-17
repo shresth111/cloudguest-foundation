@@ -22,7 +22,7 @@
     "policies": "The speed, device and time limits every guest connects under, plus blocked guests and access tiers.",
     "whitelist": "The guest numbers and devices you allow when this property is closed to everyone else.",
     "mac-auth": "Fixed equipment — a front-desk tablet, a POS terminal, a printer — that connects on its own.",
-    "business-hours": "The days and hours guests are allowed to sign in, and what they see when you're closed.",
+    "business-hours": "The days and hours guests can stay online, and what they see when you're closed.",
     "devices": "Your own network hardware and whether it's online, plus every guest device connected to it.",
     "teams": "Shared desk or room accounts with one login and a pooled data allowance.",
     "agents": "Add your staff, and choose exactly which parts of this dashboard each of them can see.",
