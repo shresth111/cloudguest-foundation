@@ -1607,6 +1607,48 @@ jobs:
             "whitelist-only" 66 "all whitelist-only guardrail checks passed" \
             bun run test:whitelist-only
 
+      # --- The identifier Blocked Guests stores --------------------------
+      #
+      # GATED HERE FOR THE FIRST TIME, AND THAT IS HALF THE POINT. This
+      # suite has been in package.json since it was written and named in no
+      # workflow, so nothing has ever run it -- the same "in the repo,
+      # gated nowhere" state this file's own header records for
+      # test:portal-cna (which then rotted on origin/main), and for
+      # test:location-liveness and test:discovery-preflight. A test no
+      # workflow runs cannot fail, so it protects nothing.
+      #
+      # What it protects: a blocklist rule is matched to a guest by EXACT
+      # STRING EQUALITY (`guest_access/repository.py`) against the E.164
+      # identifier the portal submits, so a rule stored in any other shape
+      # is a rule that can never fire -- and the screen reports success
+      # either way. That has now happened twice for two different reasons:
+      #
+      #   1. the original defect -- no country-code input at all, so an
+      #      Indian owner's ten digits were stored as "+9876543210" while
+      #      the guest signs in as "+919876543210";
+      #   2. the one this gate lands with -- the country-code input existed
+      #      but the picker's code was joined onto a number that already
+      #      carried its own, because one 7-to-11 national span was shared
+      #      by every country. "14155552671" under +1 became
+      #      "+114155552671" and "61412345678" under +61 became
+      #      "+6161412345678", both accepted without a word. India was
+      #      right only by arithmetic.
+      #
+      # Neither is visible to tsc, eslint or the build: every one of those
+      # strings is a valid string. The suite executes the real normaliser
+      # (esbuild-bundled, not a copy) across every shape a pasted list
+      # mixes, pins both readings per country in both directions, and
+      # checks the screen's own helper text against what the normaliser
+      # actually does -- that sentence has been wrong about this screen
+      # twice, and nothing else in CI can see a claim go stale.
+      #
+      # Floor 85, observed green at 85.
+      - name: blocked guests store a matchable identifier
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "block-users-e164" 85 "All checks passed." \
+            bun run test:block-users-e164
+
       # --- Whitelist-only refusal screen ---------------------------------
       #
       # scripts/test-portal-whitelist-refusal.mjs shipped with the refusal
