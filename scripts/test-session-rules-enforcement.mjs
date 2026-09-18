@@ -121,6 +121,36 @@ check(
     "disclaiming itself; zero means the data limit has stopped disclaiming.",
 );
 
+// DISABLING THE DOOR IS NOT DISABLING THE ROOM.
+//
+// The dashed "Add a data limit" row is disabled and says so, and that was
+// taken as the whole fix. It was not: `handleEdit` also sets `dataLimitOpen`
+// for any row carrying a data limit saved before the row was greyed, so
+// editing such a location reopened three live, editable, un-noted inputs
+// that wrote straight into `BandwidthPolicyRules.data_limit` -- the field
+// this whole guard exists because nothing reads.
+//
+// So the affordance carried the disclaimer and the form an owner actually
+// typed into carried none. These pin that the form stays gone: no input and
+// no option lists for one, and a stored figure disclosed rather than
+// presented for editing.
+check(
+  !/id="dl-quota"/.test(locationPolicies),
+  "The data-limit quota input is back. It is reachable by editing any row " +
+    "saved with a data limit, and it writes into a field with no reader.",
+);
+check(
+  !/const (DATA_UNITS|RESETS) =/.test(locationPolicies),
+  "The data-limit option lists are back in LocationPolicies.tsx -- they " +
+    "populate nothing now, and their presence is how the form gets rebuilt.",
+);
+check(
+  /DATA_LIMIT_STORED_NOTE/.test(locationPolicies),
+  "A location's stored data limit is shown with no word about it enforcing " +
+    "nothing. It is still in the policy; an owner reading the figure must be " +
+    "told no guest is cut off at it.",
+);
+
 // The note must not be attached to either control that now works.
 const idleSelect = locationPolicies.match(/<Select\s+id="it"[\s\S]*?\/>/);
 check(idleSelect !== null, 'LocationPolicies.tsx has no Select with id="it" (Idle Timeout).');

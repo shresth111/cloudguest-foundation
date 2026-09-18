@@ -83,6 +83,22 @@ const UNLIMITED_DEVICES_SENTINEL = 9999;
 // does nothing is worth more than a tidy form.
 const NOT_ENFORCED_NOTE = "Not enforced yet — saving this has no effect on guests.";
 
+// The same fact, where the OTHER half of this control lives.
+//
+// Deliberately its own string rather than a second render of
+// NOT_ENFORCED_NOTE: `test-session-rules-enforcement.mjs` counts that
+// constant's uses and requires exactly one, because a second use has
+// historically meant a control that IS enforced disclaiming itself. This is
+// not that -- it is the same dead setting, disclosed in the second place an
+// owner can see it -- so it says so in its own words and leaves that guard
+// measuring what it was written to measure.
+//
+// Names what is true in the order that matters: the figure is real and
+// stored, nothing acts on it, and saving will not quietly change it.
+const DATA_LIMIT_STORED_NOTE =
+  "This was saved before the setting was switched off. Nothing enforces it — no guest is cut " +
+  "off at this figure — and saving leaves it exactly as it is.";
+
 const BANDWIDTH_KBPS: Record<string, number> = {
   "10 Mbps": 10240,
   "20 Mbps": 20480,
@@ -178,8 +194,9 @@ const SESSION_TIMEOUT = ["30 min", "1 hr", "2 hr", "4 hr", "8 hr", "24 hr"];
 const DAILY_LIMIT = ["No Limit", "1 hr", "2 hr", "4 hr", "8 hr"];
 const IDLE_TIMEOUT = ["5 min", "10 min", "15 min", "30 min", "1 hr"];
 const DEVICES = ["Unlimited", "1", "2", "3", "4", "5"];
-const DATA_UNITS = ["MB", "GB"];
-const RESETS = ["Per session", "Daily", "Weekly", "Monthly"];
+// DATA_UNITS and RESETS are gone with the inputs they populated. They were
+// the option lists for a form that wrote into a field with no reader, and
+// leaving them here is an invitation to rebuild it.
 const PAGE_SIZE_OPTS = [10, 25, 50] as const;
 
 interface Policy {
@@ -1172,69 +1189,37 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                 </span>
               </div>
 
+              {/* THE AFFORDANCE WAS DISABLED; THE PANEL IT USED TO OPEN WAS NOT.
+                `dataLimitOpen` is unreachable from the dashed row above --
+                it is disabled -- but `handleEdit` still sets it for any row
+                that carries a data limit saved before that row was greyed.
+                So editing such a location reopened three fully live,
+                fully editable inputs, with no note anywhere near them, that
+                wrote into `BandwidthPolicyRules.data_limit` -- a field
+                confirmed to have no reader anywhere in the backend. The
+                control said "not enforced"; the form you reached through it
+                said nothing at all, and was the half an owner actually
+                typed into.
+
+                It is now a statement rather than a form. The stored figure
+                is still shown, because deleting it from view would not
+                delete it from the policy and an owner is entitled to know
+                what their record says, and `handleSave` still writes it back
+                unchanged -- the same rule the greyed Bandwidth control
+                follows: a control an owner cannot touch has expressed no
+                opinion, and the honest write for no opinion is the value
+                that was already there. */}
               {dataLimitOpen && (
-                <div id="data-limit-panel" className="mt-4 grid gap-4 sm:grid-cols-3">
-                  <div>
-                    <label
-                      htmlFor="dl-quota"
-                      className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300"
-                    >
-                      Data quota
-                    </label>
-                    <input
-                      id="dl-quota"
-                      type="number"
-                      min={0}
-                      step="any"
-                      placeholder="0"
-                      value={dlQuota}
-                      onChange={(e) => setDlQuota(e.target.value)}
-                      className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
-                    />
-                    {errs.dataLimit && (
-                      <p className="mt-1 text-xs text-indigo-500">{errs.dataLimit}</p>
-                    )}
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="dl-unit"
-                      className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300"
-                    >
-                      Unit
-                    </label>
-                    <select
-                      id="dl-unit"
-                      value={dlUnit}
-                      onChange={(e) => setDlUnit(e.target.value)}
-                      className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
-                    >
-                      {DATA_UNITS.map((u) => (
-                        <option key={u} value={u}>
-                          {u}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="dl-resets"
-                      className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300"
-                    >
-                      Resets
-                    </label>
-                    <select
-                      id="dl-resets"
-                      value={dlResets}
-                      onChange={(e) => setDlResets(e.target.value)}
-                      className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
-                    >
-                      {RESETS.map((r) => (
-                        <option key={r} value={r}>
-                          {r}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                <div
+                  id="data-limit-panel"
+                  className="mt-4 rounded-md border border-dashed border-slate-300 px-3 py-2.5 dark:border-slate-600"
+                >
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    Saved for this location: {dlQuota || 0} {dlUnit} / {dlResets}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                    {DATA_LIMIT_STORED_NOTE}
+                  </p>
                 </div>
               )}
             </div>
@@ -1353,8 +1338,15 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
           <div>
             <CardTitle className="text-sm">Current Guest WiFi Limits</CardTitle>
+            {/* "Currently active" was a claim this table cannot make for every
+              cell under it. The Data Limit column is stored and read by
+              nothing; the Bandwidth column can be a speed this venue's
+              hardware never applies. Both now say so in their own cells --
+              so the heading above them should state what it can see for
+              itself (these are the saved limits, per location) and leave
+              "is it in force?" to the cell that knows. */}
             <p className="text-xs text-muted-foreground">
-              The policies currently active for the selected space.
+              What is saved for each location. Each cell says where it does not apply.
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -1477,10 +1469,29 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                       >
                         {p.devicesPerUser}
                       </TableCell>
+                      {/* THE DEAD SETTING, DRESSED AS THE LIVE ONE.
+                          Every other badge on this console in indigo-on-indigo
+                          marks something in force. This one marked a figure
+                          that no backend code path reads -- so the single
+                          strongest "this is active" signal in the row belonged
+                          to the only column that never was. The form control
+                          says "not enforced" a screen away; the table shouted
+                          the opposite.
+
+                          Muted, with the reason on hover, is the posture this
+                          file already takes one cell to the left for a speed
+                          that cannot apply, and the same posture
+                          `lastContactLabel` takes for a measurement we do not
+                          have. The figure is still shown -- it is in the
+                          policy whether or not we print it. */}
                       <TableCell className="text-xs">
                         {p.dataLimit ? (
-                          <span className="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 font-medium text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400">
-                            {p.dataLimit.quota} {p.dataLimit.unit} / {p.dataLimit.resets}
+                          <span
+                            className="text-slate-400 dark:text-slate-500"
+                            title={DATA_LIMIT_STORED_NOTE}
+                          >
+                            {p.dataLimit.quota} {p.dataLimit.unit} / {p.dataLimit.resets} — not
+                            enforced
                           </span>
                         ) : (
                           <span className="text-slate-400 dark:text-slate-500">No limit</span>
