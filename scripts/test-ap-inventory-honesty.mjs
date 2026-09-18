@@ -244,6 +244,10 @@ console.log("\nthe screen's two cards keep their sources apart and promise nothi
 
 const card = read("src/components/customer/ControllerDevicesCard.tsx");
 const hardwareView = read("src/components/customer/BasicFeatureViews.tsx");
+// The same rows are rendered a second time by the location picker's
+// cross-location hardware panel. A screen that says "Not measured" in one
+// column and "UNKNOWN" beside a status dot in the next contradicts itself.
+const locationPicker = read("src/routes/switch-location.tsx");
 
 check(
   "a null client count is never coalesced to a number",
@@ -286,6 +290,11 @@ check("and shows the explanation rather than dropping it", /live\.explanation/.t
 check(
   "the empty state stops promising monitoring at a venue that gets none",
   /controllerManaged\s*\n?\s*\?/.test(hardwareView) && /keep a record of it/i.test(hardwareView),
+);
+
+check(
+  "the cross-location hardware panel does not print a raw UNKNOWN for an unmeasured row",
+  /hardwareLivenessIsMeasured/.test(locationPicker) && /NOT MEASURED/.test(locationPicker),
 );
 
 // The copy map must not leave a reason code rendering as `undefined`.
