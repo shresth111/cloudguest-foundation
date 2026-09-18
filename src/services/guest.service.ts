@@ -5,6 +5,7 @@ import type {
   AccessCheckResult,
   AccessRuleType,
   AnyAccessRule,
+  ControllerBlock,
   CreateAccessRulePayload,
   CreateGuestTeamPayload,
   DeviceAccessRule,
@@ -126,8 +127,33 @@ interface BackendAccessRule {
   enforcement_error?: string | null;
   enforced_at?: string | null;
   sessions_ended?: number | null;
+  // One entry per device this platform asked a venue's controller to block
+  // on this rule's behalf (cloud-guest #277). A SIBLING of the four fields
+  // above and never folded into them: `enforcement_status` answers "what
+  // happened to the sessions this guest was in", and this answers "and
+  // what about their devices", which is a per-device question.
+  //
+  // Optional for the same reason the block above is, and EMPTY IS ITS OWN
+  // ANSWER: the list is empty at a venue reached over the router API
+  // rather than through a controller, and empty for a rule about somebody
+  // with no recorded device. In both cases nothing was asked, which the
+  // backend's own comment is careful to distinguish from nothing being
+  // blocked. A MikroTik venue therefore always sends `[]` here.
+  controller_blocks?: BackendControllerBlock[] | null;
   created_at: string;
   updated_at: string;
+}
+
+interface BackendControllerBlock {
+  id: string;
+  location_id: string;
+  mac_address: string;
+  status?: string | null;
+  error_code?: string | null;
+  error_message?: string | null;
+  blocked_at?: string | null;
+  cleared_at?: string | null;
+  release_error?: string | null;
 }
 
 interface BackendDeviceAccessRule {
@@ -274,8 +300,31 @@ function toAccessRule(r: BackendAccessRule): GuestAccessRule {
     // zero is "nobody was online". Collapsing them is how the UI came to
     // report a disconnection that never happened.
     sessionsEnded: r.sessions_ended ?? null,
+    // `?? []` is safe here in a way `?? 0` is not above: the backend's own
+    // default is `[]`, and an older API that omits the key means nothing
+    // was asked -- which is exactly what an empty list means. The screen
+    // renders nothing for an empty list, so "we did not ask" and "there
+    // was nothing to ask about" land on the same, silent, honest output.
+    controllerBlocks: (r.controller_blocks ?? []).map(toControllerBlock),
     createdAt: r.created_at,
     updatedAt: r.updated_at,
+  };
+}
+
+function toControllerBlock(b: BackendControllerBlock): ControllerBlock {
+  return {
+    id: b.id,
+    locationId: b.location_id,
+    macAddress: b.mac_address,
+    // Unrecognised or missing statuses fall through as null rather than
+    // being coerced to a value with a rendering. A status this dashboard
+    // has never heard of must not borrow the vocabulary of one it has.
+    status: (b.status as ControllerBlock["status"]) ?? null,
+    errorCode: b.error_code ?? null,
+    errorMessage: b.error_message ?? null,
+    blockedAt: b.blocked_at ?? null,
+    clearedAt: b.cleared_at ?? null,
+    releaseError: b.release_error ?? null,
   };
 }
 
@@ -707,15 +756,35 @@ export const guestService = {
       : toDeviceAccessRule(data as BackendDeviceAccessRule);
   },
 
+  /**
+   * Returns the UPDATED rule, which this method used to discard.
+   *
+   * The endpoint has always answered with `GuestAccessRuleResponse`, and
+   * since cloud-guest #277 that response is the only place a venue admin
+   * can learn what happened to the devices being held off the network:
+   * `deactivate_guest_rule` releases the controller blocks BEFORE the rule
+   * stops applying (the open rows are found by `rule_id`, so a release
+   * attempted afterwards is one nobody could start), and a release that
+   * did not land leaves the row open with its reason.
+   *
+   * The controller publishes no readable list of blocked clients, so if
+   * this body is thrown away the fact is not merely unshown, it is
+   * unknowable. `null` for a device rule or a response we could not read
+   * -- the caller must treat that as "we do not know", never as "nothing
+   * was held".
+   */
   async deactivateAccessRule(
     kind: "identifier" | "device",
     ruleId: string,
     organizationId?: string,
-  ): Promise<void> {
+  ): Promise<GuestAccessRule | null> {
     const path = kind === "identifier" ? "/guest-access/rules" : "/guest-access/device-rules";
-    await api.post(`${path}/${ruleId}/deactivate`, undefined, {
+    const res = await api.post(`${path}/${ruleId}/deactivate`, undefined, {
       headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
     });
+    if (kind !== "identifier") return null;
+    const data = (res.data as { data?: unknown } | undefined)?.data;
+    return data ? toAccessRule(data as BackendAccessRule) : null;
   },
 
   async deleteAccessRule(

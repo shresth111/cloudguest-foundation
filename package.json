@@ -75,6 +75,7 @@
     "test:customer-nav-shell": "node scripts/test-customer-nav-shell.mjs",
     "test:block-users-e164": "node scripts/test-block-users-e164.mjs",
     "test:block-scope": "node scripts/test-block-scope.mjs",
+    "test:block-device-outcome": "node scripts/test-block-device-outcome.mjs",
     "test:whitelist-only": "node scripts/test-whitelist-only-guardrails.mjs",
     "test:whitelist-refusal": "node scripts/test-portal-whitelist-refusal.mjs",
     "test:portal-i18n-parity": "node scripts/test-portal-i18n-parity.mjs",
