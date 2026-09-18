@@ -659,16 +659,28 @@ function CustomerUsersPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
+                            {/* An icon-only button with no text child and no
+                              label has NO accessible name at all: a screen
+                              reader announces "button", once per row, and
+                              the two beside it (Extend, Disconnect) both
+                              carry a `title` while this one carried
+                              nothing. The name includes the guest, because
+                              a table of these is read row by row and "View
+                              details" eleven times identifies none of
+                              them. `title` stays generic so the sighted
+                              tooltip matches its two neighbours. */}
                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8"
+                              title={t("viewDetails")}
+                              aria-label={t("viewGuestDetails", { name: u.name })}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setDetailUser(u);
                               }}
                             >
-                              <Eye className="h-3.5 w-3.5" />
+                              <Eye className="h-3.5 w-3.5" aria-hidden="true" />
                             </Button>
                             {u.status !== "offline" && (
                               <DropdownMenu>
@@ -726,8 +738,27 @@ function CustomerUsersPage() {
 
             {totalPages > 1 && (
               <div className="flex items-center justify-between">
+                {/* "11 users" beside a "Total guests" tile reading 4, on the
+                  same screen, for the same venue. Both numbers were right
+                  and one of them was mislabelled: `data.total` is the count
+                  of SESSION ROWS, so a guest who reconnects seven times is
+                  seven of the eleven -- the same total-vs-unique confusion
+                  the tile above was already fixed for. The rows in this
+                  table are sessions, so the footer keeps counting them and
+                  now says which they are, with the distinct-guest figure
+                  beside it.
+
+                  `uniqueGuests` is optional (the guests lookup can fail,
+                  which is why the tile falls back). When it is missing we
+                  say only the part we can see -- "11 sessions" -- rather
+                  than quoting the session count twice under two names. */}
                 <span className="text-xs text-muted-foreground">
-                  {t("usersCount", { count: data?.total ?? 0 })}
+                  {data?.uniqueGuests === undefined
+                    ? t("sessionsCount", { count: data?.total ?? 0 })
+                    : t("sessionsFromGuests", {
+                        sessions: t("sessionsCount", { count: data.total }),
+                        guests: t("guestsCount", { count: data.uniqueGuests }),
+                      })}
                 </span>
                 <div className="flex items-center gap-1">
                   <Button

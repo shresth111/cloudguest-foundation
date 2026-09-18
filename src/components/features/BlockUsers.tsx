@@ -945,8 +945,23 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
           </div>
           <div>
             <h1 className="text-lg font-semibold tracking-tight">Blocked Guests</h1>
+            {/* THE HEADLINE SAYS THE TWO DIFFERENT THINGS A BLOCK DOES,
+              because they carry different certainties and the old sentence
+              ("Cut off a guest's access to your network immediately")
+              promised the weaker one as if it were the stronger.
+
+              The sign-in half is OURS: the rule is written in our database
+              and consulted at every sign-in, on any device, so it is
+              certain. The live-session half is a request to somebody
+              else's hardware -- a router that can be unreachable, or a
+              controller whose behaviour toward a client already holding a
+              portal authorization is UNMEASURED (`providers/omada.py`
+              ~L911; CAPABILITY-MATRIX §10.6). `blockOutcomeMessage` says
+              which of the two actually happened afterwards, from what the
+              server returned; this line no longer contradicts it before
+              the owner has even typed a number. */}
             <p className="text-sm text-muted-foreground">
-              Cut off a guest's access to your network immediately.
+              Stop a guest signing in again, and try to end any session they have now.
             </p>
           </div>
         </div>
@@ -1137,7 +1152,10 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
               {parsed.valid.length} {identifierNoun(parsed.valid.length)} ready
             </span>
             {parsed.duplicates.length > 0 && (
-              <span className="text-slate-400">· {parsed.duplicates.length} duplicate removed</span>
+              <span className="text-slate-400">
+                · {parsed.duplicates.length} duplicate
+                {parsed.duplicates.length === 1 ? "" : "s"} removed
+              </span>
             )}
             {parsed.invalid.length > 0 && (
               <span className="text-indigo-500">· {parsed.invalid.length} invalid</span>
@@ -1332,7 +1350,28 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
             <EmptyState
               icon={Ban}
               title="Nobody is blocked"
-              description="Paste a number or email above to block one -- it takes effect immediately."
+              description="Paste a number or email above to block one — from then on they cannot sign in."
+              /* "NOBODY IS BLOCKED" IS TRUE OF OUR RECORD, AND ONLY OURS.
+                A device kept off the network from a guest's device panel is
+                held by the venue's controller, and `list_blocked` is
+                declared `supported: false` on every auth mode -- the
+                controller publishes no readable list of blocked clients
+                (measured; CAPABILITY-MATRIX §10.8). So such a device can
+                never appear in this table, and an empty table left
+                unqualified reads as "this venue has blocked nobody",
+                which is a claim about hardware we cannot read.
+
+                Only at a controller-managed venue, because only there does
+                the device panel exist: `GuestDeviceControls` returns null
+                when `controllerManaged` is false, so at a MikroTik venue
+                this sentence would point at a screen the owner has never
+                seen. That keeps this empty state byte-identical at every
+                venue in production today bar one. */
+              note={
+                clientControls.controllerManaged
+                  ? "Devices kept off from a guest's device panel are not listed here — this venue's controller does not offer a list we can read."
+                  : undefined
+              }
               action={{
                 label: mode === "email" ? "Block an email" : "Block a number",
                 onClick: () => document.getElementById("block-ta")?.focus(),
