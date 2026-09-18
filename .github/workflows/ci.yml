@@ -1680,6 +1680,44 @@ jobs:
             "block-scope" 40 "all block-scope checks passed" \
             bun run test:block-scope
 
+      # --- What a block did to their devices -----------------------------
+      #
+      # cloud-guest #277 added `controller_blocks` to the rule response: one
+      # row per device this platform asked a venue's controller to keep off
+      # the network. It is a SIBLING of `enforcement_status` and never
+      # folded into it -- that field answers "what happened to the sessions
+      # this guest was in", this answers "and what about their devices" --
+      # and only ONE of its four states is a failure. `not_applicable`
+      # means the controller has no record of the device, so there was
+      # nothing to keep off, and drawing it as an error is as wrong as
+      # drawing a refusal as a success.
+      #
+      # PARTIAL SUCCESS IS THE NORMAL CASE. A guest has three devices and
+      # the controller knows two. "2 of 3" is the whole claim, and both
+      # ways of losing it are live failure modes: the backend's own #279
+      # shipped a summary that rounded these up and had to be unbroken on
+      # main. Nothing in tsc can see a sentence over-claim, so the suite
+      # executes the real ladder across every combination.
+      #
+      # It also pins the MikroTik guarantee positively. `controller_blocks`
+      # is `[]` at every venue reached over the router API, so every
+      # function must return nothing, the panel must not render, and the
+      # table must keep exactly the six columns it has always had -- the
+      # device column is ABSENT there, not present and empty.
+      #
+      # And the unblock half, which is load-bearing rather than cosmetic:
+      # the controller publishes no readable list of blocked clients, so
+      # our row is the only trace that a device is being held off a venue's
+      # network. If this screen does not say the hold was lifted, nothing
+      # does.
+      #
+      # Floor 55, observed green at 55.
+      - name: a block says what it did to their devices
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "block-device-outcome" 55 "all block-device-outcome checks passed" \
+            bun run test:block-device-outcome
+
       # --- Whitelist-only refusal screen ---------------------------------
       #
       # scripts/test-portal-whitelist-refusal.mjs shipped with the refusal

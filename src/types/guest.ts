@@ -208,6 +208,76 @@ export interface GuestAccessRule extends AccessRuleBase {
    * rather than inferred from it.
    */
   sessionsEnded: number | null;
+  /**
+   * One entry per device this platform asked a venue's controller to keep
+   * off the network on this rule's behalf (cloud-guest #277).
+   *
+   * A SIBLING OF `enforcementStatus`, NEVER FOLDED INTO IT. That field
+   * answers "what happened to the sessions this guest was in" -- which is
+   * what the Blocked Guests form promises -- and this answers "and what
+   * about their devices". They are different questions with different
+   * answers, and a screen that summarises both to one tick loses the only
+   * distinction a venue admin can act on.
+   *
+   * EMPTY IS ITS OWN ANSWER, and it is the common one: the list is empty
+   * at a venue this platform reaches over the router API rather than
+   * through a controller -- every MikroTik venue, always -- and empty for
+   * a rule about somebody with no recorded device. Both mean nothing was
+   * asked, which is not the same as nothing being blocked, and neither may
+   * be rendered as "0 devices blocked".
+   */
+  controllerBlocks: ControllerBlock[];
+}
+
+/**
+ * What one venue's controller did about one device of a blocked guest.
+ *
+ * `status` reuses `BlockEnforcementStatus`, and each value has a rendering
+ * this dashboard owes the venue admin:
+ *
+ *   `enforced`        the controller confirmed it is holding the device
+ *                     off. Say that and no more: a block is per-site and
+ *                     per-MAC, and a phone that randomises its MAC per
+ *                     SSID gets a new one by forgetting the network. The
+ *                     thing that actually refuses the PERSON is the rule.
+ *   `not_applicable`  the controller has no record of this device, so
+ *                     there was nothing to keep off. `errorCode` carries
+ *                     the vendor's not-found code. NOT A FAILURE, and it
+ *                     must not be drawn as one.
+ *   `failed`          the controller knew the device and would not do it,
+ *                     or could not be reached. `errorMessage` is the
+ *                     reason, and this is the only one of the four a venue
+ *                     admin can act on.
+ *   `unenforced`      nobody could do it here -- this venue's integration
+ *                     cannot block at all. `errorMessage` carries the
+ *                     provider's own sentence, rendered verbatim.
+ *
+ * A row with `status: "enforced"` and a null `clearedAt` is a block this
+ * platform believes is still in force on the venue's hardware. The
+ * controller exposes no readable list of blocked clients, so that row is
+ * the ONLY trace of it anywhere -- which is what makes showing it a
+ * requirement rather than a nicety.
+ *
+ * Says nothing about a guest holding a live authorization at the moment
+ * of the block: that is unmeasured, and it is `enforcementStatus` /
+ * `sessionsEnded` above that answer the session question.
+ */
+export interface ControllerBlock {
+  id: string;
+  locationId: string;
+  macAddress: string;
+  /** `null` for a status this dashboard does not recognise -- which
+   * borrows no other status's rendering. */
+  status: BlockEnforcementStatus | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  blockedAt: string | null;
+  /** Set once a controller confirmed the block was released. */
+  clearedAt: string | null;
+  /** Why a release did not land. The row stays in the set the backend's
+   * 10-minute sweep retries, so this is a pending retry and not a dead
+   * end. */
+  releaseError: string | null;
 }
 
 export interface DeviceAccessRule extends AccessRuleBase {
