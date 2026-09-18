@@ -121,6 +121,42 @@ check(
     "disclaiming itself; zero means the data limit has stopped disclaiming.",
 );
 
+// ONE FORM, TWO TIMINGS, AND THE FOOTER SPEAKS FOR ONLY ONE OF THEM.
+//
+// The footer read "Applies the next time each guest connects" over all five
+// settings. That was true of all five until a bandwidth publish started
+// dispatching `reapply_policy_assignments` -> `reapply_active_sessions_for_
+// location`, whose stated purpose is to reach guests who are already
+// connected "without waiting for their session to die or for a reconnect".
+//
+// So the speed now lands immediately and the other four still wait. A
+// blanket sentence is wrong whichever way it is written, and the danger is
+// a tidy-up that restores one -- most likely by shortening the enumeration
+// back to something that reads more smoothly and silently re-absorbs
+// Bandwidth into a promise it does not keep.
+//
+// Vendor-neutral on purpose: the reapply feeds back through the same
+// `resolve_and_assign_queue` pipeline a login uses, which routes RouterOS to
+// its queue and a controller to its controller. Both venues changed.
+check(
+  !/Applies the next time each guest connects/.test(locationPolicies),
+  "The footer is back to one blanket timing sentence over all five settings. " +
+    "A bandwidth publish reaches already-connected guests now; the other four " +
+    "still wait for a reconnect.",
+);
+check(
+  /const BANDWIDTH_APPLIES_NOW_NOTE\s*=/.test(locationPolicies),
+  "BANDWIDTH_APPLIES_NOW_NOTE is gone -- the one setting that does NOT wait " +
+    "for a reconnect has stopped saying so beside its own control.",
+);
+for (const field of ["Session timeout", "idle timeout", "devices per user", "daily limit"]) {
+  check(
+    new RegExp(field).test(locationPolicies),
+    `The footer no longer names "${field}" among the settings that wait for ` +
+      "the next connection. An unnamed field is one an owner must guess about.",
+  );
+}
+
 // DISABLING THE DOOR IS NOT DISABLING THE ROOM.
 //
 // The dashed "Add a data limit" row is disabled and says so, and that was

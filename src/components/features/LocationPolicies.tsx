@@ -83,6 +83,24 @@ const UNLIMITED_DEVICES_SENTINEL = 9999;
 // does nothing is worth more than a tidy form.
 const NOT_ENFORCED_NOTE = "Not enforced yet — saving this has no effect on guests.";
 
+// The one setting on this form that does NOT wait for a reconnect.
+//
+// A bandwidth publish dispatches `reapply_policy_assignments`, which runs
+// `reapply_active_sessions_for_location` against every currently-ACTIVE
+// session queue at the location -- the backend's own "a venue just raised
+// their speeds" hook, written to reach guests already connected "without
+// waiting for their session to die or for a reconnect".
+//
+// "We ask" and "should", not "will": the dispatch is best-effort by design
+// (`publish_version` swallows a dispatch failure rather than failing the
+// publish) and a rate that does reach the device is still a cap and not a
+// measured throughput -- the same bound `SPEED_LIMIT_CAVEAT` keeps. What is
+// promised here is only the TIMING, which is the thing the footer used to
+// get wrong.
+const BANDWIDTH_APPLIES_NOW_NOTE =
+  "Saving a new speed also reaches guests who are already online — they should not need to " +
+  "reconnect.";
+
 // The same fact, where the OTHER half of this control lives.
 //
 // Deliberately its own string rather than a second render of
@@ -920,7 +938,13 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
       // asserting a second, stronger answer beside it.
       setToast(
         targetLocationId
-          ? `Limits saved for ${f.businessUnit} — they take effect as each guest next connects.`
+          ? // No timing claim at all. It was correct for four settings and
+            // wrong for the speed, and a toast is the worst of the three
+            // places to keep that distinction in sync -- it is gone in two and
+            // a half seconds and cannot be re-read. The two notes on the form
+            // itself say when each field lands, beside the field, and stay on
+            // screen while the owner is deciding.
+            `Limits saved for ${f.businessUnit}.`
           : "Limits saved, but not applied to any location — reopen this page from the location you want them on.",
       );
       setTimeout(() => setToast(null), 2500);
@@ -1153,6 +1177,24 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                     reason; a sentence would be an answer, and we do not have
                     one yet. */}
                   {!speedAsking && <ControllerControlNotice verdict={speedVerdict} />}
+                  {/* The one field the footer no longer speaks for.
+                    Beside the control rather than in the footer or a
+                    tooltip, because it is the answer to "what happens when
+                    I press Save" for THIS field and nothing else on the
+                    form behaves this way.
+                    Rendered only where the speed can actually be applied --
+                    saying "it reaches guests who are online" next to a
+                    greyed control would promise a delivery that is not
+                    happening at all. */}
+                  {speedUsable && (
+                    <p
+                      role="note"
+                      data-testid="bandwidth-timing"
+                      className="mt-2 text-xs text-slate-400 dark:text-slate-500"
+                    >
+                      {BANDWIDTH_APPLIES_NOW_NOTE}
+                    </p>
+                  )}
                 </div>
                 <Select
                   id="dp"
@@ -1310,12 +1352,36 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
             when they first signed in, for as long as they kept using the
             network) is fixed alongside this. What is left is the honest
             remainder: the new limits are waiting for each guest's next
-            connection, not chasing them down. */}
+            connection, not chasing them down.
+
+            AND THAT REMAINDER IS NO LONGER TRUE OF ALL FIVE. A bandwidth
+            publish now dispatches `reapply_policy_assignments`, which runs
+            `reapply_active_sessions_for_location` -- the backend's own
+            "a venue just raised their speeds" hook, which re-resolves every
+            currently-ACTIVE session queue for the location against the new
+            policy. Its whole purpose is to reach guests who are already
+            connected "without waiting for their session to die or for a
+            reconnect", and it is dispatched from `publish_version` on the
+            same save this button performs.
+
+            So one blanket sentence can no longer cover this form: four
+            settings wait for the next connection and one does not. Saying
+            "applies next time" over a speed that has already moved is the
+            same shape of untruth as the sentence this line replaced, just
+            pointing the other way -- a venue would watch a phone, see the
+            speed change, and learn the screen cannot be trusted about
+            timing in either direction.
+
+            Vendor-neutral, deliberately: the reapply feeds back through the
+            same `resolve_and_assign_queue` pipeline a login uses, which
+            routes a RouterOS venue to its queue and a controller venue to
+            its controller. The behaviour changed for both, so the sentence
+            changes for both. */}
           <div className="flex flex-col items-center gap-3">
             <p className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
-              Applies the next time each guest connects — anyone online right now keeps their
-              current limits until then.
+              Session timeout, idle timeout, devices per user and the daily limit apply the next
+              time each guest connects — anyone online right now keeps those until then.
               <Tooltip
                 id="save-immediate-effect"
                 text="Double-check the limits above before saving. Need help? Contact support@wyfyguest.com."
