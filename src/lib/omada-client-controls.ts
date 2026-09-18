@@ -574,13 +574,51 @@ export function clientControlVerdict(
       // certain. When the controller write lands, both halves are, and this
       // returns `available` with nothing rendered beside it.
       if (capabilityIsSupported(capabilities?.disconnect)) return AVAILABLE(control);
+
+      // THE CLAIM ABOUT THE CONTROLLER'S OWN CLOCK IS GONE, ON BOTH BRANCHES.
+      //
+      // This used to say the controller "doesn't count the time down itself".
+      // That was true when written and is not true now: cloud-guest #281
+      // derives the controller-side authorization lifetime from
+      // `GuestSession.session_timeout_minutes` -- the venue's own resolved
+      // SESSION policy -- instead of the integration's flat 3600 default, so
+      // the controller is handed the venue's number and expires the
+      // authorization on it. A venue that sets 30 minutes no longer gets a
+      // 60-minute authorization behind our back.
+      //
+      // What is left is narrower and is the only thing this branch is
+      // actually gated on: whether we can ask the controller to drop the
+      // device at that moment. So the copy now says exactly that and stops
+      // describing the controller's internals -- which is the claim that went
+      // stale, and which we would have to re-verify on every firmware.
+      if (capabilities) {
+        return {
+          control,
+          availability: "qualified",
+          reason:
+            "Wyfy ends the session when the time is up and the guest has to sign in again. " +
+            "We can't ask this venue's controller to drop the device at that moment, so it may " +
+            "stay connected until it reconnects.",
+        };
+      }
+      // The third and last branch in this ladder that answered "we could not
+      // ask" with a statement about the venue's hardware. `speed-limit` and
+      // `speed-profile` were corrected in #327; this is the one that was left,
+      // and it is the same error: `capabilities` is null when the read 404'd
+      // or did not come back, and a sentence about what the controller does
+      // internally is not something that absence entitles us to.
+      //
+      // Stays `qualified`, never `unavailable`: the session timeout is ours,
+      // it is held and expired by this platform, and it works here. Only the
+      // device half is unknown, so only the device half is hedged.
       return {
         control,
         availability: "qualified",
         reason:
-          "Wyfy ends the session when the time is up and the guest has to sign in again. " +
-          `${ControllerNoun(vendor)} doesn't count the time down itself, so a device that is ` +
-          "already connected may stay on until it reconnects.",
+          "Wyfy ends the session when the time is up and the guest has to sign in again. We " +
+          `couldn't reach this venue's connection to ${controllerNoun(vendor)} to check whether ` +
+          "the device is dropped at the same moment — ask your Wyfy Guest contact and we'll look " +
+          "at it with you.",
       };
   }
 }
