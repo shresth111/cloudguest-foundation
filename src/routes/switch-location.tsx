@@ -45,7 +45,7 @@ import { useCustomerStore } from "@/stores/customerStore";
 import { useCustomerLocations, customerKeys } from "@/hooks/useCustomerDashboard";
 import type { CustomerLocationSummary } from "@/services/customer.service";
 import { DEVICE_TYPES, deriveCpu, type DeviceType } from "@/stores/deviceStore";
-import { describeLiveness } from "@/lib/device-liveness";
+import { describeLiveness, hardwareLivenessIsMeasured } from "@/lib/device-liveness";
 import { floorsInUse, unplacedCount } from "@/lib/device-floors";
 import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -1448,33 +1448,50 @@ function CustomerHomePage() {
                               </td>
                               <td className="px-3 py-2 text-xs text-white/50">{d.floor}</td>
                               <td className="px-3 py-2">
-                                <span
-                                  className={cn(
-                                    "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                                    d.status === "up"
-                                      ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
-                                      : d.status === "down"
-                                        ? "border-rose-500/20 bg-rose-500/10 text-rose-400"
-                                        : "border-white/15 bg-white/5 text-white/50",
-                                  )}
-                                >
-                                  <span className="relative flex h-1.5 w-1.5">
-                                    {d.status === "up" && (
-                                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
-                                    )}
+                                {/* A row nothing probes must not render the
+                                 * raw column value: "UNKNOWN" beside a status
+                                 * dot is a reading, and at a controller-managed
+                                 * venue there is none (nothing here pings
+                                 * those devices at all). The liveness column
+                                 * to the right already says "Not measured";
+                                 * this badge must not contradict it. */}
+                                {(() => {
+                                  const measured = hardwareLivenessIsMeasured(d);
+                                  return (
                                     <span
+                                      title={describeLiveness(d).explanation ?? undefined}
                                       className={cn(
-                                        "relative inline-flex h-1.5 w-1.5 rounded-full",
-                                        d.status === "up"
-                                          ? "bg-emerald-500"
-                                          : d.status === "down"
-                                            ? "bg-rose-500"
-                                            : "bg-white/30",
+                                        "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                                        !measured
+                                          ? "border-dashed border-white/15 bg-transparent text-white/40"
+                                          : d.status === "up"
+                                            ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
+                                            : d.status === "down"
+                                              ? "border-rose-500/20 bg-rose-500/10 text-rose-400"
+                                              : "border-white/15 bg-white/5 text-white/50",
                                       )}
-                                    />
-                                  </span>
-                                  {d.status.toUpperCase()}
-                                </span>
+                                    >
+                                      {measured && (
+                                        <span className="relative flex h-1.5 w-1.5">
+                                          {d.status === "up" && (
+                                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
+                                          )}
+                                          <span
+                                            className={cn(
+                                              "relative inline-flex h-1.5 w-1.5 rounded-full",
+                                              d.status === "up"
+                                                ? "bg-emerald-500"
+                                                : d.status === "down"
+                                                  ? "bg-rose-500"
+                                                  : "bg-white/30",
+                                            )}
+                                          />
+                                        </span>
+                                      )}
+                                      {measured ? d.status.toUpperCase() : "NOT MEASURED"}
+                                    </span>
+                                  );
+                                })()}
                               </td>
                               <td className="px-3 py-2 text-xs text-white/50">
                                 {/* Every duration here names its own

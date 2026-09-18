@@ -256,6 +256,18 @@ jobs:
       # endpoint (not a GLOBAL network-integrations route).
       - name: controller devices read
         run: bun run test:controller-devices
+      # And the screen that renders it. A monitored-hardware row's up/down is
+      # derived from `connected_devices`, whose only two writers reach a venue
+      # over RouterOS -- so at an Omada venue nothing ever probes a registered
+      # access point and the row is `unknown` forever. Rendered as "Never
+      # observed" that claims we looked. This pins that an unmeasured row
+      # borrows no measured vocabulary, that a MikroTik venue (including a
+      # response with no `status_source` at all) renders exactly as it did,
+      # that a null client count is never printed as 0 -- TP-Link's Open API
+      # `DeviceInfo` has no such field -- and that the AP inventory grows no
+      # control surface.
+      - name: access-point inventory says where each status came from
+        run: bun run test:ap-inventory-honesty
 
       # Validation and submission must agree on ONE spelling of the email
       # address. They did not: every auth form validated `email.trim()` and
