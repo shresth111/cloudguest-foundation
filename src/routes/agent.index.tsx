@@ -232,7 +232,20 @@ function AgentDashboard() {
                 vendor={controllerVendor}
               />
             ) : (
-              renderFeature(active, { masked: agent.dataMasking })
+              /* `locationId` was omitted here while `activeLocation` sat in
+                 scope four lines up, and the owner's own route passes it
+                 (`CustomerFeaturePage`, behind `requireActiveLocationId`).
+                 For the read-only views that was a cosmetic gap -- each
+                 renders its own "pick a venue" state. For Access Rules it
+                 was not: Blocked Guests writes a rule with whatever it is
+                 given, and `undefined` becomes a NULL `location_id`, which
+                 the backend matches at EVERY location in the organization.
+                 An agent blocking one guest at one venue banned them
+                 account-wide, with nothing on screen saying so. */
+              renderFeature(active, {
+                locationId: activeLocation?.id,
+                masked: agent.dataMasking,
+              })
             )}
           </div>
         </main>
