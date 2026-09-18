@@ -29,6 +29,8 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import { isLocationNamedPolicy } from "@/lib/policy-scope";
 import { bandwidthPolicyService } from "@/services/bandwidth-policy.service";
+import { useClientControls } from "@/hooks/useClientControls";
+import { ControllerControlNotice } from "@/components/customer/ControllerControlNotice";
 import { resolveOrgId } from "@/services/customer.service";
 import {
   createPolicyWithRules,
@@ -338,6 +340,14 @@ function Select({
 // ── component ────────────────────────────────────────────────────
 export default function LocationPolicies({ locationId }: { locationId?: string } = {}) {
   const demo = useIsDemo();
+  // Which of this form's controls can actually reach a device at this venue.
+  // At a MikroTik venue both verdicts are `available` with a null reason, so
+  // the notices render nothing, `speedUsable` is true, and this screen is the
+  // one that shipped before, line for line.
+  const clientControls = useClientControls();
+  const speedVerdict = clientControls.verdict("speed-limit");
+  const speedUsable = speedVerdict.availability !== "unavailable";
+  const sessionTimeoutVerdict = clientControls.verdict("session-timeout");
   // UNITS is demo-only seed data (fake hotel names) -- a real customer only
   // has their own locations, so the "Business Unit" picker below (whose
   // value becomes the saved bandwidth policy's own name) must offer those
@@ -566,7 +576,11 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   const validate = (): boolean => {
     const e: typeof errs = {};
     if (!f.businessUnit) e.businessUnit = "Required.";
-    if (!f.bandwidth) e.bandwidth = "Required.";
+    // Not required when it cannot be honoured. Leaving the asterisk on a
+    // disabled control would make the whole form unsavable at a controller
+    // venue, taking the session timeout, device count and daily limit --
+    // all of which work there -- down with the one field that does not.
+    if (!f.bandwidth && speedUsable) e.bandwidth = "Required.";
     if (!f.sessionTimeout) e.sessionTimeout = "Required.";
     if (!f.devicesPerUser) e.devicesPerUser = "Required.";
     // Idle Timeout is required again, and the "idle can't exceed session"
@@ -1009,17 +1023,37 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                 How fast guests connect, and how many devices each guest can use.
               </p>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Select
-                  id="bw"
-                  label="Bandwidth"
-                  required
-                  value={f.bandwidth}
-                  onChange={(v) => setField("bandwidth", v)}
-                  options={BANDWIDTH}
-                  placeholder="Choose bandwidth"
-                  caption="Maximum speed per guest device."
-                  err={errs.bandwidth}
-                />
+                {/* THE CONTROL THAT WAS SAVING INTO NOTHING.
+                    A bandwidth policy is consumed by exactly one thing on
+                    this platform -- `queue_management`, which writes RouterOS
+                    `/queue simple` and additionally emits the MikroTik
+                    `Mikrotik-Rate-Limit` reply attribute at Access-Accept.
+                    Both are MikroTik-only: `_QUEUE_ADAPTERS` has one vendor
+                    in it and a controller's synthetic router row has no API
+                    credentials, so `_assign_guest_queue` fails and is
+                    swallowed. The number was accepted, stored, read back and
+                    shown as active, and never reached a device.
+                    Disabled rather than hidden, and disabled rather than left
+                    live, for the reason `ControllerManagedFeatureNotice`
+                    gives: an absence cannot be asked a question. Everything
+                    else in this section and the next still works at a
+                    controller venue and stays editable -- which is exactly
+                    why this screen is NOT replaced wholesale. */}
+                <div>
+                  <Select
+                    id="bw"
+                    label="Bandwidth"
+                    required
+                    disabled={!speedUsable}
+                    value={f.bandwidth}
+                    onChange={(v) => setField("bandwidth", v)}
+                    options={BANDWIDTH}
+                    placeholder="Choose bandwidth"
+                    caption="Maximum speed per guest device."
+                    err={errs.bandwidth}
+                  />
+                  <ControllerControlNotice verdict={speedVerdict} />
+                </div>
                 <Select
                   id="dp"
                   label="Devices Per User"
@@ -1138,17 +1172,29 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                 When a guest gets disconnected or has to sign in again.
               </p>
               <div className="grid gap-4 sm:grid-cols-3">
-                <Select
-                  id="st"
-                  label="Session Timeout"
-                  required
-                  value={f.sessionTimeout}
-                  onChange={(v) => setField("sessionTimeout", v)}
-                  options={SESSION_TIMEOUT}
-                  placeholder="Choose session timeout"
-                  caption="Re-authenticate after this much time."
-                  err={errs.sessionTimeout}
-                />
+                {/* LEFT LIVE, DELIBERATELY. Unlike the bandwidth above, a
+                    session timeout does not depend on a device adapter: the
+                    platform's own `enforce_session_timeouts` sweep expires the
+                    row, and its docstring names an Omada guest as the case it
+                    exists for. What a controller does not do is count the
+                    minutes down itself, so the guest is signed out on our side
+                    and the device may linger -- which is the disconnect gap,
+                    said here rather than discovered later. A caveat, not a
+                    refusal, so it renders as a note and not as a lock. */}
+                <div>
+                  <Select
+                    id="st"
+                    label="Session Timeout"
+                    required
+                    value={f.sessionTimeout}
+                    onChange={(v) => setField("sessionTimeout", v)}
+                    options={SESSION_TIMEOUT}
+                    placeholder="Choose session timeout"
+                    caption="Re-authenticate after this much time."
+                    err={errs.sessionTimeout}
+                  />
+                  <ControllerControlNotice verdict={sessionTimeoutVerdict} />
+                </div>
                 <Select
                   id="it"
                   label="Idle Timeout"

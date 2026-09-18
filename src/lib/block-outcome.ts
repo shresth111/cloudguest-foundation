@@ -76,12 +76,37 @@ export function blockOutcome(created: readonly AnyAccessRule[]): {
 export function blockOutcomeMessage(
   created: readonly AnyAccessRule[],
   identifierNoun: (n: number) => string,
+  /**
+   * True when every access point at this venue is a vendor controller.
+   *
+   * ONE BRANCH, AND ONLY ON `failed`. At such a venue `_enforce_block` raises
+   * on every call -- `get_guest_access_adapter` has exactly one vendor
+   * registered and a controller's synthetic router row carries no API
+   * credentials -- so the rule always persists with
+   * `enforcement_status: "failed"` and `sessions_ended: 0`. The rule itself is
+   * real and future sign-ins ARE barred; only the live-session half never
+   * happens.
+   *
+   * The stock sentence ends "Check the router and try again", and both halves
+   * of that are wrong here: there is no router to check, and a retry cannot
+   * succeed. Sending an owner to inspect hardware that is behaving correctly,
+   * every time they block somebody, is worse than saying nothing. So this
+   * branch says what is true and what to expect, and claims no more than the
+   * other five do.
+   *
+   * Optional and defaulting to `false`, so every existing caller and every
+   * assertion in `scripts/test-block-users-e164.mjs` is untouched.
+   */
+  controllerManagedVenue = false,
 ): string {
   const n = created.length;
   const head = `${n} ${identifierNoun(n)} blocked`;
   const { outcome, sessionsEnded } = blockOutcome(created);
   switch (outcome) {
     case "failed":
+      if (controllerManagedVenue) {
+        return `${head} — they cannot sign in again. This venue's Wi-Fi is run by a controller we can't ask to end a session, so anyone already online may stay connected until they reconnect.`;
+      }
       return `${head}, but we could not take them off the WiFi — they may still be online. Check the router and try again.`;
     case "pending":
       return `${head}. Ending their current sessions now…`;

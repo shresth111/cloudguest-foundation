@@ -34,6 +34,8 @@ import type { AnyAccessRule } from "@/types/guest";
 import { maskMac } from "@/components/features/HeaderControls";
 import { DEFAULT_DIAL_CODE, PHONE_COUNTRIES, normalizePhoneToE164 } from "@/lib/phone-e164";
 import { blockOutcomeMessage } from "@/lib/block-outcome";
+import { useClientControls } from "@/hooks/useClientControls";
+import { ControllerControlNotice } from "@/components/customer/ControllerControlNotice";
 
 // `identifier` holds a phone number, an email address, or a MAC (see
 // toBlockedUser below, which -- like guest_access's own rule tables --
@@ -204,6 +206,12 @@ function BlockedAccessIllustration() {
 
 export default function BlockUsers({ locationId }: { locationId?: string } = {}) {
   const demo = useIsDemo();
+  // What a block actually reaches at this venue. At a MikroTik venue every
+  // line that reads this is a no-op: `controllerManaged` is false and the
+  // device verdict is `available` with a null reason, so the notice renders
+  // nothing and `blockOutcomeMessage` takes its existing branch.
+  const clientControls = useClientControls();
+  const blockDeviceVerdict = clientControls.verdict("block-device");
   // UNITS is demo-only seed data (fake hotel names) -- a real customer only
   // has their own locations. Same real-vs-demo split as WhiteList.tsx's
   // units/realUnits.
@@ -580,7 +588,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
       setTextarea("");
       setPage(0);
       setShowModal(false);
-      setToast(blockOutcomeMessage(created, identifierNoun));
+      setToast(blockOutcomeMessage(created, identifierNoun, clientControls.controllerManaged));
       setTimeout(() => setToast(null), 6500);
     } catch {
       // Some or all of the rules may have been saved even though the
@@ -995,6 +1003,14 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
               Takes effect immediately; we also try to end any session these guests have now.
               <Tooltip text="Blocking a number or email stops that guest signing in again until unblocked, and tries to end the session they are in right now. Ending a live session needs the venue's router, so the confirmation afterwards tells you whether it actually happened." />
             </p>
+            {/* The half of a block that depends on the venue's hardware, said
+                BEFORE the click rather than only in the toast afterwards.
+                `blockOutcomeMessage` is honest about what happened; this is
+                honest about what is going to. The Block button itself stays
+                enabled on purpose -- barring an identifier from signing in is
+                a row in our own database and works at every venue on every
+                vendor, so greying it would remove the half that is whole. */}
+            <ControllerControlNotice verdict={blockDeviceVerdict} className="mt-0 max-w-xl" />
             <button
               ref={triggerRef}
               disabled={textarea.trim() === ""}

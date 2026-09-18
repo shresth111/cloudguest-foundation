@@ -81,6 +81,8 @@ import { toCsv, downloadCsv, csvDateStamp } from "@/lib/csv-export";
 import { requireCustomerSession } from "@/lib/authGuards";
 import { requireActiveLocationId } from "@/lib/customerLocationGuard";
 import { customerFeatureHref } from "@/lib/customerNav";
+import { useClientControls } from "@/hooks/useClientControls";
+import { disconnectOutcome } from "@/lib/omada-client-controls";
 
 /**
  * Shared empty-state graphic for the Users table -- a magnifying glass over
@@ -135,6 +137,12 @@ function CustomerUsersPage() {
   const locationId = activeLocationId!;
   const disconnect = useDisconnectSession();
   const extend = useExtendSession();
+  // What "Disconnect" actually does at THIS venue. At a MikroTik venue -- and
+  // at a mixed venue, and at one whose routers could not be read -- the
+  // verdict is `available` with a null reason, and every line below that reads
+  // it renders exactly as it did before this hook existed.
+  const disconnectVerdict = useClientControls().verdict("disconnect");
+  const disconnectReachesDevice = disconnectVerdict.availability === "available";
   // useIsDemo(), not isDemo() directly -- see the identical fix in
   // customer.$locationId.$feature.tsx/dashboard.tsx: calling isDemo()
   // straight in render flips between the SSR pass (no window -> false)
@@ -992,7 +1000,20 @@ function CustomerUsersPage() {
             <AlertDialogTitle>
               {t("confirmDisconnectTitle", { name: confirmDisconnect?.name })}
             </AlertDialogTitle>
-            <AlertDialogDescription>{t("confirmDisconnectDescription")}</AlertDialogDescription>
+            {/* The stock description promises the device is forced off "this
+                network's router (Wi-Fi registration + DHCP lease)", which is
+                exactly what happens at a MikroTik venue and exactly what does
+                NOT happen at a venue whose access points are a controller --
+                `/connected-devices/{id}/disconnect` refuses by vendor there
+                and `disconnectSession` swallows the refusal. Promising it
+                before the click and then not doing it is the defect; the
+                verdict's own sentence replaces it, rather than being appended
+                as a caveat to a claim we have just made. */}
+            <AlertDialogDescription>
+              {disconnectReachesDevice
+                ? t("confirmDisconnectDescription")
+                : disconnectVerdict.reason}
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
@@ -1014,9 +1035,35 @@ function CustomerUsersPage() {
                       // best-effort (see disconnectSession()'s docstring): a
                       // guest can have zero tracked ConnectedDevice rows if
                       // the router-sync mechanism hasn't discovered them yet.
-                      if (result.deviceDisconnected)
-                        toast.success(t("disconnectSuccess", { name: confirmDisconnect.name }));
-                      else toast.warning(t("disconnectPartial", { name: confirmDisconnect.name }));
+                      //
+                      // Four outcomes now, not two, and the ladder that picks
+                      // between them is pure and tested rather than inline:
+                      // the controller branch has to sit ABOVE the failure
+                      // branch, because at a controller venue the device is
+                      // never cleared on any call, and calling that "check
+                      // the router and try again" sends an owner to look at
+                      // hardware that is behaving correctly.
+                      const name = confirmDisconnect.name;
+                      switch (
+                        disconnectOutcome({
+                          sessionEnforced: result.sessionEnforced,
+                          deviceDisconnected: result.deviceDisconnected,
+                          verdict: disconnectVerdict,
+                        })
+                      ) {
+                        case "device-cleared":
+                          toast.success(t("disconnectSuccess", { name }));
+                          break;
+                        case "controller-venue":
+                          toast.info(t("disconnectController", { name }));
+                          break;
+                        case "not-cleared":
+                          toast.warning(t("disconnectPartial", { name }));
+                          break;
+                        case "session-only":
+                          toast.warning(t("disconnectSessionOnly", { name }));
+                          break;
+                      }
                     },
                     onError: (err) =>
                       toast.error((err as unknown as AppError).message || t("disconnectError")),
