@@ -285,6 +285,48 @@ for (const control of ["speed-limit", "speed-profile"]) {
     reason,
   );
 }
+
+// THE THIRD BRANCH THAT DESCRIBED HARDWARE IT HAD NOT REACHED.
+//
+// `speed-limit` and `speed-profile` were corrected above. `session-timeout`
+// was the one left: on a null capabilities read it asserted the controller
+// "doesn't count the time down itself" -- a statement about the venue's
+// equipment derived from a request of ours that did not come back.
+//
+// It is also the claim that went stale first. cloud-guest #281 derives the
+// controller-side authorization lifetime from
+// `GuestSession.session_timeout_minutes`, the venue's own resolved SESSION
+// policy, instead of the integration's flat 3600 default -- so the controller
+// IS handed the venue's number and does expire on it. A venue setting 30
+// minutes no longer gets a 60-minute authorization behind our back.
+//
+// Both branches must now describe only what WE can and cannot do. The
+// specific regression to guard is the sentence coming back, in either
+// branch, because it reads fluently and sounds knowledgeable.
+for (const venue of [CONTROLLER_UNKNOWN, CONTROLLER_LEGACY]) {
+  const v = clientControlVerdict("session-timeout", {
+    ...venue,
+    capabilities: venue.capabilities
+      ? { ...venue.capabilities, disconnect: no("no disconnect here") }
+      : null,
+  });
+  check(
+    "session-timeout stays live wherever it is ours to enforce",
+    v.availability === "qualified",
+    v.availability,
+  );
+  check(
+    "session-timeout describes no clock inside the controller",
+    !/count the time down/.test(v.reason ?? ""),
+    v.reason,
+  );
+}
+// And the no-answer branch says so, rather than narrating the venue's kit.
+check(
+  "session-timeout says we could not ask when nothing told us",
+  /couldn't reach/.test(clientControlVerdict("session-timeout", CONTROLLER_UNKNOWN).reason ?? ""),
+  clientControlVerdict("session-timeout", CONTROLLER_UNKNOWN).reason,
+);
 eq(
   "block-device is refused where the credentials cannot make the write",
   clientControlVerdict("block-device", CONTROLLER_LEGACY).availability,
