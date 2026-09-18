@@ -2079,3 +2079,31 @@ jobs:
             "omada-client-actions" 65 \
             "All checks passed." \
             bun run test:omada-client-actions
+
+      # The six defects a QA pass found on the customer dashboard at the Omada
+      # venue on 2026-09-18. Five of them are SENTENCES, and nothing above can
+      # see a sentence: a screen that promises a block "cuts off a guest's
+      # access immediately" compiles exactly as well as one that does not, and
+      # the reader who finds out is a venue owner acting on it. The headline
+      # said precisely that while `providers/omada.py` recorded the opposite --
+      # what a block does to a client holding a portal authorization is
+      # UNMEASURED -- and an empty blocklist read as "this venue has blocked
+      # nobody" when `list_blocked` is `supported: false` and no such list can
+      # be read at all.
+      #
+      # It also carries the EN/HI parity check for the venue-admin
+      # dictionaries, which nothing ran. `test:portal-i18n-parity` above is the
+      # GUEST PORTAL's ten languages and never opens these five files, so a key
+      # added to `en` and forgotten in `hi` fell back to English silently --
+      # perfect in review, visible only to the reader whose paragraph switches
+      # language mid-sentence. Both directions, so a rename that takes only one
+      # side is caught too.
+      #
+      # Floor 58, observed green at 63. Every section was verified to go red
+      # when its fix is reverted (7 checks across 4 mutations).
+      - name: customer dashboard QA copy
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "dashboard-qa-copy" 58 \
+            "all customer-dashboard QA copy checks passed" \
+            bun run test:dashboard-qa-copy

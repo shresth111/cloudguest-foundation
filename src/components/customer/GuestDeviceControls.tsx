@@ -141,6 +141,31 @@ export function GuestDeviceControls({ mac, guestName }: { mac: string; guestName
           {t("unblockDevice")}
         </Button>
       </div>
+      {/* THE TWO UNDO BUTTONS STAY LIVE, AND SAY WHAT HAPPENS WHEN THERE IS
+        NOTHING TO UNDO. The sentence itself is at the foot of this panel,
+        where it sits under both of them.
+
+        QA found "Allow device" and "Remove limit" enabled for a device that
+        was never blocked, never limited and is offline, and asked whether to
+        disable them. Disabling them is the option that looks tidy and is the
+        dishonest one: it would require this screen to know that the device is
+        not blocked and not capped, and it cannot. `list_blocked` is declared
+        `supported: false` on every auth mode -- the controller publishes no
+        readable list of blocked clients (CAPABILITY-MATRIX §10.8) -- and
+        nothing here reads a client's stored `rateLimit` either. A greyed-out
+        "Allow device" would therefore be this product asserting "this device
+        is not blocked" on no evidence, which is the same defect as an empty
+        blocklist claiming nobody is blocked.
+
+        It also has a real cost: a device CAN be blocked outside this panel
+        (another admin, the controller's own UI), and the only control that
+        releases it would be the one we had disabled.
+
+        So they stay live and the outcome is named up front. `OMADA_CLIENT_NOT_FOUND`
+        is already a distinct backend outcome for exactly this case, so acting
+        on a device the controller has no record of is answered honestly
+        rather than silently -- nothing is sent blind and nothing is
+        invented. */}
       <ControllerControlNotice verdict={blockVerdict} />
       {/* Only when it says something the block notice has not already said. */}
       {unblockVerdict.availability === "unavailable" &&
@@ -206,6 +231,15 @@ export function GuestDeviceControls({ mac, guestName }: { mac: string; guestName
         clearVerdict.reason !== speedVerdict.reason && (
           <ControllerControlNotice verdict={clearVerdict} />
         )}
+
+      {/* Said once, under both undo controls, and only where at least one of
+        them is actually offered. */}
+      {(unblockVerdict.availability !== "unavailable" ||
+        clearVerdict.availability !== "unavailable") && (
+        <p role="note" className="mt-3 text-xs text-muted-foreground">
+          {t("deviceUndoAlwaysOffered")}
+        </p>
+      )}
     </div>
   );
 }

@@ -33,7 +33,13 @@
   "demoBlocked": "Sign in to a real account to manage a real guest's session.",
   "emptyNoMatch": "No guests match your search or filter.",
   "emptyNone": "No guests have connected yet.",
-  "usersCount": "{{count}} users",
+  "sessionsCount_one": "{{count}} session",
+  "sessionsCount_other": "{{count}} sessions",
+  "guestsCount_one": "{{count}} guest",
+  "guestsCount_other": "{{count}} guests",
+  "sessionsFromGuests": "{{sessions}} from {{guests}}",
+  "viewDetails": "View details",
+  "viewGuestDetails": "View {{name}}’s details",
   "detailStatus": "Status",
   "detailDuration": "Duration",
   "detailDevice": "Device",
@@ -63,5 +69,6 @@
   "deviceSpeedNoProfiles": "No speed profiles yet. Create one under Access Rules and it will appear here.",
   "applyDeviceSpeed": "Apply speed",
   "clearDeviceSpeed": "Remove limit",
-  "deviceActionError": "Couldn’t reach the venue’s controller. Nothing was changed."
+  "deviceActionError": "Couldn’t reach the venue’s controller. Nothing was changed.",
+  "deviceUndoAlwaysOffered": "Allow device and Remove limit are always offered: this venue’s controller does not tell us which devices it is holding off or capping, so we cannot show that here. If there is nothing to undo, nothing changes and we say so."
 }
