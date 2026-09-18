@@ -210,6 +210,13 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
   // line that reads this is a no-op: `controllerManaged` is false and the
   // device verdict is `available` with a null reason, so the notice renders
   // nothing and `blockOutcomeMessage` takes its existing branch.
+  //
+  // THIS SCREEN BLOCKS AN IDENTIFIER, NOT A DEVICE, and that is why it holds a
+  // notice rather than a button. A phone number is not a MAC, and the
+  // controller's block is keyed on one; the device half lives where a device
+  // is actually on screen (Guests -> the guest panel), and the notice says so.
+  // The verdict behind it is the backend's declared `block` capability now,
+  // not a guess -- where it is false, the sentence rendered is the backend's.
   const clientControls = useClientControls();
   const blockDeviceVerdict = clientControls.verdict("block-device");
   // UNITS is demo-only seed data (fake hotel names) -- a real customer only

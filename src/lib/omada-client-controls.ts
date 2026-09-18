@@ -11,15 +11,31 @@
  * unchanged to venues whose access points are a TP-Link Omada controller.
  * Two of them work there. Three of them reach no device and said nothing.
  *
- * "Said nothing" is the defect. A speed set at an Omada venue is accepted,
+ * "Said nothing" is the defect. A speed set at an Omada venue was accepted,
  * saved, read back and shown as active -- and the only thing that consumes a
- * BANDWIDTH policy is `queue_management`, which writes RouterOS
- * `/queue simple`. There is no queue on an Omada controller, no adapter
+ * BANDWIDTH policy is `queue_management`, which wrote RouterOS
+ * `/queue simple`. There was no queue on an Omada controller, no adapter
  * registered for one, and therefore no device anywhere that was ever going to
  * hear about that number. Same shape as the five Network screens
  * `router-vendors.ts` already gates: the backend refuses by vendor, correctly,
  * and the venue owner meets the refusal only after filling in the form -- or
  * in this case never, because saving a policy row succeeds.
+ *
+ * WHAT CHANGED, AND WHAT DID NOT (cloud-guest #270)
+ * -------------------------------------------------
+ * The venue's controller now declares what it can do, per action, and this
+ * module reports that declaration instead of guessing at it. Three of those
+ * gaps closed on the backend at the same time: `apply_queue` routes a
+ * controller-managed router to its controller rather than to a queue adapter
+ * that has one vendor in it, `end_on_router` does the same for a disconnect,
+ * and per-client block/unblock/rate-limit exist as venue-scoped routes.
+ *
+ * What did NOT change is the shape of the honesty. A capability that says no
+ * still greys its control and still renders a reason -- the backend's own
+ * sentence now, which names the credential and where to add it, rather than a
+ * paraphrase of it kept here. And an action that succeeds still promises no
+ * more than was measured: §10.4, §10.5 and §10.6 below are unchanged and are
+ * still executed as assertions.
  *
  * So the rule this module encodes is the one the rest of this console already
  * uses: where the thing cannot happen, the control is greyed and NAMED, never
@@ -50,8 +66,6 @@
  *   §10.6  What a block does to an ALREADY-AUTHORISED guest is UNMEASURED. No
  *          sentence here claims a block cuts a live guest off.
  */
-import type { ControllerAuthMode } from "@/types/network-integration";
-
 // ---------------------------------------------------------------------------
 // The controls.
 // ---------------------------------------------------------------------------
@@ -104,31 +118,62 @@ export const CLIENT_CONTROL_IDS: readonly ClientControlId[] = [
  */
 export type ControlAvailability = "available" | "qualified" | "unavailable";
 
-export interface ClientControlVerdict {
-  control: ClientControlId;
+export interface ControlVerdict<Id extends string = string> {
+  control: Id;
   availability: ControlAvailability;
   /**
    * Why, in one sentence, in a venue owner's vocabulary. Never null for
    * `unavailable` or `qualified`; always null for `available`, so a caller
    * cannot render a warning over a control that works.
+   *
+   * Where the backend has given a reason, this IS that string, unedited.
    */
   reason: string | null;
 }
+
+export type ClientControlVerdict = ControlVerdict<ClientControlId>;
+
+/**
+ * The four per-device actions the Guests panel offers, named as the backend's
+ * capability map names them rather than as the screen labels them, because
+ * each one is gated on exactly one capability and nothing else.
+ *
+ * There is no `list-blocked`. See `ControllerClientCapabilities`.
+ */
+export type DeviceActionId = "block" | "unblock" | "speed" | "speed-clear";
+
+export type DeviceActionVerdict = ControlVerdict<DeviceActionId>;
 
 // ---------------------------------------------------------------------------
 // What the platform can ask this venue's controller to do.
 // ---------------------------------------------------------------------------
 
 /**
- * The per-client writes a venue's controller connection supports, as the
- * BACKEND reports them.
+ * One per-client action, and whether this venue's controller connection can
+ * perform it, as the BACKEND reports it.
+ *
+ * `reason` is populated only when `supported` is false, and the backend writes
+ * it FOR THE PERSON LOOKING AT THE DISABLED CONTROL. It is rendered verbatim
+ * (see `capabilityReason` below): paraphrasing it here would be a second copy
+ * of a sentence that names a specific credential and a specific place in the
+ * controller's own settings tree, and the paraphrase is what would go stale.
+ */
+export interface ControllerClientCapability {
+  supported: boolean;
+  reason: string | null;
+}
+
+/**
+ * The seven per-client actions the backend declares for a venue, named exactly
+ * as `GET /network-integrations/locations/{id}/clients/capabilities` names
+ * them (camelCased at the wire boundary and nowhere else).
  *
  * WHY THIS IS A REPORTED SHAPE AND NOT AN `authMode` CHECK HERE
  * ------------------------------------------------------------
  * The obvious implementation is `authMode === "openapi"`, because that is the
  * capability line on the controller: per-client rate limit and block/unblock
- * exist on the internal v2 and Open API surfaces and do not exist at all on
- * the hotspot-operator surface. CAPABILITY-MATRIX §7 is explicit -- the only
+ * exist on the Open API surface and do not exist at all on the
+ * hotspot-operator surface. CAPABILITY-MATRIX §7 is explicit -- the only
  * per-client verbs published under `/hotspot/` are authorize, unauth,
  * authed-record disconnect/period/delete, and a rate-limit profile LIST -- so
  * "a venue configured `auth_mode: legacy` can have none of" per-client speed
@@ -143,35 +188,52 @@ export interface ClientControlVerdict {
  * refuses to re-read `vendor` next to `location-liveness.ts`.
  *
  * So the frontend does not decide. It reports what the backend says, and when
- * the backend says nothing -- which is today -- `null` is the honest answer
- * and every device-level write is `unavailable` with a reason that names our
- * own product rather than blaming the venue's hardware.
+ * the backend has told us nothing, `null` -- not an all-false object -- is the
+ * honest answer. The two are different sentences to a venue owner and the
+ * ladder below keeps them apart.
  *
- * PROVISIONAL, AND DELIBERATELY NARROW. These field names mirror the
- * `openapi`-vs-`legacy` capability table the backend is publishing for the
- * customer-scoped Omada client routes. Nothing reads them off the wire yet;
- * `src/services/omada-client-controls.service.ts` is the single place that
- * will, and it is the only file that changes when the contract lands.
+ * `listBlocked` IS DECLARED AND IS NEVER TRUE. The controller does not expose
+ * the block flag through the connection this platform holds, and an empty list
+ * would be this product asserting that the venue has blocked nobody. It is
+ * carried here so that a future reader finds the answer where they look for
+ * it, and so that a screen tempted to render such a list finds `supported:
+ * false` and a sentence saying where the real list is. Nothing in this console
+ * renders a blocked-device list.
  */
-export interface ControllerClientWrites {
+export interface ControllerClientCapabilities {
+  setRateLimit: ControllerClientCapability;
+  clearRateLimit: ControllerClientCapability;
+  block: ControllerClientCapability;
+  unblock: ControllerClientCapability;
+  listBlocked: ControllerClientCapability;
   /**
    * End one guest's authorization on the controller.
    *
-   * Rides the hotspot OPERATOR session, so it is the one per-client write a
-   * `legacy` venue has -- proved on real hardware 2026-09-11 and recorded in
+   * Rides the hotspot OPERATOR session, so it is the one per-client action a
+   * `legacy` venue keeps -- proved on real hardware 2026-09-11 and recorded in
    * `omada-disconnect.ts`, against a change request that said the opposite.
    */
-  disconnect: boolean;
-  /** `POST .../clients/{mac}/block`. v2 + Open API only, never legacy. */
-  block: boolean;
-  /** `PATCH .../clients/{mac}/ratelimit`. v2 + Open API only, never legacy. */
-  rateLimit: boolean;
-  /**
-   * Which credentials the connection holds, when the backend reports it.
-   * Read ONLY by copy that names the fix -- never as the capability itself,
-   * for the reason in this interface's docstring.
-   */
-  authMode: ControllerAuthMode | null;
+  disconnect: ControllerClientCapability;
+  clientStats: ControllerClientCapability;
+}
+
+/** True only when the backend said so. Anything else -- no answer, a missing
+ * field, a field of the wrong type -- reads as "we cannot do it". */
+export function capabilityIsSupported(
+  capability: ControllerClientCapability | undefined | null,
+): boolean {
+  return capability?.supported === true;
+}
+
+/** The backend's own sentence, or null. Never a paraphrase, and never a
+ * non-empty string for a capability that IS supported -- rendering a warning
+ * beside a working control is how a console teaches owners to ignore them. */
+function capabilityReason(
+  capability: ControllerClientCapability | undefined | null,
+): string | null {
+  if (!capability || capability.supported) return null;
+  const reason = capability.reason?.trim();
+  return reason ? reason : null;
 }
 
 /**
@@ -191,9 +253,14 @@ export interface ControllerVenueFacts {
    * venue summary predates the field. Only decides whether copy names a brand.
    */
   vendor: string | null;
-  /** What the backend says this venue's controller can be asked to do, or
-   * null when nothing has told us. */
-  writes: ControllerClientWrites | null;
+  /**
+   * What the backend says this venue's controller can be asked to do, or
+   * `null` when nothing has told us -- a venue with no controller connected to
+   * it, or a read that did not come back. `null` is NOT the same as an
+   * all-unsupported object: one says "we could not ask", the other says "we
+   * asked and the answer was no", and they get different sentences below.
+   */
+  capabilities: ControllerClientCapabilities | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -224,19 +291,21 @@ function ControllerNoun(vendor: string | null): string {
 }
 
 /**
- * The sentence for a device-level write the controller CAN make and we have no
- * customer-facing route for yet.
+ * The sentence for a control we could not get an answer about.
  *
- * It says the gap is ours, because it is: the controller accepts these writes
- * and returns them (CAPABILITY-MATRIX §3.1 and §4.1-4.3, measured on hardware
- * 2026-09-18). Blaming a customer's controller for a hole in our own product
- * is the copy that gets the controller replaced instead of the hole filled.
+ * Reached when `capabilities` is null at a venue we believe is
+ * controller-managed: the capabilities read 404'd (no controller connection is
+ * linked to this location, or the site on it was never chosen) or it did not
+ * come back at all. Either way the honest statement is that WE could not ask,
+ * not that the venue's hardware refused -- blaming a customer's controller for
+ * a gap on our side is the copy that gets the controller replaced instead of
+ * the gap closed.
  */
-function notWiredYet(what: string, vendor: string | null): string {
+function couldNotAsk(what: string, vendor: string | null): string {
   return (
-    `This venue's WiFi runs on ${controllerNoun(vendor)}. ${what} isn't something your ` +
-    "dashboard can do here yet — ask your Wyfy Guest contact and we'll set it on the controller " +
-    "for you."
+    `This venue's WiFi runs on ${controllerNoun(vendor)}, and we couldn't reach its connection to ` +
+    `check whether ${what} is possible here — ask your Wyfy Guest contact and we'll look at it ` +
+    "with you."
   );
 }
 
@@ -268,9 +337,28 @@ function needsOpenApi(what: string, vendor: string | null): string {
  * server actually did, which is the only honest place for it.
  */
 export const BLOCK_DEVICE_CAVEAT =
-  "Blocking stops this person signing in again, and asks the controller to keep their device " +
-  "off the network. A phone can come back under a new random Wi-Fi address, so treat it as a " +
+  "Blocking stops this person signing in again. Where you can see their device — Guests, then " +
+  "the device panel on that guest — we can also ask the controller to keep that device off the " +
+  "network. A phone can come back under a new random Wi-Fi address, so treat that half as a " +
   "deterrent rather than a lock.";
+
+/**
+ * The same two true things, said where the DEVICE itself is named: the guest
+ * panel in Guests, whose button calls the controller's block directly.
+ *
+ * Separate from `BLOCK_DEVICE_CAVEAT` because that one is read on Blocked
+ * Guests, where the thing being blocked is a phone number and the device half
+ * is somewhere else. Here the device is on screen and the sign-in half is
+ * somewhere else. Neither sentence may be used in the other's place without
+ * pointing an owner at the screen they are already on.
+ *
+ * Says nothing about a guest who is connected right now: CAPABILITY-MATRIX
+ * §10.6 is UNMEASURED.
+ */
+export const BLOCK_THIS_DEVICE_CAVEAT =
+  "This asks the controller to keep this device off the venue's network. A phone can come back " +
+  "under a new random Wi-Fi address, so treat it as a deterrent rather than a lock. To stop the " +
+  "person signing in again on any device, block them under Blocked Guests.";
 
 /**
  * The caveat on any speed we successfully set. CAPABILITY-MATRIX §10.4.
@@ -322,7 +410,18 @@ export function clientControlVerdict(
 ): ClientControlVerdict {
   if (!venue.controllerManaged) return AVAILABLE(control);
 
-  const { vendor, writes } = venue;
+  const { vendor, capabilities } = venue;
+  /** The backend's own sentence for a refused capability, or our fallback
+   * when it declined to give one. Never our sentence over its one. */
+  const refused = (
+    control: ClientControlId,
+    capability: ControllerClientCapability,
+    fallback: string,
+  ): ClientControlVerdict => ({
+    control,
+    availability: "unavailable",
+    reason: capabilityReason(capability) ?? fallback,
+  });
 
   switch (control) {
     // -----------------------------------------------------------------
@@ -341,7 +440,7 @@ export function clientControlVerdict(
       // `qualified`, not `unavailable`: ending the session is real, useful,
       // and it is what most owners actually want. Greying the button would
       // take away a control that works.
-      if (writes?.disconnect) return AVAILABLE(control);
+      if (capabilityIsSupported(capabilities?.disconnect)) return AVAILABLE(control);
       return {
         control,
         availability: "qualified",
@@ -363,20 +462,20 @@ export function clientControlVerdict(
       return AVAILABLE(control);
 
     case "block-device": {
-      if (writes?.block) {
+      if (capabilityIsSupported(capabilities?.block)) {
         return { control, availability: "qualified", reason: BLOCK_DEVICE_CAVEAT };
       }
-      if (writes) {
-        return {
+      if (capabilities) {
+        return refused(
           control,
-          availability: "unavailable",
-          reason: needsOpenApi("keep a device off the network", vendor),
-        };
+          capabilities.block,
+          needsOpenApi("keep a device off the network", vendor),
+        );
       }
       return {
         control,
         availability: "unavailable",
-        reason: notWiredYet("Keeping a device off the network entirely", vendor),
+        reason: couldNotAsk("keeping a device off the network", vendor),
       };
     }
 
@@ -384,15 +483,15 @@ export function clientControlVerdict(
     // Speed.
     // -----------------------------------------------------------------
     case "speed-limit": {
-      if (writes?.rateLimit) {
+      if (capabilityIsSupported(capabilities?.setRateLimit)) {
         return { control, availability: "qualified", reason: SPEED_LIMIT_CAVEAT };
       }
-      if (writes) {
-        return {
+      if (capabilities) {
+        return refused(
           control,
-          availability: "unavailable",
-          reason: needsOpenApi("set guest speeds", vendor),
-        };
+          capabilities.setRateLimit,
+          needsOpenApi("set guest speeds", vendor),
+        );
       }
       // THE ONE THAT WAS SILENTLY DOING NOTHING.
       //
@@ -415,7 +514,7 @@ export function clientControlVerdict(
     }
 
     case "speed-profile": {
-      if (writes?.rateLimit) {
+      if (capabilityIsSupported(capabilities?.setRateLimit)) {
         // Worth saying even when it works, because the SHAPE differs from
         // MikroTik and an owner will notice: on a router the tier's speed
         // arrives with the guest's sign-in, and on a controller it is a
@@ -426,12 +525,12 @@ export function clientControlVerdict(
           reason: `${SPEED_LIMIT_CAVEAT} At this venue a tier's speed is applied once the guest is online, a moment after they sign in.`,
         };
       }
-      if (writes) {
-        return {
+      if (capabilities) {
+        return refused(
           control,
-          availability: "unavailable",
-          reason: needsOpenApi("give a tier its own speed", vendor),
-        };
+          capabilities.setRateLimit,
+          needsOpenApi("give a tier its own speed", vendor),
+        );
       }
       return {
         control,
@@ -459,7 +558,7 @@ export function clientControlVerdict(
       // label promises the guest goes offline, and today only half of that is
       // certain. When the controller write lands, both halves are, and this
       // returns `available` with nothing rendered beside it.
-      if (writes?.disconnect) return AVAILABLE(control);
+      if (capabilityIsSupported(capabilities?.disconnect)) return AVAILABLE(control);
       return {
         control,
         availability: "qualified",
@@ -472,7 +571,184 @@ export function clientControlVerdict(
 }
 
 // ---------------------------------------------------------------------------
+// The four per-device actions, each gated on its OWN capability.
+// ---------------------------------------------------------------------------
+
+const DEVICE_ACTION_CAPABILITY: Record<DeviceActionId, keyof ControllerClientCapabilities> = {
+  block: "block",
+  unblock: "unblock",
+  speed: "setRateLimit",
+  "speed-clear": "clearRateLimit",
+};
+
+/** What each action would be doing, for the sentence we fall back to when the
+ * backend refuses without giving one of its own. */
+const DEVICE_ACTION_NOUN: Record<DeviceActionId, string> = {
+  block: "keep a device off the network",
+  unblock: "let a blocked device back on",
+  speed: "set one device's speed",
+  "speed-clear": "remove one device's speed limit",
+};
+
+/**
+ * May the venue admin press this one button, and if not, what does it say?
+ *
+ * ONE CAPABILITY PER BUTTON, never a venue-wide "controller is usable" flag.
+ * The backend declares `block` and `unblock` separately and there is no rule
+ * saying they move together; reading one off the other would be this console
+ * deciding something the backend is the authority on.
+ *
+ * A NON-CONTROLLER VENUE NEVER REACHES THIS. The panel these verdicts gate is
+ * not rendered at all unless `controllerManaged` is true, and the early return
+ * here says the same thing a second time so a future caller cannot make a
+ * MikroTik venue read as refused.
+ */
+export function deviceActionVerdict(
+  action: DeviceActionId,
+  venue: ControllerVenueFacts,
+): DeviceActionVerdict {
+  if (!venue.controllerManaged) {
+    return { control: action, availability: "available", reason: null };
+  }
+  const { vendor, capabilities } = venue;
+  if (!capabilities) {
+    return {
+      control: action,
+      availability: "unavailable",
+      reason: couldNotAsk(DEVICE_ACTION_NOUN[action], vendor),
+    };
+  }
+  const capability = capabilities[DEVICE_ACTION_CAPABILITY[action]];
+  if (capabilityIsSupported(capability)) {
+    // Two of the four work and still promise less than their label implies,
+    // and both say so BEFORE the click rather than as an apology after it.
+    // Removing something (unblock, clear the limit) promises nothing extra.
+    const caveat =
+      action === "block"
+        ? BLOCK_THIS_DEVICE_CAVEAT
+        : action === "speed"
+          ? SPEED_LIMIT_CAVEAT
+          : null;
+    return {
+      control: action,
+      availability: caveat ? "qualified" : "available",
+      reason: caveat,
+    };
+  }
+  return {
+    control: action,
+    availability: "unavailable",
+    // The backend's sentence, verbatim -- it names the credential and where in
+    // the controller's settings to add it, which no paraphrase here would.
+    reason: capabilityReason(capability) ?? needsOpenApi(DEVICE_ACTION_NOUN[action], vendor),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // AFTER the click: what actually happened.
+// ---------------------------------------------------------------------------
+
+/**
+ * What the controller did with a speed we asked it to hold.
+ *
+ * `applied*` and `requested*` are separate because they differ: a controller
+ * that holds a limit as a bounded number plus a Kbps/Mbps unit cannot express
+ * every kbps value, so 1500 kbps is applied as 2 Mbps. `clamped` says so.
+ *
+ * `null` on a direction means UNLIMITED in that direction. It is not zero and
+ * it is not unknown.
+ */
+export interface ClientRateLimitFacts {
+  enabled: boolean;
+  appliedDownKbps: number | null;
+  appliedUpKbps: number | null;
+  requestedDownKbps: number | null;
+  requestedUpKbps: number | null;
+  clamped: boolean;
+}
+
+/**
+ * The outcome of one per-device action.
+ *
+ * `performed` IS THE OUTCOME, AND IT IS FALSE ON A 200. The controller
+ * answering the HTTP call is not the controller doing the thing; PR #279
+ * shipped a green tick over exactly this and had to be reverted. Every caller
+ * goes through `clientActionMessage` below rather than assuming a resolved
+ * promise means success.
+ */
+export interface ClientActionFacts {
+  action: string;
+  performed: boolean;
+  /** Masked by the backend on the way out. Shown as-is; never re-derived. */
+  clientMac: string;
+  rateLimit: ClientRateLimitFacts | null;
+}
+
+/** "no limit" | "2 Mbps" | "1500 Kbps". `null` is unlimited, and says so in
+ * words rather than as a 0 an owner would read as "stopped". */
+export function rateLabel(kbps: number | null): string {
+  if (kbps === null || kbps === 0) return "no limit";
+  return kbps % 1000 === 0 ? `${kbps / 1000} Mbps` : `${kbps} Kbps`;
+}
+
+export interface ClientActionMessage {
+  tone: "success" | "warning";
+  text: string;
+}
+
+/**
+ * What to tell the venue admin, from what the server actually said.
+ *
+ * Three rules live here and nowhere else, so no screen can get one of them
+ * right and another wrong:
+ *
+ *  1. `performed: false` is a FAILURE, on an HTTP 200. Nothing may report it
+ *     as done.
+ *  2. The number shown is `applied_*`. Echoing back what was typed would be
+ *     this platform asserting a limit that is not in force.
+ *  3. `clamped` is said out loud, because the owner typed one number and the
+ *     controller is holding another, and finding that out later feels like a
+ *     bug in us.
+ *
+ * No sentence here says a speed is enforced or guaranteed: we have measured
+ * the controller accept, store and return a limit, and nobody has measured a
+ * device's throughput before and after (CAPABILITY-MATRIX §10.4).
+ */
+export function clientActionMessage(facts: ClientActionFacts): ClientActionMessage {
+  if (!facts.performed) {
+    return {
+      tone: "warning",
+      text:
+        "The controller didn't confirm that, so nothing has changed on the device as far as we " +
+        "can tell. Try again in a moment, and tell your Wyfy Guest contact if it keeps happening.",
+    };
+  }
+
+  const rate = facts.rateLimit;
+  if (rate) {
+    if (!rate.enabled) {
+      return { tone: "success", text: "This device has no speed limit on the network now." };
+    }
+    const held =
+      `The network is now holding this device to ${rateLabel(rate.appliedDownKbps)} down and ` +
+      `${rateLabel(rate.appliedUpKbps)} up.`;
+    const measured =
+      " Nobody has measured what a device actually gets afterwards, so treat it as a cap rather " +
+      "than a promise.";
+    if (!rate.clamped) return { tone: "success", text: held + measured };
+    return {
+      tone: "success",
+      text:
+        `${held} The controller stores speeds in its own steps, so it rounded what you asked ` +
+        `for — the figure above is the one it is holding.${measured}`,
+    };
+  }
+
+  return { tone: "success", text: "Done." };
+}
+
+// ---------------------------------------------------------------------------
+// The disconnect ladder.
 // ---------------------------------------------------------------------------
 
 /**
@@ -497,6 +773,20 @@ export function clientControlVerdict(
 export interface DisconnectOutcomeFacts {
   sessionEnforced: boolean | null;
   deviceDisconnected: boolean;
+  /**
+   * The controller's own answer to `POST .../clients/disconnect`, and a
+   * TRI-STATE for the same reason `sessionEnforced` is:
+   *
+   *   true   the controller confirmed it dropped the client.
+   *   false  we asked the controller and it did NOT -- `performed: false` on
+   *          an HTTP 200, which is a real outcome and not a transport error.
+   *   null   we never asked. **This is the value at every MikroTik venue, on
+   *          every call, forever**: the panel that makes this call is not
+   *          rendered there and the capability that gates it is never read
+   *          there. That is what keeps the four branches below bit-identical
+   *          to what they were for a RouterOS venue.
+   */
+  controllerDisconnected: boolean | null;
   /** The pre-click verdict, so one venue fact decides both halves. */
   verdict: ClientControlVerdict;
 }
@@ -509,21 +799,38 @@ export type DisconnectOutcome =
   /** Our session is closed; something tried to clear the device and failed. */
   | "not-cleared"
   /** Our session is closed and nothing looked at the device. */
-  | "session-only";
+  | "session-only"
+  /** We asked the venue's controller to drop the device and it said no. */
+  | "controller-refused";
 
 /**
- * Which of the four things happened. Ordered so the strongest CONFIRMED claim
+ * Which of the five things happened. Ordered so the strongest CONFIRMED claim
  * wins and no claim is ever made twice.
  *
- * The controller branch sits ABOVE the failure branch deliberately. At a
- * controller venue `sessionEnforced` is false on every single call, and
- * rendering that as "we could not take them off the WiFi -- check the router
- * and try again" sends an owner to look at hardware that is behaving
- * correctly, to retry something that cannot succeed. It is a property of the
- * venue, not an incident.
+ * The controller branch sits ABOVE the generic failure branch deliberately.
+ * Where we could not ask a controller at all, `sessionEnforced` is false on
+ * every single call, and rendering that as "we could not take them off the
+ * WiFi -- check the router and try again" sends an owner to look at hardware
+ * that is behaving correctly, to retry something that cannot succeed. It is a
+ * property of the venue, not an incident.
+ *
+ * `controllerDisconnected` is read FIRST, in both its decided states, because
+ * it is the only leg that asked the device that is actually serving this
+ * guest. `false` is a real refusal on an HTTP 200 and gets its own outcome
+ * rather than collapsing into "check the router": there is no router.
+ *
+ * A MIKROTIK VENUE PASSES `null` HERE ALWAYS, so both new lines are skipped
+ * and the remaining three are the same three, in the same order, as before.
  */
 export function disconnectOutcome(facts: DisconnectOutcomeFacts): DisconnectOutcome {
-  if (facts.sessionEnforced === true || facts.deviceDisconnected) return "device-cleared";
+  if (
+    facts.controllerDisconnected === true ||
+    facts.sessionEnforced === true ||
+    facts.deviceDisconnected
+  ) {
+    return "device-cleared";
+  }
+  if (facts.controllerDisconnected === false) return "controller-refused";
   if (facts.verdict.availability !== "available") return "controller-venue";
   if (facts.sessionEnforced === false) return "not-cleared";
   return "session-only";

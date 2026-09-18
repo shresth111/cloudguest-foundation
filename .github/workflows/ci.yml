@@ -1913,10 +1913,31 @@ jobs:
       # is asserted UNCHANGED, positively, control by control, rather than by
       # the absence of a failure.
       #
-      # Floor 100, observed green at 108.
+      # Floor 160, observed green at 166. It grew when the org-scoped client
+      # routes landed (cloud-guest #270): the ladder now reads seven declared
+      # capabilities instead of a guessed three, the backend's own refusal
+      # sentence is asserted to be rendered VERBATIM rather than paraphrased,
+      # and the MikroTik guarantee is checked as an exhaustive equality over
+      # every combination of the two legs a RouterOS venue can produce.
       - name: omada customer client controls
         run: |
           ./scripts/ci-gated-test.sh \
-            "omada-client-controls" 100 \
+            "omada-client-controls" 160 \
             "All checks passed." \
             bun run test:omada-client-controls
+
+      # The wire contract for those routes, driven against a stubbed `api` so
+      # the real mapping runs. The assertions that matter: no request carries
+      # an integration id, a site id or a controller address (that is the
+      # backend's tenancy design, not a URL style); `performed` defaults to
+      # false and is READ, because it arrives false on an HTTP 200 and PR #279
+      # shipped a green tick over exactly that; and every capability defaults
+      # to false, so a field nobody sent can never turn a button live.
+      #
+      # Floor 65, observed green at 69.
+      - name: omada customer client actions
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "omada-client-actions" 65 \
+            "All checks passed." \
+            bun run test:omada-client-actions

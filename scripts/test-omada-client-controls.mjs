@@ -47,6 +47,17 @@
  *      `locationIsControllerManaged` already takes.
  *   5. THE SCREENS ACTUALLY READ THE LADDER, and do not keep a second copy of
  *      it. Greps, in the same spirit as test-block-users-e164.mjs's.
+ *   6. THE BACKEND'S REFUSAL IS RENDERED VERBATIM. Its sentence names a
+ *      specific credential and a specific place in the controller's settings
+ *      tree; a paraphrase kept here would be a second copy, and the copy is
+ *      what goes stale. Asserted as an exact string equality, not a match.
+ *   7. `performed: false` IS A FAILURE, ON AN HTTP 200, and the number shown
+ *      after a speed is `applied`, never `requested`. Both are the traps this
+ *      product has already fallen into once.
+ *
+ * The wire contract those verdicts are computed from -- paths, bodies, and
+ * the org-scoping -- is `scripts/test-omada-client-actions.mjs`. This file is
+ * about the words; that one is about the request.
  *
  * WHY IT LOOKS LIKE THIS: this repo has no test runner (see
  * `scripts/test-controller-venue-network-screens.mjs` for the same note). The
@@ -102,31 +113,68 @@ const {
   clientControlVerdict,
   clientControlVerdicts,
   controlIsUsable,
+  deviceActionVerdict,
+  clientActionMessage,
+  rateLabel,
   disconnectOutcome,
   blockOutcomeMessage,
   CONTROLLER_SPEED_LIMIT_MAX_MBPS,
 } = await import(bundle);
 
 // --- the venue shapes ------------------------------------------------
-const MIKROTIK = { controllerManaged: false, vendor: null, writes: null };
-// What every Omada venue looks like today: the routes that would tell us what
-// its controller can do do not exist yet, so `writes` is null.
-const CONTROLLER_UNKNOWN = { controllerManaged: true, vendor: "tplink_omada", writes: null };
-// What an Open API venue will look like once they do.
+// The backend's own reason strings, copied from
+// `network_integration/providers/omada.py`. They are asserted to be RENDERED
+// VERBATIM, so they are pinned here rather than matched loosely: a console
+// that paraphrases a sentence naming a specific credential in a specific place
+// in the controller's settings tree is a second copy that goes stale.
+const LEGACY_REASON =
+  "This venue's controller is connected with a hotspot operator login, which can let guests on " +
+  "and disconnect them but cannot change a device's settings. Add Open API credentials to the " +
+  "controller (Settings > Platform Integration > Open API) to turn this on.";
+const BLOCKED_LIST_REASON =
+  "The controller does not offer a list of blocked devices through the connection we hold. " +
+  "Blocked guests are listed under Blocked Guests, which is this platform's own record and is " +
+  "what actually refuses them when they try to sign in again.";
+
+const yes = () => ({ supported: true, reason: null });
+const no = (reason) => ({ supported: false, reason });
+
+const MIKROTIK = { controllerManaged: false, vendor: null, capabilities: null };
+// A controller venue we could not ask: the capabilities read 404'd (no
+// controller connection is linked to this location) or did not come back.
+const CONTROLLER_UNKNOWN = { controllerManaged: true, vendor: "tplink_omada", capabilities: null };
+// An Open API venue -- everything declared supported bar the blocked list,
+// which is false on every auth mode by design.
 const CONTROLLER_OPENAPI = {
   controllerManaged: true,
   vendor: "tplink_omada",
-  writes: { disconnect: true, block: true, rateLimit: true, authMode: "openapi" },
+  capabilities: {
+    setRateLimit: yes(),
+    clearRateLimit: yes(),
+    block: yes(),
+    unblock: yes(),
+    listBlocked: no(BLOCKED_LIST_REASON),
+    disconnect: yes(),
+    clientStats: yes(),
+  },
 };
 // And a hotspot-operator-only venue, which CAPABILITY-MATRIX §7 says can have
-// the portal and nothing else.
+// the portal and a disconnect and nothing else.
 const CONTROLLER_LEGACY = {
   controllerManaged: true,
   vendor: "tplink_omada",
-  writes: { disconnect: true, block: false, rateLimit: false, authMode: "legacy" },
+  capabilities: {
+    setRateLimit: no(LEGACY_REASON),
+    clearRateLimit: no(LEGACY_REASON),
+    block: no(LEGACY_REASON),
+    unblock: no(LEGACY_REASON),
+    listBlocked: no(BLOCKED_LIST_REASON),
+    disconnect: yes(),
+    clientStats: no(LEGACY_REASON),
+  },
 };
 // A venue summary persisted by a build that predated `RouterLiveness.vendor`.
-const CONTROLLER_NO_VENDOR = { controllerManaged: true, vendor: null, writes: null };
+const CONTROLLER_NO_VENDOR = { controllerManaged: true, vendor: null, capabilities: null };
 
 const noun = (n) => (n === 1 ? "number" : "numbers");
 const rule = (over) => ({
@@ -173,6 +221,7 @@ eq(
   disconnectOutcome({
     sessionEnforced: true,
     deviceDisconnected: false,
+    controllerDisconnected: null,
     verdict: clientControlVerdict("disconnect", MIKROTIK),
   }),
   "device-cleared",
@@ -182,6 +231,7 @@ eq(
   disconnectOutcome({
     sessionEnforced: false,
     deviceDisconnected: false,
+    controllerDisconnected: null,
     verdict: clientControlVerdict("disconnect", MIKROTIK),
   }),
   "not-cleared",
@@ -191,6 +241,7 @@ eq(
   disconnectOutcome({
     sessionEnforced: null,
     deviceDisconnected: false,
+    controllerDisconnected: null,
     verdict: clientControlVerdict("disconnect", MIKROTIK),
   }),
   "session-only",
@@ -357,6 +408,7 @@ eq(
     // This is what the backend returns there on EVERY call, by construction.
     sessionEnforced: false,
     deviceDisconnected: false,
+    controllerDisconnected: null,
     verdict: controllerVerdict,
   }),
   "controller-venue",
@@ -366,6 +418,7 @@ eq(
   disconnectOutcome({
     sessionEnforced: true,
     deviceDisconnected: false,
+    controllerDisconnected: null,
     verdict: controllerVerdict,
   }),
   "device-cleared",
@@ -375,6 +428,7 @@ eq(
   disconnectOutcome({
     sessionEnforced: null,
     deviceDisconnected: true,
+    controllerDisconnected: null,
     verdict: clientControlVerdict("disconnect", MIKROTIK),
   }),
   "device-cleared",
@@ -453,14 +507,237 @@ for (const rel of [
     "GLOBAL-scoped routes 403 for a venue admin",
   );
 }
-// While the contract is unpublished this module must issue no request at all.
+// The contract landed (cloud-guest #270) and the switch says so.
 check(
-  "the adapter stays off the network until the routes land",
-  /CUSTOMER_CLIENT_ROUTES_LANDED = false/.test(
+  "the adapter is turned on",
+  /CUSTOMER_CLIENT_ROUTES_LANDED = true/.test(
     read("src/services/omada-client-controls.service.ts"),
   ),
-  "a speculative 404 on every page load reads as an outage to a venue owner",
+  "the org-scoped routes exist; leaving this false ships the screens greyed",
 );
+for (const [rel, needle, why] of [
+  [
+    "src/routes/users.tsx",
+    /<GuestDeviceControls mac=\{detailUser\.mac\}/,
+    "the per-device panel is on the one screen that has a MAC",
+  ],
+  [
+    "src/components/customer/GuestDeviceControls.tsx",
+    /if \(!controls\.controllerManaged\) return null;/,
+    "a MikroTik venue never renders the panel at all",
+  ],
+  [
+    "src/components/customer/GuestDeviceControls.tsx",
+    /queueProfileId: selectedProfile\.id/,
+    "a speed profile goes as an id, not as numbers re-derived in the browser",
+  ],
+]) {
+  check(`${rel}: ${why}`, needle.test(read(rel)), "grep failed");
+}
+// `list_blocked` is false on every auth mode and an empty list would be this
+// product asserting the venue has blocked nobody. Nothing may render one.
+for (const rel of [
+  "src/components/customer/GuestDeviceControls.tsx",
+  "src/components/features/BlockUsers.tsx",
+  "src/hooks/useClientControls.ts",
+]) {
+  check(
+    `${rel} does not list the controller's blocked devices`,
+    !/listBlocked\s*[.[]|clients\/blocked/.test(read(rel)),
+    "the block flag is not readable through the connection we hold",
+  );
+}
+
+// =====================================================================
+console.log("\n7. one capability per button, and the backend's own sentence beside it");
+// =====================================================================
+for (const action of ["block", "unblock", "speed", "speed-clear"]) {
+  eq(
+    `${action} is offered at an Open API venue`,
+    deviceActionVerdict(action, CONTROLLER_OPENAPI).availability !== "unavailable",
+    true,
+  );
+  const legacy = deviceActionVerdict(action, CONTROLLER_LEGACY);
+  if (action === "block" || action === "unblock" || action.startsWith("speed")) {
+    eq(`${action} is refused at a hotspot-operator venue`, legacy.availability, "unavailable");
+    // VERBATIM. Not "contains", not "starts with" -- the exact string the
+    // backend wrote for the person looking at the disabled control.
+    eq(`${action} renders the backend's reason unedited`, legacy.reason, LEGACY_REASON);
+  }
+  eq(
+    `${action} is never refused at a MikroTik venue`,
+    deviceActionVerdict(action, MIKROTIK).availability,
+    "available",
+  );
+  check(
+    `${action} says we could not ask when nothing told us`,
+    /Wyfy Guest contact/.test(deviceActionVerdict(action, CONTROLLER_UNKNOWN).reason ?? ""),
+    deviceActionVerdict(action, CONTROLLER_UNKNOWN).reason,
+  );
+}
+// Block and set-speed stay LIVE with a caveat; removing something promises
+// nothing extra and carries none.
+eq(
+  "blocking a device is qualified, not silently absolute",
+  deviceActionVerdict("block", CONTROLLER_OPENAPI).availability,
+  "qualified",
+);
+eq(
+  "setting a speed is qualified, not a promise of throughput",
+  deviceActionVerdict("speed", CONTROLLER_OPENAPI).availability,
+  "qualified",
+);
+eq(
+  "clearing a limit carries no caveat",
+  deviceActionVerdict("speed-clear", CONTROLLER_OPENAPI).reason,
+  null,
+);
+// A capability the backend declared false WITHOUT a reason still refuses --
+// and still says something, rather than rendering a greyed control with no
+// explanation next to it.
+const SILENT_REFUSAL = {
+  controllerManaged: true,
+  vendor: "tplink_omada",
+  capabilities: { ...CONTROLLER_OPENAPI.capabilities, block: { supported: false, reason: null } },
+};
+const silent = deviceActionVerdict("block", SILENT_REFUSAL);
+eq("a reasonless refusal is still a refusal", silent.availability, "unavailable");
+check("a reasonless refusal still says something", !!silent.reason, silent.reason);
+// A field nobody sent is "we cannot", never "we can".
+const MISSING_FIELD = {
+  controllerManaged: true,
+  vendor: "tplink_omada",
+  capabilities: { ...CONTROLLER_OPENAPI.capabilities, unblock: undefined },
+};
+eq(
+  "a missing capability field defaults to refused",
+  deviceActionVerdict("unblock", MISSING_FIELD).availability,
+  "unavailable",
+);
+
+// =====================================================================
+console.log("\n8. after the click: performed:false is a failure, and applied wins over requested");
+// =====================================================================
+const rateFacts = (over) => ({
+  action: "set_rate_limit",
+  performed: true,
+  clientMac: "AA:BB:CC:**:**:01",
+  rateLimit: {
+    enabled: true,
+    appliedDownKbps: 2000,
+    appliedUpKbps: 1000,
+    requestedDownKbps: 1500,
+    requestedUpKbps: 800,
+    clamped: true,
+    ...over,
+  },
+});
+// THE TRAP PR #279 FELL INTO: a 200 with `performed: false` is the controller
+// saying no, and a resolved promise is not success.
+const refused = clientActionMessage({ ...rateFacts(), performed: false });
+eq("performed:false is reported as a failure", refused.tone, "warning");
+check(
+  "performed:false does not claim anything was done",
+  !/now holding|no speed limit/i.test(refused.text),
+  refused.text,
+);
+const clamped = clientActionMessage(rateFacts());
+check("the applied figure is shown", /2 Mbps/.test(clamped.text), clamped.text);
+check(
+  "the requested figure is NOT shown -- it is not the limit in force",
+  !/1500|1\.5 Mbps|800 Kbps/.test(clamped.text),
+  clamped.text,
+);
+check("clamping is said out loud", /rounded/.test(clamped.text), clamped.text);
+const exact = clientActionMessage(rateFacts({ clamped: false, requestedDownKbps: 2000 }));
+check(
+  "an unclamped limit does not invent a rounding note",
+  !/rounded/.test(exact.text),
+  exact.text,
+);
+const cleared = clientActionMessage({
+  action: "clear_rate_limit",
+  performed: true,
+  clientMac: "AA:BB:CC:**:**:01",
+  rateLimit: {
+    enabled: false,
+    appliedDownKbps: null,
+    appliedUpKbps: null,
+    requestedDownKbps: null,
+    requestedUpKbps: null,
+    clamped: false,
+  },
+});
+check("a cleared limit says there is no limit", /no speed limit/i.test(cleared.text), cleared.text);
+// `null` on a direction is UNLIMITED, not zero and not unknown.
+eq("null reads as no limit", rateLabel(null), "no limit");
+eq("zero reads as no limit too -- it is what the backend means by it", rateLabel(0), "no limit");
+eq("a whole-Mbps rate reads in Mbps", rateLabel(2000), "2 Mbps");
+eq("a sub-Mbps rate keeps its kbps", rateLabel(1500), "1500 Kbps");
+const oneWay = clientActionMessage(rateFacts({ appliedUpKbps: null, clamped: false }));
+check(
+  "an unlimited direction is words, not a zero",
+  /no limit/.test(oneWay.text) && !/0 Mbps/.test(oneWay.text),
+  oneWay.text,
+);
+// No message from any of these may promise throughput.
+for (const message of [refused, clamped, exact, cleared, oneWay]) {
+  check(
+    "no outcome sentence promises an enforced speed",
+    !/\benforce[sd]?\b|\bguarantee[sd]?\b/i.test(message.text),
+    message.text,
+  );
+}
+
+// =====================================================================
+console.log("\n9. the controller leg of a disconnect, and the MikroTik null that skips it");
+// =====================================================================
+const openApiVerdict = clientControlVerdict("disconnect", CONTROLLER_OPENAPI);
+eq(
+  "a controller that confirms the drop reads as cleared",
+  disconnectOutcome({
+    sessionEnforced: false,
+    deviceDisconnected: false,
+    controllerDisconnected: true,
+    verdict: openApiVerdict,
+  }),
+  "device-cleared",
+);
+eq(
+  "a controller that refuses gets its own outcome, not 'check the router'",
+  disconnectOutcome({
+    sessionEnforced: false,
+    deviceDisconnected: false,
+    controllerDisconnected: false,
+    verdict: openApiVerdict,
+  }),
+  "controller-refused",
+);
+// The whole MikroTik guarantee, said as an exhaustive equality: for every
+// combination of the two legs a RouterOS venue can produce, the outcome with
+// `controllerDisconnected: null` is the outcome the old three-branch ladder
+// gave. Nothing about a MikroTik venue can reach either new line.
+for (const sessionEnforced of [true, false, null]) {
+  for (const deviceDisconnected of [true, false]) {
+    const withNull = disconnectOutcome({
+      sessionEnforced,
+      deviceDisconnected,
+      controllerDisconnected: null,
+      verdict: clientControlVerdict("disconnect", MIKROTIK),
+    });
+    const legacyLadder =
+      sessionEnforced === true || deviceDisconnected
+        ? "device-cleared"
+        : sessionEnforced === false
+          ? "not-cleared"
+          : "session-only";
+    eq(
+      `MikroTik ladder unchanged (enforced=${sessionEnforced}, device=${deviceDisconnected})`,
+      withNull,
+      legacyLadder,
+    );
+  }
+}
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);
 process.exit(failures === 0 ? 0 : 1);

@@ -81,8 +81,9 @@ import { toCsv, downloadCsv, csvDateStamp } from "@/lib/csv-export";
 import { requireCustomerSession } from "@/lib/authGuards";
 import { requireActiveLocationId } from "@/lib/customerLocationGuard";
 import { customerFeatureHref } from "@/lib/customerNav";
-import { useClientControls } from "@/hooks/useClientControls";
+import { useClientControls, useDeviceActions } from "@/hooks/useClientControls";
 import { disconnectOutcome } from "@/lib/omada-client-controls";
+import { GuestDeviceControls, isSendableMac } from "@/components/customer/GuestDeviceControls";
 
 /**
  * Shared empty-state graphic for the Users table -- a magnifying glass over
@@ -141,8 +142,17 @@ function CustomerUsersPage() {
   // at a mixed venue, and at one whose routers could not be read -- the
   // verdict is `available` with a null reason, and every line below that reads
   // it renders exactly as it did before this hook existed.
-  const disconnectVerdict = useClientControls().verdict("disconnect");
+  const clientControls = useClientControls();
+  const disconnectVerdict = clientControls.verdict("disconnect");
   const disconnectReachesDevice = disconnectVerdict.availability === "available";
+  // The venue-scoped client routes, bound to the active location. Used for the
+  // per-device panel below and -- only when the session-level disconnect comes
+  // back NOT enforced -- as a second, MAC-keyed attempt. Never on the happy
+  // path: `POST /guest-sessions/{id}/disconnect` already reaches this venue's
+  // controller (backend `end_on_router` routes a controller-managed router to
+  // `_end_on_controller`), so calling both every time would be two controller
+  // round-trips for one guest.
+  const deviceActions = useDeviceActions();
   // useIsDemo(), not isDemo() directly -- see the identical fix in
   // customer.$locationId.$feature.tsx/dashboard.tsx: calling isDemo()
   // straight in render flips between the SSR pass (no window -> false)
@@ -191,6 +201,10 @@ function CustomerUsersPage() {
     id: string;
     name: string;
     guestId: string | null;
+    /** The device address, carried so a disconnect the session route could
+     * not enforce can be retried against the controller by MAC. The table
+     * writes the literal "Unknown" when a session has none. */
+    mac: string;
   } | null>(null);
   const PAGE_SIZE = 8;
 
@@ -695,6 +709,7 @@ function CustomerUsersPage() {
                                   id: u.id,
                                   name: u.name,
                                   guestId: u.guestId,
+                                  mac: u.mac,
                                 });
                               }}
                             >
@@ -939,6 +954,12 @@ function CustomerUsersPage() {
                     <p className="mt-1 font-mono text-sm">{detailUser.ip || "—"}</p>
                   </div>
                 </div>
+                {/* Renders NOTHING at a MikroTik venue, a mixed venue, or a
+                    venue whose routers could not be read -- it returns null on
+                    `controllerManaged`, so those venues issue no capability
+                    read and see the panel not at all. The unmasked MAC is what
+                    goes on the wire; the backend masks it on the way back. */}
+                <GuestDeviceControls mac={detailUser.mac} guestName={detailUser.name} />
               </div>
               <div className="space-y-2 border-t p-4">
                 {detailUser.status !== "offline" && (
@@ -972,6 +993,7 @@ function CustomerUsersPage() {
                       id: detailUser.id,
                       name: detailUser.name,
                       guestId: detailUser.guestId,
+                      mac: detailUser.mac,
                     })
                   }
                 >
@@ -1028,7 +1050,7 @@ function CustomerUsersPage() {
                     locationId,
                   },
                   {
-                    onSuccess: (result) => {
+                    onSuccess: async (result) => {
                       // Honest about a partial success -- the session-level
                       // disconnect above is always real and already done by
                       // this point, but the router-level device clear is
@@ -1044,10 +1066,45 @@ function CustomerUsersPage() {
                       // the router and try again" sends an owner to look at
                       // hardware that is behaving correctly.
                       const name = confirmDisconnect.name;
+                      const mac = confirmDisconnect.mac;
+                      // A SECOND ATTEMPT, NOT A SECOND CALL ON THE HAPPY PATH.
+                      //
+                      // The session route above already reaches this venue's
+                      // controller, so on success nothing more is asked and
+                      // `controllerDisconnected` stays null -- which is also
+                      // what every MikroTik venue passes, on every call,
+                      // forever, and is why the outcome ladder below is
+                      // unchanged for them.
+                      //
+                      // It is worth asking again when that route reports NOT
+                      // enforced, because the two ask different questions: the
+                      // session route ends by the guest's portal identifier,
+                      // this one ends by MAC. A guest the controller does not
+                      // know by identifier -- the missing-identifier shape
+                      // this platform has hit before -- is still findable by
+                      // the address it is serving.
+                      let controllerDisconnected: boolean | null = null;
+                      if (
+                        result.sessionEnforced === false &&
+                        !result.deviceDisconnected &&
+                        clientControls.capabilities?.disconnect.supported === true &&
+                        isSendableMac(mac)
+                      ) {
+                        try {
+                          const facts = await deviceActions.disconnect(mac);
+                          controllerDisconnected = facts.performed;
+                        } catch {
+                          // Leave it null rather than false: a call that never
+                          // completed is not the controller saying no, and
+                          // "controller-refused" would be a claim about the
+                          // venue's hardware we cannot make.
+                        }
+                      }
                       switch (
                         disconnectOutcome({
                           sessionEnforced: result.sessionEnforced,
                           deviceDisconnected: result.deviceDisconnected,
+                          controllerDisconnected,
                           verdict: disconnectVerdict,
                         })
                       ) {
@@ -1062,6 +1119,12 @@ function CustomerUsersPage() {
                           break;
                         case "session-only":
                           toast.warning(t("disconnectSessionOnly", { name }));
+                          break;
+                        case "controller-refused":
+                          // We asked the venue's controller, by MAC, and it
+                          // said no. Not "check the router and try again":
+                          // there is no router at this venue to check.
+                          toast.warning(t("disconnectControllerRefused", { name }));
                           break;
                       }
                     },

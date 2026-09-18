@@ -33,14 +33,28 @@ interface BackendDisconnectResponse {
 }
 
 /**
- * The envelope is `{ success, message, data, request_id }`. A missing
- * `data` is not defaulted to anything cheerful -- `disconnected` falls back
- * to `false`, which renders as "not confirmed", because the alternative is
- * a green tick over a guest who is still online.
+ * The envelope is `{ success, message, data, request_id }` -- AND `api`'s
+ * response interceptor has already taken it off, so `payload` IS the body.
+ *
+ * This used to read `payload.data`, a second unwrap that found `undefined` on
+ * every call, so `disconnected` fell back to `false` and this console reported
+ * "not confirmed" for every disconnect the controller actually performed. The
+ * fallbacks are the right fallbacks; they were simply being reached every
+ * time. Same defect, and the same silence, as the one in
+ * `customer.service.ts`'s `disconnectSession`.
+ *
+ * Both shapes are read, newest first, because a `false` from a controller that
+ * refused and a `false` from a shape that moved look identical downstream.
+ *
+ * A missing field is still not defaulted to anything cheerful -- `disconnected`
+ * falls back to `false`, which renders as "not confirmed", because the
+ * alternative is a green tick over a guest who is still online.
  */
 function toResult(payload: unknown, sentMac: string): OmadaDisconnectResult {
-  const envelope = payload as { data?: Partial<BackendDisconnectResponse> } | null;
-  const body = envelope?.data ?? {};
+  const envelope = payload as
+    | (Partial<BackendDisconnectResponse> & { data?: Partial<BackendDisconnectResponse> })
+    | null;
+  const body = (envelope?.data ?? envelope ?? {}) as Partial<BackendDisconnectResponse>;
   return {
     disconnected: body.disconnected === true,
     provider: body.provider ?? "omada",
