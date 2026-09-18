@@ -374,6 +374,46 @@ eq(
 );
 eq("and carries no reason for it", clientControlVerdict("data-limit", MIKROTIK).reason, null);
 
+// THE SAME BLIND SPOT, A DIFFERENT CONSEQUENCE.
+//
+// The idle timeout rides the same `client_stats` gate as the data limit --
+// `build_controller_activity_reporting_lookup` computes its answer from that
+// capability, and the session sweep uses it to decide whether to measure
+// idleness at all. Where it cannot, #280 DROPS the idle half deliberately
+// (it had been firing on guests who were streaming) and falls back to the
+// absolute `session_timeout_minutes` ceiling.
+//
+// So unlike the data limit, the guest IS still signed out -- just for a
+// different reason. That is a caveat beside a live control, never a gate:
+// greying it would take away a setting that is real at every other venue and
+// would misdescribe this one as broken. `test-session-rules-enforcement.mjs`
+// forbids `disabled` on this control by name for that reason.
+eq(
+  "an idle timeout is unqualified where idleness can be seen",
+  clientControlVerdict("idle-timeout", CONTROLLER_OPENAPI).availability,
+  "available",
+);
+eq(
+  "an idle timeout stays LIVE where idleness cannot be seen",
+  clientControlVerdict("idle-timeout", CONTROLLER_LEGACY).availability,
+  "qualified",
+);
+check(
+  "an idle timeout that cannot fire says what happens instead",
+  /session timeout/.test(clientControlVerdict("idle-timeout", CONTROLLER_LEGACY).reason ?? ""),
+  clientControlVerdict("idle-timeout", CONTROLLER_LEGACY).reason,
+);
+check(
+  "an idle timeout is still submittable where it cannot fire",
+  controlIsUsable(clientControlVerdict("idle-timeout", CONTROLLER_LEGACY)),
+);
+eq(
+  "a MikroTik venue keeps its idle timeout unqualified",
+  clientControlVerdict("idle-timeout", MIKROTIK).availability,
+  "available",
+);
+eq("and carries no idle reason", clientControlVerdict("idle-timeout", MIKROTIK).reason, null);
+
 eq(
   "block-device is refused where the credentials cannot make the write",
   clientControlVerdict("block-device", CONTROLLER_LEGACY).availability,

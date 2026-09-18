@@ -108,7 +108,28 @@ export type ClientControlId =
    * accrues, and a cap set here would never be reached however much a guest
    * downloaded.
    */
-  | "data-limit";
+  | "data-limit"
+  /**
+   * Access Rules -> Guest WiFi Limits -> Idle Timeout.
+   *
+   * Gated on `clientStats` for the same reason the data limit is, and it is
+   * the same backend gate: `build_controller_activity_reporting_lookup`
+   * answers "can this platform read this controller's per-client traffic" by
+   * reading `client_stats`, and the session sweep uses that answer to decide
+   * whether to measure idleness at all.
+   *
+   * Where it cannot, cloud-guest #280 DROPS the idle half deliberately --
+   * because it had been firing on guests who were streaming -- and falls back
+   * to the absolute `session_timeout_minutes` ceiling, recording
+   * `session_time_limit_reached` rather than `inactivity_timeout`, "only one
+   * of those is a claim this platform can support there".
+   *
+   * So the setting is stored, resolved and snapshotted onto the session row,
+   * and then nothing acts on it. That is not a broken venue; it is a venue
+   * where this particular promise cannot be kept, and the screen should say
+   * so rather than let an owner tune a number that does nothing.
+   */
+  | "idle-timeout";
 
 export const CLIENT_CONTROL_IDS: readonly ClientControlId[] = [
   "disconnect",
@@ -118,6 +139,7 @@ export const CLIENT_CONTROL_IDS: readonly ClientControlId[] = [
   "speed-profile",
   "session-timeout",
   "data-limit",
+  "idle-timeout",
 ];
 
 /**
@@ -677,6 +699,43 @@ export function clientControlVerdict(
         control,
         availability: "unavailable",
         reason: couldNotAsk("counting how much data each guest uses", vendor),
+      };
+    }
+
+    // -----------------------------------------------------------------
+    // The idle timeout.
+    // -----------------------------------------------------------------
+    case "idle-timeout": {
+      // QUALIFIED, NEVER GREYED, AND THE DIFFERENCE IS THE POINT.
+      //
+      // Unlike the data limit above, this setting is not inert at a venue
+      // where activity cannot be seen -- the guest is still signed out, just
+      // by the absolute session length rather than by going quiet. So the
+      // control stays live and the note says which of the two promises it is
+      // keeping. Greying it would take away a setting that is real at every
+      // other venue and would misdescribe this one as broken.
+      //
+      // It is also why the session-rules guard forbids `disabled` on this
+      // control by name: an enforced setting an operator cannot change is no
+      // better than an unenforced one.
+      if (capabilityIsSupported(capabilities?.clientStats)) return AVAILABLE(control);
+      if (capabilities) {
+        return {
+          control,
+          availability: "qualified",
+          reason:
+            `The connection we hold for ${controllerNoun(vendor)} here can't see when a guest's ` +
+            "device goes quiet, so nobody is signed out early for being idle — each guest stays " +
+            "until their session timeout is up. Every other limit on this page still applies.",
+        };
+      }
+      return {
+        control,
+        availability: "qualified",
+        reason:
+          `We couldn't reach this venue's connection to ${controllerNoun(vendor)} to check ` +
+          "whether an idle device can be spotted here. If it can't, guests stay until their " +
+          "session timeout instead — ask your Wyfy Guest contact and we'll look at it with you.",
       };
     }
   }
