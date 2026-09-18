@@ -2099,11 +2099,33 @@ jobs:
       # language mid-sentence. Both directions, so a rename that takes only one
       # side is caught too.
       #
-      # Floor 58, observed green at 63. Every section was verified to go red
-      # when its fix is reverted (7 checks across 4 mutations).
+      # SECOND PASS (same day): seven more sentences, sections 8-14. The same
+      # defect in six new places, and the through-line is worth stating because
+      # it predicts where the seventh will be found. This platform's sign-in
+      # half is strong -- a rule consulted before every login, entirely on our
+      # side of the wire -- and its live-session half barely exists:
+      # `_GUEST_ACCESS_ADAPTERS` has one vendor in it, the RADIUS CoA transport
+      # measured zero successes in production, and NO scheduled sweep reads
+      # whitelist or open-hours state at all. Copy kept borrowing the first
+      # half's certainty for the second.
+      #
+      # The two worst were time-bounded promises about sweeps that do not
+      # exist: Whitelist-only claimed already-online guests are "disconnected
+      # within a few minutes", and Open Hours claimed guests are "disconnected"
+      # outside the schedule. Both are sign-in gates and nothing else.
+      #
+      # Sections 10 and 12 are gates rather than rewrites, because the claims
+      # are TRUE on RouterOS: Reset-a-session reuses the Users page's existing
+      # disconnect verdict + `disconnectOutcome` ladder, and How-it-works
+      # finally applies the controller gate its own sidebar has had all along.
+      # Section 11 records a gate that already existed (`voip` is already in
+      # CONTROLLER_UNSUPPORTED_FEATURE_IDS) so that removing it fails here.
+      #
+      # Floor 108, observed green at 114. Every new section was verified to go
+      # red when its fix is reverted (21 checks across 7 mutations).
       - name: customer dashboard QA copy
         run: |
           ./scripts/ci-gated-test.sh \
-            "dashboard-qa-copy" 58 \
+            "dashboard-qa-copy" 108 \
             "all customer-dashboard QA copy checks passed" \
             bun run test:dashboard-qa-copy

@@ -127,6 +127,8 @@ import {
   isAgentManaged,
   routerVendorLabel,
 } from "@/lib/router-vendors";
+import { useClientControls } from "@/hooks/useClientControls";
+import { disconnectOutcome } from "@/lib/omada-client-controls";
 
 /** `lastContactLabel` needs the derived liveness, not the wire row -- and
  * `deriveRouterLiveness` is what knows that `last_seen_at` on a still-
@@ -689,6 +691,28 @@ function ZoneBGuestLookup({
   } | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [resetting, setResetting] = useState(false);
+  /**
+   * WHAT "RESET THIS GUEST'S SESSION" ACTUALLY DOES AT *THIS* VENUE.
+   *
+   * The same hook, the same verdict id and the same ladder `routes/users.tsx`
+   * already uses for its Disconnect, because it is the same backend act:
+   * `terminate_session` -> `issue_live_disconnect` -> `end_on_router` ->
+   * `get_guest_access_adapter(vendor)`, whose registry is `{"mikrotik": ...}`
+   * and which raises for anything else. A controller venue therefore gets
+   * `sessionEnforced === false` on every call, forever -- not as a fault, but
+   * as a property of the venue.
+   *
+   * Reusing `disconnect`'s verdict rather than adding a `reset` id is
+   * deliberate: a second id would be a second name for one capability, and the
+   * two would drift the first time the backend registry changed.
+   *
+   * At a MikroTik venue -- and a mixed venue, and one whose routers could not
+   * be read -- the verdict is `available` with a null reason and every line
+   * below renders exactly as it did before this hook existed.
+   */
+  const clientControls = useClientControls();
+  const resetVerdict = clientControls.verdict("disconnect");
+  const resetReachesDevice = resetVerdict.availability === "available";
 
   const lookup = async (rawIdentifier: string, knownSession?: GuestSession) => {
     const identifier = rawIdentifier.trim();
@@ -792,8 +816,60 @@ function ZoneBGuestLookup({
     if (!result?.session) return;
     setResetting(true);
     try {
-      await guestService.terminateSession(result.session.id, "Session reset from Fix a Problem");
-      toast.success("Done — they'll be sent back to the login page to sign in again.");
+      // THE OUTCOME LADDER, NOT A SENTENCE ASSERTED ON ANY 2xx.
+      //
+      // This said "they'll be sent back to the login page to sign in again"
+      // unconditionally. Our half of that is always true -- the session row is
+      // TERMINATED and their next sign-in starts fresh. The other half, the one
+      // the owner is standing there watching for, is whether the DEVICE went
+      // anywhere, and the backend has always answered it on
+      // `disconnect_enforced` while this call discarded the body.
+      //
+      // Same five branches as the Users page, from the same pure function, so
+      // the two screens cannot drift into describing one backend act two ways.
+      // `deviceDisconnected` is false and `controllerDisconnected` null because
+      // this screen makes neither of those extra calls -- which is exactly the
+      // shape a MikroTik venue passes on the Users page too, so the three
+      // branches a RouterOS venue can reach are unchanged.
+      const { sessionEnforced } = await guestService.terminateSession(
+        result.session.id,
+        "Session reset from Fix a Problem",
+      );
+      switch (
+        disconnectOutcome({
+          sessionEnforced,
+          deviceDisconnected: false,
+          controllerDisconnected: null,
+          verdict: resetVerdict,
+        })
+      ) {
+        case "device-cleared":
+          toast.success("Done — they're off the network and back at the login page.");
+          break;
+        case "controller-venue":
+          // Not a failure and not a retry prompt: there is no router here to
+          // check. Their session is closed and their next sign-in is clean.
+          toast.info("Session reset — their next sign-in starts fresh.", {
+            description: resetVerdict.reason ?? undefined,
+          });
+          break;
+        case "not-cleared":
+          toast.warning("Session reset in our records only.", {
+            description:
+              "The router did not confirm taking their device off, so they may still be online. Ask them to forget the network and reconnect.",
+          });
+          break;
+        case "session-only":
+          toast.success("Session reset — they'll sign in again from the login page.", {
+            description: "Whether their device was taken off the network was not reported.",
+          });
+          break;
+        case "controller-refused":
+          toast.warning("Session reset, but their device was not taken off the network.", {
+            description: "This venue's controller declined the request.",
+          });
+          break;
+      }
       setResult(null);
       setPhone("");
       onSessionReset();
@@ -920,11 +996,26 @@ function ZoneBGuestLookup({
 
       {/* Kicking a real guest off the network is destructive and used to
           happen on a single click with no confirmation. */}
+      {/* The stock description promised the device is knocked off the network,
+          which is what happens at a MikroTik venue and what cannot happen at a
+          venue whose access points are a controller -- the adapter registry has
+          one vendor in it, so the RouterOS call that would carry the kick is
+          never made. Promising it before the click and then not doing it is the
+          defect, so the verdict's own sentence REPLACES the claim rather than
+          being appended as a caveat to one we have just made. The same
+          treatment, from the same verdict, as the Users page's confirm dialog.
+
+          The part that is true everywhere is kept in both branches: the session
+          ends and the guest starts again at the login page. That is ours. */}
       <ConfirmDialog
         open={confirmReset}
         onOpenChange={setConfirmReset}
         title="Reset this guest's session?"
-        description="They'll be disconnected and sent back to the login page to sign in again. Anything they're in the middle of will stop."
+        description={
+          resetReachesDevice
+            ? "They'll be disconnected and sent back to the login page to sign in again. Anything they're in the middle of will stop."
+            : `Their session ends and their next sign-in starts fresh at the login page. ${resetVerdict.reason ?? "We cannot take their device off this venue's network, so they may stay connected until they reconnect."}`
+        }
         confirmLabel="Reset session"
         destructive
         onConfirm={doReset}

@@ -269,9 +269,28 @@ export function QosManagement({ locationId }: { locationId?: string } = {}) {
         icon={Signal}
         eyebrow="Network"
         title={locationId ? "Call Priority" : "VOIP Priority"}
+        // NOT GATED HERE, BECAUSE IT ALREADY IS, ONE LAYER UP.
+        //
+        // The brief asked whether this screen should be offered at a
+        // controller venue. It is not: `voip` is already in
+        // `CONTROLLER_UNSUPPORTED_FEATURE_IDS`, so `CustomerFeaturePage`
+        // renders `ControllerManagedFeatureNotice` in place of this component
+        // and `CustomerSidebar` greys the row. Adding a vendor check inside
+        // here would be a second gate on the same fact, in a component that
+        // can only mount behind the first one.
+        //
+        // What was left is the part no gate could fix: "so calls stay clear
+        // even on a busy network" is an outcome promise about throughput, and
+        // throughput has never been measured (CAPABILITY-MATRIX §10.4 makes
+        // the same point about rate limits -- we measured the device ACCEPT
+        // the setting, not what a client then got). A priority queue reorders
+        // what is already contending; it cannot create capacity the venue's
+        // internet line does not have, and on a line that is genuinely
+        // saturated the calls degrade anyway. So the copy now says what the
+        // rule DOES, which is both true and still the reason to use it.
         description={
           locationId
-            ? "Give voice and video calls priority over other guest traffic, so calls stay clear even on a busy network."
+            ? "Send voice and video calls ahead of other guest traffic when the network is busy. This changes the order traffic is sent in; it cannot add capacity your internet line does not have."
             : "Traffic-classification rules -- match voice signaling/media (or a raw DSCP value) and assign a real RouterOS queue priority."
         }
         actions={

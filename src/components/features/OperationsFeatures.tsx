@@ -1127,9 +1127,27 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
+          {/* "outside it they are disconnected" was the same false promise
+           * WhiteList.tsx made, for the same reason: Open Hours is a
+           * SIGN-IN gate and nothing else. `_require_venue_open` is called
+           * from every login entry point and from `check_otp_request_allowed`,
+           * and `is_open_now` appears nowhere in `guest/tasks.py` -- no
+           * scheduled sweep reads `business_hours_schedule`, so a guest who
+           * signed in at 21:55 keeps working internet straight through a
+           * 22:00 close.
+           *
+           * The replacement deliberately reuses the sentence shape
+           * `LocationPolicies.tsx`'s save footer already settled on -- "anyone
+           * online right now keeps those until then" -- rather than inventing
+           * a third way to say it. Two screens describing the same
+           * next-session-only behaviour in two different phrasings is how an
+           * owner concludes they are two different behaviours.
+           *
+           * Vendor-independent: this gate is ours, in our portal, so it reads
+           * identically at a MikroTik and an Omada venue and needs no gating. */}
           <FeatureHeader
             title="Open Hours"
-            description="Guests can only sign in inside this schedule — outside it they are disconnected, and see a closed message instead of the portal."
+            description="Guests can only sign in inside this schedule — outside it they see your closed message instead of the sign-in page. Anyone already online stays online until their session ends."
             icon={Sun}
             action={saveActions}
           />

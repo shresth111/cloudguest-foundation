@@ -623,8 +623,50 @@ export const guestService = {
     await api.post(`/guest-sessions/${sessionId}/disconnect`, { reason });
   },
 
-  async terminateSession(sessionId: string, reason?: string): Promise<void> {
-    await api.post(`/guest-sessions/${sessionId}/terminate`, { reason });
+  /**
+   * End a session punitively, and REPORT WHETHER THE DEVICE ACTUALLY WENT.
+   *
+   * This returned `Promise<void>` and threw the answer away. The backend has
+   * always sent one: `terminate_session` calls `issue_live_disconnect`, which
+   * writes `guest_sessions.disconnect_enforced`, and the route returns it on
+   * `GuestSessionResponse` with a `message` that spells the failure out --
+   * "terminated in records only -- the disconnect was not acknowledged by the
+   * router, so the device may still be online."
+   *
+   * Discarding it meant "Fix a Problem" said "they'll be sent back to the
+   * login page" on every 2xx, including the case where the device is sitting
+   * there with working internet. At a controller venue that is not an edge
+   * case, it is EVERY call: `_GUEST_ACCESS_ADAPTERS` has one vendor in it
+   * (`"mikrotik"`), so `get_guest_access_adapter` raises for a controller row
+   * and the transport that would carry the kick -- the RouterOS API on 8728 --
+   * does not exist there.
+   *
+   * The tri-state is the point and is preserved exactly as
+   * `customerService.disconnectSession` preserves it:
+   *   true   the router acknowledged removing the device.
+   *   false  something tried and it did not happen.
+   *   null   nothing tried. The absence of an attempt, not a failure.
+   *
+   * THE TOLERANT DOUBLE READ IS DELIBERATE, and is copied from
+   * `customerService.disconnectSession` rather than reinvented -- including
+   * the bug it records. `api`'s response interceptor already strips the
+   * `{success, message, data, request_id}` envelope, so the payload is the
+   * session itself; a second `data.` unwrap there found `undefined` on every
+   * call and pinned `sessionEnforced` to `null` forever. Nothing failed
+   * loudly, because `null` is a legitimate value that reads as "nothing
+   * tried". Accepting both shapes costs one expression and makes a body whose
+   * shape moved indistinguishable from one we genuinely cannot read.
+   */
+  async terminateSession(
+    sessionId: string,
+    reason?: string,
+  ): Promise<{ sessionEnforced: boolean | null }> {
+    const { data: body } = await api.post<{
+      disconnect_enforced?: boolean | null;
+      data?: { disconnect_enforced?: boolean | null } | null;
+    }>(`/guest-sessions/${sessionId}/terminate`, { reason });
+    const enforced = body?.disconnect_enforced ?? body?.data?.disconnect_enforced;
+    return { sessionEnforced: typeof enforced === "boolean" ? enforced : null };
   },
 
   async pauseSession(sessionId: string, reason?: string): Promise<void> {
