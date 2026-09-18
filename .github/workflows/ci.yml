@@ -1899,3 +1899,24 @@ jobs:
             "omada-guided-setup" 46 \
             "omada guided setup: all checks passed" \
             bun run test:omada-guided-setup
+
+      # The customer dashboard's five guest controls, at a venue whose access
+      # points are a TP-Link Omada controller. Three of them were written for
+      # a MikroTik and shipped unchanged: a Bandwidth saved into a BANDWIDTH
+      # policy whose only consumer writes RouterOS `/queue simple`, a
+      # Disconnect whose response field this app discarded, and a block whose
+      # toast sent the owner to check a router the venue does not have.
+      #
+      # Drives the pure ladder directly and greps the four screens that read
+      # it. The assertion that matters most is the FIRST section: a MikroTik
+      # venue -- and a mixed venue, and one whose routers could not be read --
+      # is asserted UNCHANGED, positively, control by control, rather than by
+      # the absence of a failure.
+      #
+      # Floor 100, observed green at 108.
+      - name: omada customer client controls
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "omada-client-controls" 100 \
+            "All checks passed." \
+            bun run test:omada-client-controls

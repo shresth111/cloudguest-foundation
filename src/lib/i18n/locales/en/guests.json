@@ -49,5 +49,7 @@
   "confirmDisconnect": "Disconnect",
   "disconnectSuccess": "{{name}} disconnected — session ended and device cleared from the router",
   "disconnectPartial": "{{name}}'s session ended — device-level disconnect wasn't available for this guest",
+  "disconnectController": "{{name}}'s Wyfy session ended — they'll have to sign in again. This venue's Wi-Fi is run by a controller, so their device may stay connected until it reconnects.",
+  "disconnectSessionOnly": "{{name}}'s session ended. Nothing looked at their device, so it may still be connected.",
   "disconnectError": "Couldn't disconnect this session"
 }
