@@ -404,6 +404,34 @@ export interface PortalAuthorizeResult {
   redirectUrl: string | null;
 }
 
+/** What the Omada RADIUS-mode (`authType 2`) authorize call answered.
+ *
+ * Same "`authorized: false` is a real outcome" rule as
+ * {@link PortalAuthorizeResult}, plus the field that contract never had:
+ * a reason. On the browser-POST path this replaces, a failure was a raw
+ * JSON blob the browser had already navigated to, so there was nothing to
+ * read and nothing to style -- which is why nothing in this codebase ever
+ * read one. Here it arrives as `HTTP 200, success: false`, on a page that
+ * is still mounted.
+ *
+ * `failure` is the backend's own token, verbatim and unmapped -- one of
+ * the five members of `constants.RadiusPortalFailure` (cloud-guest#268).
+ * It is reduced to something a guest can act on by `radiusFailureOf` in
+ * `src/lib/portal-radius-authorize.ts`. `null` means the backend did not
+ * say, which is not the same as "no reason", and reads as the generic
+ * message rather than a specific claim.
+ *
+ * NOT `errorCode`, which on this domain is the operator-facing vocabulary;
+ * NOT `expiresAt`, which this contract genuinely never learns; NOT
+ * `redirectUrl`, which is our own `origin_url` echoed back. All three are
+ * absences with reasons -- see `BackendRadiusPortalAuthorize` in the
+ * service and `origin_url` in the lib. */
+export interface RadiusPortalAuthorizeResult {
+  authorized: boolean;
+  provider: string | null;
+  failure: string | null;
+}
+
 /** A site as the controller itself reports it -- live read, not a stored
  * row, so counts here are a snapshot and may disagree with the integration's
  * own `deviceCount`/`clientCount` between syncs. */

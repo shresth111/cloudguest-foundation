@@ -10,7 +10,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
 import type { OmadaRedirectCapture } from "@/lib/portal-authorize-body";
-import type { OmadaRadiusRedirect } from "@/lib/portal-radius-submit";
+import type { OmadaRadiusRedirect } from "@/lib/portal-radius-authorize";
 
 /** Everything an Omada controller can put on a portal redirect, across
  * BOTH of its captive-portal contracts.
@@ -21,9 +21,9 @@ import type { OmadaRadiusRedirect } from "@/lib/portal-radius-submit";
  * `authType 2` sends `target`/`targetPort`/`scheme`/`originUrl`, and each
  * is simply absent in the other. The modules that consume this each read
  * only their own contract's fields -- `portal-authorize-body.ts` maps the
- * `authType 4` set onto our authorize body, `portal-radius-submit.ts`
- * builds the `authType 2` form -- so a field from the wrong contract is
- * inert rather than wrong. */
+ * `authType 4` set onto our authorize body, `portal-radius-authorize.ts`
+ * maps the `authType 2` set onto the RADIUS-mode one -- so a field from
+ * the wrong contract is inert rather than wrong. */
 export type OmadaPortalRedirect = OmadaRedirectCapture & OmadaRadiusRedirect;
 import type {
   RuntimeAuthMethod,

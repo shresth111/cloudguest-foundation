@@ -865,9 +865,28 @@ console.log("\nnothing in the Omada views assumes a router exists behind the int
       `${name} does not reach for the router service`,
       !/router\.service|routerService/.test(src),
     );
+    // THE `RADIUS` HALF OF THIS RULE NARROWED, AND THE PREMISE IS WHY.
+    //
+    // It used to ban the word outright, on the premise that "there is no
+    // NAS/RADIUS in the path" for an Omada venue. That is true of the
+    // External Portal Server contract (`authType 4`) and FALSE of the
+    // second one: on `authType 2` + External Web Portal the controller
+    // sends an Access-Request to this platform's own FreeRADIUS, and the
+    // guest portal's authorize call is named for it
+    // (`authorizeRadiusPortal`, `PORTAL_RADIUS_AUTHORIZE_PATH`). Banning
+    // the word there does not stop a wrong topology being assumed; it
+    // stops a real endpoint being named, which is the opposite.
+    //
+    // So the service may name that ONE contract and nothing else. What the
+    // rule was actually protecting -- a frontend module reaching for a NAS
+    // row, a NAS identifier or a shared secret -- is unchanged and still
+    // absolute everywhere, including here.
+    const contractNames = /PORTAL_RADIUS_AUTHORIZE_PATH|authorizeRadiusPortal/g;
     check(
       `${name} makes no NAS or RADIUS reference`,
-      !/\bNAS\b|RADIUS|nasIdentifier|sharedSecret/.test(src),
+      !/\bNAS\b|RADIUS|nasIdentifier|sharedSecret/.test(
+        name === "the service" ? src.replace(contractNames, "") : src,
+      ),
     );
   }
   // The Router glyph means "a MikroTik box in Router Fleet" everywhere else in

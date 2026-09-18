@@ -1,6 +1,10 @@
 import { api } from "@/services/api";
 import { guestPortalApi } from "@/services/guest-portal-api";
 import type { PortalAuthorizeBody } from "@/lib/portal-authorize-body";
+import {
+  PORTAL_RADIUS_AUTHORIZE_PATH,
+  type PortalRadiusAuthorizeBody,
+} from "@/lib/portal-radius-authorize";
 import { resolveOrganizationId as sharedResolveOrganizationId } from "./organization-id";
 import type {
   ControllerAuthMode,
@@ -27,6 +31,7 @@ import type {
   NetworkIntegrationSyncStatus,
   PlatformIntegrationQuery,
   PortalAuthorizeResult,
+  RadiusPortalAuthorizeResult,
   TestNetworkIntegrationPayload,
   UpdateNetworkIntegrationPayload,
 } from "@/types/network-integration";
@@ -157,6 +162,37 @@ interface BackendPortalAuthorize {
   authorized?: boolean | null;
   provider?: string | null;
   expires_at?: string | null;
+  redirect_url?: string | null;
+}
+
+/** The RADIUS-mode answer, as cloud-guest#268 defines it.
+ *
+ * `failure` -- NOT `error_code`. That name is already taken on this
+ * domain: every `CloudGuestError` renders `data.code` from the much larger
+ * OPERATOR-facing `ErrorCode` vocabulary, and two different vocabularies
+ * under one field name on one domain's responses is a trap. This is the
+ * guest-facing one and it is a closed five-value enum.
+ *
+ * NO `expires_at`, and its absence is the honest answer rather than an
+ * omission: on this contract the controller grants the session from its
+ * own RADIUS reply attributes and never tells this platform a duration.
+ * The `authType 4` response has the field because there we request the
+ * duration. Nothing may display or compute one here.
+ *
+ * `redirect_url` IS on the wire and is deliberately NOT carried into
+ * `RadiusPortalAuthorizeResult`. It is whatever `origin_url` we sent,
+ * echoed back by the controller as its `302 Location` -- and we send the
+ * controller's own captured value, so navigating a guest to it would drop
+ * them on a plain website. The full reasoning is on `origin_url` in
+ * `portal-radius-authorize.ts`; declared here so the wire shape is
+ * complete and the omission below reads as a decision.
+ *
+ * Every field is optional: a missing one must read as "not said" rather
+ * than crash a guest's only path to the internet. */
+interface BackendRadiusPortalAuthorize {
+  authorized?: boolean | null;
+  provider?: string | null;
+  failure?: string | null;
   redirect_url?: string | null;
 }
 
@@ -1233,6 +1269,46 @@ export const guestPortalIntegrationService = {
       provider: data.provider ?? null,
       expiresAt: data.expires_at ?? null,
       redirectUrl: data.redirect_url ?? null,
+    };
+  },
+
+  /**
+   * The same thing for a venue on Omada RADIUS mode (`authType 2`).
+   *
+   * A SECOND METHOD, NOT A FLAG ON THE FIRST. The two calls do not share a
+   * request shape: an `authType 2` redirect carries no `site` and no `t`
+   * (both of which `PortalAuthorizeRequest` requires `site` of), and it
+   * carries `target`/`targetPort`/`scheme`/`originUrl` that the other
+   * never does. A single method with half its fields conditionally null is
+   * how one contract's absence gets read as the other's.
+   *
+   * Why the guest's browser stopped calling the controller directly, what
+   * was measured on hardware, and every wire name below -- all of it is in
+   * `src/lib/portal-radius-authorize.ts`, which assembles this body and is
+   * the only place it is spelled. As above, this method passes it through
+   * verbatim and reshapes nothing.
+   *
+   * ## A FAILURE ARRIVES HERE AS A SUCCESS, AND THAT IS NOT A BUG
+   *
+   * A controller-answered refusal is `HTTP 200` with `success: false` and
+   * `authorized: false` -- not a non-2xx. So it RESOLVES rather than
+   * throwing, and `guestPortalApi`'s interceptor unwraps the envelope
+   * either way. Callers must branch on `authorized`, not only on `catch`;
+   * one that looked only in its `catch` would leave the guest on the
+   * spinner forever. `scripts/test-portal-radius-mode.mjs` pins that the
+   * caller does.
+   */
+  async authorizeRadiusPortal(
+    body: PortalRadiusAuthorizeBody,
+  ): Promise<RadiusPortalAuthorizeResult> {
+    const { data } = await guestPortalApi.post<BackendRadiusPortalAuthorize>(
+      `${BASE}${PORTAL_RADIUS_AUTHORIZE_PATH}`,
+      body,
+    );
+    return {
+      authorized: !!data.authorized,
+      provider: data.provider ?? null,
+      failure: data.failure ?? null,
     };
   },
 };

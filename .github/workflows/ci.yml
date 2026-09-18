@@ -441,29 +441,59 @@ jobs:
             bun run test:portal-omada-params
 
       # Omada's SECOND captive-portal contract (`authType 2` + External Web
-      # Portal), where the guest's browser submits to the CONTROLLER and the
-      # controller asks our FreeRADIUS -- the reverse of the flow the suite
-      # above covers. Three silent regressions this catches, each verified
-      # to fail when reverted:
+      # Portal), where the controller asks our FreeRADIUS rather than our
+      # backend asking the controller.
+      #
+      # The guest's browser used to make that call itself, with a top-level
+      # form POST to the controller's own `browserauth` endpoint. Measured
+      # on a real Android handset 2026-09-18: the browser REFUSES the
+      # navigation -- the endpoint is behind the controller's self-signed
+      # `CN=localhost` certificate, and every venue's controller has its
+      # own. The identical call made server-side authorizes the client, so
+      # the backend makes it and the portal asks the backend.
+      #
+      # Floor 31 -> 85: the suite grew the failure vocabulary (the backend's
+      # closed five-token enum, pinned member by member; the four reasons a
+      # guest can act on; `errorHint`) and the wiring assertions for the new
+      # direction. Five silent regressions, each verified to fail when
+      # reverted:
       #
       #   1. the page starts INFERRING the contract from which parameters
       #      arrived instead of the stored `portalMode`, so a firmware
       #      revision that adds or drops one moves a whole venue onto the
       #      wrong path -- with the portal claiming success;
-      #   2. the submit moves to `/portal/radius/auth`, the XHR endpoint,
-      #      which delivers the request and cannot read the answer
-      #      cross-origin (measured on the live controller: no
-      #      `Access-Control-Allow-Origin`, and a preflight allowing only
-      #      OPTIONS);
-      #   3. the submit becomes a `fetch`, which hangs iOS's Captive
-      #      Network Assistant forever -- the exact incident
-      #      `submitHotspotLogin` was rewritten to fix for MikroTik.
+      #   2. the guest's browser starts talking to the controller again in
+      #      any form. It cannot work on the handsets guests own;
+      #   3. THE FINAL HOP becomes a `fetch` or a client-side `navigate`.
+      #      This one has actually shipped, twice, under two vendors: the
+      #      hop to the guest's destination must be a real top-level
+      #      document load or iOS's Captive Network Assistant hangs forever
+      #      (2026-08-18) and the page asserts "you're online" without ever
+      #      asking the network;
+      #   4. a failure goes silent again. `errorHint` had ZERO occurrences
+      #      in this repo while the controller was sending it on every
+      #      failed login;
+      #   5. the refusal is looked for only in a `catch`. A
+      #      controller-answered refusal is HTTP 200 with `success: false`
+      #      -- it RESOLVES -- so a caller that only caught would leave
+      #      every rejected guest on the spinner until the escape hatch.
       - name: portal Omada RADIUS mode
         run: |
           ./scripts/ci-gated-test.sh \
-            "portal-radius-mode" 31 \
+            "portal-radius-mode" 85 \
             "portal RADIUS mode: all checks passed" \
             bun run test:portal-radius-mode
+
+      # Ten hand-maintained guest dictionaries, ~235 keys each. The suite
+      # has existed in package.json since it was written and was gated
+      # NOWHERE -- the same "nothing runs it" state that let
+      # test:portal-cna rot on origin/main. It is green today and it is
+      # gated now because this change adds five keys across all ten:
+      # `translate()` falls back to EN per key and does it silently, so a
+      # half-translated screen looks perfect in review and shows itself
+      # only to the guest whose paragraph switches language mid-sentence.
+      - name: portal guest i18n parity
+        run: bun run test:portal-i18n-parity
 
       # Which organization every request is about. A founder holding
       # `Super Admin` at GLOBAL scope opened a report about his own venue on
