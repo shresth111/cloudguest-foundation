@@ -425,16 +425,34 @@ function SuccessPage() {
       // A redirect parameter is present and is not what it claims to be.
       // Nobody standing at this venue can fix that, so the screen says so
       // rather than retrying a call that would carry the same bad value.
-      failRadius("not-configured");
+      //
+      // The backend would refuse this too -- its own address cross-check
+      // raises before a socket opens (cloud-guest#268, "The SSRF
+      // boundary") -- and it would refuse it as the same opaque 403 this
+      // maps to. Failing fast here only saves a round trip; it is no
+      // longer the thing that keeps the value out of a URL, which is why
+      // an ABSENT target stopped being a refusal.
+      failRadius("not-authorized");
       return;
     }
 
     try {
       const result = await guestPortalIntegrationService.authorizeRadiusPortal(built);
+      // BRANCH ON `authorized`, NOT ONLY ON `catch`. A controller-answered
+      // refusal is HTTP 200 with `success: false` -- it resolves, it does
+      // not throw. A version of this that looked only in the `catch` would
+      // leave every rejected guest on the spinner until the 15s escape
+      // hatch, which is the failure this whole screen exists to end.
       if (!result.authorized) {
-        failRadius(radiusFailureOf(result.errorCode));
+        failRadius(radiusFailureOf(result.failure));
         return;
       }
+      // DELIBERATELY `directTarget()`, NOT the response's `redirect_url`.
+      // That value is our own `origin_url` echoed back by the controller,
+      // and we send the controller's captured one -- so obeying it would
+      // drop the guest on whatever plain website they happened to be
+      // reaching for, with no session page. It is not carried onto the
+      // result type at all; see `origin_url` in @/lib/portal-radius-authorize.
       window.location.assign(directTarget());
     } catch (error) {
       failRadius(radiusFailureFromError(error));

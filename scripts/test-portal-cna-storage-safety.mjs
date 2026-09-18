@@ -128,8 +128,7 @@ const NETWORK_INTEGRATION_SERVICE_STUB = `export const guestPortalIntegrationSer
   authorizeRadiusPortal: async () => ({
     authorized: false,
     provider: null,
-    expiresAt: null,
-    errorCode: null,
+    failure: null,
   }),
 };
 `;

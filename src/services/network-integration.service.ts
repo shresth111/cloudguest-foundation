@@ -165,19 +165,35 @@ interface BackendPortalAuthorize {
   redirect_url?: string | null;
 }
 
-/** The RADIUS-mode answer. PROVISIONAL -- see
- * `src/lib/portal-radius-authorize.ts`. Every field optional because the
- * backend contract is not published yet, and a missing one must read as
- * "not said" rather than crash a guest's only path to the internet.
+/** The RADIUS-mode answer, as cloud-guest#268 defines it.
  *
- * No `redirect_url`: on this contract the portal decides where the guest
- * lands (`resolvePostLoginDestination`), and echoing a URL back for it to
- * obey would put that decision on the wire for no reason. */
+ * `failure` -- NOT `error_code`. That name is already taken on this
+ * domain: every `CloudGuestError` renders `data.code` from the much larger
+ * OPERATOR-facing `ErrorCode` vocabulary, and two different vocabularies
+ * under one field name on one domain's responses is a trap. This is the
+ * guest-facing one and it is a closed five-value enum.
+ *
+ * NO `expires_at`, and its absence is the honest answer rather than an
+ * omission: on this contract the controller grants the session from its
+ * own RADIUS reply attributes and never tells this platform a duration.
+ * The `authType 4` response has the field because there we request the
+ * duration. Nothing may display or compute one here.
+ *
+ * `redirect_url` IS on the wire and is deliberately NOT carried into
+ * `RadiusPortalAuthorizeResult`. It is whatever `origin_url` we sent,
+ * echoed back by the controller as its `302 Location` -- and we send the
+ * controller's own captured value, so navigating a guest to it would drop
+ * them on a plain website. The full reasoning is on `origin_url` in
+ * `portal-radius-authorize.ts`; declared here so the wire shape is
+ * complete and the omission below reads as a decision.
+ *
+ * Every field is optional: a missing one must read as "not said" rather
+ * than crash a guest's only path to the internet. */
 interface BackendRadiusPortalAuthorize {
   authorized?: boolean | null;
   provider?: string | null;
-  expires_at?: string | null;
-  error_code?: string | null;
+  failure?: string | null;
+  redirect_url?: string | null;
 }
 
 interface BackendNetworkIntegrationSite {
@@ -1272,12 +1288,15 @@ export const guestPortalIntegrationService = {
    * the only place it is spelled. As above, this method passes it through
    * verbatim and reshapes nothing.
    *
-   * THE PATH AND THE RESPONSE FIELDS ARE PROVISIONAL. The backend endpoint
-   * is a parallel change whose contract was not published when this
-   * shipped; see that module's docstring. `error_code` is read defensively
-   * for exactly that reason -- an absent one reads as "the backend did not
-   * say", which `radiusFailureOf` turns into `"unknown"` rather than into
-   * a specific claim.
+   * ## A FAILURE ARRIVES HERE AS A SUCCESS, AND THAT IS NOT A BUG
+   *
+   * A controller-answered refusal is `HTTP 200` with `success: false` and
+   * `authorized: false` -- not a non-2xx. So it RESOLVES rather than
+   * throwing, and `guestPortalApi`'s interceptor unwraps the envelope
+   * either way. Callers must branch on `authorized`, not only on `catch`;
+   * one that looked only in its `catch` would leave the guest on the
+   * spinner forever. `scripts/test-portal-radius-mode.mjs` pins that the
+   * caller does.
    */
   async authorizeRadiusPortal(
     body: PortalRadiusAuthorizeBody,
@@ -1289,8 +1308,7 @@ export const guestPortalIntegrationService = {
     return {
       authorized: !!data.authorized,
       provider: data.provider ?? null,
-      expiresAt: data.expires_at ?? null,
-      errorCode: data.error_code ?? null,
+      failure: data.failure ?? null,
     };
   },
 };

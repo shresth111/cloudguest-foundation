@@ -74,6 +74,13 @@ const {
   radiusFailureOf,
 } = await import(join(work, "bundle.mjs"));
 
+// Comments are stripped before any "this string must not appear" check.
+// Several of these files name the retired contract, `redirect_url` and
+// `error_code` in their docstrings ON PURPOSE -- the whole subject of those
+// docstrings is why each is not used. What must not come back is a
+// REACHABLE reference, which is code.
+const stripComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+
 let failures = 0;
 function check(name, condition, detail = "") {
   if (condition) {
@@ -235,18 +242,34 @@ for (const port of ["0", "70000", "84 43", "https"]) {
 // --- the failure vocabulary -------------------------------------------
 console.log("omada radius mode -- the failure the guest can read");
 
+// THE BACKEND'S FIVE, EXACTLY. `constants.RadiusPortalFailure` in
+// cloud-guest#268 is a closed enum, so this is a mapping this repo must
+// MATCH rather than merely accept. Both halves are pinned: each member's
+// meaning, and the fact that there are five of them -- a sixth added on
+// the backend then shows up here as a failing check rather than as a
+// guest silently getting the generic message.
+const BACKEND_FAILURES = {
+  controller_unreachable: "unreachable",
+  radius_unreachable: "unreachable",
+  rejected: "rejected",
+  controller_refused: "unknown",
+  bad_request: "unknown",
+};
+for (const [token, expected] of Object.entries(BACKEND_FAILURES)) {
+  check(`backend \`${token}\` reads as ${expected}`, radiusFailureOf(token) === expected);
+}
 check(
-  "the controller's own RADIUS timeout reads as unreachable",
-  radiusFailureOf("RADIUS_SERVER_TIMEOUT") === "unreachable",
+  "the two unreachable sides collapse to one message, and the two 'our bug' ones to another",
+  radiusFailureOf("controller_unreachable") === radiusFailureOf("radius_unreachable") &&
+    radiusFailureOf("controller_refused") === radiusFailureOf("bad_request"),
+  "a guest cannot act on which side of the path broke",
 );
 check(
-  "the controller's own reject reads as rejected",
-  radiusFailureOf("INVALID_USERNAME_OR_PASSWORD") === "rejected",
-);
-check(
-  "our own backend's snake_case spells the same two",
-  radiusFailureOf("radius_timeout") === "unreachable" &&
-    radiusFailureOf("session_not_active") === "rejected",
+  "there is NO backend token for `not-authorized` -- it is the opaque 403's job",
+  !Object.values(BACKEND_FAILURES).includes("not-authorized") &&
+    radiusFailureOf("not_configured") === "unknown" &&
+    radiusFailureOf("portal_mode_mismatch") === "unknown",
+  "naming that fact in a token would let anyone on the WiFi enumerate which venue runs which contract",
 );
 check(
   "an unrecognised token is never guessed into a specific reason",
@@ -257,47 +280,74 @@ check(
   "a wrong specific message tells the guest to do the wrong thing",
 );
 check(
-  "a rejected guest is NOT offered a retry that cannot work",
+  "a token's case and padding do not change its meaning",
+  radiusFailureOf("  RADIUS_UNREACHABLE  ") === "unreachable",
+);
+check(
+  "neither failure whose call is known to repeat itself is offered a retry",
   radiusFailureIsRetryable("rejected") === false &&
+    radiusFailureIsRetryable("not-authorized") === false &&
     radiusFailureIsRetryable("unreachable") === true &&
-    radiusFailureIsRetryable("not-configured") === true &&
     radiusFailureIsRetryable("unknown") === true,
 );
 check(
   "each failure has its own message key, and they are all distinct",
-  new Set(["unreachable", "rejected", "not-configured", "unknown"].map(radiusFailureMessageKey))
+  new Set(["unreachable", "rejected", "not-authorized", "unknown"].map(radiusFailureMessageKey))
     .size === 4,
 );
 
-// A request that never got an answer at all is `toAppError`'s `status:
-// null`. That is exactly "unreachable" and must never read as "unknown".
+// THE STATUS IS THE ANSWER, and the opaque 403 is the reason the status
+// matters more here than on any other call in this app.
 check(
   "a request that reached nothing reads as unreachable",
   radiusFailureFromError({ status: null, code: "network_error" }) === "unreachable",
 );
 check(
-  "the backend's own error_code in the envelope wins over the status",
+  "the opaque 403 reads as not-authorized -- stop retrying, ask staff",
   radiusFailureFromError({
-    status: 400,
-    code: "bad_request",
-    data: { error_code: "radius_reject" },
-  }) === "rejected",
+    status: 403,
+    code: "forbidden",
+    data: { code: "GUEST_SESSION_NOT_ACTIVE" },
+  }) === "not-authorized",
 );
 check(
-  "a 403 reads as rejected, a 422 as a configuration problem",
-  radiusFailureFromError({ status: 403, code: "forbidden" }) === "rejected" &&
-    radiusFailureFromError({ status: 422, code: "validation_error" }) === "not-configured",
+  "and its body is NOT mined for a reason it deliberately does not carry",
+  // Every distinct cause renders the identical code on purpose. A build
+  // that reads `data.code` here is one mapping the OPERATOR vocabulary
+  // through the GUEST table, which silently yields "unknown" for values
+  // that mean something precise.
+  radiusFailureFromError({ status: 403, data: { code: "OMADA_TIMEOUT" } }) === "not-authorized",
 );
+check(
+  "400 and 422 are our own body being wrong, so retrying it is not offered",
+  radiusFailureFromError({ status: 400 }) === "not-authorized" &&
+    radiusFailureFromError({ status: 422 }) === "not-authorized",
+);
+check(
+  "429 says something true and retryable, not a false claim about the venue's equipment",
+  radiusFailureFromError({ status: 429 }) === "unknown" &&
+    radiusFailureIsRetryable(radiusFailureFromError({ status: 429 })),
+);
+check("a 502 reads as unreachable", radiusFailureFromError({ status: 502 }) === "unreachable");
 check(
   "a thrown non-error is not a reason",
   radiusFailureFromError(undefined) === "unknown" && radiusFailureFromError("boom") === "unknown",
 );
 
 // `errorHint` -- the fallback for guests still arriving from the old path.
+// A SEPARATE TABLE from the backend's: one is a contract this repo must
+// match, the other is whatever a firmware revision writes into a query
+// string, and a merged table would let the second reach the first's
+// meaning.
 check(
   "errorHint is read off the query string",
   radiusErrorHintFromSearch("?errorHint=RADIUS_SERVER_TIMEOUT&x=1") === "unreachable" &&
     radiusErrorHintFromSearch("?errorHint=INVALID_USERNAME_OR_PASSWORD") === "rejected",
+);
+check(
+  "a BACKEND token in errorHint is not honoured -- the two vocabularies stay apart",
+  radiusErrorHintFromSearch("?errorHint=controller_unreachable") === "unknown" &&
+    radiusErrorHintFromSearch("?errorHint=bad_request") === "unknown",
 );
 check(
   "no errorHint is null, not a failure -- an ordinary sign-in shows nothing",
@@ -347,7 +397,6 @@ check(
 // is no longer called. Comments are stripped first so that documenting the
 // retired contract does not read as re-introducing it; what must not come
 // back is a reachable reference to it.
-const stripComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
 const CONTROLLER_SUBMIT_PATH = /\/portal\/radius\/(browserauth|auth)\b/;
 check(
   "no module still spells the controller's own submit endpoints",
@@ -388,7 +437,55 @@ check(
   "a declined authorization navigates nowhere at all",
   radiusBranch.indexOf("if (!result.authorized)") <
     radiusBranch.indexOf("window.location.assign") &&
-    /failRadius\(radiusFailureOf\(result\.errorCode\)\);\s*\n\s*return;/.test(radiusBranch),
+    /failRadius\(radiusFailureOf\(result\.failure\)\);\s*\n\s*return;/.test(radiusBranch),
+);
+// A CONTROLLER-ANSWERED REFUSAL IS AN HTTP 200 WITH `success: false`. It
+// resolves; it does not throw. A branch that looked only in its `catch`
+// would leave every rejected guest on the spinner until the 15s escape
+// hatch -- the exact failure this screen was added to end.
+check(
+  "the refusal is read from the resolved answer, not only from the catch",
+  /if \(!result\.authorized\)/.test(radiusBranch) &&
+    radiusBranch.indexOf("if (!result.authorized)") < radiusBranch.indexOf("} catch"),
+);
+// #268 §5: `redirect_url` is whatever `origin_url` we sent, echoed back by
+// the controller as its 302 Location -- and we send the CONTROLLER's
+// captured value. Obeying it would drop the guest on a plain website with
+// no session page, and would route around both
+// `resolvePostLoginDestination` and the iOS CNA exception.
+check(
+  "the response's redirect_url is never navigated to",
+  !/redirect_url|redirectUrl/.test(stripComments(radiusBranch)),
+);
+check(
+  "and is not carried onto the result type, so obeying it is impossible",
+  !/redirectUrl/.test(
+    readFileSync(join(SRC, "types/network-integration.ts"), "utf8")
+      .split("export interface RadiusPortalAuthorizeResult")[1]
+      .slice(0, 200),
+  ),
+);
+// The contract has no duration on this path -- the controller grants the
+// session from its own RADIUS reply attributes and never tells us one.
+check(
+  "nothing reads or displays an expiry the backend never sends",
+  !/expires_at|expiresAt/.test(serviceSrc.slice(serviceSrc.indexOf("authorizeRadiusPortal"))) &&
+    !/expiresAt/.test(radiusBranch),
+);
+// Scoped to this ONE interface body, not the rest of the file:
+// `BackendNetworkIntegrationEvent` legitimately carries an `error_code`,
+// and that is the operator-facing field this response deliberately does
+// not reuse the name of.
+const radiusWireBody = (() => {
+  const st = stripComments(serviceSrc);
+  const from = st.indexOf("interface BackendRadiusPortalAuthorize");
+  return from === -1 ? "" : st.slice(from, st.indexOf("}", from));
+})();
+check(
+  "the service reads `failure`, not the operator-facing `error_code`",
+  /failure: data\.failure \?\? null/.test(serviceSrc) &&
+    radiusWireBody.includes("failure?:") &&
+    !radiusWireBody.includes("error_code"),
 );
 check(
   "a failed call releases the submit guard, so the retry is a real retry",

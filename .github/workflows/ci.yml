@@ -452,10 +452,11 @@ jobs:
       # own. The identical call made server-side authorizes the client, so
       # the backend makes it and the portal asks the backend.
       #
-      # Floor 31 -> 70: the suite grew the failure vocabulary (the four
-      # reasons a guest can act on, `errorHint` included) and the wiring
-      # assertions for the new direction. Four silent regressions, each
-      # verified to fail when reverted:
+      # Floor 31 -> 85: the suite grew the failure vocabulary (the backend's
+      # closed five-token enum, pinned member by member; the four reasons a
+      # guest can act on; `errorHint`) and the wiring assertions for the new
+      # direction. Five silent regressions, each verified to fail when
+      # reverted:
       #
       #   1. the page starts INFERRING the contract from which parameters
       #      arrived instead of the stored `portalMode`, so a firmware
@@ -471,11 +472,15 @@ jobs:
       #      asking the network;
       #   4. a failure goes silent again. `errorHint` had ZERO occurrences
       #      in this repo while the controller was sending it on every
-      #      failed login.
+      #      failed login;
+      #   5. the refusal is looked for only in a `catch`. A
+      #      controller-answered refusal is HTTP 200 with `success: false`
+      #      -- it RESOLVES -- so a caller that only caught would leave
+      #      every rejected guest on the spinner until the escape hatch.
       - name: portal Omada RADIUS mode
         run: |
           ./scripts/ci-gated-test.sh \
-            "portal-radius-mode" 70 \
+            "portal-radius-mode" 85 \
             "portal RADIUS mode: all checks passed" \
             bun run test:portal-radius-mode
 

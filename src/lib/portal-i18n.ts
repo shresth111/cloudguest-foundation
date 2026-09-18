@@ -416,8 +416,8 @@ const EN: Dict = {
   radiusFailTitle: "We couldn't get you online",
   radiusFailUnreachable: "The venue's WiFi equipment didn't answer. Please try again in a moment.",
   radiusFailRejected: "This sign-in is no longer valid. Please sign in again.",
-  radiusFailNotConfigured:
-    "This venue's WiFi isn't set up for this sign-in yet. Please let the front desk know.",
+  radiusFailNotAuthorized:
+    "We couldn't confirm this sign-in on the venue's network. Try signing in again, and tell the front desk if it keeps happening.",
   radiusFailUnknown: "Something went wrong while connecting you. Please try again.",
 };
 
@@ -733,8 +733,8 @@ const HI: Dict = {
   radiusFailUnreachable:
     "यहाँ के WiFi उपकरण ने जवाब नहीं दिया। कृपया थोड़ी देर बाद फिर कोशिश करें।",
   radiusFailRejected: "यह साइन इन अब मान्य नहीं है। कृपया फिर से साइन इन करें।",
-  radiusFailNotConfigured:
-    "इस जगह का WiFi अभी इस तरह के साइन इन के लिए तैयार नहीं है। कृपया रिसेप्शन को बताएं।",
+  radiusFailNotAuthorized:
+    "हम इस साइन इन की पुष्टि इस नेटवर्क पर नहीं कर सके। फिर से साइन इन करें, और बार-बार ऐसा हो तो रिसेप्शन को बताएं।",
   radiusFailUnknown: "आपको जोड़ते समय कुछ गड़बड़ हो गई। कृपया फिर से कोशिश करें।",
 };
 /* The eight Indian languages below match the marketing site's set exactly
@@ -1058,8 +1058,8 @@ const BN: Dict = {
   radiusFailTitle: "আমরা আপনাকে অনলাইনে আনতে পারিনি",
   radiusFailUnreachable: "এখানকার WiFi যন্ত্র সাড়া দেয়নি। একটু পরে আবার চেষ্টা করুন।",
   radiusFailRejected: "এই sign in আর বৈধ নয়। অনুগ্রহ করে আবার sign in করুন।",
-  radiusFailNotConfigured:
-    "এই জায়গার WiFi এখনও এই sign in-এর জন্য তৈরি নয়। অনুগ্রহ করে রিসেপশনে জানান।",
+  radiusFailNotAuthorized:
+    "এই নেটওয়ার্কে আপনার sign in নিশ্চিত করা গেল না। আবার sign in করুন, বারবার হলে রিসেপশনে জানান।",
   radiusFailUnknown: "আপনাকে যুক্ত করার সময় কিছু ভুল হয়েছে। আবার চেষ্টা করুন।",
 };
 
@@ -1362,7 +1362,8 @@ const MR: Dict = {
   radiusFailTitle: "आम्ही तुम्हाला ऑनलाइन करू शकलो नाही",
   radiusFailUnreachable: "इथल्या WiFi उपकरणाने उत्तर दिले नाही. थोड्या वेळाने पुन्हा प्रयत्न करा.",
   radiusFailRejected: "हे sign in आता वैध नाही. कृपया पुन्हा sign in करा.",
-  radiusFailNotConfigured: "इथले WiFi अजून या sign in साठी तयार नाही. कृपया रिसेप्शनला कळवा.",
+  radiusFailNotAuthorized:
+    "या नेटवर्कवर हे sign in निश्चित करता आले नाही. पुन्हा sign in करा, आणि वारंवार असे होत असेल तर रिसेप्शनला कळवा.",
   radiusFailUnknown: "तुम्हाला जोडताना काहीतरी चुकले. कृपया पुन्हा प्रयत्न करा.",
 };
 
@@ -1665,8 +1666,8 @@ const TE: Dict = {
   radiusFailTitle: "మిమ్మల్ని ఆన్‌లైన్ చేయలేకపోయాం",
   radiusFailUnreachable: "ఇక్కడి WiFi పరికరం స్పందించలేదు. కాసేపటి తర్వాత మళ్లీ ప్రయత్నించండి.",
   radiusFailRejected: "ఈ సైన్ ఇన్ ఇప్పుడు చెల్లదు. దయచేసి మళ్లీ సైన్ ఇన్ అవ్వండి.",
-  radiusFailNotConfigured:
-    "ఇక్కడి WiFi ఇంకా ఈ సైన్ ఇన్ కోసం సిద్ధంగా లేదు. దయచేసి రిసెప్షన్‌కు తెలియజేయండి.",
+  radiusFailNotAuthorized:
+    "ఈ నెట్‌వర్క్‌లో ఈ సైన్ ఇన్‌ను నిర్ధారించలేకపోయాం. మళ్లీ సైన్ ఇన్ అవ్వండి, పదే పదే జరిగితే రిసెప్షన్‌కు తెలియజేయండి.",
   radiusFailUnknown: "మిమ్మల్ని కలుపుతున్నప్పుడు ఏదో తప్పు జరిగింది. దయచేసి మళ్లీ ప్రయత్నించండి.",
 };
 
@@ -1974,8 +1975,8 @@ const TA: Dict = {
   radiusFailUnreachable:
     "இங்குள்ள WiFi சாதனம் பதிலளிக்கவில்லை. சிறிது நேரம் கழித்து மீண்டும் முயலுங்கள்.",
   radiusFailRejected: "இந்த உள்நுழைவு இனி செல்லாது. மீண்டும் உள்நுழையுங்கள்.",
-  radiusFailNotConfigured:
-    "இங்குள்ள WiFi இந்த உள்நுழைவுக்கு இன்னும் தயாராக இல்லை. வரவேற்பறையில் தெரிவியுங்கள்.",
+  radiusFailNotAuthorized:
+    "இந்த நெட்வொர்க்கில் இந்த உள்நுழைவை உறுதிப்படுத்த முடியவில்லை. மீண்டும் உள்நுழையுங்கள், தொடர்ந்து நடந்தால் வரவேற்பறையில் தெரிவியுங்கள்.",
   radiusFailUnknown: "உங்களை இணைக்கும்போது ஏதோ தவறு நேர்ந்தது. மீண்டும் முயலுங்கள்.",
 };
 
@@ -2275,7 +2276,8 @@ const GU: Dict = {
   radiusFailTitle: "અમે તમને ઓનલાઇન કરી શક્યા નહીં",
   radiusFailUnreachable: "અહીંના WiFi ઉપકરણે જવાબ આપ્યો નહીં. થોડી વારે ફરી પ્રયાસ કરો.",
   radiusFailRejected: "આ sign in હવે માન્ય નથી. કૃપા કરી ફરી sign in કરો.",
-  radiusFailNotConfigured: "અહીંનું WiFi હજી આ sign in માટે તૈયાર નથી. કૃપા કરી રિસેપ્શનને જણાવો.",
+  radiusFailNotAuthorized:
+    "આ નેટવર્ક પર આ sign in ની ખાતરી કરી શકાઈ નહીં. ફરી sign in કરો, અને વારંવાર થાય તો રિસેપ્શનને જણાવો.",
   radiusFailUnknown: "તમને જોડતી વખતે કંઈક ખોટું થયું. કૃપા કરી ફરી પ્રયાસ કરો.",
 };
 
@@ -2577,8 +2579,8 @@ const KN: Dict = {
   radiusFailTitle: "ನಿಮ್ಮನ್ನು ಆನ್‌ಲೈನ್ ಮಾಡಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ",
   radiusFailUnreachable: "ಇಲ್ಲಿನ WiFi ಸಾಧನ ಉತ್ತರಿಸಲಿಲ್ಲ. ಸ್ವಲ್ಪ ಹೊತ್ತಿನ ನಂತರ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
   radiusFailRejected: "ಈ sign in ಈಗ ಮಾನ್ಯವಿಲ್ಲ. ದಯವಿಟ್ಟು ಮತ್ತೆ sign in ಮಾಡಿ.",
-  radiusFailNotConfigured:
-    "ಇಲ್ಲಿನ WiFi ಇನ್ನೂ ಈ sign in ಗೆ ಸಿದ್ಧವಾಗಿಲ್ಲ. ದಯವಿಟ್ಟು ರಿಸೆಪ್ಷನ್‌ಗೆ ತಿಳಿಸಿ.",
+  radiusFailNotAuthorized:
+    "ಈ ನೆಟ್‌ವರ್ಕ್‌ನಲ್ಲಿ ಈ sign in ಅನ್ನು ಖಚಿತಪಡಿಸಲು ಆಗಲಿಲ್ಲ. ಮತ್ತೆ sign in ಮಾಡಿ, ಪದೇ ಪದೇ ಆದರೆ ರಿಸೆಪ್ಷನ್‌ಗೆ ತಿಳಿಸಿ.",
   radiusFailUnknown: "ನಿಮ್ಮನ್ನು ಸಂಪರ್ಕಿಸುವಾಗ ಏನೋ ತಪ್ಪಾಯಿತು. ದಯವಿಟ್ಟು ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
 };
 
@@ -2883,8 +2885,8 @@ const ML: Dict = {
   radiusFailTitle: "നിങ്ങളെ ഓൺലൈനാക്കാൻ കഴിഞ്ഞില്ല",
   radiusFailUnreachable: "ഇവിടത്തെ WiFi ഉപകരണം പ്രതികരിച്ചില്ല. കുറച്ചു കഴിഞ്ഞ് വീണ്ടും ശ്രമിക്കൂ.",
   radiusFailRejected: "ഈ sign in ഇനി സാധുവല്ല. ദയവായി വീണ്ടും sign in ചെയ്യൂ.",
-  radiusFailNotConfigured:
-    "ഇവിടത്തെ WiFi ഈ sign in-നു വേണ്ടി ഇതുവരെ ക്രമീകരിച്ചിട്ടില്ല. ദയവായി റിസപ്ഷനിൽ അറിയിക്കൂ.",
+  radiusFailNotAuthorized:
+    "ഈ നെറ്റ്‌വർക്കിൽ ഈ sign in സ്ഥിരീകരിക്കാൻ കഴിഞ്ഞില്ല. വീണ്ടും sign in ചെയ്യൂ, ആവർത്തിച്ചാൽ റിസപ്ഷനിൽ അറിയിക്കൂ.",
   radiusFailUnknown: "നിങ്ങളെ ബന്ധിപ്പിക്കുമ്പോൾ എന്തോ പിഴവ് സംഭവിച്ചു. വീണ്ടും ശ്രമിക്കൂ.",
 };
 
@@ -3186,8 +3188,8 @@ const PA: Dict = {
   radiusFailTitle: "ਅਸੀਂ ਤੁਹਾਨੂੰ ਆਨਲਾਈਨ ਨਹੀਂ ਕਰ ਸਕੇ",
   radiusFailUnreachable: "ਇੱਥੋਂ ਦੇ WiFi ਯੰਤਰ ਨੇ ਜਵਾਬ ਨਹੀਂ ਦਿੱਤਾ। ਥੋੜ੍ਹੀ ਦੇਰ ਬਾਅਦ ਫਿਰ ਕੋਸ਼ਿਸ਼ ਕਰੋ।",
   radiusFailRejected: "ਇਹ sign in ਹੁਣ ਵੈਧ ਨਹੀਂ ਹੈ। ਕਿਰਪਾ ਕਰਕੇ ਫਿਰ ਤੋਂ sign in ਕਰੋ।",
-  radiusFailNotConfigured:
-    "ਇੱਥੋਂ ਦਾ WiFi ਹਾਲੇ ਇਸ sign in ਲਈ ਤਿਆਰ ਨਹੀਂ ਹੈ। ਕਿਰਪਾ ਕਰਕੇ ਰਿਸੈਪਸ਼ਨ ਨੂੰ ਦੱਸੋ।",
+  radiusFailNotAuthorized:
+    "ਇਸ ਨੈੱਟਵਰਕ 'ਤੇ ਇਹ sign in ਪੱਕਾ ਨਹੀਂ ਕੀਤਾ ਜਾ ਸਕਿਆ। ਫਿਰ ਤੋਂ sign in ਕਰੋ, ਅਤੇ ਵਾਰ-ਵਾਰ ਹੋਵੇ ਤਾਂ ਰਿਸੈਪਸ਼ਨ ਨੂੰ ਦੱਸੋ।",
   radiusFailUnknown: "ਤੁਹਾਨੂੰ ਜੋੜਦੇ ਸਮੇਂ ਕੁਝ ਗਲਤ ਹੋ ਗਿਆ। ਕਿਰਪਾ ਕਰਕੇ ਫਿਰ ਕੋਸ਼ਿਸ਼ ਕਰੋ।",
 };
 
