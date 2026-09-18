@@ -89,7 +89,26 @@ export type ClientControlId =
   /** Access Rules -> Access Tiers -> a tier's own speed. */
   | "speed-profile"
   /** Access Rules -> session timeout, on either of those two tabs. */
-  | "session-timeout";
+  | "session-timeout"
+  /**
+   * Access Rules -> Guest WiFi Limits -> "Add a data limit".
+   *
+   * Gated on `clientStats`, which looks indirect and is not. A data cap is
+   * enforced by counting bytes, and the counting is the whole feature: the
+   * FUP rules are read by `record_usage`, which only ever runs when an
+   * accounting producer reports in. At a MikroTik venue that is the RADIUS
+   * Interim-Update. At a controller venue it is the Omada usage sync, whose
+   * selection is `provider == omada AND auth_mode == openapi` in SQL -- a
+   * hotspot-operator venue "cannot read client traffic over the controller
+   * API at all (contract CR-002) and is excluded there".
+   *
+   * `client_stats` is the capability the backend computes from that same
+   * `auth_mode`, so it is not a proxy for the answer, it IS the answer:
+   * where the platform cannot read a client's traffic, no byte of usage ever
+   * accrues, and a cap set here would never be reached however much a guest
+   * downloaded.
+   */
+  | "data-limit";
 
 export const CLIENT_CONTROL_IDS: readonly ClientControlId[] = [
   "disconnect",
@@ -98,6 +117,7 @@ export const CLIENT_CONTROL_IDS: readonly ClientControlId[] = [
   "speed-limit",
   "speed-profile",
   "session-timeout",
+  "data-limit",
 ];
 
 /**
@@ -620,6 +640,45 @@ export function clientControlVerdict(
           "the device is dropped at the same moment — ask your Wyfy Guest contact and we'll look " +
           "at it with you.",
       };
+
+    // -----------------------------------------------------------------
+    // The data limit.
+    // -----------------------------------------------------------------
+    case "data-limit": {
+      // The rules are ours and vendor-neutral; the COUNTING is not.
+      //
+      // A cap is enforced by `record_usage`, which only runs when an
+      // accounting producer reports in. A MikroTik venue has RADIUS
+      // Interim-Updates. A controller venue has the Omada usage sync, and
+      // that sync selects `auth_mode == openapi` in SQL -- a
+      // hotspot-operator venue is excluded from it outright, because the
+      // operator session cannot read client traffic at all.
+      //
+      // So at such a venue `bytes_used` never moves. A guest could download
+      // all day and never reach a 1 GB cap, because nothing is adding up
+      // what they spent. The control saved, read back and enforced nothing
+      // -- which is precisely the shape this module exists to refuse, and
+      // the shape this very control was in one release ago for a different
+      // reason (it wrote to `BandwidthPolicyRules.data_limit`, which had no
+      // reader). Wiring the write to the FUP policy fixed that everywhere
+      // the counting happens, and here the counting does not happen.
+      if (capabilityIsSupported(capabilities?.clientStats)) return AVAILABLE(control);
+      if (capabilities) {
+        return refused(
+          control,
+          capabilities.clientStats,
+          `This venue's WiFi runs on ${controllerNoun(vendor)}, and the connection we hold for ` +
+            "it cannot read how much data each guest has used — so a limit set here would never " +
+            "be reached, however much they download. Ask your Wyfy Guest contact to add Open API " +
+            "credentials to this venue's controller.",
+        );
+      }
+      return {
+        control,
+        availability: "unavailable",
+        reason: couldNotAsk("counting how much data each guest uses", vendor),
+      };
+    }
   }
 }
 

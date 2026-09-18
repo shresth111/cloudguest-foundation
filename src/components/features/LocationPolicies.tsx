@@ -393,6 +393,14 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   const speedAsking = clientControls.loading;
   const speedUsable = !speedAsking && speedVerdict.availability !== "unavailable";
   const sessionTimeoutVerdict = clientControls.verdict("session-timeout");
+  // A data cap is enforced by counting bytes, and at a hotspot-operator-only
+  // Omada venue nothing counts them: the usage sync selects
+  // `auth_mode == openapi` in SQL and excludes that venue outright. The rules
+  // save, read back, and are measured against a `bytes_used` that never
+  // moves. Same gate, same component, same reason as the speed above.
+  const dataLimitVerdict = clientControls.verdict("data-limit");
+  const dataLimitUsable =
+    !clientControls.loading && dataLimitVerdict.availability !== "unavailable";
   // UNITS is demo-only seed data (fake hotel names) -- a real customer only
   // has their own locations, so the "Business Unit" picker below (whose
   // value becomes the saved bandwidth policy's own name) must offer those
@@ -711,9 +719,16 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
     setSaving(true);
     // `validate()` has already refused a non-positive quota, so this cannot
     // produce the accidental zero-cap described there.
-    const dataLimit = dataLimitOpen
-      ? { quota: parseFloat(dlQuota), unit: dlUnit, resets: dlResets }
-      : null;
+    // A GATED CONTROL DOES NOT WRITE -- the same rule the Bandwidth select
+    // follows. `dataLimitOpen` can still be true from a row saved before this
+    // venue's controller was known, or before its credentials changed, and
+    // writing that cap into the FUP rules at a venue where nothing counts
+    // bytes would recreate exactly the silence this gate exists to end: a
+    // limit stored, shown as set, and never reached.
+    const dataLimit =
+      dataLimitOpen && dataLimitUsable
+        ? { quota: parseFloat(dlQuota), unit: dlUnit, resets: dlResets }
+        : null;
 
     if (demo) {
       setTimeout(() => {
@@ -1252,9 +1267,10 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
               <button
                 type="button"
                 onClick={() => setDataLimitOpen((prev) => !prev)}
+                disabled={!dataLimitUsable}
                 aria-expanded={dataLimitOpen}
                 aria-controls="data-limit-panel"
-                className="mt-4 flex w-full items-center justify-between rounded-md border border-dashed border-slate-300 px-3 py-2.5 text-left transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:hover:bg-slate-700"
+                className="mt-4 flex w-full items-center justify-between rounded-md border border-dashed border-slate-300 px-3 py-2.5 text-left transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent dark:border-slate-600 dark:hover:bg-slate-700 dark:disabled:hover:bg-transparent"
               >
                 <span className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
                   <Plus className="h-4 w-4 text-indigo-500" /> Add a data limit{" "}
@@ -1265,7 +1281,13 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                 />
               </button>
 
-              {dataLimitOpen && (
+              {/* Rendered below the trigger, not inside it: the reason belongs
+                to the setting, and a button is not a place to put a
+                sentence. Suppressed while the capabilities read is in
+                flight, for the reason the speed above gives. */}
+              {!clientControls.loading && <ControllerControlNotice verdict={dataLimitVerdict} />}
+
+              {dataLimitOpen && dataLimitUsable && (
                 <>
                   {/* Said here, in full, once. This is the only setting on the
                     form that ends a session someone is currently using, and

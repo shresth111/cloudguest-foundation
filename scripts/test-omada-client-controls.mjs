@@ -327,6 +327,53 @@ check(
   /couldn't reach/.test(clientControlVerdict("session-timeout", CONTROLLER_UNKNOWN).reason ?? ""),
   clientControlVerdict("session-timeout", CONTROLLER_UNKNOWN).reason,
 );
+// A CAP IS ONLY AS REAL AS THE COUNTING BEHIND IT.
+//
+// The data limit was wired to the FUP policy's `*_data_limit_mb`, which is
+// read by `record_usage` -- and `record_usage` only ever runs when an
+// accounting producer reports in. A MikroTik venue has RADIUS
+// Interim-Updates. A controller venue has the Omada usage sync, whose
+// selection is `provider == omada AND auth_mode == openapi` in SQL: a
+// hotspot-operator venue "cannot read client traffic over the controller API
+// at all (contract CR-002) and is excluded there".
+//
+// So at such a venue `bytes_used` never moves and a 1 GB cap is never
+// reached, however much a guest downloads. `client_stats` is computed from
+// that same `auth_mode`, which is why it is the gate: it is not a proxy for
+// the answer, it is the answer.
+eq(
+  "a data limit is offered where usage can actually be counted",
+  clientControlVerdict("data-limit", CONTROLLER_OPENAPI).availability,
+  "available",
+);
+eq(
+  "a data limit is refused where no byte of usage is ever counted",
+  clientControlVerdict("data-limit", CONTROLLER_LEGACY).availability,
+  "unavailable",
+);
+// The backend's own sentence wins over our fallback here, as it does for
+// every refused capability -- it names the credential and the exact place in
+// the controller's settings to add it, which no paraphrase kept here would
+// stay correct about. Asserted as the remedy being present rather than as a
+// fixed string, because the string is the backend's to change.
+check(
+  "and the refusal names the remedy rather than blaming the venue",
+  /Open API/.test(clientControlVerdict("data-limit", CONTROLLER_LEGACY).reason ?? ""),
+  clientControlVerdict("data-limit", CONTROLLER_LEGACY).reason,
+);
+check(
+  "a data limit at a venue we could not ask says we could not ask",
+  /couldn/.test(clientControlVerdict("data-limit", CONTROLLER_UNKNOWN).reason ?? ""),
+  clientControlVerdict("data-limit", CONTROLLER_UNKNOWN).reason,
+);
+// A MikroTik venue counts bytes from RADIUS and is never gated.
+eq(
+  "a MikroTik venue keeps its data limit",
+  clientControlVerdict("data-limit", MIKROTIK).availability,
+  "available",
+);
+eq("and carries no reason for it", clientControlVerdict("data-limit", MIKROTIK).reason, null);
+
 eq(
   "block-device is refused where the credentials cannot make the write",
   clientControlVerdict("block-device", CONTROLLER_LEGACY).availability,
