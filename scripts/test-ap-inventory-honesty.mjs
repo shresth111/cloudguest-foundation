@@ -292,6 +292,14 @@ check(
   /controllerManaged\s*\n?\s*\?/.test(hardwareView) && /keep a record of it/i.test(hardwareView),
 );
 
+const dashboardTile = read("src/components/customer/dashboard/DeviceStatusCard.tsx");
+check(
+  "the dashboard tile neither promises a 'yet' nor claims all devices are up",
+  /hardwareLivenessIsMeasured/.test(dashboardTile) &&
+    /not measured here/i.test(dashboardTile) &&
+    // the "not yet observed" branch must no longer swallow unmeasured rows
+    /status === "unknown" && hardwareLivenessIsMeasured\(d\)/.test(dashboardTile),
+);
 check(
   "the cross-location hardware panel does not print a raw UNKNOWN for an unmeasured row",
   /hardwareLivenessIsMeasured/.test(locationPicker) && /NOT MEASURED/.test(locationPicker),

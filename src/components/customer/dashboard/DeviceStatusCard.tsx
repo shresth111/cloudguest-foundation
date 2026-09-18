@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { DEVICE_TYPES } from "@/stores/deviceStore";
-import { formatAge } from "@/lib/device-liveness";
+import { formatAge, hardwareLivenessIsMeasured } from "@/lib/device-liveness";
 import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
 import { DEVICE_TYPE_META } from "@/lib/device-presentation";
 import { BackgroundBoxes } from "@/components/aceternity/background-boxes";
@@ -31,7 +31,15 @@ export function DeviceStatusCard({
 }) {
   const { devices } = useMonitoredHardware(locationId);
   const downCount = devices.filter((d) => d.status === "down").length;
-  const unknownCount = devices.filter((d) => d.status === "unknown").length;
+  // Split out of `unknownCount` deliberately. At a venue whose network is run
+  // by a vendor controller nothing on this platform probes these MACs at all,
+  // so every row is `unknown` forever -- and "not yet observed" promises a
+  // "yet" that will never come, while falling through to "All devices up"
+  // would be flatly false. Both of those are what this tile said before.
+  const unmeasuredCount = devices.filter((d) => !hardwareLivenessIsMeasured(d)).length;
+  const unknownCount = devices.filter(
+    (d) => d.status === "unknown" && hardwareLivenessIsMeasured(d),
+  ).length;
 
   return (
     <Card className="premium-card premium-card-hover">
@@ -161,6 +169,13 @@ export function DeviceStatusCard({
                 <span className="inline-flex items-center gap-1 font-medium text-muted-foreground">
                   <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
                   {unknownCount} not yet observed
+                </span>
+              ) : unmeasuredCount > 0 ? (
+                <span
+                  title="This venue's network is run by a controller, so nothing here pings these devices. Your controller reports its own access points on the Devices page."
+                  className="inline-flex items-center gap-1 font-medium text-muted-foreground"
+                >
+                  {unmeasuredCount} not measured here
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400">
