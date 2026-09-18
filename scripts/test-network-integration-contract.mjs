@@ -840,12 +840,19 @@ console.log("\nnothing in the Omada views assumes a router exists behind the int
   // `master.nas.tsx` as the precedent for the *wording* of a destructive
   // confirmation, and `types/nas.ts` for the precedent of a label table.
   // Those are references to a file, not an assumption about a topology.
-  for (const [name, src] of [
-    ["the customer page", strip(page)],
-    ["the master console page", strip(master)],
-    ["the service", strip(service)],
-    ["the types", strip(readFileSync(join(ROOT, "src/types/network-integration.ts"), "utf8"))],
-  ]) {
+  //
+  // NARROWED 2026-09-17, deliberately, and only for the three PLATFORM
+  // modules. The Master console now carries the RADIUS portal-mode control
+  // (`portal_mode` + `POST .../radius-nas`), and that feature is a NAS
+  // registration keyed on the integration's fleet device -- so "never say
+  // routerId, never say RADIUS" would forbid the feature rather than the
+  // drift. What the rule was protecting survives below as two sharper ones:
+  // the customer surface keeps the ABSOLUTE ban (a venue owner must never be
+  // offered any of this -- the routes are GLOBAL and 403 for them, and the
+  // owner's instruction is that TP-Link lives in the Master console only),
+  // and no module may assemble the portal URL locally, which was the actual
+  // drift the router-id ban existed to catch.
+  for (const [name, src] of [["the customer page", strip(page)]]) {
     // Still an absolute rule, and now for a better reason than the one
     // originally written here.
     //
@@ -889,6 +896,59 @@ console.log("\nnothing in the Omada views assumes a router exists behind the int
       ),
     );
   }
+  for (const [name, src] of [
+    ["the master console page", strip(master)],
+    ["the service", strip(service)],
+    ["the types", strip(readFileSync(join(ROOT, "src/types/network-integration.ts"), "utf8"))],
+  ]) {
+    // THE RULE THAT ACTUALLY MATTERED: the portal URL is assembled
+    // SERVER-side (`validators.build_external_portal_url`) and reaches this
+    // repo as an opaque pair of strings. A module that starts writing the
+    // query itself is one that has begun rebuilding the URL locally, and it
+    // will drift from the route the guest portal is mounted at.
+    check(
+      `${name} never assembles the portal URL's query itself`,
+      !/routerId=|["'`]\?routerId|portalMode=/.test(src),
+    );
+    check(
+      `${name} does not reach for the router service`,
+      !/router\.service|routerService/.test(src),
+    );
+  }
+  // A router id may be NAMED on the platform path now -- the RADIUS NAS row
+  // hangs off the integration's fleet device -- but only there. The customer
+  // page is asserted above; here the service is held to using it for the one
+  // read that needs it.
+  check(
+    "the service names a router id only for the controller's NAS row",
+    strip(service)
+      .split("\n")
+      .filter((l) => /routerId|router_id/.test(l))
+      .every(
+        (l) =>
+          // the NAS read, which is what needs it
+          /nas|Nas|NAS/.test(l) ||
+          // or the plain mapping of the backend's own field -- a value
+          // carried through, not a URL being assembled
+          /^\s*router_id\?: string \| null;$/.test(l) ||
+          /^\s*routerId: i\.router_id \?\? null,$/.test(l),
+      ),
+  );
+  // The RADIUS half is a PLATFORM capability. Every route this service sends
+  // it to must be a `platform/` one, because a venue owner holds no global
+  // scope and would get a 403 -- and, per the owner's instruction, must not
+  // be offered TP-Link controls at all.
+  check(
+    "the RADIUS NAS registration is sent only to a platform route",
+    strip(service)
+      .split("\n")
+      .filter((l) => /radius-nas/.test(l))
+      .every((l) => /platform\/integrations/.test(l)),
+  );
+  check(
+    "the customer page offers no portal-mode control",
+    !/portalMode|portal_mode|radius-nas|setPlatformPortalMode/.test(strip(page)),
+  );
   // The Router glyph means "a MikroTik box in Router Fleet" everywhere else in
   // this console, so drawing a controller with it would say the wrong thing
   // before a word is read.

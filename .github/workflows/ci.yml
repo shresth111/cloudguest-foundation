@@ -1717,11 +1717,19 @@ jobs:
       # `extra="ignore"` returned 201 and stored nothing, and the test read
       # the same wrong place and passed.
       #
-      # Floor 126, observed green at 126.
+      # Floor 127, observed green at 127 -- was 126. The Master console's
+      # portal-mode control adds three: that the RADIUS NAS registration is
+      # sent only to a `platform/` route, that a router id is named only for
+      # the controller's NAS row, and that the CUSTOMER page offers no
+      # portal-mode control at all. The blanket "no routerId, no RADIUS
+      # anywhere in this domain" rule was narrowed in the same commit: it now
+      # bans assembling the portal URL locally (the drift it was really
+      # protecting against) everywhere, and keeps the absolute ban on the
+      # customer surface, where TP-Link controls must never appear.
       - name: network integration contract
         run: |
           ./scripts/ci-gated-test.sh \
-            "network-integration-contract" 126 \
+            "network-integration-contract" 127 \
             "all network-integration contract checks passed" \
             bun run test:network-integration
 
@@ -1806,6 +1814,25 @@ jobs:
             "master-integration-repair" 47 \
             "All checks passed." \
             bun run test:master-integration-repair
+
+      # The Master-only control for `network_integrations.portal_mode` and the
+      # RADIUS NAS registration, which had no interface but `curl` -- a venue
+      # was moved to RADIUS mode by hand on 2026-09-13. The assertions that
+      # matter: a PATCH whose answer is read back (a backend without the
+      # column answers 200 and ignores it), the one-time shared secret never
+      # reaching a toast or a cache, a re-registration being confirmed because
+      # it rotates the secret the controller is using, `hub_confirmed: false`
+      # rendered as the divergence that rejects every guest, automatic setup
+      # refused on the RADIUS contract (it only writes authType 4), and the
+      # customer dashboard getting none of it.
+      #
+      # Floor 69, observed green at 69.
+      - name: master Omada RADIUS portal mode
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "master-omada-radius-mode" 69 \
+            "all master Omada RADIUS-mode checks passed" \
+            bun run test:master-omada-radius
 
       # Evidence beats the label: a vendor string is something somebody
       # typed, and it must never outrank what the device itself has done.

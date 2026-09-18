@@ -15,6 +15,7 @@ import {
   RadioTower,
   RefreshCw,
   Search,
+  RadioReceiver,
   ShieldCheck,
   Trash2,
   Users,
@@ -22,7 +23,10 @@ import {
 } from "lucide-react";
 
 import { MasterShell } from "@/components/master/MasterShell";
-import { OmadaPortalSetupSteps } from "@/components/network-integrations/OmadaPortalSetupSteps";
+import {
+  CopyValueRow,
+  OmadaPortalSetupSteps,
+} from "@/components/network-integrations/OmadaPortalSetupSteps";
 import { OmadaSiteMapping } from "@/components/network-integrations/OmadaSiteMapping";
 import {
   MPageShell,
@@ -43,6 +47,15 @@ import {
   deriveIntegrationSetup,
   halfConfiguredIntegrations,
 } from "@/lib/network-integration-readiness";
+import {
+  configureControllerPortalModeBlock,
+  controllerIpDefaultFromBaseUrl,
+  describeRadiusNasFailure,
+  portalModeSwitchBlock,
+  radiusNasRegisterBlock,
+  RADIUS_MODE_PREREQUISITES,
+  type RadiusNasFailure,
+} from "@/lib/omada-portal-mode";
 import { cn } from "@/lib/utils";
 import type { AppError } from "@/services/api";
 import { networkIntegrationService } from "@/services/network-integration.service";
@@ -60,7 +73,10 @@ import {
   NETWORK_INTEGRATION_STATUS_DETAIL,
   NETWORK_INTEGRATION_STATUS_LABEL,
   NETWORK_INTEGRATION_STATUS_TONE,
+  INTEGRATION_PORTAL_MODE_DETAIL,
+  INTEGRATION_PORTAL_MODE_LABEL,
   type ControllerAuthMode,
+  type ControllerRadiusNasRegistration,
   type ControllerSetupOutcome,
   type NetworkIntegration,
   type NetworkIntegrationCredentials,
@@ -154,6 +170,10 @@ const keys = {
       f.page,
     ] as const,
   events: (id: string) => ["master", "network-integrations", id, "events"] as const,
+  /** Keyed on the ROUTER, because that is what the NAS row hangs off and what
+   * the route takes. Two integrations cannot share one fleet device. */
+  controllerNas: (routerId: string) =>
+    ["master", "network-integrations", "controller-nas", routerId] as const,
   organizations: ["master", "network-integrations", "organizations"] as const,
 };
 
@@ -902,15 +922,26 @@ function IntegrationDrawer({
     operatorOptional: true,
   });
 
+  /** Set for a RADIUS-mode venue: automatic setup would put the controller
+   * back on the External Portal Server contract. See the lib. */
+  const configureBlock = configureControllerPortalModeBlock(integration.portalMode);
+
   // Every operation that can be in flight, so a control is never live
   // while another one is mid-write against the same controller. Both
   // sides of this merge defined their own `busy`; keeping either alone
   // would leave the other's buttons clickable during its own run.
+  /** The portal-contract section owns its own mutations (the PATCH and the
+   * NAS registration), and they write to the same venue as everything else in
+   * this drawer -- so it reports its pending state up rather than letting the
+   * other controls stay live during one. */
+  const [contractBusy, setContractBusy] = useState(false);
+
   const busy =
     test.isPending ||
     setEnabled.isPending ||
     configure.isPending ||
     replaceCreds.isPending ||
+    contractBusy ||
     remove.isPending;
   const setup = deriveIntegrationSetup(integration);
 
@@ -1319,19 +1350,41 @@ function IntegrationDrawer({
               </span>
             </label>
 
+            {/* AUTOMATIC SETUP HAS NO RADIUS BRANCH. `_configure_controller`
+                always writes an External Portal Server (authType 4) portal
+                onto the SSID -- it never reads `portal_mode`. On a RADIUS-mode
+                venue that silently moves the CONTROLLER back to the other
+                contract while this row still says RADIUS, which is the two
+                halves disagreeing about who authorises guests with nothing on
+                either screen saying so. Refused here rather than discovered
+                afterwards. */}
+            {configureBlock && (
+              <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+                <p className="font-medium">Not available on this contract</p>
+                <p className="text-muted-foreground">{configureBlock}</p>
+              </div>
+            )}
+
             <div className="flex flex-wrap gap-2">
-              <MButton variant="outline" disabled={busy} onClick={() => configure.mutate(true)}>
+              <MButton
+                variant="outline"
+                disabled={busy || configureBlock !== null}
+                aria-disabled={busy || configureBlock !== null}
+                title={configureBlock ?? undefined}
+                onClick={() => configure.mutate(true)}
+              >
                 {configure.isPending ? <Loader2 className="animate-spin" /> : <ShieldCheck />}
                 Preview changes
               </MButton>
               <MButton
                 variant="primary"
-                disabled={!previewed || busy}
-                aria-disabled={!previewed || busy}
+                disabled={!previewed || busy || configureBlock !== null}
+                aria-disabled={!previewed || busy || configureBlock !== null}
                 title={
-                  previewed
+                  configureBlock ??
+                  (previewed
                     ? undefined
-                    : "Run the preview first — this writes to a live controller."
+                    : "Run the preview first — this writes to a live controller.")
                 }
                 onClick={() => configure.mutate(false)}
               >
@@ -1398,6 +1451,14 @@ function IntegrationDrawer({
             onSaved={onChanged}
           />
         </DrawerSection>
+
+        <PortalContractSection
+          key={integration.id}
+          integration={integration}
+          drawerBusy={busy}
+          onBusyChange={setContractBusy}
+          onChanged={onChanged}
+        />
 
         <PortalLinkSection integration={integration} />
 
@@ -1611,6 +1672,435 @@ function IntegrationDrawer({
 }
 
 /**
+ * WHICH GUEST-PORTAL CONTRACT THIS VENUE IS ON, and the RADIUS NAS
+ * registration that contract needs.
+ *
+ * ## Why this control had to exist
+ *
+ * `network_integrations.portal_mode` (cloud-guest #236, migration 0125) has
+ * been switchable only by a raw `PATCH` against the platform route, and
+ * registering the controller as a RADIUS client only by a raw `POST` to
+ * `/radius-nas`. On 2026-09-13 an engineer moved the QA venue by hand with
+ * curl. Both routes are GLOBAL-scoped and belong here; neither may ever appear
+ * on a customer dashboard, where the switch would read as "break guest WiFi
+ * until three other things happen elsewhere".
+ *
+ * ## What the switch does and does not do
+ *
+ * It writes one column and changes the parameters on the venue's portal link.
+ * It arranges NO inbound UDP path, NO NAS client and NO controller
+ * configuration -- so moving to RADIUS is confirmed item by item against the
+ * prerequisites in `RADIUS_MODE_PREREQUISITES`, each of which is something a
+ * venue's guests pay for if it is missing.
+ *
+ * ## The secret is shown once
+ *
+ * `POST /radius-nas` generates the shared secret and returns it in that one
+ * response; nothing can read it back. It is held in this component's state,
+ * rendered for the operator to type into the controller, and dropped when they
+ * dismiss it or close the drawer -- never a toast, never a query cache.
+ *
+ * Registering a controller that ALREADY has a NAS row rotates that secret
+ * (`router.py` takes the `regenerate_secret` branch), which stops the value
+ * currently in the controller's RADIUS profile working the moment it returns.
+ * So the existing row is read first and a re-registration is confirmed.
+ */
+function PortalContractSection({
+  integration,
+  drawerBusy,
+  onBusyChange,
+  onChanged,
+}: {
+  integration: NetworkIntegration;
+  drawerBusy: boolean;
+  onBusyChange: (busy: boolean) => void;
+  onChanged: () => void;
+}) {
+  const mode = integration.portalMode;
+  const switchBlock = portalModeSwitchBlock(mode);
+
+  const [confirmRadius, setConfirmRadius] = useState(false);
+  const [acknowledged, setAcknowledged] = useState<Record<string, boolean>>({});
+  const [confirmExternal, setConfirmExternal] = useState(false);
+  const allAcknowledged = RADIUS_MODE_PREREQUISITES.every((p) => acknowledged[p.key]);
+
+  const [controllerIp, setControllerIp] = useState("");
+  const [registration, setRegistration] = useState<ControllerRadiusNasRegistration | null>(null);
+  const [failure, setFailure] = useState<RadiusNasFailure | null>(null);
+  const [confirmRotate, setConfirmRotate] = useState(false);
+
+  /** The NAS row the controller already has, so this screen can say whether
+   * Register will create one or rotate the secret of the one the controller is
+   * using right now. Only asked on the contract that can have one. */
+  const nas = useQuery({
+    queryKey: keys.controllerNas(integration.routerId ?? "none"),
+    queryFn: () =>
+      networkIntegrationService.getPlatformControllerNas(integration.routerId as string),
+    enabled: mode === "radius" && !!integration.routerId,
+    staleTime: 30_000,
+    retry: 1,
+  });
+
+  const setMode = useMutation({
+    mutationFn: (next: "external_portal" | "radius") =>
+      networkIntegrationService.setPlatformPortalMode(integration.id, next),
+    onSuccess: (_updated, next) => {
+      setConfirmRadius(false);
+      setConfirmExternal(false);
+      setAcknowledged({});
+      if (next === "radius") {
+        // NOT "RADIUS mode is live". The column is what changed.
+        toast.success(
+          "Recorded as RADIUS mode. Nothing on the controller changed — register the controller below, then configure its RADIUS profile and portal by hand.",
+        );
+      } else {
+        toast.warning(
+          "Back on External Portal Server. The controller still has whatever RADIUS portal was set on it, and any NAS client stays registered — remove it from RADIUS NAS if it is no longer used.",
+        );
+      }
+      onChanged();
+    },
+    onError: (err) =>
+      toast.error(
+        // `setPlatformPortalMode` throws a plain Error when the backend
+        // answered 200 with a mode it did not change -- that message is the
+        // finding and must not be replaced by a generic one.
+        err instanceof Error && !("status" in err)
+          ? err.message
+          : errorText(err, "The portal mode could not be changed."),
+      ),
+  });
+
+  const register = useMutation({
+    mutationFn: () =>
+      networkIntegrationService.registerPlatformControllerRadiusNas(integration.id, {
+        controllerIp,
+      }),
+    onSuccess: (result) => {
+      setConfirmRotate(false);
+      setFailure(null);
+      setRegistration(result);
+      nas.refetch();
+      // No secret and no claim about guests in the toast: the panel below
+      // carries the only copy of the secret, and `hub_confirmed` is what says
+      // whether the RADIUS server agrees.
+      toast.success("Controller registered with the RADIUS hub.");
+    },
+    onError: (err) => {
+      setConfirmRotate(false);
+      setRegistration(null);
+      setFailure(describeRadiusNasFailure(err));
+    },
+  });
+
+  const writing = setMode.isPending || register.isPending;
+  useEffect(() => {
+    onBusyChange(writing);
+    return () => onBusyChange(false);
+  }, [writing, onBusyChange]);
+
+  const busy = drawerBusy || writing;
+  const registerBlock = radiusNasRegisterBlock({
+    portalMode: mode,
+    routerId: integration.routerId,
+    baseUrl: integration.baseUrl,
+    controllerIpInput: controllerIp,
+  });
+  const ipDefault = controllerIpDefaultFromBaseUrl(integration.baseUrl);
+
+  return (
+    <DrawerSection title="Guest portal contract">
+      <div className="space-y-3">
+        <Row
+          label="Contract"
+          value={mode ? INTEGRATION_PORTAL_MODE_LABEL[mode] : "Not reported by this backend"}
+        />
+        <p className="text-sm text-muted-foreground">
+          {mode
+            ? INTEGRATION_PORTAL_MODE_DETAIL[mode]
+            : "This build of the API does not send a portal mode, so this venue's contract cannot be read or changed from here."}
+        </p>
+
+        {switchBlock ? (
+          <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+            <p className="font-medium">Cannot be switched from here</p>
+            <p className="text-muted-foreground">{switchBlock}</p>
+          </div>
+        ) : mode === "external_portal" ? (
+          <MButton
+            variant="outline"
+            disabled={busy}
+            onClick={() => {
+              setAcknowledged({});
+              setConfirmRadius(true);
+            }}
+          >
+            <RadioReceiver /> Switch to RADIUS mode…
+          </MButton>
+        ) : (
+          <MButton variant="outline" disabled={busy} onClick={() => setConfirmExternal(true)}>
+            <RadioReceiver /> Switch back to External Portal Server…
+          </MButton>
+        )}
+
+        {mode === "radius" && (
+          <div className="space-y-3 rounded-lg border border-border p-3">
+            <p className="text-sm font-medium">Register the controller with RADIUS</p>
+            <p className="text-xs text-muted-foreground">
+              Writes a <code>client&#123;&#125;</code> stanza on the FreeRADIUS hub keyed on the
+              controller&rsquo;s public IP and hands back a shared secret, once. Type that secret
+              into the controller&rsquo;s RADIUS profile — this platform cannot put it there. It
+              does not open the UDP path: without that, every guest login times out.
+            </p>
+
+            {/* What is registered TODAY, read before the click, because
+                registering again rotates the secret the controller is using. */}
+            {nas.isLoading ? (
+              <p className="text-xs text-muted-foreground">Reading the current registration…</p>
+            ) : nas.isError ? (
+              <p className="text-xs text-muted-foreground">
+                The current registration could not be read, so this screen cannot say whether
+                registering would create one or rotate an existing secret.
+              </p>
+            ) : nas.data ? (
+              <div className="space-y-0.5 text-xs text-muted-foreground">
+                <p>
+                  Already registered as{" "}
+                  <span className="font-mono text-foreground">{nas.data.nasIdentifier}</span>
+                  {nas.data.ipAddress ? ` for ${nas.data.ipAddress}` : ""}.
+                </p>
+                <p>
+                  {nas.data.hubClientSyncedIp
+                    ? `The hub confirmed a stanza for ${nas.data.hubClientSyncedIp}${
+                        nas.data.hubClientSyncedAt
+                          ? ` ${relativeTime(nas.data.hubClientSyncedAt)}`
+                          : ""
+                      }.`
+                    : "The hub has never confirmed a stanza for it — the database is ahead of the RADIUS server."}
+                </p>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">No NAS client is registered yet.</p>
+            )}
+
+            <div className="space-y-1">
+              <label
+                htmlFor="controller-public-ip"
+                className="block text-xs font-medium text-muted-foreground"
+              >
+                Controller public IP
+              </label>
+              <input
+                id="controller-public-ip"
+                className={M_INPUT}
+                autoComplete="off"
+                placeholder={ipDefault ?? "e.g. 13.126.39.79"}
+                value={controllerIp}
+                onChange={(e) => setControllerIp(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                The address the controller&rsquo;s RADIUS requests arrive <strong>from</strong>, not
+                the one this platform reaches it on — a controller behind NAT differs.{" "}
+                {ipDefault
+                  ? `Left empty, the controller address's host (${ipDefault}) is used.`
+                  : "The controller address is a hostname, so this has to be typed."}
+              </p>
+            </div>
+
+            <MButton
+              variant="primary"
+              disabled={busy || registerBlock !== null}
+              aria-disabled={busy || registerBlock !== null}
+              title={registerBlock ?? undefined}
+              onClick={() => {
+                // An existing row -- or a read that could not answer -- means
+                // this may rotate a live secret. Confirmed, not assumed.
+                if (nas.data || nas.isError) setConfirmRotate(true);
+                else register.mutate();
+              }}
+            >
+              {register.isPending ? <Loader2 className="animate-spin" /> : <KeyRound />}
+              Register controller with RADIUS
+            </MButton>
+
+            {registerBlock && <p className="text-xs text-muted-foreground">{registerBlock}</p>}
+
+            {failure && (
+              <div className="space-y-1 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
+                <p className="font-medium text-destructive">{failure.title}</p>
+                <p className="text-muted-foreground">{failure.detail}</p>
+              </div>
+            )}
+
+            {registration && (
+              <div className="space-y-2 rounded-lg border border-border bg-muted/40 p-3">
+                <p className="text-sm font-medium">Registered — copy the secret now</p>
+                {/* `hub_confirmed` is what the hub's agent answered, not what
+                    this platform intended. False means the database is ahead
+                    of the RADIUS server, which is the divergence that rejects
+                    every guest while every row looks healthy. */}
+                {registration.hubConfirmed ? (
+                  <p className="text-sm text-muted-foreground">
+                    The hub confirmed the stanza for {registration.controllerIp}.
+                  </p>
+                ) : (
+                  <p className="text-sm font-medium text-destructive">
+                    The hub did NOT confirm the stanza. The database is ahead of the RADIUS server —
+                    do not configure the controller yet; register again, which takes the rotate path
+                    and converges.
+                  </p>
+                )}
+                <CopyValueRow label="NAS identifier" value={registration.nasIdentifier} />
+                <CopyValueRow label="Controller IP" value={registration.controllerIp} />
+                <CopyValueRow label="Shared secret" value={registration.sharedSecret} />
+                <p className="text-xs text-muted-foreground">
+                  Shown once and never readable again. Type it into the controller&rsquo;s RADIUS
+                  profile (PAP, accounting off). Registering again generates a new one and the old
+                  one stops working.
+                </p>
+                <MButton variant="outline" onClick={() => setRegistration(null)}>
+                  I have copied it
+                </MButton>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* MOVING A VENUE ONTO RADIUS IS CONFIRMED ITEM BY ITEM. Not an "are you
+          sure?": each line is a prerequisite this switch does not arrange, and
+          the first three are what the venue's guests pay for if it is missing.
+          The runbook (`ops/runbooks/omada-radius-mode.md`) is the long form. */}
+      <MDialog
+        open={confirmRadius}
+        onClose={() => setConfirmRadius(false)}
+        title="Switch this venue to RADIUS mode?"
+        wide
+      >
+        <div className="space-y-4 p-5">
+          <p className="text-sm">
+            <span className="font-semibold">{integration.name}</span>
+            <span className="block text-sm text-muted-foreground">
+              {integration.organizationName || "Unknown customer"} ·{" "}
+              {integration.locationName || "no venue mapped"}
+            </span>
+          </p>
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3">
+            <p className="text-sm font-medium text-destructive">
+              Guests at this venue stop signing in through this platform.
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Their browsers will post to the controller instead, and the controller will ask our
+              RADIUS hub. Until every item below is true, that ends in a timeout the guest sees as a
+              raw JSON blob. Reversible from this drawer.
+            </p>
+          </div>
+          <div className="space-y-2">
+            {RADIUS_MODE_PREREQUISITES.map((p) => (
+              <label key={p.key} className="flex cursor-pointer items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={acknowledged[p.key] ?? false}
+                  onChange={(e) => setAcknowledged((a) => ({ ...a, [p.key]: e.target.checked }))}
+                />
+                <span>
+                  {p.title}
+                  <span className="block text-xs text-muted-foreground">{p.detail}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          <div className="flex flex-wrap justify-end gap-2">
+            <MButton variant="outline" onClick={() => setConfirmRadius(false)}>
+              Cancel
+            </MButton>
+            <MButton
+              variant="primary"
+              disabled={!allAcknowledged || setMode.isPending}
+              aria-disabled={!allAcknowledged || setMode.isPending}
+              title={
+                allAcknowledged
+                  ? undefined
+                  : "Confirm every prerequisite — this switch arranges none of them."
+              }
+              onClick={() => setMode.mutate("radius")}
+            >
+              {setMode.isPending && <Loader2 className="animate-spin" />}
+              Switch to RADIUS mode
+            </MButton>
+          </div>
+        </div>
+      </MDialog>
+
+      <MDialog
+        open={confirmExternal}
+        onClose={() => setConfirmExternal(false)}
+        title="Switch back to External Portal Server?"
+      >
+        <div className="space-y-4 p-5">
+          <p className="text-sm text-muted-foreground">
+            Guest sign-in returns to the contract this integration was proven on: the guest&rsquo;s
+            browser posts to this platform and this platform opens the gate.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            The controller is not touched. It keeps whatever RADIUS portal is configured on it, and
+            until that is changed back — Apply to controller can write the External Portal Server
+            portal once this venue is off RADIUS — its guests reach a portal this platform no longer
+            answers for. Any NAS client stays registered and keeps a live secret on the hub.
+          </p>
+          <div className="flex flex-wrap justify-end gap-2">
+            <MButton variant="outline" onClick={() => setConfirmExternal(false)}>
+              Cancel
+            </MButton>
+            <MButton
+              variant="primary"
+              disabled={setMode.isPending}
+              aria-disabled={setMode.isPending}
+              onClick={() => setMode.mutate("external_portal")}
+            >
+              {setMode.isPending && <Loader2 className="animate-spin" />}
+              Switch back
+            </MButton>
+          </div>
+        </div>
+      </MDialog>
+
+      <MDialog
+        open={confirmRotate}
+        onClose={() => setConfirmRotate(false)}
+        title="Register again and rotate the secret?"
+      >
+        <div className="space-y-4 p-5">
+          <p className="text-sm text-muted-foreground">
+            {nas.data
+              ? `This controller is already registered as ${nas.data.nasIdentifier}.`
+              : "This screen could not read whether the controller is already registered."}{" "}
+            Registering generates a <strong>new</strong> shared secret and pushes it to the hub. The
+            secret currently in the controller&rsquo;s RADIUS profile stops working the moment this
+            returns, and every guest is rejected until the new one is typed in.
+          </p>
+          <div className="flex flex-wrap justify-end gap-2">
+            <MButton variant="outline" onClick={() => setConfirmRotate(false)}>
+              Cancel
+            </MButton>
+            <MButton
+              variant="primary"
+              disabled={register.isPending}
+              aria-disabled={register.isPending}
+              onClick={() => register.mutate()}
+            >
+              {register.isPending && <Loader2 className="animate-spin" />}
+              Rotate and register
+            </MButton>
+          </div>
+        </div>
+      </MDialog>
+    </DrawerSection>
+  );
+}
+
+/**
  * The External Portal Server URL, on the Master console too.
  *
  * ## Why it is on BOTH dashboards and not only the customer one
@@ -1657,6 +2147,21 @@ function PortalLinkSection({ integration }: { integration: NetworkIntegration })
 
   return (
     <DrawerSection title="Guest portal setup">
+      {/* THE STEPS BELOW ARE THE EXTERNAL PORTAL SERVER FORM. On the RADIUS
+          contract the same URL goes somewhere else on the controller, and
+          following step 1 as written would move the venue back to authType 4
+          on the controller while this row still says RADIUS. */}
+      {integration.portalMode === "radius" && (
+        <div className="mb-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+          <p className="font-medium">This venue is on RADIUS mode</p>
+          <p className="text-muted-foreground">
+            The steps below describe the External Portal Server form. Here the same URL goes into
+            the portal&rsquo;s <strong>External Web Portal</strong> field, with Authentication Type
+            RADIUS and a RADIUS profile pointing at the hub with the shared secret from the portal
+            contract section (PAP, accounting off). The pre-authentication entry is still needed.
+          </p>
+        </div>
+      )}
       <OmadaPortalSetupSteps
         scheme={scheme}
         hostAndQuery={hostAndQuery}
