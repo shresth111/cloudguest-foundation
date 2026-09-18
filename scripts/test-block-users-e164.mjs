@@ -155,6 +155,64 @@ console.log("\na number of national length is national, even when it starts with
 // eight-digit stub would silently write a rule for somebody else.
 eq("9198765432 under +91", normalizePhoneToE164("9198765432", IN).e164, "+919198765432");
 
+console.log("\nthe country code is never joined on twice");
+// THE SECOND ROUND OF THE ORIGINAL DEFECT, AND THE REASON THIS BLOCK
+// EXISTS. The rule above -- "a bare string of national length is a
+// national number" -- was measured against ONE 7-to-11 span shared by
+// every country in the picker. Eleven digits is a national length in none
+// of them, and is exactly what a `+1` or `+61` number looks like carrying
+// its own code, so both were joined to the picker's code a second time
+// and ACCEPTED SILENTLY:
+//
+//   "14155552671" under +1  -> "+114155552671"
+//   "61412345678" under +61 -> "+6161412345678"
+//
+// A guest signs in as "+14155552671" (`useGuestSignIn.ts`) and
+// guest_access matches by exact string equality, so each of those is a
+// rule that can never fire -- the identical failure, in the identical
+// place, as the "+9876543210" this suite was written for. India escaped
+// it only by arithmetic: its code plus its national number is 12 digits,
+// one past the old ceiling.
+//
+// Each country now answers with its own `nationalDigits`, so the two
+// readings are told apart by the length that country's numbers actually
+// have. These are pinned per country, both directions.
+for (const [typed, cc, expected, why] of [
+  ["14155552671", "+1", "+14155552671", "US number carrying its own code"],
+  ["4155552671", "+1", "+14155552671", "the same number typed locally"],
+  ["+14155552671", "+1", "+14155552671", "and written properly"],
+  ["61412345678", "+61", "+61412345678", "AU number carrying its own code"],
+  ["412345678", "+61", "+61412345678", "the same number typed locally"],
+  ["441632960961", "+44", "+441632960961", "GB number carrying its own code"],
+  ["07911123456", "+44", "+447911123456", "GB national with a trunk-prefix 0"],
+  ["971501234567", "+971", "+971501234567", "AE number carrying its own code"],
+]) {
+  const r = normalizePhoneToE164(typed, cc);
+  eq(
+    `${JSON.stringify(typed)} under ${cc} -> ${expected} (${why})`,
+    r.ok ? r.e164 : `INVALID:${r.reason}`,
+    expected,
+  );
+  check(
+    `${JSON.stringify(typed)} under ${cc} does not carry ${cc} twice`,
+    r.ok && !r.e164.startsWith(cc + cc.slice(1)),
+    `got ${JSON.stringify(r.ok ? r.e164 : r.reason)}`,
+  );
+}
+
+// And the other half of the same fix: a foreign number pasted WITHOUT a
+// "+" is not the selected country's local number either. It used to be
+// joined to the picker's code; it is now refused, because a rejection an
+// owner can see beats a rule that quietly never matches.
+for (const typed of ["14155552671", "61412345678", "971501234567"]) {
+  const r = normalizePhoneToE164(typed, IN);
+  eq(
+    `${JSON.stringify(typed)} under +91 is refused, not prefixed`,
+    r.ok ? `ACCEPTED:${r.e164}` : r.reason,
+    "ambiguous",
+  );
+}
+
 console.log("\nnothing unresolvable is silently accepted");
 for (const [typed, reason] of [
   ["", "empty"],
@@ -212,6 +270,23 @@ check(
   "BlockUsers does not define a second normaliser",
   !/const\s+toE164\s*=/.test(src) && !/function\s+toE164\b/.test(src),
   "a local copy of the normaliser is how this bug class comes back",
+);
+
+// THE HELPER TEXT IS A CLAIM ABOUT THE NORMALISER, SO IT IS TESTED LIKE
+// ONE. It promised that "a number that already starts with its own
+// country code (+441632960961) keeps it" -- true of a number written with
+// a "+", false of the same number written without one, which is refused.
+// Nothing in tsc or eslint can see a sentence going stale, and this
+// screen's copy has been wrong about its own behaviour twice this week.
+check(
+  "the helper text no longer promises a bare country code is kept",
+  !/already starts with its own country code/.test(src),
+  "the sentence the normaliser does not honour is back",
+);
+check(
+  "the helper text names the + as what preserves a foreign code",
+  /put a \+ in front of a foreign number/.test(src),
+  "the helper text no longer explains how to keep a foreign country code",
 );
 
 console.log("\nthe toast reports what the server said, not what we hoped");

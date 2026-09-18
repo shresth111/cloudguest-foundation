@@ -934,10 +934,22 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
             {/* Persistent caption instead of a click-to-reveal tooltip -- same
               consistency fix just applied to Guest WiFi Limits: the format
               hint shouldn't require a discovery click. */}
+            {/* THIS SENTENCE IS PART OF THE FIX, NOT A CAPTION ON IT.
+              It used to promise that "a number that already starts with
+              its own country code (+441632960961) keeps it" -- which was
+              true of a number written WITH a "+", and false of the same
+              number written without one. A bare foreign number is only
+              recognised when it carries the code the picker is showing;
+              anything else is rejected rather than guessed at
+              (`normalizePhoneToE164`, reading 2). So the "+" is now named
+              as the thing that does the work, and the last clause points
+              at the chips, which render the exact identifier that will be
+              stored -- the one place this screen cannot be wrong about
+              what it is about to write. */}
             <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
               {mode === "email"
                 ? "Paste one or more email addresses separated by commas, e.g. guest@example.com."
-                : `Paste one or more numbers separated by commas. Local numbers get ${dialCode}; a number that already starts with its own country code (+441632960961) keeps it.`}
+                : `Paste one or more numbers separated by commas. Local numbers get ${dialCode}; put a + in front of a foreign number (+441632960961) to keep its own country code. Each entry below shows exactly what will be stored.`}
             </p>
           </div>
 
