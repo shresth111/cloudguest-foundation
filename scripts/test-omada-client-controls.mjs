@@ -470,6 +470,22 @@ for (const [rel, needle, why] of [
     "the saved-policies table does not restate a speed nothing applies",
   ],
   [
+    "src/components/features/LocationPolicies.tsx",
+    /const rates = speedUsable\s*\n?\s*\?/,
+    // GREYING A CONTROL IS NOT THE SAME AS STOPPING IT WRITING, and this
+    // screen shipped proof of the difference. With the speed greyed,
+    // `f.bandwidth` is "" and `validate()` skips its required check by
+    // design -- so `BANDWIDTH_KBPS[f.bandwidth] ?? 0` was 0, and every save
+    // of the four settings that DO work at a controller venue overwrote the
+    // venue's stored rate with "no limit" on the way past.
+    //
+    // Invisible from the screen, which is what makes it worth a guard: the
+    // field is greyed and the table cell reads "Not applied here", so the
+    // damage only surfaces if the gate ever lifts and every guest comes back
+    // uncapped. A greyed control must preserve, never zero.
+    "a greyed Bandwidth control preserves the stored rate instead of writing 0",
+  ],
+  [
     "src/services/customer.service.ts",
     /disconnect_enforced/,
     "the disconnect response is read rather than discarded",
