@@ -399,6 +399,13 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   // save, read back, and are measured against a `bytes_used` that never
   // moves. Same gate, same component, same reason as the speed above.
   const dataLimitVerdict = clientControls.verdict("data-limit");
+  // Same signal, different consequence. Where activity cannot be seen the
+  // backend deliberately stops measuring idleness (#280, after the sweep
+  // fired on guests who were streaming) and falls back to the absolute
+  // session length. The setting is still saved and still resolved -- it is
+  // simply never the thing that ends a session there -- so this is a caveat
+  // beside a live control, not a gate on a dead one.
+  const idleTimeoutVerdict = clientControls.verdict("idle-timeout");
   const dataLimitUsable =
     !clientControls.loading && dataLimitVerdict.availability !== "unavailable";
   // UNITS is demo-only seed data (fake hotel names) -- a real customer only
@@ -1407,17 +1414,22 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                   />
                   <ControllerControlNotice verdict={sessionTimeoutVerdict} />
                 </div>
-                <Select
-                  id="it"
-                  label="Idle Timeout"
-                  required
-                  value={f.idleTimeout}
-                  onChange={(v) => setField("idleTimeout", v)}
-                  options={IDLE_TIMEOUT}
-                  placeholder="Choose idle timeout"
-                  caption="Sign a device out after this much inactivity."
-                  err={errs.idleTimeout}
-                />
+                <div>
+                  <Select
+                    id="it"
+                    label="Idle Timeout"
+                    required
+                    value={f.idleTimeout}
+                    onChange={(v) => setField("idleTimeout", v)}
+                    options={IDLE_TIMEOUT}
+                    placeholder="Choose idle timeout"
+                    caption="Sign a device out after this much inactivity."
+                    err={errs.idleTimeout}
+                  />
+                  {!clientControls.loading && (
+                    <ControllerControlNotice verdict={idleTimeoutVerdict} />
+                  )}
+                </div>
                 <Select
                   id="dl"
                   label="Maximum Daily Session Limit"
