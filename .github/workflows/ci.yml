@@ -1648,6 +1648,37 @@ jobs:
           ./scripts/ci-gated-test.sh \
             "block-users-e164" 85 "All checks passed." \
             bun run test:block-users-e164
+      # --- Where a block actually lands ----------------------------------
+      #
+      # Blocked Guests had a control labelled "Applies to", listing every
+      # location in the account, that set nothing: `handleBlock` sends the
+      # `locationId` PROP, and the select's state reached neither the
+      # request nor -- outside demo -- the table filter beside it.
+      #
+      # The half that does damage is the missing-prop case. An undefined
+      # `locationId` is dropped by JSON.stringify, the backend's
+      # `location_id` defaults to None, and NULL is not "unknown" at
+      # enforcement time: `list_matching_guest_rules` ORs
+      # `location_id IS NULL` into every lookup, so the rule fires at EVERY
+      # location in the organization. The agent/staff-preview dashboard
+      # mounted Access Rules with no `locationId` while the active location
+      # sat in scope, so an agent blocking one guest at one venue banned
+      # them account-wide with nothing on screen saying so.
+      #
+      # Nothing in tsc can see this -- an optional prop that is legitimately
+      # optional, threaded through a `ctx` object, producing a request body
+      # that is valid either way. So the suite executes the real scope
+      # ladder for every state including the ones a browser would make you
+      # sign in as a staff agent to reach, and checks the two call sites:
+      # that the screen renders a statement rather than a control that sets
+      # nothing, and that the agent route still passes a location.
+      #
+      # Floor 40, observed green at 40.
+      - name: a block says which venues it applies at
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "block-scope" 40 "all block-scope checks passed" \
+            bun run test:block-scope
 
       # --- Whitelist-only refusal screen ---------------------------------
       #

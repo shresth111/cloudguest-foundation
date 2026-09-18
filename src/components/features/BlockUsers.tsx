@@ -34,6 +34,7 @@ import type { AnyAccessRule } from "@/types/guest";
 import { maskMac } from "@/components/features/HeaderControls";
 import { DEFAULT_DIAL_CODE, PHONE_COUNTRIES, normalizePhoneToE164 } from "@/lib/phone-e164";
 import { blockOutcomeMessage } from "@/lib/block-outcome";
+import { blockScope, blockScopeConfirmation } from "@/lib/block-scope";
 import { useClientControls } from "@/hooks/useClientControls";
 import { ControllerControlNotice } from "@/components/customer/ControllerControlNotice";
 
@@ -367,6 +368,16 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demo, locations, locationId]);
+
+  // WHERE THIS BLOCK WILL ACTUALLY LAND. Derived by `blockScope` from the
+  // one value that decides it -- the `locationId` prop that `handleBlock`
+  // sends -- and never from the "Applies to" control, whose disagreeing
+  // with it is the defect. The ladder lives in `src/lib/block-scope.ts`
+  // and is executed for real by `scripts/test-block-scope.mjs`; a copy of
+  // it here would drift from the copy under test, which is the same class
+  // of bug as two normalisers.
+  const scope = blockScope({ demo, locationId, nameForLocation, demoUnit: bu });
+  const { orgWide, label: scopeLabel } = scope;
 
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
@@ -776,6 +787,19 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
               They will not be able to sign in again, and we will try to end any session they have
               right now.
             </p>
+            {/* The scope, at the last moment before the write. An
+              organization-wide block is the one an owner is most likely
+              not to have meant, so it is said here in full rather than
+              inferred from a label on the card behind this dialog. */}
+            <p
+              data-testid="block-confirm-scope"
+              className={cn(
+                "mt-2 text-sm",
+                orgWide ? "font-medium text-amber-700 dark:text-amber-300" : "text-slate-500",
+              )}
+            >
+              {blockScopeConfirmation(scope)}
+            </p>
             <div className="mt-5 flex justify-end gap-2">
               <button
                 onClick={() => {
@@ -815,29 +839,67 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
       <Card className="border-0 shadow-sm">
         <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
           <CardTitle className="text-sm">Block User</CardTitle>
-          <div>
-            <label
-              htmlFor="bu-select"
-              className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400"
-            >
-              Applies to
-            </label>
-            <select
-              id="bu-select"
-              value={bu}
-              onChange={(e) => {
-                setBu(e.target.value);
-                setPage(0);
-              }}
-              className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
-            >
-              {units.map((u) => (
-                <option key={u} value={u}>
-                  {u}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* "APPLIES TO" NOW STATES THE SCOPE INSTEAD OF APPEARING TO SET
+            IT. As a <select> it was the only control on this card that did
+            nothing: `handleBlock` sends the `locationId` PROP, and `bu`
+            reached neither the request nor -- outside demo -- the table
+            filter below, which keys off the same prop. An owner could pick
+            "Delhi Office", block somebody, and write a rule for whichever
+            venue the dashboard was already on.
+
+            It is not made to work, because making it work would be a
+            second scoping authority beside the venue switcher every other
+            customer screen routes on, pointed at a backend that does not
+            check a `location_id` belongs to the caller's organization
+            (`guest_access/service.py`'s create path enforces the org and
+            never the location). Blocking at another venue is switching
+            venue, which already works.
+
+            The demo keeps its picker: there the roster is fictional, `bu`
+            genuinely drives the seeded list, and nothing is written. */}
+          {demo ? (
+            <div>
+              <label
+                htmlFor="bu-select"
+                className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400"
+              >
+                Applies to
+              </label>
+              <select
+                id="bu-select"
+                value={bu}
+                onChange={(e) => {
+                  setBu(e.target.value);
+                  setPage(0);
+                }}
+                className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+              >
+                {units.map((u) => (
+                  <option key={u} value={u}>
+                    {u}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="text-right">
+              <p className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                Applies to
+              </p>
+              <p
+                data-testid="block-scope"
+                data-scope={orgWide ? "organization" : "location"}
+                className={cn(
+                  "text-sm font-medium",
+                  orgWide
+                    ? "text-amber-700 dark:text-amber-300"
+                    : "text-slate-700 dark:text-slate-200",
+                )}
+              >
+                {scopeLabel}
+              </p>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           {/* Mode switcher: same pill-tab pattern WhiteList.tsx's own
@@ -1051,8 +1113,14 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
         <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
           <div>
             <CardTitle className="text-sm">Blocked Users</CardTitle>
+            {/* The filter below is `!locationId || b.locationId === null ||
+              b.locationId === locationId`, so with no locationId this list
+              is every blocklist rule in the account -- which the old
+              sentence called "this location". */}
             <p className="text-xs text-muted-foreground">
-              Everyone currently blocked at this location.
+              {orgWide
+                ? "Everyone currently blocked anywhere in this account."
+                : "Everyone currently blocked at this location."}
             </p>
           </div>
           <div className="flex items-center gap-3">
