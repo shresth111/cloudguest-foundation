@@ -18,6 +18,7 @@
     "test:consoles-never-mix": "node scripts/test-consoles-never-mix.mjs",
     "test:impersonation-master-host": "node scripts/test-impersonation-master-host.mjs",
     "test:controller-devices": "node scripts/test-controller-devices-service.mjs",
+    "test:ap-inventory-honesty": "node scripts/test-ap-inventory-honesty.mjs",
     "test:auth-email-trimmed": "node scripts/test-auth-email-trimmed.mjs",
     "test:portal-auth-methods": "node scripts/test-portal-auth-methods.mjs",
     "test:demo-login-host": "node scripts/test-demo-login-host.mjs",
