@@ -373,6 +373,55 @@ if (gate) {
 }
 
 // ---------------------------------------------------------------------------
+// The footer names three timings, because the form now has three.
+//
+// This line has been wrong twice, in both directions. It began as "Applies
+// immediately -- including to guests already connected", which was true of
+// nothing; it became "Applies the next time each guest connects", which was
+// true of everything until the data limit was wired; and it named Speed among
+// the settings that wait until `publish_version` began dispatching
+// `reapply_policy_assignments` -> `reapply_active_sessions_for_location`,
+// whose stated purpose is to reach guests already connected "without waiting
+// for their session to die or for a reconnect".
+//
+// The regression to guard is a tidy-up that re-generalises for readability.
+// Each group must stay separately named, and Speed must not drift back into
+// the group that waits.
+// ---------------------------------------------------------------------------
+
+check(
+  !/Speed, timeouts and device count apply the next time/.test(locationPolicies),
+  "The footer lists Speed among the settings that wait for the next " +
+    "connection. A bandwidth publish re-applies to live sessions.",
+);
+check(
+  /Timeouts and device count apply the next time each guest connects/.test(locationPolicies),
+  "The footer no longer names the two settings that DO wait for the next " +
+    "connection -- an unenumerated group is one an owner must guess at.",
+);
+// Whitespace-collapsed, because prettier re-wraps this sentence whenever a
+// word changes and a line-sensitive regex would fail for the wrong reason.
+const footerFlat = locationPolicies.replace(/\s+/g, " ");
+check(
+  footerFlat.includes("A new speed is re-applied to guests who are already online"),
+  "The footer stopped saying that a new speed reaches guests who are already " +
+    "online, which is the one thing that changed about it.",
+);
+check(
+  /data limit counts usage/.test(locationPolicies),
+  "The footer stopped explaining that a data limit is measured against usage " +
+    "already spent -- the distinction #333 added.",
+);
+// The toast cannot carry a per-group timing honestly: it does not know which
+// fields were changed, and it is gone in 2.5s. It said "the rest apply as
+// each guest next connects", which stopped being true of the speed.
+check(
+  !/the rest apply as each guest next connects/.test(locationPolicies),
+  "The save toast is claiming a timing again. It cannot know which fields " +
+    'changed, and the speed is no longer part of "the rest".',
+);
+
+// ---------------------------------------------------------------------------
 
 if (failures.length > 0) {
   console.error(`FAIL: ${failures.length} problem(s) with session-rules enforcement:\n`);

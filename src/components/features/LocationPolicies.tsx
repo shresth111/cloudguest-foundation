@@ -970,9 +970,15 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
       // asserting a second, stronger answer beside it.
       setToast(
         targetLocationId
-          ? dataLimit
-            ? `Limits saved for ${f.businessUnit} — the data limit applies to guests online now; the rest apply as each guest next connects.`
-            : `Limits saved for ${f.businessUnit} — they take effect as each guest next connects.`
+          ? // NO TIMING CLAIM, now that there are three timings.
+            // Both branches here said "the rest apply as each guest next
+            // connects", and the speed stopped being part of "the rest" when
+            // a bandwidth publish started re-applying to live sessions. A
+            // toast cannot carry the distinction honestly: it does not know
+            // which fields the owner actually changed, it is gone in two and
+            // a half seconds, and it cannot be re-read. The footer says it
+            // instead, per group, and stays on screen while they decide.
+            `Limits saved for ${f.businessUnit}.`
           : "Limits saved, but not applied to any location — reopen this page from the location you want them on.",
       );
       setTimeout(() => setToast(null), 2500);
@@ -1446,12 +1452,42 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
 
             Leaving the old line in place would have been the cheaper edit and
             the wrong one: this screen has spent three releases removing
-            sentences that were true of most of the form. */}
+            sentences that were true of most of the form.
+
+            AND SPEED HAS NOW LEFT THAT GROUP TOO, for a different reason.
+            `publish_version` dispatches `reapply_policy_assignments`, which
+            runs `reapply_active_sessions_for_location` -- the backend's own
+            "a venue just raised their speeds" hook. It re-resolves every
+            currently-ACTIVE session queue at the location against the new
+            policy, expressly to reach guests who are already connected
+            "without waiting for their session to die or for a reconnect", and
+            it is dispatched from the same save this button performs. So
+            naming Speed among the settings that wait was the same untruth as
+            the blanket line above it, one release later and one field
+            narrower.
+
+            That leaves three groups, which is why this sentence enumerates
+            rather than generalises: timeouts and device count wait for the
+            next connection, a speed is pushed to guests already online, and a
+            data limit is measured against what they have already spent.
+
+            "Should reach them", not "will": the dispatch is best-effort by
+            design -- `publish_version` swallows a dispatch failure rather than
+            failing the publish -- and a rate that does arrive is still a cap
+            and not a measured throughput, which is the bound
+            `SPEED_LIMIT_CAVEAT` keeps everywhere else.
+
+            Vendor-neutral, and this is the one place this run of work changes
+            a MikroTik venue's screen: the reapply feeds back through the same
+            `resolve_and_assign_queue` pipeline a login uses, which routes
+            RouterOS to its queue and a controller to its controller. The
+            behaviour changed for both, so the sentence changes for both. */}
           <div className="flex flex-col items-center gap-3">
             <p className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
-              Speed, timeouts and device count apply the next time each guest connects — anyone
-              online right now keeps those until then. A data limit is different: it counts usage
+              Timeouts and device count apply the next time each guest connects — anyone online
+              right now keeps those until then. A new speed is re-applied to guests who are already
+              online, so it should reach them without a reconnect. And a data limit counts usage
               guests have already spent this period, so adding or lowering one can sign someone out
               within minutes.
               <Tooltip
