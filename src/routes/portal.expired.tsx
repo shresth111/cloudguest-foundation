@@ -6,6 +6,7 @@ import { GlyphExpired } from "@/components/portal-runtime/PortalGlyphs";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { enabledAuthMethods } from "@/lib/portal-auth-methods";
 import { scriptClassOf } from "@/lib/portal-script";
+import type { RuntimeEndedSessionReason } from "@/types/portal-runtime";
 
 export const Route = createFileRoute("/portal/expired")({
   errorComponent: PortalErrorScreen,
@@ -160,6 +161,24 @@ function ExpiredPage() {
           title: t("expiredDailyLimitTitle"),
           body: t("expiredDailyLimitBody"),
         };
+      case "data_limit_reached":
+        // Not the daily-time copy. A guest here has spent the venue's DATA
+        // allowance, which they usually did in a fraction of the time they
+        // were allowed -- "you've used today's WiFi time" would be a
+        // confident, checkable lie. Same CTA treatment as the time limit
+        // though: `_enforce_fup_quota` refuses this login too, so the buttons
+        // are suppressed below.
+        //
+        // The body names no reset day. The cap can be daily, weekly or
+        // monthly and this vocabulary is deliberately coarse (the backend
+        // sends no period, and widening it to carry one would mean telling a
+        // guest more about the venue's policy than the endpoint should).
+        // "When the venue's allowance resets" is the largest true statement
+        // available.
+        return {
+          title: t("expiredDataLimitTitle"),
+          body: t("expiredDataLimitBody"),
+        };
       case "disconnected":
         return { title: t("expiredDroppedTitle"), body: t("expiredDroppedBody") };
       default:
@@ -170,11 +189,23 @@ function ExpiredPage() {
 
   // Whether signing in again can actually work. For every other ending it
   // can, and offering it is the whole point of the screen. For a spent
-  // daily allowance it cannot: `_enforce_fup_quota` refuses the next login
+  // allowance it cannot: `_enforce_fup_quota` refuses the next login
   // outright, so a button here would walk the guest into a bare refusal and
   // read as "the WiFi is broken". Showing no button is not a missing
   // feature; it is the honest shape of "come back tomorrow".
-  const canSignInAgain = endedSession?.reason !== "time_limit_reached";
+  //
+  // Both spent allowances, time and data, and for the identical reason --
+  // that one gate refuses on either metric. Written as a set rather than a
+  // second `!==` so that the next quota ending has one place to be added,
+  // and so the two cannot drift into one being offered a refusal the other
+  // is spared.
+  const REFUSED_NEXT_LOGIN: RuntimeEndedSessionReason[] = [
+    "time_limit_reached",
+    "data_limit_reached",
+  ];
+  const canSignInAgain = !REFUSED_NEXT_LOGIN.includes(
+    endedSession?.reason as RuntimeEndedSessionReason,
+  );
 
   return (
     <PortalShell>

@@ -89,6 +89,7 @@
     "test:omada-guest-bridge": "node scripts/test-omada-guest-bridge.mjs",
     "test:org-scope-header": "node scripts/test-organization-scope-header.mjs",
     "test:session-rules": "node scripts/test-session-rules-enforcement.mjs",
+    "test:data-limit-rules": "node scripts/test-data-limit-rules.mjs",
     "test:single-home": "node scripts/test-single-home-settings.mjs",
     "check:node": "node scripts/check-node-version.mjs",
     "test:network-integration": "node scripts/test-network-integration-contract.mjs",

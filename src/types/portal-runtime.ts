@@ -559,6 +559,14 @@ export type RuntimeEndedSessionReason =
   | "timed_out"
   | "idle_timed_out"
   | "time_limit_reached"
+  /** The venue's daily/weekly/monthly DATA allowance, spent. Its own member
+   * rather than a second spelling of `time_limit_reached`: the two share a
+   * consequence (the backend refuses the next login, so the portal offers no
+   * sign-in button) and not a sentence. Telling a guest who watched ten
+   * minutes of video that they have used today's WiFi *time* is false about
+   * their own afternoon, and it is the wrong guess they are most likely to
+   * arrive at unaided. */
+  | "data_limit_reached"
   | "disconnected";
 
 /**
