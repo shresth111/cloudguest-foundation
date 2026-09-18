@@ -261,6 +261,30 @@ for (const [label, venue] of [
     check(`${control} is not submittable (${label})`, !controlIsUsable(v));
   }
 }
+// A REFUSAL WE COULD NOT EARN IS NOT A REFUSAL WE MAY STATE.
+//
+// Both speed controls used to answer a null capabilities read by asserting
+// that "a speed set here would never reach anybody's device". That was a
+// claim about the venue's hardware made from the absence of an answer of
+// ours -- and cloud-guest #270 plus CAPABILITY-MATRIX §3.1 (per-client rate
+// limiting measured on real hardware: accepted, stored, changed at runtime,
+// cleared) have since made it false as well as unearned.
+//
+// `CONTROLLER_UNKNOWN` is the 404/no-answer venue. It must get the same
+// "we couldn't reach its connection to check" sentence every per-device
+// action already gets, and must not describe an impossibility. Where the
+// controller genuinely cannot do it -- CONTROLLER_LEGACY, which
+// CAPABILITY-MATRIX §10.1 puts beyond per-client throttling entirely -- the
+// backend's own sentence is rendered instead, and that is asserted below.
+for (const control of ["speed-limit", "speed-profile"]) {
+  const reason = clientControlVerdict(control, CONTROLLER_UNKNOWN).reason ?? "";
+  check(`${control} says we could not ask, not that it cannot work`, /couldn/.test(reason), reason);
+  check(
+    `${control} claims no impossibility from a read that did not come back`,
+    !/never reach/.test(reason),
+    reason,
+  );
+}
 eq(
   "block-device is refused where the credentials cannot make the write",
   clientControlVerdict("block-device", CONTROLLER_LEGACY).availability,

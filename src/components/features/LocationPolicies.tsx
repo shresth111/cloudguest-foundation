@@ -353,8 +353,23 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   // controller (cloud-guest #270) instead of writing a RouterOS queue nothing
   // would have read.
   const clientControls = useClientControls();
+  // WHILE WE ARE STILL ASKING, WE SAY NOTHING.
+  //
+  // The capabilities read is in flight on every load of this screen at a
+  // controller venue, and until it lands `capabilities` is null -- which the
+  // ladder reads as "we could not ask" and answers with a full sentence. So
+  // the owner met a greyed field and a paragraph about their controller on
+  // every page load, for as long as the request took, and then watched it
+  // vanish when the answer arrived and the field went live.
+  //
+  // `useClientControls` already carries `loading` for exactly this and
+  // documents it: a control renders disabled but WITHOUT a reason during the
+  // read, because we do not have one yet and inventing one is a sentence
+  // about a venue we have not finished asking about. This screen was the one
+  // caller not reading it.
   const speedVerdict = clientControls.verdict("speed-limit");
-  const speedUsable = speedVerdict.availability !== "unavailable";
+  const speedAsking = clientControls.loading;
+  const speedUsable = !speedAsking && speedVerdict.availability !== "unavailable";
   const sessionTimeoutVerdict = clientControls.verdict("session-timeout");
   // UNITS is demo-only seed data (fake hotel names) -- a real customer only
   // has their own locations, so the "Business Unit" picker below (whose
@@ -875,9 +890,20 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
       // exactly the case where nothing was assigned and no guest was
       // affected. A save that cannot reach a location is a real outcome and
       // has to read like one.
+      // "Saved and APPLIED" contradicted the line the owner had just read
+      // three inches above the button -- "Applies the next time each guest
+      // connects -- anyone online right now keeps their current limits until
+      // then." Two sentences on one screen, one save apart, disagreeing about
+      // whether anything had reached a guest yet.
+      //
+      // The footer is the true one: every setting here is resolved on the
+      // guest's own login. So the toast now reports what it can actually see
+      // -- the policy is stored and pointed at this location -- and defers the
+      // "when" to the sentence that already states it correctly, rather than
+      // asserting a second, stronger answer beside it.
       setToast(
         targetLocationId
-          ? `Limits saved and applied to ${f.businessUnit}.`
+          ? `Limits saved for ${f.businessUnit} — they take effect as each guest next connects.`
           : "Limits saved, but not applied to any location — reopen this page from the location you want them on.",
       );
       setTimeout(() => setToast(null), 2500);
@@ -1105,7 +1131,11 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                     caption="Maximum speed per guest device."
                     err={errs.bandwidth}
                   />
-                  <ControllerControlNotice verdict={speedVerdict} />
+                  {/* Suppressed while the capabilities read is still in
+                    flight. The control above is already greyed for the same
+                    reason; a sentence would be an answer, and we do not have
+                    one yet. */}
+                  {!speedAsking && <ControllerControlNotice verdict={speedVerdict} />}
                 </div>
                 <Select
                   id="dp"
