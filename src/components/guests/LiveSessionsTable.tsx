@@ -187,7 +187,12 @@ export function LiveSessionsTable() {
     toast.success(`Exported ${rows.length} sessions`);
   }
 
-  async function withReasonToast(action: () => Promise<void>, ok: string, err: string) {
+  // `Promise<unknown>`, not `Promise<void>`: `terminateSession` now resolves
+  // with the backend's `disconnect_enforced` instead of discarding it, and
+  // this helper does not read any action's result -- it only needs to know
+  // whether one threw. Narrowing to void would force every caller that DOES
+  // return something to launder it through a wrapper lambda.
+  async function withReasonToast(action: () => Promise<unknown>, ok: string, err: string) {
     try {
       await action();
       toast.success(ok);
@@ -433,8 +438,31 @@ export function LiveSessionsTable() {
                                   onClick={() =>
                                     setConfirm({
                                       title: "Terminate session?",
+                                      // THE NUMBER IS RIGHT. THE SCOPE WAS NOT.
+                                      //
+                                      // `TERMINATION_RECONNECT_COOLDOWN_MINUTES = 60` is real and
+                                      // is really enforced -- but only inside `reconnect()`, which
+                                      // is the admin route `POST /guests/{id}/reconnect` behind
+                                      // `guest_sessions.execute`. None of the guest-facing login
+                                      // paths (OTP, voucher, password, PIN) consult it: their only
+                                      // guest-level gates are `_reject_if_blocked` and
+                                      // `_enforce_access_control`, neither of which reads a
+                                      // terminated session's age.
+                                      //
+                                      // So "imposes a 60-minute reconnect cooldown for this guest"
+                                      // described a lockout the guest never experiences. They can
+                                      // walk back to the portal and sign in immediately; what is
+                                      // held for an hour is OUR Reconnect button. An operator who
+                                      // believed the old sentence would terminate somebody and
+                                      // stop watching.
+                                      //
+                                      // Vendor-independent -- the cooldown is a database check on
+                                      // our side, identical at every venue -- so this is a rewrite
+                                      // and not a gate. What the terminate does to the DEVICE is a
+                                      // separate question, already answered by the outcome ladder
+                                      // the toast runs through.
                                       description:
-                                        "Punitive — imposes a 60-minute reconnect cooldown for this guest.",
+                                        "Ends this session now and blocks the dashboard's Reconnect for this guest for 60 minutes. It does not stop them signing in again on the WiFi login page.",
                                       destructive: true,
                                       onConfirm: () =>
                                         withReasonToast(

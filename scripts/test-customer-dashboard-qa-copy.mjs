@@ -57,6 +57,12 @@
  * `scripts/test-connection-verdicts.mjs`). Every check below reads the real
  * source file or the real dictionary off disk.
  *
+ * SECTIONS 8-14 ARE A SECOND PASS, same day, over seven more sentences on six
+ * more screens. They live here rather than in a second suite because they are
+ * the same defect class, and because a second suite would need its own copy of
+ * the EN/HI parity block in section 7 -- which is precisely the duplication
+ * this file was written to end. Their own header comment is above section 8.
+ *
  * Run: node scripts/test-customer-dashboard-qa-copy.mjs
  */
 import { readFileSync } from "node:fs";
@@ -380,6 +386,311 @@ for (const key of [
   "deviceUndoAlwaysOffered",
 ]) {
   check(`en and hi both carry ${key}`, !!en[key] && !!hi[key]);
+}
+
+// ===========================================================================
+// SECOND PASS (2026-09-18): seven more sentences that promised more than the
+// system does. Same file rather than a second suite, because six of the seven
+// are the SAME defect class as the six above -- a screen describing an outcome
+// the backend never produces -- and because a second suite would need its own
+// copy of the EN/HI parity block, which is the drift this file exists to stop.
+//
+// The through-line: every one of these is about the LIVE-SESSION half. This
+// platform is genuinely good at the sign-in half (a rule, consulted before
+// every login, on our own side of the wire) and has almost nothing on the
+// other -- one vendor in `_GUEST_ACCESS_ADAPTERS`, a RADIUS CoA transport
+// measured at zero successes in production, and no scheduled sweep at all.
+// Copy kept quietly borrowing the certainty of the first half for the second.
+// ===========================================================================
+
+const whiteList = stripComments(read("src/components/features/WhiteList.tsx"));
+const operations = stripComments(read("src/components/features/OperationsFeatures.tsx"));
+const fixAProblem = stripComments(read("src/components/customer/FixAProblem.tsx"));
+const qos = stripComments(read("src/components/network/QosManagement.tsx"));
+const liveSessions = stripComments(read("src/components/guests/LiveSessionsTable.tsx"));
+const assistant = stripComments(read("src/components/features/AssistantWidget.tsx"));
+const howItWorks = stripComments(read("src/components/customer/HowItWorksPage.tsx"));
+const guestSvc = stripComments(read("src/services/guest.service.ts"));
+const helpEn = JSON.parse(read("src/lib/i18n/locales/en/help.json"));
+
+// ---------------------------------------------------------------------------
+console.log("\n8. Whitelist-only does not promise a sweep that does not exist");
+// ---------------------------------------------------------------------------
+//
+// The worst of the seven: a TIME-BOUNDED promise ("within a few minutes")
+// about the one half nothing measures. There is no sweep. `celery_app.py`'s
+// beat schedule has three guest-domain tasks -- session timeout, FUP time
+// accrual, quota reset -- and none reads `whitelist_only_enabled`. The only
+// thing that ends a live session from a rule is `BlocklistEnforcer.enforce`,
+// which returns early for anything that is not a BLOCKLIST.
+
+check(
+  "the screen no longer promises already-online guests are disconnected",
+  !/disconnected within a few minutes/i.test(whiteList),
+  "no sweep reads whitelist_only_enabled; BlocklistEnforcer returns early for whitelist rules",
+);
+check(
+  "and makes no time-bounded claim about live sessions at all",
+  !/within (a few|\d+) minutes?/i.test(whiteList),
+  "a different number would be the same invented promise",
+);
+check("it says the list is consulted at sign-in", /checked when someone signs in/.test(whiteList));
+check(
+  "and says plainly that anyone already online stays online",
+  /anyone already online stays online until their session ends/.test(whiteList),
+);
+// The two halves that ARE true keep their full strength. Hedging a true
+// sentence is the same failure as asserting a false one, in the other
+// direction, and this screen's refusal path is genuinely watertight.
+check(
+  "the refusal is still stated without hedging",
+  /refused on that page, in your words/.test(whiteList),
+  "WhitelistOnlyAccessDeniedError really carries the venue's own message",
+);
+check(
+  "the pre-OTP guarantee is still stated without hedging",
+  /never sent a verification code/.test(whiteList),
+  "check_portal_admission refuses before the code is generated",
+);
+
+// ---------------------------------------------------------------------------
+console.log("\n9. Open Hours says what it gates, in the words already settled on");
+// ---------------------------------------------------------------------------
+
+check(
+  "Open Hours no longer says guests are disconnected outside the schedule",
+  !/outside it they are disconnected/.test(operations),
+  "_require_venue_open is called from login paths only; is_open_now is absent from guest/tasks.py",
+);
+check(
+  "it says what guests actually see instead",
+  /see your closed message instead of the sign-in page/.test(operations),
+);
+check(
+  "and reuses LocationPolicies' settled phrasing for the live-session half",
+  /Anyone already online stays online until their session ends/.test(operations),
+);
+// The sentence this one was matched to must still be there to match.
+const locationPolicies = stripComments(read("src/components/features/LocationPolicies.tsx"));
+check(
+  "LocationPolicies still carries the phrasing this was aligned to",
+  /anyone\s+online right now keeps those until then/.test(locationPolicies),
+  "if that sentence moves, these two screens have silently become three phrasings",
+);
+
+// ---------------------------------------------------------------------------
+console.log("\n10. Reset a session reports what happened, per venue");
+// ---------------------------------------------------------------------------
+//
+// `terminate_session` -> `issue_live_disconnect` -> `get_guest_access_adapter`,
+// whose registry is `{"mikrotik": ...}`. At a controller venue the device call
+// cannot happen, and the old copy promised it on every 2xx.
+
+check(
+  "terminateSession no longer discards the backend's answer",
+  /Promise<\{ sessionEnforced: boolean \| null \}>/.test(guestSvc),
+  "disconnect_enforced has always been returned and was always thrown away",
+);
+check(
+  "it reads both envelope shapes, like disconnectSession does",
+  /disconnect_enforced \?\? body\?\.data\?\.disconnect_enforced/.test(guestSvc),
+  "reading only data.disconnect_enforced pins sessionEnforced to null forever",
+);
+check(
+  "Fix a Problem runs the result through the EXISTING ladder",
+  /disconnectOutcome\(\{[\s\S]{0,200}sessionEnforced,/.test(fixAProblem),
+  "a second ladder would be a third honesty pattern",
+);
+check(
+  "it reuses the disconnect verdict rather than inventing a reset capability",
+  /clientControls\.verdict\("disconnect"\)/.test(fixAProblem),
+);
+check(
+  "the confirm dialog no longer promises the device goes, ungated",
+  !/description="They'll be disconnected and sent back to the login page/.test(fixAProblem),
+);
+check(
+  "the promise is gated on the venue actually reaching the device",
+  /resetReachesDevice\s*\?/.test(fixAProblem),
+);
+check(
+  "a MikroTik venue still gets the original sentence verbatim",
+  /They'll be disconnected and sent back to the login page to sign in again\./.test(fixAProblem),
+  "the claim is TRUE on RouterOS; gating must not cost those venues their copy",
+);
+check(
+  "the controller branch does not send an owner to check a router",
+  !/controller-venue[\s\S]{0,400}[Cc]heck the router/.test(fixAProblem),
+  "there is no router at that venue to check, and the retry cannot succeed",
+);
+check(
+  "the success toast no longer asserts the outcome on any 2xx",
+  !/toast\.success\("Done — they'll be sent back to the login page to sign in again\."\)/.test(
+    fixAProblem,
+  ),
+);
+
+// ---------------------------------------------------------------------------
+console.log("\n11. Call Priority claims a mechanism, not a measured outcome");
+// ---------------------------------------------------------------------------
+
+check(
+  "the screen no longer promises calls stay clear",
+  !/calls stay clear/.test(qos),
+  "throughput was never measured; CAPABILITY-MATRIX §10.4",
+);
+check("it says what the rule does instead", /changes the order traffic is sent in/.test(qos));
+check(
+  "and names the limit the owner would otherwise discover the hard way",
+  /cannot add capacity your internet line does not have/.test(qos),
+);
+// The gate question the brief asked, pinned as ANSWERED rather than re-solved:
+// this screen is already not offered at a controller venue, so no second
+// vendor check belongs inside it.
+const routerVendors = stripComments(read("src/lib/router-vendors.ts"));
+check(
+  "Call Priority is still gated out of controller venues one layer up",
+  /CONTROLLER_UNSUPPORTED_FEATURE_IDS[\s\S]{0,200}"voip"/.test(routerVendors),
+  "if voip leaves that list, this screen starts rendering at venues with no RouterOS queue",
+);
+check(
+  "so the screen itself grew no second vendor check",
+  !/isControllerManaged|controllerManaged/.test(qos),
+  "two gates on one fact drift; the outer one already refuses to mount this",
+);
+check(
+  "the help page's voip line drops the same promise",
+  !/calls stay clear/.test(helpEn.feature.voip),
+);
+
+// ---------------------------------------------------------------------------
+console.log("\n12. The How-it-works page answers for THIS venue");
+// ---------------------------------------------------------------------------
+//
+// This page renders the sidebar's own expression so the two cannot drift --
+// but it had never picked up the sidebar's controller gate, so at an Omada
+// venue the one screen whose job is "what can I do here" was the last one
+// still answering for a MikroTik.
+
+check(
+  "the page applies the sidebar's controller gate",
+  /featureAppliesToControllerVenue\(item\.id\)/.test(howItWorks),
+);
+check(
+  "using the shared reason string, not a new sentence",
+  /controllerVenueFeatureReason/.test(howItWorks),
+  "a third phrasing of 'configured in Omada' is a third thing to keep true",
+);
+check(
+  "the gated rows are muted rather than removed",
+  /viaController && "opacity-60"/.test(howItWorks),
+  "an absence cannot be asked why -- CustomerSidebar's own reasoning",
+);
+check(
+  "and the group note is shown only where something in it is gated",
+  /group\.items\.some\(\(item\) => !featureAppliesToControllerVenue\(item\.id\)\)/.test(howItWorks),
+);
+check(
+  "a MikroTik venue reaches none of it",
+  /controllerManaged\s*\n?\s*\?\s*!featureAppliesToControllerVenue/.test(howItWorks),
+);
+// The four rewritten sentences, by the fact each one was wrong about.
+check("the DHCP line no longer assumes a router of ours", !/your router/.test(helpEn.feature.dhcp));
+check(
+  "the policies line calls the speed a cap",
+  /speed cap/.test(helpEn.feature.policies),
+  "a speed is a cap, not a promise -- throughput was never measured",
+);
+check(
+  "and scopes it to the next session rather than every guest",
+  /next session starts under/.test(helpEn.feature.policies) &&
+    !/every guest connects under/.test(helpEn.feature.policies),
+  "LocationPolicies' own footer says these apply the next time each guest connects",
+);
+check(
+  "the users line does not promise the device goes",
+  /end someone's session/.test(helpEn.feature.users) &&
+    !/disconnect someone/.test(helpEn.feature.users),
+);
+check(
+  "the website-blocking line describes the rule, not a guaranteed outcome",
+  !/guests can't reach/.test(helpEn.feature["website-blocking"]),
+);
+// Found in passing, and the same defect as section 9.
+check(
+  "the business-hours line says sign in, not stay online",
+  /can sign in/.test(helpEn.feature["business-hours"]) &&
+    !/can stay online/.test(helpEn.feature["business-hours"]),
+  "Open Hours never ends a session that is already running",
+);
+
+// ---------------------------------------------------------------------------
+console.log("\n13. Terminate and Block describe the lockout they actually impose");
+// ---------------------------------------------------------------------------
+//
+// The cooldown is REAL -- `TERMINATION_RECONNECT_COOLDOWN_MINUTES = 60` -- and
+// really enforced, but only inside `reconnect()`, the admin route behind
+// `guest_sessions.execute`. No guest-facing login path consults it.
+
+check(
+  "Terminate no longer describes the cooldown as the guest's",
+  !/imposes a 60-minute reconnect cooldown for this guest/.test(liveSessions),
+  "the guest can sign in again on the portal immediately; only our Reconnect is held",
+);
+check(
+  "it keeps the real number",
+  /60 minutes/.test(liveSessions),
+  "the constant is 60 and is genuinely enforced -- the scope was wrong, not the value",
+);
+check("it names what is actually held", /blocks the dashboard's Reconnect/.test(liveSessions));
+check(
+  "and says plainly what is NOT held",
+  /does not stop them signing in again on the WiFi login page/.test(liveSessions),
+);
+check(
+  "the assistant no longer says a block prevents reconnecting",
+  !/prevents reconnecting/.test(assistant),
+  "a blocked guest can rejoin the SSID and reach the portal; what they cannot do is get through it",
+);
+check(
+  "it says the sign-in half, which is ours and certain",
+  /stops them signing in again until you unblock them, on any device/.test(assistant),
+);
+check(
+  "the session half is ATTEMPTED, in the same words BlockUsers uses",
+  /tries to end the session they have right now/.test(assistant),
+);
+check(
+  "and it points at the screen that reports what actually happened",
+  /the screen tells you whether that worked/.test(assistant),
+);
+check(
+  "Disconnect's description is unchanged, because it was true",
+  /ends just their current session/.test(assistant),
+  "one session versus a standing rule is exactly the two backend routes",
+);
+
+// ---------------------------------------------------------------------------
+console.log("\n14. Nothing in this pass claims a block cuts off a live guest");
+// ---------------------------------------------------------------------------
+//
+// The single rule the backend states in its own words, swept across every
+// screen this change touched rather than asserted once where it was easy.
+
+for (const [name, src] of [
+  ["WhiteList.tsx", whiteList],
+  ["OperationsFeatures.tsx", operations],
+  ["FixAProblem.tsx", fixAProblem],
+  ["LiveSessionsTable.tsx", liveSessions],
+  ["AssistantWidget.tsx", assistant],
+  ["QosManagement.tsx", qos],
+]) {
+  check(
+    `${name} makes no immediate-cutoff claim`,
+    !/(cut|kick)(s|ting)? (them|him|her|the guest|anyone|a guest) off|immediately disconnect|disconnected immediately/i.test(
+      src,
+    ),
+  );
 }
 
 console.log(

@@ -76,8 +76,35 @@ const DEMO_LOCATION_KEYWORDS = [
 const DEMO_TEAM_KEYWORDS = ["team", "staff", "invite", "teammate", "role", "permission"];
 const DEMO_WIFI_KEYWORDS = ["wifi", "wi-fi", "password", "connect", "internet", "network", "login"];
 
+/**
+ * "Block (prevents reconnecting until unblocked)" overstated the stronger of
+ * the two, and in the direction that gets acted on.
+ *
+ * What a block really is, in two halves the backend keeps separate:
+ *   1. a `guest_access_rules` row, consulted by `_enforce_access_control` ->
+ *      `check_access` before every OTP, voucher, password and MAC login. This
+ *      half is ours, it is certain, and it is what actually refuses the
+ *      person -- on any device.
+ *   2. an ATTEMPT on their live session and their device, whose outcome is
+ *      reported on `enforcement_status`/`sessions_ended` and which reaches
+ *      only MikroTik venues.
+ * "Prevents reconnecting" reads as (2) and is only true of (1). A guest can
+ * reconnect to the SSID and land on the portal all day; what they cannot do
+ * is get through it. And per CAPABILITY-MATRIX §10.5, a device-level block is
+ * a deterrent rather than a lock, because phones randomize their MAC.
+ *
+ * Nothing here may say what a block does to a guest who is online RIGHT NOW
+ * -- §10.6 is unmeasured and the provider module says so in its own words. So
+ * this sentence says the sign-in half plainly and stops, exactly as
+ * `BlockUsers.tsx`'s headline does, and points at the screen whose outcome
+ * ladder is allowed to report what actually happened.
+ *
+ * "Disconnect (ends just their current session)" was TRUE AS WRITTEN and is
+ * kept: the contrast it draws -- one session versus a standing rule -- is
+ * precisely the distinction between the two backend routes.
+ */
 const DEMO_GUEST_MANAGEMENT_REPLY =
-  "You can block a guest from the Guests or Connected Devices section of your dashboard -- open the entry and choose Block (prevents reconnecting until unblocked) or Disconnect (ends just their current session).";
+  "You can block a guest from the Guests or Connected Devices section of your dashboard — open the entry and choose Block (stops them signing in again until you unblock them, on any device) or Disconnect (ends just their current session). Blocking also tries to end the session they have right now; the screen tells you whether that worked.";
 const DEMO_ROUTER_STATUS_REPLY =
   "Router status is based on its last heartbeat -- check the Routers page for the last-seen time. An offline router usually means a power or internet-uplink problem; it reconnects automatically once that's fixed.";
 const DEMO_VOUCHER_CREATE_REPLY =
