@@ -493,23 +493,32 @@ export function clientControlVerdict(
           needsOpenApi("set guest speeds", vendor),
         );
       }
-      // THE ONE THAT WAS SILENTLY DOING NOTHING.
+      // WE COULD NOT ASK -- WHICH IS NOT THE SAME AS "IT CANNOT WORK".
       //
-      // A speed saved here becomes a BANDWIDTH policy, and the only thing on
-      // this platform that consumes one is `queue_management`, which writes
-      // RouterOS `/queue simple`. There is no queue on a controller and no
-      // adapter registered for one, so the number was stored, read back,
-      // displayed as active, and never reached a device. Naming the
-      // alternative matters as much as naming the gap: the controller can cap
-      // the guest network as a whole (CAPABILITY-MATRIX §2.4), which is a real
-      // thing an owner can have today by asking.
+      // This branch used to assert that "a speed set here would never reach
+      // anybody's device", on the reasoning that the only consumer of a
+      // BANDWIDTH policy was `queue_management` writing RouterOS
+      // `/queue simple`, which a controller has no equivalent of. That was
+      // true when it was written and is not true now: cloud-guest #270 routes
+      // a controller-managed router to its controller, and per-client rate
+      // limiting is measured working on real hardware (CAPABILITY-MATRIX
+      // §3.1) -- accepted, stored, changed at runtime and cleared.
+      //
+      // It is also the WRONG BRANCH to have said it in. `capabilities` is
+      // null when the read 404'd or did not come back, so the honest
+      // statement is that we could not ask -- exactly what `block-device` and
+      // every per-device action already say here. Stating an impossibility
+      // instead blamed a customer's controller for a gap on our side, which
+      // is the copy that gets the controller replaced rather than the gap
+      // closed, and it is now false as well as unearned.
+      //
+      // Where the controller genuinely cannot do it -- an `auth_mode: legacy`
+      // venue, which CAPABILITY-MATRIX §10.1 puts beyond per-client throttling
+      // altogether -- the branch above says so in the backend's own words.
       return {
         control,
         availability: "unavailable",
-        reason:
-          `Guest speeds are applied by the venue's router, and this venue's WiFi runs on ` +
-          `${controllerNoun(vendor)} instead — a speed set here would never reach anybody's ` +
-          "device. Your Wyfy Guest contact can cap the guest network on the controller for you.",
+        reason: couldNotAsk("setting guest speeds", vendor),
       };
     }
 
@@ -532,14 +541,20 @@ export function clientControlVerdict(
           needsOpenApi("give a tier its own speed", vendor),
         );
       }
+      // The same correction as `speed-limit` above, for the same reason and in
+      // the same branch. Both halves of one ladder said "would never reach
+      // anybody's device" where the truth is "we could not ask", and fixing
+      // only the screen that prompted this report would leave the second copy
+      // to drift -- which is the failure this module exists to prevent.
+      //
+      // The second sentence survives because it is still true and still the
+      // useful half: the rest of a tier is platform-side and works here.
       return {
         control,
         availability: "unavailable",
         reason:
-          `A tier's speed is applied by the venue's router when a guest signs in, and this ` +
-          `venue's WiFi runs on ${controllerNoun(vendor)} instead — a speed set here would ` +
-          "never reach anybody's device. Everything else about a tier still applies: how long " +
-          "guests get, how many devices, and their daily limit.",
+          `${couldNotAsk("giving a tier its own speed", vendor)} Everything else about a tier ` +
+          "still applies: how long guests get, how many devices, and their daily limit.",
       };
     }
 
