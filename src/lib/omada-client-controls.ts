@@ -43,6 +43,29 @@
  * live and the half is said out loud -- which is what `block-outcome.ts` does
  * after the fact, and what this does before the click.
  *
+ * A CAPABILITY IS NOT A HEARTBEAT (cloud-guest #289)
+ * --------------------------------------------------
+ * The declaration above answers "can this venue ever do X". The backend
+ * computes it from the integration's `auth_mode` and contacts nothing, which
+ * is correct -- this console asks on every render, and a controller round trip
+ * per painted button is not a thing to add to a render path.
+ *
+ * It was also being read as "will X work if I click it", which it cannot
+ * answer. At an `openapi` venue every capability is supported by construction,
+ * whether the controller is alive, unreachable, or switched off at the wall.
+ * So a venue whose controller had been dark for a day saw a fully enabled
+ * Bandwidth control and no notice at all -- while the honest sentence for
+ * exactly that situation already existed a few lines below and read correctly.
+ * It was wired to the wrong trigger: it fired only when OUR OWN capabilities
+ * read failed.
+ *
+ * `ControllerVenueFacts.controller` is the second answer, and
+ * `controllerIsAnswering` is where it is consulted -- once, at the top of each
+ * of the two exported functions, normalizing a dark controller into the "we
+ * could not ask" state this ladder already handles for every control. No new
+ * copy, no second vocabulary, and no per-capability liveness flag: whether a
+ * connection is answering is a fact about the connection, not about one verb.
+ *
  * WHY IT IS PURE AND DEPENDENCY-LIGHT
  * -----------------------------------
  * Same reason as `omada-disconnect.ts`: `scripts/test-omada-client-controls.mjs`
@@ -225,6 +248,61 @@ export function capabilityIsSupported(
   return capability?.supported === true;
 }
 
+/**
+ * Whether this venue's controller is ANSWERING -- a different question from
+ * any capability above, and the one that was missing.
+ *
+ * A capability is computed by the backend from the integration's `auth_mode`
+ * and contacts nothing. That is correct for "can this venue ever do X" (this
+ * console asks on every render and must not make a controller round trip to
+ * paint a button) and it cannot answer "is X going to work if I click it".
+ * An `openapi` venue reports every action supported while its controller is
+ * unplugged, so the Bandwidth control rendered fully live and the venue saw
+ * no notice at all.
+ *
+ * `reachable` mirrors backend #289's `controller` block and is TRI-STATE:
+ *
+ *  - `true`   a real call reached the controller recently and worked.
+ *  - `false`  a recent check did not get through.
+ *  - `null`   nobody has looked recently enough to say -- the check has never
+ *             run, or it has stopped running.
+ *
+ * `false` and `null` are different facts and the backend keeps them apart, but
+ * to a control that needs the controller they mean the same thing: we cannot
+ * promise this will work. Only `true` enables.
+ */
+export interface ControllerLiveness {
+  reachable: boolean | null;
+  /** ISO timestamp of that check, or null when none has ever run. */
+  checkedAt: string | null;
+  /** The backend's sentence for a non-`true` state. Not rendered by this
+   * module -- see `controllerIsAnswering` -- but carried so a screen that
+   * wants to show WHEN we last looked has it. */
+  reason: string | null;
+}
+
+/**
+ * Does the backend say this venue's controller is answering?
+ *
+ * ABSENCE IS NOT A REFUSAL, and this is the one place that distinction is
+ * made. A build of this console can be pointed at a backend older than #289,
+ * which sends no `controller` block at all; that is "nothing told us about
+ * liveness", and it must leave every venue exactly as it is today rather than
+ * grey every controller-dependent control in the fleet on the strength of a
+ * field nobody sent. So a MISSING object answers `true` (carry on), while a
+ * PRESENT object whose `reachable` is not `true` answers `false`.
+ *
+ * The asymmetry with `capabilityIsSupported` above -- which defaults to "we
+ * cannot" -- is deliberate and is the opposite trade for a reason. There, a
+ * missing field would put a live button in front of an owner. Here, a missing
+ * field would take working controls away from every venue on an older
+ * backend. In both cases the default is the one that cannot invent a claim.
+ */
+export function controllerIsAnswering(controller: ControllerLiveness | undefined | null): boolean {
+  if (!controller) return true;
+  return controller.reachable === true;
+}
+
 /** The backend's own sentence, or null. Never a paraphrase, and never a
  * non-empty string for a capability that IS supported -- rendering a warning
  * beside a working control is how a console teaches owners to ignore them. */
@@ -261,6 +339,15 @@ export interface ControllerVenueFacts {
    * asked and the answer was no", and they get different sentences below.
    */
   capabilities: ControllerClientCapabilities | null;
+  /**
+   * Whether that controller is currently answering, or `null`/absent when the
+   * backend did not say (see `controllerIsAnswering`).
+   *
+   * Optional so a build talking to a pre-#289 backend keeps every venue
+   * exactly as it is today rather than degrading the whole fleet on a field
+   * nobody sent.
+   */
+  controller?: ControllerLiveness | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -410,7 +497,24 @@ export function clientControlVerdict(
 ): ClientControlVerdict {
   if (!venue.controllerManaged) return AVAILABLE(control);
 
-  const { vendor, capabilities } = venue;
+  const { vendor } = venue;
+  // A CONTROLLER THAT IS NOT ANSWERING READS AS "WE COULD NOT ASK".
+  //
+  // This one line is the whole of the fix, and it is a normalization rather
+  // than a branch in each case below because "we could not ask" is ALREADY a
+  // state this ladder handles, in a venue owner's words, for every control:
+  // `couldNotAsk` for the three that need a device write, and the honest
+  // `qualified` half-sentences for disconnect and session timeout, whose
+  // platform halves are real whatever the controller is doing. The copy QA
+  // confirmed reads correctly was wired to the wrong trigger -- it fired only
+  // when OUR OWN capabilities read failed -- and this puts a dark controller
+  // on the same path instead of inventing a second vocabulary for it.
+  //
+  // Deliberately NOT keyed on any individual capability: liveness is a fact
+  // about the connection, not about one verb, and the backend is the
+  // authority on both. `block-signin` is untouched below because it is a row
+  // in our own database and needs no controller at all.
+  const capabilities = controllerIsAnswering(venue.controller) ? venue.capabilities : null;
   /** The backend's own sentence for a refused capability, or our fallback
    * when it declined to give one. Never our sentence over its one. */
   const refused = (
@@ -625,7 +729,14 @@ export function deviceActionVerdict(
   if (!venue.controllerManaged) {
     return { control: action, availability: "available", reason: null };
   }
-  const { vendor, capabilities } = venue;
+  const { vendor } = venue;
+  // The same normalization as the ladder above, and it must be here too: all
+  // four of these buttons are a write to the controller and NONE of them has
+  // a platform-side half to fall back on, so a dark controller makes every
+  // one of them unpressable rather than merely qualified. Reached through the
+  // existing `!capabilities` branch, which already says "we could not ask"
+  // with the right noun for each action.
+  const capabilities = controllerIsAnswering(venue.controller) ? venue.capabilities : null;
   if (!capabilities) {
     return {
       control: action,
@@ -668,7 +779,14 @@ export function deviceActionVerdict(
  *
  * `applied*` and `requested*` are separate because they differ: a controller
  * that holds a limit as a bounded number plus a Kbps/Mbps unit cannot express
- * every kbps value, so 1500 kbps is applied as 2 Mbps. `clamped` says so.
+ * every kbps value, so 1500 kbps is sent as 1 Mbps. `clamped` says so.
+ *
+ * ROUNDED DOWN, NEVER UP (backend #288). This used to read "1500 kbps is
+ * applied as 2 Mbps", which was accurate about a backend that rounded to
+ * nearest -- a 2000 kbps cap for a venue that asked for 1500, reachable from
+ * any saved speed profile. A cap that comes back above the number an owner
+ * typed is not a cap, so the encoding now floors and the shortfall is
+ * reported through `clamped` rather than hidden.
  *
  * `null` on a direction means UNLIMITED in that direction. It is not zero and
  * it is not unknown.
@@ -680,6 +798,17 @@ export interface ClientRateLimitFacts {
   requestedDownKbps: number | null;
   requestedUpKbps: number | null;
   clamped: boolean;
+  /**
+   * Whether `applied*` was READ BACK from the controller, or is just what we
+   * encoded and sent. **False on every Omada venue**, because that
+   * controller's Open API exposes a per-client rate-limit write and no
+   * matching read (backend #288).
+   *
+   * So copy about these numbers says what was SET, never what was confirmed.
+   * The distinction matters for the same reason `performed` does below: the
+   * controller accepting a call is not the controller holding the value.
+   */
+  readBack: boolean;
 }
 
 /**

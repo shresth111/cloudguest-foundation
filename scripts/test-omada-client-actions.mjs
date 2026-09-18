@@ -141,7 +141,8 @@ st.next = {
   disconnect: { supported: true, reason: null },
   client_stats: { supported: false, reason: LEGACY_REASON },
 };
-let caps = await svc.readCapabilities(LOC);
+let read = await svc.readCapabilities(LOC);
+let caps = read.capabilities;
 eq(
   "the capabilities path is venue-scoped",
   st.calls[0].url,
@@ -162,7 +163,8 @@ eq("list_blocked is reported, and false", caps.listBlocked.supported, false);
 // A body that says nothing at all. Every answer must be "we cannot".
 reset();
 st.next = {};
-caps = await svc.readCapabilities(LOC);
+read = await svc.readCapabilities(LOC);
+caps = read.capabilities;
 for (const key of [
   "setRateLimit",
   "clearRateLimit",
@@ -178,7 +180,8 @@ for (const key of [
 // Truthy-but-not-true must not read as supported either.
 reset();
 st.next = { block: { supported: "yes" }, disconnect: { supported: 1 } };
-caps = await svc.readCapabilities(LOC);
+read = await svc.readCapabilities(LOC);
+caps = read.capabilities;
 eq("a string does not count as supported", caps.block.supported, false);
 eq("a number does not count as supported", caps.disconnect.supported, false);
 
@@ -190,11 +193,73 @@ st.next = {
   success: true,
   message: "Client capabilities",
 };
-caps = await svc.readCapabilities(LOC);
+read = await svc.readCapabilities(LOC);
+caps = read.capabilities;
 eq(
   "the envelope is not unwrapped a second time",
   caps.block.supported,
   false, // `data.block` is undefined on this (already-unwrapped-looking) body
+);
+
+// --- the `controller` block (backend #289) --------------------------
+//
+// A SECOND, SEPARATE ANSWER, and the reason this read returns a pair. The
+// capabilities above are computed from the venue's `auth_mode` and stay true
+// while its controller is unplugged; this says whether a real call reached it
+// recently. Collapsing the two is the defect #289 fixed.
+reset();
+st.next = {
+  set_rate_limit: { supported: true, reason: null },
+  controller: {
+    reachable: false,
+    checked_at: "2026-09-18T12:00:00Z",
+    reason: "The last check of this venue's controller did not get through.",
+  },
+};
+read = await svc.readCapabilities(LOC);
+eq("the controller block is parsed", read.controller.reachable, false);
+eq("its timestamp comes through", read.controller.checkedAt, "2026-09-18T12:00:00Z");
+check("its sentence comes through", !!read.controller.reason);
+eq("and the capability beside it still says yes", read.capabilities.setRateLimit.supported, true);
+
+// `reachable: null` is a real answer -- "nobody has looked recently enough to
+// say" -- and is NOT the same as the field being absent.
+reset();
+st.next = { controller: { reachable: null, checked_at: null, reason: "not checked yet" } };
+read = await svc.readCapabilities(LOC);
+check("an answered-but-unknown liveness is an object, not null", read.controller !== null);
+eq("and its reachable is null", read.controller.reachable, null);
+
+// NO `controller` BLOCK AT ALL -> null. A build talking to a backend older
+// than #289 must be able to tell "nobody sent liveness" from "liveness says
+// unknown": the first leaves every venue as it is, the second degrades it.
+// Returning an object either way would grey the whole fleet on an old backend.
+reset();
+st.next = { block: { supported: true, reason: null } };
+read = await svc.readCapabilities(LOC);
+eq("an absent controller block is null, not an unknown object", read.controller, null);
+
+// Junk on the wire is not a state this product has.
+reset();
+st.next = { controller: { reachable: "maybe" } };
+read = await svc.readCapabilities(LOC);
+eq("a string reachable coerces to unknown", read.controller.reachable, null);
+
+// `read_back` defaults to FALSE, like every capability, and for the same
+// reason: "we confirmed this with the controller" is not a claim to make on a
+// field nobody sent. It is false on every Omada venue anyway -- that
+// controller has a rate-limit write and no matching read.
+reset();
+st.next = {
+  action: "set_rate_limit",
+  performed: true,
+  client_mac: MAC,
+  rate_limit: { enabled: true },
+};
+eq(
+  "read_back defaults to false when the backend did not say",
+  (await svc.setSpeed(LOC, MAC, { downKbps: 5000 })).rateLimit.readBack,
+  false,
 );
 
 // A 404 is "this location has no controller", which the backend makes
