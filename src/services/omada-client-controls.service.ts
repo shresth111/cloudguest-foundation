@@ -53,6 +53,7 @@ import type {
   ClientRateLimitFacts,
   ControllerClientCapabilities,
   ControllerClientCapability,
+  ControllerLiveness,
 } from "@/lib/omada-client-controls";
 
 /**
@@ -86,7 +87,15 @@ interface RawCapability {
   reason?: unknown;
 }
 
-/** snake_case, exactly as #270's `ClientCapabilitiesResponse` writes it. */
+/** snake_case, exactly as #289's `ControllerLivenessView` writes it. */
+interface RawLiveness {
+  reachable?: unknown;
+  checked_at?: unknown;
+  reason?: unknown;
+}
+
+/** snake_case, exactly as #270's `ClientCapabilitiesResponse` writes it,
+ * plus the `controller` block #289 added beside it. */
 interface RawCapabilities {
   set_rate_limit?: RawCapability;
   clear_rate_limit?: RawCapability;
@@ -95,6 +104,7 @@ interface RawCapabilities {
   list_blocked?: RawCapability;
   disconnect?: RawCapability;
   client_stats?: RawCapability;
+  controller?: RawLiveness | null;
 }
 
 /** snake_case, exactly as #270's `ClientRateLimitView` writes it. */
@@ -105,6 +115,7 @@ interface RawRateLimit {
   requested_down_kbps?: unknown;
   requested_up_kbps?: unknown;
   clamped?: unknown;
+  read_back?: unknown;
 }
 
 /** snake_case, exactly as #270's `ClientActionResponse` writes it. */
@@ -154,6 +165,29 @@ function toCapabilities(payload: RawCapabilities | null | undefined): Controller
   };
 }
 
+/**
+ * The `controller` block, or `null` WHEN THE BACKEND DID NOT SEND ONE.
+ *
+ * The null is load-bearing and is not the same as `{reachable: null}`. A build
+ * of this console can talk to a backend older than #289, which has no liveness
+ * to report; that must leave every venue as it is today (see
+ * `controllerIsAnswering`), whereas a backend that DID answer and said
+ * `reachable: null` is telling us nobody has looked recently, which degrades
+ * the control. Returning an object either way would collapse the two and grey
+ * the whole fleet on an older backend.
+ *
+ * `reachable` is only ever `true`/`false`/`null` -- anything else on the wire
+ * (a string, a number) is not a state this product has, and reading it as
+ * `null` is the honest coercion: we do not know.
+ */
+function toLiveness(raw: RawLiveness | null | undefined): ControllerLiveness | null {
+  if (!raw || typeof raw !== "object") return null;
+  const reachable = typeof raw.reachable === "boolean" ? raw.reachable : null;
+  const checkedAt = typeof raw.checked_at === "string" ? raw.checked_at : null;
+  const reason = typeof raw.reason === "string" ? raw.reason.trim() : "";
+  return { reachable, checkedAt, reason: reason ? reason : null };
+}
+
 /** A number the backend actually sent, or `null`. `null` on a direction means
  * unlimited -- it is not zero and it is not unknown, and coercing it to 0
  * would render as "stopped". */
@@ -170,6 +204,11 @@ function toRateLimit(raw: RawRateLimit | null | undefined): ClientRateLimitFacts
     requestedDownKbps: toKbps(raw.requested_down_kbps),
     requestedUpKbps: toKbps(raw.requested_up_kbps),
     clamped: raw.clamped === true,
+    // Defaults to FALSE, like every capability above and for the same reason:
+    // a missing field means this build's backend did not say it read anything
+    // back, and "we confirmed this with the controller" is not a claim to make
+    // on a field nobody sent.
+    readBack: raw.read_back === true,
   };
 }
 
@@ -233,26 +272,48 @@ export type ClientSpeedRequest =
   | { queueProfileId: string }
   | { downKbps?: number; upKbps?: number };
 
+/**
+ * The capabilities read, which answers two separate questions.
+ *
+ * A pair rather than one flattened object so that neither can be mistaken for
+ * the other at a call site: `capabilities` is "can this venue ever", computed
+ * from configuration and true while the hardware is off; `controller` is "is
+ * it answering", an observation with a timestamp that goes stale. The whole
+ * of backend #289 is that those had been collapsed into one.
+ */
+export interface ControllerCapabilitiesRead {
+  capabilities: ControllerClientCapabilities;
+  /** `null` when the backend sent no liveness at all -- see `toLiveness`. */
+  controller: ControllerLiveness | null;
+}
+
 export const omadaClientControlsService = {
   /**
-   * What this venue's controller can be asked to do, or `null` when nothing
-   * has told us.
+   * What this venue's controller can be asked to do AND whether it is
+   * answering -- or `null` when nothing has told us either.
    *
    * `null` is a first-class answer, not an error case: the verdict ladder has
    * a branch for it that produces honest copy, so a caller must never coalesce
    * it into an all-unsupported capabilities object, which would read as "the
    * controller refused" rather than "we could not ask".
    *
-   * Contacts no hardware on the backend side -- the answer comes from the
-   * integration's own auth mode -- so it is safe to call while rendering.
+   * TWO ANSWERS, NOT ONE, AND THEY ARE KEPT APART ON PURPOSE. `capabilities`
+   * says what this venue is configured to be able to do and stays true while
+   * its controller is unplugged; `controller` says whether a real call reached
+   * it recently. Reading the first as the second is the defect #289 fixed on
+   * the backend, and it is why this returns a pair rather than a merged object.
+   *
+   * Contacts no hardware on the backend side -- the capabilities come from the
+   * integration's own auth mode and the liveness from the background sync's
+   * cached result -- so it is still safe to call while rendering.
    */
-  async readCapabilities(locationId: string): Promise<ControllerClientCapabilities | null> {
+  async readCapabilities(locationId: string): Promise<ControllerCapabilitiesRead | null> {
     try {
       const { data } = await api.get<RawCapabilities | null>(
         `${BASE(locationId)}/capabilities`,
         await orgHeaders(locationId),
       );
-      return toCapabilities(data);
+      return { capabilities: toCapabilities(data), controller: toLiveness(data?.controller) };
     } catch (error) {
       if (isNotFound(error)) return null;
       throw error;

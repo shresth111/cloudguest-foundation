@@ -176,6 +176,33 @@ const CONTROLLER_LEGACY = {
 // A venue summary persisted by a build that predated `RouterLiveness.vendor`.
 const CONTROLLER_NO_VENDOR = { controllerManaged: true, vendor: null, capabilities: null };
 
+// The same fully-capable Open API venue as above, with the `controller` block
+// backend #289 added. Every capability still says yes -- they are computed
+// from `auth_mode` and cannot say anything else -- and the controller is dark.
+// This is the venue the whole of section 10 is about.
+const live = (reachable, reason) => ({
+  reachable,
+  checkedAt: reachable === null ? null : "2026-09-18T12:00:00Z",
+  reason,
+});
+const CONTROLLER_DARK = {
+  ...CONTROLLER_OPENAPI,
+  controller: live(false, "The last check of this venue's controller did not get through."),
+};
+// The backend answered, and said nobody has looked recently enough to know.
+// A DIFFERENT fact from "we looked and it was down", and the backend keeps
+// them apart -- but to a control that needs the controller they mean the same
+// thing, and both must degrade.
+const CONTROLLER_UNCHECKED = {
+  ...CONTROLLER_OPENAPI,
+  controller: live(null, "This venue's controller has not been checked yet."),
+};
+// The controller is answering. Nothing may change for this venue.
+const CONTROLLER_ANSWERING = { ...CONTROLLER_OPENAPI, controller: live(true, null) };
+// A backend older than #289: no `controller` block at all. Must behave
+// EXACTLY like CONTROLLER_OPENAPI, or an older deployment loses its controls.
+const CONTROLLER_NO_LIVENESS = { ...CONTROLLER_OPENAPI, controller: null };
+
 const noun = (n) => (n === 1 ? "number" : "numbers");
 const rule = (over) => ({
   kind: "identifier",
@@ -778,6 +805,126 @@ for (const sessionEnforced of [true, false, null]) {
     );
   }
 }
+
+// =====================================================================
+console.log("\n10. a capability is not a heartbeat: a dark controller degrades its controls");
+// =====================================================================
+// THE DEFECT. `client_capabilities` is computed by the backend from the
+// integration's `auth_mode` and contacts nothing, so at an `openapi` venue it
+// reports every action supported whether the controller is alive, unreachable
+// or switched off at the wall. This console read that as "it will work", left
+// the Bandwidth control fully enabled, and showed the venue no notice at all.
+//
+// The honest copy already existed and already read correctly -- it was wired
+// to the wrong trigger, firing only when OUR OWN capabilities read failed.
+// Backend #289 added a `controller` block that says whether a real call
+// reached the venue's controller recently; these assertions pin that a venue
+// whose controller is dark lands on that existing path.
+
+// The three controls that need a device write go from live to greyed-and-named.
+for (const [label, venue] of [
+  ["a controller that did not answer", CONTROLLER_DARK],
+  ["a controller nobody has checked", CONTROLLER_UNCHECKED],
+]) {
+  for (const control of ["speed-limit", "speed-profile", "block-device"]) {
+    const dark = clientControlVerdict(control, venue);
+    const answering = clientControlVerdict(control, CONTROLLER_ANSWERING);
+    // The capability says yes in BOTH cases -- that is the point.
+    check(
+      `${control} is declared supported either way (${label})`,
+      venue.capabilities.setRateLimit.supported && venue.capabilities.block.supported,
+    );
+    eq(`${control} is not usable with ${label}`, dark.availability, "unavailable");
+    check(`${control} is named, not merely greyed (${label})`, !!dark.reason);
+    check(`${control} is not submittable (${label})`, !controlIsUsable(dark));
+    // ...and it WAS usable when the controller was answering, so this is a
+    // real difference and not a control that was already off.
+    check(`${control} is usable when the controller answers`, controlIsUsable(answering));
+  }
+}
+
+// The sentence is the one QA confirmed reads correctly, unchanged, and it is
+// the SAME sentence a venue gets when our own read fails -- one vocabulary for
+// "we could not ask", not two.
+eq(
+  "a dark controller gets the same Bandwidth sentence as an unreadable one",
+  clientControlVerdict("speed-limit", CONTROLLER_DARK).reason,
+  clientControlVerdict("speed-limit", CONTROLLER_UNKNOWN).reason,
+);
+check(
+  "that sentence does not blame the venue's hardware",
+  /couldn't reach its connection to check/.test(
+    clientControlVerdict("speed-limit", CONTROLLER_DARK).reason,
+  ),
+);
+
+// The controls that DO NOT need the controller keep working. Greying these
+// would take away the halves of the product that are whole.
+eq(
+  "blocking a sign-in still works with a dark controller -- it is our own row",
+  clientControlVerdict("block-signin", CONTROLLER_DARK).availability,
+  "available",
+);
+for (const control of ["disconnect", "session-timeout"]) {
+  const v = clientControlVerdict(control, CONTROLLER_DARK);
+  // `qualified`, never `unavailable`: Wyfy still ends the session and the
+  // guest still has to sign in again. Only the device half is uncertain.
+  eq(`${control} stays live but qualified with a dark controller`, v.availability, "qualified");
+  check(`${control} says which half is uncertain`, !!v.reason);
+  check(`${control} is still usable`, controlIsUsable(v));
+}
+
+// All four per-device buttons are a controller write with no platform-side
+// half, so every one of them is unpressable and named.
+for (const action of ["block", "unblock", "speed", "speed-clear"]) {
+  const v = deviceActionVerdict(action, CONTROLLER_DARK);
+  eq(`the ${action} button is not pressable with a dark controller`, v.availability, "unavailable");
+  check(`the ${action} button says why`, !!v.reason);
+}
+
+// A MIKROTIK VENUE CANNOT REACH ANY OF THIS. The early return is first in
+// both functions, so liveness is never consulted -- asserted positively, with
+// a liveness object deliberately present and false.
+const MIKROTIK_WITH_DARK = { ...MIKROTIK, controller: live(false, "ignored") };
+for (const control of CLIENT_CONTROL_IDS) {
+  const v = clientControlVerdict(control, MIKROTIK_WITH_DARK);
+  eq(
+    `${control} is untouched at a MikroTik venue even with liveness present`,
+    v.availability,
+    "available",
+  );
+  eq(`${control} still carries no reason at a MikroTik venue`, v.reason, null);
+}
+for (const action of ["block", "unblock", "speed", "speed-clear"]) {
+  eq(
+    `the ${action} button is untouched at a MikroTik venue`,
+    deviceActionVerdict(action, MIKROTIK_WITH_DARK).availability,
+    "available",
+  );
+}
+
+// AN OLDER BACKEND LOSES NOTHING. A build pointed at a backend before #289
+// receives no `controller` block, and absence is not a refusal -- greying the
+// fleet on a field nobody sent would be the same class of unearned claim in
+// the opposite direction.
+for (const control of CLIENT_CONTROL_IDS) {
+  eq(
+    `${control} is identical with no liveness reported (pre-#289 backend)`,
+    JSON.stringify(clientControlVerdict(control, CONTROLLER_NO_LIVENESS)),
+    JSON.stringify(clientControlVerdict(control, CONTROLLER_OPENAPI)),
+  );
+}
+
+// A LEGACY VENUE IS STILL REFUSED IN THE BACKEND'S OWN WORDS. Liveness must
+// not overwrite a capability that genuinely says no -- "your credentials
+// cannot do this" and "we could not reach it" are different problems with
+// different fixes, and the first names the credential to add.
+const LEGACY_ANSWERING = { ...CONTROLLER_LEGACY, controller: live(true, null) };
+eq(
+  "a legacy venue that IS answering still gets the Open API sentence",
+  clientControlVerdict("speed-limit", LEGACY_ANSWERING).reason,
+  LEGACY_REASON,
+);
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);
 process.exit(failures === 0 ? 0 : 1);

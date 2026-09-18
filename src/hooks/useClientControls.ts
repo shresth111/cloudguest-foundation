@@ -41,6 +41,7 @@ import {
   type ClientControlId,
   type ClientControlVerdict,
   type ControllerClientCapabilities,
+  type ControllerLiveness,
   type ControllerVenueFacts,
   type DeviceActionId,
   type DeviceActionVerdict,
@@ -58,6 +59,16 @@ export interface ClientControls {
   vendor: string | null;
   /** What the backend declared, or null when nothing told us. */
   capabilities: ControllerClientCapabilities | null;
+  /**
+   * Whether that controller is answering, or null when the backend said
+   * nothing about liveness (a pre-#289 build, or a venue we could not ask).
+   *
+   * Exposed alongside the verdicts rather than folded into them because a
+   * screen may want to say WHEN we last looked. The verdicts already account
+   * for it -- see `controllerIsAnswering` -- so a screen must not gate a
+   * control on this itself and end up with a second copy of the ladder.
+   */
+  controller: ControllerLiveness | null;
   /** The verdict for one screen-level control. Stable identity per render. */
   verdict: (control: ClientControlId) => ClientControlVerdict;
   /** The verdict for one per-device button, gated on its own capability. */
@@ -77,7 +88,7 @@ export function useClientControls(): ClientControls {
   const controllerManaged = locationIsControllerManaged(liveness);
   const vendor = locationControllerVendor(liveness);
 
-  const { data: capabilities, isLoading } = useQuery({
+  const { data: read, isLoading } = useQuery({
     queryKey: ["controller-client-capabilities", locationId],
     queryFn: () => omadaClientControlsService.readCapabilities(locationId as string),
     enabled: CUSTOMER_CLIENT_ROUTES_LANDED && controllerManaged && !!locationId,
@@ -86,25 +97,33 @@ export function useClientControls(): ClientControls {
     staleTime: 5 * 60_000,
   });
 
+  const capabilities = read?.capabilities ?? null;
+  // `?? null` here too, and it means something DIFFERENT from the line above:
+  // a backend older than #289 sends no `controller` block, and that must leave
+  // this venue exactly as it is today rather than grey its controls on a field
+  // nobody sent. `controllerIsAnswering` is where that asymmetry is decided.
+  const controller = read?.controller ?? null;
+
   const facts: ControllerVenueFacts = useMemo(
     // `?? null` and never `?? {}`: an undefined query result means we have not
     // asked, which the verdict ladder renders differently from a controller
     // that answered "no". Collapsing the two would blame the venue's hardware
     // for a read of ours that did not come back.
-    () => ({ controllerManaged, vendor, capabilities: capabilities ?? null }),
-    [controllerManaged, vendor, capabilities],
+    () => ({ controllerManaged, vendor, capabilities, controller }),
+    [controllerManaged, vendor, capabilities, controller],
   );
 
   return useMemo(
     () => ({
       controllerManaged,
       vendor,
-      capabilities: capabilities ?? null,
+      capabilities,
+      controller,
       verdict: (control: ClientControlId) => clientControlVerdict(control, facts),
       deviceVerdict: (action: DeviceActionId) => deviceActionVerdict(action, facts),
       loading: controllerManaged && isLoading,
     }),
-    [controllerManaged, vendor, capabilities, facts, isLoading],
+    [controllerManaged, vendor, capabilities, controller, facts, isLoading],
   );
 }
 
