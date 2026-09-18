@@ -386,6 +386,21 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   const [editingId, setEditingId] = useState<string | null>(null);
   const [policies, setPolicies] = useState<Policy[]>(demo ? SEED : []);
   const [realIds, setRealIds] = useState<Record<string, string>>({}); // businessUnit(=policy name) -> real bandwidth-policy id
+  // The rates this location is ALREADY saved with, by policy name.
+  //
+  // Read by handleSave for one purpose: a greyed Bandwidth control must not
+  // write. When `speedUsable` is false the select is disabled, `f.bandwidth`
+  // is the empty string, and `validate()` deliberately skips its required
+  // check -- so `BANDWIDTH_KBPS[""] ?? 0` resolved to 0 and every save at a
+  // controller venue silently overwrote whatever rate the policy held with
+  // "no limit". Nothing on screen showed it: the form field is greyed and the
+  // table cell prints "Not applied here", so the only way to see the damage
+  // was for the gate to lift later and every guest to come back uncapped.
+  //
+  // Preserving is the right repair rather than defaulting to some number:
+  // a control the owner cannot touch has expressed no opinion, and the
+  // honest write for "no opinion" is the value that was already there.
+  const [savedRates, setSavedRates] = useState<Record<string, { down: number; up: number }>>({});
   const [deviceRealIds, setDeviceRealIds] = useState<Record<string, string>>({}); // businessUnit -> real DEVICE-policy id
   const [sessionRealIds, setSessionRealIds] = useState<Record<string, string>>({}); // businessUnit -> real SESSION-policy id
   const [fupRealIds, setFupRealIds] = useState<Record<string, string>>({}); // businessUnit -> real FUP-policy id
@@ -522,6 +537,11 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
           }),
         );
         setRealIds(Object.fromEntries(real.map((p) => [p.name, p.id])));
+        setSavedRates(
+          Object.fromEntries(
+            real.map((p) => [p.name, { down: p.downloadRateKbps, up: p.uploadRateKbps }]),
+          ),
+        );
         setDeviceRealIds(Object.fromEntries(deviceDetails.map((d) => [d.name, d.id])));
         setSessionRealIds(Object.fromEntries(sessionDetails.map((d) => [d.name, d.id])));
         setFupRealIds(Object.fromEntries(fupDetails.map((d) => [d.name, d.id])));
@@ -650,15 +670,27 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
       // speed they had. Bug report: "Guest WiFi Limit not controlling the
       // bandwidth". Both halves are this one line.
       const targetLocationId = (locations ?? []).find((l) => l.name === f.businessUnit)?.id;
-      const rateKbps = BANDWIDTH_KBPS[f.bandwidth] ?? 0;
+      // A GREYED CONTROL DOES NOT WRITE.
+      //
+      // `downloadRateKbps`/`uploadRateKbps` are required numbers on
+      // `SaveBandwidthPolicyInput`, so there is no "omit it" -- the choice is
+      // between a number the owner chose and a number nobody chose. Where the
+      // control is live, it is theirs. Where it is greyed, it is whatever the
+      // policy already holds, so saving the four settings that DO work here
+      // cannot quietly uncap the venue on the way past.
+      const heldRate = savedRates[f.businessUnit];
+      const chosenKbps = BANDWIDTH_KBPS[f.bandwidth] ?? 0;
+      const rates = speedUsable
+        ? { down: chosenKbps, up: chosenKbps }
+        : { down: heldRate?.down ?? 0, up: heldRate?.up ?? 0 };
       const existingId = realIds[f.businessUnit];
       const saved = await bandwidthPolicyService.save(
         {
           id: existingId,
           name: f.businessUnit,
           status: "active",
-          downloadRateKbps: rateKbps,
-          uploadRateKbps: rateKbps,
+          downloadRateKbps: rates.down,
+          uploadRateKbps: rates.up,
           // Session/Idle/Daily Timeout and the optional data limit are real
           // BandwidthPolicyRules fields (toRules already maps them) that this
           // form validates as required but, until now, never actually sent --
@@ -683,6 +715,10 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         await bandwidthPolicyService.mapToLocation(saved.id, targetLocationId, orgId ?? undefined);
       }
       setRealIds((prev) => ({ ...prev, [f.businessUnit]: saved.id }));
+      // Keep the preserved-rate map in step with what was just written, so a
+      // second save in the same session preserves the same number rather than
+      // the one this location had when the page loaded.
+      setSavedRates((prev) => ({ ...prev, [f.businessUnit]: rates }));
 
       // Devices Per User -- same "policy exists but was never applied" gap
       // bandwidth just had, except this one was never even wired to a
@@ -901,6 +937,15 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         });
         setDeviceRealIds((prevIds) => {
           const n = { ...prevIds };
+          delete n[businessUnit];
+          return n;
+        });
+        // The held rate dies with the policy it was read off. Keeping it would
+        // mean the next save for this same name silently reinstated a cap the
+        // owner had just deleted -- the mirror image of the overwrite this map
+        // exists to prevent.
+        setSavedRates((prevRates) => {
+          const n = { ...prevRates };
           delete n[businessUnit];
           return n;
         });
