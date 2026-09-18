@@ -201,19 +201,124 @@ export function sessionPolicyRules(sessionTimeoutMinutes: number, idleTimeoutMin
 //
 // Unlike SessionPolicyRules, FUPPolicyRules has no required fields: every
 // period's cap is independently optional and `None` means "no cap for that
-// period". So this writes exactly the one field the screen controls and
-// leaves the data caps -- which remain unenforced, and still say so on the
-// form -- untouched.
+// period".
+//
+// ---------------------------------------------------------------------------
+// And the data limit is the third instance of the same bug, found the same way
+// ---------------------------------------------------------------------------
+//
+// "Add a data limit" wrote `data_limit` -- a `{quota, unit, resets}` object --
+// into the BANDWIDTH policy, where `GroupDataLimitRules` declares it, the API
+// returns 201, and no code path anywhere reads it. The screen at least said
+// so: the control was disabled with "Not enforced yet".
+//
+// It did not need building either. `FUPPolicyRules.daily/weekly/monthly_
+// data_limit_mb` is live at both ends:
+//
+//   * `_enforce_fup_quota` refuses the next login of a guest already over a
+//     cap (guest/service.py);
+//   * `_track_fup_data_usage`, riding on every RADIUS Interim-Update AND on
+//     the Omada usage backfill, bumps `GuestQuotaUsage.bytes_used` and hands
+//     `record_usage` the period that just went over, which expires the
+//     session and issues a live disconnect.
+//
+// So both vendors feed it and both vendors act on it. The dashboard was
+// writing three fields to the left of the ones being read.
+//
+// Only Daily/Weekly/Monthly are offered, because those are the three periods
+// `QuotaPeriodType` meters and resets. "Per session" used to be a fourth
+// option and is gone: there is no venue-level per-session data allowance on
+// this platform at all. The one per-session cap that exists is
+// `GuestSession.data_limit_mb`, copied off a redeemed voucher batch, and it is
+// set on the Vouchers screen -- so offering it here was a promise no policy
+// could keep, in the one direction that matters (a venue believing guests are
+// capped when they are not).
 // ============================================================================
 
-/** The FUPPolicyRules body for a chosen daily connected-time allowance.
+/** How a venue expresses a data cap on the dashboard, before it becomes MB. */
+export interface FupDataLimitInput {
+  quota: number;
+  /** "MB" or "GB". */
+  unit: string;
+  /** "Daily" | "Weekly" | "Monthly" -- see FUP_DATA_RESET_PERIODS. */
+  resets: string;
+}
+
+/** The only reset periods a data cap can be written for, because they are the
+ * only ones `QuotaPeriodType` keeps a `GuestQuotaUsage` row for and resets. A
+ * label outside this list has nowhere to be written and is treated as no cap
+ * at all rather than quietly filed under one of these. */
+export const FUP_DATA_RESET_PERIODS = ["Daily", "Weekly", "Monthly"] as const;
+
+/** `FUPPolicyRules.*_data_limit_mb` is an integer MB (`ge=0`), so a venue's
+ * "1.5 GB" has to land on one. Rounded rather than floored: 0.5 MB is a cap
+ * somebody typed, and flooring it to 0 would read to the backend as "no cap"
+ * -- silently the opposite of what was asked for. */
+export function dataLimitToMb(quota: number, unit: string): number {
+  const mb = unit === "GB" ? quota * 1024 : quota;
+  return Math.max(0, Math.round(mb));
+}
+
+/** The inverse, for reading a saved policy back onto the form. Prefers GB when
+ * the stored MB divides exactly, so a venue that typed "2 GB" is shown "2 GB"
+ * and not "2048 MB". */
+export function mbToDataLimit(
+  mb: number,
+  resets: (typeof FUP_DATA_RESET_PERIODS)[number],
+): FupDataLimitInput {
+  return mb > 0 && mb % 1024 === 0
+    ? { quota: mb / 1024, unit: "GB", resets }
+    : { quota: mb, unit: "MB", resets };
+}
+
+/** Reads a resolved/stored `FUPPolicyRules` payload back into the one data cap
+ * the form can express, or `null` when it holds none.
  *
- * `null` means "no daily time limit", and must be written explicitly rather
- * than by omitting the field: a venue clearing a limit they previously set
- * needs the new policy version to actually say there is no limit. Omitting it
- * would leave the previous version's value standing as the current one. */
-export function fupTimeLimitRules(dailyTimeLimitMinutes: number | null) {
-  return { daily_time_limit_minutes: dailyTimeLimitMinutes };
+ * The form offers one cap, one period. The schema allows three at once, and a
+ * policy written by hand (or by a future screen) may carry more than one --
+ * so this takes the first in Daily -> Weekly -> Monthly order rather than
+ * pretending the extras do not exist by merging them into something that
+ * renders. Whichever it shows is a real cap that is really enforced; a save
+ * then rewrites all three explicitly, which is the only way the form can
+ * honestly own what it displays. */
+export function fupDataLimitFromRules(
+  rules: Record<string, unknown> | undefined,
+): FupDataLimitInput | null {
+  if (!rules) return null;
+  for (const resets of FUP_DATA_RESET_PERIODS) {
+    const mb = rules[`${resets.toLowerCase()}_data_limit_mb`];
+    if (typeof mb === "number") return mbToDataLimit(mb, resets);
+  }
+  return null;
+}
+
+/** The FUPPolicyRules body for a chosen daily connected-time allowance and a
+ * chosen data cap.
+ *
+ * `null` means "no limit", and every field is written explicitly rather than
+ * omitted -- a venue clearing a limit they previously set needs the new policy
+ * version to actually say there is no limit.
+ *
+ * One helper for both settings, not two, because one policy version carries
+ * both. A version is a whole rules object: publishing `{daily_time_limit_
+ * minutes}` alone would leave the three `*_data_limit_mb` keys absent from the
+ * version that is now current, which the backend reads as "no data cap". So a
+ * venue changing their daily time limit would have silently deleted their data
+ * cap, and vice versa. Splitting these into two helpers is exactly how that
+ * would get reintroduced. */
+export function fupPolicyRules(args: {
+  dailyTimeLimitMinutes: number | null;
+  dataLimit: FupDataLimitInput | null;
+}) {
+  const mb = args.dataLimit ? dataLimitToMb(args.dataLimit.quota, args.dataLimit.unit) : null;
+  const capFor = (period: (typeof FUP_DATA_RESET_PERIODS)[number]) =>
+    args.dataLimit?.resets === period ? mb : null;
+  return {
+    daily_time_limit_minutes: args.dailyTimeLimitMinutes,
+    daily_data_limit_mb: capFor("Daily"),
+    weekly_data_limit_mb: capFor("Weekly"),
+    monthly_data_limit_mb: capFor("Monthly"),
+  };
 }
 
 export async function createPolicyWithRules(args: {

@@ -377,6 +377,21 @@ const EN: Dict = {
   expiredDailyLimitTitle: "You've used today's WiFi time",
   expiredDailyLimitBody:
     "This venue gives each guest a set amount of WiFi time per day, and you've used yours. It starts fresh tomorrow.",
+  // A data cap is a different ending from a time cap, and gets its own pair
+  // rather than reusing the daily-time strings above. The guest here has
+  // spent the venue's DATA allowance, usually in a small fraction of the
+  // time they were allowed -- telling them they have used today's WiFi TIME
+  // is a checkable lie about their own afternoon, and it is the wrong guess
+  // they are most likely to reach on their own.
+  //
+  // Names no reset day. The cap can be daily, weekly or monthly, and the
+  // reason vocabulary the backend sends is deliberately coarse and carries
+  // no period; "once the allowance resets" is the largest true statement
+  // available without widening what this endpoint tells a stranger about
+  // the venue's policy.
+  expiredDataLimitTitle: "You've used this venue's WiFi data",
+  expiredDataLimitBody:
+    "This venue gives each guest a set amount of WiFi data, and you've used yours. You can connect again once the venue's allowance resets.",
   useOtpInsteadLabel: "Use a one-time code instead",
   failureSubtitle: "Please check your details and try again.",
   failureHelp: "If the issue continues, please ask venue staff for assistance.",
@@ -685,6 +700,9 @@ const HI: Dict = {
   expiredDailyLimitTitle: "आज का WiFi समय पूरा हो गया",
   expiredDailyLimitBody:
     "यह जगह हर मेहमान को रोज़ तय WiFi समय देती है, और आपका पूरा हो गया है। कल से फिर नया शुरू होगा।",
+  expiredDataLimitTitle: "इस जगह का WiFi डेटा पूरा हो गया",
+  expiredDataLimitBody:
+    "यह जगह हर मेहमान को तय WiFi डेटा देती है, और आपका पूरा हो गया है। जब यह सीमा दोबारा शुरू होगी, तब आप फिर से जुड़ सकेंगे।",
   useOtpInsteadLabel: "इसके बजाय OTP का उपयोग करें",
   failureSubtitle: "कृपया अपनी जानकारी जांचें और फिर कोशिश करें।",
   failureHelp: "समस्या बनी रहे तो कृपया वेन्यू स्टाफ से सहायता लें।",
@@ -1006,6 +1024,9 @@ const BN: Dict = {
   expiredDailyLimitTitle: "আজকের WiFi সময় শেষ",
   expiredDailyLimitBody:
     "এই জায়গা প্রতিদিন প্রত্যেক অতিথিকে নির্দিষ্ট WiFi সময় দেয়, আপনারটি শেষ হয়েছে। আগামীকাল আবার নতুন করে শুরু হবে।",
+  expiredDataLimitTitle: "এই জায়গার WiFi ডেটা শেষ",
+  expiredDataLimitBody:
+    "এই জায়গা প্রত্যেক অতিথিকে নির্দিষ্ট WiFi ডেটা দেয়, আপনারটি শেষ হয়েছে। সীমা আবার নতুন করে শুরু হলে আপনি ফের যুক্ত হতে পারবেন।",
   useOtpInsteadLabel: "বদলে OTP ব্যবহার করুন",
   failureSubtitle: "আপনার তথ্য দেখে আবার চেষ্টা করুন।",
   failureHelp: "সমস্যা চলতে থাকলে এখানকার স্টাফকে জিজ্ঞেস করুন।",
@@ -1308,6 +1329,9 @@ const MR: Dict = {
   expiredDailyLimitTitle: "आजचा WiFi वेळ संपला",
   expiredDailyLimitBody:
     "इथे प्रत्येक पाहुण्याला दररोज ठराविक WiFi वेळ मिळतो, आणि तुमचा संपला आहे. उद्या पुन्हा नव्याने सुरू होईल.",
+  expiredDataLimitTitle: "इथला WiFi डेटा संपला",
+  expiredDataLimitBody:
+    "इथे प्रत्येक पाहुण्याला ठराविक WiFi डेटा मिळतो, आणि तुमचा संपला आहे. ही मर्यादा पुन्हा नव्याने सुरू झाल्यावर तुम्ही पुन्हा जोडू शकाल.",
   useOtpInsteadLabel: "त्याऐवजी OTP वापरा",
   failureSubtitle: "तुमची माहिती तपासा आणि पुन्हा प्रयत्न करा.",
   failureHelp: "समस्या राहिली तर इथल्या staff ला विचारा.",
@@ -1613,6 +1637,9 @@ const TE: Dict = {
   expiredDailyLimitTitle: "ఈరోజు WiFi సమయం ముగిసింది",
   expiredDailyLimitBody:
     "ఈ ప్రదేశం ప్రతి అతిథికి రోజుకు నిర్ణీత WiFi సమయం ఇస్తుంది, మీది ముగిసింది. రేపు మళ్లీ కొత్తగా మొదలవుతుంది.",
+  expiredDataLimitTitle: "ఈ ప్రదేశం WiFi డేటా ముగిసింది",
+  expiredDataLimitBody:
+    "ఈ ప్రదేశం ప్రతి అతిథికి నిర్ణీత WiFi డేటా ఇస్తుంది, మీది ముగిసింది. ఈ పరిమితి మళ్లీ కొత్తగా మొదలైనప్పుడు మీరు తిరిగి కనెక్ట్ కావచ్చు.",
   useOtpInsteadLabel: "బదులుగా OTP వాడండి",
   failureSubtitle: "మీ వివరాలు చూసుకుని మళ్లీ ప్రయత్నించండి.",
   failureHelp: "సమస్య కొనసాగితే సిబ్బందిని అడగండి.",
@@ -1920,6 +1947,9 @@ const TA: Dict = {
   expiredDailyLimitTitle: "இன்றைய WiFi நேரம் முடிந்தது",
   expiredDailyLimitBody:
     "இந்த இடம் ஒவ்வொரு விருந்தினருக்கும் நாளொன்றுக்கு குறிப்பிட்ட WiFi நேரம் தருகிறது, உங்களுடையது முடிந்துவிட்டது. நாளை புதிதாகத் தொடங்கும்.",
+  expiredDataLimitTitle: "இந்த இடத்தின் WiFi டேட்டா முடிந்தது",
+  expiredDataLimitBody:
+    "இந்த இடம் ஒவ்வொரு விருந்தினருக்கும் குறிப்பிட்ட WiFi டேட்டா தருகிறது, உங்களுடையது முடிந்துவிட்டது. இந்த வரம்பு புதிதாகத் தொடங்கியதும் மீண்டும் இணையலாம்.",
   useOtpInsteadLabel: "மாற்றாக OTP பயன்படுத்துங்கள்",
   failureSubtitle: "உங்கள் விவரங்களைச் சரிபார்த்து மீண்டும் முயலுங்கள்.",
   failureHelp: "சிக்கல் தொடர்ந்தால் இட ஊழியரிடம் கேளுங்கள்.",
@@ -2225,6 +2255,9 @@ const GU: Dict = {
   expiredDailyLimitTitle: "આજનો WiFi સમય વપરાઈ ગયો",
   expiredDailyLimitBody:
     "આ સ્થળ દરેક મહેમાનને રોજ નિશ્ચિત WiFi સમય આપે છે, અને તમારો પૂરો થયો છે. કાલે ફરી નવેસરથી શરૂ થશે.",
+  expiredDataLimitTitle: "આ સ્થળનો WiFi ડેટા વપરાઈ ગયો",
+  expiredDataLimitBody:
+    "આ સ્થળ દરેક મહેમાનને નિશ્ચિત WiFi ડેટા આપે છે, અને તમારો પૂરો થયો છે. આ મર્યાદા ફરી નવેસરથી શરૂ થશે ત્યારે તમે ફરી જોડાઈ શકશો.",
   useOtpInsteadLabel: "એના બદલે OTP વાપરો",
   failureSubtitle: "તમારી વિગતો તપાસીને ફરી પ્રયત્ન કરો.",
   failureHelp: "સમસ્યા ચાલુ રહે તો અહીંના સ્ટાફને પૂછો.",
@@ -2526,6 +2559,9 @@ const KN: Dict = {
   expiredDailyLimitTitle: "ಇಂದಿನ WiFi ಸಮಯ ಮುಗಿದಿದೆ",
   expiredDailyLimitBody:
     "ಈ ಸ್ಥಳ ಪ್ರತಿ ಅತಿಥಿಗೆ ದಿನಕ್ಕೆ ನಿಗದಿತ WiFi ಸಮಯ ನೀಡುತ್ತದೆ, ನಿಮ್ಮದು ಮುಗಿದಿದೆ. ನಾಳೆ ಮತ್ತೆ ಹೊಸದಾಗಿ ಆರಂಭವಾಗುತ್ತದೆ.",
+  expiredDataLimitTitle: "ಈ ಸ್ಥಳದ WiFi ಡೇಟಾ ಮುಗಿದಿದೆ",
+  expiredDataLimitBody:
+    "ಈ ಸ್ಥಳ ಪ್ರತಿ ಅತಿಥಿಗೆ ನಿಗದಿತ WiFi ಡೇಟಾ ನೀಡುತ್ತದೆ, ನಿಮ್ಮದು ಮುಗಿದಿದೆ. ಈ ಮಿತಿ ಮತ್ತೆ ಹೊಸದಾಗಿ ಆರಂಭವಾದಾಗ ನೀವು ಮತ್ತೆ ಸಂಪರ್ಕಿಸಬಹುದು.",
   useOtpInsteadLabel: "ಬದಲಿಗೆ OTP ಬಳಸಿ",
   failureSubtitle: "ನಿಮ್ಮ ವಿವರಗಳನ್ನು ಪರಿಶೀಲಿಸಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
   failureHelp: "ಸಮಸ್ಯೆ ಮುಂದುವರಿದರೆ ಇಲ್ಲಿನ staff ಅನ್ನು ಕೇಳಿ.",
@@ -2832,6 +2868,9 @@ const ML: Dict = {
   expiredDailyLimitTitle: "ഇന്നത്തെ WiFi സമയം തീർന്നു",
   expiredDailyLimitBody:
     "ഈ സ്ഥലം ഓരോ അതിഥിക്കും ദിവസേന നിശ്ചിത WiFi സമയം നൽകുന്നു, നിങ്ങളുടേത് തീർന്നു. നാളെ വീണ്ടും പുതുതായി തുടങ്ങും.",
+  expiredDataLimitTitle: "ഈ സ്ഥലത്തെ WiFi ഡാറ്റ തീർന്നു",
+  expiredDataLimitBody:
+    "ഈ സ്ഥലം ഓരോ അതിഥിക്കും നിശ്ചിത WiFi ഡാറ്റ നൽകുന്നു, നിങ്ങളുടേത് തീർന്നു. ഈ പരിധി വീണ്ടും പുതുതായി തുടങ്ങുമ്പോൾ നിങ്ങൾക്ക് വീണ്ടും ബന്ധിപ്പിക്കാം.",
   useOtpInsteadLabel: "പകരം OTP ഉപയോഗിക്കൂ",
   failureSubtitle: "നിങ്ങളുടെ വിവരങ്ങൾ പരിശോധിച്ച് വീണ്ടും ശ്രമിക്കൂ.",
   failureHelp: "പ്രശ്നം തുടർന്നാൽ സ്ഥാപനത്തിലെ ജീവനക്കാരോട് ചോദിക്കൂ.",
@@ -3136,6 +3175,9 @@ const PA: Dict = {
   expiredDailyLimitTitle: "ਅੱਜ ਦਾ WiFi ਸਮਾਂ ਵਰਤਿਆ ਜਾ ਚੁੱਕਾ ਹੈ",
   expiredDailyLimitBody:
     "ਇਹ ਥਾਂ ਹਰ ਮਹਿਮਾਨ ਨੂੰ ਰੋਜ਼ਾਨਾ ਤੈਅ WiFi ਸਮਾਂ ਦਿੰਦੀ ਹੈ, ਅਤੇ ਤੁਹਾਡਾ ਪੂਰਾ ਹੋ ਗਿਆ ਹੈ। ਕੱਲ੍ਹ ਤੋਂ ਫਿਰ ਨਵਾਂ ਸ਼ੁਰੂ ਹੋਵੇਗਾ।",
+  expiredDataLimitTitle: "ਇਸ ਥਾਂ ਦਾ WiFi ਡਾਟਾ ਵਰਤਿਆ ਜਾ ਚੁੱਕਾ ਹੈ",
+  expiredDataLimitBody:
+    "ਇਹ ਥਾਂ ਹਰ ਮਹਿਮਾਨ ਨੂੰ ਤੈਅ WiFi ਡਾਟਾ ਦਿੰਦੀ ਹੈ, ਅਤੇ ਤੁਹਾਡਾ ਪੂਰਾ ਹੋ ਗਿਆ ਹੈ। ਜਦੋਂ ਇਹ ਹੱਦ ਮੁੜ ਨਵੇਂ ਸਿਰੇ ਤੋਂ ਸ਼ੁਰੂ ਹੋਵੇਗੀ, ਤੁਸੀਂ ਫਿਰ ਜੁੜ ਸਕੋਗੇ।",
   useOtpInsteadLabel: "ਇਸਦੀ ਥਾਂ OTP ਵਰਤੋ",
   failureSubtitle: "ਆਪਣੀ ਜਾਣਕਾਰੀ ਵੇਖੋ ਤੇ ਫਿਰ ਕੋਸ਼ਿਸ਼ ਕਰੋ।",
   failureHelp: "ਸਮੱਸਿਆ ਰਹੇ ਤਾਂ ਸਟਾਫ਼ ਨੂੰ ਪੁੱਛੋ।",

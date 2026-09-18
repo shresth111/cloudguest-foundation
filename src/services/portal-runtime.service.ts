@@ -199,7 +199,7 @@ interface BackendGuestLoginResponse {
  * merely observed the MAC.
  */
 interface BackendGuestLastEndedSession {
-  /** Closed four-member enum, derived on the backend from
+  /** Closed five-member enum, derived on the backend from
    * `GuestSession.status` -- never the free-text `disconnect_reason`.
    *
    * Typed as the shared `RuntimeEndedSessionReason` rather than repeating

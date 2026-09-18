@@ -1139,12 +1139,39 @@ jobs:
       # honest about it and disabled both controls with a "not enforced" note.
       #
       # They are now aimed at the policy types that do enforce them (SESSION
-      # for the idle timeout, FUP for the daily limit). This guard pins that
-      # aim, and equally pins that the "not enforced" note stays on the one
-      # control -- the data limit -- that still cannot keep the promise.
-      # Losing that note to a tidy-up would restore the original lie.
+      # for the idle timeout, FUP for the daily limit AND the data limit).
+      # This guard pins that aim. It also pins the inverse of what it used to:
+      # the "not enforced" note is gone, because every control on the form now
+      # reaches a policy the backend reads, and a disclaimer left behind would
+      # be the opposite lie -- an operator declining to use a setting that
+      # works. It further pins that "Per session" never returns to the data
+      # limit's reset list (GuestQuotaUsage is metered per QuotaPeriodType,
+      # which has only DAILY/WEEKLY/MONTHLY, so that option would write a cap
+      # with nowhere to go) and that a guest cut off by a data cap gets their
+      # own copy and no sign-in button the backend will refuse.
       - name: session rules enforcement
         run: bun run test:session-rules
+
+      # --- The data limit, executed rather than read ---------------------
+      #
+      # The guard above is source-structural: it proves the value leaves the
+      # screen aimed at the FUP policy. It cannot prove the NUMBER is right,
+      # and the worst way for this control to be wrong is a cap that lands as
+      # 0 -- `is_fup_usage_exceeded` treats 0 as already met, so that is not
+      # "no limit", it is "no internet at this venue", refused at the very
+      # next login.
+      #
+      # So this one bundles policy-engine.ts with esbuild and CALLS
+      # `fupPolicyRules` with exactly the object `handleSave` builds out of
+      # the form's own state -- the standing rule after a factory nobody
+      # instantiated in a test 500'd guest login at every venue.
+      #
+      # Floor 23, observed green at 23.
+      - name: Data limit rules
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "data-limit-rules" 23 "all data-limit rule checks passed" \
+            bun run test:data-limit-rules
 
       # --- One setting, one screen ---------------------------------------
       #
