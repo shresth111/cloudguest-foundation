@@ -408,6 +408,14 @@ for (const [rel, needle, why] of [
     "Access Tiers greys the speed it cannot apply",
   ],
   [
+    "src/components/features/LocationPolicies.tsx",
+    /speedUsable \? \(\s*p\.bandwidth/,
+    // The form can be greyed and the saved-policies table one screen down
+    // would still print "20 Mbps" from a row written before this venue's
+    // router became a controller. Same claim, second place.
+    "the saved-policies table does not restate a speed nothing applies",
+  ],
+  [
     "src/services/customer.service.ts",
     /disconnect_enforced/,
     "the disconnect response is read rather than discarded",

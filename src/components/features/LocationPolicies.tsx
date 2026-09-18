@@ -1337,7 +1337,25 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                           {p.businessUnit}
                         </span>
                       </TableCell>
-                      <TableCell>{p.bandwidth}</TableCell>
+                      {/* THE SAME LIE, IN A SECOND PLACE. A row saved before
+                          this venue's router became a controller still holds
+                          "20 Mbps", and printing it here states a speed that
+                          nothing applies -- the form above can be greyed and
+                          this cell would still promise it. `—` with the reason
+                          on hover is the same posture `lastContactLabel` takes
+                          for a measurement we do not have. */}
+                      <TableCell>
+                        {speedUsable ? (
+                          p.bandwidth
+                        ) : (
+                          <span
+                            className="text-slate-400 dark:text-slate-500"
+                            title={speedVerdict.reason ?? undefined}
+                          >
+                            Not applied here
+                          </span>
+                        )}
+                      </TableCell>
                       <TableCell>{p.sessionTimeout}</TableCell>
                       {/* "No Limit"/"Unlimited" rows are muted so a stricter,
                       set value on another row visually stands out instead
