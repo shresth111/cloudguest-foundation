@@ -107,7 +107,10 @@ export type HardwareStatusReason = "liveness_probe" | "never_observed" | "contro
 export const UNMEASURED_REASON_COPY: Record<HardwareStatusReason, string> = {
   controller_managed:
     "This venue's network is run by a controller, so nothing here pings this device. " +
-    "Your controller's own view of its access points is above.",
+    // "on the Devices page", not "above": this sentence is also read on the
+    // Dashboard tile and in the location picker's cross-location panel,
+    // where there is nothing above it.
+    "Your controller's own view of its access points is on the Devices page.",
   // Neither of these can reach an unmeasured row today; present so that a
   // new reason code renders as itself instead of as `undefined`.
   never_observed: "Nothing on this platform measures this device's status.",
