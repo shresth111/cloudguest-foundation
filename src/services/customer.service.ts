@@ -1871,10 +1871,26 @@ export const customerService = {
     //
     // Read, never assumed: a body without the field yields `null`, which is
     // the honest "we cannot see" and not a `false` we would quote back.
+    //
+    // AND THE ENVELOPE IS ALREADY OFF BY THE TIME IT GETS HERE. `api`'s
+    // response interceptor strips `{success, message, data, request_id}`, so
+    // `disconnectBody` IS the session payload. This read used to be
+    // `disconnectBody?.data?.disconnect_enforced` -- a second unwrap, which
+    // found `undefined` on every single call and made `sessionEnforced`
+    // permanently `null`. The field was being thrown away twice: once by the
+    // original code this comment describes, and then again by the fix for it.
+    // Nothing failed loudly, because `null` is a legitimate value here and
+    // reads as "nothing tried".
+    //
+    // Both shapes are accepted rather than just the right one: a `null` from a
+    // body we genuinely cannot read and a `null` from a shape that moved are
+    // indistinguishable to the caller, and the tolerant read is one expression.
     const { data: disconnectBody } = await api.post<{
+      disconnect_enforced?: boolean | null;
       data?: { disconnect_enforced?: boolean | null } | null;
     }>(`/guest-sessions/${sessionId}/disconnect`, {}, orgHeaders);
-    const enforced = disconnectBody?.data?.disconnect_enforced;
+    const enforced =
+      disconnectBody?.disconnect_enforced ?? disconnectBody?.data?.disconnect_enforced;
     const sessionEnforced = typeof enforced === "boolean" ? enforced : null;
 
     let deviceDisconnected = false;

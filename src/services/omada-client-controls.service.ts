@@ -1,116 +1,347 @@
 /**
- * THE ONE PLACE THE CUSTOMER DASHBOARD TALKS TO AN OMADA CONTROLLER.
+ * THE ONE PLACE THE CUSTOMER DASHBOARD TALKS TO A VENUE'S NETWORK CONTROLLER.
  *
- * WHY EVERY OMADA-SPECIFIC CALL IS IN THIS FILE AND NOWHERE ELSE
- * -------------------------------------------------------------
- * The backend routes these controls need are being written right now and their
- * contract was not published when this shipped. That is a normal thing to
- * build against and a dangerous thing to spread: a guessed path, a guessed
- * body and a guessed envelope scattered across four screens is four places to
- * correct and four chances to miss one. So the guess lives here, once, behind
- * named functions, and `src/lib/omada-client-controls.ts` -- which is what the
- * screens actually import -- knows nothing about HTTP.
+ * WHY EVERY CONTROLLER-SPECIFIC CALL IS IN THIS FILE AND NOWHERE ELSE
+ * ------------------------------------------------------------------
+ * Six routes, one wire shape, one envelope, one MAC convention. Spread across
+ * four screens that would be four places to correct and four chances to miss
+ * one. So the contract lives here, once, behind named functions, and
+ * `src/lib/omada-client-controls.ts` -- which is what the screens reason
+ * with -- knows nothing about HTTP.
  *
- * WHAT IS PROVISIONAL, EXACTLY
- * ----------------------------
- * `CUSTOMER_CLIENT_ROUTES_LANDED` below. It is `false`, and while it is false
- * this module issues **no requests at all**: `readClientWrites` resolves to
- * `null` without touching the network, the venue reads as "we can't ask this
- * controller for anything yet", and every device-level control renders greyed
- * with a reason that names our product rather than the customer's hardware.
+ * THE CONTRACT (cloud-guest #270), ALL ORGANIZATION-SCOPED
+ * -------------------------------------------------------
+ *   GET  /network-integrations/locations/{id}/clients/capabilities  locations.read
+ *   POST /network-integrations/locations/{id}/clients/block         guest_access.update
+ *   POST /network-integrations/locations/{id}/clients/unblock       guest_access.update
+ *   POST /network-integrations/locations/{id}/clients/disconnect    guest_access.update
+ *   PUT  /network-integrations/locations/{id}/clients/speed         bandwidth.update
+ *   POST /network-integrations/locations/{id}/clients/speed/clear   bandwidth.update
  *
- * That is deliberate, and it is the opposite of the failure mode
- * CAPABILITY-MATRIX §7 warns about ("Offering the buttons and failing at click
- * time is the failure mode to avoid"). A speculative request to a path that
- * does not exist yet would 404 on every page load of every Omada venue, fill
- * the console's error reporting with a defect that is not one, and -- worse --
- * render as an outage to a venue owner whose venue is fine.
+ * **NO ROUTE TAKES AN INTEGRATION ID, A SITE ID OR A CONTROLLER ADDRESS, AND
+ * NONE MAY BE ADDED.** That is the tenancy design, not a URL preference: the
+ * backend resolves the integration with the caller's own organization AND the
+ * location in the WHERE clause, so a location belonging to another tenant
+ * resolves to nothing and answers with the same 404 as a location of your own
+ * that has no controller. There is no parameter here through which a caller
+ * could name somebody else's controller, which is the structural opposite of
+ * the path-id defect class this codebase has found in fourteen endpoints.
  *
- * WHAT IS NOT PROVISIONAL
- * -----------------------
- * The Master-console path already exists and is not this:
- * `POST /network-integrations/{id}/clients/disconnect`, permission
+ * WHAT IS NOT THIS
+ * ----------------
+ * The Master console's own disconnect exists and is a different route:
+ * `POST /network-integrations/{integration_id}/clients/disconnect`, permission
  * `network_integrations.update`, ScopeType.GLOBAL -- see
- * `omada-disconnect.service.ts`. A venue admin does not hold that permission
- * and `GET /network-integrations` 403s for them, so **nothing in the customer
+ * `omada-disconnect.service.ts`. A venue admin holds none of that family and
+ * `GET /network-integrations` 403s for them, so **nothing in the customer
  * dashboard may call it**. Wiring a customer screen to a Master route is how
- * you ship a 403 to a paying customer; the routes this file waits for are the
- * org-scoped ones.
+ * you ship a 403 to a paying customer.
  *
- * TURNING IT ON
- * -------------
- * When the backend contract is published: correct `WRITES_PATH` and
- * `toClientWrites` against it, flip the constant, and delete this paragraph.
- * Nothing else in the app changes -- the hook, the verdict ladder, the copy
- * and the tests are all already written against `ControllerClientWrites`.
+ * THE ENVELOPE IS ALREADY OFF
+ * ---------------------------
+ * `api`'s response interceptor unwraps `{success, message, data, request_id}`,
+ * so `response.data` IS the payload. Reading `data.data` here -- which the
+ * provisional version of this file did, and which `omada-disconnect.service.ts`
+ * still does -- unwraps a second time, finds `undefined`, and every field
+ * falls back to its "we cannot" default. That failure is silent and looks
+ * exactly like a controller that refused.
  */
 import { api } from "./api";
 import { resolveOrganizationId } from "./organization-id";
-import type { ControllerClientWrites } from "@/lib/omada-client-controls";
-import type { ControllerAuthMode } from "@/types/network-integration";
+import type {
+  ClientActionFacts,
+  ClientRateLimitFacts,
+  ControllerClientCapabilities,
+  ControllerClientCapability,
+} from "@/lib/omada-client-controls";
 
 /**
- * Whether the org-scoped Omada client routes exist in the backend this build
- * talks to.
+ * Whether the org-scoped client routes exist in the backend this build talks
+ * to. **True since cloud-guest #270.**
  *
  * A single boolean rather than a feature flag service on purpose: it is not a
  * rollout decision, it is a statement about which API version is deployed, and
- * it is answered by the same PR that adds the routes.
+ * it is answered by the PR that added the routes.
+ *
+ * It stays because a build of this console can be pointed at an older backend,
+ * and it is the switch that keeps that build off the network rather than
+ * 404ing on every page load of every Omada venue. Nothing degrades badly if
+ * that happens anyway -- `readCapabilities` reads a 404 as "nothing has told
+ * us" -- but not asking is cheaper than asking and discarding.
  */
-export const CUSTOMER_CLIENT_ROUTES_LANDED = false;
+export const CUSTOMER_CLIENT_ROUTES_LANDED = true;
+
+const BASE = (locationId: string) => `/network-integrations/locations/${locationId}/clients`;
 
 /**
- * PROVISIONAL PATH. Venue-scoped, because the capability being described is a
- * property of the venue's controller connection and a venue admin holds
- * location-scoped grants, not `network_integrations.*` ones.
+ * The controller round-trip is a live HTTP call from our backend to hardware
+ * on the venue's LAN. Same ceiling the Master console's own controller calls
+ * use; the default 30s is not enough for a cold Open API token exchange.
  */
-const WRITES_PATH = (locationId: string) => `/locations/${locationId}/controller/client-writes`;
+const CONTROLLER_TIMEOUT_MS = 60_000;
 
-/** PROVISIONAL wire shape -- snake_case, as every other backend response here. */
-interface BackendClientWrites {
-  disconnect?: boolean;
-  block?: boolean;
-  rate_limit?: boolean;
-  auth_mode?: string | null;
+/** snake_case, exactly as #270's `ClientCapabilityView` writes it. */
+interface RawCapability {
+  supported?: unknown;
+  reason?: unknown;
+}
+
+/** snake_case, exactly as #270's `ClientCapabilitiesResponse` writes it. */
+interface RawCapabilities {
+  set_rate_limit?: RawCapability;
+  clear_rate_limit?: RawCapability;
+  block?: RawCapability;
+  unblock?: RawCapability;
+  list_blocked?: RawCapability;
+  disconnect?: RawCapability;
+  client_stats?: RawCapability;
+}
+
+/** snake_case, exactly as #270's `ClientRateLimitView` writes it. */
+interface RawRateLimit {
+  enabled?: unknown;
+  applied_down_kbps?: unknown;
+  applied_up_kbps?: unknown;
+  requested_down_kbps?: unknown;
+  requested_up_kbps?: unknown;
+  clamped?: unknown;
+}
+
+/** snake_case, exactly as #270's `ClientActionResponse` writes it. */
+interface RawAction {
+  action?: unknown;
+  performed?: unknown;
+  client_mac?: unknown;
+  rate_limit?: RawRateLimit | null;
 }
 
 /**
- * Every field defaults to FALSE, never to true.
+ * EVERY CAPABILITY DEFAULTS TO FALSE, NEVER TO TRUE.
  *
  * A missing field means "this build's backend did not say", and the only safe
  * reading of that is that we cannot do it. Defaulting a capability to `true`
  * would put a live button in front of a venue owner on the strength of a field
- * nobody sent -- the same shape of bug as `toResult` in
- * `omada-disconnect.service.ts` refusing to default `disconnected` to
- * anything cheerful.
+ * nobody sent, and the owner would meet the refusal at click time -- the exact
+ * failure mode CAPABILITY-MATRIX §7 closes on ("Offering the buttons and
+ * failing at click time is the failure mode to avoid").
+ *
+ * The reason is carried through UNEDITED and only where `supported` is false.
+ * It is written for the person looking at the disabled control and it names a
+ * specific credential in a specific place in the controller's settings tree; a
+ * paraphrase would be a second copy of that sentence, and the copy is what
+ * goes stale.
  */
-function toClientWrites(payload: unknown): ControllerClientWrites {
-  const envelope = payload as { data?: BackendClientWrites | null } | null;
-  const body = envelope?.data ?? {};
-  const mode = body.auth_mode;
+function toCapability(raw: RawCapability | undefined): ControllerClientCapability {
+  const supported = raw?.supported === true;
+  const reason = typeof raw?.reason === "string" ? raw.reason.trim() : "";
+  return { supported, reason: !supported && reason ? reason : null };
+}
+
+function toCapabilities(payload: RawCapabilities | null | undefined): ControllerClientCapabilities {
+  const body = payload ?? {};
   return {
-    disconnect: body.disconnect === true,
-    block: body.block === true,
-    rateLimit: body.rate_limit === true,
-    authMode: mode === "openapi" || mode === "legacy" ? (mode as ControllerAuthMode) : null,
+    setRateLimit: toCapability(body.set_rate_limit),
+    clearRateLimit: toCapability(body.clear_rate_limit),
+    block: toCapability(body.block),
+    unblock: toCapability(body.unblock),
+    // Always false by design -- the block flag is not readable through the
+    // connection this platform holds and an empty list would be a false
+    // statement about the venue. Carried so a reader finds the answer where
+    // they look for it; NOTHING in this console renders a blocked-device list.
+    listBlocked: toCapability(body.list_blocked),
+    disconnect: toCapability(body.disconnect),
+    clientStats: toCapability(body.client_stats),
   };
 }
 
+/** A number the backend actually sent, or `null`. `null` on a direction means
+ * unlimited -- it is not zero and it is not unknown, and coercing it to 0
+ * would render as "stopped". */
+function toKbps(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function toRateLimit(raw: RawRateLimit | null | undefined): ClientRateLimitFacts | null {
+  if (!raw || typeof raw !== "object") return null;
+  return {
+    enabled: raw.enabled === true,
+    appliedDownKbps: toKbps(raw.applied_down_kbps),
+    appliedUpKbps: toKbps(raw.applied_up_kbps),
+    requestedDownKbps: toKbps(raw.requested_down_kbps),
+    requestedUpKbps: toKbps(raw.requested_up_kbps),
+    clamped: raw.clamped === true,
+  };
+}
+
+/**
+ * `performed` FALLS BACK TO FALSE, and that is the whole point of this
+ * function.
+ *
+ * `performed: false` arrives on an HTTP 200 and is a real outcome: the request
+ * was well-formed, the credentials were right, and the controller did not do
+ * the thing. PR #279 shipped a green tick over exactly this by treating a
+ * resolved promise as success. A body we cannot read is not better news than a
+ * body that says no.
+ */
+function toActionFacts(
+  payload: unknown,
+  sentMac: string,
+  fallbackAction: string,
+): ClientActionFacts {
+  const body = (payload ?? {}) as RawAction;
+  return {
+    action: typeof body.action === "string" ? body.action : fallbackAction,
+    performed: body.performed === true,
+    // The backend masks the MAC on the way out. Echo what it sent; fall back
+    // to what we sent rather than to an empty string, which would render as an
+    // action against no device in particular.
+    clientMac: typeof body.client_mac === "string" ? body.client_mac : sentMac,
+    rateLimit: toRateLimit(body.rate_limit),
+  };
+}
+
+async function orgHeaders(locationId: string) {
+  return {
+    headers: {
+      "X-Organization-Id": await resolveOrganizationId(),
+      "X-Location-Id": locationId,
+    },
+    timeout: CONTROLLER_TIMEOUT_MS,
+  };
+}
+
+/** A 404 from the capabilities read is "this location has no controller
+ * connected", which the backend deliberately makes indistinguishable from
+ * "that location is not yours". Neither is an error to report; both are
+ * "nothing has told us". */
+function isNotFound(error: unknown): boolean {
+  const status = (error as { status?: unknown; response?: { status?: unknown } } | null)?.status;
+  const nested = (error as { response?: { status?: unknown } } | null)?.response?.status;
+  return status === 404 || nested === 404;
+}
+
+/**
+ * The speed a venue asked for: EITHER a speed profile it already picked, OR
+ * explicit rates. The backend 422s when both or neither are given, so the
+ * union is expressed in the type rather than checked at the call site.
+ *
+ * kbps, because that is `QueueProfile`'s own unit and a profile's numbers must
+ * reach the controller unchanged. `0` on a direction means "do not limit that
+ * direction"; clearing a limit is `clearSpeed`, not `0/0`.
+ */
+export type ClientSpeedRequest =
+  | { queueProfileId: string }
+  | { downKbps?: number; upKbps?: number };
+
 export const omadaClientControlsService = {
   /**
-   * What this venue's controller connection can be asked to do, or `null` when
-   * nothing has told us.
+   * What this venue's controller can be asked to do, or `null` when nothing
+   * has told us.
    *
-   * `null` is a first-class answer, not an error case. It is what every Omada
-   * venue gets today, and the verdict ladder has a branch for it that produces
-   * honest copy -- so a caller must never coalesce it into an empty
-   * capabilities object, which would read as "the controller refused" rather
-   * than "we have not asked".
+   * `null` is a first-class answer, not an error case: the verdict ladder has
+   * a branch for it that produces honest copy, so a caller must never coalesce
+   * it into an all-unsupported capabilities object, which would read as "the
+   * controller refused" rather than "we could not ask".
+   *
+   * Contacts no hardware on the backend side -- the answer comes from the
+   * integration's own auth mode -- so it is safe to call while rendering.
    */
-  async readClientWrites(locationId: string): Promise<ControllerClientWrites | null> {
-    if (!CUSTOMER_CLIENT_ROUTES_LANDED) return null;
-    const headers = { "X-Organization-Id": await resolveOrganizationId() };
-    const { data } = await api.get<unknown>(WRITES_PATH(locationId), { headers });
-    return toClientWrites(data);
+  async readCapabilities(locationId: string): Promise<ControllerClientCapabilities | null> {
+    try {
+      const { data } = await api.get<RawCapabilities | null>(
+        `${BASE(locationId)}/capabilities`,
+        await orgHeaders(locationId),
+      );
+      return toCapabilities(data);
+    } catch (error) {
+      if (isNotFound(error)) return null;
+      throw error;
+    }
+  },
+
+  /** Stop one device joining this venue's network. */
+  async blockClient(locationId: string, clientMac: string): Promise<ClientActionFacts> {
+    const { data } = await api.post<unknown>(
+      `${BASE(locationId)}/block`,
+      // The MAC goes out exactly as we hold it: the backend normalizes colon,
+      // hyphen and bare-hex forms itself, and reformatting here would add a
+      // second place to get it wrong.
+      { client_mac: clientMac },
+      await orgHeaders(locationId),
+    );
+    return toActionFacts(data, clientMac, "block");
+  },
+
+  /** Let a blocked device back on. Idempotent on the controller. */
+  async unblockClient(locationId: string, clientMac: string): Promise<ClientActionFacts> {
+    const { data } = await api.post<unknown>(
+      `${BASE(locationId)}/unblock`,
+      { client_mac: clientMac },
+      await orgHeaders(locationId),
+    );
+    return toActionFacts(data, clientMac, "unblock");
+  },
+
+  /**
+   * End one device's authorization at this venue, by MAC.
+   *
+   * NOT the happy path for the Guests screen's Disconnect button.
+   * `POST /guest-sessions/{id}/disconnect` already reaches this venue's
+   * controller (backend `end_on_router` routes a controller-managed router to
+   * `_end_on_controller`), so calling this as well on every disconnect would
+   * be a second controller round-trip for the same guest. It is reached only
+   * when that call comes back NOT enforced -- a different question asked a
+   * different way, by MAC rather than by portal identifier.
+   */
+  async disconnectClient(locationId: string, clientMac: string): Promise<ClientActionFacts> {
+    const { data } = await api.post<unknown>(
+      `${BASE(locationId)}/disconnect`,
+      { client_mac: clientMac },
+      await orgHeaders(locationId),
+    );
+    return toActionFacts(data, clientMac, "disconnect");
+  },
+
+  /**
+   * Set one device's speed limit.
+   *
+   * A profile is sent AS `queue_profile_id` and its rates are read server-side
+   * by the domain that owns the model -- which also puts the caller's
+   * organization into its own scope check, so another tenant's profile is
+   * refused there rather than by a second copy of the rule written here.
+   * Re-deriving a profile's numbers in the browser and sending those would
+   * mean the console's idea of the profile, not the profile.
+   */
+  async setSpeed(
+    locationId: string,
+    clientMac: string,
+    request: ClientSpeedRequest,
+  ): Promise<ClientActionFacts> {
+    const body: Record<string, string | number> = { client_mac: clientMac };
+    if ("queueProfileId" in request) {
+      body.queue_profile_id = request.queueProfileId;
+    } else {
+      // Only the directions that were named. Sending `null` for the other one
+      // is not the same as omitting it to a validator that counts "rates were
+      // named" by presence.
+      if (typeof request.downKbps === "number") body.down_kbps = request.downKbps;
+      if (typeof request.upKbps === "number") body.up_kbps = request.upKbps;
+    }
+    const { data } = await api.put<unknown>(
+      `${BASE(locationId)}/speed`,
+      body,
+      await orgHeaders(locationId),
+    );
+    return toActionFacts(data, clientMac, "set_rate_limit");
+  },
+
+  /** Remove one device's speed limit. A separate route, not `0/0`. */
+  async clearSpeed(locationId: string, clientMac: string): Promise<ClientActionFacts> {
+    const { data } = await api.post<unknown>(
+      `${BASE(locationId)}/speed/clear`,
+      { client_mac: clientMac },
+      await orgHeaders(locationId),
+    );
+    return toActionFacts(data, clientMac, "clear_rate_limit");
   },
 };

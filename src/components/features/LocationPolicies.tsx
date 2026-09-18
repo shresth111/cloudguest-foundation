@@ -344,6 +344,14 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   // At a MikroTik venue both verdicts are `available` with a null reason, so
   // the notices render nothing, `speedUsable` is true, and this screen is the
   // one that shipped before, line for line.
+  //
+  // At a controller venue the answer is now the BACKEND'S, not a guess: the
+  // venue's declared `set_rate_limit` capability decides it, and where that is
+  // false the sentence rendered beside the greyed field is the backend's own.
+  // An Open API venue gets the field live with a caveat, because
+  // `queue_management.apply_queue` routes a controller-managed router to its
+  // controller (cloud-guest #270) instead of writing a RouterOS queue nothing
+  // would have read.
   const clientControls = useClientControls();
   const speedVerdict = clientControls.verdict("speed-limit");
   const speedUsable = speedVerdict.availability !== "unavailable";

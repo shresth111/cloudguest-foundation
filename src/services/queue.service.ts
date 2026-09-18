@@ -128,6 +128,27 @@ export const queueService = {
     };
   },
 
+  /**
+   * The same profiles, read as ONE TENANT rather than platform-wide.
+   *
+   * `listProfiles` above is the Master console's read and deliberately says
+   * `X-Organization-Scope: all`. A venue admin holds no such scope, so that
+   * header would 403 them; the interceptor's own `X-Organization-Id` is the
+   * right tenancy for a customer screen and is exactly what this omission
+   * leaves in place. Gated on `bandwidth.read`, which is the same permission
+   * family the per-device speed write needs.
+   *
+   * Active profiles only: an inactive profile is one the venue has retired,
+   * and offering it as a speed to apply to a guest would resurrect it in one
+   * place while every other screen treats it as gone.
+   */
+  async listProfilesForVenue(pageSize = 100): Promise<QueueProfile[]> {
+    const { data } = await api.get<BackendQueueProfileListResponse>("/queue/profiles", {
+      params: { page: 1, page_size: pageSize, is_active: true },
+    });
+    return (data.items ?? []).map(toProfile).filter((p) => p.isActive);
+  },
+
   async createProfile(payload: CreateQueueProfilePayload): Promise<QueueProfile> {
     const { data } = await api.post<BackendQueueProfile>(
       "/queue/profiles",

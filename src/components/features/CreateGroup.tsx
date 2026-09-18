@@ -502,10 +502,18 @@ const DEMO_GROUPS: Group[] = [
 ];
 
 export default function CreateGroup({ locationId }: { locationId?: string } = {}) {
-  // A tier's speed is the one field on this form that cannot reach a guest at
-  // a controller venue -- everything else a tier carries (how long, how many
-  // devices, the daily limit, who is in it) is platform-side and works. At a
-  // MikroTik venue both verdicts are `available` and nothing below changes.
+  // A tier's speed is the one field on this form whose reach depends on the
+  // venue's hardware -- everything else a tier carries (how long, how many
+  // devices, the daily limit, who is in it) is platform-side and works
+  // everywhere. At a MikroTik venue both verdicts are `available` and nothing
+  // below changes.
+  //
+  // At a controller venue the venue's declared `set_rate_limit` capability
+  // decides it, and the sentence beside a greyed field is the backend's own.
+  // Where it IS supported the field stays live with a caveat, because the
+  // shape differs and an owner will notice: on a router the tier's speed
+  // arrives with the guest's sign-in, and on a controller it is a separate
+  // write once they are already online.
   const clientControls = useClientControls();
   const tierSpeedVerdict = clientControls.verdict("speed-profile");
   const tierSpeedUsable = tierSpeedVerdict.availability !== "unavailable";

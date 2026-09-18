@@ -1,5 +1,5 @@
 import { Info, Lock } from "lucide-react";
-import type { ClientControlVerdict } from "@/lib/omada-client-controls";
+import type { ControlVerdict } from "@/lib/omada-client-controls";
 import { cn } from "@/lib/utils";
 
 /**
@@ -37,7 +37,11 @@ export function ControllerControlNotice({
   verdict,
   className,
 }: {
-  verdict: ClientControlVerdict;
+  // Any verdict, screen-level (`ClientControlId`) or per-device
+  // (`DeviceActionId`) -- the three fields it renders are the same three, and
+  // widening here is what stops a second, near-identical notice component
+  // growing beside this one for the Guests panel.
+  verdict: ControlVerdict<string>;
   className?: string;
 }) {
   if (verdict.availability === "available" || !verdict.reason) return null;

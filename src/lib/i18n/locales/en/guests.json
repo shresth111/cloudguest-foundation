@@ -51,5 +51,17 @@
   "disconnectPartial": "{{name}}'s session ended — device-level disconnect wasn't available for this guest",
   "disconnectController": "{{name}}'s Wyfy session ended — they'll have to sign in again. This venue's Wi-Fi is run by a controller, so their device may stay connected until it reconnects.",
   "disconnectSessionOnly": "{{name}}'s session ended. Nothing looked at their device, so it may still be connected.",
-  "disconnectError": "Couldn't disconnect this session"
+  "disconnectError": "Couldn't disconnect this session",
+  "disconnectControllerRefused": "{{name}}’s Wyfy session ended, but the controller didn’t confirm it dropped their device — it may still be connected until it reconnects.",
+  "deviceControlsTitle": "This device",
+  "deviceControlsSubtitle": "What this venue’s controller can be asked to do about {{name}}’s device.",
+  "deviceControlsNoMac": "We don’t have a device address for this session, so there is nothing to act on here.",
+  "blockDevice": "Block device",
+  "unblockDevice": "Allow device",
+  "deviceSpeedProfile": "Speed profile",
+  "deviceSpeedProfilePlaceholder": "Choose a speed profile",
+  "deviceSpeedNoProfiles": "No speed profiles yet. Create one under Access Rules and it will appear here.",
+  "applyDeviceSpeed": "Apply speed",
+  "clearDeviceSpeed": "Remove limit",
+  "deviceActionError": "Couldn’t reach the venue’s controller. Nothing was changed."
 }
