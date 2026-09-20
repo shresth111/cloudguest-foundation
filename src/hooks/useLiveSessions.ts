@@ -13,5 +13,10 @@ export function useLiveSessions(query: LiveSessionQuery) {
     queryFn: () => liveSessionService.list(query),
     staleTime: 10_000,
     refetchInterval: 15_000,
+    // "Who is online right now" is the whole point of this screen, and
+    // `refetchIntervalInBackground` is false, so the poll pauses while the
+    // tab is away. Focus is the cheapest possible catch-up tick. Explicit
+    // because the app-wide default is now `false` (`router.tsx`, #341).
+    refetchOnWindowFocus: true,
   });
 }

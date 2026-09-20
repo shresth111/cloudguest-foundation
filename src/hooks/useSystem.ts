@@ -39,6 +39,7 @@ export const useSystemMetrics = () =>
     queryKey: systemKeys.metrics,
     queryFn: () => systemService.systemMetrics(),
     refetchInterval: 30_000,
+    refetchOnWindowFocus: true, // live tile; the poll pauses when away (#341)
   });
 
 export const useApiKeys = () =>
