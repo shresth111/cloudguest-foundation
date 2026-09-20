@@ -467,6 +467,8 @@ console.log("\n6. the control lives in the Master drawer, and only there");
 
 const master = read("src/routes/master.integrations.tsx");
 const masterCode = strip(master);
+/** The preview/apply buttons this route mounts now live in the shared panel. */
+const previewPanelCode = strip(read("src/components/network-integrations/PreviewThenApply.tsx"));
 const customer = strip(read("src/components/features/NetworkIntegrationsPage.tsx"));
 
 check("the Master drawer has a portal-contract section", /PortalContractSection/.test(masterCode));
@@ -540,13 +542,20 @@ check(
   "a green toast with nothing behind it is this codebase's characteristic bug",
 );
 
+// The two buttons moved into `<PreviewThenApply>` when that machinery was
+// extracted out of this route; the refusal did not change. The route still
+// derives the block from `portal_mode` and now hands it over as `blocked`, and
+// the shared panel gates BOTH buttons on it -- which is what this check has
+// always been about.
 check(
   "Preview and Apply are refused on the RADIUS contract",
   /configureBlock = configureControllerPortalModeBlock\(integration\.portalMode\)/.test(
     masterCode,
   ) &&
-    /disabled=\{busy \|\| configureBlock !== null\}/.test(masterCode) &&
-    /disabled=\{!previewed \|\| busy \|\| configureBlock !== null\}/.test(masterCode),
+    /blocked=\{configureBlock\}/.test(masterCode) &&
+    /const stopped = busy \|\| blocked !== null/.test(previewPanelCode) &&
+    /disabled=\{stopped\}/.test(previewPanelCode) &&
+    /disabled=\{!previewed \|\| stopped\}/.test(previewPanelCode),
 );
 check(
   "the portal setup steps say they describe the other contract",

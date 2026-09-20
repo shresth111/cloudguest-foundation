@@ -2172,3 +2172,32 @@ jobs:
             "dashboard-qa-copy" 108 \
             "all customer-dashboard QA copy checks passed" \
             bun run test:dashboard-qa-copy
+
+      # The preview-then-apply machinery, extracted out of
+      # `master.integrations.tsx` so the Omada management surfaces inherit it
+      # rather than copying it. Two of its behaviours break silently under a
+      # refactor -- the 409 gap list's lowercase/uppercase normalisation (#279,
+      # found on a live venue) and stale-preview invalidation -- so the suite
+      # exists mainly to make those loud. Its centrepiece renders the panel's
+      # pre-extraction JSX, copied verbatim off origin/main, beside the
+      # extracted component over sixteen states and compares the markup
+      # string-for-string.
+      #
+      # INVOKED AS `node scripts/...` RATHER THAN `bun run test:*`, which is
+      # the only step here that is. package.json belongs to another lane this
+      # round (the QueryClient-defaults PR), and an orphaned script is worse
+      # than an unconventional invocation: `ci-gated-test.sh` takes a command,
+      # so this runs under the same three gates as everything above it. Give it
+      # a `test:preview-then-apply` script and switch this line over when that
+      # lane lands.
+      #
+      # It drives a real Chromium for the hook's half -- the state machine is
+      # stateful, effectful and async, and a server render cannot exercise it.
+      # The Playwright step above already installs the browser.
+      #
+      # Floor 90, observed green at 90.
+      - name: preview-then-apply extraction
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "preview-then-apply" 90 "all checks passed" \
+            node scripts/test-preview-then-apply.mjs

@@ -27,6 +27,7 @@ import {
   CopyValueRow,
   OmadaPortalSetupSteps,
 } from "@/components/network-integrations/OmadaPortalSetupSteps";
+import { PreviewThenApply } from "@/components/network-integrations/PreviewThenApply";
 import { OmadaSiteMapping } from "@/components/network-integrations/OmadaSiteMapping";
 import {
   MPageShell,
@@ -42,11 +43,13 @@ import {
   MDialog,
   M_INPUT,
 } from "@/components/master/MasterKit";
+import { usePreviewThenApply } from "@/hooks/usePreviewThenApply";
 import { relativeTime } from "@/lib/friendly";
 import {
   deriveIntegrationSetup,
   halfConfiguredIntegrations,
 } from "@/lib/network-integration-readiness";
+import { orderGapsBy } from "@/lib/preview-then-apply";
 import {
   configureControllerPortalModeBlock,
   controllerIpDefaultFromBaseUrl,
@@ -195,11 +198,7 @@ const TAG_TONE: Record<NetworkIntegrationStatusTone, string> = {
  * before storing the credentials that can list sites sends an operator to a
  * screen that cannot answer. */
 function orderedGaps(gaps: string[]): string[] {
-  const rank = (g: string) => {
-    const i = CONTROLLER_SETUP_GAP_ORDER.indexOf(g as never);
-    return i === -1 ? Number.MAX_SAFE_INTEGER : i;
-  };
-  return [...gaps].sort((a, b) => rank(a) - rank(b));
+  return orderGapsBy(CONTROLLER_SETUP_GAP_ORDER, gaps);
 }
 
 /**
@@ -699,93 +698,81 @@ function IntegrationDrawer({
    * platform was willing to generate for them. "Provision a TP-Link customer
    * and nothing appears on the Omada side" is that gap, exactly.
    *
-   * PREVIEW BEFORE APPLY IS ENFORCED, not suggested. `outcome` has to hold a
-   * dry run before Apply is enabled. This writes to a customer's live
+   * PREVIEW BEFORE APPLY IS ENFORCED, not suggested. `state.previewed` has to
+   * hold a dry run before Apply is enabled. This writes to a customer's live
    * controller; an operator should read what it intends to do first. It is
    * also how the real response shape gets observed -- see
    * `ControllerSetupOutcome`, which is deliberately loose because that shape
    * could not be read from any source available when this was written.
    */
-  const [outcome, setOutcome] = useState<ControllerSetupOutcome | null>(null);
-  const [previewed, setPreviewed] = useState(false);
-  /**
-   * Preconditions the backend refused on, read off a 409 rather than a
-   * response body.
-   *
-   * A refusal before any write -- an unmet precondition, a foreign portal on
-   * the SSID, a shared site -- comes back as `409` with a typed `data.code`,
-   * and never as a `ControllerConfigureResponse`. So a gap list read off the
-   * success body would be permanently empty: a body only exists for a run that
-   * already got past its preconditions.
-   */
-  const [configureGaps, setConfigureGaps] = useState<string[]>([]);
   const [takeOver, setTakeOver] = useState(false);
   const [confirmTakeOver, setConfirmTakeOver] = useState(false);
 
-  const configure = useMutation({
-    mutationFn: (dryRun: boolean) =>
+  /**
+   * The dry-run gate, the 409 gap list and the outcome panel all now live in
+   * `usePreviewThenApply` / `<PreviewThenApply>`, moved there verbatim so the
+   * Omada management surfaces being built next inherit them instead of
+   * copying them. Every behaviour below was this route's and is unchanged;
+   * `scripts/test-preview-then-apply.mjs` pins the two that a refactor breaks
+   * silently -- the 409 lowercase/uppercase gap normalisation and
+   * stale-preview invalidation.
+   */
+  const configure = usePreviewThenApply<ControllerSetupOutcome>({
+    run: (dryRun) =>
       networkIntegrationService.configurePlatformController(integration, {
         dryRun,
         takeOverSsidPortal: takeOver,
       }),
-    onSuccess: (result, dryRun) => {
-      setOutcome(result);
-      // Got far enough to return a body, so nothing is blocking it any more.
-      setConfigureGaps([]);
-      if (dryRun) {
-        setPreviewed(true);
-        toast.success("Preview complete — nothing was changed on the controller.");
-      } else {
-        // NOT "the venue is live". This changed the controller's
-        // configuration, which is a different claim from a guest being able
-        // to get online: the portal URL can be right and the venue still down
-        // for reasons this never touched. The probe and a real guest are
-        // separate proofs, and the copy says so rather than letting a green
-        // toast imply the whole chain works.
-        toast.success(
-          "Controller configuration applied. That is not yet proof a guest can get online — run Test connectivity, then try a real device.",
-        );
-        onChanged();
-      }
+    toOutcome: (result) => ({
+      dryRun: result.dryRun,
+      ok: result.ok,
+      changed: result.changed,
+      raw: result.raw,
+      steps: result.steps.map((st) => ({
+        key: st.step,
+        label: CONTROLLER_CONFIGURE_STEP_LABEL[st.step] ?? st.step,
+        outcomeLabel: CONTROLLER_CONFIGURE_OUTCOME_LABEL[st.outcome] ?? st.outcome,
+        failed: st.outcome === "failed",
+        message: st.message,
+        providerCode: st.providerCode,
+      })),
+    }),
+    /**
+     * NOTHING HERE READS THE CONTROLLER'S CONFIGURATION BACK, and that is a
+     * statement of fact rather than an oversight: `_configure_controller` is
+     * the only call this screen has, there is no matching read of the portal,
+     * the pre-auth entry and the operator account, and a write on this
+     * platform can return success and change nothing. So this surface
+     * declares that it cannot confirm its own write, and its apply copy says
+     * so instead of claiming the venue is live. The two real proofs -- Test
+     * connectivity and a guest device -- are named in that toast and are the
+     * same two an operator has always had to use.
+     */
+    readBack: {
+      kind: "not-read-back",
+      why: "Nothing reads the controller's configuration back after this write. Test connectivity and a real guest device are the separate proofs.",
     },
-    onError: (err) => {
-      // The 409 path, and BOTH halves of it matter -- verified against the
-      // live QA venue on 2026-09-12, where this rendered
-      // "NETWORK_INTEGRATION_AUTOCONFIG_PRECONDITIONS - this build does not
-      // recognise that precondition" instead of the one gap that was
-      // actually unmet.
-      //
-      //   {"data": {"code": "NETWORK_INTEGRATION_AUTOCONFIG_PRECONDITIONS",
-      //             "missing": ["openapi_required"]}}
-      //
-      // `data.code` names the REFUSAL; `data.missing` is the gap list. They
-      // are different things, and rendering the code as a gap produces an
-      // amber panel that names no fix -- the precise failure the panel exists
-      // to prevent. `missing` is absent on the other pre-write refusals (a
-      // foreign portal on the SSID, a shared site), so the code stays as the
-      // fallback rather than leaving those silent.
-      //
-      // Casing is the second half: the backend emits `ControllerSetupGap`
-      // values lowercase (`openapi_required`) while `CONTROLLER_SETUP_GAP_COPY`
-      // and `CONTROLLER_SETUP_GAP_ORDER` are keyed on the uppercase union.
-      // Without this normalisation a correct list still renders as
-      // unrecognised, so the two bugs hid each other.
-      const e = err as unknown as AppError;
-      const typed = (e?.data?.code ?? e?.code) as string | undefined;
-      const rawMissing = e?.data?.missing;
-      const missing = Array.isArray(rawMissing)
-        ? rawMissing.filter((g): g is string => typeof g === "string").map((g) => g.toUpperCase())
-        : [];
-      if (e?.status === 409 && (missing.length > 0 || typed)) {
-        setConfigureGaps(missing.length > 0 ? missing : [typed as string]);
-        // A stale preview describes a run that is now refused, and leaving it
-        // on screen under a fresh refusal reads as though it still applies.
-        setOutcome(null);
-        setPreviewed(false);
-        return;
-      }
-      toast.error(errorText(err, "The controller could not be configured."));
+    onPreviewed: () => {
+      toast.success("Preview complete — nothing was changed on the controller.");
     },
+    onApplied: () => {
+      // NOT "the venue is live". This changed the controller's
+      // configuration, which is a different claim from a guest being able
+      // to get online: the portal URL can be right and the venue still down
+      // for reasons this never touched. The probe and a real guest are
+      // separate proofs, and the copy says so rather than letting a green
+      // toast imply the whole chain works.
+      toast.success(
+        "Controller configuration applied. That is not yet proof a guest can get online — run Test connectivity, then try a real device.",
+      );
+      onChanged();
+    },
+    onFailed: (err) => toast.error(errorText(err, "The controller could not be configured.")),
+    // `inputs` is deliberately NOT passed. The only input this run has is the
+    // take-over checkbox, and turning it ON already invalidates the preview
+    // through the confirmation dialog below. Passing it would additionally
+    // invalidate when it is turned OFF, which is a behaviour change, and this
+    // extraction is not the change that should make it.
   });
 
   /**
@@ -939,7 +926,7 @@ function IntegrationDrawer({
   const busy =
     test.isPending ||
     setEnabled.isPending ||
-    configure.isPending ||
+    configure.isRunning ||
     replaceCreds.isPending ||
     contractBusy ||
     remove.isPending;
@@ -1198,139 +1185,61 @@ function IntegrationDrawer({
         </DrawerSection>
 
         <DrawerSection title="Configure the controller">
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Sets the guest portal URL on the SSID, adds the pre-authentication access rule, and
-              creates the hotspot operator account on the controller — the steps otherwise done by
-              hand in Omada. Preview first; nothing is written until you apply.
-            </p>
+          {/* AUTOMATIC SETUP HAS NO RADIUS BRANCH. `_configure_controller`
+              always writes an External Portal Server (authType 4) portal
+              onto the SSID -- it never reads `portal_mode`. On a RADIUS-mode
+              venue that silently moves the CONTROLLER back to the other
+              contract while this row still says RADIUS, which is the two
+              halves disagreeing about who authorises guests with nothing on
+              either screen saying so. Refused here rather than discovered
+              afterwards -- `blocked` disables both buttons and says why. */}
+          <PreviewThenApply
+            state={configure.state}
+            busy={busy}
+            running={configure.isRunning}
+            onPreview={configure.preview}
+            onApply={configure.apply}
+            blocked={configureBlock}
+            orderGaps={orderedGaps}
+            gapCopy={(g) => (isControllerSetupGap(g) ? CONTROLLER_SETUP_GAP_COPY[g] : null)}
+            /* The one gap whose fix is a control ON THIS SCREEN gets that
+               control, rather than a sentence pointing at one. Its copy
+               already says "Use Replace credentials above"; until the form
+               grew a mode field that instruction could not be carried out at
+               all, and even now it asks the reader to scroll up, find the
+               section, and know to change a setting the sentence does not
+               mention.
 
-            {/* GAPS COME FROM THE 409, NOT FROM THE SUCCESS BODY. A refusal
-                before any write -- an unmet precondition, a foreign portal on
-                the SSID, a shared site -- is a 409 carrying a typed
-                `data.code`, and never a `ControllerConfigureResponse`. Reading
-                gaps off the response would mean they never appeared at all,
-                because a response only exists for a run that got past them. */}
-            {configureGaps.length > 0 && (
-              <div className="space-y-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
-                <p className="text-sm font-medium">Not ready yet — fix this first:</p>
-                <ol className="space-y-1.5">
-                  {orderedGaps(configureGaps).map((g) => {
-                    const copy = isControllerSetupGap(g) ? CONTROLLER_SETUP_GAP_COPY[g] : null;
-                    return (
-                      <li key={g} className="text-sm">
-                        <span className="font-medium">{copy?.title ?? g}</span>
-                        <span className="block text-xs text-muted-foreground">
-                          {/* An unrecognised precondition is printed verbatim
-                              rather than dropped: one nobody renders is a
-                              refusal with no reason given. */}
-                          {copy?.fix ??
-                            "This build does not recognise that precondition — ask support."}
-                        </span>
-                        {/* The one gap whose fix is a control ON THIS SCREEN
-                            gets that control, rather than a sentence pointing
-                            at one. Its copy already says "Use Replace
-                            credentials above"; until the form grew a mode
-                            field that instruction could not be carried out at
-                            all, and even now it asks the reader to scroll up,
-                            find the section, and know to change a setting the
-                            sentence does not mention. */}
-                        {/* UPPERCASE. The handler normalises the backend's
-                            lowercase `ControllerSetupGap` values to the
-                            uppercase union `CONTROLLER_SETUP_GAP_COPY` is
-                            keyed on, so by the time a gap reaches this list
-                            it is `OPENAPI_REQUIRED`. Comparing against the
-                            wire casing here would have made this button
-                            never render -- the same casing trap that made
-                            the whole panel print "unrecognised" until #279. */}
-                        {g === "OPENAPI_REQUIRED" && (
-                          <MButton
-                            variant="outline"
-                            className="mt-1.5"
-                            disabled={busy}
-                            onClick={() => {
-                              setCredsMode("openapi");
-                              setCredsOpen(true);
-                            }}
-                          >
-                            <KeyRound /> Switch to Open API credentials
-                          </MButton>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ol>
-              </div>
-            )}
-
-            {outcome && (
-              <div className="space-y-2 rounded-lg border border-border bg-muted/40 p-3">
-                <p className="text-sm font-medium">
-                  {outcome.dryRun
-                    ? "What this would change"
-                    : outcome.changed
-                      ? "What was changed"
-                      : "Nothing needed changing"}
-                </p>
-
-                {/* `ok: false` arrives with HTTP 200 and a false envelope, so
-                    the steps are the only place the reason exists. Surfaced
-                    loudly rather than left to the toast, which is gone by the
-                    time anyone reads the detail. */}
-                {!outcome.ok && (
-                  <p className="text-sm font-medium text-destructive">
-                    {outcome.dryRun
-                      ? "Some steps would fail. The controller is unchanged."
-                      : "Some steps failed — the controller is only partly configured."}
-                  </p>
-                )}
-
-                {outcome.steps.length > 0 ? (
-                  <ul className="space-y-1.5">
-                    {outcome.steps.map((st, i) => (
-                      <li key={`${st.step}-${i}`} className="text-sm">
-                        <span className="font-medium">
-                          {CONTROLLER_CONFIGURE_STEP_LABEL[st.step] ?? st.step}
-                        </span>{" "}
-                        <span
-                          className={
-                            st.outcome === "failed" ? "text-destructive" : "text-muted-foreground"
-                          }
-                        >
-                          — {CONTROLLER_CONFIGURE_OUTCOME_LABEL[st.outcome] ?? st.outcome}
-                        </span>
-                        {st.message && (
-                          <span className="block text-xs text-muted-foreground">{st.message}</span>
-                        )}
-                        {/* The controller's own error number, for the support
-                            conversation that follows a failure. */}
-                        {st.outcome === "failed" && st.providerCode != null && (
-                          <span className="block text-xs text-muted-foreground">
-                            Controller error code {st.providerCode}
-                          </span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-sm text-muted-foreground">The controller reported no steps.</p>
-                )}
-
-                {/* Kept from the version written before the schema was known.
-                    This is a response an operator may need verbatim during an
-                    incident, and a field added server-side should reach the
-                    screen without a frontend release. */}
-                <details className="mt-1">
-                  <summary className="cursor-pointer text-xs text-muted-foreground">
-                    Exactly what the controller reported
-                  </summary>
-                  <pre className="mt-2 max-h-64 overflow-auto rounded bg-background p-2 text-[11px] leading-relaxed">
-                    {JSON.stringify(outcome.raw, null, 2)}
-                  </pre>
-                </details>
-              </div>
-            )}
-
+               UPPERCASE. `refusalGapsFromError` normalises the backend's
+               lowercase `ControllerSetupGap` values to the uppercase union
+               `CONTROLLER_SETUP_GAP_COPY` is keyed on, so by the time a gap
+               reaches this list it is `OPENAPI_REQUIRED`. Comparing against
+               the wire casing here would have made this button never render
+               -- the same casing trap that made the whole panel print
+               "unrecognised" until #279. */
+            renderGapAction={(g) =>
+              g === "OPENAPI_REQUIRED" && (
+                <MButton
+                  variant="outline"
+                  className="mt-1.5"
+                  disabled={busy}
+                  onClick={() => {
+                    setCredsMode("openapi");
+                    setCredsOpen(true);
+                  }}
+                >
+                  <KeyRound /> Switch to Open API credentials
+                </MButton>
+              )
+            }
+            intro={
+              <p className="text-sm text-muted-foreground">
+                Sets the guest portal URL on the SSID, adds the pre-authentication access rule, and
+                creates the hotspot operator account on the controller — the steps otherwise done by
+                hand in Omada. Preview first; nothing is written until you apply.
+              </p>
+            }
+          >
             <label className="flex cursor-pointer items-start gap-2 text-sm">
               <input
                 type="checkbox"
@@ -1349,49 +1258,7 @@ function IntegrationDrawer({
                 </span>
               </span>
             </label>
-
-            {/* AUTOMATIC SETUP HAS NO RADIUS BRANCH. `_configure_controller`
-                always writes an External Portal Server (authType 4) portal
-                onto the SSID -- it never reads `portal_mode`. On a RADIUS-mode
-                venue that silently moves the CONTROLLER back to the other
-                contract while this row still says RADIUS, which is the two
-                halves disagreeing about who authorises guests with nothing on
-                either screen saying so. Refused here rather than discovered
-                afterwards. */}
-            {configureBlock && (
-              <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-                <p className="font-medium">Not available on this contract</p>
-                <p className="text-muted-foreground">{configureBlock}</p>
-              </div>
-            )}
-
-            <div className="flex flex-wrap gap-2">
-              <MButton
-                variant="outline"
-                disabled={busy || configureBlock !== null}
-                aria-disabled={busy || configureBlock !== null}
-                title={configureBlock ?? undefined}
-                onClick={() => configure.mutate(true)}
-              >
-                {configure.isPending ? <Loader2 className="animate-spin" /> : <ShieldCheck />}
-                Preview changes
-              </MButton>
-              <MButton
-                variant="primary"
-                disabled={!previewed || busy || configureBlock !== null}
-                aria-disabled={!previewed || busy || configureBlock !== null}
-                title={
-                  configureBlock ??
-                  (previewed
-                    ? undefined
-                    : "Run the preview first — this writes to a live controller.")
-                }
-                onClick={() => configure.mutate(false)}
-              >
-                Apply to controller
-              </MButton>
-            </div>
-          </div>
+          </PreviewThenApply>
         </DrawerSection>
 
         <DrawerSection title="Controller health">
@@ -1581,8 +1448,7 @@ function IntegrationDrawer({
                 setConfirmTakeOver(false);
                 // A previous preview was computed without take-over, so it no
                 // longer describes what Apply would do.
-                setPreviewed(false);
-                setOutcome(null);
+                configure.invalidate();
               }}
             >
               Take it over
