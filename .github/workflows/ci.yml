@@ -1060,6 +1060,49 @@ jobs:
             "customer-kpis" 47 "all customer KPI checks passed" \
             bun run test:customer-kpis
 
+      # --- Duplicate fetch ------------------------------------------------
+      #
+      # Both of these were defined in package.json and invoked by NOTHING --
+      # not here, not in the Jenkinsfile. They are the only existing evidence
+      # that the duplicate-fetch defect stays fixed, and they were the
+      # evidence for #341 (the app-wide QueryClient defaults), so they get
+      # wired in the same PR that leaned on them.
+      #
+      # The defect they guard: a live capture showed
+      # `GET /port-forwarding/rules?page=1&page_size=100` FOUR times on one
+      # page load. Two causes, both removed -- `useIsDemo()` starting `true`
+      # so a gated query fired before its org id resolved, then refired when
+      # the key changed; and KPI tiles re-requesting the list endpoint.
+      #
+      # WHAT THEY COVER: the real components, mounted in a real Chromium via
+      # esbuild, counted at the axios seam. Case 4 of each is a CONTROL that
+      # mounts the OLD shape and asserts it DOES double -- without it, "fired
+      # once" could just mean the harness never looks.
+      #
+      # WHAT THEY DO NOT COVER, and it matters for #341: each harness builds
+      # its OWN `new QueryClient({ defaultOptions: { queries: { retry: false }}})`
+      # inside the fixture, so NEITHER exercises `src/router.tsx`'s defaults.
+      # They prove the query KEYS are stable, not that the client is
+      # configured. They also fire no focus event, so `refetchOnWindowFocus`
+      # is untested either way, and they only know the pages they name
+      # (port-forwarding, DHCP, and the customer dashboard's own reads) --
+      # neither scans generically, so a new page is not covered until someone
+      # adds it. The generic + focus-event harness is Task 10 of the Omada FE
+      # plan, deliberately not in this PR.
+      #
+      # Floors are the counts observed green on 2026-09-20 (7 and 12).
+      - name: network pages fetch each read once
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "network-page-fetch-count" 7 "all checks passed" \
+            bun run test:fetch-count
+
+      - name: customer dashboard fetches each read once
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "customer-dashboard-fetch-count" 12 "all checks passed" \
+            bun run test:dashboard-fetch-count
+
       # Open Hours persists only on an explicit Save: dirty must mean a real
       # difference, validation must match the backend's schedule validator,
       # and the view must stay wired to the real PUT (no preview, no Apply).

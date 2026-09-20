@@ -72,6 +72,12 @@ function PortalLoading() {
     queryFn: () => portalRuntimeService.checkActiveSession({ routerId, deviceMac: deviceMac! }),
     enabled: !!deviceMac && (!session || !!hotspotLoginUrl),
     staleTime: 0,
+    // Explicit, not inherited: #341 set the app-wide `retry` default to 1,
+    // and this runs on the flakiest network in the product -- a guest device
+    // on an unauthorised captive-portal hotspot. The answer here decides
+    // whether they see a working session or a sign-in form, so it keeps the
+    // three attempts it has always had.
+    retry: 3,
   });
 
   // Only asked once the live-session check above has come back empty, and
@@ -87,6 +93,7 @@ function PortalLoading() {
     queryFn: () => portalRuntimeService.checkLastEndedSession({ routerId, deviceMac: deviceMac! }),
     enabled: !session && !!deviceMac && liveSessionChecked && !liveSession,
     staleTime: 0,
+    retry: 3, // same guest-network reason as the live-session check above (#341)
   });
 
   useEffect(() => {

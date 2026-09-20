@@ -126,6 +126,11 @@ export function useCustomerDashboard(locationId: string) {
     // "Currently online", router/ISP status and alerts should not freeze at
     // page-load values on a screen that stays open at the front desk.
     refetchInterval: 60_000,
+    // ...and must not freeze at pre-alt-tab values either. The poll pauses
+    // while the tab is away, so without this a returning operator reads
+    // stale numbers for up to another minute. Explicit because the app-wide
+    // default is now `false` (`router.tsx`, #341).
+    refetchOnWindowFocus: true,
     retry: 1,
   });
 }
@@ -139,6 +144,7 @@ export function useDashboardSeries(locationId: string, range: DashboardRange) {
     enabled: !!locationId,
     staleTime: 30_000,
     refetchInterval: 60_000,
+    refetchOnWindowFocus: true, // same live-dashboard reason as above (#341)
     retry: 1,
   });
 }
@@ -176,6 +182,7 @@ export function useCustomerOnlineNow(locationId: string) {
     enabled: !!locationId,
     staleTime: 10_000,
     refetchInterval: 30_000,
+    refetchOnWindowFocus: true, // same live-dashboard reason as above (#341)
     retry: 1,
   });
 }

@@ -21,9 +21,13 @@ export const ispKeys = {
 // health-check sweep updates it server-side without a manual reload or a
 // mutation of their own. `refetchIntervalInBackground` defaults to
 // `false`, so (like that same page's Page Visibility-gated interval) this
-// pauses while the tab isn't focused and catches up via React Query's own
-// default `refetchOnWindowFocus` on return -- no custom visibility
-// wiring needed here. Quiet by construction: React Query only flips
+// pauses while the tab isn't focused and catches up on return -- via the
+// `refetchOnWindowFocus: true` set explicitly below. That used to be
+// inherited from React Query's library default; #341 turned that default
+// off app-wide (see `router.tsx`), so this hook now states the thing it
+// always depended on. Without it, a tab returned to after a backgrounded
+// stretch would show pre-background link health for up to another 20s --
+// exactly the "no way to see a link flip healthy/unhealthy" incident above. Quiet by construction: React Query only flips
 // `isLoading` on the *first* fetch, so a background refetch never flashes
 // the table into its loading state, and this hook raises no toast of its
 // own on a blip -- same "keep showing last known-good state" intent.
@@ -34,6 +38,7 @@ export const useIspLinks = (q: IspLinkListQuery) =>
     queryKey: ispKeys.links(q),
     queryFn: () => ispService.listLinks(q),
     refetchInterval: ISP_LINKS_POLL_INTERVAL_MS,
+    refetchOnWindowFocus: true,
   });
 
 export function useCreateIspLink() {

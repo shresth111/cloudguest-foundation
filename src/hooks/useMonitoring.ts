@@ -50,6 +50,11 @@ export function useHealthDashboard(refetchMs: number | false = 30000) {
     queryKey: monitoringKeys.health,
     queryFn: () => monitoringService.getHealthDashboard(),
     refetchInterval: refetchMs,
+    // Mirrors the caller's own polling decision rather than overriding it: a
+    // caller that passed `false` asked for a still picture and should not get
+    // a refetch on alt-tab either. Explicit because the app-wide default is
+    // now `false` (`router.tsx`, #341).
+    refetchOnWindowFocus: refetchMs !== false,
   });
 }
 
@@ -342,6 +347,7 @@ export function usePlatformDashboard(
     queryKey: monitoringKeys.platformDashboard(q),
     queryFn: () => monitoringService.getPlatformDashboard(q),
     refetchInterval: refetchMs,
+    refetchOnWindowFocus: refetchMs !== false, // same as useHealthDashboard (#341)
   });
 }
 

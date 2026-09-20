@@ -6,7 +6,50 @@ import { ErrorComponent } from "@/routes/__root";
 import type { RouterAuthContext } from "@/context/AuthContext";
 
 export const getRouter = () => {
-  const queryClient = new QueryClient();
+  // Until #341 this was `new QueryClient()` -- no `defaultOptions` at all, so
+  // every query in the product ran on TanStack Query v5's library defaults:
+  // `staleTime: 0`, `refetchOnWindowFocus: true`, `retry: 3`. It behaved only
+  // because individual call sites overrode them by hand, and the failure mode
+  // of a per-call-site convention is the call site that forgets. Measured at
+  // `ae0f536`: 197 of 259 query call sites set no `staleTime`, 229 set no
+  // `retry`, and NOT ONE set `refetchOnWindowFocus` -- so every mounted query
+  // in the app refetched on every alt-tab back into the console.
+  //
+  // That is about to get expensive. The Omada management surfaces read live
+  // through our backend to a customer's own controller, and those reads
+  // already carry `timeout: 60_000` (`network-integration.service.ts`). Four
+  // tabs mounted plus an operator alt-tabbing away and back is several
+  // minute-long round trips onto someone else's production hardware, caused
+  // by nothing but window focus.
+  //
+  // Each value below moves in the conservative direction -- fewer requests,
+  // never more -- and a call site that wants otherwise still wins, because
+  // these are defaults. The call sites that genuinely wanted the old
+  // behaviour now say so in their own file rather than inheriting it:
+  //   - queries that poll AND are watched live (`useIspLinks`,
+  //     `useLiveSessions`, the customer dashboard trio, `useAlertsFeed`,
+  //     `useHealthDashboard`, `usePlatformDashboard`, `useSystemMetrics`)
+  //     set `refetchOnWindowFocus: true` explicitly;
+  //   - the captive portal's live-session checks, which run on the flakiest
+  //     network in the product, set `retry: 3` explicitly.
+  //
+  // What did NOT need changing: `refetchInterval` is not gated on staleness
+  // (query-core `#updateRefetchInterval` fires `#executeFetch` on the timer),
+  // so every poll in the app keeps its cadence; `invalidateQueries` refetches
+  // active observers regardless of `staleTime`, so every mutation read-back
+  // and every manual Refresh button is unaffected; and identity switches
+  // already call `queryClient.clear()` (AuthContext login/logout/
+  // impersonation), so a 30s `staleTime` cannot leak one session's data into
+  // the next.
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 30_000,
+        refetchOnWindowFocus: false,
+        retry: 1,
+      },
+    },
+  });
 
   const router = createRouter({
     routeTree,
