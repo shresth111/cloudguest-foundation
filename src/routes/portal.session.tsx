@@ -289,6 +289,12 @@ function SessionPage() {
     queryFn: () => portalRuntimeService.checkActiveSession({ routerId, deviceMac: deviceMac! }),
     enabled: !session && !!deviceMac,
     staleTime: 0,
+    // Explicit, not inherited: #341 set the app-wide `retry` default to 1,
+    // and this runs on the flakiest network in the product -- a guest device
+    // on an unauthorised captive-portal hotspot. The answer here decides
+    // whether they see a working session or a sign-in form, so it keeps the
+    // three attempts it has always had.
+    retry: 3,
   });
 
   useEffect(() => {
