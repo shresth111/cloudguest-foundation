@@ -1218,7 +1218,7 @@ function IntegrationDrawer({
                -- the same casing trap that made the whole panel print
                "unrecognised" until #279. */
             renderGapAction={(g) =>
-              g === "OPENAPI_REQUIRED" ? (
+              g === "OPENAPI_REQUIRED" && (
                 <MButton
                   variant="outline"
                   className="mt-1.5"
@@ -1230,7 +1230,7 @@ function IntegrationDrawer({
                 >
                   <KeyRound /> Switch to Open API credentials
                 </MButton>
-              ) : null
+              )
             }
             intro={
               <p className="text-sm text-muted-foreground">
