@@ -29,6 +29,18 @@ import {
   MField,
   M_INPUT,
 } from "@/components/master/MasterKit";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useAuth } from "@/context/AuthContext";
+import type { AppError } from "@/services/api";
 import { quotationService } from "@/services/quotation.service";
 import {
   QUOTATION_STATUS_LABEL,
@@ -121,12 +133,20 @@ function downloadBlob(url: string, filename: string) {
 }
 
 function QuotationsScreen() {
+  const { can } = useAuth();
+  // Gated on the backend's own key, at the same GLOBAL scope the endpoint
+  // checks. An operator without it never sees the button rather than
+  // seeing one that 403s.
+  const canDelete = can("quotations.delete");
+
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [selected, setSelected] = useState<Quotation | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Quotation | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -264,6 +284,31 @@ function QuotationsScreen() {
     }
   }
 
+  async function handleDelete(q: Quotation) {
+    setDeleting(true);
+    try {
+      await quotationService.remove(q.id);
+      // This screen's cache is this array -- it holds the list in local
+      // state and there is no react-query key for quotations, so dropping
+      // the row here IS the invalidation. Everything derived recomputes
+      // from it: the four MStat tiles (Total Quotations / Sent / Failed /
+      // Total Quoted), the status filter counts and the table. Refetching
+      // instead would work too but would blank the table behind the
+      // drawer; the backend already told us the row is gone.
+      setQuotations((prev) => prev.filter((row) => row.id !== q.id));
+      // The drawer is showing the row that no longer exists, and the
+      // confirm dialog sits on top of it -- both have to go, or the
+      // operator is left reading a deleted quotation's line items.
+      setSelected((prev) => (prev && prev.id === q.id ? null : prev));
+      setConfirmDelete(null);
+      toast.success(`Quotation ${q.quotationNumber} deleted`);
+    } catch (err) {
+      toast.error((err as AppError).message || "Could not delete this quotation.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <MasterShell title="Quotations">
       <MPageShell>
@@ -373,18 +418,30 @@ function QuotationsScreen() {
           }
           footer={
             selected && (
-              <MButton
-                variant="primary"
-                disabled={downloadingId === selected.id}
-                onClick={() => handleDownload(selected)}
-              >
-                {downloadingId === selected.id ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Download />
-                )}{" "}
-                Download PDF
-              </MButton>
+              <div className="flex w-full flex-col gap-2">
+                <MButton
+                  variant="primary"
+                  disabled={downloadingId === selected.id}
+                  onClick={() => handleDownload(selected)}
+                >
+                  {downloadingId === selected.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download />
+                  )}{" "}
+                  Download PDF
+                </MButton>
+                {canDelete && (
+                  <MButton
+                    variant="outline"
+                    className="w-full text-destructive hover:text-destructive"
+                    disabled={deleting}
+                    onClick={() => setConfirmDelete(selected)}
+                  >
+                    <Trash2 /> Delete Quotation
+                  </MButton>
+                )}
+              </div>
             )
           }
         >
@@ -708,6 +765,51 @@ function QuotationsScreen() {
             </div>
           </div>
         </MDialog>
+
+        {/* Delete confirmation */}
+        <AlertDialog
+          open={!!confirmDelete}
+          onOpenChange={(open) => !open && setConfirmDelete(null)}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete {confirmDelete?.quotationNumber}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {/* Said plainly rather than enforced: the backend has no
+                    status guard, because a quotation has no terminal
+                    commercial state. What "sent" does mean is that a PDF
+                    already reached the client, and deleting the record
+                    here does not recall that email -- which is the one
+                    thing an operator could otherwise assume wrongly. */}
+                This removes the quotation for <strong>{confirmDelete?.clientCompanyName}</strong>{" "}
+                from this list, along with its line items and its PDF download.
+                {confirmDelete?.status === "sent"
+                  ? " It was already emailed to " +
+                    confirmDelete.clientEmail +
+                    " — deleting it here does not recall that email."
+                  : ""}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={deleting}
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (confirmDelete) handleDelete(confirmDelete);
+                }}
+              >
+                {deleting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Deleting…
+                  </>
+                ) : (
+                  "Delete Quotation"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </MPageShell>
     </MasterShell>
   );
