@@ -10,6 +10,7 @@ import {
   Plug,
   LineChart,
   Activity,
+  Bell,
   LifeBuoy,
   ScrollText,
   LogOut,
@@ -61,6 +62,12 @@ export const MASTER_NAV: MasterNavItem[] = [
   { to: "/master/integrations", label: "Network Integrations", icon: Plug, cap: "integrations" },
   { to: "/master/console", label: "Device Console", icon: TerminalSquare, cap: "console" },
   { to: "/master/analytics", label: "Global Analytics", icon: LineChart, cap: "analytics" },
+  {
+    to: "/master/notification-channels",
+    label: "Alert Channels",
+    icon: Bell,
+    cap: "notification-channels",
+  },
   { to: "/master/health", label: "System Health", icon: Activity, cap: "health" },
   { to: "/master/tickets", label: "Support Tickets", icon: LifeBuoy, cap: "tickets" },
   {
@@ -109,6 +116,7 @@ const MASTER_NAV_GROUPS: { label: string; items: string[] }[] = [
     label: "Operations",
     items: [
       "/master/analytics",
+      "/master/notification-channels",
       "/master/tickets",
       "/master/demo-requests",
       "/master/quotations",
@@ -163,6 +171,13 @@ const CAP_PERMISSIONS: Record<string, string[]> = {
   integrations: ["network_integrations.read"],
   console: ["device_console.read", "device_console.execute"],
   analytics: ["analytics.read", "analytics.view"],
+  /** `/master/notification-channels` -- where alerts and platform events are
+   * delivered. Gated on the READ key, not `notifications.manage`, for the
+   * same reason `integrations` is: during an incident the first question is
+   * "was anyone told?", and Platform Support need to be able to look. Every
+   * write on the page (create, pause, delete, send test) is gated by the
+   * backend on `notifications.manage`/`update`/`delete` independently. */
+  "notification-channels": ["notifications.read"],
   health: ["monitoring.read", "monitoring.view"],
   tickets: ["support_tickets.read"],
   "demo-requests": ["demo_requests.read"],

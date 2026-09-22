@@ -158,14 +158,58 @@ export type NotificationChannelType =
 
 export type NotificationStatus = "sent" | "failed";
 
+export type NotificationEventCategory =
+  | "platform_ops"
+  | "customer_onboarding"
+  | "billing"
+  | "security";
+
+/**
+ * The redacted view of a channel's credentials.
+ *
+ * The API never returns the stored webhook URL, API key or auth header
+ * value -- not here, not anywhere. `target` is a masked destination
+ * (`https://hooks.slack.com/…`), `fingerprint` is a truncated SHA-256 so two
+ * channels can be compared without either being disclosed, and `configured`
+ * distinguishes a channel that points somewhere from one whose credential
+ * was never filled in. `fingerprint` is deliberately `null` for email/SMS/
+ * WhatsApp: a ten-digit phone number's hash is brute-forced in seconds, so
+ * hashing one would turn a redaction into a disclosure.
+ */
+export interface NotificationChannelConfigSummary {
+  configured: boolean;
+  target: string;
+  fingerprint: string | null;
+  hasSecret: boolean;
+  authHeaderName: string | null;
+  /** What the operator must still supply before this type can deliver. */
+  requirements: string[];
+}
+
+/**
+ * The channel's most recent delivery. `kind` matters: a `"test"` row proves
+ * the credential works, NOT that the channel has ever carried a real alert,
+ * and the UI must not present the two as the same thing.
+ */
+export interface NotificationDeliveryStatus {
+  status: NotificationStatus;
+  kind: "alert" | "test";
+  sentAt: string;
+  errorMessage: string | null;
+  responseSummary: string | null;
+}
+
 export interface NotificationChannel {
   id: string;
   organizationId: string | null;
   channelType: NotificationChannelType;
   name: string;
   isActive: boolean;
+  eventCategories: NotificationEventCategory[];
   createdAt: string;
   updatedAt: string;
+  configSummary: NotificationChannelConfigSummary | null;
+  lastDelivery: NotificationDeliveryStatus | null;
 }
 
 export interface NotificationLog {
@@ -408,6 +452,13 @@ export const NOTIFICATION_CHANNEL_TYPE_LABEL: Record<NotificationChannelType, st
   webhook: "Webhook",
 };
 
+export const NOTIFICATION_EVENT_CATEGORY_LABEL: Record<NotificationEventCategory, string> = {
+  platform_ops: "Platform ops",
+  customer_onboarding: "Customer onboarding",
+  billing: "Billing",
+  security: "Security",
+};
+
 export const ROUTER_LIFECYCLE_STAGE_LABEL: Record<RouterLifecycleStage, string> = {
   pending: "Pending",
   claimed: "Claimed",
@@ -488,17 +539,26 @@ export interface NotificationChannelListQuery {
 }
 
 export interface CreateNotificationChannelPayload {
+  /**
+   * `undefined` and `null` are NOT the same request. `null` means a
+   * deliberately platform-wide channel; omitting the key entirely on a
+   * cross-tenant request is refused by the API rather than guessed at,
+   * because "all organizations" is a breadth for a read and not a place a
+   * channel can live.
+   */
   organizationId?: string | null;
   channelType: NotificationChannelType;
   name: string;
   config: Record<string, unknown>;
   isActive: boolean;
+  eventCategories?: NotificationEventCategory[];
 }
 
 export interface UpdateNotificationChannelPayload {
   name?: string;
   config?: Record<string, unknown>;
   isActive?: boolean;
+  eventCategories?: NotificationEventCategory[];
 }
 
 export interface NotificationLogListQuery {
