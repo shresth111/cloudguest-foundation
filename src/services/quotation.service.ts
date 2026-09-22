@@ -115,6 +115,21 @@ export const quotationService = {
     return toQuotation(data);
   },
 
+  /** Master console -- soft-deletes one quotation, gated by
+   * `quotations.delete` at GLOBAL scope. The backend flags the row
+   * (`is_deleted`/`deleted_at`) rather than removing it, and every read
+   * path already filters on that flag, so the quotation disappears from
+   * this list and from `get`/`downloadPdf` immediately. Deleting one that
+   * is already deleted is a 404, not a second delete -- a retried click
+   * surfaces as an error rather than silently succeeding.
+   *
+   * Resolves with the deleted row (the backend returns it) so a caller can
+   * reconcile its list from the response rather than re-fetching. */
+  async remove(quotationId: string): Promise<Quotation> {
+    const { data } = await api.delete<BackendQuotation>(`/quotations/${quotationId}`);
+    return toQuotation(data);
+  },
+
   /** Downloads the same PDF that was (or would have been) emailed -- the
    * fallback an operator uses when a send fails. GET /quotations/{id}/pdf
    * requires the operator's own Bearer token (gated by quotations.read),

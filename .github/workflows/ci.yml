@@ -2173,6 +2173,24 @@ jobs:
             "all customer-dashboard QA copy checks passed" \
             bun run test:dashboard-qa-copy
 
+      # The Quotations screen's delete action. A destructive, unundoable
+      # control has four ways to be wrong that all still render: no
+      # confirmation, a permission key the backend does not seed (which
+      # makes the button silently never appear -- the incident
+      # `generate-backend-permission-keys.mjs` was written for), a list
+      # that is not invalidated, and a drawer left open on the row that was
+      # just deleted. This screen keeps its rows in local `useState` rather
+      # than react-query, so that array is the only cache there is and
+      # dropping the row from it is the whole invalidation.
+      #
+      # Floor 21, observed green at 21.
+      - name: quotation delete
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "quotation-delete" 21 \
+            "All quotation delete checks passed." \
+            bun run test:quotation-delete
+
       # The preview-then-apply machinery, extracted out of
       # `master.integrations.tsx` so the Omada management surfaces inherit it
       # rather than copying it. Two of its behaviours break silently under a
