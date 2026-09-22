@@ -100,6 +100,7 @@
     "test:controller-fleet-drawer": "node scripts/test-controller-fleet-drawer.mjs",
     "test:controller-venue-screens": "node scripts/test-controller-venue-network-screens.mjs",
     "test:controller-row-evidence": "node scripts/test-controller-row-evidence.mjs",
+    "test:alert-channels-honesty": "node scripts/test-alert-channels-honesty.mjs",
     "test:master-integration-repair": "node scripts/test-master-integration-repair.mjs",
     "test:master-omada-radius": "node scripts/test-master-omada-radius-mode.mjs",
     "test:controller-venue-nav": "node scripts/test-controller-venue-nav.mjs",

@@ -36,6 +36,18 @@ export interface SecuritySettings {
   auditLogging: boolean;
 }
 
+/**
+ * NOTE: there is no `slackWebhookUrl`/`webhookEndpoint` here any more, and
+ * adding one back would be a mistake. Those two fields were bound to inputs
+ * on the Notifications settings panel whose "save" was an in-memory mock, so
+ * an operator could paste a bearer-equivalent Slack webhook URL, be told it
+ * was saved, and have it silently discarded.
+ *
+ * A real alert destination is a `NotificationChannel`
+ * (`POST /api/v1/notifications/channels`): encrypted at rest, scoped to an
+ * organization, delivery-logged, and testable. See
+ * `components/settings/panels/NotificationsPanel.tsx`.
+ */
 export interface NotificationSettings {
   email: boolean;
   sms: boolean;
@@ -43,8 +55,6 @@ export interface NotificationSettings {
   browser: boolean;
   slack: boolean;
   webhooks: boolean;
-  slackWebhookUrl: string;
-  webhookEndpoint: string;
 }
 
 export type EmailProvider = "aws_ses" | "smtp" | "sendgrid" | "mailgun";

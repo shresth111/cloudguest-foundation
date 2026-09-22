@@ -263,8 +263,6 @@ let state: PlatformSettings = {
     browser: true,
     slack: true,
     webhooks: true,
-    slackWebhookUrl: "https://hooks.slack.com/services/T000/B000/XXXX",
-    webhookEndpoint: "https://api.cloudguest.io/webhooks/events",
   },
   email: {
     provider: "aws_ses",

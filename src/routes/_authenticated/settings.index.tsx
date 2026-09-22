@@ -78,7 +78,7 @@ function SettingsPage() {
       case "security":
         return <SecurityPanel data={data.security} />;
       case "notifications":
-        return <NotificationsPanel data={data.notifications} />;
+        return <NotificationsPanel />;
       case "email":
         return <EmailPanel data={data.email} />;
       case "sms":
