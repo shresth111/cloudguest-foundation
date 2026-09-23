@@ -24,8 +24,12 @@ import type { NextCampaign } from "@/types/campaign";
  *
  *   - `/preview/portal/demo` (src/routes/preview.portal.demo.tsx) -- the
  *     prospect-facing demo, fed a localStorage snapshot of an unsaved config.
- *     Passes no campaign/post-login props: a demo session has no real
- *     campaigns or post-login page to light up.
+ *     Passes the config's own post-login page / redirect target (so the
+ *     "After they connect" choice made on Portal Settings is what the flow
+ *     ends on) plus the built-in `DEMO_PORTAL_CAMPAIGN`
+ *     (src/lib/portal-demo.ts): a demo session has no backend, so there is no
+ *     real campaign to resolve, and the campaign it shows is the demo
+ *     account's own sample rather than this venue's.
  *   - `/preview/portal/$locationId` (src/routes/preview.portal.$locationId.tsx)
  *     -- a REAL customer's own preview, when the operator opts into "Run guest
  *     walkthrough". Passes that location's real active campaign and its real
@@ -71,9 +75,10 @@ export function DemoPortalFlow({
   redirectUrl = null,
   constrained = false,
 }: {
-  /** This location's real currently-active campaign, as
-   * `campaignService.resolveActivePreviewCampaign` resolves it. `null` (the
-   * default) simply skips step 2. */
+  /** The campaign to show at step 2: this location's real currently-active
+   * campaign, as `campaignService.resolveActivePreviewCampaign` resolves it,
+   * or -- on the demo route, which has no backend -- the built-in
+   * `DEMO_PORTAL_CAMPAIGN`. `null` (the default) simply skips step 2. */
   campaign?: NextCampaign | null;
   /** The venue's real `config.postLoginHtml`. `null`/blank skips the frame. */
   postLoginHtml?: string | null;

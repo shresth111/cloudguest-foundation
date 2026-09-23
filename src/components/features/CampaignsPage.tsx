@@ -40,6 +40,13 @@ import { toast } from "sonner";
 import { EmptyState } from "@/components/common/EmptyState";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
+import {
+  DEMO_CAMPAIGN_COUPON_CODE,
+  DEMO_CAMPAIGN_COUPON_EXPIRES_AT,
+  DEMO_CAMPAIGN_HEADLINE,
+  DEMO_CAMPAIGN_NAME,
+  DEMO_CAMPAIGN_SUBTEXT,
+} from "@/lib/portal-demo";
 import { campaignService, CAMPAIGN_STATUS_TRANSITIONS } from "@/services/campaign.service";
 import type {
   CampaignAsset,
@@ -108,7 +115,7 @@ const SURVEY_QUESTIONS = [
 const DEMO_SEED: Campaign[] = [
   {
     id: "1",
-    name: "Summer Promo",
+    name: DEMO_CAMPAIGN_NAME,
     type: "BANNER",
     status: "active",
     businessUnit: "Mumbai HQ",
@@ -214,18 +221,24 @@ const demoQuestionSeed = (campaignId: string): CampaignQuestion[] =>
 // Demo-only seed so previewing a BANNER/REDIRECT campaign while in demo
 // mode still has something real-shaped to show -- mirrors the "Flat 20%
 // off" illustration already used elsewhere on this page.
+//
+// The copy is NOT written here: it comes from `src/lib/portal-demo.ts`, the
+// same constants the portal walkthrough's own campaign step renders
+// (`DEMO_PORTAL_CAMPAIGN`). One demo campaign, one coupon, described once --
+// a local copy here is exactly how the demo would come to show a prospect a
+// coupon that the Campaigns page they were just looking at does not have.
 const demoAssetSeed = (campaignId: string): CampaignAsset[] => [
   {
     id: `${campaignId}-demo-asset`,
     campaignId,
     imageUrl: null,
     clickUrl: null,
-    altText: "Flat 20% off this weekend",
+    altText: DEMO_CAMPAIGN_HEADLINE,
     locale: null,
-    headline: "Flat 20% off this weekend",
-    subtext: "Show this coupon at checkout to redeem your discount.",
-    couponCode: "SAVE20",
-    couponExpiresAt: "2026-12-31T23:59:59Z",
+    headline: DEMO_CAMPAIGN_HEADLINE,
+    subtext: DEMO_CAMPAIGN_SUBTEXT,
+    couponCode: DEMO_CAMPAIGN_COUPON_CODE,
+    couponExpiresAt: DEMO_CAMPAIGN_COUPON_EXPIRES_AT,
   },
 ];
 
