@@ -89,6 +89,7 @@
     "access-policy": "एक्सेस और नीति",
     "devices-team": "डिवाइस और टीम",
     "network": "नेटवर्क",
+    "security": "सुरक्षा",
     "operations": "संचालन",
     "support-logs": "सहायता और लॉग"
   },
@@ -113,6 +114,7 @@
     "voip": "कॉल प्राथमिकता",
     "website-blocking": "वेबसाइट ब्लॉकिंग",
     "isp-details": "इंटरनेट कनेक्शन",
+    "security": "अवलोकन",
     "debugging": "समस्या ठीक करें",
     "tickets": "सहायता टिकट",
     "admin-logs": "लॉग",

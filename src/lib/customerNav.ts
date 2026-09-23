@@ -26,6 +26,7 @@ import {
   Share2,
   HelpCircle,
   Radar,
+  ShieldAlert,
 } from "lucide-react";
 
 export type CustomerLoginRole = "owner" | "agent";
@@ -128,6 +129,21 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
       // note in the Operations group and the icon-clash assertion in
       // scripts/test-customer-nav-shell.mjs).
     ],
+  },
+  {
+    id: "security",
+    label: "Security",
+    // One row today, and that is the honest count: the posture page is the
+    // only security surface whose numbers this platform can actually produce
+    // (see SecurityOverviewView's own note). Blocking, firewall rules and
+    // zone isolation join it as they become real -- listing them now would
+    // put four rows in the sidebar that open a placeholder, which reads as
+    // four broken features rather than one shipped one.
+    //
+    // The label is "Overview", not "Security": the group header already says
+    // Security, and a row repeating its own group is the same duplicated
+    // heading this dashboard has been pulled up on elsewhere.
+    items: [{ id: "security", label: "Overview", icon: ShieldAlert, roles: ["owner"] }],
   },
   {
     id: "operations",

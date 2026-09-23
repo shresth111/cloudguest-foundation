@@ -121,6 +121,13 @@ export const NAV_PERMISSION_KEYS: Record<string, readonly string[]> = {
   voip: ["qos.read"],
   "website-blocking": ["content_filtering.read"],
   "isp-details": ["isp.read"],
+  // Security: one key, and it is the only action the backend's SECURITY
+  // module seeds today (`MODULE_ACTIONS[PermissionModule.SECURITY] ==
+  // (READ,)`). The write actions arrive with the endpoints that check them,
+  // so a longer list here would name keys that do not exist -- which is
+  // exactly what `scripts/test-customer-nav-permissions.mjs` is there to
+  // catch, since a key nobody seeds hides the row from everyone.
+  security: ["security.read"],
   // A real module, added to the backend's `PermissionModule` alongside this
   // feature (CONTRACT.md §4), with `MODULE_NARROWEST_SCOPE = LOCATION` --
   // same profile as `mac_authorization` and `network_device` above, since an

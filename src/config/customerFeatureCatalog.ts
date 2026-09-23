@@ -30,6 +30,7 @@ import {
   ScrollText,
   LifeBuoy,
   Radar,
+  ShieldAlert,
 } from "lucide-react";
 
 export interface FeatureDef {
@@ -113,6 +114,17 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
       // anyway so the Staff Access screen enumerates a complete feature set
       // rather than a set with one silent hole in it.
     ],
+  },
+  {
+    group: "Security",
+    // One grantable feature, mirroring customerNav.ts's single row. Grantable
+    // (not `core`) exactly as "admin-logs"/"network-activity" are, and with
+    // the same caveat: real access still requires the owner login role
+    // (customerNav.ts's `roles: ["owner"]`), so granting this to an agent has
+    // no effect until that separate restriction is ever relaxed. It is listed
+    // anyway so the Staff Access screen enumerates a complete feature set
+    // rather than one with a silent hole in it.
+    items: [{ id: "security", label: "Security overview", icon: ShieldAlert }],
   },
   {
     group: "Operations",

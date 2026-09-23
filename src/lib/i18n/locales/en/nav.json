@@ -89,6 +89,7 @@
     "access-policy": "Access & Policy",
     "devices-team": "Devices & Team",
     "network": "Network",
+    "security": "Security",
     "operations": "Operations",
     "support-logs": "Support & Logs"
   },
@@ -113,6 +114,7 @@
     "voip": "Call Priority",
     "website-blocking": "Website Blocking",
     "isp-details": "Internet Connection",
+    "security": "Overview",
     "debugging": "Fix a Problem",
     "tickets": "Support Tickets",
     "admin-logs": "Logs",

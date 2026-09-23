@@ -6,11 +6,12 @@
  * This replaces `test-customer-destinations.mjs`, which pinned a structure
  * that no longer exists: 26 features folded into nine "destinations", the
  * other seventeen reachable as tabs. That grouping was reverted -- the
- * sidebar offers all 26 in their seven groups again -- so those assertions
+ * sidebar offers all 26 in their eight groups again -- so those assertions
  * were not failing usefully, they were describing a deleted module. They are
- * deleted with it. (The count is 25 today: the "Notifications" preferences
- * screen was removed from the customer dashboard along with its nav entry;
- * see test-customer-nav-permissions.mjs's own note.)
+ * deleted with it. (The count is 26 today: the "Notifications" preferences
+ * screen was removed from the customer dashboard along with its nav entry,
+ * and the Security group later added one row; see
+ * test-customer-nav-permissions.mjs's own note.)
  *
  * What is NOT deleted is everything that shipped in the same commit but was
  * never about the grouping, because each of those fixed a real defect and
@@ -18,7 +19,7 @@
  * kept verbatim where they still apply and inverted where the expression
  * they named moved back:
  *
- *   1. THE MENU IS ALL OF THEM. Seven groups, every feature its own row,
+ *   1. THE MENU IS ALL OF THEM. Eight groups, every feature its own row,
  *      rendered from `customerNav.ts` through the same two filters.
  *   2. THE SHELL IS STILL THE SHARED PRIMITIVE. `components/ui/sidebar.tsx`,
  *      not a hand-rolled `<aside>` -- cookie-persisted collapse, Cmd/Ctrl-B,
@@ -114,25 +115,29 @@ const {
 } = await import(`file://${outfile}`);
 
 // ---------------------------------------------------------------------------
-// 1. The menu is the 25 again.
+// 1. The menu is the 26 again.
 // ---------------------------------------------------------------------------
 
-console.log("\nthe customer menu is 25 features in seven groups");
+console.log("\nthe customer menu is 26 features in eight groups");
 
-check("there are seven groups", CUSTOMER_NAV_GROUPS.length === 7, `${CUSTOMER_NAV_GROUPS.length}`);
-// 25: main removed the "Notifications" preferences screen (25), a branch
+check("there are eight groups", CUSTOMER_NAV_GROUPS.length === 8, `${CUSTOMER_NAV_GROUPS.length}`);
+// 26: main removed the "Notifications" preferences screen (25), a branch
 // added "Network Integrations" to the Network group (26), and FIX-PLAN FE-0
-// has now retired that row again (25) -- backend `074d719` made every
+// retired that row again (25) -- backend `074d719` made every
 // `network_integrations.*` route GLOBAL-scoped and dropped the org-scoped
 // grants, so for a venue owner the page it led to 403s on every call.
+// Then the Security group arrived with one row, "Overview" (26): the posture
+// page is the only security surface this platform can produce numbers for,
+// so it ships alone rather than with the three placeholder rows a fuller
+// menu would have implied.
 // Asserted rather than derived on purpose -- it is what catches a row being
 // dropped by an unrelated refactor -- so moving it is a deliberate step, and
 // this is one.
-check("there are 25 features", CUSTOMER_NAVS.length === 25, `${CUSTOMER_NAVS.length}`);
+check("there are 26 features", CUSTOMER_NAVS.length === 26, `${CUSTOMER_NAVS.length}`);
 check(
-  "the seven groups are the canonical ones",
+  "the eight groups are the canonical ones",
   CUSTOMER_NAV_GROUPS.map((g) => g.id).join(",") ===
-    "overview,engagement,access-policy,devices-team,network,operations,support-logs",
+    "overview,engagement,access-policy,devices-team,network,security,operations,support-logs",
   CUSTOMER_NAV_GROUPS.map((g) => g.id).join(","),
 );
 const dupes = CUSTOMER_NAVS.map((n) => n.id).filter((id, i, all) => all.indexOf(id) !== i);
@@ -185,7 +190,7 @@ const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "
 const sidebarCode = strip(sidebar);
 
 check(
-  "the sidebar renders the seven groups, not a destination layer",
+  "the sidebar renders the eight groups, not a destination layer",
   /customerNavGroupsForRole\(/.test(sidebarCode) &&
     /filterNavGroupsByPermissions\(/.test(sidebarCode) &&
     !/destinationsFor\(/.test(sidebarCode),

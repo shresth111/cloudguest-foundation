@@ -77,6 +77,12 @@ const WebsiteBlockingView = lazyView(OPS, "WebsiteBlockingView");
 const DebuggingView = lazyView(OPS, "DebuggingView");
 const HotspotView = lazyView(OPS, "HotspotView");
 const GenericFeatureView = lazyView(OPS, "GenericFeatureView");
+// Its own module rather than a member of the OperationsFeatures barrel -- this
+// page reads nothing from that chunk, and the barrel is the single largest
+// thing in the build (see the note above), so adding to it for a page that
+// needs none of it would make opening Security fetch it.
+const SECURITY = () => import("@/components/security/SecurityOverviewView");
+const SecurityOverviewView = lazyView(SECURITY, "SecurityOverviewView");
 /** Not part of the OperationsFeatures barrel -- its own module, so opening
  * "Network Integrations" fetches only the Omada connect wizard and its
  * service layer rather than the whole 446 kB ops chunk. Lazy for the same
@@ -326,6 +332,7 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
               {/* `masked` matters here now: this page looks a guest up by
                   phone number, so it renders an identifier the account
                   holder's own masking preference applies to. */}
+              {feature === "security" && <SecurityOverviewView />}
               {feature === "debugging" && <DebuggingView locationId={locationId} masked={masked} />}
               {feature === "hotspot" && <HotspotView locationId={locationId} />}
               {/* "audit" is handled above (redirected to AdminLogsView, see
