@@ -11,8 +11,9 @@ import {
  *
  * WHY THIS EXISTS RATHER THAN A HIDDEN NAV ROW
  * -------------------------------------------
- * Five screens in the Network group (Network Zones, IP Addresses, Port
- * Forwarding, Call Priority, Website Blocking) are RouterOS writes. At a
+ * Five screens (Network Zones, IP Addresses, Port Forwarding and Call
+ * Priority in the Network group, and the Websites & IPs tab of Security ->
+ * Blocking) are RouterOS writes. At a
  * venue whose only router is a vendor controller there is no RouterOS to
  * write to, and the backend says so -- `get_vlan_adapter` and its peers
  * raise a typed refusal for an unregistered vendor. That refusal is right,
@@ -72,7 +73,7 @@ export function ControllerManagedFeatureNotice({
           is not told which five things moved will try the other four one at
           a time. */}
       <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">
-        Network Zones, IP Addresses, Port Forwarding, Call Priority and Website Blocking all work
+        Network Zones, IP Addresses, Port Forwarding, Call Priority and website blocking all work
         this way at this venue. Everything else on your dashboard &mdash; guests, sessions,
         vouchers, the sign-in portal and reports &mdash; is unaffected.
       </p>

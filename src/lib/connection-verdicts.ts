@@ -661,7 +661,7 @@ export function siteVerdict(signals: SiteSignals): SiteVerdict {
       meaning: confirmedOnRouter
         ? `Blocked by your rule "${name}". Guests using a VPN or a private-DNS setting can still get past it.`
         : `Your rule "${name}" blocks it, but we haven't confirmed that rule reached your router.`,
-      action: "If this wasn't meant to apply to guests, change it in Website Blocking.",
+      action: "If this wasn't meant to apply to guests, change it in Security → Blocking.",
     };
   }
 

@@ -612,9 +612,22 @@ check(
   /end someone's session/.test(helpEn.feature.users) &&
     !/disconnect someone/.test(helpEn.feature.users),
 );
+// Website Blocking is a tab of Security -> Blocking now, so its line moved to
+// "blocking". Asserted to EXIST first -- the old key going missing made the
+// original check pass on `undefined` without anyone noticing.
+check("the blocking line exists", typeof helpEn.feature.blocking === "string");
 check(
-  "the website-blocking line describes the rule, not a guaranteed outcome",
-  !/guests can't reach/.test(helpEn.feature["website-blocking"]),
+  "the blocking line describes the rule, not a guaranteed outcome",
+  !/guests can't reach/.test(helpEn.feature.blocking ?? "guests can't reach"),
+);
+check(
+  "and does not promise category filtering, which does not exist",
+  !/categor/i.test(helpEn.feature.blocking ?? "categor"),
+  "web category filtering needs a provider this platform does not have",
+);
+check(
+  "the retired website-blocking line is gone rather than orphaned",
+  !("website-blocking" in helpEn.feature),
 );
 // Found in passing, and the same defect as section 9.
 check(

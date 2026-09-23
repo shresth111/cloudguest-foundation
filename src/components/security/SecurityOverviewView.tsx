@@ -1,4 +1,5 @@
-import { ShieldAlert, ShieldCheck, Wifi, WifiOff, Activity, AlertTriangle } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { ShieldAlert, ShieldCheck, Wifi, WifiOff, AlertTriangle, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard, type StatTone } from "@/components/ui-ext";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -66,8 +67,6 @@ const PLAIN_COPY: Record<string, string> = {
     "Tells you when a second device on the network starts handing out addresses, which is usually how an unauthorised access point gets introduced.",
   connection_flood_protection:
     "Limits how many connections one source can open, which reduces floods and password-guessing. It reduces the exposure rather than removing it, and a strict limit can drop legitimate bursts.",
-  vpn_tunnel_health:
-    "Whether this platform's own secure link to the gateway is up. Without it, nothing on this page can be applied or checked.",
   web_category_filtering:
     "Needs a maintained list of which sites belong to which category, and something to apply it. This platform has neither yet -- a DNS filtering provider supplies both.",
   application_control:
@@ -82,6 +81,31 @@ const PLAIN_COPY: Record<string, string> = {
     "Needs dedicated inspection hardware. The gateway is not an intrusion-detection system, and a screen for this would show alarms nothing was evaluating.",
   url_path_filtering:
     "Would require reading inside encrypted traffic, which means breaking the certificate trust of every device on the network. Filtering here is by site name, by design.",
+};
+
+/** Where a capability is managed, for the ones that have a screen.
+ *
+ * Only these three, and each is checked against what the screen actually
+ * writes rather than against the capability's name:
+ *
+ *  - `domain_blocking_dns`: a website rule on the Websites tab is a DNS
+ *    block -- that is the whole of what `content_filtering` pushes for a
+ *    domain.
+ *  - `ip_and_cidr_blocking`: an address rule on the same tab.
+ *  - `device_isolation`: blocking a guest on the Guests tab refuses their
+ *    next sign-in and ends the session they are in.
+ *
+ * Deliberately absent: `domain_blocking_sni` (nothing in the product writes
+ * an HTTPS-hostname rule yet, so a link would lead to a screen that does
+ * something else), `zone_to_zone_firewall`, `connection_flood_protection`
+ * and `rogue_dhcp_detection` (no customer screen manages them). A capability
+ * with no entry here simply has no link -- and one the backend stops sending
+ * is simply not rendered, since this list is only ever read through the
+ * capabilities the backend returned. */
+const MANAGED_AT: Record<string, { tab: "websites" | "guests"; label: string }> = {
+  domain_blocking_dns: { tab: "websites", label: "Block a website" },
+  ip_and_cidr_blocking: { tab: "websites", label: "Block an address" },
+  device_isolation: { tab: "guests", label: "Block a guest" },
 };
 
 const BAND_COPY: Record<NonNullable<SecurityScore["band"]>, string> = {
@@ -197,12 +221,14 @@ export function SecurityOverviewView() {
   }
 
   const gatewayOk = fleet.routersStale === 0;
-  const tunnelsOk = fleet.vpnPeersActive >= fleet.vpnPeersTotal;
 
   return (
     <div className="space-y-6">
-      {/* Status first: it is the context for every number below it. */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Status first: it is the context for every number below it. The
+          platform's own management tunnel is deliberately not shown here --
+          it is not a venue's control, and the backend no longer serves it to
+          this page (cloud-guest#303). */}
+      <div className="grid gap-3 sm:grid-cols-2">
         <StatusChip
           ok={gatewayOk}
           icon={gatewayOk ? Wifi : WifiOff}
@@ -212,12 +238,6 @@ export function SecurityOverviewView() {
               ? `All ${fleet.routersTotal} reporting`
               : `${fleet.routersReporting} of ${fleet.routersTotal} reporting`
           }
-        />
-        <StatusChip
-          ok={tunnelsOk}
-          icon={Activity}
-          label={tunnelsOk ? "Secure links up" : "Secure link problem"}
-          detail={`${fleet.vpnPeersActive} of ${fleet.vpnPeersTotal} connected`}
         />
         <StatusChip
           ok
@@ -325,6 +345,19 @@ export function SecurityOverviewView() {
                       <p className="mt-1 text-xs text-muted-foreground">
                         {PLAIN_COPY[feature.key] ?? feature.detail}
                       </p>
+                      {/* Only an "Enforced today" row gets a link -- a row
+                          in the other two groups has no control to go to,
+                          even if its key were ever listed above. */}
+                      {group.availability === "available" && MANAGED_AT[feature.key] && (
+                        <Link
+                          to="/blocking"
+                          search={{ tab: MANAGED_AT[feature.key].tab }}
+                          className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-4 hover:underline"
+                        >
+                          {MANAGED_AT[feature.key].label}
+                          <ArrowRight className="h-3 w-3" aria-hidden="true" />
+                        </Link>
+                      )}
                     </li>
                   ))}
                 </ul>

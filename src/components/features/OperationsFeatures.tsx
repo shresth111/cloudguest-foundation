@@ -135,7 +135,6 @@ import {
   RULE_TYPES,
 } from "@/components/network/IspManagement";
 import { QosManagement } from "@/components/network/QosManagement";
-import { ContentFilterManagement } from "@/components/network/ContentFilterManagement";
 import type { RouterDevice } from "@/types/router";
 import type {
   IspLink,
@@ -4501,31 +4500,18 @@ export function VoipView({ locationId }: { locationId?: string }) {
 }
 
 /* ---------- Website Blocking ----------
- * New nav entry, new feature -- no prior placeholder page existed for
- * this at all (unlike VOIP Priority/DHCP/VLAN/etc., which all replaced an
- * existing fake page). The real domain (app.domains.content_filtering,
- * the `content_filter_rules` table) and its frontend component
- * (ContentFilterManagement, content_filter.service.ts/useContentFilter.ts
- * alongside it) are both new this session, following QosManagement's own
- * structure/conventions.
- *
- * That last sentence used to read "rules apply the next time this router's
- * config is pushed ... there is no separate per-rule device-push endpoint/
- * status to surface here." Both halves are now false, and the first was
- * never load-bearing: `render_network_config` ships over SSH on port 22,
- * which is filtered on the fleet, so nothing was ever applied that way.
- * The domain now has a real `POST /content-filter-rules/{id}/push` and a
- * `device_push_status` per row, and ContentFilterManagement surfaces both
- * as an "On router" column plus an always-visible Apply button. */
-export function WebsiteBlockingView({ locationId }: { locationId?: string }) {
-  return <ContentFilterManagement locationId={locationId} />;
-}
+ * No longer here. It is the "Websites & IPs" tab of Security -> Blocking
+ * (components/security/BlockingView.tsx), which mounts
+ * ContentFilterManagement directly rather than through this barrel -- so
+ * opening it no longer fetches this chunk. The delegating
+ * `WebsiteBlockingView` export that lived here had no caller left and was
+ * removed with its import. */
 
 /* ---------- "Fix a Problem" (feature id `debugging`, was "Connection
  * Tools", and "Network Diagnostics" before that) ----------
  * The implementation moved to components/customer/FixAProblem.tsx; this
  * stays as the delegating export the feature switch already imports, the
- * same shape as WebsiteBlockingView/HotspotView/DhcpView above.
+ * same shape as HotspotView/DhcpView above.
  *
  * WHY IT MOVED RATHER THAN BEING EDITED IN PLACE. The old view was a
  * ping box, a traceroute button and an input asking a cafe owner for a

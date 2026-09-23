@@ -112,13 +112,21 @@
     "vlans": "Network Zones",
     "port-forwarding": "Port Forwarding",
     "voip": "Call Priority",
-    "website-blocking": "Website Blocking",
     "isp-details": "Internet Connection",
     "security": "Overview",
+    "blocking": "Blocking",
     "debugging": "Fix a Problem",
     "tickets": "Support Tickets",
     "admin-logs": "Logs",
     "network-activity": "Network Activity Log",
     "how-it-works": "How It Works"
+  },
+  "blockingTab": {
+    "websites": "Websites & IPs",
+    "guests": "Guests & devices"
+  },
+  "blockingPage": {
+    "intro": "Stop a website, an internet address or a guest from using your guest WiFi.",
+    "onlyAllowedPrefix": "To let in only people you have listed, use"
   }
 }

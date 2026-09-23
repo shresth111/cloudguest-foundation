@@ -112,7 +112,11 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
       { id: "vlans", label: "Network Zones", icon: Network, roles: ["owner"] },
       { id: "port-forwarding", label: "Port Forwarding", icon: Share2, roles: ["owner"] },
       { id: "voip", label: "Call Priority", icon: Signal, roles: ["owner"] },
-      { id: "website-blocking", label: "Website Blocking", icon: Ban, roles: ["owner"] },
+      // "Website Blocking" used to sit here. It is now the "Websites & IPs"
+      // tab of Security -> Blocking, next to blocked guests, so everything a
+      // venue can block is in one place. Same screen, same rules, same
+      // requests; `/website-blocking` redirects to that tab. See
+      // lib/blocking.ts.
       { id: "isp-details", label: "Internet Connection", icon: Globe, roles: ["owner"] },
       // Owner-only, and not for tidiness: this screen owns the credentials
       // to the venue's own network controller. Rotating them takes the
@@ -133,17 +137,26 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
   {
     id: "security",
     label: "Security",
-    // One row today, and that is the honest count: the posture page is the
-    // only security surface whose numbers this platform can actually produce
-    // (see SecurityOverviewView's own note). Blocking, firewall rules and
-    // zone isolation join it as they become real -- listing them now would
-    // put four rows in the sidebar that open a placeholder, which reads as
-    // four broken features rather than one shipped one.
+    // Two rows, and each opens a screen that does something. The posture
+    // page is the only security surface whose numbers this platform can
+    // actually produce (see SecurityOverviewView's own note), and Blocking
+    // is the one place to stop a website, an address or a guest -- built
+    // entirely from screens that already worked elsewhere (lib/blocking.ts).
+    // Firewall rules and zone isolation join them as they become real;
+    // listing them now would put rows in the sidebar that open a
+    // placeholder, which reads as broken features rather than shipped ones.
     //
-    // The label is "Overview", not "Security": the group header already says
-    // Security, and a row repeating its own group is the same duplicated
-    // heading this dashboard has been pulled up on elsewhere.
-    items: [{ id: "security", label: "Overview", icon: ShieldAlert, roles: ["owner"] }],
+    // The first label is "Overview", not "Security": the group header
+    // already says Security, and a row repeating its own group is the same
+    // duplicated heading this dashboard has been pulled up on elsewhere.
+    //
+    // Blocking takes `Ban`, which moved with it from the retired Network
+    // row -- no other row uses it, so the collapsed rail stays unambiguous.
+    // Owner-only, like Access Rules that "Blocked Guests" came from.
+    items: [
+      { id: "security", label: "Overview", icon: ShieldAlert, roles: ["owner"] },
+      { id: "blocking", label: "Blocking", icon: Ban, roles: ["owner"] },
+    ],
   },
   {
     id: "operations",
