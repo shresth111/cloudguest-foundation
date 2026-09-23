@@ -1,13 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import {
-  ShieldAlert,
-  ShieldCheck,
-  Wifi,
-  WifiOff,
-  Activity,
-  AlertTriangle,
-  ArrowRight,
-} from "lucide-react";
+import { ShieldAlert, ShieldCheck, Wifi, WifiOff, AlertTriangle, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard, type StatTone } from "@/components/ui-ext";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -75,8 +67,6 @@ const PLAIN_COPY: Record<string, string> = {
     "Tells you when a second device on the network starts handing out addresses, which is usually how an unauthorised access point gets introduced.",
   connection_flood_protection:
     "Limits how many connections one source can open, which reduces floods and password-guessing. It reduces the exposure rather than removing it, and a strict limit can drop legitimate bursts.",
-  vpn_tunnel_health:
-    "Whether this platform's own secure link to the gateway is up. Without it, nothing on this page can be applied or checked.",
   web_category_filtering:
     "Needs a maintained list of which sites belong to which category, and something to apply it. This platform has neither yet -- a DNS filtering provider supplies both.",
   application_control:
@@ -231,12 +221,14 @@ export function SecurityOverviewView() {
   }
 
   const gatewayOk = fleet.routersStale === 0;
-  const tunnelsOk = fleet.vpnPeersActive >= fleet.vpnPeersTotal;
 
   return (
     <div className="space-y-6">
-      {/* Status first: it is the context for every number below it. */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Status first: it is the context for every number below it. The
+          platform's own management tunnel is deliberately not shown here --
+          it is not a venue's control, and the backend no longer serves it to
+          this page (cloud-guest#303). */}
+      <div className="grid gap-3 sm:grid-cols-2">
         <StatusChip
           ok={gatewayOk}
           icon={gatewayOk ? Wifi : WifiOff}
@@ -246,12 +238,6 @@ export function SecurityOverviewView() {
               ? `All ${fleet.routersTotal} reporting`
               : `${fleet.routersReporting} of ${fleet.routersTotal} reporting`
           }
-        />
-        <StatusChip
-          ok={tunnelsOk}
-          icon={Activity}
-          label={tunnelsOk ? "Secure links up" : "Secure link problem"}
-          detail={`${fleet.vpnPeersActive} of ${fleet.vpnPeersTotal} connected`}
         />
         <StatusChip
           ok
