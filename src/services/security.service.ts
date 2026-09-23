@@ -97,14 +97,28 @@ function toScore(s: BackendScore): SecurityScore {
 }
 
 // Tenant scope rides on `X-Organization-Id`, attached to every request by
-// `attachOrganizationScope` in services/api.ts. Nothing here sets it by hand
-// and no method takes an `organizationId` -- see dns.service.ts's own note for
-// why: a caller-resolved id ends up in the React Query key, and the key
-// settling fired every read on the page twice.
+// `attachOrganizationScope` in services/api.ts. The venue is different: it is
+// named per request, by the caller, and only when one is selected.
+//
+// This is the same shape the customer dashboard, ISP and analytics services
+// already use for a location-scoped read. It is passed in rather than read off
+// the store inside the service so the header and the React Query key cannot
+// disagree -- the key is what decides when to refetch on a venue switch, and a
+// service quietly reading a newer venue than the key was computed for would
+// refetch the wrong thing.
+
+function locationHeaders(locationId?: string | null): Record<string, string> | undefined {
+  // Absent, not empty: with no venue selected the backend resolves no
+  // location and reads organization-wide, which is the honest answer for a
+  // caller who has not picked one.
+  return locationId ? { "X-Location-Id": locationId } : undefined;
+}
 
 export const securityService = {
-  async overview(): Promise<SecurityOverview> {
-    const { data } = await api.get<BackendOverview>("/security/overview");
+  async overview(locationId?: string | null): Promise<SecurityOverview> {
+    const { data } = await api.get<BackendOverview>("/security/overview", {
+      headers: locationHeaders(locationId),
+    });
     return {
       score: toScore(data.score),
       counters: data.counters.map(toCounter),
@@ -126,7 +140,9 @@ export const securityService = {
    * Deliberately fetched rather than hardcoded here: a capability must be
    * advertised only where it can be honoured, and a second copy of that list
    * in the frontend is exactly how a dashboard ends up offering a control the
-   * backend has stopped claiming. */
+   * backend has stopped claiming. Not venue-scoped, and takes no location:
+   * what this platform can enforce is a property of the platform, not of the
+   * venue looking at it. */
   async capabilities(): Promise<SecurityFeature[]> {
     const { data } = await api.get<{ features: BackendFeature[] }>("/security/capabilities");
     return data.features.map((f) => ({
