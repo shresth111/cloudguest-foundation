@@ -191,7 +191,11 @@ export function routerLivenessIsMeasured(vendor: string | null | undefined): boo
  *  - `dhcp`             "IP Addresses". DHCP pools/leases on RouterOS.
  *  - `port-forwarding`  dst-nat rules on RouterOS.
  *  - `voip`             "Call Priority". QoS/queue trees on RouterOS.
- *  - `website-blocking`  content-filter rules, pushed to RouterOS.
+ *  - `website-blocking`  content-filter rules, pushed to RouterOS. No longer
+ *                       a nav row of its own: it is the Websites & IPs tab
+ *                       of Security -> Blocking, which gates that one tab
+ *                       by this id (`lib/blocking.ts`'s `controllerGatedAs`)
+ *                       while the page's Guests tab keeps working.
  *
  * Deliberately NOT in this list, and each for a reason:
  *  - `isp-details`           the venue's ISP/circuit is a record about the

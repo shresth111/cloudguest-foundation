@@ -112,13 +112,21 @@
     "vlans": "नेटवर्क ज़ोन",
     "port-forwarding": "पोर्ट फॉरवर्डिंग",
     "voip": "कॉल प्राथमिकता",
-    "website-blocking": "वेबसाइट ब्लॉकिंग",
     "isp-details": "इंटरनेट कनेक्शन",
     "security": "अवलोकन",
+    "blocking": "ब्लॉकिंग",
     "debugging": "समस्या ठीक करें",
     "tickets": "सहायता टिकट",
     "admin-logs": "लॉग",
     "network-activity": "नेटवर्क गतिविधि लॉग",
     "how-it-works": "यह कैसे काम करता है"
+  },
+  "blockingTab": {
+    "websites": "वेबसाइट और IP",
+    "guests": "अतिथि और डिवाइस"
+  },
+  "blockingPage": {
+    "intro": "किसी वेबसाइट, इंटरनेट पते या अतिथि को अपने अतिथि WiFi का उपयोग करने से रोकें।",
+    "onlyAllowedPrefix": "केवल अपनी सूची के लोगों को आने देने के लिए देखें:"
   }
 }

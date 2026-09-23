@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Shield, Ban, Layers } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { Shield, Layers } from "lucide-react";
 import LocationPolicies from "./LocationPolicies";
-import BlockUsers from "./BlockUsers";
 import CreateGroup from "./CreateGroup";
 
 /**
@@ -166,23 +166,27 @@ function PolicyShieldIllustration() {
 //     and `pin_login_enabled` -- the one flag only this tab wrote, and a
 //     genuinely enforced one -- moved there rather than being deleted with
 //     the tab. See PortalPage.tsx's AUTH_OPTIONS.
+//
+// And "Blocked Guests" left for the same reason, in the other direction: it
+// is now the "Guests & devices" tab of Security -> Blocking, next to website
+// and address blocking, so everything a venue can block is in one place
+// (see lib/blocking.ts). The same `BlockUsers` component, moved rather than
+// mounted twice. The line under the tabs below points there, because an
+// owner who blocked guests here last week will look here first.
 const ACCESS_TABS = [
   { id: "location", label: "Guest WiFi Limits", icon: Shield, tone: "indigo" as const },
-  { id: "block", label: "Blocked Guests", icon: Ban, tone: "rose" as const },
   { id: "group", label: "Access Tiers", icon: Layers, tone: "indigo" as const },
 ];
 
 const TAB_ACTIVE_CLASSES: Record<(typeof ACCESS_TABS)[number]["tone"], string> = {
   indigo: "bg-[#4f46e5]/10 text-[#4f46e5] shadow-sm",
-  rose: "bg-rose-500/10 text-rose-600 shadow-sm dark:text-rose-400",
 };
 
-// Tabs right before/after this pair of ids get a static divider next to
-// them -- "Blocked Guests" reads as its own visual group between "Guest
-// WiFi Limits" and "Access Tiers" without needing its own tab level to say
-// so. It used to fence a trio (block/whitelist/smartid); the other two are
-// now single-homed elsewhere, so it fences one.
-const DIVIDER_BEFORE = new Set(["block", "group"]);
+// Tabs with these ids get a static divider before them. Empty now: it used
+// to fence "Blocked Guests" off as its own visual group, and that tab has
+// moved (see above). Kept as a set rather than deleted so a future group
+// has the same mechanism to use.
+const DIVIDER_BEFORE = new Set<string>();
 
 export default function PoliciesHub({ locationId }: { locationId?: string } = {}) {
   const [tab, setTab] = useState("location");
@@ -197,7 +201,7 @@ export default function PoliciesHub({ locationId }: { locationId?: string } = {}
           <div>
             <h1 className="text-lg font-semibold tracking-tight">Access Rules</h1>
             <p className="text-sm text-muted-foreground">
-              Set usage limits, guest access, and access tiers for this location.
+              Set usage limits and access tiers for this location.
             </p>
           </div>
         </div>
@@ -251,11 +255,22 @@ export default function PoliciesHub({ locationId }: { locationId?: string } = {}
         />
       </div>
 
+      <p className="text-sm text-muted-foreground">
+        Looking for blocked guests? They are now under{" "}
+        <Link
+          to="/blocking"
+          search={{ tab: "guests" }}
+          className="font-medium text-primary underline-offset-4 hover:underline"
+        >
+          Security &rarr; Blocking
+        </Link>
+        , together with blocked websites.
+      </p>
+
       {/* Content -- each of these already renders its own full header
        * (icon badge + title + description), so this shell adds nothing
        * more than the tab row above it. */}
       {tab === "location" && <LocationPolicies locationId={locationId} />}
-      {tab === "block" && <BlockUsers locationId={locationId} />}
       {tab === "group" && <CreateGroup locationId={locationId} />}
     </div>
   );

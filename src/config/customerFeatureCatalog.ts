@@ -103,7 +103,6 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
       { id: "vlans", label: "Network Zones", icon: Network },
       { id: "port-forwarding", label: "Port Forwarding", icon: Share2 },
       { id: "voip", label: "Call Priority", icon: Signal },
-      { id: "website-blocking", label: "Website Blocking", icon: Ban },
       { id: "isp-details", label: "Internet Connection", icon: Globe },
       // Connect a venue's own TP-Link Omada controller so guest logins are
       // enforced on its access points. Listed here (grantable, not `core`)
@@ -124,7 +123,13 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
     // no effect until that separate restriction is ever relaxed. It is listed
     // anyway so the Staff Access screen enumerates a complete feature set
     // rather than one with a silent hole in it.
-    items: [{ id: "security", label: "Security overview", icon: ShieldAlert }],
+    // "blocking" moved here from the Network group (was "website-blocking")
+    // together with the Blocked Guests tab of Access Rules -- see
+    // lib/blocking.ts.
+    items: [
+      { id: "security", label: "Security overview", icon: ShieldAlert },
+      { id: "blocking", label: "Blocking", icon: Ban },
+    ],
   },
   {
     group: "Operations",

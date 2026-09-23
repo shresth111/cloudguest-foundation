@@ -119,7 +119,6 @@ export const NAV_PERMISSION_KEYS: Record<string, readonly string[]> = {
   vlans: ["vlan.read"],
   "port-forwarding": ["firewall.read"],
   voip: ["qos.read"],
-  "website-blocking": ["content_filtering.read"],
   "isp-details": ["isp.read"],
   // Security: one key, and it is the only action the backend's SECURITY
   // module seeds today (`MODULE_ACTIONS[PermissionModule.SECURITY] ==
@@ -128,6 +127,13 @@ export const NAV_PERMISSION_KEYS: Record<string, readonly string[]> = {
   // exactly what `scripts/test-customer-nav-permissions.mjs` is there to
   // catch, since a key nobody seeds hides the row from everyone.
   security: ["security.read"],
+  // Blocking is two screens that moved here (lib/blocking.ts), each guarded
+  // by its own domain: `/content-filter/rules` by `content_filtering.read`,
+  // `/guest-access/rules` by `guest_access.read`. Either one is a page worth
+  // opening, so either one offers the row -- requiring both would hide a
+  // working tab from a role that only holds the other. The page narrows its
+  // own tabs by the same keys (`blockingTabsFor`).
+  blocking: ["content_filtering.read", "guest_access.read"],
   // A real module, added to the backend's `PermissionModule` alongside this
   // feature (CONTRACT.md §4), with `MODULE_NARROWEST_SCOPE = LOCATION` --
   // same profile as `mac_authorization` and `network_device` above, since an

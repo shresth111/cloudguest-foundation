@@ -95,6 +95,9 @@ writeFileSync(
    export function Outlet() { return null; }
    export function useChildMatches() { return []; }
    export function useParams() { return {}; }
+   /** Security -> Blocking reads \`?tab=\` through this; the harness feeds it
+    * \`window.__search\` so a test can open the page on a named tab. */
+   export function useSearch() { return window.__search ?? {}; }
    export function useRouter() { return { navigate: () => {} }; }
    const routerState = { location: { pathname: "/", search: {} }, matches: [] };
    export function useRouterState(opts) {
@@ -212,7 +215,7 @@ await build({
   loader: { ".ts": "ts", ".tsx": "tsx" },
 });
 
-let served = { routers: [MIKROTIK], feature: "dhcp" };
+let served = { routers: [MIKROTIK], feature: "dhcp", search: {} };
 const MIME = { ".html": "text/html", ".js": "text/javascript" };
 const server = createServer((req, res) => {
   const name = req.url === "/" ? "/index.html" : req.url.split("?")[0];
@@ -222,6 +225,7 @@ const server = createServer((req, res) => {
       `<!doctype html><meta charset=utf-8><title>venue nav harness</title>
        <script>window.__routers = ${JSON.stringify(served.routers)};
                window.__feature = ${JSON.stringify(served.feature)};
+               window.__search = ${JSON.stringify(served.search ?? {})};
                localStorage.clear();</script>
        <div id=root></div><script type=module src="./bundle.js"></script>`,
     );
@@ -240,18 +244,15 @@ const origin = `http://127.0.0.1:${server.address().port}`;
 const { chromium } = await import("playwright");
 const browser = await chromium.launch();
 
-const NETWORK_LABELS = [
-  "Network Zones",
-  "IP Addresses",
-  "Port Forwarding",
-  "Call Priority",
-  "Website Blocking",
-];
+// Four rows now, not five. Website Blocking left the Network group for
+// Security -> Blocking, where the gate applies to its one tab (asserted in
+// its own section below) rather than to a row.
+const NETWORK_LABELS = ["Network Zones", "IP Addresses", "Port Forwarding", "Call Priority"];
 
 /** Open one feature page at a venue with `routers`, and report what a venue
  * owner would see: the page body, and the nav rows with their muted state. */
-async function openFeature(feature, routers) {
-  served = { feature, routers };
+async function openFeature(feature, routers, search = {}) {
+  served = { feature, routers, search };
   const page = await browser.newPage();
   await page.goto(origin);
   await page.waitForSelector("[data-sidebar='menu']", { timeout: 10_000 });
@@ -307,12 +308,12 @@ console.log("\ncontroller venue: the five Network screens");
 
   const network = r.rows.filter((row) => NETWORK_LABELS.includes(row.label));
   check(
-    "omada-nav-keeps-all-five-rows",
-    network.length === 5,
+    "omada-nav-keeps-all-four-rows",
+    network.length === 4,
     `found ${network.length}: ${network.map((n) => n.label).join(", ")}`,
   );
   check(
-    "omada-nav-mutes-all-five-rows",
+    "omada-nav-mutes-all-four-rows",
     network.every((row) => row.muted),
   );
   check(
@@ -321,7 +322,7 @@ console.log("\ncontroller venue: the five Network screens");
   );
   check(
     "omada-nav-mutes-nothing-else",
-    r.rows.filter((row) => row.muted).length === 5,
+    r.rows.filter((row) => row.muted).length === 4,
     `${r.rows
       .filter((row) => row.muted)
       .map((n) => n.label)
@@ -362,11 +363,10 @@ const REAL_VIEW_CTA = {
   dhcp: "New address range",
   vlans: "New zone",
   voip: "New Rule",
-  "website-blocking": "Block a website",
 };
 
 console.log("\nMikroTik venue: unchanged, screen by screen");
-for (const feature of ["port-forwarding", "dhcp", "vlans", "voip", "website-blocking"]) {
+for (const feature of ["port-forwarding", "dhcp", "vlans", "voip"]) {
   const r = await openFeature(feature, [MIKROTIK]);
   check(
     `mikrotik-${feature}-still-mounts-its-real-view`,
@@ -378,7 +378,90 @@ for (const feature of ["port-forwarding", "dhcp", "vlans", "voip", "website-bloc
   const network = r.rows.filter((row) => NETWORK_LABELS.includes(row.label));
   check(
     `mikrotik-${feature}-nav-is-not-muted`,
-    network.length === 5 && network.every((row) => !row.muted && row.title === null),
+    network.length === 4 && network.every((row) => !row.muted && row.title === null),
+  );
+  await r.page.close();
+}
+
+// ---------------------------------------------------------------------------
+// Security -> Blocking. The gate moved with Website Blocking: it now applies
+// to that one TAB, and the page around it -- whose Guests tab works at an
+// Omada venue -- stays a live, unmuted row.
+// ---------------------------------------------------------------------------
+
+/** BlockUsers' own "Block User" card title -- positive evidence the real
+ * guests screen mounted, not just that the notice is absent. */
+const GUESTS_VIEW_CTA = "Block User";
+const WEBSITES_VIEW_CTA = "Block a website";
+const CONTROLLER_COPY = /is configured on this venue's controller|Configured in Omada, not here\./;
+
+console.log("\nSecurity -> Blocking at a controller venue");
+{
+  const r = await openFeature("blocking", [OMADA]);
+  const row = r.rows.find((x) => x.label === "Blocking");
+  check("omada-blocking-row-is-in-the-nav", !!row);
+  check(
+    "omada-blocking-row-is-not-muted",
+    row && !row.muted && row.title === null,
+    "its Guests tab works here; greying the row would hide a working screen",
+  );
+  check(
+    "omada-blocking-opens-on-guests",
+    r.text.includes(GUESTS_VIEW_CTA) && !r.text.includes(WEBSITES_VIEW_CTA),
+    "the first screen at an Omada venue should be the one that does something",
+  );
+  check(
+    "omada-blocking-offers-both-tabs",
+    (await r.page.getByRole("tab", { name: "Websites & IPs" }).count()) === 1 &&
+      (await r.page.getByRole("tab", { name: "Guests & devices" }).count()) === 1,
+  );
+  await r.page.getByRole("tab", { name: "Websites & IPs" }).click();
+  await r.page.waitForTimeout(300);
+  const websites = (await r.page.locator("body").innerText()).replace(/\u2019/g, "'");
+  check(
+    "omada-websites-tab-mounts-no-form",
+    !websites.includes(WEBSITES_VIEW_CTA) &&
+      !/Total Rules/.test(websites) &&
+      !(await r.page.locator("form").count()),
+    "the content-filter view fetches rules and offers Add on mount; it must not mount",
+  );
+  check(
+    "omada-websites-tab-shows-the-existing-notice",
+    /Configured in Omada, not here\./.test(websites) &&
+      /Website blocking for this venue is set in Omada's own interface/.test(websites) &&
+      /Your Wyfy Guest contact manages this venue/.test(websites),
+  );
+  await r.page.close();
+}
+{
+  const r = await openFeature("blocking", [OMADA], { tab: "websites" });
+  check(
+    "omada-deep-link-to-websites-lands-on-the-notice",
+    CONTROLLER_COPY.test(r.text) && !r.text.includes(WEBSITES_VIEW_CTA),
+  );
+  await r.page.close();
+}
+
+console.log("\nSecurity -> Blocking at a MikroTik venue");
+{
+  const r = await openFeature("blocking", [MIKROTIK]);
+  check(
+    "mikrotik-blocking-opens-on-websites-with-the-real-view",
+    r.text.includes(WEBSITES_VIEW_CTA) && !CONTROLLER_COPY.test(r.text),
+  );
+  check("mikrotik-blocking-mutes-nothing", r.rows.filter((row) => row.muted).length === 0);
+  check(
+    "website-blocking-is-no-longer-a-row-of-its-own",
+    !r.rows.some((row) => row.label === "Website Blocking"),
+    "one home: it is the Websites & IPs tab now",
+  );
+  await r.page.close();
+}
+{
+  const r = await openFeature("blocking", [MIKROTIK], { tab: "guests" });
+  check(
+    "mikrotik-deep-link-to-guests-mounts-blocked-guests",
+    r.text.includes(GUESTS_VIEW_CTA) && !r.text.includes(WEBSITES_VIEW_CTA),
   );
   await r.page.close();
 }

@@ -130,6 +130,10 @@ check("there are eight groups", CUSTOMER_NAV_GROUPS.length === 8, `${CUSTOMER_NA
 // page is the only security surface this platform can produce numbers for,
 // so it ships alone rather than with the three placeholder rows a fuller
 // menu would have implied.
+// Then Security -> Blocking arrived (27) and Network -> Website Blocking left
+// (26): the same screen, now a tab of the new page beside blocked guests, so
+// the count is unchanged by a move rather than by a removal. Section 10 pins
+// the move itself.
 // Asserted rather than derived on purpose -- it is what catches a row being
 // dropped by an unrelated refactor -- so moving it is a deliberate step, and
 // this is one.
@@ -306,6 +310,102 @@ check("Alerts still carries Bell", alerts && alerts.icon.name === "Bell");
 }
 
 // ---------------------------------------------------------------------------
+// 10. Security -> Blocking is one home, not a second copy.
+// ---------------------------------------------------------------------------
+
+console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
+
+{
+  const security = CUSTOMER_NAV_GROUPS.find((g) => g.id === "security");
+  check(
+    "the Security group is Overview then Blocking",
+    security && security.items.map((i) => i.id).join(",") === "security,blocking",
+    security ? security.items.map((i) => i.id).join(",") : "missing",
+  );
+  const blocking = CUSTOMER_NAVS.find((n) => n.id === "blocking");
+  check("Blocking is labelled for the job", blocking && blocking.label === "Blocking");
+  check(
+    "Blocking is owner-only, like Access Rules its guests tab came from",
+    blocking && blocking.roles.join(",") === "owner",
+  );
+  check("Blocking lives at /blocking", customerFeatureHref("blocking") === "/blocking");
+  check(
+    "Website Blocking is not a row anywhere any more",
+    !CUSTOMER_NAVS.some((n) => n.id === "website-blocking"),
+    "the same screen reachable as a row and as a tab is two homes for one setting",
+  );
+  check(
+    "the Network group keeps its other five rows",
+    (CUSTOMER_NAV_GROUPS.find((g) => g.id === "network")?.items ?? [])
+      .map((i) => i.id)
+      .join(",") === "dhcp,vlans,port-forwarding,voip,isp-details",
+  );
+  // Old links must keep working: a bookmark to the old address is a
+  // redirect to the tab it became, behind the same session guards.
+  const redirectSrc = strip(readFileSync(join(ROOT, "src/routes/website-blocking.tsx"), "utf8"));
+  check(
+    "/website-blocking redirects to the Websites tab",
+    /redirect\(\{\s*to:\s*"\/blocking",\s*search:\s*\{\s*tab:\s*"websites"\s*\}/.test(redirectSrc),
+  );
+  check(
+    "and still checks the session before it redirects",
+    redirectSrc.indexOf("requireCustomerSession") > -1 &&
+      redirectSrc.indexOf("requireCustomerSession") < redirectSrc.indexOf("redirect({"),
+  );
+  check("and no longer mounts a page of its own", !/CustomerFeaturePage/.test(redirectSrc));
+  const routeSrc = strip(readFileSync(join(ROOT, "src/routes/blocking.tsx"), "utf8"));
+  check(
+    "/blocking mounts the shared shell with the blocking id",
+    /<CustomerFeaturePage feature="blocking" \/>/.test(routeSrc) &&
+      /requireCustomerSession/.test(routeSrc) &&
+      /requireActiveLocationId/.test(routeSrc),
+  );
+  // The page is built from the screens that already worked, not forks of
+  // them -- and those screens left their old homes.
+  const view = strip(readFileSync(join(ROOT, "src/components/security/BlockingView.tsx"), "utf8"));
+  check(
+    "the Websites tab is the existing content-filter screen",
+    /<ContentFilterManagement\b/.test(view),
+  );
+  check("the Guests tab is the existing Blocked Guests screen", /<BlockUsers\b/.test(view));
+  check(
+    "the page gates the Websites tab with the existing controller notice",
+    /<ControllerManagedFeatureNotice\b/.test(view) &&
+      /featureAppliesToControllerVenue\(/.test(view),
+  );
+  const hub = strip(readFileSync(join(ROOT, "src/components/features/PoliciesHub.tsx"), "utf8"));
+  check(
+    "Access Rules no longer mounts Blocked Guests",
+    !/<BlockUsers\b/.test(hub) && !/id:\s*"block"/.test(hub),
+  );
+  check(
+    "and points owners at where it went",
+    /to="\/blocking"/.test(hub) && /tab:\s*"guests"/.test(hub),
+  );
+  // The overview links each enforced capability that has a control to it --
+  // and only those.
+  const overview = readFileSync(
+    join(ROOT, "src/components/security/SecurityOverviewView.tsx"),
+    "utf8",
+  );
+  const managed = overview.split("const MANAGED_AT")[1]?.split("};")[0] ?? "";
+  const linkedKeys = [...managed.matchAll(/^\s*([a-z_]+):\s*\{\s*tab:/gm)].map((mm) => mm[1]);
+  check(
+    "the Security overview links domain, address and device blocking to it",
+    linkedKeys.sort().join(",") === "device_isolation,domain_blocking_dns,ip_and_cidr_blocking",
+    linkedKeys.join(","),
+  );
+  check(
+    "and links nothing that has no screen",
+    !linkedKeys.includes("domain_blocking_sni") && !linkedKeys.includes("zone_to_zone_firewall"),
+  );
+  check(
+    "and only from the Enforced-today group",
+    /group\.availability === "available" && MANAGED_AT\[feature\.key\]/.test(strip(overview)),
+  );
+}
+
+// ---------------------------------------------------------------------------
 // 9. Every row has a name in both locales.
 // ---------------------------------------------------------------------------
 
@@ -330,6 +430,15 @@ for (const loc of ["en", "hi"]) {
   check(
     `${loc}: the retired destination labels are gone`,
     !nav.customerDestination && !nav.customerDestinationGroup,
+  );
+  // The Blocking page's own tab names and sentences, in the same namespace.
+  check(
+    `${loc}: both Blocking tabs are named`,
+    !!nav.blockingTab?.websites && !!nav.blockingTab?.guests,
+  );
+  check(
+    `${loc}: the Blocking page's sentences are translated`,
+    !!nav.blockingPage?.intro && !!nav.blockingPage?.onlyAllowedPrefix,
   );
 }
 // The rename in #216 reached customerNav.ts but not the locale, so the

@@ -71,6 +71,11 @@ const VoipView = lazyView(ops, "VoipView");
 const DebuggingView = lazyView(ops, "DebuggingView");
 const HotspotView = lazyView(ops, "HotspotView");
 const GenericFeatureView = lazyView(ops, "GenericFeatureView");
+// Security -> Blocking. Its own module, not the ops barrel. It reads the
+// venue (and so the controller gate for its Websites tab) from the same
+// store this shell's caller does, and keeps its tab local here because this
+// shell has one URL for every feature.
+const BlockingView = lazyView(() => import("@/components/security/BlockingView"), "BlockingView");
 
 const BasicDashboardView = lazyView(basic, "BasicDashboardView");
 const BasicUsersView = lazyView(basic, "BasicUsersView");
@@ -180,6 +185,8 @@ function featureElement(id: string, ctx: { locationId?: string; masked?: boolean
       return <DebuggingView />;
     case "hotspot":
       return <HotspotView locationId={ctx.locationId} />;
+    case "blocking":
+      return <BlockingView locationId={ctx.locationId} />;
     default:
       return <GenericFeatureView feature={id} />;
   }
