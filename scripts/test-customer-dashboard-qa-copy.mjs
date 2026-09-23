@@ -341,7 +341,7 @@ console.log("\n7. EN/HI parity across the venue-admin dictionaries");
 const NAMESPACES = ["common", "nav", "guests", "account", "help"];
 /**
  * `help` is deliberately partial: `hi/help.json` carries the page chrome and
- * the seven group lines, and the 25 per-screen sentences reach a Hindi reader
+ * the eight group lines, and the 26 per-screen sentences reach a Hindi reader
  * through `fallbackLng` until a native review pass. That is a decision
  * recorded in `src/lib/i18n/index.ts`, so it is exempted BY NAME rather than
  * by weakening the check for everything.
