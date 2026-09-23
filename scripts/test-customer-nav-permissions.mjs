@@ -44,7 +44,8 @@
  *
  * COUNT NOTE: the owner nav used to be 26 items; the "Notifications"
  * preferences screen was removed from the customer dashboard along with
- * its nav entry (id "notification"), so the nav is 25. The stub below
+ * its nav entry (id "notification"), so the nav was 25 -- and the Security
+ * group's single row has since brought it back to 26. The stub below
  * reads the lucide imports straight from `customerNav.ts` +
  * `customerFeatureCatalog.ts`, so removing that entry's `Send` icon drops
  * it from the stub automatically.
@@ -191,6 +192,9 @@ const EVERY_KEY_IMAGINABLE = [
   "support_tickets.read",
   "audit_logs.read",
   "guest_sessions.read",
+  // The Security group's single row. `security` is the only action the
+  // backend's SECURITY module seeds today, so this is the whole key.
+  "security.read",
   // Keys for screens this nav does not have at all.
   "system_settings.manage",
   "device_console.execute",
@@ -469,7 +473,7 @@ const sidebar = readFileSync(join(ROOT, "src/components/customer/CustomerSidebar
 const rbac = readFileSync(join(ROOT, "src/services/rbac.service.ts"), "utf8");
 const hooks = readFileSync(join(ROOT, "src/hooks/useCustomerDashboard.ts"), "utf8");
 
-// The sidebar renders the seven nav groups directly again (the nine-
+// The sidebar renders the eight nav groups directly again (the nine-
 // destination layer that briefly sat between them was reverted), so it reads
 // this filter itself rather than through a second module. Assert the direct
 // call: a parallel filter somewhere else is exactly how the fail-open
