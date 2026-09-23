@@ -30,11 +30,13 @@ import type {
  * has been pulled up on more than once, so the page opens on the status strip
  * instead.
  *
- * ## "Account-wide" is stated, not implied
+ * ## These figures follow the selected venue
  *
- * The backend aggregates over the whole organization, so these figures are
- * not the selected venue's alone. One muted qualifier says so rather than
- * letting a venue-scoped page silently carry organisation-wide numbers.
+ * `X-Location-Id` goes out with the request, and the venue is part of the
+ * query key, so the numbers below describe the venue named in the header above
+ * them and reload when it changes. This used to be an organization-wide
+ * aggregate carrying an "Account-wide" qualifier; the qualifier is gone
+ * because the thing it described is.
  */
 
 /** Plain-language copy per capability, for the customer surface.
@@ -220,8 +222,8 @@ export function SecurityOverviewView() {
         <StatusChip
           ok
           icon={ShieldCheck}
-          label="Account-wide"
-          detail={`Covering every venue in this account · ${new Date(generatedAt).toLocaleString()}`}
+          label="Last updated"
+          detail={new Date(generatedAt).toLocaleString()}
         />
       </div>
 
