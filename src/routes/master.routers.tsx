@@ -47,6 +47,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { RemoteAccessCard } from "@/components/routers/RouterDetailTabs";
+import { FirewallBandPanel } from "@/components/master/FirewallBandPanel";
 import { inputCls, RouterSetupDrilldown } from "@/components/routers/RouterSetupScriptAdvanced";
 import { routerService } from "@/services/router.service";
 import { isDemo } from "@/services/customer.service";
@@ -968,6 +969,16 @@ function RouterFleetScreen() {
                         <FileCode2 className="h-4 w-4" /> Advanced setup script
                       </MButton>
                     </div>
+                  )}
+
+                  {/* Customer firewall rules (cloud-guest#304): whether the
+                      router has its band, and the Master-only action that
+                      places it. Here rather than on the full router screen,
+                      which the master host cannot reach (see the panel's own
+                      note). MikroTik rows only -- the backend refuses a
+                      controller at this endpoint too. */}
+                  {!demo && !isControllerManaged(sel.vendor) && (
+                    <FirewallBandPanel routerId={sel.id} routerName={sel.name} />
                   )}
 
                   {/* Remote access (WinBox/SSH over the platform's own

@@ -217,6 +217,9 @@ export const CONTROLLER_UNSUPPORTED_FEATURE_IDS: readonly string[] = [
   "port-forwarding",
   "voip",
   "website-blocking",
+  // Security -> Firewall: cloud-guest#304's push is MikroTik-only and the
+  // backend refuses a controller-managed router at create, push and band.
+  "firewall",
 ];
 
 export function featureAppliesToControllerVenue(featureId: string): boolean {
@@ -545,6 +548,7 @@ const CONTROLLER_UNSUPPORTED_NOUNS: Record<string, { noun: string; verb: string 
   "port-forwarding": { noun: "Port forwarding rules", verb: "are" },
   voip: { noun: "Traffic priority", verb: "is" },
   "website-blocking": { noun: "Website blocking", verb: "is" },
+  firewall: { noun: "Firewall rules", verb: "are" },
   "isp-details": { noun: "Internet connection details", verb: "are" },
 };
 
