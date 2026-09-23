@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { ArrowLeft, MonitorSmartphone } from "lucide-react";
+import { ArrowLeft, MonitorSmartphone, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/common/EmptyState";
 import { customerFeatureHref } from "@/lib/customerNav";
 import { DEMO_PORTAL_PREVIEW_STORAGE_KEY } from "@/lib/portal-preview-storage";
+import { DEMO_PORTAL_CAMPAIGN } from "@/lib/portal-demo";
 import { PortalRuntimeProvider } from "@/context/PortalRuntimeContext";
 import { DemoPortalFlow } from "@/components/portal-runtime/DemoPortalFlow";
 import type { RuntimePortalConfig } from "@/types/portal-runtime";
@@ -32,10 +33,22 @@ import type { RuntimePortalConfig } from "@/types/portal-runtime";
  * Unlike the operator preview (`preview.portal.$locationId.tsx`), which
  * sets `previewMode` (every sign-in action short-circuits with a "connect a
  * real device" toast), this route sets `demoMode` and renders
- * `<DemoPortalFlow>`: a prospect can actually run the whole sign-in
- * (identifier -> OTP -> "You're connected") as a believable DUMMY flow --
- * no backend, no SMS/RADIUS, no NAS POST, no navigation out of this route.
- * See `PortalRuntimeState.demoMode` and `useGuestSignIn`'s demo branches.
+ * `<DemoPortalFlow>`: a prospect can actually run the whole journey --
+ * identifier, OTP, the demo account's own active campaign as a coupon card,
+ * "You're connected", and the venue's own post-login page -- as a believable
+ * DUMMY flow, with no backend, no SMS/RADIUS, no NAS POST and no navigation
+ * out of this route. See `PortalRuntimeState.demoMode` and the demo branches
+ * in `useGuestSignIn`.
+ *
+ * TWO OF THOSE STEPS COME FROM TWO DIFFERENT PLACES, deliberately. The
+ * campaign is the built-in `DEMO_PORTAL_CAMPAIGN` (see
+ * `src/lib/portal-demo.ts`): a demo session has no backend to resolve a real
+ * campaign from, and this tab's snapshot is a `RuntimePortalConfig`, which
+ * has no campaign field to carry one in. The last step
+ * (`config.postLoginHtml`/`config.redirectUrl`) DOES come from the snapshot,
+ * so whichever "After they connect" destination the operator picked on
+ * Portal Settings is what the walkthrough actually ends on -- including the
+ * custom HTML page they wrote.
  *
  * localStorage, not sessionStorage: this route is opened via
  * `window.open(url, "_blank", "noopener,noreferrer")`, and `noopener`
@@ -142,6 +155,20 @@ function DemoPortalPreviewPage() {
         {config ? (
           <div className="mx-auto w-full max-w-3xl">
             <div className="rounded-t-2xl border-8 border-b-0 border-[#1e1b4b] bg-[#1e1b4b] p-2 shadow-2xl">
+              {/* Inside the bezel, above the screen, exactly as
+                  `/preview/portal/$locationId` renders it while its
+                  walkthrough runs -- and for the same reason, sharpened by
+                  the campaign step this route now has: a coupon card is the
+                  most convincing, most "this is really my venue" screen in
+                  the whole flow, so "this is a demonstration" has to stay
+                  visible while it is on screen rather than living only on the
+                  connected card that follows it. Unconditional here because
+                  every render of this route IS a demo -- unlike the operator
+                  preview, this page has no static, non-simulated mode. */}
+              <div className="mb-2 flex items-center justify-center gap-1.5 rounded-md bg-amber-400/15 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-200">
+                <Sparkles className="h-3 w-3 shrink-0" />
+                Demonstration &middot; not a live guest session
+              </div>
               <div className="relative min-h-[600px] w-full rounded-lg bg-white">
                 <PortalRuntimeProvider
                   organizationId="demo"
@@ -155,10 +182,13 @@ function DemoPortalPreviewPage() {
                       campaign step brings a different one) -- wrapping it in a
                       second shell here would nest two backdrops. The venue's
                       own post-login page and redirect target ride along from
-                      the same unsaved snapshot, so the demo runs the same
-                      four-step arc the real preview's walkthrough does. */}
+                      the same unsaved snapshot, and the demo account's own
+                      active campaign comes from `DEMO_PORTAL_CAMPAIGN`, so the
+                      demo runs the same four-step arc the real preview's
+                      walkthrough does. */}
                   <DemoPortalFlow
                     constrained
+                    campaign={DEMO_PORTAL_CAMPAIGN}
                     postLoginHtml={config.postLoginHtml}
                     redirectUrl={config.redirectUrl}
                   />
@@ -180,8 +210,10 @@ function DemoPortalPreviewPage() {
           </div>
         )}
         <p className="mt-6 text-center text-xs text-muted-foreground">
-          A live look at your in-progress guest sign-in screen -- what's shown here is the exact
-          same component a real guest's device renders.
+          A live look at your in-progress guest journey -- the sign-in card, the connected screen
+          and the post-login page are the real components a guest&apos;s device renders. The
+          campaign and its coupon are the demo account&apos;s own sample, not something you
+          published.
         </p>
       </div>
     </div>
