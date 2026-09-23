@@ -85,7 +85,7 @@ const PLAIN_COPY: Record<string, string> = {
 
 /** Where a capability is managed, for the ones that have a screen.
  *
- * Only these three, and each is checked against what the screen actually
+ * Only these four, and each is checked against what the screen actually
  * writes rather than against the capability's name:
  *
  *  - `domain_blocking_dns`: a website rule on the Websites tab is a DNS
@@ -94,19 +94,55 @@ const PLAIN_COPY: Record<string, string> = {
  *  - `ip_and_cidr_blocking`: an address rule on the same tab.
  *  - `device_isolation`: blocking a guest on the Guests tab refuses their
  *    next sign-in and ends the session they are in.
+ *  - `zone_to_zone_firewall`: Security -> Firewall, whose rules are
+ *    between-network (`forward`) rules applied to the router by
+ *    cloud-guest#304's push -- which is exactly what the backend's catalogue
+ *    means by it.
+ *
+ * Every link is still data-driven: a row is only rendered for a capability
+ * the backend returned, and only linked from the "available" group. If the
+ * backend reports `zone_to_zone_firewall` as anything else (a backend without
+ * #304 does), it gets no link.
  *
  * Deliberately absent: `domain_blocking_sni` (nothing in the product writes
  * an HTTPS-hostname rule yet, so a link would lead to a screen that does
- * something else), `zone_to_zone_firewall`, `connection_flood_protection`
- * and `rogue_dhcp_detection` (no customer screen manages them). A capability
+ * something else), `connection_flood_protection` and `rogue_dhcp_detection`
+ * (no customer screen manages them). A capability
  * with no entry here simply has no link -- and one the backend stops sending
  * is simply not rendered, since this list is only ever read through the
  * capabilities the backend returned. */
-const MANAGED_AT: Record<string, { tab: "websites" | "guests"; label: string }> = {
-  domain_blocking_dns: { tab: "websites", label: "Block a website" },
-  ip_and_cidr_blocking: { tab: "websites", label: "Block an address" },
-  device_isolation: { tab: "guests", label: "Block a guest" },
+type ManagedAt =
+  | { to: "/blocking"; tab: "websites" | "guests"; label: string }
+  | { to: "/firewall"; label: string };
+
+const MANAGED_AT: Record<string, ManagedAt> = {
+  domain_blocking_dns: { to: "/blocking", tab: "websites", label: "Block a website" },
+  ip_and_cidr_blocking: { to: "/blocking", tab: "websites", label: "Block an address" },
+  device_isolation: { to: "/blocking", tab: "guests", label: "Block a guest" },
+  zone_to_zone_firewall: { to: "/firewall", label: "Set firewall rules" },
 };
+
+/** One capability's link. Split by destination so each `<Link>` is typed
+ * against its own route's search params. */
+function ManagedAtLink({ at }: { at: ManagedAt }) {
+  const cls =
+    "mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-4 hover:underline";
+  const body = (
+    <>
+      {at.label}
+      <ArrowRight className="h-3 w-3" aria-hidden="true" />
+    </>
+  );
+  return at.to === "/blocking" ? (
+    <Link to="/blocking" search={{ tab: at.tab }} className={cls}>
+      {body}
+    </Link>
+  ) : (
+    <Link to="/firewall" className={cls}>
+      {body}
+    </Link>
+  );
+}
 
 const BAND_COPY: Record<NonNullable<SecurityScore["band"]>, string> = {
   excellent: "Nothing on this platform's checklist needs attention",
@@ -349,14 +385,7 @@ export function SecurityOverviewView() {
                           in the other two groups has no control to go to,
                           even if its key were ever listed above. */}
                       {group.availability === "available" && MANAGED_AT[feature.key] && (
-                        <Link
-                          to="/blocking"
-                          search={{ tab: MANAGED_AT[feature.key].tab }}
-                          className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-4 hover:underline"
-                        >
-                          {MANAGED_AT[feature.key].label}
-                          <ArrowRight className="h-3 w-3" aria-hidden="true" />
-                        </Link>
+                        <ManagedAtLink at={MANAGED_AT[feature.key]} />
                       )}
                     </li>
                   ))}

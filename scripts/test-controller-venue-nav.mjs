@@ -217,8 +217,37 @@ await build({
 
 let served = { routers: [MIKROTIK], feature: "dhcp", search: {} };
 const MIME = { ".html": "text/html", ".js": "text/javascript" };
+/** The few API reads Security -> Firewall makes, answered from `served`, so
+ * the MikroTik case can show the real screen rather than a load error. Every
+ * other /api path 404s, as before. `/me/organizations` is what the shared org
+ * resolver asks; the band status 404s, which the screen must treat as
+ * "unknown" and still render. */
+function api(path, res) {
+  const json = (body) => {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ success: true, message: "ok", data: body }));
+  };
+  const page = (items) =>
+    json({
+      items,
+      page: 1,
+      page_size: 100,
+      total_items: items.length,
+      total_pages: 1,
+      has_next: false,
+      has_previous: false,
+    });
+  if (path === "/api/v1/locations/loc-1/routers") return (page(served.routers), true);
+  if (path === "/api/v1/firewall-rules") return (page(served.firewallRules ?? []), true);
+  if (path === "/api/v1/me/organizations") {
+    return (json([{ organization_id: "org-1", status: "active" }]), true);
+  }
+  return false;
+}
+
 const server = createServer((req, res) => {
   const name = req.url === "/" ? "/index.html" : req.url.split("?")[0];
+  if (name.startsWith("/api/") && api(name, res)) return;
   if (name === "/index.html") {
     res.writeHead(200, { "content-type": "text/html" });
     return res.end(
@@ -252,7 +281,7 @@ const NETWORK_LABELS = ["Network Zones", "IP Addresses", "Port Forwarding", "Cal
 /** Open one feature page at a venue with `routers`, and report what a venue
  * owner would see: the page body, and the nav rows with their muted state. */
 async function openFeature(feature, routers, search = {}) {
-  served = { feature, routers, search };
+  served = { ...served, feature, routers, search };
   const page = await browser.newPage();
   await page.goto(origin);
   await page.waitForSelector("[data-sidebar='menu']", { timeout: 10_000 });
@@ -320,9 +349,13 @@ console.log("\ncontroller venue: the five Network screens");
     "omada-nav-rows-carry-the-reason",
     network.every((row) => /managed by a TP-Link Omada controller/.test(row.title ?? "")),
   );
+  // Five: the four Network rows, and Security -> Firewall, which is a whole
+  // page of RouterOS writes (cloud-guest#304 is MikroTik-only). Blocking is
+  // NOT muted -- its Guests tab works here.
   check(
     "omada-nav-mutes-nothing-else",
-    r.rows.filter((row) => row.muted).length === 4,
+    r.rows.filter((row) => row.muted).length === 5 &&
+      r.rows.some((row) => row.label === "Firewall" && row.muted),
     `${r.rows
       .filter((row) => row.muted)
       .map((n) => n.label)
@@ -464,6 +497,97 @@ console.log("\nSecurity -> Blocking at a MikroTik venue");
     r.text.includes(GUESTS_VIEW_CTA) && !r.text.includes(WEBSITES_VIEW_CTA),
   );
   await r.page.close();
+}
+
+// ---------------------------------------------------------------------------
+// Security -> Firewall. MikroTik only: at an Omada-only venue the page is the
+// existing controller notice and no rule form or Apply button exists at all.
+// ---------------------------------------------------------------------------
+
+const FIREWALL_APPLY = "Apply to router";
+const FIREWALL_ADD = "Add a rule";
+
+console.log("\nSecurity -> Firewall at a controller venue");
+{
+  const r = await openFeature("firewall", [OMADA]);
+  check(
+    "omada-firewall-shows-the-existing-notice",
+    /Configured in Omada, not here\./.test(r.text) &&
+      /Firewall rules for this venue are set in Omada's own interface/.test(r.text) &&
+      /Your Wyfy Guest contact manages this venue/.test(r.text),
+  );
+  check(
+    "omada-firewall-mounts-no-control",
+    !r.text.includes(FIREWALL_APPLY) &&
+      !r.text.includes(FIREWALL_ADD) &&
+      (await r.page.getByRole("button", { name: FIREWALL_APPLY }).count()) === 0 &&
+      !(await r.page.locator("form").count()),
+    "a control that does nothing is the defect this gate exists to prevent",
+  );
+  const row = r.rows.find((x) => x.label === "Firewall");
+  check(
+    "omada-firewall-row-is-muted-with-the-reason",
+    row && row.muted && /managed by a TP-Link Omada controller/.test(row.title ?? ""),
+  );
+  await r.page.close();
+}
+
+console.log("\nSecurity -> Firewall at a MikroTik venue");
+{
+  served.firewallRules = [
+    {
+      id: "fw-1",
+      router_id: "r-hex",
+      organization_id: "org-1",
+      location_id: "loc-1",
+      name: "Keep guests off the printer",
+      chain: "forward",
+      action: "drop",
+      protocol: "all",
+      source_address: null,
+      destination_address: "192.168.88.20",
+      source_port: null,
+      destination_port: null,
+      in_interface: null,
+      priority: 100,
+      comment: null,
+      is_enabled: true,
+      created_at: "2026-09-23T10:00:00Z",
+      device_push_status: "failed",
+      device_push_error: "no band",
+      device_pushed_at: null,
+    },
+  ];
+  const r = await openFeature("firewall", [MIKROTIK]);
+  await r.page
+    .getByText("Keep guests off the printer")
+    .waitFor({ timeout: 5_000 })
+    .catch(() => {});
+  const text = (await r.page.locator("body").innerText()).replace(/\u2019/g, "'");
+  check(
+    "mikrotik-firewall-mounts-the-real-screen",
+    text.includes(FIREWALL_APPLY) && text.includes(FIREWALL_ADD) && !CONTROLLER_COPY.test(text),
+  );
+  check(
+    "mikrotik-firewall-lists-the-rule-in-plain-words",
+    text.includes("Keep guests off the printer") &&
+      text.includes("Anyone") &&
+      text.includes("192.168.88.20") &&
+      text.includes("Block") &&
+      !/\bforward\b|\bchain\b|\bdrop\b/.test(text),
+  );
+  check(
+    "mikrotik-firewall-shows-push-status-and-reason",
+    text.includes("Failed") && text.includes("no band"),
+  );
+  check(
+    "an-unknown-band-status-does-not-block-apply",
+    (await r.page.getByRole("button", { name: FIREWALL_APPLY }).isDisabled()) === false,
+    "the band endpoint 404s here; unknown must not read as missing",
+  );
+  check("mikrotik-firewall-mutes-nothing", r.rows.filter((row) => row.muted).length === 0);
+  await r.page.close();
+  served.firewallRules = [];
 }
 
 console.log("\nmixed venue: a MikroTik beside the controller keeps everything");

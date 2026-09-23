@@ -134,6 +134,10 @@ export const NAV_PERMISSION_KEYS: Record<string, readonly string[]> = {
   // working tab from a role that only holds the other. The page narrows its
   // own tabs by the same keys (`blockingTabsFor`).
   blocking: ["content_filtering.read", "guest_access.read"],
+  // Security -> Firewall reads `/firewall-rules` (`firewall.read`); Apply is
+  // `firewall.execute`, which the backend checks on the push itself. Same
+  // module Port Forwarding is guarded by -- there is one FIREWALL module.
+  firewall: ["firewall.read"],
   // A real module, added to the backend's `PermissionModule` alongside this
   // feature (CONTRACT.md §4), with `MODULE_NARROWEST_SCOPE = LOCATION` --
   // same profile as `mac_authorization` and `network_device` above, since an

@@ -387,8 +387,10 @@ console.log("\nno two nav items share an icon");
   // Security group's single row has since brought it back to 26. Counted
   // rather than derived on purpose -- the point of this assertion is to notice
   // a row disappearing, so the number moves only when a feature is
-  // deliberately added or removed. This is such a time.
-  check("the nav still has every item", icons.length === 26, `found ${icons.length}`);
+  // deliberately added or removed. This is such a time. 27 since Security ->
+  // Firewall (the rules screen with an Apply that reaches the router,
+  // cloud-guest#304).
+  check("the nav still has every item", icons.length === 27, `found ${icons.length}`);
 }
 
 console.log(

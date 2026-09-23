@@ -76,6 +76,10 @@ const GenericFeatureView = lazyView(ops, "GenericFeatureView");
 // store this shell's caller does, and keeps its tab local here because this
 // shell has one URL for every feature.
 const BlockingView = lazyView(() => import("@/components/security/BlockingView"), "BlockingView");
+// Security -> Firewall. Its own module too. It reads the venue from the same
+// store and applies the controller gate itself (this shell has none), so the
+// staff `/agent` preview shows the same notice the owner's page does.
+const FirewallView = lazyView(() => import("@/components/security/FirewallView"), "FirewallView");
 
 const BasicDashboardView = lazyView(basic, "BasicDashboardView");
 const BasicUsersView = lazyView(basic, "BasicUsersView");
@@ -187,6 +191,8 @@ function featureElement(id: string, ctx: { locationId?: string; masked?: boolean
       return <HotspotView locationId={ctx.locationId} />;
     case "blocking":
       return <BlockingView locationId={ctx.locationId} />;
+    case "firewall":
+      return <FirewallView locationId={ctx.locationId} />;
     default:
       return <GenericFeatureView feature={id} />;
   }

@@ -36,6 +36,7 @@ import { Route as GuestVouchersRouteImport } from './routes/guest-vouchers'
 import { Route as GuestPortalRouteImport } from './routes/guest-portal'
 import { Route as GuestCampaignsRouteImport } from './routes/guest-campaigns'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as FirewallRouteImport } from './routes/firewall'
 import { Route as DhcpRouteImport } from './routes/dhcp'
 import { Route as DevicesRouteImport } from './routes/devices'
 import { Route as DebuggingRouteImport } from './routes/debugging'
@@ -326,6 +327,11 @@ const GuestCampaignsRoute = GuestCampaignsRouteImport.update({
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
   id: '/forgot-password',
   path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FirewallRoute = FirewallRouteImport.update({
+  id: '/firewall',
+  path: '/firewall',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DhcpRoute = DhcpRouteImport.update({
@@ -1204,6 +1210,7 @@ export interface FileRoutesByFullPath {
   '/debugging': typeof DebuggingRoute
   '/devices': typeof DevicesRoute
   '/dhcp': typeof DhcpRoute
+  '/firewall': typeof FirewallRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/guest-campaigns': typeof GuestCampaignsRoute
   '/guest-portal': typeof GuestPortalRoute
@@ -1387,6 +1394,7 @@ export interface FileRoutesByTo {
   '/debugging': typeof DebuggingRoute
   '/devices': typeof DevicesRoute
   '/dhcp': typeof DhcpRoute
+  '/firewall': typeof FirewallRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/guest-campaigns': typeof GuestCampaignsRoute
   '/guest-portal': typeof GuestPortalRoute
@@ -1568,6 +1576,7 @@ export interface FileRoutesById {
   '/debugging': typeof DebuggingRoute
   '/devices': typeof DevicesRoute
   '/dhcp': typeof DhcpRoute
+  '/firewall': typeof FirewallRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/guest-campaigns': typeof GuestCampaignsRoute
   '/guest-portal': typeof GuestPortalRoute
@@ -1754,6 +1763,7 @@ export interface FileRouteTypes {
     | '/debugging'
     | '/devices'
     | '/dhcp'
+    | '/firewall'
     | '/forgot-password'
     | '/guest-campaigns'
     | '/guest-portal'
@@ -1937,6 +1947,7 @@ export interface FileRouteTypes {
     | '/debugging'
     | '/devices'
     | '/dhcp'
+    | '/firewall'
     | '/forgot-password'
     | '/guest-campaigns'
     | '/guest-portal'
@@ -2117,6 +2128,7 @@ export interface FileRouteTypes {
     | '/debugging'
     | '/devices'
     | '/dhcp'
+    | '/firewall'
     | '/forgot-password'
     | '/guest-campaigns'
     | '/guest-portal'
@@ -2303,6 +2315,7 @@ export interface RootRouteChildren {
   DebuggingRoute: typeof DebuggingRoute
   DevicesRoute: typeof DevicesRoute
   DhcpRoute: typeof DhcpRoute
+  FirewallRoute: typeof FirewallRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   GuestCampaignsRoute: typeof GuestCampaignsRoute
   GuestPortalRoute: typeof GuestPortalRoute
@@ -2534,6 +2547,13 @@ declare module '@tanstack/react-router' {
       path: '/forgot-password'
       fullPath: '/forgot-password'
       preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/firewall': {
+      id: '/firewall'
+      path: '/firewall'
+      fullPath: '/firewall'
+      preLoaderRoute: typeof FirewallRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dhcp': {
@@ -4012,6 +4032,7 @@ const rootRouteChildren: RootRouteChildren = {
   DebuggingRoute: DebuggingRoute,
   DevicesRoute: DevicesRoute,
   DhcpRoute: DhcpRoute,
+  FirewallRoute: FirewallRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   GuestCampaignsRoute: GuestCampaignsRoute,
   GuestPortalRoute: GuestPortalRoute,
