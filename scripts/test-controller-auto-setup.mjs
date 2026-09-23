@@ -59,7 +59,29 @@ function check(name, ok, extra = "") {
 const read = (rel) => readFileSync(join(ROOT, rel), "utf8");
 const stripComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 
-const page = read("src/routes/master.integrations.tsx");
+/**
+ * THE SEARCHED SOURCE IS FOUR FILES, NOT ONE.
+ *
+ * The preview-then-apply machinery this section pins was extracted out of the
+ * route and into `@/lib/preview-then-apply` (the state machine and the 409
+ * normalisation), `@/hooks/usePreviewThenApply` (the mutation) and
+ * `<PreviewThenApply>` (the panel), so the Omada management surfaces inherit
+ * it rather than copying it. The behaviours below are unchanged and each one
+ * still has exactly one home; only the file it lives in moved.
+ *
+ * Concatenated rather than searched per-file on purpose: which of the four a
+ * given rule lives in is an implementation detail this suite should not pin,
+ * and pinning it would make every future move of a line a false failure. What
+ * it must pin is that the rule exists SOMEWHERE in the machinery this route
+ * mounts -- and `scripts/test-preview-then-apply.mjs` proves the four are
+ * wired together and render what they did before.
+ */
+const page = [
+  read("src/routes/master.integrations.tsx"),
+  read("src/lib/preview-then-apply.ts"),
+  read("src/hooks/usePreviewThenApply.ts"),
+  read("src/components/network-integrations/PreviewThenApply.tsx"),
+].join("\n");
 const pageCode = stripComments(page);
 const service = read("src/services/network-integration.service.ts");
 const serviceCode = stripComments(service);
@@ -139,7 +161,7 @@ console.log("\n1b. A 200 with ok:false is a failure, and a 409 is a different on
 check(
   "gaps are read off the 409, not off the success body",
   /e\?\.status === 409 && \(missing\.length > 0 \|\| typed\)/.test(pageCode) &&
-    /setConfigureGaps\(missing\.length > 0 \? missing : \[typed as string\]\)/.test(pageCode),
+    /return missing\.length > 0 \? missing : \[typed as string\];/.test(pageCode),
   "a response body only exists for a run that already passed its preconditions",
 );
 check(
@@ -154,7 +176,7 @@ check(
 );
 check(
   "a fresh refusal clears a stale preview",
-  /setConfigureGaps\(missing\.length > 0[\s\S]{0,300}setPreviewed\(false\)/.test(pageCode),
+  /case "run-refused":[\s\S]{0,400}previewed: false/.test(pageCode),
   "a preview left on screen under a refusal reads as though it still applies",
 );
 check(
@@ -166,17 +188,27 @@ check(
   /Some steps would fail\. The controller is unchanged\./.test(page) &&
     /only partly configured/.test(page),
 );
-check("a successful run clears any previous gaps", /setConfigureGaps\(\[\]\)/.test(pageCode));
+check(
+  "a successful run clears any previous gaps",
+  /case "run-succeeded":[\s\S]{0,400}gaps: \[\]/.test(pageCode),
+);
 
 /* ── 2. Preview before apply ───────────────────────────────────────────── */
 
 console.log("\n2. A preview is required before anything is written");
 
-check("a dry run is offered", /configure\.mutate\(true\)/.test(pageCode));
-check("and a real run", /configure\.mutate\(false\)/.test(pageCode));
+check(
+  "a dry run is offered",
+  /mutate\(true\)/.test(pageCode) && /onPreview=\{configure\.preview\}/.test(pageCode),
+);
+check(
+  "and a real run",
+  /mutate\(false\)/.test(pageCode) && /onApply=\{configure\.apply\}/.test(pageCode),
+);
 check(
   "apply is disabled until a preview has run",
-  /disabled=\{!previewed \|\| busy\}/.test(pageCode),
+  /disabled=\{!previewed \|\| stopped\}/.test(pageCode) &&
+    /const stopped = busy \|\| blocked !== null/.test(pageCode),
 );
 check("and says why", /Run the preview first — this writes to a live controller\./.test(page));
 check("the dry run is sent as such", /dry_run: opts\.dryRun/.test(serviceCode));
@@ -222,7 +254,11 @@ check(
   /copy\?\.title \?\? g/.test(pageCode),
   "a precondition nobody renders is a refusal with no reason given",
 );
-check("gaps are sorted before rendering", /orderedGaps\(configureGaps\)/.test(pageCode));
+check(
+  "gaps are sorted before rendering",
+  /orderGaps=\{orderedGaps\}/.test(pageCode) &&
+    /orderGaps \? orderGaps\(gaps\) : gaps/.test(pageCode),
+);
 
 /* ── 4. Taking over someone else's portal ──────────────────────────────── */
 
@@ -240,7 +276,8 @@ check(
 );
 check(
   "turning it on invalidates the previous preview",
-  /setPreviewed\(false\);[\s\S]{0,60}setOutcome\(null\)/.test(pageCode),
+  /setConfirmTakeOver\(false\);[\s\S]{0,200}configure\.invalidate\(\)/.test(pageCode) &&
+    /case "invalidate":[\s\S]{0,200}previewed: false/.test(pageCode),
   "a preview computed without take-over no longer describes what Apply would do",
 );
 check(

@@ -42,6 +42,21 @@
  * Most rows will legitimately have no uptime: a third-party access point,
  * printer or camera has no uptime source anywhere in this platform. That
  * is a real absence, not a hole to be plugged with the heartbeat age.
+ *
+ * ## The same rule, one level up: "unknown" is two different facts
+ *
+ * The backend derives up/down from `connected_devices`, and both writers of
+ * that table reach a venue by opening a RouterOS session against its uplink
+ * router. A TP-Link Omada controller has no RouterOS, so at a venue whose
+ * network is run by one, nothing ever probes a registered device: the row is
+ * `unknown` on the day it is added and `unknown` for as long as the venue
+ * exists.
+ *
+ * Rendered as "Never observed" that reads as *we looked and never saw it* --
+ * a device to go and check. Nothing here ever looked. The backend now sends
+ * `status_source`/`status_reason` (see `MonitoredHardwareResponse`) and this
+ * module turns the second case into its own words. It is the same predicate
+ * `routerLivenessIsMeasured` applies one screen over, for the same reason.
  */
 
 /** Every field this module needs from a hardware row. Deliberately a
@@ -63,7 +78,44 @@ export interface DeviceLiveness {
   uptimeSeconds: number | null;
   /** When `uptimeSeconds` was actually read off the device. ISO, or null. */
   uptimeRecordedAt: string | null;
+  /**
+   * Whether this platform probes this device at all -- NOT what the probe
+   * found. Optional so the demo fixture (`stores/deviceStore.ts`) and any
+   * older backend response satisfy this interface unchanged; absent reads
+   * as `"measured"`, which is the pre-existing meaning of every row.
+   */
+  statusSource?: HardwareStatusSource | null;
+  /** Why the status reads as it does. Only meaningful for `unknown`. */
+  statusReason?: HardwareStatusReason | null;
 }
+
+/** Mirrors the backend's `monitored_hardware.constants.StatusSource`. */
+export type HardwareStatusSource = "measured" | "unmeasured";
+
+/** Mirrors the backend's `monitored_hardware.constants.StatusReason`. */
+export type HardwareStatusReason = "liveness_probe" | "never_observed" | "controller_managed";
+
+/**
+ * What an unmeasured row says, per reason code.
+ *
+ * The words live here and only here -- the backend deliberately sends a code
+ * and no prose, so that a sentence composed server-side cannot drift from
+ * the one a customer reads. Each entry names the venue's own equipment
+ * rather than the platform's internals: "we do not poll this" is our
+ * problem, "your controller reports these" is their answer.
+ */
+export const UNMEASURED_REASON_COPY: Record<HardwareStatusReason, string> = {
+  controller_managed:
+    "This venue's network is run by a controller, so nothing here pings this device. " +
+    // "on the Devices page", not "above": this sentence is also read on the
+    // Dashboard tile and in the location picker's cross-location panel,
+    // where there is nothing above it.
+    "Your controller's own view of its access points is on the Devices page.",
+  // Neither of these can reach an unmeasured row today; present so that a
+  // new reason code renders as itself instead of as `undefined`.
+  never_observed: "Nothing on this platform measures this device's status.",
+  liveness_probe: "Nothing on this platform measures this device's status.",
+};
 
 /**
  * A reading older than this is quoted with its age attached. The RouterOS
@@ -100,10 +152,20 @@ export interface LivenessDescription {
    * duration next to "Up" is exactly how this bug read.
    */
   detail: string | null;
-  /** Which fact `detail` reports, for callers that style them apart. */
-  detailKind: "uptime" | "connected" | "lastSeen" | null;
+  /** Which fact `detail` reports, for callers that style them apart.
+   * `"unmeasured"` is not a measurement at all -- it is the row saying that
+   * no measurement of it exists, which a caller should style as neutral
+   * (never as a failure: nothing failed). */
+  detailKind: "uptime" | "connected" | "lastSeen" | "unmeasured" | null;
   /** True when `detail` is an uptime whose reading has gone stale. */
   stale: boolean;
+  /**
+   * A full sentence for a tooltip, when the cell's short words need one --
+   * currently only for an unmeasured row, where the badge says "Not
+   * measured" and this says why. `null` everywhere else, so no call site has
+   * to decide when an explanation exists.
+   */
+  explanation: string | null;
 }
 
 /**
@@ -117,13 +179,30 @@ export function describeLiveness(
   device: DeviceLiveness,
   now: number = Date.now(),
 ): LivenessDescription {
+  // Asked before the status word is chosen, because it replaces it. A row
+  // nothing probes is not "Never observed" -- that is a claim about having
+  // looked. See the module docstring.
+  if (device.statusSource === "unmeasured") {
+    return {
+      state: "Not measured",
+      // Deliberately no `detail`: a bare status word with nothing beside it
+      // is the honest shape here. Every other `detail` this module emits is
+      // a measurement, and inventing one for a row nothing measures would
+      // be the original defect wearing different words.
+      detail: null,
+      detailKind: "unmeasured",
+      stale: false,
+      explanation: UNMEASURED_REASON_COPY[device.statusReason ?? "never_observed"],
+    };
+  }
+
   const state =
     device.status === "up" ? "Up" : device.status === "down" ? "Down" : "Never observed";
 
   // A device the network has never seen has no liveness history at all;
   // an uptime reading for it would be a contradiction, not a bonus.
   if (device.status === "unknown") {
-    return { state, detail: null, detailKind: null, stale: false };
+    return { state, detail: null, detailKind: null, stale: false, explanation: null };
   }
 
   if (device.uptimeSeconds != null) {
@@ -138,6 +217,7 @@ export function describeLiveness(
         : base,
       detailKind: "uptime",
       stale,
+      explanation: null,
     };
   }
 
@@ -155,6 +235,7 @@ export function describeLiveness(
       detail: `connected ${formatAge(device.connectedAt, now)}`,
       detailKind: "connected",
       stale: false,
+      explanation: null,
     };
   }
 
@@ -164,10 +245,21 @@ export function describeLiveness(
       detail: `last seen ${formatAge(device.lastSeenAt, now)} ago`,
       detailKind: "lastSeen",
       stale: false,
+      explanation: null,
     };
   }
 
-  return { state, detail: null, detailKind: null, stale: false };
+  return { state, detail: null, detailKind: null, stale: false, explanation: null };
+}
+
+/** True when this platform probes this device's liveness at all.
+ *
+ * The console-side sibling of `routerLivenessIsMeasured` in
+ * `@/lib/router-vendors`, one screen down: same question, different row
+ * type. An absent `statusSource` reads as measured so that the demo fixture
+ * and any pre-field backend response behave exactly as they did before. */
+export function hardwareLivenessIsMeasured(device: DeviceLiveness): boolean {
+  return device.statusSource !== "unmeasured";
 }
 
 /**

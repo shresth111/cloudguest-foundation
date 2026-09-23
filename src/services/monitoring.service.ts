@@ -20,6 +20,7 @@ import type {
   IncidentStatus,
   NotificationChannel,
   NotificationChannelListQuery,
+  NotificationDeliveryStatus,
   NotificationLog,
   NotificationLogListQuery,
   PaginatedResult,
@@ -121,14 +122,36 @@ interface BackendAlert {
   severity: string;
 }
 
+interface BackendNotificationChannelConfigSummary {
+  configured: boolean;
+  target: string;
+  fingerprint: string | null;
+  has_secret: boolean;
+  auth_header_name: string | null;
+  requirements: string[];
+}
+
+interface BackendNotificationDeliveryStatus {
+  status: string;
+  kind: string;
+  sent_at: string;
+  error_message: string | null;
+  response_summary: string | null;
+}
+
 interface BackendNotificationChannel {
   id: string;
   organization_id: string | null;
   channel_type: string;
   name: string;
   is_active: boolean;
+  event_categories: string[];
   created_at: string;
   updated_at: string;
+  // Deliberately a redaction, never the config. See
+  // `types/monitoring.ts::NotificationChannelConfigSummary`.
+  config_summary: BackendNotificationChannelConfigSummary | null;
+  last_delivery: BackendNotificationDeliveryStatus | null;
 }
 
 interface BackendNotificationLog {
@@ -336,8 +359,28 @@ function toNotificationChannel(c: BackendNotificationChannel): NotificationChann
     channelType: c.channel_type as NotificationChannel["channelType"],
     name: c.name,
     isActive: c.is_active,
+    eventCategories: (c.event_categories ?? []) as NotificationChannel["eventCategories"],
     createdAt: c.created_at,
     updatedAt: c.updated_at,
+    configSummary: c.config_summary
+      ? {
+          configured: c.config_summary.configured,
+          target: c.config_summary.target,
+          fingerprint: c.config_summary.fingerprint,
+          hasSecret: c.config_summary.has_secret,
+          authHeaderName: c.config_summary.auth_header_name,
+          requirements: c.config_summary.requirements ?? [],
+        }
+      : null,
+    lastDelivery: c.last_delivery
+      ? {
+          status: c.last_delivery.status as NotificationDeliveryStatus["status"],
+          kind: c.last_delivery.kind as NotificationDeliveryStatus["kind"],
+          sentAt: c.last_delivery.sent_at,
+          errorMessage: c.last_delivery.error_message,
+          responseSummary: c.last_delivery.response_summary,
+        }
+      : null,
   };
 }
 
@@ -748,6 +791,7 @@ export const monitoringService = {
         name: payload.name,
         config: payload.config,
         is_active: payload.isActive,
+        event_categories: payload.eventCategories ?? [],
       },
       {
         headers: payload.organizationId
@@ -765,7 +809,12 @@ export const monitoringService = {
   ): Promise<NotificationChannel> {
     const { data } = await api.put<BackendNotificationChannel>(
       `/notifications/channels/${id}`,
-      { name: payload.name, config: payload.config, is_active: payload.isActive },
+      {
+        name: payload.name,
+        config: payload.config,
+        is_active: payload.isActive,
+        event_categories: payload.eventCategories,
+      },
       { headers: organizationId ? { "X-Organization-Id": organizationId } : undefined },
     );
     return toNotificationChannel(data);
@@ -775,6 +824,32 @@ export const monitoringService = {
     await api.delete(`/notifications/channels/${id}`, {
       headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
     });
+  },
+
+  /**
+   * Queue one clearly-labelled test delivery over this channel.
+   *
+   * Returns as soon as the backend has accepted it (202), NOT when the
+   * message lands: the send is a call to somebody else's server, and
+   * awaiting it would make our own HTTP timeout the thing that decides
+   * whether a channel is reported working. The outcome arrives as the
+   * channel's `lastDelivery`, so the caller must refetch rather than treat
+   * this resolving as proof of anything.
+   */
+  async testNotificationChannel(
+    id: string,
+    organizationId?: string,
+  ): Promise<{ queued: boolean; detail: string }> {
+    const { data } = await api.post<{
+      channel_id: string;
+      queued: boolean;
+      detail: string;
+    }>(
+      `/notifications/channels/${id}/test`,
+      {},
+      { headers: organizationId ? { "X-Organization-Id": organizationId } : undefined },
+    );
+    return { queued: data.queued, detail: data.detail };
   },
 
   async listNotificationLogs(

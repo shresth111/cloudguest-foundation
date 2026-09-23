@@ -3,7 +3,8 @@ import { ArrowLeft, KeyRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { scriptClassOf } from "@/lib/portal-script";
 import { PortalTextPlate, PortalCard } from "@/components/portal-runtime/PortalShell";
-import { ConnectingOverlay, DemoNotice, PG_SECONDARY_BTN } from "./PortalGuestUi";
+import { AlertBanner, ConnectingOverlay, DemoNotice, PG_SECONDARY_BTN } from "./PortalGuestUi";
+import { radiusErrorHintFromSearch, radiusFailureMessageKey } from "@/lib/portal-radius-authorize";
 import { PortalDefaultBrandBadge } from "./PortalDefaultBrandBadge";
 import { VenueLogo } from "./VenueLogo";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
@@ -76,6 +77,16 @@ export function GuestSignInCard() {
   // `PortalContentBlock`), so there is no per-guest answer state to lift here.
   const [continued, setContinued] = useState(false);
   const showContentStep = hasGatingContentStep(config) && !continued;
+
+  // Read ONCE, at mount, off the live URL -- not on every render and not
+  // through the router's typed search. The guest this is for arrived on a
+  // FRESH DOCUMENT the controller navigated, so `window.location` is the
+  // only place the value is guaranteed to be; and reading it once means a
+  // guest who re-submits from this same card is not shown the previous
+  // attempt's reason underneath their new one.
+  const [errorHintFailure] = useState(() =>
+    typeof window === "undefined" ? null : radiusErrorHintFromSearch(window.location.search),
+  );
 
   // STEP 1: the venue's intro content (image/text) with a "Continue" action.
   // The sign-in fields are deliberately NOT mounted here.
@@ -306,6 +317,30 @@ export function GuestSignInCard() {
              * together fixes that for both states -- the switcher (when
              * shown) keeps its own `mb-4` separating it from the form
              * beneath, unaffected. */}
+            {/* WHY THE LAST ATTEMPT FAILED, when the venue's controller is
+             * the one that decided and this page never heard about it.
+             *
+             * An Omada controller in RADIUS mode answers a failed
+             * `browserauth` by navigating the browser straight back to the
+             * portal URL with `?errorHint=RADIUS_SERVER_TIMEOUT` (or
+             * `INVALID_USERNAME_OR_PASSWORD`) on it. Until this landed,
+             * `errorHint` had zero occurrences in the whole repo: the guest
+             * arrived back on this exact card with no message, assumed they
+             * had mistyped, and entered the same thing again.
+             *
+             * The portal no longer produces that bounce -- the browser does
+             * not call the controller any more, see
+             * `@/lib/portal-radius-authorize` -- so this is here for the
+             * guests still arriving from the old path, and it is the only
+             * thing on this card that reads a value the controller wrote.
+             * Untrusted accordingly: `radiusFailureOf` maps it against a
+             * closed table, and anything unrecognised becomes the generic
+             * message rather than a specific claim. */}
+            {errorHintFailure && (
+              <div className="mt-3.5">
+                <AlertBanner message={t(radiusFailureMessageKey(errorHintFailure))} />
+              </div>
+            )}
             <div className="mt-3.5">
               <AuthTabSwitcher {...sign} />
               {sign.tab === "otp" && sign.hasOtp && <OtpForm {...sign} />}

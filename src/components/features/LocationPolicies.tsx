@@ -29,6 +29,8 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import { isLocationNamedPolicy } from "@/lib/policy-scope";
 import { bandwidthPolicyService } from "@/services/bandwidth-policy.service";
+import { useClientControls } from "@/hooks/useClientControls";
+import { ControllerControlNotice } from "@/components/customer/ControllerControlNotice";
 import { resolveOrgId } from "@/services/customer.service";
 import {
   createPolicyWithRules,
@@ -38,7 +40,9 @@ import {
   latestVersion,
   deactivatePolicy,
   sessionPolicyRules,
-  fupTimeLimitRules,
+  fupPolicyRules,
+  fupDataLimitFromRules,
+  FUP_DATA_RESET_PERIODS,
 } from "@/services/policy-engine";
 
 // DevicePolicyRules.max_devices_per_guest (backend) is a required int >= 1
@@ -56,17 +60,15 @@ const UNLIMITED_DEVICES_SENTINEL = 9999;
 // is a separate policy and why the three companion fields mirror
 // guest/constants.py rather than policy/constants.py; read it there.
 
-// A rule the backend stores but no code path reads. `data_limit` is declared
-// on BandwidthPolicyRules, round-trips through save/reload perfectly, and is
-// enforced by nothing -- confirmed against the backend: the only consumer of
-// a BANDWIDTH resolve is queue_management, and it reads exactly
-// download_rate_kbps and upload_rate_kbps. Rather than leave a control that
-// looks like it works, it is disabled with the reason.
+// THE "NOT ENFORCED YET" NOTE IS GONE, BECAUSE NOTHING ON THIS FORM IS.
 //
-// This note used to sit on three controls. Idle Timeout and Maximum Daily
-// Session Limit have come off it because they are now genuinely enforced end
-// to end, each by being written to the policy type that actually reads it
-// rather than to the bandwidth policy that never did:
+// It used to sit on three controls, all of which had the same defect: the
+// value was written into the BANDWIDTH policy's rules JSON, where the schema
+// declares the field, the API returns 201, the value reads back on reload --
+// and nothing anywhere reads it. The only consumer of a BANDWIDTH resolve is
+// queue_management, and it reads download_rate_kbps and upload_rate_kbps.
+//
+// All three are now written to the policy type that really is read:
 //
 //   * Idle Timeout      -> SESSION policy's `idle_timeout_minutes`, sent as
 //                          the RFC 2865 Idle-Timeout attribute on the guest's
@@ -74,12 +76,18 @@ const UNLIMITED_DEVICES_SENTINEL = 9999;
 //   * Max Daily Session -> FUP policy's `daily_time_limit_minutes`, accrued
 //                          into GuestQuotaUsage.minutes_used by the
 //                          five-minutely sweep and enforced at login.
+//   * Data limit        -> FUP policy's `daily`/`weekly`/`monthly_data_limit
+//                          _mb`, bumped by every RADIUS Interim-Update and by
+//                          the Omada usage backfill, and enforced in two
+//                          places: `record_usage` ends the session the moment
+//                          a cap is crossed, and `_enforce_fup_quota` refuses
+//                          the next login until the period rolls over.
 //
-// The note stays, unchanged, on the data limit below -- which is still stored
-// and still read by nothing. It is deliberately not removed wholesale just
-// because two of its three users left: an honest disclaimer on a control that
-// does nothing is worth more than a tidy form.
-const NOT_ENFORCED_NOTE = "Not enforced yet — saving this has no effect on guests.";
+// Removing the constant rather than keeping it unused is deliberate. A
+// disclaimer sitting in the file with no renderer is a disclaimer waiting to
+// be attached to the wrong thing; the guard in
+// scripts/test-session-rules-enforcement.mjs now asserts its absence and
+// asserts the data-limit control is aimed at the fields that are read.
 
 const BANDWIDTH_KBPS: Record<string, number> = {
   "10 Mbps": 10240,
@@ -177,7 +185,23 @@ const DAILY_LIMIT = ["No Limit", "1 hr", "2 hr", "4 hr", "8 hr"];
 const IDLE_TIMEOUT = ["5 min", "10 min", "15 min", "30 min", "1 hr"];
 const DEVICES = ["Unlimited", "1", "2", "3", "4", "5"];
 const DATA_UNITS = ["MB", "GB"];
-const RESETS = ["Per session", "Daily", "Weekly", "Monthly"];
+// "Per session" is deliberately NOT here any more, and its absence is the
+// honest half of making this control real -- the same trade IDLE_TIMEOUT made
+// when it lost "No Limit".
+//
+// A data cap is metered against GuestQuotaUsage, which exists per guest per
+// QuotaPeriodType, and that enum has exactly three members: DAILY, WEEKLY,
+// MONTHLY. There is no venue-level per-session data allowance anywhere on this
+// platform. The one per-session cap that does exist is
+// GuestSession.data_limit_mb, copied off a redeemed voucher batch at login --
+// a Vouchers screen setting, on a per-batch basis, not a venue-wide one.
+//
+// So "Per session" could not be honoured, and it is the dangerous kind of
+// unhonourable: it reads as a PROMISE OF LESS (guests are capped tighter than
+// any of the other options), which is the direction an operator will not go
+// looking to verify. Sourced from the same constant the write path uses, so
+// the list on screen and the fields written can never drift.
+const RESETS: readonly string[] = FUP_DATA_RESET_PERIODS;
 const PAGE_SIZE_OPTS = [10, 25, 50] as const;
 
 interface Policy {
@@ -338,6 +362,37 @@ function Select({
 // ── component ────────────────────────────────────────────────────
 export default function LocationPolicies({ locationId }: { locationId?: string } = {}) {
   const demo = useIsDemo();
+  // Which of this form's controls can actually reach a device at this venue.
+  // At a MikroTik venue both verdicts are `available` with a null reason, so
+  // the notices render nothing, `speedUsable` is true, and this screen is the
+  // one that shipped before, line for line.
+  //
+  // At a controller venue the answer is now the BACKEND'S, not a guess: the
+  // venue's declared `set_rate_limit` capability decides it, and where that is
+  // false the sentence rendered beside the greyed field is the backend's own.
+  // An Open API venue gets the field live with a caveat, because
+  // `queue_management.apply_queue` routes a controller-managed router to its
+  // controller (cloud-guest #270) instead of writing a RouterOS queue nothing
+  // would have read.
+  const clientControls = useClientControls();
+  // WHILE WE ARE STILL ASKING, WE SAY NOTHING.
+  //
+  // The capabilities read is in flight on every load of this screen at a
+  // controller venue, and until it lands `capabilities` is null -- which the
+  // ladder reads as "we could not ask" and answers with a full sentence. So
+  // the owner met a greyed field and a paragraph about their controller on
+  // every page load, for as long as the request took, and then watched it
+  // vanish when the answer arrived and the field went live.
+  //
+  // `useClientControls` already carries `loading` for exactly this and
+  // documents it: a control renders disabled but WITHOUT a reason during the
+  // read, because we do not have one yet and inventing one is a sentence
+  // about a venue we have not finished asking about. This screen was the one
+  // caller not reading it.
+  const speedVerdict = clientControls.verdict("speed-limit");
+  const speedAsking = clientControls.loading;
+  const speedUsable = !speedAsking && speedVerdict.availability !== "unavailable";
+  const sessionTimeoutVerdict = clientControls.verdict("session-timeout");
   // UNITS is demo-only seed data (fake hotel names) -- a real customer only
   // has their own locations, so the "Business Unit" picker below (whose
   // value becomes the saved bandwidth policy's own name) must offer those
@@ -368,6 +423,21 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   const [editingId, setEditingId] = useState<string | null>(null);
   const [policies, setPolicies] = useState<Policy[]>(demo ? SEED : []);
   const [realIds, setRealIds] = useState<Record<string, string>>({}); // businessUnit(=policy name) -> real bandwidth-policy id
+  // The rates this location is ALREADY saved with, by policy name.
+  //
+  // Read by handleSave for one purpose: a greyed Bandwidth control must not
+  // write. When `speedUsable` is false the select is disabled, `f.bandwidth`
+  // is the empty string, and `validate()` deliberately skips its required
+  // check -- so `BANDWIDTH_KBPS[""] ?? 0` resolved to 0 and every save at a
+  // controller venue silently overwrote whatever rate the policy held with
+  // "no limit". Nothing on screen showed it: the form field is greyed and the
+  // table cell prints "Not applied here", so the only way to see the damage
+  // was for the gate to lift later and every guest to come back uncapped.
+  //
+  // Preserving is the right repair rather than defaulting to some number:
+  // a control the owner cannot touch has expressed no opinion, and the
+  // honest write for "no opinion" is the value that was already there.
+  const [savedRates, setSavedRates] = useState<Record<string, { down: number; up: number }>>({});
   const [deviceRealIds, setDeviceRealIds] = useState<Record<string, string>>({}); // businessUnit -> real DEVICE-policy id
   const [sessionRealIds, setSessionRealIds] = useState<Record<string, string>>({}); // businessUnit -> real SESSION-policy id
   const [fupRealIds, setFupRealIds] = useState<Record<string, string>>({}); // businessUnit -> real FUP-policy id
@@ -455,6 +525,15 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
             (latestVersion(d)?.rules?.daily_time_limit_minutes ?? null) as number | null,
           ]),
         );
+        // The data cap, off the same FUP policy and for the same reason: it is
+        // the one the login gate and the mid-session usage tracker resolve.
+        // Keyed on presence like the daily time limit above, not truthiness --
+        // `null` is a venue that has cleared its cap, and reading it with `??`
+        // would fall through to the stale (and never-enforced) bandwidth copy
+        // and show them a limit they had just removed.
+        const dataByName = new Map(
+          fupDetails.map((d) => [d.name, fupDataLimitFromRules(latestVersion(d)?.rules)]),
+        );
         setPolicies(
           real.map((p) => {
             const maxDevices = deviceByName.get(p.name);
@@ -499,11 +578,34 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                 DEFAULT_IDLE_TIMEOUT_LABEL,
               ),
               devicesPerUser,
-              dataLimit: p.dataLimit ?? null,
+              // Prefer the real FUP policy -- the same preference the session
+              // timeout and daily limit above make, and for the same reason.
+              //
+              // The fallback is narrower than theirs, though, and deliberately
+              // so. A location saved before this fix holds its choice only in
+              // the bandwidth policy's `data_limit`, which was enforced by
+              // nothing; showing it back keeps the venue's own words on screen
+              // so the next save can make them real. But a legacy value whose
+              // `resets` is "Per session" is dropped rather than shown,
+              // because there is no period to write it to (see RESETS) -- and
+              // re-displaying a cap this platform cannot express would be the
+              // same promise, made a second time, by a screen that has just
+              // stopped being able to keep it. Those rows read "No limit",
+              // which is what their guests have had all along.
+              dataLimit: dataByName.has(p.name)
+                ? (dataByName.get(p.name) ?? null)
+                : p.dataLimit && RESETS.includes(p.dataLimit.resets)
+                  ? p.dataLimit
+                  : null,
             };
           }),
         );
         setRealIds(Object.fromEntries(real.map((p) => [p.name, p.id])));
+        setSavedRates(
+          Object.fromEntries(
+            real.map((p) => [p.name, { down: p.downloadRateKbps, up: p.uploadRateKbps }]),
+          ),
+        );
         setDeviceRealIds(Object.fromEntries(deviceDetails.map((d) => [d.name, d.id])));
         setSessionRealIds(Object.fromEntries(sessionDetails.map((d) => [d.name, d.id])));
         setFupRealIds(Object.fromEntries(fupDetails.map((d) => [d.name, d.id])));
@@ -566,7 +668,11 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   const validate = (): boolean => {
     const e: typeof errs = {};
     if (!f.businessUnit) e.businessUnit = "Required.";
-    if (!f.bandwidth) e.bandwidth = "Required.";
+    // Not required when it cannot be honoured. Leaving the asterisk on a
+    // disabled control would make the whole form unsavable at a controller
+    // venue, taking the session timeout, device count and daily limit --
+    // all of which work there -- down with the one field that does not.
+    if (!f.bandwidth && speedUsable) e.bandwidth = "Required.";
     if (!f.sessionTimeout) e.sessionTimeout = "Required.";
     if (!f.devicesPerUser) e.devicesPerUser = "Required.";
     // Idle Timeout is required again, and the "idle can't exceed session"
@@ -577,9 +683,19 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
     // fire, because the session ends first, so saving one is silently
     // choosing "no idle timeout" by a route the form does not admit to.
     //
-    // The data-limit quota check stays gone -- that control is still
-    // disabled and still unenforced.
+    // The data-limit quota check is back, for the same reason the idle
+    // cross-check is: the value now reaches guests. An open panel with a blank
+    // or zero quota would write `*_data_limit_mb: 0`, and `is_fup_usage_
+    // exceeded` treats zero as a cap that is already met -- so the venue would
+    // have saved an accidental "no internet for anybody", refused at the very
+    // next login, from a field they left empty.
     if (!f.idleTimeout) e.idleTimeout = "Required.";
+    if (dataLimitOpen) {
+      const quota = parseFloat(dlQuota);
+      if (!Number.isFinite(quota) || quota <= 0) {
+        e.dataLimit = "Enter how much data each guest gets, or remove the limit.";
+      }
+    }
     const idleMins = IDLE_TIMEOUT_MINUTES[f.idleTimeout];
     const sessionMins = SESSION_TIMEOUT_MINUTES[f.sessionTimeout];
     if (idleMins && sessionMins && idleMins > sessionMins) {
@@ -593,8 +709,10 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   const handleSave = async () => {
     if (!validate()) return;
     setSaving(true);
+    // `validate()` has already refused a non-positive quota, so this cannot
+    // produce the accidental zero-cap described there.
     const dataLimit = dataLimitOpen
-      ? { quota: parseFloat(dlQuota) || 0, unit: dlUnit, resets: dlResets }
+      ? { quota: parseFloat(dlQuota), unit: dlUnit, resets: dlResets }
       : null;
 
     if (demo) {
@@ -628,15 +746,27 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
       // speed they had. Bug report: "Guest WiFi Limit not controlling the
       // bandwidth". Both halves are this one line.
       const targetLocationId = (locations ?? []).find((l) => l.name === f.businessUnit)?.id;
-      const rateKbps = BANDWIDTH_KBPS[f.bandwidth] ?? 0;
+      // A GREYED CONTROL DOES NOT WRITE.
+      //
+      // `downloadRateKbps`/`uploadRateKbps` are required numbers on
+      // `SaveBandwidthPolicyInput`, so there is no "omit it" -- the choice is
+      // between a number the owner chose and a number nobody chose. Where the
+      // control is live, it is theirs. Where it is greyed, it is whatever the
+      // policy already holds, so saving the four settings that DO work here
+      // cannot quietly uncap the venue on the way past.
+      const heldRate = savedRates[f.businessUnit];
+      const chosenKbps = BANDWIDTH_KBPS[f.bandwidth] ?? 0;
+      const rates = speedUsable
+        ? { down: chosenKbps, up: chosenKbps }
+        : { down: heldRate?.down ?? 0, up: heldRate?.up ?? 0 };
       const existingId = realIds[f.businessUnit];
       const saved = await bandwidthPolicyService.save(
         {
           id: existingId,
           name: f.businessUnit,
           status: "active",
-          downloadRateKbps: rateKbps,
-          uploadRateKbps: rateKbps,
+          downloadRateKbps: rates.down,
+          uploadRateKbps: rates.up,
           // Session/Idle/Daily Timeout and the optional data limit are real
           // BandwidthPolicyRules fields (toRules already maps them) that this
           // form validates as required but, until now, never actually sent --
@@ -661,6 +791,10 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         await bandwidthPolicyService.mapToLocation(saved.id, targetLocationId, orgId ?? undefined);
       }
       setRealIds((prev) => ({ ...prev, [f.businessUnit]: saved.id }));
+      // Keep the preserved-rate map in step with what was just written, so a
+      // second save in the same session preserves the same number rather than
+      // the one this location had when the page loaded.
+      setSavedRates((prev) => ({ ...prev, [f.businessUnit]: rates }));
 
       // Devices Per User -- same "policy exists but was never applied" gap
       // bandwidth just had, except this one was never even wired to a
@@ -752,21 +886,27 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         }
       }
 
-      // Maximum Daily Session Limit -- the real one. An FUP policy, because
-      // `daily_time_limit_minutes` there is the only daily-time field the
-      // backend actually reads; the bandwidth policy's `daily_limit_minutes`
-      // (still written above for backward-compatible reads) has no consumer
-      // anywhere. See fupTimeLimitRules in policy-engine.ts.
+      // Maximum Daily Session Limit AND the data limit -- the real ones. One
+      // FUP policy carrying both, because `daily_time_limit_minutes` and
+      // `daily`/`weekly`/`monthly_data_limit_mb` are the fields the backend
+      // actually reads; the bandwidth policy's `daily_limit_minutes` and
+      // `data_limit` (both still written above for backward-compatible reads)
+      // have no consumer anywhere. See fupPolicyRules in policy-engine.ts for
+      // why it is one helper and one write rather than two.
       //
       // Not guarded by a truthiness check, unlike the session block above:
-      // "No Limit" is a real, selectable answer here and maps to null, and
-      // an operator clearing a limit they previously set must produce a new
-      // policy version that says so. Skipping the write on a falsy value
-      // would leave the old cap standing and make the limit impossible to
-      // remove -- the mirror image of the bug this whole change fixes.
+      // "No Limit" and "no data cap" are real, selectable answers here and map
+      // to null, and an operator clearing a limit they previously set must
+      // produce a new policy version that says so. Skipping the write on a
+      // falsy value would leave the old cap standing and make the limit
+      // impossible to remove -- the mirror image of the bug this whole change
+      // fixes.
       const dailyMinutes = DAILY_LIMIT_MINUTES[f.dailyLimit] ?? null;
       const existingFupId = fupRealIds[f.businessUnit];
-      const fupRules = fupTimeLimitRules(dailyMinutes);
+      const fupRules = fupPolicyRules({
+        dailyTimeLimitMinutes: dailyMinutes,
+        dataLimit,
+      });
       if (existingFupId) {
         await updatePolicyRules({
           id: existingFupId,
@@ -775,11 +915,11 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
           archive: false,
           organizationId: orgId ?? undefined,
         });
-      } else if (dailyMinutes !== null) {
+      } else if (dailyMinutes !== null || dataLimit !== null) {
         // Only worth creating a policy for a real cap. A brand-new location
-        // choosing "No Limit" already has no limit; writing an FUP policy
-        // full of nulls to say so would add a resolvable policy and an
-        // assignment that change nothing.
+        // choosing "No Limit" and no data cap already has neither; writing an
+        // FUP policy full of nulls to say so would add a resolvable policy and
+        // an assignment that change nothing.
         const createdFup = await createPolicyWithRules({
           policyType: "fup",
           name: f.businessUnit,
@@ -817,9 +957,22 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
       // exactly the case where nothing was assigned and no guest was
       // affected. A save that cannot reach a location is a real outcome and
       // has to read like one.
+      // "Saved and APPLIED" contradicted the line the owner had just read
+      // three inches above the button -- "Applies the next time each guest
+      // connects -- anyone online right now keeps their current limits until
+      // then." Two sentences on one screen, one save apart, disagreeing about
+      // whether anything had reached a guest yet.
+      //
+      // The footer is the true one: every setting here is resolved on the
+      // guest's own login. So the toast now reports what it can actually see
+      // -- the policy is stored and pointed at this location -- and defers the
+      // "when" to the sentence that already states it correctly, rather than
+      // asserting a second, stronger answer beside it.
       setToast(
         targetLocationId
-          ? `Limits saved and applied to ${f.businessUnit}.`
+          ? dataLimit
+            ? `Limits saved for ${f.businessUnit} — the data limit applies to guests online now; the rest apply as each guest next connects.`
+            : `Limits saved for ${f.businessUnit} — they take effect as each guest next connects.`
           : "Limits saved, but not applied to any location — reopen this page from the location you want them on.",
       );
       setTimeout(() => setToast(null), 2500);
@@ -882,7 +1035,26 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
           delete n[businessUnit];
           return n;
         });
+        // The held rate dies with the policy it was read off. Keeping it would
+        // mean the next save for this same name silently reinstated a cap the
+        // owner had just deleted -- the mirror image of the overwrite this map
+        // exists to prevent.
+        setSavedRates((prevRates) => {
+          const n = { ...prevRates };
+          delete n[businessUnit];
+          return n;
+        });
         setSessionRealIds((prevIds) => {
+          const n = { ...prevIds };
+          delete n[businessUnit];
+          return n;
+        });
+        // The FUP id dies with the policy too. Left behind, the next save for
+        // this same location name would republish onto a policy
+        // `resolve_effective_policy` can no longer see -- the exact trap the
+        // bandwidth and device ids above already document, and the one that
+        // now also decides whether a data cap is real.
+        setFupRealIds((prevIds) => {
           const n = { ...prevIds };
           delete n[businessUnit];
           return n;
@@ -911,11 +1083,11 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
           deactivatePolicy(sessionId, orgId ?? undefined).catch(() => {});
         }
         // And the FUP policy, for the same reason and with sharper teeth:
-        // a daily time limit left in force after its location was deleted
-        // does not merely linger, it locks guests out -- `_enforce_fup_quota`
-        // refuses the login of anyone who has already spent the allowance,
-        // and there would no longer be a screen anywhere showing that a cap
-        // exists to explain why.
+        // a daily time limit or a data cap left in force after its location
+        // was deleted does not merely linger, it locks guests out --
+        // `_enforce_fup_quota` refuses the login of anyone who has already
+        // spent either allowance, and there would no longer be a screen
+        // anywhere showing that a cap exists to explain why.
         const fupId = businessUnit ? fupRealIds[businessUnit] : undefined;
         if (fupId) {
           deactivatePolicy(fupId, orgId ?? undefined).catch(() => {});
@@ -1009,17 +1181,41 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                 How fast guests connect, and how many devices each guest can use.
               </p>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Select
-                  id="bw"
-                  label="Bandwidth"
-                  required
-                  value={f.bandwidth}
-                  onChange={(v) => setField("bandwidth", v)}
-                  options={BANDWIDTH}
-                  placeholder="Choose bandwidth"
-                  caption="Maximum speed per guest device."
-                  err={errs.bandwidth}
-                />
+                {/* THE CONTROL THAT WAS SAVING INTO NOTHING.
+                    A bandwidth policy is consumed by exactly one thing on
+                    this platform -- `queue_management`, which writes RouterOS
+                    `/queue simple` and additionally emits the MikroTik
+                    `Mikrotik-Rate-Limit` reply attribute at Access-Accept.
+                    Both are MikroTik-only: `_QUEUE_ADAPTERS` has one vendor
+                    in it and a controller's synthetic router row has no API
+                    credentials, so `_assign_guest_queue` fails and is
+                    swallowed. The number was accepted, stored, read back and
+                    shown as active, and never reached a device.
+                    Disabled rather than hidden, and disabled rather than left
+                    live, for the reason `ControllerManagedFeatureNotice`
+                    gives: an absence cannot be asked a question. Everything
+                    else in this section and the next still works at a
+                    controller venue and stays editable -- which is exactly
+                    why this screen is NOT replaced wholesale. */}
+                <div>
+                  <Select
+                    id="bw"
+                    label="Bandwidth"
+                    required
+                    disabled={!speedUsable}
+                    value={f.bandwidth}
+                    onChange={(v) => setField("bandwidth", v)}
+                    options={BANDWIDTH}
+                    placeholder="Choose bandwidth"
+                    caption="Maximum speed per guest device."
+                    err={errs.bandwidth}
+                  />
+                  {/* Suppressed while the capabilities read is still in
+                    flight. The control above is already greyed for the same
+                    reason; a sentence would be an answer, and we do not have
+                    one yet. */}
+                  {!speedAsking && <ControllerControlNotice verdict={speedVerdict} />}
+                </div>
                 <Select
                   id="dp"
                   label="Devices Per User"
@@ -1037,88 +1233,116 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                 Nested inside this section (instead of floating below it
                 looking unrelated) so it reads as belonging with
                 Bandwidth/Devices Per User. */}
-              {/* Disabled, not hidden. The fields underneath save and read
-                back perfectly; the value is simply never enforced (the
-                backend's real quota enforcement reads an FUP policy's own
-                data-limit fields, not this one). Leaving it clickable
-                meant an owner could set "1 GB / Daily", see it persist,
-                and watch guests use as much as they liked. */}
-              <div
-                className="mt-4 flex w-full items-center justify-between rounded-md border border-dashed border-slate-300 px-3 py-2.5 dark:border-slate-600"
-                aria-disabled="true"
+              {/* LIVE AGAIN, BECAUSE IT NOW WRITES WHERE THE READ HAPPENS.
+                This was disabled for a release with "Not enforced yet --
+                saving this has no effect on guests", which was true: the
+                fields underneath saved and read back perfectly into the
+                bandwidth policy's `data_limit`, which nothing resolves. The
+                cap is now written to the FUP policy's `*_data_limit_mb`, which
+                `record_usage` acts on mid-session and `_enforce_fup_quota`
+                gates the next login with. Same control, different destination.
+
+                Enabled rather than left disabled because the machinery was
+                never the missing part -- see policy-engine.ts's own write-up
+                -- and "2 GB per guest" is an ordinary thing for a venue to
+                want. Unlike Bandwidth directly above, this needs nothing from
+                the device: the accounting arrives from RADIUS at a MikroTik
+                venue and from the Omada usage backfill at a controller one, so
+                there is no vendor gate to render here and none is faked. */}
+              <button
+                type="button"
+                onClick={() => setDataLimitOpen((prev) => !prev)}
+                aria-expanded={dataLimitOpen}
+                aria-controls="data-limit-panel"
+                className="mt-4 flex w-full items-center justify-between rounded-md border border-dashed border-slate-300 px-3 py-2.5 text-left transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:hover:bg-slate-700"
               >
-                <span className="flex items-center gap-2 text-sm font-medium text-slate-400 dark:text-slate-500">
-                  <Plus className="h-4 w-4 text-slate-300 dark:text-slate-600" /> Add a data limit
+                <span className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
+                  <Plus className="h-4 w-4 text-indigo-500" /> Add a data limit{" "}
+                  <span className="text-xs font-normal text-slate-400">(Optional)</span>
                 </span>
-                <span className="text-xs text-slate-400 dark:text-slate-500">
-                  {NOT_ENFORCED_NOTE}
-                </span>
-              </div>
+                <ChevronDown
+                  className={`h-4 w-4 text-slate-400 transition-transform ${dataLimitOpen ? "rotate-180" : ""}`}
+                />
+              </button>
 
               {dataLimitOpen && (
-                <div id="data-limit-panel" className="mt-4 grid gap-4 sm:grid-cols-3">
-                  <div>
-                    <label
-                      htmlFor="dl-quota"
-                      className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300"
-                    >
-                      Data quota
-                    </label>
-                    <input
-                      id="dl-quota"
-                      type="number"
-                      min={0}
-                      step="any"
-                      placeholder="0"
-                      value={dlQuota}
-                      onChange={(e) => setDlQuota(e.target.value)}
-                      className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
-                    />
-                    {errs.dataLimit && (
-                      <p className="mt-1 text-xs text-indigo-500">{errs.dataLimit}</p>
-                    )}
+                <>
+                  {/* Said here, in full, once. This is the only setting on the
+                    form that ends a session someone is currently using, and
+                    the only one whose consequence a guest meets rather than an
+                    operator. Burying either half behind the (?) tooltip
+                    pattern would be hiding the part that generates the support
+                    call. */}
+                  <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                    Each guest gets this much data per period. When they reach it their session ends
+                    and they are signed out — at a controller-managed venue the controller cuts the
+                    device off, and a device that reconnects lands back on the sign-in page. They
+                    cannot sign in again until the period resets.
+                  </p>
+                  <div id="data-limit-panel" className="mt-4 grid gap-4 sm:grid-cols-3">
+                    <div>
+                      <label
+                        htmlFor="dl-quota"
+                        className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300"
+                      >
+                        Data quota
+                      </label>
+                      <input
+                        id="dl-quota"
+                        type="number"
+                        min={0}
+                        step="any"
+                        placeholder="0"
+                        value={dlQuota}
+                        onChange={(e) => setDlQuota(e.target.value)}
+                        className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+                      />
+                      {errs.dataLimit && (
+                        <p className="mt-1 text-xs text-indigo-500">{errs.dataLimit}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label
+                        htmlFor="dl-unit"
+                        className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300"
+                      >
+                        Unit
+                      </label>
+                      <select
+                        id="dl-unit"
+                        value={dlUnit}
+                        onChange={(e) => setDlUnit(e.target.value)}
+                        className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+                      >
+                        {DATA_UNITS.map((u) => (
+                          <option key={u} value={u}>
+                            {u}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label
+                        htmlFor="dl-resets"
+                        className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300"
+                      >
+                        Resets
+                      </label>
+                      <select
+                        id="dl-resets"
+                        value={dlResets}
+                        onChange={(e) => setDlResets(e.target.value)}
+                        className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+                      >
+                        {RESETS.map((r) => (
+                          <option key={r} value={r}>
+                            {r}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
-                  <div>
-                    <label
-                      htmlFor="dl-unit"
-                      className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300"
-                    >
-                      Unit
-                    </label>
-                    <select
-                      id="dl-unit"
-                      value={dlUnit}
-                      onChange={(e) => setDlUnit(e.target.value)}
-                      className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
-                    >
-                      {DATA_UNITS.map((u) => (
-                        <option key={u} value={u}>
-                          {u}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="dl-resets"
-                      className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300"
-                    >
-                      Resets
-                    </label>
-                    <select
-                      id="dl-resets"
-                      value={dlResets}
-                      onChange={(e) => setDlResets(e.target.value)}
-                      className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
-                    >
-                      {RESETS.map((r) => (
-                        <option key={r} value={r}>
-                          {r}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+                </>
               )}
             </div>
 
@@ -1138,17 +1362,29 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                 When a guest gets disconnected or has to sign in again.
               </p>
               <div className="grid gap-4 sm:grid-cols-3">
-                <Select
-                  id="st"
-                  label="Session Timeout"
-                  required
-                  value={f.sessionTimeout}
-                  onChange={(v) => setField("sessionTimeout", v)}
-                  options={SESSION_TIMEOUT}
-                  placeholder="Choose session timeout"
-                  caption="Re-authenticate after this much time."
-                  err={errs.sessionTimeout}
-                />
+                {/* LEFT LIVE, DELIBERATELY. Unlike the bandwidth above, a
+                    session timeout does not depend on a device adapter: the
+                    platform's own `enforce_session_timeouts` sweep expires the
+                    row, and its docstring names an Omada guest as the case it
+                    exists for. What a controller does not do is count the
+                    minutes down itself, so the guest is signed out on our side
+                    and the device may linger -- which is the disconnect gap,
+                    said here rather than discovered later. A caveat, not a
+                    refusal, so it renders as a note and not as a lock. */}
+                <div>
+                  <Select
+                    id="st"
+                    label="Session Timeout"
+                    required
+                    value={f.sessionTimeout}
+                    onChange={(v) => setField("sessionTimeout", v)}
+                    options={SESSION_TIMEOUT}
+                    placeholder="Choose session timeout"
+                    caption="Re-authenticate after this much time."
+                    err={errs.sessionTimeout}
+                  />
+                  <ControllerControlNotice verdict={sessionTimeoutVerdict} />
+                </div>
                 <Select
                   id="it"
                   label="Idle Timeout"
@@ -1194,14 +1430,30 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
             returning guest whose session was reused never had their queue
             re-resolved at all, so the speed was pinned to whatever applied
             when they first signed in, for as long as they kept using the
-            network) is fixed alongside this. What is left is the honest
-            remainder: the new limits are waiting for each guest's next
-            connection, not chasing them down. */}
+            network) is fixed alongside this.
+
+            AND IT IS NO LONGER TRUE OF EVERY FIELD, SO IT NO LONGER SAYS
+            EVERY FIELD. Wiring the data limit made this footer's blanket
+            promise false for exactly one control -- the one whose whole point
+            is to act on a guest who is using the network right now. A data cap
+            is resolved live: `_track_fup_data_usage` runs on every RADIUS
+            Interim-Update and on every Omada usage poll, against whatever the
+            policy says at that moment, so a cap added or lowered at 3pm is
+            measured against usage the guest has ALREADY spent today and can
+            end their session within minutes. Not on save -- on the next
+            accounting update, which is why the sentence says "within minutes"
+            rather than "immediately".
+
+            Leaving the old line in place would have been the cheaper edit and
+            the wrong one: this screen has spent three releases removing
+            sentences that were true of most of the form. */}
           <div className="flex flex-col items-center gap-3">
             <p className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
-              Applies the next time each guest connects — anyone online right now keeps their
-              current limits until then.
+              Speed, timeouts and device count apply the next time each guest connects — anyone
+              online right now keeps those until then. A data limit is different: it counts usage
+              guests have already spent this period, so adding or lowering one can sign someone out
+              within minutes.
               <Tooltip
                 id="save-immediate-effect"
                 text="Double-check the limits above before saving. Need help? Contact support@wyfyguest.com."
@@ -1291,7 +1543,25 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                           {p.businessUnit}
                         </span>
                       </TableCell>
-                      <TableCell>{p.bandwidth}</TableCell>
+                      {/* THE SAME LIE, IN A SECOND PLACE. A row saved before
+                          this venue's router became a controller still holds
+                          "20 Mbps", and printing it here states a speed that
+                          nothing applies -- the form above can be greyed and
+                          this cell would still promise it. `—` with the reason
+                          on hover is the same posture `lastContactLabel` takes
+                          for a measurement we do not have. */}
+                      <TableCell>
+                        {speedUsable ? (
+                          p.bandwidth
+                        ) : (
+                          <span
+                            className="text-slate-400 dark:text-slate-500"
+                            title={speedVerdict.reason ?? undefined}
+                          >
+                            Not applied here
+                          </span>
+                        )}
+                      </TableCell>
                       <TableCell>{p.sessionTimeout}</TableCell>
                       {/* "No Limit"/"Unlimited" rows are muted so a stricter,
                       set value on another row visually stands out instead

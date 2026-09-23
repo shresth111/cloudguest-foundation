@@ -1,9 +1,17 @@
 import { api } from "@/services/api";
 import { guestPortalApi } from "@/services/guest-portal-api";
 import type { PortalAuthorizeBody } from "@/lib/portal-authorize-body";
+import {
+  PORTAL_RADIUS_AUTHORIZE_PATH,
+  type PortalRadiusAuthorizeBody,
+} from "@/lib/portal-radius-authorize";
 import { resolveOrganizationId as sharedResolveOrganizationId } from "./organization-id";
+import { normalizeIntegrationPortalMode } from "@/types/network-integration";
 import type {
   ControllerAuthMode,
+  ControllerNasRecord,
+  ControllerRadiusNasRegistration,
+  IntegrationPortalMode,
   ControllerConfigureStep,
   ControllerConfigureStepOutcome,
   ControllerSetupOutcome,
@@ -27,6 +35,7 @@ import type {
   NetworkIntegrationSyncStatus,
   PlatformIntegrationQuery,
   PortalAuthorizeResult,
+  RadiusPortalAuthorizeResult,
   TestNetworkIntegrationPayload,
   UpdateNetworkIntegrationPayload,
 } from "@/types/network-integration";
@@ -126,6 +135,10 @@ interface BackendNetworkIntegration {
   is_enabled: boolean;
   base_url: string;
   auth_mode: string;
+  // cloud-guest #236. Optional because a backend that predates it sends
+  // nothing, and that silence must stay distinguishable from the default.
+  portal_mode?: string | null;
+  router_id?: string | null;
   tls_mode?: string | null;
   tls_pinned_sha256?: string | null;
   controller_id: string | null;
@@ -157,6 +170,37 @@ interface BackendPortalAuthorize {
   authorized?: boolean | null;
   provider?: string | null;
   expires_at?: string | null;
+  redirect_url?: string | null;
+}
+
+/** The RADIUS-mode answer, as cloud-guest#268 defines it.
+ *
+ * `failure` -- NOT `error_code`. That name is already taken on this
+ * domain: every `CloudGuestError` renders `data.code` from the much larger
+ * OPERATOR-facing `ErrorCode` vocabulary, and two different vocabularies
+ * under one field name on one domain's responses is a trap. This is the
+ * guest-facing one and it is a closed five-value enum.
+ *
+ * NO `expires_at`, and its absence is the honest answer rather than an
+ * omission: on this contract the controller grants the session from its
+ * own RADIUS reply attributes and never tells this platform a duration.
+ * The `authType 4` response has the field because there we request the
+ * duration. Nothing may display or compute one here.
+ *
+ * `redirect_url` IS on the wire and is deliberately NOT carried into
+ * `RadiusPortalAuthorizeResult`. It is whatever `origin_url` we sent,
+ * echoed back by the controller as its `302 Location` -- and we send the
+ * controller's own captured value, so navigating a guest to it would drop
+ * them on a plain website. The full reasoning is on `origin_url` in
+ * `portal-radius-authorize.ts`; declared here so the wire shape is
+ * complete and the omission below reads as a decision.
+ *
+ * Every field is optional: a missing one must read as "not said" rather
+ * than crash a guest's only path to the internet. */
+interface BackendRadiusPortalAuthorize {
+  authorized?: boolean | null;
+  provider?: string | null;
+  failure?: string | null;
   redirect_url?: string | null;
 }
 
@@ -303,6 +347,11 @@ function toIntegration(i: BackendNetworkIntegration): NetworkIntegration {
     isEnabled: i.is_enabled,
     baseUrl: i.base_url,
     authMode: i.auth_mode as ControllerAuthMode,
+    // NOT defaulted to `external_portal`. See `NetworkIntegration.portalMode`:
+    // an absent value is a backend that cannot store the field, and the
+    // drawer must not offer a switch that backend would 200 and ignore.
+    portalMode: normalizeIntegrationPortalMode(i.portal_mode),
+    routerId: i.router_id ?? null,
     // `strict` when absent: it is the column default, and an older backend
     // that does not send the field has made no other decision.
     tlsMode: (i.tls_mode as ControllerTlsMode | null | undefined) ?? "strict",
@@ -440,6 +489,37 @@ function toStatusSnapshot(s: BackendStatusSnapshot): NetworkIntegrationStatusSna
     deviceCount: s.device_count ?? null,
     clientCount: s.client_count ?? null,
     activeAuthorizationCount: s.active_authorization_count ?? null,
+  };
+}
+
+/** `ControllerRadiusNasResponse`. `hubConfirmed` is true only for a literal
+ * `true`: a missing or malformed field is not the hub saying yes. */
+export function toControllerRadiusNasRegistration(
+  d: Record<string, unknown> | null | undefined,
+): ControllerRadiusNasRegistration {
+  const str = (v: unknown) => (typeof v === "string" ? v : "");
+  return {
+    integrationId: str(d?.integration_id),
+    nasIdentifier: str(d?.nas_identifier),
+    controllerIp: str(d?.controller_ip),
+    sharedSecret: str(d?.shared_secret),
+    hubConfirmed: d?.hub_confirmed === true,
+  };
+}
+
+/** `RadiusNasResponse`, the fields the Master drawer reads. */
+export function toControllerNasRecord(
+  d: Record<string, unknown> | null | undefined,
+): ControllerNasRecord | null {
+  if (!d || typeof d.id !== "string") return null;
+  const optStr = (v: unknown) => (typeof v === "string" && v ? v : null);
+  return {
+    id: d.id,
+    nasIdentifier: typeof d.nas_identifier === "string" ? d.nas_identifier : "",
+    status: typeof d.status === "string" ? d.status : "",
+    ipAddress: optStr(d.ip_address),
+    hubClientSyncedIp: optStr(d.hub_client_synced_ip),
+    hubClientSyncedAt: optStr(d.hub_client_synced_at),
   };
 }
 
@@ -1177,6 +1257,97 @@ export const networkIntegrationService = {
    * console called it, so the fallback of "remove it and re-run provisioning"
    * was not available either.
    */
+  /**
+   * Move a venue between the two guest-portal contracts.
+   *
+   * `PATCH /network-integrations/platform/integrations/{id}` with
+   * `{ portal_mode }` -- `PlatformNetworkIntegrationUpdateRequest` is the only
+   * request body on the backend that carries the field, and the service
+   * re-checks that the caller is platform-scoped. No org header, like every
+   * other `platform/*` call in this file.
+   *
+   * A body of `portal_mode` ALONE, not merged into `updatePlatformIntegration`:
+   * this is a contract switch with its own confirmation, and riding along with
+   * a site edit would make it something that can happen by accident.
+   *
+   * THE ANSWER IS READ BACK, NOT ASSUMED. A backend that predates cloud-guest
+   * #236 has no such field, and pydantic's default `extra="ignore"` answers
+   * that PATCH with a 200 and changes nothing -- the exact shape of the
+   * `credentials: {...}` bug. So a response whose `portal_mode` is not the
+   * one requested is thrown as a failure rather than reported as a switch.
+   */
+  async setPlatformPortalMode(
+    id: string,
+    mode: IntegrationPortalMode,
+  ): Promise<NetworkIntegration> {
+    const { data } = await api.patch<BackendNetworkIntegration>(
+      `${BASE}/platform/integrations/${id}`,
+      { portal_mode: mode },
+    );
+    const updated = toIntegration(data);
+    if (updated.portalMode !== mode) {
+      throw new Error(
+        updated.portalMode === null
+          ? "The backend accepted the request but did not report a portal mode, so it cannot store one. Nothing was switched."
+          : `The backend answered with portal mode "${updated.portalMode}", not "${mode}". Nothing was switched.`,
+      );
+    }
+    return updated;
+  },
+
+  /**
+   * Register a RADIUS-mode controller as a NAS client on the FreeRADIUS hub.
+   *
+   * `POST /network-integrations/platform/integrations/{id}/radius-nas`, body
+   * `ControllerRadiusNasRequest` = `{ controller_ip?: string }` -- the PUBLIC
+   * address the controller's Access-Requests arrive from. Omitted when blank:
+   * the backend then defaults to the host of `base_url`, but only when that
+   * host is a literal IP. There is no `shared_secret` field and never will be;
+   * the platform generates it and returns it once.
+   *
+   * Calling it again for a controller that already has a NAS row ROTATES the
+   * secret (router.py takes the `regenerate_secret` branch), so the value
+   * typed into the controller's RADIUS profile stops working the moment this
+   * returns. The drawer confirms that before calling.
+   *
+   * No org header: GLOBAL-scoped `/platform/...` route.
+   */
+  async registerPlatformControllerRadiusNas(
+    id: string,
+    opts: { controllerIp?: string } = {},
+  ): Promise<ControllerRadiusNasRegistration> {
+    const controllerIp = opts.controllerIp?.trim();
+    const { data } = await api.post<Record<string, unknown>>(
+      `${BASE}/platform/integrations/${id}/radius-nas`,
+      controllerIp ? { controller_ip: controllerIp } : {},
+      // It writes a stanza on the hub and waits for the agent's
+      // `freeradius -CX` validation, which is not a sub-second round trip.
+      { timeout: 60_000 },
+    );
+    return toControllerRadiusNasRegistration(data);
+  },
+
+  /**
+   * The controller's existing NAS row, or `null` when it has none.
+   *
+   * `GET /routers/{router_id}/nas` (guest domain, `radius.read`), the same read
+   * `nasService.getByRouterId` makes -- without its every-organization location
+   * fan-out, which this drawer has no use for. No org header: the caller is a
+   * platform operator reading any tenant's controller.
+   *
+   * Read so the drawer can say BEFORE the click whether "Register" will create
+   * a registration or rotate the secret of one the controller already uses.
+   */
+  async getPlatformControllerNas(routerId: string): Promise<ControllerNasRecord | null> {
+    try {
+      const { data } = await api.get<Record<string, unknown>>(`/routers/${routerId}/nas`);
+      return toControllerNasRecord(data);
+    } catch (err) {
+      if ((err as { status?: number | null })?.status === 404) return null;
+      throw err;
+    }
+  },
+
   async deletePlatformIntegration(
     integration: Pick<NetworkIntegration, "id" | "organizationId">,
   ): Promise<void> {
@@ -1233,6 +1404,46 @@ export const guestPortalIntegrationService = {
       provider: data.provider ?? null,
       expiresAt: data.expires_at ?? null,
       redirectUrl: data.redirect_url ?? null,
+    };
+  },
+
+  /**
+   * The same thing for a venue on Omada RADIUS mode (`authType 2`).
+   *
+   * A SECOND METHOD, NOT A FLAG ON THE FIRST. The two calls do not share a
+   * request shape: an `authType 2` redirect carries no `site` and no `t`
+   * (both of which `PortalAuthorizeRequest` requires `site` of), and it
+   * carries `target`/`targetPort`/`scheme`/`originUrl` that the other
+   * never does. A single method with half its fields conditionally null is
+   * how one contract's absence gets read as the other's.
+   *
+   * Why the guest's browser stopped calling the controller directly, what
+   * was measured on hardware, and every wire name below -- all of it is in
+   * `src/lib/portal-radius-authorize.ts`, which assembles this body and is
+   * the only place it is spelled. As above, this method passes it through
+   * verbatim and reshapes nothing.
+   *
+   * ## A FAILURE ARRIVES HERE AS A SUCCESS, AND THAT IS NOT A BUG
+   *
+   * A controller-answered refusal is `HTTP 200` with `success: false` and
+   * `authorized: false` -- not a non-2xx. So it RESOLVES rather than
+   * throwing, and `guestPortalApi`'s interceptor unwraps the envelope
+   * either way. Callers must branch on `authorized`, not only on `catch`;
+   * one that looked only in its `catch` would leave the guest on the
+   * spinner forever. `scripts/test-portal-radius-mode.mjs` pins that the
+   * caller does.
+   */
+  async authorizeRadiusPortal(
+    body: PortalRadiusAuthorizeBody,
+  ): Promise<RadiusPortalAuthorizeResult> {
+    const { data } = await guestPortalApi.post<BackendRadiusPortalAuthorize>(
+      `${BASE}${PORTAL_RADIUS_AUTHORIZE_PATH}`,
+      body,
+    );
+    return {
+      authorized: !!data.authorized,
+      provider: data.provider ?? null,
+      failure: data.failure ?? null,
     };
   },
 };

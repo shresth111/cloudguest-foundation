@@ -1842,8 +1842,11 @@ export const customerService = {
     sessionId: string,
     guestId: string | null,
     locationId: string,
-  ): Promise<{ deviceDisconnected: boolean }> {
-    if (isDemo()) return { deviceDisconnected: false };
+  ): Promise<{ deviceDisconnected: boolean; sessionEnforced: boolean | null }> {
+    // `null`, not `false`: the demo account never asked anything to remove a
+    // device, and "we tried and failed" is a different claim from "nothing
+    // tried". See `DisconnectOutcomeFacts`.
+    if (isDemo()) return { deviceDisconnected: false, sessionEnforced: null };
     // Same missing-X-Organization-Id gap already fixed on every other
     // real call in this file (see resolveOrgId's own docstring) -- absent
     // it, `guest_sessions.execute` falls back to a GLOBAL-scope check an
@@ -1855,7 +1858,40 @@ export const customerService = {
     // at all 422'd here too.
     const orgId = await resolveOrgId();
     const orgHeaders = { headers: { "X-Organization-Id": orgId } };
-    await api.post(`/guest-sessions/${sessionId}/disconnect`, {}, orgHeaders);
+    // THE ANSWER WAS ALWAYS IN THIS RESPONSE AND WE WERE THROWING IT AWAY.
+    //
+    // `GuestSessionResponse.disconnect_enforced` is written by
+    // `issue_live_disconnect`: true when the router acknowledged removing the
+    // device, false when something was asked and did not do it, null when
+    // nothing tried. The backend even branches its own `message` on it. This
+    // call discarded the whole body and inferred a verdict from the separate
+    // connected-devices loop below -- which is why an Omada venue, where that
+    // loop has no rows to iterate, reported "device-level disconnect wasn't
+    // available for this guest" as if it were a property of the guest.
+    //
+    // Read, never assumed: a body without the field yields `null`, which is
+    // the honest "we cannot see" and not a `false` we would quote back.
+    //
+    // AND THE ENVELOPE IS ALREADY OFF BY THE TIME IT GETS HERE. `api`'s
+    // response interceptor strips `{success, message, data, request_id}`, so
+    // `disconnectBody` IS the session payload. This read used to be
+    // `disconnectBody?.data?.disconnect_enforced` -- a second unwrap, which
+    // found `undefined` on every single call and made `sessionEnforced`
+    // permanently `null`. The field was being thrown away twice: once by the
+    // original code this comment describes, and then again by the fix for it.
+    // Nothing failed loudly, because `null` is a legitimate value here and
+    // reads as "nothing tried".
+    //
+    // Both shapes are accepted rather than just the right one: a `null` from a
+    // body we genuinely cannot read and a `null` from a shape that moved are
+    // indistinguishable to the caller, and the tolerant read is one expression.
+    const { data: disconnectBody } = await api.post<{
+      disconnect_enforced?: boolean | null;
+      data?: { disconnect_enforced?: boolean | null } | null;
+    }>(`/guest-sessions/${sessionId}/disconnect`, {}, orgHeaders);
+    const enforced =
+      disconnectBody?.disconnect_enforced ?? disconnectBody?.data?.disconnect_enforced;
+    const sessionEnforced = typeof enforced === "boolean" ? enforced : null;
 
     let deviceDisconnected = false;
     if (guestId) {
@@ -1881,7 +1917,7 @@ export const customerService = {
         // devices -- don't fail the whole operation over it.
       }
     }
-    return { deviceDisconnected };
+    return { deviceDisconnected, sessionEnforced };
   },
 
   /* ── Feature Data ──────────────────────────────────────── */

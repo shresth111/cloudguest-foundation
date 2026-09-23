@@ -377,6 +377,21 @@ const EN: Dict = {
   expiredDailyLimitTitle: "You've used today's WiFi time",
   expiredDailyLimitBody:
     "This venue gives each guest a set amount of WiFi time per day, and you've used yours. It starts fresh tomorrow.",
+  // A data cap is a different ending from a time cap, and gets its own pair
+  // rather than reusing the daily-time strings above. The guest here has
+  // spent the venue's DATA allowance, usually in a small fraction of the
+  // time they were allowed -- telling them they have used today's WiFi TIME
+  // is a checkable lie about their own afternoon, and it is the wrong guess
+  // they are most likely to reach on their own.
+  //
+  // Names no reset day. The cap can be daily, weekly or monthly, and the
+  // reason vocabulary the backend sends is deliberately coarse and carries
+  // no period; "once the allowance resets" is the largest true statement
+  // available without widening what this endpoint tells a stranger about
+  // the venue's policy.
+  expiredDataLimitTitle: "You've used this venue's WiFi data",
+  expiredDataLimitBody:
+    "This venue gives each guest a set amount of WiFi data, and you've used yours. You can connect again once the venue's allowance resets.",
   useOtpInsteadLabel: "Use a one-time code instead",
   failureSubtitle: "Please check your details and try again.",
   failureHelp: "If the issue continues, please ask venue staff for assistance.",
@@ -406,6 +421,19 @@ const EN: Dict = {
   ipUnknownLabel: "IP unknown",
   disconnectingLabel: "Disconnecting…",
   // ---- end portal-redesign block ---------------------------------------
+  // ===== Omada RADIUS mode: the network step failed ======================
+  // One title and four reasons -- the whole vocabulary this portal has for
+  // "you signed in correctly and the venue's network still did not let you
+  // on". It had none before: on that contract a failure was a raw JSON blob
+  // the browser had already navigated to, or a silent bounce back to this
+  // card. Four and not one per backend code, because a guest can only act
+  // on four different things. See src/lib/portal-radius-authorize.ts.
+  radiusFailTitle: "We couldn't get you online",
+  radiusFailUnreachable: "The venue's WiFi equipment didn't answer. Please try again in a moment.",
+  radiusFailRejected: "This sign-in is no longer valid. Please sign in again.",
+  radiusFailNotAuthorized:
+    "We couldn't confirm this sign-in on the venue's network. Try signing in again, and tell the front desk if it keeps happening.",
+  radiusFailUnknown: "Something went wrong while connecting you. Please try again.",
 };
 
 const HI: Dict = {
@@ -672,6 +700,9 @@ const HI: Dict = {
   expiredDailyLimitTitle: "आज का WiFi समय पूरा हो गया",
   expiredDailyLimitBody:
     "यह जगह हर मेहमान को रोज़ तय WiFi समय देती है, और आपका पूरा हो गया है। कल से फिर नया शुरू होगा।",
+  expiredDataLimitTitle: "इस जगह का WiFi डेटा पूरा हो गया",
+  expiredDataLimitBody:
+    "यह जगह हर मेहमान को तय WiFi डेटा देती है, और आपका पूरा हो गया है। जब यह सीमा दोबारा शुरू होगी, तब आप फिर से जुड़ सकेंगे।",
   useOtpInsteadLabel: "इसके बजाय OTP का उपयोग करें",
   failureSubtitle: "कृपया अपनी जानकारी जांचें और फिर कोशिश करें।",
   failureHelp: "समस्या बनी रहे तो कृपया वेन्यू स्टाफ से सहायता लें।",
@@ -715,6 +746,14 @@ const HI: Dict = {
   stillConnectingLabel: "अभी भी कनेक्ट हो रहा है…",
   slowRetryCta: "थोड़ा समय लग रहा है — दोबारा कोशिश करें",
   // ---- end parity block -------------------------------------------------
+  // ===== Omada RADIUS mode: the network step failed ======================
+  radiusFailTitle: "हम आपको ऑनलाइन नहीं कर सके",
+  radiusFailUnreachable:
+    "यहाँ के WiFi उपकरण ने जवाब नहीं दिया। कृपया थोड़ी देर बाद फिर कोशिश करें।",
+  radiusFailRejected: "यह साइन इन अब मान्य नहीं है। कृपया फिर से साइन इन करें।",
+  radiusFailNotAuthorized:
+    "हम इस साइन इन की पुष्टि इस नेटवर्क पर नहीं कर सके। फिर से साइन इन करें, और बार-बार ऐसा हो तो रिसेप्शन को बताएं।",
+  radiusFailUnknown: "आपको जोड़ते समय कुछ गड़बड़ हो गई। कृपया फिर से कोशिश करें।",
 };
 /* The eight Indian languages below match the marketing site's set exactly
  * (`wyfy-guest-website/src/i18n/ui/*.ts`), and each was transcreated from that
@@ -985,6 +1024,9 @@ const BN: Dict = {
   expiredDailyLimitTitle: "আজকের WiFi সময় শেষ",
   expiredDailyLimitBody:
     "এই জায়গা প্রতিদিন প্রত্যেক অতিথিকে নির্দিষ্ট WiFi সময় দেয়, আপনারটি শেষ হয়েছে। আগামীকাল আবার নতুন করে শুরু হবে।",
+  expiredDataLimitTitle: "এই জায়গার WiFi ডেটা শেষ",
+  expiredDataLimitBody:
+    "এই জায়গা প্রত্যেক অতিথিকে নির্দিষ্ট WiFi ডেটা দেয়, আপনারটি শেষ হয়েছে। সীমা আবার নতুন করে শুরু হলে আপনি ফের যুক্ত হতে পারবেন।",
   useOtpInsteadLabel: "বদলে OTP ব্যবহার করুন",
   failureSubtitle: "আপনার তথ্য দেখে আবার চেষ্টা করুন।",
   failureHelp: "সমস্যা চলতে থাকলে এখানকার স্টাফকে জিজ্ঞেস করুন।",
@@ -1033,6 +1075,13 @@ const BN: Dict = {
   stillConnectingLabel: "এখনও সংযোগ হচ্ছে…",
   slowRetryCta: "একটু সময় লাগছে — আবার চেষ্টা করুন",
   // ---- end parity block -------------------------------------------------
+  // ===== Omada RADIUS mode: the network step failed ======================
+  radiusFailTitle: "আমরা আপনাকে অনলাইনে আনতে পারিনি",
+  radiusFailUnreachable: "এখানকার WiFi যন্ত্র সাড়া দেয়নি। একটু পরে আবার চেষ্টা করুন।",
+  radiusFailRejected: "এই sign in আর বৈধ নয়। অনুগ্রহ করে আবার sign in করুন।",
+  radiusFailNotAuthorized:
+    "এই নেটওয়ার্কে আপনার sign in নিশ্চিত করা গেল না। আবার sign in করুন, বারবার হলে রিসেপশনে জানান।",
+  radiusFailUnknown: "আপনাকে যুক্ত করার সময় কিছু ভুল হয়েছে। আবার চেষ্টা করুন।",
 };
 
 // Marathi (mr).
@@ -1280,6 +1329,9 @@ const MR: Dict = {
   expiredDailyLimitTitle: "आजचा WiFi वेळ संपला",
   expiredDailyLimitBody:
     "इथे प्रत्येक पाहुण्याला दररोज ठराविक WiFi वेळ मिळतो, आणि तुमचा संपला आहे. उद्या पुन्हा नव्याने सुरू होईल.",
+  expiredDataLimitTitle: "इथला WiFi डेटा संपला",
+  expiredDataLimitBody:
+    "इथे प्रत्येक पाहुण्याला ठराविक WiFi डेटा मिळतो, आणि तुमचा संपला आहे. ही मर्यादा पुन्हा नव्याने सुरू झाल्यावर तुम्ही पुन्हा जोडू शकाल.",
   useOtpInsteadLabel: "त्याऐवजी OTP वापरा",
   failureSubtitle: "तुमची माहिती तपासा आणि पुन्हा प्रयत्न करा.",
   failureHelp: "समस्या राहिली तर इथल्या staff ला विचारा.",
@@ -1330,6 +1382,13 @@ const MR: Dict = {
   stillConnectingLabel: "अजूनही कनेक्ट होत आहे…",
   slowRetryCta: "थोडा वेळ लागत आहे — पुन्हा प्रयत्न करा",
   // ---- end parity block -------------------------------------------------
+  // ===== Omada RADIUS mode: the network step failed ======================
+  radiusFailTitle: "आम्ही तुम्हाला ऑनलाइन करू शकलो नाही",
+  radiusFailUnreachable: "इथल्या WiFi उपकरणाने उत्तर दिले नाही. थोड्या वेळाने पुन्हा प्रयत्न करा.",
+  radiusFailRejected: "हे sign in आता वैध नाही. कृपया पुन्हा sign in करा.",
+  radiusFailNotAuthorized:
+    "या नेटवर्कवर हे sign in निश्चित करता आले नाही. पुन्हा sign in करा, आणि वारंवार असे होत असेल तर रिसेप्शनला कळवा.",
+  radiusFailUnknown: "तुम्हाला जोडताना काहीतरी चुकले. कृपया पुन्हा प्रयत्न करा.",
 };
 
 // Telugu (te).
@@ -1578,6 +1637,9 @@ const TE: Dict = {
   expiredDailyLimitTitle: "ఈరోజు WiFi సమయం ముగిసింది",
   expiredDailyLimitBody:
     "ఈ ప్రదేశం ప్రతి అతిథికి రోజుకు నిర్ణీత WiFi సమయం ఇస్తుంది, మీది ముగిసింది. రేపు మళ్లీ కొత్తగా మొదలవుతుంది.",
+  expiredDataLimitTitle: "ఈ ప్రదేశం WiFi డేటా ముగిసింది",
+  expiredDataLimitBody:
+    "ఈ ప్రదేశం ప్రతి అతిథికి నిర్ణీత WiFi డేటా ఇస్తుంది, మీది ముగిసింది. ఈ పరిమితి మళ్లీ కొత్తగా మొదలైనప్పుడు మీరు తిరిగి కనెక్ట్ కావచ్చు.",
   useOtpInsteadLabel: "బదులుగా OTP వాడండి",
   failureSubtitle: "మీ వివరాలు చూసుకుని మళ్లీ ప్రయత్నించండి.",
   failureHelp: "సమస్య కొనసాగితే సిబ్బందిని అడగండి.",
@@ -1627,6 +1689,13 @@ const TE: Dict = {
   stillConnectingLabel: "ఇంకా కనెక్ట్ అవుతోంది…",
   slowRetryCta: "కొంచెం సమయం పడుతోంది — మళ్లీ ప్రయత్నించండి",
   // ---- end parity block -------------------------------------------------
+  // ===== Omada RADIUS mode: the network step failed ======================
+  radiusFailTitle: "మిమ్మల్ని ఆన్‌లైన్ చేయలేకపోయాం",
+  radiusFailUnreachable: "ఇక్కడి WiFi పరికరం స్పందించలేదు. కాసేపటి తర్వాత మళ్లీ ప్రయత్నించండి.",
+  radiusFailRejected: "ఈ సైన్ ఇన్ ఇప్పుడు చెల్లదు. దయచేసి మళ్లీ సైన్ ఇన్ అవ్వండి.",
+  radiusFailNotAuthorized:
+    "ఈ నెట్‌వర్క్‌లో ఈ సైన్ ఇన్‌ను నిర్ధారించలేకపోయాం. మళ్లీ సైన్ ఇన్ అవ్వండి, పదే పదే జరిగితే రిసెప్షన్‌కు తెలియజేయండి.",
+  radiusFailUnknown: "మిమ్మల్ని కలుపుతున్నప్పుడు ఏదో తప్పు జరిగింది. దయచేసి మళ్లీ ప్రయత్నించండి.",
 };
 
 // Tamil (ta).
@@ -1878,6 +1947,9 @@ const TA: Dict = {
   expiredDailyLimitTitle: "இன்றைய WiFi நேரம் முடிந்தது",
   expiredDailyLimitBody:
     "இந்த இடம் ஒவ்வொரு விருந்தினருக்கும் நாளொன்றுக்கு குறிப்பிட்ட WiFi நேரம் தருகிறது, உங்களுடையது முடிந்துவிட்டது. நாளை புதிதாகத் தொடங்கும்.",
+  expiredDataLimitTitle: "இந்த இடத்தின் WiFi டேட்டா முடிந்தது",
+  expiredDataLimitBody:
+    "இந்த இடம் ஒவ்வொரு விருந்தினருக்கும் குறிப்பிட்ட WiFi டேட்டா தருகிறது, உங்களுடையது முடிந்துவிட்டது. இந்த வரம்பு புதிதாகத் தொடங்கியதும் மீண்டும் இணையலாம்.",
   useOtpInsteadLabel: "மாற்றாக OTP பயன்படுத்துங்கள்",
   failureSubtitle: "உங்கள் விவரங்களைச் சரிபார்த்து மீண்டும் முயலுங்கள்.",
   failureHelp: "சிக்கல் தொடர்ந்தால் இட ஊழியரிடம் கேளுங்கள்.",
@@ -1928,6 +2000,14 @@ const TA: Dict = {
   stillConnectingLabel: "இன்னும் இணைக்கிறது…",
   slowRetryCta: "சற்று நேரம் ஆகிறது — மீண்டும் முயற்சிக்கவும்",
   // ---- end parity block -------------------------------------------------
+  // ===== Omada RADIUS mode: the network step failed ======================
+  radiusFailTitle: "உங்களை இணையத்தில் இணைக்க முடியவில்லை",
+  radiusFailUnreachable:
+    "இங்குள்ள WiFi சாதனம் பதிலளிக்கவில்லை. சிறிது நேரம் கழித்து மீண்டும் முயலுங்கள்.",
+  radiusFailRejected: "இந்த உள்நுழைவு இனி செல்லாது. மீண்டும் உள்நுழையுங்கள்.",
+  radiusFailNotAuthorized:
+    "இந்த நெட்வொர்க்கில் இந்த உள்நுழைவை உறுதிப்படுத்த முடியவில்லை. மீண்டும் உள்நுழையுங்கள், தொடர்ந்து நடந்தால் வரவேற்பறையில் தெரிவியுங்கள்.",
+  radiusFailUnknown: "உங்களை இணைக்கும்போது ஏதோ தவறு நேர்ந்தது. மீண்டும் முயலுங்கள்.",
 };
 
 // Gujarati (gu).
@@ -2175,6 +2255,9 @@ const GU: Dict = {
   expiredDailyLimitTitle: "આજનો WiFi સમય વપરાઈ ગયો",
   expiredDailyLimitBody:
     "આ સ્થળ દરેક મહેમાનને રોજ નિશ્ચિત WiFi સમય આપે છે, અને તમારો પૂરો થયો છે. કાલે ફરી નવેસરથી શરૂ થશે.",
+  expiredDataLimitTitle: "આ સ્થળનો WiFi ડેટા વપરાઈ ગયો",
+  expiredDataLimitBody:
+    "આ સ્થળ દરેક મહેમાનને નિશ્ચિત WiFi ડેટા આપે છે, અને તમારો પૂરો થયો છે. આ મર્યાદા ફરી નવેસરથી શરૂ થશે ત્યારે તમે ફરી જોડાઈ શકશો.",
   useOtpInsteadLabel: "એના બદલે OTP વાપરો",
   failureSubtitle: "તમારી વિગતો તપાસીને ફરી પ્રયત્ન કરો.",
   failureHelp: "સમસ્યા ચાલુ રહે તો અહીંના સ્ટાફને પૂછો.",
@@ -2222,6 +2305,13 @@ const GU: Dict = {
   stillConnectingLabel: "હજી કનેક્ટ થઈ રહ્યું છે…",
   slowRetryCta: "થોડો સમય લાગી રહ્યો છે — ફરી પ્રયાસ કરો",
   // ---- end parity block -------------------------------------------------
+  // ===== Omada RADIUS mode: the network step failed ======================
+  radiusFailTitle: "અમે તમને ઓનલાઇન કરી શક્યા નહીં",
+  radiusFailUnreachable: "અહીંના WiFi ઉપકરણે જવાબ આપ્યો નહીં. થોડી વારે ફરી પ્રયાસ કરો.",
+  radiusFailRejected: "આ sign in હવે માન્ય નથી. કૃપા કરી ફરી sign in કરો.",
+  radiusFailNotAuthorized:
+    "આ નેટવર્ક પર આ sign in ની ખાતરી કરી શકાઈ નહીં. ફરી sign in કરો, અને વારંવાર થાય તો રિસેપ્શનને જણાવો.",
+  radiusFailUnknown: "તમને જોડતી વખતે કંઈક ખોટું થયું. કૃપા કરી ફરી પ્રયાસ કરો.",
 };
 
 // Kannada (kn).
@@ -2469,6 +2559,9 @@ const KN: Dict = {
   expiredDailyLimitTitle: "ಇಂದಿನ WiFi ಸಮಯ ಮುಗಿದಿದೆ",
   expiredDailyLimitBody:
     "ಈ ಸ್ಥಳ ಪ್ರತಿ ಅತಿಥಿಗೆ ದಿನಕ್ಕೆ ನಿಗದಿತ WiFi ಸಮಯ ನೀಡುತ್ತದೆ, ನಿಮ್ಮದು ಮುಗಿದಿದೆ. ನಾಳೆ ಮತ್ತೆ ಹೊಸದಾಗಿ ಆರಂಭವಾಗುತ್ತದೆ.",
+  expiredDataLimitTitle: "ಈ ಸ್ಥಳದ WiFi ಡೇಟಾ ಮುಗಿದಿದೆ",
+  expiredDataLimitBody:
+    "ಈ ಸ್ಥಳ ಪ್ರತಿ ಅತಿಥಿಗೆ ನಿಗದಿತ WiFi ಡೇಟಾ ನೀಡುತ್ತದೆ, ನಿಮ್ಮದು ಮುಗಿದಿದೆ. ಈ ಮಿತಿ ಮತ್ತೆ ಹೊಸದಾಗಿ ಆರಂಭವಾದಾಗ ನೀವು ಮತ್ತೆ ಸಂಪರ್ಕಿಸಬಹುದು.",
   useOtpInsteadLabel: "ಬದಲಿಗೆ OTP ಬಳಸಿ",
   failureSubtitle: "ನಿಮ್ಮ ವಿವರಗಳನ್ನು ಪರಿಶೀಲಿಸಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
   failureHelp: "ಸಮಸ್ಯೆ ಮುಂದುವರಿದರೆ ಇಲ್ಲಿನ staff ಅನ್ನು ಕೇಳಿ.",
@@ -2518,6 +2611,13 @@ const KN: Dict = {
   stillConnectingLabel: "ಇನ್ನೂ ಸಂಪರ್ಕವಾಗುತ್ತಿದೆ…",
   slowRetryCta: "ಸ್ವಲ್ಪ ಸಮಯ ತೆಗೆದುಕೊಳ್ಳುತ್ತಿದೆ — ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ",
   // ---- end parity block -------------------------------------------------
+  // ===== Omada RADIUS mode: the network step failed ======================
+  radiusFailTitle: "ನಿಮ್ಮನ್ನು ಆನ್‌ಲೈನ್ ಮಾಡಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ",
+  radiusFailUnreachable: "ಇಲ್ಲಿನ WiFi ಸಾಧನ ಉತ್ತರಿಸಲಿಲ್ಲ. ಸ್ವಲ್ಪ ಹೊತ್ತಿನ ನಂತರ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
+  radiusFailRejected: "ಈ sign in ಈಗ ಮಾನ್ಯವಿಲ್ಲ. ದಯವಿಟ್ಟು ಮತ್ತೆ sign in ಮಾಡಿ.",
+  radiusFailNotAuthorized:
+    "ಈ ನೆಟ್‌ವರ್ಕ್‌ನಲ್ಲಿ ಈ sign in ಅನ್ನು ಖಚಿತಪಡಿಸಲು ಆಗಲಿಲ್ಲ. ಮತ್ತೆ sign in ಮಾಡಿ, ಪದೇ ಪದೇ ಆದರೆ ರಿಸೆಪ್ಷನ್‌ಗೆ ತಿಳಿಸಿ.",
+  radiusFailUnknown: "ನಿಮ್ಮನ್ನು ಸಂಪರ್ಕಿಸುವಾಗ ಏನೋ ತಪ್ಪಾಯಿತು. ದಯವಿಟ್ಟು ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
 };
 
 // Malayalam (ml).
@@ -2768,6 +2868,9 @@ const ML: Dict = {
   expiredDailyLimitTitle: "ഇന്നത്തെ WiFi സമയം തീർന്നു",
   expiredDailyLimitBody:
     "ഈ സ്ഥലം ഓരോ അതിഥിക്കും ദിവസേന നിശ്ചിത WiFi സമയം നൽകുന്നു, നിങ്ങളുടേത് തീർന്നു. നാളെ വീണ്ടും പുതുതായി തുടങ്ങും.",
+  expiredDataLimitTitle: "ഈ സ്ഥലത്തെ WiFi ഡാറ്റ തീർന്നു",
+  expiredDataLimitBody:
+    "ഈ സ്ഥലം ഓരോ അതിഥിക്കും നിശ്ചിത WiFi ഡാറ്റ നൽകുന്നു, നിങ്ങളുടേത് തീർന്നു. ഈ പരിധി വീണ്ടും പുതുതായി തുടങ്ങുമ്പോൾ നിങ്ങൾക്ക് വീണ്ടും ബന്ധിപ്പിക്കാം.",
   useOtpInsteadLabel: "പകരം OTP ഉപയോഗിക്കൂ",
   failureSubtitle: "നിങ്ങളുടെ വിവരങ്ങൾ പരിശോധിച്ച് വീണ്ടും ശ്രമിക്കൂ.",
   failureHelp: "പ്രശ്നം തുടർന്നാൽ സ്ഥാപനത്തിലെ ജീവനക്കാരോട് ചോദിക്കൂ.",
@@ -2817,6 +2920,13 @@ const ML: Dict = {
   stillConnectingLabel: "ഇപ്പോഴും കണക്ട് ചെയ്യുന്നു…",
   slowRetryCta: "കുറച്ച് സമയമെടുക്കുന്നു — വീണ്ടും ശ്രമിക്കൂ",
   // ---- end parity block -------------------------------------------------
+  // ===== Omada RADIUS mode: the network step failed ======================
+  radiusFailTitle: "നിങ്ങളെ ഓൺലൈനാക്കാൻ കഴിഞ്ഞില്ല",
+  radiusFailUnreachable: "ഇവിടത്തെ WiFi ഉപകരണം പ്രതികരിച്ചില്ല. കുറച്ചു കഴിഞ്ഞ് വീണ്ടും ശ്രമിക്കൂ.",
+  radiusFailRejected: "ഈ sign in ഇനി സാധുവല്ല. ദയവായി വീണ്ടും sign in ചെയ്യൂ.",
+  radiusFailNotAuthorized:
+    "ഈ നെറ്റ്‌വർക്കിൽ ഈ sign in സ്ഥിരീകരിക്കാൻ കഴിഞ്ഞില്ല. വീണ്ടും sign in ചെയ്യൂ, ആവർത്തിച്ചാൽ റിസപ്ഷനിൽ അറിയിക്കൂ.",
+  radiusFailUnknown: "നിങ്ങളെ ബന്ധിപ്പിക്കുമ്പോൾ എന്തോ പിഴവ് സംഭവിച്ചു. വീണ്ടും ശ്രമിക്കൂ.",
 };
 
 // Punjabi (pa, Gurmukhi).
@@ -3065,6 +3175,9 @@ const PA: Dict = {
   expiredDailyLimitTitle: "ਅੱਜ ਦਾ WiFi ਸਮਾਂ ਵਰਤਿਆ ਜਾ ਚੁੱਕਾ ਹੈ",
   expiredDailyLimitBody:
     "ਇਹ ਥਾਂ ਹਰ ਮਹਿਮਾਨ ਨੂੰ ਰੋਜ਼ਾਨਾ ਤੈਅ WiFi ਸਮਾਂ ਦਿੰਦੀ ਹੈ, ਅਤੇ ਤੁਹਾਡਾ ਪੂਰਾ ਹੋ ਗਿਆ ਹੈ। ਕੱਲ੍ਹ ਤੋਂ ਫਿਰ ਨਵਾਂ ਸ਼ੁਰੂ ਹੋਵੇਗਾ।",
+  expiredDataLimitTitle: "ਇਸ ਥਾਂ ਦਾ WiFi ਡਾਟਾ ਵਰਤਿਆ ਜਾ ਚੁੱਕਾ ਹੈ",
+  expiredDataLimitBody:
+    "ਇਹ ਥਾਂ ਹਰ ਮਹਿਮਾਨ ਨੂੰ ਤੈਅ WiFi ਡਾਟਾ ਦਿੰਦੀ ਹੈ, ਅਤੇ ਤੁਹਾਡਾ ਪੂਰਾ ਹੋ ਗਿਆ ਹੈ। ਜਦੋਂ ਇਹ ਹੱਦ ਮੁੜ ਨਵੇਂ ਸਿਰੇ ਤੋਂ ਸ਼ੁਰੂ ਹੋਵੇਗੀ, ਤੁਸੀਂ ਫਿਰ ਜੁੜ ਸਕੋਗੇ।",
   useOtpInsteadLabel: "ਇਸਦੀ ਥਾਂ OTP ਵਰਤੋ",
   failureSubtitle: "ਆਪਣੀ ਜਾਣਕਾਰੀ ਵੇਖੋ ਤੇ ਫਿਰ ਕੋਸ਼ਿਸ਼ ਕਰੋ।",
   failureHelp: "ਸਮੱਸਿਆ ਰਹੇ ਤਾਂ ਸਟਾਫ਼ ਨੂੰ ਪੁੱਛੋ।",
@@ -3113,6 +3226,13 @@ const PA: Dict = {
   stillConnectingLabel: "ਹਾਲੇ ਵੀ ਜੁੜ ਰਿਹਾ ਹੈ…",
   slowRetryCta: "ਥੋੜ੍ਹਾ ਸਮਾਂ ਲੱਗ ਰਿਹਾ ਹੈ — ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ",
   // ---- end parity block -------------------------------------------------
+  // ===== Omada RADIUS mode: the network step failed ======================
+  radiusFailTitle: "ਅਸੀਂ ਤੁਹਾਨੂੰ ਆਨਲਾਈਨ ਨਹੀਂ ਕਰ ਸਕੇ",
+  radiusFailUnreachable: "ਇੱਥੋਂ ਦੇ WiFi ਯੰਤਰ ਨੇ ਜਵਾਬ ਨਹੀਂ ਦਿੱਤਾ। ਥੋੜ੍ਹੀ ਦੇਰ ਬਾਅਦ ਫਿਰ ਕੋਸ਼ਿਸ਼ ਕਰੋ।",
+  radiusFailRejected: "ਇਹ sign in ਹੁਣ ਵੈਧ ਨਹੀਂ ਹੈ। ਕਿਰਪਾ ਕਰਕੇ ਫਿਰ ਤੋਂ sign in ਕਰੋ।",
+  radiusFailNotAuthorized:
+    "ਇਸ ਨੈੱਟਵਰਕ 'ਤੇ ਇਹ sign in ਪੱਕਾ ਨਹੀਂ ਕੀਤਾ ਜਾ ਸਕਿਆ। ਫਿਰ ਤੋਂ sign in ਕਰੋ, ਅਤੇ ਵਾਰ-ਵਾਰ ਹੋਵੇ ਤਾਂ ਰਿਸੈਪਸ਼ਨ ਨੂੰ ਦੱਸੋ।",
+  radiusFailUnknown: "ਤੁਹਾਨੂੰ ਜੋੜਦੇ ਸਮੇਂ ਕੁਝ ਗਲਤ ਹੋ ਗਿਆ। ਕਿਰਪਾ ਕਰਕੇ ਫਿਰ ਕੋਸ਼ਿਸ਼ ਕਰੋ।",
 };
 
 const DICTS: Record<RuntimeLanguage, Dict> = {

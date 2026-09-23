@@ -120,6 +120,16 @@ const NETWORK_INTEGRATION_SERVICE_STUB = `export const guestPortalIntegrationSer
     expiresAt: null,
     redirectUrl: null,
   }),
+  // The Omada RADIUS-mode (\`authType 2\`) authorize call. Enumerated for the
+  // same reason every other name here is: esbuild resolves ESM named
+  // imports statically, so a stub missing one fails the BUILD and this
+  // suite then asserts nothing at all. Nothing here calls it -- the
+  // MikroTik path this file exercises never enters the Omada branch.
+  authorizeRadiusPortal: async () => ({
+    authorized: false,
+    provider: null,
+    failure: null,
+  }),
 };
 `;
 

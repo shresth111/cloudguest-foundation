@@ -381,6 +381,28 @@ const portalSearchShape = {
   // they come from different contracts and either may be absent while the
   // other is present.
   originUrl: omadaRedirectParam(),
+  // WHY A LOGIN FAILED, when the controller is the one that decided.
+  //
+  // Omada answers a failed `POST /portal/radius/browserauth` by navigating
+  // the browser back to the configured portal URL with this appended --
+  // `errorHint=RADIUS_SERVER_TIMEOUT`, `errorHint=INVALID_USERNAME_OR_PASSWORD`
+  // (observed on the live controller). Before this was declared, it had
+  // ZERO occurrences anywhere in this repo: the parameter arrived, TanStack
+  // dropped it, and the guest landed silently back on the sign-in card with
+  // no idea why -- and tried the identical thing again.
+  //
+  // Declared so it survives the client-side hop from `/portal` to
+  // `/portal/welcome`, which is where it is read (`GuestSignInCard`). The
+  // portal no longer produces this bounce itself -- the browser does not
+  // call the controller any more, see `portal-radius-authorize.ts` -- so
+  // this is a FALLBACK for guests still arriving from the old path: a
+  // browser that had the old page open, or a controller still pointed at
+  // it.
+  //
+  // Free text, never trusted as-is: `radiusFailureOf` maps it against a
+  // closed table and anything unrecognised reads as "unknown", which
+  // changes the message and never the action.
+  errorHint: z.string().optional(),
   // Two undocumented parameters this controller adds and TP-Link's own
   // documentation does not mention. Declared so they are captured rather
   // than silently dropped; nothing reads them. `hostname` is the

@@ -81,6 +81,9 @@ import { toCsv, downloadCsv, csvDateStamp } from "@/lib/csv-export";
 import { requireCustomerSession } from "@/lib/authGuards";
 import { requireActiveLocationId } from "@/lib/customerLocationGuard";
 import { customerFeatureHref } from "@/lib/customerNav";
+import { useClientControls, useDeviceActions } from "@/hooks/useClientControls";
+import { disconnectOutcome } from "@/lib/omada-client-controls";
+import { GuestDeviceControls, isSendableMac } from "@/components/customer/GuestDeviceControls";
 
 /**
  * Shared empty-state graphic for the Users table -- a magnifying glass over
@@ -135,6 +138,21 @@ function CustomerUsersPage() {
   const locationId = activeLocationId!;
   const disconnect = useDisconnectSession();
   const extend = useExtendSession();
+  // What "Disconnect" actually does at THIS venue. At a MikroTik venue -- and
+  // at a mixed venue, and at one whose routers could not be read -- the
+  // verdict is `available` with a null reason, and every line below that reads
+  // it renders exactly as it did before this hook existed.
+  const clientControls = useClientControls();
+  const disconnectVerdict = clientControls.verdict("disconnect");
+  const disconnectReachesDevice = disconnectVerdict.availability === "available";
+  // The venue-scoped client routes, bound to the active location. Used for the
+  // per-device panel below and -- only when the session-level disconnect comes
+  // back NOT enforced -- as a second, MAC-keyed attempt. Never on the happy
+  // path: `POST /guest-sessions/{id}/disconnect` already reaches this venue's
+  // controller (backend `end_on_router` routes a controller-managed router to
+  // `_end_on_controller`), so calling both every time would be two controller
+  // round-trips for one guest.
+  const deviceActions = useDeviceActions();
   // useIsDemo(), not isDemo() directly -- see the identical fix in
   // customer.$locationId.$feature.tsx/dashboard.tsx: calling isDemo()
   // straight in render flips between the SSR pass (no window -> false)
@@ -183,6 +201,10 @@ function CustomerUsersPage() {
     id: string;
     name: string;
     guestId: string | null;
+    /** The device address, carried so a disconnect the session route could
+     * not enforce can be retried against the controller by MAC. The table
+     * writes the literal "Unknown" when a session has none. */
+    mac: string;
   } | null>(null);
   const PAGE_SIZE = 8;
 
@@ -637,16 +659,28 @@ function CustomerUsersPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
+                            {/* An icon-only button with no text child and no
+                              label has NO accessible name at all: a screen
+                              reader announces "button", once per row, and
+                              the two beside it (Extend, Disconnect) both
+                              carry a `title` while this one carried
+                              nothing. The name includes the guest, because
+                              a table of these is read row by row and "View
+                              details" eleven times identifies none of
+                              them. `title` stays generic so the sighted
+                              tooltip matches its two neighbours. */}
                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8"
+                              title={t("viewDetails")}
+                              aria-label={t("viewGuestDetails", { name: u.name })}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setDetailUser(u);
                               }}
                             >
-                              <Eye className="h-3.5 w-3.5" />
+                              <Eye className="h-3.5 w-3.5" aria-hidden="true" />
                             </Button>
                             {u.status !== "offline" && (
                               <DropdownMenu>
@@ -687,6 +721,7 @@ function CustomerUsersPage() {
                                   id: u.id,
                                   name: u.name,
                                   guestId: u.guestId,
+                                  mac: u.mac,
                                 });
                               }}
                             >
@@ -703,8 +738,27 @@ function CustomerUsersPage() {
 
             {totalPages > 1 && (
               <div className="flex items-center justify-between">
+                {/* "11 users" beside a "Total guests" tile reading 4, on the
+                  same screen, for the same venue. Both numbers were right
+                  and one of them was mislabelled: `data.total` is the count
+                  of SESSION ROWS, so a guest who reconnects seven times is
+                  seven of the eleven -- the same total-vs-unique confusion
+                  the tile above was already fixed for. The rows in this
+                  table are sessions, so the footer keeps counting them and
+                  now says which they are, with the distinct-guest figure
+                  beside it.
+
+                  `uniqueGuests` is optional (the guests lookup can fail,
+                  which is why the tile falls back). When it is missing we
+                  say only the part we can see -- "11 sessions" -- rather
+                  than quoting the session count twice under two names. */}
                 <span className="text-xs text-muted-foreground">
-                  {t("usersCount", { count: data?.total ?? 0 })}
+                  {data?.uniqueGuests === undefined
+                    ? t("sessionsCount", { count: data?.total ?? 0 })
+                    : t("sessionsFromGuests", {
+                        sessions: t("sessionsCount", { count: data.total }),
+                        guests: t("guestsCount", { count: data.uniqueGuests }),
+                      })}
                 </span>
                 <div className="flex items-center gap-1">
                   <Button
@@ -931,6 +985,12 @@ function CustomerUsersPage() {
                     <p className="mt-1 font-mono text-sm">{detailUser.ip || "—"}</p>
                   </div>
                 </div>
+                {/* Renders NOTHING at a MikroTik venue, a mixed venue, or a
+                    venue whose routers could not be read -- it returns null on
+                    `controllerManaged`, so those venues issue no capability
+                    read and see the panel not at all. The unmasked MAC is what
+                    goes on the wire; the backend masks it on the way back. */}
+                <GuestDeviceControls mac={detailUser.mac} guestName={detailUser.name} />
               </div>
               <div className="space-y-2 border-t p-4">
                 {detailUser.status !== "offline" && (
@@ -964,6 +1024,7 @@ function CustomerUsersPage() {
                       id: detailUser.id,
                       name: detailUser.name,
                       guestId: detailUser.guestId,
+                      mac: detailUser.mac,
                     })
                   }
                 >
@@ -992,7 +1053,20 @@ function CustomerUsersPage() {
             <AlertDialogTitle>
               {t("confirmDisconnectTitle", { name: confirmDisconnect?.name })}
             </AlertDialogTitle>
-            <AlertDialogDescription>{t("confirmDisconnectDescription")}</AlertDialogDescription>
+            {/* The stock description promises the device is forced off "this
+                network's router (Wi-Fi registration + DHCP lease)", which is
+                exactly what happens at a MikroTik venue and exactly what does
+                NOT happen at a venue whose access points are a controller --
+                `/connected-devices/{id}/disconnect` refuses by vendor there
+                and `disconnectSession` swallows the refusal. Promising it
+                before the click and then not doing it is the defect; the
+                verdict's own sentence replaces it, rather than being appended
+                as a caveat to a claim we have just made. */}
+            <AlertDialogDescription>
+              {disconnectReachesDevice
+                ? t("confirmDisconnectDescription")
+                : disconnectVerdict.reason}
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
@@ -1007,16 +1081,83 @@ function CustomerUsersPage() {
                     locationId,
                   },
                   {
-                    onSuccess: (result) => {
+                    onSuccess: async (result) => {
                       // Honest about a partial success -- the session-level
                       // disconnect above is always real and already done by
                       // this point, but the router-level device clear is
                       // best-effort (see disconnectSession()'s docstring): a
                       // guest can have zero tracked ConnectedDevice rows if
                       // the router-sync mechanism hasn't discovered them yet.
-                      if (result.deviceDisconnected)
-                        toast.success(t("disconnectSuccess", { name: confirmDisconnect.name }));
-                      else toast.warning(t("disconnectPartial", { name: confirmDisconnect.name }));
+                      //
+                      // Four outcomes now, not two, and the ladder that picks
+                      // between them is pure and tested rather than inline:
+                      // the controller branch has to sit ABOVE the failure
+                      // branch, because at a controller venue the device is
+                      // never cleared on any call, and calling that "check
+                      // the router and try again" sends an owner to look at
+                      // hardware that is behaving correctly.
+                      const name = confirmDisconnect.name;
+                      const mac = confirmDisconnect.mac;
+                      // A SECOND ATTEMPT, NOT A SECOND CALL ON THE HAPPY PATH.
+                      //
+                      // The session route above already reaches this venue's
+                      // controller, so on success nothing more is asked and
+                      // `controllerDisconnected` stays null -- which is also
+                      // what every MikroTik venue passes, on every call,
+                      // forever, and is why the outcome ladder below is
+                      // unchanged for them.
+                      //
+                      // It is worth asking again when that route reports NOT
+                      // enforced, because the two ask different questions: the
+                      // session route ends by the guest's portal identifier,
+                      // this one ends by MAC. A guest the controller does not
+                      // know by identifier -- the missing-identifier shape
+                      // this platform has hit before -- is still findable by
+                      // the address it is serving.
+                      let controllerDisconnected: boolean | null = null;
+                      if (
+                        result.sessionEnforced === false &&
+                        !result.deviceDisconnected &&
+                        clientControls.capabilities?.disconnect.supported === true &&
+                        isSendableMac(mac)
+                      ) {
+                        try {
+                          const facts = await deviceActions.disconnect(mac);
+                          controllerDisconnected = facts.performed;
+                        } catch {
+                          // Leave it null rather than false: a call that never
+                          // completed is not the controller saying no, and
+                          // "controller-refused" would be a claim about the
+                          // venue's hardware we cannot make.
+                        }
+                      }
+                      switch (
+                        disconnectOutcome({
+                          sessionEnforced: result.sessionEnforced,
+                          deviceDisconnected: result.deviceDisconnected,
+                          controllerDisconnected,
+                          verdict: disconnectVerdict,
+                        })
+                      ) {
+                        case "device-cleared":
+                          toast.success(t("disconnectSuccess", { name }));
+                          break;
+                        case "controller-venue":
+                          toast.info(t("disconnectController", { name }));
+                          break;
+                        case "not-cleared":
+                          toast.warning(t("disconnectPartial", { name }));
+                          break;
+                        case "session-only":
+                          toast.warning(t("disconnectSessionOnly", { name }));
+                          break;
+                        case "controller-refused":
+                          // We asked the venue's controller, by MAC, and it
+                          // said no. Not "check the router and try again":
+                          // there is no router at this venue to check.
+                          toast.warning(t("disconnectControllerRefused", { name }));
+                          break;
+                      }
                     },
                     onError: (err) =>
                       toast.error((err as unknown as AppError).message || t("disconnectError")),

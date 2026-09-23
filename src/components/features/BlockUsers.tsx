@@ -30,10 +30,19 @@ import { cn } from "@/lib/utils";
 import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import { guestService } from "@/services/guest.service";
 import { resolveOrgId } from "@/services/customer.service";
-import type { AnyAccessRule } from "@/types/guest";
+import type { AnyAccessRule, ControllerBlock } from "@/types/guest";
 import { maskMac } from "@/components/features/HeaderControls";
 import { DEFAULT_DIAL_CODE, PHONE_COUNTRIES, normalizePhoneToE164 } from "@/lib/phone-e164";
-import { blockOutcomeMessage } from "@/lib/block-outcome";
+import {
+  BLOCK_DEVICE_GUARANTEE,
+  blockDeviceReasons,
+  blockDeviceSentences,
+  blockOutcomeMessage,
+  unblockDeviceMessage,
+} from "@/lib/block-outcome";
+import { blockScope, blockScopeConfirmation } from "@/lib/block-scope";
+import { useClientControls } from "@/hooks/useClientControls";
+import { ControllerControlNotice } from "@/components/customer/ControllerControlNotice";
 
 // `identifier` holds a phone number, an email address, or a MAC (see
 // toBlockedUser below, which -- like guest_access's own rule tables --
@@ -75,6 +84,10 @@ interface BlockedUser {
   locationId?: string | null;
   blockedOn: string;
   status: "Blocked" | "Unblocked";
+  /** Per-device controller outcomes for this rule. Always `[]` at a venue
+   * reached over the router API, which is what keeps the column below off
+   * a MikroTik venue's table entirely. */
+  controllerBlocks: ControllerBlock[];
 }
 
 function Tooltip({ text }: { text: string }) {
@@ -133,7 +146,47 @@ function toBlockedUser(r: AnyAccessRule, locationName = ""): BlockedUser {
     locationId: r.locationId ?? null,
     blockedOn: r.createdAt,
     status: r.isActive ? "Blocked" : "Unblocked",
+    // Carried onto the row because the controller offers NO READABLE LIST
+    // of blocked clients (CAPABILITY-MATRIX §10.8, and the backend
+    // declined to build one for the same reason). This row is the only
+    // trace anywhere that a device is being held off a venue's network, so
+    // dropping it here would make the fact unknowable rather than merely
+    // unshown. Empty on a device rule and at every router-API venue.
+    controllerBlocks: r.kind === "identifier" ? r.controllerBlocks : [],
   };
+}
+
+/**
+ * What the "Kept off the network" column says for one row, and whether it
+ * is the alarming kind.
+ *
+ * Reads the rule's own device rows rather than a venue-wide capability: a
+ * rule written before the venue had a controller, and one written for a
+ * guest with no recorded device, both legitimately have none, and neither
+ * is a failure to report.
+ */
+function deviceHoldSummary(blocks: ControllerBlock[]): {
+  label: string;
+  tone: "held" | "released" | "none" | "attention";
+} | null {
+  if (blocks.length === 0) return null;
+  // `enforced` with no `clearedAt` is a block this platform believes is
+  // still in force on the venue's hardware -- the backend's own definition.
+  const held = blocks.filter((b) => b.status === "enforced" && !b.clearedAt);
+  const released = blocks.filter((b) => b.clearedAt);
+  // A release that did not land leaves the row open with its reason, and
+  // the backend's 10-minute sweep retries it. It is a pending retry, not a
+  // dead end, and the wording below says so.
+  const stuck = blocks.filter((b) => b.releaseError && !b.clearedAt);
+
+  if (stuck.length > 0) {
+    return { label: `${stuck.length} still held — retrying`, tone: "attention" };
+  }
+  if (held.length > 0) {
+    return { label: `${held.length} of ${blocks.length} held`, tone: "held" };
+  }
+  if (released.length > 0) return { label: "Let back on", tone: "released" };
+  return { label: "None held", tone: "none" };
 }
 
 /**
@@ -204,6 +257,19 @@ function BlockedAccessIllustration() {
 
 export default function BlockUsers({ locationId }: { locationId?: string } = {}) {
   const demo = useIsDemo();
+  // What a block actually reaches at this venue. At a MikroTik venue every
+  // line that reads this is a no-op: `controllerManaged` is false and the
+  // device verdict is `available` with a null reason, so the notice renders
+  // nothing and `blockOutcomeMessage` takes its existing branch.
+  //
+  // THIS SCREEN BLOCKS AN IDENTIFIER, NOT A DEVICE, and that is why it holds a
+  // notice rather than a button. A phone number is not a MAC, and the
+  // controller's block is keyed on one; the device half lives where a device
+  // is actually on screen (Guests -> the guest panel), and the notice says so.
+  // The verdict behind it is the backend's declared `block` capability now,
+  // not a guess -- where it is false, the sentence rendered is the backend's.
+  const clientControls = useClientControls();
+  const blockDeviceVerdict = clientControls.verdict("block-device");
   // UNITS is demo-only seed data (fake hotel names) -- a real customer only
   // has their own locations. Same real-vs-demo split as WhiteList.tsx's
   // units/realUnits.
@@ -233,6 +299,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
             businessUnit: "Mumbai HQ",
             blockedOn: "2026-07-20T10:00:00.000Z",
             status: "Blocked",
+            controllerBlocks: [],
           },
           {
             id: "b2",
@@ -241,6 +308,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
             businessUnit: "Delhi Office",
             blockedOn: "2026-07-18T10:00:00.000Z",
             status: "Blocked",
+            controllerBlocks: [],
           },
           {
             id: "b3",
@@ -249,6 +317,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
             businessUnit: "Mumbai HQ",
             blockedOn: "2026-07-22T10:00:00.000Z",
             status: "Blocked",
+            controllerBlocks: [],
           },
           {
             id: "b4",
@@ -257,6 +326,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
             businessUnit: "Bangalore DC",
             blockedOn: "2026-07-13T10:00:00.000Z",
             status: "Unblocked",
+            controllerBlocks: [],
           },
           {
             id: "b5",
@@ -265,6 +335,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
             businessUnit: "Chennai Office",
             blockedOn: "2026-07-21T10:00:00.000Z",
             status: "Blocked",
+            controllerBlocks: [],
           },
           {
             id: "b6",
@@ -273,6 +344,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
             businessUnit: "Delhi Office",
             blockedOn: "2026-07-16T10:00:00.000Z",
             status: "Blocked",
+            controllerBlocks: [],
           },
         ]
       : [],
@@ -353,10 +425,28 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demo, locations, locationId]);
 
+  // WHERE THIS BLOCK WILL ACTUALLY LAND. Derived by `blockScope` from the
+  // one value that decides it -- the `locationId` prop that `handleBlock`
+  // sends -- and never from the "Applies to" control, whose disagreeing
+  // with it is the defect. The ladder lives in `src/lib/block-scope.ts`
+  // and is executed for real by `scripts/test-block-scope.mjs`; a copy of
+  // it here would drift from the copy under test, which is the same class
+  // of bug as two normalisers.
+  const scope = blockScope({ demo, locationId, nameForLocation, demoUnit: bu });
+  const { orgWide, label: scopeLabel } = scope;
+
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState<number>(10);
   const [toast, setToast] = useState<string | null>(null);
+  // The device half of the last block, kept until dismissed rather than
+  // for a toast's 6.5 seconds. `null` at every venue that has no
+  // controller, which is what keeps this whole feature off their screen.
+  const [deviceResult, setDeviceResult] = useState<{
+    sentences: string[];
+    reasons: string[];
+    at: number;
+  } | null>(null);
   const [undoPayload, setUndoPayload] = useState<BlockedUser[] | null>(null);
   const undoRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
@@ -531,6 +621,16 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
     return items;
   }, [blocked, bu, demo, locationId, search, sortKey, sortDir]);
 
+  // Does ANY rule on this venue's list have a device the controller was
+  // asked about? Computed over `filtered` rather than the current page, so
+  // the table does not grow and lose a column as the admin pages through
+  // it. False at every router-API venue, which is the whole MikroTik
+  // guarantee for the table below.
+  const anyDeviceHolds = useMemo(
+    () => filtered.some((b) => b.controllerBlocks.length > 0),
+    [filtered],
+  );
+
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages - 1);
   const paged = filtered.slice(safePage * pageSize, (safePage + 1) * pageSize);
@@ -546,6 +646,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
         businessUnit: bu,
         blockedOn: now,
         status: "Blocked" as const,
+        controllerBlocks: [],
       }));
       setUndoPayload(newBlocked);
       setBlocked((prev) => [...newBlocked, ...prev]);
@@ -580,8 +681,25 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
       setTextarea("");
       setPage(0);
       setShowModal(false);
-      setToast(blockOutcomeMessage(created, identifierNoun));
+      setToast(blockOutcomeMessage(created, identifierNoun, clientControls.controllerManaged));
       setTimeout(() => setToast(null), 6500);
+      // THE DEVICE HALF DOES NOT GO IN THE TOAST. Partial success is the
+      // normal case here -- a guest with three devices, one of which the
+      // controller has no record of -- and that needs two or three
+      // sentences plus the guarantee. A toast cannot hold them, and it
+      // leaves after 6.5 seconds, which is the wrong lifetime for the only
+      // record of which devices are being held off a venue's network.
+      //
+      // So the toast keeps the headline it always had, and the detail goes
+      // into a panel that stays until it is dismissed. At a MikroTik venue
+      // `blockDeviceSentences` returns [] -- `controller_blocks` is always
+      // empty there -- so `setDeviceResult(null)` and nothing renders.
+      const sentences = blockDeviceSentences(created);
+      setDeviceResult(
+        sentences.length > 0
+          ? { sentences, reasons: blockDeviceReasons(created), at: Date.now() }
+          : null,
+      );
     } catch {
       // Some or all of the rules may have been saved even though the
       // request failed -- see reloadBlocked. Show what the server holds
@@ -662,7 +780,32 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
     if (!row) return;
     try {
       if (row.status === "Blocked") {
-        await guestService.deactivateAccessRule("identifier", id, orgId ?? undefined);
+        const updated = await guestService.deactivateAccessRule(
+          "identifier",
+          id,
+          orgId ?? undefined,
+        );
+        // UNBLOCK IS WHERE THE DEVICE HALF MATTERS MOST. The backend
+        // releases the controller blocks before the rule stops applying,
+        // so by the time this resolves the devices have either been let
+        // back on or not -- and the controller has no readable list, so
+        // this row is the only record either way. Writing the fresh rule
+        // back keeps the column honest instead of leaving it showing the
+        // holds that were just released.
+        if (updated) {
+          setBlocked((prev) =>
+            prev.map((b) =>
+              b.id === id
+                ? {
+                    ...toBlockedUser(updated, nameForLocation(updated.locationId)),
+                    status: "Unblocked",
+                  }
+                : b,
+            ),
+          );
+          setToast(unblockDeviceMessage(updated.controllerBlocks));
+          setTimeout(() => setToast(null), 6500);
+        }
       } else if (orgId) {
         const created = await guestService.createAccessRule({
           kind: "identifier",
@@ -761,6 +904,19 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
               They will not be able to sign in again, and we will try to end any session they have
               right now.
             </p>
+            {/* The scope, at the last moment before the write. An
+              organization-wide block is the one an owner is most likely
+              not to have meant, so it is said here in full rather than
+              inferred from a label on the card behind this dialog. */}
+            <p
+              data-testid="block-confirm-scope"
+              className={cn(
+                "mt-2 text-sm",
+                orgWide ? "font-medium text-amber-700 dark:text-amber-300" : "text-slate-500",
+              )}
+            >
+              {blockScopeConfirmation(scope)}
+            </p>
             <div className="mt-5 flex justify-end gap-2">
               <button
                 onClick={() => {
@@ -789,8 +945,23 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
           </div>
           <div>
             <h1 className="text-lg font-semibold tracking-tight">Blocked Guests</h1>
+            {/* THE HEADLINE SAYS THE TWO DIFFERENT THINGS A BLOCK DOES,
+              because they carry different certainties and the old sentence
+              ("Cut off a guest's access to your network immediately")
+              promised the weaker one as if it were the stronger.
+
+              The sign-in half is OURS: the rule is written in our database
+              and consulted at every sign-in, on any device, so it is
+              certain. The live-session half is a request to somebody
+              else's hardware -- a router that can be unreachable, or a
+              controller whose behaviour toward a client already holding a
+              portal authorization is UNMEASURED (`providers/omada.py`
+              ~L911; CAPABILITY-MATRIX §10.6). `blockOutcomeMessage` says
+              which of the two actually happened afterwards, from what the
+              server returned; this line no longer contradicts it before
+              the owner has even typed a number. */}
             <p className="text-sm text-muted-foreground">
-              Cut off a guest's access to your network immediately.
+              Stop a guest signing in again, and try to end any session they have now.
             </p>
           </div>
         </div>
@@ -800,29 +971,67 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
       <Card className="border-0 shadow-sm">
         <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
           <CardTitle className="text-sm">Block User</CardTitle>
-          <div>
-            <label
-              htmlFor="bu-select"
-              className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400"
-            >
-              Applies to
-            </label>
-            <select
-              id="bu-select"
-              value={bu}
-              onChange={(e) => {
-                setBu(e.target.value);
-                setPage(0);
-              }}
-              className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
-            >
-              {units.map((u) => (
-                <option key={u} value={u}>
-                  {u}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* "APPLIES TO" NOW STATES THE SCOPE INSTEAD OF APPEARING TO SET
+            IT. As a <select> it was the only control on this card that did
+            nothing: `handleBlock` sends the `locationId` PROP, and `bu`
+            reached neither the request nor -- outside demo -- the table
+            filter below, which keys off the same prop. An owner could pick
+            "Delhi Office", block somebody, and write a rule for whichever
+            venue the dashboard was already on.
+
+            It is not made to work, because making it work would be a
+            second scoping authority beside the venue switcher every other
+            customer screen routes on, pointed at a backend that does not
+            check a `location_id` belongs to the caller's organization
+            (`guest_access/service.py`'s create path enforces the org and
+            never the location). Blocking at another venue is switching
+            venue, which already works.
+
+            The demo keeps its picker: there the roster is fictional, `bu`
+            genuinely drives the seeded list, and nothing is written. */}
+          {demo ? (
+            <div>
+              <label
+                htmlFor="bu-select"
+                className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400"
+              >
+                Applies to
+              </label>
+              <select
+                id="bu-select"
+                value={bu}
+                onChange={(e) => {
+                  setBu(e.target.value);
+                  setPage(0);
+                }}
+                className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+              >
+                {units.map((u) => (
+                  <option key={u} value={u}>
+                    {u}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="text-right">
+              <p className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                Applies to
+              </p>
+              <p
+                data-testid="block-scope"
+                data-scope={orgWide ? "organization" : "location"}
+                className={cn(
+                  "text-sm font-medium",
+                  orgWide
+                    ? "text-amber-700 dark:text-amber-300"
+                    : "text-slate-700 dark:text-slate-200",
+                )}
+              >
+                {scopeLabel}
+              </p>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           {/* Mode switcher: same pill-tab pattern WhiteList.tsx's own
@@ -919,10 +1128,22 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
             {/* Persistent caption instead of a click-to-reveal tooltip -- same
               consistency fix just applied to Guest WiFi Limits: the format
               hint shouldn't require a discovery click. */}
+            {/* THIS SENTENCE IS PART OF THE FIX, NOT A CAPTION ON IT.
+              It used to promise that "a number that already starts with
+              its own country code (+441632960961) keeps it" -- which was
+              true of a number written WITH a "+", and false of the same
+              number written without one. A bare foreign number is only
+              recognised when it carries the code the picker is showing;
+              anything else is rejected rather than guessed at
+              (`normalizePhoneToE164`, reading 2). So the "+" is now named
+              as the thing that does the work, and the last clause points
+              at the chips, which render the exact identifier that will be
+              stored -- the one place this screen cannot be wrong about
+              what it is about to write. */}
             <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
               {mode === "email"
                 ? "Paste one or more email addresses separated by commas, e.g. guest@example.com."
-                : `Paste one or more numbers separated by commas. Local numbers get ${dialCode}; a number that already starts with its own country code (+441632960961) keeps it.`}
+                : `Paste one or more numbers separated by commas. Local numbers get ${dialCode}; put a + in front of a foreign number (+441632960961) to keep its own country code. Each entry below shows exactly what will be stored.`}
             </p>
           </div>
 
@@ -931,7 +1152,10 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
               {parsed.valid.length} {identifierNoun(parsed.valid.length)} ready
             </span>
             {parsed.duplicates.length > 0 && (
-              <span className="text-slate-400">· {parsed.duplicates.length} duplicate removed</span>
+              <span className="text-slate-400">
+                · {parsed.duplicates.length} duplicate
+                {parsed.duplicates.length === 1 ? "" : "s"} removed
+              </span>
             )}
             {parsed.invalid.length > 0 && (
               <span className="text-indigo-500">· {parsed.invalid.length} invalid</span>
@@ -995,6 +1219,14 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
               Takes effect immediately; we also try to end any session these guests have now.
               <Tooltip text="Blocking a number or email stops that guest signing in again until unblocked, and tries to end the session they are in right now. Ending a live session needs the venue's router, so the confirmation afterwards tells you whether it actually happened." />
             </p>
+            {/* The half of a block that depends on the venue's hardware, said
+                BEFORE the click rather than only in the toast afterwards.
+                `blockOutcomeMessage` is honest about what happened; this is
+                honest about what is going to. The Block button itself stays
+                enabled on purpose -- barring an identifier from signing in is
+                a row in our own database and works at every venue on every
+                vendor, so greying it would remove the half that is whole. */}
+            <ControllerControlNotice verdict={blockDeviceVerdict} className="mt-0 max-w-xl" />
             <button
               ref={triggerRef}
               disabled={textarea.trim() === ""}
@@ -1012,12 +1244,75 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
         </CardContent>
       </Card>
 
+      {/* WHAT THE BLOCK DID TO THEIR DEVICES.
+        Not a toast, and not buried. Partial success is the normal case at
+        a controller venue -- a guest with three devices, one of which the
+        controller has no record of -- and "2 of 3" is exactly the claim a
+        toast would round up to a tick and a log would hide. So it sits
+        between the form and the list, stays until dismissed, and says each
+        true thing once.
+
+        `role="status"` and not `alert`: it follows an action the admin
+        just took deliberately, and an assertive live region would
+        interrupt a screen reader mid-flow.
+
+        RENDERS NOTHING AT A MIKROTIK VENUE, ALWAYS. `controller_blocks` is
+        `[]` wherever this platform reaches the venue over the router API,
+        so `blockDeviceSentences` is `[]`, so `deviceResult` was set to
+        null and this whole element is absent -- not empty, absent. */}
+      {deviceResult && (
+        <div
+          role="status"
+          data-testid="block-device-result"
+          className="rounded-lg border border-border bg-muted/40 px-4 py-3"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-1">
+              {deviceResult.sentences.map((s) => (
+                <p key={s} className="text-sm text-foreground">
+                  {s}
+                </p>
+              ))}
+              {/* The provider's own sentence, verbatim -- it names what the
+                venue would have to change, which no paraphrase here
+                would. */}
+              {deviceResult.reasons.map((r) => (
+                <p key={r} className="text-xs text-muted-foreground">
+                  {r}
+                </p>
+              ))}
+              {/* The caveat belongs to a thing that happened, so it is
+                rendered only where something was actually kept off.
+                Nothing here claims anything about a guest who is connected
+                right now -- that is unmeasured, and the toast above
+                answers the session question from what the server did. */}
+              {deviceResult.sentences.some((s) => /now blocked/.test(s)) && (
+                <p className="pt-1 text-xs text-muted-foreground">{BLOCK_DEVICE_GUARANTEE}</p>
+              )}
+            </div>
+            <button
+              onClick={() => setDeviceResult(null)}
+              aria-label="Dismiss"
+              className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       <Card className="border-0 shadow-sm">
         <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
           <div>
             <CardTitle className="text-sm">Blocked Users</CardTitle>
+            {/* The filter below is `!locationId || b.locationId === null ||
+              b.locationId === locationId`, so with no locationId this list
+              is every blocklist rule in the account -- which the old
+              sentence called "this location". */}
             <p className="text-xs text-muted-foreground">
-              Everyone currently blocked at this location.
+              {orgWide
+                ? "Everyone currently blocked anywhere in this account."
+                : "Everyone currently blocked at this location."}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -1055,7 +1350,28 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
             <EmptyState
               icon={Ban}
               title="Nobody is blocked"
-              description="Paste a number or email above to block one -- it takes effect immediately."
+              description="Paste a number or email above to block one — from then on they cannot sign in."
+              /* "NOBODY IS BLOCKED" IS TRUE OF OUR RECORD, AND ONLY OURS.
+                A device kept off the network from a guest's device panel is
+                held by the venue's controller, and `list_blocked` is
+                declared `supported: false` on every auth mode -- the
+                controller publishes no readable list of blocked clients
+                (measured; CAPABILITY-MATRIX §10.8). So such a device can
+                never appear in this table, and an empty table left
+                unqualified reads as "this venue has blocked nobody",
+                which is a claim about hardware we cannot read.
+
+                Only at a controller-managed venue, because only there does
+                the device panel exist: `GuestDeviceControls` returns null
+                when `controllerManaged` is false, so at a MikroTik venue
+                this sentence would point at a screen the owner has never
+                seen. That keeps this empty state byte-identical at every
+                venue in production today bar one. */
+              note={
+                clientControls.controllerManaged
+                  ? "Devices kept off from a guest's device panel are not listed here — this venue's controller does not offer a list we can read."
+                  : undefined
+              }
               action={{
                 label: mode === "email" ? "Block an email" : "Block a number",
                 onClick: () => document.getElementById("block-ta")?.focus(),
@@ -1071,6 +1387,20 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
                     <SortHeader k="businessUnit" label="Location" />
                     <SortHeader k="blockedOn" label="Blocked On" />
                     <TableHead className="text-xs font-medium">Status</TableHead>
+                    {/* THE COLUMN EXISTS ONLY WHERE THERE IS SOMETHING TO
+                      PUT IN IT. `anyDeviceHolds` is false at every venue
+                      this platform reaches over the router API, so a
+                      MikroTik venue's table keeps the six columns it has
+                      always had, in the same order, at the same widths --
+                      the column is absent rather than present and empty.
+
+                      Where it does render, it is the only place a person
+                      can learn that a device is still being held off the
+                      network: the controller publishes no readable list of
+                      blocked clients, so our row is the sole trace. */}
+                    {anyDeviceHolds && (
+                      <TableHead className="text-xs font-medium">Kept off network</TableHead>
+                    )}
                     <TableHead className="text-right text-xs font-medium">Action</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1127,6 +1457,47 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
                           {b.status}
                         </span>
                       </TableCell>
+                      {anyDeviceHolds && (
+                        <TableCell className="text-xs">
+                          {(() => {
+                            const hold = deviceHoldSummary(b.controllerBlocks);
+                            // A row with no device rows is not a row that
+                            // failed: nothing was asked about it. An em
+                            // dash, never "0" and never "None".
+                            if (!hold) return <span className="text-muted-foreground">—</span>;
+                            return (
+                              <span
+                                data-testid="device-hold"
+                                data-tone={hold.tone}
+                                className={cn(
+                                  "inline-flex items-center gap-1.5 whitespace-nowrap",
+                                  hold.tone === "attention"
+                                    ? "text-amber-700 dark:text-amber-300"
+                                    : hold.tone === "held"
+                                      ? "text-slate-700 dark:text-slate-200"
+                                      : "text-muted-foreground",
+                                )}
+                                title={
+                                  hold.tone === "attention"
+                                    ? // The backend's 10-minute release
+                                      // sweep retries this row. Saying so
+                                      // is the difference between "we are
+                                      // on it" and a dead end the admin
+                                      // would try to fix by hand.
+                                      "We asked the network to let this device back on and it has not confirmed yet. We keep retrying."
+                                    : hold.tone === "held"
+                                      ? "This device is being kept off the venue's network. Unblocking here also lets it back on."
+                                      : hold.tone === "released"
+                                        ? "The network confirmed this device was let back on."
+                                        : "Nothing is being kept off the network for this rule."
+                                }
+                              >
+                                {hold.label}
+                              </span>
+                            );
+                          })()}
+                        </TableCell>
+                      )}
                       <TableCell className="text-right">
                         <button
                           aria-label={

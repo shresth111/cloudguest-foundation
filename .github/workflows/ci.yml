@@ -75,6 +75,18 @@ on:
   # ci-gated-test.sh suites. The gates stay defined once, here, and a deploy
   # cannot pass a version of them that has drifted from the one PRs run.
   workflow_call:
+    # Declared so the notify job below has a name to reference at all -- a
+    # reusable workflow can only see secrets that are declared here or passed
+    # with `secrets: inherit`.
+    #
+    # cd.yml deliberately does NOT pass it. A CD run posts one message for the
+    # whole pipeline, including the case where this CI is what failed, so the
+    # nested CI must stay quiet; otherwise every failed deploy would arrive in
+    # Slack twice. Unpassed means the input is empty, which the action treats
+    # as "do nothing" -- the same quiet path a fork's pull request takes.
+    secrets:
+      SLACK_WEBHOOK_URL:
+        required: false
 
 # github.workflow is the TOP-LEVEL caller's name, so a direct CI run groups
 # under "CI-..." and the copy cd.yml calls groups under "CD-...". Without that
@@ -256,6 +268,18 @@ jobs:
       # endpoint (not a GLOBAL network-integrations route).
       - name: controller devices read
         run: bun run test:controller-devices
+      # And the screen that renders it. A monitored-hardware row's up/down is
+      # derived from `connected_devices`, whose only two writers reach a venue
+      # over RouterOS -- so at an Omada venue nothing ever probes a registered
+      # access point and the row is `unknown` forever. Rendered as "Never
+      # observed" that claims we looked. This pins that an unmeasured row
+      # borrows no measured vocabulary, that a MikroTik venue (including a
+      # response with no `status_source` at all) renders exactly as it did,
+      # that a null client count is never printed as 0 -- TP-Link's Open API
+      # `DeviceInfo` has no such field -- and that the AP inventory grows no
+      # control surface.
+      - name: access-point inventory says where each status came from
+        run: bun run test:ap-inventory-honesty
 
       # Validation and submission must agree on ONE spelling of the email
       # address. They did not: every auth form validated `email.trim()` and
@@ -441,29 +465,59 @@ jobs:
             bun run test:portal-omada-params
 
       # Omada's SECOND captive-portal contract (`authType 2` + External Web
-      # Portal), where the guest's browser submits to the CONTROLLER and the
-      # controller asks our FreeRADIUS -- the reverse of the flow the suite
-      # above covers. Three silent regressions this catches, each verified
-      # to fail when reverted:
+      # Portal), where the controller asks our FreeRADIUS rather than our
+      # backend asking the controller.
+      #
+      # The guest's browser used to make that call itself, with a top-level
+      # form POST to the controller's own `browserauth` endpoint. Measured
+      # on a real Android handset 2026-09-18: the browser REFUSES the
+      # navigation -- the endpoint is behind the controller's self-signed
+      # `CN=localhost` certificate, and every venue's controller has its
+      # own. The identical call made server-side authorizes the client, so
+      # the backend makes it and the portal asks the backend.
+      #
+      # Floor 31 -> 85: the suite grew the failure vocabulary (the backend's
+      # closed five-token enum, pinned member by member; the four reasons a
+      # guest can act on; `errorHint`) and the wiring assertions for the new
+      # direction. Five silent regressions, each verified to fail when
+      # reverted:
       #
       #   1. the page starts INFERRING the contract from which parameters
       #      arrived instead of the stored `portalMode`, so a firmware
       #      revision that adds or drops one moves a whole venue onto the
       #      wrong path -- with the portal claiming success;
-      #   2. the submit moves to `/portal/radius/auth`, the XHR endpoint,
-      #      which delivers the request and cannot read the answer
-      #      cross-origin (measured on the live controller: no
-      #      `Access-Control-Allow-Origin`, and a preflight allowing only
-      #      OPTIONS);
-      #   3. the submit becomes a `fetch`, which hangs iOS's Captive
-      #      Network Assistant forever -- the exact incident
-      #      `submitHotspotLogin` was rewritten to fix for MikroTik.
+      #   2. the guest's browser starts talking to the controller again in
+      #      any form. It cannot work on the handsets guests own;
+      #   3. THE FINAL HOP becomes a `fetch` or a client-side `navigate`.
+      #      This one has actually shipped, twice, under two vendors: the
+      #      hop to the guest's destination must be a real top-level
+      #      document load or iOS's Captive Network Assistant hangs forever
+      #      (2026-08-18) and the page asserts "you're online" without ever
+      #      asking the network;
+      #   4. a failure goes silent again. `errorHint` had ZERO occurrences
+      #      in this repo while the controller was sending it on every
+      #      failed login;
+      #   5. the refusal is looked for only in a `catch`. A
+      #      controller-answered refusal is HTTP 200 with `success: false`
+      #      -- it RESOLVES -- so a caller that only caught would leave
+      #      every rejected guest on the spinner until the escape hatch.
       - name: portal Omada RADIUS mode
         run: |
           ./scripts/ci-gated-test.sh \
-            "portal-radius-mode" 31 \
+            "portal-radius-mode" 85 \
             "portal RADIUS mode: all checks passed" \
             bun run test:portal-radius-mode
+
+      # Ten hand-maintained guest dictionaries, ~235 keys each. The suite
+      # has existed in package.json since it was written and was gated
+      # NOWHERE -- the same "nothing runs it" state that let
+      # test:portal-cna rot on origin/main. It is green today and it is
+      # gated now because this change adds five keys across all ten:
+      # `translate()` falls back to EN per key and does it silently, so a
+      # half-translated screen looks perfect in review and shows itself
+      # only to the guest whose paragraph switches language mid-sentence.
+      - name: portal guest i18n parity
+        run: bun run test:portal-i18n-parity
 
       # Which organization every request is about. A founder holding
       # `Super Admin` at GLOBAL scope opened a report about his own venue on
@@ -1018,6 +1072,49 @@ jobs:
             "customer-kpis" 47 "all customer KPI checks passed" \
             bun run test:customer-kpis
 
+      # --- Duplicate fetch ------------------------------------------------
+      #
+      # Both of these were defined in package.json and invoked by NOTHING --
+      # not here, not in the Jenkinsfile. They are the only existing evidence
+      # that the duplicate-fetch defect stays fixed, and they were the
+      # evidence for #341 (the app-wide QueryClient defaults), so they get
+      # wired in the same PR that leaned on them.
+      #
+      # The defect they guard: a live capture showed
+      # `GET /port-forwarding/rules?page=1&page_size=100` FOUR times on one
+      # page load. Two causes, both removed -- `useIsDemo()` starting `true`
+      # so a gated query fired before its org id resolved, then refired when
+      # the key changed; and KPI tiles re-requesting the list endpoint.
+      #
+      # WHAT THEY COVER: the real components, mounted in a real Chromium via
+      # esbuild, counted at the axios seam. Case 4 of each is a CONTROL that
+      # mounts the OLD shape and asserts it DOES double -- without it, "fired
+      # once" could just mean the harness never looks.
+      #
+      # WHAT THEY DO NOT COVER, and it matters for #341: each harness builds
+      # its OWN `new QueryClient({ defaultOptions: { queries: { retry: false }}})`
+      # inside the fixture, so NEITHER exercises `src/router.tsx`'s defaults.
+      # They prove the query KEYS are stable, not that the client is
+      # configured. They also fire no focus event, so `refetchOnWindowFocus`
+      # is untested either way, and they only know the pages they name
+      # (port-forwarding, DHCP, and the customer dashboard's own reads) --
+      # neither scans generically, so a new page is not covered until someone
+      # adds it. The generic + focus-event harness is Task 10 of the Omada FE
+      # plan, deliberately not in this PR.
+      #
+      # Floors are the counts observed green on 2026-09-20 (7 and 12).
+      - name: network pages fetch each read once
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "network-page-fetch-count" 7 "all checks passed" \
+            bun run test:fetch-count
+
+      - name: customer dashboard fetches each read once
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "customer-dashboard-fetch-count" 12 "all checks passed" \
+            bun run test:dashboard-fetch-count
+
       # Open Hours persists only on an explicit Save: dirty must mean a real
       # difference, validation must match the backend's schedule validator,
       # and the view must stay wired to the real PUT (no preview, no Apply).
@@ -1097,12 +1194,39 @@ jobs:
       # honest about it and disabled both controls with a "not enforced" note.
       #
       # They are now aimed at the policy types that do enforce them (SESSION
-      # for the idle timeout, FUP for the daily limit). This guard pins that
-      # aim, and equally pins that the "not enforced" note stays on the one
-      # control -- the data limit -- that still cannot keep the promise.
-      # Losing that note to a tidy-up would restore the original lie.
+      # for the idle timeout, FUP for the daily limit AND the data limit).
+      # This guard pins that aim. It also pins the inverse of what it used to:
+      # the "not enforced" note is gone, because every control on the form now
+      # reaches a policy the backend reads, and a disclaimer left behind would
+      # be the opposite lie -- an operator declining to use a setting that
+      # works. It further pins that "Per session" never returns to the data
+      # limit's reset list (GuestQuotaUsage is metered per QuotaPeriodType,
+      # which has only DAILY/WEEKLY/MONTHLY, so that option would write a cap
+      # with nowhere to go) and that a guest cut off by a data cap gets their
+      # own copy and no sign-in button the backend will refuse.
       - name: session rules enforcement
         run: bun run test:session-rules
+
+      # --- The data limit, executed rather than read ---------------------
+      #
+      # The guard above is source-structural: it proves the value leaves the
+      # screen aimed at the FUP policy. It cannot prove the NUMBER is right,
+      # and the worst way for this control to be wrong is a cap that lands as
+      # 0 -- `is_fup_usage_exceeded` treats 0 as already met, so that is not
+      # "no limit", it is "no internet at this venue", refused at the very
+      # next login.
+      #
+      # So this one bundles policy-engine.ts with esbuild and CALLS
+      # `fupPolicyRules` with exactly the object `handleSave` builds out of
+      # the form's own state -- the standing rule after a factory nobody
+      # instantiated in a test 500'd guest login at every venue.
+      #
+      # Floor 23, observed green at 23.
+      - name: Data limit rules
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "data-limit-rules" 23 "all data-limit rule checks passed" \
+            bun run test:data-limit-rules
 
       # --- One setting, one screen ---------------------------------------
       #
@@ -1565,6 +1689,117 @@ jobs:
             "whitelist-only" 66 "all whitelist-only guardrail checks passed" \
             bun run test:whitelist-only
 
+      # --- The identifier Blocked Guests stores --------------------------
+      #
+      # GATED HERE FOR THE FIRST TIME, AND THAT IS HALF THE POINT. This
+      # suite has been in package.json since it was written and named in no
+      # workflow, so nothing has ever run it -- the same "in the repo,
+      # gated nowhere" state this file's own header records for
+      # test:portal-cna (which then rotted on origin/main), and for
+      # test:location-liveness and test:discovery-preflight. A test no
+      # workflow runs cannot fail, so it protects nothing.
+      #
+      # What it protects: a blocklist rule is matched to a guest by EXACT
+      # STRING EQUALITY (`guest_access/repository.py`) against the E.164
+      # identifier the portal submits, so a rule stored in any other shape
+      # is a rule that can never fire -- and the screen reports success
+      # either way. That has now happened twice for two different reasons:
+      #
+      #   1. the original defect -- no country-code input at all, so an
+      #      Indian owner's ten digits were stored as "+9876543210" while
+      #      the guest signs in as "+919876543210";
+      #   2. the one this gate lands with -- the country-code input existed
+      #      but the picker's code was joined onto a number that already
+      #      carried its own, because one 7-to-11 national span was shared
+      #      by every country. "14155552671" under +1 became
+      #      "+114155552671" and "61412345678" under +61 became
+      #      "+6161412345678", both accepted without a word. India was
+      #      right only by arithmetic.
+      #
+      # Neither is visible to tsc, eslint or the build: every one of those
+      # strings is a valid string. The suite executes the real normaliser
+      # (esbuild-bundled, not a copy) across every shape a pasted list
+      # mixes, pins both readings per country in both directions, and
+      # checks the screen's own helper text against what the normaliser
+      # actually does -- that sentence has been wrong about this screen
+      # twice, and nothing else in CI can see a claim go stale.
+      #
+      # Floor 85, observed green at 85.
+      - name: blocked guests store a matchable identifier
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "block-users-e164" 85 "All checks passed." \
+            bun run test:block-users-e164
+      # --- Where a block actually lands ----------------------------------
+      #
+      # Blocked Guests had a control labelled "Applies to", listing every
+      # location in the account, that set nothing: `handleBlock` sends the
+      # `locationId` PROP, and the select's state reached neither the
+      # request nor -- outside demo -- the table filter beside it.
+      #
+      # The half that does damage is the missing-prop case. An undefined
+      # `locationId` is dropped by JSON.stringify, the backend's
+      # `location_id` defaults to None, and NULL is not "unknown" at
+      # enforcement time: `list_matching_guest_rules` ORs
+      # `location_id IS NULL` into every lookup, so the rule fires at EVERY
+      # location in the organization. The agent/staff-preview dashboard
+      # mounted Access Rules with no `locationId` while the active location
+      # sat in scope, so an agent blocking one guest at one venue banned
+      # them account-wide with nothing on screen saying so.
+      #
+      # Nothing in tsc can see this -- an optional prop that is legitimately
+      # optional, threaded through a `ctx` object, producing a request body
+      # that is valid either way. So the suite executes the real scope
+      # ladder for every state including the ones a browser would make you
+      # sign in as a staff agent to reach, and checks the two call sites:
+      # that the screen renders a statement rather than a control that sets
+      # nothing, and that the agent route still passes a location.
+      #
+      # Floor 40, observed green at 40.
+      - name: a block says which venues it applies at
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "block-scope" 40 "all block-scope checks passed" \
+            bun run test:block-scope
+
+      # --- What a block did to their devices -----------------------------
+      #
+      # cloud-guest #277 added `controller_blocks` to the rule response: one
+      # row per device this platform asked a venue's controller to keep off
+      # the network. It is a SIBLING of `enforcement_status` and never
+      # folded into it -- that field answers "what happened to the sessions
+      # this guest was in", this answers "and what about their devices" --
+      # and only ONE of its four states is a failure. `not_applicable`
+      # means the controller has no record of the device, so there was
+      # nothing to keep off, and drawing it as an error is as wrong as
+      # drawing a refusal as a success.
+      #
+      # PARTIAL SUCCESS IS THE NORMAL CASE. A guest has three devices and
+      # the controller knows two. "2 of 3" is the whole claim, and both
+      # ways of losing it are live failure modes: the backend's own #279
+      # shipped a summary that rounded these up and had to be unbroken on
+      # main. Nothing in tsc can see a sentence over-claim, so the suite
+      # executes the real ladder across every combination.
+      #
+      # It also pins the MikroTik guarantee positively. `controller_blocks`
+      # is `[]` at every venue reached over the router API, so every
+      # function must return nothing, the panel must not render, and the
+      # table must keep exactly the six columns it has always had -- the
+      # device column is ABSENT there, not present and empty.
+      #
+      # And the unblock half, which is load-bearing rather than cosmetic:
+      # the controller publishes no readable list of blocked clients, so
+      # our row is the only trace that a device is being held off a venue's
+      # network. If this screen does not say the hold was lifted, nothing
+      # does.
+      #
+      # Floor 55, observed green at 55.
+      - name: a block says what it did to their devices
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "block-device-outcome" 55 "all block-device-outcome checks passed" \
+            bun run test:block-device-outcome
+
       # --- Whitelist-only refusal screen ---------------------------------
       #
       # scripts/test-portal-whitelist-refusal.mjs shipped with the refusal
@@ -1675,11 +1910,19 @@ jobs:
       # `extra="ignore"` returned 201 and stored nothing, and the test read
       # the same wrong place and passed.
       #
-      # Floor 126, observed green at 126.
+      # Floor 127, observed green at 127 -- was 126. The Master console's
+      # portal-mode control adds three: that the RADIUS NAS registration is
+      # sent only to a `platform/` route, that a router id is named only for
+      # the controller's NAS row, and that the CUSTOMER page offers no
+      # portal-mode control at all. The blanket "no routerId, no RADIUS
+      # anywhere in this domain" rule was narrowed in the same commit: it now
+      # bans assembling the portal URL locally (the drift it was really
+      # protecting against) everywhere, and keeps the absolute ban on the
+      # customer surface, where TP-Link controls must never appear.
       - name: network integration contract
         run: |
           ./scripts/ci-gated-test.sh \
-            "network-integration-contract" 126 \
+            "network-integration-contract" 127 \
             "all network-integration contract checks passed" \
             bun run test:network-integration
 
@@ -1765,6 +2008,25 @@ jobs:
             "All checks passed." \
             bun run test:master-integration-repair
 
+      # The Master-only control for `network_integrations.portal_mode` and the
+      # RADIUS NAS registration, which had no interface but `curl` -- a venue
+      # was moved to RADIUS mode by hand on 2026-09-13. The assertions that
+      # matter: a PATCH whose answer is read back (a backend without the
+      # column answers 200 and ignores it), the one-time shared secret never
+      # reaching a toast or a cache, a re-registration being confirmed because
+      # it rotates the secret the controller is using, `hub_confirmed: false`
+      # rendered as the divergence that rejects every guest, automatic setup
+      # refused on the RADIUS contract (it only writes authType 4), and the
+      # customer dashboard getting none of it.
+      #
+      # Floor 69, observed green at 69.
+      - name: master Omada RADIUS portal mode
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "master-omada-radius-mode" 69 \
+            "all master Omada RADIUS-mode checks passed" \
+            bun run test:master-omada-radius
+
       # Evidence beats the label: a vendor string is something somebody
       # typed, and it must never outrank what the device itself has done.
       # This suite shipped with #271 and was never gated, which is how the
@@ -1830,3 +2092,200 @@ jobs:
             "omada-guided-setup" 46 \
             "omada guided setup: all checks passed" \
             bun run test:omada-guided-setup
+
+      # The customer dashboard's five guest controls, at a venue whose access
+      # points are a TP-Link Omada controller. Three of them were written for
+      # a MikroTik and shipped unchanged: a Bandwidth saved into a BANDWIDTH
+      # policy whose only consumer writes RouterOS `/queue simple`, a
+      # Disconnect whose response field this app discarded, and a block whose
+      # toast sent the owner to check a router the venue does not have.
+      #
+      # Drives the pure ladder directly and greps the four screens that read
+      # it. The assertion that matters most is the FIRST section: a MikroTik
+      # venue -- and a mixed venue, and one whose routers could not be read --
+      # is asserted UNCHANGED, positively, control by control, rather than by
+      # the absence of a failure.
+      #
+      # Floor 160, observed green at 166. It grew when the org-scoped client
+      # routes landed (cloud-guest #270): the ladder now reads seven declared
+      # capabilities instead of a guessed three, the backend's own refusal
+      # sentence is asserted to be rendered VERBATIM rather than paraphrased,
+      # and the MikroTik guarantee is checked as an exhaustive equality over
+      # every combination of the two legs a RouterOS venue can produce.
+      - name: omada customer client controls
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "omada-client-controls" 160 \
+            "All checks passed." \
+            bun run test:omada-client-controls
+
+      # The wire contract for those routes, driven against a stubbed `api` so
+      # the real mapping runs. The assertions that matter: no request carries
+      # an integration id, a site id or a controller address (that is the
+      # backend's tenancy design, not a URL style); `performed` defaults to
+      # false and is READ, because it arrives false on an HTTP 200 and PR #279
+      # shipped a green tick over exactly that; and every capability defaults
+      # to false, so a field nobody sent can never turn a button live.
+      #
+      # Floor 65, observed green at 69.
+      - name: omada customer client actions
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "omada-client-actions" 65 \
+            "All checks passed." \
+            bun run test:omada-client-actions
+
+      # The six defects a QA pass found on the customer dashboard at the Omada
+      # venue on 2026-09-18. Five of them are SENTENCES, and nothing above can
+      # see a sentence: a screen that promises a block "cuts off a guest's
+      # access immediately" compiles exactly as well as one that does not, and
+      # the reader who finds out is a venue owner acting on it. The headline
+      # said precisely that while `providers/omada.py` recorded the opposite --
+      # what a block does to a client holding a portal authorization is
+      # UNMEASURED -- and an empty blocklist read as "this venue has blocked
+      # nobody" when `list_blocked` is `supported: false` and no such list can
+      # be read at all.
+      #
+      # It also carries the EN/HI parity check for the venue-admin
+      # dictionaries, which nothing ran. `test:portal-i18n-parity` above is the
+      # GUEST PORTAL's ten languages and never opens these five files, so a key
+      # added to `en` and forgotten in `hi` fell back to English silently --
+      # perfect in review, visible only to the reader whose paragraph switches
+      # language mid-sentence. Both directions, so a rename that takes only one
+      # side is caught too.
+      #
+      # SECOND PASS (same day): seven more sentences, sections 8-14. The same
+      # defect in six new places, and the through-line is worth stating because
+      # it predicts where the seventh will be found. This platform's sign-in
+      # half is strong -- a rule consulted before every login, entirely on our
+      # side of the wire -- and its live-session half barely exists:
+      # `_GUEST_ACCESS_ADAPTERS` has one vendor in it, the RADIUS CoA transport
+      # measured zero successes in production, and NO scheduled sweep reads
+      # whitelist or open-hours state at all. Copy kept borrowing the first
+      # half's certainty for the second.
+      #
+      # The two worst were time-bounded promises about sweeps that do not
+      # exist: Whitelist-only claimed already-online guests are "disconnected
+      # within a few minutes", and Open Hours claimed guests are "disconnected"
+      # outside the schedule. Both are sign-in gates and nothing else.
+      #
+      # Sections 10 and 12 are gates rather than rewrites, because the claims
+      # are TRUE on RouterOS: Reset-a-session reuses the Users page's existing
+      # disconnect verdict + `disconnectOutcome` ladder, and How-it-works
+      # finally applies the controller gate its own sidebar has had all along.
+      # Section 11 records a gate that already existed (`voip` is already in
+      # CONTROLLER_UNSUPPORTED_FEATURE_IDS) so that removing it fails here.
+      #
+      # Floor 108, observed green at 114. Every new section was verified to go
+      # red when its fix is reverted (21 checks across 7 mutations).
+      - name: customer dashboard QA copy
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "dashboard-qa-copy" 108 \
+            "all customer-dashboard QA copy checks passed" \
+            bun run test:dashboard-qa-copy
+
+      # The Quotations screen's delete action. A destructive, unundoable
+      # control has four ways to be wrong that all still render: no
+      # confirmation, a permission key the backend does not seed (which
+      # makes the button silently never appear -- the incident
+      # `generate-backend-permission-keys.mjs` was written for), a list
+      # that is not invalidated, and a drawer left open on the row that was
+      # just deleted. This screen keeps its rows in local `useState` rather
+      # than react-query, so that array is the only cache there is and
+      # dropping the row from it is the whole invalidation.
+      #
+      # Floor 21, observed green at 21.
+      - name: quotation delete
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "quotation-delete" 21 \
+            "All quotation delete checks passed." \
+            bun run test:quotation-delete
+
+      # The preview-then-apply machinery, extracted out of
+      # `master.integrations.tsx` so the Omada management surfaces inherit it
+      # rather than copying it. Two of its behaviours break silently under a
+      # refactor -- the 409 gap list's lowercase/uppercase normalisation (#279,
+      # found on a live venue) and stale-preview invalidation -- so the suite
+      # exists mainly to make those loud. Its centrepiece renders the panel's
+      # pre-extraction JSX, copied verbatim off origin/main, beside the
+      # extracted component over sixteen states and compares the markup
+      # string-for-string.
+      #
+      # INVOKED AS `node scripts/...` RATHER THAN `bun run test:*`, which is
+      # the only step here that is. package.json belongs to another lane this
+      # round (the QueryClient-defaults PR), and an orphaned script is worse
+      # than an unconventional invocation: `ci-gated-test.sh` takes a command,
+      # so this runs under the same three gates as everything above it. Give it
+      # a `test:preview-then-apply` script and switch this line over when that
+      # lane lands.
+      #
+      # It drives a real Chromium for the hook's half -- the state machine is
+      # stateful, effectful and async, and a server render cannot exercise it.
+      # The Playwright step above already installs the browser.
+      #
+      # Floor 90, observed green at 90.
+      - name: preview-then-apply extraction
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "preview-then-apply" 90 "all checks passed" \
+            node scripts/test-preview-then-apply.mjs
+
+  # ---------------------------------------------------------------------------
+  # Slack
+  # ---------------------------------------------------------------------------
+  # FAILURE ONLY, and that is the whole design decision.
+  #
+  # This workflow runs on every push and every pull request. A green CI is the
+  # expected state; a message saying so carries no information and, at this
+  # repository's rate, would bury the one message that does. A channel people
+  # mute is worse than no channel. So: nothing on success.
+  #
+  # Nothing on cancellation either, and here that matters more: this workflow
+  # sets `concurrency.cancel-in-progress: true`, so every superseded push
+  # cancels the run before it. Alerting on that would be alerting on someone
+  # typing. `contains(needs.*.result, 'failure')` below is what keeps a
+  # cancellation and a failure apart. (The action renders a cancellation
+  # perfectly well; CD wants that, CI does not.)
+  #
+  # What this deliberately gives up: a "main is green again" recovery ping.
+  # That needs the previous run's conclusion, which means another API call and
+  # another way for this to be wrong; the deploy notification for the fixing
+  # commit already says main builds. If the silence turns out to be a problem,
+  # that is the thing to add.
+  notify:
+    name: Tell Slack the build broke
+    needs: [static, build, tests]
+    # `always()` so the job is not skipped along with everything else, then an
+    # explicit failure test so a cancelled run stays silent. `failure()` alone
+    # would be nearly right; this says what it means.
+    if: ${{ always() && contains(needs.*.result, 'failure') }}
+    runs-on: ubuntu-latest
+    # Belt and braces. The action is written never to exit non-zero, but this
+    # workflow is also called by cd.yml via workflow_call, where a failing job
+    # here would mean a notification breaking a deploy.
+    continue-on-error: true
+    # Narrower than the workflow default: `actions: read` is what the action
+    # needs to read this run's start time, and nothing else is required.
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      # The action lives in this repository, so it has to be on disk before it
+      # can be used. Sparse-checked-out: this job wants one action.yml, not a
+      # backend, a node_modules-sized frontend, or a vendored gateway.
+      - name: Check out the composite action
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/actions
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Notify
+        uses: ./.github/actions/slack-notify
+        with:
+          # Absent on a fork's pull request, and absent until the secret is
+          # created. Both cases skip quietly; see the action.
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          needs_json: ${{ toJSON(needs) }}
+          kind: CI

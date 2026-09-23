@@ -308,6 +308,20 @@ export interface NetworkIntegration {
    * browser never fetches it. */
   baseUrl: string;
   authMode: ControllerAuthMode;
+  /** Which captive-portal contract this venue is on -- the backend's
+   * `network_integrations.portal_mode` (cloud-guest #236, migration 0125).
+   *
+   * `null` means the backend did not send a value this build recognises. That
+   * is NOT the same as `external_portal`: a backend that predates #236 does
+   * not send the field at all, and treating its silence as the default would
+   * offer a switch whose PATCH that backend accepts with a 200 and ignores
+   * (pydantic `extra="ignore"`). The Master drawer refuses to switch on
+   * `null` for exactly that reason. Lowercase, as on the wire. */
+  portalMode: IntegrationPortalMode | null;
+  /** The fleet ("router") row this controller is registered as, when one
+   * exists. The RADIUS NAS registration hangs off it, so the Master drawer
+   * reads it to decide whether `radius-nas` can succeed at all. */
+  routerId: string | null;
   /** Certificate trust for this controller. Public, like the fingerprint:
    * a fingerprint is a hash of a certificate the controller hands to anyone
    * who connects, so it is safe to show and is shown. */
@@ -402,6 +416,34 @@ export interface PortalAuthorizeResult {
    * never fetches it, and it is handed to the guest's own browser to
    * navigate to. */
   redirectUrl: string | null;
+}
+
+/** What the Omada RADIUS-mode (`authType 2`) authorize call answered.
+ *
+ * Same "`authorized: false` is a real outcome" rule as
+ * {@link PortalAuthorizeResult}, plus the field that contract never had:
+ * a reason. On the browser-POST path this replaces, a failure was a raw
+ * JSON blob the browser had already navigated to, so there was nothing to
+ * read and nothing to style -- which is why nothing in this codebase ever
+ * read one. Here it arrives as `HTTP 200, success: false`, on a page that
+ * is still mounted.
+ *
+ * `failure` is the backend's own token, verbatim and unmapped -- one of
+ * the five members of `constants.RadiusPortalFailure` (cloud-guest#268).
+ * It is reduced to something a guest can act on by `radiusFailureOf` in
+ * `src/lib/portal-radius-authorize.ts`. `null` means the backend did not
+ * say, which is not the same as "no reason", and reads as the generic
+ * message rather than a specific claim.
+ *
+ * NOT `errorCode`, which on this domain is the operator-facing vocabulary;
+ * NOT `expiresAt`, which this contract genuinely never learns; NOT
+ * `redirectUrl`, which is our own `origin_url` echoed back. All three are
+ * absences with reasons -- see `BackendRadiusPortalAuthorize` in the
+ * service and `origin_url` in the lib. */
+export interface RadiusPortalAuthorizeResult {
+  authorized: boolean;
+  provider: string | null;
+  failure: string | null;
 }
 
 /** A site as the controller itself reports it -- live read, not a stored
@@ -1054,4 +1096,86 @@ export interface ControllerSetupOutcome {
   preAuthHost: string | null;
   /** Everything the backend returned, unmodified. */
   raw: Record<string, unknown>;
+}
+
+// ---------------------------------------------------------------------------
+// Guest-portal contract (External Portal Server vs RADIUS).
+// ---------------------------------------------------------------------------
+
+/**
+ * `constants.PortalAuthMode` on the backend, LOWERCASE because that is how it
+ * is stored and sent (`schemas._PortalMode = Literal["external_portal",
+ * "radius"]`). Deliberately not uppercased the way `ControllerSetupGap` is:
+ * this value is sent back verbatim in the PATCH body, and a map keyed on a
+ * casing the wire does not use is the trap #279 fell into.
+ *
+ * - `external_portal` -- TP-Link authType 4. The guest's browser posts to this
+ *   platform and this platform calls the controller. Outbound only. Default.
+ * - `radius` -- authType 2 + External Web Portal. The guest's browser posts to
+ *   the controller, and the controller sends an INBOUND Access-Request to this
+ *   platform's FreeRADIUS hub.
+ */
+export type IntegrationPortalMode = "external_portal" | "radius";
+
+export const INTEGRATION_PORTAL_MODES: readonly IntegrationPortalMode[] = [
+  "external_portal",
+  "radius",
+];
+
+export const INTEGRATION_PORTAL_MODE_LABEL: Record<IntegrationPortalMode, string> = {
+  external_portal: "External Portal Server",
+  radius: "RADIUS (External Web Portal)",
+};
+
+export const INTEGRATION_PORTAL_MODE_DETAIL: Record<IntegrationPortalMode, string> = {
+  external_portal:
+    "The guest's browser signs in with this platform, and this platform tells the controller to let them online. Every call is outbound, so it works behind the venue's NAT. This is the proven default.",
+  radius:
+    "The guest's browser signs in with the controller, and the controller asks this platform's RADIUS hub whether to let them online. That needs an inbound UDP path to the hub and a NAS client keyed on the controller's public IP.",
+};
+
+/** The wire value, or `null` when it is absent or not one this build knows. */
+export function normalizeIntegrationPortalMode(raw: unknown): IntegrationPortalMode | null {
+  if (typeof raw !== "string") return null;
+  const v = raw.trim().toLowerCase();
+  return (INTEGRATION_PORTAL_MODES as readonly string[]).includes(v)
+    ? (v as IntegrationPortalMode)
+    : null;
+}
+
+/**
+ * `POST /network-integrations/platform/integrations/{id}/radius-nas` -- the
+ * backend's `ControllerRadiusNasResponse` (schemas.py), mapped.
+ *
+ * `sharedSecret` is returned exactly ONCE, on the call that created or rotated
+ * it, and is never readable again. It exists in a response at all because the
+ * operator has to type it into the controller's RADIUS profile. It is held in
+ * drawer state only, never put in a query cache, a toast or a log.
+ *
+ * `hubConfirmed` is what the hub's FreeRADIUS agent answered, not what this
+ * platform intended.
+ */
+export interface ControllerRadiusNasRegistration {
+  integrationId: string;
+  nasIdentifier: string;
+  controllerIp: string;
+  sharedSecret: string;
+  hubConfirmed: boolean;
+}
+
+/**
+ * The controller's existing NAS row, read from `GET /routers/{router_id}/nas`
+ * (guest domain `RadiusNasResponse`). Only the fields the drawer needs, and
+ * never a secret -- that route has none to give.
+ */
+export interface ControllerNasRecord {
+  id: string;
+  nasIdentifier: string;
+  status: string;
+  ipAddress: string | null;
+  /** What the hub CONFIRMED it wrote into clients.conf. Differing from
+   * `ipAddress` (or null) is the state in which every Access-Request from the
+   * controller is dropped as an unknown client. */
+  hubClientSyncedIp: string | null;
+  hubClientSyncedAt: string | null;
 }

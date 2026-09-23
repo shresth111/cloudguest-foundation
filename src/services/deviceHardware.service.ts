@@ -42,6 +42,7 @@
  */
 import { api } from "@/services/api";
 import { resolveOrgId } from "@/services/customer.service";
+import type { HardwareStatusReason, HardwareStatusSource } from "@/lib/device-liveness";
 import type { DeviceType } from "@/stores/deviceStore";
 
 export interface MonitoredDeviceRow {
@@ -69,6 +70,20 @@ export interface MonitoredDeviceRow {
   /** When `uptimeSeconds` was read off the device. `null` whenever
    * `uptimeSeconds` is. */
   uptimeRecordedAt: string | null;
+  /** Whether this platform probes this device at all (BE `status_source`).
+   * A venue whose network is run by a vendor controller has no RouterOS
+   * session to probe through, so its rows are `"unmeasured"` and their
+   * permanent `unknown` must not be rendered as "Never observed".
+   *
+   * Optional on this interface even though the real branch always sets it,
+   * because `useMonitoredHardware` also widens the demo fixture
+   * (`stores/deviceStore.ts`'s `MonitoredDevice`) to this shape, and the
+   * fixture is a MikroTik venue that has no such concept. Absent reads as
+   * measured everywhere it is consumed. */
+  statusSource?: HardwareStatusSource;
+  /** Why the status reads as it does (BE `status_reason`), a code whose
+   * words belong to `@/lib/device-liveness`. */
+  statusReason?: HardwareStatusReason;
 }
 
 interface RawMonitoredHardware {
@@ -83,6 +98,8 @@ interface RawMonitoredHardware {
   connected_at: string | null;
   uptime_seconds: number | null;
   uptime_recorded_at: string | null;
+  status_source?: HardwareStatusSource | null;
+  status_reason?: HardwareStatusReason | null;
 }
 
 function toRow(r: RawMonitoredHardware): MonitoredDeviceRow {
@@ -101,6 +118,12 @@ function toRow(r: RawMonitoredHardware): MonitoredDeviceRow {
     // `!= null` guard downstream as though it were a number.
     uptimeSeconds: r.uptime_seconds ?? null,
     uptimeRecordedAt: r.uptime_recorded_at ?? null,
+    // A backend that predates these fields sends neither. Defaulting to
+    // "measured" is the pre-existing meaning of every row, so an older API
+    // renders exactly as it does today rather than turning the whole list
+    // into "Not measured".
+    statusSource: r.status_source ?? "measured",
+    statusReason: r.status_reason ?? "liveness_probe",
   };
 }
 

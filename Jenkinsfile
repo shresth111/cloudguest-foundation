@@ -151,6 +151,10 @@ pipeline {
           ./scripts/ci-gated-test.sh \
             "location-liveness" 105 "all checks passed" \
             bun run test:location-liveness
+
+          ./scripts/ci-gated-test.sh \
+            "preview-then-apply" 90 "all checks passed" \
+            node scripts/test-preview-then-apply.mjs
         '''
       }
     }

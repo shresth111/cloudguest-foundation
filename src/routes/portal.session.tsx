@@ -289,6 +289,12 @@ function SessionPage() {
     queryFn: () => portalRuntimeService.checkActiveSession({ routerId, deviceMac: deviceMac! }),
     enabled: !session && !!deviceMac,
     staleTime: 0,
+    // Explicit, not inherited: #341 set the app-wide `retry` default to 1,
+    // and this runs on the flakiest network in the product -- a guest device
+    // on an unauthorised captive-portal hotspot. The answer here decides
+    // whether they see a working session or a sign-in form, so it keeps the
+    // three attempts it has always had.
+    retry: 3,
   });
 
   useEffect(() => {
@@ -667,10 +673,42 @@ function SessionPage() {
           </PortalTextPlate>
         </div>
 
+        {/* Account creation, on top.
+         *
+         * It was the fourth thing down the column, under the stats card and
+         * the device card. It is not reference material like those two and
+         * not one of the post-connect asks below: it is the one thing worth
+         * doing *before* the guest puts the phone away, and the venue only
+         * gets this chance on a first sign-in. Putting it directly under the
+         * hero is the highest-attention position on the screen.
+         *
+         * It does not break the "at most one card under the hero" rule that
+         * governs `askSlot` below -- that rule is about the mutually-exclusive
+         * profile/review/feedback asks, and this is a link to a separate
+         * screen, not an ask. */}
+        {showPasswordNudge && (
+          <Link to="/portal/set-password" search={portalSearch} className={NUDGE_ROW_CLASS}>
+            <div className={NUDGE_CHIP_CLASS}>
+              <KeyRound className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="pg-body font-semibold text-[var(--pg-ink)]">
+                {t("nudgeSetPasswordTitle")}
+              </p>
+              <p className="truncate pg-meta font-normal text-[var(--pg-ink-muted)]">
+                {t("nudgeSetPasswordSubtitle")}
+              </p>
+            </div>
+            <ChevronRight className="h-4 w-4 shrink-0 text-[var(--pg-ink-faint)]" />
+          </Link>
+        )}
+
         {/* THE ONE ASK, directly under the hero.
          *
-         * This slot is the highest-attention position on the page and it
-         * used to hold a card about bytes and a card about a MAC address.
+         * This is the highest-attention position available to an ASK (the
+         * account-creation nudge above is a separate function, not one of
+         * these) and it used to hold a card about bytes and a card about a
+         * MAC address.
          * The guest came for internet, already has it, and the status card
          * is reference material they will scroll to if they want it -- the
          * one moment of goodwill ("it worked") is the moment directly under
@@ -735,23 +773,6 @@ function SessionPage() {
             </div>
           </div>
         </PortalCard>
-
-        {showPasswordNudge && (
-          <Link to="/portal/set-password" search={portalSearch} className={NUDGE_ROW_CLASS}>
-            <div className={NUDGE_CHIP_CLASS}>
-              <KeyRound className="h-5 w-5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="pg-body font-semibold text-[var(--pg-ink)]">
-                {t("nudgeSetPasswordTitle")}
-              </p>
-              <p className="truncate pg-meta font-normal text-[var(--pg-ink-muted)]">
-                {t("nudgeSetPasswordSubtitle")}
-              </p>
-            </div>
-            <ChevronRight className="h-4 w-4 shrink-0 text-[var(--pg-ink-faint)]" />
-          </Link>
-        )}
 
         {/* The "Have a team code?" card that used to sit here is gone, at
             the founder's request: the group question is asked ONCE, on the

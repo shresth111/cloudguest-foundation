@@ -865,11 +865,48 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
                   ? `On. Only the numbers and devices below get online at ${wlLocationName || "this property"}.`
                   : `Off. Every guest signs in on the WiFi login page and gets online — this is how ${wlLocationName || "this property"} works today.`}
               </p>
+              {/* THE LIVE-SESSION HALF WAS A PROMISE NOTHING KEEPS.
+               *
+               * This paragraph used to end "Anyone already online who is not
+               * on the list is disconnected within a few minutes" -- a
+               * time-bounded claim about a sweep that does not exist. Not
+               * unmeasured: absent. `celery_app.py`'s beat schedule has three
+               * guest-domain sweeps (session timeout, FUP time accrual, quota
+               * reset) and not one of them reads `whitelist_only_enabled` or
+               * the `guest_access_rules` table. The only thing that ever ends
+               * a live session from a rule is `BlocklistEnforcer.enforce`,
+               * which runs synchronously at rule-creation time and returns
+               * early for anything that is not a BLOCKLIST -- "a
+               * whitelist/VIP/temporary rule grants access, there is no
+               * session to end", in its own words.
+               *
+               * So an owner who flips this switch mid-shift to clear the room
+               * was told the room would clear. It does not. That is the worst
+               * shape a false sentence can take here: it is acted on once,
+               * physically, and the person finds out by watching nothing
+               * happen for five minutes.
+               *
+               * NOT GATED BY VENUE TYPE, deliberately. The absent sweep is
+               * absent on RouterOS too, so there is no venue at which the old
+               * sentence was true and this one is a regression. (At an Omada
+               * venue it is doubly untrue -- `_GUEST_ACCESS_ADAPTERS` holds
+               * only `"mikrotik"`, and the provider's `deauthorize_guest`
+               * raises `ProviderUnsupportedApiError` unconditionally -- but
+               * naming Omada here would imply MikroTik venues get the sweep.)
+               *
+               * THE REST OF THE PARAGRAPH IS TRUE AND IS KEPT VERBATIM. Guests
+               * really are refused on the page in the venue's own words
+               * (`WhitelistOnlyAccessDeniedError` carries
+               * `whitelist_only_denied_message`), and really are never sent a
+               * verification code: `check_portal_admission` refuses before the
+               * OTP is generated, precisely so a stranger cannot drain a
+               * venue's SMS credit. Hedging those would be the opposite
+               * error. */}
               <p className="mt-2 max-w-2xl text-xs leading-relaxed text-muted-foreground">
                 Turning this on does not hide your WiFi: everyone still reaches your login page, and
-                the people below keep working. Anyone already online who is not on the list is
-                disconnected within a few minutes, and everyone else is refused on that page, in
-                your words, and is never sent a verification code.
+                the people below keep working. Everyone else is refused on that page, in your words,
+                and is never sent a verification code. The list is checked when someone signs in, so
+                anyone already online stays online until their session ends.
               </p>
             </div>
           </div>

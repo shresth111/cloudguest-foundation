@@ -52,10 +52,11 @@ import { StatCard } from "@/components/ui-ext/StatCard";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DEVICE_TYPES, type DeviceType } from "@/stores/deviceStore";
-import { describeLiveness } from "@/lib/device-liveness";
+import { describeLiveness, hardwareLivenessIsMeasured } from "@/lib/device-liveness";
 import { floorSuggestions, normalizeFloor } from "@/lib/device-floors";
 import { DEVICE_TYPE_META, normalizeMac } from "@/lib/device-presentation";
 import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
+import { useControllerDevices } from "@/hooks/useControllerDevices";
 import { maskEmail, maskMac, maskPhone } from "@/components/features/HeaderControls";
 import { requestErrorMessage } from "@/services/api";
 
@@ -374,7 +375,7 @@ const STRICT_MAC_RE = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
  * registered yet" rather than reusing an unrelated graphic. Purely
  * decorative -- aria-hidden.
  */
-function HardwareEmptyState() {
+function HardwareEmptyState({ controllerManaged }: { controllerManaged: boolean }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-14 text-center">
       <svg aria-hidden="true" viewBox="0 0 120 90" className="h-20 w-28" fill="none">
@@ -422,7 +423,12 @@ function HardwareEmptyState() {
       <div>
         <p className="text-sm font-medium">No hardware set up yet</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Add a device by MAC address to start monitoring it.
+          {controllerManaged
+            ? // "start monitoring it" is a promise this venue cannot be
+              // given: the liveness sweep only probes through an
+              // agent-managed uplink, and this one has none.
+              "Add a device by MAC address to keep a record of it. Status for your access points comes from your controller, above."
+            : "Add a device by MAC address to start monitoring it."}
         </p>
       </div>
     </div>
@@ -431,6 +437,16 @@ function HardwareEmptyState() {
 
 export function NetworkHardwareView({ locationId }: { locationId?: string }) {
   const { devices, loading, addDevice, removeDevice } = useMonitoredHardware(locationId);
+  // Owned here, not inside `ControllerDevicesCard`, because both cards need
+  // the answer and one GET should serve both. See that component's own note.
+  const controllerInventory = useControllerDevices(locationId);
+  // Whether this venue's network is run by a vendor controller. Taken from
+  // the inventory read rather than guessed from the hardware rows, so the
+  // answer is the same before any hardware has been registered -- which is
+  // exactly when the "add a device to start monitoring it" empty state would
+  // otherwise make a promise this venue cannot keep.
+  const controllerManaged =
+    !controllerInventory.loading && controllerInventory.status !== "no_controller";
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyHardwareForm);
   const [macError, setMacError] = useState<string | null>(null);
@@ -491,7 +507,7 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
     >
       {/* Read-only controller inventory (Omada venues); renders nothing for a
           MikroTik venue, leaving the manual hardware card below unchanged. */}
-      <ControllerDevicesCard locationId={locationId} />
+      <ControllerDevicesCard inventory={controllerInventory} />
       <Card className="border-0 shadow-sm">
         <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
           <div className="flex items-start gap-2.5">
@@ -503,8 +519,15 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
                 Network Hardware
               </CardTitle>
               <CardDescription>
-                Set up Access Points, Printers, and other hardware for this location by MAC address
-                and floor so Device Monitoring can track them.
+                {controllerManaged
+                  ? // At a controller-managed venue nothing here pings these
+                    // MACs (the liveness sweep only dials agent-managed
+                    // uplinks), so the old copy -- "so Device Monitoring can
+                    // track them" -- was a promise the platform cannot keep.
+                    // The access points themselves are listed above, by the
+                    // controller.
+                    "Keep a record of other hardware at this location by MAC address and floor. Your access points are listed above, reported by your controller."
+                  : "Set up Access Points, Printers, and other hardware for this location by MAC address and floor so Device Monitoring can track them."}
               </CardDescription>
             </div>
           </div>
@@ -525,7 +548,7 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
               Loading devices…
             </div>
           ) : devices.length === 0 ? (
-            <HardwareEmptyState />
+            <HardwareEmptyState controllerManaged={controllerManaged} />
           ) : (
             <Table>
               <TableHeader>
@@ -571,38 +594,54 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{d.floor}</TableCell>
                       <TableCell>
-                        {/* "unknown" (never observed by the router's own sync
-                        yet -- e.g. just added) gets its own neutral
-                        treatment, never lumped in with a confirmed "Down"
-                        -- see useMonitoredHardware's own honesty note. */}
-                        <span
-                          className={cn(
-                            "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                            d.status === "up"
-                              ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                              : d.status === "down"
-                                ? "border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400"
-                                : "border-border bg-muted text-muted-foreground",
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              "h-1.5 w-1.5 rounded-full",
-                              d.status === "up"
-                                ? "bg-emerald-500"
-                                : d.status === "down"
-                                  ? "bg-rose-500"
-                                  : "bg-muted-foreground/50",
-                            )}
-                          />
-                          {/* Was "Up · 4m", where 4m was the age of
-                           * last_seen_at, not an uptime. Each duration now
-                           * names its own measurement -- @/lib/device-liveness. */}
-                          {(() => {
-                            const live = describeLiveness(d);
-                            return live.detail ? `${live.state} · ${live.detail}` : live.state;
-                          })()}
-                        </span>
+                        {/* Three different facts, three different
+                        treatments. "unknown" (never observed by the
+                        router's own sync yet -- e.g. just added) gets its
+                        own neutral treatment, never lumped in with a
+                        confirmed "Down"; and a row NOTHING measures -- a
+                        controller-managed venue has no RouterOS session for
+                        the liveness sweep to probe through -- says so
+                        rather than borrowing either word. See
+                        useMonitoredHardware's own honesty note and
+                        @/lib/device-liveness. */}
+                        {(() => {
+                          const live = describeLiveness(d);
+                          const measured = hardwareLivenessIsMeasured(d);
+                          return (
+                            <span
+                              title={live.explanation ?? undefined}
+                              className={cn(
+                                "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                                !measured
+                                  ? "border-dashed border-border bg-transparent text-muted-foreground"
+                                  : d.status === "up"
+                                    ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                    : d.status === "down"
+                                      ? "border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                                      : "border-border bg-muted text-muted-foreground",
+                              )}
+                            >
+                              {/* No status dot for an unmeasured row: a dot
+                               * is a reading, and there is none. */}
+                              {measured && (
+                                <span
+                                  className={cn(
+                                    "h-1.5 w-1.5 rounded-full",
+                                    d.status === "up"
+                                      ? "bg-emerald-500"
+                                      : d.status === "down"
+                                        ? "bg-rose-500"
+                                        : "bg-muted-foreground/50",
+                                  )}
+                                />
+                              )}
+                              {/* Was "Up · 4m", where 4m was the age of
+                               * last_seen_at, not an uptime. Each duration now
+                               * names its own measurement. */}
+                              {live.detail ? `${live.state} · ${live.detail}` : live.state}
+                            </span>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell className="text-right">
                         <button
@@ -632,7 +671,9 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
             <DialogHeader>
               <DialogTitle>Add Network Hardware</DialogTitle>
               <DialogDescription>
-                Enter the device's MAC address, type, and the floor it's installed on.
+                {controllerManaged
+                  ? "Enter the device's MAC address, type, and the floor it's installed on. This keeps a record of it — status for this venue's hardware comes from your controller, not from this platform."
+                  : "Enter the device's MAC address, type, and the floor it's installed on."}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={submit} className="space-y-5">

@@ -15,6 +15,7 @@ import {
   RadioTower,
   RefreshCw,
   Search,
+  RadioReceiver,
   ShieldCheck,
   Trash2,
   Users,
@@ -22,7 +23,11 @@ import {
 } from "lucide-react";
 
 import { MasterShell } from "@/components/master/MasterShell";
-import { OmadaPortalSetupSteps } from "@/components/network-integrations/OmadaPortalSetupSteps";
+import {
+  CopyValueRow,
+  OmadaPortalSetupSteps,
+} from "@/components/network-integrations/OmadaPortalSetupSteps";
+import { PreviewThenApply } from "@/components/network-integrations/PreviewThenApply";
 import { OmadaSiteMapping } from "@/components/network-integrations/OmadaSiteMapping";
 import {
   MPageShell,
@@ -38,11 +43,22 @@ import {
   MDialog,
   M_INPUT,
 } from "@/components/master/MasterKit";
+import { usePreviewThenApply } from "@/hooks/usePreviewThenApply";
 import { relativeTime } from "@/lib/friendly";
 import {
   deriveIntegrationSetup,
   halfConfiguredIntegrations,
 } from "@/lib/network-integration-readiness";
+import { orderGapsBy } from "@/lib/preview-then-apply";
+import {
+  configureControllerPortalModeBlock,
+  controllerIpDefaultFromBaseUrl,
+  describeRadiusNasFailure,
+  portalModeSwitchBlock,
+  radiusNasRegisterBlock,
+  RADIUS_MODE_PREREQUISITES,
+  type RadiusNasFailure,
+} from "@/lib/omada-portal-mode";
 import { cn } from "@/lib/utils";
 import type { AppError } from "@/services/api";
 import { networkIntegrationService } from "@/services/network-integration.service";
@@ -60,7 +76,10 @@ import {
   NETWORK_INTEGRATION_STATUS_DETAIL,
   NETWORK_INTEGRATION_STATUS_LABEL,
   NETWORK_INTEGRATION_STATUS_TONE,
+  INTEGRATION_PORTAL_MODE_DETAIL,
+  INTEGRATION_PORTAL_MODE_LABEL,
   type ControllerAuthMode,
+  type ControllerRadiusNasRegistration,
   type ControllerSetupOutcome,
   type NetworkIntegration,
   type NetworkIntegrationCredentials,
@@ -154,6 +173,10 @@ const keys = {
       f.page,
     ] as const,
   events: (id: string) => ["master", "network-integrations", id, "events"] as const,
+  /** Keyed on the ROUTER, because that is what the NAS row hangs off and what
+   * the route takes. Two integrations cannot share one fleet device. */
+  controllerNas: (routerId: string) =>
+    ["master", "network-integrations", "controller-nas", routerId] as const,
   organizations: ["master", "network-integrations", "organizations"] as const,
 };
 
@@ -175,11 +198,7 @@ const TAG_TONE: Record<NetworkIntegrationStatusTone, string> = {
  * before storing the credentials that can list sites sends an operator to a
  * screen that cannot answer. */
 function orderedGaps(gaps: string[]): string[] {
-  const rank = (g: string) => {
-    const i = CONTROLLER_SETUP_GAP_ORDER.indexOf(g as never);
-    return i === -1 ? Number.MAX_SAFE_INTEGER : i;
-  };
-  return [...gaps].sort((a, b) => rank(a) - rank(b));
+  return orderGapsBy(CONTROLLER_SETUP_GAP_ORDER, gaps);
 }
 
 /**
@@ -679,93 +698,81 @@ function IntegrationDrawer({
    * platform was willing to generate for them. "Provision a TP-Link customer
    * and nothing appears on the Omada side" is that gap, exactly.
    *
-   * PREVIEW BEFORE APPLY IS ENFORCED, not suggested. `outcome` has to hold a
-   * dry run before Apply is enabled. This writes to a customer's live
+   * PREVIEW BEFORE APPLY IS ENFORCED, not suggested. `state.previewed` has to
+   * hold a dry run before Apply is enabled. This writes to a customer's live
    * controller; an operator should read what it intends to do first. It is
    * also how the real response shape gets observed -- see
    * `ControllerSetupOutcome`, which is deliberately loose because that shape
    * could not be read from any source available when this was written.
    */
-  const [outcome, setOutcome] = useState<ControllerSetupOutcome | null>(null);
-  const [previewed, setPreviewed] = useState(false);
-  /**
-   * Preconditions the backend refused on, read off a 409 rather than a
-   * response body.
-   *
-   * A refusal before any write -- an unmet precondition, a foreign portal on
-   * the SSID, a shared site -- comes back as `409` with a typed `data.code`,
-   * and never as a `ControllerConfigureResponse`. So a gap list read off the
-   * success body would be permanently empty: a body only exists for a run that
-   * already got past its preconditions.
-   */
-  const [configureGaps, setConfigureGaps] = useState<string[]>([]);
   const [takeOver, setTakeOver] = useState(false);
   const [confirmTakeOver, setConfirmTakeOver] = useState(false);
 
-  const configure = useMutation({
-    mutationFn: (dryRun: boolean) =>
+  /**
+   * The dry-run gate, the 409 gap list and the outcome panel all now live in
+   * `usePreviewThenApply` / `<PreviewThenApply>`, moved there verbatim so the
+   * Omada management surfaces being built next inherit them instead of
+   * copying them. Every behaviour below was this route's and is unchanged;
+   * `scripts/test-preview-then-apply.mjs` pins the two that a refactor breaks
+   * silently -- the 409 lowercase/uppercase gap normalisation and
+   * stale-preview invalidation.
+   */
+  const configure = usePreviewThenApply<ControllerSetupOutcome>({
+    run: (dryRun) =>
       networkIntegrationService.configurePlatformController(integration, {
         dryRun,
         takeOverSsidPortal: takeOver,
       }),
-    onSuccess: (result, dryRun) => {
-      setOutcome(result);
-      // Got far enough to return a body, so nothing is blocking it any more.
-      setConfigureGaps([]);
-      if (dryRun) {
-        setPreviewed(true);
-        toast.success("Preview complete — nothing was changed on the controller.");
-      } else {
-        // NOT "the venue is live". This changed the controller's
-        // configuration, which is a different claim from a guest being able
-        // to get online: the portal URL can be right and the venue still down
-        // for reasons this never touched. The probe and a real guest are
-        // separate proofs, and the copy says so rather than letting a green
-        // toast imply the whole chain works.
-        toast.success(
-          "Controller configuration applied. That is not yet proof a guest can get online — run Test connectivity, then try a real device.",
-        );
-        onChanged();
-      }
+    toOutcome: (result) => ({
+      dryRun: result.dryRun,
+      ok: result.ok,
+      changed: result.changed,
+      raw: result.raw,
+      steps: result.steps.map((st) => ({
+        key: st.step,
+        label: CONTROLLER_CONFIGURE_STEP_LABEL[st.step] ?? st.step,
+        outcomeLabel: CONTROLLER_CONFIGURE_OUTCOME_LABEL[st.outcome] ?? st.outcome,
+        failed: st.outcome === "failed",
+        message: st.message,
+        providerCode: st.providerCode,
+      })),
+    }),
+    /**
+     * NOTHING HERE READS THE CONTROLLER'S CONFIGURATION BACK, and that is a
+     * statement of fact rather than an oversight: `_configure_controller` is
+     * the only call this screen has, there is no matching read of the portal,
+     * the pre-auth entry and the operator account, and a write on this
+     * platform can return success and change nothing. So this surface
+     * declares that it cannot confirm its own write, and its apply copy says
+     * so instead of claiming the venue is live. The two real proofs -- Test
+     * connectivity and a guest device -- are named in that toast and are the
+     * same two an operator has always had to use.
+     */
+    readBack: {
+      kind: "not-read-back",
+      why: "Nothing reads the controller's configuration back after this write. Test connectivity and a real guest device are the separate proofs.",
     },
-    onError: (err) => {
-      // The 409 path, and BOTH halves of it matter -- verified against the
-      // live QA venue on 2026-09-12, where this rendered
-      // "NETWORK_INTEGRATION_AUTOCONFIG_PRECONDITIONS - this build does not
-      // recognise that precondition" instead of the one gap that was
-      // actually unmet.
-      //
-      //   {"data": {"code": "NETWORK_INTEGRATION_AUTOCONFIG_PRECONDITIONS",
-      //             "missing": ["openapi_required"]}}
-      //
-      // `data.code` names the REFUSAL; `data.missing` is the gap list. They
-      // are different things, and rendering the code as a gap produces an
-      // amber panel that names no fix -- the precise failure the panel exists
-      // to prevent. `missing` is absent on the other pre-write refusals (a
-      // foreign portal on the SSID, a shared site), so the code stays as the
-      // fallback rather than leaving those silent.
-      //
-      // Casing is the second half: the backend emits `ControllerSetupGap`
-      // values lowercase (`openapi_required`) while `CONTROLLER_SETUP_GAP_COPY`
-      // and `CONTROLLER_SETUP_GAP_ORDER` are keyed on the uppercase union.
-      // Without this normalisation a correct list still renders as
-      // unrecognised, so the two bugs hid each other.
-      const e = err as unknown as AppError;
-      const typed = (e?.data?.code ?? e?.code) as string | undefined;
-      const rawMissing = e?.data?.missing;
-      const missing = Array.isArray(rawMissing)
-        ? rawMissing.filter((g): g is string => typeof g === "string").map((g) => g.toUpperCase())
-        : [];
-      if (e?.status === 409 && (missing.length > 0 || typed)) {
-        setConfigureGaps(missing.length > 0 ? missing : [typed as string]);
-        // A stale preview describes a run that is now refused, and leaving it
-        // on screen under a fresh refusal reads as though it still applies.
-        setOutcome(null);
-        setPreviewed(false);
-        return;
-      }
-      toast.error(errorText(err, "The controller could not be configured."));
+    onPreviewed: () => {
+      toast.success("Preview complete — nothing was changed on the controller.");
     },
+    onApplied: () => {
+      // NOT "the venue is live". This changed the controller's
+      // configuration, which is a different claim from a guest being able
+      // to get online: the portal URL can be right and the venue still down
+      // for reasons this never touched. The probe and a real guest are
+      // separate proofs, and the copy says so rather than letting a green
+      // toast imply the whole chain works.
+      toast.success(
+        "Controller configuration applied. That is not yet proof a guest can get online — run Test connectivity, then try a real device.",
+      );
+      onChanged();
+    },
+    onFailed: (err) => toast.error(errorText(err, "The controller could not be configured.")),
+    // `inputs` is deliberately NOT passed. The only input this run has is the
+    // take-over checkbox, and turning it ON already invalidates the preview
+    // through the confirmation dialog below. Passing it would additionally
+    // invalidate when it is turned OFF, which is a behaviour change, and this
+    // extraction is not the change that should make it.
   });
 
   /**
@@ -902,15 +909,26 @@ function IntegrationDrawer({
     operatorOptional: true,
   });
 
+  /** Set for a RADIUS-mode venue: automatic setup would put the controller
+   * back on the External Portal Server contract. See the lib. */
+  const configureBlock = configureControllerPortalModeBlock(integration.portalMode);
+
   // Every operation that can be in flight, so a control is never live
   // while another one is mid-write against the same controller. Both
   // sides of this merge defined their own `busy`; keeping either alone
   // would leave the other's buttons clickable during its own run.
+  /** The portal-contract section owns its own mutations (the PATCH and the
+   * NAS registration), and they write to the same venue as everything else in
+   * this drawer -- so it reports its pending state up rather than letting the
+   * other controls stay live during one. */
+  const [contractBusy, setContractBusy] = useState(false);
+
   const busy =
     test.isPending ||
     setEnabled.isPending ||
-    configure.isPending ||
+    configure.isRunning ||
     replaceCreds.isPending ||
+    contractBusy ||
     remove.isPending;
   const setup = deriveIntegrationSetup(integration);
 
@@ -1167,139 +1185,61 @@ function IntegrationDrawer({
         </DrawerSection>
 
         <DrawerSection title="Configure the controller">
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Sets the guest portal URL on the SSID, adds the pre-authentication access rule, and
-              creates the hotspot operator account on the controller — the steps otherwise done by
-              hand in Omada. Preview first; nothing is written until you apply.
-            </p>
+          {/* AUTOMATIC SETUP HAS NO RADIUS BRANCH. `_configure_controller`
+              always writes an External Portal Server (authType 4) portal
+              onto the SSID -- it never reads `portal_mode`. On a RADIUS-mode
+              venue that silently moves the CONTROLLER back to the other
+              contract while this row still says RADIUS, which is the two
+              halves disagreeing about who authorises guests with nothing on
+              either screen saying so. Refused here rather than discovered
+              afterwards -- `blocked` disables both buttons and says why. */}
+          <PreviewThenApply
+            state={configure.state}
+            busy={busy}
+            running={configure.isRunning}
+            onPreview={configure.preview}
+            onApply={configure.apply}
+            blocked={configureBlock}
+            orderGaps={orderedGaps}
+            gapCopy={(g) => (isControllerSetupGap(g) ? CONTROLLER_SETUP_GAP_COPY[g] : null)}
+            /* The one gap whose fix is a control ON THIS SCREEN gets that
+               control, rather than a sentence pointing at one. Its copy
+               already says "Use Replace credentials above"; until the form
+               grew a mode field that instruction could not be carried out at
+               all, and even now it asks the reader to scroll up, find the
+               section, and know to change a setting the sentence does not
+               mention.
 
-            {/* GAPS COME FROM THE 409, NOT FROM THE SUCCESS BODY. A refusal
-                before any write -- an unmet precondition, a foreign portal on
-                the SSID, a shared site -- is a 409 carrying a typed
-                `data.code`, and never a `ControllerConfigureResponse`. Reading
-                gaps off the response would mean they never appeared at all,
-                because a response only exists for a run that got past them. */}
-            {configureGaps.length > 0 && (
-              <div className="space-y-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
-                <p className="text-sm font-medium">Not ready yet — fix this first:</p>
-                <ol className="space-y-1.5">
-                  {orderedGaps(configureGaps).map((g) => {
-                    const copy = isControllerSetupGap(g) ? CONTROLLER_SETUP_GAP_COPY[g] : null;
-                    return (
-                      <li key={g} className="text-sm">
-                        <span className="font-medium">{copy?.title ?? g}</span>
-                        <span className="block text-xs text-muted-foreground">
-                          {/* An unrecognised precondition is printed verbatim
-                              rather than dropped: one nobody renders is a
-                              refusal with no reason given. */}
-                          {copy?.fix ??
-                            "This build does not recognise that precondition — ask support."}
-                        </span>
-                        {/* The one gap whose fix is a control ON THIS SCREEN
-                            gets that control, rather than a sentence pointing
-                            at one. Its copy already says "Use Replace
-                            credentials above"; until the form grew a mode
-                            field that instruction could not be carried out at
-                            all, and even now it asks the reader to scroll up,
-                            find the section, and know to change a setting the
-                            sentence does not mention. */}
-                        {/* UPPERCASE. The handler normalises the backend's
-                            lowercase `ControllerSetupGap` values to the
-                            uppercase union `CONTROLLER_SETUP_GAP_COPY` is
-                            keyed on, so by the time a gap reaches this list
-                            it is `OPENAPI_REQUIRED`. Comparing against the
-                            wire casing here would have made this button
-                            never render -- the same casing trap that made
-                            the whole panel print "unrecognised" until #279. */}
-                        {g === "OPENAPI_REQUIRED" && (
-                          <MButton
-                            variant="outline"
-                            className="mt-1.5"
-                            disabled={busy}
-                            onClick={() => {
-                              setCredsMode("openapi");
-                              setCredsOpen(true);
-                            }}
-                          >
-                            <KeyRound /> Switch to Open API credentials
-                          </MButton>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ol>
-              </div>
-            )}
-
-            {outcome && (
-              <div className="space-y-2 rounded-lg border border-border bg-muted/40 p-3">
-                <p className="text-sm font-medium">
-                  {outcome.dryRun
-                    ? "What this would change"
-                    : outcome.changed
-                      ? "What was changed"
-                      : "Nothing needed changing"}
-                </p>
-
-                {/* `ok: false` arrives with HTTP 200 and a false envelope, so
-                    the steps are the only place the reason exists. Surfaced
-                    loudly rather than left to the toast, which is gone by the
-                    time anyone reads the detail. */}
-                {!outcome.ok && (
-                  <p className="text-sm font-medium text-destructive">
-                    {outcome.dryRun
-                      ? "Some steps would fail. The controller is unchanged."
-                      : "Some steps failed — the controller is only partly configured."}
-                  </p>
-                )}
-
-                {outcome.steps.length > 0 ? (
-                  <ul className="space-y-1.5">
-                    {outcome.steps.map((st, i) => (
-                      <li key={`${st.step}-${i}`} className="text-sm">
-                        <span className="font-medium">
-                          {CONTROLLER_CONFIGURE_STEP_LABEL[st.step] ?? st.step}
-                        </span>{" "}
-                        <span
-                          className={
-                            st.outcome === "failed" ? "text-destructive" : "text-muted-foreground"
-                          }
-                        >
-                          — {CONTROLLER_CONFIGURE_OUTCOME_LABEL[st.outcome] ?? st.outcome}
-                        </span>
-                        {st.message && (
-                          <span className="block text-xs text-muted-foreground">{st.message}</span>
-                        )}
-                        {/* The controller's own error number, for the support
-                            conversation that follows a failure. */}
-                        {st.outcome === "failed" && st.providerCode != null && (
-                          <span className="block text-xs text-muted-foreground">
-                            Controller error code {st.providerCode}
-                          </span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-sm text-muted-foreground">The controller reported no steps.</p>
-                )}
-
-                {/* Kept from the version written before the schema was known.
-                    This is a response an operator may need verbatim during an
-                    incident, and a field added server-side should reach the
-                    screen without a frontend release. */}
-                <details className="mt-1">
-                  <summary className="cursor-pointer text-xs text-muted-foreground">
-                    Exactly what the controller reported
-                  </summary>
-                  <pre className="mt-2 max-h-64 overflow-auto rounded bg-background p-2 text-[11px] leading-relaxed">
-                    {JSON.stringify(outcome.raw, null, 2)}
-                  </pre>
-                </details>
-              </div>
-            )}
-
+               UPPERCASE. `refusalGapsFromError` normalises the backend's
+               lowercase `ControllerSetupGap` values to the uppercase union
+               `CONTROLLER_SETUP_GAP_COPY` is keyed on, so by the time a gap
+               reaches this list it is `OPENAPI_REQUIRED`. Comparing against
+               the wire casing here would have made this button never render
+               -- the same casing trap that made the whole panel print
+               "unrecognised" until #279. */
+            renderGapAction={(g) =>
+              g === "OPENAPI_REQUIRED" && (
+                <MButton
+                  variant="outline"
+                  className="mt-1.5"
+                  disabled={busy}
+                  onClick={() => {
+                    setCredsMode("openapi");
+                    setCredsOpen(true);
+                  }}
+                >
+                  <KeyRound /> Switch to Open API credentials
+                </MButton>
+              )
+            }
+            intro={
+              <p className="text-sm text-muted-foreground">
+                Sets the guest portal URL on the SSID, adds the pre-authentication access rule, and
+                creates the hotspot operator account on the controller — the steps otherwise done by
+                hand in Omada. Preview first; nothing is written until you apply.
+              </p>
+            }
+          >
             <label className="flex cursor-pointer items-start gap-2 text-sm">
               <input
                 type="checkbox"
@@ -1318,27 +1258,7 @@ function IntegrationDrawer({
                 </span>
               </span>
             </label>
-
-            <div className="flex flex-wrap gap-2">
-              <MButton variant="outline" disabled={busy} onClick={() => configure.mutate(true)}>
-                {configure.isPending ? <Loader2 className="animate-spin" /> : <ShieldCheck />}
-                Preview changes
-              </MButton>
-              <MButton
-                variant="primary"
-                disabled={!previewed || busy}
-                aria-disabled={!previewed || busy}
-                title={
-                  previewed
-                    ? undefined
-                    : "Run the preview first — this writes to a live controller."
-                }
-                onClick={() => configure.mutate(false)}
-              >
-                Apply to controller
-              </MButton>
-            </div>
-          </div>
+          </PreviewThenApply>
         </DrawerSection>
 
         <DrawerSection title="Controller health">
@@ -1398,6 +1318,14 @@ function IntegrationDrawer({
             onSaved={onChanged}
           />
         </DrawerSection>
+
+        <PortalContractSection
+          key={integration.id}
+          integration={integration}
+          drawerBusy={busy}
+          onBusyChange={setContractBusy}
+          onChanged={onChanged}
+        />
 
         <PortalLinkSection integration={integration} />
 
@@ -1520,8 +1448,7 @@ function IntegrationDrawer({
                 setConfirmTakeOver(false);
                 // A previous preview was computed without take-over, so it no
                 // longer describes what Apply would do.
-                setPreviewed(false);
-                setOutcome(null);
+                configure.invalidate();
               }}
             >
               Take it over
@@ -1611,6 +1538,435 @@ function IntegrationDrawer({
 }
 
 /**
+ * WHICH GUEST-PORTAL CONTRACT THIS VENUE IS ON, and the RADIUS NAS
+ * registration that contract needs.
+ *
+ * ## Why this control had to exist
+ *
+ * `network_integrations.portal_mode` (cloud-guest #236, migration 0125) has
+ * been switchable only by a raw `PATCH` against the platform route, and
+ * registering the controller as a RADIUS client only by a raw `POST` to
+ * `/radius-nas`. On 2026-09-13 an engineer moved the QA venue by hand with
+ * curl. Both routes are GLOBAL-scoped and belong here; neither may ever appear
+ * on a customer dashboard, where the switch would read as "break guest WiFi
+ * until three other things happen elsewhere".
+ *
+ * ## What the switch does and does not do
+ *
+ * It writes one column and changes the parameters on the venue's portal link.
+ * It arranges NO inbound UDP path, NO NAS client and NO controller
+ * configuration -- so moving to RADIUS is confirmed item by item against the
+ * prerequisites in `RADIUS_MODE_PREREQUISITES`, each of which is something a
+ * venue's guests pay for if it is missing.
+ *
+ * ## The secret is shown once
+ *
+ * `POST /radius-nas` generates the shared secret and returns it in that one
+ * response; nothing can read it back. It is held in this component's state,
+ * rendered for the operator to type into the controller, and dropped when they
+ * dismiss it or close the drawer -- never a toast, never a query cache.
+ *
+ * Registering a controller that ALREADY has a NAS row rotates that secret
+ * (`router.py` takes the `regenerate_secret` branch), which stops the value
+ * currently in the controller's RADIUS profile working the moment it returns.
+ * So the existing row is read first and a re-registration is confirmed.
+ */
+function PortalContractSection({
+  integration,
+  drawerBusy,
+  onBusyChange,
+  onChanged,
+}: {
+  integration: NetworkIntegration;
+  drawerBusy: boolean;
+  onBusyChange: (busy: boolean) => void;
+  onChanged: () => void;
+}) {
+  const mode = integration.portalMode;
+  const switchBlock = portalModeSwitchBlock(mode);
+
+  const [confirmRadius, setConfirmRadius] = useState(false);
+  const [acknowledged, setAcknowledged] = useState<Record<string, boolean>>({});
+  const [confirmExternal, setConfirmExternal] = useState(false);
+  const allAcknowledged = RADIUS_MODE_PREREQUISITES.every((p) => acknowledged[p.key]);
+
+  const [controllerIp, setControllerIp] = useState("");
+  const [registration, setRegistration] = useState<ControllerRadiusNasRegistration | null>(null);
+  const [failure, setFailure] = useState<RadiusNasFailure | null>(null);
+  const [confirmRotate, setConfirmRotate] = useState(false);
+
+  /** The NAS row the controller already has, so this screen can say whether
+   * Register will create one or rotate the secret of the one the controller is
+   * using right now. Only asked on the contract that can have one. */
+  const nas = useQuery({
+    queryKey: keys.controllerNas(integration.routerId ?? "none"),
+    queryFn: () =>
+      networkIntegrationService.getPlatformControllerNas(integration.routerId as string),
+    enabled: mode === "radius" && !!integration.routerId,
+    staleTime: 30_000,
+    retry: 1,
+  });
+
+  const setMode = useMutation({
+    mutationFn: (next: "external_portal" | "radius") =>
+      networkIntegrationService.setPlatformPortalMode(integration.id, next),
+    onSuccess: (_updated, next) => {
+      setConfirmRadius(false);
+      setConfirmExternal(false);
+      setAcknowledged({});
+      if (next === "radius") {
+        // NOT "RADIUS mode is live". The column is what changed.
+        toast.success(
+          "Recorded as RADIUS mode. Nothing on the controller changed — register the controller below, then configure its RADIUS profile and portal by hand.",
+        );
+      } else {
+        toast.warning(
+          "Back on External Portal Server. The controller still has whatever RADIUS portal was set on it, and any NAS client stays registered — remove it from RADIUS NAS if it is no longer used.",
+        );
+      }
+      onChanged();
+    },
+    onError: (err) =>
+      toast.error(
+        // `setPlatformPortalMode` throws a plain Error when the backend
+        // answered 200 with a mode it did not change -- that message is the
+        // finding and must not be replaced by a generic one.
+        err instanceof Error && !("status" in err)
+          ? err.message
+          : errorText(err, "The portal mode could not be changed."),
+      ),
+  });
+
+  const register = useMutation({
+    mutationFn: () =>
+      networkIntegrationService.registerPlatformControllerRadiusNas(integration.id, {
+        controllerIp,
+      }),
+    onSuccess: (result) => {
+      setConfirmRotate(false);
+      setFailure(null);
+      setRegistration(result);
+      nas.refetch();
+      // No secret and no claim about guests in the toast: the panel below
+      // carries the only copy of the secret, and `hub_confirmed` is what says
+      // whether the RADIUS server agrees.
+      toast.success("Controller registered with the RADIUS hub.");
+    },
+    onError: (err) => {
+      setConfirmRotate(false);
+      setRegistration(null);
+      setFailure(describeRadiusNasFailure(err));
+    },
+  });
+
+  const writing = setMode.isPending || register.isPending;
+  useEffect(() => {
+    onBusyChange(writing);
+    return () => onBusyChange(false);
+  }, [writing, onBusyChange]);
+
+  const busy = drawerBusy || writing;
+  const registerBlock = radiusNasRegisterBlock({
+    portalMode: mode,
+    routerId: integration.routerId,
+    baseUrl: integration.baseUrl,
+    controllerIpInput: controllerIp,
+  });
+  const ipDefault = controllerIpDefaultFromBaseUrl(integration.baseUrl);
+
+  return (
+    <DrawerSection title="Guest portal contract">
+      <div className="space-y-3">
+        <Row
+          label="Contract"
+          value={mode ? INTEGRATION_PORTAL_MODE_LABEL[mode] : "Not reported by this backend"}
+        />
+        <p className="text-sm text-muted-foreground">
+          {mode
+            ? INTEGRATION_PORTAL_MODE_DETAIL[mode]
+            : "This build of the API does not send a portal mode, so this venue's contract cannot be read or changed from here."}
+        </p>
+
+        {switchBlock ? (
+          <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+            <p className="font-medium">Cannot be switched from here</p>
+            <p className="text-muted-foreground">{switchBlock}</p>
+          </div>
+        ) : mode === "external_portal" ? (
+          <MButton
+            variant="outline"
+            disabled={busy}
+            onClick={() => {
+              setAcknowledged({});
+              setConfirmRadius(true);
+            }}
+          >
+            <RadioReceiver /> Switch to RADIUS mode…
+          </MButton>
+        ) : (
+          <MButton variant="outline" disabled={busy} onClick={() => setConfirmExternal(true)}>
+            <RadioReceiver /> Switch back to External Portal Server…
+          </MButton>
+        )}
+
+        {mode === "radius" && (
+          <div className="space-y-3 rounded-lg border border-border p-3">
+            <p className="text-sm font-medium">Register the controller with RADIUS</p>
+            <p className="text-xs text-muted-foreground">
+              Writes a <code>client&#123;&#125;</code> stanza on the FreeRADIUS hub keyed on the
+              controller&rsquo;s public IP and hands back a shared secret, once. Type that secret
+              into the controller&rsquo;s RADIUS profile — this platform cannot put it there. It
+              does not open the UDP path: without that, every guest login times out.
+            </p>
+
+            {/* What is registered TODAY, read before the click, because
+                registering again rotates the secret the controller is using. */}
+            {nas.isLoading ? (
+              <p className="text-xs text-muted-foreground">Reading the current registration…</p>
+            ) : nas.isError ? (
+              <p className="text-xs text-muted-foreground">
+                The current registration could not be read, so this screen cannot say whether
+                registering would create one or rotate an existing secret.
+              </p>
+            ) : nas.data ? (
+              <div className="space-y-0.5 text-xs text-muted-foreground">
+                <p>
+                  Already registered as{" "}
+                  <span className="font-mono text-foreground">{nas.data.nasIdentifier}</span>
+                  {nas.data.ipAddress ? ` for ${nas.data.ipAddress}` : ""}.
+                </p>
+                <p>
+                  {nas.data.hubClientSyncedIp
+                    ? `The hub confirmed a stanza for ${nas.data.hubClientSyncedIp}${
+                        nas.data.hubClientSyncedAt
+                          ? ` ${relativeTime(nas.data.hubClientSyncedAt)}`
+                          : ""
+                      }.`
+                    : "The hub has never confirmed a stanza for it — the database is ahead of the RADIUS server."}
+                </p>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">No NAS client is registered yet.</p>
+            )}
+
+            <div className="space-y-1">
+              <label
+                htmlFor="controller-public-ip"
+                className="block text-xs font-medium text-muted-foreground"
+              >
+                Controller public IP
+              </label>
+              <input
+                id="controller-public-ip"
+                className={M_INPUT}
+                autoComplete="off"
+                placeholder={ipDefault ?? "e.g. 13.126.39.79"}
+                value={controllerIp}
+                onChange={(e) => setControllerIp(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                The address the controller&rsquo;s RADIUS requests arrive <strong>from</strong>, not
+                the one this platform reaches it on — a controller behind NAT differs.{" "}
+                {ipDefault
+                  ? `Left empty, the controller address's host (${ipDefault}) is used.`
+                  : "The controller address is a hostname, so this has to be typed."}
+              </p>
+            </div>
+
+            <MButton
+              variant="primary"
+              disabled={busy || registerBlock !== null}
+              aria-disabled={busy || registerBlock !== null}
+              title={registerBlock ?? undefined}
+              onClick={() => {
+                // An existing row -- or a read that could not answer -- means
+                // this may rotate a live secret. Confirmed, not assumed.
+                if (nas.data || nas.isError) setConfirmRotate(true);
+                else register.mutate();
+              }}
+            >
+              {register.isPending ? <Loader2 className="animate-spin" /> : <KeyRound />}
+              Register controller with RADIUS
+            </MButton>
+
+            {registerBlock && <p className="text-xs text-muted-foreground">{registerBlock}</p>}
+
+            {failure && (
+              <div className="space-y-1 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
+                <p className="font-medium text-destructive">{failure.title}</p>
+                <p className="text-muted-foreground">{failure.detail}</p>
+              </div>
+            )}
+
+            {registration && (
+              <div className="space-y-2 rounded-lg border border-border bg-muted/40 p-3">
+                <p className="text-sm font-medium">Registered — copy the secret now</p>
+                {/* `hub_confirmed` is what the hub's agent answered, not what
+                    this platform intended. False means the database is ahead
+                    of the RADIUS server, which is the divergence that rejects
+                    every guest while every row looks healthy. */}
+                {registration.hubConfirmed ? (
+                  <p className="text-sm text-muted-foreground">
+                    The hub confirmed the stanza for {registration.controllerIp}.
+                  </p>
+                ) : (
+                  <p className="text-sm font-medium text-destructive">
+                    The hub did NOT confirm the stanza. The database is ahead of the RADIUS server —
+                    do not configure the controller yet; register again, which takes the rotate path
+                    and converges.
+                  </p>
+                )}
+                <CopyValueRow label="NAS identifier" value={registration.nasIdentifier} />
+                <CopyValueRow label="Controller IP" value={registration.controllerIp} />
+                <CopyValueRow label="Shared secret" value={registration.sharedSecret} />
+                <p className="text-xs text-muted-foreground">
+                  Shown once and never readable again. Type it into the controller&rsquo;s RADIUS
+                  profile (PAP, accounting off). Registering again generates a new one and the old
+                  one stops working.
+                </p>
+                <MButton variant="outline" onClick={() => setRegistration(null)}>
+                  I have copied it
+                </MButton>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* MOVING A VENUE ONTO RADIUS IS CONFIRMED ITEM BY ITEM. Not an "are you
+          sure?": each line is a prerequisite this switch does not arrange, and
+          the first three are what the venue's guests pay for if it is missing.
+          The runbook (`ops/runbooks/omada-radius-mode.md`) is the long form. */}
+      <MDialog
+        open={confirmRadius}
+        onClose={() => setConfirmRadius(false)}
+        title="Switch this venue to RADIUS mode?"
+        wide
+      >
+        <div className="space-y-4 p-5">
+          <p className="text-sm">
+            <span className="font-semibold">{integration.name}</span>
+            <span className="block text-sm text-muted-foreground">
+              {integration.organizationName || "Unknown customer"} ·{" "}
+              {integration.locationName || "no venue mapped"}
+            </span>
+          </p>
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3">
+            <p className="text-sm font-medium text-destructive">
+              Guests at this venue stop signing in through this platform.
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Their browsers will post to the controller instead, and the controller will ask our
+              RADIUS hub. Until every item below is true, that ends in a timeout the guest sees as a
+              raw JSON blob. Reversible from this drawer.
+            </p>
+          </div>
+          <div className="space-y-2">
+            {RADIUS_MODE_PREREQUISITES.map((p) => (
+              <label key={p.key} className="flex cursor-pointer items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={acknowledged[p.key] ?? false}
+                  onChange={(e) => setAcknowledged((a) => ({ ...a, [p.key]: e.target.checked }))}
+                />
+                <span>
+                  {p.title}
+                  <span className="block text-xs text-muted-foreground">{p.detail}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          <div className="flex flex-wrap justify-end gap-2">
+            <MButton variant="outline" onClick={() => setConfirmRadius(false)}>
+              Cancel
+            </MButton>
+            <MButton
+              variant="primary"
+              disabled={!allAcknowledged || setMode.isPending}
+              aria-disabled={!allAcknowledged || setMode.isPending}
+              title={
+                allAcknowledged
+                  ? undefined
+                  : "Confirm every prerequisite — this switch arranges none of them."
+              }
+              onClick={() => setMode.mutate("radius")}
+            >
+              {setMode.isPending && <Loader2 className="animate-spin" />}
+              Switch to RADIUS mode
+            </MButton>
+          </div>
+        </div>
+      </MDialog>
+
+      <MDialog
+        open={confirmExternal}
+        onClose={() => setConfirmExternal(false)}
+        title="Switch back to External Portal Server?"
+      >
+        <div className="space-y-4 p-5">
+          <p className="text-sm text-muted-foreground">
+            Guest sign-in returns to the contract this integration was proven on: the guest&rsquo;s
+            browser posts to this platform and this platform opens the gate.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            The controller is not touched. It keeps whatever RADIUS portal is configured on it, and
+            until that is changed back — Apply to controller can write the External Portal Server
+            portal once this venue is off RADIUS — its guests reach a portal this platform no longer
+            answers for. Any NAS client stays registered and keeps a live secret on the hub.
+          </p>
+          <div className="flex flex-wrap justify-end gap-2">
+            <MButton variant="outline" onClick={() => setConfirmExternal(false)}>
+              Cancel
+            </MButton>
+            <MButton
+              variant="primary"
+              disabled={setMode.isPending}
+              aria-disabled={setMode.isPending}
+              onClick={() => setMode.mutate("external_portal")}
+            >
+              {setMode.isPending && <Loader2 className="animate-spin" />}
+              Switch back
+            </MButton>
+          </div>
+        </div>
+      </MDialog>
+
+      <MDialog
+        open={confirmRotate}
+        onClose={() => setConfirmRotate(false)}
+        title="Register again and rotate the secret?"
+      >
+        <div className="space-y-4 p-5">
+          <p className="text-sm text-muted-foreground">
+            {nas.data
+              ? `This controller is already registered as ${nas.data.nasIdentifier}.`
+              : "This screen could not read whether the controller is already registered."}{" "}
+            Registering generates a <strong>new</strong> shared secret and pushes it to the hub. The
+            secret currently in the controller&rsquo;s RADIUS profile stops working the moment this
+            returns, and every guest is rejected until the new one is typed in.
+          </p>
+          <div className="flex flex-wrap justify-end gap-2">
+            <MButton variant="outline" onClick={() => setConfirmRotate(false)}>
+              Cancel
+            </MButton>
+            <MButton
+              variant="primary"
+              disabled={register.isPending}
+              aria-disabled={register.isPending}
+              onClick={() => register.mutate()}
+            >
+              {register.isPending && <Loader2 className="animate-spin" />}
+              Rotate and register
+            </MButton>
+          </div>
+        </div>
+      </MDialog>
+    </DrawerSection>
+  );
+}
+
+/**
  * The External Portal Server URL, on the Master console too.
  *
  * ## Why it is on BOTH dashboards and not only the customer one
@@ -1657,6 +2013,21 @@ function PortalLinkSection({ integration }: { integration: NetworkIntegration })
 
   return (
     <DrawerSection title="Guest portal setup">
+      {/* THE STEPS BELOW ARE THE EXTERNAL PORTAL SERVER FORM. On the RADIUS
+          contract the same URL goes somewhere else on the controller, and
+          following step 1 as written would move the venue back to authType 4
+          on the controller while this row still says RADIUS. */}
+      {integration.portalMode === "radius" && (
+        <div className="mb-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+          <p className="font-medium">This venue is on RADIUS mode</p>
+          <p className="text-muted-foreground">
+            The steps below describe the External Portal Server form. Here the same URL goes into
+            the portal&rsquo;s <strong>External Web Portal</strong> field, with Authentication Type
+            RADIUS and a RADIUS profile pointing at the hub with the shared secret from the portal
+            contract section (PAP, accounting off). The pre-authentication entry is still needed.
+          </p>
+        </div>
+      )}
       <OmadaPortalSetupSteps
         scheme={scheme}
         hostAndQuery={hostAndQuery}

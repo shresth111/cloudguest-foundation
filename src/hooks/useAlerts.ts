@@ -35,6 +35,10 @@ export function useAlertsFeed(scope: AlertsFeedScope) {
     },
     staleTime: 15_000,
     refetchInterval: 60_000,
+    // The notification bell is a live surface and its poll pauses while the
+    // tab is away; coming back must not show a minute-old alert count.
+    // Explicit because the app-wide default is now `false` (`router.tsx`, #341).
+    refetchOnWindowFocus: true,
     retry: 1,
   });
 }

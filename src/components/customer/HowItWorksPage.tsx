@@ -15,6 +15,13 @@ import {
 } from "@/lib/customerNav";
 import { filterNavGroupsByPermissions } from "@/lib/customerNavPermissions";
 import { useMyPermissions } from "@/hooks/useCustomerDashboard";
+import { useCustomerStore } from "@/stores/customerStore";
+import { locationControllerVendor, locationIsControllerManaged } from "@/lib/location-liveness";
+import {
+  controllerVenueFeatureReason,
+  featureAppliesToControllerVenue,
+} from "@/lib/router-vendors";
+import { cn } from "@/lib/utils";
 
 /**
  * The customer-facing "How the dashboard works" reference page, reachable
@@ -84,6 +91,31 @@ import { useMyPermissions } from "@/hooks/useCustomerDashboard";
 export function HowItWorksView() {
   const { t } = useTranslation(["help", "nav"], { i18n });
   const navigate = useNavigate();
+  // THE SIDEBAR'S GATE, APPLIED TO THE PAGE THAT EXPLAINS THE SIDEBAR.
+  //
+  // This page's whole design is that it renders the same expression the
+  // sidebar does, so the two cannot drift. It had drifted anyway, in the one
+  // dimension nobody had added when it was written: `CustomerSidebar` greys
+  // the five RouterOS-only rows at a controller venue and prints
+  // `controllerVenueFeatureReason` under the group, and this page printed
+  // confident descriptions of all five with a live link and no note at all.
+  //
+  // So at an Omada venue the single screen whose job is "what can I do here"
+  // was the one screen still answering for a MikroTik. Rewriting the five
+  // sentences to be vendor-neutral is necessary but not sufficient: a
+  // vendor-neutral sentence about Website Blocking still reads as a feature
+  // this venue has.
+  //
+  // Same gate, same reason string, same source of truth -- no third pattern.
+  // `locationIsControllerManaged` is `every`, not `some`, so a venue with a
+  // MikroTik alongside the controller, and one whose routers could not be
+  // read, are both untouched: `controllerManaged` is false and every branch
+  // below collapses to what it rendered before.
+  const activeLocation = useCustomerStore((s) => s.activeLocation);
+  const controllerManaged = locationIsControllerManaged(activeLocation?.liveness);
+  const controllerReason = controllerVenueFeatureReason(
+    locationControllerVendor(activeLocation?.liveness),
+  );
 
   // Same two-stage narrowing as the sidebar (CustomerSidebar.tsx) -- role
   // preference first, then the caller's real effective grants. Both only
@@ -168,12 +200,25 @@ export function HowItWorksView() {
                     // appears here, correctly named and correctly linked.
                     const description = t(`help:feature.${item.id}`, { defaultValue: "" });
                     const ItemIcon = item.icon;
+                    // Muted, still a link, and still described -- the sidebar's
+                    // exact treatment and for the reasons its comment gives:
+                    // removing the row loses the question, disabling it loses
+                    // the answer. The screen is reachable and explains itself
+                    // when opened; this page's job is to stop an owner planning
+                    // around a feature their venue configures elsewhere.
+                    const viaController = controllerManaged
+                      ? !featureAppliesToControllerVenue(item.id)
+                      : false;
                     return (
                       <button
                         key={item.id}
                         type="button"
                         onClick={() => navigate({ to: customerFeatureHref(item.id) })}
-                        className="premium-card premium-card-hover group flex w-full items-start gap-3 rounded-2xl p-4 text-left transition-colors sm:p-5"
+                        title={viaController ? controllerReason : undefined}
+                        className={cn(
+                          "premium-card premium-card-hover group flex w-full items-start gap-3 rounded-2xl p-4 text-left transition-colors sm:p-5",
+                          viaController && "opacity-60",
+                        )}
                       >
                         <ItemIcon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                         <span className="min-w-0 flex-1">
@@ -194,6 +239,19 @@ export function HowItWorksView() {
                     );
                   })}
                 </div>
+                {/* One quiet line, in the group it is about, and only when
+                    something in that group is actually greyed -- the same
+                    placement and the same sentence `CustomerSidebar` uses. A
+                    tooltip on a muted card is only found by the reader who
+                    already hovers it; this is the line for the one who does
+                    not, and this page is where a reader goes precisely BECAUSE
+                    they did not understand the sidebar. */}
+                {controllerManaged &&
+                  group.items.some((item) => !featureAppliesToControllerVenue(item.id)) && (
+                    <p className="px-1 pb-3 text-xs leading-snug text-muted-foreground">
+                      {controllerReason}
+                    </p>
+                  )}
               </AccordionContent>
             </AccordionItem>
           );

@@ -24,6 +24,8 @@ import { isLocationNamedPolicy } from "@/lib/policy-scope";
 import { bandwidthPolicyService } from "@/services/bandwidth-policy.service";
 import { resolveOrgId } from "@/services/customer.service";
 import { guestService } from "@/services/guest.service";
+import { useClientControls } from "@/hooks/useClientControls";
+import { ControllerControlNotice } from "@/components/customer/ControllerControlNotice";
 // A group's "Devices Per User" field lives on a completely separate
 // PolicyType.DEVICE policy from its bandwidth policy -- real per-guest
 // device-count enforcement (guest/service.py's _resolve_device_limit) reads
@@ -397,6 +399,7 @@ function Select({
   tooltip,
   caption,
   err,
+  disabled,
 }: {
   id: string;
   label: string;
@@ -408,22 +411,24 @@ function Select({
   tooltip?: string;
   caption?: string;
   err?: string;
+  disabled?: boolean;
 }) {
   return (
     <div>
       <label
         htmlFor={id}
-        className="mb-1 flex items-center gap-1 text-sm font-medium text-slate-600 dark:text-slate-300"
+        className={`mb-1 flex items-center gap-1 text-sm font-medium ${disabled ? "text-slate-400 dark:text-slate-500" : "text-slate-600 dark:text-slate-300"}`}
       >
         {label}
-        {required && <span className="text-indigo-500">*</span>}
+        {required && !disabled && <span className="text-indigo-500">*</span>}
         {tooltip && <Tooltip text={tooltip} />}
       </label>
       <select
         id={id}
         value={value}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+        className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
       >
         {placeholder && (
           <option value="" disabled>
@@ -497,6 +502,22 @@ const DEMO_GROUPS: Group[] = [
 ];
 
 export default function CreateGroup({ locationId }: { locationId?: string } = {}) {
+  // A tier's speed is the one field on this form whose reach depends on the
+  // venue's hardware -- everything else a tier carries (how long, how many
+  // devices, the daily limit, who is in it) is platform-side and works
+  // everywhere. At a MikroTik venue both verdicts are `available` and nothing
+  // below changes.
+  //
+  // At a controller venue the venue's declared `set_rate_limit` capability
+  // decides it, and the sentence beside a greyed field is the backend's own.
+  // Where it IS supported the field stays live with a caveat, because the
+  // shape differs and an owner will notice: on a router the tier's speed
+  // arrives with the guest's sign-in, and on a controller it is a separate
+  // write once they are already online.
+  const clientControls = useClientControls();
+  const tierSpeedVerdict = clientControls.verdict("speed-profile");
+  const tierSpeedUsable = tierSpeedVerdict.availability !== "unavailable";
+  const tierSessionTimeoutVerdict = clientControls.verdict("session-timeout");
   const demo = useIsDemo();
   const [groups, setGroups] = useState<Group[]>(demo ? DEMO_GROUPS : []);
   const [orgId, setOrgId] = useState<string | null>(null);
@@ -760,7 +781,11 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
     if (!name) e.name = "Required.";
     else if (groups.some((g) => g.id !== editingId && g.name.toLowerCase() === name.toLowerCase()))
       e.name = "A tier with this name already exists.";
-    if (!bw) e.bw = "Required.";
+    // Not required when it cannot be honoured -- see the identical relaxation
+    // on Guest WiFi Limits. A disabled field that still blocks Save would make
+    // Access Tiers unusable at a controller venue over the one setting that
+    // was never going to apply there.
+    if (!bw && tierSpeedUsable) e.bw = "Required.";
     if (!st) e.st = "Required.";
     if (!it) e.it = "Required.";
     if (!dp) e.dp = "Required.";
@@ -1928,17 +1953,28 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                 How fast members connect, and how many devices each member can use.
               </p>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Select
-                  id="g-bw"
-                  label="Bandwidth"
-                  required
-                  value={bw}
-                  onChange={(v) => setField("bw", v)}
-                  options={BANDWIDTH}
-                  placeholder="Choose bandwidth"
-                  caption="Maximum speed per device in this tier."
-                  err={errs.bw}
-                />
+                {/* A tier's speed is delivered by the venue's router when the
+                    guest signs in -- `Mikrotik-Rate-Limit` on the Access-Accept
+                    plus a `/queue simple` write -- and both legs are MikroTik-
+                    only. At a controller venue this number reached nothing and
+                    said nothing, which is the same defect as Guest WiFi Limits'
+                    Bandwidth field one tab over. Disabled with the reason
+                    attached; the rest of the tier stays fully editable. */}
+                <div>
+                  <Select
+                    id="g-bw"
+                    label="Bandwidth"
+                    required
+                    disabled={!tierSpeedUsable}
+                    value={bw}
+                    onChange={(v) => setField("bw", v)}
+                    options={BANDWIDTH}
+                    placeholder="Choose bandwidth"
+                    caption="Maximum speed per device in this tier."
+                    err={errs.bw}
+                  />
+                  <ControllerControlNotice verdict={tierSpeedVerdict} />
+                </div>
                 <Select
                   id="g-dp"
                   label="Devices Per User"
@@ -2040,17 +2076,20 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                 When a member gets disconnected, has to sign in again, or can connect at all.
               </p>
               <div className="grid gap-4 sm:grid-cols-3">
-                <Select
-                  id="g-st"
-                  label="Session Timeout"
-                  required
-                  value={st}
-                  onChange={(v) => setField("st", v)}
-                  options={SESSION_TIMEOUT}
-                  placeholder="Choose session timeout"
-                  caption="Re-authenticate after this much time."
-                  err={errs.st}
-                />
+                <div>
+                  <Select
+                    id="g-st"
+                    label="Session Timeout"
+                    required
+                    value={st}
+                    onChange={(v) => setField("st", v)}
+                    options={SESSION_TIMEOUT}
+                    placeholder="Choose session timeout"
+                    caption="Re-authenticate after this much time."
+                    err={errs.st}
+                  />
+                  <ControllerControlNotice verdict={tierSessionTimeoutVerdict} />
+                </div>
                 <Select
                   id="g-it"
                   label="Idle Timeout"

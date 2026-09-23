@@ -38,6 +38,19 @@ export interface PhoneCountry {
   code: string;
   /** What the picker shows, e.g. "🇮🇳 +91". */
   label: string;
+  /**
+   * How many digits a MOBILE number in this country has once the trunk
+   * prefix is gone. This is the field that decides which of the two
+   * readings of a bare string wins, so it is per-country and not one
+   * global range -- see `normalizePhoneToE164`'s judgement call 2.
+   *
+   * Mobile only, deliberately. Every identifier this normaliser produces
+   * is one a guest receives an OTP on (`useGuestSignIn.ts`), so a UK
+   * landline's nine digits are not a number this screen can usefully
+   * block, and admitting them would widen the national reading back over
+   * the country-code one.
+   */
+  nationalDigits: readonly number[];
 }
 
 /**
@@ -47,11 +60,11 @@ export interface PhoneCountry {
  * identically. India first: that is who this product sells to.
  */
 export const PHONE_COUNTRIES: readonly PhoneCountry[] = [
-  { code: "+91", label: "🇮🇳 +91" },
-  { code: "+1", label: "🇺🇸 +1" },
-  { code: "+44", label: "🇬🇧 +44" },
-  { code: "+61", label: "🇦🇺 +61" },
-  { code: "+971", label: "🇦🇪 +971" },
+  { code: "+91", label: "🇮🇳 +91", nationalDigits: [10] },
+  { code: "+1", label: "🇺🇸 +1", nationalDigits: [10] },
+  { code: "+44", label: "🇬🇧 +44", nationalDigits: [10] },
+  { code: "+61", label: "🇦🇺 +61", nationalDigits: [9] },
+  { code: "+971", label: "🇦🇪 +971", nationalDigits: [9] },
 ];
 
 export const DEFAULT_DIAL_CODE = "+91";
@@ -89,15 +102,41 @@ const E164_MIN_DIGITS = 8;
 const E164_MAX_DIGITS = 15;
 
 /**
- * Plausible length of a *national* number once the trunk prefix is gone,
- * across the codes this product offers: AE/AU 9, IN/GB/US 10, with a
- * digit of slack either side for the codes we do not list. A bare string
- * inside this range is read as a national number and gets the picker's
- * code; one outside it is not, which is what lets `919876543210` be
- * recognised as a country code the owner typed without the "+".
+ * Plausible length of a *national* number for a dialling code this module
+ * does NOT list. A bare string inside this range is read as a national
+ * number and gets the picker's code.
+ *
+ * ONLY A FALLBACK NOW, AND THAT IS THE FIX. This pair used to be the rule
+ * for every country, and the width of it is what made
+ * `normalizePhoneToE164`'s country-code reading unreachable:
+ *
+ *   * with `+1` selected, `14155552671` is 11 digits, which fitted the old
+ *     `<= 11` national range, so it was joined to the picker's code and
+ *     stored as `+114155552671` -- a rule that can never match the
+ *     `+14155552671` the guest signs in with;
+ *   * with `+61` selected, `61412345678` is also 11, and became
+ *     `+6161412345678`, the country code twice.
+ *
+ * Both were ACCEPTED SILENTLY. `+91` escaped it only by arithmetic: an
+ * Indian number carrying its own code is 12 digits, one past the old
+ * ceiling, so it fell through to the country-code branch and was right for
+ * the wrong reason. That is the whole defect class this file exists to
+ * end, reintroduced by a range that could not tell the two readings apart.
+ *
+ * A listed country now answers with its own `nationalDigits` instead, so
+ * the two readings are decided by the length that country's numbers
+ * actually have rather than by one span wide enough to cover all of them.
  */
 const NATIONAL_MIN_DIGITS = 7;
 const NATIONAL_MAX_DIGITS = 11;
+
+/**
+ * The mobile lengths for a dialling code, or null when it is not one this
+ * module lists -- in which case the caller falls back to the range above
+ * and behaves exactly as this module always has.
+ */
+const nationalDigitsFor = (dialCode: string): readonly number[] | null =>
+  PHONE_COUNTRIES.find((c) => c.code === dialCode)?.nationalDigits ?? null;
 
 export type PhoneNormalizeReason =
   | "empty"
@@ -153,15 +192,31 @@ const fail = (reason: PhoneNormalizeReason): PhoneNormalizeResult => ({
  *
  * 2. A BARE STRING OF NATIONAL LENGTH IS A NATIONAL NUMBER, even when it
  *    happens to begin with the picker's own digits. "9198765432" is ten
- *    digits, so it is read as a local number and becomes "+919198765432",
- *    not as "+91" plus an eight-digit stub. Ten digits is what an Indian
- *    owner types; a country code without the "+" only becomes the better
- *    reading once the string is too long to be national. Anything that
- *    fits neither reading is rejected with `ambiguous` rather than
- *    guessed at -- a wrong guess here is a rule that silently never
- *    matches, which is the bug this file exists to end.
+ *    digits, which is what an Indian mobile has, so it is read as a local
+ *    number and becomes "+919198765432", not as "+91" plus an eight-digit
+ *    stub. A country code without the "+" is the better reading only once
+ *    the string is NOT a national length -- and "national length" is that
+ *    country's own, `PhoneCountry.nationalDigits`, never a range spanning
+ *    every country this picker offers.
  *
- * Nothing is ever accepted in a shape that cannot match a sign-in.
+ *    THAT DISTINCTION IS THE BUG THIS PARAGRAPH USED TO HAVE. The rule was
+ *    the same sentence measured against one global 7-11 span, and an
+ *    11-digit string is a national length in no country this module lists
+ *    while being exactly what `+1` and `+61` numbers look like carrying
+ *    their own code. So "14155552671" under +1 was joined a second time
+ *    into "+114155552671" and "61412345678" under +61 into
+ *    "+6161412345678", both accepted without a word. India was correct
+ *    only by accident -- its code plus its national number is 12 digits,
+ *    one past the old ceiling.
+ *
+ *    Anything that fits neither reading is rejected with `ambiguous`
+ *    rather than guessed at -- a wrong guess here is a rule that silently
+ *    never matches, which is the bug this file exists to end.
+ *
+ * Nothing is ever accepted in a shape that cannot match a sign-in. A
+ * rejection the owner can see beats a rule that quietly never fires, so
+ * where the two readings disagree this returns a reason rather than a
+ * number, and the screen's own helper text promises no more than this.
  */
 export function normalizePhoneToE164(
   raw: string,
@@ -195,8 +250,19 @@ export function normalizePhoneToE164(
   if (!national) return fail("not-a-number");
 
   const ccDigits = dialCode.replace(/^\+/, "");
+  // This country's own mobile lengths, or the old global span for a code
+  // this module does not list -- which is the only path left that can
+  // still read an 11-digit string as national, and it belongs to no
+  // country the picker offers.
+  const lengths = nationalDigitsFor(dialCode);
+  const isNationalLength = (n: number) =>
+    lengths ? lengths.includes(n) : n >= NATIONAL_MIN_DIGITS && n <= NATIONAL_MAX_DIGITS;
+  const shortestNational = lengths ? Math.min(...lengths) : NATIONAL_MIN_DIGITS;
 
-  if (national.length >= NATIONAL_MIN_DIGITS && national.length <= NATIONAL_MAX_DIGITS) {
+  // READING 1: a local number, which gets the picker's code. Judgement
+  // call 2 -- this wins whenever the length fits, even when the string
+  // happens to start with the picker's own digits.
+  if (isNationalLength(national.length)) {
     const joined = toE164(dialCode, national);
     // Guard the join itself: a long national number under a long dialling
     // code can still overflow E.164.
@@ -204,17 +270,23 @@ export function normalizePhoneToE164(
     return { ok: true, e164: joined };
   }
 
-  // Too long to be a national number. The one reading left that is not a
-  // guess is "the owner typed the country code and left off the +", and
-  // we only accept it when the string actually starts with the code they
-  // have selected.
-  if (national.startsWith(ccDigits) && national.length > ccDigits.length) {
+  // READING 2: the owner typed the country code and left off the "+".
+  // Accepted only when the string starts with the code they have selected
+  // AND what follows is a national number in that country -- both halves,
+  // because "starts with the code" alone is what let `14155552671` and
+  // `61412345678` be read as national under the old range and joined a
+  // second time. The remainder test is what makes this branch reachable at
+  // all for a code whose national length is 9 or 10.
+  if (national.startsWith(ccDigits) && isNationalLength(national.length - ccDigits.length)) {
     if (national.length < E164_MIN_DIGITS) return fail("too-short");
     if (national.length > E164_MAX_DIGITS) return fail("too-long");
     return { ok: true, e164: `+${national}` };
   }
 
-  if (national.length < NATIONAL_MIN_DIGITS) return fail("too-short");
+  // Neither reading fits. Say which way it missed, and never guess: a
+  // wrong guess here is a rule that silently never fires, and an owner who
+  // can see the rejection can fix the number.
+  if (national.length < shortestNational) return fail("too-short");
   if (national.length > E164_MAX_DIGITS) return fail("too-long");
   // Long enough to carry some country code, but not one we can identify:
   // say so instead of prepending the picker's code and writing a rule
