@@ -69,7 +69,7 @@ const outdir = mkdtempSync(join(tmpdir(), "device-liveness-"));
 const entry = join(outdir, "entry.mjs");
 writeFileSync(
   entry,
-  `export { describeLiveness, formatDuration, formatAge, uptimeCoverage, UPTIME_STALE_AFTER_MS }
+  `export { describeLiveness, formatDuration, formatAge, uptimeCoverage, isRouterUnreadable, UPTIME_STALE_AFTER_MS }
      from ${JSON.stringify(join(ROOT, "src/lib/device-liveness.ts"))};`,
 );
 const bundle = join(outdir, "bundle.mjs");
@@ -81,9 +81,13 @@ await build({
   outfile: bundle,
   logLevel: "silent",
 });
-const { describeLiveness, formatDuration, uptimeCoverage, UPTIME_STALE_AFTER_MS } = await import(
-  bundle
-);
+const {
+  describeLiveness,
+  formatDuration,
+  uptimeCoverage,
+  isRouterUnreadable,
+  UPTIME_STALE_AFTER_MS,
+} = await import(bundle);
 
 const NOW = Date.parse("2026-09-07T11:00:00Z");
 const ago = (ms) => new Date(NOW - ms).toISOString();
@@ -287,6 +291,114 @@ const coverage = uptimeCoverage([
 ]);
 eq("measured count", coverage.measured, 1);
 eq("total count", coverage.total, 3);
+
+// ---------------------------------------------------------------------------
+// 7b. A router we cannot read is not a device that was never observed.
+//
+// Founder report 2026-09-15: "Added access point but ... status shows
+// 'Never observed' even though it is working." The venue router rejected
+// the platform's RouterOS login on every discovery read, so nothing was
+// ever recorded -- and the screen blamed the access point.
+// ---------------------------------------------------------------------------
+
+console.log("\na device behind an unreadable router says the router is the problem");
+
+const blank = { lastSeenAt: null, connectedAt: null, uptimeSeconds: null, uptimeRecordedAt: null };
+
+const authFailed = describeLiveness(
+  { ...blank, status: "unknown", observationIssue: "router_auth_failed" },
+  NOW,
+);
+check(
+  'the founder\'s case no longer reads "Never observed"',
+  authFailed.state !== "Never observed",
+  authFailed.state,
+);
+eq("it names the router", authFailed.state, "Can't reach router");
+eq("and what failed", authFailed.detail, "router rejected our login");
+eq("in a warning tone, not neutral and not down", authFailed.tone, "warning");
+
+const downBehindDeadRouter = describeLiveness(
+  {
+    ...blank,
+    status: "down",
+    lastSeenAt: ago(2 * 60 * MIN),
+    observationIssue: "router_unreachable",
+  },
+  NOW,
+);
+eq(
+  "a stale DOWN behind a dead router is not called Down",
+  downBehindDeadRouter.state,
+  "Can't reach router",
+);
+eq(
+  "and keeps its last-seen age, labelled",
+  downBehindDeadRouter.detail,
+  "router not responding · last seen 2h 0m ago",
+);
+eq("not painted red", downBehindDeadRouter.tone, "warning");
+
+for (const issue of [
+  "router_auth_failed",
+  "router_missing_credentials",
+  "router_unreachable",
+  "router_read_failed",
+]) {
+  check(`${issue} counts as an unreadable router`, isRouterUnreadable(issue));
+}
+for (const issue of ["not_seen_by_router", "router_not_synced_yet", "no_router", null, undefined]) {
+  check(`${issue} does not`, !isRouterUnreadable(issue));
+}
+
+const upIgnoresIssue = describeLiveness(
+  { ...blank, status: "up", lastSeenAt: ago(MIN), observationIssue: "router_auth_failed" },
+  NOW,
+);
+eq("an UP device is never relabelled by an issue", upIgnoresIssue.state, "Up");
+eq("and stays green", upIgnoresIssue.tone, "up");
+
+eq(
+  "a successful read that did not find the MAC says so plainly",
+  describeLiveness({ ...blank, status: "unknown", observationIssue: "not_seen_by_router" }, NOW)
+    .state,
+  "Not seen on network",
+);
+eq(
+  "a device registered before the first check is waiting, not missing",
+  describeLiveness({ ...blank, status: "unknown", observationIssue: "router_not_synced_yet" }, NOW)
+    .state,
+  "Not checked yet",
+);
+eq(
+  "a controller venue explains where its devices are",
+  describeLiveness({ ...blank, status: "unknown", observationIssue: "controller_managed" }, NOW)
+    .detail,
+  "listed under your controller",
+);
+eq(
+  "an older backend with no issue field still reads Never observed",
+  describeLiveness({ ...blank, status: "unknown" }, NOW).state,
+  "Never observed",
+);
+
+console.log("\nthe dashboard card does not call an unobserved device 'up'");
+
+const card = readFileSync(
+  join(ROOT, "src/components/customer/dashboard/DeviceStatusCard.tsx"),
+  "utf8",
+);
+check(
+  '"all up" is gated on every device being up, not on none being down',
+  /typeUp === typeDevices\.length \? \(\s*<span[^>]*>\s*· all up/.test(card),
+);
+check("the card separates an unreadable router out", /isRouterUnreadable/.test(card));
+check(
+  "the real service maps observation_issue",
+  /observationIssue: r\.observation_issue/.test(
+    readFileSync(join(ROOT, "src/services/deviceHardware.service.ts"), "utf8"),
+  ),
+);
 
 // ---------------------------------------------------------------------------
 // 8. No call site reintroduces the concatenation.
