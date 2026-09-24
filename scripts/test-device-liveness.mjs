@@ -390,7 +390,8 @@ const card = readFileSync(
 );
 check(
   '"all up" is gated on every device being up, not on none being down',
-  /typeUp === typeDevices\.length \? \(\s*<span[^>]*>\s*· all up/.test(card),
+  // `(\{" "\}\s*)?`: prettier wraps the span once it is nested deep enough.
+  /typeUp === typeDevices\.length \? \(\s*<span[^>]*>\s*(\{" "\}\s*)?· all up/.test(card),
 );
 check("the card separates an unreadable router out", /isRouterUnreadable/.test(card));
 check(
