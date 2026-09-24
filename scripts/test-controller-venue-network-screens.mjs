@@ -620,14 +620,25 @@ console.log("\nSecurity -> Firewall: plain words in, forward rules out");
     })(),
   );
   check(
-    "an-edit-that-clears-a-field-is-a-replace-not-an-update",
-    fw
-      .fieldsAnEditWouldClear(
-        { sourceAddress: "192.168.88.5", destinationAddress: null, destinationPort: 443 },
-        { sourceAddress: null, destinationAddress: null, destinationPort: null },
-      )
-      .join(",") === "sourceAddress,destinationPort",
-    "PUT /firewall-rules/{id} drops nulls, so an update would silently keep them",
+    "an-edit-that-clears-a-field-sends-an-explicit-null",
+    (() => {
+      // cloud-guest#306: on PUT an omitted key is "unchanged" and an explicit
+      // null clears it. JSON drops \`undefined\`, so a cleared address or
+      // port must come out of the form as null or the edit keeps the old one.
+      const f = fw.draftToFields(
+        draft({ decision: "allow", who: "", where: "", service: "everything" }),
+      );
+      const body = JSON.parse(JSON.stringify(f));
+      return (
+        "sourceAddress" in body &&
+        body.sourceAddress === null &&
+        "destinationAddress" in body &&
+        body.destinationAddress === null &&
+        "destinationPort" in body &&
+        body.destinationPort === null
+      );
+    })(),
+    "a cleared field serialised as undefined is silently kept by the backend",
   );
   check(
     "operator-made-router-rules-are-read-only-here",
