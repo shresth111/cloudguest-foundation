@@ -31,7 +31,7 @@
  *
  * Run: node scripts/test-consoles-never-mix.mjs
  */
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -87,6 +87,35 @@ for (const guard of GUARDS) {
         `    A check that does not send the visitor away still renders the page.`,
     );
   }
+}
+
+// The Master Console must not link into the customer-layout tree. A link to a
+// non-/master path from a /master page is either bounced to the Master home
+// by _authenticated.tsx (the "Manage this router" button did exactly that)
+// or, worse, renders the old surface on the master host. The router screen
+// has its own /master address for this reason.
+const ROUTES = join(ROOT, "src/routes");
+for (const name of readdirSync(ROUTES)) {
+  if (!/^master[.-]/.test(name) || name.startsWith("master-login")) continue;
+  const source = stripComments(readFileSync(join(ROUTES, name), "utf8"));
+  if (
+    /to=["{`]*"?\/routers\/\$routerId/.test(source) ||
+    /to:\s*"\/routers\/\$routerId"/.test(source)
+  ) {
+    failures.push(
+      `src/routes/${name}: links to /routers/$routerId, which the master host redirects away.\n` +
+        `    Link to /master/routers/$routerId instead.`,
+    );
+  }
+}
+const masterRouterRoute = stripComments(
+  readFileSync(join(ROUTES, "master.routers.$routerId.tsx"), "utf8"),
+);
+if (!/createFileRoute\("\/master\/routers\/\$routerId"\)/.test(masterRouterRoute)) {
+  failures.push(
+    "src/routes/master.routers.$routerId.tsx: the router screen must live under /master,\n" +
+      "    so master.tsx's operator-only guard runs before it.",
+  );
 }
 
 if (failures.length > 0) {

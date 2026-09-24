@@ -162,11 +162,13 @@ check(`SUSPEND_TARGET_STATUS is "suspended"`, SUSPEND_TARGET_STATUS === "suspend
 console.log("\nboth surfaces read one rule, not two copies");
 
 const TABLE = readFileSync(join(ROOT, "src/components/routers/RouterTable.tsx"), "utf8");
-const DETAIL = readFileSync(join(ROOT, "src/routes/_authenticated/routers.$routerId.tsx"), "utf8");
+// The detail page's body moved to a component so the Master Console can
+// mount it at /master/routers/$routerId too; the rule is read there.
+const DETAIL = readFileSync(join(ROOT, "src/components/routers/RouterDetailPage.tsx"), "utf8");
 
 for (const [label, src] of [
   ["RouterTable.tsx", TABLE],
-  ["routers.$routerId.tsx", DETAIL],
+  ["RouterDetailPage.tsx", DETAIL],
 ]) {
   check(`${label} imports the shared rule`, /from "@\/lib\/router-actions"/.test(src));
   check(`${label} uses canSuspendRouter`, /canSuspendRouter\(/.test(src));

@@ -1,0 +1,197 @@
+import { useState } from "react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { ArrowLeft, MoreHorizontal, PauseCircle, PlayCircle, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import { ErrorState } from "@/components/common/ErrorState";
+import { PageSkeleton } from "@/components/common/LoadingSkeleton";
+import { RouterDetailTabs } from "@/components/routers/RouterDetailTabs";
+import { ControllerManagedBadge, RouterStatusBadge } from "@/components/routers/RouterStatusBadge";
+import { isControllerManaged } from "@/lib/router-vendors";
+import {
+  canReinstateRouter,
+  canSuspendRouter,
+  REINSTATE_TARGET_STATUS,
+  SUSPEND_TARGET_STATUS,
+} from "@/lib/router-actions";
+import { useDeleteRouters, useRouter, useUpdateRouterStatus } from "@/hooks/useRouters";
+import type { AppError } from "@/services/api";
+
+/**
+ * The full router screen: WireGuard tunnel, config rollback/backup,
+ * diagnostics, connected devices and the audit log (`RouterDetailTabs`), with
+ * Suspend/Reinstate and Decommission.
+ *
+ * Mounted at two addresses, and only the address differs:
+ *
+ *  - `/master/routers/$routerId` -- the Master Console's "Manage this
+ *    router". Under `master.tsx`'s guard, so global-scope operators only,
+ *    and on the master host.
+ *  - `/routers/$routerId` -- the pre-Master-Console "Platform Console" copy
+ *    under `_authenticated.tsx`, still linked from that older surface. On
+ *    the master host that layout redirects this path to the one above.
+ *
+ * `backTo` is where "Back to routers" and a finished Decommission go, so
+ * each console keeps its own list.
+ */
+export type RouterDetailBackTo = "/routers" | "/master/routers";
+
+export function RouterDetailPage({
+  routerId,
+  tab,
+  backTo,
+}: {
+  routerId: string;
+  tab?: string;
+  backTo: RouterDetailBackTo;
+}) {
+  const navigate = useNavigate();
+  const { data: router, isLoading, isError, refetch } = useRouter(routerId);
+  const updateStatus = useUpdateRouterStatus();
+  const remove = useDeleteRouters();
+  const [confirm, setConfirm] = useState<null | {
+    title: string;
+    description: string;
+    onConfirm: () => void;
+    destructive?: boolean;
+  }>(null);
+
+  if (isLoading) return <PageSkeleton />;
+  if (isError) return <ErrorState onRetry={() => refetch()} />;
+  if (!router)
+    return <ErrorState title="Router not found" description="This router may have been deleted." />;
+
+  // The rule this page already had, now read from `@/lib/router-actions`
+  // instead of restated here. It was right -- it mirrors the backend's
+  // ROUTER_STATUS_TRANSITIONS graph -- but it was right in only one of the
+  // two places that ask the question, and `RouterTable.tsx` had its own,
+  // wrong copy. Sharing the module is the point: a second copy is what
+  // produced that divergence, so there is now exactly one.
+  const canSuspend = canSuspendRouter(router.status);
+  const canReinstate = canReinstateRouter(router.status);
+  const showToggle = canSuspend || canReinstate;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-2">
+          <Link
+            to={backTo}
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-3 w-3" /> Back to routers
+          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-semibold tracking-tight">{router.name}</h1>
+            {/* The header wrapping a drawer that is already vendor-aware.
+                `RouterDetailTabs` below refuses to print "Pending
+                provisioning" for a controller -- there is nothing to
+                provision -- and then this heading printed it anyway, two
+                inches above, in larger type. Same substitution the drawer's
+                own Status tile makes, so the page agrees with itself. */}
+            {isControllerManaged(router.vendor) ? (
+              <ControllerManagedBadge vendor={router.vendor} />
+            ) : (
+              <RouterStatusBadge status={router.status} />
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {router.model} · {router.locationName} · {router.publicIpAddress ?? "no public IP"}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {showToggle && (
+            <Button
+              variant={canReinstate ? "default" : "outline"}
+              onClick={() =>
+                setConfirm({
+                  title: canReinstate ? `Reinstate ${router.name}?` : `Suspend ${router.name}?`,
+                  description: canReinstate
+                    ? "The router moves back to offline. Only the device's own heartbeat can mark it online again."
+                    : "Guest traffic through this router will stop until re-enabled.",
+                  destructive: canSuspend,
+                  onConfirm: async () => {
+                    try {
+                      await updateStatus.mutateAsync({
+                        ids: [router.id],
+                        status: canReinstate ? REINSTATE_TARGET_STATUS : SUSPEND_TARGET_STATUS,
+                      });
+                      toast.success(canReinstate ? "Router reinstated" : "Router suspended");
+                    } catch (err) {
+                      toast.error(
+                        (err as unknown as AppError).message || "Failed to update router status",
+                      );
+                    }
+                  },
+                })
+              }
+            >
+              {canReinstate ? (
+                <PlayCircle className="h-4 w-4" />
+              ) : (
+                <PauseCircle className="h-4 w-4" />
+              )}
+              <span className="ml-2">{canReinstate ? "Reinstate" : "Suspend"}</span>
+            </Button>
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={() =>
+                  setConfirm({
+                    title: `Decommission ${router.name}?`,
+                    description: "This decommissions the router.",
+                    destructive: true,
+                    onConfirm: async () => {
+                      try {
+                        await remove.mutateAsync([router.id]);
+                        toast.success("Router decommissioned");
+                        navigate({ to: backTo });
+                      } catch (err) {
+                        toast.error(
+                          (err as unknown as AppError).message || "Failed to decommission",
+                        );
+                      }
+                    },
+                  })
+                }
+              >
+                <Trash2 className="h-4 w-4" />
+                <span className="ml-2">Decommission router</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      <RouterDetailTabs router={router} initialTab={tab ?? "overview"} />
+
+      <ConfirmDialog
+        open={!!confirm}
+        onOpenChange={(o) => !o && setConfirm(null)}
+        title={confirm?.title ?? ""}
+        description={confirm?.description ?? ""}
+        destructive={confirm?.destructive}
+        onConfirm={() => {
+          confirm?.onConfirm();
+          setConfirm(null);
+        }}
+      />
+    </div>
+  );
+}
