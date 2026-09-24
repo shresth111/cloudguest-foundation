@@ -45,7 +45,8 @@
  * COUNT NOTE: the owner nav used to be 26 items; the "Notifications"
  * preferences screen was removed from the customer dashboard along with
  * its nav entry (id "notification"), so the nav was 25 -- and the Security
- * group's single row has since brought it back to 26. The stub below
+ * group has since brought it back to 26, and Security -> Firewall to 27.
+ * The stub below
  * reads the lucide imports straight from `customerNav.ts` +
  * `customerFeatureCatalog.ts`, so removing that entry's `Send` icon drops
  * it from the stub automatically.
@@ -264,7 +265,15 @@ check(
 for (const id of ["dashboard", "users", "vouchers", "tickets"]) {
   check(`front desk keeps ${id}`, frontDeskIds.includes(id));
 }
-for (const id of ["agents", "vlans", "admin-logs", "network-activity", "blocking", "campaigns"]) {
+for (const id of [
+  "agents",
+  "vlans",
+  "admin-logs",
+  "network-activity",
+  "blocking",
+  "firewall",
+  "campaigns",
+]) {
   check(`front desk does not get ${id}`, !frontDeskIds.includes(id));
 }
 check("front desk still keeps the always-visible help page", frontDeskIds.includes("how-it-works"));
@@ -303,6 +312,14 @@ check(
 check(
   "blocking is not offered on an unrelated key",
   !navItemAllowed("blocking", new Set(["policy.read", "security.read"])),
+);
+// Security -> Firewall reads /firewall-rules, which checks firewall.read --
+// the same FIREWALL module Port Forwarding is gated on. Apply is
+// firewall.execute, checked by the backend on the push itself.
+check(
+  "firewall is gated on firewall.read",
+  navItemAllowed("firewall", new Set(["firewall.read"])) &&
+    !navItemAllowed("firewall", new Set(["security.read", "content_filtering.read"])),
 );
 check(
   "the retired website-blocking id is no longer mapped",

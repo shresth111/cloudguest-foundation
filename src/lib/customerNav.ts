@@ -22,6 +22,7 @@ import {
   Wifi,
   Plug,
   Ban,
+  BrickWall,
   LifeBuoy,
   Share2,
   HelpCircle,
@@ -137,14 +138,16 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
   {
     id: "security",
     label: "Security",
-    // Two rows, and each opens a screen that does something. The posture
+    // Three rows, and each opens a screen that does something. The posture
     // page is the only security surface whose numbers this platform can
     // actually produce (see SecurityOverviewView's own note), and Blocking
     // is the one place to stop a website, an address or a guest -- built
     // entirely from screens that already worked elsewhere (lib/blocking.ts).
-    // Firewall rules and zone isolation join them as they become real;
-    // listing them now would put rows in the sidebar that open a
-    // placeholder, which reads as broken features rather than shipped ones.
+    // Firewall joined them once rules could actually reach the router
+    // (cloud-guest#304's push): a rules screen with no way to apply them
+    // would have been the placeholder this group refuses to ship. Zone
+    // isolation joins when it is real; listing it now would put a row in the
+    // sidebar that opens a placeholder.
     //
     // The first label is "Overview", not "Security": the group header
     // already says Security, and a row repeating its own group is the same
@@ -156,6 +159,11 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
     items: [
       { id: "security", label: "Overview", icon: ShieldAlert, roles: ["owner"] },
       { id: "blocking", label: "Blocking", icon: Ban, roles: ["owner"] },
+      // Owner-only, like every other screen that writes the venue's router.
+      // `BrickWall`: unused elsewhere, and it is what the word means. At a
+      // controller-only venue the row is muted and the page shows the
+      // controller notice ("firewall" is in CONTROLLER_UNSUPPORTED_FEATURE_IDS).
+      { id: "firewall", label: "Firewall", icon: BrickWall, roles: ["owner"] },
     ],
   },
   {

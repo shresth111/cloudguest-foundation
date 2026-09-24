@@ -181,6 +181,25 @@ check(
   ].every((rel) => !/<BlockUsers\b/.test(readCode(rel))),
 );
 
+// Security -> Firewall is the customer's one home for firewall rules. The
+// operator screen (`network/FirewallManagement.tsx`, on the orphaned
+// `/network/firewall` route) edits the same rows in RouterOS terms and is not
+// a customer surface; neither customer shell may mount it, or an owner would
+// have two screens for one set of rules speaking two vocabularies.
+console.log("\nFirewall rules");
+check(
+  "the customer shell mounts Firewall once",
+  (customerShell.match(/<FirewallView\b/g) ?? []).length === 1,
+);
+check(
+  "the staff shell mounts the same Firewall page",
+  /case "firewall":\s*return <FirewallView\b/.test(customerFeatures),
+);
+check(
+  "neither customer shell mounts the operator firewall screen",
+  !/<FirewallManagement\b/.test(customerShell) && !/<FirewallManagement\b/.test(customerFeatures),
+);
+
 // ---------------------------------------------------------------------------
 // 2. SIGN-IN METHODS -- one home
 // ---------------------------------------------------------------------------

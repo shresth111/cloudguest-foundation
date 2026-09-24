@@ -134,10 +134,12 @@ check("there are eight groups", CUSTOMER_NAV_GROUPS.length === 8, `${CUSTOMER_NA
 // (26): the same screen, now a tab of the new page beside blocked guests, so
 // the count is unchanged by a move rather than by a removal. Section 10 pins
 // the move itself.
+// Then Security -> Firewall arrived (27): a new screen, not a move -- rules
+// that reach the router through cloud-guest#304's push. Section 11 pins it.
 // Asserted rather than derived on purpose -- it is what catches a row being
 // dropped by an unrelated refactor -- so moving it is a deliberate step, and
 // this is one.
-check("there are 26 features", CUSTOMER_NAVS.length === 26, `${CUSTOMER_NAVS.length}`);
+check("there are 27 features", CUSTOMER_NAVS.length === 27, `${CUSTOMER_NAVS.length}`);
 check(
   "the eight groups are the canonical ones",
   CUSTOMER_NAV_GROUPS.map((g) => g.id).join(",") ===
@@ -318,8 +320,8 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
 {
   const security = CUSTOMER_NAV_GROUPS.find((g) => g.id === "security");
   check(
-    "the Security group is Overview then Blocking",
-    security && security.items.map((i) => i.id).join(",") === "security,blocking",
+    "the Security group is Overview, Blocking, then Firewall",
+    security && security.items.map((i) => i.id).join(",") === "security,blocking,firewall",
     security ? security.items.map((i) => i.id).join(",") : "missing",
   );
   const blocking = CUSTOMER_NAVS.find((n) => n.id === "blocking");
@@ -389,19 +391,82 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
     "utf8",
   );
   const managed = overview.split("const MANAGED_AT")[1]?.split("};")[0] ?? "";
-  const linkedKeys = [...managed.matchAll(/^\s*([a-z_]+):\s*\{\s*tab:/gm)].map((mm) => mm[1]);
+  const linkedTo = (dest) =>
+    [...managed.matchAll(/^\s*([a-z_]+):\s*\{\s*to:\s*"([^"]+)"/gm)]
+      .filter((mm) => mm[2] === dest)
+      .map((mm) => mm[1]);
+  const linkedKeys = linkedTo("/blocking");
   check(
     "the Security overview links domain, address and device blocking to it",
     linkedKeys.sort().join(",") === "device_isolation,domain_blocking_dns,ip_and_cidr_blocking",
     linkedKeys.join(","),
   );
   check(
-    "and links nothing that has no screen",
-    !linkedKeys.includes("domain_blocking_sni") && !linkedKeys.includes("zone_to_zone_firewall"),
+    "and links zone-to-zone firewalling to Security -> Firewall, and nothing else there",
+    linkedTo("/firewall").join(",") === "zone_to_zone_firewall",
+    linkedTo("/firewall").join(","),
   );
+  check("and links nothing that has no screen", !managed.includes("domain_blocking_sni"));
   check(
     "and only from the Enforced-today group",
     /group\.availability === "available" && MANAGED_AT\[feature\.key\]/.test(strip(overview)),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 11. Security -> Firewall: MikroTik rules with an Apply, in plain words.
+// ---------------------------------------------------------------------------
+
+console.log("\nSecurity -> Firewall is a real screen, owner-only, gated at controller venues");
+
+{
+  const firewall = CUSTOMER_NAVS.find((n) => n.id === "firewall");
+  check("Firewall is labelled for the job", firewall && firewall.label === "Firewall");
+  check("Firewall is owner-only", firewall && firewall.roles.join(",") === "owner");
+  check("Firewall lives at /firewall", customerFeatureHref("firewall") === "/firewall");
+  const routeSrc = strip(readFileSync(join(ROOT, "src/routes/firewall.tsx"), "utf8"));
+  check(
+    "/firewall mounts the shared shell with the firewall id, behind the session guards",
+    /<CustomerFeaturePage feature="firewall" \/>/.test(routeSrc) &&
+      /requireCustomerSession/.test(routeSrc) &&
+      /requireActiveLocationId/.test(routeSrc),
+  );
+  const view = strip(readFileSync(join(ROOT, "src/components/security/FirewallView.tsx"), "utf8"));
+  check(
+    "the screen reuses the existing firewall service and hooks, not a fork",
+    /from "@\/hooks\/useFirewall"/.test(view) && !/api\.(get|post|put|delete)\(/.test(view),
+  );
+  check(
+    "the screen gates itself with the existing controller notice too (the /agent shell has no gate)",
+    /<ControllerManagedFeatureNotice\b/.test(view) &&
+      /featureAppliesToControllerVenue\(/.test(view),
+  );
+  check(
+    "Apply asks first",
+    /<AlertDialog open=\{confirmApply\}/.test(view) && /onClick=\{runPush\}/.test(view),
+  );
+  check(
+    "the form offers no RouterOS vocabulary",
+    !/chain|place-before|in_interface|inInterface/i.test(
+      view.split("function RuleDialog")[1] ?? "chain",
+    ),
+  );
+  const shellSrc = strip(
+    readFileSync(join(ROOT, "src/components/customer/CustomerFeaturePage.tsx"), "utf8"),
+  );
+  const gatedBlock = shellSrc.split("controllerGated ?")[1] ?? "";
+  check(
+    "the owner shell mounts it inside the controller gate",
+    /feature === "firewall" && <FirewallView\b/.test(gatedBlock),
+  );
+  // The operator screen is untouched and still where it was.
+  const operatorRoute = readFileSync(
+    join(ROOT, "src/routes/_authenticated/network.firewall.tsx"),
+    "utf8",
+  );
+  check(
+    "the old operator route still mounts FirewallManagement",
+    /<FirewallManagement\s*\/>/.test(operatorRoute),
   );
 }
 
@@ -439,6 +504,15 @@ for (const loc of ["en", "hi"]) {
   check(
     `${loc}: the Blocking page's sentences are translated`,
     !!nav.blockingPage?.intro && !!nav.blockingPage?.onlyAllowedPrefix,
+  );
+  check(
+    `${loc}: the Firewall page's key sentences are translated`,
+    !!nav.firewallPage?.intro &&
+      !!nav.firewallPage?.apply &&
+      !!nav.firewallPage?.bandMissing &&
+      !!nav.firewallPage?.status?.pending &&
+      !!nav.firewallPage?.status?.active &&
+      !!nav.firewallPage?.status?.failed,
   );
 }
 // The rename in #216 reached customerNav.ts but not the locale, so the

@@ -34,6 +34,7 @@
     "isp-details": "Your internet line — who provides it, how it's performing, and what happens if it drops.",
     "security": "What your WiFi is protected against today, and what this platform cannot do yet.",
     "blocking": "The websites, internet addresses and guests you have blocked from your guest WiFi, in one place.",
+    "firewall": "Which devices on your network may reach which addresses, checked in order — and applying those rules to your router.",
     "debugging": "Tests you can run when something's slow or broken, including resetting one guest's session.",
     "tickets": "Ask us for help. We can see your setup, so you don't have to explain it from scratch.",
     "admin-logs": "Who signed in to this dashboard, and what they changed.",
