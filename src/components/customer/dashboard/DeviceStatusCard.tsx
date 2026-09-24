@@ -3,7 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { DEVICE_TYPES } from "@/stores/deviceStore";
-import { formatAge, hardwareLivenessIsMeasured, isRouterUnreadable } from "@/lib/device-liveness";
+import {
+  describeLiveness,
+  formatAge,
+  hardwareLivenessIsMeasured,
+  isRouterUnreadable,
+} from "@/lib/device-liveness";
 import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
 import { DEVICE_TYPE_META } from "@/lib/device-presentation";
 import { BackgroundBoxes } from "@/components/aceternity/background-boxes";
@@ -22,6 +27,11 @@ import { BackgroundBoxes } from "@/components/aceternity/background-boxes";
  * shell, header badge, and "Manage ->" pattern, just pointed at the
  * Devices feature page instead of Internet Connection.
  */
+/** How many individual devices the card lists before it hands off to the
+ * Devices page with "+N more". Enough for a typical venue's APs to all show
+ * by name; past it the card would outgrow its Internet Connection sibling. */
+const MAX_LISTED_DEVICES = 6;
+
 export function DeviceStatusCard({
   locationId,
   onManage,
@@ -105,62 +115,151 @@ export function DeviceStatusCard({
           // just under the first type row.
           <div className="flex flex-1 flex-col gap-3">
             <div className="flex-1 space-y-2">
-              {DEVICE_TYPES.map((type) => {
-                const typeDevices = devices.filter((d) => d.type === type);
-                if (typeDevices.length === 0) return null;
-                const meta = DEVICE_TYPE_META[type];
-                const Icon = meta.icon;
-                const typeDown = typeDevices.filter(
-                  (d) => d.status === "down" && !unreadable(d),
-                ).length;
-                const typeUp = typeDevices.filter((d) => d.status === "up").length;
-                const typeUnreachable = typeDevices.filter(unreadable).length;
-                const typeUnmeasured = typeDevices.filter(
-                  (d) => !hardwareLivenessIsMeasured(d),
-                ).length;
-                return (
-                  <div key={type} className="flex items-center justify-between gap-2">
-                    <span className="flex min-w-0 items-center gap-2 text-sm">
-                      <span
-                        title={type}
-                        className={cn(
-                          "flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gradient-to-br text-white",
-                          meta.gradient,
-                        )}
-                      >
-                        <Icon className="h-3.5 w-3.5" />
-                      </span>
-                      <span className="truncate font-medium text-foreground">
-                        {type}
-                        {typeDevices.length !== 1 ? "s" : ""}
-                      </span>
-                    </span>
-                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                      <span className="font-semibold text-foreground">{typeDevices.length}</span>
-                      {/* "all up" only when every one of them IS up. It used
-                       * to be printed whenever none was down, so a single
-                       * never-observed access point read "1 · all up". */}
-                      {typeDown > 0 ? (
-                        <span className="text-rose-600 dark:text-rose-400"> · {typeDown} down</span>
-                      ) : typeUnreachable > 0 ? (
-                        <span className="text-amber-700 dark:text-amber-400">
-                          {" "}
-                          · {typeUnreachable} unconfirmed
+              {(() => {
+                // One budget across all types, spent in DEVICE_TYPES order,
+                // so the cap is on the card and not per type.
+                let budget = MAX_LISTED_DEVICES;
+                return DEVICE_TYPES.map((type) => {
+                  const typeDevices = devices.filter((d) => d.type === type);
+                  if (typeDevices.length === 0) return null;
+                  const listed = typeDevices.slice(0, Math.max(0, budget));
+                  budget -= listed.length;
+                  const meta = DEVICE_TYPE_META[type];
+                  const Icon = meta.icon;
+                  const typeDown = typeDevices.filter(
+                    (d) => d.status === "down" && !unreadable(d),
+                  ).length;
+                  const typeUp = typeDevices.filter((d) => d.status === "up").length;
+                  const typeUnreachable = typeDevices.filter(unreadable).length;
+                  const typeUnmeasured = typeDevices.filter(
+                    (d) => !hardwareLivenessIsMeasured(d),
+                  ).length;
+                  return (
+                    <div key={type} className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="flex min-w-0 items-center gap-2 text-sm">
+                          <span
+                            title={type}
+                            className={cn(
+                              "flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gradient-to-br text-white",
+                              meta.gradient,
+                            )}
+                          >
+                            <Icon className="h-3.5 w-3.5" />
+                          </span>
+                          <span className="truncate font-medium text-foreground">
+                            {type}
+                            {typeDevices.length !== 1 ? "s" : ""}
+                          </span>
                         </span>
-                      ) : typeUp === typeDevices.length ? (
-                        <span className="text-emerald-600 dark:text-emerald-400"> · all up</span>
-                      ) : typeUnmeasured > 0 ? (
-                        // A controller-managed venue: nothing here probes
-                        // these, so "not yet seen" would promise a "yet"
-                        // that never comes -- same wording as the footer.
-                        <span> · {typeUnmeasured} not measured here</span>
-                      ) : (
-                        <span> · {typeDevices.length - typeUp} not yet seen</span>
+                        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                          <span className="font-semibold text-foreground">
+                            {typeDevices.length}
+                          </span>
+                          {/* "all up" only when every one of them IS up. It used
+                           * to be printed whenever none was down, so a single
+                           * never-observed access point read "1 · all up". */}
+                          {typeDown > 0 ? (
+                            <span className="text-rose-600 dark:text-rose-400">
+                              {" "}
+                              · {typeDown} down
+                            </span>
+                          ) : typeUnreachable > 0 ? (
+                            <span className="text-amber-700 dark:text-amber-400">
+                              {" "}
+                              · {typeUnreachable} unconfirmed
+                            </span>
+                          ) : typeUp === typeDevices.length ? (
+                            <span className="text-emerald-600 dark:text-emerald-400">
+                              {" "}
+                              · all up
+                            </span>
+                          ) : typeUnmeasured > 0 ? (
+                            // A controller-managed venue: nothing here probes
+                            // these, so "not yet seen" would promise a "yet"
+                            // that never comes -- same wording as the footer.
+                            <span> · {typeUnmeasured} not measured here</span>
+                          ) : (
+                            <span> · {typeDevices.length - typeUp} not yet seen</span>
+                          )}
+                        </span>
+                      </div>
+                      {/* Each device by name, not only the type's count: "5
+                       * Access Points" does not tell an owner WHICH one is the
+                       * problem. Same words and tone as the Devices table,
+                       * because both come from describeLiveness. */}
+                      {listed.length > 0 && (
+                        <ul className="ml-3 space-y-1 border-l border-border/60 pl-5">
+                          {listed.map((d) => {
+                            const live = describeLiveness(d);
+                            const measured = hardwareLivenessIsMeasured(d);
+                            return (
+                              <li
+                                key={d.id}
+                                className="flex items-center justify-between gap-2 text-xs"
+                              >
+                                <span className="flex min-w-0 items-center gap-1.5">
+                                  {/* No dot for an unmeasured row: a dot is a
+                                   * reading, and there is none. */}
+                                  <span
+                                    className={cn(
+                                      "h-1.5 w-1.5 shrink-0 rounded-full",
+                                      !measured
+                                        ? "bg-transparent"
+                                        : live.tone === "up"
+                                          ? "bg-emerald-500"
+                                          : live.tone === "down"
+                                            ? "bg-rose-500"
+                                            : live.tone === "warning"
+                                              ? "bg-amber-500"
+                                              : "bg-muted-foreground/50",
+                                    )}
+                                  />
+                                  <span className="truncate text-foreground">{d.name}</span>
+                                  {d.floor && (
+                                    <span className="shrink-0 text-muted-foreground">
+                                      · {d.floor}
+                                    </span>
+                                  )}
+                                </span>
+                                <span
+                                  title={
+                                    [live.detail, live.explanation].filter(Boolean).join(" — ") ||
+                                    undefined
+                                  }
+                                  className={cn(
+                                    "shrink-0",
+                                    !measured
+                                      ? "text-muted-foreground"
+                                      : live.tone === "up"
+                                        ? "text-emerald-600 dark:text-emerald-400"
+                                        : live.tone === "down"
+                                          ? "text-rose-600 dark:text-rose-400"
+                                          : live.tone === "warning"
+                                            ? "text-amber-700 dark:text-amber-400"
+                                            : "text-muted-foreground",
+                                  )}
+                                >
+                                  {live.state}
+                                </span>
+                              </li>
+                            );
+                          })}
+                        </ul>
                       )}
-                    </span>
-                  </div>
-                );
-              })}
+                    </div>
+                  );
+                });
+              })()}
+              {devices.length > MAX_LISTED_DEVICES && (
+                <button
+                  type="button"
+                  onClick={onManage}
+                  className="text-xs font-medium text-primary hover:underline"
+                >
+                  +{devices.length - MAX_LISTED_DEVICES} more on the Devices page
+                </button>
+              )}
             </div>
             <div className="flex items-center justify-between border-t border-border/60 pt-2.5 text-xs">
               <span className="text-muted-foreground">
