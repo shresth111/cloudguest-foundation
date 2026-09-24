@@ -59,6 +59,56 @@
  * `routerLivenessIsMeasured` applies one screen over, for the same reason.
  */
 
+/**
+ * Why a device that is not up has no trustworthy observation behind it --
+ * the backend's `observation_issue` (`app.domains.monitored_hardware
+ * .constants.ObservationIssue`), passed through verbatim.
+ *
+ * ## The defect this exists to prevent
+ *
+ * Founder report, 2026-09-15: "Added access point but ... its status shows
+ * 'Never observed' even though it is working." The AP was fine. The venue
+ * router was rejecting the platform's stored RouterOS login, so the
+ * discovery read that records devices failed every 15 minutes and never
+ * recorded anything -- and "unknown" was rendered as a claim about the
+ * access point ("never observed") when the true fact was about the router
+ * ("we can't read it").
+ */
+export type ObservationIssue =
+  | "no_router"
+  | "controller_managed"
+  | "router_missing_credentials"
+  | "router_auth_failed"
+  | "router_unreachable"
+  | "router_read_failed"
+  | "router_not_synced_yet"
+  | "not_seen_by_router";
+
+/** Issues where the router, not the device, is what failed. A device
+ * behind one of these is neither confirmed missing nor confirmed down. */
+const ROUTER_UNREADABLE: ReadonlySet<string> = new Set([
+  "router_missing_credentials",
+  "router_auth_failed",
+  "router_unreachable",
+  "router_read_failed",
+]);
+
+export function isRouterUnreadable(issue: string | null | undefined): boolean {
+  return issue != null && ROUTER_UNREADABLE.has(issue);
+}
+
+/** What the owner can act on, per issue. Short enough for a table cell. */
+const ISSUE_DETAIL: Record<ObservationIssue, string | null> = {
+  router_auth_failed: "router rejected our login",
+  router_missing_credentials: "router login not set up",
+  router_unreachable: "router not responding",
+  router_read_failed: "router read failed",
+  router_not_synced_yet: "first check within 15 min",
+  controller_managed: "listed under your controller",
+  no_router: "no router at this venue",
+  not_seen_by_router: null,
+};
+
 /** Every field this module needs from a hardware row. Deliberately a
  * structural subset, so the demo store and the real API row both satisfy
  * it without either being reshaped for the other's benefit. */
@@ -87,6 +137,9 @@ export interface DeviceLiveness {
   statusSource?: HardwareStatusSource | null;
   /** Why the status reads as it does. Only meaningful for `unknown`. */
   statusReason?: HardwareStatusReason | null;
+  /** Why a non-up status has no trustworthy observation, or null/absent
+   * (an older backend, or the demo store, sends none). */
+  observationIssue?: ObservationIssue | string | null;
 }
 
 /** Mirrors the backend's `monitored_hardware.constants.StatusSource`. */
@@ -144,7 +197,8 @@ export function formatAge(iso: string, now: number): string {
 }
 
 export interface LivenessDescription {
-  /** "Up" / "Down" / "Never observed" -- the status word, alone. */
+  /** "Up" / "Down" / "Can't reach router" / "Never observed" / ... -- the
+   * status word, alone. */
   state: string;
   /**
    * The measurement beside it, already carrying its own name, or null
@@ -166,6 +220,13 @@ export interface LivenessDescription {
    * to decide when an explanation exists.
    */
   explanation: string | null;
+  /**
+   * How the badge should read. `"warning"` is its own tone on purpose:
+   * "we can't read the router" is neither the neutral "not seen yet" nor
+   * the red "confirmed down", and painting it either colour repeats the
+   * lie this module exists to stop.
+   */
+  tone: "up" | "down" | "neutral" | "warning";
 }
 
 /**
@@ -193,16 +254,49 @@ export function describeLiveness(
       detailKind: "unmeasured",
       stale: false,
       explanation: UNMEASURED_REASON_COPY[device.statusReason ?? "never_observed"],
+      tone: "neutral",
+    };
+  }
+
+  const issue = device.status === "up" ? null : (device.observationIssue ?? null);
+  const issueDetail =
+    issue != null && issue in ISSUE_DETAIL ? ISSUE_DETAIL[issue as ObservationIssue] : null;
+
+  // The router could not be read. Whatever `status` says -- "unknown"
+  // because nothing was ever recorded, or "down" because an old sighting
+  // aged out -- it is a verdict about the router, not the device.
+  if (isRouterUnreadable(issue)) {
+    const lastSeen =
+      device.lastSeenAt != null ? `last seen ${formatAge(device.lastSeenAt, now)} ago` : null;
+    return {
+      state: "Can't reach router",
+      detail: lastSeen ? `${issueDetail} · ${lastSeen}` : issueDetail,
+      detailKind: lastSeen ? "lastSeen" : null,
+      stale: false,
+      tone: "warning",
+      explanation: null,
     };
   }
 
   const state =
-    device.status === "up" ? "Up" : device.status === "down" ? "Down" : "Never observed";
+    device.status === "up"
+      ? "Up"
+      : device.status === "down"
+        ? "Down"
+        : issue === "router_not_synced_yet"
+          ? "Not checked yet"
+          : issue === "controller_managed" || issue === "no_router"
+            ? "Not monitored"
+            : issue === "not_seen_by_router"
+              ? "Not seen on network"
+              : "Never observed";
+  const tone: LivenessDescription["tone"] =
+    device.status === "up" ? "up" : device.status === "down" ? "down" : "neutral";
 
   // A device the network has never seen has no liveness history at all;
   // an uptime reading for it would be a contradiction, not a bonus.
   if (device.status === "unknown") {
-    return { state, detail: null, detailKind: null, stale: false, explanation: null };
+    return { state, detail: issueDetail, detailKind: null, stale: false, explanation: null, tone };
   }
 
   if (device.uptimeSeconds != null) {
@@ -218,6 +312,7 @@ export function describeLiveness(
       detailKind: "uptime",
       stale,
       explanation: null,
+      tone,
     };
   }
 
@@ -236,6 +331,7 @@ export function describeLiveness(
       detailKind: "connected",
       stale: false,
       explanation: null,
+      tone,
     };
   }
 
@@ -246,10 +342,11 @@ export function describeLiveness(
       detailKind: "lastSeen",
       stale: false,
       explanation: null,
+      tone,
     };
   }
 
-  return { state, detail: null, detailKind: null, stale: false, explanation: null };
+  return { state, detail: null, detailKind: null, stale: false, explanation: null, tone };
 }
 
 /** True when this platform probes this device's liveness at all.
