@@ -297,32 +297,6 @@ export function ruleToDraft(rule: PlainFirewallRule & { name: string }): Firewal
   };
 }
 
-/**
- * The fields an edit would CLEAR -- set on the stored rule, empty in the new
- * one.
- *
- * `PUT /firewall-rules/{id}` drops every null before it applies an update
- * (`{k: v for k, v in payload.model_dump().items() if v is not None}`), so an
- * update cannot take an address or a port away: it would return 200 and keep
- * the old value. An edit that clears one is therefore saved as a replacement
- * -- a new rule, then the old one deleted -- and the dialog says so before
- * Save. Non-empty means "replace, don't update".
- */
-export function fieldsAnEditWouldClear(
-  stored: Pick<PlainFirewallRule, "sourceAddress" | "destinationAddress" | "destinationPort">,
-  next: Pick<
-    ReturnType<typeof draftToFields>,
-    "sourceAddress" | "destinationAddress" | "destinationPort"
-  >,
-): string[] {
-  const cleared: string[] = [];
-  if (stored.sourceAddress && !next.sourceAddress) cleared.push("sourceAddress");
-  if (stored.destinationAddress && !next.destinationAddress) cleared.push("destinationAddress");
-  if (stored.destinationPort != null && next.destinationPort == null)
-    cleared.push("destinationPort");
-  return cleared;
-}
-
 // ---------------------------------------------------------------------------
 // Status and errors.
 // ---------------------------------------------------------------------------

@@ -86,7 +86,6 @@ import {
   describeWhere,
   describeWho,
   draftToFields,
-  fieldsAnEditWouldClear,
   firewallPushErrorSentence,
   inRouterOrder,
   isCustomerEditable,
@@ -719,7 +718,6 @@ function RuleDialog({
   const { t } = useTranslation("nav", { i18n });
   const create = useCreateFirewallRule();
   const update = useUpdateFirewallRule();
-  const del = useDeleteFirewallRule();
   const [draft, setDraft] = useState<FirewallRuleDraft>(() =>
     rule ? ruleToDraft(rule) : emptyDraft(defaultPriority),
   );
@@ -740,7 +738,6 @@ function RuleDialog({
   const errors = validateFirewallDraft(effective);
   const valid = Object.keys(errors).length === 0;
   const fields = draftToFields(effective);
-  const cleared = rule ? fieldsAnEditWouldClear(rule, fields) : [];
   const set = <K extends keyof FirewallRuleDraft>(k: K, v: FirewallRuleDraft[K]) =>
     setDraft((d) => ({ ...d, [k]: v }));
 
@@ -751,24 +748,13 @@ function RuleDialog({
     try {
       if (!rule) {
         await create.mutateAsync({ routerId, ...fields });
-      } else if (cleared.length === 0) {
-        await update.mutateAsync({ id: rule.id, payload: fields });
       } else {
-        // See `fieldsAnEditWouldClear`: an update cannot clear a field, so
-        // the edit is saved as a new rule and the old one deleted. New first,
-        // so a failure leaves the old rule in place rather than neither.
-        await create.mutateAsync({ routerId, ...fields, comment: rule.comment });
-        try {
-          await del.mutateAsync(rule.id);
-        } catch (err) {
-          toast.error(
-            `The new rule was saved, but the old one couldn't be deleted (${
-              requestErrorOf(err)?.message ?? "unknown error"
-            }). Delete “${rule.name}” yourself before applying.`,
-          );
-          onClose();
-          return;
-        }
+        // One PUT. `fields` carries an explicit `null` for an address or a
+        // port the owner took away, and cloud-guest#306 clears a field on an
+        // explicit null (an omitted one is left unchanged). Nothing the form
+        // doesn't show -- source port, interface, comment -- is sent, so
+        // those are kept as they are.
+        await update.mutateAsync({ id: rule.id, payload: fields });
       }
       toast.success(t("firewallPage.savedToast", "Saved. Apply to router when you're ready."));
       onClose();
@@ -961,15 +947,6 @@ function RuleDialog({
               </div>
             </div>
           </div>
-
-          {cleared.length > 0 && (
-            <p className="rounded-lg border border-border bg-muted/40 p-2.5 text-xs text-muted-foreground">
-              {t(
-                "firewallPage.replaceNote",
-                "Removing an address or a port from an existing rule saves it as a new rule and deletes the old one. It keeps its place in the order.",
-              )}
-            </p>
-          )}
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>

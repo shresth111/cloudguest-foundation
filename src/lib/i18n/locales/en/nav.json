@@ -184,7 +184,6 @@
     "orderHint": "Lower numbers are checked first.",
     "port": "Port",
     "portPlaceholder": "Port, e.g. 8080",
-    "replaceNote": "Removing an address or a port from an existing rule saves it as a new rule and deletes the old one. It keeps its place in the order.",
     "routerSaid": "What the router said:",
     "routersError": "Couldn't load this venue's routers.",
     "rulesError": "Couldn't load this router's rules.",
