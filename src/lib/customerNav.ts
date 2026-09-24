@@ -23,6 +23,7 @@ import {
   Plug,
   Ban,
   BrickWall,
+  Filter,
   LifeBuoy,
   Share2,
   HelpCircle,
@@ -138,7 +139,7 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
   {
     id: "security",
     label: "Security",
-    // Three rows, and each opens a screen that does something. The posture
+    // Four rows, and each opens a screen that does something. The posture
     // page is the only security surface whose numbers this platform can
     // actually produce (see SecurityOverviewView's own note), and Blocking
     // is the one place to stop a website, an address or a guest -- built
@@ -164,6 +165,12 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
       // controller-only venue the row is muted and the page shows the
       // controller notice ("firewall" is in CONTROLLER_UNSUPPORTED_FEATURE_IDS).
       { id: "firewall", label: "Firewall", icon: BrickWall, roles: ["owner"] },
+      // Cloudflare category filtering (cloud-guest#307). Owner-only: Turn on
+      // changes how the venue's router looks up every website. The page is
+      // never a placeholder -- with no Cloudflare account connected it says
+      // "Not set up yet" and mounts no control. Muted at a controller-only
+      // venue ("web-filtering" is in CONTROLLER_UNSUPPORTED_FEATURE_IDS).
+      { id: "web-filtering", label: "Web filtering", icon: Filter, roles: ["owner"] },
     ],
   },
   {

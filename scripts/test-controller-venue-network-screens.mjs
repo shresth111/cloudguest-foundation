@@ -164,12 +164,13 @@ writeFileSync(
    import { BLOCKING_TABS, blockingTabsFor, initialBlockingTab }
      from "${p("src/lib/blocking.ts")}";
    import * as firewallRules from "${p("src/lib/firewall-rules.ts")}";
+   import * as webFiltering from "${p("src/lib/web-filtering.ts")}";
    export { React, renderToStaticMarkup, QueryClient, QueryClientProvider,
             ControllerManagedFeatureNotice, deriveLocationLiveness,
             locationIsControllerManaged, locationControllerVendor,
             featureAppliesToControllerVenue, CONTROLLER_UNSUPPORTED_FEATURE_IDS,
             controllerVenueFeatureReason, CUSTOMER_NAV_GROUPS,
-            BLOCKING_TABS, blockingTabsFor, initialBlockingTab, firewallRules };`,
+            BLOCKING_TABS, blockingTabsFor, initialBlockingTab, firewallRules, webFiltering };`,
 );
 
 const outfile = join(outdir, "bundle.cjs");
@@ -336,10 +337,12 @@ for (const id of [
   check(`${id}-is-not-gated`, m.featureAppliesToControllerVenue(id) === true);
 }
 // Six since Security -> Firewall: cloud-guest#304's push is MikroTik-only
-// and refuses a controller-managed router at create, push and band.
+// and refuses a controller-managed router at create, push and band. Seven
+// since Security -> Web Filtering: cloud-guest#307 switches a MikroTik's DNS
+// and refuses a controller-managed router before any write.
 check(
-  "the-gated-list-is-exactly-six",
-  m.CONTROLLER_UNSUPPORTED_FEATURE_IDS.length === 6,
+  "the-gated-list-is-exactly-seven",
+  m.CONTROLLER_UNSUPPORTED_FEATURE_IDS.length === 7,
   `got ${m.CONTROLLER_UNSUPPORTED_FEATURE_IDS.length}`,
 );
 // Every gated id still has to name a real screen -- a typo here would
@@ -359,7 +362,8 @@ const tabGatedIds = m.BLOCKING_TABS.map((t) => t.controllerGatedAs).filter(Boole
 const securityIds = (m.CUSTOMER_NAV_GROUPS.find((g) => g.id === "security")?.items ?? []).map(
   (i) => i.id,
 );
-const GATED_OUTSIDE_NETWORK = ["firewall"];
+// Web Filtering likewise: every control on it switches the router's DNS.
+const GATED_OUTSIDE_NETWORK = ["firewall", "web-filtering"];
 check(
   "every-gated-id-is-a-real-screen",
   m.CONTROLLER_UNSUPPORTED_FEATURE_IDS.every(
@@ -370,7 +374,7 @@ check(
   "a typo here would silently gate nothing",
 );
 check(
-  "every-gated-nav-row-is-in-Network-or-is-the-Firewall-row",
+  "every-gated-nav-row-is-in-Network-or-is-a-named-Security-row",
   m.CONTROLLER_UNSUPPORTED_FEATURE_IDS.filter(
     (id) => !tabGatedIds.includes(id) && !GATED_OUTSIDE_NETWORK.includes(id),
   ).every((id) => networkIds.includes(id)) &&
@@ -470,7 +474,7 @@ check(
 check("notice-names-the-vendor", /TP-Link Omada controller/.test(notice));
 check(
   "notice-names-the-other-four-screens-too",
-  /Network Zones, IP Addresses, Port Forwarding, Call Priority, website blocking and firewall\s+rules/.test(
+  /Network Zones, IP Addresses, Port Forwarding, Call Priority, website blocking, firewall\s+rules and web filtering/.test(
     notice,
   ),
   "an owner told only about this one will try the other four in turn",
@@ -745,6 +749,119 @@ console.log("\nSecurity -> Firewall: plain words in, forward rules out");
     "the-apply-dialog-counts-what-will-change",
     sum.on === 2 && sum.off === 1 && sum.blocks === 1 && sum.unpushable === 1,
     JSON.stringify(sum),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 6. Security -> Web Filtering: the picker's rules and every refusal's
+//    sentence, executed from `lib/web-filtering.ts`.
+// ---------------------------------------------------------------------------
+
+console.log("\nSecurity -> Web Filtering: selection and plain-language refusals");
+{
+  const wf = m.webFiltering;
+  const cat = (id, name, over = {}) => ({
+    id,
+    name,
+    description: "",
+    categoryClass: "free",
+    beta: false,
+    isSecurity: false,
+    subcategories: [],
+    ...over,
+  });
+  const security = cat(21, "Security threats", {
+    isSecurity: true,
+    subcategories: [
+      cat(117, "Malware"),
+      cat(131, "Phishing"),
+      cat(999, "Gone", { categoryClass: "removalPending" }),
+    ],
+  });
+  const adult = cat(2, "Adult themes", { subcategories: [cat(67, "Nudity")] });
+  const unblockable = cat(5, "Never", { categoryClass: "noBlock" });
+  const items = [adult, security, unblockable];
+
+  check("security-threats-is-listed-first", wf.orderedGroups(items)[0].id === 21);
+  const ticked = wf.toggleCategory(new Set(), security, true);
+  check(
+    "ticking-a-group-sends-the-group-and-every-selectable-subcategory",
+    wf.canonicalIds(ticked).join(",") === "21,117,131",
+    wf.canonicalIds(ticked).join(","),
+  );
+  check("a-ticked-group-reads-all", wf.groupState(ticked, security) === "all");
+  const minusOne = wf.toggleCategory(ticked, security.subcategories[0], false, security);
+  check(
+    "unticking-one-subcategory-drops-the-group-id-too",
+    wf.canonicalIds(minusOne).join(",") === "131" && wf.groupState(minusOne, security) === "some",
+    wf.canonicalIds(minusOne).join(","),
+  );
+  const back = wf.toggleCategory(minusOne, security.subcategories[0], true, security);
+  check(
+    "ticking-the-last-subcategory-restores-the-group",
+    wf.canonicalIds(back).join(",") === "21,117,131",
+  );
+  check(
+    "a-class-cloudflare-refuses-is-never-selectable",
+    !wf.isSelectable(unblockable) &&
+      wf.canonicalIds(wf.toggleCategory(new Set(), unblockable, true)).length === 0,
+  );
+  check("order-does-not-make-a-list-different", wf.sameIds([3, 1, 2], [2, 3, 1, 1]));
+  const described = wf.describeIds([21, 117, 131, 67, 4242], items);
+  check(
+    "a-whole-group-is-named-once-and-unknown-ids-are-counted-not-invented",
+    described.names.join("|") === "Security threats|Nudity" && described.unknown === 1,
+    JSON.stringify(described),
+  );
+
+  const sentence = (err) => wf.webFilterErrorSentence(err);
+  check(
+    "503-is-not-set-up",
+    sentence({ status: 503, message: "x" }).sentence ===
+      "Not set up yet for this account — contact support.",
+  );
+  check(
+    "a-rolled-back-switch-says-guests-are-fine",
+    /switched back to its own settings/.test(
+      sentence({
+        status: 502,
+        message: "probe",
+        data: { code: "DOH_PROBE_FAILED", rolled_back: true },
+      }).sentence,
+    ),
+  );
+  check(
+    "a-switch-that-did-not-roll-back-says-contact-support-now",
+    /contact support now/.test(
+      sentence({ status: 502, message: "probe", data: { rolled_back: false } }).sentence,
+    ),
+  );
+  check(
+    "too-old-routeros-names-the-fix",
+    sentence({ status: 409, message: "x", data: { code: "ROUTEROS_TOO_OLD" } }).key === "tooOld",
+  );
+  check(
+    "the-ceiling-is-support-not-retry",
+    sentence({ status: 409, message: "x", data: { resource: "DNS locations", limit: 250 } }).key ===
+      "ceiling",
+  );
+  check(
+    "an-unknown-refusal-shows-the-backend-message",
+    sentence({ status: 409, message: "Choose at least one category." }).sentence ===
+      "Choose at least one category.",
+  );
+  check(
+    "no-dns-or-doh-vocabulary-in-the-sentences",
+    [
+      "DOH_PROBE_FAILED",
+      "ROUTEROS_TOO_OLD",
+      "DNS_BOOTSTRAP_MISSING",
+      "TRUST_SETTING_UNKNOWN",
+      "DNS_CHANGED_EXTERNALLY",
+      "BYPASS_ANCHOR_MISSING",
+    ]
+      .map((code) => sentence({ status: 409, message: "", data: { code } }).sentence)
+      .every((x) => !/\bDNS\b|DoH|DoT|RouterOS|resolver/i.test(x)),
   );
 }
 

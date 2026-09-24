@@ -272,6 +272,7 @@ for (const id of [
   "network-activity",
   "blocking",
   "firewall",
+  "web-filtering",
   "campaigns",
 ]) {
   check(`front desk does not get ${id}`, !frontDeskIds.includes(id));
@@ -320,6 +321,13 @@ check(
   "firewall is gated on firewall.read",
   navItemAllowed("firewall", new Set(["firewall.read"])) &&
     !navItemAllowed("firewall", new Set(["security.read", "content_filtering.read"])),
+);
+// Security -> Web Filtering reads /dns-filtering/*, which cloud-guest#307
+// guards with the existing content_filtering keys.
+check(
+  "web filtering is gated on content_filtering.read",
+  navItemAllowed("web-filtering", new Set(["content_filtering.read"])) &&
+    !navItemAllowed("web-filtering", new Set(["security.read", "firewall.read"])),
 );
 check(
   "the retired website-blocking id is no longer mapped",

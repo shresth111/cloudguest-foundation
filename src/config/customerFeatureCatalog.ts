@@ -28,6 +28,7 @@ import {
   Globe,
   Ban,
   BrickWall,
+  Filter,
   ScrollText,
   LifeBuoy,
   Radar,
@@ -131,6 +132,7 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
       { id: "security", label: "Security overview", icon: ShieldAlert },
       { id: "blocking", label: "Blocking", icon: Ban },
       { id: "firewall", label: "Firewall", icon: BrickWall },
+      { id: "web-filtering", label: "Web filtering", icon: Filter },
     ],
   },
   {
