@@ -67,8 +67,8 @@ import type { RuntimePortalConfig } from "@/types/portal-runtime";
  * walkthrough on swaps this provider from `previewMode` to `demoMode` and
  * hands the screen to `DemoPortalFlow` -- THE one simulated-journey engine,
  * shared with `/preview/portal/demo`, not a second copy -- which runs
- * sign-in (incl. the content/intro step) -> dummy OTP -> connected ->
- * campaign -> the venue's post-login page, all from THIS location's own
+ * sign-in (incl. the content/intro step) -> dummy OTP -> the campaign ->
+ * connected -> the venue's post-login page, all from THIS location's own
  * resolved config and its own real active campaign.
  *
  * NOTHING IT DOES REACHES A BACKEND. `demoMode` short-circuits every login

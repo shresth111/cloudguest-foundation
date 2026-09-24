@@ -718,9 +718,11 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       redirectUrl: afterConnectMode === "redirect" ? form.redirectUrl.trim() || null : null,
       // Post-login page. Carried on the runtime config so the shareable
       // /preview/portal/demo tab (which serializes this exact object) stays
-      // in sync -- note that neither preview route renders a post-login
-      // surface today; the authoring preview under the editor below is what
-      // actually shows this. See the editor block's own comment.
+      // in sync: the walkthrough that tab opens ends on this page as its own
+      // step 4 (see DemoPortalFlow), and the real preview's walkthrough does
+      // the same from the saved config. The authoring preview under the
+      // editor below is a separate, immediate view of the same HTML while it
+      // is being typed. See the editor block's own comment.
       postLoginHtml: afterConnectMode === "html" ? postLoginHtml || null : null,
       // Content mode + its source fields -- every edit rebuilds this memo and
       // re-renders PortalContentBlock in the preview immediately (task 4).

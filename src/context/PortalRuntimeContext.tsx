@@ -579,10 +579,13 @@ interface PortalRuntimeState {
    * device" notice (an operator confirming visuals, no working flow), a
    * `demoMode` sign-in runs a believable DUMMY end-to-end flow entirely
    * client-side -- identifier -> OTP -> a fake in-memory RuntimeSession set
-   * via `setSession`, landing on a self-contained "You're connected" screen.
-   * No network, no SMS/RADIUS, no NAS POST, no navigation. `useGuestSignIn`
-   * checks this BEFORE the `previewMode` guards so a demo advances the state
-   * machine instead of toasting. The two flags are never set together. */
+   * via `setSession`, then the same walkthrough `DemoPortalFlow` drives on
+   * every simulated surface: the campaign (when the caller handed it one),
+   * the self-contained "You're connected" screen, and the venue's own
+   * post-login page. No network, no SMS/RADIUS, no NAS POST, no navigation.
+   * `useGuestSignIn` checks this BEFORE the `previewMode` guards so a demo
+   * advances the state machine instead of toasting. The two flags are never
+   * set together. */
   demoMode: boolean;
   language: RuntimeLanguage;
   setLanguage: (l: RuntimeLanguage) => void;
