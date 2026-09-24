@@ -39,6 +39,26 @@ export const Route = createFileRoute("/_authenticated")({
         search: isAlreadyOnLoginTarget ? undefined : { redirect: location.href },
       });
     }
+    // The one old page the Master Console still needs is the full router
+    // screen, and it has its own address inside the Master tree now
+    // (master.routers.$routerId.tsx). An old /routers/<id> link on this host
+    // goes there rather than to the Master home, so it still opens the same
+    // router. It is a /master path, so master.tsx's operator-only guard is
+    // what decides who sees it; an impersonation session is left to the
+    // rules below, exactly as before.
+    const legacyRouter = /^\/routers\/([^/]+)\/?$/.exec(location.pathname);
+    if (
+      legacyRouter &&
+      typeof window !== "undefined" &&
+      window.location.hostname === "master.wyfyguest.com" &&
+      !isImpersonationSessionActive()
+    ) {
+      throw redirect({
+        to: "/master/routers/$routerId",
+        params: { routerId: decodeURIComponent(legacyRouter[1]) },
+        replace: true,
+      });
+    }
     // Everything this layout renders (customer pages, and the older
     // pre-redesign "Platform Console" pages like /select-space, /locations,
     // /rbac, /marketplace, /routers/$routerId) is visually and functionally

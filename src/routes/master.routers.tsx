@@ -1013,7 +1013,11 @@ function RouterFleetScreen() {
                   </div>
 
                   {!demo && (
-                    <Link to="/routers/$routerId" params={{ routerId: sel.id }} className="block">
+                    <Link
+                      to="/master/routers/$routerId"
+                      params={{ routerId: sel.id }}
+                      className="block"
+                    >
                       <MButton variant="outline" className="w-full justify-center">
                         Manage this router <RouterIcon className="h-3.5 w-3.5" />
                       </MButton>

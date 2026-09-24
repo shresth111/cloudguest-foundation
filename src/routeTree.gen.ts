@@ -135,6 +135,7 @@ import { Route as AuthenticatedAnalyticsIndexRouteImport } from './routes/_authe
 import { Route as PreviewPortalDemoRouteImport } from './routes/preview.portal.demo'
 import { Route as PreviewPortalLocationIdRouteImport } from './routes/preview.portal.$locationId'
 import { Route as PortalAuthMethodRouteImport } from './routes/portal.auth.$method'
+import { Route as MasterRoutersRouterIdRouteImport } from './routes/master.routers.$routerId'
 import { Route as CustomerLocationIdUsersRouteImport } from './routes/customer.$locationId.users'
 import { Route as CustomerLocationIdDashboardRouteImport } from './routes/customer.$locationId.dashboard'
 import { Route as CustomerLocationIdFeatureRouteImport } from './routes/customer.$locationId.$feature'
@@ -854,6 +855,11 @@ const PortalAuthMethodRoute = PortalAuthMethodRouteImport.update({
   path: '/$method',
   getParentRoute: () => PortalAuthRoute,
 } as any)
+const MasterRoutersRouterIdRoute = MasterRoutersRouterIdRouteImport.update({
+  id: '/$routerId',
+  path: '/$routerId',
+  getParentRoute: () => MasterRoutersRoute,
+} as any)
 const CustomerLocationIdUsersRoute = CustomerLocationIdUsersRouteImport.update({
   id: '/customer/$locationId/users',
   path: '/customer/$locationId/users',
@@ -1332,6 +1338,7 @@ export interface FileRoutesByFullPath {
   '/customer/$locationId/$feature': typeof CustomerLocationIdFeatureRoute
   '/customer/$locationId/dashboard': typeof CustomerLocationIdDashboardRoute
   '/customer/$locationId/users': typeof CustomerLocationIdUsersRoute
+  '/master/routers/$routerId': typeof MasterRoutersRouterIdRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/preview/portal/$locationId': typeof PreviewPortalLocationIdRoute
   '/preview/portal/demo': typeof PreviewPortalDemoRoute
@@ -1510,6 +1517,7 @@ export interface FileRoutesByTo {
   '/customer/$locationId/$feature': typeof CustomerLocationIdFeatureRoute
   '/customer/$locationId/dashboard': typeof CustomerLocationIdDashboardRoute
   '/customer/$locationId/users': typeof CustomerLocationIdUsersRoute
+  '/master/routers/$routerId': typeof MasterRoutersRouterIdRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/preview/portal/$locationId': typeof PreviewPortalLocationIdRoute
   '/preview/portal/demo': typeof PreviewPortalDemoRoute
@@ -1696,6 +1704,7 @@ export interface FileRoutesById {
   '/customer/$locationId/$feature': typeof CustomerLocationIdFeatureRoute
   '/customer/$locationId/dashboard': typeof CustomerLocationIdDashboardRoute
   '/customer/$locationId/users': typeof CustomerLocationIdUsersRoute
+  '/master/routers/$routerId': typeof MasterRoutersRouterIdRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/preview/portal/$locationId': typeof PreviewPortalLocationIdRoute
   '/preview/portal/demo': typeof PreviewPortalDemoRoute
@@ -1882,6 +1891,7 @@ export interface FileRouteTypes {
     | '/customer/$locationId/$feature'
     | '/customer/$locationId/dashboard'
     | '/customer/$locationId/users'
+    | '/master/routers/$routerId'
     | '/portal/auth/$method'
     | '/preview/portal/$locationId'
     | '/preview/portal/demo'
@@ -2060,6 +2070,7 @@ export interface FileRouteTypes {
     | '/customer/$locationId/$feature'
     | '/customer/$locationId/dashboard'
     | '/customer/$locationId/users'
+    | '/master/routers/$routerId'
     | '/portal/auth/$method'
     | '/preview/portal/$locationId'
     | '/preview/portal/demo'
@@ -2245,6 +2256,7 @@ export interface FileRouteTypes {
     | '/customer/$locationId/$feature'
     | '/customer/$locationId/dashboard'
     | '/customer/$locationId/users'
+    | '/master/routers/$routerId'
     | '/portal/auth/$method'
     | '/preview/portal/$locationId'
     | '/preview/portal/demo'
@@ -3229,6 +3241,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PortalAuthMethodRouteImport
       parentRoute: typeof PortalAuthRoute
     }
+    '/master/routers/$routerId': {
+      id: '/master/routers/$routerId'
+      path: '/$routerId'
+      fullPath: '/master/routers/$routerId'
+      preLoaderRoute: typeof MasterRoutersRouterIdRouteImport
+      parentRoute: typeof MasterRoutersRoute
+    }
     '/customer/$locationId/users': {
       id: '/customer/$locationId/users'
       path: '/customer/$locationId/users'
@@ -3890,11 +3909,13 @@ const AgentRouteChildren: AgentRouteChildren = {
 const AgentRouteWithChildren = AgentRoute._addFileChildren(AgentRouteChildren)
 
 interface MasterRoutersRouteChildren {
+  MasterRoutersRouterIdRoute: typeof MasterRoutersRouterIdRoute
   MasterRoutersGuidedRouterIdRoute: typeof MasterRoutersGuidedRouterIdRoute
   MasterRoutersSetupRouterIdRoute: typeof MasterRoutersSetupRouterIdRoute
 }
 
 const MasterRoutersRouteChildren: MasterRoutersRouteChildren = {
+  MasterRoutersRouterIdRoute: MasterRoutersRouterIdRoute,
   MasterRoutersGuidedRouterIdRoute: MasterRoutersGuidedRouterIdRoute,
   MasterRoutersSetupRouterIdRoute: MasterRoutersSetupRouterIdRoute,
 }
