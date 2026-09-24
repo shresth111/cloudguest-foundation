@@ -136,10 +136,12 @@ check("there are eight groups", CUSTOMER_NAV_GROUPS.length === 8, `${CUSTOMER_NA
 // the move itself.
 // Then Security -> Firewall arrived (27): a new screen, not a move -- rules
 // that reach the router through cloud-guest#304's push. Section 11 pins it.
+// Then Security -> Web Filtering (28): Cloudflare categories, switched on per
+// router through cloud-guest#307. Section 12 pins it.
 // Asserted rather than derived on purpose -- it is what catches a row being
 // dropped by an unrelated refactor -- so moving it is a deliberate step, and
 // this is one.
-check("there are 27 features", CUSTOMER_NAVS.length === 27, `${CUSTOMER_NAVS.length}`);
+check("there are 28 features", CUSTOMER_NAVS.length === 28, `${CUSTOMER_NAVS.length}`);
 check(
   "the eight groups are the canonical ones",
   CUSTOMER_NAV_GROUPS.map((g) => g.id).join(",") ===
@@ -320,8 +322,9 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
 {
   const security = CUSTOMER_NAV_GROUPS.find((g) => g.id === "security");
   check(
-    "the Security group is Overview, Blocking, then Firewall",
-    security && security.items.map((i) => i.id).join(",") === "security,blocking,firewall",
+    "the Security group is Overview, Blocking, Firewall, then Web filtering",
+    security &&
+      security.items.map((i) => i.id).join(",") === "security,blocking,firewall,web-filtering",
     security ? security.items.map((i) => i.id).join(",") : "missing",
   );
   const blocking = CUSTOMER_NAVS.find((n) => n.id === "blocking");
@@ -406,6 +409,11 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
     linkedTo("/firewall").join(",") === "zone_to_zone_firewall",
     linkedTo("/firewall").join(","),
   );
+  check(
+    "and links web category filtering to Security -> Web Filtering, and nothing else there",
+    linkedTo("/web-filtering").join(",") === "web_category_filtering",
+    linkedTo("/web-filtering").join(","),
+  );
   check("and links nothing that has no screen", !managed.includes("domain_blocking_sni"));
   check(
     "and only from the Enforced-today group",
@@ -471,6 +479,61 @@ console.log("\nSecurity -> Firewall is a real screen, owner-only, gated at contr
 }
 
 // ---------------------------------------------------------------------------
+// 12. Security -> Web Filtering: Cloudflare categories, per-router switch.
+// ---------------------------------------------------------------------------
+
+console.log("\nSecurity -> Web Filtering is a real screen, owner-only, gated at controller venues");
+
+{
+  const wf = CUSTOMER_NAVS.find((n) => n.id === "web-filtering");
+  check("Web filtering is labelled for the job", wf && wf.label === "Web filtering");
+  check("Web filtering is owner-only", wf && wf.roles.join(",") === "owner");
+  check(
+    "Web filtering lives at /web-filtering",
+    customerFeatureHref("web-filtering") === "/web-filtering",
+  );
+  const routeSrc = strip(readFileSync(join(ROOT, "src/routes/web-filtering.tsx"), "utf8"));
+  check(
+    "/web-filtering mounts the shared shell with its id, behind the session guards",
+    /<CustomerFeaturePage feature="web-filtering" \/>/.test(routeSrc) &&
+      /requireCustomerSession/.test(routeSrc) &&
+      /requireActiveLocationId/.test(routeSrc),
+  );
+  const view = strip(
+    readFileSync(join(ROOT, "src/components/security/WebFilteringView.tsx"), "utf8"),
+  );
+  check(
+    "the screen talks to the backend only through its hooks",
+    /from "@\/hooks\/useDnsFiltering"/.test(view) && !/api\.(get|post|put|delete)\(/.test(view),
+  );
+  check(
+    "the screen gates itself with the existing controller notice too (the /agent shell has no gate)",
+    /<ControllerManagedFeatureNotice\b/.test(view) &&
+      /featureAppliesToControllerVenue\("web-filtering"\)/.test(view),
+  );
+  check(
+    "Turn on and Turn off both ask first",
+    /<AlertDialog open=\{confirm !== null\}/.test(view) &&
+      /onClick=\{\(\) => setConfirm\("enable"\)\}/.test(view) &&
+      /onClick=\{\(\) => setConfirm\("disable"\)\}/.test(view),
+  );
+  check(
+    "the not-configured state renders before any control",
+    view.indexOf('categories.data.state === "not_configured"') > -1 &&
+      view.indexOf('categories.data.state === "not_configured"') < view.indexOf("<CategoriesCard"),
+  );
+  check("no fixture data in the screen", !/const\s+(MOCK|FAKE|SAMPLE|DEMO)_/i.test(view));
+  const shellSrc = strip(
+    readFileSync(join(ROOT, "src/components/customer/CustomerFeaturePage.tsx"), "utf8"),
+  );
+  const gatedBlock = shellSrc.split("controllerGated ?")[1] ?? "";
+  check(
+    "the owner shell mounts it inside the controller gate",
+    /feature === "web-filtering" && <WebFilteringView\b/.test(gatedBlock),
+  );
+}
+
+// ---------------------------------------------------------------------------
 // 9. Every row has a name in both locales.
 // ---------------------------------------------------------------------------
 
@@ -514,6 +577,27 @@ for (const loc of ["en", "hi"]) {
       !!nav.firewallPage?.status?.active &&
       !!nav.firewallPage?.status?.failed,
   );
+  check(
+    `${loc}: the Web filtering page's key sentences are translated`,
+    !!nav.webFilteringPage?.intro &&
+      !!nav.webFilteringPage?.enableWhat &&
+      !!nav.webFilteringPage?.enableSafety &&
+      !!nav.webFilteringPage?.bypassBody &&
+      !!nav.webFilteringPage?.err?.notSetUp &&
+      ["active", "disabled", "pending", "failed"].every((s) => !!nav.webFilteringPage?.state?.[s]),
+  );
+}
+{
+  // Every Web filtering key in English exists in Hindi, nested included.
+  const keys = (o, pre = "") =>
+    Object.entries(o ?? {}).flatMap(([k, v]) =>
+      v && typeof v === "object" ? keys(v, `${pre}${k}.`) : [`${pre}${k}`],
+    );
+  const read = (loc) =>
+    JSON.parse(readFileSync(join(ROOT, `src/lib/i18n/locales/${loc}/nav.json`), "utf8"))
+      .webFilteringPage;
+  const missing = keys(read("en")).filter((k) => !keys(read("hi")).includes(k));
+  check("hi has every Web filtering key en has", missing.length === 0, missing.join(", "));
 }
 // The rename in #216 reached customerNav.ts but not the locale, so the
 // translated label still read "Connection Tools" -- which is what a customer

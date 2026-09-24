@@ -80,6 +80,12 @@ const BlockingView = lazyView(() => import("@/components/security/BlockingView")
 // store and applies the controller gate itself (this shell has none), so the
 // staff `/agent` preview shows the same notice the owner's page does.
 const FirewallView = lazyView(() => import("@/components/security/FirewallView"), "FirewallView");
+// Security -> Web Filtering. Same reasoning as Firewall: its own module, and
+// it applies the controller gate itself.
+const WebFilteringView = lazyView(
+  () => import("@/components/security/WebFilteringView"),
+  "WebFilteringView",
+);
 
 const BasicDashboardView = lazyView(basic, "BasicDashboardView");
 const BasicUsersView = lazyView(basic, "BasicUsersView");
@@ -193,6 +199,8 @@ function featureElement(id: string, ctx: { locationId?: string; masked?: boolean
       return <BlockingView locationId={ctx.locationId} />;
     case "firewall":
       return <FirewallView locationId={ctx.locationId} />;
+    case "web-filtering":
+      return <WebFilteringView locationId={ctx.locationId} />;
     default:
       return <GenericFeatureView feature={id} />;
   }

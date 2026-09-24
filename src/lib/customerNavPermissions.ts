@@ -138,6 +138,11 @@ export const NAV_PERMISSION_KEYS: Record<string, readonly string[]> = {
   // `firewall.execute`, which the backend checks on the push itself. Same
   // module Port Forwarding is guarded by -- there is one FIREWALL module.
   firewall: ["firewall.read"],
+  // Security -> Web Filtering reads `/dns-filtering/*`, which cloud-guest#307
+  // guards with the existing content_filtering keys (read to look, update to
+  // save the list, execute to switch a router). Same module Blocking's
+  // Websites tab reads.
+  "web-filtering": ["content_filtering.read"],
   // A real module, added to the backend's `PermissionModule` alongside this
   // feature (CONTRACT.md §4), with `MODULE_NARROWEST_SCOPE = LOCATION` --
   // same profile as `mac_authorization` and `network_device` above, since an
