@@ -264,14 +264,7 @@ check(
 for (const id of ["dashboard", "users", "vouchers", "tickets"]) {
   check(`front desk keeps ${id}`, frontDeskIds.includes(id));
 }
-for (const id of [
-  "agents",
-  "vlans",
-  "admin-logs",
-  "network-activity",
-  "website-blocking",
-  "campaigns",
-]) {
+for (const id of ["agents", "vlans", "admin-logs", "network-activity", "blocking", "campaigns"]) {
   check(`front desk does not get ${id}`, !frontDeskIds.includes(id));
 }
 check("front desk still keeps the always-visible help page", frontDeskIds.includes("how-it-works"));
@@ -296,9 +289,24 @@ check(
   navItemAllowed("admin-logs", new Set(["audit_logs.read"])) &&
     !navItemAllowed("admin-logs", new Set(["admin_logs.read"])),
 );
+// Website Blocking moved into Security -> Blocking with the Blocked Guests
+// screen. The row is offered on EITHER domain's read key -- each tab is a
+// page worth opening alone -- and on neither key it is not offered at all.
 check(
-  "website-blocking is gated on content_filtering.read",
-  navItemAllowed("website-blocking", new Set(["content_filtering.read"])),
+  "blocking is offered on content_filtering.read (the Websites tab)",
+  navItemAllowed("blocking", new Set(["content_filtering.read"])),
+);
+check(
+  "blocking is offered on guest_access.read (the Guests tab)",
+  navItemAllowed("blocking", new Set(["guest_access.read"])),
+);
+check(
+  "blocking is not offered on an unrelated key",
+  !navItemAllowed("blocking", new Set(["policy.read", "security.read"])),
+);
+check(
+  "the retired website-blocking id is no longer mapped",
+  !Object.prototype.hasOwnProperty.call(NAV_PERMISSION_KEYS, "website-blocking"),
 );
 check(
   "voip is gated on qos.read",

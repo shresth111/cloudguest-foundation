@@ -133,6 +133,55 @@ check(
 );
 
 // ---------------------------------------------------------------------------
+// 1b. BLOCKED GUESTS and WEBSITE BLOCKING -- one home, Security -> Blocking
+//
+// Both moved into the same page so that everything a venue can block is in
+// one place. Moved, not copied: the page mounts the same two components, and
+// the places they came from stop mounting them.
+// ---------------------------------------------------------------------------
+console.log("\nBlocked Guests and Website Blocking");
+
+const blockingView = readCode("src/components/security/BlockingView.tsx");
+check("Security -> Blocking mounts BlockUsers", /<BlockUsers\b/.test(blockingView));
+check(
+  "Security -> Blocking mounts the content-filter screen",
+  /<ContentFilterManagement\b/.test(blockingView),
+);
+check(
+  "Access Rules no longer mounts BlockUsers",
+  !/<BlockUsers\b/.test(hub),
+  "PoliciesHub still renders <BlockUsers>",
+);
+check(
+  "Access Rules no longer imports BlockUsers",
+  !/^import\s+BlockUsers\b/m.test(hub),
+  "dead import left behind",
+);
+check("Access Rules has no block tab left in ACCESS_TABS", !/id:\s*"block"/.test(hub));
+const customerShell = readCode("src/components/customer/CustomerFeaturePage.tsx");
+check(
+  "the customer shell no longer mounts Website Blocking as its own page",
+  !/feature === "website-blocking"/.test(customerShell) &&
+    !/<WebsiteBlockingView\b/.test(customerShell),
+);
+check(
+  "the customer shell mounts Blocking",
+  /feature === "blocking" && <BlockingView\b/.test(customerShell),
+);
+check(
+  "the staff shell mounts the same Blocking page",
+  /case "blocking":\s*return <BlockingView\b/.test(customerFeatures),
+);
+check(
+  "nothing else mounts BlockUsers",
+  [
+    "src/config/customerFeatures.tsx",
+    "src/components/customer/CustomerFeaturePage.tsx",
+    POLICIES_HUB,
+  ].every((rel) => !/<BlockUsers\b/.test(readCode(rel))),
+);
+
+// ---------------------------------------------------------------------------
 // 2. SIGN-IN METHODS -- one home
 // ---------------------------------------------------------------------------
 console.log("\nSign-in Methods");

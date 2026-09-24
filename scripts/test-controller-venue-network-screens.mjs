@@ -161,11 +161,14 @@ writeFileSync(
    import { featureAppliesToControllerVenue, CONTROLLER_UNSUPPORTED_FEATURE_IDS,
             controllerVenueFeatureReason } from "${p("src/lib/router-vendors.ts")}";
    import { CUSTOMER_NAV_GROUPS } from "${p("src/lib/customerNav.ts")}";
+   import { BLOCKING_TABS, blockingTabsFor, initialBlockingTab }
+     from "${p("src/lib/blocking.ts")}";
    export { React, renderToStaticMarkup, QueryClient, QueryClientProvider,
             ControllerManagedFeatureNotice, deriveLocationLiveness,
             locationIsControllerManaged, locationControllerVendor,
             featureAppliesToControllerVenue, CONTROLLER_UNSUPPORTED_FEATURE_IDS,
-            controllerVenueFeatureReason, CUSTOMER_NAV_GROUPS };`,
+            controllerVenueFeatureReason, CUSTOMER_NAV_GROUPS,
+            BLOCKING_TABS, blockingTabsFor, initialBlockingTab };`,
 );
 
 const outfile = join(outdir, "bundle.cjs");
@@ -336,18 +339,95 @@ check(
   m.CONTROLLER_UNSUPPORTED_FEATURE_IDS.length === 5,
   `got ${m.CONTROLLER_UNSUPPORTED_FEATURE_IDS.length}`,
 );
+// Every gated id still has to name a real screen -- a typo here would
+// silently gate nothing. Since Website Blocking moved into Security ->
+// Blocking a gated screen is either a Network nav row or a tab that declares
+// the id itself (`lib/blocking.ts`'s `controllerGatedAs`). Both halves are
+// asserted, and each id must be claimed by EXACTLY one of them: a screen
+// reachable as both a row and a tab is the duplicate this move removed.
+const networkIds = (m.CUSTOMER_NAV_GROUPS.find((g) => g.id === "network")?.items ?? []).map(
+  (i) => i.id,
+);
+const tabGatedIds = m.BLOCKING_TABS.map((t) => t.controllerGatedAs).filter(Boolean);
 check(
-  "every-gated-id-is-a-real-nav-id",
-  m.CONTROLLER_UNSUPPORTED_FEATURE_IDS.every((id) =>
-    m.CUSTOMER_NAV_GROUPS.some((g) => g.items.some((i) => i.id === id)),
+  "every-gated-id-is-a-real-screen",
+  m.CONTROLLER_UNSUPPORTED_FEATURE_IDS.every(
+    (id) => networkIds.includes(id) !== tabGatedIds.includes(id),
   ),
   "a typo here would silently gate nothing",
 );
 check(
-  "every-gated-id-is-in-the-Network-group",
-  m.CONTROLLER_UNSUPPORTED_FEATURE_IDS.every((id) =>
-    (m.CUSTOMER_NAV_GROUPS.find((g) => g.id === "network")?.items ?? []).some((i) => i.id === id),
-  ),
+  "every-gated-nav-row-is-in-the-Network-group",
+  m.CONTROLLER_UNSUPPORTED_FEATURE_IDS.filter((id) => !tabGatedIds.includes(id)).every((id) =>
+    networkIds.includes(id),
+  ) &&
+    m.CUSTOMER_NAV_GROUPS.filter((g) => g.id !== "network")
+      .flatMap((g) => g.items.map((i) => i.id))
+      .every((id) => m.featureAppliesToControllerVenue(id)),
+  "a gated row outside Network would grey a whole page, not a screen",
+);
+check(
+  "website-blocking-is-a-blocking-tab-not-a-nav-row",
+  tabGatedIds.includes("website-blocking") && !networkIds.includes("website-blocking"),
+);
+// Every tab-declared id must actually be in the gated list, or the tab would
+// mount a RouterOS form at an Omada venue with nothing saying so.
+check(
+  "every-tab-gated-id-is-actually-gated",
+  tabGatedIds.every((id) => m.CONTROLLER_UNSUPPORTED_FEATURE_IDS.includes(id)),
+  tabGatedIds.join(", "),
+);
+
+// ---------------------------------------------------------------------------
+// 2b. Security -> Blocking at a controller venue: gate the tab, not the page.
+// ---------------------------------------------------------------------------
+
+console.log("\nSecurity -> Blocking gates one tab, not the page");
+
+check(
+  "the-blocking-page-itself-is-not-gated",
+  m.featureAppliesToControllerVenue("blocking") === true,
+  "its Guests tab works at an Omada venue -- greying the row would hide it",
+);
+check(
+  "the-guests-tab-is-never-controller-gated",
+  m.BLOCKING_TABS.find((t) => t.id === "guests")?.controllerGatedAs === null,
+  "BlockUsers already reaches the controller with its own client block",
+);
+const everyTab = m.blockingTabsFor(null);
+check(
+  "a-controller-venue-opens-on-the-tab-that-works",
+  m.initialBlockingTab(undefined, everyTab, true) === "guests",
+);
+check(
+  "a-mikrotik-venue-opens-on-websites",
+  m.initialBlockingTab(undefined, everyTab, false) === "websites",
+);
+check(
+  "an-explicit-deep-link-wins-even-at-a-controller-venue",
+  m.initialBlockingTab("websites", everyTab, true) === "websites",
+  "the Security overview and old /website-blocking bookmarks must land where they say",
+);
+check(
+  "an-unknown-tab-in-the-url-falls-back-rather-than-breaking",
+  m.initialBlockingTab("firewall", everyTab, false) === "websites",
+);
+check(
+  "tabs-fail-open-on-a-non-answer",
+  m.blockingTabsFor(null).length === 2 &&
+    m.blockingTabsFor(undefined).length === 2 &&
+    m.blockingTabsFor([]).length === 2,
+);
+check(
+  "a-real-grant-set-narrows-the-tabs",
+  m
+    .blockingTabsFor(["guest_access.read"])
+    .map((t) => t.id)
+    .join(",") === "guests",
+);
+check(
+  "a-tab-that-is-not-offered-cannot-be-deep-linked-into",
+  m.initialBlockingTab("websites", m.blockingTabsFor(["guest_access.read"]), false) === "guests",
 );
 
 // ---------------------------------------------------------------------------
@@ -372,7 +452,7 @@ check(
 check("notice-names-the-vendor", /TP-Link Omada controller/.test(notice));
 check(
   "notice-names-the-other-four-screens-too",
-  /Network Zones, IP Addresses, Port Forwarding, Call Priority and Website Blocking/.test(notice),
+  /Network Zones, IP Addresses, Port Forwarding, Call Priority and website blocking/.test(notice),
   "an owner told only about this one will try the other four in turn",
 );
 check(

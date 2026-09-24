@@ -42,7 +42,7 @@ export function DeviceStatusCard({
   ).length;
 
   return (
-    <Card className="premium-card premium-card-hover">
+    <Card className="premium-card premium-card-hover flex h-full flex-col">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <div className="flex items-center gap-2.5">
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
@@ -54,9 +54,9 @@ export function DeviceStatusCard({
           Manage →
         </Button>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex flex-1 flex-col">
         {devices.length === 0 ? (
-          <div className="relative flex flex-col items-center gap-3 overflow-hidden rounded-lg border border-dashed border-border bg-card/40 px-4 py-6 text-center">
+          <div className="relative flex flex-1 flex-col items-center justify-center gap-3 overflow-hidden rounded-lg border border-dashed border-border bg-card/40 px-4 py-6 text-center">
             {/* The one Aceternity moment this surface gets (design v3 Part
              * 4): a low-frequency, first-run "connect your first
              * router"-adjacent empty state, and nowhere else on this page.
@@ -93,8 +93,11 @@ export function DeviceStatusCard({
             </div>
           </div>
         ) : (
-          <div className="space-y-3">
-            <div className="space-y-2">
+          // Stretched to its taller Internet Connection sibling's height, so
+          // the totals row is pinned to the bottom edge rather than floating
+          // just under the first type row.
+          <div className="flex flex-1 flex-col gap-3">
+            <div className="flex-1 space-y-2">
               {DEVICE_TYPES.map((type) => {
                 const typeDevices = devices.filter((d) => d.type === type);
                 if (typeDevices.length === 0) return null;

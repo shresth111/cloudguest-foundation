@@ -28,8 +28,6 @@ export interface SecurityFleetSummary {
   routersReporting: number;
   routersStale: number;
   routersUnhealthy: number;
-  vpnPeersActive: number;
-  vpnPeersTotal: number;
   /** True when this venue has no gateway this platform manages -- every figure
    * above is then zero by absence rather than by health. */
   noManagedGateway: boolean;

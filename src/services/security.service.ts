@@ -46,8 +46,6 @@ interface BackendOverview {
     routers_reporting: number;
     routers_stale: number;
     routers_unhealthy: number;
-    vpn_peers_active: number;
-    vpn_peers_total: number;
     no_managed_gateway: boolean;
   };
   generated_at: string;
@@ -127,8 +125,6 @@ export const securityService = {
         routersReporting: data.fleet.routers_reporting,
         routersStale: data.fleet.routers_stale,
         routersUnhealthy: data.fleet.routers_unhealthy,
-        vpnPeersActive: data.fleet.vpn_peers_active,
-        vpnPeersTotal: data.fleet.vpn_peers_total,
         noManagedGateway: data.fleet.no_managed_gateway,
       },
       generatedAt: data.generated_at,

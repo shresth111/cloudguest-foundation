@@ -73,7 +73,6 @@ const PortForwardingView = lazyView(OPS, "PortForwardingView");
 const DhcpView = lazyView(OPS, "DhcpView");
 const VlansView = lazyView(OPS, "VlansView");
 const VoipView = lazyView(OPS, "VoipView");
-const WebsiteBlockingView = lazyView(OPS, "WebsiteBlockingView");
 const DebuggingView = lazyView(OPS, "DebuggingView");
 const HotspotView = lazyView(OPS, "HotspotView");
 const GenericFeatureView = lazyView(OPS, "GenericFeatureView");
@@ -83,6 +82,9 @@ const GenericFeatureView = lazyView(OPS, "GenericFeatureView");
 // needs none of it would make opening Security fetch it.
 const SECURITY = () => import("@/components/security/SecurityOverviewView");
 const SecurityOverviewView = lazyView(SECURITY, "SecurityOverviewView");
+// Same reasoning: its own module, and it mounts the Website Blocking screen
+// straight from components/network rather than through the ops barrel.
+const BlockingView = lazyView(() => import("@/components/security/BlockingView"), "BlockingView");
 /** Not part of the OperationsFeatures barrel -- its own module, so opening
  * "Network Integrations" fetches only the Omada connect wizard and its
  * service layer rather than the whole 446 kB ops chunk. Lazy for the same
@@ -136,7 +138,7 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
   const [changePwOpen, setChangePwOpen] = useState(false);
   const [tfaOpen, setTfaOpen] = useState(false);
 
-  // Contract §11.5, customer side. The five Network-group screens below are
+  // Contract §11.5, customer side. The Network-group screens below are
   // RouterOS writes, and at a venue whose only router is a vendor controller
   // there is no RouterOS to write to -- the backend refuses, but not until
   // the owner has filled in the form.
@@ -303,7 +305,7 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
               {feature === "admin-logs" && <AdminLogsView locationId={locationId} />}
               {feature === "network-activity" && <NetworkActivityLog masked={masked} />}
               {feature === "mac-auth" && <MacAuthView locationId={locationId} />}
-              {/* The five RouterOS screens. On a controller-managed venue
+              {/* The RouterOS screens. On a controller-managed venue
                   the view is NOT MOUNTED -- this is not a disabled form over
                   a live one. Each of these components fetches its own rules
                   on mount and offers Add/Edit/Apply, and a form that submits
@@ -324,15 +326,17 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                   {feature === "dhcp" && <DhcpView locationId={locationId} />}
                   {feature === "vlans" && <VlansView locationId={locationId} />}
                   {feature === "voip" && <VoipView locationId={locationId} />}
-                  {feature === "website-blocking" && (
-                    <WebsiteBlockingView locationId={locationId} />
-                  )}
+                  {/* No "website-blocking" branch: it is the "Websites &
+                      IPs" tab of Security -> Blocking now, which applies
+                      this same controller gate to that one tab (see
+                      BlockingView), and /website-blocking redirects there. */}
                 </>
               )}
               {/* `masked` matters here now: this page looks a guest up by
                   phone number, so it renders an identifier the account
                   holder's own masking preference applies to. */}
               {feature === "security" && <SecurityOverviewView />}
+              {feature === "blocking" && <BlockingView locationId={locationId} syncWithUrl />}
               {feature === "debugging" && <DebuggingView locationId={locationId} masked={masked} />}
               {feature === "hotspot" && <HotspotView locationId={locationId} />}
               {/* "audit" is handled above (redirected to AdminLogsView, see

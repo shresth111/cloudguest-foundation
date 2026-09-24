@@ -40,6 +40,7 @@ import { Route as DhcpRouteImport } from './routes/dhcp'
 import { Route as DevicesRouteImport } from './routes/devices'
 import { Route as DebuggingRouteImport } from './routes/debugging'
 import { Route as BusinessHoursRouteImport } from './routes/business-hours'
+import { Route as BlockingRouteImport } from './routes/blocking'
 import { Route as BackgroundImageRouteImport } from './routes/background-image'
 import { Route as AlertsRouteImport } from './routes/alerts'
 import { Route as AgentsRouteImport } from './routes/agents'
@@ -134,6 +135,7 @@ import { Route as AuthenticatedAnalyticsIndexRouteImport } from './routes/_authe
 import { Route as PreviewPortalDemoRouteImport } from './routes/preview.portal.demo'
 import { Route as PreviewPortalLocationIdRouteImport } from './routes/preview.portal.$locationId'
 import { Route as PortalAuthMethodRouteImport } from './routes/portal.auth.$method'
+import { Route as MasterRoutersRouterIdRouteImport } from './routes/master.routers.$routerId'
 import { Route as CustomerLocationIdUsersRouteImport } from './routes/customer.$locationId.users'
 import { Route as CustomerLocationIdDashboardRouteImport } from './routes/customer.$locationId.dashboard'
 import { Route as CustomerLocationIdFeatureRouteImport } from './routes/customer.$locationId.$feature'
@@ -345,6 +347,11 @@ const DebuggingRoute = DebuggingRouteImport.update({
 const BusinessHoursRoute = BusinessHoursRouteImport.update({
   id: '/business-hours',
   path: '/business-hours',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BlockingRoute = BlockingRouteImport.update({
+  id: '/blocking',
+  path: '/blocking',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BackgroundImageRoute = BackgroundImageRouteImport.update({
@@ -848,6 +855,11 @@ const PortalAuthMethodRoute = PortalAuthMethodRouteImport.update({
   path: '/$method',
   getParentRoute: () => PortalAuthRoute,
 } as any)
+const MasterRoutersRouterIdRoute = MasterRoutersRouterIdRouteImport.update({
+  id: '/$routerId',
+  path: '/$routerId',
+  getParentRoute: () => MasterRoutersRoute,
+} as any)
 const CustomerLocationIdUsersRoute = CustomerLocationIdUsersRouteImport.update({
   id: '/customer/$locationId/users',
   path: '/customer/$locationId/users',
@@ -1193,6 +1205,7 @@ export interface FileRoutesByFullPath {
   '/agents': typeof AgentsRoute
   '/alerts': typeof AlertsRoute
   '/background-image': typeof BackgroundImageRoute
+  '/blocking': typeof BlockingRoute
   '/business-hours': typeof BusinessHoursRoute
   '/debugging': typeof DebuggingRoute
   '/devices': typeof DevicesRoute
@@ -1325,6 +1338,7 @@ export interface FileRoutesByFullPath {
   '/customer/$locationId/$feature': typeof CustomerLocationIdFeatureRoute
   '/customer/$locationId/dashboard': typeof CustomerLocationIdDashboardRoute
   '/customer/$locationId/users': typeof CustomerLocationIdUsersRoute
+  '/master/routers/$routerId': typeof MasterRoutersRouterIdRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/preview/portal/$locationId': typeof PreviewPortalLocationIdRoute
   '/preview/portal/demo': typeof PreviewPortalDemoRoute
@@ -1375,6 +1389,7 @@ export interface FileRoutesByTo {
   '/agents': typeof AgentsRoute
   '/alerts': typeof AlertsRoute
   '/background-image': typeof BackgroundImageRoute
+  '/blocking': typeof BlockingRoute
   '/business-hours': typeof BusinessHoursRoute
   '/debugging': typeof DebuggingRoute
   '/devices': typeof DevicesRoute
@@ -1502,6 +1517,7 @@ export interface FileRoutesByTo {
   '/customer/$locationId/$feature': typeof CustomerLocationIdFeatureRoute
   '/customer/$locationId/dashboard': typeof CustomerLocationIdDashboardRoute
   '/customer/$locationId/users': typeof CustomerLocationIdUsersRoute
+  '/master/routers/$routerId': typeof MasterRoutersRouterIdRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/preview/portal/$locationId': typeof PreviewPortalLocationIdRoute
   '/preview/portal/demo': typeof PreviewPortalDemoRoute
@@ -1555,6 +1571,7 @@ export interface FileRoutesById {
   '/agents': typeof AgentsRoute
   '/alerts': typeof AlertsRoute
   '/background-image': typeof BackgroundImageRoute
+  '/blocking': typeof BlockingRoute
   '/business-hours': typeof BusinessHoursRoute
   '/debugging': typeof DebuggingRoute
   '/devices': typeof DevicesRoute
@@ -1687,6 +1704,7 @@ export interface FileRoutesById {
   '/customer/$locationId/$feature': typeof CustomerLocationIdFeatureRoute
   '/customer/$locationId/dashboard': typeof CustomerLocationIdDashboardRoute
   '/customer/$locationId/users': typeof CustomerLocationIdUsersRoute
+  '/master/routers/$routerId': typeof MasterRoutersRouterIdRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/preview/portal/$locationId': typeof PreviewPortalLocationIdRoute
   '/preview/portal/demo': typeof PreviewPortalDemoRoute
@@ -1740,6 +1758,7 @@ export interface FileRouteTypes {
     | '/agents'
     | '/alerts'
     | '/background-image'
+    | '/blocking'
     | '/business-hours'
     | '/debugging'
     | '/devices'
@@ -1872,6 +1891,7 @@ export interface FileRouteTypes {
     | '/customer/$locationId/$feature'
     | '/customer/$locationId/dashboard'
     | '/customer/$locationId/users'
+    | '/master/routers/$routerId'
     | '/portal/auth/$method'
     | '/preview/portal/$locationId'
     | '/preview/portal/demo'
@@ -1922,6 +1942,7 @@ export interface FileRouteTypes {
     | '/agents'
     | '/alerts'
     | '/background-image'
+    | '/blocking'
     | '/business-hours'
     | '/debugging'
     | '/devices'
@@ -2049,6 +2070,7 @@ export interface FileRouteTypes {
     | '/customer/$locationId/$feature'
     | '/customer/$locationId/dashboard'
     | '/customer/$locationId/users'
+    | '/master/routers/$routerId'
     | '/portal/auth/$method'
     | '/preview/portal/$locationId'
     | '/preview/portal/demo'
@@ -2101,6 +2123,7 @@ export interface FileRouteTypes {
     | '/agents'
     | '/alerts'
     | '/background-image'
+    | '/blocking'
     | '/business-hours'
     | '/debugging'
     | '/devices'
@@ -2233,6 +2256,7 @@ export interface FileRouteTypes {
     | '/customer/$locationId/$feature'
     | '/customer/$locationId/dashboard'
     | '/customer/$locationId/users'
+    | '/master/routers/$routerId'
     | '/portal/auth/$method'
     | '/preview/portal/$locationId'
     | '/preview/portal/demo'
@@ -2286,6 +2310,7 @@ export interface RootRouteChildren {
   AgentsRoute: typeof AgentsRoute
   AlertsRoute: typeof AlertsRoute
   BackgroundImageRoute: typeof BackgroundImageRoute
+  BlockingRoute: typeof BlockingRoute
   BusinessHoursRoute: typeof BusinessHoursRoute
   DebuggingRoute: typeof DebuggingRoute
   DevicesRoute: typeof DevicesRoute
@@ -2549,6 +2574,13 @@ declare module '@tanstack/react-router' {
       path: '/business-hours'
       fullPath: '/business-hours'
       preLoaderRoute: typeof BusinessHoursRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/blocking': {
+      id: '/blocking'
+      path: '/blocking'
+      fullPath: '/blocking'
+      preLoaderRoute: typeof BlockingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/background-image': {
@@ -3208,6 +3240,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/portal/auth/$method'
       preLoaderRoute: typeof PortalAuthMethodRouteImport
       parentRoute: typeof PortalAuthRoute
+    }
+    '/master/routers/$routerId': {
+      id: '/master/routers/$routerId'
+      path: '/$routerId'
+      fullPath: '/master/routers/$routerId'
+      preLoaderRoute: typeof MasterRoutersRouterIdRouteImport
+      parentRoute: typeof MasterRoutersRoute
     }
     '/customer/$locationId/users': {
       id: '/customer/$locationId/users'
@@ -3870,11 +3909,13 @@ const AgentRouteChildren: AgentRouteChildren = {
 const AgentRouteWithChildren = AgentRoute._addFileChildren(AgentRouteChildren)
 
 interface MasterRoutersRouteChildren {
+  MasterRoutersRouterIdRoute: typeof MasterRoutersRouterIdRoute
   MasterRoutersGuidedRouterIdRoute: typeof MasterRoutersGuidedRouterIdRoute
   MasterRoutersSetupRouterIdRoute: typeof MasterRoutersSetupRouterIdRoute
 }
 
 const MasterRoutersRouteChildren: MasterRoutersRouteChildren = {
+  MasterRoutersRouterIdRoute: MasterRoutersRouterIdRoute,
   MasterRoutersGuidedRouterIdRoute: MasterRoutersGuidedRouterIdRoute,
   MasterRoutersSetupRouterIdRoute: MasterRoutersSetupRouterIdRoute,
 }
@@ -3987,6 +4028,7 @@ const rootRouteChildren: RootRouteChildren = {
   AgentsRoute: AgentsRoute,
   AlertsRoute: AlertsRoute,
   BackgroundImageRoute: BackgroundImageRoute,
+  BlockingRoute: BlockingRoute,
   BusinessHoursRoute: BusinessHoursRoute,
   DebuggingRoute: DebuggingRoute,
   DevicesRoute: DevicesRoute,
