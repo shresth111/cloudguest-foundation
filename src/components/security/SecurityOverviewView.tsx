@@ -67,8 +67,10 @@ const PLAIN_COPY: Record<string, string> = {
     "Tells you when a second device on the network starts handing out addresses, which is usually how an unauthorised access point gets introduced.",
   connection_flood_protection:
     "Limits how many connections one source can open, which reduces floods and password-guessing. It reduces the exposure rather than removing it, and a strict limit can drop legitimate bursts.",
+  // Written to be true whichever group the backend puts it in: the group
+  // heading says whether it works today, and cloud-guest#307 is what moves it.
   web_category_filtering:
-    "Needs a maintained list of which sites belong to which category, and something to apply it. This platform has neither yet -- a DNS filtering provider supplies both.",
+    "Block whole kinds of website, such as adult or gambling sites. It needs a list of which sites belong to which kind and something to apply it; a DNS filtering provider (Cloudflare) supplies both. A device set to use its own private DNS can get round it.",
   application_control:
     "Only partly achievable today, by matching an app's known website names. Telling one app from another reliably needs deep packet inspection, which this platform does not have.",
   threat_intelligence:
@@ -85,7 +87,7 @@ const PLAIN_COPY: Record<string, string> = {
 
 /** Where a capability is managed, for the ones that have a screen.
  *
- * Only these four, and each is checked against what the screen actually
+ * Only these five, and each is checked against what the screen actually
  * writes rather than against the capability's name:
  *
  *  - `domain_blocking_dns`: a website rule on the Websites tab is a DNS
@@ -98,6 +100,12 @@ const PLAIN_COPY: Record<string, string> = {
  *    between-network (`forward`) rules applied to the router by
  *    cloud-guest#304's push -- which is exactly what the backend's catalogue
  *    means by it.
+ *  - `web_category_filtering`: Security -> Web Filtering, which sets the
+ *    venue's Cloudflare categories and switches its routers onto them
+ *    (cloud-guest#307). The backend catalogue lists it as needing additional
+ *    technology until one real router and account have been through it, so
+ *    today it gets no link; the link appears the day the backend reports it
+ *    "available", with no frontend change.
  *
  * Every link is still data-driven: a row is only rendered for a capability
  * the backend returned, and only linked from the "available" group. If the
@@ -113,13 +121,15 @@ const PLAIN_COPY: Record<string, string> = {
  * capabilities the backend returned. */
 type ManagedAt =
   | { to: "/blocking"; tab: "websites" | "guests"; label: string }
-  | { to: "/firewall"; label: string };
+  | { to: "/firewall"; label: string }
+  | { to: "/web-filtering"; label: string };
 
 const MANAGED_AT: Record<string, ManagedAt> = {
   domain_blocking_dns: { to: "/blocking", tab: "websites", label: "Block a website" },
   ip_and_cidr_blocking: { to: "/blocking", tab: "websites", label: "Block an address" },
   device_isolation: { to: "/blocking", tab: "guests", label: "Block a guest" },
   zone_to_zone_firewall: { to: "/firewall", label: "Set firewall rules" },
+  web_category_filtering: { to: "/web-filtering", label: "Choose what to block" },
 };
 
 /** One capability's link. Split by destination so each `<Link>` is typed
@@ -137,8 +147,12 @@ function ManagedAtLink({ at }: { at: ManagedAt }) {
     <Link to="/blocking" search={{ tab: at.tab }} className={cls}>
       {body}
     </Link>
-  ) : (
+  ) : at.to === "/firewall" ? (
     <Link to="/firewall" className={cls}>
+      {body}
+    </Link>
+  ) : (
+    <Link to="/web-filtering" className={cls}>
       {body}
     </Link>
   );

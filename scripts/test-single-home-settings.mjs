@@ -196,6 +196,14 @@ check(
   /case "firewall":\s*return <FirewallView\b/.test(customerFeatures),
 );
 check(
+  "the customer shell mounts Web filtering once",
+  (customerShell.match(/<WebFilteringView\b/g) ?? []).length === 1,
+);
+check(
+  "the staff shell mounts the same Web filtering page",
+  /case "web-filtering":\s*return <WebFilteringView\b/.test(customerFeatures),
+);
+check(
   "neither customer shell mounts the operator firewall screen",
   !/<FirewallManagement\b/.test(customerShell) && !/<FirewallManagement\b/.test(customerFeatures),
 );

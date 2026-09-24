@@ -45,10 +45,9 @@
  * COUNT NOTE: the owner nav used to be 26 items; the "Notifications"
  * preferences screen was removed from the customer dashboard along with
  * its nav entry (id "notification"), so the nav was 25 -- and the Security
- * group's single row has since brought it back to 26, and the Marketing
- * add-on's own group took it to 27. The stub below
- * Security -> Firewall took it to 28.
- * reads the lucide imports straight from `customerNav.ts` +
+ * group's single row has since brought it back to 26, the Marketing
+ * add-on's own group took it to 27, Security -> Firewall to 28 and
+ * Security -> Web Filtering to 29. The stub below reads the lucide imports straight from `customerNav.ts` +
  * `customerFeatureCatalog.ts`, so removing that entry's `Send` icon drops
  * it from the stub automatically.
  *
@@ -276,6 +275,7 @@ for (const id of [
   "network-activity",
   "blocking",
   "firewall",
+  "web-filtering",
   "campaigns",
 ]) {
   check(`front desk does not get ${id}`, !frontDeskIds.includes(id));
@@ -324,6 +324,13 @@ check(
   "firewall is gated on firewall.read",
   navItemAllowed("firewall", new Set(["firewall.read"])) &&
     !navItemAllowed("firewall", new Set(["security.read", "content_filtering.read"])),
+);
+// Security -> Web Filtering reads /dns-filtering/*, which cloud-guest#307
+// guards with the existing content_filtering keys.
+check(
+  "web filtering is gated on content_filtering.read",
+  navItemAllowed("web-filtering", new Set(["content_filtering.read"])) &&
+    !navItemAllowed("web-filtering", new Set(["security.read", "firewall.read"])),
 );
 check(
   "the retired website-blocking id is no longer mapped",
