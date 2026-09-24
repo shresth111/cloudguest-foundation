@@ -126,33 +126,35 @@ export function UplinkRow({ link }: { link: IspLink }) {
 
   return (
     <div className="space-y-1">
-      <div className="flex items-center justify-between gap-2 text-xs">
+      {/* Fixed columns (name | role | state | action), not a free-flowing
+       * row: with a flowing row "Primary"/"Backup" started wherever the
+       * provider name happened to end and the Active/Standby badges were
+       * different widths, so no two uplinks lined up. */}
+      <div className="grid grid-cols-[minmax(0,1fr)_3.5rem_3.75rem_auto] items-center gap-2 text-xs">
         <span className="flex min-w-0 items-center gap-1.5">
-          <IspProviderIcon providerName={link.providerName} className="h-4 w-4" />
+          <IspProviderIcon providerName={link.providerName} className="h-4 w-4 shrink-0" />
           <span className="truncate font-medium text-foreground">{link.providerName}</span>
-          <span className="shrink-0 text-muted-foreground">
-            {link.role === "primary" ? "Primary" : "Backup"}
-          </span>
         </span>
-        <span className="flex shrink-0 items-center gap-1.5">
-          <Badge
-            variant={link.isActiveUplink ? "default" : "secondary"}
-            className="h-5 shrink-0 px-1.5 text-[10px]"
-          >
-            {link.isActiveUplink ? "Active" : "Standby"}
-          </Badge>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-5 gap-1 px-1.5 text-[10px] font-medium text-primary hover:text-primary"
-            disabled={state.status === "running"}
-            onClick={runSpeedTest}
-            title="Run a real speed test against this link's router"
-          >
-            <Gauge className={cn("h-3 w-3", state.status === "running" && "animate-spin")} />
-            {state.status === "running" ? "Testing…" : "Speed Test"}
-          </Button>
+        <span className="text-muted-foreground">
+          {link.role === "primary" ? "Primary" : "Backup"}
         </span>
+        <Badge
+          variant={link.isActiveUplink ? "default" : "secondary"}
+          className="h-5 w-full justify-center px-1.5 text-[10px]"
+        >
+          {link.isActiveUplink ? "Active" : "Standby"}
+        </Badge>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-5 gap-1 px-1.5 text-[10px] font-medium text-primary hover:text-primary"
+          disabled={state.status === "running"}
+          onClick={runSpeedTest}
+          title="Run a real speed test against this link's router"
+        >
+          <Gauge className={cn("h-3 w-3", state.status === "running" && "animate-spin")} />
+          {state.status === "running" ? "Testing…" : "Speed Test"}
+        </Button>
       </div>
       {state.status === "running" && (
         <div className="flex items-center gap-1.5 pl-[22px] text-[10px] text-muted-foreground">
@@ -195,7 +197,7 @@ export function WanStatusCard({
 }) {
   const wan = useWanSummary(locationId);
   return (
-    <Card className="premium-card premium-card-hover">
+    <Card className="premium-card premium-card-hover h-full">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <div className="flex items-center gap-2.5">
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]">
@@ -284,29 +286,43 @@ export function WanStatusCard({
                     <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                       Bandwidth · live
                     </p>
-                    <div className="mt-0.5 flex flex-wrap items-baseline gap-x-4 gap-y-0.5">
-                      {active.currentDownloadMbps != null && (
-                        <span className="text-lg font-semibold tabular-nums text-foreground">
-                          {active.currentDownloadMbps.toFixed(0)}{" "}
-                          <span className="text-xs font-normal text-muted-foreground">Mbps ↓</span>
-                        </span>
-                      )}
-                      {active.currentUploadMbps != null && (
-                        <span className="text-lg font-semibold tabular-nums text-foreground">
-                          {active.currentUploadMbps.toFixed(0)}{" "}
-                          <span className="text-xs font-normal text-muted-foreground">Mbps ↑</span>
-                        </span>
-                      )}
-                      {active.latencyMs != null && (
-                        <span className="text-xs text-muted-foreground">
-                          {active.latencyMs.toFixed(0)}ms latency
-                        </span>
-                      )}
-                      {active.packetLossPercentage != null && (
-                        <span className="text-xs text-muted-foreground">
-                          {active.packetLossPercentage.toFixed(1)}% loss
-                        </span>
-                      )}
+                    {/* One equal-width cell per figure, value over label, so
+                     * the four numbers sit on one baseline and one grid
+                     * instead of wrapping at whatever width the card has. */}
+                    <div className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
+                      {[
+                        {
+                          label: "Download",
+                          value: active.currentDownloadMbps,
+                          unit: "Mbps",
+                          digits: 0,
+                        },
+                        {
+                          label: "Upload",
+                          value: active.currentUploadMbps,
+                          unit: "Mbps",
+                          digits: 0,
+                        },
+                        { label: "Latency", value: active.latencyMs, unit: "ms", digits: 0 },
+                        {
+                          label: "Loss",
+                          value: active.packetLossPercentage,
+                          unit: "%",
+                          digits: 1,
+                        },
+                      ].map((m) => (
+                        <div key={m.label} className="min-w-0">
+                          <p className="text-lg font-semibold leading-tight tabular-nums text-foreground">
+                            {m.value != null ? m.value.toFixed(m.digits) : "—"}
+                            {m.value != null && (
+                              <span className="ml-0.5 text-xs font-normal text-muted-foreground">
+                                {m.unit}
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground">{m.label}</p>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}

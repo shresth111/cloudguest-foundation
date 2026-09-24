@@ -883,7 +883,7 @@ export function CustomerDashboardPage() {
 
           {/* Real uplink health and hardware -- the detail behind the status
               bar's ISP and router figures at the top of this page. */}
-          <div className="grid items-start gap-6 lg:grid-cols-2">
+          <div className="grid gap-6 lg:grid-cols-2">
             <WanStatusCard locationId={locationId} onManage={() => handleNav("isp-details")} />
             <DeviceStatusCard locationId={locationId} onManage={() => handleNav("devices")} />
           </div>
