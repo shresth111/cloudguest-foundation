@@ -1184,6 +1184,17 @@ jobs:
       - name: vendored permission keys are current
         run: bun run test:permission-key-drift
 
+      # --- Marketing add-on UI ---------------------------------------------
+      #
+      # The SMS length/segment counter executed against the contract's rules,
+      # plus source guards: no fixture arrays anywhere in the marketing UI, no
+      # optimistic updates, no success toast that can fire before the server
+      # answered, and the add-on's lock state read from the backend
+      # (/me/entitlements + the 402), never from the login-role radio.
+      # wyfy-specs/guest-marketing-campaigns.md §8.3.
+      - name: marketing UI guards
+        run: bun run test:marketing-ui
+
       # --- Session rules actually reach the guest --------------------------
       #
       # Idle Timeout and Maximum Daily Session Limit were both captured,

@@ -388,7 +388,9 @@ console.log("\nno two nav items share an icon");
   // rather than derived on purpose -- the point of this assertion is to notice
   // a row disappearing, so the number moves only when a feature is
   // deliberately added or removed. This is such a time.
-  check("the nav still has every item", icons.length === 26, `found ${icons.length}`);
+  // 27: the Marketing add-on's own group and row (wyfy-specs/
+  // guest-marketing-campaigns.md §3.5), deliberately added.
+  check("the nav still has every item", icons.length === 27, `found ${icons.length}`);
 }
 
 console.log(

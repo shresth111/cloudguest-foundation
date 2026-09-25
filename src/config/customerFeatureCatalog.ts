@@ -31,6 +31,7 @@ import {
   LifeBuoy,
   Radar,
   ShieldAlert,
+  Send,
 } from "lucide-react";
 
 export interface FeatureDef {
@@ -59,6 +60,15 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
       { id: "portal", label: "Portal", icon: Palette },
       { id: "vouchers", label: "Vouchers", icon: Ticket },
     ],
+  },
+  {
+    // The Marketing add-on (wyfy-specs/guest-marketing-campaigns.md §3.5),
+    // grantable so Staff Access can give it to a staff role. Granting it here
+    // does not unlock the add-on -- that is the organisation's entitlement --
+    // and does not grant sending, which the backend gates on
+    // `marketing.execute` separately.
+    group: "Marketing",
+    items: [{ id: "marketing", label: "Marketing", icon: Send }],
   },
   {
     group: "Access & Policy",

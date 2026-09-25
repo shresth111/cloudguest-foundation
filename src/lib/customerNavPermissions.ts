@@ -100,6 +100,12 @@ export const NAV_PERMISSION_KEYS: Record<string, readonly string[]> = {
   campaigns: ["campaigns.read"],
   portal: ["captive_portal.read"],
   vouchers: ["voucher.read"],
+  // Marketing (paid add-on). The backend's new `marketing` module
+  // (wyfy-specs/guest-marketing-campaigns.md §4.9); `read` gates every list,
+  // count and preview the page opens with. Whether the add-on is UNLOCKED is
+  // a separate question answered by entitlements, not permissions -- a
+  // locked org's owner still sees the row (with a lock badge) and the upsell.
+  marketing: ["marketing.read"],
   // Access & Policy
   policies: ["policy.read"],
   whitelist: ["guest_access.read"],

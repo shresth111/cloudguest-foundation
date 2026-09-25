@@ -35,7 +35,8 @@ import {
 } from "@/lib/router-vendors";
 import { useCustomerStore } from "@/stores/customerStore";
 import { DataMaskingOtpDialog } from "@/components/features/HeaderControls";
-import { useMyPermissions } from "@/hooks/useCustomerDashboard";
+import { useFeatureEntitled, useMyPermissions } from "@/hooks/useCustomerDashboard";
+import { GUEST_MARKETING_FEATURE_KEY } from "@/types/marketing";
 import type { useDataMasking } from "@/hooks/useCustomerDashboard";
 
 /**
@@ -158,6 +159,14 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
   const controllerReason = controllerVenueFeatureReason(
     locationControllerVendor(activeLocation?.liveness),
   );
+
+  // The Marketing add-on's lock badge (wyfy-specs/guest-marketing-campaigns.md
+  // §3.5). From `/me/entitlements` -- the backend's own entitlement snapshot,
+  // the same one `RequireFeature` enforces -- never from the login-role radio.
+  // `null` (loading, failed, demo) shows no badge; the page itself resolves the
+  // truth from the backend's 402. The row stays visible and clickable when
+  // locked (spec D5): a customer cannot ask for a feature they cannot see.
+  const marketingEntitled = useFeatureEntitled(GUEST_MARKETING_FEATURE_KEY);
 
   return (
     <Sidebar
@@ -313,6 +322,15 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
                             )}
                             <Icon className="h-4 w-4 shrink-0" />
                             <span className="flex-1 truncate">{label}</span>
+                            {item.id === "marketing" && marketingEntitled === false && (
+                              <span
+                                className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold text-sidebar-foreground/80 group-data-[collapsible=icon]:hidden"
+                                title="Marketing is an add-on that isn't enabled for your organisation"
+                              >
+                                <Lock aria-hidden className="h-2.5 w-2.5" />
+                                {t("customerItemBadge.addon", "Add-on")}
+                              </span>
+                            )}
                           </Link>
                         </SidebarMenuButton>
                       </SidebarMenuItem>

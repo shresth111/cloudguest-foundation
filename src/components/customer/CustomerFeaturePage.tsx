@@ -85,6 +85,13 @@ const SecurityOverviewView = lazyView(SECURITY, "SecurityOverviewView");
 // Same reasoning: its own module, and it mounts the Website Blocking screen
 // straight from components/network rather than through the ops barrel.
 const BlockingView = lazyView(() => import("@/components/security/BlockingView"), "BlockingView");
+// The Marketing add-on. Its own module, lazily fetched, for the same reason
+// as Security and Blocking above: nothing on the way to first paint needs
+// it (wyfy-specs/guest-marketing-campaigns.md §8.1).
+const MarketingView = lazyView(
+  () => import("@/components/marketing/MarketingView"),
+  "MarketingView",
+);
 /** Not part of the OperationsFeatures barrel -- its own module, so opening
  * "Network Integrations" fetches only the Omada connect wizard and its
  * service layer rather than the whole 446 kB ops chunk. Lazy for the same
@@ -337,6 +344,7 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                   holder's own masking preference applies to. */}
               {feature === "security" && <SecurityOverviewView />}
               {feature === "blocking" && <BlockingView locationId={locationId} syncWithUrl />}
+              {feature === "marketing" && <MarketingView locationId={locationId} syncWithUrl />}
               {feature === "debugging" && <DebuggingView locationId={locationId} masked={masked} />}
               {feature === "hotspot" && <HotspotView locationId={locationId} />}
               {/* "audit" is handled above (redirected to AdminLogsView, see

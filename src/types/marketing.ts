@@ -1,0 +1,423 @@
+/**
+ * Guest Marketing (the paid "Marketing" add-on) -- wire types.
+ *
+ * These are the backend's shapes verbatim, snake_case included, from
+ * wyfy-specs/guest-marketing-campaigns.md §5 (the contract the backend
+ * builds against). They are deliberately NOT remapped to camelCase: every
+ * field here is read straight off a response, and a hand-written mapping
+ * layer is one more place for the two sides to drift apart silently. The
+ * service returns exactly what the backend sent.
+ */
+
+export type MarketingChannel = "sms" | "whatsapp" | "email";
+export const MARKETING_CHANNELS: readonly MarketingChannel[] = ["sms", "whatsapp", "email"];
+
+export type ChannelMode = "live" | "logging" | "unconfigured";
+
+export interface ChannelStatus {
+  channel: MarketingChannel;
+  /** True only for a real provider with complete credentials. A "logging"
+   * provider is NOT configured (spec D8): it logs and returns success. */
+  configured: boolean;
+  provider: string | null;
+  mode: ChannelMode;
+  reason: string | null;
+  requires_dlt_template_id?: boolean;
+  custom_templates_supported?: boolean;
+}
+
+export interface PortalConsentState {
+  enabled: boolean;
+  text: string | null;
+  text_version: string | null;
+}
+
+export interface MarketingStatus {
+  channels: ChannelStatus[];
+  portal_consent: PortalConsentState;
+  consent_counts: Record<MarketingChannel, number>;
+  quiet_hours: {
+    start: string;
+    end: string;
+    timezone: string;
+    applies_to: MarketingChannel[];
+  };
+  limits: { max_recipients_per_campaign: number; test_sends_per_day: number };
+}
+
+export interface PortalConsentUpdate {
+  location_id: string;
+  enabled: boolean;
+  text?: string | null;
+}
+
+export interface PortalConsentResult {
+  location_id: string;
+  enabled: boolean;
+  text: string | null;
+  text_version: string | null;
+}
+
+export interface Page<T> {
+  items: T[];
+  page: number;
+  page_size: number;
+  total_items: number;
+  total_pages: number;
+  has_next: boolean;
+  has_previous: boolean;
+}
+
+// ── Contacts / audience ────────────────────────────────────────────────
+
+export type ConsentStatus = "opted_in" | "opted_out" | "none";
+
+export interface MarketingContact {
+  guest_id: string;
+  display_name: string | null;
+  masked_address: string;
+  consent_status: ConsentStatus;
+  consent_source: string | null;
+  consent_changed_at: string | null;
+  last_seen_at: string | null;
+  total_visit_count: number;
+}
+
+export interface ContactListQuery {
+  channel: MarketingChannel;
+  consent_status?: ConsentStatus;
+  location_id?: string;
+  search?: string;
+  page?: number;
+  page_size?: number;
+}
+
+export interface OptOutResult {
+  guest_id: string;
+  channels: Partial<Record<MarketingChannel, ConsentStatus>>;
+}
+
+export interface AudienceFilter {
+  channel: MarketingChannel;
+  location_ids?: string[] | null;
+  visited_from?: string | null;
+  visited_to?: string | null;
+  min_visits?: number | null;
+  max_visits?: number | null;
+  not_seen_for_days?: number | null;
+  require_name?: boolean;
+}
+
+export interface AudienceSampleGuest {
+  guest_id: string;
+  display_name: string | null;
+  masked_address: string;
+  last_seen_at: string | null;
+  total_visit_count: number;
+}
+
+export interface AudiencePreview {
+  channel: MarketingChannel;
+  matched_guests: number;
+  reachable: number;
+  excluded: {
+    no_consent: number;
+    opted_out: number;
+    suppressed: number;
+    no_address: number;
+    invalid_address: number;
+    blocked: number;
+  };
+  capped: boolean;
+  sample: AudienceSampleGuest[];
+}
+
+// ── Templates ──────────────────────────────────────────────────────────
+
+export const TEMPLATE_VARIABLES = [
+  "guest_name",
+  "venue_name",
+  "location_name",
+  "offer_code",
+  "offer_expiry",
+  "event_name",
+  "event_date",
+  "booking_link",
+  "review_link",
+  "unsubscribe_link",
+] as const;
+export type TemplateVariable = (typeof TEMPLATE_VARIABLES)[number];
+
+/** The subset a campaign supplies values for (spec §5.0 "Variable
+ * resolution"); the rest are resolved per guest / per venue by the server. */
+export const CAMPAIGN_VARIABLES = [
+  "offer_code",
+  "offer_expiry",
+  "event_name",
+  "event_date",
+  "booking_link",
+] as const;
+export type CampaignVariable = (typeof CAMPAIGN_VARIABLES)[number];
+
+export const TEMPLATE_CATEGORIES = [
+  "welcome",
+  "offer",
+  "feedback",
+  "festival",
+  "loyalty",
+  "event",
+  "winback",
+  "announcement",
+  "birthday",
+  "custom",
+] as const;
+export type TemplateCategory = (typeof TEMPLATE_CATEGORIES)[number];
+
+export type SendableReason =
+  | "channel_not_configured"
+  | "channel_missing_in_template"
+  | "dlt_template_id_missing"
+  | "whatsapp_not_approved"
+  | "unsubscribe_link_missing"
+  | "review_link_missing";
+
+export interface TemplateSms {
+  body: string;
+  dlt_template_id: string | null;
+  length: number;
+  encoding: "gsm7" | "ucs2";
+  segments: number;
+}
+
+export interface TemplateWhatsapp {
+  body: string;
+  content_sid: string | null;
+  variable_order: string[];
+  approval_status: "not_submitted" | "pending" | "approved" | "rejected";
+}
+
+export interface TemplateEmail {
+  subject: string;
+  preheader: string | null;
+  body_html: string;
+}
+
+export interface MarketingTemplate {
+  id: string;
+  is_system: boolean;
+  system_key: string | null;
+  name: string;
+  category: TemplateCategory | string;
+  description: string | null;
+  sms: TemplateSms | null;
+  whatsapp: TemplateWhatsapp | null;
+  email: TemplateEmail | null;
+  variables: string[];
+  sendable: Record<MarketingChannel, { ok: boolean; reason: SendableReason | string | null }>;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TemplateListQuery {
+  channel?: MarketingChannel;
+  category?: string;
+  include_system?: boolean;
+  page?: number;
+  page_size?: number;
+}
+
+export interface TemplateWritePayload {
+  name: string;
+  category: string;
+  description?: string | null;
+  sms?: { body: string; dlt_template_id?: string | null } | null;
+  /** MVP: must be null for a custom template (whatsapp_custom_not_supported). */
+  whatsapp?: null;
+  email?: { subject: string; preheader?: string | null; body_html: string } | null;
+}
+
+export type TemplatePatchPayload = Partial<TemplateWritePayload> & { version: number };
+
+export interface TemplatePreviewRequest {
+  channel: MarketingChannel;
+  template_id?: string | null;
+  content?: {
+    sms?: { body: string; dlt_template_id?: string | null };
+    email?: { subject: string; preheader?: string | null; body_html: string };
+  } | null;
+  variables?: Partial<Record<CampaignVariable, string>>;
+  location_id?: string | null;
+}
+
+export interface TemplatePreview {
+  channel: MarketingChannel;
+  rendered: { body: string; subject: string | null };
+  sms: { length: number; encoding: "gsm7" | "ucs2"; segments: number } | null;
+  missing_variables: string[];
+}
+
+// ── Campaigns ──────────────────────────────────────────────────────────
+
+export type CampaignStatus = "draft" | "scheduled" | "sending" | "sent" | "failed" | "cancelled";
+export const CAMPAIGN_STATUSES: readonly CampaignStatus[] = [
+  "draft",
+  "scheduled",
+  "sending",
+  "sent",
+  "failed",
+  "cancelled",
+];
+
+export interface CampaignStats {
+  recipients: number;
+  pending: number;
+  submitted: number;
+  delivered: number;
+  failed: number;
+  skipped: number;
+  /** False = the provider gives no delivery receipts; never show a Delivered %. */
+  delivered_is_tracked: boolean;
+  /** Who the dispatcher left out, frozen when the campaign started; null
+   * until dispatched (contract change 2026-09-25, additive). Optional so a
+   * backend that predates the change still type-checks as "not reported". */
+  excluded_at_dispatch?: AudiencePreview["excluded"] | null;
+}
+
+export interface MarketingCampaign {
+  id: string;
+  name: string;
+  channel: MarketingChannel;
+  location_id: string | null;
+  template: { id: string; name: string; is_system: boolean };
+  variables: Partial<Record<CampaignVariable, string>>;
+  audience_filter: AudienceFilter;
+  status: CampaignStatus;
+  scheduled_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  cancelled_at: string | null;
+  cancel_reason: string | null;
+  paused_until: string | null;
+  stats: CampaignStats;
+  created_by: { id: string; name: string } | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+  /** Detail endpoint only. */
+  last_error?: string | null;
+}
+
+export interface CampaignListQuery {
+  status?: CampaignStatus[];
+  channel?: MarketingChannel;
+  search?: string;
+  page?: number;
+  page_size?: number;
+}
+
+export interface CampaignCreatePayload {
+  name: string;
+  channel: MarketingChannel;
+  template_id: string;
+  location_id: string | null;
+  variables: Partial<Record<CampaignVariable, string>>;
+  audience_filter: AudienceFilter;
+}
+
+export type CampaignPatchPayload = Partial<CampaignCreatePayload> & { version: number };
+
+export interface TestSendResult {
+  results: {
+    to_masked: string;
+    status: "submitted" | "failed";
+    provider_message_id: string | null;
+    error_code: string | null;
+  }[];
+}
+
+// ── Delivery logs ──────────────────────────────────────────────────────
+
+export type RecipientStatus =
+  | "pending"
+  | "sending"
+  | "submitted"
+  | "delivered"
+  | "failed"
+  | "skipped";
+export const RECIPIENT_STATUSES: readonly RecipientStatus[] = [
+  "pending",
+  "sending",
+  "submitted",
+  "delivered",
+  "failed",
+  "skipped",
+];
+
+export interface CampaignRecipient {
+  id: string;
+  guest_id: string | null;
+  display_name: string | null;
+  masked_address: string;
+  status: RecipientStatus;
+  skip_reason: string | null;
+  error_code: string | null;
+  error_message: string | null;
+  attempt_count: number;
+  submitted_at: string | null;
+  delivered_at: string | null;
+  failed_at: string | null;
+}
+
+export interface DeliveryLogEntry extends CampaignRecipient {
+  campaign: { id: string; name: string };
+  channel: MarketingChannel;
+}
+
+export interface RecipientListQuery {
+  status?: RecipientStatus[];
+  page?: number;
+  page_size?: number;
+}
+
+export interface DeliveryListQuery {
+  channel?: MarketingChannel;
+  status?: RecipientStatus[];
+  campaign_id?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  page_size?: number;
+}
+
+// ── Entitlements (GET /me/entitlements) ────────────────────────────────
+
+export const GUEST_MARKETING_FEATURE_KEY = "guest_marketing";
+
+// ── Master add-on control (§5.9) ───────────────────────────────────────
+
+export interface OrganizationAddon {
+  key: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  source: "plan" | "override";
+  plan_value: boolean;
+  override: {
+    is_enabled: boolean;
+    reason: string | null;
+    set_by: { id: string; name: string } | null;
+    set_at: string;
+  } | null;
+  active_campaign_count: number;
+}
+
+export interface OrganizationAddons {
+  organization_id: string;
+  addons: OrganizationAddon[];
+}
+
+export interface AddonWriteResult {
+  addon: OrganizationAddon;
+  cancelled_campaign_count: number;
+}

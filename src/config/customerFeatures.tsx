@@ -76,6 +76,10 @@ const GenericFeatureView = lazyView(ops, "GenericFeatureView");
 // store this shell's caller does, and keeps its tab local here because this
 // shell has one URL for every feature.
 const BlockingView = lazyView(() => import("@/components/security/BlockingView"), "BlockingView");
+const MarketingView = lazyView(
+  () => import("@/components/marketing/MarketingView"),
+  "MarketingView",
+);
 
 const BasicDashboardView = lazyView(basic, "BasicDashboardView");
 const BasicUsersView = lazyView(basic, "BasicUsersView");
@@ -187,6 +191,10 @@ function featureElement(id: string, ctx: { locationId?: string; masked?: boolean
       return <HotspotView locationId={ctx.locationId} />;
     case "blocking":
       return <BlockingView locationId={ctx.locationId} />;
+    // One URL for every feature in this shell, so the tab and the open
+    // campaign are local state here rather than `?tab=`/`?campaign=`.
+    case "marketing":
+      return <MarketingView locationId={ctx.locationId} />;
     default:
       return <GenericFeatureView feature={id} />;
   }

@@ -181,6 +181,8 @@ interface BackendGuestLoginResponse {
    * `RuntimeSession.hasProfile` / `.hasOpenedReviewLink`. */
   has_profile?: boolean;
   has_opened_review_link?: boolean;
+  /** §5.8 of the marketing spec; absent on a backend that predates it. */
+  marketing_consent_offer?: { text: string; text_version: string } | null;
   session: BackendGuestSession;
   device: BackendGuestDevice | null;
 }
@@ -377,6 +379,12 @@ function toRuntimeSession(data: BackendGuestLoginResponse): RuntimeSession {
     // landing ahead of the backend changes nothing for anyone.
     hasProfile: data.has_profile ?? false,
     hasOpenedReviewLink: data.has_opened_review_link ?? false,
+    marketingConsentOffer: data.marketing_consent_offer
+      ? {
+          text: data.marketing_consent_offer.text,
+          textVersion: data.marketing_consent_offer.text_version,
+        }
+      : null,
   };
 }
 
@@ -623,6 +631,28 @@ export const portalRuntimeService = {
       email: params.email || undefined,
       declined: params.declined || undefined,
     });
+  },
+
+  /** `POST /guest/marketing-consent` (marketing spec §5.8). Called ONLY
+   * when the guest ticked the unticked opt-in box -- declining is not an
+   * opt-out and records nothing. `consentTextVersion` is the version of the
+   * wording the guest actually saw; a mismatch comes back as 409
+   * `stale_consent_text`. Never blocks network access. */
+  async recordMarketingConsent(params: {
+    guestId: string;
+    sessionId: string;
+    consentTextVersion: string;
+  }): Promise<{ guest_id: string; channels: Record<string, string> }> {
+    const { data } = await guestPortalApi.post<{
+      guest_id: string;
+      channels: Record<string, string>;
+    }>("/guest/marketing-consent", {
+      guest_id: params.guestId,
+      session_id: params.sessionId,
+      opt_in: true,
+      consent_text_version: params.consentTextVersion,
+    });
+    return data;
   },
 
   /** Records that a guest tapped through to the venue's Google review link.

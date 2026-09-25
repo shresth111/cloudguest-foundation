@@ -5,11 +5,13 @@ import enNav from "./locales/en/nav.json";
 import enGuests from "./locales/en/guests.json";
 import enAccount from "./locales/en/account.json";
 import enHelp from "./locales/en/help.json";
+import enMarketing from "./locales/en/marketing.json";
 import hiCommon from "./locales/hi/common.json";
 import hiNav from "./locales/hi/nav.json";
 import hiGuests from "./locales/hi/guests.json";
 import hiAccount from "./locales/hi/account.json";
 import hiHelp from "./locales/hi/help.json";
+import hiMarketing from "./locales/hi/marketing.json";
 
 const LANG_CACHE_KEY = "cg.dashboard.lang";
 
@@ -50,12 +52,26 @@ function readCachedLang(): string {
 // before they are added to `hi/help.json`.
 i18n.use(initReactI18next).init({
   resources: {
-    en: { common: enCommon, nav: enNav, guests: enGuests, account: enAccount, help: enHelp },
-    hi: { common: hiCommon, nav: hiNav, guests: hiGuests, account: hiAccount, help: hiHelp },
+    en: {
+      common: enCommon,
+      nav: enNav,
+      guests: enGuests,
+      account: enAccount,
+      help: enHelp,
+      marketing: enMarketing,
+    },
+    hi: {
+      common: hiCommon,
+      nav: hiNav,
+      guests: hiGuests,
+      account: hiAccount,
+      help: hiHelp,
+      marketing: hiMarketing,
+    },
   },
   lng: readCachedLang(),
   fallbackLng: "en",
-  ns: ["common", "nav", "guests", "account", "help"],
+  ns: ["common", "nav", "guests", "account", "help", "marketing"],
   defaultNS: "common",
   interpolation: { escapeValue: false },
   returnNull: false,
