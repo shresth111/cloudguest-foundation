@@ -2,6 +2,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import { VenuePicker } from "./VenuePicker";
 import {
   MARKETING_CHANNELS,
   type AudienceFilter,
@@ -24,23 +25,21 @@ function intOrNull(v: string, min: number, max: number): number | null {
  * preview and again at send time, and are NOT settable here -- there is no
  * control on this form that could reach a guest who has not opted in.
  *
- * `location_ids` is not offered: every marketing call is scoped to the
- * venue the dashboard is on (X-Location-Id), and the server rewrites an
- * omitted location to that venue (§5.0 LocScope rule 1).
+ * Venues: an org-scoped caller picks "All venues" (`location_ids` omitted)
+ * or a subset; a location-scoped caller sees their venue as fixed text and
+ * the server confines them to it (§5.0 LocScope rule 1). See VenuePicker.
  */
 export function AudienceFilterForm({
   value,
   onChange,
   status,
   lockChannel = false,
-  venueName,
 }: {
   value: AudienceFilter;
   onChange: (f: AudienceFilter) => void;
   status: MarketingStatus;
   /** In the composer the channel is chosen in step 1 and fixed after. */
   lockChannel?: boolean;
-  venueName?: string | null;
 }) {
   const label = useChannelLabel();
   const set = (patch: Partial<AudienceFilter>) => onChange({ ...value, ...patch });
@@ -89,12 +88,10 @@ export function AudienceFilterForm({
         </div>
       )}
 
-      {venueName && (
-        <p className="text-xs text-muted-foreground">
-          Guests of <span className="font-medium text-foreground">{venueName}</span>. Switch venue
-          from the top bar to reach another venue's guests.
-        </p>
-      )}
+      <VenuePicker
+        value={value.location_ids ?? null}
+        onChange={(ids) => set({ location_ids: ids })}
+      />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">

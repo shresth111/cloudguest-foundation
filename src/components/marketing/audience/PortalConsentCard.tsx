@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -33,9 +33,15 @@ const DEFAULT_TEXT_HINT =
 export function PortalConsentCard({
   status,
   locationId,
+  venueSelect,
 }: {
   status: MarketingStatus;
+  /** The venue whose portal this card writes to. `null` = the organisation's
+   * default portal config, which the contract only lets us READ (§5.1 PUT
+   * takes one location), so the card is read-only then. */
   locationId: string | null;
+  /** Org-scoped callers: the venue selector, rendered in the card header. */
+  venueSelect?: ReactNode;
 }) {
   const can = useMarketingCan();
   const label = useChannelLabel();
@@ -102,6 +108,14 @@ export function PortalConsentCard({
           )}
         </div>
 
+        {venueSelect}
+        {!locationId && (
+          <p className="text-xs text-muted-foreground">
+            This is your organisation's default WiFi page, used by venues without their own. Pick a
+            venue above to turn its opt-in on or off.
+          </p>
+        )}
+
         <div className="grid grid-cols-3 gap-2">
           {MARKETING_CHANNELS.map((c) => {
             const Icon = CHANNEL_ICON[c];
@@ -134,7 +148,7 @@ export function PortalConsentCard({
             <Label htmlFor="consent-text" className="text-xs">
               Wording guests see
             </Label>
-            {can("manage") && !editing && (
+            {can("manage") && !editing && locationId && (
               <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
                 Edit wording
               </Button>

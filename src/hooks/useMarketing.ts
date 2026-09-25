@@ -4,6 +4,13 @@ import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import { customerKeys } from "@/hooks/useCustomerDashboard";
 import { useCustomerStore } from "@/stores/customerStore";
 import { resolveActiveOrganizationId } from "@/services/api";
+import { useAuth } from "@/context/AuthContext";
+import { useCustomerLocations } from "@/hooks/useCustomerDashboard";
+import {
+  marketingLocationHeader,
+  resolveMarketingScope,
+  type MarketingScope,
+} from "@/lib/marketing-scope";
 import {
   isEntitlementError,
   marketingPlatformService,
@@ -31,9 +38,10 @@ import type {
  *  - is `enabled: !demo` -- the demo workspace has no backend session and
  *    this screen has no fixtures (the page renders an honest "not available
  *    in the demo" panel instead; see MarketingPage);
- *  - is keyed on the organization and the active venue, because every call carries it as
- *    `X-Location-Id` (see marketing.service.ts's TENANCY note), so switching
- *    venue can never paint the previous venue's numbers;
+ *  - is keyed on the organization and on the `X-Location-Id` it sends (the
+ *    venue for a location-scoped caller, nothing for an org-scoped one --
+ *    see lib/marketing-scope.ts), so a switch of venue or of scope can never
+ *    paint the previous answer;
  *  - does NOT retry a 402. A locked add-on is an answer, not a blip, and
  *    retrying it only delays the upsell screen.
  */
@@ -67,9 +75,47 @@ export const marketingKeys = {
   addons: (orgId: string) => ["platform", "addons", orgId] as const,
 };
 
-/** The venue every marketing call is scoped to. */
+/**
+ * Org-scoped or location-scoped, from the caller's real role assignments
+ * (the backend's own sign-in answer), never from the login-role radio. See
+ * lib/marketing-scope.ts.
+ */
+export function useMarketingScope(): MarketingScope {
+  const { roles } = useAuth();
+  const activeLocationId = useCustomerStore((s) => s.activeLocationId) ?? null;
+  return resolveMarketingScope(roles, resolveActiveOrganizationId(), activeLocationId);
+}
+
+/** The `X-Location-Id` every marketing call carries: the caller's venue when
+ * location-scoped, `null` (no header) when org-scoped. */
 export function useMarketingLocationId(): string | null {
-  return useCustomerStore((s) => s.activeLocationId) ?? null;
+  return marketingLocationHeader(useMarketingScope());
+}
+
+/** The organization's venues, for the org-scoped venue picker, filters and
+ * the campaigns list's Venue column. Only venues of the active organization. */
+export function useOrgVenues() {
+  const q = useCustomerLocations();
+  const org = resolveActiveOrganizationId();
+  const venues = (q.data ?? [])
+    .filter((l) => !org || l.organizationId === org)
+    .map((l) => ({ id: l.id, name: l.name }));
+  return { ...q, venues };
+}
+
+/** Venue name lookup for list columns: `null` location = all venues. */
+export function useVenueLabel() {
+  const { venues } = useOrgVenues();
+  const byId = new Map(venues.map((v) => [v.id, v.name]));
+  return (locationId: string | null, locationIds?: string[] | null): string => {
+    if (locationId) return byId.get(locationId) ?? "One venue";
+    if (locationIds && locationIds.length > 0) {
+      const names = locationIds.map((id) => byId.get(id)).filter(Boolean) as string[];
+      if (names.length === locationIds.length && names.length <= 2) return names.join(", ");
+      return `${locationIds.length} venues`;
+    }
+    return "All venues";
+  };
 }
 
 function useScope() {
@@ -87,6 +133,25 @@ export function useMarketingStatus() {
     queryKey: marketingKeys.status(scope),
     queryFn: () => marketingService.getStatus(loc),
     enabled: !demo,
+    staleTime: 60_000,
+    retry: retryUnlessEntitlement,
+  });
+}
+
+/**
+ * `/marketing/status` for ONE venue, for the portal opt-in card of an
+ * org-scoped caller (§5.1: `portal_consent` is "for the location in
+ * X-Location-Id, else the org's default portal config"). `venueId` null =
+ * the organization default, read with no header. This is the one read that
+ * names a venue for an org-scoped caller, and only because the contract has
+ * no other way to ask for one venue's opt-in setting.
+ */
+export function useVenueMarketingStatus(venueId: string | null, enabled = true) {
+  const { demo, scope } = useScope();
+  return useQuery({
+    queryKey: ["marketing", scope.org, `venue:${venueId ?? "org-default"}`, "status"] as const,
+    queryFn: () => marketingService.getStatus(venueId),
+    enabled: !demo && enabled,
     staleTime: 60_000,
     retry: retryUnlessEntitlement,
   });

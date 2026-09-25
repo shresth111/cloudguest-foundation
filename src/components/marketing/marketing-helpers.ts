@@ -112,6 +112,7 @@ const ERROR_COPY: Record<string, string> = {
   test_send_limit: "You've used today's test sends.",
   portal_config_missing: "This venue has no WiFi login page set up yet.",
   network_error: "Couldn't reach the server. Check your connection and try again.",
+  rate_limited: "Too many requests. Wait a minute and try again.",
 };
 
 /** A sentence for any marketing request failure. */
@@ -216,6 +217,9 @@ export function audienceFilterInvalid(f: AudienceFilter): boolean {
  * the owner actually chose. */
 export function cleanAudienceFilter(f: AudienceFilter): AudienceFilter {
   const out: AudienceFilter = { channel: f.channel };
+  // Omitted (not null) means "all venues" for an org-scoped caller and
+  // "my venue" for a location-scoped one (§5.3); the server resolves it.
+  if (f.location_ids && f.location_ids.length > 0) out.location_ids = [...f.location_ids];
   if (f.visited_from) out.visited_from = f.visited_from;
   if (f.visited_to) out.visited_to = f.visited_to;
   if (f.min_visits != null) out.min_visits = f.min_visits;

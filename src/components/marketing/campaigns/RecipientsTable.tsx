@@ -123,7 +123,9 @@ export function RecipientsTable({ campaignId, live }: { campaignId: string; live
                       <p className="font-medium">
                         {r.display_name ?? <span className="text-muted-foreground">No name</span>}
                       </p>
-                      <p className="font-mono text-xs text-muted-foreground">{r.masked_address}</p>
+                      <p className="font-mono text-xs text-muted-foreground">
+                        {r.masked_address ?? "Address removed"}
+                      </p>
                     </TableCell>
                     <TableCell>
                       <RecipientStatusTag status={r.status} />

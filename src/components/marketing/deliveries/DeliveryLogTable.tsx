@@ -173,7 +173,7 @@ export function DeliveryLogTable({ onOpenCampaign }: { onOpenCampaign: (id: stri
                           {r.display_name ?? <span className="text-muted-foreground">No name</span>}
                         </p>
                         <p className="font-mono text-xs text-muted-foreground">
-                          {r.masked_address}
+                          {r.masked_address ?? "Address removed"}
                         </p>
                       </TableCell>
                       <TableCell>

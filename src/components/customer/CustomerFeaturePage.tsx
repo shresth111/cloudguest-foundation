@@ -12,6 +12,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useAuth } from "@/context/AuthContext";
+import { resolveMarketingScope } from "@/lib/marketing-scope";
+import { resolveActiveOrganizationId } from "@/services/api";
 import { useCustomerStore } from "@/stores/customerStore";
 import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
 import { CustomerPageScope } from "@/components/customer/CustomerPageScope";
@@ -120,7 +122,7 @@ import { Wifi, Activity } from "lucide-react";
  */
 export function CustomerFeaturePage({ feature }: { feature: string }) {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, roles } = useAuth();
   const { activeLocation, activeLocationId } = useCustomerStore();
   // Every route file rendering this component guards on
   // requireActiveLocationId() in its own beforeLoad before mounting this.
@@ -240,7 +242,21 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
         <main className="flex-1 p-4 sm:p-6 lg:p-8 pb-24 overflow-y-auto">
           <div className="mx-auto max-w-7xl">
             {/* What this screen is, and which venue it is scoped to. */}
-            <CustomerPageScope featureId={feature} locationName={activeLocation?.name} />
+            {/* Marketing is organisation-wide for an org-scoped caller (no
+                X-Location-Id; lists and campaigns span every venue), so the
+                scope line says so instead of naming the venue in the top bar.
+                Decided from the real role assignments, not the login radio --
+                see lib/marketing-scope.ts. */}
+            <CustomerPageScope
+              featureId={feature}
+              locationName={
+                feature === "marketing" &&
+                resolveMarketingScope(roles, resolveActiveOrganizationId(), activeLocationId)
+                  .kind === "organization"
+                  ? "All venues"
+                  : activeLocation?.name
+              }
+            />
             {/* Every branch below can be a lazily-loaded view, so the whole
                 group sits behind one boundary. Only one branch matches at a
                 time, and a single fallback keeps the page from flickering

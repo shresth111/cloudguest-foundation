@@ -180,7 +180,6 @@ export function MarketingView({
         <TabsContent value="campaigns" className="mt-5">
           <CampaignList
             status={status.data}
-            locationId={locationId ?? null}
             onOpenCampaign={(id) => go({ campaign: id })}
             onGoToTab={(t2) => go({ tab: t2, campaign: null })}
           />
@@ -189,7 +188,7 @@ export function MarketingView({
           <TemplateGallery status={status.data} />
         </TabsContent>
         <TabsContent value="audience" className="mt-5">
-          <AudienceTab status={status.data} locationId={locationId ?? null} />
+          <AudienceTab status={status.data} />
         </TabsContent>
         <TabsContent value="deliveries" className="mt-5">
           <DeliveryLogTable onOpenCampaign={(id) => go({ campaign: id })} />
@@ -199,7 +198,6 @@ export function MarketingView({
       <CampaignDetailSheet
         campaignId={openCampaignId}
         status={status.data}
-        locationId={locationId ?? null}
         onClose={() => go({ campaign: null })}
       />
     </div>

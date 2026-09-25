@@ -20,8 +20,11 @@ import {
   useCreateCampaign,
   useMarketingTemplates,
   useTemplatePreview,
+  useMarketingScope,
   useUpdateCampaign,
+  useVenueLabel,
 } from "@/hooks/useMarketing";
+import { campaignLocationFields } from "@/lib/marketing-scope";
 import { campaignVariableMaxLength, campaignVariablesIn } from "@/lib/marketing-template";
 import {
   MARKETING_CHANNELS,
@@ -95,14 +98,12 @@ export function CampaignComposerSheet({
   open,
   onOpenChange,
   status,
-  locationId,
   draft,
   onDone,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   status: MarketingStatus;
-  locationId: string | null;
   /** An existing draft to continue editing, or null for a new campaign. */
   draft: MarketingCampaign | null;
   /** Called with the campaign id once it has been scheduled or sent. */
@@ -112,6 +113,8 @@ export function CampaignComposerSheet({
   const label = useChannelLabel();
   const can = useMarketingCan();
   const venueName = useCustomerStore((s) => s.activeLocation?.name ?? null);
+  const scope = useMarketingScope();
+  const venueLabel = useVenueLabel();
   const create = useCreateCampaign();
   const update = useUpdateCampaign();
 
@@ -186,9 +189,19 @@ export function CampaignComposerSheet({
       name: name.trim() || (template ? defaultName(template) : "Untitled campaign"),
       channel,
       template_id: templateId!,
-      location_id: locationId,
+      // Org-scoped: all venues -> null; one venue -> that venue; several ->
+      // null + audience location_ids (lib/marketing-scope.ts explains why).
+      // Location-scoped: always the caller's own venue (§5.0 rule 1).
+      location_id:
+        scope.kind === "organization"
+          ? campaignLocationFields(filter.location_ids ?? null).location_id
+          : scope.locationId,
       variables: cleanVars,
-      audience_filter: cleanAudienceFilter({ ...filter, channel }),
+      audience_filter: cleanAudienceFilter(
+        scope.kind === "organization"
+          ? { ...filter, channel }
+          : { ...filter, channel, location_ids: null },
+      ),
     };
   };
 
@@ -234,7 +247,7 @@ export function CampaignComposerSheet({
           template_id: templateId,
           content: null,
           variables: payload().variables,
-          location_id: locationId,
+          location_id: payload().location_id,
         }
       : null;
   const preview = useTemplatePreview(reviewBody);
@@ -268,7 +281,9 @@ export function CampaignComposerSheet({
         <SheetHeader>
           <SheetTitle>{draft ? `Edit “${draft.name}”` : "New campaign"}</SheetTitle>
           <SheetDescription>
-            {venueName ? `For guests of ${venueName} who opted in.` : "For guests who opted in."}
+            {scope.kind === "organization"
+              ? "For opted-in guests of the venues you choose."
+              : `For guests of ${venueName ?? "your venue"} who opted in.`}
           </SheetDescription>
         </SheetHeader>
 
@@ -463,12 +478,11 @@ export function CampaignComposerSheet({
                   This template has nothing to fill in per campaign.
                 </p>
               )}
-              <div className="rounded-md border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
-                Venue:{" "}
-                <span className="font-medium text-foreground">{venueName ?? "this venue"}</span>.
-                Campaigns are created for the venue you're viewing; switch venue from the top bar
-                for another one.
-              </div>
+              <p className="text-xs text-muted-foreground">
+                {scope.kind === "organization"
+                  ? "You choose which venues' guests get it in the next step."
+                  : `For guests of ${venueName ?? "your venue"}.`}
+              </p>
             </>
           )}
 
@@ -479,7 +493,6 @@ export function CampaignComposerSheet({
                 onChange={(f) => setFilter({ ...f, channel })}
                 status={status}
                 lockChannel
-                venueName={venueName}
               />
               <AudiencePreviewCard
                 filter={{ ...filter, channel }}
@@ -497,6 +510,12 @@ export function CampaignComposerSheet({
                   <dd>{label(channel)}</dd>
                   <dt className="text-muted-foreground">Template</dt>
                   <dd>{template?.name ?? "—"}</dd>
+                  <dt className="text-muted-foreground">Venues</dt>
+                  <dd>
+                    {scope.kind === "organization"
+                      ? venueLabel(null, filter.location_ids ?? null)
+                      : (venueName ?? "Your venue")}
+                  </dd>
                   <dt className="text-muted-foreground">Audience</dt>
                   <dd>
                     {audience

@@ -94,7 +94,8 @@ export function measureSms(text: string): SmsMeasure {
  * Worst-case rendered length, the way the server checks `sms_too_long`:
  * every variable replaced by a placeholder of its maximum length
  * (`guest_name` 20, `venue_name`/`location_name` 30, the unsubscribe link
- * 30, campaign values 30, `booking_link` 200). Placeholder text is plain
+ * 30, campaign values 30, `review_link` 30, `booking_link` 200 -- the
+ * server's numbers, including backend deviation #13). Placeholder text is plain
  * ASCII so it never changes the encoding the body itself implies.
  */
 const WORST_CASE_LENGTH: Record<string, number> = {
@@ -107,7 +108,8 @@ const WORST_CASE_LENGTH: Record<string, number> = {
   event_name: 30,
   event_date: 30,
   booking_link: 200,
-  review_link: 200,
+  // 30, not 200: the server measures review_link at 30 (backend deviation #13).
+  review_link: 30,
 };
 
 export function worstCaseSms(text: string): SmsMeasure {

@@ -112,7 +112,9 @@ export function AudiencePreviewCard({
                     <li key={g.guest_id} className="flex items-center justify-between gap-2 py-1">
                       <span className="min-w-0 truncate">
                         {g.display_name ?? <span className="text-muted-foreground">No name</span>}{" "}
-                        <span className="font-mono text-muted-foreground">{g.masked_address}</span>
+                        <span className="font-mono text-muted-foreground">
+                          {g.masked_address ?? ""}
+                        </span>
                       </span>
                       <span className="shrink-0 text-muted-foreground">
                         {g.total_visit_count} visit{g.total_visit_count === 1 ? "" : "s"} ·{" "}

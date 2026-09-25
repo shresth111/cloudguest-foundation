@@ -118,6 +118,217 @@ check(
 );
 
 // ---------------------------------------------------------------------------
+// 1b. Org-scoped vs location-scoped (founder decision: org-wide campaigns)
+// ---------------------------------------------------------------------------
+console.log("\norg-scoped callers send no X-Location-Id, location-scoped always do");
+
+async function bundle(name, contents, plugins = [], extra = {}) {
+  const e = join(outdir, `${name}-entry.mjs`);
+  writeFileSync(e, contents);
+  const o = join(outdir, `${name}.mjs`);
+  await build({
+    entryPoints: [e],
+    bundle: true,
+    format: "esm",
+    platform: "node",
+    outfile: o,
+    logLevel: "silent",
+    jsx: "automatic",
+    nodePaths: [join(ROOT, "node_modules")],
+    // react-dom/server's CJS build requires Node builtins (util, stream).
+    banner: {
+      js: 'import { createRequire as __cr } from "node:module"; const require = __cr(import.meta.url);',
+    },
+    define: { "process.env.NODE_ENV": '"production"' },
+    alias: { "@": join(ROOT, "src") },
+    plugins,
+    ...extra,
+  });
+  return import(`file://${o}`);
+}
+const src = (rel) => join(ROOT, rel).replace(/\\/g, "/");
+
+const S = await bundle("scope", `export * from "${src("src/lib/marketing-scope.ts")}";`);
+const ORG = "org-1";
+const LOC = "loc-1";
+const cases = [
+  ["organization owner", [{ scopeType: "organization", organizationId: ORG }], null],
+  [
+    "org admin with a location grant too",
+    [
+      { scopeType: "location", organizationId: ORG, locationId: LOC },
+      { scopeType: "organization", organizationId: ORG },
+    ],
+    null,
+  ],
+  ["platform operator (GLOBAL)", [{ scopeType: "global" }], null],
+  ["location manager", [{ scopeType: "location", organizationId: ORG, locationId: LOC }], LOC],
+  [
+    "an org role for a DIFFERENT org",
+    [{ scopeType: "organization", organizationId: "org-2" }],
+    LOC,
+  ],
+  ["no role information at all (fails narrow)", [], LOC],
+  ["roles missing entirely (fails narrow)", undefined, LOC],
+];
+for (const [who, roles, expected] of cases) {
+  const header = S.marketingLocationHeader(S.resolveMarketingScope(roles, ORG, LOC));
+  check(`${who} -> X-Location-Id ${expected ?? "(none)"}`, header === expected, String(header));
+}
+check(
+  "the login-role radio is not an input to the scope decision",
+  !/cg_login_role|getCustomerLoginRole/.test(strip(read("src/lib/marketing-scope.ts"))) &&
+    !/cg_login_role|getCustomerLoginRole/.test(strip(read("src/hooks/useMarketing.ts"))),
+);
+
+const f = S.campaignLocationFields;
+check(
+  "all venues -> location_id null, location_ids omitted",
+  JSON.stringify(f(null)) === '{"location_id":null,"location_ids":null}',
+);
+check(
+  "one venue -> that venue is the campaign's location",
+  JSON.stringify(f(["a"])) === '{"location_id":"a","location_ids":["a"]}',
+);
+check(
+  "several venues -> org-wide campaign, audience lists them",
+  JSON.stringify(f(["a", "b", "a"])) === '{"location_id":null,"location_ids":["a","b"]}',
+);
+
+// The real service, with the transport stubbed to record what would be sent.
+const captured = [];
+const apiStub = {
+  name: "stub-api",
+  setup(b) {
+    b.onResolve({ filter: /^@\/services\/api$/ }, () => ({ path: "api", namespace: "stub" }));
+    b.onLoad({ filter: /.*/, namespace: "stub" }, () => ({
+      loader: "js",
+      contents: `
+        const rec = (method) => async (url, a, b) => {
+          const config = (method === "get" || method === "delete") ? a : b;
+          globalThis.__captured.push({ method, url, headers: (config && config.headers) || {} });
+          return { data: { items: [], page: 1 } };
+        };
+        export const api = { get: rec("get"), post: rec("post"), put: rec("put"), patch: rec("patch"), delete: rec("delete") };
+        export const requestErrorOf = () => null;
+      `,
+    }));
+  },
+};
+globalThis.__captured = captured;
+const M = await bundle("svc", `export * from "${src("src/services/marketing.service.ts")}";`, [
+  apiStub,
+]);
+const svcApi = M.marketingService;
+async function callsWith(loc) {
+  captured.length = 0;
+  await svcApi.getStatus(loc);
+  await svcApi.listCampaigns({}, loc);
+  await svcApi.listContacts({ channel: "sms" }, loc);
+  await svcApi.previewAudience({ channel: "sms" }, loc);
+  await svcApi.listTemplates({}, loc);
+  await svcApi.listDeliveries({}, loc);
+  await svcApi.createCampaign({ name: "x" }, loc);
+  await svcApi.scheduleCampaign("c1", { scheduled_at: null, idempotency_key: "k" }, loc);
+  await svcApi.testSend("c1", { to: ["a@b.co"] }, loc);
+  await svcApi.cancelCampaign("c1", loc);
+  return captured.map((c) => ({ url: c.url, loc: c.headers["X-Location-Id"] ?? null }));
+}
+const orgCalls = await callsWith(
+  S.marketingLocationHeader(
+    S.resolveMarketingScope([{ scopeType: "organization", organizationId: ORG }], ORG, LOC),
+  ),
+);
+check(
+  `org-scoped: none of ${orgCalls.length} calls carries X-Location-Id`,
+  orgCalls.length === 10 && orgCalls.every((c) => c.loc === null),
+  JSON.stringify(orgCalls.filter((c) => c.loc)),
+);
+const locCalls = await callsWith(
+  S.marketingLocationHeader(
+    S.resolveMarketingScope(
+      [{ scopeType: "location", organizationId: ORG, locationId: LOC }],
+      ORG,
+      LOC,
+    ),
+  ),
+);
+check(
+  `location-scoped: all ${locCalls.length} calls carry X-Location-Id ${LOC}`,
+  locCalls.length === 10 && locCalls.every((c) => c.loc === LOC),
+  JSON.stringify(locCalls.filter((c) => c.loc !== LOC)),
+);
+
+const hooksSrc = strip(read("src/hooks/useMarketing.ts"));
+check(
+  "every marketing hook sends the scope's header (useScope -> useMarketingLocationId -> marketingLocationHeader)",
+  /const loc = useMarketingLocationId\(\)/.test(hooksSrc) &&
+    /return marketingLocationHeader\(useMarketingScope\(\)\)/.test(hooksSrc) &&
+    !/useCustomerStore\(\(s\) => s\.activeLocationId\) \?\? null;\s*\n\s*return \{/.test(hooksSrc),
+);
+
+// The venue picker, actually rendered, under each scope.
+let scopeForRender = { kind: "organization", organizationId: ORG };
+globalThis.__scope = () => scopeForRender;
+const hookStub = {
+  name: "stub-hooks",
+  setup(b) {
+    b.onResolve({ filter: /^@\/hooks\/useMarketing$/ }, () => ({
+      path: "hooks",
+      namespace: "stubh",
+    }));
+    b.onResolve({ filter: /^@\/stores\/customerStore$/ }, () => ({
+      path: "store",
+      namespace: "stubh",
+    }));
+    b.onLoad({ filter: /^hooks$/, namespace: "stubh" }, () => ({
+      loader: "js",
+      contents: `export const useMarketingScope = () => globalThis.__scope();
+        export const useOrgVenues = () => ({ venues: [{ id: "v1", name: "Koramangala" }, { id: "v2", name: "Indiranagar" }], isLoading: false, isError: false });`,
+    }));
+    b.onLoad({ filter: /^store$/, namespace: "stubh" }, () => ({
+      loader: "js",
+      contents: `export const useCustomerStore = (sel) => sel({ activeLocation: { name: "Koramangala" }, activeLocationId: "v1" });`,
+    }));
+  },
+};
+const R = await bundle(
+  "picker",
+  `import { renderToStaticMarkup } from "react-dom/server";
+   import { createElement } from "react";
+   import { VenuePicker } from "${src("src/components/marketing/audience/VenuePicker.tsx")}";
+   export const render = (value) => renderToStaticMarkup(createElement(VenuePicker, { value, onChange: () => {} }));`,
+  [hookStub],
+);
+const orgHtml = R.render(null);
+check(
+  "org-scoped: the venue picker renders with 'All venues' and every venue",
+  /data-testid="venue-picker"/.test(orgHtml) &&
+    /All venues/.test(orgHtml) &&
+    /Indiranagar/.test(orgHtml),
+);
+scopeForRender = { kind: "location", locationId: "v1" };
+const locHtml = R.render(null);
+check(
+  "location-scoped: no picker, the venue as fixed text",
+  !/venue-picker/.test(locHtml) &&
+    /data-testid="venue-fixed"/.test(locHtml) &&
+    /Koramangala/.test(locHtml) &&
+    !/Indiranagar/.test(locHtml) &&
+    !/checkbox/i.test(locHtml),
+);
+for (const [file, re] of [
+  ["src/components/marketing/campaigns/CampaignList.tsx", /orgScoped && <TableHead[^>]*>Venues/],
+  ["src/components/marketing/audience/ContactsTable.tsx", /\{orgScoped && \(\s*<Select/],
+  [
+    "src/components/marketing/audience/AudienceTab.tsx",
+    /scope\.kind === "organization" \? \(\s*<OrgPortalConsent/,
+  ],
+]) {
+  check(`${file.split("/").pop()}: venue controls are org-scoped only`, re.test(read(file)));
+}
+
+// ---------------------------------------------------------------------------
 // 2. No fixtures, no fake success
 // ---------------------------------------------------------------------------
 console.log("\nno fixture data and no success before the server answers");

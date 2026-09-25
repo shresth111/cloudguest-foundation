@@ -33,7 +33,13 @@ import {
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
-import { useMarketingContacts, useOptOutContact, useDebounced } from "@/hooks/useMarketing";
+import {
+  useMarketingContacts,
+  useOptOutContact,
+  useDebounced,
+  useMarketingScope,
+  useOrgVenues,
+} from "@/hooks/useMarketing";
 import {
   MARKETING_CHANNELS,
   type ConsentStatus,
@@ -71,6 +77,12 @@ const SOURCE_LABEL: Record<string, string> = {
  */
 export function ContactsTable() {
   const can = useMarketingCan();
+  // Org-scoped callers see guests of every venue; they can narrow to one
+  // with the contract's `location_id` query (§5.2). Location-scoped callers
+  // are confined to their venue by the server and get no filter.
+  const orgScoped = useMarketingScope().kind === "organization";
+  const { venues } = useOrgVenues();
+  const [venue, setVenue] = useState<string>("all");
   const label = useChannelLabel();
   const [channel, setChannel] = useState<MarketingChannel>("whatsapp");
   const [consent, setConsent] = useState<ConsentStatus>("opted_in");
@@ -80,6 +92,7 @@ export function ContactsTable() {
   const list = useMarketingContacts({
     channel,
     consent_status: consent,
+    location_id: orgScoped && venue !== "all" ? venue : undefined,
     search: search || undefined,
     page,
     page_size: 25,
@@ -124,6 +137,27 @@ export function ContactsTable() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {orgScoped && (
+            <Select
+              value={venue}
+              onValueChange={(v) => {
+                setVenue(v);
+                reset();
+              }}
+            >
+              <SelectTrigger className="w-44" aria-label="Venue">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All venues</SelectItem>
+                {venues.map((v) => (
+                  <SelectItem key={v.id} value={v.id}>
+                    {v.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Select
             value={channel}
             onValueChange={(v) => {
@@ -218,7 +252,7 @@ export function ContactsTable() {
                           {c.display_name ?? <span className="text-muted-foreground">No name</span>}
                         </p>
                         <p className="font-mono text-xs text-muted-foreground">
-                          {c.masked_address}
+                          {c.masked_address ?? "No address for this channel"}
                         </p>
                       </TableCell>
                       <TableCell className="text-xs">
@@ -281,7 +315,9 @@ export function ContactsTable() {
           </DialogHeader>
           <p className="text-sm">
             {optOutFor?.display_name ?? "Guest"}{" "}
-            <span className="font-mono text-muted-foreground">{optOutFor?.masked_address}</span>
+            <span className="font-mono text-muted-foreground">
+              {optOutFor?.masked_address ?? ""}
+            </span>
           </p>
           <div className="space-y-2">
             {MARKETING_CHANNELS.map((c) => (

@@ -75,7 +75,9 @@ export type ConsentStatus = "opted_in" | "opted_out" | "none";
 export interface MarketingContact {
   guest_id: string;
   display_name: string | null;
-  masked_address: string;
+  /** Null when the guest has no address for the channel, or after the
+   * 180-day retention prune (backend deviation #8). */
+  masked_address: string | null;
   consent_status: ConsentStatus;
   consent_source: string | null;
   consent_changed_at: string | null;
@@ -111,7 +113,9 @@ export interface AudienceFilter {
 export interface AudienceSampleGuest {
   guest_id: string;
   display_name: string | null;
-  masked_address: string;
+  /** Null when the guest has no address for the channel, or after the
+   * 180-day retention prune (backend deviation #8). */
+  masked_address: string | null;
   last_seen_at: string | null;
   total_visit_count: number;
 }
@@ -358,7 +362,9 @@ export interface CampaignRecipient {
   id: string;
   guest_id: string | null;
   display_name: string | null;
-  masked_address: string;
+  /** Null when the guest has no address for the channel, or after the
+   * 180-day retention prune (backend deviation #8). */
+  masked_address: string | null;
   status: RecipientStatus;
   skip_reason: string | null;
   error_code: string | null;

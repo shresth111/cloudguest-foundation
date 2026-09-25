@@ -21,7 +21,12 @@ import {
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
-import { useDebounced, useMarketingCampaigns } from "@/hooks/useMarketing";
+import {
+  useDebounced,
+  useMarketingCampaigns,
+  useMarketingScope,
+  useVenueLabel,
+} from "@/hooks/useMarketing";
 import {
   CAMPAIGN_STATUSES,
   MARKETING_CHANNELS,
@@ -65,16 +70,18 @@ function whenOf(c: MarketingCampaign): { label: string; at: string | null } {
  */
 export function CampaignList({
   status,
-  locationId,
   onOpenCampaign,
   onGoToTab,
 }: {
   status: MarketingStatus;
-  locationId: string | null;
   onOpenCampaign: (id: string) => void;
   onGoToTab: (t: MarketingTab) => void;
 }) {
   const can = useMarketingCan();
+  // Org-scoped callers see every venue's campaigns, so each row names its
+  // venues (§4.5 location_id; null = org-wide or a multi-venue audience).
+  const orgScoped = useMarketingScope().kind === "organization";
+  const venueLabel = useVenueLabel();
   const label = useChannelLabel();
   const [statusFilter, setStatusFilter] = useState<"all" | CampaignStatus>("all");
   const [channel, setChannel] = useState<"all" | MarketingChannel>("all");
@@ -203,6 +210,7 @@ export function CampaignList({
                   <TableRow>
                     <TableHead>Campaign</TableHead>
                     <TableHead>Status</TableHead>
+                    {orgScoped && <TableHead className="hidden lg:table-cell">Venues</TableHead>}
                     <TableHead className="hidden md:table-cell">When</TableHead>
                     <TableHead className="hidden text-right sm:table-cell">Recipients</TableHead>
                     <TableHead className="hidden text-right sm:table-cell">
@@ -240,6 +248,11 @@ export function CampaignList({
                         <TableCell>
                           <CampaignStatusTag status={c.status} />
                         </TableCell>
+                        {orgScoped && (
+                          <TableCell className="hidden text-xs lg:table-cell">
+                            {venueLabel(c.location_id, c.audience_filter?.location_ids ?? null)}
+                          </TableCell>
+                        )}
                         <TableCell className="hidden text-xs md:table-cell">
                           <span className="text-muted-foreground">{w.label}</span>
                           <br />
@@ -277,7 +290,6 @@ export function CampaignList({
         open={composerOpen}
         onOpenChange={setComposerOpen}
         status={status}
-        locationId={locationId}
         draft={null}
         onDone={(id) => onOpenCampaign(id)}
       />

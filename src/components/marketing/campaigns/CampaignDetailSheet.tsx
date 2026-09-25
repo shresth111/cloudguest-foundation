@@ -16,7 +16,9 @@ import {
   useCancelCampaign,
   useDeleteCampaign,
   useMarketingCampaign,
+  useMarketingScope,
   useUnscheduleCampaign,
+  useVenueLabel,
 } from "@/hooks/useMarketing";
 import type { MarketingCampaign, MarketingStatus } from "@/types/marketing";
 import { CampaignStatusTag, ChannelTag, StatTile } from "../marketing-ui";
@@ -57,15 +59,15 @@ const VARIABLE_LABEL: Record<string, string> = {
 export function CampaignDetailSheet({
   campaignId,
   status,
-  locationId,
   onClose,
 }: {
   campaignId: string | null;
   status: MarketingStatus;
-  locationId: string | null;
   onClose: () => void;
 }) {
   const can = useMarketingCan();
+  const orgScoped = useMarketingScope().kind === "organization";
+  const venueLabel = useVenueLabel();
   const q = useMarketingCampaign(campaignId);
   const c = q.data;
   const cancel = useCancelCampaign();
@@ -114,6 +116,11 @@ export function CampaignDetailSheet({
                   <CampaignStatusTag status={c.status} />
                   <ChannelTag channel={c.channel} />
                   <span className="text-xs">{c.template.name}</span>
+                  {orgScoped && (
+                    <span className="text-xs">
+                      · {venueLabel(c.location_id, c.audience_filter?.location_ids ?? null)}
+                    </span>
+                  )}
                 </div>
               </SheetDescription>
             </SheetHeader>
@@ -270,7 +277,6 @@ export function CampaignDetailSheet({
               open={editOpen}
               onOpenChange={setEditOpen}
               status={status}
-              locationId={locationId}
               draft={c}
             />
             <ConfirmDialog

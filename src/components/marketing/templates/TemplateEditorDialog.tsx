@@ -138,9 +138,9 @@ export function TemplateEditorDialog({
   const emailIssues = emailOn ? emailBodyIssues(subject, html) : [];
   const dltInvalid = smsOn && dlt.trim() !== "" && !isValidDltTemplateId(dlt.trim());
   // Blocking = issues the server would refuse outright. `sms_too_long` is
-  // shown but not blocking: the client's worst-case estimate for variables
-  // the contract gives no maximum for (review_link) may differ from the
-  // server's, and the server's answer is the one that counts.
+  // shown but not blocking: the estimate now uses the server's own maxima
+  // (backend deviation #13 put review_link at 30), but the server's answer
+  // is still the one that counts, and it says so in its own error.
   const blocking = [...smsIssues.filter((i) => i !== "sms_too_long"), ...emailIssues];
   const canSave =
     !saving &&
