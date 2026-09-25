@@ -13,8 +13,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useScheduleCampaign, useTestSend } from "@/hooks/useMarketing";
-import { marketingErrorCode, marketingErrorData } from "@/services/marketing.service";
+import { useMarketingLocationId, useScheduleCampaign, useTestSend } from "@/hooks/useMarketing";
+import {
+  marketingErrorCode,
+  marketingErrorData,
+  marketingService,
+} from "@/services/marketing.service";
 import { isValidGuestEmail } from "@/lib/portal-post-connect";
 import type {
   MarketingCampaign,
@@ -26,6 +30,8 @@ import {
   channelNotLiveCopy,
   channelStatusFor,
   formatDateTime,
+  isCampaignMovedOn,
+  isDefinitiveRefusal,
   marketingErrorMessage,
   newIdempotencyKey,
   useChannelLabel,
@@ -61,11 +67,13 @@ export function TestSendDialog({
   campaign: Pick<MarketingCampaign, "id" | "channel">;
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  /** The composer saves the draft first so the test uses what is on screen. */
-  beforeSend?: () => Promise<string | null>;
+  /** The composer saves the draft first so the test uses what is on screen.
+   * Resolves to the campaign id or THROWS; the error is shown here. */
+  beforeSend?: () => Promise<string>;
 }) {
   const label = useChannelLabel();
   const test = useTestSend();
+  const [busy, setBusy] = useState(false);
   const [to, setTo] = useState("");
   const [sampleName, setSampleName] = useState("");
   const [results, setResults] = useState<TestSendResult | null>(null);
@@ -85,15 +93,15 @@ export function TestSendDialog({
   const invalid = addresses.filter((a) =>
     campaign.channel === "email" ? !isValidGuestEmail(a) : !looksLikePhone(a),
   );
-  const canSend =
-    !test.isPending && addresses.length >= 1 && addresses.length <= 3 && invalid.length === 0;
+  const canSend = !busy && addresses.length >= 1 && addresses.length <= 3 && invalid.length === 0;
 
   const send = async () => {
+    if (busy) return;
+    setBusy(true);
     setError(null);
     setResults(null);
     try {
       const id = beforeSend ? await beforeSend() : campaign.id;
-      if (!id) return;
       const res = await test.mutateAsync({
         id,
         to: addresses.map((a) => normaliseAddress(campaign.channel, a)),
@@ -104,12 +112,18 @@ export function TestSendDialog({
       if (ok > 0) toast.success(`Test accepted by the provider for ${ok} of ${res.results.length}`);
       else toast.error("The provider refused every test message");
     } catch (err) {
-      setError(marketingErrorMessage(err, "Couldn't send the test."));
+      setError(
+        isCampaignMovedOn(err)
+          ? `This campaign is already ${err.campaign.status}. Close this and reopen it to see where it is.`
+          : marketingErrorMessage(err, "Couldn't send the test."),
+      );
+    } finally {
+      setBusy(false);
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !test.isPending && onOpenChange(o)}>
+    <Dialog open={open} onOpenChange={(o) => !busy && onOpenChange(o)}>
       <DialogContent className="w-[calc(100vw-2rem)] max-w-md">
         <DialogHeader>
           <DialogTitle>Send a test</DialogTitle>
@@ -175,11 +189,11 @@ export function TestSendDialog({
           </p>
         )}
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={test.isPending}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
             Close
           </Button>
           <Button onClick={send} disabled={!canSend}>
-            <Send className="h-4 w-4" /> {test.isPending ? "Sending…" : "Send test"}
+            <Send className="h-4 w-4" /> {busy ? "Sending…" : "Send test"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -220,11 +234,19 @@ export function ScheduleDialog({
   reachable?: number | null;
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  beforeSchedule?: () => Promise<string | null>;
+  /** Saves the draft first. Resolves to the campaign id, or THROWS -- the
+   * error is shown in this dialog (a `CampaignMovedOnError` means it was
+   * already scheduled, and the dialog closes onto the real state). */
+  beforeSchedule?: () => Promise<string>;
   onScheduled: (c: MarketingCampaign) => void;
 }) {
   const label = useChannelLabel();
   const schedule = useScheduleCampaign();
+  const loc = useMarketingLocationId();
+  // True from the click until the request settles, INCLUDING the draft
+  // save that runs first -- `schedule.isPending` alone is false during that
+  // save, which is what let a double click fire two PATCHes.
+  const [busy, setBusy] = useState(false);
   const [when, setWhen] = useState("");
   const [key, setKey] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -250,17 +272,32 @@ export function ScheduleDialog({
   const tooFar = mode === "later" && whenDate && whenDate.getTime() > Date.now() + 60 * 86_400_000;
 
   const canGo =
+    !busy &&
     !schedule.isPending &&
     !notLive &&
     reachable !== 0 &&
     (mode === "now" || (!!whenDate && !Number.isNaN(whenDate.getTime()) && !tooSoon && !tooFar));
 
+  /** The campaign already left draft (e.g. an earlier click scheduled it):
+   * show where it really is, not an error. */
+  const showRealState = (c: MarketingCampaign) => {
+    toast.message(
+      c.status === "scheduled"
+        ? `Already scheduled for ${formatDateTime(c.scheduled_at)}`
+        : `This campaign is already ${c.status}`,
+    );
+    onScheduled(c);
+    onOpenChange(false);
+  };
+
   const go = async () => {
+    if (busy) return;
+    setBusy(true);
     setError(null);
     setSuggested(null);
+    let id = campaign.id;
     try {
-      const id = beforeSchedule ? await beforeSchedule() : campaign.id;
-      if (!id) return;
+      if (beforeSchedule) id = await beforeSchedule();
       const res = await schedule.mutateAsync({
         id,
         scheduledAt: mode === "now" ? null : new Date(when).toISOString(),
@@ -274,21 +311,38 @@ export function ScheduleDialog({
       onScheduled(res);
       onOpenChange(false);
     } catch (err) {
+      if (isCampaignMovedOn(err)) {
+        showRealState(err.campaign);
+        return;
+      }
       const code = marketingErrorCode(err);
+      if (code === "invalid_status_transition") {
+        try {
+          const fresh = await marketingService.getCampaign(id, loc);
+          if (fresh.status === "scheduled" || fresh.status === "sending") {
+            showRealState(fresh);
+            return;
+          }
+        } catch {
+          // Fall through to the server's own message.
+        }
+      }
       const data = marketingErrorData(err);
       if (code === "quiet_hours" && typeof data?.next_allowed_at === "string") {
         setSuggested(data.next_allowed_at);
       }
-      // A refused schedule is final for this key; the next attempt is a
-      // different request (possibly with a different time), so it gets a
-      // new key. The server only dedupes the SAME request.
-      setKey(newIdempotencyKey());
+      // Network error, timeout or 5xx: the schedule may have landed, so a
+      // retry must reuse this key and get the same answer. Only a
+      // definitive 4xx refusal frees it for a genuinely new attempt.
+      if (isDefinitiveRefusal(err)) setKey(newIdempotencyKey());
       setError(marketingErrorMessage(err, "Couldn't schedule the campaign."));
+    } finally {
+      setBusy(false);
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !schedule.isPending && onOpenChange(o)}>
+    <Dialog open={open} onOpenChange={(o) => !busy && onOpenChange(o)}>
       <DialogContent className="w-[calc(100vw-2rem)] max-w-md">
         <DialogHeader>
           <DialogTitle>{mode === "now" ? "Send now?" : "Schedule campaign"}</DialogTitle>
@@ -355,15 +409,11 @@ export function ScheduleDialog({
         )}
 
         <DialogFooter className="gap-2">
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={schedule.isPending}
-          >
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
             Cancel
           </Button>
           <Button onClick={go} disabled={!canGo}>
-            {schedule.isPending ? "Working…" : mode === "now" ? "Send now" : "Schedule"}
+            {busy ? "Working…" : mode === "now" ? "Send now" : "Schedule"}
           </Button>
         </DialogFooter>
       </DialogContent>

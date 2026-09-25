@@ -44,6 +44,7 @@ import {
   useMarketingCan,
 } from "../marketing-helpers";
 import { CampaignComposerSheet } from "./CampaignComposerSheet";
+import { VenueFilterSelect } from "../audience/VenuePicker";
 import type { MarketingTab } from "../MarketingView";
 
 /** The time a row is best described by: when it went (or will go) out. */
@@ -85,6 +86,7 @@ export function CampaignList({
   const label = useChannelLabel();
   const [statusFilter, setStatusFilter] = useState<"all" | CampaignStatus>("all");
   const [channel, setChannel] = useState<"all" | MarketingChannel>("all");
+  const [venue, setVenue] = useState("all");
   const [searchText, setSearchText] = useState("");
   const search = useDebounced(searchText.trim(), 400);
   const [page, setPage] = useState(1);
@@ -93,12 +95,13 @@ export function CampaignList({
   const list = useMarketingCampaigns({
     status: statusFilter === "all" ? undefined : [statusFilter],
     channel: channel === "all" ? undefined : channel,
+    location_id: orgScoped && venue !== "all" ? venue : undefined,
     search: search || undefined,
     page,
     page_size: 25,
   });
   const rows = list.data?.items ?? [];
-  const filtered = statusFilter !== "all" || channel !== "all" || !!search;
+  const filtered = statusFilter !== "all" || channel !== "all" || venue !== "all" || !!search;
   const totalOptedIn = MARKETING_CHANNELS.reduce((n, c) => n + (status.consent_counts[c] ?? 0), 0);
 
   return (
@@ -156,6 +159,13 @@ export function CampaignList({
               ))}
             </SelectContent>
           </Select>
+          <VenueFilterSelect
+            value={venue}
+            onChange={(v) => {
+              setVenue(v);
+              setPage(1);
+            }}
+          />
         </div>
         {can("create") && (
           <Button onClick={() => setComposerOpen(true)}>

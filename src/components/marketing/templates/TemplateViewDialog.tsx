@@ -11,6 +11,7 @@ import {
 import type { MarketingTemplate } from "@/types/marketing";
 import { EmailPreviewFrame } from "./EmailPreviewFrame";
 import { SendableChips } from "./template-bits";
+import { SmsSize } from "./SmsCounter";
 
 const APPROVAL_LABEL: Record<string, string> = {
   not_submitted: "Not yet submitted to Meta",
@@ -56,8 +57,7 @@ export function TemplateViewDialog({
                   {t.sms.body}
                 </p>
                 <p className="text-[11px] text-muted-foreground">
-                  {t.sms.length} characters · {t.sms.segments} part{t.sms.segments === 1 ? "" : "s"}{" "}
-                  · {t.sms.encoding === "gsm7" ? "GSM-7" : "Unicode"} · DLT template ID:{" "}
+                  <SmsSize sms={t.sms} /> · DLT template ID:{" "}
                   {t.sms.dlt_template_id ?? "not registered yet"}
                 </p>
               </section>

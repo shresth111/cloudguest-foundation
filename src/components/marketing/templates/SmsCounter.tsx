@@ -47,3 +47,24 @@ export function SmsCounter({ body }: { body: string }) {
     </div>
   );
 }
+
+/**
+ * The server's SMS measurement, shown as what it is billed and split by:
+ * parts and encoding. The server's `length` is not labelled "characters"
+ * anywhere -- in GSM-7 an extension character (€, [, ]) costs two units and
+ * in UCS-2 an emoji costs two, so it is not a character count.
+ */
+export function SmsSize({
+  sms,
+  className,
+}: {
+  sms: { segments: number; encoding: "gsm7" | "ucs2" };
+  className?: string;
+}) {
+  return (
+    <span className={className}>
+      {sms.segments} SMS part{sms.segments === 1 ? "" : "s"} ·{" "}
+      {sms.encoding === "gsm7" ? "GSM-7" : "Unicode (70 per part)"}
+    </span>
+  );
+}

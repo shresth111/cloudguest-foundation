@@ -296,11 +296,16 @@ const R = await bundle(
   "picker",
   `import { renderToStaticMarkup } from "react-dom/server";
    import { createElement } from "react";
-   import { VenuePicker } from "${src("src/components/marketing/audience/VenuePicker.tsx")}";
-   export const render = (value) => renderToStaticMarkup(createElement(VenuePicker, { value, onChange: () => {} }));`,
+   import { VenuePicker, VenueFilterSelect } from "${src("src/components/marketing/audience/VenuePicker.tsx")}";
+   export const render = (value) => renderToStaticMarkup(createElement(VenuePicker, { value, onChange: () => {} }));
+   export const renderFilter = () => renderToStaticMarkup(createElement(VenueFilterSelect, { value: "all", onChange: () => {} }));`,
   [hookStub],
 );
 const orgHtml = R.render(null);
+check(
+  "org-scoped: the list venue filter renders",
+  /data-testid="venue-filter"/.test(R.renderFilter()),
+);
 check(
   "org-scoped: the venue picker renders with 'All venues' and every venue",
   /data-testid="venue-picker"/.test(orgHtml) &&
@@ -309,6 +314,7 @@ check(
 );
 scopeForRender = { kind: "location", locationId: "v1" };
 const locHtml = R.render(null);
+check("location-scoped: the list venue filter renders nothing", R.renderFilter() === "");
 check(
   "location-scoped: no picker, the venue as fixed text",
   !/venue-picker/.test(locHtml) &&
@@ -319,7 +325,13 @@ check(
 );
 for (const [file, re] of [
   ["src/components/marketing/campaigns/CampaignList.tsx", /orgScoped && <TableHead[^>]*>Venues/],
-  ["src/components/marketing/audience/ContactsTable.tsx", /\{orgScoped && \(\s*<Select/],
+  ["src/components/marketing/audience/ContactsTable.tsx", /<VenueFilterSelect/],
+  ["src/components/marketing/campaigns/CampaignList.tsx", /<VenueFilterSelect/],
+  ["src/components/marketing/deliveries/DeliveryLogTable.tsx", /<VenueFilterSelect/],
+  [
+    "src/components/marketing/deliveries/DeliveryLogTable.tsx",
+    /orgScoped && <TableHead[^>]*>Venue/,
+  ],
   [
     "src/components/marketing/audience/AudienceTab.tsx",
     /scope\.kind === "organization" \? \(\s*<OrgPortalConsent/,
@@ -327,6 +339,110 @@ for (const [file, re] of [
 ]) {
   check(`${file.split("/").pop()}: venue controls are org-scoped only`, re.test(read(file)));
 }
+
+// ---------------------------------------------------------------------------
+// 1c. Review fixes (PR #357 review)
+// ---------------------------------------------------------------------------
+console.log("\nreview fixes: consent wording, unsubscribe budget, labels, scope strictness");
+
+const C = await bundle("consent", `export * from "${src("src/lib/marketing-consent.ts")}";`);
+const DEFAULT_TXT =
+  "Send me offers and updates from Third Wave Coffee by SMS, WhatsApp and email. I can unsubscribe any time.";
+check(
+  "toggle on the default wording sends null (keeps the default, no new version)",
+  C.consentTextForToggle(DEFAULT_TXT) === null,
+);
+check(
+  "toggle on a custom wording sends it back verbatim (no reset, no new version)",
+  C.consentTextForToggle("Get our weekly deals!") === "Get our weekly deals!",
+);
+check("toggle with no wording sends null", C.consentTextForToggle(null) === null);
+const card = strip(read("src/components/marketing/audience/PortalConsentCard.tsx"));
+check(
+  "the opt-in switch always sends `text`",
+  /onCheckedChange=\{\(v\) => void write\(v, consentTextForToggle\(consent\.text\)\)\}/.test(
+    card,
+  ) &&
+    /mutateAsync\(\{ location_id: locationId, enabled, text: nextText \}\)/.test(card) &&
+    !/nextText !== undefined/.test(card),
+);
+
+check(
+  "the unsubscribe link is budgeted at 60 by default",
+  T.DEFAULT_UNSUBSCRIBE_LINK_BUDGET === 60,
+);
+const justLink = "{{unsubscribe_link}}";
+check(
+  "worst case uses max(30, budget) for the link",
+  T.worstCaseSms(justLink).units === 60 &&
+    T.worstCaseSms(justLink, 10).units === 30 &&
+    T.worstCaseSms(justLink, 52).units === 52,
+);
+
+const editor = strip(read("src/components/marketing/templates/TemplateEditorDialog.tsx"));
+check(
+  "the editor preview sends a DLT id only when it is well-formed",
+  /dlt_template_id: isValidDltTemplateId\(dlt\.trim\(\)\) \? dlt\.trim\(\) : null/.test(editor),
+);
+check(
+  "the editor reseeds on template id, not on every refetched object",
+  /\}, \[open, templateKey\]\)/.test(editor),
+);
+check(
+  "a template version conflict re-reads the server version",
+  /version_conflict[\s\S]{0,200}getTemplate\([\s\S]{0,120}setVersion\(fresh\.version\)/.test(
+    editor,
+  ),
+);
+
+for (const f of [
+  "src/components/marketing/templates/TemplateGallery.tsx",
+  "src/components/marketing/templates/TemplateViewDialog.tsx",
+  "src/components/marketing/campaigns/CampaignComposerSheet.tsx",
+]) {
+  check(
+    `${f.split("/").pop()}: the server's SMS length is not labelled "characters"`,
+    !/sms\.length\}? characters/.test(read(f)) && !/\.sms\.length/.test(strip(read(f))),
+  );
+}
+
+check(
+  "an organization role without an org id is NOT org-wide (fails narrow)",
+  S.resolveMarketingScope([{ scopeType: "organization", organizationId: null }], ORG, LOC).kind ===
+    "location",
+);
+check(
+  "an organization role with no active org to compare is NOT org-wide",
+  S.resolveMarketingScope([{ scopeType: "organization", organizationId: ORG }], null, LOC).kind ===
+    "location",
+);
+
+const dash = read("src/hooks/useCustomerDashboard.ts");
+check(
+  "entitlements are cached per organization",
+  /entitlements: \(orgId: string \| null\) => \["customer", "entitlements", orgId\]/.test(dash),
+);
+check(
+  "the add-on request lookup is cached per organization",
+  /\["marketing", orgId, "addon-request-ticket"\]/.test(
+    read("src/components/marketing/MarketingLockedUpsell.tsx"),
+  ),
+);
+
+const composer = strip(read("src/components/marketing/campaigns/CampaignComposerSheet.tsx"));
+check(
+  "the composer seeds on open + draft id only",
+  /\}, \[open, draftId\]\)/.test(composer) && !/\}, \[open, draft\]\)/.test(composer),
+);
+check(
+  "closing never claims 'Saved' without a 2xx",
+  !/Saved as a draft/.test(composer) && /Draft last saved/.test(composer),
+);
+const actions = strip(read("src/components/marketing/campaigns/CampaignActions.tsx"));
+check(
+  "the schedule key is regenerated only on a definitive 4xx",
+  /if \(isDefinitiveRefusal\(err\)\) setKey\(newIdempotencyKey\(\)\)/.test(actions),
+);
 
 // ---------------------------------------------------------------------------
 // 2. No fixtures, no fake success

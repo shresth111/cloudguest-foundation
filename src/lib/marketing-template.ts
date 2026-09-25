@@ -93,16 +93,15 @@ export function measureSms(text: string): SmsMeasure {
 /**
  * Worst-case rendered length, the way the server checks `sms_too_long`:
  * every variable replaced by a placeholder of its maximum length
- * (`guest_name` 20, `venue_name`/`location_name` 30, the unsubscribe link
- * 30, campaign values 30, `review_link` 30, `booking_link` 200 -- the
- * server's numbers, including backend deviation #13). Placeholder text is plain
+ * (`guest_name` 20, `venue_name`/`location_name` 30, campaign values 30,
+ * `review_link` 30, `booking_link` 200 -- the server's numbers, including
+ * backend deviation #13). Placeholder text is plain
  * ASCII so it never changes the encoding the body itself implies.
  */
 const WORST_CASE_LENGTH: Record<string, number> = {
   guest_name: 20,
   venue_name: 30,
   location_name: 30,
-  unsubscribe_link: 30,
   offer_code: 30,
   offer_expiry: 30,
   event_name: 30,
@@ -112,9 +111,26 @@ const WORST_CASE_LENGTH: Record<string, number> = {
   review_link: 30,
 };
 
-export function worstCaseSms(text: string): SmsMeasure {
+/**
+ * The unsubscribe link's budget. The server measures it as
+ * `max(30, the real configured link length)` (backend deviation #16): the
+ * real link is `{base}/u/{22-char token}`, about 50 characters on
+ * app.wyfyguest.com. The backend does not expose that length yet (asked for
+ * as `unsubscribe_link_budget` on /marketing/status), so until it does the
+ * client budgets a conservative 60 -- it may warn slightly early, never late.
+ */
+export const DEFAULT_UNSUBSCRIBE_LINK_BUDGET = 60;
+
+export function worstCaseSms(
+  text: string,
+  unsubscribeLinkBudget: number = DEFAULT_UNSUBSCRIBE_LINK_BUDGET,
+): SmsMeasure {
   const rendered = text.replace(VARIABLE_RE, (_all, name: string) =>
-    "x".repeat(WORST_CASE_LENGTH[name] ?? 0),
+    "x".repeat(
+      name === "unsubscribe_link"
+        ? Math.max(30, unsubscribeLinkBudget)
+        : (WORST_CASE_LENGTH[name] ?? 0),
+    ),
   );
   return measureSms(rendered);
 }
@@ -124,13 +140,17 @@ export const SMS_MAX_WORST_CASE_SEGMENTS = 3;
 
 /** The client-side mirror of the server's SMS body checks, as issue codes
  * the editor can translate. Empty = nothing the client can see wrong. */
-export function smsBodyIssues(body: string): string[] {
+export function smsBodyIssues(
+  body: string,
+  unsubscribeLinkBudget: number = DEFAULT_UNSUBSCRIBE_LINK_BUDGET,
+): string[] {
   const issues: string[] = [];
   const scan = scanVariables(body);
   if (scan.unknown.length > 0 || scan.malformed) issues.push("unknown_variable");
   if (!scan.used.includes("unsubscribe_link")) issues.push("unsubscribe_link_missing");
   if (body.length > SMS_MAX_RAW_LENGTH) issues.push("sms_raw_too_long");
-  if (worstCaseSms(body).segments > SMS_MAX_WORST_CASE_SEGMENTS) issues.push("sms_too_long");
+  if (worstCaseSms(body, unsubscribeLinkBudget).segments > SMS_MAX_WORST_CASE_SEGMENTS)
+    issues.push("sms_too_long");
   return issues;
 }
 

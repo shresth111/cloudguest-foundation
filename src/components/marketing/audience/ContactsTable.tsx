@@ -31,6 +31,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EmptyState } from "@/components/common/EmptyState";
+import { VenueFilterSelect } from "./VenuePicker";
 import { ErrorState } from "@/components/common/ErrorState";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import {
@@ -81,7 +82,6 @@ export function ContactsTable() {
   // with the contract's `location_id` query (§5.2). Location-scoped callers
   // are confined to their venue by the server and get no filter.
   const orgScoped = useMarketingScope().kind === "organization";
-  const { venues } = useOrgVenues();
   const [venue, setVenue] = useState<string>("all");
   const label = useChannelLabel();
   const [channel, setChannel] = useState<MarketingChannel>("whatsapp");
@@ -137,27 +137,13 @@ export function ContactsTable() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {orgScoped && (
-            <Select
-              value={venue}
-              onValueChange={(v) => {
-                setVenue(v);
-                reset();
-              }}
-            >
-              <SelectTrigger className="w-44" aria-label="Venue">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All venues</SelectItem>
-                {venues.map((v) => (
-                  <SelectItem key={v.id} value={v.id}>
-                    {v.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
+          <VenueFilterSelect
+            value={venue}
+            onChange={(v) => {
+              setVenue(v);
+              reset();
+            }}
+          />
           <Select
             value={channel}
             onValueChange={(v) => {

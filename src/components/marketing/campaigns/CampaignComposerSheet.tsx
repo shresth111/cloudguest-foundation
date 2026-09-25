@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, CalendarClock, Check, Loader2, Send, Zap } from "lucide-react";
 import { toast } from "sonner";
@@ -20,6 +20,7 @@ import {
   useCreateCampaign,
   useMarketingTemplates,
   useTemplatePreview,
+  useMarketingLocationId,
   useMarketingScope,
   useUpdateCampaign,
   useVenueLabel,
@@ -47,10 +48,18 @@ import {
   useMarketingCan,
 } from "../marketing-helpers";
 import { AudienceFilterForm } from "../audience/AudienceFilterForm";
-import { audienceFilterInvalid, cleanAudienceFilter } from "../marketing-helpers";
+import {
+  CampaignMovedOnError,
+  audienceFilterInvalid,
+  cleanAudienceFilter,
+  formatDateTime,
+  isCampaignMovedOn,
+} from "../marketing-helpers";
+import { marketingErrorCode, marketingService } from "@/services/marketing.service";
 import { AudiencePreviewCard } from "../audience/AudiencePreviewCard";
 import { EmailPreviewFrame } from "../templates/EmailPreviewFrame";
 import { ScheduleDialog, TestSendDialog } from "./CampaignActions";
+import { SmsSize } from "../templates/SmsCounter";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -130,10 +139,27 @@ export function CampaignComposerSheet({
   const [audience, setAudience] = useState<AudiencePreview | undefined>(undefined);
   const [testOpen, setTestOpen] = useState(false);
   const [scheduleMode, setScheduleMode] = useState<"now" | "later" | null>(null);
+  /** The exact body of the last save the server accepted (null = none
+   * this opening; a continued draft counts as saved at its seed state). */
+  const lastSaved = useRef<string | null>(null);
+  /** `updated_at` of the last save the server confirmed. */
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [saving2, setSaving2] = useState(false);
+  /** A continued draft is "saved" exactly as the server holds it; once its
+   * template has loaded, record that body so an unchanged draft is never
+   * PATCHed again. */
+  const seedPending = useRef(false);
 
-  // Seed on open: from the draft being continued, or fresh.
+  // Seed ONCE per opening (or when a different draft is opened) -- never on
+  // a refetch of the same draft. After every PATCH the parent's detail
+  // query refetches and hands us a new `draft` object with a bumped
+  // version; reseeding on that reset the step to 2 and threw away what was
+  // typed, so an edited draft could never get past Details.
+  const draftId = draft?.id ?? null;
   useEffect(() => {
     if (!open) return;
+    lastSaved.current = null;
+    setSavedAt(null);
     setError(null);
     setAudience(undefined);
     if (draft) {
@@ -145,6 +171,8 @@ export function CampaignComposerSheet({
       setFilter({ ...draft.audience_filter, channel: draft.channel });
       setCampaignId(draft.id);
       setVersion(draft.version);
+      setSavedAt(draft.updated_at);
+      seedPending.current = true;
     } else {
       const c = defaultChannel(status);
       setStep(1);
@@ -156,10 +184,10 @@ export function CampaignComposerSheet({
       setCampaignId(null);
       setVersion(null);
     }
-    // Seed once per opening; `status` changing underneath must not reset a
-    // half-filled form.
+    // Keyed on the opening and the draft's id only; `status` or a refetched
+    // `draft` object changing underneath must not reset a half-filled form.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, draft]);
+  }, [open, draftId]);
 
   const templates = useMarketingTemplates({
     channel,
@@ -178,7 +206,8 @@ export function CampaignComposerSheet({
   const channelLive = !!cs?.configured;
   const sendable = template?.sendable[channel];
 
-  const saving = create.isPending || update.isPending;
+  const saving = create.isPending || update.isPending || saving2;
+  const locHeader = useMarketingLocationId();
 
   const payload = (): CampaignCreatePayload => {
     const cleanVars: Partial<Record<CampaignVariable, string>> = {};
@@ -205,22 +234,81 @@ export function CampaignComposerSheet({
     };
   };
 
-  /** Persist the draft. Returns its id, or null (and shows why) on failure. */
-  const saveDraft = async (): Promise<string | null> => {
-    if (!templateId) return null;
-    setError(null);
+  useEffect(() => {
+    if (seedPending.current && template) {
+      seedPending.current = false;
+      lastSaved.current = JSON.stringify(payload());
+    }
+    // `payload` reads the seeded state; this runs once the template is known.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [template]);
+
+  /**
+   * Persist the draft and resolve to its id, or THROW.
+   *
+   *  - Nothing changed since the last accepted save: no request at all (a
+   *    second click, or Test then Schedule, must not PATCH twice).
+   *  - 409 `version_conflict`: someone else saved this draft. Re-read it,
+   *    take its version, and say so -- the next save then deliberately
+   *    replaces their change with what is on screen.
+   *  - 409 `invalid_status_transition`: it isn't a draft any more. Re-read
+   *    it; if it is scheduled or sending, throw `CampaignMovedOnError` so the
+   *    caller shows the real state rather than an error.
+   */
+  const saveDraftOrThrow = async (): Promise<string> => {
+    if (!templateId) throw new Error("Pick a template first.");
+    const body = payload();
+    const snapshot = JSON.stringify(body);
+    if (campaignId && lastSaved.current === snapshot) return campaignId;
+    setSaving2(true);
     try {
-      const body = payload();
       const saved =
         campaignId && version !== null
           ? await update.mutateAsync({ id: campaignId, body: { ...body, version } })
           : await create.mutateAsync(body);
       setCampaignId(saved.id);
       setVersion(saved.version);
+      setSavedAt(saved.updated_at);
+      lastSaved.current = snapshot;
       if (!name.trim()) setName(saved.name);
       return saved.id;
     } catch (err) {
-      setError(marketingErrorMessage(err, "Couldn't save the draft."));
+      const code = marketingErrorCode(err);
+      if (campaignId && (code === "version_conflict" || code === "invalid_status_transition")) {
+        const fresh = await marketingService.getCampaign(campaignId, locHeader).catch(() => null);
+        if (fresh && code === "invalid_status_transition" && fresh.status !== "draft") {
+          throw new CampaignMovedOnError(fresh);
+        }
+        if (fresh && code === "version_conflict") {
+          setVersion(fresh.version);
+          throw new Error(
+            "Someone else changed this draft while you were editing. Your edits are still on screen; save again to keep them (they replace the other change).",
+          );
+        }
+      }
+      throw err;
+    } finally {
+      setSaving2(false);
+    }
+  };
+
+  /** For the step buttons: shows the failure on the sheet. */
+  const saveDraft = async (): Promise<string | null> => {
+    setError(null);
+    try {
+      return await saveDraftOrThrow();
+    } catch (err) {
+      if (isCampaignMovedOn(err)) {
+        toast.message(`This campaign is already ${err.campaign.status}.`);
+        onOpenChange(false);
+        onDone?.(err.campaign.id);
+        return null;
+      }
+      setError(
+        err instanceof Error && !marketingErrorCode(err)
+          ? err.message
+          : marketingErrorMessage(err, "Couldn't save the draft."),
+      );
       return null;
     }
   };
@@ -269,9 +357,17 @@ export function CampaignComposerSheet({
     { n: 4, label: t("wizard.review", "Review & send") },
   ];
 
+  // No "Saved" without a 2xx: closing reports when the server last
+  // accepted this draft, and whether anything typed since was not saved.
   const close = () => {
     if (saving) return;
-    if (campaignId) toast.message("Saved as a draft. You'll find it under Campaigns.");
+    if (campaignId && savedAt) {
+      const unsaved =
+        lastSaved.current !== null && templateId && lastSaved.current !== JSON.stringify(payload());
+      toast.message(
+        `Draft last saved ${formatDateTime(savedAt)}.${unsaved ? " Changes since then were not saved." : ""}`,
+      );
+    }
     onOpenChange(false);
   };
 
@@ -554,9 +650,7 @@ export function CampaignComposerSheet({
                     )}
                     {preview.data.sms && (
                       <p className="text-[11px] text-muted-foreground">
-                        {preview.data.sms.length} characters · {preview.data.sms.segments} SMS part
-                        {preview.data.sms.segments === 1 ? "" : "s"}
-                        {preview.data.sms.encoding === "ucs2" ? " · Unicode" : ""}
+                        <SmsSize sms={preview.data.sms} /> for the sample guest
                       </p>
                     )}
                     {preview.data.missing_variables.length > 0 && (
@@ -650,7 +744,7 @@ export function CampaignComposerSheet({
               campaign={{ id: campaignId, channel }}
               open={testOpen}
               onOpenChange={setTestOpen}
-              beforeSend={saveDraft}
+              beforeSend={saveDraftOrThrow}
             />
             <ScheduleDialog
               campaign={{ id: campaignId, channel, name: name.trim() || "this campaign" }}
@@ -659,7 +753,7 @@ export function CampaignComposerSheet({
               reachable={audience?.reachable ?? null}
               open={scheduleMode !== null}
               onOpenChange={(o) => !o && setScheduleMode(null)}
-              beforeSchedule={saveDraft}
+              beforeSchedule={saveDraftOrThrow}
               onScheduled={(c) => {
                 onOpenChange(false);
                 onDone?.(c.id);

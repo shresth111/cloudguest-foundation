@@ -22,8 +22,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useCreateTemplate, useTemplatePreview, useUpdateTemplate } from "@/hooks/useMarketing";
-import { marketingErrorCode } from "@/services/marketing.service";
+import {
+  useCreateTemplate,
+  useMarketingLocationId,
+  useTemplatePreview,
+  useUpdateTemplate,
+} from "@/hooks/useMarketing";
+import { marketingErrorCode, marketingService } from "@/services/marketing.service";
 import { emailBodyIssues, isValidDltTemplateId, smsBodyIssues } from "@/lib/marketing-template";
 import {
   TEMPLATE_CATEGORIES,
@@ -107,6 +112,10 @@ export function TemplateEditorDialog({
   const [tab, setTab] = useState<"sms" | "email" | "whatsapp">("sms");
   const [serverError, setServerError] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
+  /** The version the next PATCH claims to be editing. Seeded from the
+   * template; replaced by the server's current one after a conflict. */
+  const [version, setVersion] = useState<number | null>(null);
+  const loc = useMarketingLocationId();
 
   const lastField = useRef<Field>("sms");
   const refs = {
@@ -116,9 +125,13 @@ export function TemplateEditorDialog({
     email: useRef<HTMLTextAreaElement>(null),
   };
 
-  // (Re)seed the form each time the dialog opens, from the server's copy.
+  // (Re)seed the form each time the dialog opens, from the server's copy --
+  // keyed on the template's id, so a list refetch handing us a new object
+  // for the same template never wipes what is being typed.
+  const templateKey = template?.id ?? null;
   useEffect(() => {
     if (!open) return;
+    setVersion(template?.version ?? null);
     setName(template?.name ?? "");
     setCategory(template?.category ?? "custom");
     setDescription(template?.description ?? "");
@@ -132,7 +145,8 @@ export function TemplateEditorDialog({
     setTab(template && !template.sms && template.email ? "email" : "sms");
     setServerError(null);
     setConflict(false);
-  }, [open, template]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, templateKey]);
 
   const smsIssues = smsOn ? smsBodyIssues(smsBody) : [];
   const emailIssues = emailOn ? emailBodyIssues(subject, html) : [];
@@ -185,7 +199,14 @@ export function TemplateEditorDialog({
       return {
         channel: "sms",
         template_id: null,
-        content: { sms: { body: smsBody, dlt_template_id: dlt.trim() || null } },
+        // Only a well-formed id: a half-typed one would make the server 422
+        // the whole preview (SmsContent's ^\d{12,30}$) while the owner types.
+        content: {
+          sms: {
+            body: smsBody,
+            dlt_template_id: isValidDltTemplateId(dlt.trim()) ? dlt.trim() : null,
+          },
+        },
         variables: {},
         location_id: null,
       };
@@ -222,14 +243,26 @@ export function TemplateEditorDialog({
       const saved = template
         ? await update.mutateAsync({
             id: template.id,
-            body: { ...payload, version: template.version },
+            body: { ...payload, version: version ?? template.version },
           })
         : await create.mutateAsync(payload);
       toast.success(template ? "Template saved" : "Template created");
       onSaved?.(saved);
       onOpenChange(false);
     } catch (err) {
-      if (marketingErrorCode(err) === "version_conflict") setConflict(true);
+      if (template && marketingErrorCode(err) === "version_conflict") {
+        // Someone else saved it. Take the server's current version so the
+        // advice below is true: the next Save replaces their change.
+        const fresh = await marketingService.getTemplate(template.id, loc).catch(() => null);
+        if (fresh) {
+          setVersion(fresh.version);
+          setConflict(true);
+          setServerError(
+            "Someone else changed this template while you were editing. Your edits are still here.",
+          );
+          return;
+        }
+      }
       setServerError(marketingErrorMessage(err, "Couldn't save the template."));
     }
   };
@@ -462,7 +495,8 @@ export function TemplateEditorDialog({
             className="rounded-md bg-red-50 p-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300"
           >
             {serverError}
-            {conflict && " Close this dialog and reopen the template to get the latest version."}
+            {conflict &&
+              " Save again to keep your version (it replaces theirs), or Cancel to keep theirs."}
           </p>
         )}
 

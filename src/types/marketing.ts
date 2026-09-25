@@ -314,6 +314,10 @@ export interface MarketingCampaign {
 
 export interface CampaignListQuery {
   status?: CampaignStatus[];
+  /** Contract change 2026-09-25 (venue filter): matches a campaign whose
+   * `location_id` is this venue OR whose audience `location_ids` contains
+   * it. All-venues campaigns are not matched. */
+  location_id?: string;
   channel?: MarketingChannel;
   search?: string;
   page?: number;
@@ -373,6 +377,11 @@ export interface CampaignRecipient {
   submitted_at: string | null;
   delivered_at: string | null;
   failed_at: string | null;
+  /** Attributed venue (contract change 2026-09-25): the venue of the
+   * guest's most recent visit among the audience venues, fixed at dispatch.
+   * Optional so an older backend still type-checks. */
+  location_id?: string | null;
+  location_name?: string | null;
 }
 
 export interface DeliveryLogEntry extends CampaignRecipient {
@@ -387,6 +396,8 @@ export interface RecipientListQuery {
 }
 
 export interface DeliveryListQuery {
+  /** Contract change 2026-09-25: the row's attributed venue. */
+  location_id?: string;
   channel?: MarketingChannel;
   status?: RecipientStatus[];
   campaign_id?: string;
@@ -412,7 +423,8 @@ export interface OrganizationAddon {
   override: {
     is_enabled: boolean;
     reason: string | null;
-    set_by: { id: string; name: string } | null;
+    /** `name` can be null (a deleted or nameless user). */
+    set_by: { id: string; name: string | null } | null;
     set_at: string;
   } | null;
   active_campaign_count: number;

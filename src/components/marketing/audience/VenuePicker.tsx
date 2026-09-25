@@ -1,6 +1,13 @@
 import { MapPin } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useMarketingScope, useOrgVenues } from "@/hooks/useMarketing";
 import { useCustomerStore } from "@/stores/customerStore";
@@ -85,5 +92,40 @@ export function VenuePicker({
           : `${value.length} venue${value.length === 1 ? "" : "s"} selected.`}
       </p>
     </fieldset>
+  );
+}
+
+/**
+ * The venue filter on the lists (campaigns, delivery logs, contacts), for
+ * ORG-SCOPED callers only -- a location-scoped caller is confined to their
+ * venue by the server and gets no filter (renders nothing). `"all"` =
+ * unfiltered; anything else is sent as the contract's `location_id` query.
+ */
+export function VenueFilterSelect({
+  value,
+  onChange,
+  className = "w-44",
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  className?: string;
+}) {
+  const scope = useMarketingScope();
+  const { venues } = useOrgVenues();
+  if (scope.kind !== "organization") return null;
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className={className} aria-label="Venue" data-testid="venue-filter">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">All venues</SelectItem>
+        {venues.map((v) => (
+          <SelectItem key={v.id} value={v.id}>
+            {v.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

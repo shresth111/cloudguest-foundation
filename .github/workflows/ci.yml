@@ -1195,6 +1195,13 @@ jobs:
       - name: marketing UI guards
         run: bun run test:marketing-ui
 
+      # The campaign composer mounted in Chromium: an edited draft gets past
+      # Details (no reseed on refetch), unchanged drafts are not re-PATCHed,
+      # version conflicts recover, and the schedule idempotency key survives
+      # network/5xx errors while a double click sends one request.
+      - name: marketing composer (browser)
+        run: bun run test:marketing-composer
+
       # --- Session rules actually reach the guest --------------------------
       #
       # Idle Timeout and Maximum Daily Session Limit were both captured,

@@ -167,8 +167,9 @@ export function CustomerAddonsPanel({
                     {addon.source === "override" && addon.override && (
                       <p className="mt-1 text-[11px] text-muted-foreground">
                         Plan says {addon.plan_value ? "on" : "off"}; overridden
-                        {addon.override.set_by ? ` by ${addon.override.set_by.name}` : ""} on{" "}
-                        {new Date(addon.override.set_at).toLocaleDateString()}
+                        {addon.override.set_by?.name
+                          ? ` by ${addon.override.set_by.name}`
+                          : ""} on {new Date(addon.override.set_at).toLocaleDateString()}
                         {addon.override.reason ? ` — “${addon.override.reason}”` : ""}
                       </p>
                     )}

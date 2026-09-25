@@ -172,10 +172,15 @@ export function useMarketingContacts(q: ContactListQuery) {
  * filter change (spec §5.3), not on every keystroke. */
 export function useDebounced<T>(value: T, ms = 400): T {
   const [v, setV] = useState(value);
+  // Keyed on the VALUE, not the reference: callers pass freshly built
+  // filter objects on every render, and a reference dependency re-armed the
+  // timer each render and re-rendered every 400 ms forever.
+  const key = JSON.stringify(value);
   useEffect(() => {
     const t = setTimeout(() => setV(value), ms);
     return () => clearTimeout(t);
-  }, [value, ms]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, ms]);
   return v;
 }
 
@@ -451,7 +456,7 @@ export function useSetOrganizationAddon(organizationId: string) {
       }),
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: marketingKeys.addons(organizationId) });
-      void qc.invalidateQueries({ queryKey: customerKeys.entitlements });
+      void qc.invalidateQueries({ queryKey: customerKeys.entitlementsAll });
     },
   });
 }
@@ -462,7 +467,7 @@ export function useClearOrganizationAddon(organizationId: string) {
     mutationFn: (key: string) => marketingPlatformService.clearAddonOverride(organizationId, key),
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: marketingKeys.addons(organizationId) });
-      void qc.invalidateQueries({ queryKey: customerKeys.entitlements });
+      void qc.invalidateQueries({ queryKey: customerKeys.entitlementsAll });
     },
   });
 }

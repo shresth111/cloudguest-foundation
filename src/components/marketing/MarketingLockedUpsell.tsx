@@ -15,14 +15,15 @@ import i18n from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ticketService } from "@/services/ticket.service";
-import { requestErrorMessage } from "@/services/api";
+import { requestErrorMessage, resolveActiveOrganizationId } from "@/services/api";
 import type { SupportTicket } from "@/types/support-ticket";
 
 /** The subject the request ticket is filed under (spec §8.2). Also how an
  * existing request is recognised, so it is one constant, not two strings. */
 export const MARKETING_REQUEST_SUBJECT = "Enable Marketing add-on";
 
-const requestKey = ["marketing", "addon-request-ticket"] as const;
+/** Keyed per organization, like every marketing query. */
+const requestKey = (orgId: string | null) => ["marketing", orgId, "addon-request-ticket"] as const;
 
 function openRequest(tickets: SupportTicket[]): SupportTicket | null {
   return (
@@ -48,9 +49,10 @@ function openRequest(tickets: SupportTicket[]): SupportTicket | null {
 export function MarketingLockedUpsell({ locationId }: { locationId?: string }) {
   const { t } = useTranslation("marketing", { i18n });
   const qc = useQueryClient();
+  const orgId = resolveActiveOrganizationId();
 
   const existing = useQuery({
-    queryKey: requestKey,
+    queryKey: requestKey(orgId),
     queryFn: async () =>
       openRequest(await ticketService.list({ search: MARKETING_REQUEST_SUBJECT })),
     staleTime: 60_000,
@@ -68,7 +70,7 @@ export function MarketingLockedUpsell({ locationId }: { locationId?: string }) {
         priority: "medium",
       }),
     onSuccess: (ticket) => {
-      qc.setQueryData(requestKey, ticket);
+      qc.setQueryData(requestKey(orgId), ticket);
       toast.success(`Request sent: ticket #${ticket.id.slice(0, 8)}`);
     },
     onError: (err) => {

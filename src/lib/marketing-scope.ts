@@ -46,8 +46,13 @@ export function resolveMarketingScope(
   const orgWide = list.some(
     (r) =>
       r?.scopeType === "global" ||
+      // Fail narrow: an organization role counts only when it names THIS
+      // organization. A role with no org id, or no active org to compare
+      // against, is not evidence of org-wide access here.
       (r?.scopeType === "organization" &&
-        (!r.organizationId || !organizationId || r.organizationId === organizationId)),
+        !!organizationId &&
+        !!r.organizationId &&
+        r.organizationId === organizationId),
   );
   if (orgWide) return { kind: "organization", organizationId };
   return { kind: "location", locationId: activeLocationId };

@@ -21,7 +21,8 @@ import {
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
-import { useMarketingDeliveries } from "@/hooks/useMarketing";
+import { useMarketingDeliveries, useMarketingScope } from "@/hooks/useMarketing";
+import { VenueFilterSelect } from "../audience/VenuePicker";
 import {
   MARKETING_CHANNELS,
   RECIPIENT_STATUSES,
@@ -48,9 +49,12 @@ export function DeliveryLogTable({ onOpenCampaign }: { onOpenCampaign: (id: stri
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [page, setPage] = useState(1);
+  const [venue, setVenue] = useState("all");
+  const orgScoped = useMarketingScope().kind === "organization";
   const badRange = !!from && !!to && from > to;
 
   const list = useMarketingDeliveries({
+    location_id: orgScoped && venue !== "all" ? venue : undefined,
     channel: channel === "all" ? undefined : channel,
     status: status === "all" ? undefined : [status],
     from: from || undefined,
@@ -63,6 +67,19 @@ export function DeliveryLogTable({ onOpenCampaign }: { onOpenCampaign: (id: stri
   return (
     <Card className="premium-card">
       <CardContent className="space-y-3 p-4">
+        {orgScoped && (
+          <div className="space-y-1">
+            <Label className="text-xs">Venue</Label>
+            <VenueFilterSelect
+              value={venue}
+              onChange={(v) => {
+                setVenue(v);
+                setPage(1);
+              }}
+              className="w-full sm:w-60"
+            />
+          </div>
+        )}
         <div className="grid gap-2 sm:grid-cols-4">
           <div className="space-y-1">
             <Label className="text-xs">Channel</Label>
@@ -161,6 +178,7 @@ export function DeliveryLogTable({ onOpenCampaign }: { onOpenCampaign: (id: stri
                   <TableRow>
                     <TableHead>Guest</TableHead>
                     <TableHead>Campaign</TableHead>
+                    {orgScoped && <TableHead className="hidden md:table-cell">Venue</TableHead>}
                     <TableHead>Status</TableHead>
                     <TableHead className="hidden lg:table-cell">When</TableHead>
                   </TableRow>
@@ -188,6 +206,11 @@ export function DeliveryLogTable({ onOpenCampaign }: { onOpenCampaign: (id: stri
                           <ChannelTag channel={r.channel} />
                         </div>
                       </TableCell>
+                      {orgScoped && (
+                        <TableCell className="hidden text-xs md:table-cell">
+                          {r.location_name ?? <span className="text-muted-foreground">—</span>}
+                        </TableCell>
+                      )}
                       <TableCell>
                         <RecipientStatusTag status={r.status} />
                         <RecipientDetail r={r} />

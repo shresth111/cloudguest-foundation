@@ -6,6 +6,7 @@ import type { DashboardRange } from "@/lib/dashboard-range";
 import { guestService } from "@/services/guest.service";
 import { rbacService } from "@/services/rbac.service";
 import { getMyEntitlements } from "@/services/entitlements.service";
+import { resolveActiveOrganizationId } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 import { useDataMaskingStore } from "@/stores/dataMaskingStore";
 // From `@/lib/masking`, NOT `@/components/features/HeaderControls` (which
@@ -68,7 +69,10 @@ export function useIsDemo(): boolean {
 
 export const customerKeys = {
   permissions: ["customer", "permissions"] as const,
-  entitlements: ["customer", "entitlements"] as const,
+  /** Per organization: a session that switches org must never read the
+   * previous org's lock state from cache. */
+  entitlements: (orgId: string | null) => ["customer", "entitlements", orgId] as const,
+  entitlementsAll: ["customer", "entitlements"] as const,
   sidebar: ["customer", "sidebar"] as const,
   locations: ["customer", "locations"] as const,
   dashboard: (locationId: string) => ["customer", "dashboard", locationId] as const,
@@ -136,7 +140,7 @@ export function useMyPermissions() {
 export function useMyEntitlements() {
   const demo = useIsDemo();
   return useQuery({
-    queryKey: customerKeys.entitlements,
+    queryKey: customerKeys.entitlements(resolveActiveOrganizationId()),
     queryFn: () => getMyEntitlements(),
     enabled: !demo,
     staleTime: 5 * 60_000,

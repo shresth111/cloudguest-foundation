@@ -56,6 +56,7 @@ import { TemplateEditorDialog } from "./TemplateEditorDialog";
 import { TemplateViewDialog } from "./TemplateViewDialog";
 import { SendableChips } from "./template-bits";
 import { categoryLabel } from "../marketing-helpers";
+import { SmsSize } from "./SmsCounter";
 
 /**
  * Templates tab (spec §8.1 TemplateGallery): the 10 Wyfy templates
@@ -86,6 +87,10 @@ export function TemplateGallery({ status }: { status: MarketingStatus }) {
   const items = list.data?.items ?? [];
   const system = items.filter((t) => t.is_system);
   const custom = items.filter((t) => !t.is_system);
+  // The editor opens on the list's CURRENT copy of the template, not the
+  // snapshot taken when Edit was clicked -- a stale snapshot carries a stale
+  // version and walks straight into a 409 version_conflict.
+  const editingLive = editing ? (items.find((t) => t.id === editing.id) ?? editing) : null;
 
   const openDuplicate = (t: MarketingTemplate) => {
     setDupOf(t);
@@ -138,8 +143,7 @@ export function TemplateGallery({ status }: { status: MarketingStatus }) {
           )}
           {t.sms && (
             <p className="mt-1 text-[11px] text-muted-foreground">
-              SMS: {t.sms.length} characters, {t.sms.segments} part{t.sms.segments === 1 ? "" : "s"}
-              {t.sms.encoding === "ucs2" ? " (Unicode)" : ""}
+              <SmsSize sms={t.sms} />
             </p>
           )}
         </div>
@@ -281,7 +285,7 @@ export function TemplateGallery({ status }: { status: MarketingStatus }) {
       <TemplateEditorDialog
         open={editorOpen}
         onOpenChange={setEditorOpen}
-        template={editing}
+        template={editingLive}
         status={status}
       />
       <TemplateViewDialog

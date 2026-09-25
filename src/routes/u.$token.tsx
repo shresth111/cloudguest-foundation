@@ -29,7 +29,9 @@ export const Route = createFileRoute("/u/$token")({
 interface UnsubscribeInfo {
   venue_name: string;
   channel: "sms" | "whatsapp" | "email";
-  masked_address: string;
+  /** Null once the 180-day retention prune has removed the address
+   * (backend deviation #8). The wording then drops "to <address>". */
+  masked_address: string | null;
   status: "subscribed" | "unsubscribed";
 }
 
@@ -163,9 +165,15 @@ function UnsubscribePage() {
               <CheckCircle2 className="mx-auto h-9 w-9 text-emerald-600" aria-hidden />
               <h1 className="text-lg font-semibold">You're unsubscribed</h1>
               <p className="text-sm text-[#5b5886]">
-                {state.info.venue_name} won't send offers by {CHANNEL_LABEL[state.info.channel]} to{" "}
-                <span className="font-medium text-[#1e1b4b]">{state.info.masked_address}</span> any
-                more.
+                {state.info.venue_name} won't send offers by {CHANNEL_LABEL[state.info.channel]}
+                {state.info.masked_address ? (
+                  <>
+                    {" "}
+                    to{" "}
+                    <span className="font-medium text-[#1e1b4b]">{state.info.masked_address}</span>
+                  </>
+                ) : null}{" "}
+                any more.
               </p>
             </div>
           )}
@@ -176,9 +184,19 @@ function UnsubscribePage() {
                 <MailX className="mx-auto h-9 w-9 text-[#6c4eff]" aria-hidden />
                 <h1 className="text-lg font-semibold">Stop offers from {state.info.venue_name}?</h1>
                 <p className="text-sm text-[#5b5886]">
-                  You'll stop receiving {CHANNEL_LABEL[state.info.channel]} offers at{" "}
-                  <span className="font-medium text-[#1e1b4b]">{state.info.masked_address}</span>.
-                  This does not affect your WiFi access.
+                  You'll stop receiving {CHANNEL_LABEL[state.info.channel]} offers
+                  {state.info.masked_address ? (
+                    <>
+                      {" "}
+                      at{" "}
+                      <span className="font-medium text-[#1e1b4b]">
+                        {state.info.masked_address}
+                      </span>
+                    </>
+                  ) : (
+                    " from this venue"
+                  )}
+                  . This does not affect your WiFi access.
                 </p>
               </div>
               {submitError && (

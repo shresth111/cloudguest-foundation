@@ -13,6 +13,7 @@ import {
   marketingErrorMessage,
   useChannelLabel,
   useMarketingCan,
+  consentTextForToggle,
 } from "../marketing-helpers";
 
 const DEFAULT_TEXT_HINT =
@@ -48,22 +49,20 @@ export function PortalConsentCard({
   const mutation = useSetPortalConsent();
   const consent = status.portal_consent;
   const [editing, setEditing] = useState(false);
-  const [text, setText] = useState(consent.text ?? "");
+  const [text, setText] = useState(consentTextForToggle(consent.text) ?? "");
 
   useEffect(() => {
-    if (!editing) setText(consent.text ?? "");
+    if (!editing) setText(consentTextForToggle(consent.text) ?? "");
   }, [consent.text, editing]);
 
   const totalOptedIn = MARKETING_CHANNELS.reduce((n, c) => n + (status.consent_counts[c] ?? 0), 0);
 
-  const write = async (enabled: boolean, nextText?: string | null) => {
+  // `text` is ALWAYS sent: an omitted `text` let the backend reset a custom
+  // wording (and bump its version). See `consentTextForToggle`.
+  const write = async (enabled: boolean, nextText: string | null) => {
     if (!locationId) return;
     try {
-      const res = await mutation.mutateAsync({
-        location_id: locationId,
-        enabled,
-        ...(nextText !== undefined ? { text: nextText } : {}),
-      });
+      const res = await mutation.mutateAsync({ location_id: locationId, enabled, text: nextText });
       toast.success(
         res.enabled
           ? "Opt-in is on for this venue's WiFi page"
@@ -96,7 +95,7 @@ export function PortalConsentCard({
               <Switch
                 checked={consent.enabled}
                 disabled={mutation.isPending || !locationId}
-                onCheckedChange={(v) => void write(v)}
+                onCheckedChange={(v) => void write(v, consentTextForToggle(consent.text))}
                 aria-label="Show the opt-in checkbox on this venue's WiFi page"
               />
               {consent.enabled ? "On" : "Off"}

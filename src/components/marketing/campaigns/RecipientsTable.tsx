@@ -126,6 +126,9 @@ export function RecipientsTable({ campaignId, live }: { campaignId: string; live
                       <p className="font-mono text-xs text-muted-foreground">
                         {r.masked_address ?? "Address removed"}
                       </p>
+                      {r.location_name && (
+                        <p className="text-[11px] text-muted-foreground">{r.location_name}</p>
+                      )}
                     </TableCell>
                     <TableCell>
                       <RecipientStatusTag status={r.status} />

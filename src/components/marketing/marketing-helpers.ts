@@ -10,6 +10,7 @@ import {
 import type {
   AudienceFilter,
   ChannelStatus,
+  MarketingCampaign,
   MarketingChannel,
   MarketingTemplate,
 } from "@/types/marketing";
@@ -239,3 +240,37 @@ export function categoryLabel(c: string): string {
 export function templateChannels(t: MarketingTemplate): MarketingChannel[] {
   return MARKETING_CHANNELS.filter((c) => t[c] !== null);
 }
+
+// ── Campaign lifecycle races ───────────────────────────────────────────
+
+/**
+ * Thrown by the composer's save step when the server says the campaign is
+ * no longer a draft (409 `invalid_status_transition`) and a re-read shows
+ * it is already scheduled or sending -- e.g. the first click of a double
+ * click scheduled it. Not a failure: the dialogs close and show the real
+ * state instead of an error.
+ */
+export class CampaignMovedOnError extends Error {
+  constructor(public readonly campaign: MarketingCampaign) {
+    super(`Campaign is already ${campaign.status}`);
+    this.name = "CampaignMovedOnError";
+  }
+}
+
+export function isCampaignMovedOn(err: unknown): err is CampaignMovedOnError {
+  return err instanceof CampaignMovedOnError;
+}
+
+/**
+ * Whether a failed schedule request may have reached the server. A network
+ * error, a timeout or a 5xx is ambiguous -- the schedule may have landed --
+ * so the retry must reuse the SAME idempotency key and get the same answer
+ * back. Only a definitive 4xx refusal (the server read the request and said
+ * no) frees the key for a genuinely new attempt.
+ */
+export function isDefinitiveRefusal(err: unknown): boolean {
+  const status = marketingError(err)?.status ?? null;
+  return typeof status === "number" && status >= 400 && status < 500;
+}
+
+export { consentTextForToggle, isDefaultConsentText } from "@/lib/marketing-consent";
