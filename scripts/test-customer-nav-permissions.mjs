@@ -45,7 +45,8 @@
  * COUNT NOTE: the owner nav used to be 26 items; the "Notifications"
  * preferences screen was removed from the customer dashboard along with
  * its nav entry (id "notification"), so the nav was 25 -- and the Security
- * group's single row has since brought it back to 26. The stub below
+ * group's single row has since brought it back to 26, and the Marketing
+ * add-on's own group took it to 27. The stub below
  * reads the lucide imports straight from `customerNav.ts` +
  * `customerFeatureCatalog.ts`, so removing that entry's `Send` icon drops
  * it from the stub automatically.
@@ -195,6 +196,9 @@ const EVERY_KEY_IMAGINABLE = [
   // The Security group's single row. `security` is the only action the
   // backend's SECURITY module seeds today, so this is the whole key.
   "security.read",
+  // The Marketing add-on's row (wyfy-specs/guest-marketing-campaigns.md
+  // §3.5). Its own module, `marketing`, seeded by the backend alongside it.
+  "marketing.read",
   // Keys for screens this nav does not have at all.
   "system_settings.manage",
   "device_console.execute",

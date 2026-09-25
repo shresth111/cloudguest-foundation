@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, UserRound, X } from "lucide-react";
+import { BellRing, Check, UserRound, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { PortalCard } from "@/components/portal-runtime/PortalShell";
 import { AlertBanner, PG_INPUT, PG_PRIMARY_BTN } from "@/components/portal-runtime/PortalGuestUi";
@@ -13,6 +13,8 @@ import {
   PROFILE_SAVE_MAX_RETRIES,
   PROFILE_SAVE_RETRY_DELAY_MS,
   isValidGuestEmail,
+  marketingConsentEligible,
+  profileFieldsEligible,
 } from "@/lib/portal-post-connect";
 import type { RuntimeSession } from "@/types/portal-runtime";
 
@@ -106,8 +108,25 @@ export function GuestProfileNudge({
   const isSimulated = previewMode || demoMode;
   const venueName = config?.name?.trim() || "";
 
-  const collectName = !!config?.collectGuestName;
-  const collectEmail = !!config?.collectGuestEmail;
+  // The name/email fields only for a guest who has not already answered --
+  // the card can now also be here for the marketing opt-in alone (below),
+  // and that must never re-ask a returning guest for a profile they gave.
+  const fieldsEligible = !!config && profileFieldsEligible(config, session);
+  const collectName = fieldsEligible && !!config?.collectGuestName;
+  const collectEmail = fieldsEligible && !!config?.collectGuestEmail;
+
+  // The marketing opt-in (wyfy-specs/guest-marketing-campaigns.md §5.8).
+  // Present only when the SERVER offered it -- venue enabled, org entitled,
+  // guest has no consent row. The label is the venue's own wording, verbatim;
+  // the box starts UNTICKED and nothing here ever depends on it being ticked.
+  const offer = marketingConsentEligible(session) ? (session.marketingConsentOffer ?? null) : null;
+  const [optIn, setOptIn] = useState(false);
+  /** The profile half already landed on an earlier attempt -- a retry after
+   * a failed consent write must not post the profile a second time. */
+  const [profileDone, setProfileDone] = useState(false);
+  /** The opt-in has had its answer from the server (recorded, or finally
+   * declined) -- never posted twice from one card. */
+  const [consentDone, setConsentDone] = useState(false);
 
   // An email-OTP guest already typed their email to get online; asking for
   // it again is asking a question we know the answer to. Pre-fill it and
@@ -154,8 +173,14 @@ export function GuestProfileNudge({
     // re-render/navigation does not ask again before the next login
     // response carries the real server bit. This rides the runtime
     // context's existing, CNA-safe session persistence -- it deliberately
-    // does NOT introduce a new storage key of its own.
-    setSession({ ...session, hasProfile: true });
+    // does NOT introduce a new storage key of its own. The consent offer is
+    // cleared for this session either way (answered or declined): the next
+    // login response is what decides whether it is offered again.
+    setSession({
+      ...session,
+      hasProfile: session.hasProfile || collectName || collectEmail,
+      marketingConsentOffer: null,
+    });
     onResolved();
   };
 
@@ -185,7 +210,9 @@ export function GuestProfileNudge({
    * record costs one more ask on a later visit; blocking the guest's
    * dismissal on a network round trip costs their patience now. */
   const decline = () => {
-    if (isSimulated) {
+    // Declining the opt-in records nothing (§5.8: not an opt-out event), so
+    // a card that was only here for the opt-in has nothing to write.
+    if (isSimulated || (!collectName && !collectEmail)) {
       resolve();
       return;
     }
@@ -226,14 +253,43 @@ export function GuestProfileNudge({
     throw lastError;
   };
 
+  /** POST the opt-in. Resolves `true` when the server recorded it, `false`
+   * when the server declined to (the offer was withdrawn, the wording
+   * changed under the guest, or the session is no longer active) -- those
+   * are final answers, not blips, so they are neither retried nor reported
+   * to the guest as a success. Anything else (network, 5xx) throws, and the
+   * card stays up with the guest's tick intact. */
+  const postConsent = async (): Promise<boolean> => {
+    if (!offer || isSimulated) return !!offer;
+    try {
+      await portalRuntimeService.recordMarketingConsent({
+        guestId: session.guestId,
+        sessionId: session.sessionId,
+        consentTextVersion: offer.textVersion,
+      });
+      return true;
+    } catch (e) {
+      const code = asAppError(e).data?.error_code;
+      if (
+        code === "consent_not_offered" ||
+        code === "stale_consent_text" ||
+        code === "session_not_active"
+      ) {
+        return false;
+      }
+      throw e;
+    }
+  };
+
   const onSave = async () => {
-    const trimmedName = collectName && !nameStored ? name.trim() : "";
-    const trimmedEmail = collectEmail ? email.trim() : "";
+    const trimmedName = collectName && !nameStored && !profileDone ? name.trim() : "";
+    const trimmedEmail = collectEmail && !profileDone ? email.trim() : "";
+    const wantsConsent = !!offer && optIn && !consentDone;
 
     // Saving with everything empty is a decline, not an error. A guest who
     // taps Save on a blank form has communicated "no", and arguing with
     // them costs more than the record is worth.
-    if (!trimmedName && !trimmedEmail && !nameStored) {
+    if (!trimmedName && !trimmedEmail && !nameStored && !profileDone && !wantsConsent) {
       decline();
       return;
     }
@@ -242,21 +298,35 @@ export function GuestProfileNudge({
     setEmailInvalid(!emailOk);
     // Nothing valid left to write -- show the field error and stop. Never
     // a banner for this: the guest can see which field is wrong.
-    if (!emailOk && !trimmedName) return;
+    if (!emailOk && !trimmedName && !wantsConsent) return;
 
     setError(null);
     setSaving(true);
     try {
-      await postProfile({
-        displayName: trimmedName || undefined,
-        email: emailOk ? trimmedEmail || undefined : undefined,
-      });
+      const wroteProfile = !!(trimmedName || (emailOk && trimmedEmail));
+      if (wroteProfile) {
+        await postProfile({
+          displayName: trimmedName || undefined,
+          email: emailOk ? trimmedEmail || undefined : undefined,
+        });
+        if (emailOk) setProfileDone(true);
+      }
+      // Only after the profile half has landed, and only if ticked.
+      const consentRecorded = wantsConsent ? await postConsent() : false;
+      if (wantsConsent) setConsentDone(true);
+      if (!wroteProfile && !profileDone && !nameStored && !consentRecorded) {
+        // The guest ticked the box but the server declined to record it
+        // (offer withdrawn / wording changed / session over). Nothing was
+        // saved, so nothing is claimed -- the card simply closes.
+        resolve();
+        return;
+      }
       if (!emailOk) {
         // PARTIAL SAVE. The name was good and is now stored; the email was
         // not. Keep the card open on the email field rather than
         // discarding the good value to punish the bad one -- that is the
         // difference between the venue getting 60% of a record and 0%.
-        setNameStored(true);
+        if (trimmedName) setNameStored(true);
         setSaving(false);
         return;
       }
@@ -279,7 +349,7 @@ export function GuestProfileNudge({
   // closes up. (The parent's `resolvePostConnectAsk` already enforces this;
   // repeated here so the component is safe to mount from anywhere -- e.g.
   // the dashboard's Connected preview.)
-  if (!collectName && !collectEmail) return null;
+  if (!collectName && !collectEmail && !offer) return null;
 
   if (successLine) {
     return (
@@ -293,7 +363,13 @@ export function GuestProfileNudge({
     );
   }
 
-  const title = collectName ? t("profileNudgeTitle") : t("profileNudgeTitleEmail");
+  const consentOnly = !collectName && !collectEmail;
+  const title = consentOnly
+    ? t("marketingConsentTitle")
+    : collectName
+      ? t("profileNudgeTitle")
+      : t("profileNudgeTitleEmail");
+  const TitleIcon = consentOnly ? BellRing : UserRound;
   const saveLabel = nameStored ? t("profileSaveEmailCta") : t("profileSaveCta");
 
   return (
@@ -311,7 +387,7 @@ export function GuestProfileNudge({
 
       <div className="flex items-center gap-3 pr-11">
         <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[color-mix(in_srgb,var(--pr-primary,#6366f1)_8%,var(--pg-surface,#fff))] text-[var(--pr-primary,#6366f1)]">
-          <UserRound className="h-5 w-5" />
+          <TitleIcon className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1">
           <p className="pg-body font-semibold text-[var(--pg-ink)]">{title}</p>
@@ -382,6 +458,23 @@ export function GuestProfileNudge({
             )
           )}
         </div>
+      )}
+
+      {offer && (
+        // Unticked by default, never required, never gating access -- the
+        // DPDP "free, specific, unambiguous" bar (spec D6/§5.8). The label is
+        // the venue's own wording from the server, so there is no string of
+        // ours to translate here.
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl py-1">
+          <input
+            type="checkbox"
+            checked={optIn}
+            onChange={(e) => setOptIn(e.target.checked)}
+            disabled={saving}
+            className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--pr-primary,#6366f1)]"
+          />
+          <span className="pg-meta text-[var(--pg-ink)]">{offer.text}</span>
+        </label>
       )}
 
       <AlertBanner message={error} />

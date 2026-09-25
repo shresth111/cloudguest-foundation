@@ -28,6 +28,7 @@ import { Route as PoliciesRouteImport } from './routes/policies'
 import { Route as NetworkActivityRouteImport } from './routes/network-activity'
 import { Route as MasterLoginRouteImport } from './routes/master-login'
 import { Route as MasterRouteImport } from './routes/master'
+import { Route as MarketingRouteImport } from './routes/marketing'
 import { Route as MacAuthRouteImport } from './routes/mac-auth'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IspDetailsRouteImport } from './routes/isp-details'
@@ -53,6 +54,7 @@ import { Route as MasterIndexRouteImport } from './routes/master.index'
 import { Route as CustomerIndexRouteImport } from './routes/customer.index'
 import { Route as CIndexRouteImport } from './routes/c.index'
 import { Route as AgentIndexRouteImport } from './routes/agent.index'
+import { Route as UTokenRouteImport } from './routes/u.$token'
 import { Route as PortalWelcomeRouteImport } from './routes/portal.welcome'
 import { Route as PortalVerifyRouteImport } from './routes/portal.verify'
 import { Route as PortalTermsRouteImport } from './routes/portal.terms'
@@ -289,6 +291,11 @@ const MasterRoute = MasterRouteImport.update({
   path: '/master',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MarketingRoute = MarketingRouteImport.update({
+  id: '/marketing',
+  path: '/marketing',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MacAuthRoute = MacAuthRouteImport.update({
   id: '/mac-auth',
   path: '/mac-auth',
@@ -412,6 +419,11 @@ const AgentIndexRoute = AgentIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AgentRoute,
+} as any)
+const UTokenRoute = UTokenRouteImport.update({
+  id: '/u/$token',
+  path: '/u/$token',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const PortalWelcomeRoute = PortalWelcomeRouteImport.update({
   id: '/welcome',
@@ -1218,6 +1230,7 @@ export interface FileRoutesByFullPath {
   '/isp-details': typeof IspDetailsRoute
   '/login': typeof LoginRoute
   '/mac-auth': typeof MacAuthRoute
+  '/marketing': typeof MarketingRoute
   '/master': typeof MasterRouteWithChildren
   '/master-login': typeof MasterLoginRoute
   '/network-activity': typeof NetworkActivityRoute
@@ -1281,6 +1294,7 @@ export interface FileRoutesByFullPath {
   '/portal/terms': typeof PortalTermsRoute
   '/portal/verify': typeof PortalVerifyRoute
   '/portal/welcome': typeof PortalWelcomeRoute
+  '/u/$token': typeof UTokenRoute
   '/agent/': typeof AgentIndexRoute
   '/c/': typeof CIndexRoute
   '/customer/': typeof CustomerIndexRoute
@@ -1402,6 +1416,7 @@ export interface FileRoutesByTo {
   '/isp-details': typeof IspDetailsRoute
   '/login': typeof LoginRoute
   '/mac-auth': typeof MacAuthRoute
+  '/marketing': typeof MarketingRoute
   '/master-login': typeof MasterLoginRoute
   '/network-activity': typeof NetworkActivityRoute
   '/policies': typeof PoliciesRoute
@@ -1461,6 +1476,7 @@ export interface FileRoutesByTo {
   '/portal/terms': typeof PortalTermsRoute
   '/portal/verify': typeof PortalVerifyRoute
   '/portal/welcome': typeof PortalWelcomeRoute
+  '/u/$token': typeof UTokenRoute
   '/agent': typeof AgentIndexRoute
   '/c': typeof CIndexRoute
   '/customer': typeof CustomerIndexRoute
@@ -1584,6 +1600,7 @@ export interface FileRoutesById {
   '/isp-details': typeof IspDetailsRoute
   '/login': typeof LoginRoute
   '/mac-auth': typeof MacAuthRoute
+  '/marketing': typeof MarketingRoute
   '/master': typeof MasterRouteWithChildren
   '/master-login': typeof MasterLoginRoute
   '/network-activity': typeof NetworkActivityRoute
@@ -1647,6 +1664,7 @@ export interface FileRoutesById {
   '/portal/terms': typeof PortalTermsRoute
   '/portal/verify': typeof PortalVerifyRoute
   '/portal/welcome': typeof PortalWelcomeRoute
+  '/u/$token': typeof UTokenRoute
   '/agent/': typeof AgentIndexRoute
   '/c/': typeof CIndexRoute
   '/customer/': typeof CustomerIndexRoute
@@ -1771,6 +1789,7 @@ export interface FileRouteTypes {
     | '/isp-details'
     | '/login'
     | '/mac-auth'
+    | '/marketing'
     | '/master'
     | '/master-login'
     | '/network-activity'
@@ -1834,6 +1853,7 @@ export interface FileRouteTypes {
     | '/portal/terms'
     | '/portal/verify'
     | '/portal/welcome'
+    | '/u/$token'
     | '/agent/'
     | '/c/'
     | '/customer/'
@@ -1955,6 +1975,7 @@ export interface FileRouteTypes {
     | '/isp-details'
     | '/login'
     | '/mac-auth'
+    | '/marketing'
     | '/master-login'
     | '/network-activity'
     | '/policies'
@@ -2014,6 +2035,7 @@ export interface FileRouteTypes {
     | '/portal/terms'
     | '/portal/verify'
     | '/portal/welcome'
+    | '/u/$token'
     | '/agent'
     | '/c'
     | '/customer'
@@ -2136,6 +2158,7 @@ export interface FileRouteTypes {
     | '/isp-details'
     | '/login'
     | '/mac-auth'
+    | '/marketing'
     | '/master'
     | '/master-login'
     | '/network-activity'
@@ -2199,6 +2222,7 @@ export interface FileRouteTypes {
     | '/portal/terms'
     | '/portal/verify'
     | '/portal/welcome'
+    | '/u/$token'
     | '/agent/'
     | '/c/'
     | '/customer/'
@@ -2323,6 +2347,7 @@ export interface RootRouteChildren {
   IspDetailsRoute: typeof IspDetailsRoute
   LoginRoute: typeof LoginRoute
   MacAuthRoute: typeof MacAuthRoute
+  MarketingRoute: typeof MarketingRoute
   MasterRoute: typeof MasterRouteWithChildren
   MasterLoginRoute: typeof MasterLoginRoute
   NetworkActivityRoute: typeof NetworkActivityRoute
@@ -2348,6 +2373,7 @@ export interface RootRouteChildren {
   CustomerFeatureRoute: typeof CustomerFeatureRoute
   CustomerLocationsRoute: typeof CustomerLocationsRoute
   CustomerUsersRoute: typeof CustomerUsersRoute
+  UTokenRoute: typeof UTokenRoute
   CIndexRoute: typeof CIndexRoute
   CustomerIndexRoute: typeof CustomerIndexRoute
   CustomerLocationIdFeatureRoute: typeof CustomerLocationIdFeatureRoute
@@ -2490,6 +2516,13 @@ declare module '@tanstack/react-router' {
       path: '/master'
       fullPath: '/master'
       preLoaderRoute: typeof MasterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/marketing': {
+      id: '/marketing'
+      path: '/marketing'
+      fullPath: '/marketing'
+      preLoaderRoute: typeof MarketingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mac-auth': {
@@ -2666,6 +2699,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/agent/'
       preLoaderRoute: typeof AgentIndexRouteImport
       parentRoute: typeof AgentRoute
+    }
+    '/u/$token': {
+      id: '/u/$token'
+      path: '/u/$token'
+      fullPath: '/u/$token'
+      preLoaderRoute: typeof UTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/portal/welcome': {
       id: '/portal/welcome'
@@ -4041,6 +4081,7 @@ const rootRouteChildren: RootRouteChildren = {
   IspDetailsRoute: IspDetailsRoute,
   LoginRoute: LoginRoute,
   MacAuthRoute: MacAuthRoute,
+  MarketingRoute: MarketingRoute,
   MasterRoute: MasterRouteWithChildren,
   MasterLoginRoute: MasterLoginRoute,
   NetworkActivityRoute: NetworkActivityRoute,
@@ -4066,6 +4107,7 @@ const rootRouteChildren: RootRouteChildren = {
   CustomerFeatureRoute: CustomerFeatureRoute,
   CustomerLocationsRoute: CustomerLocationsRoute,
   CustomerUsersRoute: CustomerUsersRoute,
+  UTokenRoute: UTokenRoute,
   CIndexRoute: CIndexRoute,
   CustomerIndexRoute: CustomerIndexRoute,
   CustomerLocationIdFeatureRoute: CustomerLocationIdFeatureRoute,

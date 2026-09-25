@@ -209,6 +209,12 @@ const CAP_PERMISSIONS: Record<string, string[]> = {
   "router.control": ["routers.execute", "routers.manage"],
   "nas.generate": ["radius.execute", "radius.manage"],
   impersonate: ["users.manage"],
+  /** Lock/unlock a customer's paid add-ons (today: Guest Marketing) from the
+   * Customers drawer (`CustomerAddonsPanel`). The platform PUT/DELETE are
+   * `billing.manage` pinned to GLOBAL scope
+   * (wyfy-specs/guest-marketing-campaigns.md §5.9); without this cap the
+   * panel still renders read-only, since `billing.read` is enough to GET. */
+  addons: ["billing.manage"],
 };
 
 /** Operator capability model. Previously returned the *same* full capability

@@ -86,6 +86,7 @@
   "customerGroup": {
     "overview": "अवलोकन",
     "engagement": "एंगेजमेंट",
+    "marketing": "मार्केटिंग",
     "access-policy": "एक्सेस और नीति",
     "devices-team": "डिवाइस और टीम",
     "network": "नेटवर्क",
@@ -101,6 +102,7 @@
     "campaigns": "अभियान",
     "portal": "पोर्टल",
     "vouchers": "वाउचर",
+    "marketing": "मार्केटिंग",
     "policies": "एक्सेस नियम",
     "whitelist": "केवल अनुमत",
     "mac-auth": "विश्वसनीय डिवाइस",
@@ -120,6 +122,9 @@
     "admin-logs": "लॉग",
     "network-activity": "नेटवर्क गतिविधि लॉग",
     "how-it-works": "यह कैसे काम करता है"
+  },
+  "customerItemBadge": {
+    "addon": "ऐड-ऑन"
   },
   "blockingTab": {
     "websites": "वेबसाइट और IP",

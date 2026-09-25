@@ -118,9 +118,13 @@ const {
 // 1. The menu is the 26 again.
 // ---------------------------------------------------------------------------
 
-console.log("\nthe customer menu is 26 features in eight groups");
+console.log("\nthe customer menu is 27 features in nine groups");
 
-check("there are eight groups", CUSTOMER_NAV_GROUPS.length === 8, `${CUSTOMER_NAV_GROUPS.length}`);
+// Nine since the Marketing add-on arrived as its own group, directly after
+// Engagement (wyfy-specs/guest-marketing-campaigns.md §3.5): outbound guest
+// messaging is a paid add-on with its own consent and send lifecycle, not a
+// row under the captive-portal Campaigns screen.
+check("there are nine groups", CUSTOMER_NAV_GROUPS.length === 9, `${CUSTOMER_NAV_GROUPS.length}`);
 // 26: main removed the "Notifications" preferences screen (25), a branch
 // added "Network Integrations" to the Network group (26), and FIX-PLAN FE-0
 // retired that row again (25) -- backend `074d719` made every
@@ -137,11 +141,12 @@ check("there are eight groups", CUSTOMER_NAV_GROUPS.length === 8, `${CUSTOMER_NA
 // Asserted rather than derived on purpose -- it is what catches a row being
 // dropped by an unrelated refactor -- so moving it is a deliberate step, and
 // this is one.
-check("there are 26 features", CUSTOMER_NAVS.length === 26, `${CUSTOMER_NAVS.length}`);
+// Then the Marketing add-on's row (27) -- see the group note above.
+check("there are 27 features", CUSTOMER_NAVS.length === 27, `${CUSTOMER_NAVS.length}`);
 check(
-  "the eight groups are the canonical ones",
+  "the nine groups are the canonical ones",
   CUSTOMER_NAV_GROUPS.map((g) => g.id).join(",") ===
-    "overview,engagement,access-policy,devices-team,network,security,operations,support-logs",
+    "overview,engagement,marketing,access-policy,devices-team,network,security,operations,support-logs",
   CUSTOMER_NAV_GROUPS.map((g) => g.id).join(","),
 );
 const dupes = CUSTOMER_NAVS.map((n) => n.id).filter((id, i, all) => all.indexOf(id) !== i);

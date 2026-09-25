@@ -27,6 +27,7 @@ import {
   HelpCircle,
   Radar,
   ShieldAlert,
+  Send,
 } from "lucide-react";
 
 export type CustomerLoginRole = "owner" | "agent";
@@ -74,6 +75,26 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
       { id: "campaigns", label: "Campaigns", icon: Megaphone, roles: ["owner"] },
       { id: "vouchers", label: "Vouchers", icon: Ticket, roles: ["owner", "agent"] },
     ],
+  },
+  {
+    // The Marketing add-on (wyfy-specs/guest-marketing-campaigns.md §3.5).
+    // Its own group, not a row under Engagement -> Campaigns: those are
+    // captive-portal banners/surveys shown DURING login, this is outbound
+    // WhatsApp/SMS/email to guests who opted in -- a different product with
+    // its own consent and send lifecycle.
+    //
+    // Both roles on purpose. `cg_login_role` is a sign-in radio button in
+    // localStorage and must not decide who sees this (known defect, see
+    // customerNavPermissions.ts). Visibility comes from the real
+    // `marketing.read` grant; whether the add-on is unlocked comes from
+    // `/me/entitlements` (CustomerSidebar's lock badge) and, finally, from
+    // the backend's own 402 on every marketing route.
+    //
+    // `Send`, not `Megaphone`: Megaphone is Campaigns, and in the collapsed
+    // rail two rows with the same glyph are indistinguishable.
+    id: "marketing",
+    label: "Marketing",
+    items: [{ id: "marketing", label: "Marketing", icon: Send, roles: ["owner", "agent"] }],
   },
   {
     id: "access-policy",

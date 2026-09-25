@@ -86,6 +86,7 @@
   "customerGroup": {
     "overview": "Overview",
     "engagement": "Engagement",
+    "marketing": "Marketing",
     "access-policy": "Access & Policy",
     "devices-team": "Devices & Team",
     "network": "Network",
@@ -101,6 +102,7 @@
     "campaigns": "Campaigns",
     "portal": "Portal",
     "vouchers": "Vouchers",
+    "marketing": "Marketing",
     "policies": "Access Rules",
     "whitelist": "Only Allowed",
     "mac-auth": "Trusted Devices",
@@ -120,6 +122,9 @@
     "admin-logs": "Logs",
     "network-activity": "Network Activity Log",
     "how-it-works": "How It Works"
+  },
+  "customerItemBadge": {
+    "addon": "Add-on"
   },
   "blockingTab": {
     "websites": "Websites & IPs",

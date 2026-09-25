@@ -1,0 +1,51 @@
+{
+  "title": "Marketing",
+  "intro": "Send WhatsApp, SMS and email campaigns to guests who opted in to hear from you on your WiFi login page.",
+  "tabs": {
+    "campaigns": "Campaigns",
+    "templates": "Templates",
+    "audience": "Audience",
+    "logs": "Delivery logs"
+  },
+  "channel": {
+    "sms": "SMS",
+    "whatsapp": "WhatsApp",
+    "email": "Email"
+  },
+  "campaignStatus": {
+    "draft": "Draft",
+    "scheduled": "Scheduled",
+    "sending": "Sending",
+    "sent": "Sent",
+    "failed": "Failed",
+    "cancelled": "Cancelled"
+  },
+  "recipientStatus": {
+    "pending": "Pending",
+    "sending": "Sending",
+    "submitted": "Sent to provider",
+    "delivered": "Delivered",
+    "failed": "Failed",
+    "skipped": "Skipped"
+  },
+  "wizard": {
+    "audience": "Audience",
+    "template": "Template",
+    "details": "Details",
+    "review": "Review & send"
+  },
+  "locked": {
+    "badge": "Add-on",
+    "title": "Marketing is an add-on",
+    "body": "Reach guests who opted in on your WiFi login page with WhatsApp, SMS and email offers. It is not part of your current plan.",
+    "request": "Ask your Wyfy Guest account manager to turn it on for your organisation.",
+    "lapsed": "Your Wyfy Guest licence is not active, so Marketing is unavailable until it is renewed."
+  },
+  "demo": {
+    "title": "Not available in the demo workspace",
+    "body": "Marketing sends real messages to real guests, so there is nothing honest to show here. Sign in to a live account to use it."
+  },
+  "notConfigured": "Not set up",
+  "reachable": "Reachable",
+  "optedIn": "Opted in"
+}
