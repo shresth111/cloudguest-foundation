@@ -35,6 +35,7 @@ import { impersonationService } from "@/services/impersonation.service";
 import { useAuth } from "@/context/AuthContext";
 import { PlatformLocationWizard } from "@/components/locations/PlatformLocationWizard";
 import { CustomerAddonsPanel } from "@/components/master/CustomerAddonsPanel";
+import { CustomerCreditsPanel } from "@/components/master/CustomerCreditsPanel";
 import { businessTypeIcon } from "@/lib/business-type-icons";
 import type { AppError } from "@/services/api";
 import type { PropertyType } from "@/types/location";
@@ -421,6 +422,7 @@ function CustomersScreen() {
               {/* Paid add-ons (Guest Marketing), lock/unlock per customer --
                   wyfy-specs/guest-marketing-campaigns.md §3.4. */}
               <CustomerAddonsPanel organizationId={selected.id} organizationName={selected.name} />
+              <CustomerCreditsPanel organizationId={selected.id} />
             </div>
           )}
         </MDrawer>

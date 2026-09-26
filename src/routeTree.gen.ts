@@ -75,6 +75,7 @@ import { Route as MasterQuotationsRouteImport } from './routes/master.quotations
 import { Route as MasterOperatorsRouteImport } from './routes/master.operators'
 import { Route as MasterNotificationChannelsRouteImport } from './routes/master.notification-channels'
 import { Route as MasterNasRouteImport } from './routes/master.nas'
+import { Route as MasterMarketingPricingRouteImport } from './routes/master.marketing-pricing'
 import { Route as MasterLocationsRouteImport } from './routes/master.locations'
 import { Route as MasterIntegrationsRouteImport } from './routes/master.integrations'
 import { Route as MasterHealthRouteImport } from './routes/master.health'
@@ -524,6 +525,11 @@ const MasterNotificationChannelsRoute =
 const MasterNasRoute = MasterNasRouteImport.update({
   id: '/nas',
   path: '/nas',
+  getParentRoute: () => MasterRoute,
+} as any)
+const MasterMarketingPricingRoute = MasterMarketingPricingRouteImport.update({
+  id: '/marketing-pricing',
+  path: '/marketing-pricing',
   getParentRoute: () => MasterRoute,
 } as any)
 const MasterLocationsRoute = MasterLocationsRouteImport.update({
@@ -1274,6 +1280,7 @@ export interface FileRoutesByFullPath {
   '/master/health': typeof MasterHealthRoute
   '/master/integrations': typeof MasterIntegrationsRoute
   '/master/locations': typeof MasterLocationsRoute
+  '/master/marketing-pricing': typeof MasterMarketingPricingRoute
   '/master/nas': typeof MasterNasRoute
   '/master/notification-channels': typeof MasterNotificationChannelsRoute
   '/master/operators': typeof MasterOperatorsRoute
@@ -1457,6 +1464,7 @@ export interface FileRoutesByTo {
   '/master/health': typeof MasterHealthRoute
   '/master/integrations': typeof MasterIntegrationsRoute
   '/master/locations': typeof MasterLocationsRoute
+  '/master/marketing-pricing': typeof MasterMarketingPricingRoute
   '/master/nas': typeof MasterNasRoute
   '/master/notification-channels': typeof MasterNotificationChannelsRoute
   '/master/operators': typeof MasterOperatorsRoute
@@ -1644,6 +1652,7 @@ export interface FileRoutesById {
   '/master/health': typeof MasterHealthRoute
   '/master/integrations': typeof MasterIntegrationsRoute
   '/master/locations': typeof MasterLocationsRoute
+  '/master/marketing-pricing': typeof MasterMarketingPricingRoute
   '/master/nas': typeof MasterNasRoute
   '/master/notification-channels': typeof MasterNotificationChannelsRoute
   '/master/operators': typeof MasterOperatorsRoute
@@ -1833,6 +1842,7 @@ export interface FileRouteTypes {
     | '/master/health'
     | '/master/integrations'
     | '/master/locations'
+    | '/master/marketing-pricing'
     | '/master/nas'
     | '/master/notification-channels'
     | '/master/operators'
@@ -2016,6 +2026,7 @@ export interface FileRouteTypes {
     | '/master/health'
     | '/master/integrations'
     | '/master/locations'
+    | '/master/marketing-pricing'
     | '/master/nas'
     | '/master/notification-channels'
     | '/master/operators'
@@ -2202,6 +2213,7 @@ export interface FileRouteTypes {
     | '/master/health'
     | '/master/integrations'
     | '/master/locations'
+    | '/master/marketing-pricing'
     | '/master/nas'
     | '/master/notification-channels'
     | '/master/operators'
@@ -2845,6 +2857,13 @@ declare module '@tanstack/react-router' {
       path: '/nas'
       fullPath: '/master/nas'
       preLoaderRoute: typeof MasterNasRouteImport
+      parentRoute: typeof MasterRoute
+    }
+    '/master/marketing-pricing': {
+      id: '/master/marketing-pricing'
+      path: '/marketing-pricing'
+      fullPath: '/master/marketing-pricing'
+      preLoaderRoute: typeof MasterMarketingPricingRouteImport
       parentRoute: typeof MasterRoute
     }
     '/master/locations': {
@@ -3975,6 +3994,7 @@ interface MasterRouteChildren {
   MasterHealthRoute: typeof MasterHealthRoute
   MasterIntegrationsRoute: typeof MasterIntegrationsRoute
   MasterLocationsRoute: typeof MasterLocationsRoute
+  MasterMarketingPricingRoute: typeof MasterMarketingPricingRoute
   MasterNasRoute: typeof MasterNasRoute
   MasterNotificationChannelsRoute: typeof MasterNotificationChannelsRoute
   MasterOperatorsRoute: typeof MasterOperatorsRoute
@@ -3995,6 +4015,7 @@ const MasterRouteChildren: MasterRouteChildren = {
   MasterHealthRoute: MasterHealthRoute,
   MasterIntegrationsRoute: MasterIntegrationsRoute,
   MasterLocationsRoute: MasterLocationsRoute,
+  MasterMarketingPricingRoute: MasterMarketingPricingRoute,
   MasterNasRoute: MasterNasRoute,
   MasterNotificationChannelsRoute: MasterNotificationChannelsRoute,
   MasterOperatorsRoute: MasterOperatorsRoute,
