@@ -56,8 +56,20 @@ import type {
   TemplatePreviewRequest,
   TemplateWritePayload,
   TestSendResult,
+  ProviderPutPayload,
+  ProviderVerifyPayload,
 } from "@/types/marketing";
 import { SYSTEM_TEMPLATE_SEED } from "./system-templates";
+import {
+  demoCampaignProvider,
+  demoChannelProviderStatus,
+  demoDeleteProvider,
+  demoGetProvider,
+  demoListProviders,
+  demoOwnRow,
+  demoPutProvider,
+  demoVerifyProvider,
+} from "./demo-providers";
 
 export const DEMO_SENT_NOTE = "Demo: nothing was actually sent.";
 export const DEMO_SAVED_NOTE = "Demo: saved for this browser tab only; nothing was actually sent.";
@@ -554,6 +566,8 @@ function makeCampaign(
     created_at: iso(LOADED_AT - 3 * DAY),
     updated_at: iso(LOADED_AT - 3 * DAY),
     last_error: null,
+    provider:
+      p.status === "draft" ? null : { source: "wyfy", type: null, display_name: "Wyfy default" },
     ...p,
   };
 }
@@ -663,7 +677,9 @@ const campaigns: DemoCampaign[] = [
       completed_at: "2026-09-10T12:31:10.000Z",
       created_at: "2026-09-09T10:00:00.000Z",
       updated_at: "2026-09-10T12:31:10.000Z",
-      last_error: "The email provider rejected every message: sender domain not verified.",
+      last_error:
+        "own_provider_failed: Amazon SES rejected the sender (554 Email address is not verified). Fixed and re-verified on 17 Sep.",
+      provider: { source: "own", type: "ses", display_name: "Your Amazon SES (offers@acmecafe.in)" },
       stats: {
         ...STATS0,
         recipients: 126,
@@ -763,12 +779,19 @@ function recipientsOf(c: MarketingCampaign): (CampaignRecipient & { at: number }
       status,
       skip_reason:
         status === "skipped" ? (c.status === "cancelled" ? "cancelled" : "opted_out") : null,
+      provider_source: c.provider?.source ?? "wyfy",
       error_code:
-        status === "failed" ? (c.channel === "email" ? "sender_rejected" : "invalid_number") : null,
+        status === "failed"
+          ? c.provider?.source === "own"
+            ? "own_provider_failed"
+            : c.channel === "email"
+              ? "sender_rejected"
+              : "invalid_number"
+          : null,
       error_message:
         status === "failed"
           ? c.channel === "email"
-            ? "550 5.7.1 Sender domain not verified"
+            ? "554 Message rejected: Email address is not verified"
             : "Number not reachable on this route"
           : null,
       attempt_count: status === "pending" ? 0 : status === "failed" ? 3 : 1,
@@ -833,7 +856,12 @@ export const demoMarketingBackend = {
     const p = locationId ? portalConsent.get(locationId) : orgPortal;
     const vName = venueName(locationId) ?? ORG_NAME;
     return {
-      channels: CHANNELS,
+      channels: CHANNELS.map((c) => {
+        const byo = demoChannelProviderStatus(c.channel);
+        const own = byo.provider_source === "own" ? demoOwnRow(c.channel) : null;
+        return { ...c, ...byo, provider: own ? own.provider_type : c.provider };
+      }),
+      sms_unsubscribe_link_budget: 52,
       portal_consent: {
         enabled: p?.enabled ?? false,
         text: p?.text ?? DEFAULT_TEXT(vName),
@@ -1162,13 +1190,24 @@ export const demoMarketingBackend = {
 
   async scheduleCampaign(
     id: string,
-    body: { scheduled_at: string | null; idempotency_key: string },
+    body: {
+      scheduled_at: string | null;
+      idempotency_key: string;
+      acknowledge_wyfy_fallback?: boolean;
+    },
   ): Promise<MarketingCampaign> {
     await sleep(400);
     const dc = findCampaign(id);
     const again = dc.schedules.get(body.idempotency_key);
     if (again) return again;
     if (dc.c.status !== "draft") fail(409, "invalid_status_transition", "Not a draft any more.");
+    // §12.1 / Q11 option A: an own row that isn't sending needs an explicit
+    // acknowledgement before the campaign may go through Wyfy.
+    const own = demoOwnRow(dc.c.channel);
+    if (own && !own.effective && !body.acknowledge_wyfy_fallback) {
+      fail(409, "own_provider_unacknowledged", "Acknowledge the fallback to Wyfy.");
+    }
+    const provider = demoCampaignProvider(dc.c.channel);
     const at = body.scheduled_at ? Date.parse(body.scheduled_at) : Date.now();
     if (body.scheduled_at && (at < Date.now() + 5 * MIN || at > Date.now() + 60 * DAY)) {
       fail(422, "schedule_out_of_range", "Out of range.");
@@ -1185,6 +1224,7 @@ export const demoMarketingBackend = {
         ...dc.c,
         status: "scheduled",
         scheduled_at: body.scheduled_at,
+        provider,
         updated_at: now,
         version: dc.c.version + 1,
       };
@@ -1193,6 +1233,7 @@ export const demoMarketingBackend = {
         ...dc.c,
         status: "sending",
         started_at: now,
+        provider,
         updated_at: now,
         version: dc.c.version + 1,
         stats: {
@@ -1284,6 +1325,45 @@ export const demoMarketingBackend = {
       .map(({ at: _at, ...r }) => r);
     return page(rows, q.page, q.page_size ?? 25);
   },
+
+  // ── §12 bring-your-own providers ─────────────────────────────────────
+  async listProviders() {
+    await sleep(150);
+    return demoListProviders();
+  },
+
+  async getProvider(channel: MarketingChannel) {
+    await sleep(100);
+    return demoGetProvider(channel);
+  },
+
+  async putProvider(channel: MarketingChannel, body: ProviderPutPayload) {
+    await sleep(300);
+    const v = demoPutProvider(channel, body);
+    note(DEMO_SAVED_NOTE);
+    return v;
+  },
+
+  async deleteProvider(channel: MarketingChannel) {
+    await sleep(250);
+    const affected = campaigns.filter(
+      (dc) =>
+        dc.c.channel === channel &&
+        dc.c.status === "scheduled" &&
+        dc.c.provider?.source === "own",
+    ).length;
+    const r = demoDeleteProvider(channel, affected);
+    note(DEMO_SAVED_NOTE);
+    return r;
+  },
+
+  async verifyProvider(channel: MarketingChannel, body: ProviderVerifyPayload) {
+    await sleep(900);
+    const r = demoVerifyProvider(channel, body);
+    note(DEMO_SENT_NOTE);
+    return r;
+  },
+
 };
 
 // Every method the real client has, and nothing else.
