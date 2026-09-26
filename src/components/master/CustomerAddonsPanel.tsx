@@ -177,7 +177,10 @@ export function CustomerAddonsPanel({
                     )}
                     {addon.blocked_by && (
                       <p className="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-400">
-                        Requires {addon.blocked_by === "guest_marketing" ? "Guest Marketing" : addon.blocked_by}
+                        Requires{" "}
+                        {addon.blocked_by === "guest_marketing"
+                          ? "Guest Marketing"
+                          : addon.blocked_by}
                         . Unlock that first.
                       </p>
                     )}
@@ -313,7 +316,10 @@ function CustomerProvidersList({ organizationId }: { organizationId: string }) {
       ) : (
         <ul className="divide-y divide-border rounded-lg border border-border text-xs">
           {q.data?.channels.map((c) => (
-            <li key={c.channel} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+            <li
+              key={c.channel}
+              className="flex flex-wrap items-center justify-between gap-2 px-3 py-2"
+            >
               <span className="font-medium">{PROVIDER_CHANNEL_LABEL[c.channel] ?? c.channel}</span>
               <span className="text-muted-foreground">
                 {c.own
@@ -328,4 +334,8 @@ function CustomerProvidersList({ organizationId }: { organizationId: string }) {
   );
 }
 
-const PROVIDER_CHANNEL_LABEL: Record<string, string> = { sms: "SMS", whatsapp: "WhatsApp", email: "Email" };
+const PROVIDER_CHANNEL_LABEL: Record<string, string> = {
+  sms: "SMS",
+  whatsapp: "WhatsApp",
+  email: "Email",
+};

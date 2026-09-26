@@ -43,7 +43,12 @@ export const PROVIDER_TYPES: ProviderTypeDef[] = [
     available: true,
     fields: [
       { key: "api_key", label: "API key", secret: true, required: true },
-      { key: "route", label: "Promotional route", required: true, help: "Your Ping4SMS promotional route number." },
+      {
+        key: "route",
+        label: "Promotional route",
+        required: true,
+        help: "Your Ping4SMS promotional route number.",
+      },
       { key: "sender_id", label: "Sender ID (DLT header)", required: true },
       { key: "dlt_entity_id", label: "DLT entity ID", required: true },
     ],

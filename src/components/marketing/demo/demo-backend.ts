@@ -680,7 +680,11 @@ const campaigns: DemoCampaign[] = [
       updated_at: "2026-09-10T12:31:10.000Z",
       last_error:
         "own_provider_failed: Amazon SES rejected the sender (554 Email address is not verified). Fixed and re-verified on 17 Sep.",
-      provider: { source: "own", type: "ses", display_name: "Your Amazon SES (offers@acmecafe.in)" },
+      provider: {
+        source: "own",
+        type: "ses",
+        display_name: "Your Amazon SES (offers@acmecafe.in)",
+      },
       stats: {
         ...STATS0,
         recipients: 126,
@@ -1351,9 +1355,7 @@ export const demoMarketingBackend = {
     await sleep(250);
     const affected = campaigns.filter(
       (dc) =>
-        dc.c.channel === channel &&
-        dc.c.status === "scheduled" &&
-        dc.c.provider?.source === "own",
+        dc.c.channel === channel && dc.c.status === "scheduled" && dc.c.provider?.source === "own",
     ).length;
     const r = demoDeleteProvider(channel, affected);
     note(DEMO_SAVED_NOTE);
@@ -1366,7 +1368,6 @@ export const demoMarketingBackend = {
     note(DEMO_SENT_NOTE);
     return r;
   },
-
 
   // ── Support-ticket requests (upsells, top-ups) ───────────────────────
   async findOpenSupportRequest(subject: string): Promise<SupportTicket | null> {
@@ -1400,7 +1401,6 @@ export const demoMarketingBackend = {
     note("Demo: no ticket was actually filed.");
     return ticket;
   },
-
 };
 
 // Every method the real client has, and nothing else.

@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { AlertTriangle, CheckCircle2, CircleDashed, Pencil, ShieldCheck, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  CircleDashed,
+  Pencil,
+  ShieldCheck,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,7 +14,13 @@ import { Switch } from "@/components/ui/switch";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { cn } from "@/lib/utils";
 import { useDeleteProvider, useMarketingApi, useSaveProvider } from "@/hooks/useMarketing";
-import { isSecretHint, providerLabel, providerTypeDef, providerTypesFor, type Channel } from "@/lib/marketing-providers";
+import {
+  isSecretHint,
+  providerLabel,
+  providerTypeDef,
+  providerTypesFor,
+  type Channel,
+} from "@/lib/marketing-providers";
 import type { ChannelStatus, MarketingChannel, ProviderView } from "@/types/marketing";
 import {
   CHANNEL_ICON,
@@ -19,16 +32,28 @@ import {
 import { ProviderForm } from "./ProviderForm";
 import { VerifyProviderDialog } from "./VerifyProviderDialog";
 
-
 function StatusTag({ status }: { status: ProviderView["status"] }) {
   const map = {
-    verified: { cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300", icon: CheckCircle2, text: "Verified" },
+    verified: {
+      cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300",
+      icon: CheckCircle2,
+      text: "Verified",
+    },
     unverified: { cls: "bg-muted text-muted-foreground", icon: CircleDashed, text: "Not verified" },
-    failed: { cls: "bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-300", icon: AlertTriangle, text: "Failed" },
+    failed: {
+      cls: "bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-300",
+      icon: AlertTriangle,
+      text: "Failed",
+    },
   }[status] ?? { cls: "bg-muted text-muted-foreground", icon: CircleDashed, text: status };
   const Icon = map.icon;
   return (
-    <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", map.cls)}>
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold",
+        map.cls,
+      )}
+    >
       <Icon className="h-3 w-3" aria-hidden /> {map.text}
     </span>
   );
@@ -37,8 +62,12 @@ function StatusTag({ status }: { status: ProviderView["status"] }) {
 /** "Ping4SMS (CAFEXY)" -- provider name plus the sender, never a secret. */
 function ownProviderName(own: Pick<ProviderView, "provider_type" | "display">): string {
   const d = own.display ?? {};
-  const sender = [d.sender_id, d.from_address].find((v) => typeof v === "string" && v) as string | undefined;
-  return sender ? `${providerLabel(own.provider_type)} (${sender})` : providerLabel(own.provider_type);
+  const sender = [d.sender_id, d.from_address].find((v) => typeof v === "string" && v) as
+    | string
+    | undefined;
+  return sender
+    ? `${providerLabel(own.provider_type)} (${sender})`
+    : providerLabel(own.provider_type);
 }
 
 /**
@@ -101,7 +130,12 @@ export function ProviderCard({
   const askRemove = async () => {
     setConfirmRemove({ count: null });
     try {
-      const page = await api.listCampaigns({ status: ["scheduled", "sending"], channel, page: 1, page_size: 1 });
+      const page = await api.listCampaigns({
+        status: ["scheduled", "sending"],
+        channel,
+        page: 1,
+        page_size: 1,
+      });
       setConfirmRemove({ count: page.total_items });
     } catch {
       setConfirmRemove({ count: null });
@@ -124,7 +158,9 @@ export function ProviderCard({
   };
 
   const shownFields = own
-    ? (providerTypeDef(own.provider_type)?.fields ?? []).filter((f) => own.display[f.key] !== undefined && own.display[f.key] !== null)
+    ? (providerTypeDef(own.provider_type)?.fields ?? []).filter(
+        (f) => own.display[f.key] !== undefined && own.display[f.key] !== null,
+      )
     : [];
 
   return (
@@ -187,7 +223,11 @@ export function ProviderCard({
               <>
                 <label
                   className="flex items-center gap-2 text-sm"
-                  title={own.status !== "verified" ? "Verify the provider before turning it on." : undefined}
+                  title={
+                    own.status !== "verified"
+                      ? "Verify the provider before turning it on."
+                      : undefined
+                  }
                 >
                   <Switch
                     checked={own.enabled}
@@ -203,7 +243,12 @@ export function ProviderCard({
                 <Button size="sm" variant="outline" onClick={() => setFormOpen(true)}>
                   <Pencil className="h-3.5 w-3.5" /> Edit
                 </Button>
-                <Button size="sm" variant="ghost" className="text-destructive" onClick={() => void askRemove()}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-destructive"
+                  onClick={() => void askRemove()}
+                >
                   <Trash2 className="h-3.5 w-3.5" /> Remove and use Wyfy
                 </Button>
               </>
@@ -222,7 +267,12 @@ export function ProviderCard({
 
       {canManage && (
         <>
-          <ProviderForm channel={channel} own={own ?? null} open={formOpen} onOpenChange={setFormOpen} />
+          <ProviderForm
+            channel={channel}
+            own={own ?? null}
+            open={formOpen}
+            onOpenChange={setFormOpen}
+          />
           <VerifyProviderDialog channel={channel} open={verifyOpen} onOpenChange={setVerifyOpen} />
           <ConfirmDialog
             open={confirmEnable}

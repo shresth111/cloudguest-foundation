@@ -4,11 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ErrorState } from "@/components/common/ErrorState";
 import { CardGridSkeleton } from "@/components/common/LoadingSkeleton";
-import {
-  useMarketingProviders,
-  useMarketingScope,
-  useSupportRequest,
-} from "@/hooks/useMarketing";
+import { useMarketingProviders, useMarketingScope, useSupportRequest } from "@/hooks/useMarketing";
 import { marketingError } from "@/services/marketing.service";
 import { requestErrorMessage } from "@/services/api";
 import { MARKETING_CHANNELS, type MarketingStatus } from "@/types/marketing";
@@ -32,8 +28,8 @@ function ByoUpsell() {
           <div>
             <p className="font-semibold">Use your own SMS, WhatsApp or email account</p>
             <p className="text-sm text-muted-foreground">
-              Send through your own provider and sender, with your own registration, and use no
-              Wyfy credits. It's a separate add-on to Marketing.
+              Send through your own provider and sender, with your own registration, and use no Wyfy
+              credits. It's a separate add-on to Marketing.
             </p>
           </div>
         </div>
@@ -87,8 +83,7 @@ export function ChannelsTab({ status }: { status: MarketingStatus }) {
   const providers = useMarketingProviders(mayRead);
 
   const locked = providers.isError && isByoLocked(providers.error);
-  const forbidden =
-    providers.isError && !locked && (marketingError(providers.error)?.status === 403);
+  const forbidden = providers.isError && !locked && marketingError(providers.error)?.status === 403;
   const readOnly = !mayRead || locked || forbidden;
 
   if (mayRead && providers.isLoading) return <CardGridSkeleton count={3} />;

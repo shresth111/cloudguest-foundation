@@ -57,7 +57,9 @@ export function ProviderForm({
   const label = useChannelLabel();
   const save = useSaveProvider();
   const types = providerTypesFor(channel as Channel);
-  const [type, setType] = useState<string>(own?.provider_type ?? types.find((t) => t.available)?.type ?? "");
+  const [type, setType] = useState<string>(
+    own?.provider_type ?? types.find((t) => t.available)?.type ?? "",
+  );
   const def = providerTypeDef(type);
   const storedDisplay = own && own.provider_type === type ? own.display : null;
   const [values, setValues] = useState<Record<string, string>>({});
@@ -92,7 +94,11 @@ export function ProviderForm({
   const submit = async () => {
     if (!def) return;
     setError(null);
-    const built = buildProviderPut(def, values, own ? { provider_type: own.provider_type, display: own.display } : null);
+    const built = buildProviderPut(
+      def,
+      values,
+      own ? { provider_type: own.provider_type, display: own.display } : null,
+    );
     setFieldErrors(built.errors);
     if (!built.body) return;
     if (own && !replacing && Object.keys(built.body.config).length === 0) {
@@ -126,8 +132,8 @@ export function ProviderForm({
             {own ? `Your own ${label(channel)} provider` : `Use your own ${label(channel)} account`}
           </DialogTitle>
           <DialogDescription>
-            Saved settings take effect only after the provider is verified and turned on. Until
-            then {label(channel)} keeps sending through Wyfy.
+            Saved settings take effect only after the provider is verified and turned on. Until then{" "}
+            {label(channel)} keeps sending through Wyfy.
           </DialogDescription>
         </DialogHeader>
 
@@ -163,7 +169,9 @@ export function ProviderForm({
                   <label key={f.key} className="flex items-center gap-2 text-sm">
                     <Switch
                       checked={values[f.key] === "true"}
-                      onCheckedChange={(v) => setValues((p) => ({ ...p, [f.key]: v ? "true" : "false" }))}
+                      onCheckedChange={(v) =>
+                        setValues((p) => ({ ...p, [f.key]: v ? "true" : "false" }))
+                      }
                     />
                     {f.label}
                   </label>
@@ -173,7 +181,9 @@ export function ProviderForm({
                 <div key={f.key} className="space-y-1">
                   <Label htmlFor={id}>
                     {f.label}
-                    {f.secret && <span className="ml-1 text-[10px] text-muted-foreground">(secret)</span>}
+                    {f.secret && (
+                      <span className="ml-1 text-[10px] text-muted-foreground">(secret)</span>
+                    )}
                   </Label>
                   {f.kind === "select" ? (
                     <Select
@@ -197,7 +207,9 @@ export function ProviderForm({
                       type={f.secret ? "password" : f.kind === "email" ? "email" : "text"}
                       // Never prefilled: see this component's doc comment.
                       value={values[f.key] ?? ""}
-                      placeholder={f.secret && !replacing ? secretPlaceholder(hints[f.key]) : undefined}
+                      placeholder={
+                        f.secret && !replacing ? secretPlaceholder(hints[f.key]) : undefined
+                      }
                       autoComplete={f.secret ? "new-password" : "off"}
                       data-secret={f.secret ? "true" : undefined}
                       aria-invalid={err ? true : undefined}
@@ -216,7 +228,10 @@ export function ProviderForm({
         )}
 
         {error && (
-          <p role="alert" className="rounded-md bg-red-50 p-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300">
+          <p
+            role="alert"
+            className="rounded-md bg-red-50 p-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300"
+          >
             {error}
           </p>
         )}

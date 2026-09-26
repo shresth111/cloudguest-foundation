@@ -66,9 +66,7 @@ export function VerifyProviderDialog({
 
   const needsTo = channel === "sms" || channel === "email";
   const canGo =
-    !verify.isPending &&
-    (!needsTo || to.trim().length > 3) &&
-    (channel !== "sms" || !!templateId);
+    !verify.isPending && (!needsTo || to.trim().length > 3) && (channel !== "sms" || !!templateId);
 
   const go = async () => {
     setError(null);
@@ -79,7 +77,8 @@ export function VerifyProviderDialog({
         body: { test_to: to.trim() || null, template_id: channel === "sms" ? templateId : null },
       });
       setResult(r);
-      if (r.provider.status === "verified") toast.success(`Your ${label(channel)} provider is verified.`);
+      if (r.provider.status === "verified")
+        toast.success(`Your ${label(channel)} provider is verified.`);
       else toast.error("Verification failed. See the checks below.");
     } catch (err) {
       setError(marketingErrorMessage(err, "Couldn't run the verification."));
@@ -99,7 +98,9 @@ export function VerifyProviderDialog({
 
         {needsTo && (
           <div className="space-y-1.5">
-            <Label htmlFor="vp-to">{channel === "email" ? "Send the test to (email)" : "Send the test to (phone)"}</Label>
+            <Label htmlFor="vp-to">
+              {channel === "email" ? "Send the test to (email)" : "Send the test to (phone)"}
+            </Label>
             <Input
               id="vp-to"
               value={to}
@@ -115,8 +116,8 @@ export function VerifyProviderDialog({
             {ownSmsTemplates.length === 0 ? (
               <p className="text-xs text-muted-foreground">
                 You need one of your own SMS templates with your own DLT template ID. Wyfy's
-                templates are registered to Wyfy's header and would be dropped by carriers on
-                yours. Create one in the Templates tab.
+                templates are registered to Wyfy's header and would be dropped by carriers on yours.
+                Create one in the Templates tab.
               </p>
             ) : (
               <Select value={templateId} onValueChange={setTemplateId}>
@@ -136,7 +137,10 @@ export function VerifyProviderDialog({
         )}
 
         {result && (
-          <ul className="space-y-1.5 rounded-md border border-border p-2 text-sm" data-testid="verify-checks">
+          <ul
+            className="space-y-1.5 rounded-md border border-border p-2 text-sm"
+            data-testid="verify-checks"
+          >
             {result.checks.map((c) => (
               <li key={c.name} className="flex items-start gap-2">
                 {c.ok ? (
@@ -146,7 +150,11 @@ export function VerifyProviderDialog({
                 )}
                 <span>
                   <span className="font-medium">
-                    {c.name === "credentials" ? "Credentials" : c.name === "test_send" ? "Test message" : c.name}
+                    {c.name === "credentials"
+                      ? "Credentials"
+                      : c.name === "test_send"
+                        ? "Test message"
+                        : c.name}
                   </span>
                   : {c.detail}
                 </span>
@@ -155,7 +163,10 @@ export function VerifyProviderDialog({
           </ul>
         )}
         {error && (
-          <p role="alert" className="rounded-md bg-red-50 p-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300">
+          <p
+            role="alert"
+            className="rounded-md bg-red-50 p-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300"
+          >
             {error}
           </p>
         )}

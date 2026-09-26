@@ -230,6 +230,12 @@ try {
   await comp.getByRole("button", { name: "Schedule" }).click();
   const sched = page.locator('[role="dialog"]').filter({ hasText: "Schedule campaign" });
   await sched.waitFor();
+  // SMS has the venue's own Ping4SMS row, which failed verification: the
+  // campaign may only go through Wyfy after an explicit acknowledgement.
+  check("the dialog says which account sends it", /Sends via: Wyfy default/.test(await sched.innerText()));
+  check("the fallback warning is shown", /failed verification/.test(await sched.innerText()));
+  check("Schedule is disabled until acknowledged", await sched.getByRole("button", { name: "Schedule" }).isDisabled());
+  await sched.getByRole("checkbox", { name: "Send through Wyfy's default account" }).click();
   await sched.getByRole("button", { name: "Schedule" }).click();
   await page
     .getByText(/Scheduled for|quiet hours/)
@@ -294,6 +300,46 @@ try {
   await page.getByRole("tab", { name: "Delivery logs" }).click();
   await page.locator("tbody tr").first().waitFor();
   check("delivery rows are listed", (await page.locator("tbody tr").count()) > 0);
+
+  console.log("\nchannels (bring-your-own providers)");
+  await page.getByRole("tab", { name: "Channels" }).click();
+  const emailCard = page.getByTestId("provider-card-email");
+  await emailCard.waitFor();
+  check("email sends through the venue's own SES", /Using your own · Amazon SES \(offers@acmecafe\.in\)/.test(await emailCard.innerText()));
+  const smsCard = page.getByTestId("provider-card-sms");
+  check("the own SMS provider shows Failed with its reason", /Failed/.test(await smsCard.innerText()) && /DLT template ID/.test(await smsCard.innerText()));
+  await emailCard.getByRole("button", { name: "Edit" }).click();
+  const form = page.locator('[role="dialog"]').filter({ hasText: "Your own Email provider" });
+  await form.waitFor();
+  const secrets = form.locator('input[data-secret="true"]');
+  const n = await secrets.count();
+  const values = await secrets.evaluateAll((els) => els.map((e) => e.value));
+  const placeholders = await secrets.evaluateAll((els) => els.map((e) => e.placeholder));
+  check("secret inputs are empty, never prefilled", n === 2 && values.every((v) => v === ""), JSON.stringify(values));
+  check("and show only the saved hint", placeholders.every((p) => /^Saved \(…\w{4}\)\. Leave blank to keep\.$/.test(p)), JSON.stringify(placeholders));
+  await closeAll();
+
+  await smsCard.getByRole("button", { name: "Verify" }).click();
+  const vd = page.locator('[role="dialog"]').filter({ hasText: "Verify your SMS provider" });
+  await vd.waitFor();
+  await vd.getByLabel(/Send the test to/).fill("+91 98765 43210");
+  await vd.getByRole("combobox", { name: "Template" }).click();
+  await page.getByRole("option", { name: "Monsoon chai special" }).click();
+  await vd.getByRole("button", { name: "Verify" }).click();
+  await vd.getByTestId("verify-checks").waitFor({ timeout: 5000 });
+  check("verification reports each check", /Credentials/.test(await vd.innerText()) && /Test message/.test(await vd.innerText()));
+  await closeAll();
+  await page.waitForTimeout(300);
+  check("after verifying, the SMS card reads Verified", /Verified/.test(await smsCard.innerText()));
+
+  console.log("\nown-provider failure on a campaign");
+  await page.getByRole("tab", { name: "Campaigns" }).click();
+  await page.getByText("Live jazz night invite", { exact: true }).first().click();
+  const jazz = page.getByTestId("own-provider-failure");
+  await jazz.waitFor({ timeout: 5000 });
+  check("the failure banner says nothing went through Wyfy", /not sent through Wyfy/.test(await jazz.innerText()));
+  check("the campaign shows its provider", /via Your Amazon SES/.test(await page.getByTestId("campaign-provider").innerText()));
+  await closeAll();
 
   console.log("\nthe demo never touches the network");
   check(

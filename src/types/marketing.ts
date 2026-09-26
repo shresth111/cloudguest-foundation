@@ -462,7 +462,6 @@ export interface AddonWriteResult {
   cancelled_campaign_count: number;
 }
 
-
 // ── §12 Channel providers (bring-your-own) ─────────────────────────────
 
 export type ProviderSource = "wyfy" | "own";

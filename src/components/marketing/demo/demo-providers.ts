@@ -139,7 +139,12 @@ function locked(): never {
   throw err;
 }
 
-function fail(status: number, code: string, message: string, data: Record<string, unknown> = {}): never {
+function fail(
+  status: number,
+  code: string,
+  message: string,
+  data: Record<string, unknown> = {},
+): never {
   throw { status, code, message, data: { error_code: code, ...data } };
 }
 
@@ -181,8 +186,12 @@ export function demoPutProvider(channel: MarketingChannel, body: ProviderPutPayl
       else display[f.key] = hint(String(v));
     } else display[f.key] = v;
   }
-  if (Object.keys(missing).length) fail(422, "provider_config_invalid", "Some fields are invalid.", { fields: missing });
-  if (body.enabled && (replace || cur!.status !== "verified" || Object.keys(body.config).length > 0)) {
+  if (Object.keys(missing).length)
+    fail(422, "provider_config_invalid", "Some fields are invalid.", { fields: missing });
+  if (
+    body.enabled &&
+    (replace || cur!.status !== "verified" || Object.keys(body.config).length > 0)
+  ) {
     fail(409, "provider_not_verified", "Verify the provider before turning it on.");
   }
   const changed = Object.keys(body.config).length > 0 || replace;
@@ -202,7 +211,10 @@ export function demoPutProvider(channel: MarketingChannel, body: ProviderPutPayl
   return withEffective(next);
 }
 
-export function demoDeleteProvider(channel: MarketingChannel, affected: number): ProviderDeleteResult {
+export function demoDeleteProvider(
+  channel: MarketingChannel,
+  affected: number,
+): ProviderDeleteResult {
   if (!byoEntitled) locked();
   if (!rows.has(channel)) fail(404, "not_found", "No provider for this channel.");
   rows.delete(channel);
