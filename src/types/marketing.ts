@@ -145,6 +145,13 @@ export interface AudiencePreview {
   };
   capped: boolean;
   sample: AudienceSampleGuest[];
+  /** §13.7: per-recipient price for this channel right now. */
+  credit_estimate?: {
+    provider_source: ProviderSource;
+    unit: CreditUnit;
+    unit_price_minor: number;
+    estimated_minor_per_unit_recipient: number;
+  } | null;
 }
 
 // ── Templates ──────────────────────────────────────────────────────────
@@ -303,6 +310,8 @@ export interface CampaignStats {
    * until dispatched (contract change 2026-09-25, additive). Optional so a
    * backend that predates the change still type-checks as "not reported". */
   excluded_at_dispatch?: AudiencePreview["excluded"] | null;
+  /** §13.4: recipients left out because the wallet couldn't cover them. */
+  capped_by_credits?: number;
 }
 
 export interface MarketingCampaign {
@@ -329,6 +338,8 @@ export interface MarketingCampaign {
   last_error?: string | null;
   /** §12.4: set from the schedule-time snapshot; null for drafts. */
   provider?: CampaignProvider | null;
+  /** §13.7: null for drafts and own-provider campaigns. */
+  credits?: CampaignCredits | null;
 }
 
 export interface CampaignListQuery {
@@ -360,6 +371,8 @@ export interface TestSendResult {
     status: "submitted" | "failed";
     provider_message_id: string | null;
     error_code: string | null;
+    /** §13.7: minor units charged for this test message. */
+    charged_minor?: number;
   }[];
 }
 
@@ -383,6 +396,8 @@ export const RECIPIENT_STATUSES: readonly RecipientStatus[] = [
 
 export interface CampaignRecipient {
   id: string;
+  /** §13.7: minor units charged for this message; null when not charged. */
+  charged_minor?: number | null;
   /** §12.4: which pipe carried it. */
   provider_source?: ProviderSource | null;
   guest_id: string | null;
@@ -549,5 +564,143 @@ export interface PlatformProviders {
       /** Backend deviation #22 (additive). */
       display_name?: string | null;
     } | null;
+  }[];
+}
+
+// ── §13 Marketing credits ──────────────────────────────────────────────
+// Every amount is an integer in MINOR units: 100 minor = 1 credit = ₹1.00
+// before GST. Never floats (§13.1).
+
+export type CreditUnit = "segment" | "message";
+
+export interface ChannelPrice {
+  unit: CreditUnit;
+  unit_price_minor: number;
+  source: "platform" | "org_override";
+  /** Master view only: the platform price for comparison. */
+  platform_unit_price_minor?: number;
+}
+
+export interface MarketingCredits {
+  available_minor: number;
+  reserved_minor: number;
+  minor_per_credit: number;
+  low_balance_threshold_minor: number;
+  is_low: boolean;
+  prices: Record<MarketingChannel, ChannelPrice>;
+  /** Channels sending through the venue's own provider: 0 credits. */
+  byo_channels: MarketingChannel[];
+}
+
+export type LedgerEntryType = "topup" | "reserve" | "release" | "debit" | "refund" | "adjustment";
+
+export interface LedgerRow {
+  id: string;
+  entry_type: LedgerEntryType | string;
+  created_at: string;
+  delta_available_minor: number;
+  delta_reserved_minor: number;
+  balance_available_after_minor: number;
+  balance_reserved_after_minor: number;
+  campaign: { id: string; name: string } | null;
+  is_test_send: boolean;
+  unit_price_minor: number | null;
+  units: number | null;
+  reference: string | null;
+  note: string | null;
+  invoice: { id: string; invoice_number: string } | null;
+  actor: { id: string; name: string | null } | null;
+}
+
+export interface LedgerQuery {
+  entry_type?: LedgerEntryType[];
+  campaign_id?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  page_size?: number;
+}
+
+export interface CampaignEstimate {
+  provider_source: ProviderSource;
+  reachable: number;
+  unit: CreditUnit;
+  unit_price_minor: number;
+  units_per_recipient_max: number;
+  estimated_max_minor: number;
+  available_minor: number;
+  sufficient: boolean;
+}
+
+export interface CampaignCredits {
+  price_snapshot: { channel: MarketingChannel; unit: CreditUnit; unit_price_minor: number } | null;
+  reserved_minor: number;
+  debited_minor: number;
+  released_minor: number;
+}
+
+/** 402 insufficient_credits `data` (§13.4 step 2). */
+export interface InsufficientCredits {
+  needed_minor: number;
+  available_minor: number;
+  shortfall_minor: number;
+  unit_price_minor?: number;
+  units_per_recipient_max?: number;
+  reachable?: number;
+}
+
+// Master (§13.7)
+export interface PlatformCredits {
+  wallet: {
+    available_minor: number;
+    reserved_minor: number;
+    low_balance_threshold_minor: number;
+    is_low: boolean;
+  };
+  prices: Record<MarketingChannel, ChannelPrice>;
+  recent_entries: LedgerRow[];
+  active_campaign_reservations: {
+    campaign_id: string;
+    name: string;
+    reserved_minor: number;
+    debited_minor: number;
+  }[];
+}
+
+export interface CreditAdjustmentPayload {
+  entry_type: "topup" | "adjustment" | "refund";
+  amount_minor: number;
+  note: string;
+  reference: string | null;
+  campaign_id: string | null;
+  issue_invoice: boolean;
+  amount_paid_minor_inr?: number;
+  idempotency_key: string;
+}
+
+export interface CreditAdjustmentResult {
+  entry: LedgerRow;
+  wallet: { available_minor: number; reserved_minor: number };
+  invoice: { id: string; invoice_number: string } | null;
+}
+
+export interface PriceBookRow {
+  channel: MarketingChannel;
+  unit: CreditUnit;
+  unit_price_minor: number;
+  effective_from: string;
+  set_by: { id: string; name: string | null } | null;
+  note: string | null;
+}
+
+export interface PriceBook {
+  platform: PriceBookRow[];
+  history: PriceBookRow[];
+  org_overrides: {
+    organization_id: string;
+    organization_name: string;
+    channel: MarketingChannel;
+    unit_price_minor: number;
+    effective_from: string;
   }[];
 }

@@ -6,7 +6,8 @@
     "templates": "टेम्पलेट",
     "audience": "ऑडियंस",
     "logs": "डिलीवरी लॉग",
-    "channels": "चैनल"
+    "channels": "चैनल",
+    "credits": "क्रेडिट"
   },
   "channel": {
     "sms": "SMS",

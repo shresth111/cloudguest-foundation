@@ -23,6 +23,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Users,
+  Coins,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -51,6 +52,13 @@ export const MASTER_NAV: MasterNavItem[] = [
   },
   { to: "/master/locations", label: "All Locations", icon: MapPin, cap: "locations" },
   { to: "/master/billing", label: "Subscriptions & Billing", icon: CreditCard, cap: "billing" },
+  // Per-message prices for Guest Marketing credits (spec §13.3/§13.10).
+  {
+    to: "/master/marketing-pricing",
+    label: "Marketing price book",
+    icon: Coins,
+    cap: "pricing",
+  },
   { to: "/master/nas", label: "NAS / RADIUS", icon: Server, cap: "nas" },
   { to: "/master/routers", label: "Router Fleet", icon: Router, cap: "routers" },
   // Third-party network controllers a customer has connected themselves
@@ -100,6 +108,7 @@ const MASTER_NAV_GROUPS: { label: string; items: string[] }[] = [
       "/master/channel-partners",
       "/master/locations",
       "/master/billing",
+      "/master/marketing-pricing",
     ],
   },
   {
@@ -215,6 +224,10 @@ const CAP_PERMISSIONS: Record<string, string[]> = {
    * (wyfy-specs/guest-marketing-campaigns.md §5.9); without this cap the
    * panel still renders read-only, since `billing.read` is enough to GET. */
   addons: ["billing.manage"],
+  /** `/master/marketing-pricing` -- read with billing.read; the edit form is
+   * gated separately on the `addons` cap (billing.manage), and the backend
+   * pins both to GLOBAL scope (§13.7). */
+  pricing: ["billing.read"],
 };
 
 /** Operator capability model. Previously returned the *same* full capability

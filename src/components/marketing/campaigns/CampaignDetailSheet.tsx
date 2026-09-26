@@ -29,6 +29,7 @@ import {
   useMarketingCan,
 } from "../marketing-helpers";
 import { RecipientsTable } from "./RecipientsTable";
+import { formatCredits } from "@/lib/marketing-credits";
 import { ScheduleDialog, TestSendDialog } from "./CampaignActions";
 import { CampaignComposerSheet } from "./CampaignComposerSheet";
 
@@ -286,6 +287,51 @@ export function CampaignDetailSheet({
                     hint="Opted out or blocked after the start"
                   />
                 </div>
+                {c.credits && (
+                  <div
+                    className="rounded-lg border border-border p-3"
+                    data-testid="campaign-credits"
+                  >
+                    <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      Credits
+                    </p>
+                    <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-0.5 text-xs">
+                      {c.credits.price_snapshot && (
+                        <div className="contents">
+                          <dt className="text-muted-foreground">Price (fixed when scheduled)</dt>
+                          <dd className="text-right tabular-nums">
+                            {formatCredits(c.credits.price_snapshot.unit_price_minor)} per{" "}
+                            {c.credits.price_snapshot.unit === "segment" ? "SMS part" : "message"}
+                          </dd>
+                        </div>
+                      )}
+                      <dt className="text-muted-foreground">Held</dt>
+                      <dd className="text-right tabular-nums">
+                        {formatCredits(c.credits.reserved_minor)}
+                      </dd>
+                      <dt className="text-muted-foreground">Charged</dt>
+                      <dd className="text-right tabular-nums">
+                        {formatCredits(c.credits.debited_minor)}
+                      </dd>
+                      <dt className="text-muted-foreground">Returned</dt>
+                      <dd className="text-right tabular-nums">
+                        {formatCredits(c.credits.released_minor)}
+                      </dd>
+                    </dl>
+                  </div>
+                )}
+                {(c.stats.capped_by_credits ?? 0) > 0 && (
+                  <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+                    {c.stats.capped_by_credits!.toLocaleString("en-IN")} more guest
+                    {c.stats.capped_by_credits === 1 ? " was" : "s were"} reachable when sending
+                    started, but your credits didn't cover them, so they weren't sent to.
+                  </p>
+                )}
+                {c.provider?.source === "own" && (
+                  <p className="text-xs text-muted-foreground">
+                    Sent through your own provider: no Wyfy credits used.
+                  </p>
+                )}
                 {ex && (
                   <div className="rounded-lg border border-border p-3">
                     <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">

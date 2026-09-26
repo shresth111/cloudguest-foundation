@@ -15,6 +15,7 @@ import type {
   MarketingTemplate,
 } from "@/types/marketing";
 import { MARKETING_CHANNELS } from "@/types/marketing";
+import { formatCredits } from "@/lib/marketing-credits";
 
 /**
  * Non-component helpers for the Marketing screens (labels, the error-code →
@@ -115,6 +116,10 @@ const ERROR_COPY: Record<string, string> = {
   test_send_limit: "You've used today's test sends.",
   portal_config_missing: "This venue has no WiFi login page set up yet.",
   network_error: "Couldn't reach the server. Check your connection and try again.",
+  insufficient_credits: "Not enough marketing credits. Request a top-up in the Credits tab.",
+  adjustment_exceeds_available: "That would take the balance below zero.",
+  billing_profile_missing:
+    "This customer has no billing profile, so no GST invoice can be issued. Post it without an invoice or add a profile first.",
   // §12.4 bring-your-own providers
   provider_config_invalid: "Some settings aren't valid. Check the highlighted fields.",
   provider_type_not_supported: "That provider isn't supported for this channel yet.",
@@ -144,6 +149,14 @@ export function marketingErrorMessage(err: unknown, fallback = "Something went w
   if (code === "test_send_limit" && typeof data?.retry_after_seconds === "number") {
     const hrs = Math.ceil(data.retry_after_seconds / 3600);
     return `${ERROR_COPY.test_send_limit} Try again in about ${hrs} hour${hrs === 1 ? "" : "s"}.`;
+  }
+  if (code === "insufficient_credits") {
+    const needed = Number(data?.needed_minor);
+    const available = Number(data?.available_minor);
+    if (Number.isFinite(needed) && Number.isFinite(available)) {
+      return `Not enough credits: this needs up to ${formatCredits(needed)} and you have ${formatCredits(available)} available. Request a top-up in the Credits tab.`;
+    }
+    return ERROR_COPY.insufficient_credits;
   }
   // Backend deviation #24: a campaign snapshotted to the venue's own
   // provider tests (and sends) only through it -- never Wyfy.
@@ -325,3 +338,7 @@ export function isByoLocked(err: unknown): boolean {
     marketingErrorData(err)?.feature_key === "guest_marketing_byo"
   );
 }
+
+// ── §13 credits ────────────────────────────────────────────────────────
+
+export const TOPUP_REQUEST_SUBJECT = "Marketing credits top-up";

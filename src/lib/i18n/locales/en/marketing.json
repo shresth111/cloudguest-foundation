@@ -6,7 +6,8 @@
     "templates": "Templates",
     "audience": "Audience",
     "logs": "Delivery logs",
-    "channels": "Channels"
+    "channels": "Channels",
+    "credits": "Credits"
   },
   "channel": {
     "sms": "SMS",

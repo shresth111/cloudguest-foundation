@@ -7,7 +7,7 @@ import { CustomerFeaturePage } from "@/components/customer/CustomerFeaturePage";
 /**
  * Marketing (paid add-on) -- wyfy-specs/guest-marketing-campaigns.md §8.1.
  *
- * `?tab=campaigns|templates|audience|deliveries|channels` picks the tab and
+ * `?tab=campaigns|templates|audience|deliveries|channels|credits` picks the tab and
  * `?campaign=<uuid>` opens that campaign's detail sheet (see
  * `components/marketing/MarketingView.tsx`). Anything else, or nothing, is
  * dropped rather than rejected, so a mistyped link still opens the page --

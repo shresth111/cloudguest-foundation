@@ -16,11 +16,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  useMarketingCredits,
   useMarketingLocationId,
   useScheduleCampaign,
   useTestSend,
   useMarketingApi,
 } from "@/hooks/useMarketing";
+import { formatCredits } from "@/lib/marketing-credits";
 import { marketingErrorCode, marketingErrorData } from "@/services/marketing.service";
 import { isValidGuestEmail } from "@/lib/portal-post-connect";
 import type {
@@ -136,6 +138,7 @@ export function TestSendDialog({
             hours and doesn't count toward the audience.
           </DialogDescription>
         </DialogHeader>
+        <TestCostNote channel={campaign.channel} />
         <div className="space-y-1.5">
           <Label htmlFor="ts-to">
             {campaign.channel === "email" ? "Email addresses" : "Phone numbers"}
@@ -201,6 +204,27 @@ export function TestSendDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** §13.10: what one test message costs, from the server's price list. */
+function TestCostNote({ channel }: { channel: MarketingChannel }) {
+  const q = useMarketingCredits();
+  if (!q.data) return null;
+  if (q.data.byo_channels.includes(channel))
+    return (
+      <p className="text-xs text-muted-foreground" data-testid="test-cost">
+        Sent through your own provider: no Wyfy credits used.
+      </p>
+    );
+  const p = q.data.prices[channel];
+  if (!p) return null;
+  return (
+    <p className="text-xs text-muted-foreground" data-testid="test-cost">
+      Each test message costs {formatCredits(p.unit_price_minor)} credits
+      {p.unit === "segment" ? " per SMS part" : ""}. You have{" "}
+      {formatCredits(q.data.available_minor)} available.
+    </p>
   );
 }
 

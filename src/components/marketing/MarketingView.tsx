@@ -1,7 +1,16 @@
 import { useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { FileText, Info, Megaphone, ScrollText, ShieldOff, Users, KeyRound } from "lucide-react";
+import {
+  FileText,
+  Info,
+  Megaphone,
+  ScrollText,
+  ShieldOff,
+  Users,
+  KeyRound,
+  Coins,
+} from "lucide-react";
 import i18n from "@/lib/i18n";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -20,14 +29,23 @@ import { TemplateGallery } from "./templates/TemplateGallery";
 import { AudienceTab } from "./audience/AudienceTab";
 import { DeliveryLogTable } from "./deliveries/DeliveryLogTable";
 import { ChannelsTab } from "./channels/ChannelsTab";
+import { CreditsTab } from "./credits/CreditsTab";
+import { CreditsChip } from "./credits/CreditsChip";
 
-export type MarketingTab = "campaigns" | "templates" | "audience" | "deliveries" | "channels";
+export type MarketingTab =
+  | "campaigns"
+  | "templates"
+  | "audience"
+  | "deliveries"
+  | "channels"
+  | "credits";
 const TABS: { id: MarketingTab; icon: typeof Megaphone; fallback: string; i18nKey: string }[] = [
   { id: "campaigns", icon: Megaphone, fallback: "Campaigns", i18nKey: "tabs.campaigns" },
   { id: "templates", icon: FileText, fallback: "Templates", i18nKey: "tabs.templates" },
   { id: "audience", icon: Users, fallback: "Audience", i18nKey: "tabs.audience" },
   { id: "deliveries", icon: ScrollText, fallback: "Delivery logs", i18nKey: "tabs.logs" },
   { id: "channels", icon: KeyRound, fallback: "Channels", i18nKey: "tabs.channels" },
+  { id: "credits", icon: Coins, fallback: "Credits", i18nKey: "tabs.credits" },
 ];
 
 function isTab(v: unknown): v is MarketingTab {
@@ -36,7 +54,8 @@ function isTab(v: unknown): v is MarketingTab {
     v === "templates" ||
     v === "audience" ||
     v === "deliveries" ||
-    v === "channels"
+    v === "channels" ||
+    v === "credits"
   );
 }
 
@@ -154,7 +173,10 @@ export function MarketingView({
 
   return (
     <div className="space-y-5">
-      {intro}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        {intro}
+        <CreditsChip onOpen={() => go({ tab: "credits", campaign: null })} />
+      </div>
       {demo && (
         <p
           role="note"
@@ -197,6 +219,9 @@ export function MarketingView({
         </TabsContent>
         <TabsContent value="audience" className="mt-5">
           <AudienceTab status={status.data} />
+        </TabsContent>
+        <TabsContent value="credits" className="mt-5">
+          <CreditsTab />
         </TabsContent>
         <TabsContent value="channels" className="mt-5">
           <ChannelsTab status={status.data} />
