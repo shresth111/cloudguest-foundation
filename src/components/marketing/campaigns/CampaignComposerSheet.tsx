@@ -20,6 +20,7 @@ import {
   useCreateCampaign,
   useMarketingTemplates,
   useTemplatePreview,
+  useCampaignEstimate,
   useMarketingLocationId,
   useMarketingScope,
   useUpdateCampaign,
@@ -28,6 +29,7 @@ import {
 } from "@/hooks/useMarketing";
 import { campaignLocationFields } from "@/lib/marketing-scope";
 import { fallbackReason, needsFallbackAcknowledgement } from "@/lib/marketing-providers";
+import { estimateSentence, formatCredits } from "@/lib/marketing-credits";
 import { campaignVariableMaxLength, campaignVariablesIn } from "@/lib/marketing-template";
 import {
   MARKETING_CHANNELS,
@@ -342,6 +344,9 @@ export function CampaignComposerSheet({
         }
       : null;
   const preview = useTemplatePreview(reviewBody);
+  // §13.10: the live cost of the SAVED draft (the review step is only
+  // reachable after a save), from the server -- never computed here.
+  const estimate = useCampaignEstimate(campaignId, open && step === 4 && !saving);
 
   const blockers: string[] = [];
   if (!channelLive) blockers.push(channelNotLiveCopy(label(channel)));
@@ -352,6 +357,10 @@ export function CampaignComposerSheet({
     );
   if (audience && audience.reachable === 0)
     blockers.push("Nobody in this audience has opted in, so there is no one to send to.");
+  if (estimate.data && !estimate.data.sufficient)
+    blockers.push(
+      `Not enough credits: this needs up to ${formatCredits(estimate.data.estimated_max_minor)} and you have ${formatCredits(estimate.data.available_minor)} (short by ${formatCredits(estimate.data.estimated_max_minor - estimate.data.available_minor)}). Request a top-up in the Credits tab.`,
+    );
 
   const steps: { n: Step; label: string }[] = [
     { n: 1, label: t("wizard.template", "Template") },
@@ -624,6 +633,14 @@ export function CampaignComposerSheet({
                     {audience
                       ? `${audience.reachable.toLocaleString()} opted-in guests reachable now`
                       : "Counting…"}
+                  </dd>
+                  <dt className="text-muted-foreground">Cost</dt>
+                  <dd data-testid="composer-cost">
+                    {estimate.data
+                      ? estimateSentence(estimate.data)
+                      : estimate.isError
+                        ? "Couldn't estimate the cost right now; the server checks your balance when you schedule."
+                        : "Estimating…"}
                   </dd>
                 </dl>
               </div>

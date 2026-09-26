@@ -428,7 +428,7 @@ export function useUpdateCampaign() {
   return useMutation({
     mutationFn: (v: { id: string; body: CampaignPatchPayload }) =>
       api.updateCampaign(v.id, v.body, loc),
-    onSuccess: () => invalidate("campaigns", "campaign"),
+    onSuccess: () => invalidate("campaigns", "campaign", "estimate"),
   });
 }
 
