@@ -227,8 +227,18 @@ try {
     .waitFor({ timeout: 5000 })
     .catch(() => {});
   check("the review renders the message with the offer code", /SAT15/.test(await comp.innerText()));
-  await comp.getByTestId("composer-cost").getByText(/Estimated cost|no Wyfy credits/).waitFor({ timeout: 5000 }).catch(() => {});
-  check("the review shows what it will cost", /Estimated cost: up to [\d,]+\.\d{2} credits/.test(await comp.getByTestId("composer-cost").innerText()), await comp.getByTestId("composer-cost").innerText());
+  await comp
+    .getByTestId("composer-cost")
+    .getByText(/Estimated cost|no Wyfy credits/)
+    .waitFor({ timeout: 5000 })
+    .catch(() => {});
+  check(
+    "the review shows what it will cost",
+    /Estimated cost: up to [\d,]+\.\d{2} credits/.test(
+      await comp.getByTestId("composer-cost").innerText(),
+    ),
+    await comp.getByTestId("composer-cost").innerText(),
+  );
   await comp.getByRole("button", { name: "Schedule" }).click();
   const sched = page.locator('[role="dialog"]').filter({ hasText: "Schedule campaign" });
   await sched.waitFor();
@@ -374,17 +384,32 @@ try {
 
   console.log("\ncredits");
   const chip = page.getByTestId("credits-chip");
-  check("the credits chip shows the balance", /^[\d,]+\.\d{2} credits$/.test((await chip.innerText()).trim()), await chip.innerText());
+  check(
+    "the credits chip shows the balance",
+    /^[\d,]+\.\d{2} credits$/.test((await chip.innerText()).trim()),
+    await chip.innerText(),
+  );
   await chip.click();
   await page.getByTestId("credits-available").waitFor();
   const tab = await page.locator('[role="tabpanel"][data-state="active"]').innerText();
   // SMS was verified above, so it now sends through the venue's own
   // Ping4SMS too: only WhatsApp is charged.
-  check("prices are listed per channel", /WhatsApp\s+1\.20 credits/.test(tab) && /SMS\s+0 credits: your own provider/.test(tab), tab.slice(0, 600));
-  check("email, on the venue's own provider, costs nothing", /0 credits: your own provider/.test(tab));
+  check(
+    "prices are listed per channel",
+    /WhatsApp\s+1\.20 credits/.test(tab) && /SMS\s+0 credits: your own provider/.test(tab),
+    tab.slice(0, 600),
+  );
+  check(
+    "email, on the venue's own provider, costs nothing",
+    /0 credits: your own provider/.test(tab),
+  );
   check("credits are held for the scheduled and sending campaigns", /Held for campaigns/.test(tab));
   await page.getByTestId("credit-ledger").waitFor({ timeout: 5000 });
-  check("the ledger lists top-ups and charges", /Top-up/.test(await page.getByTestId("credit-ledger").innerText()) && /Charged/.test(await page.getByTestId("credit-ledger").innerText()));
+  check(
+    "the ledger lists top-ups and charges",
+    /Top-up/.test(await page.getByTestId("credit-ledger").innerText()) &&
+      /Charged/.test(await page.getByTestId("credit-ledger").innerText()),
+  );
   await page.getByLabel("Credits to add").fill("2,000");
   await page.getByRole("button", { name: "Request top-up" }).click();
   const filed = await page
@@ -393,7 +418,10 @@ try {
     .waitFor({ timeout: 5000 })
     .then(() => true)
     .catch(() => false);
-  await page.getByText(/Top-up requested: ticket/).first().waitFor({ timeout: 5000 });
+  await page
+    .getByText(/Top-up requested: ticket/)
+    .first()
+    .waitFor({ timeout: 5000 });
   check("requesting a top-up files a (demo) request and says so", filed);
 
   console.log("\nthe demo never touches the network");

@@ -78,6 +78,9 @@ writeFileSync(
    export function useMarketingLocationId() { return null; }
    import { marketingService as __real } from "@/services/marketing.service";
    export function useMarketingApi() { return __real; }
+   // Credits (§13) are out of scope here: no balance, no estimate yet.
+   export function useMarketingCredits() { return { data: undefined, isLoading: false, isError: false }; }
+   export function useCampaignEstimate() { return { data: undefined, isLoading: false, isError: false }; }
    export function useVenueLabel() { return () => "All venues"; }
    export function useOrgVenues() {
      return { venues: [{ id: "v1", name: "Koramangala" }, { id: "v2", name: "Indiranagar" }], isLoading: false, isError: false };

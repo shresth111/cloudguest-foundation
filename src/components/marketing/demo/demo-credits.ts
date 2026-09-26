@@ -90,12 +90,52 @@ write({
   units: 2,
   campaign: { id: "c-demo-loyalty", name: "Loyalty reward (August)" },
 });
-write({ type: "reserve", dAvail: -18_300, dRes: 18_300, at: now - 35 * DAY, campaign: { id: "c-demo-loyalty", name: "Loyalty reward (August)" } });
-write({ type: "debit", dAvail: 0, dRes: -3_540, at: now - 35 * DAY, unitPrice: 30, units: 118, campaign: { id: "c-demo-loyalty", name: "Loyalty reward (August)" } });
-write({ type: "release", dAvail: 14_760, dRes: -14_760, at: now - 35 * DAY, campaign: { id: "c-demo-loyalty", name: "Loyalty reward (August)" } });
-write({ type: "reserve", dAvail: -48_720, dRes: 48_720, at: now - 6 * DAY - 2 * 3600_000, campaign: { id: "c-demo-brunch", name: "Weekend brunch offer" } });
-write({ type: "debit", dAvail: 0, dRes: -23_730, at: now - 6 * DAY, unitPrice: 30, units: 791, campaign: { id: "c-demo-brunch", name: "Weekend brunch offer" } });
-write({ type: "release", dAvail: 24_990, dRes: -24_990, at: now - 6 * DAY, campaign: { id: "c-demo-brunch", name: "Weekend brunch offer" } });
+write({
+  type: "reserve",
+  dAvail: -18_300,
+  dRes: 18_300,
+  at: now - 35 * DAY,
+  campaign: { id: "c-demo-loyalty", name: "Loyalty reward (August)" },
+});
+write({
+  type: "debit",
+  dAvail: 0,
+  dRes: -3_540,
+  at: now - 35 * DAY,
+  unitPrice: 30,
+  units: 118,
+  campaign: { id: "c-demo-loyalty", name: "Loyalty reward (August)" },
+});
+write({
+  type: "release",
+  dAvail: 14_760,
+  dRes: -14_760,
+  at: now - 35 * DAY,
+  campaign: { id: "c-demo-loyalty", name: "Loyalty reward (August)" },
+});
+write({
+  type: "reserve",
+  dAvail: -48_720,
+  dRes: 48_720,
+  at: now - 6 * DAY - 2 * 3600_000,
+  campaign: { id: "c-demo-brunch", name: "Weekend brunch offer" },
+});
+write({
+  type: "debit",
+  dAvail: 0,
+  dRes: -23_730,
+  at: now - 6 * DAY,
+  unitPrice: 30,
+  units: 791,
+  campaign: { id: "c-demo-brunch", name: "Weekend brunch offer" },
+});
+write({
+  type: "release",
+  dAvail: 24_990,
+  dRes: -24_990,
+  at: now - 6 * DAY,
+  campaign: { id: "c-demo-brunch", name: "Weekend brunch offer" },
+});
 write({
   type: "refund",
   dAvail: 390,
@@ -106,7 +146,15 @@ write({
   actor: WYFY_OPS,
 });
 // Brings the demo to a round-looking balance a viewer can recognise.
-write({ type: "topup", dAvail: 13_000 - 670, dRes: 0, at: now - 3 * DAY, reference: "UPI 6120045523", note: "Top-up requested by ticket.", actor: WYFY_OPS });
+write({
+  type: "topup",
+  dAvail: 13_000 - 670,
+  dRes: 0,
+  at: now - 3 * DAY,
+  reference: "UPI 6120045523",
+  note: "Top-up requested by ticket.",
+  actor: WYFY_OPS,
+});
 
 export function demoCredits(byoChannels: MarketingChannel[]): MarketingCredits {
   return {
@@ -143,7 +191,11 @@ export function demoSettle(
   if (rest > 0) write({ type: "release", dAvail: rest, dRes: -rest, campaign });
 }
 
-export function demoChargeTest(campaign: { id: string; name: string }, unitPrice: number, units: number) {
+export function demoChargeTest(
+  campaign: { id: string; name: string },
+  unitPrice: number,
+  units: number,
+) {
   const amount = unitPrice * units;
   if (amount <= 0) return 0;
   write({ type: "debit", dAvail: -amount, dRes: 0, test: true, campaign, unitPrice, units });
@@ -152,7 +204,10 @@ export function demoChargeTest(campaign: { id: string; name: string }, unitPrice
 
 export function demoLedger(q: LedgerQuery): Page<LedgerRow> {
   const rows = ledger
-    .filter((r) => !q.entry_type || q.entry_type.length === 0 || q.entry_type.includes(r.entry_type as never))
+    .filter(
+      (r) =>
+        !q.entry_type || q.entry_type.length === 0 || q.entry_type.includes(r.entry_type as never),
+    )
     .filter((r) => !q.campaign_id || r.campaign?.id === q.campaign_id);
   const size = q.page_size ?? 25;
   const pages = Math.max(1, Math.ceil(rows.length / size));

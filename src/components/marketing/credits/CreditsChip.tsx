@@ -26,7 +26,11 @@ export function CreditsChip({ onOpen }: { onOpen: () => void }) {
         tone === "empty" &&
           "border-red-300 bg-red-50 text-red-800 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300",
       )}
-      title={q.data.reserved_minor > 0 ? `${formatCredits(q.data.reserved_minor)} held for scheduled or sending campaigns` : undefined}
+      title={
+        q.data.reserved_minor > 0
+          ? `${formatCredits(q.data.reserved_minor)} held for scheduled or sending campaigns`
+          : undefined
+      }
     >
       <Coins className="h-3.5 w-3.5" aria-hidden />
       {formatCredits(q.data.available_minor)} credits

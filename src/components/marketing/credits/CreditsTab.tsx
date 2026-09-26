@@ -115,7 +115,9 @@ export function CreditsTab() {
       <Card className="premium-card">
         <CardContent className="grid gap-4 p-4 sm:grid-cols-3 sm:p-5">
           <div>
-            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Available</p>
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              Available
+            </p>
             <p
               data-testid="credits-available"
               className={cn(
@@ -139,7 +141,9 @@ export function CreditsTab() {
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               Held for campaigns
             </p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums">{formatCredits(c.reserved_minor)}</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums">
+              {formatCredits(c.reserved_minor)}
+            </p>
             <p className="text-xs text-muted-foreground">
               Set aside when a campaign is scheduled; whatever isn't used comes back.
             </p>
@@ -175,7 +179,9 @@ export function CreditsTab() {
                         <>
                           {formatCredits(p.unit_price_minor)} credits
                           {p.source === "org_override" && (
-                            <span className="ml-1 text-[11px] text-muted-foreground">(your rate)</span>
+                            <span className="ml-1 text-[11px] text-muted-foreground">
+                              (your rate)
+                            </span>
                           )}
                         </>
                       ) : (

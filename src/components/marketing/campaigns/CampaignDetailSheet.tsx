@@ -288,7 +288,10 @@ export function CampaignDetailSheet({
                   />
                 </div>
                 {c.credits && (
-                  <div className="rounded-lg border border-border p-3" data-testid="campaign-credits">
+                  <div
+                    className="rounded-lg border border-border p-3"
+                    data-testid="campaign-credits"
+                  >
                     <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                       Credits
                     </p>
@@ -303,11 +306,17 @@ export function CampaignDetailSheet({
                         </div>
                       )}
                       <dt className="text-muted-foreground">Held</dt>
-                      <dd className="text-right tabular-nums">{formatCredits(c.credits.reserved_minor)}</dd>
+                      <dd className="text-right tabular-nums">
+                        {formatCredits(c.credits.reserved_minor)}
+                      </dd>
                       <dt className="text-muted-foreground">Charged</dt>
-                      <dd className="text-right tabular-nums">{formatCredits(c.credits.debited_minor)}</dd>
+                      <dd className="text-right tabular-nums">
+                        {formatCredits(c.credits.debited_minor)}
+                      </dd>
                       <dt className="text-muted-foreground">Returned</dt>
-                      <dd className="text-right tabular-nums">{formatCredits(c.credits.released_minor)}</dd>
+                      <dd className="text-right tabular-nums">
+                        {formatCredits(c.credits.released_minor)}
+                      </dd>
                     </dl>
                   </div>
                 )}

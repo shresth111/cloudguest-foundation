@@ -55,7 +55,8 @@ function describe(r: LedgerRow): string {
 function InvoiceLink({ invoice }: { invoice: { id: string; invoice_number: string } }) {
   const demo = useIsDemo();
   const [busy, setBusy] = useState(false);
-  if (demo) return <p className="text-[11px] text-muted-foreground">Invoice {invoice.invoice_number}</p>;
+  if (demo)
+    return <p className="text-[11px] text-muted-foreground">Invoice {invoice.invoice_number}</p>;
   return (
     <button
       type="button"
@@ -89,7 +90,11 @@ function InvoiceLink({ invoice }: { invoice: { id: string; invoice_number: strin
 export function CreditLedgerTable() {
   const [type, setType] = useState<"all" | LedgerEntryType>("all");
   const [page, setPage] = useState(1);
-  const q = useCreditLedger({ entry_type: type === "all" ? undefined : [type], page, page_size: 25 });
+  const q = useCreditLedger({
+    entry_type: type === "all" ? undefined : [type],
+    page,
+    page_size: 25,
+  });
   const rows = q.data?.items ?? [];
 
   if (q.isError && marketingError(q.error)?.status === 403) {
@@ -124,9 +129,17 @@ export function CreditLedgerTable() {
       {q.isLoading ? (
         <LoadingSkeleton rows={5} />
       ) : q.isError ? (
-        <ErrorState title="Couldn't load credit history" description={marketingErrorMessage(q.error)} onRetry={() => void q.refetch()} />
+        <ErrorState
+          title="Couldn't load credit history"
+          description={marketingErrorMessage(q.error)}
+          onRetry={() => void q.refetch()}
+        />
       ) : rows.length === 0 ? (
-        <EmptyState icon={ScrollText} title="No credit history yet" description="Top-ups and charges appear here." />
+        <EmptyState
+          icon={ScrollText}
+          title="No credit history yet"
+          description="Top-ups and charges appear here."
+        />
       ) : (
         <>
           <div className="overflow-x-auto" data-testid="credit-ledger">
@@ -147,7 +160,9 @@ export function CreditLedgerTable() {
                       {formatDateTime(r.created_at)}
                     </TableCell>
                     <TableCell>
-                      <p className="text-sm font-medium">{TYPE_LABEL[r.entry_type] ?? r.entry_type}</p>
+                      <p className="text-sm font-medium">
+                        {TYPE_LABEL[r.entry_type] ?? r.entry_type}
+                      </p>
                       <p className="max-w-xs text-[11px] text-muted-foreground">{describe(r)}</p>
                       {r.invoice && <InvoiceLink invoice={r.invoice} />}
                     </TableCell>
@@ -158,10 +173,14 @@ export function CreditLedgerTable() {
                         r.delta_available_minor < 0 && "text-red-600",
                       )}
                     >
-                      {r.delta_available_minor === 0 ? "—" : formatSignedCredits(r.delta_available_minor)}
+                      {r.delta_available_minor === 0
+                        ? "—"
+                        : formatSignedCredits(r.delta_available_minor)}
                     </TableCell>
                     <TableCell className="hidden text-right tabular-nums md:table-cell">
-                      {r.delta_reserved_minor === 0 ? "—" : formatSignedCredits(r.delta_reserved_minor)}
+                      {r.delta_reserved_minor === 0
+                        ? "—"
+                        : formatSignedCredits(r.delta_reserved_minor)}
                     </TableCell>
                     <TableCell className="hidden text-right tabular-nums sm:table-cell">
                       {formatCredits(r.balance_available_after_minor)}

@@ -575,7 +575,8 @@ check(
 );
 check(
   "provider writes are never optimistic",
-  !/onMutate/.test(hooksSrc2) && /invalidate\("providers", "status", "templates", "credits", "estimate"\)/.test(hooksSrc2),
+  !/onMutate/.test(hooksSrc2) &&
+    /invalidate\("providers", "status", "templates", "credits", "estimate"\)/.test(hooksSrc2),
 );
 const form = strip(read("src/components/marketing/channels/ProviderForm.tsx"));
 check(
@@ -622,47 +623,139 @@ check(
 console.log("\ncredits: integer formatting, 402 told apart, ledger gated");
 
 const K = await bundle("credits", `export * from "${src("src/lib/marketing-credits.ts")}";`);
-check("125040 minor formats as 1,25,040? no: 1,250.40", K.formatCredits(125040) === "1,250.40", K.formatCredits(125040));
-check("indian grouping for large balances", K.formatCredits(123456789) === "12,34,567.89", K.formatCredits(123456789));
+check(
+  "125040 minor formats as 1,25,040? no: 1,250.40",
+  K.formatCredits(125040) === "1,250.40",
+  K.formatCredits(125040),
+);
+check(
+  "indian grouping for large balances",
+  K.formatCredits(123456789) === "12,34,567.89",
+  K.formatCredits(123456789),
+);
 check("negative and zero", K.formatCredits(-60) === "-0.60" && K.formatCredits(0) === "0.00");
-check("signed deltas", K.formatSignedCredits(50000) === "+500.00" && K.formatSignedCredits(-30) === "-0.30");
-check("typed credits parse exactly to minor units", K.parseCreditsInput("2,000") === 200000 && K.parseCreditsInput("0.3") === 30 && K.parseCreditsInput("-12.05") === -1205);
-check("more than two decimals is refused, not rounded", K.parseCreditsInput("1.005") === null && K.parseCreditsInput("abc") === null);
-check("chip tone: red at 0, amber when low, else ok", K.creditTone(0, false) === "empty" && K.creditTone(500, true) === "low" && K.creditTone(500, false) === "ok");
+check(
+  "signed deltas",
+  K.formatSignedCredits(50000) === "+500.00" && K.formatSignedCredits(-30) === "-0.30",
+);
+check(
+  "typed credits parse exactly to minor units",
+  K.parseCreditsInput("2,000") === 200000 &&
+    K.parseCreditsInput("0.3") === 30 &&
+    K.parseCreditsInput("-12.05") === -1205,
+);
+check(
+  "more than two decimals is refused, not rounded",
+  K.parseCreditsInput("1.005") === null && K.parseCreditsInput("abc") === null,
+);
+check(
+  "chip tone: red at 0, amber when low, else ok",
+  K.creditTone(0, false) === "empty" &&
+    K.creditTone(500, true) === "low" &&
+    K.creditTone(500, false) === "ok",
+);
 check(
   "the cost sentence matches the spec's wording",
-  K.estimateSentence({ provider_source: "wyfy", reachable: 412, unit: "segment", unit_price_minor: 30, units_per_recipient_max: 2, estimated_max_minor: 24720 }) ===
+  K.estimateSentence({
+    provider_source: "wyfy",
+    reachable: 412,
+    unit: "segment",
+    unit_price_minor: 30,
+    units_per_recipient_max: 2,
+    estimated_max_minor: 24720,
+  }) ===
     "Estimated cost: up to 247.20 credits (412 guests × 2 segments × 0.30). Unused credits are returned after sending.",
 );
 check(
   "own provider: no credits",
-  K.estimateSentence({ provider_source: "own", reachable: 1, unit: "message", unit_price_minor: 0, units_per_recipient_max: 1, estimated_max_minor: 0 }) ===
-    "Sent via your own provider: no Wyfy credits used.",
+  K.estimateSentence({
+    provider_source: "own",
+    reachable: 1,
+    unit: "message",
+    unit_price_minor: 0,
+    units_per_recipient_max: 1,
+    estimated_max_minor: 0,
+  }) === "Sent via your own provider: no Wyfy credits used.",
 );
 
-const insufficient = { status: 402, code: "x", message: "m", data: { error_code: "insufficient_credits", needed_minor: 24720, available_minor: 1000 } };
-const locked402 = { status: 402, code: "x", message: "m", data: { error_code: "feature_not_entitled" } };
-check("402 insufficient_credits is NOT read as the add-on lock", M.isEntitlementError(insufficient) === false);
+const insufficient = {
+  status: 402,
+  code: "x",
+  message: "m",
+  data: { error_code: "insufficient_credits", needed_minor: 24720, available_minor: 1000 },
+};
+const locked402 = {
+  status: 402,
+  code: "x",
+  message: "m",
+  data: { error_code: "feature_not_entitled" },
+};
+check(
+  "402 insufficient_credits is NOT read as the add-on lock",
+  M.isEntitlementError(insufficient) === false,
+);
 check("402 feature_not_entitled still is", M.isEntitlementError(locked402) === true);
 check("its code comes through", M.marketingErrorCode(insufficient) === "insufficient_credits");
 const helpersSrc3 = strip(read("src/components/marketing/marketing-helpers.ts"));
-check("insufficient_credits copy names what is needed and what is available", /code === "insufficient_credits"[\s\S]{0,300}needed_minor[\s\S]{0,200}available_minor/.test(helpersSrc3));
+check(
+  "insufficient_credits copy names what is needed and what is available",
+  /code === "insufficient_credits"[\s\S]{0,300}needed_minor[\s\S]{0,200}available_minor/.test(
+    helpersSrc3,
+  ),
+);
 const creditsTab = strip(read("src/components/marketing/credits/CreditsTab.tsx"));
-check("the ledger renders only with billing.read at org level", /scope\.kind === "organization" && has\("billing\.read"\)/.test(creditsTab) && /mayReadLedger \? \(\s*<CreditLedgerTable/.test(creditsTab));
-check("top-up is a real support request with the spec's subject", /useSupportRequest\(TOPUP_REQUEST_SUBJECT\)/.test(creditsTab) && /TOPUP_REQUEST_SUBJECT = "Marketing credits top-up"/.test(helpersSrc3));
+check(
+  "the ledger renders only with billing.read at org level",
+  /scope\.kind === "organization" && has\("billing\.read"\)/.test(creditsTab) &&
+    /mayReadLedger \? \(\s*<CreditLedgerTable/.test(creditsTab),
+);
+check(
+  "top-up is a real support request with the spec's subject",
+  /useSupportRequest\(TOPUP_REQUEST_SUBJECT\)/.test(creditsTab) &&
+    /TOPUP_REQUEST_SUBJECT = "Marketing credits top-up"/.test(helpersSrc3),
+);
 const chip = strip(read("src/components/marketing/credits/CreditsChip.tsx"));
-check("the chip renders nothing until the server answered", /if \(!q\.data\) return null;/.test(chip));
+check(
+  "the chip renders nothing until the server answered",
+  /if \(!q\.data\) return null;/.test(chip),
+);
 const composer2 = strip(read("src/components/marketing/campaigns/CampaignComposerSheet.tsx"));
-check("the composer blocks scheduling when the estimate says insufficient", /estimate\.data && !estimate\.data\.sufficient/.test(composer2));
-const hooks3 = strip(read("src/hooks/useMarketing.ts"));
-check("balances are re-read after every send-shaped action (never optimistic)", /invalidate\("campaigns", "campaign", "recipients", "deliveries", "credits", "estimate", "ledger"\)/.test(hooks3) && /onSettled: \(\) => invalidate\("credits", "ledger", "estimate"\)/.test(hooks3));
+check(
+  "the composer blocks scheduling when the estimate says insufficient",
+  /estimate\.data && !estimate\.data\.sufficient/.test(composer2),
+);
+const hooks3 = strip(read("src/hooks/useMarketing.ts")).replace(/\s+/g, " ");
+check(
+  "balances are re-read after every send-shaped action (never optimistic)",
+  /invalidate\( ?"campaigns", "campaign", "recipients", "deliveries", "credits", "estimate", "ledger",? ?\)/.test(
+    hooks3,
+  ) && /onSettled: \(\) => invalidate\("credits", "ledger", "estimate"\)/.test(hooks3),
+);
 const creditsPanel = strip(read("src/components/master/CustomerCreditsPanel.tsx"));
-check("Master adjustments carry one idempotency key per dialog opening", /setKey\(newKey\(\)\)/.test(creditsPanel) && /idempotency_key: key/.test(creditsPanel));
-check("Master credit controls need the addons cap (billing.manage)", /const canWrite = caps\.has\("addons"\)/.test(creditsPanel));
+check(
+  "Master adjustments carry one idempotency key per dialog opening",
+  /setKey\(newKey\(\)\)/.test(creditsPanel) && /idempotency_key: key/.test(creditsPanel),
+);
+check(
+  "Master credit controls need the addons cap (billing.manage)",
+  /const canWrite = caps\.has\("addons"\)/.test(creditsPanel),
+);
 const shell = read("src/components/master/MasterShell.tsx");
-check("the price book is in the Master nav, gated by the pricing cap", /to: "\/master\/marketing-pricing"[\s\S]{0,120}cap: "pricing"/.test(shell) && /pricing: \["billing\.read"\]/.test(shell));
+check(
+  "the price book is in the Master nav, gated by the pricing cap",
+  /to: "\/master\/marketing-pricing"[\s\S]{0,120}cap: "pricing"/.test(shell) &&
+    /pricing: \["billing\.read"\]/.test(shell),
+);
 const svc3 = read("src/services/marketing.service.ts");
-for (const path of ['"/marketing/credits"', '"/marketing/credits/ledger"', "/estimate`", "/credits/adjustments`", "/credits/settings`", '"/platform/marketing/price-book"', "/marketing-prices`"]) {
+for (const path of [
+  '"/marketing/credits"',
+  '"/marketing/credits/ledger"',
+  "/estimate`",
+  "/credits/adjustments`",
+  "/credits/settings`",
+  '"/platform/marketing/price-book"',
+  "/marketing-prices`",
+]) {
   check(`client calls ${path.replace(/["`]/g, "")}`, svc3.includes(path));
 }
 

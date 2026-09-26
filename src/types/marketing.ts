@@ -562,7 +562,6 @@ export interface PlatformProviders {
   }[];
 }
 
-
 // ── §13 Marketing credits ──────────────────────────────────────────────
 // Every amount is an integer in MINOR units: 100 minor = 1 credit = ₹1.00
 // before GST. Never floats (§13.1).

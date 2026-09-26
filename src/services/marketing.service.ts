@@ -540,7 +540,10 @@ export const marketingPlatformService = {
 
   async setOrgPrices(
     organizationId: string,
-    body: { prices: { channel: MarketingChannel; unit_price_minor: number | null }[]; note: string | null },
+    body: {
+      prices: { channel: MarketingChannel; unit_price_minor: number | null }[];
+      note: string | null;
+    },
   ) {
     const { data } = await api.put<Record<MarketingChannel, ChannelPrice>>(
       `/platform/organizations/${encodeURIComponent(organizationId)}/marketing-prices`,

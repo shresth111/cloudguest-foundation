@@ -222,8 +222,8 @@ function TestCostNote({ channel }: { channel: MarketingChannel }) {
   return (
     <p className="text-xs text-muted-foreground" data-testid="test-cost">
       Each test message costs {formatCredits(p.unit_price_minor)} credits
-      {p.unit === "segment" ? " per SMS part" : ""}. You have {formatCredits(q.data.available_minor)}{" "}
-      available.
+      {p.unit === "segment" ? " per SMS part" : ""}. You have{" "}
+      {formatCredits(q.data.available_minor)} available.
     </p>
   );
 }

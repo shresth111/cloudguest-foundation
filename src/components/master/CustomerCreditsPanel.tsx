@@ -18,10 +18,16 @@ import { requestErrorOf } from "@/services/api";
 import { formatCredits, formatSignedCredits, parseCreditsInput } from "@/lib/marketing-credits";
 import { MARKETING_CHANNELS, type MarketingChannel } from "@/types/marketing";
 
-const CHANNEL: Record<MarketingChannel, string> = { sms: "SMS", whatsapp: "WhatsApp", email: "Email" };
+const CHANNEL: Record<MarketingChannel, string> = {
+  sms: "SMS",
+  whatsapp: "WhatsApp",
+  email: "Email",
+};
 const ERROR_COPY: Record<string, string> = {
-  adjustment_exceeds_available: "That would take the available balance below zero (credits held for campaigns can't be touched).",
-  billing_profile_missing: "This customer has no billing profile, so no GST invoice can be issued. Untick the invoice or add a profile first.",
+  adjustment_exceeds_available:
+    "That would take the available balance below zero (credits held for campaigns can't be touched).",
+  billing_profile_missing:
+    "This customer has no billing profile, so no GST invoice can be issued. Untick the invoice or add a profile first.",
   organization_not_found: "This customer no longer exists.",
   permission_denied: "Your operator role can't change credits.",
   forbidden: "Your operator role can't change credits.",
@@ -70,7 +76,11 @@ export function CustomerCreditsPanel({ organizationId }: { organizationId: strin
   const [paid, setPaid] = useState("");
   const [key, setKey] = useState("");
   const [threshold, setThresholdText] = useState("");
-  const [prices, setPriceText] = useState<Record<MarketingChannel, string>>({ sms: "", whatsapp: "", email: "" });
+  const [prices, setPriceText] = useState<Record<MarketingChannel, string>>({
+    sms: "",
+    whatsapp: "",
+    email: "",
+  });
 
   useEffect(() => {
     if (!q.data) return;
@@ -147,8 +157,10 @@ export function CustomerCreditsPanel({ organizationId }: { organizationId: strin
         continue;
       }
       const m = parseCreditsInput(text);
-      if (m === null || m < 0 || m > 10_000) return toast.error(`${CHANNEL[ch]}: enter credits between 0 and 100.`);
-      if (!wasOverride || m !== q.data.prices[ch].unit_price_minor) body.push({ channel: ch, unit_price_minor: m });
+      if (m === null || m < 0 || m > 10_000)
+        return toast.error(`${CHANNEL[ch]}: enter credits between 0 and 100.`);
+      if (!wasOverride || m !== q.data.prices[ch].unit_price_minor)
+        body.push({ channel: ch, unit_price_minor: m });
     }
     if (body.length === 0) return toast.message("Nothing changed.");
     try {
@@ -160,7 +172,11 @@ export function CustomerCreditsPanel({ organizationId }: { organizationId: strin
   };
 
   return (
-    <section className="space-y-3" aria-labelledby="customer-credits-heading" data-testid="master-credits">
+    <section
+      className="space-y-3"
+      aria-labelledby="customer-credits-heading"
+      data-testid="master-credits"
+    >
       <div className="flex items-center gap-2 border-b border-border pb-2">
         <Coins className="h-4 w-4 text-primary" aria-hidden />
         <h4 id="customer-credits-heading" className="text-sm font-semibold">
@@ -178,7 +194,9 @@ export function CustomerCreditsPanel({ organizationId }: { organizationId: strin
       ) : q.isError || !q.data ? (
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
           <p className="font-medium">Couldn't load credits.</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">{errorText(q.error, "The server did not answer.")}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {errorText(q.error, "The server did not answer.")}
+          </p>
           <MButton variant="outline" className="mt-2" onClick={() => void q.refetch()}>
             Try again
           </MButton>
@@ -188,13 +206,17 @@ export function CustomerCreditsPanel({ organizationId }: { organizationId: strin
           <div className="grid grid-cols-3 gap-2 text-center">
             <div className="rounded-lg border border-border p-2">
               <p className="text-[11px] text-muted-foreground">Available</p>
-              <p className={`text-lg font-semibold tabular-nums ${q.data.wallet.is_low ? "text-amber-600" : ""}`}>
+              <p
+                className={`text-lg font-semibold tabular-nums ${q.data.wallet.is_low ? "text-amber-600" : ""}`}
+              >
                 {formatCredits(q.data.wallet.available_minor)}
               </p>
             </div>
             <div className="rounded-lg border border-border p-2">
               <p className="text-[11px] text-muted-foreground">Held</p>
-              <p className="text-lg font-semibold tabular-nums">{formatCredits(q.data.wallet.reserved_minor)}</p>
+              <p className="text-lg font-semibold tabular-nums">
+                {formatCredits(q.data.wallet.reserved_minor)}
+              </p>
             </div>
             <div className="rounded-lg border border-border p-2">
               <p className="text-[11px] text-muted-foreground">Low below</p>
@@ -206,7 +228,11 @@ export function CustomerCreditsPanel({ organizationId }: { organizationId: strin
                     value={threshold}
                     onChange={(e) => setThresholdText(e.target.value)}
                   />
-                  <MButton variant="ghost" disabled={setThreshold.isPending} onClick={() => void saveThreshold()}>
+                  <MButton
+                    variant="ghost"
+                    disabled={setThreshold.isPending}
+                    onClick={() => void saveThreshold()}
+                  >
                     Save
                   </MButton>
                 </div>
@@ -248,8 +274,14 @@ export function CustomerCreditsPanel({ organizationId }: { organizationId: strin
             </ul>
             {canWrite && (
               <div className="flex items-center justify-between gap-2">
-                <p className="text-[11px] text-muted-foreground">Leave blank to use the platform price.</p>
-                <MButton variant="outline" disabled={setPrices.isPending} onClick={() => void savePrices()}>
+                <p className="text-[11px] text-muted-foreground">
+                  Leave blank to use the platform price.
+                </p>
+                <MButton
+                  variant="outline"
+                  disabled={setPrices.isPending}
+                  onClick={() => void savePrices()}
+                >
                   Save prices
                 </MButton>
               </div>
@@ -274,7 +306,9 @@ export function CustomerCreditsPanel({ organizationId }: { organizationId: strin
                 {q.data.recent_entries.map((r) => (
                   <li key={r.id} className="flex items-start justify-between gap-2 px-3 py-1.5">
                     <span className="min-w-0">
-                      <span className="font-medium">{TYPE_LABEL[r.entry_type] ?? r.entry_type}</span>
+                      <span className="font-medium">
+                        {TYPE_LABEL[r.entry_type] ?? r.entry_type}
+                      </span>
                       <span className="block truncate text-muted-foreground">
                         {new Date(r.created_at).toLocaleString()}
                         {r.campaign ? ` · ${r.campaign.name}` : ""}
@@ -300,29 +334,51 @@ export function CustomerCreditsPanel({ organizationId }: { organizationId: strin
         <AlertDialogPrimitive.Portal>
           <AlertDialogPrimitive.Overlay className="fixed inset-0 z-[70] bg-black/60" />
           <AlertDialogPrimitive.Content className="fixed left-1/2 top-1/2 z-[70] grid max-h-[92vh] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 gap-3 overflow-y-auto rounded-xl border border-border bg-card p-5 shadow-2xl">
-            <AlertDialogPrimitive.Title className="text-base font-semibold">Add credits / Adjust</AlertDialogPrimitive.Title>
+            <AlertDialogPrimitive.Title className="text-base font-semibold">
+              Add credits / Adjust
+            </AlertDialogPrimitive.Title>
             <AlertDialogPrimitive.Description className="text-xs text-muted-foreground">
               Posted to the ledger and the audit log. It can't be edited afterwards; correct it with
               another entry.
             </AlertDialogPrimitive.Description>
             <div className="flex gap-1">
               {(["topup", "adjustment", "refund"] as const).map((t) => (
-                <MButton key={t} variant={type === t ? "primary" : "outline"} onClick={() => setType(t)}>
+                <MButton
+                  key={t}
+                  variant={type === t ? "primary" : "outline"}
+                  onClick={() => setType(t)}
+                >
                   {TYPE_LABEL[t]}
                 </MButton>
               ))}
             </div>
             <label className="text-xs">
               Credits {type === "adjustment" ? "(negative to deduct)" : ""}
-              <Input className="mt-1 tabular-nums" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
+              <Input
+                className="mt-1 tabular-nums"
+                inputMode="decimal"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+              />
             </label>
             <label className="text-xs">
               Note (required, 5–500 characters)
-              <Textarea className="mt-1" rows={2} maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} />
+              <Textarea
+                className="mt-1"
+                rows={2}
+                maxLength={500}
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+              />
             </label>
             <label className="text-xs">
               Reference (UTR, cheque, PO; optional)
-              <Input className="mt-1" maxLength={100} value={reference} onChange={(e) => setReference(e.target.value)} />
+              <Input
+                className="mt-1"
+                maxLength={100}
+                value={reference}
+                onChange={(e) => setReference(e.target.value)}
+              />
             </label>
             {type === "topup" && (
               <>
@@ -333,7 +389,12 @@ export function CustomerCreditsPanel({ organizationId }: { organizationId: strin
                 {invoice && (
                   <label className="text-xs">
                     Amount paid, before GST (₹)
-                    <Input className="mt-1 tabular-nums" inputMode="decimal" value={paid} onChange={(e) => setPaid(e.target.value)} />
+                    <Input
+                      className="mt-1 tabular-nums"
+                      inputMode="decimal"
+                      value={paid}
+                      onChange={(e) => setPaid(e.target.value)}
+                    />
                   </label>
                 )}
               </>

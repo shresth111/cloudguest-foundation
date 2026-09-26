@@ -2,7 +2,15 @@ import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { MasterShell, useOperatorCaps } from "@/components/master/MasterShell";
-import { MButton, MPageShell, MSectionHeader, MTable, MTd, MTh, MTr } from "@/components/master/MasterKit";
+import {
+  MButton,
+  MPageShell,
+  MSectionHeader,
+  MTable,
+  MTd,
+  MTh,
+  MTr,
+} from "@/components/master/MasterKit";
 import { Input } from "@/components/ui/input";
 import { usePriceBook, useSetPriceBook } from "@/hooks/useMarketing";
 import { requestErrorOf } from "@/services/api";
@@ -11,7 +19,11 @@ import { MARKETING_CHANNELS, type MarketingChannel } from "@/types/marketing";
 
 export const Route = createFileRoute("/master/marketing-pricing")({ component: PriceBookScreen });
 
-const CHANNEL: Record<MarketingChannel, string> = { sms: "SMS", whatsapp: "WhatsApp", email: "Email" };
+const CHANNEL: Record<MarketingChannel, string> = {
+  sms: "SMS",
+  whatsapp: "WhatsApp",
+  email: "Email",
+};
 const UNIT: Record<string, string> = { segment: "per SMS part", message: "per message" };
 
 /**
@@ -29,7 +41,11 @@ function PriceBookScreen() {
   const canEdit = caps.has("addons");
   const q = usePriceBook();
   const save = useSetPriceBook();
-  const [draft, setDraft] = useState<Record<MarketingChannel, string>>({ sms: "", whatsapp: "", email: "" });
+  const [draft, setDraft] = useState<Record<MarketingChannel, string>>({
+    sms: "",
+    whatsapp: "",
+    email: "",
+  });
   const [note, setNote] = useState("");
 
   useEffect(() => {
@@ -92,7 +108,7 @@ function PriceBookScreen() {
                   return (
                     <div key={ch} className="rounded-xl border border-border p-3">
                       <p className="text-xs font-medium text-muted-foreground">
-                        {CHANNEL[ch]} · {r ? UNIT[r.unit] ?? r.unit : "—"}
+                        {CHANNEL[ch]} · {r ? (UNIT[r.unit] ?? r.unit) : "—"}
                       </p>
                       {canEdit ? (
                         <Input
@@ -123,7 +139,12 @@ function PriceBookScreen() {
                     <label htmlFor="pb-note" className="mb-1 block text-xs text-muted-foreground">
                       Note (optional)
                     </label>
-                    <Input id="pb-note" maxLength={300} value={note} onChange={(e) => setNote(e.target.value)} />
+                    <Input
+                      id="pb-note"
+                      maxLength={300}
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                    />
                   </div>
                   <MButton
                     variant="primary"
@@ -146,7 +167,16 @@ function PriceBookScreen() {
               {q.data.org_overrides.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No customer has its own price.</p>
               ) : (
-                <MTable head={<><MTh>Customer</MTh><MTh>Channel</MTh><MTh>Price</MTh><MTh>Since</MTh></>}>
+                <MTable
+                  head={
+                    <>
+                      <MTh>Customer</MTh>
+                      <MTh>Channel</MTh>
+                      <MTh>Price</MTh>
+                      <MTh>Since</MTh>
+                    </>
+                  }
+                >
                   {q.data.org_overrides.map((o) => (
                     <MTr key={`${o.organization_id}-${o.channel}`}>
                       <MTd>{o.organization_name}</MTd>
@@ -161,7 +191,17 @@ function PriceBookScreen() {
 
             <section className="space-y-2">
               <h3 className="text-sm font-semibold">History</h3>
-              <MTable head={<><MTh>When</MTh><MTh>Channel</MTh><MTh>Price</MTh><MTh>By</MTh><MTh>Note</MTh></>}>
+              <MTable
+                head={
+                  <>
+                    <MTh>When</MTh>
+                    <MTh>Channel</MTh>
+                    <MTh>Price</MTh>
+                    <MTh>By</MTh>
+                    <MTh>Note</MTh>
+                  </>
+                }
+              >
                 {q.data.history.map((h, i) => (
                   <MTr key={`${h.channel}-${h.effective_from}-${i}`}>
                     <MTd>{new Date(h.effective_from).toLocaleString()}</MTd>

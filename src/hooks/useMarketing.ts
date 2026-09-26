@@ -474,7 +474,15 @@ export function useScheduleCampaign() {
         loc,
       ),
     onSettled: () =>
-      invalidate("campaigns", "campaign", "recipients", "deliveries", "credits", "estimate", "ledger"),
+      invalidate(
+        "campaigns",
+        "campaign",
+        "recipients",
+        "deliveries",
+        "credits",
+        "estimate",
+        "ledger",
+      ),
   });
 }
 
@@ -493,7 +501,15 @@ export function useCancelCampaign() {
   return useMutation({
     mutationFn: (id: string) => api.cancelCampaign(id, loc),
     onSettled: () =>
-      invalidate("campaigns", "campaign", "recipients", "deliveries", "credits", "estimate", "ledger"),
+      invalidate(
+        "campaigns",
+        "campaign",
+        "recipients",
+        "deliveries",
+        "credits",
+        "estimate",
+        "ledger",
+      ),
   });
 }
 
@@ -591,7 +607,8 @@ export function useAdjustOrgCredits(organizationId: string) {
 export function useSetOrgCreditThreshold(organizationId: string) {
   const after = usePlatformCreditsInvalidate(organizationId);
   return useMutation({
-    mutationFn: (minor: number) => marketingPlatformService.setOrgCreditSettings(organizationId, minor),
+    mutationFn: (minor: number) =>
+      marketingPlatformService.setOrgCreditSettings(organizationId, minor),
     onSettled: after,
   });
 }

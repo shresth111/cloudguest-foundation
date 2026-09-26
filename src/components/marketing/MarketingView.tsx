@@ -1,7 +1,16 @@
 import { useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { FileText, Info, Megaphone, ScrollText, ShieldOff, Users, KeyRound, Coins } from "lucide-react";
+import {
+  FileText,
+  Info,
+  Megaphone,
+  ScrollText,
+  ShieldOff,
+  Users,
+  KeyRound,
+  Coins,
+} from "lucide-react";
 import i18n from "@/lib/i18n";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/common/EmptyState";

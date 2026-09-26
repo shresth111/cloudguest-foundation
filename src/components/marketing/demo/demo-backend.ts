@@ -553,7 +553,10 @@ function unitsPerRecipient(c: MarketingCampaign): number {
   return t?.sms ? Math.max(1, worstCaseSms(t.sms.body, DEMO_LINK_BUDGET).segments) : 1;
 }
 
-function creditsFor(dc: DemoCampaign, stats: MarketingCampaign["stats"]): MarketingCampaign["credits"] {
+function creditsFor(
+  dc: DemoCampaign,
+  stats: MarketingCampaign["stats"],
+): MarketingCampaign["credits"] {
   const ch = dc.charge;
   if (!ch || dc.c.provider?.source === "own") return null;
   const reserved = dc.c.credits?.reserved_minor ?? 0;
@@ -810,7 +813,11 @@ const campaigns: DemoCampaign[] = [
     dc.c = {
       ...dc.c,
       credits: {
-        price_snapshot: { channel: dc.c.channel, unit: DEMO_PRICES[dc.c.channel].unit, unit_price_minor: price },
+        price_snapshot: {
+          channel: dc.c.channel,
+          unit: DEMO_PRICES[dc.c.channel].unit,
+          unit_price_minor: price,
+        },
         reserved_minor: reserved,
         debited_minor: 0,
         released_minor: 0,
@@ -1359,7 +1366,11 @@ export const demoMarketingBackend = {
       demoReserve({ id: dc.c.id, name: dc.c.name }, needed);
       dc.charge = { price, units, settled: false };
       credits = {
-        price_snapshot: { channel: dc.c.channel, unit: DEMO_PRICES[dc.c.channel].unit, unit_price_minor: price },
+        price_snapshot: {
+          channel: dc.c.channel,
+          unit: DEMO_PRICES[dc.c.channel].unit,
+          unit_price_minor: price,
+        },
         reserved_minor: needed,
         debited_minor: 0,
         released_minor: 0,
@@ -1580,7 +1591,6 @@ export const demoMarketingBackend = {
       sufficient: est <= demoAvailable(),
     };
   },
-
 };
 
 // Every method the real client has, and nothing else.
