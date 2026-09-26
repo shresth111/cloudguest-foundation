@@ -1,4 +1,6 @@
 import { api, requestErrorOf, type AppError } from "@/services/api";
+import { ticketService } from "@/services/ticket.service";
+import type { SupportTicket } from "@/types/support-ticket";
 import type {
   AddonWriteResult,
   AudienceFilter,
@@ -357,6 +359,34 @@ export const marketingService = {
       headers: scoped(locationId),
     });
     return data;
+  },
+
+  // Support-ticket requests (add-on upsells, credit top-ups: §8.2, §12.6,
+  // §13.8). Thin wrappers over the existing ticket service, here so the
+  // demo workspace can answer them in memory like every other call.
+  async findOpenSupportRequest(subject: string): Promise<SupportTicket | null> {
+    const tickets = await ticketService.list({ search: subject });
+    return (
+      tickets.find(
+        (t) =>
+          t.subject.trim().toLowerCase() === subject.toLowerCase() &&
+          (t.status === "open" || t.status === "in_progress"),
+      ) ?? null
+    );
+  },
+
+  async requestSupport(
+    subject: string,
+    description: string,
+    locationId?: string | null,
+  ): Promise<SupportTicket> {
+    return ticketService.create({
+      locationId: locationId ?? undefined,
+      subject,
+      description,
+      category: "billing",
+      priority: "medium",
+    });
   },
 
   // §12.4 -- bring-your-own channel providers. Org-level routes (pinned

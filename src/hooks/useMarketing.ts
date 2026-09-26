@@ -485,6 +485,30 @@ export function useCancelCampaign() {
   });
 }
 
+// ── Support-ticket requests (upsells, top-ups) ─────────────────────────
+
+/**
+ * An open support request with this exact subject, and the action that
+ * files one. "Request sent" is shown only after the ticket came back from
+ * the server; an open request is shown as pending, never filed twice.
+ */
+export function useSupportRequest(subject: string) {
+  const { api, loc, scope } = useScope();
+  const qc = useQueryClient();
+  const key = ["marketing", scope.org, scope.loc, "support-request", subject] as const;
+  const existing = useQuery({
+    queryKey: key,
+    queryFn: () => api.findOpenSupportRequest(subject),
+    staleTime: 60_000,
+    retry: false,
+  });
+  const request = useMutation({
+    mutationFn: (description: string) => api.requestSupport(subject, description, loc),
+    onSuccess: (ticket) => qc.setQueryData(key, ticket),
+  });
+  return { existing, request };
+}
+
 // ── §12 Channel providers (bring-your-own) ─────────────────────────────
 
 /** GET /marketing/providers. A 402 (BYO locked) or 403 (no

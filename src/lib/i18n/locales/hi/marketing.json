@@ -5,7 +5,8 @@
     "campaigns": "अभियान",
     "templates": "टेम्पलेट",
     "audience": "ऑडियंस",
-    "logs": "डिलीवरी लॉग"
+    "logs": "डिलीवरी लॉग",
+    "channels": "चैनल"
   },
   "channel": {
     "sms": "SMS",

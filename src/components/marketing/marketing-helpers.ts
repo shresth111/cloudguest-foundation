@@ -69,6 +69,8 @@ export const SENDABLE_REASON_LABEL: Record<string, string> = {
   whatsapp_not_approved: "Waiting for WhatsApp (Meta) approval.",
   unsubscribe_link_missing: "Must include {{unsubscribe_link}}.",
   review_link_missing: "Uses {{review_link}}, but your portal has no review link set.",
+  own_provider_requires_own_template:
+    "Your own provider sends this channel, so it needs one of your own templates (with your own registration).",
 };
 
 export function channelNotLiveCopy(channelLabel: string): string {
@@ -113,6 +115,18 @@ const ERROR_COPY: Record<string, string> = {
   test_send_limit: "You've used today's test sends.",
   portal_config_missing: "This venue has no WiFi login page set up yet.",
   network_error: "Couldn't reach the server. Check your connection and try again.",
+  // §12.4 bring-your-own providers
+  provider_config_invalid: "Some settings aren't valid. Check the highlighted fields.",
+  provider_type_not_supported: "That provider isn't supported for this channel yet.",
+  smtp_host_not_allowed:
+    "That mail server address isn't allowed. Use a public host name, not a private or internal address.",
+  provider_not_verified: "Verify the provider before turning it on.",
+  provider_sender_conflict:
+    "That sender belongs to Wyfy's own platform account. Use your own sender ID or address.",
+  provider_error: "The provider returned an error.",
+  synced_template_read_only: "Templates synced from WhatsApp can only be renamed and re-mapped.",
+  own_provider_unacknowledged:
+    "Your own provider for this channel isn't the one sending. Tick the acknowledgement to send through Wyfy's default account.",
   rate_limited: "Too many requests. Wait a minute and try again.",
 };
 
@@ -157,6 +171,18 @@ export function useMarketingCan(): (action: MarketingAction) => boolean {
   return (action) => {
     if (!data || data.length === 0) return true;
     return data.includes(`marketing.${action}`);
+  };
+}
+
+/**
+ * Any permission key, with the same fail-open rule as `useMarketingCan`
+ * (unknown grants = offer it; the backend enforces every request).
+ */
+export function useHasPermission(): (key: string) => boolean {
+  const { data } = useMyPermissions();
+  return (key) => {
+    if (!data || data.length === 0) return true;
+    return data.includes(key);
   };
 }
 
@@ -274,3 +300,20 @@ export function isDefinitiveRefusal(err: unknown): boolean {
 }
 
 export { consentTextForToggle, isDefaultConsentText } from "@/lib/marketing-consent";
+
+// ── §12 bring-your-own providers ───────────────────────────────────────
+
+export const BYO_REQUEST_SUBJECT = "Enable Marketing BYO providers";
+
+export const COMPLIANCE_ACK =
+  "You are responsible for registration and compliance for messages sent through your own account.";
+
+/** 402 whose `feature_key` is the BYO add-on (not Marketing itself): the
+ * Channels tab shows the BYO upsell, never the whole-page Marketing lock. */
+export function isByoLocked(err: unknown): boolean {
+  return (
+    marketingError(err)?.status === 402 &&
+    marketingErrorCode(err) === "feature_not_entitled" &&
+    marketingErrorData(err)?.feature_key === "guest_marketing_byo"
+  );
+}

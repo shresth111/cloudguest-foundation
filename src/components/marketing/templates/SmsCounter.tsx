@@ -15,9 +15,11 @@ import {
  * template text itself; "longest case" fills every variable at its maximum
  * length, which is what the server's `sms_too_long` check measures.
  */
-export function SmsCounter({ body }: { body: string }) {
+export function SmsCounter({ body, linkBudget }: { body: string; linkBudget?: number }) {
   const raw = measureSms(body);
-  const worst = worstCaseSms(body);
+  // The server's own figure when /marketing/status reports it (contract
+  // change 2026-09-25), else the conservative default.
+  const worst = worstCaseSms(body, linkBudget);
   const tooLong = worst.segments > SMS_MAX_WORST_CASE_SEGMENTS;
   const rawTooLong = body.length > SMS_MAX_RAW_LENGTH;
 

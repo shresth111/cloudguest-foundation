@@ -23,6 +23,7 @@
  */
 import { toast } from "sonner";
 import type { AppError } from "@/services/api";
+import type { SupportTicket } from "@/types/support-ticket";
 import {
   measureSms,
   scanVariables,
@@ -820,6 +821,8 @@ function inQuietHours(ms: number): string | null {
   return null;
 }
 
+const demoTickets: SupportTicket[] = [];
+
 // ── The API ────────────────────────────────────────────────────────────
 
 const CHANNELS: MarketingStatus["channels"] = [
@@ -1362,6 +1365,40 @@ export const demoMarketingBackend = {
     const r = demoVerifyProvider(channel, body);
     note(DEMO_SENT_NOTE);
     return r;
+  },
+
+
+  // ── Support-ticket requests (upsells, top-ups) ───────────────────────
+  async findOpenSupportRequest(subject: string): Promise<SupportTicket | null> {
+    await sleep(80);
+    return demoTickets.find((t) => t.subject === subject) ?? null;
+  },
+
+  async requestSupport(subject: string, description: string): Promise<SupportTicket> {
+    await sleep(300);
+    const now = iso(Date.now());
+    const ticket: SupportTicket = {
+      id: `demo${String(4200 + demoTickets.length)}0000`,
+      organizationId: "org-001",
+      locationId: null,
+      createdByUserId: "u-demo",
+      createdByName: "Demo Admin",
+      createdByEmail: "admin@example.com",
+      assignedToUserId: null,
+      assignedToName: null,
+      subject,
+      description,
+      category: "billing",
+      priority: "medium",
+      status: "open",
+      resolutionNotes: null,
+      resolvedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    demoTickets.push(ticket);
+    note("Demo: no ticket was actually filed.");
+    return ticket;
   },
 
 };

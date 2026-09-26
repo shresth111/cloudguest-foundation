@@ -36,7 +36,17 @@ const CANCEL_REASON: Record<string, string> = {
   user: "Cancelled by your team.",
   addon_locked: "Cancelled because the Marketing add-on was locked for your organisation.",
   channel_unconfigured: "Cancelled because the channel stopped being available.",
+  byo_locked:
+    "Cancelled because the bring-your-own providers add-on was turned off, and this campaign was set to use your own provider.",
 };
+
+/** §12.1: a campaign snapshotted to the venue's own provider that failed
+ * never falls back to Wyfy. `last_error` carries the reason after the
+ * prefix. */
+function ownProviderFailure(lastError: string | null | undefined): string | null {
+  const m = /^(own_provider_failed|own_provider_unavailable):\s*(.*)$/s.exec(lastError ?? "");
+  return m ? m[2] || "Your own provider refused the messages." : null;
+}
 
 const VARIABLE_LABEL: Record<string, string> = {
   offer_code: "Offer code",
@@ -60,10 +70,12 @@ export function CampaignDetailSheet({
   campaignId,
   status,
   onClose,
+  onGoToChannels,
 }: {
   campaignId: string | null;
   status: MarketingStatus;
   onClose: () => void;
+  onGoToChannels?: () => void;
 }) {
   const can = useMarketingCan();
   const orgScoped = useMarketingScope().kind === "organization";
@@ -115,6 +127,18 @@ export function CampaignDetailSheet({
                 <div className="flex flex-wrap items-center gap-2">
                   <CampaignStatusTag status={c.status} />
                   <ChannelTag channel={c.channel} />
+                  {c.provider && (
+                    <span
+                      data-testid="campaign-provider"
+                      className={
+                        c.provider.source === "own"
+                          ? "rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-800 dark:bg-violet-500/15 dark:text-violet-300"
+                          : "rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+                      }
+                    >
+                      via {c.provider.display_name}
+                    </span>
+                  )}
                   <span className="text-xs">{c.template.name}</span>
                   {orgScoped && (
                     <span className="text-xs">
@@ -127,10 +151,33 @@ export function CampaignDetailSheet({
 
             <Timeline c={c} />
 
-            {c.last_error && (
-              <p className="flex items-start gap-1.5 rounded-md bg-red-50 p-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /> {c.last_error}
-              </p>
+            {ownProviderFailure(c.last_error) !== null ? (
+              <div
+                role="alert"
+                data-testid="own-provider-failure"
+                className="space-y-1 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300"
+              >
+                <p className="flex items-start gap-1.5 font-medium">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                  Your own provider failed: {ownProviderFailure(c.last_error)}
+                </p>
+                <p>These messages were not sent through Wyfy.</p>
+                {onGoToChannels && (
+                  <button
+                    type="button"
+                    className="font-medium underline underline-offset-4"
+                    onClick={onGoToChannels}
+                  >
+                    Check your provider in Channels
+                  </button>
+                )}
+              </div>
+            ) : (
+              c.last_error && (
+                <p className="flex items-start gap-1.5 rounded-md bg-red-50 p-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /> {c.last_error}
+                </p>
+              )
             )}
             {c.status === "cancelled" && c.cancel_reason && (
               <p className="rounded-md bg-muted p-2 text-sm">

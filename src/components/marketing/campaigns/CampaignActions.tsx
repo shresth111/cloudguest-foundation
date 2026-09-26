@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { fallbackReason, needsFallbackAcknowledgement } from "@/lib/marketing-providers";
 import {
   Dialog,
   DialogContent,
@@ -256,6 +258,7 @@ export function ScheduleDialog({
 
   useEffect(() => {
     if (!open) return;
+    setAck(false);
     setKey(newIdempotencyKey());
     setError(null);
     setSuggested(null);
@@ -266,6 +269,11 @@ export function ScheduleDialog({
 
   const cs = channelStatusFor(status.channels, campaign.channel);
   const notLive = !!cs && !cs.configured;
+  // §12.1, founder decision Q11 (option A): an own provider row that isn't
+  // the one sending means this campaign falls back to Wyfy -- only after an
+  // explicit, per-attempt acknowledgement.
+  const needsAck = !!cs && needsFallbackAcknowledgement(cs);
+  const [ack, setAck] = useState(false);
   const quiet = status.quiet_hours;
   const quietApplies = quiet.applies_to.includes(campaign.channel);
 
@@ -274,6 +282,7 @@ export function ScheduleDialog({
   const tooFar = mode === "later" && whenDate && whenDate.getTime() > Date.now() + 60 * 86_400_000;
 
   const canGo =
+    (!needsAck || ack) &&
     !busy &&
     !schedule.isPending &&
     !notLive &&
@@ -304,6 +313,7 @@ export function ScheduleDialog({
         id,
         scheduledAt: mode === "now" ? null : new Date(when).toISOString(),
         idempotencyKey: key,
+        acknowledgeWyfyFallback: needsAck && ack,
       });
       toast.success(
         res.status === "scheduled"
@@ -356,6 +366,25 @@ export function ScheduleDialog({
           </DialogDescription>
         </DialogHeader>
 
+        {cs && (
+          <p className="text-xs text-muted-foreground" data-testid="sends-via">
+            Sends via: {cs.provider_display_name ?? "Wyfy default"}
+          </p>
+        )}
+        {needsAck && cs && (
+          <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-2.5 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
+            <p>{fallbackReason(label(campaign.channel), cs)}</p>
+            <label className="flex items-start gap-2 font-medium">
+              <Checkbox
+                checked={ack}
+                onCheckedChange={(v) => setAck(!!v)}
+                aria-label="Send through Wyfy's default account"
+                className="mt-0.5"
+              />
+              Send this campaign through Wyfy's default {label(campaign.channel)} account
+            </label>
+          </div>
+        )}
         {notLive && (
           <p className="rounded-md bg-amber-50 p-2 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
             {channelNotLiveCopy(label(campaign.channel))}

@@ -5,7 +5,8 @@
     "campaigns": "Campaigns",
     "templates": "Templates",
     "audience": "Audience",
-    "logs": "Delivery logs"
+    "logs": "Delivery logs",
+    "channels": "Channels"
   },
   "channel": {
     "sms": "SMS",
