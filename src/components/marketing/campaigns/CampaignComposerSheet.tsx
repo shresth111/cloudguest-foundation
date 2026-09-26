@@ -27,6 +27,7 @@ import {
   useMarketingApi,
 } from "@/hooks/useMarketing";
 import { campaignLocationFields } from "@/lib/marketing-scope";
+import { fallbackReason, needsFallbackAcknowledgement } from "@/lib/marketing-providers";
 import { campaignVariableMaxLength, campaignVariablesIn } from "@/lib/marketing-template";
 import {
   MARKETING_CHANNELS,
@@ -606,6 +607,10 @@ export function CampaignComposerSheet({
                 <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
                   <dt className="text-muted-foreground">Channel</dt>
                   <dd>{label(channel)}</dd>
+                  <dt className="text-muted-foreground">Sends via</dt>
+                  <dd data-testid="composer-sends-via">
+                    {cs?.provider_display_name ?? "Wyfy default"}
+                  </dd>
                   <dt className="text-muted-foreground">Template</dt>
                   <dd>{template?.name ?? "—"}</dd>
                   <dt className="text-muted-foreground">Venues</dt>
@@ -669,6 +674,15 @@ export function CampaignComposerSheet({
                 )}
               </div>
 
+              {cs && needsFallbackAcknowledgement(cs) && (
+                <p className="flex items-start gap-1.5 rounded-md bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                  <span>
+                    {fallbackReason(label(channel), cs)} You'll be asked to confirm that when you
+                    schedule or send.
+                  </span>
+                </p>
+              )}
               {blockers.length > 0 && (
                 <ul className="space-y-1 rounded-md bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
                   {blockers.map((b) => (

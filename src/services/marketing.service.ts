@@ -1,4 +1,6 @@
 import { api, requestErrorOf, type AppError } from "@/services/api";
+import { ticketService } from "@/services/ticket.service";
+import type { SupportTicket } from "@/types/support-ticket";
 import type {
   AddonWriteResult,
   AudienceFilter,
@@ -20,6 +22,13 @@ import type {
   Page,
   PortalConsentResult,
   PortalConsentUpdate,
+  PlatformProviders,
+  ProviderDeleteResult,
+  ProviderPutPayload,
+  ProvidersResponse,
+  ProviderVerifyPayload,
+  ProviderVerifyResult,
+  ProviderView,
   RecipientListQuery,
   TemplateListQuery,
   TemplatePatchPayload,
@@ -298,7 +307,13 @@ export const marketingService = {
    * scheduling twice, so a double click or a retried request is safe. */
   async scheduleCampaign(
     id: string,
-    body: { scheduled_at: string | null; idempotency_key: string },
+    body: {
+      scheduled_at: string | null;
+      idempotency_key: string;
+      /** §12.4: required (409 own_provider_unacknowledged) when the channel
+       * has an own provider row that isn't effective; sent only then. */
+      acknowledge_wyfy_fallback?: boolean;
+    },
     locationId?: string | null,
   ): Promise<MarketingCampaign> {
     const { data } = await api.post<MarketingCampaign>(
@@ -345,6 +360,93 @@ export const marketingService = {
     });
     return data;
   },
+
+  // Support-ticket requests (add-on upsells, credit top-ups: §8.2, §12.6,
+  // §13.8). Thin wrappers over the existing ticket service, here so the
+  // demo workspace can answer them in memory like every other call.
+  async findOpenSupportRequest(subject: string): Promise<SupportTicket | null> {
+    const tickets = await ticketService.list({ search: subject });
+    return (
+      tickets.find(
+        (t) =>
+          t.subject.trim().toLowerCase() === subject.toLowerCase() &&
+          (t.status === "open" || t.status === "in_progress"),
+      ) ?? null
+    );
+  },
+
+  async requestSupport(
+    subject: string,
+    description: string,
+    locationId?: string | null,
+  ): Promise<SupportTicket> {
+    return ticketService.create({
+      locationId: locationId ?? undefined,
+      subject,
+      description,
+      category: "billing",
+      priority: "medium",
+    });
+  },
+
+  // §12.4 -- bring-your-own channel providers. Org-level routes (pinned
+  // ORGANIZATION scope): a location-confined caller gets 403, which the
+  // Channels tab turns into a read-only view from /marketing/status.
+  async listProviders(locationId?: string | null): Promise<ProvidersResponse> {
+    const { data } = await api.get<ProvidersResponse>("/marketing/providers", {
+      headers: scoped(locationId),
+    });
+    return data;
+  },
+
+  async getProvider(channel: MarketingChannel, locationId?: string | null): Promise<ProviderView> {
+    const { data } = await api.get<ProviderView>(
+      `/marketing/providers/${encodeURIComponent(channel)}`,
+      { headers: scoped(locationId) },
+    );
+    return data;
+  },
+
+  /** Secrets never round-trip: the caller omits a secret it did not change
+   * (see `buildProviderPut`), and the server keeps the stored one. */
+  async putProvider(
+    channel: MarketingChannel,
+    body: ProviderPutPayload,
+    locationId?: string | null,
+  ): Promise<ProviderView> {
+    const { data } = await api.put<ProviderView>(
+      `/marketing/providers/${encodeURIComponent(channel)}`,
+      body,
+      { headers: scoped(locationId) },
+    );
+    return data;
+  },
+
+  async deleteProvider(
+    channel: MarketingChannel,
+    locationId?: string | null,
+  ): Promise<ProviderDeleteResult> {
+    const { data } = await api.delete<ProviderDeleteResult>(
+      `/marketing/providers/${encodeURIComponent(channel)}`,
+      { headers: scoped(locationId) },
+    );
+    return data;
+  },
+
+  /** Makes a REAL call to the provider; returns 200 with per-check results
+   * (a failed check is a result, not an error). */
+  async verifyProvider(
+    channel: MarketingChannel,
+    body: ProviderVerifyPayload,
+    locationId?: string | null,
+  ): Promise<ProviderVerifyResult> {
+    const { data } = await api.post<ProviderVerifyResult>(
+      `/marketing/providers/${encodeURIComponent(channel)}/verify`,
+      body,
+      { headers: scoped(locationId), timeout: 60_000 },
+    );
+    return data;
+  },
 };
 
 /**
@@ -354,6 +456,14 @@ export const marketingService = {
  * for a GLOBAL caller, which is what a platform route expects.
  */
 export const marketingPlatformService = {
+  /** §12.4: read-only; no hints, no secrets. */
+  async getMarketingProviders(organizationId: string): Promise<PlatformProviders> {
+    const { data } = await api.get<PlatformProviders>(
+      `/platform/organizations/${encodeURIComponent(organizationId)}/marketing-providers`,
+    );
+    return data;
+  },
+
   async getAddons(organizationId: string): Promise<OrganizationAddons> {
     const { data } = await api.get<OrganizationAddons>(
       `/platform/organizations/${encodeURIComponent(organizationId)}/addons`,

@@ -1,5 +1,4 @@
 import { Link } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
   Check,
@@ -14,26 +13,12 @@ import { toast } from "sonner";
 import i18n from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ticketService } from "@/services/ticket.service";
-import { requestErrorMessage, resolveActiveOrganizationId } from "@/services/api";
-import type { SupportTicket } from "@/types/support-ticket";
+import { useSupportRequest } from "@/hooks/useMarketing";
+import { requestErrorMessage } from "@/services/api";
 
 /** The subject the request ticket is filed under (spec §8.2). Also how an
  * existing request is recognised, so it is one constant, not two strings. */
 export const MARKETING_REQUEST_SUBJECT = "Enable Marketing add-on";
-
-/** Keyed per organization, like every marketing query. */
-const requestKey = (orgId: string | null) => ["marketing", orgId, "addon-request-ticket"] as const;
-
-function openRequest(tickets: SupportTicket[]): SupportTicket | null {
-  return (
-    tickets.find(
-      (t) =>
-        t.subject.trim().toLowerCase() === MARKETING_REQUEST_SUBJECT.toLowerCase() &&
-        (t.status === "open" || t.status === "in_progress"),
-    ) ?? null
-  );
-}
 
 /**
  * The locked state (spec §8.2, D5): the add-on exists, this organisation
@@ -48,35 +33,20 @@ function openRequest(tickets: SupportTicket[]): SupportTicket | null {
  */
 export function MarketingLockedUpsell({ locationId }: { locationId?: string }) {
   const { t } = useTranslation("marketing", { i18n });
-  const qc = useQueryClient();
-  const orgId = resolveActiveOrganizationId();
-
-  const existing = useQuery({
-    queryKey: requestKey(orgId),
-    queryFn: async () =>
-      openRequest(await ticketService.list({ search: MARKETING_REQUEST_SUBJECT })),
-    staleTime: 60_000,
-    retry: false,
-  });
-
-  const request = useMutation({
-    mutationFn: () =>
-      ticketService.create({
-        locationId,
-        subject: MARKETING_REQUEST_SUBJECT,
-        description:
-          "Please enable the Marketing add-on (WhatsApp, SMS and email campaigns to opted-in WiFi guests) for our organisation.",
-        category: "billing",
-        priority: "medium",
-      }),
-    onSuccess: (ticket) => {
-      qc.setQueryData(requestKey(orgId), ticket);
-      toast.success(`Request sent: ticket #${ticket.id.slice(0, 8)}`);
-    },
-    onError: (err) => {
-      toast.error(requestErrorMessage(err, "Couldn't send the request. Try again."));
-    },
-  });
+  const { existing, request: send } = useSupportRequest(MARKETING_REQUEST_SUBJECT);
+  const request = {
+    ...send,
+    mutate: () =>
+      send.mutate(
+        "Please enable the Marketing add-on (WhatsApp, SMS and email campaigns to opted-in WiFi guests) for our organisation.",
+        {
+          onSuccess: (ticket) => toast.success(`Request sent: ticket #${ticket.id.slice(0, 8)}`),
+          onError: (err) =>
+            toast.error(requestErrorMessage(err, "Couldn't send the request. Try again.")),
+        },
+      ),
+  };
+  void locationId;
 
   const pending = existing.data ?? null;
 

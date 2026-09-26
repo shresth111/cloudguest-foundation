@@ -150,7 +150,8 @@ export function TemplateEditorDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, templateKey]);
 
-  const smsIssues = smsOn ? smsBodyIssues(smsBody) : [];
+  const linkBudget = status.sms_unsubscribe_link_budget;
+  const smsIssues = smsOn ? smsBodyIssues(smsBody, linkBudget) : [];
   const emailIssues = emailOn ? emailBodyIssues(subject, html) : [];
   const dltInvalid = smsOn && dlt.trim() !== "" && !isValidDltTemplateId(dlt.trim());
   // Blocking = issues the server would refuse outright. `sms_too_long` is
@@ -367,7 +368,7 @@ export function TemplateEditorDialog({
                     onChange={(e) => setSmsBody(e.target.value)}
                     className="font-mono text-sm"
                   />
-                  <SmsCounter body={smsBody} />
+                  <SmsCounter body={smsBody} linkBudget={linkBudget} />
                   <Issues list={smsIssues} />
                 </div>
                 {dltBodyChanged && (

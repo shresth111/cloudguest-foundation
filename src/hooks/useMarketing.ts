@@ -25,6 +25,8 @@ import type {
   DeliveryListQuery,
   MarketingChannel,
   PortalConsentUpdate,
+  ProviderPutPayload,
+  ProviderVerifyPayload,
   RecipientListQuery,
   TemplateListQuery,
   TemplatePatchPayload,
@@ -118,7 +120,9 @@ export const marketingKeys = {
     ["marketing", s.org, s.loc, "recipients", id, q] as const,
   deliveries: (s: Scope, q: DeliveryListQuery) =>
     ["marketing", s.org, s.loc, "deliveries", q] as const,
+  providers: (s: Scope) => ["marketing", s.org, s.loc, "providers"] as const,
   addons: (orgId: string) => ["platform", "addons", orgId] as const,
+  platformProviders: (orgId: string) => ["platform", "marketing-providers", orgId] as const,
 };
 
 /**
@@ -442,10 +446,21 @@ export function useScheduleCampaign() {
   const { api, loc } = useScope();
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: (v: { id: string; scheduledAt: string | null; idempotencyKey: string }) =>
+    mutationFn: (v: {
+      id: string;
+      scheduledAt: string | null;
+      idempotencyKey: string;
+      acknowledgeWyfyFallback?: boolean;
+    }) =>
       api.scheduleCampaign(
         v.id,
-        { scheduled_at: v.scheduledAt, idempotency_key: v.idempotencyKey },
+        {
+          scheduled_at: v.scheduledAt,
+          idempotency_key: v.idempotencyKey,
+          // Sent only when the owner ticked it (§12.1, Q11 option A); the
+          // key is otherwise absent, exactly as before BYO existed.
+          ...(v.acknowledgeWyfyFallback ? { acknowledge_wyfy_fallback: true } : {}),
+        },
         loc,
       ),
     onSuccess: () => invalidate("campaigns", "campaign", "recipients", "deliveries"),
@@ -467,6 +482,92 @@ export function useCancelCampaign() {
   return useMutation({
     mutationFn: (id: string) => api.cancelCampaign(id, loc),
     onSuccess: () => invalidate("campaigns", "campaign", "recipients", "deliveries"),
+  });
+}
+
+// ── Support-ticket requests (upsells, top-ups) ─────────────────────────
+
+/**
+ * An open support request with this exact subject, and the action that
+ * files one. "Request sent" is shown only after the ticket came back from
+ * the server; an open request is shown as pending, never filed twice.
+ */
+export function useSupportRequest(subject: string) {
+  const { api, loc, scope } = useScope();
+  const qc = useQueryClient();
+  const key = ["marketing", scope.org, scope.loc, "support-request", subject] as const;
+  const existing = useQuery({
+    queryKey: key,
+    queryFn: () => api.findOpenSupportRequest(subject),
+    staleTime: 60_000,
+    retry: false,
+  });
+  const request = useMutation({
+    mutationFn: (description: string) => api.requestSupport(subject, description, loc),
+    onSuccess: (ticket) => qc.setQueryData(key, ticket),
+  });
+  return { existing, request };
+}
+
+// ── §12 Channel providers (bring-your-own) ─────────────────────────────
+
+/** GET /marketing/providers. A 402 (BYO locked) or 403 (no
+ * marketing_providers.read, or a location-confined caller) is an answer the
+ * Channels tab renders, so neither is retried. */
+export function useMarketingProviders(enabled = true) {
+  const { api, loc, scope } = useScope();
+  return useQuery({
+    queryKey: marketingKeys.providers(scope),
+    queryFn: () => api.listProviders(loc),
+    enabled,
+    retry: false,
+  });
+}
+
+/** Provider writes change what /marketing/status reports (provider_source,
+ * own_provider_status) and which templates are sendable, so all three are
+ * re-read after every write -- nothing is updated optimistically. */
+function useProviderInvalidate() {
+  const invalidate = useInvalidate();
+  return () => invalidate("providers", "status", "templates");
+}
+
+export function useSaveProvider() {
+  const { api, loc } = useScope();
+  const after = useProviderInvalidate();
+  return useMutation({
+    mutationFn: (v: { channel: MarketingChannel; body: ProviderPutPayload }) =>
+      api.putProvider(v.channel, v.body, loc),
+    onSettled: () => after(),
+  });
+}
+
+export function useDeleteProvider() {
+  const { api, loc } = useScope();
+  const after = useProviderInvalidate();
+  return useMutation({
+    mutationFn: (channel: MarketingChannel) => api.deleteProvider(channel, loc),
+    onSettled: () => after(),
+  });
+}
+
+export function useVerifyProvider() {
+  const { api, loc } = useScope();
+  const after = useProviderInvalidate();
+  return useMutation({
+    mutationFn: (v: { channel: MarketingChannel; body: ProviderVerifyPayload }) =>
+      api.verifyProvider(v.channel, v.body, loc),
+    onSettled: () => after(),
+  });
+}
+
+/** Master: a customer's providers, read-only (§12.4). */
+export function useOrgMarketingProviders(organizationId: string | null) {
+  return useQuery({
+    queryKey: marketingKeys.platformProviders(organizationId ?? ""),
+    queryFn: () => marketingPlatformService.getMarketingProviders(organizationId!),
+    enabled: !!organizationId,
+    retry: 1,
   });
 }
 
@@ -492,6 +593,7 @@ export function useSetOrganizationAddon(organizationId: string) {
       }),
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: marketingKeys.addons(organizationId) });
+      void qc.invalidateQueries({ queryKey: marketingKeys.platformProviders(organizationId) });
       void qc.invalidateQueries({ queryKey: customerKeys.entitlementsAll });
     },
   });
@@ -503,6 +605,7 @@ export function useClearOrganizationAddon(organizationId: string) {
     mutationFn: (key: string) => marketingPlatformService.clearAddonOverride(organizationId, key),
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: marketingKeys.addons(organizationId) });
+      void qc.invalidateQueries({ queryKey: marketingKeys.platformProviders(organizationId) });
       void qc.invalidateQueries({ queryKey: customerKeys.entitlementsAll });
     },
   });

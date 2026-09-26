@@ -201,6 +201,17 @@ const apiStub = {
   name: "stub-api",
   setup(b) {
     b.onResolve({ filter: /^@\/services\/api$/ }, () => ({ path: "api", namespace: "stub" }));
+    b.onResolve({ filter: /^@\/services\/ticket\.service$/ }, () => ({
+      path: "ticket",
+      namespace: "stubticket",
+    }));
+    b.onLoad({ filter: /.*/, namespace: "stubticket" }, () => ({
+      loader: "js",
+      contents: `export const ticketService = {
+        list: async () => { globalThis.__captured.push({ method: "get", url: "/support-tickets", headers: {} }); return []; },
+        create: async () => ({ id: "t" }),
+      };`,
+    }));
     b.onLoad({ filter: /.*/, namespace: "stub" }, () => ({
       loader: "js",
       contents: `
@@ -423,9 +434,9 @@ check(
   /entitlements: \(orgId: string \| null\) => \["customer", "entitlements", orgId\]/.test(dash),
 );
 check(
-  "the add-on request lookup is cached per organization",
-  /\["marketing", orgId, "addon-request-ticket"\]/.test(
-    read("src/components/marketing/MarketingLockedUpsell.tsx"),
+  "support requests (add-on upsells, top-ups) are cached per organization",
+  /const key = \["marketing", scope\.org, scope\.loc, "support-request", subject\]/.test(
+    read("src/hooks/useMarketing.ts"),
   ),
 );
 
@@ -442,6 +453,206 @@ const actions = strip(read("src/components/marketing/campaigns/CampaignActions.t
 check(
   "the schedule key is regenerated only on a definitive 4xx",
   /if \(isDefinitiveRefusal\(err\)\) setKey\(newIdempotencyKey\(\)\)/.test(actions),
+);
+
+// ---------------------------------------------------------------------------
+// 1d. Bring-your-own providers (spec §12)
+// ---------------------------------------------------------------------------
+console.log("\nBYO providers: secrets never round-trip, fallback needs an acknowledgement");
+
+const P = await bundle("providers", `export * from "${src("src/lib/marketing-providers.ts")}";`);
+const ping = P.providerTypeDef("ping4sms");
+const stored = {
+  provider_type: "ping4sms",
+  display: {
+    route: "4",
+    sender_id: "ACMECF",
+    dlt_entity_id: "1101",
+    api_key: { set: true, hint: "…c81d" },
+  },
+};
+const init = P.initialProviderValues(ping, stored.display);
+check("a stored secret is never prefilled", init.api_key === "", JSON.stringify(init));
+check(
+  "non-secret fields are prefilled from display",
+  init.sender_id === "ACMECF" && init.route === "4",
+);
+check(
+  "the secret placeholder shows only the hint",
+  P.secretPlaceholder(stored.display.api_key) === "Saved (…c81d). Leave blank to keep.",
+);
+const keep = P.buildProviderPut(ping, { ...init }, stored);
+check(
+  "an untouched form sends an empty config (nothing to change)",
+  keep.body && Object.keys(keep.body.config).length === 0,
+  JSON.stringify(keep),
+);
+const edit = P.buildProviderPut(ping, { ...init, sender_id: "ACMEXY" }, stored);
+check(
+  "an edit sends only the changed field, and omits the blank secret",
+  JSON.stringify(edit.body?.config) === '{"sender_id":"ACMEXY"}',
+  JSON.stringify(edit.body),
+);
+const rotate = P.buildProviderPut(ping, { ...init, api_key: "new-secret-value-1234" }, stored);
+check("a typed secret is sent", rotate.body?.config.api_key === "new-secret-value-1234");
+const create = P.buildProviderPut(
+  ping,
+  { route: "4", sender_id: "X", dlt_entity_id: "1", api_key: "" },
+  null,
+);
+check(
+  "creating without the secret is refused client-side",
+  create.body === null && create.errors.api_key === "Required.",
+);
+const smtp = P.providerTypeDef("smtp");
+const smtpNew = P.buildProviderPut(
+  smtp,
+  {
+    host: "mail.acme.in",
+    port: "587",
+    use_tls: "true",
+    username: "u",
+    password: "p4ssword-long",
+    from_address: "a@acme.in",
+    from_name: "Acme",
+    reply_to: "",
+  },
+  null,
+);
+check(
+  "port is sent as a number and TLS as a boolean",
+  smtpNew.body?.config.port === 587 && smtpNew.body?.config.use_tls === true,
+);
+check(
+  "switching provider type requires every secret again",
+  P.buildProviderPut(
+    P.providerTypeDef("exotel"),
+    {
+      account_sid: "a",
+      subdomain: "api.exotel.com",
+      sender_id: "s",
+      dlt_entity_id: "d",
+      api_key: "",
+      api_token: "",
+    },
+    stored,
+  ).body === null,
+);
+check(
+  "WhatsApp (meta_cloud) is listed but not offered until BE-11b",
+  P.providerTypeDef("meta_cloud").available === false,
+);
+
+check(
+  "no own row -> no acknowledgement",
+  !P.needsFallbackAcknowledgement({ provider_source: "wyfy", own_provider_status: null }),
+);
+check(
+  "own row failed -> acknowledgement required",
+  P.needsFallbackAcknowledgement({ provider_source: "wyfy", own_provider_status: "failed" }),
+);
+check(
+  "own row effective -> no acknowledgement",
+  !P.needsFallbackAcknowledgement({ provider_source: "own", own_provider_status: "verified" }),
+);
+check(
+  "an older backend without the fields -> no acknowledgement",
+  !P.needsFallbackAcknowledgement({}),
+);
+check(
+  "a verified row the venue switched off -> no acknowledgement (backend deviation #20)",
+  !P.needsFallbackAcknowledgement({
+    provider_source: "wyfy",
+    own_provider_status: "verified",
+    byo_entitled: true,
+  }),
+);
+check(
+  "a verified row while BYO is locked -> acknowledgement",
+  P.needsFallbackAcknowledgement({
+    provider_source: "wyfy",
+    own_provider_status: "verified",
+    byo_entitled: false,
+  }),
+);
+const smtpStored = {
+  provider_type: "smtp",
+  display: {
+    host: "mail.acme.in",
+    port: 587,
+    use_tls: true,
+    username: "u",
+    from_address: "a@acme.in",
+    from_name: "Acme",
+    reply_to: "r@acme.in",
+    password: { set: true, hint: "…9x2a" },
+  },
+};
+const cleared = P.buildProviderPut(
+  P.providerTypeDef("smtp"),
+  { ...P.initialProviderValues(P.providerTypeDef("smtp"), smtpStored.display), reply_to: "" },
+  smtpStored,
+);
+check(
+  "emptying an optional field sends null to clear it (backend deviation #26)",
+  JSON.stringify(cleared.body?.config) === '{"reply_to":null}',
+  JSON.stringify(cleared.body),
+);
+
+const hooksSrc2 = strip(read("src/hooks/useMarketing.ts"));
+check(
+  "acknowledge_wyfy_fallback is sent only when ticked",
+  /\.\.\.\(v\.acknowledgeWyfyFallback \? \{ acknowledge_wyfy_fallback: true \} : \{\}\)/.test(
+    hooksSrc2,
+  ),
+);
+const sched = strip(read("src/components/marketing/campaigns/CampaignActions.tsx"));
+check(
+  "Schedule / Send now stay disabled until the fallback is acknowledged",
+  /const canGo =\s*\(!needsAck \|\| ack\) &&/.test(sched) &&
+    /acknowledgeWyfyFallback: needsAck && ack/.test(sched),
+);
+check(
+  "provider writes are never optimistic",
+  !/onMutate/.test(hooksSrc2) && /invalidate\("providers", "status", "templates"\)/.test(hooksSrc2),
+);
+const form = strip(read("src/components/marketing/channels/ProviderForm.tsx"));
+check(
+  "secret inputs are password fields with no autofill of the stored value",
+  /type=\{f\.secret \? "password"/.test(form) &&
+    /autoComplete=\{f\.secret \? "new-password"/.test(form),
+);
+check(
+  "the form never reads a secret from display into state",
+  /initialProviderValues\(def, storedDisplay\)/.test(form) && !/display\[f\.key\]/.test(form),
+);
+const helpersSrc = strip(read("src/components/marketing/marketing-helpers.ts"));
+check(
+  "a BYO 402 is told apart from the Marketing lock by feature_key",
+  /feature_key === "guest_marketing_byo"/.test(helpersSrc),
+);
+const viewSrc = strip(read("src/components/marketing/MarketingView.tsx"));
+check(
+  "the Marketing page lock ignores the BYO lock (status is not BYO-gated)",
+  !/isByoLocked/.test(viewSrc),
+);
+const svc2 = read("src/services/marketing.service.ts");
+for (const path of [
+  '"/marketing/providers"',
+  "/marketing/providers/${",
+  "/verify`",
+  "/marketing-providers`",
+]) {
+  check(`client calls ${path.replace(/["`$]/g, "")}`, svc2.includes(path));
+}
+const panel = strip(read("src/components/master/CustomerAddonsPanel.tsx"));
+check(
+  "Master: a blocked add-on's switch is disabled",
+  /disabled=\{!canWrite \|\| busy \|\| !!addon\.blocked_by\}/.test(panel),
+);
+check(
+  "Master: the providers list shows no hints (reads only sender_label)",
+  /sender_label/.test(panel) && !/display\./.test(panel) && !/hint/.test(panel),
 );
 
 // ---------------------------------------------------------------------------
@@ -639,7 +850,13 @@ check(
 );
 check("no tab mounts before /marketing/status answered", /if \(!status\.data\) return/.test(view));
 const upsell = strip(read("src/components/marketing/MarketingLockedUpsell.tsx"));
-check("the upsell files a real support ticket", /ticketService\.create\(/.test(upsell));
+check(
+  "the upsell files a real support ticket",
+  /useSupportRequest\(MARKETING_REQUEST_SUBJECT\)/.test(upsell) &&
+    /async requestSupport\([\s\S]{0,300}ticketService\.create\(/.test(
+      read("src/services/marketing.service.ts"),
+    ),
+);
 
 const detail = strip(read("src/components/marketing/campaigns/CampaignDetailSheet.tsx"));
 check(

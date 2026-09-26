@@ -7,7 +7,7 @@ import { CustomerFeaturePage } from "@/components/customer/CustomerFeaturePage";
 /**
  * Marketing (paid add-on) -- wyfy-specs/guest-marketing-campaigns.md §8.1.
  *
- * `?tab=campaigns|templates|audience|deliveries` picks the tab and
+ * `?tab=campaigns|templates|audience|deliveries|channels` picks the tab and
  * `?campaign=<uuid>` opens that campaign's detail sheet (see
  * `components/marketing/MarketingView.tsx`). Anything else, or nothing, is
  * dropped rather than rejected, so a mistyped link still opens the page --
@@ -20,7 +20,10 @@ import { CustomerFeaturePage } from "@/components/customer/CustomerFeaturePage";
 export const Route = createFileRoute("/marketing")({
   ssr: false,
   validateSearch: z.object({
-    tab: z.enum(["campaigns", "templates", "audience", "deliveries"]).optional().catch(undefined),
+    tab: z
+      .enum(["campaigns", "templates", "audience", "deliveries", "channels"])
+      .optional()
+      .catch(undefined),
     campaign: z.string().uuid().optional().catch(undefined),
   }),
   beforeLoad: ({ context, location }) => {

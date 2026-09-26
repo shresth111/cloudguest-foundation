@@ -8,12 +8,14 @@ import { MButton, MTag } from "@/components/master/MasterKit";
 import { useOperatorCaps } from "@/components/master/MasterShell";
 import {
   useClearOrganizationAddon,
+  useOrgMarketingProviders,
   useOrganizationAddons,
   useSetOrganizationAddon,
 } from "@/hooks/useMarketing";
 import { marketingErrorCode } from "@/services/marketing.service";
 import { requestErrorOf } from "@/services/api";
 import type { OrganizationAddon } from "@/types/marketing";
+import { providerLabel } from "@/lib/marketing-providers";
 
 /**
  * Master console -> Customers drawer -> "Add-ons".
@@ -173,6 +175,15 @@ export function CustomerAddonsPanel({
                         {addon.override.reason ? ` — “${addon.override.reason}”` : ""}
                       </p>
                     )}
+                    {addon.blocked_by && (
+                      <p className="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-400">
+                        Requires{" "}
+                        {addon.blocked_by === "guest_marketing"
+                          ? "Guest Marketing"
+                          : addon.blocked_by}
+                        . Unlock that first.
+                      </p>
+                    )}
                     {addon.active_campaign_count > 0 && (
                       <p className="mt-1 text-[11px] text-muted-foreground">
                         {addon.active_campaign_count} campaign
@@ -184,7 +195,7 @@ export function CustomerAddonsPanel({
                     {rowBusy && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
                     <Switch
                       checked={addon.enabled}
-                      disabled={!canWrite || busy}
+                      disabled={!canWrite || busy || !!addon.blocked_by}
                       aria-label={`${addon.enabled ? "Lock" : "Unlock"} ${addon.name}`}
                       onCheckedChange={(next) => {
                         setReason("");
@@ -209,6 +220,8 @@ export function CustomerAddonsPanel({
         </ul>
       )}
 
+      <CustomerProvidersList organizationId={organizationId} />
+
       {/* Radix primitive directly rather than ui/alert-dialog: the Customers
           drawer is an inline `z-[60]` layer, and the shared AlertDialog's
           overlay/content are `z-50`, which would open *behind* it. */}
@@ -229,9 +242,11 @@ export function CustomerAddonsPanel({
             <AlertDialogPrimitive.Description className="text-sm text-muted-foreground">
               {pending?.enable
                 ? "The customer's dashboard unlocks immediately. Nothing is sent until they build a campaign themselves."
-                : `${pending?.addon.active_campaign_count ?? 0} scheduled or sending campaign${
-                    pending?.addon.active_campaign_count === 1 ? "" : "s"
-                  } will be cancelled. Their templates, consents and logs are kept and come back on unlock.`}
+                : pending?.addon.key === "guest_marketing_byo"
+                  ? `Campaigns scheduled or sending through the customer's own provider will be cancelled (${pending.addon.active_campaign_count} active). Their provider settings are kept, and new campaigns send through Wyfy.`
+                  : `${pending?.addon.active_campaign_count ?? 0} scheduled or sending campaign${
+                      pending?.addon.active_campaign_count === 1 ? "" : "s"
+                    } will be cancelled. Their templates, consents and logs are kept and come back on unlock.`}
             </AlertDialogPrimitive.Description>
             <div>
               <label
@@ -273,3 +288,54 @@ export function CustomerAddonsPanel({
     </section>
   );
 }
+
+const PROVIDER_STATUS_LABEL: Record<string, string> = {
+  verified: "Verified",
+  unverified: "Not verified",
+  failed: "Failed",
+};
+
+/**
+ * §12.4/§12.6: which account sends each of the customer's channels. Read-only
+ * -- Master can't edit a customer's provider, only lock the BYO add-on --
+ * and the endpoint carries no secrets and no hints at all.
+ */
+function CustomerProvidersList({ organizationId }: { organizationId: string }) {
+  const q = useOrgMarketingProviders(organizationId);
+  return (
+    <div className="space-y-1.5" data-testid="master-providers">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Marketing providers
+      </p>
+      {q.isLoading ? (
+        <div className="h-10 animate-pulse rounded-lg bg-muted" />
+      ) : q.isError ? (
+        <p className="text-xs text-muted-foreground">
+          Couldn't load providers: {errorText(q.error, "the server did not answer.")}
+        </p>
+      ) : (
+        <ul className="divide-y divide-border rounded-lg border border-border text-xs">
+          {q.data?.channels.map((c) => (
+            <li
+              key={c.channel}
+              className="flex flex-wrap items-center justify-between gap-2 px-3 py-2"
+            >
+              <span className="font-medium">{PROVIDER_CHANNEL_LABEL[c.channel] ?? c.channel}</span>
+              <span className="text-muted-foreground">
+                {c.own
+                  ? `Own: ${c.own.display_name ?? `${providerLabel(c.own.provider_type)}${c.own.sender_label ? ` · ${c.own.sender_label}` : ""}`} · ${PROVIDER_STATUS_LABEL[c.own.status] ?? c.own.status}${c.own.enabled ? "" : " · off"}${c.effective_source === "own" ? "" : " (Wyfy sends)"}`
+                  : "Wyfy default"}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+const PROVIDER_CHANNEL_LABEL: Record<string, string> = {
+  sms: "SMS",
+  whatsapp: "WhatsApp",
+  email: "Email",
+};

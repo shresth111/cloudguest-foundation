@@ -24,6 +24,14 @@ export interface ChannelStatus {
   reason: string | null;
   requires_dlt_template_id?: boolean;
   custom_templates_supported?: boolean;
+  // §12.4 (BYO providers), all optional: absent on a backend without BE-11.
+  /** The §12.1 resolution right now. */
+  provider_source?: ProviderSource;
+  /** "Wyfy default" | "Your Ping4SMS (CAFEXY)". */
+  provider_display_name?: string;
+  /** The org's own row for this channel, if any (null = none). */
+  own_provider_status?: ProviderStatus | null;
+  byo_entitled?: boolean;
 }
 
 export interface PortalConsentState {
@@ -43,6 +51,9 @@ export interface MarketingStatus {
     applies_to: MarketingChannel[];
   };
   limits: { max_recipients_per_campaign: number; test_sends_per_day: number };
+  /** Characters the SMS counter budgets for {{unsubscribe_link}}
+   * (contract change 2026-09-25). */
+  sms_unsubscribe_link_budget?: number;
 }
 
 export interface PortalConsentUpdate {
@@ -198,6 +209,12 @@ export interface TemplateWhatsapp {
   content_sid: string | null;
   variable_order: string[];
   approval_status: "not_submitted" | "pending" | "approved" | "rejected";
+  /** §12.4: "own_waba" for templates synced from the venue's WABA. */
+  source?: "wyfy" | "own_waba";
+  provider_template_name?: string | null;
+  /** Backend deviation #21 (additive): number of {{n}} positions. */
+  placeholder_count?: number | null;
+  provider_language?: string | null;
 }
 
 export interface TemplateEmail {
@@ -310,6 +327,8 @@ export interface MarketingCampaign {
   updated_at: string;
   /** Detail endpoint only. */
   last_error?: string | null;
+  /** §12.4: set from the schedule-time snapshot; null for drafts. */
+  provider?: CampaignProvider | null;
 }
 
 export interface CampaignListQuery {
@@ -364,6 +383,8 @@ export const RECIPIENT_STATUSES: readonly RecipientStatus[] = [
 
 export interface CampaignRecipient {
   id: string;
+  /** §12.4: which pipe carried it. */
+  provider_source?: ProviderSource | null;
   guest_id: string | null;
   display_name: string | null;
   /** Null when the guest has no address for the channel, or after the
@@ -428,6 +449,9 @@ export interface OrganizationAddon {
     set_at: string;
   } | null;
   active_campaign_count: number;
+  /** §12.3: BYO is only effective with Guest Marketing; set when it is the
+   * reason this add-on reads disabled. */
+  blocked_by?: string | null;
 }
 
 export interface OrganizationAddons {
@@ -438,4 +462,92 @@ export interface OrganizationAddons {
 export interface AddonWriteResult {
   addon: OrganizationAddon;
   cancelled_campaign_count: number;
+}
+
+// ── §12 Channel providers (bring-your-own) ─────────────────────────────
+
+export type ProviderSource = "wyfy" | "own";
+export type ProviderStatus = "unverified" | "verified" | "failed";
+export type ProviderType = "ping4sms" | "exotel" | "smtp" | "ses" | "meta_cloud";
+
+export const GUEST_MARKETING_BYO_FEATURE_KEY = "guest_marketing_byo";
+
+export interface CampaignProvider {
+  source: ProviderSource;
+  type: ProviderType | string | null;
+  display_name: string;
+}
+
+/** A secret field as the server shows it: whether it is set, and the last 4
+ * characters ("…" for short secrets). The value itself is never returned. */
+export interface SecretHint {
+  set: boolean;
+  hint: string | null;
+}
+
+export interface ProviderView {
+  channel: MarketingChannel;
+  provider_type: ProviderType | string;
+  enabled: boolean;
+  status: ProviderStatus;
+  last_verified_at: string | null;
+  last_error: string | null;
+  /** True iff this row is what §12.1 resolves to right now. */
+  effective: boolean;
+  /** Non-secret fields verbatim, secret fields as {set, hint}. */
+  display: Record<string, string | number | boolean | null | SecretHint>;
+  updated_at: string;
+  updated_by: { id: string; name: string | null } | null;
+}
+
+export interface ChannelProviders {
+  channel: MarketingChannel;
+  effective_source: ProviderSource;
+  own: ProviderView | null;
+}
+
+export interface ProvidersResponse {
+  channels: ChannelProviders[];
+}
+
+export interface ProviderPutPayload {
+  provider_type: ProviderType;
+  /** Partial on update: an omitted secret keeps the stored one; a
+   * non-secret field sent as null clears it (backend deviation #26). */
+  config: Record<string, string | number | boolean | null>;
+  enabled?: boolean | null;
+}
+
+export interface ProviderVerifyPayload {
+  test_to: string | null;
+  template_id: string | null;
+}
+
+export interface ProviderVerifyResult {
+  provider: ProviderView;
+  checks: { name: string; ok: boolean; detail: string }[];
+}
+
+export interface ProviderDeleteResult {
+  channel: MarketingChannel;
+  effective_source: ProviderSource;
+  affected_campaign_count: number;
+}
+
+/** Master's read-only view (§12.4): no hints, no secrets. */
+export interface PlatformProviders {
+  channels: {
+    channel: MarketingChannel;
+    effective_source: ProviderSource;
+    own: {
+      provider_type: string;
+      enabled: boolean;
+      status: ProviderStatus;
+      last_verified_at: string | null;
+      last_error: string | null;
+      sender_label: string | null;
+      /** Backend deviation #22 (additive). */
+      display_name?: string | null;
+    } | null;
+  }[];
 }
