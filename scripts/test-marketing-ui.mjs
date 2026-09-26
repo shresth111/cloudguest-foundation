@@ -559,6 +559,45 @@ check(
   "an older backend without the fields -> no acknowledgement",
   !P.needsFallbackAcknowledgement({}),
 );
+check(
+  "a verified row the venue switched off -> no acknowledgement (backend deviation #20)",
+  !P.needsFallbackAcknowledgement({
+    provider_source: "wyfy",
+    own_provider_status: "verified",
+    byo_entitled: true,
+  }),
+);
+check(
+  "a verified row while BYO is locked -> acknowledgement",
+  P.needsFallbackAcknowledgement({
+    provider_source: "wyfy",
+    own_provider_status: "verified",
+    byo_entitled: false,
+  }),
+);
+const smtpStored = {
+  provider_type: "smtp",
+  display: {
+    host: "mail.acme.in",
+    port: 587,
+    use_tls: true,
+    username: "u",
+    from_address: "a@acme.in",
+    from_name: "Acme",
+    reply_to: "r@acme.in",
+    password: { set: true, hint: "…9x2a" },
+  },
+};
+const cleared = P.buildProviderPut(
+  P.providerTypeDef("smtp"),
+  { ...P.initialProviderValues(P.providerTypeDef("smtp"), smtpStored.display), reply_to: "" },
+  smtpStored,
+);
+check(
+  "emptying an optional field sends null to clear it (backend deviation #26)",
+  JSON.stringify(cleared.body?.config) === '{"reply_to":null}',
+  JSON.stringify(cleared.body),
+);
 
 const hooksSrc2 = strip(read("src/hooks/useMarketing.ts"));
 check(

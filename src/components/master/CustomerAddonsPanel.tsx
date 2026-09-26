@@ -323,7 +323,7 @@ function CustomerProvidersList({ organizationId }: { organizationId: string }) {
               <span className="font-medium">{PROVIDER_CHANNEL_LABEL[c.channel] ?? c.channel}</span>
               <span className="text-muted-foreground">
                 {c.own
-                  ? `Own: ${providerLabel(c.own.provider_type)}${c.own.sender_label ? ` · ${c.own.sender_label}` : ""} · ${PROVIDER_STATUS_LABEL[c.own.status] ?? c.own.status}${c.own.enabled ? "" : " · off"}${c.effective_source === "own" ? "" : " (Wyfy sends)"}`
+                  ? `Own: ${c.own.display_name ?? `${providerLabel(c.own.provider_type)}${c.own.sender_label ? ` · ${c.own.sender_label}` : ""}`} · ${PROVIDER_STATUS_LABEL[c.own.status] ?? c.own.status}${c.own.enabled ? "" : " · off"}${c.effective_source === "own" ? "" : " (Wyfy sends)"}`
                   : "Wyfy default"}
               </span>
             </li>
