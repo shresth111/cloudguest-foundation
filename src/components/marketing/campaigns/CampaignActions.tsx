@@ -13,12 +13,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useMarketingLocationId, useScheduleCampaign, useTestSend } from "@/hooks/useMarketing";
 import {
-  marketingErrorCode,
-  marketingErrorData,
-  marketingService,
-} from "@/services/marketing.service";
+  useMarketingLocationId,
+  useScheduleCampaign,
+  useTestSend,
+  useMarketingApi,
+} from "@/hooks/useMarketing";
+import { marketingErrorCode, marketingErrorData } from "@/services/marketing.service";
 import { isValidGuestEmail } from "@/lib/portal-post-connect";
 import type {
   MarketingCampaign,
@@ -243,6 +244,7 @@ export function ScheduleDialog({
   const label = useChannelLabel();
   const schedule = useScheduleCampaign();
   const loc = useMarketingLocationId();
+  const marketingApi = useMarketingApi();
   // True from the click until the request settles, INCLUDING the draft
   // save that runs first -- `schedule.isPending` alone is false during that
   // save, which is what let a double click fire two PATCHes.
@@ -318,7 +320,7 @@ export function ScheduleDialog({
       const code = marketingErrorCode(err);
       if (code === "invalid_status_transition") {
         try {
-          const fresh = await marketingService.getCampaign(id, loc);
+          const fresh = await marketingApi.getCampaign(id, loc);
           if (fresh.status === "scheduled" || fresh.status === "sending") {
             showRealState(fresh);
             return;

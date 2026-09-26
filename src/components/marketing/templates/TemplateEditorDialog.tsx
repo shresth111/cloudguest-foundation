@@ -27,8 +27,9 @@ import {
   useMarketingLocationId,
   useTemplatePreview,
   useUpdateTemplate,
+  useMarketingApi,
 } from "@/hooks/useMarketing";
-import { marketingErrorCode, marketingService } from "@/services/marketing.service";
+import { marketingErrorCode } from "@/services/marketing.service";
 import { emailBodyIssues, isValidDltTemplateId, smsBodyIssues } from "@/lib/marketing-template";
 import {
   TEMPLATE_CATEGORIES,
@@ -116,6 +117,7 @@ export function TemplateEditorDialog({
    * template; replaced by the server's current one after a conflict. */
   const [version, setVersion] = useState<number | null>(null);
   const loc = useMarketingLocationId();
+  const marketingApi = useMarketingApi();
 
   const lastField = useRef<Field>("sms");
   const refs = {
@@ -253,7 +255,7 @@ export function TemplateEditorDialog({
       if (template && marketingErrorCode(err) === "version_conflict") {
         // Someone else saved it. Take the server's current version so the
         // advice below is true: the next Save replaces their change.
-        const fresh = await marketingService.getTemplate(template.id, loc).catch(() => null);
+        const fresh = await marketingApi.getTemplate(template.id, loc).catch(() => null);
         if (fresh) {
           setVersion(fresh.version);
           setConflict(true);

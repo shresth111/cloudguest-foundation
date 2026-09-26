@@ -1202,6 +1202,12 @@ jobs:
       - name: marketing composer (browser)
         run: bun run test:marketing-composer
 
+      # The Marketing screens in the DEMO workspace, mounted in Chromium: every
+      # tab works from the in-memory demo backend, actions say "Demo: nothing
+      # was actually sent", and no request of any kind leaves the browser.
+      - name: marketing demo (browser)
+        run: bun run test:marketing-demo
+
       # --- Session rules actually reach the guest --------------------------
       #
       # Idle Timeout and Maximum Daily Session Limit were both captured,

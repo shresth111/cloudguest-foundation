@@ -24,6 +24,7 @@ import {
   useMarketingScope,
   useUpdateCampaign,
   useVenueLabel,
+  useMarketingApi,
 } from "@/hooks/useMarketing";
 import { campaignLocationFields } from "@/lib/marketing-scope";
 import { campaignVariableMaxLength, campaignVariablesIn } from "@/lib/marketing-template";
@@ -55,7 +56,7 @@ import {
   formatDateTime,
   isCampaignMovedOn,
 } from "../marketing-helpers";
-import { marketingErrorCode, marketingService } from "@/services/marketing.service";
+import { marketingErrorCode } from "@/services/marketing.service";
 import { AudiencePreviewCard } from "../audience/AudiencePreviewCard";
 import { EmailPreviewFrame } from "../templates/EmailPreviewFrame";
 import { ScheduleDialog, TestSendDialog } from "./CampaignActions";
@@ -208,6 +209,7 @@ export function CampaignComposerSheet({
 
   const saving = create.isPending || update.isPending || saving2;
   const locHeader = useMarketingLocationId();
+  const marketingApi = useMarketingApi();
 
   const payload = (): CampaignCreatePayload => {
     const cleanVars: Partial<Record<CampaignVariable, string>> = {};
@@ -275,7 +277,7 @@ export function CampaignComposerSheet({
     } catch (err) {
       const code = marketingErrorCode(err);
       if (campaignId && (code === "version_conflict" || code === "invalid_status_transition")) {
-        const fresh = await marketingService.getCampaign(campaignId, locHeader).catch(() => null);
+        const fresh = await marketingApi.getCampaign(campaignId, locHeader).catch(() => null);
         if (fresh && code === "invalid_status_transition" && fresh.status !== "draft") {
           throw new CampaignMovedOnError(fresh);
         }
