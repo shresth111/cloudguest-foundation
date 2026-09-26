@@ -125,6 +125,9 @@ const ERROR_COPY: Record<string, string> = {
     "That sender belongs to Wyfy's own platform account. Use your own sender ID or address.",
   provider_error: "The provider returned an error.",
   synced_template_read_only: "Templates synced from WhatsApp can only be renamed and re-mapped.",
+  provider_encryption_unavailable:
+    "Provider settings can't be saved right now: Wyfy's secure storage isn't ready. Please contact support.",
+  provider_auth_failed: "The provider rejected the login.",
   own_provider_unacknowledged:
     "Your own provider for this channel isn't the one sending. Tick the acknowledgement to send through Wyfy's default account.",
   rate_limited: "Too many requests. Wait a minute and try again.",
@@ -141,6 +144,11 @@ export function marketingErrorMessage(err: unknown, fallback = "Something went w
   if (code === "test_send_limit" && typeof data?.retry_after_seconds === "number") {
     const hrs = Math.ceil(data.retry_after_seconds / 3600);
     return `${ERROR_COPY.test_send_limit} Try again in about ${hrs} hour${hrs === 1 ? "" : "s"}.`;
+  }
+  // Backend deviation #24: a campaign snapshotted to the venue's own
+  // provider tests (and sends) only through it -- never Wyfy.
+  if (code === "channel_not_configured" && /^own_provider_unavailable/.test(e?.message ?? "")) {
+    return "This campaign is set to send through your own provider, which isn't usable right now. Check it in the Channels tab; nothing is sent through Wyfy instead.";
   }
   if (code === "template_not_sendable" && typeof data?.reason === "string") {
     return SENDABLE_REASON_LABEL[data.reason] ?? ERROR_COPY.template_not_sendable;

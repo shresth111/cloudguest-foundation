@@ -212,6 +212,8 @@ export interface TemplateWhatsapp {
   /** §12.4: "own_waba" for templates synced from the venue's WABA. */
   source?: "wyfy" | "own_waba";
   provider_template_name?: string | null;
+  /** Backend deviation #21 (additive): number of {{n}} positions. */
+  placeholder_count?: number | null;
   provider_language?: string | null;
 }
 
@@ -510,8 +512,9 @@ export interface ProvidersResponse {
 
 export interface ProviderPutPayload {
   provider_type: ProviderType;
-  /** Partial on update: an omitted secret keeps the stored one. */
-  config: Record<string, string | number | boolean>;
+  /** Partial on update: an omitted secret keeps the stored one; a
+   * non-secret field sent as null clears it (backend deviation #26). */
+  config: Record<string, string | number | boolean | null>;
   enabled?: boolean | null;
 }
 
@@ -543,6 +546,8 @@ export interface PlatformProviders {
       last_verified_at: string | null;
       last_error: string | null;
       sender_label: string | null;
+      /** Backend deviation #22 (additive). */
+      display_name?: string | null;
     } | null;
   }[];
 }

@@ -190,7 +190,7 @@ export function initialProviderValues(
 export interface BuildResult {
   body: {
     provider_type: string;
-    config: Record<string, string | number | boolean>;
+    config: Record<string, string | number | boolean | null>;
     enabled?: boolean | null;
   } | null;
   /** field key -> problem, for fields the client can already see are wrong. */
@@ -214,7 +214,7 @@ export function buildProviderPut(
 ): BuildResult {
   const replace = !stored || stored.provider_type !== def.type;
   const errors: Record<string, string> = {};
-  const config: Record<string, string | number | boolean> = {};
+  const config: Record<string, string | number | boolean | null> = {};
   for (const f of def.fields) {
     const raw = (values[f.key] ?? "").trim();
     if (f.secret) {
@@ -224,6 +224,15 @@ export function buildProviderPut(
     }
     if (!raw) {
       if (f.required) errors[f.key] = "Required.";
+      // Backend deviation #26: a non-secret field sent as null clears it
+      // (e.g. an optional reply_to the owner just emptied).
+      else if (
+        !replace &&
+        stored?.display?.[f.key] !== undefined &&
+        stored?.display?.[f.key] !== null &&
+        stored?.display?.[f.key] !== ""
+      )
+        config[f.key] = null;
       continue;
     }
     const value: string | number | boolean =
@@ -245,8 +254,19 @@ export function buildProviderPut(
 export function needsFallbackAcknowledgement(status: {
   provider_source?: string;
   own_provider_status?: string | null;
+  byo_entitled?: boolean;
 }): boolean {
-  return (status.provider_source ?? "wyfy") === "wyfy" && !!status.own_provider_status;
+  // Backend deviation #20: the server requires it when the own row is not
+  // effective AND is enabled or failed. /marketing/status doesn't say
+  // whether the row is enabled, so: failed -> always; unverified -> ask
+  // (it may be enabled; an unneeded acknowledgement is harmless); verified
+  // but not sending -> only when the BYO add-on is off (an enabled row
+  // under a locked add-on); a verified row the venue switched off -> no.
+  if ((status.provider_source ?? "wyfy") !== "wyfy") return false;
+  const own = status.own_provider_status;
+  if (!own) return false;
+  if (own === "failed" || own === "unverified") return true;
+  return status.byo_entitled === false;
 }
 
 /** Why the own provider is not the one sending, in the composer's words. */
