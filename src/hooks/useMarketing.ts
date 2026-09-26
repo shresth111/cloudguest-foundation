@@ -25,6 +25,8 @@ import type {
   DeliveryListQuery,
   MarketingChannel,
   PortalConsentUpdate,
+  CreditAdjustmentPayload,
+  LedgerQuery,
   ProviderPutPayload,
   ProviderVerifyPayload,
   RecipientListQuery,
@@ -121,6 +123,11 @@ export const marketingKeys = {
   deliveries: (s: Scope, q: DeliveryListQuery) =>
     ["marketing", s.org, s.loc, "deliveries", q] as const,
   providers: (s: Scope) => ["marketing", s.org, s.loc, "providers"] as const,
+  credits: (s: Scope) => ["marketing", s.org, s.loc, "credits"] as const,
+  ledger: (s: Scope, q: LedgerQuery) => ["marketing", s.org, s.loc, "ledger", q] as const,
+  estimate: (s: Scope, id: string) => ["marketing", s.org, s.loc, "estimate", id] as const,
+  platformCredits: (orgId: string) => ["platform", "credits", orgId] as const,
+  priceBook: ["platform", "price-book"] as const,
   addons: (orgId: string) => ["platform", "addons", orgId] as const,
   platformProviders: (orgId: string) => ["platform", "marketing-providers", orgId] as const,
 };
@@ -436,9 +443,12 @@ export function useDeleteCampaign() {
 
 export function useTestSend() {
   const { api, loc } = useScope();
+  const invalidate = useInvalidate();
   return useMutation({
     mutationFn: (v: { id: string; to: string[]; sampleGuestName?: string | null }) =>
       api.testSend(v.id, { to: v.to, sample_guest_name: v.sampleGuestName ?? null }, loc),
+    // A test through Wyfy is charged (§13.4 step 7).
+    onSettled: () => invalidate("credits", "ledger", "estimate"),
   });
 }
 
@@ -463,7 +473,8 @@ export function useScheduleCampaign() {
         },
         loc,
       ),
-    onSuccess: () => invalidate("campaigns", "campaign", "recipients", "deliveries"),
+    onSettled: () =>
+      invalidate("campaigns", "campaign", "recipients", "deliveries", "credits", "estimate", "ledger"),
   });
 }
 
@@ -481,7 +492,8 @@ export function useCancelCampaign() {
   const invalidate = useInvalidate();
   return useMutation({
     mutationFn: (id: string) => api.cancelCampaign(id, loc),
-    onSuccess: () => invalidate("campaigns", "campaign", "recipients", "deliveries"),
+    onSettled: () =>
+      invalidate("campaigns", "campaign", "recipients", "deliveries", "credits", "estimate", "ledger"),
   });
 }
 
@@ -509,6 +521,111 @@ export function useSupportRequest(subject: string) {
   return { existing, request };
 }
 
+// ── §13 Marketing credits ──────────────────────────────────────────────
+
+/** Balance and prices. Re-read after every send-shaped action (never
+ * adjusted optimistically, §13.10); polled gently while the page is open so
+ * a running campaign's debits show up. */
+export function useMarketingCredits() {
+  const { api, loc, scope } = useScope();
+  return useQuery({
+    queryKey: marketingKeys.credits(scope),
+    queryFn: () => api.getCredits(loc),
+    staleTime: 20_000,
+    refetchInterval: 60_000,
+    retry: retryUnlessEntitlement,
+  });
+}
+
+/** Only mounted for callers holding billing.read (§13.6). */
+export function useCreditLedger(q: LedgerQuery, enabled = true) {
+  const { api, loc, scope } = useScope();
+  return useQuery({
+    queryKey: marketingKeys.ledger(scope, q),
+    queryFn: () => api.listCreditLedger(q, loc),
+    enabled,
+    placeholderData: keepPreviousData,
+    retry: false,
+  });
+}
+
+/** Live cost of a (draft) campaign right now. */
+export function useCampaignEstimate(id: string | null, enabled = true) {
+  const { api, loc, scope } = useScope();
+  return useQuery({
+    queryKey: marketingKeys.estimate(scope, id ?? ""),
+    queryFn: () => api.getCampaignEstimate(id!, loc),
+    enabled: enabled && !!id,
+    staleTime: 0,
+    retry: false,
+  });
+}
+
+// Master (§13.7)
+export function useOrgCredits(organizationId: string | null) {
+  return useQuery({
+    queryKey: marketingKeys.platformCredits(organizationId ?? ""),
+    queryFn: () => marketingPlatformService.getOrgCredits(organizationId!),
+    enabled: !!organizationId,
+    retry: 1,
+  });
+}
+
+function usePlatformCreditsInvalidate(organizationId: string) {
+  const qc = useQueryClient();
+  return () => {
+    void qc.invalidateQueries({ queryKey: marketingKeys.platformCredits(organizationId) });
+    void qc.invalidateQueries({ queryKey: marketingKeys.priceBook });
+  };
+}
+
+export function useAdjustOrgCredits(organizationId: string) {
+  const after = usePlatformCreditsInvalidate(organizationId);
+  return useMutation({
+    mutationFn: (body: CreditAdjustmentPayload) =>
+      marketingPlatformService.adjustOrgCredits(organizationId, body),
+    onSettled: after,
+  });
+}
+
+export function useSetOrgCreditThreshold(organizationId: string) {
+  const after = usePlatformCreditsInvalidate(organizationId);
+  return useMutation({
+    mutationFn: (minor: number) => marketingPlatformService.setOrgCreditSettings(organizationId, minor),
+    onSettled: after,
+  });
+}
+
+export function useSetOrgPrices(organizationId: string) {
+  const after = usePlatformCreditsInvalidate(organizationId);
+  return useMutation({
+    mutationFn: (body: {
+      prices: { channel: MarketingChannel; unit_price_minor: number | null }[];
+      note: string | null;
+    }) => marketingPlatformService.setOrgPrices(organizationId, body),
+    onSettled: after,
+  });
+}
+
+export function usePriceBook() {
+  return useQuery({
+    queryKey: marketingKeys.priceBook,
+    queryFn: () => marketingPlatformService.getPriceBook(),
+    retry: 1,
+  });
+}
+
+export function useSetPriceBook() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      prices: { channel: MarketingChannel; unit_price_minor: number }[];
+      note: string | null;
+    }) => marketingPlatformService.setPriceBook(body),
+    onSettled: () => void qc.invalidateQueries({ queryKey: marketingKeys.priceBook }),
+  });
+}
+
 // ── §12 Channel providers (bring-your-own) ─────────────────────────────
 
 /** GET /marketing/providers. A 402 (BYO locked) or 403 (no
@@ -529,7 +646,7 @@ export function useMarketingProviders(enabled = true) {
  * re-read after every write -- nothing is updated optimistically. */
 function useProviderInvalidate() {
   const invalidate = useInvalidate();
-  return () => invalidate("providers", "status", "templates");
+  return () => invalidate("providers", "status", "templates", "credits", "estimate");
 }
 
 export function useSaveProvider() {

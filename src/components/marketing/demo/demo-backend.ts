@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import type { AppError } from "@/services/api";
 import type { SupportTicket } from "@/types/support-ticket";
 import {
+  worstCaseSms,
   measureSms,
   scanVariables,
   smsBodyIssues,
@@ -59,8 +60,19 @@ import type {
   TestSendResult,
   ProviderPutPayload,
   ProviderVerifyPayload,
+  CampaignEstimate,
+  LedgerQuery,
 } from "@/types/marketing";
 import { SYSTEM_TEMPLATE_SEED } from "./system-templates";
+import {
+  DEMO_PRICES,
+  demoAvailable,
+  demoChargeTest,
+  demoCredits,
+  demoLedger,
+  demoReserve,
+  demoSettle,
+} from "./demo-credits";
 import {
   demoCampaignProvider,
   demoChannelProviderStatus,
@@ -78,6 +90,7 @@ export const DEMO_SAVED_NOTE = "Demo: saved for this browser tab only; nothing w
 // ── Small utilities ────────────────────────────────────────────────────
 
 const LOADED_AT = Date.now();
+const DEMO_LINK_BUDGET = 52;
 const ORG_NAME = "Acme Corp";
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const iso = (ms: number) => new Date(ms).toISOString();
@@ -528,6 +541,49 @@ interface DemoCampaign {
   /** For a live "sending" campaign: when it started and how long it runs. */
   runMs?: number;
   schedules: Map<string, MarketingCampaign>;
+  /** §13: the snapshot this campaign is charged at (Wyfy provider only). */
+  charge?: { price: number; units: number; settled: boolean };
+}
+
+/** Units one recipient can cost at most (§13.4): SMS = worst-case segments
+ * with the demo link budget, others 1. */
+function unitsPerRecipient(c: MarketingCampaign): number {
+  if (c.channel !== "sms") return 1;
+  const t = templates.find((x) => x.id === c.template.id);
+  return t?.sms ? Math.max(1, worstCaseSms(t.sms.body, DEMO_LINK_BUDGET).segments) : 1;
+}
+
+function creditsFor(dc: DemoCampaign, stats: MarketingCampaign["stats"]): MarketingCampaign["credits"] {
+  const ch = dc.charge;
+  if (!ch || dc.c.provider?.source === "own") return null;
+  const reserved = dc.c.credits?.reserved_minor ?? 0;
+  const debited = ch.settled
+    ? (dc.c.credits?.debited_minor ?? 0)
+    : Math.min(reserved, stats.submitted * ch.units * ch.price);
+  return {
+    price_snapshot: {
+      channel: dc.c.channel,
+      unit: DEMO_PRICES[dc.c.channel].unit,
+      unit_price_minor: ch.price,
+    },
+    reserved_minor: reserved,
+    debited_minor: debited,
+    released_minor: ch.settled ? (dc.c.credits?.released_minor ?? 0) : 0,
+  };
+}
+
+/** Finish or cancel: debit what went out, release the rest (§13.4 step 6). */
+function settle(dc: DemoCampaign, submitted: number) {
+  const ch = dc.charge;
+  if (!ch || ch.settled || !dc.c.credits) return;
+  const reserved = dc.c.credits.reserved_minor;
+  const debited = Math.min(reserved, submitted * ch.units * ch.price);
+  demoSettle({ id: dc.c.id, name: dc.c.name }, reserved, debited, ch.price, submitted * ch.units);
+  ch.settled = true;
+  dc.c = {
+    ...dc.c,
+    credits: { ...dc.c.credits, debited_minor: debited, released_minor: reserved - debited },
+  };
 }
 
 const STATS0 = {
@@ -720,6 +776,49 @@ const campaigns: DemoCampaign[] = [
   },
 ];
 
+// §13: the seeded campaigns' credits, consistent with the demo ledger.
+(function seedCredits() {
+  const byName = (n: string) => campaigns.find((x) => x.c.name === n)!;
+  const settled = (n: string, reserved: number, debited: number) => {
+    const dc = byName(n);
+    dc.charge = { price: DEMO_PRICES[dc.c.channel].unit_price_minor, units: 1, settled: true };
+    dc.c = {
+      ...dc.c,
+      credits: {
+        price_snapshot: {
+          channel: dc.c.channel,
+          unit: DEMO_PRICES[dc.c.channel].unit,
+          unit_price_minor: DEMO_PRICES[dc.c.channel].unit_price_minor,
+        },
+        reserved_minor: reserved,
+        debited_minor: debited,
+        released_minor: reserved - debited,
+      },
+    };
+  };
+  settled("Weekend brunch offer", 48_720, 23_730);
+  settled("Loyalty reward (August)", 18_300, 3_540);
+  // Live reservations: the sending happy-hour campaign and the scheduled
+  // Diwali one hold credits now, as a real wallet would.
+  for (const n of ["Happy hour this Friday", "Diwali greetings 2026"]) {
+    const dc = byName(n);
+    const price = DEMO_PRICES[dc.c.channel].unit_price_minor;
+    const reach = dc.c.stats.recipients || audience(dc.c.audience_filter).reachable;
+    const reserved = reach * price;
+    demoReserve({ id: dc.c.id, name: dc.c.name }, reserved);
+    dc.charge = { price, units: 1, settled: false };
+    dc.c = {
+      ...dc.c,
+      credits: {
+        price_snapshot: { channel: dc.c.channel, unit: DEMO_PRICES[dc.c.channel].unit, unit_price_minor: price },
+        reserved_minor: reserved,
+        debited_minor: 0,
+        released_minor: 0,
+      },
+    };
+  }
+})();
+
 /** A "sending" campaign advances with the clock, then finishes. */
 function live(dc: DemoCampaign): MarketingCampaign {
   const c = dc.c;
@@ -745,9 +844,10 @@ function live(dc: DemoCampaign): MarketingCampaign {
       stats: { ...stats, pending: 0 },
       updated_at: iso(Date.now()),
     };
+    settle(dc, submitted);
     return dc.c;
   }
-  return { ...c, stats };
+  return { ...c, stats, credits: creditsFor(dc, stats) };
 }
 
 function findCampaign(id: string): DemoCampaign {
@@ -1182,9 +1282,24 @@ export const demoMarketingBackend = {
     await sleep(600);
     const dc = findCampaign(id);
     if (dc.c.status === "cancelled") fail(409, "invalid_status_transition", "Cancelled.");
+    // §13.4 step 7: a test through Wyfy is charged from available; through
+    // the venue's own provider it's free.
+    const own = demoCampaignProvider(dc.c.channel).source === "own";
+    const price = own ? 0 : DEMO_PRICES[dc.c.channel].unit_price_minor;
+    const units = unitsPerRecipient(dc.c);
+    const perMessage = price * units;
+    if (perMessage * body.to.length > demoAvailable()) {
+      const needed = perMessage * body.to.length;
+      fail(402, "insufficient_credits", "Not enough credits.", {
+        needed_minor: needed,
+        available_minor: demoAvailable(),
+        shortfall_minor: needed - demoAvailable(),
+      });
+    }
     note(DEMO_SENT_NOTE);
     return {
       results: body.to.map((to) => ({
+        charged_minor: demoChargeTest({ id: dc.c.id, name: dc.c.name }, price, units),
         to_masked: to.includes("@")
           ? `${to[0]}***${to.slice(to.indexOf("@"))}`
           : `${to.slice(0, 3)}******${to.slice(-4)}`,
@@ -1225,6 +1340,31 @@ export const demoMarketingBackend = {
     }
     const aud = audience(dc.c.audience_filter);
     if (aud.reachable === 0) fail(409, "audience_empty", "Nobody reachable.", { preview: aud });
+    // §13.4 steps 1-2: price snapshot and reservation (Wyfy provider only).
+    let credits: MarketingCampaign["credits"] = null;
+    if (provider.source !== "own") {
+      const price = DEMO_PRICES[dc.c.channel].unit_price_minor;
+      const units = unitsPerRecipient(dc.c);
+      const needed = aud.reachable * units * price;
+      if (needed > demoAvailable()) {
+        fail(402, "insufficient_credits", "Not enough credits.", {
+          needed_minor: needed,
+          available_minor: demoAvailable(),
+          shortfall_minor: needed - demoAvailable(),
+          unit_price_minor: price,
+          units_per_recipient_max: units,
+          reachable: aud.reachable,
+        });
+      }
+      demoReserve({ id: dc.c.id, name: dc.c.name }, needed);
+      dc.charge = { price, units, settled: false };
+      credits = {
+        price_snapshot: { channel: dc.c.channel, unit: DEMO_PRICES[dc.c.channel].unit, unit_price_minor: price },
+        reserved_minor: needed,
+        debited_minor: 0,
+        released_minor: 0,
+      };
+    }
     const now = iso(Date.now());
     if (body.scheduled_at) {
       dc.c = {
@@ -1232,6 +1372,7 @@ export const demoMarketingBackend = {
         status: "scheduled",
         scheduled_at: body.scheduled_at,
         provider,
+        credits,
         updated_at: now,
         version: dc.c.version + 1,
       };
@@ -1241,6 +1382,7 @@ export const demoMarketingBackend = {
         status: "sending",
         started_at: now,
         provider,
+        credits,
         updated_at: now,
         version: dc.c.version + 1,
         stats: {
@@ -1262,6 +1404,8 @@ export const demoMarketingBackend = {
     await sleep(200);
     const dc = findCampaign(id);
     if (dc.c.status !== "scheduled") fail(409, "invalid_status_transition", "Not scheduled.");
+    settle(dc, 0);
+    dc.charge = undefined;
     dc.c = {
       ...dc.c,
       status: "draft",
@@ -1294,6 +1438,7 @@ export const demoMarketingBackend = {
       updated_at: now,
     };
     dc.runMs = undefined;
+    settle(dc, stats.submitted);
     note(DEMO_SAVED_NOTE);
     return dc.c;
   },
@@ -1401,6 +1546,41 @@ export const demoMarketingBackend = {
     note("Demo: no ticket was actually filed.");
     return ticket;
   },
+
+  // ── §13 credits ──────────────────────────────────────────────────────
+  async getCredits() {
+    await sleep(100);
+    const byo = (["sms", "whatsapp", "email"] as MarketingChannel[]).filter(
+      (c) => demoChannelProviderStatus(c).provider_source === "own",
+    );
+    return demoCredits(byo);
+  },
+
+  async listCreditLedger(q: LedgerQuery) {
+    await sleep(150);
+    return demoLedger(q);
+  },
+
+  async getCampaignEstimate(id: string): Promise<CampaignEstimate> {
+    await sleep(120);
+    const dc = findCampaign(id);
+    const aud = audience(dc.c.audience_filter);
+    const source = demoCampaignProvider(dc.c.channel).source;
+    const price = DEMO_PRICES[dc.c.channel];
+    const units = unitsPerRecipient(dc.c);
+    const est = source === "own" ? 0 : aud.reachable * units * price.unit_price_minor;
+    return {
+      provider_source: source,
+      reachable: aud.reachable,
+      unit: price.unit,
+      unit_price_minor: price.unit_price_minor,
+      units_per_recipient_max: units,
+      estimated_max_minor: est,
+      available_minor: demoAvailable(),
+      sufficient: est <= demoAvailable(),
+    };
+  },
+
 };
 
 // Every method the real client has, and nothing else.

@@ -23,6 +23,15 @@ import type {
   PortalConsentResult,
   PortalConsentUpdate,
   PlatformProviders,
+  CampaignEstimate,
+  ChannelPrice,
+  CreditAdjustmentPayload,
+  CreditAdjustmentResult,
+  LedgerQuery,
+  LedgerRow,
+  MarketingCredits,
+  PlatformCredits,
+  PriceBook,
   ProviderDeleteResult,
   ProviderPutPayload,
   ProvidersResponse,
@@ -108,7 +117,10 @@ export function isEntitlementError(err: unknown): boolean {
   const e = requestErrorOf(err);
   if (!e) return false;
   const code = marketingErrorCode(err);
-  return e.status === 402 || code === "feature_not_entitled" || code === "license_not_active";
+  // Switch on the code, not the status: 402 is ALSO `insufficient_credits`
+  // (§13.7), which is not a lock. A 402 with no code at all still reads as
+  // the lock (marketingErrorCode's fallback).
+  return code === "feature_not_entitled" || code === "license_not_active";
 }
 
 // ── Service ─────────────────────────────────────────────────────────────
@@ -389,6 +401,32 @@ export const marketingService = {
     });
   },
 
+  // §13.7 -- marketing credits (customer).
+  async getCredits(locationId?: string | null): Promise<MarketingCredits> {
+    const { data } = await api.get<MarketingCredits>("/marketing/credits", {
+      headers: scoped(locationId),
+    });
+    return data;
+  },
+
+  /** `billing.read` at ORGANIZATION scope; venue-level roles get 403. */
+  async listCreditLedger(q: LedgerQuery, locationId?: string | null): Promise<Page<LedgerRow>> {
+    const { entry_type, ...rest } = q;
+    const { data } = await api.get<Page<LedgerRow>>("/marketing/credits/ledger", {
+      params: params({ ...rest, entry_type: csv(entry_type) }),
+      headers: scoped(locationId),
+    });
+    return data;
+  },
+
+  async getCampaignEstimate(id: string, locationId?: string | null): Promise<CampaignEstimate> {
+    const { data } = await api.get<CampaignEstimate>(
+      `/marketing/campaigns/${encodeURIComponent(id)}/estimate`,
+      { headers: scoped(locationId) },
+    );
+    return data;
+  },
+
   // §12.4 -- bring-your-own channel providers. Org-level routes (pinned
   // ORGANIZATION scope): a location-confined caller gets 403, which the
   // Channels tab turns into a read-only view from /marketing/status.
@@ -461,6 +499,66 @@ export const marketingPlatformService = {
     const { data } = await api.get<PlatformProviders>(
       `/platform/organizations/${encodeURIComponent(organizationId)}/marketing-providers`,
     );
+    return data;
+  },
+
+  // §13.7 -- credits and price book (all pinned GLOBAL on the backend).
+  async getOrgCredits(organizationId: string): Promise<PlatformCredits> {
+    const { data } = await api.get<PlatformCredits>(
+      `/platform/organizations/${encodeURIComponent(organizationId)}/credits`,
+    );
+    return data;
+  },
+
+  async listOrgCreditLedger(organizationId: string, q: LedgerQuery): Promise<Page<LedgerRow>> {
+    const { entry_type, ...rest } = q;
+    const { data } = await api.get<Page<LedgerRow>>(
+      `/platform/organizations/${encodeURIComponent(organizationId)}/credits/ledger`,
+      { params: params({ ...rest, entry_type: csv(entry_type) }) },
+    );
+    return data;
+  },
+
+  async adjustOrgCredits(
+    organizationId: string,
+    body: CreditAdjustmentPayload,
+  ): Promise<CreditAdjustmentResult> {
+    const { data } = await api.post<CreditAdjustmentResult>(
+      `/platform/organizations/${encodeURIComponent(organizationId)}/credits/adjustments`,
+      body,
+    );
+    return data;
+  },
+
+  async setOrgCreditSettings(organizationId: string, lowBalanceThresholdMinor: number) {
+    const { data } = await api.put<PlatformCredits["wallet"]>(
+      `/platform/organizations/${encodeURIComponent(organizationId)}/credits/settings`,
+      { low_balance_threshold_minor: lowBalanceThresholdMinor },
+    );
+    return data;
+  },
+
+  async setOrgPrices(
+    organizationId: string,
+    body: { prices: { channel: MarketingChannel; unit_price_minor: number | null }[]; note: string | null },
+  ) {
+    const { data } = await api.put<Record<MarketingChannel, ChannelPrice>>(
+      `/platform/organizations/${encodeURIComponent(organizationId)}/marketing-prices`,
+      body,
+    );
+    return data;
+  },
+
+  async getPriceBook(): Promise<PriceBook> {
+    const { data } = await api.get<PriceBook>("/platform/marketing/price-book");
+    return data;
+  },
+
+  async setPriceBook(body: {
+    prices: { channel: MarketingChannel; unit_price_minor: number }[];
+    note: string | null;
+  }): Promise<PriceBook> {
+    const { data } = await api.put<PriceBook>("/platform/marketing/price-book", body);
     return data;
   },
 
