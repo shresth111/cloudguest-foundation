@@ -72,11 +72,11 @@ function write(e: Entry): LedgerRow {
 const WYFY_OPS = { id: "u-wyfy-ops", name: "Wyfy Billing" };
 write({
   type: "topup",
-  dAvail: 200_000,
+  dAvail: 500_000,
   dRes: 0,
   at: now - 40 * DAY,
   reference: "UTR 412233198765",
-  note: "Opening top-up: 2,000 credits, paid by bank transfer.",
+  note: "Opening top-up: 5,000 credits, paid by bank transfer.",
   invoice: { id: "inv-demo-1", invoice_number: "INV-2026-00031" },
   actor: WYFY_OPS,
 });
