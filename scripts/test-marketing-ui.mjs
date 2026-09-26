@@ -458,8 +458,12 @@ function walk(dir) {
   }
   return out;
 }
+// The demo backend (src/components/marketing/demo) is the ONE place sample
+// data may live, and only because it is fenced behind isDemo() -- checked
+// in section 2b below. Everything else stays fixture-free.
+const DEMO_DIR = join(ROOT, "src/components/marketing/demo");
 const marketingFiles = [
-  ...walk(join(ROOT, "src/components/marketing")),
+  ...walk(join(ROOT, "src/components/marketing")).filter((f) => !f.startsWith(DEMO_DIR)),
   join(ROOT, "src/components/master/CustomerAddonsPanel.tsx"),
   join(ROOT, "src/services/marketing.service.ts"),
   join(ROOT, "src/services/entitlements.service.ts"),
@@ -480,9 +484,107 @@ const hooks = strip(read("src/hooks/useMarketing.ts"));
 check("the marketing hooks make no optimistic updates", !/onMutate/.test(hooks));
 check("the marketing hooks never toast (screens own their messages)", !/\btoast\b/.test(hooks));
 check(
-  "every marketing query is disabled for the demo workspace",
-  (hooks.match(/useQuery\(/g) ?? []).length - 1 === (hooks.match(/enabled: !demo/g) ?? []).length,
+  "every marketing query and mutation goes through the session's API (useMarketingApi), never the client directly",
+  !/\bmarketingService\./.test(hooks) && (hooks.match(/\bapi\.\w+\(/g) ?? []).length >= 23,
 );
+
+// ---------------------------------------------------------------------------
+// 2b. The demo fence: fixtures only behind isDemo()
+// ---------------------------------------------------------------------------
+console.log("\nthe demo backend is reachable only from a demo session");
+
+const allSrc = walk(join(ROOT, "src"));
+const importersOfDemo = allSrc.filter(
+  (f) => !f.startsWith(DEMO_DIR) && /marketing\/demo\//.test(strip(readFileSync(f, "utf8"))),
+);
+check(
+  "only hooks/useMarketing.ts refers to the demo module",
+  importersOfDemo.length === 1 && importersOfDemo[0].endsWith("src/hooks/useMarketing.ts"),
+  importersOfDemo.map((f) => relative(ROOT, f)).join(", "),
+);
+const hooksRaw = read("src/hooks/useMarketing.ts");
+const valueImports = [...hooksRaw.matchAll(/^import (?!type)[^;]*marketing\/demo[^;]*;/gm)];
+check(
+  "it never imports the demo module statically (type-only or lazy import())",
+  valueImports.length === 0,
+);
+check(
+  "the lazy import lives only in loadDemoMarketingApi",
+  (hooks.match(/import\("@\/components\/marketing\/demo\//g) ?? []).length === 1 &&
+    /function loadDemoMarketingApi\(\)[\s\S]{0,200}import\("@\/components\/marketing\/demo\/demo-backend"\)/.test(
+      hooks,
+    ),
+);
+check(
+  "loadDemoMarketingApi is reached only through the demo proxy",
+  (hooks.match(/loadDemoMarketingApi\(/g) ?? []).length === 2 &&
+    /const demoMarketingApi = new Proxy[\s\S]{0,400}loadDemoMarketingApi\(\)/.test(hooks),
+);
+check(
+  "the demo proxy is chosen only when useIsDemo() is true",
+  (hooks.match(/\bdemoMarketingApi\b/g) ?? []).length === 2 &&
+    /return useIsDemo\(\) \? demoMarketingApi : marketingService;/.test(hooks),
+);
+check(
+  "no other marketing module talks to marketingService directly",
+  marketingFiles
+    .filter((f) => !/services\/marketing\.service\.ts$|hooks\/useMarketing\.ts$/.test(f))
+    .every((f) => !/\bmarketingService\./.test(strip(readFileSync(f, "utf8")))),
+);
+const demoSrc = walk(DEMO_DIR)
+  .map((f) => strip(readFileSync(f, "utf8")))
+  .join("\n");
+check(
+  "the demo backend makes no network request of any kind",
+  !/import (?!type)[^;]*@\/services\/|\bfetch\(|axios|XMLHttpRequest|guestPortalApi/.test(demoSrc),
+);
+check(
+  "every demo write says nothing was actually sent",
+  /DEMO_SENT_NOTE = "Demo: nothing was actually sent\."/.test(demoSrc) &&
+    (demoSrc.match(/note\(DEMO_(SENT|SAVED)_NOTE\)/g) ?? []).length >= 11,
+);
+check(
+  "demo templates are the backend seed, all ten",
+  (readFileSync(join(DEMO_DIR, "system-templates.ts"), "utf8").match(/system_key: "/g) ?? [])
+    .length === 10,
+);
+
+// Built output (when a build is present): the fixtures ship in their own
+// lazily-loaded chunk, which no chunk imports statically.
+{
+  const assetsDir = join(ROOT, ".output/public/assets");
+  let files = [];
+  try {
+    files = readdirSync(assetsDir).filter((f) => f.endsWith(".js"));
+  } catch {
+    files = [];
+  }
+  if (files.length === 0) {
+    console.log("  skip no build output; run `bun run build` to check the demo chunk");
+  } else {
+    const holders = files.filter((f) =>
+      readFileSync(join(assetsDir, f), "utf8").includes("Monsoon chai special"),
+    );
+    check(
+      "the demo fixtures are in exactly one built chunk",
+      holders.length === 1,
+      holders.join(", "),
+    );
+    const chunk = holders[0];
+    const staticImporters = files.filter((f) => {
+      const code = readFileSync(join(assetsDir, f), "utf8");
+      return (
+        f !== chunk &&
+        new RegExp(`(from|import)\\s*"\\./${chunk.replace(/[.]/g, "\\.")}"`).test(code)
+      );
+    });
+    check(
+      "no chunk imports the demo chunk statically",
+      staticImporters.length === 0,
+      staticImporters.join(", "),
+    );
+  }
+}
 
 for (const f of marketingFiles) {
   const code = strip(readFileSync(f, "utf8"));
@@ -530,7 +632,11 @@ check(
   "402 license_not_active renders the licence banner",
   /license_not_active[\s\S]{0,80}MarketingLicenceLapsed/.test(view),
 );
-check("the demo workspace gets an honest panel", /if \(demo\)/.test(view));
+check(
+  "the demo workspace is never locked and says it is sample data",
+  /if \(!demo && \(code === "feature_not_entitled"/.test(view) &&
+    /marketing-demo-banner/.test(view),
+);
 check("no tab mounts before /marketing/status answered", /if \(!status\.data\) return/.test(view));
 const upsell = strip(read("src/components/marketing/MarketingLockedUpsell.tsx"));
 check("the upsell files a real support ticket", /ticketService\.create\(/.test(upsell));

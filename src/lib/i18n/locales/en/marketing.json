@@ -42,8 +42,7 @@
     "lapsed": "Your Wyfy Guest licence is not active, so Marketing is unavailable until it is renewed."
   },
   "demo": {
-    "title": "Not available in the demo workspace",
-    "body": "Marketing sends real messages to real guests, so there is nothing honest to show here. Sign in to a live account to use it."
+    "banner": "Demo workspace: sample guests, campaigns and numbers. Everything works, but nothing is actually sent, and your changes last only until you reload."
   },
   "notConfigured": "Not set up",
   "reachable": "Reachable",

@@ -35,9 +35,9 @@ import type {
 /**
  * TanStack Query hooks for the Marketing add-on. Every query:
  *
- *  - is `enabled: !demo` -- the demo workspace has no backend session and
- *    this screen has no fixtures (the page renders an honest "not available
- *    in the demo" panel instead; see MarketingPage);
+ *  - goes through `useMarketingApi()`: the real client for every real
+ *    session, and the in-memory demo backend (no network at all) for the
+ *    demo workspace, whose key space is kept separate (`demo:` venue key);
  *  - is keyed on the organization and on the `X-Location-Id` it sends (the
  *    venue for a location-scoped caller, nothing for an org-scoped one --
  *    see lib/marketing-scope.ts), so a switch of venue or of scope can never
@@ -45,6 +45,52 @@ import type {
  *  - does NOT retry a 402. A locked add-on is an answer, not a blip, and
  *    retrying it only delays the upsell screen.
  */
+
+import type { DemoMarketingBackend } from "@/components/marketing/demo/demo-backend";
+
+/** The Marketing API as the screens see it. */
+export type MarketingApi = typeof marketingService;
+
+/**
+ * DEMO ONLY: the in-memory demo backend, fetched as its own chunk the first
+ * time a demo session calls it. This is the ONLY import of the demo module
+ * anywhere, and it is reachable only through `useMarketingApi()` below when
+ * `useIsDemo()` is true -- a real account never downloads the fixtures and
+ * never runs them. Enforced by scripts/test-marketing-ui.mjs.
+ */
+let demoApiPromise: Promise<MarketingApi> | null = null;
+function loadDemoMarketingApi(): Promise<MarketingApi> {
+  demoApiPromise ??= import("@/components/marketing/demo/demo-backend").then(
+    (m) => m.demoMarketingBackend as unknown as MarketingApi,
+  );
+  return demoApiPromise;
+}
+// Compile-time: the demo backend implements every method of the real client.
+type _DemoCoversApi = {
+  [K in keyof MarketingApi]: K extends keyof DemoMarketingBackend ? true : never;
+};
+const _demoCoversApi: _DemoCoversApi = {} as { [K in keyof MarketingApi]: true };
+void _demoCoversApi;
+const demoMarketingApi = new Proxy({} as MarketingApi, {
+  get:
+    (_target, method: string) =>
+    async (...args: unknown[]) => {
+      const api = (await loadDemoMarketingApi()) as unknown as Record<
+        string,
+        (...a: unknown[]) => Promise<unknown>
+      >;
+      return api[method](...args);
+    },
+});
+
+/**
+ * Which Marketing API this session talks to: the real client, or -- for the
+ * demo workspace only (src/lib/demo-host.ts) -- the in-memory demo backend,
+ * which makes no network request at all.
+ */
+export function useMarketingApi(): MarketingApi {
+  return useIsDemo() ? demoMarketingApi : marketingService;
+}
 
 const retryUnlessEntitlement = (failureCount: number, err: unknown) =>
   !isEntitlementError(err) && failureCount < 1;
@@ -96,9 +142,12 @@ export function useMarketingLocationId(): string | null {
  * the campaigns list's Venue column. Only venues of the active organization. */
 export function useOrgVenues() {
   const q = useCustomerLocations();
+  const demo = useIsDemo();
   const org = resolveActiveOrganizationId();
+  // The demo workspace's fixture venues carry their own org id, which is not
+  // the demo session's; in demo every listed venue is the org's.
   const venues = (q.data ?? [])
-    .filter((l) => !org || l.organizationId === org)
+    .filter((l) => demo || !org || l.organizationId === org)
     .map((l) => ({ id: l.id, name: l.name }));
   return { ...q, venues };
 }
@@ -120,19 +169,19 @@ export function useVenueLabel() {
 
 function useScope() {
   const demo = useIsDemo();
+  const api = useMarketingApi();
   const loc = useMarketingLocationId();
   const org = resolveActiveOrganizationId();
-  return { demo, loc, scope: { org, loc } as Scope };
+  return { demo, api, loc, scope: { org, loc: demo ? `demo:${loc}` : loc } as Scope };
 }
 
 // ── Queries ─────────────────────────────────────────────────────────────
 
 export function useMarketingStatus() {
-  const { demo, loc, scope } = useScope();
+  const { api, loc, scope } = useScope();
   return useQuery({
     queryKey: marketingKeys.status(scope),
-    queryFn: () => marketingService.getStatus(loc),
-    enabled: !demo,
+    queryFn: () => api.getStatus(loc),
     staleTime: 60_000,
     retry: retryUnlessEntitlement,
   });
@@ -147,22 +196,21 @@ export function useMarketingStatus() {
  * no other way to ask for one venue's opt-in setting.
  */
 export function useVenueMarketingStatus(venueId: string | null, enabled = true) {
-  const { demo, scope } = useScope();
+  const { api, scope } = useScope();
   return useQuery({
     queryKey: ["marketing", scope.org, `venue:${venueId ?? "org-default"}`, "status"] as const,
-    queryFn: () => marketingService.getStatus(venueId),
-    enabled: !demo && enabled,
+    queryFn: () => api.getStatus(venueId),
+    enabled,
     staleTime: 60_000,
     retry: retryUnlessEntitlement,
   });
 }
 
 export function useMarketingContacts(q: ContactListQuery) {
-  const { demo, loc, scope } = useScope();
+  const { api, loc, scope } = useScope();
   return useQuery({
     queryKey: marketingKeys.contacts(scope, q),
-    queryFn: () => marketingService.listContacts(q, loc),
-    enabled: !demo,
+    queryFn: () => api.listContacts(q, loc),
     placeholderData: keepPreviousData,
     retry: retryUnlessEntitlement,
   });
@@ -185,12 +233,12 @@ export function useDebounced<T>(value: T, ms = 400): T {
 }
 
 export function useAudiencePreview(filter: AudienceFilter | null) {
-  const { demo, loc, scope } = useScope();
+  const { api, loc, scope } = useScope();
   const debounced = useDebounced(filter, 400);
   return useQuery({
     queryKey: marketingKeys.audience(scope, debounced),
-    queryFn: ({ signal }) => marketingService.previewAudience(debounced!, loc, signal),
-    enabled: !demo && !!debounced,
+    queryFn: ({ signal }) => api.previewAudience(debounced!, loc, signal),
+    enabled: !!debounced,
     // Counts are exact server-side COUNTs of consent state that changes as
     // guests opt in and out; a short stale window keeps the number honest.
     staleTime: 10_000,
@@ -200,21 +248,20 @@ export function useAudiencePreview(filter: AudienceFilter | null) {
 }
 
 export function useMarketingTemplates(q: TemplateListQuery) {
-  const { demo, loc, scope } = useScope();
+  const { api, loc, scope } = useScope();
   return useQuery({
     queryKey: marketingKeys.templates(scope, q),
-    queryFn: () => marketingService.listTemplates(q, loc),
-    enabled: !demo,
+    queryFn: () => api.listTemplates(q, loc),
     retry: retryUnlessEntitlement,
   });
 }
 
 export function useMarketingTemplate(id: string | null) {
-  const { demo, loc, scope } = useScope();
+  const { api, loc, scope } = useScope();
   return useQuery({
     queryKey: marketingKeys.template(scope, id ?? ""),
-    queryFn: () => marketingService.getTemplate(id!, loc),
-    enabled: !demo && !!id,
+    queryFn: () => api.getTemplate(id!, loc),
+    enabled: !!id,
     retry: retryUnlessEntitlement,
   });
 }
@@ -222,23 +269,22 @@ export function useMarketingTemplate(id: string | null) {
 /** Server-side render of a template with sample values. Debounced, since the
  * editor calls it as the owner types. */
 export function useTemplatePreview(body: TemplatePreviewRequest | null) {
-  const { demo, loc, scope } = useScope();
+  const { api, loc, scope } = useScope();
   const debounced = useDebounced(body, 400);
   return useQuery({
     queryKey: marketingKeys.templatePreview(scope, debounced),
-    queryFn: ({ signal }) => marketingService.previewTemplate(debounced!, loc, signal),
-    enabled: !demo && !!debounced,
+    queryFn: ({ signal }) => api.previewTemplate(debounced!, loc, signal),
+    enabled: !!debounced,
     placeholderData: keepPreviousData,
     retry: false,
   });
 }
 
 export function useMarketingCampaigns(q: CampaignListQuery) {
-  const { demo, loc, scope } = useScope();
+  const { api, loc, scope } = useScope();
   return useQuery({
     queryKey: marketingKeys.campaigns(scope, q),
-    queryFn: () => marketingService.listCampaigns(q, loc),
-    enabled: !demo,
+    queryFn: () => api.listCampaigns(q, loc),
     placeholderData: keepPreviousData,
     // A campaign in `sending` moves on its own; keep the list's counters
     // moving with it while anything is in flight.
@@ -249,22 +295,22 @@ export function useMarketingCampaigns(q: CampaignListQuery) {
 }
 
 export function useMarketingCampaign(id: string | null) {
-  const { demo, loc, scope } = useScope();
+  const { api, loc, scope } = useScope();
   return useQuery({
     queryKey: marketingKeys.campaign(scope, id ?? ""),
-    queryFn: () => marketingService.getCampaign(id!, loc),
-    enabled: !demo && !!id,
+    queryFn: () => api.getCampaign(id!, loc),
+    enabled: !!id,
     refetchInterval: (query) => (query.state.data?.status === "sending" ? 10_000 : false),
     retry: retryUnlessEntitlement,
   });
 }
 
 export function useCampaignRecipients(id: string | null, q: RecipientListQuery, live = false) {
-  const { demo, loc, scope } = useScope();
+  const { api, loc, scope } = useScope();
   return useQuery({
     queryKey: marketingKeys.recipients(scope, id ?? "", q),
-    queryFn: () => marketingService.listRecipients(id!, q, loc),
-    enabled: !demo && !!id,
+    queryFn: () => api.listRecipients(id!, q, loc),
+    enabled: !!id,
     placeholderData: keepPreviousData,
     refetchInterval: live ? 10_000 : false,
     retry: retryUnlessEntitlement,
@@ -272,11 +318,10 @@ export function useCampaignRecipients(id: string | null, q: RecipientListQuery, 
 }
 
 export function useMarketingDeliveries(q: DeliveryListQuery) {
-  const { demo, loc, scope } = useScope();
+  const { api, loc, scope } = useScope();
   return useQuery({
     queryKey: marketingKeys.deliveries(scope, q),
-    queryFn: () => marketingService.listDeliveries(q, loc),
-    enabled: !demo,
+    queryFn: () => api.listDeliveries(q, loc),
     placeholderData: keepPreviousData,
     retry: retryUnlessEntitlement,
   });
@@ -302,112 +347,103 @@ function useInvalidate() {
 }
 
 export function useSetPortalConsent() {
-  const { loc } = useScope();
+  const { api, loc } = useScope();
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: (body: PortalConsentUpdate) => marketingService.setPortalConsent(body, loc),
+    mutationFn: (body: PortalConsentUpdate) => api.setPortalConsent(body, loc),
     onSuccess: () => invalidate("status"),
   });
 }
 
 export function useOptOutContact() {
-  const { loc } = useScope();
+  const { api, loc } = useScope();
   const invalidate = useInvalidate();
   return useMutation({
     mutationFn: (v: { guestId: string; channels: MarketingChannel[]; note?: string | null }) =>
-      marketingService.optOutContact(
-        v.guestId,
-        { channels: v.channels, note: v.note ?? null },
-        loc,
-      ),
+      api.optOutContact(v.guestId, { channels: v.channels, note: v.note ?? null }, loc),
     onSuccess: () => invalidate("contacts", "status", "audience"),
   });
 }
 
 export function useCreateTemplate() {
-  const { loc } = useScope();
+  const { api, loc } = useScope();
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: (body: TemplateWritePayload) => marketingService.createTemplate(body, loc),
+    mutationFn: (body: TemplateWritePayload) => api.createTemplate(body, loc),
     onSuccess: () => invalidate("templates"),
   });
 }
 
 export function useUpdateTemplate() {
-  const { loc } = useScope();
+  const { api, loc } = useScope();
   const invalidate = useInvalidate();
   return useMutation({
     mutationFn: (v: { id: string; body: TemplatePatchPayload }) =>
-      marketingService.updateTemplate(v.id, v.body, loc),
+      api.updateTemplate(v.id, v.body, loc),
     onSuccess: () => invalidate("templates", "template"),
   });
 }
 
 export function useDeleteTemplate() {
-  const { loc } = useScope();
+  const { api, loc } = useScope();
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: (id: string) => marketingService.deleteTemplate(id, loc),
+    mutationFn: (id: string) => api.deleteTemplate(id, loc),
     onSuccess: () => invalidate("templates"),
   });
 }
 
 export function useDuplicateTemplate() {
-  const { loc } = useScope();
+  const { api, loc } = useScope();
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: (v: { id: string; name: string }) =>
-      marketingService.duplicateTemplate(v.id, v.name, loc),
+    mutationFn: (v: { id: string; name: string }) => api.duplicateTemplate(v.id, v.name, loc),
     onSuccess: () => invalidate("templates"),
   });
 }
 
 export function useCreateCampaign() {
-  const { loc } = useScope();
+  const { api, loc } = useScope();
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: (body: CampaignCreatePayload) => marketingService.createCampaign(body, loc),
+    mutationFn: (body: CampaignCreatePayload) => api.createCampaign(body, loc),
     onSuccess: () => invalidate("campaigns"),
   });
 }
 
 export function useUpdateCampaign() {
-  const { loc } = useScope();
+  const { api, loc } = useScope();
   const invalidate = useInvalidate();
   return useMutation({
     mutationFn: (v: { id: string; body: CampaignPatchPayload }) =>
-      marketingService.updateCampaign(v.id, v.body, loc),
+      api.updateCampaign(v.id, v.body, loc),
     onSuccess: () => invalidate("campaigns", "campaign"),
   });
 }
 
 export function useDeleteCampaign() {
-  const { loc } = useScope();
+  const { api, loc } = useScope();
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: (id: string) => marketingService.deleteCampaign(id, loc),
+    mutationFn: (id: string) => api.deleteCampaign(id, loc),
     onSuccess: () => invalidate("campaigns"),
   });
 }
 
 export function useTestSend() {
-  const { loc } = useScope();
+  const { api, loc } = useScope();
   return useMutation({
     mutationFn: (v: { id: string; to: string[]; sampleGuestName?: string | null }) =>
-      marketingService.testSend(
-        v.id,
-        { to: v.to, sample_guest_name: v.sampleGuestName ?? null },
-        loc,
-      ),
+      api.testSend(v.id, { to: v.to, sample_guest_name: v.sampleGuestName ?? null }, loc),
   });
 }
 
 export function useScheduleCampaign() {
-  const { loc } = useScope();
+  const { api, loc } = useScope();
   const invalidate = useInvalidate();
   return useMutation({
     mutationFn: (v: { id: string; scheduledAt: string | null; idempotencyKey: string }) =>
-      marketingService.scheduleCampaign(
+      api.scheduleCampaign(
         v.id,
         { scheduled_at: v.scheduledAt, idempotency_key: v.idempotencyKey },
         loc,
@@ -417,19 +453,19 @@ export function useScheduleCampaign() {
 }
 
 export function useUnscheduleCampaign() {
-  const { loc } = useScope();
+  const { api, loc } = useScope();
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: (id: string) => marketingService.unscheduleCampaign(id, loc),
+    mutationFn: (id: string) => api.unscheduleCampaign(id, loc),
     onSuccess: () => invalidate("campaigns", "campaign"),
   });
 }
 
 export function useCancelCampaign() {
-  const { loc } = useScope();
+  const { api, loc } = useScope();
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: (id: string) => marketingService.cancelCampaign(id, loc),
+    mutationFn: (id: string) => api.cancelCampaign(id, loc),
     onSuccess: () => invalidate("campaigns", "campaign", "recipients", "deliveries"),
   });
 }

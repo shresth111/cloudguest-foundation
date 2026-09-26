@@ -112,7 +112,8 @@
     "test:dashboard-qa-copy": "node scripts/test-customer-dashboard-qa-copy.mjs",
     "test:quotation-delete": "node scripts/test-quotation-delete.mjs",
     "test:marketing-ui": "node scripts/test-marketing-ui.mjs",
-    "test:marketing-composer": "node scripts/test-marketing-composer.mjs"
+    "test:marketing-composer": "node scripts/test-marketing-composer.mjs",
+    "test:marketing-demo": "node scripts/test-marketing-demo.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

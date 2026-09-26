@@ -41,9 +41,10 @@ function isTab(v: unknown): v is MarketingTab {
  * `GET /marketing/status` is read once here and passed down. Its answer
  * decides what renders, in this order:
  *
- *   - demo workspace: an honest "not available" panel. The demo has no
- *     backend session and this screen has no fixtures -- it sends real
- *     messages to real people, so there is nothing truthful to fake.
+ *   - demo workspace: every tab runs against the in-memory demo backend
+ *     (components/marketing/demo, via `useMarketingApi`), never locked, with
+ *     a banner saying the data is sample data and nothing is sent. No
+ *     request leaves the browser.
  *   - 402 `feature_not_entitled` (or `/me/entitlements` already saying the
  *     add-on is off): the upsell. Not an error state -- a locked add-on is
  *     an answer.
@@ -108,29 +109,13 @@ export function MarketingView({
     </p>
   );
 
-  if (demo) {
-    return (
-      <div className="space-y-5">
-        {intro}
-        <EmptyState
-          icon={Info}
-          title={t("demo.title", "Not available in the demo workspace")}
-          description={t(
-            "demo.body",
-            "Marketing sends real messages to real guests, so there is nothing honest to show here. Sign in to a live account to use it.",
-          )}
-        />
-      </div>
-    );
-  }
-
   const code = status.error ? marketingErrorCode(status.error) : null;
 
   // Locked: the backend's 402 is the truth. `/me/entitlements` saying
   // "off" is the same fact from the same snapshot, so it is allowed to show
   // the upsell without waiting for the status call -- but it is never
   // allowed to UNLOCK anything; only a 2xx from /marketing/status does that.
-  if (code === "feature_not_entitled" || (entitled === false && !status.data)) {
+  if (!demo && (code === "feature_not_entitled" || (entitled === false && !status.data))) {
     return <MarketingLockedUpsell locationId={locationId} />;
   }
   if (code === "license_not_active") {
@@ -162,6 +147,21 @@ export function MarketingView({
   return (
     <div className="space-y-5">
       {intro}
+      {demo && (
+        <p
+          role="note"
+          data-testid="marketing-demo-banner"
+          className="flex items-start gap-2 rounded-lg border border-violet-200 bg-violet-50 p-3 text-sm text-violet-900 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-200"
+        >
+          <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          <span>
+            {t(
+              "demo.banner",
+              "Demo workspace: sample guests, campaigns and numbers. Everything works, but nothing is actually sent, and your changes last only until you reload.",
+            )}
+          </span>
+        </p>
+      )}
       <ChannelStatusStrip channels={status.data.channels} />
 
       <Tabs value={tab} onValueChange={(v) => isTab(v) && go({ tab: v, campaign: null })}>
