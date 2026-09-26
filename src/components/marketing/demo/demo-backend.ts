@@ -1384,7 +1384,7 @@ export const demoMarketingBackend = {
       locationId: null,
       createdByUserId: "u-demo",
       createdByName: "Demo Admin",
-      createdByEmail: "admin@example.com",
+      createdByEmail: "owner@acmecafe.in",
       assignedToUserId: null,
       assignedToName: null,
       subject,
