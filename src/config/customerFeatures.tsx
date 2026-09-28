@@ -80,6 +80,10 @@ const MarketingView = lazyView(
   () => import("@/components/marketing/MarketingView"),
   "MarketingView",
 );
+// Security -> Firewall. Its own module too. It reads the venue from the same
+// store and applies the controller gate itself (this shell has none), so the
+// staff `/agent` preview shows the same notice the owner's page does.
+const FirewallView = lazyView(() => import("@/components/security/FirewallView"), "FirewallView");
 
 const BasicDashboardView = lazyView(basic, "BasicDashboardView");
 const BasicUsersView = lazyView(basic, "BasicUsersView");
@@ -195,6 +199,8 @@ function featureElement(id: string, ctx: { locationId?: string; masked?: boolean
     // campaign are local state here rather than `?tab=`/`?campaign=`.
     case "marketing":
       return <MarketingView locationId={ctx.locationId} />;
+    case "firewall":
+      return <FirewallView locationId={ctx.locationId} />;
     default:
       return <GenericFeatureView feature={id} />;
   }

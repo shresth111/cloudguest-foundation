@@ -163,12 +163,13 @@ writeFileSync(
    import { CUSTOMER_NAV_GROUPS } from "${p("src/lib/customerNav.ts")}";
    import { BLOCKING_TABS, blockingTabsFor, initialBlockingTab }
      from "${p("src/lib/blocking.ts")}";
+   import * as firewallRules from "${p("src/lib/firewall-rules.ts")}";
    export { React, renderToStaticMarkup, QueryClient, QueryClientProvider,
             ControllerManagedFeatureNotice, deriveLocationLiveness,
             locationIsControllerManaged, locationControllerVendor,
             featureAppliesToControllerVenue, CONTROLLER_UNSUPPORTED_FEATURE_IDS,
             controllerVenueFeatureReason, CUSTOMER_NAV_GROUPS,
-            BLOCKING_TABS, blockingTabsFor, initialBlockingTab };`,
+            BLOCKING_TABS, blockingTabsFor, initialBlockingTab, firewallRules };`,
 );
 
 const outfile = join(outdir, "bundle.cjs");
@@ -313,7 +314,7 @@ check(
 
 console.log("\nwhich screens the gate covers");
 
-for (const id of ["vlans", "dhcp", "port-forwarding", "voip", "website-blocking"]) {
+for (const id of ["vlans", "dhcp", "port-forwarding", "voip", "website-blocking", "firewall"]) {
   check(`${id}-is-gated`, m.featureAppliesToControllerVenue(id) === false);
 }
 for (const id of [
@@ -334,9 +335,11 @@ for (const id of [
 ]) {
   check(`${id}-is-not-gated`, m.featureAppliesToControllerVenue(id) === true);
 }
+// Six since Security -> Firewall: cloud-guest#304's push is MikroTik-only
+// and refuses a controller-managed router at create, push and band.
 check(
-  "the-gated-list-is-exactly-five",
-  m.CONTROLLER_UNSUPPORTED_FEATURE_IDS.length === 5,
+  "the-gated-list-is-exactly-six",
+  m.CONTROLLER_UNSUPPORTED_FEATURE_IDS.length === 6,
   `got ${m.CONTROLLER_UNSUPPORTED_FEATURE_IDS.length}`,
 );
 // Every gated id still has to name a real screen -- a typo here would
@@ -349,22 +352,37 @@ const networkIds = (m.CUSTOMER_NAV_GROUPS.find((g) => g.id === "network")?.items
   (i) => i.id,
 );
 const tabGatedIds = m.BLOCKING_TABS.map((t) => t.controllerGatedAs).filter(Boolean);
+// The one gated row outside Network, named rather than inferred: Security ->
+// Firewall is a whole page that writes RouterOS and nothing else, so greying
+// the whole row at a controller-only venue is right for it (unlike Blocking,
+// whose Guests tab works there).
+const securityIds = (m.CUSTOMER_NAV_GROUPS.find((g) => g.id === "security")?.items ?? []).map(
+  (i) => i.id,
+);
+const GATED_OUTSIDE_NETWORK = ["firewall"];
 check(
   "every-gated-id-is-a-real-screen",
   m.CONTROLLER_UNSUPPORTED_FEATURE_IDS.every(
-    (id) => networkIds.includes(id) !== tabGatedIds.includes(id),
+    (id) =>
+      [networkIds.includes(id), tabGatedIds.includes(id), securityIds.includes(id)].filter(Boolean)
+        .length === 1,
   ),
   "a typo here would silently gate nothing",
 );
 check(
-  "every-gated-nav-row-is-in-the-Network-group",
-  m.CONTROLLER_UNSUPPORTED_FEATURE_IDS.filter((id) => !tabGatedIds.includes(id)).every((id) =>
-    networkIds.includes(id),
-  ) &&
+  "every-gated-nav-row-is-in-Network-or-is-the-Firewall-row",
+  m.CONTROLLER_UNSUPPORTED_FEATURE_IDS.filter(
+    (id) => !tabGatedIds.includes(id) && !GATED_OUTSIDE_NETWORK.includes(id),
+  ).every((id) => networkIds.includes(id)) &&
     m.CUSTOMER_NAV_GROUPS.filter((g) => g.id !== "network")
       .flatMap((g) => g.items.map((i) => i.id))
+      .filter((id) => !GATED_OUTSIDE_NETWORK.includes(id))
       .every((id) => m.featureAppliesToControllerVenue(id)),
   "a gated row outside Network would grey a whole page, not a screen",
+);
+check(
+  "the-firewall-row-is-in-Security-and-gated",
+  securityIds.includes("firewall") && m.featureAppliesToControllerVenue("firewall") === false,
 );
 check(
   "website-blocking-is-a-blocking-tab-not-a-nav-row",
@@ -452,7 +470,9 @@ check(
 check("notice-names-the-vendor", /TP-Link Omada controller/.test(notice));
 check(
   "notice-names-the-other-four-screens-too",
-  /Network Zones, IP Addresses, Port Forwarding, Call Priority and website blocking/.test(notice),
+  /Network Zones, IP Addresses, Port Forwarding, Call Priority, website blocking and firewall\s+rules/.test(
+    notice,
+  ),
   "an owner told only about this one will try the other four in turn",
 );
 check(
@@ -498,6 +518,235 @@ check(
   /managed by a network controller/.test(neutralNotice) &&
     !/undefined|null|a --/.test(neutralNotice),
 );
+
+// ---------------------------------------------------------------------------
+// 5. Security -> Firewall speaks plainly, and says what the push said.
+//    `lib/firewall-rules.ts` is the whole translation between the owner's
+//    pickers and cloud-guest#304's rule fields and error codes, so it is
+//    executed here rather than grepped.
+// ---------------------------------------------------------------------------
+
+console.log("\nSecurity -> Firewall: plain words in, forward rules out");
+{
+  const fw = m.firewallRules;
+  const draft = (over = {}) => ({
+    name: "Printer off-limits",
+    decision: "block",
+    who: "",
+    where: "192.168.88.20",
+    service: "everything",
+    customProtocol: "tcp",
+    customPort: "",
+    priority: 100,
+    isEnabled: true,
+    ...over,
+  });
+  const f = fw.draftToFields(draft());
+  check(
+    "a-customer-rule-is-always-forward",
+    f.chain === "forward" && fw.draftToFields(draft({ decision: "allow" })).chain === "forward",
+    "the writer manages forward only; input/output is how a router got cut off",
+  );
+  check(
+    "block-is-drop-and-allow-is-accept",
+    f.action === "drop" && fw.draftToFields(draft({ decision: "allow" })).action === "accept",
+  );
+  check(
+    "anyone-and-anywhere-are-empty-not-0.0.0.0",
+    f.sourceAddress === null &&
+      fw.draftToFields(draft({ where: "", decision: "allow" })).destinationAddress === null,
+  );
+  check(
+    "a-preset-service-sets-protocol-and-port",
+    (() => {
+      const w = fw.draftToFields(draft({ service: "web-secure" }));
+      return w.protocol === "tcp" && w.destinationPort === 443;
+    })(),
+  );
+  check(
+    "a-custom-port-keeps-the-chosen-protocol",
+    (() => {
+      const w = fw.draftToFields(
+        draft({ service: "custom", customProtocol: "udp", customPort: "5060" }),
+      );
+      return w.protocol === "udp" && w.destinationPort === 5060;
+    })(),
+  );
+  check("a-valid-draft-has-no-errors", Object.keys(fw.validateFirewallDraft(draft())).length === 0);
+  check(
+    "a-block-with-no-who-and-no-where-is-refused-before-save",
+    !!fw.validateFirewallDraft(draft({ where: "" })).where,
+    "#304 refuses it at Apply (ACCESS_RULES_WOULD_BREAK_GUEST_PATH)",
+  );
+  check(
+    "blocking-a-management-port-is-refused-before-save",
+    !!fw.validateFirewallDraft(draft({ service: "custom", customPort: "8728" })).customPort,
+    "#304 refuses it at Apply (ACCESS_RULES_WOULD_ORPHAN_MANAGEMENT)",
+  );
+  check(
+    "no-preset-can-only-fail",
+    fw.FIREWALL_SERVICES.filter((s) => s.port != null).every(
+      (s) => !fw.MANAGEMENT_PORTS.includes(s.port),
+    ),
+  );
+  check(
+    "a-bad-address-is-caught",
+    !!fw.validateFirewallDraft(draft({ where: "10.0.0.300" })).where,
+  );
+  check("a-cidr-range-is-fine", !fw.validateFirewallDraft(draft({ where: "10.0.0.0/24" })).where);
+  check(
+    "a-stored-rule-round-trips-through-the-form",
+    (() => {
+      const rule = {
+        name: "x",
+        chain: "forward",
+        action: "drop",
+        protocol: "tcp",
+        sourceAddress: "192.168.88.5",
+        destinationAddress: null,
+        sourcePort: null,
+        destinationPort: 8080,
+        priority: 7,
+        isEnabled: false,
+      };
+      const back = fw.draftToFields(fw.ruleToDraft(rule));
+      return (
+        back.protocol === "tcp" &&
+        back.destinationPort === 8080 &&
+        back.sourceAddress === "192.168.88.5" &&
+        back.priority === 7 &&
+        back.isEnabled === false
+      );
+    })(),
+  );
+  check(
+    "an-edit-that-clears-a-field-sends-an-explicit-null",
+    (() => {
+      // cloud-guest#306: on PUT an omitted key is "unchanged" and an explicit
+      // null clears it. JSON drops \`undefined\`, so a cleared address or
+      // port must come out of the form as null or the edit keeps the old one.
+      const f = fw.draftToFields(
+        draft({ decision: "allow", who: "", where: "", service: "everything" }),
+      );
+      const body = JSON.parse(JSON.stringify(f));
+      return (
+        "sourceAddress" in body &&
+        body.sourceAddress === null &&
+        "destinationAddress" in body &&
+        body.destinationAddress === null &&
+        "destinationPort" in body &&
+        body.destinationPort === null
+      );
+    })(),
+    "a cleared field serialised as undefined is silently kept by the backend",
+  );
+  check(
+    "operator-made-router-rules-are-read-only-here",
+    fw.isCustomerEditable({
+      chain: "input",
+      action: "drop",
+      protocol: "all",
+      sourceAddress: null,
+      destinationAddress: null,
+      sourcePort: null,
+      destinationPort: null,
+      priority: 1,
+      isEnabled: true,
+    }).editable === false,
+  );
+  check(
+    "the-table-is-in-router-order",
+    fw
+      .inRouterOrder([
+        { priority: 20, createdAt: "b" },
+        { priority: 10, createdAt: "c" },
+        { priority: 20, createdAt: "a" },
+      ])
+      .map((r) => `${r.priority}${r.createdAt}`)
+      .join(",") === "10c,20a,20b",
+  );
+  check(
+    "no-routeros-vocabulary-in-what-the-owner-reads",
+    [
+      fw.describeService({ protocol: "all", destinationPort: null }),
+      fw.describeWho(null),
+      fw.describeWhere(null),
+      fw.describeAction("drop"),
+      ...fw.FIREWALL_SERVICES.map((s) => s.label),
+    ].every((t) => !/chain|forward|place-before|accept|drop|reject/i.test(t)),
+  );
+
+  console.log("\nSecurity -> Firewall: every push failure is a sentence");
+  const say = (status, data, message = "raw backend text") =>
+    fw.firewallPushErrorSentence({ status, data, message });
+  const band = say(409, { code: "ACCESS_RULES_BAND_MISSING" });
+  check(
+    "band-missing-says-contact-support",
+    band.sentence ===
+      "This router hasn't been prepared for firewall rules yet. Our team needs to set it up once — contact support." &&
+      band.needsSupport,
+  );
+  check(
+    "push-in-progress-says-try-again-in-a-minute",
+    say(409, { code: "FIREWALL_PUSH_IN_PROGRESS" }).sentence ===
+      "Another change is being applied to this router — try again in a minute.",
+  );
+  const unrestored = say(502, { code: "ACCESS_RULES_PUSH_FAILED", restored: false });
+  check(
+    "restored-false-is-said-honestly",
+    unrestored.sentence ===
+      "The change failed partway; we could not confirm the router's previous rules were restored — contact support." &&
+      unrestored.needsSupport,
+  );
+  check(
+    "restored-true-says-nothing-changed",
+    /previous firewall rules were put back/.test(
+      say(502, { code: "ACCESS_RULES_PUSH_FAILED", restored: true }).sentence,
+    ),
+  );
+  check(
+    "a-chain-refusal-names-the-rules",
+    /Guest SSH, Old input rule/.test(
+      say(422, { code: "ACCESS_RULES_CHAIN_UNSUPPORTED", rules: ["Guest SSH", "Old input rule"] })
+        .sentence,
+    ),
+  );
+  check(
+    "a-controller-refusal-shows-the-backend-sentence",
+    say(422, undefined, "Firewall Rules isn't available for this venue.").sentence ===
+      "Firewall Rules isn't available for this venue.",
+  );
+  check(
+    "no-sentence-shows-a-bare-code",
+    [
+      "ACCESS_RULES_BAND_MISSING",
+      "FIREWALL_PUSH_IN_PROGRESS",
+      "ACCESS_RULES_PUSH_FAILED",
+      "ACCESS_RULES_WOULD_ORPHAN_MANAGEMENT",
+      "ACCESS_RULES_WOULD_BREAK_GUEST_PATH",
+      "ACCESS_RULES_ORPHAN_MARKER",
+      "ACCESS_RULES_SOMETHING_NEW",
+    ]
+      .map((code) => say(409, { code }).sentence)
+      .every((t) => !/ACCESS_RULES|FIREWALL_PUSH/.test(t)),
+  );
+  check("an-unknown-band-state-says-nothing", fw.bandStateSentence(null) === null);
+  check(
+    "a-missing-band-and-a-refused-push-say-the-same-thing",
+    fw.bandStateSentence("missing") === band.sentence,
+  );
+  const sum = fw.applySummary([
+    { chain: "forward", action: "drop", isEnabled: true },
+    { chain: "forward", action: "accept", isEnabled: true },
+    { chain: "forward", action: "drop", isEnabled: false },
+    { chain: "input", action: "drop", isEnabled: true },
+  ]);
+  check(
+    "the-apply-dialog-counts-what-will-change",
+    sum.on === 2 && sum.off === 1 && sum.blocks === 1 && sum.unpushable === 1,
+    JSON.stringify(sum),
+  );
+}
 
 console.log(failures === 0 ? "\nall checks passed" : `\n${failures} check(s) failed`);
 process.exit(failures === 0 ? 0 : 1);
