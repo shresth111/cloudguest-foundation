@@ -391,7 +391,8 @@ console.log("\nno two nav items share an icon");
   // 27: the Marketing add-on's own group and row (wyfy-specs/
   // guest-marketing-campaigns.md §3.5), deliberately added.
   // 28: Security -> Firewall (cloud-guest#304), deliberately added.
-  check("the nav still has every item", icons.length === 28, `found ${icons.length}`);
+  // 29: Security -> Web Filtering (cloud-guest#307), deliberately added.
+  check("the nav still has every item", icons.length === 29, `found ${icons.length}`);
 }
 
 console.log(
