@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ChevronDown, Filter, Loader2, Router as RouterIcon, ShieldCheck } from "lucide-react";
 import i18n from "@/lib/i18n";
@@ -34,6 +34,7 @@ import {
 } from "@/lib/router-vendors";
 import { locationControllerVendor, locationIsControllerManaged } from "@/lib/location-liveness";
 import {
+  dnsFilteringKeys,
   useSetWebFilterLocationPolicy,
   useWebCategories,
   useWebFilterLocationPolicy,
@@ -49,12 +50,18 @@ import {
   isSelectable,
   orderedGroups,
   policySourceSentence,
+  renderWebFilterError,
   sameIds,
+  stillOnPreviousSet,
   toggleCategory,
   webFilterErrorSentence,
   type WebFilterErrorExplained,
 } from "@/lib/web-filtering";
-import type { WebCategory, WebFilterLocationPolicy } from "@/types/dns-filtering";
+import type {
+  WebCategory,
+  WebFilterLocationPolicy,
+  WebFilterRouterStatus,
+} from "@/types/dns-filtering";
 import type { RouterDevice } from "@/types/router";
 
 /**
@@ -84,6 +91,19 @@ import type { RouterDevice } from "@/types/router";
  * default. Saving here always gives the venue its own list -- the backend has
  * no "go back to the default" -- and the page says so before Save.
  *
+ * ## Category sets are shared, and capped
+ *
+ * Since #307's profile change, every distinct category list in use across
+ * the platform costs one Cloudflare location, and the platform has only a
+ * few. A save (or Turn on) that would need a NEW list past the cap is a 409
+ * naming the closest list already in use; the page says how it differs and
+ * offers "Use the closest set", which only fills the picker -- the owner
+ * still saves. Clearing the list while routers filter with it is a 409 too.
+ * A save can succeed while a router fails to move to the new list: that
+ * router stays `active` on its PREVIOUS list with `device_push_status:
+ * "failed"`, so after every save the router statuses are refetched and the
+ * toast says so instead of a plain "Saved".
+ *
  * ## Controller-managed venues
  *
  * MikroTik only. "web-filtering" is in `CONTROLLER_UNSUPPORTED_FEATURE_IDS`,
@@ -100,6 +120,10 @@ export function WebFilteringView({ locationId }: { locationId?: string }) {
   const live = !!locationId && !demo && !controllerGated;
 
   const categories = useWebCategories(locationId, live);
+  // "Use the closest set" from any refusal fills the picker; `seq` makes a
+  // second click on the same suggestion still apply.
+  const [prefill, setPrefill] = useState<{ ids: number[]; seq: number } | null>(null);
+  const useClosest = (ids: number[]) => setPrefill((p) => ({ ids, seq: (p?.seq ?? 0) + 1 }));
 
   const intro = (
     <p className="max-w-3xl text-sm text-muted-foreground">
@@ -192,10 +216,17 @@ export function WebFilteringView({ locationId }: { locationId?: string }) {
   return (
     <div className="space-y-5">
       {intro}
-      <CategoriesCard locationId={locationId as string} items={categories.data.items} />
+      <CategoriesCard
+        locationId={locationId as string}
+        items={categories.data.items}
+        prefill={prefill}
+        onUseClosest={useClosest}
+      />
       <VenueRouters
         locationId={locationId as string}
         organizationId={activeLocation?.organizationId}
+        items={categories.data.items}
+        onUseClosest={useClosest}
       />
     </div>
   );
@@ -210,35 +241,122 @@ function Loading({ label }: { label: string }) {
   );
 }
 
-function ErrorBox({ explained }: { explained: WebFilterErrorExplained }) {
+/** An explanation in the page's language: keys under `webFilteringPage.err`,
+ * the English template as the fallback. */
+function useExplain() {
   const { t } = useTranslation("nav", { i18n });
+  return (e: WebFilterErrorExplained) =>
+    renderWebFilterError(e, (key, template, params) =>
+      t(`webFilteringPage.err.${key}`, template, params ?? {}),
+    );
+}
+
+function ErrorBox({
+  explained,
+  onUseClosest,
+}: {
+  explained: WebFilterErrorExplained;
+  onUseClosest?: (ids: number[]) => void;
+}) {
+  const { t } = useTranslation("nav", { i18n });
+  const explain = useExplain();
+  const suggested = explained.suggestedIds;
   return (
     <div
       role="alert"
-      className="space-y-1 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm"
+      className="space-y-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm"
     >
-      <p className="font-medium text-destructive">
-        {explained.key
-          ? t(`webFilteringPage.err.${explained.key}`, explained.sentence)
-          : explained.sentence}
-      </p>
+      <p className="font-medium text-destructive">{explain(explained)}</p>
       {explained.detail && (
         <p className="text-xs text-muted-foreground">
           {t("webFilteringPage.routerSaid", "Details:")} {explained.detail}
         </p>
       )}
+      {suggested && onUseClosest && (
+        <div className="space-y-1">
+          <Button variant="outline" size="sm" onClick={() => onUseClosest(suggested)}>
+            {t("webFilteringPage.useClosest", "Use the closest set")}
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            {t(
+              "webFilteringPage.useClosestNote",
+              "This fills in the list above. Nothing changes until you save it.",
+            )}
+          </p>
+        </div>
+      )}
     </div>
   );
+}
+
+/** The venue's routers (from the venue list the page already loaded) with
+ * their cached web filtering status. */
+function venueStatuses(
+  qc: QueryClient,
+  locationId: string,
+): { router: RouterDevice; status: WebFilterRouterStatus | undefined }[] {
+  const routers =
+    qc.getQueryData<RouterDevice[]>(["dns-filtering", "venue-routers", locationId]) ?? [];
+  return routers.map((router) => ({
+    router,
+    status: qc.getQueryData<WebFilterRouterStatus>(dnsFilteringKeys.router(router.id)),
+  }));
 }
 
 // ---------------------------------------------------------------------------
 // The venue's list.
 // ---------------------------------------------------------------------------
 
-function CategoriesCard({ locationId, items }: { locationId: string; items: WebCategory[] }) {
+function CategoriesCard({
+  locationId,
+  items,
+  prefill,
+  onUseClosest,
+}: {
+  locationId: string;
+  items: WebCategory[];
+  prefill: { ids: number[]; seq: number } | null;
+  onUseClosest: (ids: number[]) => void;
+}) {
   const { t } = useTranslation("nav", { i18n });
+  const qc = useQueryClient();
   const policy = useWebFilterLocationPolicy(locationId);
   const save = useSetWebFilterLocationPolicy(locationId);
+  const [saveError, setSaveError] = useState<WebFilterErrorExplained | null>(null);
+
+  function onSave(ids: number[]) {
+    setSaveError(null);
+    save.mutate(ids, {
+      onSuccess: async () => {
+        // A 200 does not mean every router moved: one that failed keeps
+        // filtering with its previous list. Read the routers again before
+        // saying "Saved".
+        await qc
+          .refetchQueries({ queryKey: ["dns-filtering", "router"], type: "active" })
+          .catch(() => undefined);
+        const stuck = venueStatuses(qc, locationId).filter(({ status }) =>
+          stillOnPreviousSet(status),
+        );
+        if (stuck.length > 0) {
+          toast.warning(
+            t(
+              "webFilteringPage.savedButStuck",
+              "Saved, but {{count}} router(s) are still using the previous filter set: {{routers}}. See below.",
+              { count: stuck.length, routers: stuck.map((x) => x.router.name).join(", ") },
+            ),
+          );
+        } else {
+          toast.success(t("webFilteringPage.savedToast", "Saved this venue's list."));
+        }
+      },
+      onError: (err) => {
+        const activeRouterNames = venueStatuses(qc, locationId)
+          .filter(({ status }) => status?.state === "active")
+          .map(({ router }) => router.name);
+        setSaveError(webFilterErrorSentence(requestErrorOf(err), { items, activeRouterNames }));
+      },
+    });
+  }
 
   return (
     <Card className="border-border/60">
@@ -261,18 +379,11 @@ function CategoriesCard({ locationId, items }: { locationId: string; items: WebC
             policy={policy.data}
             items={items}
             saving={save.isPending}
-            onSave={(ids) =>
-              save.mutate(ids, {
-                onSuccess: () =>
-                  toast.success(t("webFilteringPage.savedToast", "Saved this venue's list.")),
-                onError: (err) => {
-                  const e = webFilterErrorSentence(requestErrorOf(err));
-                  toast.error(e.key ? t(`webFilteringPage.err.${e.key}`, e.sentence) : e.sentence);
-                },
-              })
-            }
+            prefill={prefill}
+            onSave={onSave}
           />
         )}
+        {saveError && <ErrorBox explained={saveError} onUseClosest={onUseClosest} />}
       </CardContent>
     </Card>
   );
@@ -282,15 +393,25 @@ function CategoryPicker({
   policy,
   items,
   saving,
+  prefill,
   onSave,
 }: {
   policy: WebFilterLocationPolicy;
   items: WebCategory[];
   saving: boolean;
+  prefill: { ids: number[]; seq: number } | null;
   onSave: (ids: number[]) => void;
 }) {
   const { t } = useTranslation("nav", { i18n });
   const [selected, setSelected] = useState<Set<number>>(() => new Set(policy.effectiveCategoryIds));
+  const top = useRef<HTMLDivElement>(null);
+  const applied = useRef(prefill?.seq ?? 0);
+  useEffect(() => {
+    if (!prefill || prefill.seq === applied.current) return;
+    applied.current = prefill.seq;
+    setSelected(new Set(prefill.ids));
+    top.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  }, [prefill]);
   const groups = useMemo(() => orderedGroups(items), [items]);
   const orgIds = policy.organizationCategoryIds;
   const orgNames = orgIds ? describeIds(orgIds, items) : null;
@@ -298,7 +419,7 @@ function CategoryPicker({
   const matchesDefault = orgIds ? sameIds(selected, orgIds) : false;
 
   return (
-    <div className="space-y-4">
+    <div ref={top} className="space-y-4">
       <div className="space-y-1 rounded-lg border border-border bg-muted/30 p-3 text-sm">
         <p>{t(`webFilteringPage.source.${policy.source}`, policySourceSentence(policy.source))}</p>
         <p className="text-muted-foreground">
@@ -474,9 +595,13 @@ function CategoryGroupRow({
 function VenueRouters({
   locationId,
   organizationId,
+  items,
+  onUseClosest,
 }: {
   locationId: string;
   organizationId?: string;
+  items: WebCategory[];
+  onUseClosest: (ids: number[]) => void;
 }) {
   const { t } = useTranslation("nav", { i18n });
   const routersQuery = useQuery({
@@ -521,7 +646,12 @@ function VenueRouters({
     <div className="space-y-3">
       <ControllerRoutersNote rows={rows} />
       {writable.map((router) => (
-        <RouterFilterCard key={router.id} router={router} />
+        <RouterFilterCard
+          key={router.id}
+          router={router}
+          items={items}
+          onUseClosest={onUseClosest}
+        />
       ))}
     </div>
   );
@@ -540,7 +670,15 @@ function formatWhen(iso: string | null): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toLocaleString();
 }
 
-function RouterFilterCard({ router }: { router: RouterDevice }) {
+function RouterFilterCard({
+  router,
+  items,
+  onUseClosest,
+}: {
+  router: RouterDevice;
+  items: WebCategory[];
+  onUseClosest: (ids: number[]) => void;
+}) {
   const { t } = useTranslation("nav", { i18n });
   const status = useWebFilterRouterStatus(router.id);
   const action = useWebFilterRouterAction(router.id);
@@ -554,11 +692,12 @@ function RouterFilterCard({ router }: { router: RouterDevice }) {
     setError(null);
     action.mutate(a, {
       onSuccess: () => toast.success(done),
-      onError: (err) => setError(webFilterErrorSentence(requestErrorOf(err))),
+      onError: (err) => setError(webFilterErrorSentence(requestErrorOf(err), { items })),
     });
   }
 
   const isOn = s?.state === "active";
+  const stuck = stillOnPreviousSet(s);
   const hasCategories = (s?.effectiveCategoryIds.length ?? 0) > 0;
   const lastWhen = formatWhen(s?.devicePushedAt ?? null);
 
@@ -578,9 +717,33 @@ function RouterFilterCard({ router }: { router: RouterDevice }) {
               {t(`webFilteringPage.state.${s.state}`, ROUTER_STATE_LABEL[s.state])}
             </Badge>
           )}
+          {stuck && (
+            <Badge
+              variant="outline"
+              className={cn("ml-1 rounded-full font-medium", STATE_STYLE.pending)}
+            >
+              {t("webFilteringPage.stuckBadge", "Still using the previous filter set")}
+            </Badge>
+          )}
         </div>
         {s && (
           <div className="flex flex-wrap items-center gap-2">
+            {stuck && (
+              <Button
+                variant="outline"
+                disabled={action.isPending}
+                onClick={() =>
+                  run(
+                    { kind: "enable" },
+                    t("webFilteringPage.retriedToast", "{{router}} now uses this venue's list", {
+                      router: router.name,
+                    }),
+                  )
+                }
+              >
+                {t("webFilteringPage.retryMove", "Try the change again")}
+              </Button>
+            )}
             {isOn ? (
               <Button
                 variant="outline"
@@ -638,13 +801,29 @@ function RouterFilterCard({ router }: { router: RouterDevice }) {
                 {lastWhen ? ` · ${lastWhen}` : ""}
               </p>
             )}
-            {s.devicePushStatus === "failed" && s.devicePushError && (
+            {stuck && (
+              <p
+                role="status"
+                className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-amber-800 dark:text-amber-300"
+              >
+                {t(
+                  "webFilteringPage.stuckWhy",
+                  "Still using the previous filter set — the change didn't reach this router: {{reason}}",
+                  {
+                    reason:
+                      s.devicePushError ??
+                      t("webFilteringPage.stuckNoReason", "no reason was recorded."),
+                  },
+                )}
+              </p>
+            )}
+            {s.devicePushStatus === "failed" && s.devicePushError && !stuck && (
               <p className="text-xs text-muted-foreground">
                 {t("webFilteringPage.routerSaid", "Details:")} {s.devicePushError}
               </p>
             )}
 
-            {error && <ErrorBox explained={error} />}
+            {error && <ErrorBox explained={error} onUseClosest={onUseClosest} />}
 
             <div className="flex items-start justify-between gap-4 rounded-lg border border-border p-3">
               <div className="space-y-1">

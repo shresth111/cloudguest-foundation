@@ -111,9 +111,14 @@ writeFileSync(
 
 writeFileSync(
   join(work, "sonner-stub.js"),
-  `const noop = () => {};
-   export const toast = Object.assign(noop, {
-     success: noop, error: noop, warning: noop, info: noop, message: noop,
+  `// Records every toast on window.__toasts so a case can assert which kind
+   // was shown (e.g. a warning, not a success, after a partial save).
+   const rec = (kind) => (message) => {
+     (window.__toasts = window.__toasts || []).push({ kind, message: String(message) });
+   };
+   export const toast = Object.assign(rec("default"), {
+     success: rec("success"), error: rec("error"), warning: rec("warning"),
+     info: rec("info"), message: rec("message"),
    });
    export const Toaster = () => null;`,
 );
@@ -262,6 +267,18 @@ function api(path, res, req) {
         );
       }
       return (json({ provider: "cloudflare_gateway", items: dns.categories }), true);
+    }
+    if (path === "/api/v1/dns-filtering/locations/loc-1/policy" && req.method === "PUT") {
+      dns.putCalls = (dns.putCalls ?? 0) + 1;
+      const next = dns.onPut?.();
+      if (next?.refuse) {
+        res.writeHead(next.refuse.status, { "content-type": "application/json" });
+        res.end(
+          JSON.stringify({ success: false, message: next.refuse.message, data: next.refuse.data }),
+        );
+        return true;
+      }
+      return (json(dns.policy), true);
     }
     if (path === "/api/v1/dns-filtering/locations/loc-1/policy") return (json(dns.policy), true);
     if (path === "/api/v1/dns-filtering/routers/r-hex/enable" && req.method === "POST") {
@@ -786,6 +803,183 @@ console.log("\nSecurity -> Web Filtering at a MikroTik venue");
   await r.page.waitForTimeout(500);
   check("confirming-sends-exactly-one-enable", served.dns.enableCalls === 1);
   check("mikrotik-web-filtering-mutes-nothing", r.rows.filter((row) => row.muted).length === 0);
+  await r.page.close();
+  served.dns = null;
+}
+
+console.log("\nSecurity -> Web Filtering: shared category sets (cloud-guest#307 profiles)");
+{
+  const status = {
+    router_id: "r-hex",
+    enabled: true,
+    state: "active",
+    device_push_status: "active",
+    device_push_error: null,
+    device_pushed_at: "2026-09-24T10:00:00Z",
+    effective_category_ids: [2],
+    policy_source: "location",
+    bypass_hardening_enabled: false,
+    bypass_hardening_status: "off",
+    bypass_hardening_error: null,
+    routeros_version: "7.19",
+    limitations: [],
+  };
+  const cat = (id, name, is_security = false, subcategories = []) => ({
+    id,
+    name,
+    description: "",
+    category_class: "free",
+    beta: false,
+    is_security,
+    subcategories,
+  });
+  served.dns = {
+    configured: true,
+    categories: [
+      cat(21, "Security threats", true, [cat(117, "Malware", true)]),
+      cat(2, "Gambling"),
+      cat(5, "Adult themes"),
+    ],
+    policy: {
+      location_id: "loc-1",
+      organization_id: "org-1",
+      effective_category_ids: [2],
+      source: "location",
+      location_category_ids: [2],
+      organization_category_ids: null,
+    },
+    status,
+    // First save: a new set past the cap. The closest set in use blocks
+    // Gambling + Security threats (so it adds Security threats and Malware,
+    // and drops Adult themes).
+    onPut: () => ({
+      refuse: {
+        status: 409,
+        message: "Category filtering can run at most 3 different category selections at once",
+        data: {
+          resource: "DNS locations",
+          limit: 3,
+          in_use: 3,
+          requested_category_ids: [2, 5],
+          nearest_category_ids: [2, 21, 117],
+          nearest_adds: [21, 117],
+          nearest_removes: [5],
+        },
+      },
+    }),
+  };
+  const r = await openFeature("web-filtering", [MIKROTIK]);
+  await r.page
+    .getByText("Adult themes")
+    .first()
+    .waitFor({ timeout: 5_000 })
+    .catch(() => {});
+  await r.page.getByRole("checkbox", { name: "Adult themes" }).click();
+  await r.page.getByRole("button", { name: WF_SAVE }).click();
+  await r.page
+    .getByText("different filter sets")
+    .waitFor({ timeout: 5_000 })
+    .catch(() => {});
+  let text = (await r.page.locator("body").innerText()).replace(/\u2019/g, "'");
+  check(
+    "set-limit-409-is-one-plain-sentence-with-category-names",
+    text.includes(
+      "Your account can use up to 3 different filter sets and all are in use. The closest existing set differs by: adding Security threats, Malware, removing Adult themes.",
+    ),
+    text.slice(0, 1200),
+  );
+  const putsBefore = served.dns.putCalls;
+  await r.page.getByRole("button", { name: "Use the closest set" }).click();
+  await r.page.waitForTimeout(300);
+  const checked = async (name) =>
+    (await r.page.getByRole("checkbox", { name }).first().getAttribute("aria-checked")) === "true";
+  check(
+    "use-the-closest-set-fills-the-picker-and-saves-nothing",
+    (await checked("Security threats")) &&
+      (await checked("Gambling")) &&
+      !(await checked("Adult themes")) &&
+      served.dns.putCalls === putsBefore &&
+      !(await r.page.getByRole("button", { name: WF_SAVE }).isDisabled()),
+    `puts ${putsBefore} -> ${served.dns.putCalls}`,
+  );
+
+  // Second save: 200, but the router failed to move and still filters with
+  // its previous set.
+  served.dns.onPut = () => {
+    served.dns.status = {
+      ...status,
+      device_push_status: "failed",
+      device_push_error:
+        "Router unreachable. The router still filters with its previous category selection.",
+    };
+    served.dns.policy = {
+      ...served.dns.policy,
+      effective_category_ids: [2, 21, 117],
+      location_category_ids: [2, 21, 117],
+    };
+    return null;
+  };
+  await r.page.getByRole("button", { name: WF_SAVE }).click();
+  await r.page
+    .getByText("Still using the previous filter set —")
+    .waitFor({ timeout: 5_000 })
+    .catch(() => {});
+  await r.page.waitForTimeout(300);
+  text = (await r.page.locator("body").innerText()).replace(/\u2019/g, "'");
+  const toasts = await r.page.evaluate(() => window.__toasts ?? []);
+  check(
+    "a-200-with-a-router-left-behind-is-a-warning-not-a-plain-saved",
+    toasts.some(
+      (x) =>
+        x.kind === "warning" &&
+        /^Saved, but 1 router\(s\) are still using the previous filter set: Lobby hEX/.test(
+          x.message,
+        ),
+    ) && !toasts.some((x) => x.kind === "success"),
+    JSON.stringify(toasts),
+  );
+  check(
+    "the-router-left-behind-says-why-and-offers-a-retry",
+    text.includes(
+      "Still using the previous filter set — the change didn't reach this router: Router unreachable.",
+    ) && (await r.page.getByRole("button", { name: "Try the change again" }).count()) === 1,
+  );
+
+  // Clearing everything while the router still filters: 409 naming it.
+  served.dns.status = { ...status };
+  served.dns.onPut = () => ({
+    refuse: {
+      status: 409,
+      message: "Category filtering is still on for 1 router(s)",
+      data: { routers: 1 },
+    },
+  });
+  await r.page.reload();
+  await r.page
+    .getByText("Security threats")
+    .first()
+    .waitFor({ timeout: 5_000 })
+    .catch(() => {});
+  await r.page
+    .getByText("Lobby hEX")
+    .last()
+    .waitFor({ timeout: 5_000 })
+    .catch(() => {});
+  await r.page.waitForTimeout(300);
+  for (const name of ["Security threats", "Gambling"]) {
+    await r.page.getByRole("checkbox", { name }).first().click();
+  }
+  await r.page.getByRole("button", { name: WF_SAVE }).click();
+  await r.page
+    .getByText("Turn off web filtering on")
+    .waitFor({ timeout: 5_000 })
+    .catch(() => {});
+  text = (await r.page.locator("body").innerText()).replace(/\u2019/g, "'");
+  check(
+    "clearing-under-a-live-router-names-it",
+    text.includes("Turn off web filtering on these routers first: Lobby hEX."),
+    text.slice(0, 1500),
+  );
   await r.page.close();
   served.dns = null;
 }

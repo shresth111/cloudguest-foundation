@@ -283,7 +283,21 @@
       "bypassAnchor": "This router is missing the basic protection rules this option builds on, so nothing was changed. Contact support.",
       "rolledBack": "The check after switching failed, so the router was switched back to its own settings. Guests can browse as before.",
       "notRolledBack": "The check after switching failed and we could not confirm the router switched back. Guests may not be able to open websites — contact support now.",
-      "ceiling": "Web filtering can't be switched on for another router right now. Contact support."
-    }
+      "ceiling": "Web filtering can't take on another category list right now. Contact support.",
+      "setLimit": "Your account can use up to {{limit}} different filter sets and all are in use.",
+      "closestAddsRemoves": "The closest existing set differs by: adding {{adds}}, removing {{removes}}.",
+      "closestAdds": "The closest existing set differs by: adding {{adds}}.",
+      "closestRemoves": "The closest existing set differs by: removing {{removes}}.",
+      "routersStillOn": "Turn off web filtering on these routers first: {{routers}}.",
+      "routersStillOnCount": "Turn off web filtering on {{count}} router(s) at this venue first, or keep at least one category."
+    },
+    "useClosest": "Use the closest set",
+    "useClosestNote": "This fills in the list above. Nothing changes until you save it.",
+    "savedButStuck": "Saved, but {{count}} router(s) are still using the previous filter set: {{routers}}. See below.",
+    "stuckBadge": "Still using the previous filter set",
+    "stuckWhy": "Still using the previous filter set — the change didn't reach this router: {{reason}}",
+    "stuckNoReason": "no reason was recorded.",
+    "retryMove": "Try the change again",
+    "retriedToast": "{{router}} now uses this venue's list"
   }
 }

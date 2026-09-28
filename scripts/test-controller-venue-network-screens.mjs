@@ -56,7 +56,7 @@
  * Run: node scripts/test-controller-venue-network-screens.mjs
  */
 import { build } from "esbuild";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -862,6 +862,175 @@ console.log("\nSecurity -> Web Filtering: selection and plain-language refusals"
     ]
       .map((code) => sentence({ status: 409, message: "", data: { code } }).sentence)
       .every((x) => !/\bDNS\b|DoH|DoT|RouterOS|resolver/i.test(x)),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 7. Web Filtering after cloud-guest#307's shared category sets: the
+//    location-cap 409, the clear-while-live 409, and a router left on its
+//    previous set -- executed from `lib/web-filtering.ts`.
+// ---------------------------------------------------------------------------
+
+console.log("\nSecurity -> Web Filtering: shared category sets");
+{
+  const wf = m.webFiltering;
+  const cat = (id, name, subcategories = []) => ({
+    id,
+    name,
+    description: "",
+    categoryClass: "free",
+    beta: false,
+    isSecurity: false,
+    subcategories,
+  });
+  const items = [
+    cat(21, "Security threats", [cat(117, "Malware"), cat(131, "Phishing")]),
+    cat(2, "Adult themes", [cat(67, "Nudity")]),
+    cat(99, "Gambling"),
+  ];
+  const limitErr = (over = {}) => ({
+    status: 409,
+    message: "Category filtering can run at most 3 different category selections at once",
+    data: {
+      resource: "DNS locations",
+      limit: 3,
+      in_use: 3,
+      requested_category_ids: [2, 21, 67, 99],
+      nearest_category_ids: [21, 117, 2, 67],
+      nearest_adds: [117],
+      nearest_removes: [99],
+      ...over,
+    },
+  });
+
+  const both = wf.webFilterErrorSentence(limitErr(), { items });
+  check(
+    "set-limit-names-the-limit-and-how-the-closest-set-differs-by-name",
+    both.key === "setLimit" &&
+      both.sentence ===
+        "Your account can use up to 3 different filter sets and all are in use. " +
+          "The closest existing set differs by: adding Malware, removing Gambling.",
+    both.sentence,
+  );
+  check(
+    "set-limit-offers-the-closest-set-as-a-suggestion-not-a-save",
+    both.suggestedIds?.join(",") === "21,117,2,67",
+    JSON.stringify(both.suggestedIds),
+  );
+  check("set-limit-is-not-mistaken-for-the-account-ceiling", both.key !== "ceiling");
+  const addsOnly = wf.webFilterErrorSentence(limitErr({ nearest_removes: [] }), { items });
+  check(
+    "set-limit-with-only-additions",
+    addsOnly.sentence.endsWith("The closest existing set differs by: adding Malware."),
+    addsOnly.sentence,
+  );
+  const removesOnly = wf.webFilterErrorSentence(
+    limitErr({ nearest_adds: [], nearest_removes: [99, 4242] }),
+    { items },
+  );
+  check(
+    "set-limit-with-only-removals-and-an-unknown-id-shows-the-id-not-a-made-up-name",
+    removesOnly.sentence.endsWith("The closest existing set differs by: removing Gambling, #4242."),
+    removesOnly.sentence,
+  );
+  const noNearest = wf.webFilterErrorSentence(
+    limitErr({ nearest_category_ids: null, nearest_adds: [], nearest_removes: [] }),
+    { items },
+  );
+  check(
+    "set-limit-with-no-set-in-use-offers-nothing",
+    noNearest.suggestedIds === null &&
+      noNearest.sentence ===
+        "Your account can use up to 3 different filter sets and all are in use.",
+    JSON.stringify(noNearest),
+  );
+
+  const clearCount = wf.webFilterErrorSentence({
+    status: 409,
+    message: "Category filtering is still on for 2 router(s)",
+    data: { routers: 2 },
+  });
+  check(
+    "clearing-under-live-routers-without-names-gives-the-count",
+    clearCount.key === "routersStillOnCount" &&
+      clearCount.sentence ===
+        "Turn off web filtering on 2 router(s) at this venue first, or keep at least one category.",
+    clearCount.sentence,
+  );
+  const clearNamed = wf.webFilterErrorSentence(
+    { status: 409, message: "x", data: { routers: 2 } },
+    { activeRouterNames: ["Lobby", "Pool"] },
+  );
+  check(
+    "clearing-under-live-routers-names-them-when-the-page-knows-them-all",
+    clearNamed.key === "routersStillOn" &&
+      clearNamed.sentence === "Turn off web filtering on these routers first: Lobby, Pool.",
+    clearNamed.sentence,
+  );
+  const clearMismatch = wf.webFilterErrorSentence(
+    { status: 409, message: "x", data: { routers: 3 } },
+    { activeRouterNames: ["Lobby", "Pool"] },
+  );
+  check(
+    "a-partial-name-list-falls-back-to-the-count-rather-than-a-wrong-list",
+    clearMismatch.key === "routersStillOnCount" && /\b3 router/.test(clearMismatch.sentence),
+    clearMismatch.sentence,
+  );
+  const clearList = wf.webFilterErrorSentence({
+    status: 409,
+    message: "x",
+    data: { routers: [{ id: "a", name: "Lobby" }] },
+  });
+  check(
+    "a-backend-router-list-is-named-directly",
+    clearList.sentence === "Turn off web filtering on these routers first: Lobby.",
+    clearList.sentence,
+  );
+
+  check(
+    "active-with-a-failed-push-is-still-on-the-previous-set",
+    wf.stillOnPreviousSet({ state: "active", devicePushStatus: "failed" }) &&
+      !wf.stillOnPreviousSet({ state: "active", devicePushStatus: "active" }) &&
+      !wf.stillOnPreviousSet({ state: "failed", devicePushStatus: "failed" }) &&
+      !wf.stillOnPreviousSet(undefined),
+  );
+
+  // The translator path: templates go through `tr` with their params, and
+  // every key the refusals use has an en string equal to the lib's template
+  // (and an hi string).
+  const seen = [];
+  const rendered = wf.renderWebFilterError(both, (key, template, params) => {
+    seen.push(key);
+    return `[${key}:${Object.values(params ?? {}).join("/")}]`;
+  });
+  check(
+    "rendering-translates-every-sentence-with-its-params",
+    rendered === "[setLimit:3] [closestAddsRemoves:Malware/Gambling]",
+    rendered,
+  );
+  const locale = (l) =>
+    JSON.parse(readFileSync(join(ROOT, `src/lib/i18n/locales/${l}/nav.json`), "utf8"))
+      .webFilteringPage.err;
+  const en = locale("en");
+  const hi = locale("hi");
+  const phrases = [
+    both,
+    ...both.more,
+    ...addsOnly.more,
+    ...removesOnly.more,
+    clearCount,
+    clearNamed,
+    wf.webFilterErrorSentence({
+      status: 409,
+      message: "",
+      data: { resource: "DNS policies", limit: 10 },
+    }),
+  ];
+  const drift = phrases.filter((p) => en[p.key] !== p.template || !hi[p.key]);
+  check(
+    "en-strings-match-the-lib-templates-and-hi-has-each",
+    drift.length === 0,
+    drift.map((p) => p.key).join(","),
   );
 }
 
