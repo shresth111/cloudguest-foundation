@@ -7,6 +7,7 @@ import { StatCard, type StatTone } from "@/components/ui-ext";
 import { EmptyState } from "@/components/common/EmptyState";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { useSecurityCapabilities, useSecurityOverview } from "@/hooks/useSecurity";
+import { SecurityActivityPanel } from "@/components/security/SecurityActivityPanel";
 import type {
   SecurityAvailability,
   SecurityCounter,
@@ -463,6 +464,10 @@ export function SecurityOverviewView() {
           )}
         </CardContent>
       </Card>
+
+      {/* What the protections actually did -- counts read off the routers'
+          own rule counters, not configuration. */}
+      <SecurityActivityPanel />
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-foreground">Where you stand</h2>

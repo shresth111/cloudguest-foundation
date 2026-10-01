@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Radar, ShieldAlert, Info } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
@@ -5,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/common/EmptyState";
 import { getCustomerLoginRole } from "@/lib/customerNav";
 import { ReportPanel, NETWORK_ACTIVITY_REPORT_TYPES } from "@/components/features/UserReports";
+import { GuestSessionTimelineDrawer } from "@/components/guests/GuestSessionTimelineDrawer";
 
 /**
  * "Network Activity Log" -- Support & Logs' own nav item
@@ -45,6 +47,10 @@ export default function NetworkActivityLog({ masked = true }: { masked?: boolean
   // for the exact same reason: this is equally security-sensitive guest
   // data, and a UI guard alone is bypassable by a direct URL hit.
   const role = getCustomerLoginRole();
+  // The Guest Session Log row the owner opened -- its AAA timeline (how the
+  // guest got on, what they were allowed, what the router reported) shows in
+  // a side drawer. Declared before the role guard so hook order is stable.
+  const [openSessionId, setOpenSessionId] = useState<string | null>(null);
   if (role !== "owner") {
     return (
       <div className="space-y-6">
@@ -69,6 +75,15 @@ export default function NetworkActivityLog({ masked = true }: { masked?: boolean
         reportTypes={NETWORK_ACTIVITY_REPORT_TYPES}
         csvPrefix="network-activity"
         masked={masked}
+        onRowSelect={(reportType, row) => {
+          if (reportType === "guest-session-log" && typeof row.sessionId === "string") {
+            setOpenSessionId(row.sessionId);
+          }
+        }}
+      />
+      <GuestSessionTimelineDrawer
+        sessionId={openSessionId}
+        onClose={() => setOpenSessionId(null)}
       />
     </div>
   );
@@ -96,6 +111,12 @@ function PageHeader() {
               Every guest's connection history: who connected, from which device, for how long, and
               how much data they used. Useful for troubleshooting connectivity issues and as a
               record of guest network activity.
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t(
+                "sessionTimeline.openHint",
+                "In the Guest Session Log, click a row to see how that guest signed in, what they were allowed, and what the router reported.",
+              )}
             </p>
           </div>
         </div>

@@ -70,3 +70,43 @@ export interface SecurityFeature {
   enforcement: string | null;
   detail: string;
 }
+
+/** One protection's activity in a window -- `GET /security/activity`.
+ *
+ * `count` is `null` with `available: false` when the source could not be
+ * read (Cloudflare without analytics access, a filter profile shared with
+ * other venues). A protection that is not switched on is simply absent from
+ * the list -- never present as a zero. */
+export interface SecurityActivityProtection {
+  key: string;
+  label: string;
+  count: number | null;
+  available: boolean;
+  unavailableReason: string | null;
+  sentence: string | null;
+  source: string;
+  routersReporting: number | null;
+  routersTotal: number | null;
+  lastReadAt: string | null;
+  topRules: { label: string; count: number }[];
+}
+
+export interface SecurityStaffChange {
+  at: string;
+  action: string;
+  summary: string;
+  description: string | null;
+}
+
+export type SecurityActivityWindow = "24h" | "7d";
+
+export interface SecurityActivity {
+  window: SecurityActivityWindow;
+  since: string;
+  until: string;
+  protections: SecurityActivityProtection[];
+  staffChanges: SecurityStaffChange[];
+  routersTotal: number;
+  semantics: string;
+  generatedAt: string;
+}
