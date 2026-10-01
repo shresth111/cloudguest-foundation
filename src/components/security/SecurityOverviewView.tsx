@@ -64,11 +64,11 @@ const PLAIN_COPY: Record<string, string> = {
   ip_and_cidr_blocking:
     "Block specific addresses or ranges, in both directions. Do not use this to block a website: popular services sit behind addresses that rotate constantly.",
   device_isolation:
-    "Cut a single device off, or confine it to everything except what you allow. Works reliably for hardware you have enrolled; anonymous guests can change their hardware identity and reappear as someone new.",
+    "Cut a single device off your router by its hardware address, now and every time it reconnects. Works reliably for devices you know; anonymous guests can switch on a private Wi-Fi address and come back as a new device. Keeping devices on the same network apart from each other is not offered yet.",
   rogue_dhcp_detection:
     "Tells you when a second device on the network starts handing out addresses, which is usually how an unauthorised access point gets introduced.",
   connection_flood_protection:
-    "Limits how many connections one source can open, which reduces floods and password-guessing. It reduces the exposure rather than removing it, and a strict limit can drop legitimate bursts.",
+    "Limits how many connections one guest device can hold, which slows floods and password-guessing tools. It reduces the exposure rather than removing it, and a strict limit can break busy apps such as cloud backup or video calls.",
   // Written to be true whichever group the backend puts it in: the group
   // heading says whether it works today.
   web_category_filtering:
@@ -102,8 +102,11 @@ const PLAIN_COPY: Record<string, string> = {
  *    (cloud-guest#307/#308).
  *  - `ip_and_cidr_blocking`: Block Websites -> "Advanced", the only place an
  *    internet address is blocked; `#advanced` unfolds it.
- *  - `device_isolation`: blocking a guest on the Guests & devices tab refuses
- *    their next sign-in and ends the session they are in.
+ *  - `device_isolation`: the Guests & devices tab, whose Device mode writes a
+ *    blocked binding to the router (and whose number/email modes refuse the
+ *    next sign-in and end the session they are in);
+ *  - `connection_flood_protection`: Security -> Firewall's "Limit connection
+ *    floods" switch, per router;
  *  - `zone_to_zone_firewall`: Security -> Firewall, whose rules are
  *    between-network (`forward`) rules applied by cloud-guest#304's push.
  *
@@ -119,9 +122,9 @@ const PLAIN_COPY: Record<string, string> = {
  *    top of "Categories" -- Cloudflare's Security threats category.
  *
  * Deliberately absent: `domain_blocking_sni` (written with every website
- * block but not yet proven on a router, so the backend keeps it under
- * "Coming later"), `connection_flood_protection` and
- * `rogue_dhcp_detection` (no customer screen manages them). */
+ * block but not yet proven against a real browser, so the backend keeps it
+ * under "Coming later") and `rogue_dhcp_detection` (no customer screen
+ * manages it). */
 type ManagedAt =
   | {
       to: "/blocking";
@@ -177,6 +180,11 @@ const MANAGED_AT: Record<string, ManagedAt> = {
     to: "/firewall",
     labelKey: "securityScore.link.firewall",
     label: "Set firewall rules",
+  },
+  connection_flood_protection: {
+    to: "/firewall",
+    labelKey: "securityScore.link.floodLimit",
+    label: "Limit connection floods",
   },
 };
 

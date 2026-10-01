@@ -237,6 +237,19 @@
     "whoAddress": "Device address or range",
     "whoAny": "Any device",
     "whoSpecific": "A specific device or group of devices",
+    "floodTitle": "Limit connection floods",
+    "floodBody": "Stops one guest device from opening hundreds of connections at once, which is how flood attacks and password-guessing tools work. Strict limits can break busy apps such as cloud backup, video calls and big downloads.",
+    "floodLevel": "How strict",
+    "flood_relaxed": "Relaxed",
+    "flood_normal": "Normal",
+    "flood_strict": "Strict",
+    "floodCap": "Up to {{n}} connections per device",
+    "floodCustom": "This router has a custom limit of {{n}} connections per device. Pick a level to replace it.",
+    "floodPartial": "Part of this limit is missing on the router. Choose a level again to repair it.",
+    "floodNeedsBand": "This can be turned on once the router has been prepared for firewall rules.",
+    "floodApplying": "Changing the router…",
+    "floodOnToast": "Connection-flood limit applied to the router.",
+    "floodOffToast": "Connection-flood limit removed from the router.",
     "siteHttpsHint": "It's also blocked by name on secure (https) connections, which catches most phones that skip the router's DNS. Nothing is decrypted. A browser that hides the site's name, or a newer kind of connection (QUIC), can still get through."
   },
   "webFilteringPage": {
@@ -413,6 +426,7 @@
       "address": "Block an internet address",
       "guest": "Block a guest",
       "firewall": "Set firewall rules",
+      "floodLimit": "Limit connection floods",
       "apps": "Choose apps to block",
       "harmful": "Block known harmful websites"
     },
@@ -435,5 +449,12 @@
       "application_control": "Switch off apps such as YouTube, Instagram or BGMI on your guest WiFi. It blocks the website names each app uses, not the app itself, so some apps may still get through -- one that is already open, one with a built-in address, or a phone with its own DNS or a VPN.",
       "threat_intelligence": "Stop guests opening websites known to spread viruses or steal passwords. Cloudflare keeps the list up to date. It works on routers where web filtering is on, and a phone with its own DNS or a VPN is not covered."
     }
+  },
+  "blockGuests": {
+    "deviceTab": "Device",
+    "deviceLabel": "Device addresses (MAC)",
+    "deviceHint": "Paste one or more device (Wi-Fi/MAC) addresses separated by commas. Your router cuts the device off now and every time it reconnects.",
+    "deviceMacNote": "Anonymous guests can switch on a private Wi-Fi address on their phone and come back as a new device, so use this for devices you know.",
+    "deviceConfirmBody": "Your router will drop these devices now and every time they reconnect, until you unblock them."
   }
 }

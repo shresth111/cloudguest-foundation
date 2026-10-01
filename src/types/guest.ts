@@ -280,9 +280,42 @@ export interface ControllerBlock {
   releaseError: string | null;
 }
 
+/**
+ * What one MikroTik router did about a blocked device (cloud-guest
+ * device-block PR): a `type=blocked` hotspot binding for the MAC, plus the
+ * device's live session ended.
+ *
+ *   `enforced`        the binding read back on the router and no live
+ *                     session survived. The device gets neither the internet
+ *                     nor the login page there until it is unblocked.
+ *   `failed`          not written (unreachable, no credentials) or written
+ *                     but the session survived. `errorMessage` says which.
+ *                     The rule still refuses the next sign-in.
+ *   `not_applicable`  the router runs no guest login page.
+ *
+ * `clearedAt` is set once the binding was confirmed removed on unblock; a
+ * `releaseError` without it is a removal the backend's sweep retries.
+ */
+export interface RouterBlock {
+  id: string;
+  routerId: string;
+  locationId: string | null;
+  macAddress: string;
+  status: BlockEnforcementStatus | null;
+  errorMessage: string | null;
+  sessionsEnded: number;
+  blockedAt: string | null;
+  clearedAt: string | null;
+  releaseError: string | null;
+}
+
 export interface DeviceAccessRule extends AccessRuleBase {
   kind: "device";
   macAddress: string;
+  /** One entry per MikroTik router a blocklist rule was written to. Empty on
+   * an older backend, at a controller-managed venue, and for an allow rule
+   * -- all three mean "nothing was written to a router", never "blocked". */
+  routerBlocks: RouterBlock[];
 }
 
 export type AnyAccessRule = GuestAccessRule | DeviceAccessRule;

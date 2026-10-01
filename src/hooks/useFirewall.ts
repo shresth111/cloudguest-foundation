@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { firewallService } from "@/services/firewall.service";
 import type {
   CreateFirewallRulePayload,
+  FloodLimitPreset,
   FirewallRuleListQuery,
   UpdateFirewallRulePayload,
 } from "@/types/firewall";
@@ -74,5 +75,29 @@ export function useInstallFirewallBand() {
     mutationFn: (routerId: string) => firewallService.installBand(routerId),
     onSettled: (_data, _err, routerId) =>
       qc.invalidateQueries({ queryKey: firewallBandKey(routerId) }),
+  });
+}
+
+/** GET .../flood-limit -- `null` is "unknown" (older backend, or not
+ * readable), which the Firewall screen renders as no card at all. */
+export const floodLimitKey = (routerId: string) => ["firewall", "flood-limit", routerId] as const;
+
+export function useFloodLimit(routerId: string | undefined, organizationId?: string) {
+  return useQuery({
+    queryKey: floodLimitKey(routerId ?? ""),
+    queryFn: () => firewallService.getFloodLimit(routerId as string, organizationId),
+    enabled: !!routerId,
+    staleTime: 60_000,
+    retry: false,
+  });
+}
+
+export function useSetFloodLimit(routerId: string, organizationId?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (preset: FloodLimitPreset) =>
+      firewallService.setFloodLimit(routerId, preset, organizationId),
+    onSuccess: (state) => qc.setQueryData(floodLimitKey(routerId), state),
+    onSettled: () => qc.invalidateQueries({ queryKey: floodLimitKey(routerId) }),
   });
 }

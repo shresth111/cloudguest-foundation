@@ -428,6 +428,22 @@ export function firewallPushErrorSentence(err: PushFailure | null | undefined): 
         needsSupport: false,
         code,
       };
+    case "ACCESS_RULES_FLOOD_NO_GUEST_NETWORK":
+      return {
+        sentence:
+          "This router has no guest network we can see, so there is nobody to limit. Nothing was changed.",
+        detail: null,
+        needsSupport: true,
+        code,
+      };
+    case "ACCESS_RULES_FLOOD_LIMIT_INVALID":
+      return {
+        sentence: "That limit isn't one we can apply. Nothing was changed.",
+        detail: message,
+        needsSupport: false,
+        code,
+      };
+    case "ACCESS_RULES_FLOOD_OUTSIDE_BAND":
     case "ACCESS_RULES_MARKER_MALFORMED":
     case "ACCESS_RULES_MARKER_OUTSIDE_BAND":
     case "ACCESS_RULES_ORPHAN_MARKER":

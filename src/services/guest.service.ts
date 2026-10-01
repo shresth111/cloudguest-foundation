@@ -9,6 +9,7 @@ import type {
   CreateAccessRulePayload,
   CreateGuestTeamPayload,
   DeviceAccessRule,
+  RouterBlock,
   Guest,
   GuestAccessRule,
   GuestAnalyticsSummary,
@@ -156,6 +157,19 @@ interface BackendControllerBlock {
   release_error?: string | null;
 }
 
+interface BackendRouterBlock {
+  id: string;
+  router_id: string;
+  location_id?: string | null;
+  mac_address: string;
+  status?: string | null;
+  error_message?: string | null;
+  sessions_ended?: number | null;
+  blocked_at?: string | null;
+  cleared_at?: string | null;
+  release_error?: string | null;
+}
+
 interface BackendDeviceAccessRule {
   id: string;
   organization_id: string;
@@ -166,6 +180,9 @@ interface BackendDeviceAccessRule {
   email: string | null;
   expires_at: string | null;
   is_active: boolean;
+  // One entry per MikroTik router a blocklist device rule was written to.
+  // Optional: an older API omits it, which must read as "nothing written".
+  router_blocks?: BackendRouterBlock[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -328,6 +345,25 @@ function toControllerBlock(b: BackendControllerBlock): ControllerBlock {
   };
 }
 
+const ROUTER_BLOCK_STATUSES = ["not_applicable", "unenforced", "pending", "enforced", "failed"];
+
+function toRouterBlock(b: BackendRouterBlock): RouterBlock {
+  return {
+    id: b.id,
+    routerId: b.router_id,
+    locationId: b.location_id ?? null,
+    macAddress: b.mac_address,
+    status: ROUTER_BLOCK_STATUSES.includes(b.status ?? "")
+      ? (b.status as RouterBlock["status"])
+      : null,
+    errorMessage: b.error_message ?? null,
+    sessionsEnded: b.sessions_ended ?? 0,
+    blockedAt: b.blocked_at ?? null,
+    clearedAt: b.cleared_at ?? null,
+    releaseError: b.release_error ?? null,
+  };
+}
+
 function toDeviceAccessRule(r: BackendDeviceAccessRule): DeviceAccessRule {
   return {
     kind: "device",
@@ -340,6 +376,7 @@ function toDeviceAccessRule(r: BackendDeviceAccessRule): DeviceAccessRule {
     email: r.email,
     expiresAt: r.expires_at,
     isActive: r.is_active,
+    routerBlocks: (r.router_blocks ?? []).map(toRouterBlock),
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -827,6 +864,29 @@ export const guestService = {
     if (kind !== "identifier") return null;
     const data = (res.data as { data?: unknown } | undefined)?.data;
     return data ? toAccessRule(data as BackendAccessRule) : null;
+  },
+
+  /**
+   * Unblock one device rule and return the updated rule, whose
+   * `routerBlocks` now say whether each router's binding came off
+   * (`clearedAt`) or is still there with a `releaseError` the backend's
+   * sweep retries. `null` when the body could not be read -- "we do not
+   * know", never "released".
+   */
+  async deactivateDeviceRule(
+    ruleId: string,
+    organizationId?: string,
+  ): Promise<DeviceAccessRule | null> {
+    const res = await api.post(`/guest-access/device-rules/${ruleId}/deactivate`, undefined, {
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+    });
+    // Tolerant of both shapes, for the reason terminateSession documents:
+    // the interceptor may or may not have stripped the envelope already.
+    const body = res.data as { data?: unknown; mac_address?: unknown } | undefined;
+    const raw = (body && typeof body.mac_address === "string" ? body : body?.data) as
+      | BackendDeviceAccessRule
+      | undefined;
+    return raw && typeof raw.mac_address === "string" ? toDeviceAccessRule(raw) : null;
   },
 
   async deleteAccessRule(

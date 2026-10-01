@@ -74,7 +74,9 @@ import {
   useDeleteFirewallRule,
   useFirewallBand,
   useFirewallRules,
+  useFloodLimit,
   usePushFirewallRules,
+  useSetFloodLimit,
   useUpdateFirewallRule,
 } from "@/hooks/useFirewall";
 import {
@@ -100,7 +102,7 @@ import {
   type FirewallServiceId,
   type PushErrorExplained,
 } from "@/lib/firewall-rules";
-import type { FirewallPushResult, FirewallRule } from "@/types/firewall";
+import type { FirewallPushResult, FirewallRule, FloodLimitPreset } from "@/types/firewall";
 import type { RouterDevice } from "@/types/router";
 
 /**
@@ -386,6 +388,12 @@ function RouterFirewallCard({
           guestDnsServers={band.data?.guestDnsServers ?? []}
           disabled={bandBlocksApply || push.isPending || rulesQuery.isLoading}
           onChanged={runPush}
+        />
+
+        <FloodLimitCard
+          routerId={router.id}
+          organizationId={organizationId}
+          bandBlocksOn={bandBlocksApply}
         />
 
         {pushError && (
@@ -816,6 +824,163 @@ function PrivateNetworksSwitch({
         aria-label={t("firewallPage.privateTitle", "Keep guests off your private networks")}
         onCheckedChange={(v) => void turn(v)}
       />
+    </div>
+  );
+}
+
+/**
+ * "Limit connection floods": one switch and three presets per router.
+ *
+ * What it does on the router (cloud-guest, firewall flood-limit): one drop
+ * row per guest network at the top of the firewall band --
+ * `connection-limit=<N>,32` on new TCP connections -- so one guest device
+ * that already holds N connections cannot open another. Forward traffic only;
+ * nothing that reaches the router itself, and nothing on the venue's own
+ * private networks.
+ *
+ * The state shown is read off the router, never remembered, so a router that
+ * was reset shows Off. Rendered only when the backend answers the read: an
+ * older backend (404) or an unreadable one shows no card rather than a switch
+ * that would fail. Turning it on needs the firewall band; turning it off
+ * never does.
+ */
+const FLOOD_PRESETS: { id: Exclude<FloodLimitPreset, "off">; label: string; fallback: number }[] = [
+  { id: "relaxed", label: "Relaxed", fallback: 300 },
+  { id: "normal", label: "Normal", fallback: 150 },
+  { id: "strict", label: "Strict", fallback: 80 },
+];
+
+function FloodLimitCard({
+  routerId,
+  organizationId,
+  bandBlocksOn,
+}: {
+  routerId: string;
+  organizationId?: string;
+  bandBlocksOn: boolean;
+}) {
+  const { t } = useTranslation("nav", { i18n });
+  const flood = useFloodLimit(routerId, organizationId);
+  const set = useSetFloodLimit(routerId, organizationId);
+  const [error, setError] = useState<PushErrorExplained | null>(null);
+  const state = flood.data;
+  if (!state) return null;
+
+  const on = state.enabled;
+  const current = state.preset;
+
+  function choose(preset: FloodLimitPreset) {
+    setError(null);
+    set.mutate(preset, {
+      onSuccess: (next) =>
+        toast.success(
+          next.enabled
+            ? t("firewallPage.floodOnToast", "Connection-flood limit applied to the router.")
+            : t("firewallPage.floodOffToast", "Connection-flood limit removed from the router."),
+        ),
+      onError: (err) => setError(firewallPushErrorSentence(requestErrorOf(err))),
+    });
+  }
+
+  return (
+    <div
+      data-testid="flood-limit-card"
+      className="space-y-3 rounded-lg border border-border/60 bg-muted/30 p-4"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-0.5">
+          <p className="text-sm font-semibold">
+            {t("firewallPage.floodTitle", "Limit connection floods")}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {t(
+              "firewallPage.floodBody",
+              "Stops one guest device from opening hundreds of connections at once, which is how flood attacks and password-guessing tools work. Strict limits can break busy apps such as cloud backup, video calls and big downloads.",
+            )}
+          </p>
+        </div>
+        <Switch
+          checked={on}
+          disabled={set.isPending || (!on && bandBlocksOn)}
+          aria-label={t("firewallPage.floodTitle", "Limit connection floods")}
+          onCheckedChange={(v) => choose(v ? "normal" : "off")}
+        />
+      </div>
+
+      {on && (
+        <RadioGroup
+          value={current ?? ""}
+          onValueChange={(v) => choose(v as FloodLimitPreset)}
+          className="grid gap-2 sm:grid-cols-3"
+          aria-label={t("firewallPage.floodLevel", "How strict")}
+        >
+          {FLOOD_PRESETS.map((p) => {
+            const cap = state.presets[p.id] ?? p.fallback;
+            return (
+              <label
+                key={p.id}
+                className={cn(
+                  "flex cursor-pointer items-start gap-2 rounded-md border bg-background p-2.5 text-sm",
+                  current === p.id ? "border-primary" : "border-border/60",
+                  set.isPending && "pointer-events-none opacity-60",
+                )}
+              >
+                <RadioGroupItem value={p.id} className="mt-0.5" disabled={set.isPending} />
+                <span>
+                  <span className="font-medium">{t(`firewallPage.flood_${p.id}`, p.label)}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {t("firewallPage.floodCap", "Up to {{n}} connections per device", {
+                      n: cap,
+                    })}
+                  </span>
+                </span>
+              </label>
+            );
+          })}
+        </RadioGroup>
+      )}
+
+      {on && current === null && state.limit !== null && (
+        <p className="text-xs text-muted-foreground">
+          {t(
+            "firewallPage.floodCustom",
+            "This router has a custom limit of {{n}} connections per device. Pick a level to replace it.",
+            { n: state.limit },
+          )}
+        </p>
+      )}
+      {on && !state.consistent && (
+        <p role="status" className="text-xs text-amber-700 dark:text-amber-300">
+          {t(
+            "firewallPage.floodPartial",
+            "Part of this limit is missing on the router. Choose a level again to repair it.",
+          )}
+        </p>
+      )}
+      {!on && bandBlocksOn && (
+        <p className="text-xs text-muted-foreground">
+          {t(
+            "firewallPage.floodNeedsBand",
+            "This can be turned on once the router has been prepared for firewall rules.",
+          )}
+        </p>
+      )}
+      {set.isPending && (
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+          {t("firewallPage.floodApplying", "Changing the router…")}
+        </p>
+      )}
+      {error && (
+        <div role="alert" className="space-y-1 text-sm">
+          <p className="font-medium text-destructive">{error.sentence}</p>
+          {error.detail && (
+            <p className="text-xs text-muted-foreground">
+              {t("firewallPage.routerSaid", "What the router said:")} {error.detail}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
