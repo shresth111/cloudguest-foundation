@@ -15,7 +15,10 @@ import {
   Ban,
   Smartphone,
   Mail,
+  Laptop,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -35,6 +38,9 @@ import { maskMac } from "@/components/features/HeaderControls";
 import { DEFAULT_DIAL_CODE, PHONE_COUNTRIES, normalizePhoneToE164 } from "@/lib/phone-e164";
 import {
   BLOCK_DEVICE_GUARANTEE,
+  DEVICE_MAC_RANDOMISATION_NOTE,
+  routerBlockSentences,
+  unblockRouterMessage,
   blockDeviceReasons,
   blockDeviceSentences,
   blockOutcomeMessage,
@@ -67,10 +73,26 @@ const PAGE_SIZE_OPTS = [10, 25, 50] as const;
 // (GUEST_AUTH_METHOD_LABEL.otp_email) exactly as they can via SMS/WhatsApp
 // OTP -- so blocking by email is a real, first-class operation here, not
 // a cosmetic addition.
-type Mode = "mobile" | "email";
+//
+// "device" blocks a hardware (MAC) address -- a DeviceAccessRule, which on a
+// MikroTik router becomes a `type=blocked` hotspot binding that cuts the
+// device off now and on every reconnect. Offered only where a router is
+// reached over its API; a controller venue keeps its own per-client block in
+// Guests -> the guest panel.
+type Mode = "mobile" | "email" | "device";
+
+/** Any common MAC spelling -> "AA:BB:CC:DD:EE:FF", or null. */
+function normalizeMac(value: string): string | null {
+  const hex = value.replace(/[\s:.-]/g, "");
+  if (!/^[0-9A-Fa-f]{12}$/.test(hex)) return null;
+  return hex.toUpperCase().match(/.{2}/g)!.join(":");
+}
 
 interface BlockedUser {
   id: string;
+  /** Which table the rule lives in -- unblock and delete must go to the same
+   * one. Optional only for demo rows, which are never sent anywhere. */
+  kind?: "identifier" | "device";
   name: string | null;
   identifier: string;
   businessUnit: string;
@@ -141,6 +163,7 @@ function toBlockedUser(r: AnyAccessRule, locationName = ""): BlockedUser {
   return {
     id: r.id,
     name: r.reason ?? null,
+    kind: r.kind,
     identifier: r.kind === "device" ? r.macAddress : r.identifier,
     businessUnit: locationName,
     locationId: r.locationId ?? null,
@@ -380,6 +403,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
     });
   }, [demo, locationId, reloadBlocked]);
 
+  const { t } = useTranslation("nav", { i18n });
   const [mode, setMode] = useState<Mode>("mobile");
   const [textarea, setTextarea] = useState("");
   // Which country a bare local number belongs to. This screen had no such
@@ -407,13 +431,17 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
   // reused everywhere a count needs the mode-appropriate noun (the ready
   // count, the toast, the primary button, the confirm modal).
   const identifierNoun = (n: number) =>
-    mode === "email"
+    mode === "device"
       ? n === 1
-        ? "email address"
-        : "email addresses"
-      : n === 1
-        ? "number"
-        : "numbers";
+        ? "device"
+        : "devices"
+      : mode === "email"
+        ? n === 1
+          ? "email address"
+          : "email addresses"
+        : n === 1
+          ? "number"
+          : "numbers";
 
   // Default "Applies to" to the location this page is already scoped to,
   // once its real name is known (mirrors WhiteList.tsx's equivalent effect).
@@ -505,15 +533,24 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
       // actually signs in with (see src/lib/phone-e164.ts). An email
       // address carries meaningful punctuation ("@", ".") and is the
       // identifier verbatim, so it is only ever trimmed.
+      const mac = mode === "device" ? normalizeMac(entry) : null;
       const result =
-        mode === "mobile"
-          ? normalizePhoneToE164(entry, dialCode)
-          : EMAIL_RE.test(entry)
-            ? ({ ok: true, e164: entry } as const)
+        mode === "device"
+          ? mac
+            ? ({ ok: true, e164: mac } as const)
             : ({
                 ok: false,
-                message: "Not an email address — expected something like guest@example.com.",
-              } as const);
+                message:
+                  "Not a device address — expected something like 02:1A:2B:3C:4D:5E (Wi-Fi or MAC address).",
+              } as const)
+          : mode === "mobile"
+            ? normalizePhoneToE164(entry, dialCode)
+            : EMAIL_RE.test(entry)
+              ? ({ ok: true, e164: entry } as const)
+              : ({
+                  ok: false,
+                  message: "Not an email address — expected something like guest@example.com.",
+                } as const);
 
       if (!result.ok) {
         // Dedupe invalid text too, so a list repeating the same typo
@@ -667,13 +704,21 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
     try {
       const created = await Promise.all(
         parsed.valid.map((m) =>
-          guestService.createAccessRule({
-            kind: "identifier",
-            organizationId: orgId,
-            locationId,
-            identifier: m,
-            ruleType: "blocklist",
-          }),
+          mode === "device"
+            ? guestService.createAccessRule({
+                kind: "device",
+                organizationId: orgId,
+                locationId,
+                macAddress: m,
+                ruleType: "blocklist",
+              })
+            : guestService.createAccessRule({
+                kind: "identifier",
+                organizationId: orgId,
+                locationId,
+                identifier: m,
+                ruleType: "blocklist",
+              }),
         ),
       );
       const newBlocked = created.map((r) => toBlockedUser(r, nameForLocation(r.locationId)));
@@ -681,7 +726,11 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
       setTextarea("");
       setPage(0);
       setShowModal(false);
-      setToast(blockOutcomeMessage(created, identifierNoun, clientControls.controllerManaged));
+      setToast(
+        mode === "device"
+          ? `${created.length} ${identifierNoun(created.length)} blocked.`
+          : blockOutcomeMessage(created, identifierNoun, clientControls.controllerManaged),
+      );
       setTimeout(() => setToast(null), 6500);
       // THE DEVICE HALF DOES NOT GO IN THE TOAST. Partial success is the
       // normal case here -- a guest with three devices, one of which the
@@ -694,10 +743,18 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
       // into a panel that stays until it is dismissed. At a MikroTik venue
       // `blockDeviceSentences` returns [] -- `controller_blocks` is always
       // empty there -- so `setDeviceResult(null)` and nothing renders.
-      const sentences = blockDeviceSentences(created);
+      // A device rule's answer comes from the routers (`routerBlocks`), not
+      // from a controller, and is just as worth keeping on screen: "cut off
+      // on 1 of 2 routers" is the sentence an owner acts on.
+      const sentences =
+        mode === "device" ? routerBlockSentences(created) : blockDeviceSentences(created);
       setDeviceResult(
         sentences.length > 0
-          ? { sentences, reasons: blockDeviceReasons(created), at: Date.now() }
+          ? {
+              sentences,
+              reasons: mode === "device" ? [] : blockDeviceReasons(created),
+              at: Date.now(),
+            }
           : null,
       );
     } catch {
@@ -779,7 +836,28 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
     const row = blocked.find((b) => b.id === id);
     if (!row) return;
     try {
-      if (row.status === "Blocked") {
+      if (row.kind === "device" && row.status === "Blocked") {
+        // The backend takes the binding off each router BEFORE the rule
+        // stops applying, and says per router whether it came off.
+        const updated = await guestService.deactivateDeviceRule(id, orgId ?? undefined);
+        setToast(unblockRouterMessage(updated));
+        setTimeout(() => setToast(null), 6500);
+      } else if (row.kind === "device" && orgId) {
+        const created = await guestService.createAccessRule({
+          kind: "device",
+          organizationId: orgId,
+          locationId,
+          macAddress: row.identifier,
+          ruleType: "blocklist",
+        });
+        setBlocked((prev) =>
+          prev.map((b) =>
+            b.id === id ? toBlockedUser(created, nameForLocation(created.locationId)) : b,
+          ),
+        );
+        const sentences = routerBlockSentences([created]);
+        setDeviceResult(sentences.length ? { sentences, reasons: [], at: Date.now() } : null);
+      } else if (row.status === "Blocked") {
         const updated = await guestService.deactivateAccessRule(
           "identifier",
           id,
@@ -833,7 +911,8 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
       setConfirmingId(null);
       if (confirmTimer.current) clearTimeout(confirmTimer.current);
       if (!demo) {
-        guestService.deleteAccessRule("identifier", id, orgId ?? undefined).catch(() => {
+        const kind = prev.find((b) => b.id === id)?.kind ?? "identifier";
+        guestService.deleteAccessRule(kind, id, orgId ?? undefined).catch(() => {
           setBlocked(prev);
           setToast("Could not delete on the server.");
           setTimeout(() => setToast(null), 2500);
@@ -901,8 +980,12 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
               router, which can fail. The toast afterwards says which of
               the two actually happened; this line no longer pre-empts it. */}
             <p className="mt-3 text-sm text-slate-500">
-              They will not be able to sign in again, and we will try to end any session they have
-              right now.
+              {mode === "device"
+                ? t(
+                    "blockGuests.deviceConfirmBody",
+                    "Your router will drop these devices now and every time they reconnect, until you unblock them.",
+                  )
+                : "They will not be able to sign in again, and we will try to end any session they have right now."}
             </p>
             {/* The scope, at the last moment before the write. An
               organization-wide block is the one an owner is most likely
@@ -931,7 +1014,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
                 onClick={handleBlock}
                 className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
               >
-                Block {mode === "email" ? "emails" : "numbers"}
+                Block {mode === "device" ? "devices" : mode === "email" ? "emails" : "numbers"}
               </button>
             </div>
           </div>
@@ -1074,6 +1157,25 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
             >
               <Mail className="h-3.5 w-3.5" /> Email address
             </button>
+            {/* Only where a router is reached over its API. A controller
+              venue blocks a device from Guests -> the guest panel instead,
+              and a MAC rule here would reach no router there. */}
+            {!clientControls.controllerManaged && (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === "device"}
+                onClick={() => handleModeChange("device")}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                  mode === "device"
+                    ? "bg-white text-slate-800 shadow-sm dark:bg-slate-600 dark:text-slate-100"
+                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
+                )}
+              >
+                <Laptop className="h-3.5 w-3.5" /> {t("blockGuests.deviceTab", "Device")}
+              </button>
+            )}
           </div>
 
           <div>
@@ -1082,7 +1184,11 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
                 htmlFor="block-ta"
                 className="block text-sm font-medium text-slate-600 dark:text-slate-300"
               >
-                {mode === "email" ? "Email addresses" : "Mobile numbers"}{" "}
+                {mode === "device"
+                  ? t("blockGuests.deviceLabel", "Device addresses (MAC)")
+                  : mode === "email"
+                    ? "Email addresses"
+                    : "Mobile numbers"}{" "}
                 <span className="text-indigo-500">*</span>
               </label>
               {/* The country this screen never had. Access Rules has
@@ -1117,9 +1223,11 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
               id="block-ta"
               rows={6}
               placeholder={
-                mode === "email"
-                  ? "guest1@example.com, guest2@example.com"
-                  : "9876543210, +919812345678"
+                mode === "device"
+                  ? "02:1A:2B:3C:4D:5E, 3C-22-FB-00-11-22"
+                  : mode === "email"
+                    ? "guest1@example.com, guest2@example.com"
+                    : "9876543210, +919812345678"
               }
               value={textarea}
               onChange={(e) => setTextarea(e.target.value)}
@@ -1141,10 +1249,23 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
               stored -- the one place this screen cannot be wrong about
               what it is about to write. */}
             <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
-              {mode === "email"
-                ? "Paste one or more email addresses separated by commas, e.g. guest@example.com."
-                : `Paste one or more numbers separated by commas. Local numbers get ${dialCode}; put a + in front of a foreign number (+441632960961) to keep its own country code. Each entry below shows exactly what will be stored.`}
+              {mode === "device"
+                ? t(
+                    "blockGuests.deviceHint",
+                    "Paste one or more device (Wi-Fi/MAC) addresses separated by commas. Your router cuts the device off now and every time it reconnects.",
+                  )
+                : mode === "email"
+                  ? "Paste one or more email addresses separated by commas, e.g. guest@example.com."
+                  : `Paste one or more numbers separated by commas. Local numbers get ${dialCode}; put a + in front of a foreign number (+441632960961) to keep its own country code. Each entry below shows exactly what will be stored.`}
             </p>
+            {mode === "device" && (
+              <p
+                data-testid="block-device-mac-note"
+                className="mt-1 text-xs text-amber-700 dark:text-amber-300"
+              >
+                {t("blockGuests.deviceMacNote", DEVICE_MAC_RANDOMISATION_NOTE)}
+              </p>
+            )}
           </div>
 
           <div aria-live="polite" className="mt-2 flex flex-wrap items-center gap-2 text-xs">
@@ -1236,9 +1357,11 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
               Block{" "}
               {parsed.valid.length > 0
                 ? `${parsed.valid.length} ${identifierNoun(parsed.valid.length)}`
-                : mode === "email"
-                  ? "email addresses"
-                  : "numbers"}
+                : mode === "device"
+                  ? "devices"
+                  : mode === "email"
+                    ? "email addresses"
+                    : "numbers"}
             </button>
           </div>
         </CardContent>

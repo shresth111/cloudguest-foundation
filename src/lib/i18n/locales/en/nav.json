@@ -236,7 +236,20 @@
     "whereSpecific": "A specific address or range",
     "whoAddress": "Device address or range",
     "whoAny": "Any device",
-    "whoSpecific": "A specific device or group of devices"
+    "whoSpecific": "A specific device or group of devices",
+    "floodTitle": "Limit connection floods",
+    "floodBody": "Stops one guest device from opening hundreds of connections at once, which is how flood attacks and password-guessing tools work. Strict limits can break busy apps such as cloud backup, video calls and big downloads.",
+    "floodLevel": "How strict",
+    "flood_relaxed": "Relaxed",
+    "flood_normal": "Normal",
+    "flood_strict": "Strict",
+    "floodCap": "Up to {{n}} connections per device",
+    "floodCustom": "This router has a custom limit of {{n}} connections per device. Pick a level to replace it.",
+    "floodPartial": "Part of this limit is missing on the router. Choose a level again to repair it.",
+    "floodNeedsBand": "This can be turned on once the router has been prepared for firewall rules.",
+    "floodApplying": "Changing the router…",
+    "floodOnToast": "Connection-flood limit applied to the router.",
+    "floodOffToast": "Connection-flood limit removed from the router."
   },
   "webFilteringPage": {
     "intro": "Block whole kinds of website on your guest WiFi, such as adult sites or gambling. Cloudflare keeps the list of which website belongs to which kind.",
@@ -370,7 +383,8 @@
       "categories": "Choose kinds of website to block",
       "address": "Block an internet address",
       "guest": "Block a guest",
-      "firewall": "Set firewall rules"
+      "firewall": "Set firewall rules",
+      "floodLimit": "Limit connection floods"
     },
     "label": {
       "zone_to_zone_firewall": "Keep your networks apart (Firewall)",
@@ -386,5 +400,12 @@
       "threat_intelligence": "Block known harmful websites automatically",
       "geo_blocking": "Block by country"
     }
+  },
+  "blockGuests": {
+    "deviceTab": "Device",
+    "deviceLabel": "Device addresses (MAC)",
+    "deviceHint": "Paste one or more device (Wi-Fi/MAC) addresses separated by commas. Your router cuts the device off now and every time it reconnects.",
+    "deviceMacNote": "Anonymous guests can switch on a private Wi-Fi address on their phone and come back as a new device, so use this for devices you know.",
+    "deviceConfirmBody": "Your router will drop these devices now and every time they reconnect, until you unblock them."
   }
 }

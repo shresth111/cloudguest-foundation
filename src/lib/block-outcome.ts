@@ -24,7 +24,7 @@
  * in a test would drift from the copy that ships, which is the same class
  * of bug as two normalisers.
  */
-import type { AnyAccessRule, ControllerBlock, GuestAccessRule } from "@/types/guest";
+import type { AnyAccessRule, ControllerBlock, GuestAccessRule, RouterBlock } from "@/types/guest";
 
 /**
  * Which branch of the ladder applies. Named separately from the copy so a
@@ -334,4 +334,63 @@ export function unblockDeviceMessage(blocks: readonly ControllerBlock[]): string
   // of the device, or could not block it in the first place. There was
   // nothing to release, and claiming a release would invent one.
   return head;
+}
+
+// ---------------------------------------------------------------------------
+// Device rules on a MikroTik router: the durable block
+// ---------------------------------------------------------------------------
+
+/**
+ * The one sentence a venue owner needs before blocking a device by its
+ * hardware address. A block by MAC is real on the router, and it is also
+ * walked around by anyone whose phone uses a private Wi-Fi address.
+ */
+export const DEVICE_MAC_RANDOMISATION_NOTE =
+  "Anonymous guests can switch on a private Wi-Fi address on their phone and come back as a new device, so use this for devices you know.";
+
+/**
+ * What the routers did about newly created device rules -- one or two
+ * sentences, the worst true thing last.
+ *
+ * Reads only `routerBlocks`. EMPTY SAYS NOTHING: an older backend, a venue
+ * run by a controller, and an allow rule all return no rows, and none of
+ * those is "the router blocked it". Each counted row is one router.
+ */
+export function routerBlockSentences(created: readonly AnyAccessRule[]): string[] {
+  const rows = created.flatMap((r) => (r.kind === "device" ? r.routerBlocks : []));
+  const tried = rows.filter((b) => b.status === "enforced" || b.status === "failed");
+  if (tried.length === 0) return [];
+  const enforced = tried.filter((b) => b.status === "enforced");
+  const failed = tried.filter((b) => b.status === "failed");
+  const ended = rows.reduce((sum, b) => sum + (b.sessionsEnded ?? 0), 0);
+  const routers = (n: number) => `${n} router${n === 1 ? "" : "s"}`;
+  const out: string[] = [];
+  if (enforced.length > 0) {
+    out.push(
+      (failed.length === 0
+        ? "Cut off on your router now, and it stays blocked if it reconnects."
+        : `Cut off on ${enforced.length} of ${routers(tried.length)}, and it stays blocked there if it reconnects.`) +
+        (ended > 0 ? ` ${ended} live session${ended === 1 ? " was" : "s were"} ended.` : ""),
+    );
+  }
+  if (failed.length > 0) {
+    const reason = failed.find((b) => b.errorMessage)?.errorMessage;
+    out.push(
+      `We could not block it on ${failed.length === tried.length ? "your router" : routers(failed.length)}` +
+        (reason ? ` (${reason.replace(/\.$/, "")})` : "") +
+        ". It still cannot sign in; try again from this list once the router is back.",
+    );
+  }
+  return out;
+}
+
+/** After unblocking a device rule: whether every router let it go. */
+export function unblockRouterMessage(
+  rule: { routerBlocks: readonly RouterBlock[] } | null,
+): string {
+  const head = "Unblocked — the device can connect again.";
+  if (!rule) return head;
+  const stuck = rule.routerBlocks.filter((b) => !b.clearedAt && b.releaseError);
+  if (stuck.length === 0) return head;
+  return `${head} ${stuck.length === 1 ? "One router" : `${stuck.length} routers`} still ${stuck.length === 1 ? "has" : "have"} the block and did not confirm removing it. We keep retrying.`;
 }

@@ -13,6 +13,8 @@ import type {
   FirewallRule,
   FirewallRuleListQuery,
   FirewallRuleListResult,
+  FloodLimitPreset,
+  FloodLimitState,
   UpdateFirewallRulePayload,
 } from "@/types/firewall";
 
@@ -60,6 +62,35 @@ interface BackendFirewallBandStatus {
 interface BackendFirewallBandResponse {
   router_id: string;
   created: boolean;
+}
+
+interface BackendFloodLimit {
+  router_id: string;
+  preset: string | null;
+  limit: number | null;
+  enabled: boolean;
+  consistent: boolean;
+  band_state: string;
+  guest_networks?: string[] | null;
+  presets?: Record<string, number> | null;
+  checked_at?: string | null;
+}
+
+const FLOOD_PRESETS: readonly FloodLimitPreset[] = ["off", "relaxed", "normal", "strict"];
+
+function toFloodLimit(d: BackendFloodLimit): FloodLimitState {
+  return {
+    routerId: d.router_id,
+    preset: FLOOD_PRESETS.find((p) => p === d.preset) ?? null,
+    limit: typeof d.limit === "number" ? d.limit : null,
+    enabled: !!d.enabled,
+    consistent: d.consistent !== false,
+    bandState:
+      (["ready", "missing", "invalid"] as const).find((s) => s === d.band_state) ?? "missing",
+    guestNetworks: d.guest_networks ?? [],
+    presets: d.presets ?? {},
+    checkedAt: d.checked_at ?? null,
+  };
 }
 
 const PUSH_STATUSES: readonly FirewallDevicePushStatus[] = ["pending", "active", "failed"];
@@ -241,6 +272,45 @@ export const firewallService = {
       if (status === 404 || status === 403 || status === 405) return null;
       throw err;
     }
+  },
+
+  /**
+   * The router's "Limit connection floods" switch, read off the router
+   * (`firewall.read`, ROUTER scope). `null` -- "unknown" -- when the
+   * endpoint is not there (an older backend) or not readable; the card then
+   * renders nothing rather than a switch that would 404.
+   */
+  async getFloodLimit(routerId: string, organizationId?: string): Promise<FloodLimitState | null> {
+    if (isDemo()) return null;
+    const orgId = organizationId ?? (await resolveOrgId());
+    try {
+      const { data } = await api.get<BackendFloodLimit>(
+        `/firewall-rules/routers/${routerId}/flood-limit`,
+        orgId ? { headers: { "X-Organization-Id": orgId } } : undefined,
+      );
+      return data && typeof data.enabled === "boolean" ? toFloodLimit(data) : null;
+    } catch (err) {
+      const status = requestErrorOf(err)?.status;
+      if (status === 404 || status === 403 || status === 405) return null;
+      throw err;
+    }
+  },
+
+  /** Turn the switch on at a preset, change it, or turn it off
+   * (`firewall.execute`). Refusals are real non-2xx with an
+   * `ACCESS_RULES_*` code -- see `firewallPushErrorSentence`. */
+  async setFloodLimit(
+    routerId: string,
+    preset: FloodLimitPreset,
+    organizationId?: string,
+  ): Promise<FloodLimitState> {
+    const orgId = organizationId ?? (await resolveOrgId());
+    const { data } = await api.put<BackendFloodLimit>(
+      `/firewall-rules/routers/${routerId}/flood-limit`,
+      { preset },
+      orgId ? { headers: { "X-Organization-Id": orgId } } : undefined,
+    );
+    return toFloodLimit(data);
   },
 
   /**

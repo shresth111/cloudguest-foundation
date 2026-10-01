@@ -121,3 +121,29 @@ export interface FirewallBandPlacement {
   routerId: string;
   created: boolean;
 }
+
+/** The per-router "Limit connection floods" switch. `off` removes it. */
+export type FloodLimitPreset = "off" | "relaxed" | "normal" | "strict";
+
+/**
+ * GET/PUT /firewall-rules/routers/{id}/flood-limit. Read off the router
+ * every time -- the router's rows are the switch's only state, so a router
+ * that was reset reads "off", truthfully.
+ *
+ * `preset` is `null` when the router holds a cap none of the presets
+ * writes. `consistent` is false when a guest network is missing its row or
+ * the rows disagree; turning the switch on again repairs it. `bandState`
+ * must be `ready` for it to be turned on (off always works).
+ */
+export interface FloodLimitState {
+  routerId: string;
+  preset: FloodLimitPreset | null;
+  limit: number | null;
+  enabled: boolean;
+  consistent: boolean;
+  bandState: FirewallBandState;
+  guestNetworks: string[];
+  /** Connections one guest device may hold, per preset. */
+  presets: Partial<Record<Exclude<FloodLimitPreset, "off">, number>>;
+  checkedAt: string | null;
+}

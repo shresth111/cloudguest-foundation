@@ -444,8 +444,8 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
     linkedKeys.join(","),
   );
   check(
-    "and links zone-to-zone firewalling to Security -> Firewall, and nothing else there",
-    linkedTo("/firewall").join(",") === "zone_to_zone_firewall",
+    "and links zone-to-zone firewalling and the flood limit to Security -> Firewall, and nothing else there",
+    linkedTo("/firewall").sort().join(",") === "connection_flood_protection,zone_to_zone_firewall",
     linkedTo("/firewall").join(","),
   );
   check(
