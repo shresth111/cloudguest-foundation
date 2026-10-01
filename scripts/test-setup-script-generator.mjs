@@ -1684,7 +1684,9 @@ for (const [variant, opts] of VARIANTS) {
         un.match(/on-error=\{ :log warning "cloudguest-hb: \/tool fetch to master failed --/g) ?? []
       ).length;
       const ipify = (
-        un.match(/on-error=\{ :log warning "cloudguest-hb: \/tool fetch to api\.ipify\.org failed/g) ?? []
+        un.match(
+          /on-error=\{ :log warning "cloudguest-hb: \/tool fetch to api\.ipify\.org failed/g,
+        ) ?? []
       ).length;
       // Immediate paste + scheduler on-event each carry the full program.
       return master === 2 && ipify === 2;
