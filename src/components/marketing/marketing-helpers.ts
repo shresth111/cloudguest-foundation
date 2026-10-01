@@ -85,7 +85,7 @@ export function channelNotLiveCopy(channelLabel: string): string {
  */
 const ERROR_COPY: Record<string, string> = {
   organization_required: "Your session has no organisation selected. Sign in again.",
-  feature_not_entitled: "Marketing isn't enabled for your organisation.",
+  feature_not_entitled: "Guest Messaging isn't enabled for your organisation.",
   license_not_active: "Your Wyfy Guest licence isn't active.",
   permission_denied: "Your role doesn't allow this.",
   forbidden: "Your role doesn't allow this.",

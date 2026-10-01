@@ -1,12 +1,12 @@
 {
   "title": "Connected guests",
-  "searchPlaceholder": "Search users…",
+  "searchPlaceholder": "Search guests…",
   "tabAll": "All",
   "tabOnline": "Online",
   "tabOffline": "Offline",
   "totalGuests": "Total guests",
   "onlineNow": "Online now",
-  "colUser": "User",
+  "colUser": "Guest",
   "colPhone": "Phone",
   "colMac": "MAC",
   "colIp": "IP",
@@ -24,7 +24,7 @@
   "reconnectsAcross": "Across {{count}} reconnects",
   "disconnect": "Disconnect",
   "alreadyOffline": "Already offline",
-  "disconnectUser": "Disconnect user",
+  "disconnectUser": "Disconnect guest",
   "extend": "Extend session",
   "extend30": "Extend (+30m)",
   "extend60": "Extend (+60m)",
@@ -70,5 +70,13 @@
   "applyDeviceSpeed": "Apply speed",
   "clearDeviceSpeed": "Remove limit",
   "deviceActionError": "Couldn’t reach the venue’s controller. Nothing was changed.",
-  "deviceUndoAlwaysOffered": "Allow device and Remove limit are always offered: this venue’s controller does not tell us which devices it is holding off or capping, so we cannot show that here. If there is nothing to undo, nothing changes and we say so."
+  "deviceUndoAlwaysOffered": "Allow device and Remove limit are always offered: this venue’s controller does not tell us which devices it is holding off or capping, so we cannot show that here. If there is nothing to undo, nothing changes and we say so.",
+  "noDevice": "No device on record",
+  "fullHistory": "Full history",
+  "exportCsv": "Export CSV",
+  "exporting": "Exporting…",
+  "exportNothing": "Nothing to export for these filters.",
+  "exportFailed": "Could not build the export. Nothing was changed.",
+  "exportSuccess_one": "Exported {{count}} guest",
+  "exportSuccess_other": "Exported {{count}} guests"
 }

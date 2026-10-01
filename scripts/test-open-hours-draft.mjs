@@ -210,7 +210,10 @@ check(
 );
 check(
   "failure surfaces the backend message",
-  /toast\.error\(\(err as AppError\)\.message \|\| "Could not save open hours\."\)/.test(view),
+  // The fallback is translated now (t(key, "English")), so allow that wrapper.
+  /toast\.error\(\s*\(err as AppError\)\.message \|\|\s*(?:t\("[\w.]+", )?"Could not save open hours\."\)?\s*\)/.test(
+    view,
+  ),
 );
 check("uses the shared validator", /validateOpenHoursSchedule\(draft\.schedule\)/.test(view));
 check(

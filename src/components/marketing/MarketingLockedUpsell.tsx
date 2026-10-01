@@ -69,7 +69,7 @@ export function MarketingLockedUpsell({ locationId }: { locationId?: string }) {
             {t("locked.badge", "Add-on")}
           </span>
           <h2 className="text-xl font-semibold tracking-tight">
-            {t("locked.title", "Marketing is an add-on")}
+            {t("locked.title", "Guest Messaging is an add-on")}
           </h2>
           <p className="max-w-xl text-sm text-muted-foreground">
             {t(
@@ -152,7 +152,7 @@ export function MarketingLicenceLapsed() {
         <Lock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
         {t(
           "locked.lapsed",
-          "Your Wyfy Guest licence is not active, so Marketing is unavailable until it is renewed.",
+          "Your Wyfy Guest licence is not active, so Guest Messaging is unavailable until it is renewed.",
         )}
       </span>
       <Link to="/tickets" className="shrink-0 font-medium underline-offset-4 hover:underline">

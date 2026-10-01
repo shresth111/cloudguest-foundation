@@ -151,7 +151,10 @@ try {
 
   console.log("\nnothing is locked, and it says it is a demo");
   check("the demo banner is shown", await page.getByTestId("marketing-demo-banner").isVisible());
-  check("no upsell / lock screen", (await page.getByText("Marketing is an add-on").count()) === 0);
+  check(
+    "no upsell / lock screen",
+    (await page.getByText("Guest Messaging is an add-on").count()) === 0,
+  );
   check(
     "SMS, WhatsApp and Email are all Live",
     (await page.getByText("Live", { exact: true }).count()) === 3,

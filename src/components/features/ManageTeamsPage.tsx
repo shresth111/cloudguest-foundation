@@ -11,6 +11,8 @@ import {
   FileSpreadsheet,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Trans, useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -80,10 +82,22 @@ const TABS = [
   // Open Hours pass: new name + a real visual redesign below, zero
   // changes to createTeam/revokeTeam/guestService calls or the Team data
   // model.
-  { id: "setup", label: "Team Accounts", icon: Users },
-  { id: "update", label: "Update User Details", icon: UserCog },
-  { id: "bulk-teams", label: "Setup Bulk Teams", icon: Upload },
-  { id: "bulk-map", label: "Map Bulk Users", icon: UploadCloud },
+  //
+  // Then "Team Accounts" -> "Groups" (and the other three relabelled) so the
+  // page uses the same word as its own sidebar row, "Guest Groups". A venue
+  // owner who clicked "Guest Groups" and landed on "Team Accounts" had no
+  // way to tell it was the same thing. "Update User Details" became "Find a
+  // Guest": the tab has only ever looked a guest up (there is no guest
+  // update route, see findUser below), so the old name promised an edit.
+  { id: "setup", labelKey: "tabs.setup", fallback: "Groups", icon: Users },
+  { id: "update", labelKey: "tabs.update", fallback: "Find a Guest", icon: UserCog },
+  { id: "bulk-teams", labelKey: "tabs.bulkGroups", fallback: "Add Many Groups", icon: Upload },
+  {
+    id: "bulk-map",
+    labelKey: "tabs.bulkMap",
+    fallback: "Add Guests to Groups",
+    icon: UploadCloud,
+  },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
 
@@ -107,7 +121,9 @@ function downloadCsvTemplate(filename: string, header: string[], sampleRow: stri
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
-  toast.success("Template downloaded");
+  toast.success(
+    i18n.t("templateDownloaded", { ns: "guestGroups", defaultValue: "Template downloaded" }),
+  );
 }
 
 function CsvDropzone({
@@ -119,6 +135,7 @@ function CsvDropzone({
   onFile: (f: File | null) => void;
   disabled?: boolean;
 }) {
+  const { t } = useTranslation("guestGroups", { i18n });
   return (
     <label
       className={cn(
@@ -141,10 +158,12 @@ function CsvDropzone({
       ) : (
         <>
           <p className="text-sm font-medium text-foreground">
-            {disabled ? "CSV import isn't available yet" : "Click to upload a CSV file"}
+            {disabled
+              ? t("csv.unavailable", "CSV import isn't available yet")
+              : t("csv.click", "Click to upload a CSV file")}
           </p>
           <p className="text-xs text-muted-foreground">
-            {disabled ? "See below" : "or drag and drop it here"}
+            {disabled ? t("csv.seeBelow", "See below") : t("csv.drag", "or drag and drop it here")}
           </p>
         </>
       )}
@@ -177,24 +196,34 @@ function CsvDropzone({
  * shipping is doing something useful.
  */
 function BulkImportUnavailable() {
+  const { t } = useTranslation("guestGroups", { i18n });
   return (
     <div className="rounded-xl border border-dashed bg-muted/40 p-4 text-center">
-      <p className="text-sm font-medium text-foreground">Bulk import is coming</p>
+      <p className="text-sm font-medium text-foreground">
+        {t("bulk.comingTitle", "Bulk import is coming")}
+      </p>
       <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
-        We haven&apos;t shipped spreadsheet import yet, so we&apos;ve switched this off rather than
-        take a file and quietly drop it. Add groups with{" "}
-        <span className="font-medium text-foreground">Create Team</span> above, or send us your
-        sheet on a support ticket and we&apos;ll load it for you.
+        {/* One sentence with the button name inside it, not three strings
+            glued together: Hindi puts the button name in a different place
+            in the sentence, so the translator needs the whole thing. */}
+        <Trans
+          i18n={i18n}
+          t={t}
+          i18nKey="bulk.comingBody"
+          defaults="We haven't shipped spreadsheet import yet, so we've switched this off rather than take a file and quietly drop it. Add groups with <b>Create Group</b> above, or send us your sheet on a support ticket and we'll load it for you."
+          components={{ b: <span className="font-medium text-foreground" /> }}
+        />
       </p>
     </div>
   );
 }
 
 function QuickNotes({ items }: { items: string[] }) {
+  const { t } = useTranslation("guestGroups", { i18n });
   return (
     <div className="rounded-xl bg-muted/40 p-4">
       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        Quick Notes
+        {t("notes.title", "Quick Notes")}
       </p>
       <ol className="space-y-1 text-xs text-muted-foreground">
         {items.map((n, i) => (
@@ -272,6 +301,9 @@ function TeamClustersIllustration() {
 }
 
 export default function ManageTeamsPage({ locationId }: { locationId?: string } = {}) {
+  // `tr`, not `t`: this page already uses `t` for a Team everywhere
+  // (`openManage(t)`, `revokeTeam(t)`, every `teams.map((t) => ...)`).
+  const { t: tr } = useTranslation("guestGroups", { i18n });
   const demo = useIsDemo();
   // UNITS is demo-only seed data (fake hotel names) -- a real customer only
   // has their own locations, so every "Location" picker below must offer
@@ -400,9 +432,14 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
     try {
       await guestService.removeTeamMember(manageTeam.id, guestId);
       setMembers((prev) => prev.filter((m) => m.guestId !== guestId));
-      toast.success("Member removed");
+      toast.success(tr("toast.memberRemoved", "Member removed"));
     } catch {
-      toast.error("Could not remove this member — check the connection and try again.");
+      toast.error(
+        tr(
+          "toast.removeFailed",
+          "Could not remove this member — check the connection and try again.",
+        ),
+      );
     } finally {
       setRemovingGuestId(null);
     }
@@ -423,10 +460,13 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
 
   const createTeam = async () => {
     const e: Record<string, string> = {};
-    if (demo && !bu) e.bu = "Select a location.";
-    if (!teamName) e.teamName = "Enter a team name.";
+    if (demo && !bu) e.bu = tr("errors.location", "Select a location.");
+    if (!teamName) e.teamName = tr("errors.groupName", "Enter a group name.");
     if (sharedUsers === "" || parseInt(sharedUsers) < 0)
-      e.sharedUsers = "Enter shared users count, or 0 for unlimited.";
+      e.sharedUsers = tr(
+        "errors.sharedUsers",
+        "Enter how many guests can join, or 0 for unlimited.",
+      );
     setErrs(e);
     if (Object.keys(e).length) return;
 
@@ -445,11 +485,11 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
       setTeamName("");
       setSharedUsers("");
       setSharedQuotaMb("");
-      toast.success("Team created");
+      toast.success(tr("toast.created", "Group created"));
       return;
     }
     if (!orgId) {
-      toast.error("No organization found for this session.");
+      toast.error(tr("toast.noOrg", "No organization found for this session."));
       return;
     }
     try {
@@ -480,22 +520,27 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
       setTeamName("");
       setSharedUsers("");
       setSharedQuotaMb("");
-      toast.success("Team created");
+      toast.success(tr("toast.created", "Group created"));
     } catch {
-      toast.error("Could not create the team — check the connection and try again.");
+      toast.error(
+        tr(
+          "toast.createFailed",
+          "Could not create the group — check the connection and try again.",
+        ),
+      );
     }
   };
 
   const revokeTeam = async (t: Team) => {
     const prev = teams;
     setTeams((p) => p.filter((x) => x.id !== t.id));
-    toast.success("Team revoked");
+    toast.success(tr("toast.revoked", "Group revoked"));
     if (!demo) {
       try {
         await guestService.revokeTeam(t.id, undefined, orgId ?? undefined);
       } catch {
         setTeams(prev);
-        toast.error("Could not revoke on the server.");
+        toast.error(tr("toast.revokeFailed", "Could not revoke on the server."));
       }
     }
   };
@@ -515,11 +560,11 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
 
   const findUser = async () => {
     if (!udMobile) {
-      toast.error("Enter a mobile number.");
+      toast.error(tr("find.enterMobile", "Enter a mobile number."));
       return;
     }
     if (demo) {
-      toast.error("Guest lookup needs a real account.");
+      toast.error(tr("find.demo", "Guest lookup needs a real account."));
       return;
     }
     setUdLoading(true);
@@ -534,9 +579,9 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
         pageSize: 10,
       });
       setUdResult(res.rows);
-      if (res.rows.length === 0) toast.info("No guest matched that number.");
+      if (res.rows.length === 0) toast.info(tr("find.noMatch", "No guest matched that number."));
     } catch {
-      toast.error("Could not search for that guest.");
+      toast.error(tr("find.error", "Could not search for that guest."));
     } finally {
       setUdLoading(false);
     }
@@ -556,9 +601,12 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
             <Users className="h-3.5 w-3.5 text-white" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold tracking-tight">Guest Groups</h1>
+            <h1 className="text-lg font-semibold tracking-tight">{tr("title", "Guest Groups")}</h1>
             <p className="text-sm text-muted-foreground">
-              Group guests into teams with shared data quotas and manage them in bulk.
+              {tr(
+                "subtitle",
+                "Put guests into groups that share one data allowance, and manage them together.",
+              )}
             </p>
           </div>
         </div>
@@ -579,7 +627,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
               )}
             >
               <t.icon className="h-4 w-4" />
-              {t.label}
+              {tr(t.labelKey, t.fallback)}
             </button>
           ))}
         </div>
@@ -599,16 +647,21 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                   <UserPlus className="h-4 w-4 text-white" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold tracking-tight">Team Accounts</h2>
+                  <h2 className="text-lg font-semibold tracking-tight">
+                    {tr("form.title", "Create a Group")}
+                  </h2>
                   <p className="text-sm text-muted-foreground">
-                    Create a shared team or desk account with its own member limit.
+                    {tr(
+                      "form.subtitle",
+                      "Create a shared group or desk account with its own member limit.",
+                    )}
                   </p>
                 </div>
               </div>
               <div className="grid gap-4 rounded-xl bg-muted/40 p-5 md:grid-cols-2 lg:grid-cols-4">
                 <div>
                   <label className={labelCls}>
-                    Location <span className="text-destructive">*</span>
+                    {tr("form.location", "Location")} <span className="text-destructive">*</span>
                   </label>
                   <select
                     value={bu}
@@ -618,7 +671,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                     }}
                     className={inputCls}
                   >
-                    <option value="">Choose location</option>
+                    <option value="">{tr("form.chooseLocation", "Choose location")}</option>
                     {units.map((u) => (
                       <option key={u} value={u}>
                         {u}
@@ -629,7 +682,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                 </div>
                 <div>
                   <label className={labelCls}>
-                    Team Name <span className="text-destructive">*</span>
+                    {tr("form.groupName", "Group Name")} <span className="text-destructive">*</span>
                   </label>
                   <input
                     value={teamName}
@@ -637,7 +690,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                       setTeamName(e.target.value);
                       setErrs((p) => ({ ...p, teamName: "" }));
                     }}
-                    placeholder="Please enter team name"
+                    placeholder={tr("form.groupNamePlaceholder", "Enter a group name")}
                     className={inputCls}
                   />
                   {errs.teamName && (
@@ -646,7 +699,8 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                 </div>
                 <div>
                   <label className={labelCls}>
-                    Shared Users <span className="text-destructive">*</span>
+                    {tr("form.sharedUsers", "Number of Guests")}{" "}
+                    <span className="text-destructive">*</span>
                   </label>
                   <input
                     type="number"
@@ -656,7 +710,10 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                       setSharedUsers(e.target.value);
                       setErrs((p) => ({ ...p, sharedUsers: "" }));
                     }}
-                    placeholder="Enter shared users count or set 0 for unlimited"
+                    placeholder={tr(
+                      "form.sharedUsersPlaceholder",
+                      "How many guests can join, or 0 for unlimited",
+                    )}
                     className={inputCls}
                   />
                   {errs.sharedUsers && (
@@ -664,13 +721,18 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                   )}
                 </div>
                 <div>
-                  <label className={labelCls}>Shared Data Quota (MB)</label>
+                  <label className={labelCls}>
+                    {tr("form.sharedQuota", "Shared Data Limit (MB)")}
+                  </label>
                   <input
                     type="number"
                     min={0}
                     value={sharedQuotaMb}
                     onChange={(e) => setSharedQuotaMb(e.target.value)}
-                    placeholder="Leave blank or 0 for unlimited"
+                    placeholder={tr(
+                      "form.sharedQuotaPlaceholder",
+                      "Leave blank or 0 for unlimited",
+                    )}
                     className={inputCls}
                   />
                 </div>
@@ -678,7 +740,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
               <div className="mt-5 flex justify-center">
                 <Button onClick={createTeam}>
                   <Plus className="mr-2 h-4 w-4" />
-                  Create Team
+                  {tr("form.create", "Create Group")}
                 </Button>
               </div>
             </CardContent>
@@ -686,18 +748,22 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
 
           <div>
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-foreground">Your Teams</h3>
+              <h3 className="text-sm font-semibold text-foreground">
+                {tr("list.title", "Your Groups")}
+              </h3>
               {teams.filter((t) => t.status !== "revoked").length > 0 && (
                 <Badge variant="outline">
-                  {teams.filter((t) => t.status !== "revoked").length} total
+                  {tr("list.total", "{{count}} total", {
+                    count: teams.filter((t) => t.status !== "revoked").length,
+                  })}
                 </Badge>
               )}
             </div>
             {teams.filter((t) => t.status !== "revoked").length === 0 ? (
               <EmptyState
                 icon={Users}
-                title="No team accounts yet"
-                description="Create one above to get started."
+                title={tr("list.emptyTitle", "No groups yet")}
+                description={tr("list.emptyBody", "Create one above to get started.")}
               />
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -708,7 +774,9 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                       <CardContent className="p-4">
                         <div className="mb-1 flex items-center justify-between">
                           <p className="text-sm font-semibold">{t.name}</p>
-                          <Badge variant="outline">{t.members} members</Badge>
+                          <Badge variant="outline">
+                            {tr("list.members", "{{count}} members", { count: t.members })}
+                          </Badge>
                         </div>
                         <p className="mb-2 text-xs text-muted-foreground">{t.businessUnit}</p>
                         {/* quotaPercent is null when this team has no shared data
@@ -718,13 +786,13 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                         that would otherwise read as "0% used". */}
                         {t.quotaPercent === null ? (
                           <div className="flex items-center justify-between text-xs text-muted-foreground">
-                            <span>Data quota</span>
-                            <span>No quota set</span>
+                            <span>{tr("list.dataQuota", "Data limit")}</span>
+                            <span>{tr("list.noQuota", "No limit set")}</span>
                           </div>
                         ) : (
                           <>
                             <div className="flex items-center justify-between text-xs text-muted-foreground">
-                              <span>Quota used</span>
+                              <span>{tr("list.quotaUsed", "Data used")}</span>
                               <span>{t.quotaPercent}%</span>
                             </div>
                             <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
@@ -742,7 +810,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                             className="h-7 flex-1 text-xs"
                             onClick={() => openManage(t)}
                           >
-                            Manage
+                            {tr("list.manage", "Manage")}
                           </Button>
                           <Button
                             size="sm"
@@ -750,7 +818,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                             className="h-7 text-xs text-destructive"
                             onClick={() => revokeTeam(t)}
                           >
-                            Revoke
+                            {tr("list.revoke", "Revoke")}
                           </Button>
                         </div>
                       </CardContent>
@@ -765,9 +833,11 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
       {tab === "update" && (
         <Card className="border-0 shadow-sm">
           <CardContent className="p-6 md:p-8">
-            <h2 className="text-lg font-semibold tracking-tight">Update User Details</h2>
+            <h2 className="text-lg font-semibold tracking-tight">
+              {tr("find.title", "Find a Guest")}
+            </h2>
             <p className="mb-5 text-sm text-muted-foreground">
-              Please use this to modify user details.
+              {tr("find.subtitle", "Look up a guest by their mobile number.")}
             </p>
             <div className="grid gap-4 md:grid-cols-2">
               {/* A required-looking "Location *" select used to sit here
@@ -777,43 +847,46 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                   load-bearing and is not. */}
               <div>
                 <label className={labelCls}>
-                  Mobile No. <span className="text-destructive">*</span>
+                  {tr("find.mobile", "Mobile No.")} <span className="text-destructive">*</span>
                 </label>
                 <input
                   value={udMobile}
                   onChange={(e) => setUdMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                  placeholder="Mobile Number"
+                  placeholder={tr("find.mobilePlaceholder", "Mobile Number")}
                   className={inputCls}
                 />
               </div>
             </div>
             <div className="mt-5 flex justify-center">
               <Button onClick={findUser} disabled={udLoading || !udMobile}>
-                {udLoading ? "Searching…" : "Find User"}
+                {udLoading ? tr("find.searching", "Searching…") : tr("find.find", "Find Guest")}
               </Button>
             </div>
             {udResult !== null && (
               <div className="mt-5">
                 {udResult.length === 0 ? (
                   <p className="text-center text-sm text-muted-foreground">
-                    No guest matched that number.
+                    {tr("find.noMatch", "No guest matched that number.")}
                   </p>
                 ) : (
                   <div className="space-y-2">
                     {udResult.map((g) => (
                       <div key={g.id} className="rounded-xl bg-muted/40 px-4 py-3">
                         <p className="text-sm font-medium text-foreground">
-                          {g.displayName || g.identifier || "Guest"}
+                          {g.displayName || g.identifier || tr("find.guest", "Guest")}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {g.identifier}
                           {g.locationName ? ` · ${g.locationName}` : ""}
-                          {g.isBlocked ? " · blocked" : ""}
+                          {g.isBlocked ? ` · ${tr("find.blocked", "blocked")}` : ""}
                         </p>
                       </div>
                     ))}
                     <p className="pt-1 text-center text-xs text-muted-foreground">
-                      Editing guest details isn&apos;t available yet — this is a lookup only.
+                      {tr(
+                        "find.lookupOnly",
+                        "Editing guest details isn't available yet — this is a lookup only.",
+                      )}
                     </p>
                   </div>
                 )}
@@ -826,22 +899,24 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
       {tab === "bulk-teams" && (
         <Card className="border-0 shadow-sm">
           <CardContent className="p-6 md:p-8">
-            <h2 className="text-lg font-semibold tracking-tight">Setup Bulk Teams</h2>
+            <h2 className="text-lg font-semibold tracking-tight">
+              {tr("bulkGroups.title", "Add Many Groups at Once")}
+            </h2>
             <p className="mb-5 text-sm text-muted-foreground">
-              Please upload your CSV file here to create teams in bulk.
+              {tr("bulkGroups.subtitle", "Upload a CSV file to create many groups at once.")}
             </p>
             <div className="grid gap-6 md:grid-cols-2">
               <div className="space-y-4">
                 <div>
                   <label className={labelCls}>
-                    Location <span className="text-destructive">*</span>
+                    {tr("form.location", "Location")} <span className="text-destructive">*</span>
                   </label>
                   <select
                     value={teamsBu}
                     onChange={(e) => setTeamsBu(e.target.value)}
                     className={inputCls}
                   >
-                    <option value="">Choose location</option>
+                    <option value="">{tr("form.chooseLocation", "Choose location")}</option>
                     {units.map((u) => (
                       <option key={u} value={u}>
                         {u}
@@ -856,7 +931,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                 items={[
                   (
                     <span key="1">
-                      Get sample format{" "}
+                      {tr("notes.sampleFormat", "Get sample format")}{" "}
                       <button
                         onClick={() =>
                           downloadCsvTemplate(
@@ -868,13 +943,16 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                         className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
                       >
                         <Download className="h-3 w-3" />
-                        Download Template
+                        {tr("notes.downloadTemplate", "Download Template")}
                       </button>
                     </span>
                   ) as unknown as string,
-                  "Size of the file should not exceed 30kb (~200 records).",
-                  "You can set shared users to 0 for unlimited user access for any team.",
-                  "Shared users should not be more than 5000.",
+                  tr("notes.fileSize", "Size of the file should not exceed 30kb (~200 records)."),
+                  tr(
+                    "notes.zeroUnlimited",
+                    "Set the number of guests to 0 to let any number of guests join a group.",
+                  ),
+                  tr("notes.max5000", "The number of guests should not be more than 5000."),
                 ]}
               />
             </div>
@@ -885,22 +963,24 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
       {tab === "bulk-map" && (
         <Card className="border-0 shadow-sm">
           <CardContent className="p-6 md:p-8">
-            <h2 className="text-lg font-semibold tracking-tight">Map Bulk Users</h2>
+            <h2 className="text-lg font-semibold tracking-tight">
+              {tr("bulkMap.title", "Add Guests to Groups")}
+            </h2>
             <p className="mb-5 text-sm text-muted-foreground">
-              Please upload your CSV file here to map users to teams in bulk.
+              {tr("bulkMap.subtitle", "Upload a CSV file to add many guests to groups at once.")}
             </p>
             <div className="grid gap-6 md:grid-cols-2">
               <div className="space-y-4">
                 <div>
                   <label className={labelCls}>
-                    Location <span className="text-destructive">*</span>
+                    {tr("form.location", "Location")} <span className="text-destructive">*</span>
                   </label>
                   <select
                     value={mapBu}
                     onChange={(e) => setMapBu(e.target.value)}
                     className={inputCls}
                   >
-                    <option value="">Choose location</option>
+                    <option value="">{tr("form.chooseLocation", "Choose location")}</option>
                     {units.map((u) => (
                       <option key={u} value={u}>
                         {u}
@@ -915,7 +995,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                 items={[
                   (
                     <span key="1">
-                      Get sample format{" "}
+                      {tr("notes.sampleFormat", "Get sample format")}{" "}
                       <button
                         onClick={() =>
                           downloadCsvTemplate(
@@ -927,11 +1007,11 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                         className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
                       >
                         <Download className="h-3 w-3" />
-                        Download Template
+                        {tr("notes.downloadTemplate", "Download Template")}
                       </button>
                     </span>
                   ) as unknown as string,
-                  "Size of the file should not exceed 30kb (~200 records).",
+                  tr("notes.fileSize", "Size of the file should not exceed 30kb (~200 records)."),
                 ]}
               />
             </div>
@@ -942,20 +1022,26 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
       <Dialog open={!!manageTeam} onOpenChange={(open) => !open && setManageTeam(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Team details</DialogTitle>
+            <DialogTitle>{tr("dialog.title", "Group details")}</DialogTitle>
             <DialogDescription>
               {demo
-                ? "What this team is set to today. Editing isn't available yet."
-                : "Team name and size are read-only, but you can remove members below."}
+                ? tr(
+                    "dialog.demoDesc",
+                    "What this group is set to today. Editing isn't available yet.",
+                  )
+                : tr(
+                    "dialog.desc",
+                    "Group name and size are read-only, but you can remove members below.",
+                  )}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className={labelCls}>Team Name</label>
+              <label className={labelCls}>{tr("dialog.groupName", "Group Name")}</label>
               <p className="text-sm font-medium text-foreground">{manageTeam?.name}</p>
             </div>
             <div>
-              <label className={labelCls}>Members</label>
+              <label className={labelCls}>{tr("dialog.members", "Members")}</label>
               <p className="text-sm font-medium text-foreground">
                 {demo
                   ? (manageTeam?.members ?? 0)
@@ -967,30 +1053,41 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
               </p>
             </div>
             <div>
-              <label className={labelCls}>Shared data used</label>
+              <label className={labelCls}>{tr("dialog.sharedUsed", "Shared data used")}</label>
               <p className="text-sm font-medium text-foreground">
                 {manageTeam?.quotaPercent == null
-                  ? "No quota set"
-                  : `${manageTeam.quotaPercent}% of the shared limit`}
+                  ? tr("list.noQuota", "No limit set")
+                  : tr("dialog.percentOfLimit", "{{percent}}% of the shared limit", {
+                      percent: manageTeam.quotaPercent,
+                    })}
               </p>
             </div>
             <div>
-              <label className={labelCls}>Status</label>
-              <p className="text-sm font-medium capitalize text-foreground">{manageTeam?.status}</p>
+              <label className={labelCls}>{tr("dialog.status", "Status")}</label>
+              <p className="text-sm font-medium capitalize text-foreground">
+                {manageTeam ? tr(`status.${manageTeam.status}`, manageTeam.status) : null}
+              </p>
             </div>
             {!demo && (
               <div>
-                <label className={labelCls}>Manage members</label>
+                <label className={labelCls}>{tr("dialog.manageMembers", "Manage members")}</label>
                 {membersState === "loading" && (
-                  <p className="text-sm text-muted-foreground">Loading members…</p>
+                  <p className="text-sm text-muted-foreground">
+                    {tr("dialog.loadingMembers", "Loading members…")}
+                  </p>
                 )}
                 {membersState === "error" && (
                   <p className="text-sm text-muted-foreground">
-                    Couldn&apos;t load this team&apos;s members. Close and reopen to try again.
+                    {tr(
+                      "dialog.membersError",
+                      "Couldn't load this group's members. Close and reopen to try again.",
+                    )}
                   </p>
                 )}
                 {membersState === "loaded" && members.length === 0 && (
-                  <p className="text-sm text-muted-foreground">No one has joined this team yet.</p>
+                  <p className="text-sm text-muted-foreground">
+                    {tr("dialog.noMembers", "No one has joined this group yet.")}
+                  </p>
                 )}
                 {membersState === "loaded" && members.length > 0 && (
                   <ul className="divide-y rounded-xl border">
@@ -1001,11 +1098,15 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                       >
                         <div className="min-w-0">
                           <p className="truncate text-sm font-medium text-foreground">
-                            {m.displayName || m.identifier || "Unknown member"}
+                            {m.displayName ||
+                              m.identifier ||
+                              tr("dialog.unknownMember", "Unknown member")}
                           </p>
                           <p className="truncate text-xs text-muted-foreground">
                             {m.displayName && m.identifier ? `${m.identifier} · ` : ""}
-                            Joined {new Date(m.joinedAt).toLocaleDateString()}
+                            {tr("dialog.joined", "Joined {{date}}", {
+                              date: new Date(m.joinedAt).toLocaleDateString(),
+                            })}
                           </p>
                         </div>
                         <Button
@@ -1014,29 +1115,37 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                           disabled={removingGuestId === m.guestId}
                           onClick={() => removeMember(m.guestId)}
                         >
-                          {removingGuestId === m.guestId ? "Removing…" : "Remove"}
+                          {removingGuestId === m.guestId
+                            ? tr("dialog.removing", "Removing…")
+                            : tr("dialog.remove", "Remove")}
                         </Button>
                       </li>
                     ))}
                   </ul>
                 )}
                 <p className="mt-1.5 text-xs text-muted-foreground">
-                  Removing a member ends their team membership and any active session. They can
-                  rejoin with the team code.
+                  {/* "team code" stays: it is what the guest login page calls
+                      the code (portal-i18n.ts teamCodeLabel), and the front
+                      desk has to use the guest's word for it. */}
+                  {tr(
+                    "dialog.removeHint",
+                    "Removing a member ends their group membership and any active session. They can rejoin with the team code.",
+                  )}
                 </p>
               </div>
             )}
             <div className="rounded-xl border border-dashed bg-muted/40 p-3">
               <p className="text-xs text-muted-foreground">
-                Renaming a team or changing its size isn&apos;t something we can save yet, so
-                we&apos;ve made this read-only rather than accept a change and lose it. Raise a
-                support ticket and we&apos;ll make the change for you.
+                {tr(
+                  "dialog.readOnlyNote",
+                  "Renaming a group or changing its size isn't something we can save yet, so we've made this read-only rather than accept a change and lose it. Raise a support ticket and we'll make the change for you.",
+                )}
               </p>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setManageTeam(null)}>
-              Close
+              {tr("dialog.close", "Close")}
             </Button>
           </DialogFooter>
         </DialogContent>

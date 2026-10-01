@@ -350,7 +350,8 @@ check(
 );
 check(
   "...with the example in the placeholder instead",
-  /placeholder="e\.g\. Ask the front desk/.test(screen),
+  // Translated (whitelist.json), so the English default sits inside t().
+  /placeholder=\{t\(\s*"message\.placeholder",\s*"e\.g\. Ask the front desk/.test(screen),
 );
 check(
   "the write is aimed at a location-specific config, never the org default",

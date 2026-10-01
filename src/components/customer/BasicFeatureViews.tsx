@@ -6,6 +6,8 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 import {
   Activity,
   CheckCircle2,
@@ -203,6 +205,7 @@ export function BasicDashboardView({
  * as everywhere else in the app -- see that function's own comment: MAC is
  * never masked, by product decision, so it isn't part of this toggle. */
 export function BasicUsersView({ masked = true }: { masked?: boolean } = {}) {
+  const { t } = useTranslation("guests", { i18n });
   const [q, setQ] = useState("");
   const all = Array.from({ length: 12 }, (_, i) => {
     const identity = GUEST_IDENTITIES[i % GUEST_IDENTITIES.length];
@@ -220,7 +223,7 @@ export function BasicUsersView({ masked = true }: { masked?: boolean } = {}) {
   return (
     <div className="space-y-4">
       <Input
-        placeholder="Search users…"
+        placeholder={t("searchPlaceholder", "Search guests…")}
         value={q}
         onChange={(e) => setQ(e.target.value)}
         className="h-10 max-w-xs"
@@ -230,11 +233,11 @@ export function BasicUsersView({ masked = true }: { masked?: boolean } = {}) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>User</TableHead>
-                <TableHead className="hidden sm:table-cell">Phone</TableHead>
-                <TableHead className="hidden sm:table-cell">MAC</TableHead>
-                <TableHead>Duration</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>{t("colUser", "Guest")}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t("colPhone", "Phone")}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t("colMac", "MAC")}</TableHead>
+                <TableHead>{t("colDuration", "Duration")}</TableHead>
+                <TableHead>{t("colStatus", "Status")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
