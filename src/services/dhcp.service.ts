@@ -2,6 +2,7 @@ import { api } from "@/services/api";
 import { isDemo, resolveOrgId } from "@/services/customer.service";
 import type {
   CreateDhcpPoolPayload,
+  DhcpLease,
   DhcpPool,
   DhcpPoolListQuery,
   DhcpPoolListResult,
@@ -70,6 +71,28 @@ function toDhcpPool(p: BackendDhcpPool): DhcpPool {
 // `organizationId`. Do not re-add one: the caller then has to *resolve* the id
 // before it can read, that resolution ends up in the React Query key, and the
 // key changing once it settles fired every read on these pages twice.
+
+interface BackendDhcpLease {
+  mac_address: string;
+  address: string | null;
+  dynamic: boolean;
+  status: string | null;
+  host_name: string | null;
+  server: string | null;
+  disabled: boolean;
+}
+
+function toDhcpLease(l: BackendDhcpLease): DhcpLease {
+  return {
+    macAddress: l.mac_address,
+    address: l.address,
+    dynamic: l.dynamic,
+    status: l.status,
+    hostName: l.host_name,
+    server: l.server,
+    disabled: l.disabled,
+  };
+}
 
 export const dhcpService = {
   // `create_pool`/`list_pools`/`update_pool`/`delete_pool` all resolve their
@@ -162,5 +185,36 @@ export const dhcpService = {
   async push(id: string): Promise<DhcpPool> {
     const { data } = await api.post<BackendDhcpPool>(`/dhcp-pools/${id}/push`);
     return toDhcpPool(data);
+  },
+
+  /** Every DHCP lease on the router, read live (cloud-guest dhcp
+   * `GET /dhcp-pools/routers/{id}/leases`): which devices are kept on a
+   * fixed address and which may move. Throws on an unreadable router --
+   * the caller treats that as "unknown", never as "no leases". */
+  async listLeases(routerId: string, organizationId?: string): Promise<DhcpLease[]> {
+    const orgId = organizationId || (await resolveOrgId());
+    const { data } = await api.get<{ router_id: string; items: BackendDhcpLease[] }>(
+      `/dhcp-pools/routers/${routerId}/leases`,
+      { headers: { "X-Organization-Id": orgId } },
+    );
+    return data.items.map(toDhcpLease);
+  },
+
+  /** Keep one device on its current address: its lease is made static on
+   * the router and read back. Idempotent; a 409 carries a `code` --
+   * `keepAddressErrorSentence` in lib/firewall-rules says what each means. */
+  async keepLeaseAddress(
+    routerId: string,
+    macAddress: string,
+    ipAddress: string,
+    organizationId?: string,
+  ): Promise<{ changed: boolean; lease: DhcpLease }> {
+    const orgId = organizationId || (await resolveOrgId());
+    const { data } = await api.post<{ changed: boolean; lease: BackendDhcpLease }>(
+      `/dhcp-pools/routers/${routerId}/leases/keep-address`,
+      { mac_address: macAddress, ip_address: ipAddress },
+      { headers: { "X-Organization-Id": orgId } },
+    );
+    return { changed: data.changed, lease: toDhcpLease(data.lease) };
   },
 };

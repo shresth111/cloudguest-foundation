@@ -1148,5 +1148,279 @@ console.log("\nSecurity -> Web Filtering: shared category sets");
   );
 }
 
+// ---------------------------------------------------------------------------
+// 7. Security -> Firewall: "A device on your network". The router matches an
+//    address; the picker remembers which device that address was (a tag line
+//    in the rule's comment), never offers a guest as a destination, and says
+//    plainly when the address may move.
+// ---------------------------------------------------------------------------
+
+console.log("\nSecurity -> Firewall: Who/Where picked by device");
+{
+  const fw = m.firewallRules;
+  const PRINTER = "AA:BB:CC:00:00:20";
+  const dev = (over = {}) => ({
+    macAddress: PRINTER,
+    ipAddress: "192.168.88.20",
+    hostname: "HP-LaserJet",
+    vendor: "HP",
+    comment: null,
+    isActive: true,
+    guestId: null,
+    ...over,
+  });
+  const guestNets = ["10.5.50.0/24"];
+
+  // Labeling
+  check(
+    "a-picked-device-reads-name-then-address",
+    fw.describeWho("192.168.88.20", "Front-desk printer") ===
+      "Front-desk printer (192.168.88.20)" &&
+      fw.describeWhere("192.168.88.30/32", "Billing PC") === "Billing PC (192.168.88.30)",
+  );
+  check(
+    "no-address-still-reads-anyone-anywhere-even-with-a-name",
+    fw.describeWho(null, "Front-desk printer") === "Anyone" &&
+      fw.describeWhere("", "x") === "Anywhere",
+  );
+  check(
+    "a-typed-address-reads-as-before",
+    fw.describeWho("192.168.88.0/24") === "192.168.88.0/24" &&
+      fw.describeWho("192.168.88.0/24", null) === "192.168.88.0/24",
+  );
+  check(
+    "the-owners-name-beats-hostname-beats-maker",
+    fw.deviceDisplayName({ comment: "Front-desk printer", hostname: "HP-LJ", vendor: "HP" }) ===
+      "Front-desk printer" &&
+      fw.deviceDisplayName({ comment: null, hostname: "HP-LJ", vendor: "HP" }) === "HP-LJ" &&
+      fw.deviceDisplayName({ comment: " ", hostname: "", vendor: "HP" }) === "HP device" &&
+      fw.deviceDisplayName({ comment: null, hostname: null, vendor: null }) === "Unnamed device",
+  );
+
+  // Rule <-> device mapping (the comment tag)
+  const tagged = fw.commentWithDeviceTags("Set up by Ravi", {
+    who: { mac: "aa-bb-cc-00-00-20", ip: "192.168.88.20", name: "Front-desk\nprinter" },
+    where: null,
+  });
+  check(
+    "a-tag-keeps-the-owners-note-and-adds-one-line",
+    tagged === "Set up by Ravi\nwyfy-device:who:AA:BB:CC:00:00:20@192.168.88.20:Front-desk printer",
+    JSON.stringify(tagged),
+  );
+  check(
+    "the-list-never-shows-the-tag-as-text",
+    fw.commentForDisplay(tagged) === "Set up by Ravi" &&
+      fw.commentForDisplay(
+        fw.commentWithDeviceTags(null, {
+          where: { mac: PRINTER, ip: "192.168.88.20", name: "P" },
+        }),
+      ) === null,
+  );
+  const ruleWith = (comment, src = "192.168.88.20", dst = null) => ({
+    comment,
+    sourceAddress: src,
+    destinationAddress: dst,
+  });
+  check(
+    "a-tagged-rule-maps-back-to-its-device",
+    (() => {
+      const t = fw.deviceTagOf(ruleWith(tagged), "who");
+      return t && t.mac === PRINTER && t.ip === "192.168.88.20" && t.name === "Front-desk printer";
+    })(),
+  );
+  check(
+    "a-rule-whose-address-was-changed-by-hand-stops-claiming-the-device",
+    fw.deviceTagOf(ruleWith(tagged, "192.168.88.99"), "who") === null &&
+      fw.deviceTagOf(ruleWith(tagged, "192.168.88.20/32"), "who") !== null,
+  );
+  check("a-tag-is-per-end", fw.deviceTagOf(ruleWith(tagged), "where") === null);
+  check(
+    "switching-back-to-a-typed-address-clears-the-tag-and-keeps-the-note",
+    fw.commentWithDeviceTags(tagged, { who: null, where: null }) === "Set up by Ravi" &&
+      fw.commentWithDeviceTags("wyfy-device:who:AA:BB:CC:00:00:20@192.168.88.20:P", {}) === null,
+    "null clears the comment on PUT (cloud-guest#306)",
+  );
+  check(
+    "re-tagging-replaces-not-appends",
+    fw.deviceTagsIn(
+      fw.commentWithDeviceTags(tagged, {
+        who: { mac: PRINTER, ip: "192.168.88.21", name: "Printer" },
+      }),
+    ).tags.length === 1,
+  );
+  check(
+    "a-masked-or-bad-mac-writes-no-tag",
+    fw.commentWithDeviceTags(null, {
+      who: { mac: "AA:BB:**:**:**:20", ip: "192.168.88.20", name: "P" },
+    }) === null && fw.normalizeMac("aabbcc000020") === PRINTER,
+  );
+  check(
+    "the-private-networks-mark-is-untouched-by-the-parser",
+    fw.commentForDisplay(fw.PRIVATE_NETWORKS_MARK) === fw.PRIVATE_NETWORKS_MARK,
+  );
+
+  // The picker's list
+  const devices = [
+    dev(),
+    dev({
+      macAddress: "aa:bb:cc:00:00:30",
+      ipAddress: "192.168.88.30",
+      hostname: "BILLING-PC",
+      vendor: null,
+      comment: "Billing PC",
+    }),
+    dev({
+      macAddress: "AA:BB:CC:00:00:40",
+      ipAddress: "10.5.50.17",
+      hostname: "Pixel-7",
+      vendor: "Google",
+    }),
+    dev({
+      macAddress: "AA:BB:CC:00:00:50",
+      ipAddress: "192.168.88.77",
+      hostname: "iPhone",
+      guestId: "g-1",
+    }),
+    dev({ macAddress: "AA:BB:CC:00:00:60", ipAddress: null, hostname: "no-ip" }),
+    dev({
+      macAddress: "AA:BB:CC:00:00:70",
+      ipAddress: "192.168.88.70",
+      hostname: "old-cam",
+      isActive: false,
+    }),
+  ];
+  const leases = [
+    { macAddress: PRINTER, address: "192.168.88.21", dynamic: true },
+    { macAddress: "AA:BB:CC:00:00:30", address: "192.168.88.30", dynamic: false },
+  ];
+  const where = fw.pickableDevices(devices, leases, guestNets, "where");
+  const who = fw.pickableDevices(devices, leases, guestNets, "who");
+  check(
+    "guests-are-never-offered-as-where",
+    where.every((d) => !d.isGuest) &&
+      !where.some((d) => d.mac === "AA:BB:CC:00:00:40" || d.mac === "AA:BB:CC:00:00:50"),
+    "a guest-network address and a sync-linked guest are both guests",
+  );
+  check(
+    "guests-are-offered-as-who-after-the-venues-own-devices",
+    who.some((d) => d.mac === "AA:BB:CC:00:00:40" && d.isGuest) &&
+      who.findIndex((d) => d.isGuest) > who.findIndex((d) => !d.isGuest) &&
+      who.slice(who.findIndex((d) => d.isGuest)).every((d) => d.isGuest),
+  );
+  check("a-device-with-no-address-is-not-offered", !who.some((d) => d.mac === "AA:BB:CC:00:00:60"));
+  check(
+    "the-live-lease-address-wins-over-the-synced-one",
+    who.find((d) => d.mac === PRINTER)?.ip === "192.168.88.21",
+    "the rule must use the device's current address",
+  );
+  check(
+    "lease-state-is-read-per-device",
+    who.find((d) => d.mac === PRINTER)?.lease === "dynamic" &&
+      who.find((d) => d.mac === "AA:BB:CC:00:00:30")?.lease === "static" &&
+      who.find((d) => d.mac === "AA:BB:CC:00:00:70")?.lease === "none",
+  );
+  check(
+    "unreadable-leases-are-unknown-never-none",
+    fw.pickableDevices(devices, null, guestNets, "who").every((d) => d.lease === "unknown"),
+  );
+  check(
+    "connected-devices-first-then-by-name",
+    (() => {
+      const own = where.map((d) => d.name);
+      return (
+        own[own.length - 1] === "old-cam" && own.indexOf("Billing PC") < own.indexOf("HP-LaserJet")
+      );
+    })(),
+  );
+  check(
+    "search-finds-name-address-and-mac-in-any-shape",
+    (() => {
+      const p = who.find((d) => d.mac === PRINTER);
+      return (
+        fw.deviceMatchesSearch(p, "laserjet") &&
+        fw.deviceMatchesSearch(p, "88.21") &&
+        fw.deviceMatchesSearch(p, "aabbcc000020") &&
+        fw.deviceMatchesSearch(p, "aa-bb-cc-00-00-20") &&
+        !fw.deviceMatchesSearch(p, "billing")
+      );
+    })(),
+  );
+  check(
+    "keep-address-is-offered-only-for-a-dynamic-lease-and-never-for-a-guest",
+    fw.keepAddressOffer({ isGuest: false, lease: "dynamic" }) === "offer" &&
+      fw.keepAddressOffer({ isGuest: false, lease: "static" }) === "kept" &&
+      fw.keepAddressOffer({ isGuest: false, lease: "none" }) === "cannot" &&
+      fw.keepAddressOffer({ isGuest: false, lease: "unknown" }) === "unknown" &&
+      fw.keepAddressOffer({ isGuest: true, lease: "dynamic" }) === "guest",
+  );
+  check(
+    "each-keep-address-refusal-is-a-sentence",
+    /192\.168\.88\.55/.test(
+      fw.keepAddressErrorSentence({
+        code: "DHCP_LEASE_ADDRESS_CHANGED",
+        current_address: "192.168.88.55",
+      }) ?? "",
+    ) &&
+      !!fw.keepAddressErrorSentence({ code: "DHCP_LEASE_NOT_FOUND" }) &&
+      /192\.168\.88\.99/.test(
+        fw.keepAddressErrorSentence({
+          code: "DHCP_LEASE_RESERVED_ELSEWHERE",
+          current_address: "192.168.88.99",
+        }) ?? "",
+      ) &&
+      fw.keepAddressErrorSentence({ code: "SOMETHING_ELSE" }) === null,
+  );
+  check(
+    "a-picked-device-goes-to-the-router-as-its-address",
+    (() => {
+      const p = who.find((d) => d.mac === PRINTER);
+      const f = fw.draftToFields({
+        name: "Printer off-limits",
+        decision: "block",
+        who: "",
+        where: p.ip,
+        service: "everything",
+        customProtocol: "tcp",
+        customPort: "",
+        priority: 100,
+        isEnabled: true,
+      });
+      return f.destinationAddress === "192.168.88.21" && f.chain === "forward";
+    })(),
+  );
+  const enFw = JSON.parse(
+    readFileSync(join(ROOT, "src/lib/i18n/locales/en/nav.json"), "utf8"),
+  ).firewallPage;
+  const hiFw = JSON.parse(
+    readFileSync(join(ROOT, "src/lib/i18n/locales/hi/nav.json"), "utf8"),
+  ).firewallPage;
+  const pickerKeys = [
+    "endDevice",
+    "whoSpecificAddress",
+    "pickDevice",
+    "keepAddress",
+    "keepAddressHint",
+    "keepAlready",
+    "keepCannot",
+    "keepUnknown",
+    "keepStopsMatching",
+    "guestWhoNote",
+    "whereNoGuests",
+    "deviceMoved",
+    "deviceGuest",
+  ];
+  check(
+    "every-picker-string-has-en-and-hi",
+    pickerKeys.every((k) => enFw[k] && hiFw[k]),
+    pickerKeys.filter((k) => !enFw[k] || !hiFw[k]).join(","),
+  );
+  check(
+    "hindi-calls-a-guest-mehmaan",
+    hiFw.deviceGuest === "मेहमान" &&
+      /मेहमान/.test(hiFw.guestWhoNote) &&
+      /मेहमान/.test(hiFw.whereNoGuests),
+  );
+}
+
 console.log(failures === 0 ? "\nall checks passed" : `\n${failures} check(s) failed`);
 process.exit(failures === 0 ? 0 : 1);

@@ -63,3 +63,15 @@ export interface UpdateDhcpPoolPayload {
   leaseTimeSeconds?: number;
   isEnabled?: boolean;
 }
+
+/** One DHCP lease, read live off the router. `dynamic: false` is a
+ * reservation -- the device gets `address` every time. */
+export interface DhcpLease {
+  macAddress: string;
+  address: string | null;
+  dynamic: boolean;
+  status: string | null;
+  hostName: string | null;
+  server: string | null;
+  disabled: boolean;
+}
