@@ -802,8 +802,13 @@ console.log("\nSecurity -> Web Filtering at a MikroTik venue");
   );
   check(
     "bypass-hardening-is-off-and-cannot-be-turned-on-before-filtering",
-    (await r.page.getByRole("switch").first().getAttribute("aria-checked")) === "false" &&
-      (await r.page.getByRole("switch").first().isDisabled()),
+    // By name: the "Block known harmful websites" switch now sits above it.
+    (await r.page
+      .getByRole("switch", { name: "Stop guests getting around the filter" })
+      .getAttribute("aria-checked")) === "false" &&
+      (await r.page
+        .getByRole("switch", { name: "Stop guests getting around the filter" })
+        .isDisabled()),
   );
   check(
     "save-is-idle-until-the-list-changes",

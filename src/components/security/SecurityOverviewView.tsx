@@ -60,7 +60,7 @@ const PLAIN_COPY: Record<string, string> = {
   domain_blocking_dns:
     "Block a website by name for anyone using this gateway as their DNS server. A device with its own DNS settings, or private DNS switched on after sign-in, is not covered.",
   domain_blocking_sni:
-    "Block a website by name over HTTPS, without opening or inspecting anyone's traffic. Coverage drops where newer browsers hide the site name, and it sees nothing over some newer protocols or a VPN.",
+    "Block a website by name on secure (https) connections too, without opening or reading anyone's traffic. It is switched on with every website you block, but we have not yet proven it on a real router, so it is listed here until we have. It cannot see a site whose browser hides the name, or newer kinds of connection (QUIC), or a VPN.",
   ip_and_cidr_blocking:
     "Block specific addresses or ranges, in both directions. Do not use this to block a website: popular services sit behind addresses that rotate constantly.",
   device_isolation:
@@ -76,9 +76,9 @@ const PLAIN_COPY: Record<string, string> = {
   dns_bypass_protection:
     "Stops guests getting round your website blocks by changing their phone's DNS settings. It stops the easy ways round, not a determined user with a hidden VPN or a phone on mobile data.",
   application_control:
-    "Only partly achievable today, by matching an app's known website names. Telling one app from another reliably needs deep packet inspection, which this platform does not have.",
+    "Switch off apps such as YouTube, Instagram or BGMI on your guest WiFi. It blocks the website names each app uses, not the app itself, so some apps may still get through -- one that is already open, one with a built-in address, or a phone with its own DNS or a VPN.",
   threat_intelligence:
-    "Needs a maintained list of known-bad sites and addresses. The way to block them already works; the intelligence behind it is what is missing.",
+    "Stop guests opening websites known to spread viruses or steal passwords. Cloudflare keeps the list up to date. It works on routers where web filtering is on, and a phone with its own DNS or a VPN is not covered.",
   geo_blocking:
     "Needs a country-to-address database plus regular updates. Blocking traffic coming in from a country would be reliable; blocking traffic going out would not, because popular sites are served from many countries at once.",
   per_application_traffic:
@@ -116,8 +116,14 @@ const PLAIN_COPY: Record<string, string> = {
  * (before cloud-guest's capability update) shows them unlinked under
  * "Coming later", so this page works against the old backend and the new.
  *
- * Deliberately absent: `domain_blocking_sni` (nothing writes an
- * HTTPS-hostname rule yet) and `rogue_dhcp_detection` (no customer screen
+ *  - `application_control`: Block Websites -> "Apps" (`#apps`), the
+ *    per-app switches (cloud-guest content_filtering app catalogue).
+ *  - `threat_intelligence`: the "Block known harmful websites" switch at the
+ *    top of "Categories" -- Cloudflare's Security threats category.
+ *
+ * Deliberately absent: `domain_blocking_sni` (written with every website
+ * block but not yet proven against a real browser, so the backend keeps it
+ * under "Coming later") and `rogue_dhcp_detection` (no customer screen
  * manages it). */
 type ManagedAt =
   | {
@@ -142,6 +148,20 @@ const MANAGED_AT: Record<string, ManagedAt> = {
     hash: "categories",
     labelKey: "securityScore.link.categories",
     label: "Choose kinds of website to block",
+  },
+  application_control: {
+    to: "/blocking",
+    tab: "websites",
+    hash: "apps",
+    labelKey: "securityScore.link.apps",
+    label: "Choose apps to block",
+  },
+  threat_intelligence: {
+    to: "/blocking",
+    tab: "websites",
+    hash: "categories",
+    labelKey: "securityScore.link.harmful",
+    label: "Block known harmful websites",
   },
   ip_and_cidr_blocking: {
     to: "/blocking",
@@ -477,7 +497,9 @@ export function SecurityOverviewView() {
                         {plain ? t(plain[0], plain[1]) : feature.label}
                       </p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        {PLAIN_COPY[feature.key] ?? feature.detail}
+                        {PLAIN_COPY[feature.key]
+                          ? t(`securityScore.copy.${feature.key}`, PLAIN_COPY[feature.key])
+                          : feature.detail}
                       </p>
                       {/* Only a "Working now" row gets a link -- a row that
                           is not working has no control to go to, even if its
