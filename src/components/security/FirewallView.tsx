@@ -75,8 +75,10 @@ import {
   useFirewallBand,
   useFirewallRules,
   useFloodLimit,
+  useGuestIsolation,
   usePushFirewallRules,
   useSetFloodLimit,
+  useSetGuestIsolation,
   useUpdateFirewallRule,
 } from "@/hooks/useFirewall";
 import {
@@ -89,6 +91,7 @@ import {
   describeWhere,
   describeWho,
   draftToFields,
+  ISOLATION_ONE_PORT_SENTENCE,
   firewallPushErrorSentence,
   inRouterOrder,
   isCustomerEditable,
@@ -409,6 +412,8 @@ function RouterFirewallCard({
           organizationId={organizationId}
           bandBlocksOn={bandBlocksApply}
         />
+
+        <GuestIsolationCard routerId={router.id} organizationId={organizationId} />
 
         {pushError && (
           <div
@@ -980,6 +985,156 @@ function FloodLimitCard({
           {t(
             "firewallPage.floodNeedsBand",
             "This can be turned on once the router has been prepared for firewall rules.",
+          )}
+        </p>
+      )}
+      {set.isPending && (
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+          {t("firewallPage.floodApplying", "Changing the router…")}
+        </p>
+      )}
+      {error && (
+        <div role="alert" className="space-y-1 text-sm">
+          <p className="font-medium text-destructive">{error.sentence}</p>
+          {error.detail && (
+            <p className="text-xs text-muted-foreground">
+              {t("firewallPage.routerSaid", "What the router said:")} {error.detail}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * "Guests can't see each other": one switch per router.
+ *
+ * What it does on the router (cloud-guest, firewall guest-isolation): the
+ * guest network's ports go into one split-horizon group, so guests on
+ * different ports -- different access points -- cannot reach each other;
+ * the router's own Wi-Fi, if it has any, stops forwarding between its
+ * clients. The WAN port, a port carrying other networks, and the router
+ * itself are never touched, so the login page and the internet keep working.
+ *
+ * What it cannot do, said on screen: guests on the SAME external access
+ * point are switched inside that access point and never pass through the
+ * router. Only the access point's own "AP isolation" setting covers them,
+ * so whenever a guest port has something plugged in, the card tells the
+ * owner to turn that on too.
+ *
+ * Read off the router, never remembered. Needs no firewall band (the
+ * routed-path row it also writes is skipped without one). Rendered only
+ * when the backend answers the read.
+ */
+function GuestIsolationCard({
+  routerId,
+  organizationId,
+}: {
+  routerId: string;
+  organizationId?: string;
+}) {
+  const { t } = useTranslation("nav", { i18n });
+  const iso = useGuestIsolation(routerId, organizationId);
+  const set = useSetGuestIsolation(routerId, organizationId);
+  const [error, setError] = useState<PushErrorExplained | null>(null);
+  const state = iso.data;
+  if (!state) return null;
+
+  const on = state.enabled;
+  const refusal = state.refusal;
+  const onePort = refusal === "ISOLATION_NOTHING_TO_ISOLATE";
+  const blocksOn = !on && refusal !== null;
+
+  function choose(enabled: boolean) {
+    setError(null);
+    set.mutate(enabled, {
+      onSuccess: (next) =>
+        toast.success(
+          next.enabled
+            ? t("firewallPage.isoOnToast", "Guests on different access points are now kept apart.")
+            : t("firewallPage.isoOffToast", "Guests can see each other again."),
+        ),
+      onError: (err) => setError(firewallPushErrorSentence(requestErrorOf(err))),
+    });
+  }
+
+  const refusalSentence =
+    blocksOn && !onePort
+      ? firewallPushErrorSentence({ status: 409, message: "", data: { code: refusal } }).sentence
+      : null;
+
+  return (
+    <div
+      data-testid="guest-isolation-card"
+      className="space-y-3 rounded-lg border border-border/60 bg-muted/30 p-4"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-0.5">
+          <p className="text-sm font-semibold">
+            {t("firewallPage.isoTitle", "Guests can't see each other")}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {t(
+              "firewallPage.isoBody",
+              "Stops guests on your Wi-Fi from reaching each other's phones and laptops, for example to browse shared files. A printer or TV on the guest Wi-Fi also stops being reachable by guests.",
+            )}
+          </p>
+        </div>
+        <Switch
+          checked={on}
+          disabled={set.isPending || blocksOn}
+          aria-label={t("firewallPage.isoTitle", "Guests can't see each other")}
+          onCheckedChange={(v) => choose(v)}
+        />
+      </div>
+
+      {on && (
+        <p data-testid="guest-isolation-status" className="text-xs text-muted-foreground">
+          {state.betweenPorts
+            ? t(
+                "firewallPage.isoBetweenYes",
+                "On: guests on different access points can't reach each other. {{n}} access point port(s) found.",
+                { n: state.apPorts },
+              )
+            : t(
+                "firewallPage.isoBetweenNo",
+                "On, but guests on different access points are not kept apart yet.",
+              )}
+        </p>
+      )}
+
+      {on && !state.consistent && (
+        <p role="status" className="text-xs text-amber-700 dark:text-amber-300">
+          {t(
+            "firewallPage.isoPartial",
+            "Part of this is missing on the router — a port may have been added. Turn it off and on again to cover it.",
+          )}
+        </p>
+      )}
+
+      {(state.apIsolationNeeded || onePort) && (
+        <p
+          data-testid="guest-isolation-ap-note"
+          className="rounded-md border border-amber-300/60 bg-amber-50 p-2.5 text-xs text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200"
+        >
+          {onePort
+            ? t("firewallPage.isoOnePort", ISOLATION_ONE_PORT_SENTENCE)
+            : t(
+                "firewallPage.isoApNote",
+                "Your router can't see guests who are connected to the same access point. To keep them apart too, turn on “AP isolation” (sometimes called “Client isolation”) in each access point's own settings.",
+              )}
+        </p>
+      )}
+
+      {refusalSentence && <p className="text-xs text-muted-foreground">{refusalSentence}</p>}
+
+      {!blocksOn && (
+        <p className="text-xs text-muted-foreground">
+          {t(
+            "firewallPage.isoBlip",
+            "Changing this can make the router's wired ports drop for a second or two.",
           )}
         </p>
       )}

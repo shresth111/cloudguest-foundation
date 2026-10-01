@@ -15,6 +15,7 @@ import type {
   FirewallRuleListResult,
   FloodLimitPreset,
   FloodLimitState,
+  GuestIsolationState,
   UpdateFirewallRulePayload,
 } from "@/types/firewall";
 
@@ -89,6 +90,59 @@ function toFloodLimit(d: BackendFloodLimit): FloodLimitState {
       (["ready", "missing", "invalid"] as const).find((s) => s === d.band_state) ?? "missing",
     guestNetworks: d.guest_networks ?? [],
     presets: d.presets ?? {},
+    checkedAt: d.checked_at ?? null,
+  };
+}
+
+interface BackendGuestIsolation {
+  router_id: string;
+  enabled: boolean;
+  consistent: boolean;
+  between_ports: boolean;
+  routed_guard: boolean;
+  radios_isolated: boolean | null;
+  band_state: string;
+  guest_ports: number;
+  isolated_ports: number;
+  ap_ports: number;
+  ap_isolation_needed: boolean;
+  ports?: {
+    interface: string;
+    running: boolean;
+    isolatable: boolean;
+    isolated: boolean;
+    excluded_reason: string | null;
+    is_radio?: boolean;
+  }[];
+  refusal: string | null;
+  summary: string;
+  checked_at?: string | null;
+}
+
+function toGuestIsolation(d: BackendGuestIsolation): GuestIsolationState {
+  return {
+    routerId: d.router_id,
+    enabled: !!d.enabled,
+    consistent: d.consistent !== false,
+    betweenPorts: !!d.between_ports,
+    routedGuard: !!d.routed_guard,
+    radiosIsolated: typeof d.radios_isolated === "boolean" ? d.radios_isolated : null,
+    bandState:
+      (["ready", "missing", "invalid"] as const).find((s) => s === d.band_state) ?? "missing",
+    guestPorts: Number(d.guest_ports) || 0,
+    isolatedPorts: Number(d.isolated_ports) || 0,
+    apPorts: Number(d.ap_ports) || 0,
+    apIsolationNeeded: !!d.ap_isolation_needed,
+    ports: (d.ports ?? []).map((p) => ({
+      interface: p.interface,
+      running: !!p.running,
+      isolatable: !!p.isolatable,
+      isolated: !!p.isolated,
+      excludedReason: p.excluded_reason ?? null,
+      isRadio: !!p.is_radio,
+    })),
+    refusal: typeof d.refusal === "string" ? d.refusal : null,
+    summary: d.summary ?? "",
     checkedAt: d.checked_at ?? null,
   };
 }
@@ -311,6 +365,47 @@ export const firewallService = {
       orgId ? { headers: { "X-Organization-Id": orgId } } : undefined,
     );
     return toFloodLimit(data);
+  },
+
+  /**
+   * "Guests can't see each other" for one router, read off the router
+   * (`firewall.read`, ROUTER scope). `null` -- "unknown" -- when the endpoint
+   * is not there (an older backend) or not readable; the card then renders
+   * nothing.
+   */
+  async getGuestIsolation(
+    routerId: string,
+    organizationId?: string,
+  ): Promise<GuestIsolationState | null> {
+    if (isDemo()) return null;
+    const orgId = organizationId ?? (await resolveOrgId());
+    try {
+      const { data } = await api.get<BackendGuestIsolation>(
+        `/firewall-rules/routers/${routerId}/guest-isolation`,
+        orgId ? { headers: { "X-Organization-Id": orgId } } : undefined,
+      );
+      return data && typeof data.enabled === "boolean" ? toGuestIsolation(data) : null;
+    } catch (err) {
+      const status = requestErrorOf(err)?.status;
+      if (status === 404 || status === 403 || status === 405) return null;
+      throw err;
+    }
+  },
+
+  /** Turn it on or off (`firewall.execute`). Refusals are real non-2xx with
+   * an `ISOLATION_*` code -- see `firewallPushErrorSentence`. */
+  async setGuestIsolation(
+    routerId: string,
+    enabled: boolean,
+    organizationId?: string,
+  ): Promise<GuestIsolationState> {
+    const orgId = organizationId ?? (await resolveOrgId());
+    const { data } = await api.put<BackendGuestIsolation>(
+      `/firewall-rules/routers/${routerId}/guest-isolation`,
+      { enabled },
+      orgId ? { headers: { "X-Organization-Id": orgId } } : undefined,
+    );
+    return toGuestIsolation(data);
   },
 
   /**
