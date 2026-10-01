@@ -236,7 +236,8 @@
     "whereSpecific": "A specific address or range",
     "whoAddress": "Device address or range",
     "whoAny": "Any device",
-    "whoSpecific": "A specific device or group of devices"
+    "whoSpecific": "A specific device or group of devices",
+    "siteHttpsHint": "It's also blocked by name on secure (https) connections, which catches most phones that skip the router's DNS. Nothing is decrypted. A browser that hides the site's name, or a newer kind of connection (QUIC), can still get through."
   },
   "webFilteringPage": {
     "intro": "Block whole kinds of website on your guest WiFi, such as adult sites or gambling. Cloudflare keeps the list of which website belongs to which kind.",
@@ -359,6 +360,47 @@
     "valueAddress": "Internet address, or a range of them",
     "valueInvalid": "Type just the name, like facebook.com, or just the address, like 203.0.113.7 — no https:// and nothing after the name."
   },
+  "blockApps": {
+    "title": "Apps",
+    "hint": "Switch an app on to block it on your guest WiFi. This blocks the website names the app uses — it does not recognise the app itself, so some apps may still get through.",
+    "loading": "Loading apps…",
+    "loadError": "Couldn't load the list of apps for this router.",
+    "listLabel": "Apps",
+    "view": {
+      "allowed": "Allowed",
+      "blocked": "Blocked on the router",
+      "sending": "Blocked, not on the router yet",
+      "failed": "Some of it didn't reach the router",
+      "partial": "Partly blocked"
+    },
+    "note": {
+      "whatsapp": "WhatsApp can reconnect through its own built-in addresses.",
+      "short_video": "This also blocks ShareChat, which runs Moj.",
+      "battle_royale": "A match already in progress is not cut off.",
+      "torrents": "Torrent apps can still find each other without these sites."
+    },
+    "failedNames": "Not on the router: {{names}}",
+    "retry": "Try again",
+    "handBlocked": "{{names}} is also blocked on its own, and stays blocked if you allow this app.",
+    "switchLabel": "Block {{app}}",
+    "blockedToast": "{{app}} is blocked on the router.",
+    "allowedToast": "{{app}} is allowed again.",
+    "blockFailed": "Couldn't block all of {{app}} on the router.",
+    "allowFailed": "Couldn't reach the router, so {{app}} is still blocked.",
+    "limitsTitle": "Why some apps may still get through",
+    "limitNames": "This blocks the website names an app uses. It does not recognise the app itself, so some apps may still get through.",
+    "limitOpen": "An app that is already open, or that connects without looking up a name, can keep working until it reconnects.",
+    "limitBypass": "A phone using its own DNS or a VPN, or on mobile data, is not covered."
+  },
+  "harmfulSites": {
+    "title": "Block known harmful websites (recommended)",
+    "body": "Stops guests opening websites Cloudflare knows spread viruses or steal passwords (malware and phishing). Cloudflare keeps the list up to date.",
+    "ownList": "This venue uses your account's list. Changing this gives the venue its own list.",
+    "onToast": "Known harmful websites are on this venue's list.",
+    "offToast": "Known harmful websites are no longer on the list.",
+    "stepFailed": "Not blocking yet at {{router}}: the last attempt to turn on web filtering there failed.",
+    "stepNeeded": "One step left at {{router}}: turn on web filtering there, or nothing on this list is blocked."
+  },
   "securityScore": {
     "capabilitiesTitle": "What you can protect",
     "workingTitle": "Working now",
@@ -370,7 +412,9 @@
       "categories": "Choose kinds of website to block",
       "address": "Block an internet address",
       "guest": "Block a guest",
-      "firewall": "Set firewall rules"
+      "firewall": "Set firewall rules",
+      "apps": "Choose apps to block",
+      "harmful": "Block known harmful websites"
     },
     "label": {
       "zone_to_zone_firewall": "Keep your networks apart (Firewall)",
@@ -385,6 +429,11 @@
       "application_control": "Block particular apps",
       "threat_intelligence": "Block known harmful websites automatically",
       "geo_blocking": "Block by country"
+    },
+    "copy": {
+      "domain_blocking_sni": "Block a website by name on secure (https) connections too, without opening or reading anyone's traffic. It is switched on with every website you block, but we have not yet proven it on a real router, so it is listed here until we have. It cannot see a site whose browser hides the name, or newer kinds of connection (QUIC), or a VPN.",
+      "application_control": "Switch off apps such as YouTube, Instagram or BGMI on your guest WiFi. It blocks the website names each app uses, not the app itself, so some apps may still get through -- one that is already open, one with a built-in address, or a phone with its own DNS or a VPN.",
+      "threat_intelligence": "Stop guests opening websites known to spread viruses or steal passwords. Cloudflare keeps the list up to date. It works on routers where web filtering is on, and a phone with its own DNS or a VPN is not covered."
     }
   }
 }

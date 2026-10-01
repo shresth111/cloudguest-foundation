@@ -34,7 +34,8 @@ const CHIP_STYLE: Record<ContentFilterRule["devicePushStatus"], string> = {
  * So a website is blocked by NAME, through the router's own DNS: these are
  * the content-filtering domain rows (`/content-filters`, the same rows
  * Block Websites' "Advanced" rule list shows), which cloud-guest pushes as
- * `/ip dns static` sinkhole entries covering the name and every subdomain.
+ * `/ip dns static` sinkhole entries covering the name and every subdomain,
+ * plus `tls-host` drops that block the same name on HTTPS connections.
  *
  * Block is one action for the owner but two calls here: create the row, then
  * push it. A row that saved but did not push is shown as "not on the router"
@@ -44,7 +45,9 @@ const CHIP_STYLE: Record<ContentFilterRule["devicePushStatus"], string> = {
  */
 export function WebsiteBlockBox({ routerId }: { routerId: string }) {
   const { t } = useTranslation("nav", { i18n });
-  const list = useContentFilterRules({ routerId, page: 1, pageSize: 100 });
+  // Rows an app switch created are listed under Apps, not here: there can be
+  // dozens, and they would push a hand-blocked site off this one page.
+  const list = useContentFilterRules({ routerId, page: 1, pageSize: 100, excludeAppRules: true });
   const create = useCreateContentFilterRule();
   const push = usePushContentFilterRule();
   const del = useDeleteContentFilterRule();
@@ -53,7 +56,8 @@ export function WebsiteBlockBox({ routerId }: { routerId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const sites = (list.data?.rows ?? []).filter((r) => r.valueType === "domain");
+  // `appKey` is also checked here, for a backend that ignores the filter.
+  const sites = (list.data?.rows ?? []).filter((r) => r.valueType === "domain" && !r.appKey);
 
   async function block() {
     const domain = websiteToDomain(value);
@@ -152,6 +156,12 @@ export function WebsiteBlockBox({ routerId }: { routerId: string }) {
           {t(
             "firewallPage.siteHint",
             "Type the name — no address needed. It's blocked by name on the router (DNS), including every page and subdomain of it.",
+          )}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {t(
+            "firewallPage.siteHttpsHint",
+            "It's also blocked by name on secure (https) connections, which catches most phones that skip the router's DNS. Nothing is decrypted. A browser that hides the site's name, or a newer kind of connection (QUIC), can still get through.",
           )}
         </p>
       </div>

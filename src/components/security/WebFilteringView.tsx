@@ -47,6 +47,8 @@ import {
   canonicalIds,
   describeIds,
   groupState,
+  harmfulRouterStep,
+  harmfulSitesOn,
   isSelectable,
   orderedGroups,
   policySourceSentence,
@@ -55,6 +57,7 @@ import {
   stillOnPreviousSet,
   toggleCategory,
   webFilterErrorSentence,
+  withHarmfulSites,
   type WebFilterErrorExplained,
 } from "@/lib/web-filtering";
 import type {
@@ -218,6 +221,12 @@ export function WebFilteringView({ locationId }: { locationId?: string }) {
   return (
     <div className="space-y-5">
       {intro}
+      <HarmfulSitesSwitch
+        locationId={locationId as string}
+        organizationId={activeLocation?.organizationId}
+        items={categories.data.items}
+        onUseClosest={useClosest}
+      />
       <CategoriesCard
         locationId={locationId as string}
         items={categories.data.items}
@@ -303,6 +312,215 @@ function venueStatuses(
     router,
     status: qc.getQueryData<WebFilterRouterStatus>(dnsFilteringKeys.router(router.id)),
   }));
+}
+
+// ---------------------------------------------------------------------------
+// "Block known harmful websites (recommended)".
+// ---------------------------------------------------------------------------
+
+/**
+ * One prominent switch over Cloudflare's "Security threats" category
+ * (malware, phishing and the like). It is the venue's own category list,
+ * edited through the same save as the picker below: on adds the whole
+ * Security threats group, off removes exactly that group and keeps every
+ * other category the owner chose. Hidden when the catalogue has no such
+ * group.
+ *
+ * A saved list blocks nothing until web filtering is on at a router, so
+ * under the switch every router that is not filtering yet says what the one
+ * remaining step is, with the same Turn on (and the same confirmation) as
+ * its card below.
+ */
+function HarmfulSitesSwitch({
+  locationId,
+  organizationId,
+  items,
+  onUseClosest,
+}: {
+  locationId: string;
+  organizationId?: string;
+  items: WebCategory[];
+  onUseClosest: (ids: number[]) => void;
+}) {
+  const { t } = useTranslation("nav", { i18n });
+  const qc = useQueryClient();
+  const policy = useWebFilterLocationPolicy(locationId);
+  const save = useSetWebFilterLocationPolicy(locationId);
+  const [error, setError] = useState<WebFilterErrorExplained | null>(null);
+  // Same key as VenueRouters' own query, so the list is fetched once.
+  const routersQuery = useQuery({
+    queryKey: ["dns-filtering", "venue-routers", locationId],
+    queryFn: async () => {
+      const orgId = organizationId || (await resolveOrgId());
+      return routerService.listForLocation(locationId, orgId);
+    },
+  });
+
+  if (!items.some((c) => c.isSecurity) || !policy.data) return null;
+  const effective = policy.data.effectiveCategoryIds;
+  const on = harmfulSitesOn(effective, items);
+  const { writable } = partitionRoutersByDeviceWrite(routersQuery.data ?? []);
+
+  function change(next: boolean) {
+    setError(null);
+    save.mutate(withHarmfulSites(effective, items, next), {
+      onSuccess: () =>
+        toast.success(
+          next
+            ? t("harmfulSites.onToast", "Known harmful websites are on this venue's list.")
+            : t("harmfulSites.offToast", "Known harmful websites are no longer on the list."),
+        ),
+      onError: (err) => {
+        const activeRouterNames = venueStatuses(qc, locationId)
+          .filter(({ status }) => status?.state === "active")
+          .map(({ router }) => router.name);
+        setError(webFilterErrorSentence(requestErrorOf(err), { items, activeRouterNames }));
+      },
+    });
+  }
+
+  return (
+    <Card className="border-emerald-500/30 bg-emerald-500/5">
+      <CardContent className="space-y-3 p-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-1">
+            <p className="flex items-center gap-2 text-sm font-semibold">
+              <ShieldCheck
+                className="h-4 w-4 text-emerald-600 dark:text-emerald-400"
+                aria-hidden="true"
+              />
+              {t("harmfulSites.title", "Block known harmful websites (recommended)")}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {t(
+                "harmfulSites.body",
+                "Stops guests opening websites Cloudflare knows spread viruses or steal passwords (malware and phishing). Cloudflare keeps the list up to date.",
+              )}
+            </p>
+            {policy.data.source === "organization" && (
+              <p className="text-xs text-muted-foreground">
+                {t(
+                  "harmfulSites.ownList",
+                  "This venue uses your account's list. Changing this gives the venue its own list.",
+                )}
+              </p>
+            )}
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {save.isPending && (
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden />
+            )}
+            <Switch
+              checked={on}
+              disabled={save.isPending}
+              onCheckedChange={change}
+              aria-label={t("harmfulSites.title", "Block known harmful websites (recommended)")}
+            />
+          </div>
+        </div>
+        {on &&
+          writable.map((router) => (
+            <HarmfulRouterStep key={router.id} router={router} items={items} />
+          ))}
+        {error && <ErrorBox explained={error} onUseClosest={onUseClosest} />}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** One router under the harmful-sites switch: nothing when it is filtering,
+ * otherwise the one remaining step and the button that takes it. */
+function HarmfulRouterStep({ router, items }: { router: RouterDevice; items: WebCategory[] }) {
+  const { t } = useTranslation("nav", { i18n });
+  const status = useWebFilterRouterStatus(router.id);
+  const action = useWebFilterRouterAction(router.id);
+  const [confirm, setConfirm] = useState(false);
+  const [error, setError] = useState<WebFilterErrorExplained | null>(null);
+  const explain = useExplain();
+  const step = harmfulRouterStep(status.data);
+  if (status.isLoading || step === "on" || step === "unknown") return null;
+
+  return (
+    <div
+      role="status"
+      className="space-y-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p>
+          {step === "failed"
+            ? t(
+                "harmfulSites.stepFailed",
+                "Not blocking yet at {{router}}: the last attempt to turn on web filtering there failed.",
+                { router: router.name },
+              )
+            : t(
+                "harmfulSites.stepNeeded",
+                "One step left at {{router}}: turn on web filtering there, or nothing on this list is blocked.",
+                { router: router.name },
+              )}
+        </p>
+        <Button size="sm" disabled={action.isPending} onClick={() => setConfirm(true)}>
+          {action.isPending && (
+            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />
+          )}
+          {t("webFilteringPage.turnOn", "Turn on")}
+        </Button>
+      </div>
+      {error && <p className="text-destructive">{explain(error)}</p>}
+      <AlertDialog open={confirm} onOpenChange={setConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("webFilteringPage.enableTitle", "Turn on web filtering at {{router}}?", {
+                router: router.name,
+              })}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  {t(
+                    "webFilteringPage.enableWhat",
+                    "This changes how {{router}} looks up every website, for everyone on its network — guests and your own devices.",
+                    { router: router.name },
+                  )}
+                </p>
+                <p>
+                  {t(
+                    "webFilteringPage.enableSafety",
+                    "Straight after the change we check that websites still open. If that check fails, the router switches back to its own settings automatically.",
+                  )}
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("webFilteringPage.cancel", "Cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirm(false);
+                setError(null);
+                action.mutate(
+                  { kind: "enable" },
+                  {
+                    onSuccess: () =>
+                      toast.success(
+                        t("webFilteringPage.enabledToast", "Web filtering is on at {{router}}", {
+                          router: router.name,
+                        }),
+                      ),
+                    onError: (err) =>
+                      setError(webFilterErrorSentence(requestErrorOf(err), { items })),
+                  },
+                );
+              }}
+            >
+              {t("webFilteringPage.turnOn", "Turn on")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------

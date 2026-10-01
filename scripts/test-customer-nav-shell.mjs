@@ -388,15 +388,23 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
   const view = strip(readFileSync(join(ROOT, "src/components/security/BlockingView.tsx"), "utf8"));
   check(
     "the Websites tab leads with the type-a-name box, once per writable router",
-    /<WebsiteBlockBox routerId=\{router\.id\}/.test(view) &&
+    // One box per router through PerRouter, which the Apps section shares.
+    /<WebsiteBlockBox routerId=\{id\}/.test(view) &&
+      /\{render\(router\.id\)\}/.test(view) &&
       /partitionRoutersByDeviceWrite\(rows\)/.test(view) &&
       /<ControllerRoutersNote\b/.test(view),
   );
   check(
     "then the Cloudflare categories, as the existing Web filtering screen",
     /<WebFilteringView\b/.test(view) &&
-      view.indexOf("<SpecificWebsites") > -1 &&
-      view.indexOf("<SpecificWebsites") < view.indexOf("<WebFilteringView"),
+      view.indexOf("<WebsiteBlockBox") > -1 &&
+      view.indexOf("<WebsiteBlockBox") < view.indexOf("<WebFilteringView"),
+  );
+  check(
+    "with the per-app switches between the two, on the same routers",
+    /<AppBlockBox routerId=\{id\}/.test(view) &&
+      view.indexOf("<WebsiteBlockBox") < view.indexOf("<AppBlockBox") &&
+      view.indexOf("<AppBlockBox") < view.indexOf("<WebFilteringView"),
   );
   check(
     "and keeps the full rule list (and address blocking) under a folded Advanced",
@@ -438,9 +446,9 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
       .map((mm) => mm[1]);
   const linkedKeys = linkedTo("/blocking");
   check(
-    "the Security Score links website, category, address and device blocking to it",
+    "the Security Score links website, app, harmful-site, category, address and device blocking to it",
     linkedKeys.sort().join(",") ===
-      "device_isolation,domain_blocking_dns,ip_and_cidr_blocking,web_category_filtering",
+      "application_control,device_isolation,domain_blocking_dns,ip_and_cidr_blocking,threat_intelligence,web_category_filtering",
     linkedKeys.join(","),
   );
   check(
