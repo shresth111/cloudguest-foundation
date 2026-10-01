@@ -754,6 +754,67 @@ console.log("\nSecurity -> Firewall: plain words in, forward rules out");
   );
 }
 
+console.log("\nSecurity -> Firewall: keep guests off private networks, no addresses typed");
+{
+  const fw = m.firewallRules;
+  const w = fw.privateNetworkRules(["192.168.88.0/24"], ["192.168.88.1"]);
+  check(
+    "one-block-per-private-range-from-the-guest-network",
+    w.blocks.length === 3 &&
+      w.blocks.every((b) => b.sourceAddress === "192.168.88.0/24" && b.action === "drop") &&
+      w.blocks.map((b) => b.destinationAddress).join(",") ===
+        "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16",
+  );
+  check(
+    "the-router-as-dns-needs-no-allow",
+    w.allows.length === 0,
+    "a DNS server on the guest network is the router itself, which forward never sees",
+  );
+  const isp = fw.privateNetworkRules(["192.168.88.0/24"], ["192.168.1.1", "8.8.8.8"]);
+  check(
+    "a-private-upstream-dns-gets-udp-and-tcp-53-allowed-first",
+    isp.allows.length === 2 &&
+      isp.allows.every(
+        (a) =>
+          a.action === "accept" &&
+          a.destinationAddress === "192.168.1.1/32" &&
+          a.destinationPort === 53,
+      ),
+    "without it the Blocks take the guests' DNS with them; a public DNS needs nothing",
+  );
+  check(
+    "no-guest-network-reported-means-no-switch",
+    fw.privateNetworkRules([], ["192.168.1.1"]).blocks.length === 0 &&
+      fw.privateNetworkRules(["2001:db8::/64"], []).blocks.length === 0,
+  );
+  const stored = [...isp.allows, ...isp.blocks].map((r, i) => ({
+    ...r,
+    destinationAddress: r.destinationAddress.replace(/\/32$/, ""),
+    sourcePort: null,
+    priority: i,
+  }));
+  check("switch-reads-on-when-every-rule-is-there", fw.privateNetworksOn(stored, isp));
+  check(
+    "switch-reads-off-when-one-is-switched-off-or-missing",
+    !fw.privateNetworksOn(
+      stored.map((r, i) => (i === 3 ? { ...r, isEnabled: false } : r)),
+      isp,
+    ) && !fw.privateNetworksOn(stored.slice(1), isp),
+  );
+  check(
+    "only-rules-stamped-by-the-switch-count-as-its-own",
+    fw.privateNetworkRulesIn([...stored, { ...stored[2], comment: "owner's own" }]).length ===
+      stored.length,
+  );
+  check(
+    "a-rule-aimed-at-the-router-gets-a-sentence",
+    /router's own address/.test(
+      fw.firewallPushErrorSentence({ status: 409, data: { code: "ACCESS_RULES_TARGETS_ROUTER" } })
+        .sentence,
+    ),
+  );
+}
+
 console.log("\nSecurity -> Firewall: a website is blocked by name, not by address");
 {
   const fw = m.firewallRules;

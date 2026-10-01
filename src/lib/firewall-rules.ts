@@ -412,10 +412,18 @@ export function firewallPushErrorSentence(err: PushFailure | null | undefined): 
         needsSupport: false,
         code,
       };
+    case "ACCESS_RULES_TARGETS_ROUTER":
+      return {
+        sentence:
+          "One rule points at this router's own address. Traffic to the router itself never passes through these rules, so it would never do anything. Nothing was applied — remove or change that rule and try again.",
+        detail: message,
+        needsSupport: false,
+        code,
+      };
     case "ACCESS_RULES_WOULD_BREAK_GUEST_PATH":
       return {
         sentence:
-          "A Block rule with no device and no destination would cut every guest off, so nothing was applied. Give it a device or a destination and try again.",
+          "One Block rule would cut every guest off the internet (and the login page), so nothing was applied. Narrow it to one device or a specific destination and try again.",
         detail: message,
         needsSupport: false,
         code,
@@ -534,4 +542,131 @@ export function newRulePriority(
   if (!rules.length) return 100;
   const ps = rules.map((r) => r.priority);
   return decision === "allow" ? Math.max(0, Math.min(...ps) - 10) : Math.max(...ps) + 10;
+}
+
+// ---------------------------------------------------------------------------
+// "Keep guests off your private networks" -- one switch, no addresses typed.
+// ---------------------------------------------------------------------------
+
+/** Every private (RFC 1918) range. A guest has no business reaching any of
+ * them: the office PCs, the POS, CCTV, the ISP router's settings page. */
+export const PRIVATE_RANGES: readonly string[] = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"];
+
+/** Stamped in the comment of every rule the switch creates, so the switch
+ * can find (and remove) exactly its own rules and nothing the owner wrote. */
+export const PRIVATE_NETWORKS_MARK = "wyfy-template:private-networks";
+
+export interface TemplateRuleFields {
+  name: string;
+  chain: "forward";
+  action: "accept" | "drop";
+  protocol: "all" | "tcp" | "udp";
+  sourceAddress: string;
+  destinationAddress: string;
+  destinationPort: number | null;
+  comment: string;
+  isEnabled: true;
+}
+
+function ipv4ToInt(ip: string): number | null {
+  if (!IPV4.test(ip)) return null;
+  return ip.split(".").reduce((n, o) => n * 256 + Number(o), 0);
+}
+
+/** Whether `ip` (a bare IPv4 address) is inside `cidr`. */
+export function ipInRange(ip: string, cidr: string): boolean {
+  const [base, bitsRaw] = cidr.split("/");
+  const a = ipv4ToInt(ip);
+  const b = ipv4ToInt(base);
+  const bits = bitsRaw === undefined ? 32 : Number(bitsRaw);
+  if (a == null || b == null || !(bits >= 0 && bits <= 32)) return false;
+  const size = 2 ** (32 - bits);
+  return Math.floor(a / size) === Math.floor(b / size);
+}
+
+/**
+ * The rules the switch puts on the router, from what the router itself
+ * reported (cloud-guest#317's band status):
+ *
+ *  - for each guest network, a Block to each private range; and
+ *  - first, an Allow for DNS (udp+tcp 53) to any DNS server DHCP hands
+ *    guests that is private and NOT on the guest network itself -- typically
+ *    the ISP router. Without it the Blocks would take guests' DNS with them.
+ *    A DNS server on the guest network is the router (or a guest), which
+ *    the forward chain never sees.
+ *
+ * Only IPv4 networks are used: the private ranges are IPv4. Empty when the
+ * router reported no guest network -- the switch is then not offered.
+ */
+export function privateNetworkRules(
+  guestNetworks: readonly string[],
+  dnsServers: readonly string[],
+): { allows: TemplateRuleFields[]; blocks: TemplateRuleFields[] } {
+  const nets = guestNetworks.filter((n) => isAddressOrRange(n));
+  const allows: TemplateRuleFields[] = [];
+  const blocks: TemplateRuleFields[] = [];
+  for (const net of nets) {
+    for (const dns of dnsServers) {
+      if (!IPV4.test(dns)) continue;
+      if (!PRIVATE_RANGES.some((r) => ipInRange(dns, r))) continue;
+      if (ipInRange(dns, net)) continue;
+      for (const protocol of ["udp", "tcp"] as const) {
+        allows.push({
+          name: `Guests may use DNS at ${dns}`,
+          chain: "forward",
+          action: "accept",
+          protocol,
+          sourceAddress: net,
+          destinationAddress: `${dns}/32`,
+          destinationPort: 53,
+          comment: PRIVATE_NETWORKS_MARK,
+          isEnabled: true,
+        });
+      }
+    }
+    for (const range of PRIVATE_RANGES) {
+      blocks.push({
+        name: `Keep guests off ${range}`,
+        chain: "forward",
+        action: "drop",
+        protocol: "all",
+        sourceAddress: net,
+        destinationAddress: range,
+        destinationPort: null,
+        comment: PRIVATE_NETWORKS_MARK,
+        isEnabled: true,
+      });
+    }
+  }
+  return { allows, blocks };
+}
+
+/** The switch's rules among a router's rules. */
+export function privateNetworkRulesIn<T extends { comment?: string | null }>(
+  rules: readonly T[],
+): T[] {
+  return rules.filter((r) => (r.comment ?? "") === PRIVATE_NETWORKS_MARK);
+}
+
+/** On only when every rule the switch would create is there and switched
+ * on -- matched by source, destination, port and action, not by name. */
+export function privateNetworksOn(
+  rules: readonly (PlainFirewallRule & { comment?: string | null })[],
+  wanted: { allows: TemplateRuleFields[]; blocks: TemplateRuleFields[] },
+): boolean {
+  const all = [...wanted.allows, ...wanted.blocks];
+  if (!all.length) return false;
+  const norm = (a: string | null) => (a ?? "").replace(/\/32$/, "");
+  const ours = privateNetworkRulesIn(rules);
+  return all.every((w) =>
+    ours.some(
+      (r) =>
+        r.isEnabled &&
+        r.action === w.action &&
+        r.protocol === w.protocol &&
+        norm(r.sourceAddress) === norm(w.sourceAddress) &&
+        norm(r.destinationAddress) === norm(w.destinationAddress) &&
+        (r.destinationPort ?? null) === w.destinationPort,
+    ),
+  );
 }
