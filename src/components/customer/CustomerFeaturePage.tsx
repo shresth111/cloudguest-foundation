@@ -95,10 +95,6 @@ const MarketingView = lazyView(
   "MarketingView",
 );
 const FirewallView = lazyView(() => import("@/components/security/FirewallView"), "FirewallView");
-const WebFilteringView = lazyView(
-  () => import("@/components/security/WebFilteringView"),
-  "WebFilteringView",
-);
 /** Not part of the OperationsFeatures barrel -- its own module, so opening
  * "Network Integrations" fetches only the Omada connect wizard and its
  * service layer rather than the whole 446 kB ops chunk. Lazy for the same
@@ -357,12 +353,11 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                   {/* Security -> Firewall writes the venue's MikroTik, so it
                       sits behind the same gate as the Network screens. */}
                   {feature === "firewall" && <FirewallView locationId={locationId} />}
-                  {/* Security -> Web Filtering switches the MikroTik's DNS. */}
-                  {feature === "web-filtering" && <WebFilteringView locationId={locationId} />}
-                  {/* No "website-blocking" branch: it is the "Websites &
-                      IPs" tab of Security -> Blocking now, which applies
-                      this same controller gate to that one tab (see
-                      BlockingView), and /website-blocking redirects there. */}
+                  {/* No "website-blocking" or "web-filtering" branch: both
+                      are the "Websites" tab of Security -> Block Websites
+                      now, which applies this same controller gate to that
+                      one tab (see BlockingView), and both old addresses
+                      redirect there. */}
                 </>
               )}
               {/* `masked` matters here now: this page looks a guest up by

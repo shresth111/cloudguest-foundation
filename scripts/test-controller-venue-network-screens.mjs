@@ -339,10 +339,12 @@ for (const id of [
 // Six since Security -> Firewall: cloud-guest#304's push is MikroTik-only
 // and refuses a controller-managed router at create, push and band. Seven
 // since Security -> Web Filtering: cloud-guest#307 switches a MikroTik's DNS
-// and refuses a controller-managed router before any write.
+// and refuses a controller-managed router before any write. Six again since
+// Web Filtering became the Categories section of Block Websites' Websites
+// tab, which is gated as "website-blocking" already.
 check(
-  "the-gated-list-is-exactly-seven",
-  m.CONTROLLER_UNSUPPORTED_FEATURE_IDS.length === 7,
+  "the-gated-list-is-exactly-six",
+  m.CONTROLLER_UNSUPPORTED_FEATURE_IDS.length === 6,
   `got ${m.CONTROLLER_UNSUPPORTED_FEATURE_IDS.length}`,
 );
 // Every gated id still has to name a real screen -- a typo here would
@@ -362,8 +364,8 @@ const tabGatedIds = m.BLOCKING_TABS.map((t) => t.controllerGatedAs).filter(Boole
 const securityIds = (m.CUSTOMER_NAV_GROUPS.find((g) => g.id === "security")?.items ?? []).map(
   (i) => i.id,
 );
-// Web Filtering likewise: every control on it switches the router's DNS.
-const GATED_OUTSIDE_NETWORK = ["firewall", "web-filtering"];
+// Web Filtering was a second one until it moved under Block Websites.
+const GATED_OUTSIDE_NETWORK = ["firewall"];
 check(
   "every-gated-id-is-a-real-screen",
   m.CONTROLLER_UNSUPPORTED_FEATURE_IDS.every(

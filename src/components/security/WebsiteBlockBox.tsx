@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Globe2, Loader2, RotateCw, X } from "lucide-react";
@@ -26,13 +25,15 @@ const CHIP_STYLE: Record<ContentFilterRule["devicePushStatus"], string> = {
 };
 
 /**
- * "Block a website" on the Firewall screen: type a name, press Block, done.
+ * "Block a website" on Security -> Block Websites (it started on the Firewall
+ * screen and moved so that websites have one home): type a name, press
+ * Block, done.
  *
  * A firewall rule matches addresses, and a website has no address an owner
  * can know -- youtube.com answers from hundreds of IPs that change hourly.
  * So a website is blocked by NAME, through the router's own DNS: these are
  * the content-filtering domain rows (`/content-filters`, the same rows
- * Security -> Blocking -> Websites lists), which cloud-guest pushes as
+ * Block Websites' "Advanced" rule list shows), which cloud-guest pushes as
  * `/ip dns static` sinkhole entries covering the name and every subdomain.
  *
  * Block is one action for the owner but two calls here: create the row, then
@@ -59,8 +60,8 @@ export function WebsiteBlockBox({ routerId }: { routerId: string }) {
     if (!domain) {
       setError(
         t(
-          "firewallPage.siteInvalid",
-          "Type a website name like youtube.com. To block an address, add a rule below.",
+          "blockWebsites.siteInvalid",
+          "Type a website name like youtube.com. To block an internet address, open Advanced at the bottom of this page.",
         ),
       );
       return;
@@ -259,20 +260,6 @@ export function WebsiteBlockBox({ routerId }: { routerId: string }) {
       ) : null}
 
       {sites.length > 0 && <BypassSwitch routerId={routerId} />}
-
-      <p className="text-xs text-muted-foreground">
-        {t(
-          "firewallPage.siteCategoriesPrefix",
-          "Want to block whole kinds of sites (adult, gambling, …)? Use",
-        )}{" "}
-        <Link
-          to="/web-filtering"
-          className="font-medium text-primary underline-offset-4 hover:underline"
-        >
-          {t("customerItem.web-filtering", "Web filtering")}
-        </Link>
-        .
-      </p>
     </section>
   );
 }

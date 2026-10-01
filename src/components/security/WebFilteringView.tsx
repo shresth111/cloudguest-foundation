@@ -106,9 +106,11 @@ import type { RouterDevice } from "@/types/router";
  *
  * ## Controller-managed venues
  *
- * MikroTik only. "web-filtering" is in `CONTROLLER_UNSUPPORTED_FEATURE_IDS`,
- * so the owner shell shows `ControllerManagedFeatureNotice` instead, and this
- * component applies the same gate itself for the staff `/agent` shell.
+ * MikroTik only. This is the "Categories" section of Block Websites' Websites
+ * tab, which is gated as "website-blocking" (in
+ * `CONTROLLER_UNSUPPORTED_FEATURE_IDS`), so at a controller-only venue the tab
+ * shows `ControllerManagedFeatureNotice` and this is never mounted. It applies
+ * the same gate itself anyway, so mounting it anywhere else stays safe.
  */
 export function WebFilteringView({ locationId }: { locationId?: string }) {
   const { t } = useTranslation("nav", { i18n });
@@ -116,7 +118,7 @@ export function WebFilteringView({ locationId }: { locationId?: string }) {
   const demo = isDemo();
   const controllerGated =
     locationIsControllerManaged(activeLocation?.liveness) &&
-    !featureAppliesToControllerVenue("web-filtering");
+    !featureAppliesToControllerVenue("website-blocking");
   const live = !!locationId && !demo && !controllerGated;
 
   const categories = useWebCategories(locationId, live);
@@ -137,8 +139,8 @@ export function WebFilteringView({ locationId }: { locationId?: string }) {
   if (controllerGated) {
     return (
       <ControllerManagedFeatureNotice
-        featureId="web-filtering"
-        featureLabel={t("customerItem.web-filtering", "Web filtering")}
+        featureId="website-blocking"
+        featureLabel={t("blockWebsites.categoriesTitle", "Categories")}
         venueName={activeLocation?.name ?? null}
         vendor={locationControllerVendor(activeLocation?.liveness)}
       />

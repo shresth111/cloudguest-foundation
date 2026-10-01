@@ -143,10 +143,13 @@ check("there are nine groups", CUSTOMER_NAV_GROUPS.length === 9, `${CUSTOMER_NAV
 // that reach the router through cloud-guest#304's push. Section 11 pins it.
 // Then Security -> Web Filtering (29): Cloudflare categories, switched on per
 // router through cloud-guest#307. Section 12 pins it.
+// Then back to 28: Web filtering stopped being its own row and became the
+// "Categories" section of Security -> Block Websites, so a venue owner finds
+// website blocking in one place. Section 12 pins where it went.
 // Asserted rather than derived on purpose -- it is what catches a row being
 // dropped by an unrelated refactor -- so moving it is a deliberate step, and
 // this is one.
-check("there are 29 features", CUSTOMER_NAVS.length === 29, `${CUSTOMER_NAVS.length}`);
+check("there are 28 features", CUSTOMER_NAVS.length === 28, `${CUSTOMER_NAVS.length}`);
 check(
   "the nine groups are the canonical ones",
   CUSTOMER_NAV_GROUPS.map((g) => g.id).join(",") ===
@@ -327,13 +330,23 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
 {
   const security = CUSTOMER_NAV_GROUPS.find((g) => g.id === "security");
   check(
-    "the Security group is Overview, Blocking, Firewall, then Web filtering",
-    security &&
-      security.items.map((i) => i.id).join(",") === "security,blocking,firewall,web-filtering",
+    "the Security group is Security Score, Block Websites, then Firewall",
+    security && security.items.map((i) => i.id).join(",") === "security,blocking,firewall",
     security ? security.items.map((i) => i.id).join(",") : "missing",
   );
+  const score = CUSTOMER_NAVS.find((n) => n.id === "security");
+  check(
+    "the Security group's first row is Security Score, not a second Overview",
+    score && score.label === "Security Score",
+  );
+  check(
+    "the Overview group's own rows are untouched",
+    (CUSTOMER_NAV_GROUPS.find((g) => g.id === "overview")?.items ?? [])
+      .map((i) => `${i.id}:${i.label}`)
+      .join(",") === "dashboard:Dashboard,users:Guests,reports:Reports,alerts:Alerts",
+  );
   const blocking = CUSTOMER_NAVS.find((n) => n.id === "blocking");
-  check("Blocking is labelled for the job", blocking && blocking.label === "Blocking");
+  check("Blocking is labelled for the job", blocking && blocking.label === "Block Websites");
   check(
     "Blocking is owner-only, like Access Rules its guests tab came from",
     blocking && blocking.roles.join(",") === "owner",
@@ -374,8 +387,28 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
   // them -- and those screens left their old homes.
   const view = strip(readFileSync(join(ROOT, "src/components/security/BlockingView.tsx"), "utf8"));
   check(
-    "the Websites tab is the existing content-filter screen",
-    /<ContentFilterManagement\b/.test(view),
+    "the Websites tab leads with the type-a-name box, once per writable router",
+    /<WebsiteBlockBox routerId=\{router\.id\}/.test(view) &&
+      /partitionRoutersByDeviceWrite\(rows\)/.test(view) &&
+      /<ControllerRoutersNote\b/.test(view),
+  );
+  check(
+    "then the Cloudflare categories, as the existing Web filtering screen",
+    /<WebFilteringView\b/.test(view) &&
+      view.indexOf("<SpecificWebsites") > -1 &&
+      view.indexOf("<SpecificWebsites") < view.indexOf("<WebFilteringView"),
+  );
+  check(
+    "and keeps the full rule list (and address blocking) under a folded Advanced",
+    /<CollapsibleContent[^>]*>\s*<ContentFilterManagement\b/.test(view) &&
+      view.indexOf("<WebFilteringView") < view.indexOf("<ContentFilterManagement"),
+  );
+  const firewallView = strip(
+    readFileSync(join(ROOT, "src/components/security/FirewallView.tsx"), "utf8"),
+  );
+  check(
+    "Firewall no longer blocks websites, and points owners at Block Websites",
+    !/WebsiteBlockBox/.test(firewallView) && /<Link to="\/blocking"/.test(firewallView),
   );
   check("the Guests tab is the existing Blocked Guests screen", /<BlockUsers\b/.test(view));
   check(
@@ -405,8 +438,9 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
       .map((mm) => mm[1]);
   const linkedKeys = linkedTo("/blocking");
   check(
-    "the Security overview links domain, address and device blocking to it",
-    linkedKeys.sort().join(",") === "device_isolation,domain_blocking_dns,ip_and_cidr_blocking",
+    "the Security Score links website, category, address and device blocking to it",
+    linkedKeys.sort().join(",") ===
+      "device_isolation,domain_blocking_dns,ip_and_cidr_blocking,web_category_filtering",
     linkedKeys.join(","),
   );
   check(
@@ -415,9 +449,19 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
     linkedTo("/firewall").join(","),
   );
   check(
-    "and links web category filtering to Security -> Web Filtering, and nothing else there",
-    linkedTo("/web-filtering").join(",") === "web_category_filtering",
-    linkedTo("/web-filtering").join(","),
+    "and links nothing to the retired /web-filtering address",
+    linkedTo("/web-filtering").length === 0 && !/to="\/web-filtering"/.test(overview),
+  );
+  check(
+    "and never renders the not-supported group to a customer",
+    !/availability:\s*"not_supported"/.test(strip(overview)),
+  );
+  check(
+    "and names capabilities in plain words, not the backend's",
+    /PLAIN_LABEL\[feature\.key\]/.test(overview) &&
+      !/"IP and CIDR blocking"|"Rogue DHCP detection"|"Zone-to-zone firewall"/.test(
+        strip(overview),
+      ),
   );
   check("and links nothing that has no screen", !managed.includes("domain_blocking_sni"));
   check(
@@ -484,25 +528,31 @@ console.log("\nSecurity -> Firewall is a real screen, owner-only, gated at contr
 }
 
 // ---------------------------------------------------------------------------
-// 12. Security -> Web Filtering: Cloudflare categories, per-router switch.
+// 12. Web Filtering: Cloudflare categories, now a section of Block Websites.
 // ---------------------------------------------------------------------------
 
-console.log("\nSecurity -> Web Filtering is a real screen, owner-only, gated at controller venues");
+console.log(
+  "\nWeb filtering is the Categories section of Block Websites, gated at controller venues",
+);
 
 {
-  const wf = CUSTOMER_NAVS.find((n) => n.id === "web-filtering");
-  check("Web filtering is labelled for the job", wf && wf.label === "Web filtering");
-  check("Web filtering is owner-only", wf && wf.roles.join(",") === "owner");
   check(
-    "Web filtering lives at /web-filtering",
-    customerFeatureHref("web-filtering") === "/web-filtering",
+    "Web filtering is not a row of its own any more",
+    !CUSTOMER_NAVS.some((n) => n.id === "web-filtering"),
+    "two rows for blocking a website is two places to look",
   );
   const routeSrc = strip(readFileSync(join(ROOT, "src/routes/web-filtering.tsx"), "utf8"));
   check(
-    "/web-filtering mounts the shared shell with its id, behind the session guards",
-    /<CustomerFeaturePage feature="web-filtering" \/>/.test(routeSrc) &&
-      /requireCustomerSession/.test(routeSrc) &&
-      /requireActiveLocationId/.test(routeSrc),
+    "/web-filtering redirects to the Categories section of the Websites tab",
+    /redirect\(\{\s*to:\s*"\/blocking",\s*search:\s*\{\s*tab:\s*"websites"\s*\},\s*hash:\s*"categories"/.test(
+      routeSrc,
+    ),
+  );
+  check(
+    "and still checks the session before it redirects",
+    routeSrc.indexOf("requireCustomerSession") > -1 &&
+      routeSrc.indexOf("requireCustomerSession") < routeSrc.indexOf("redirect({") &&
+      !/CustomerFeaturePage/.test(routeSrc),
   );
   const view = strip(
     readFileSync(join(ROOT, "src/components/security/WebFilteringView.tsx"), "utf8"),
@@ -512,9 +562,9 @@ console.log("\nSecurity -> Web Filtering is a real screen, owner-only, gated at 
     /from "@\/hooks\/useDnsFiltering"/.test(view) && !/api\.(get|post|put|delete)\(/.test(view),
   );
   check(
-    "the screen gates itself with the existing controller notice too (the /agent shell has no gate)",
+    "the screen gates itself with the Websites tab's own controller id",
     /<ControllerManagedFeatureNotice\b/.test(view) &&
-      /featureAppliesToControllerVenue\("web-filtering"\)/.test(view),
+      /featureAppliesToControllerVenue\("website-blocking"\)/.test(view),
   );
   check(
     "Turn on and Turn off both ask first",
@@ -531,11 +581,7 @@ console.log("\nSecurity -> Web Filtering is a real screen, owner-only, gated at 
   const shellSrc = strip(
     readFileSync(join(ROOT, "src/components/customer/CustomerFeaturePage.tsx"), "utf8"),
   );
-  const gatedBlock = shellSrc.split("controllerGated ?")[1] ?? "";
-  check(
-    "the owner shell mounts it inside the controller gate",
-    /feature === "web-filtering" && <WebFilteringView\b/.test(gatedBlock),
-  );
+  check("the owner shell no longer mounts it on its own", !/<WebFilteringView\b/.test(shellSrc));
 }
 
 // ---------------------------------------------------------------------------

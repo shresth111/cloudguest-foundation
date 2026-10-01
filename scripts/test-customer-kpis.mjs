@@ -392,7 +392,9 @@ console.log("\nno two nav items share an icon");
   // guest-marketing-campaigns.md §3.5), deliberately added.
   // 28: Security -> Firewall (cloud-guest#304), deliberately added.
   // 29: Security -> Web Filtering (cloud-guest#307), deliberately added.
-  check("the nav still has every item", icons.length === 29, `found ${icons.length}`);
+  // 28: Web Filtering folded into Security -> Block Websites as its
+  //     Categories section, deliberately removed as a row.
+  check("the nav still has every item", icons.length === 28, `found ${icons.length}`);
 }
 
 console.log(

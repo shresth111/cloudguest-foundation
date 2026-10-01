@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -68,7 +69,6 @@ import {
 } from "@/lib/router-vendors";
 import { locationControllerVendor, locationIsControllerManaged } from "@/lib/location-liveness";
 import { ControllerManagedFeatureNotice } from "@/components/customer/ControllerManagedFeatureNotice";
-import { WebsiteBlockBox } from "@/components/security/WebsiteBlockBox";
 import {
   useCreateFirewallRule,
   useDeleteFirewallRule,
@@ -113,6 +113,10 @@ import type { RouterDevice } from "@/types/router";
  * dropdown, no "place-before" -- which lives entirely in
  * `lib/firewall-rules.ts`, and the Apply action from cloud-guest#304.
  *
+ * Addresses and ports only. Blocking a website by name briefly lived here as
+ * a "Block a website" box; it moved to Security -> Block Websites so that a
+ * venue owner finds websites in one place, and the intro links there.
+ *
  * ## Saved is not applied
  *
  * Saving a rule changes nothing on the router. Apply sends the router its
@@ -151,9 +155,14 @@ export function FirewallView({ locationId }: { locationId?: string }) {
   const intro = (
     <p className="max-w-3xl text-sm text-muted-foreground">
       {t(
-        "firewallPage.intro",
-        "Block a website by typing its name, or decide which devices on your network may reach which addresses. Address rules are checked top first, and nothing changes on your router until you apply them.",
-      )}
+        "blockWebsites.firewallIntro",
+        "Decide which devices on your network may reach which internet addresses. Rules are checked top first, and nothing changes on your router until you apply them.",
+      )}{" "}
+      {t("blockWebsites.firewallWebsitesPrefix", "To block a website by its name, use")}{" "}
+      <Link to="/blocking" className="font-medium text-primary underline-offset-4 hover:underline">
+        {t("customerItem.blocking", "Block Websites")}
+      </Link>
+      .
     </p>
   );
 
@@ -402,8 +411,6 @@ function RouterFirewallCard({
                 )}
           </p>
         )}
-
-        <WebsiteBlockBox routerId={router.id} />
 
         {notApplied > 0 && !push.isPending && (
           <div

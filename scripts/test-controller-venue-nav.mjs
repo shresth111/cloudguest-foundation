@@ -397,13 +397,13 @@ console.log("\ncontroller venue: the five Network screens");
   // Five: the four Network rows, and Security -> Firewall, which is a whole
   // page of RouterOS writes (cloud-guest#304 is MikroTik-only). Blocking is
   // NOT muted -- its Guests tab works here.
-  // Six since Security -> Web Filtering, which switches the router's DNS
-  // (cloud-guest#307, MikroTik-only).
+  // (Six while Web filtering was its own row; it is a section of Block
+  // Websites now, gated with that page's Websites tab.)
   check(
     "omada-nav-mutes-nothing-else",
-    r.rows.filter((row) => row.muted).length === 6 &&
+    r.rows.filter((row) => row.muted).length === 5 &&
       r.rows.some((row) => row.label === "Firewall" && row.muted) &&
-      r.rows.some((row) => row.label === "Web filtering" && row.muted),
+      !r.rows.some((row) => row.label === "Web filtering"),
     `${r.rows
       .filter((row) => row.muted)
       .map((n) => n.label)
@@ -479,7 +479,7 @@ const CONTROLLER_COPY = /is configured on this venue's controller|Configured in 
 console.log("\nSecurity -> Blocking at a controller venue");
 {
   const r = await openFeature("blocking", [OMADA]);
-  const row = r.rows.find((x) => x.label === "Blocking");
+  const row = r.rows.find((x) => x.label === "Block Websites");
   check("omada-blocking-row-is-in-the-nav", !!row);
   check(
     "omada-blocking-row-is-not-muted",
@@ -493,10 +493,10 @@ console.log("\nSecurity -> Blocking at a controller venue");
   );
   check(
     "omada-blocking-offers-both-tabs",
-    (await r.page.getByRole("tab", { name: "Websites & IPs" }).count()) === 1 &&
+    (await r.page.getByRole("tab", { name: "Websites" }).count()) === 1 &&
       (await r.page.getByRole("tab", { name: "Guests & devices" }).count()) === 1,
   );
-  await r.page.getByRole("tab", { name: "Websites & IPs" }).click();
+  await r.page.getByRole("tab", { name: "Websites" }).click();
   await r.page.waitForTimeout(300);
   const websites = (await r.page.locator("body").innerText()).replace(/\u2019/g, "'");
   check(
@@ -534,7 +534,27 @@ console.log("\nSecurity -> Blocking at a MikroTik venue");
   check(
     "website-blocking-is-no-longer-a-row-of-its-own",
     !r.rows.some((row) => row.label === "Website Blocking"),
-    "one home: it is the Websites & IPs tab now",
+    "one home: it is the Websites tab now",
+  );
+  check(
+    "mikrotik-websites-tab-has-the-three-sections-in-order",
+    r.text.indexOf("Specific websites") > -1 &&
+      r.text.indexOf("Specific websites") < r.text.indexOf("Categories") &&
+      r.text.indexOf("Categories") < r.text.indexOf("Advanced: block an internet address"),
+    r.text.slice(0, 800),
+  );
+  check(
+    "mikrotik-advanced-is-folded-so-the-full-rule-list-is-not-mounted",
+    !r.text.includes("Every block, router by router"),
+  );
+  await r.page.getByText("Advanced: block an internet address").click();
+  await r.page.waitForTimeout(300);
+  const unfolded = (await r.page.locator("body").innerText()).replace(/\u2019/g, "'");
+  check(
+    "mikrotik-advanced-unfolds-to-the-full-rule-list-in-plain-words",
+    unfolded.includes("Every block, router by router") &&
+      !/IP\/CIDR|IP \/ CIDR|dropped at the firewall|Network \/ Website Blocking/.test(unfolded),
+    unfolded.slice(0, 1200),
   );
   await r.page.close();
 }
@@ -639,8 +659,9 @@ console.log("\nSecurity -> Firewall at a MikroTik venue");
 }
 
 // ---------------------------------------------------------------------------
-// Security -> Web Filtering. MikroTik only; with no Cloudflare account
-// connected (503) the page says so and mounts no control.
+// Web filtering: the Categories section of Block Websites' Websites tab.
+// MikroTik only; with no Cloudflare account connected (503) the section says
+// so and mounts no control.
 // ---------------------------------------------------------------------------
 
 const WF_TURN_ON = "Turn on";
@@ -649,11 +670,11 @@ const WF_SAVE = "Save list";
 console.log("\nSecurity -> Web Filtering at a controller venue");
 {
   served.dns = { configured: true, categories: [], policy: null, status: null };
-  const r = await openFeature("web-filtering", [OMADA]);
+  const r = await openFeature("blocking", [OMADA], { tab: "websites" });
   check(
     "omada-web-filtering-shows-the-existing-notice",
     /Configured in Omada, not here\./.test(r.text) &&
-      /Web filtering for this venue is set in Omada's own interface/.test(r.text),
+      /Website blocking for this venue is set in Omada's own interface/.test(r.text),
     r.text.slice(0, 400),
   );
   check(
@@ -662,10 +683,10 @@ console.log("\nSecurity -> Web Filtering at a controller venue");
       !r.text.includes(WF_SAVE) &&
       (await r.page.getByRole("checkbox").count()) === 0,
   );
-  const row = r.rows.find((x) => x.label === "Web filtering");
   check(
-    "omada-web-filtering-row-is-muted-with-the-reason",
-    row && row.muted && /managed by a TP-Link Omada controller/.test(row.title ?? ""),
+    "omada-web-filtering-has-no-row-of-its-own",
+    !r.rows.some((x) => x.label === "Web filtering"),
+    "its categories live under Block Websites, whose Guests tab works here",
   );
   await r.page.close();
 }
@@ -673,7 +694,7 @@ console.log("\nSecurity -> Web Filtering at a controller venue");
 console.log("\nSecurity -> Web Filtering when Cloudflare is not connected");
 {
   served.dns = { configured: false };
-  const r = await openFeature("web-filtering", [MIKROTIK]);
+  const r = await openFeature("blocking", [MIKROTIK], { tab: "websites" });
   await r.page
     .getByText("Not set up yet for this account")
     .waitFor({ timeout: 5_000 })
@@ -754,7 +775,7 @@ console.log("\nSecurity -> Web Filtering at a MikroTik venue");
       limitations: ["Blocks whole domains only: no URL paths, no in-app content."],
     },
   };
-  const r = await openFeature("web-filtering", [MIKROTIK]);
+  const r = await openFeature("blocking", [MIKROTIK], { tab: "websites" });
   await r.page
     .getByText("Lobby hEX")
     .last()
@@ -868,7 +889,7 @@ console.log("\nSecurity -> Web Filtering: shared category sets (cloud-guest#307 
       },
     }),
   };
-  const r = await openFeature("web-filtering", [MIKROTIK]);
+  const r = await openFeature("blocking", [MIKROTIK], { tab: "websites" });
   await r.page
     .getByText("Adult themes")
     .first()

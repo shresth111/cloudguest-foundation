@@ -325,12 +325,17 @@ check(
   navItemAllowed("firewall", new Set(["firewall.read"])) &&
     !navItemAllowed("firewall", new Set(["security.read", "content_filtering.read"])),
 );
-// Security -> Web Filtering reads /dns-filtering/*, which cloud-guest#307
-// guards with the existing content_filtering keys.
+// Web filtering's categories are a section of Block Websites now, reading
+// /dns-filtering/* under the same content_filtering keys (cloud-guest#307)
+// that its Websites tab already needs -- so the row's own gate covers them,
+// and the retired id is not mapped.
 check(
-  "web filtering is gated on content_filtering.read",
-  navItemAllowed("web-filtering", new Set(["content_filtering.read"])) &&
-    !navItemAllowed("web-filtering", new Set(["security.read", "firewall.read"])),
+  "the retired web-filtering id is no longer mapped",
+  !Object.prototype.hasOwnProperty.call(NAV_PERMISSION_KEYS, "web-filtering"),
+);
+check(
+  "Block Websites (and so its categories) opens on content_filtering.read",
+  navItemAllowed("blocking", new Set(["content_filtering.read"])),
 );
 check(
   "the retired website-blocking id is no longer mapped",
