@@ -107,6 +107,12 @@ export interface FirewallBandStatus {
   state: FirewallBandState;
   reason: string | null;
   checkedAt: string | null;
+  /** The networks the router serves guests on, read off the router in the
+   * same look (cloud-guest#317). Empty on an older backend or a router with
+   * no hotspot/DHCP server. */
+  guestNetworks: string[];
+  /** What DHCP hands those guests as DNS; empty = the router itself. */
+  guestDnsServers: string[];
 }
 
 /** POST /firewall-rules/routers/{id}/band (Master only). `created=false`

@@ -91,6 +91,9 @@ import {
   inRouterOrder,
   isCustomerEditable,
   newRulePriority,
+  privateNetworkRules,
+  privateNetworkRulesIn,
+  privateNetworksOn,
   ruleToDraft,
   validateFirewallDraft,
   type FirewallRuleDraft,
@@ -375,6 +378,15 @@ function RouterFirewallCard({
             {t("firewallPage.bandMissing", BAND_MISSING_SENTENCE)}
           </p>
         )}
+
+        <PrivateNetworksSwitch
+          routerId={router.id}
+          rules={rules}
+          guestNetworks={band.data?.guestNetworks ?? []}
+          guestDnsServers={band.data?.guestDnsServers ?? []}
+          disabled={bandBlocksApply || push.isPending || rulesQuery.isLoading}
+          onChanged={runPush}
+        />
 
         {pushError && (
           <div
@@ -711,6 +723,100 @@ function RouterFirewallCard({
         </AlertDialogContent>
       </AlertDialog>
     </Card>
+  );
+}
+
+/**
+ * "Keep guests off your private networks": one switch instead of typing
+ * three private ranges and the guest subnet. The guest networks and their
+ * DNS come from the router itself (band status, cloud-guest#317), so the
+ * owner never sees an address.
+ *
+ * On creates the template's rules (DNS Allows at the top, Blocks at the
+ * bottom) and applies the router's whole set; Off deletes exactly the rules
+ * stamped with the template mark and applies again. The rules stay visible
+ * in the list below -- nothing is hidden from the owner. Not offered when
+ * the router reported no guest network (an older backend, or no hotspot/
+ * DHCP server), because a guessed subnet is exactly what this replaces.
+ */
+function PrivateNetworksSwitch({
+  routerId,
+  rules,
+  guestNetworks,
+  guestDnsServers,
+  disabled,
+  onChanged,
+}: {
+  routerId: string;
+  rules: readonly FirewallRule[];
+  guestNetworks: string[];
+  guestDnsServers: string[];
+  disabled: boolean;
+  onChanged: () => void;
+}) {
+  const { t } = useTranslation("nav", { i18n });
+  const create = useCreateFirewallRule();
+  const del = useDeleteFirewallRule();
+  const [busy, setBusy] = useState(false);
+  const wanted = useMemo(
+    () => privateNetworkRules(guestNetworks, guestDnsServers),
+    [guestNetworks, guestDnsServers],
+  );
+  if (!wanted.blocks.length) return null;
+  const on = privateNetworksOn(rules, wanted);
+
+  async function turn(next: boolean) {
+    setBusy(true);
+    try {
+      // Either way, start from none of ours: a half-made set (an earlier
+      // attempt that failed midway) is replaced, never added to.
+      for (const r of privateNetworkRulesIn(rules)) await del.mutateAsync(r.id);
+      if (next) {
+        let top = newRulePriority("allow", rules);
+        for (const a of wanted.allows) {
+          await create.mutateAsync({ routerId, ...a, priority: top });
+          top = Math.max(0, top - 1);
+        }
+        let bottom = newRulePriority("block", rules);
+        for (const b of wanted.blocks) {
+          await create.mutateAsync({ routerId, ...b, priority: bottom });
+          bottom += 1;
+        }
+      }
+      onChanged();
+    } catch (err) {
+      toast.error(
+        requestErrorOf(err)?.message ??
+          t(
+            "firewallPage.privateFailed",
+            "Couldn't change this. Nothing was applied to the router.",
+          ),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex items-start justify-between gap-4 rounded-lg border border-border/60 bg-muted/30 p-4">
+      <div className="space-y-0.5">
+        <p className="text-sm font-semibold">
+          {t("firewallPage.privateTitle", "Keep guests off your private networks")}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {t(
+            "firewallPage.privateBody",
+            "Guests can use the internet but can't reach your office computers, billing machine, cameras or your internet box's settings page.",
+          )}
+        </p>
+      </div>
+      <Switch
+        checked={on}
+        disabled={disabled || busy}
+        aria-label={t("firewallPage.privateTitle", "Keep guests off your private networks")}
+        onCheckedChange={(v) => void turn(v)}
+      />
+    </div>
   );
 }
 

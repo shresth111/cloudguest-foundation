@@ -53,6 +53,8 @@ interface BackendFirewallBandStatus {
   state: string;
   reason?: string | null;
   checked_at?: string | null;
+  guest_networks?: string[] | null;
+  guest_dns_servers?: string[] | null;
 }
 
 interface BackendFirewallBandResponse {
@@ -227,7 +229,13 @@ export const firewallService = {
       );
       const state = BAND_STATES.find((s) => s === data?.state);
       if (!state) return null;
-      return { state, reason: data.reason ?? null, checkedAt: data.checked_at ?? null };
+      return {
+        state,
+        reason: data.reason ?? null,
+        checkedAt: data.checked_at ?? null,
+        guestNetworks: data.guest_networks ?? [],
+        guestDnsServers: data.guest_dns_servers ?? [],
+      };
     } catch (err) {
       const status = requestErrorOf(err)?.status;
       if (status === 404 || status === 403 || status === 405) return null;
