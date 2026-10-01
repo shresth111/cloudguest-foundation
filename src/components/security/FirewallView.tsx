@@ -68,6 +68,7 @@ import {
 } from "@/lib/router-vendors";
 import { locationControllerVendor, locationIsControllerManaged } from "@/lib/location-liveness";
 import { ControllerManagedFeatureNotice } from "@/components/customer/ControllerManagedFeatureNotice";
+import { WebsiteBlockBox } from "@/components/security/WebsiteBlockBox";
 import {
   useCreateFirewallRule,
   useDeleteFirewallRule,
@@ -89,6 +90,7 @@ import {
   firewallPushErrorSentence,
   inRouterOrder,
   isCustomerEditable,
+  newRulePriority,
   ruleToDraft,
   validateFirewallDraft,
   type FirewallRuleDraft,
@@ -150,7 +152,7 @@ export function FirewallView({ locationId }: { locationId?: string }) {
     <p className="max-w-3xl text-sm text-muted-foreground">
       {t(
         "firewallPage.intro",
-        "Decide which devices on your network may reach which addresses. Rules are checked in order, top first, and nothing changes on your router until you apply them.",
+        "Block a website by typing its name, or decide which devices on your network may reach which addresses. Address rules are checked top first, and nothing changes on your router until you apply them.",
       )}
     </p>
   );
@@ -266,7 +268,6 @@ function RouterFirewallCard({
   // absent or unreadable) leaves it on: the push refuses by itself if the
   // band is missing, and that refusal is rendered in full.
   const bandBlocksApply = bandState === "missing" || bandState === "invalid";
-  const nextPriority = rules.length ? Math.max(...rules.map((r) => r.priority)) + 10 : 100;
 
   function runPush() {
     setConfirmApply(false);
@@ -402,14 +403,30 @@ function RouterFirewallCard({
           </p>
         )}
 
+        <WebsiteBlockBox routerId={router.id} />
+
         {notApplied > 0 && !push.isPending && (
-          <p className="text-xs text-muted-foreground">
-            {t(
-              "firewallPage.notAppliedHint",
-              "{{count}} rule(s) are saved but not on the router. They take effect when you apply them.",
-              { count: notApplied },
-            )}
-          </p>
+          <div
+            role="status"
+            className="flex flex-col gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between dark:text-amber-200"
+          >
+            <span>
+              {t(
+                "firewallPage.notAppliedHint",
+                "{{count}} rule(s) are saved but not on the router. They take effect when you apply them.",
+                { count: notApplied },
+              )}
+            </span>
+            <Button
+              size="sm"
+              onClick={() => setConfirmApply(true)}
+              disabled={rulesQuery.isLoading || bandBlocksApply}
+              className="shrink-0"
+            >
+              <UploadCloud className="mr-1.5 h-4 w-4" aria-hidden="true" />
+              {t("firewallPage.applyNow", "Apply now")}
+            </Button>
+          </div>
         )}
 
         {rulesQuery.isLoading ? (
@@ -579,11 +596,13 @@ function RouterFirewallCard({
         <RuleDialog
           routerId={router.id}
           rule={editing}
-          defaultPriority={nextPriority}
+          existing={rules}
+          canApply={!bandBlocksApply}
           onClose={() => {
             setCreating(false);
             setEditing(null);
           }}
+          onSavedAndApply={runPush}
         />
       )}
 
@@ -688,7 +707,7 @@ function RouterFirewallCard({
   );
 }
 
-function emptyDraft(priority: number): FirewallRuleDraft {
+function emptyDraft(): FirewallRuleDraft {
   return {
     name: "",
     decision: "block",
@@ -697,29 +716,40 @@ function emptyDraft(priority: number): FirewallRuleDraft {
     service: "everything",
     customProtocol: "tcp",
     customPort: "",
-    priority,
+    // Placed by `newRulePriority` at Save, from the decision chosen then.
+    priority: 0,
     isEnabled: true,
   };
 }
 
-/** Create or edit one rule with plain pickers. Saving never touches the
- * router -- the row comes back "Saved, not applied". */
+/** Create or edit one rule with plain pickers. "Save" never touches the
+ * router -- the row comes back "Saved, not applied"; "Save and apply" saves
+ * and then sends the router its whole set, exactly as Apply does.
+ *
+ * There is no order field: a new Allow goes to the top (it is an exception
+ * to a Block, and the router stops at the first match), a new Block to the
+ * bottom, and the arrows in the list move it after that. An edit keeps the
+ * rule where it is. */
 function RuleDialog({
   routerId,
   rule,
-  defaultPriority,
+  existing,
+  canApply,
   onClose,
+  onSavedAndApply,
 }: {
   routerId: string;
   rule: FirewallRule | null;
-  defaultPriority: number;
+  existing: readonly FirewallRule[];
+  canApply: boolean;
   onClose: () => void;
+  onSavedAndApply: () => void;
 }) {
   const { t } = useTranslation("nav", { i18n });
   const create = useCreateFirewallRule();
   const update = useUpdateFirewallRule();
   const [draft, setDraft] = useState<FirewallRuleDraft>(() =>
-    rule ? ruleToDraft(rule) : emptyDraft(defaultPriority),
+    rule ? ruleToDraft(rule) : emptyDraft(),
   );
   const [whoMode, setWhoMode] = useState<"any" | "specific">(
     rule?.sourceAddress ? "specific" : "any",
@@ -734,6 +764,7 @@ function RuleDialog({
     ...draft,
     who: whoMode === "any" ? "" : draft.who,
     where: whereMode === "any" ? "" : draft.where,
+    priority: rule ? draft.priority : newRulePriority(draft.decision, existing),
   };
   const errors = validateFirewallDraft(effective);
   const valid = Object.keys(errors).length === 0;
@@ -741,7 +772,7 @@ function RuleDialog({
   const set = <K extends keyof FirewallRuleDraft>(k: K, v: FirewallRuleDraft[K]) =>
     setDraft((d) => ({ ...d, [k]: v }));
 
-  async function save() {
+  async function save(applyAfter = false) {
     setShowErrors(true);
     if (!valid) return;
     setSaving(true);
@@ -755,6 +786,11 @@ function RuleDialog({
         // doesn't show -- source port, interface, comment -- is sent, so
         // those are kept as they are.
         await update.mutateAsync({ id: rule.id, payload: fields });
+      }
+      if (applyAfter) {
+        onClose();
+        onSavedAndApply();
+        return;
       }
       toast.success(t("firewallPage.savedToast", "Saved. Apply to router when you're ready."));
       onClose();
@@ -784,7 +820,7 @@ function RuleDialog({
           <DialogDescription>
             {t(
               "firewallPage.formHint",
-              "Saving doesn't change the router. Apply to router sends your rules to it.",
+              "Save keeps the rule here without changing the router. Save and apply puts your rules on the router straight away, including for guests already connected.",
             )}
           </DialogDescription>
         </DialogHeader>
@@ -922,40 +958,39 @@ function RuleDialog({
             {err("customPort")}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="fw-order">{t("firewallPage.fieldOrder", "Order")}</Label>
-              <Input
-                id="fw-order"
-                inputMode="numeric"
-                value={String(draft.priority)}
-                onChange={(e) => set("priority", Number(e.target.value.replace(/\D/g, "") || 0))}
-              />
-              <p className="text-[11px] text-muted-foreground">
-                {t("firewallPage.orderHint", "Lower numbers are checked first.")}
-              </p>
-              {err("priority")}
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="fw-on">{t("firewallPage.fieldOn", "Switched on")}</Label>
-              <div className="pt-1.5">
-                <Switch
-                  id="fw-on"
-                  checked={draft.isEnabled}
-                  onCheckedChange={(v) => set("isEnabled", v)}
-                />
-              </div>
-            </div>
+          <div className="flex items-center justify-between gap-4">
+            <Label htmlFor="fw-on">{t("firewallPage.fieldOn", "Switched on")}</Label>
+            <Switch
+              id="fw-on"
+              checked={draft.isEnabled}
+              onCheckedChange={(v) => set("isEnabled", v)}
+            />
           </div>
+          {!rule && (
+            <p className="text-xs text-muted-foreground">
+              {draft.decision === "allow"
+                ? t(
+                    "firewallPage.placeAllow",
+                    "Allow rules go to the top of the list, so they win over your Block rules.",
+                  )
+                : t("firewallPage.placeBlock", "New Block rules go to the bottom of the list.")}
+            </p>
+          )}
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
               {t("firewallPage.cancel", "Cancel")}
             </Button>
-            <Button type="submit" disabled={saving}>
+            <Button type="submit" variant={canApply ? "outline" : "default"} disabled={saving}>
               {saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />}
               {t("firewallPage.save", "Save")}
             </Button>
+            {canApply && (
+              <Button type="button" disabled={saving} onClick={() => void save(true)}>
+                <UploadCloud className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                {t("firewallPage.saveAndApply", "Save and apply")}
+              </Button>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>
