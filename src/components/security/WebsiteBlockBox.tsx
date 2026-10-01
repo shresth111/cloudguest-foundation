@@ -7,6 +7,7 @@ import i18n from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { requestErrorOf } from "@/services/api";
 import {
   useContentFilterRules,
@@ -14,6 +15,7 @@ import {
   useDeleteContentFilterRule,
   usePushContentFilterRule,
 } from "@/hooks/useContentFilter";
+import { useWebFilterRouterAction, useWebFilterRouterStatus } from "@/hooks/useDnsFiltering";
 import { websiteToDomain } from "@/lib/firewall-rules";
 import type { ContentFilterRule } from "@/types/contentFilter";
 
@@ -256,6 +258,8 @@ export function WebsiteBlockBox({ routerId }: { routerId: string }) {
         </ul>
       ) : null}
 
+      {sites.length > 0 && <BypassSwitch routerId={routerId} />}
+
       <p className="text-xs text-muted-foreground">
         {t(
           "firewallPage.siteCategoriesPrefix",
@@ -270,6 +274,64 @@ export function WebsiteBlockBox({ routerId }: { routerId: string }) {
         .
       </p>
     </section>
+  );
+}
+
+/**
+ * "Stop guests getting around these blocks": the router's DNS-bypass layers
+ * (cloud-guest dns_filtering bypass hardening). A name block lives in the
+ * router's own DNS, so a guest who sets 8.8.8.8 or Android Private DNS walks
+ * straight past it; these layers send every guest lookup through the router.
+ * The backend accepts them for a router with website blocks even when Web
+ * filtering is off. Hidden when the status can't be read (no permission, or
+ * a backend without the endpoint) rather than shown as a switch that 403s.
+ */
+function BypassSwitch({ routerId }: { routerId: string }) {
+  const { t } = useTranslation("nav", { i18n });
+  const status = useWebFilterRouterStatus(routerId);
+  const action = useWebFilterRouterAction(routerId);
+  if (!status.data) return null;
+  const s = status.data;
+  return (
+    <div className="flex items-start justify-between gap-4 rounded-md border border-border/60 bg-background p-3">
+      <div className="space-y-0.5">
+        <p className="text-sm font-medium">
+          {t("firewallPage.bypassTitle", "Stop guests getting around these blocks")}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {t(
+            "firewallPage.bypassBody",
+            "Without this, a guest who changes their phone's DNS (like 8.8.8.8 or Private DNS) can still open blocked websites.",
+          )}
+        </p>
+        {s.bypassHardeningStatus === "failed" && (
+          <p role="alert" className="text-xs text-destructive">
+            {t("firewallPage.bypassFailed", "The last change to this didn't work.")}
+            {s.bypassHardeningError ? ` ${s.bypassHardeningError}` : ""}
+          </p>
+        )}
+      </div>
+      <Switch
+        checked={s.bypassHardeningEnabled}
+        disabled={action.isPending}
+        aria-label={t("firewallPage.bypassTitle", "Stop guests getting around these blocks")}
+        onCheckedChange={(v) =>
+          action.mutate(
+            { kind: "bypass", enabled: v },
+            {
+              onSuccess: () =>
+                toast.success(
+                  v
+                    ? t("firewallPage.bypassOnToast", "Guests can no longer get around the blocks.")
+                    : t("firewallPage.bypassOffToast", "Bypass protection is off."),
+                ),
+              onError: (err) =>
+                toast.error(requestErrorOf(err)?.message ?? "Couldn't change this on the router."),
+            },
+          )
+        }
+      />
+    </div>
   );
 }
 
