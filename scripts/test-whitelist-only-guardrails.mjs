@@ -307,8 +307,10 @@ console.log("\nthe switch on the Only Allowed screen");
 const screen = readFileSync(join(ROOT, "src/components/features/WhiteList.tsx"), "utf8");
 check("the switch is rendered", /data-testid="whitelist-only-switch"/.test(screen));
 check(
-  "it is disabled while the list cannot support it",
-  /disabled=\{wlSaving \|\| wlLoading \|\| \(!wlEnabled && !canEnable\)\}/.test(screen),
+  "it is only disabled while loading or saving (blockers explain on click)",
+  /disabled=\{wlSaving \|\| wlLoading\}/.test(screen) &&
+    /if \(!canEnable\)/.test(screen) &&
+    /describeBlocker\(blocker, wlLocationName\)/.test(screen),
 );
 check(
   "the live count is on screen beside it",

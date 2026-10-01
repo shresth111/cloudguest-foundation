@@ -394,6 +394,16 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
     );
   }, [demo, locations, locationId, wlLocationId]);
 
+  // New list entries must count toward the same property the switch is
+  // about — otherwise the form's Location picker and the header property
+  // picker drift apart and the toggle stays blocked on an "empty" list.
+  useEffect(() => {
+    if (demo || !wlLocationName || editingId) return;
+    setF((prev) =>
+      prev.businessUnit === wlLocationName ? prev : { ...prev, businessUnit: wlLocationName },
+    );
+  }, [demo, wlLocationName, editingId]);
+
   // Read the selected property's own config, and -- when the mode is
   // already on -- how many guests it turned away in the last 24 hours.
   useEffect(() => {
@@ -472,7 +482,18 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
       setTimeout(() => setToast(null), 2500);
       return;
     }
-    if (!orgId || !wlConfig) return;
+    if (!orgId) {
+      setWlError("Could not save — your organization is still loading. Refresh and try again.");
+      return;
+    }
+    if (!wlConfig) {
+      setWlError(
+        wlMissingConfig
+          ? describeBlocker({ kind: "no-portal-config" }, wlLocationName).detail
+          : "Could not read this property's WiFi login page settings. Refresh and try again.",
+      );
+      return;
+    }
     setWlSaving(true);
     setWlError(null);
     try {
@@ -527,7 +548,16 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
       void persistWhitelistOnly(false, wlMessage);
       return;
     }
-    if (!canEnable) return;
+    if (!canEnable) {
+      const blocker = wlBlockers[0];
+      if (blocker) {
+        const { title, detail } = describeBlocker(blocker, wlLocationName);
+        setWlError(`${title} ${detail}`);
+      } else {
+        setWlError("Fix the issues below before turning this on.");
+      }
+      return;
+    }
     setConfirmText("");
     setConfirmOpen(true);
   };
@@ -947,7 +977,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
             <Switch
               checked={wlEnabled}
               onCheckedChange={onSwitchChange}
-              disabled={wlSaving || wlLoading || (!wlEnabled && !canEnable)}
+              disabled={wlSaving || wlLoading}
               aria-label={`Only allow the guests on this list at ${wlLocationName || "this property"}`}
               data-testid="whitelist-only-switch"
             />
