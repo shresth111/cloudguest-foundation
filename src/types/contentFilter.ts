@@ -45,6 +45,9 @@ export interface ContentFilterRule {
   valueType: ContentFilterValueType;
   value: string;
   comment: string | null;
+  /** The app toggle (Block Websites -> Apps) that created this row, or null
+   * for a website blocked by hand. */
+  appKey: string | null;
   isEnabled: boolean;
   devicePushStatus: ContentFilterDevicePushStatus;
   /** Raw device error from the last failed push, shown verbatim. */
@@ -57,6 +60,9 @@ export interface ContentFilterListQuery {
   routerId?: string;
   page: number;
   pageSize: number;
+  /** Leave out rows an app toggle created -- the "Specific websites" list,
+   * so dozens of app names never push a hand-blocked site off its page. */
+  excludeAppRules?: boolean;
 }
 
 export interface ContentFilterListResult {
@@ -84,4 +90,40 @@ export interface UpdateContentFilterRulePayload {
   category?: ContentFilterCategory | null;
   comment?: string | null;
   isEnabled?: boolean;
+}
+
+/** One name (or address range) of a catalogue app, on one router. */
+export interface ContentFilterAppTarget {
+  valueType: ContentFilterValueType;
+  value: string;
+  ruleId: string | null;
+  /** False for a website the owner blocked by hand: counted, never removed
+   * by the app's toggle. */
+  owned: boolean;
+  isEnabled: boolean;
+  devicePushStatus: ContentFilterDevicePushStatus | null;
+  devicePushError: string | null;
+}
+
+export type ContentFilterAppState = "blocked" | "partly_blocked" | "not_blocked";
+
+/** One app in Block Websites -> Apps (backend
+ * `content_filtering.app_catalogue`). */
+export interface ContentFilterApp {
+  key: string;
+  name: string;
+  category: string;
+  /** A sentence about this app in particular, or null. */
+  note: string | null;
+  state: ContentFilterAppState;
+  /** Whether the router holds the rows: null when there are none. */
+  pushStatus: ContentFilterDevicePushStatus | null;
+  targets: ContentFilterAppTarget[];
+}
+
+export interface ContentFilterAppList {
+  routerId: string;
+  items: ContentFilterApp[];
+  /** The backend's own plain-language limits, shown as sent. */
+  limitations: string[];
 }

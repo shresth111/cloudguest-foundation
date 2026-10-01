@@ -395,3 +395,51 @@ export function stillOnPreviousSet(
 ): boolean {
   return s?.state === "active" && s.devicePushStatus === "failed";
 }
+
+// ---------------------------------------------------------------------------
+// "Block known harmful websites" -- the one switch at the top of Categories.
+// ---------------------------------------------------------------------------
+
+/** Every id the Security threats group covers (the group and its selectable
+ * subcategories), or [] when the catalogue has no such group. */
+export function securityThreatIds(items: WebCategory[]): number[] {
+  const group = items.find((c) => c.isSecurity);
+  return group ? groupIds(group) : [];
+}
+
+/** On only when every Security threats id is in the venue's list -- a list
+ * with half of it is not "blocking known harmful websites". */
+export function harmfulSitesOn(effectiveIds: Iterable<number>, items: WebCategory[]): boolean {
+  const ids = securityThreatIds(items);
+  if (ids.length === 0) return false;
+  const have = new Set(effectiveIds);
+  return ids.every((id) => have.has(id));
+}
+
+/** The venue's list with Security threats added (`on`) or with ONLY the
+ * Security threats ids taken out (`!on`). Every other category the owner
+ * chose is kept exactly as it was. */
+export function withHarmfulSites(
+  effectiveIds: Iterable<number>,
+  items: WebCategory[],
+  on: boolean,
+): number[] {
+  const threat = new Set(securityThreatIds(items));
+  const current = [...effectiveIds];
+  return canonicalIds(on ? [...current, ...threat] : current.filter((id) => !threat.has(id)));
+}
+
+/** What still stands between the switch and a router actually filtering.
+ * `on`: nothing. `needs_turn_on`: the list is saved but filtering is not on at
+ * this router -- the one step left. `failed`: the last attempt to switch it
+ * on failed. `unknown`: the status could not be read. */
+export type HarmfulRouterStep = "on" | "needs_turn_on" | "failed" | "unknown";
+
+export function harmfulRouterStep(
+  s: Pick<WebFilterRouterStatus, "state"> | null | undefined,
+): HarmfulRouterStep {
+  if (!s) return "unknown";
+  if (s.state === "active") return "on";
+  if (s.state === "failed") return "failed";
+  return "needs_turn_on";
+}

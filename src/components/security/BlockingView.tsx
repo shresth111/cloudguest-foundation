@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -13,6 +13,7 @@ import { ControllerRoutersNote } from "@/components/network/RouterPickerItems";
 import BlockUsers from "@/components/features/BlockUsers";
 import { ControllerManagedFeatureNotice } from "@/components/customer/ControllerManagedFeatureNotice";
 import { WebsiteBlockBox } from "@/components/security/WebsiteBlockBox";
+import { AppBlockBox, AppBlockLimits } from "@/components/security/AppBlockBox";
 import { WebFilteringView } from "@/components/security/WebFilteringView";
 import { useMyPermissions } from "@/hooks/useCustomerDashboard";
 import { useCustomerStore } from "@/stores/customerStore";
@@ -41,6 +42,7 @@ const TAB_ICON: Record<BlockingTabId, typeof Globe2> = {
  * `#advanced`, which also unfolds it. */
 export const BLOCK_WEBSITES_SECTION_IDS = {
   specific: "specific-websites",
+  apps: "apps",
   categories: "categories",
   advanced: "advanced",
 } as const;
@@ -61,10 +63,15 @@ export const BLOCK_WEBSITES_SECTION_IDS = {
  *     the bypass switch), once per router this platform can write -- picked
  *     exactly as Firewall picks them (`partitionRoutersByDeviceWrite`, with
  *     `ControllerRoutersNote` naming any controller left out).
- *  2. "Categories": `WebFilteringView`, mounted whole. It already handles
+ *  2. "Apps": `AppBlockBox`, one switch per app in the backend's curated
+ *     catalogue, per writable router. Switching one off blocks every website
+ *     name the app uses with the same push a typed-in website gets; the
+ *     section says plainly that this is name matching and some apps get
+ *     through. The Security Score's "Block particular apps" link lands here.
+ *  3. "Categories": `WebFilteringView`, mounted whole. It already handles
  *     "not set up", demo and its own controller gate, so embedding it costs
  *     nothing and a link out would only have been a second page to find.
- *  3. "Advanced", folded: `ContentFilterManagement`, the full rule list. It
+ *  4. "Advanced", folded: `ContentFilterManagement`, the full rule list. It
  *     is the only place an internet address (IP or range) is blocked, and it
  *     shows every website rule with its status, so nothing that screen could
  *     do is lost; it is folded because a venue owner almost never needs it.
@@ -227,7 +234,19 @@ function WebsitesTab({ locationId }: { locationId?: string }) {
             "Type a website's name and press Block. It stops opening on your guest WiFi, along with every page under it.",
           )}
         />
-        <SpecificWebsites locationId={locationId} />
+        <PerRouter locationId={locationId} render={(id) => <WebsiteBlockBox routerId={id} />} />
+      </section>
+
+      <section id={BLOCK_WEBSITES_SECTION_IDS.apps} className="scroll-mt-20 space-y-3">
+        <SectionHeading
+          title={t("blockApps.title", "Apps")}
+          hint={t(
+            "blockApps.hint",
+            "Switch an app on to block it on your guest WiFi. This blocks the website names the app uses — it does not recognise the app itself, so some apps may still get through.",
+          )}
+        />
+        <AppBlockLimits />
+        <PerRouter locationId={locationId} render={(id) => <AppBlockBox routerId={id} />} />
       </section>
 
       <section id={BLOCK_WEBSITES_SECTION_IDS.categories} className="scroll-mt-20 space-y-3">
@@ -266,9 +285,16 @@ function WebsitesTab({ locationId }: { locationId?: string }) {
   );
 }
 
-/** One `WebsiteBlockBox` per router this platform can write, chosen the same
- * way Firewall chooses them. */
-function SpecificWebsites({ locationId }: { locationId?: string }) {
+/** One box per router this platform can write, chosen the same way Firewall
+ * chooses them -- the website box and the apps box both use it, so the two
+ * sections can never disagree about which routers they act on. */
+function PerRouter({
+  locationId,
+  render,
+}: {
+  locationId?: string;
+  render: (routerId: string) => ReactNode;
+}) {
   const { t } = useTranslation("nav", { i18n });
   const activeLocation = useCustomerStore((s) => s.activeLocation);
   const demo = isDemo();
@@ -350,7 +376,7 @@ function SpecificWebsites({ locationId }: { locationId?: string }) {
               {router.name}
             </p>
           )}
-          <WebsiteBlockBox routerId={router.id} />
+          {render(router.id)}
         </div>
       ))}
     </div>
