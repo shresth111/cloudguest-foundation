@@ -250,7 +250,17 @@
     "floodApplying": "Changing the router…",
     "floodOnToast": "Connection-flood limit applied to the router.",
     "floodOffToast": "Connection-flood limit removed from the router.",
-    "siteHttpsHint": "It's also blocked by name on secure (https) connections, which catches most phones that skip the router's DNS. Nothing is decrypted. A browser that hides the site's name, or a newer kind of connection (QUIC), can still get through."
+    "siteHttpsHint": "It's also blocked by name on secure (https) connections, which catches most phones that skip the router's DNS. Nothing is decrypted. A browser that hides the site's name, or a newer kind of connection (QUIC), can still get through.",
+    "isoTitle": "Guests can't see each other",
+    "isoBody": "Stops guests on your Wi-Fi from reaching each other's phones and laptops, for example to browse shared files. A printer or TV on the guest Wi-Fi also stops being reachable by guests.",
+    "isoBetweenYes": "On: guests on different access points can't reach each other. {{n}} access point port(s) found.",
+    "isoBetweenNo": "On, but guests on different access points are not kept apart yet.",
+    "isoPartial": "Part of this is missing on the router — a port may have been added. Turn it off and on again to cover it.",
+    "isoApNote": "Your router can't see guests who are connected to the same access point. To keep them apart too, turn on “AP isolation” (sometimes called “Client isolation”) in each access point's own settings.",
+    "isoOnePort": "Your guest Wi-Fi uses only one port on this router, so the router has nothing to separate. Turn on “AP isolation” (or “Client isolation”) in your access point's own settings instead.",
+    "isoBlip": "Changing this can make the router's wired ports drop for a second or two.",
+    "isoOnToast": "Guests on different access points are now kept apart.",
+    "isoOffToast": "Guests can see each other again."
   },
   "webFilteringPage": {
     "intro": "Block whole kinds of website on your guest WiFi, such as adult sites or gambling. Cloudflare keeps the list of which website belongs to which kind.",
@@ -428,7 +438,8 @@
       "firewall": "Set firewall rules",
       "floodLimit": "Limit connection floods",
       "apps": "Choose apps to block",
-      "harmful": "Block known harmful websites"
+      "harmful": "Block known harmful websites",
+      "guestIsolation": "Keep guests apart"
     },
     "label": {
       "zone_to_zone_firewall": "Keep your networks apart (Firewall)",
@@ -442,12 +453,14 @@
       "dns_bypass_protection": "Stop guests getting round website blocks",
       "application_control": "Block particular apps",
       "threat_intelligence": "Block known harmful websites automatically",
-      "geo_blocking": "Block by country"
+      "geo_blocking": "Block by country",
+      "guest_client_isolation": "Guests can't see each other"
     },
     "copy": {
       "domain_blocking_sni": "Block a website by name on secure (https) connections too, without opening or reading anyone's traffic. It is switched on with every website you block, but we have not yet proven it on a real router, so it is listed here until we have. It cannot see a site whose browser hides the name, or newer kinds of connection (QUIC), or a VPN.",
       "application_control": "Switch off apps such as YouTube, Instagram or BGMI on your guest WiFi. It blocks the website names each app uses, not the app itself, so some apps may still get through -- one that is already open, one with a built-in address, or a phone with its own DNS or a VPN.",
-      "threat_intelligence": "Stop guests opening websites known to spread viruses or steal passwords. Cloudflare keeps the list up to date. It works on routers where web filtering is on, and a phone with its own DNS or a VPN is not covered."
+      "threat_intelligence": "Stop guests opening websites known to spread viruses or steal passwords. Cloudflare keeps the list up to date. It works on routers where web filtering is on, and a phone with its own DNS or a VPN is not covered.",
+      "guest_client_isolation": "Stop guests reaching each other's phones and laptops. Your router keeps apart guests on different access points; guests on the same access point are only kept apart if you also turn on “AP isolation” in that access point's settings."
     }
   },
   "blockGuests": {

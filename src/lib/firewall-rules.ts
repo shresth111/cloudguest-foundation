@@ -375,6 +375,11 @@ export interface PushErrorExplained {
  * Anything else falls back to the backend's message: a real reason beats a
  * generic one.
  */
+/** Guest isolation, when the guest Wi-Fi uses a single port: the router has
+ * nothing to separate, and the access point's own setting is the only fix. */
+export const ISOLATION_ONE_PORT_SENTENCE =
+  "Your guest Wi-Fi uses only one port on this router, so the router has nothing to separate. Turn on “AP isolation” (or “Client isolation”) in your access point's own settings instead.";
+
 export function firewallPushErrorSentence(err: PushFailure | null | undefined): PushErrorExplained {
   const data = err?.data ?? {};
   const code = typeof data.code === "string" ? data.code : null;
@@ -457,8 +462,44 @@ export function firewallPushErrorSentence(err: PushFailure | null | undefined): 
         needsSupport: true,
         code,
       };
+    case "ISOLATION_NO_HOTSPOT":
+      return {
+        sentence:
+          "This router doesn't run your guest Wi-Fi login, so there is no guest network to separate. Nothing was changed.",
+        detail: null,
+        needsSupport: true,
+        code,
+      };
+    case "ISOLATION_NOTHING_TO_ISOLATE":
+      return {
+        sentence: ISOLATION_ONE_PORT_SENTENCE,
+        detail: null,
+        needsSupport: false,
+        code,
+      };
+    case "ISOLATION_VLAN_BRIDGE":
+    case "ISOLATION_BRIDGE_CARRIES_WAN":
+    case "ISOLATION_HORIZON_IN_USE":
+      // The guest ports also carry other networks, the internet connection,
+      // or someone's hand-made port separation. Changing them could cut
+      // something else off, so the router was left alone.
+      return {
+        sentence:
+          "Your guest network shares this router's ports with something else, so we didn't change it — separating guests here could cut that off. Nothing was changed. Contact support and we'll look at it with you.",
+        detail: message,
+        needsSupport: true,
+        code,
+      };
     default:
       break;
+  }
+  if (code && code.startsWith("ISOLATION_")) {
+    return {
+      sentence: "Nothing was changed on the router.",
+      detail: message,
+      needsSupport: false,
+      code,
+    };
   }
   if (code && code.startsWith("ACCESS_RULES_")) {
     // A refusal we have no sentence for yet: nothing was written (every

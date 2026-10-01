@@ -101,3 +101,28 @@ export function useSetFloodLimit(routerId: string, organizationId?: string) {
     onSettled: () => qc.invalidateQueries({ queryKey: floodLimitKey(routerId) }),
   });
 }
+
+/** GET .../guest-isolation -- `null` is "unknown" (older backend, or not
+ * readable), which the Firewall screen renders as no card at all. */
+export const guestIsolationKey = (routerId: string) =>
+  ["firewall", "guest-isolation", routerId] as const;
+
+export function useGuestIsolation(routerId: string | undefined, organizationId?: string) {
+  return useQuery({
+    queryKey: guestIsolationKey(routerId ?? ""),
+    queryFn: () => firewallService.getGuestIsolation(routerId as string, organizationId),
+    enabled: !!routerId,
+    staleTime: 60_000,
+    retry: false,
+  });
+}
+
+export function useSetGuestIsolation(routerId: string, organizationId?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (enabled: boolean) =>
+      firewallService.setGuestIsolation(routerId, enabled, organizationId),
+    onSuccess: (state) => qc.setQueryData(guestIsolationKey(routerId), state),
+    onSettled: () => qc.invalidateQueries({ queryKey: guestIsolationKey(routerId) }),
+  });
+}

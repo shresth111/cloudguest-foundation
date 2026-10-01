@@ -64,7 +64,9 @@ const PLAIN_COPY: Record<string, string> = {
   ip_and_cidr_blocking:
     "Block specific addresses or ranges, in both directions. Do not use this to block a website: popular services sit behind addresses that rotate constantly.",
   device_isolation:
-    "Cut a single device off your router by its hardware address, now and every time it reconnects. Works reliably for devices you know; anonymous guests can switch on a private Wi-Fi address and come back as a new device. Keeping devices on the same network apart from each other is not offered yet.",
+    "Cut a single device off your router by its hardware address, now and every time it reconnects. Works reliably for devices you know; anonymous guests can switch on a private Wi-Fi address and come back as a new device. Keeping guests apart from each other is a separate switch.",
+  guest_client_isolation:
+    "Stop guests reaching each other's phones and laptops. Your router keeps apart guests on different access points; guests on the same access point are only kept apart if you also turn on “AP isolation” in that access point's settings.",
   rogue_dhcp_detection:
     "Tells you when a second device on the network starts handing out addresses, which is usually how an unauthorised access point gets introduced.",
   connection_flood_protection:
@@ -107,6 +109,8 @@ const PLAIN_COPY: Record<string, string> = {
  *    next sign-in and end the session they are in);
  *  - `connection_flood_protection`: Security -> Firewall's "Limit connection
  *    floods" switch, per router;
+ *  - `guest_client_isolation`: Security -> Firewall's "Guests can't see each
+ *    other" switch, per router;
  *  - `zone_to_zone_firewall`: Security -> Firewall, whose rules are
  *    between-network (`forward`) rules applied by cloud-guest#304's push.
  *
@@ -186,6 +190,11 @@ const MANAGED_AT: Record<string, ManagedAt> = {
     labelKey: "securityScore.link.floodLimit",
     label: "Limit connection floods",
   },
+  guest_client_isolation: {
+    to: "/firewall",
+    labelKey: "securityScore.link.guestIsolation",
+    label: "Keep guests apart",
+  },
 };
 
 /** The customer's name for each capability. The backend's `label` is the
@@ -210,6 +219,10 @@ const PLAIN_LABEL: Record<string, [key: string, fallback: string]> = {
   connection_flood_protection: [
     "securityScore.label.connection_flood_protection",
     "Limit connection floods and password guessing",
+  ],
+  guest_client_isolation: [
+    "securityScore.label.guest_client_isolation",
+    "Guests can't see each other",
   ],
   web_category_filtering: [
     "securityScore.label.web_category_filtering",

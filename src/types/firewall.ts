@@ -147,3 +147,46 @@ export interface FloodLimitState {
   presets: Partial<Record<Exclude<FloodLimitPreset, "off">, number>>;
   checkedAt: string | null;
 }
+
+/** One port of the router's guest network, as the isolation read saw it. */
+export interface GuestIsolationPort {
+  interface: string;
+  /** A link is up -- usually an access point (or a switch) is plugged in. */
+  running: boolean;
+  /** The router may put this port in the isolation group. */
+  isolatable: boolean;
+  isolated: boolean;
+  /** Why it is left out: `wan`, `carries_vlan`, `has_address`, ... */
+  excludedReason: string | null;
+  isRadio: boolean;
+}
+
+/**
+ * GET/PUT /firewall-rules/routers/{id}/guest-isolation -- "Guests can't see
+ * each other", read off the router every time.
+ *
+ * `betweenPorts` is what the router enforces: guests on different ports
+ * (different access points) cannot reach each other. Guests on the SAME
+ * access point never pass through the router; `apIsolationNeeded` says the
+ * owner must also turn on each access point's own "AP isolation".
+ * `refusal` is the `ISOLATION_*` code turning it on would be refused with
+ * here, or null.
+ */
+export interface GuestIsolationState {
+  routerId: string;
+  enabled: boolean;
+  consistent: boolean;
+  betweenPorts: boolean;
+  routedGuard: boolean;
+  /** The router's own Wi-Fi; null when it has none. */
+  radiosIsolated: boolean | null;
+  bandState: FirewallBandState;
+  guestPorts: number;
+  isolatedPorts: number;
+  apPorts: number;
+  apIsolationNeeded: boolean;
+  ports: GuestIsolationPort[];
+  refusal: string | null;
+  summary: string;
+  checkedAt: string | null;
+}
