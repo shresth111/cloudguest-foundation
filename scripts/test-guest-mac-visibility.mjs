@@ -130,6 +130,11 @@ check(
   "the session type declares device_mac",
   /device_mac\?:\s*string\s*\|\s*null/.test(userReports),
 );
+check(
+  "Guest Session Log exposes router WAN public IP beside private session IP",
+  /key:\s*"publicIp",\s*label:\s*"Public IP"/.test(userReports) &&
+    /publicIp:\s*\(s\.router_id/.test(userReports),
+);
 
 // ---------------------------------------------------------------------------
 // 3. The Users screen prefers the exact key over the heuristic.

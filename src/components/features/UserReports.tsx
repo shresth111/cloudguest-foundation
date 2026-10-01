@@ -48,6 +48,7 @@ import { voucherService } from "@/services/voucher.service";
 import type { VoucherBatch } from "@/types/voucher";
 import { campaignService } from "@/services/campaign.service";
 import type { CampaignType } from "@/types/campaign";
+import { routerService } from "@/services/router.service";
 
 const CATEGORIES = [
   "Guest Activity Report",
@@ -433,7 +434,8 @@ const COLUMNS: Record<string, ColumnDef[]> = {
     // guest rendered a blank identity row -- the value was in the payload and
     // had nowhere to go.
     { key: "email", label: "Email", sortType: "string" },
-    { key: "ip", label: "IP Address", sortType: "string" },
+    { key: "ip", label: "Private IP", sortType: "string" },
+    { key: "publicIp", label: "Public IP", sortType: "string" },
     { key: "mac", label: "Device MAC", sortType: "string" },
     { key: "device", label: "Device", sortType: "string" },
     { key: "authMethod", label: "Auth Method", sortType: "string" },
@@ -934,6 +936,15 @@ interface RealGuestSession {
   // that presented no MAC, or a device outside the caller's org scope --
   // never a hidden value the unmask flow would reveal.
   device_mac?: string | null;
+  router_id?: string;
+}
+
+async function fetchRouterPublicIpsById(
+  orgId: string,
+  locationId: string,
+): Promise<Map<string, string | null>> {
+  const routers = await routerService.listForLocation(locationId, orgId);
+  return new Map(routers.map((r) => [r.id, r.publicIpAddress ?? null]));
 }
 
 // GET /guest-sessions caps page_size at 100 (backend/app/domains/guest/router.py's
@@ -1131,9 +1142,10 @@ async function realGuestSessionLog(
   from: string,
   to: string,
 ): Promise<Row[]> {
-  const [sessions, guestsById] = await Promise.all([
+  const [sessions, guestsById, routerPublicIps] = await Promise.all([
     fetchRealSessions(orgId, locationId, from, to),
     fetchRealGuestsById(orgId, locationId),
+    fetchRouterPublicIpsById(orgId, locationId),
   ]);
   return sessions
     .slice()
@@ -1149,6 +1161,7 @@ async function realGuestSessionLog(
         mobile: identity.phone || null,
         email: identity.email || null,
         ip: s.ip_address ?? null,
+        publicIp: (s.router_id ? routerPublicIps.get(s.router_id) : null) ?? null,
         mac: s.device_mac ?? null, // Resolved server-side; null means genuinely no device, not a masked value.
         device: deviceLabelFrom(s.user_agent),
         authMethod: s.auth_method ?? null,
@@ -1925,10 +1938,12 @@ export function ReportPanel({
       // explicitly rather than skipped so a future policy change here applies
       // automatically.
       if (key === "mac") return maskMac(String(val));
-      // "ip" (Guest Session Log, Login/Access Attempt Log) is intentionally
-      // never masked -- see COLUMNS["guest-session-log"]'s own doc comment
-      // just above: this report's reason to exist is showing real IP-to-guest
-      // mapping.
+      // "ip" / "publicIp" (Guest Session Log, Login/Access Attempt Log) are
+      // intentionally never masked -- see COLUMNS["guest-session-log"]'s own
+      // doc comment just above: this report's reason to exist is showing real
+      // IP-to-guest mapping. publicIp is the venue router's WAN address (NAT
+      // egress), not a per-guest capture.
+      if (key === "publicIp") return String(val);
       if (key === "cost") return `₹${(+val).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
       if (key === "peakMbps") return `${(+val).toFixed(1)} Mbps`;
       // uploadGB/downloadGB/totalGB are computed in GB (see realDataConsumption),
