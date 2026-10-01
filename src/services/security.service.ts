@@ -1,5 +1,7 @@
 import { api } from "@/services/api";
 import type {
+  SecurityActivity,
+  SecurityActivityWindow,
   SecurityAvailability,
   SecurityCounter,
   SecurityFeature,
@@ -57,6 +59,59 @@ interface BackendFeature {
   availability: SecurityAvailability;
   enforcement: string | null;
   detail: string;
+}
+
+interface BackendActivity {
+  window: SecurityActivityWindow;
+  since: string;
+  until: string;
+  protections: {
+    key: string;
+    label: string;
+    count: number | null;
+    available: boolean;
+    unavailable_reason: string | null;
+    sentence: string | null;
+    source: string;
+    routers_reporting: number | null;
+    routers_total: number | null;
+    last_read_at: string | null;
+    top_rules: { label: string; count: number }[];
+  }[];
+  staff_changes: { at: string; action: string; summary: string; description: string | null }[];
+  routers_total: number;
+  semantics: string;
+  generated_at: string;
+}
+
+export function toActivity(d: BackendActivity): SecurityActivity {
+  return {
+    window: d.window,
+    since: d.since,
+    until: d.until,
+    protections: d.protections.map((p) => ({
+      key: p.key,
+      label: p.label,
+      count: p.count,
+      available: p.available,
+      unavailableReason: p.unavailable_reason,
+      sentence: p.sentence,
+      source: p.source,
+      routersReporting: p.routers_reporting,
+      routersTotal: p.routers_total,
+      lastReadAt: p.last_read_at,
+      topRules: p.top_rules ?? [],
+    })),
+    staffChanges: d.staff_changes.map((c) => ({
+      at: c.at,
+      action: c.action,
+      summary: c.summary,
+      description: c.description,
+    })),
+    routersTotal: d.routers_total,
+    semantics: d.semantics,
+    generatedAt: d.generated_at,
+  };
 }
 
 function toCounter(c: BackendCounter): SecurityCounter {
@@ -129,6 +184,21 @@ export const securityService = {
       },
       generatedAt: data.generated_at,
     };
+  },
+
+  /** What the venue's protections actually did in the last 24 hours or 7
+   * days: counts read hourly off the routers' own rule counters, device
+   * blocks, Cloudflare's refused lookups where attributable, and staff
+   * changes to security settings. */
+  async activity(
+    window: SecurityActivityWindow,
+    locationId?: string | null,
+  ): Promise<SecurityActivity> {
+    const { data } = await api.get<BackendActivity>("/security/activity", {
+      params: { window },
+      headers: locationHeaders(locationId),
+    });
+    return toActivity(data);
   },
 
   /** What this platform can and cannot enforce, from the one place that knows.

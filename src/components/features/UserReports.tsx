@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect, type KeyboardEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
@@ -81,7 +81,7 @@ interface ColumnDef {
   label: string;
   sortType: "string" | "number" | "date";
 }
-type Row = { [key: string]: string | number | null };
+export type Row = { [key: string]: string | number | null };
 
 function fmtBytes(mb: number): string {
   if (mb >= 1000) return `${(mb / 1000).toFixed(1)} GB`;
@@ -908,6 +908,9 @@ const UNAVAILABLE_REASON: Record<string, string> = {
 // this endpoint (getUsers() and getDashboard() already read them), just
 // never previously requested by this file's own narrower type.
 interface RealGuestSession {
+  /** The session's own id -- carried on each Guest Session Log row (as the
+   * non-column `sessionId`) so a row can open its AAA timeline. */
+  id?: string;
   started_at: string;
   ended_at?: string | null;
   bytes_uploaded?: number;
@@ -1210,6 +1213,9 @@ async function realGuestSessionLog(
         bytesUp: (s.bytes_uploaded ?? 0) / 1e6, // MB, matches fmtCell's fmtBytes routing
         bytesDown: (s.bytes_downloaded ?? 0) / 1e6,
         disconnectReason: s.disconnect_reason ?? null,
+        // Not a column (absent from COLUMNS["guest-session-log"]), so it is
+        // neither rendered nor exported -- it is what a row click opens.
+        sessionId: s.id ?? null,
       };
     });
 }
@@ -1594,6 +1600,9 @@ interface RealGuestLoginAttempt {
   auth_method: string;
   success: boolean;
   failure_reason?: string | null;
+  /** The backend's plain-words rendering of `failure_reason` (which is a
+   * machine code such as `OtpCodeMismatchError`). */
+  failure_reason_text?: string | null;
   attempted_at: string;
 }
 
@@ -1656,7 +1665,7 @@ async function realLoginAccessLog(
       ip: a.ip_address ?? null,
       authMethod: a.auth_method,
       status: a.success ? "Success" : "Failed",
-      failureReason: a.failure_reason ?? null,
+      failureReason: a.failure_reason_text ?? a.failure_reason ?? null,
       attemptedAt: a.attempted_at,
     }));
 }
@@ -1816,10 +1825,15 @@ export function ReportPanel({
   reportTypes,
   csvPrefix,
   masked = true,
+  onRowSelect,
 }: {
   reportTypes: ReportType[];
   csvPrefix: string;
   masked?: boolean;
+  /** Optional drill-down. Called for a row the caller can open -- today a
+   * Guest Session Log row carrying a `sessionId` (Guest Connection Records'
+   * AAA timeline). Rows it returns `false` for from `canSelectRow` stay inert. */
+  onRowSelect?: (reportType: string, row: Row) => void;
 }) {
   // UNITS ("Marina Bay Hotel" etc.) is demo-only seed data -- a real
   // customer only has their own real locations, same real-vs-demo split
@@ -2703,15 +2717,39 @@ export function ReportPanel({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {paged.map((r, i) => (
-                      <TableRow key={i} className="border-b">
-                        {cols.map((c) => (
-                          <TableCell key={c.key} className="text-xs text-foreground">
-                            {fmtCell(c.key, r[c.key] ?? null)}
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    ))}
+                    {paged.map((r, i) => {
+                      const selectable = Boolean(onRowSelect && r.sessionId);
+                      return (
+                        <TableRow
+                          key={i}
+                          className={cn(
+                            "border-b",
+                            selectable &&
+                              "cursor-pointer hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none",
+                          )}
+                          {...(selectable
+                            ? {
+                                tabIndex: 0,
+                                role: "button",
+                                "aria-label": "Open this connection's sign-in and usage timeline",
+                                onClick: () => onRowSelect?.(reportType, r),
+                                onKeyDown: (e: KeyboardEvent) => {
+                                  if (e.key === "Enter" || e.key === " ") {
+                                    e.preventDefault();
+                                    onRowSelect?.(reportType, r);
+                                  }
+                                },
+                              }
+                            : {})}
+                        >
+                          {cols.map((c) => (
+                            <TableCell key={c.key} className="text-xs text-foreground">
+                              {fmtCell(c.key, r[c.key] ?? null)}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>

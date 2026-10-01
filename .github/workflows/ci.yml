@@ -341,6 +341,13 @@ jobs:
             "portal-post-login" 20 "all checks passed" \
             bun run test:portal-post-login
 
+      # Guest Connection Records' AAA timeline + Security activity: an
+      # unmeasured protection must never render as "0", and the session id
+      # that opens a timeline must never become an exported CSV column.
+      - name: AAA timeline and security activity
+        run: |
+          ./scripts/ci-gated-test.sh             "aaa-security-logs" 35 "all passed"             bun run test:aaa-security-logs
+
       - name: portal sign-in fields
         run: |
           ./scripts/ci-gated-test.sh \

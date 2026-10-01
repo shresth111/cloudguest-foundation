@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCustomerStore } from "@/stores/customerStore";
 import { securityService } from "@/services/security.service";
+import type { SecurityActivityWindow } from "@/types/security";
 
 export const securityKeys = {
   // The venue is part of the key, not just of the request. Without it,
@@ -15,6 +16,8 @@ export const securityKeys = {
   // reason dns.service.ts stopped taking an organizationId at all.
   overview: (locationId: string | null) => ["security", "overview", locationId] as const,
   capabilities: () => ["security", "capabilities"] as const,
+  activity: (locationId: string | null, window: SecurityActivityWindow) =>
+    ["security", "activity", locationId, window] as const,
 };
 
 /** The venue's security posture: score, counters, fleet health.
@@ -40,3 +43,15 @@ export const useSecurityCapabilities = () =>
     queryFn: () => securityService.capabilities(),
     staleTime: 30 * 60 * 1000,
   });
+
+/** What the protections did in the window. Venue in the key for the same
+ * reason as the overview; the counters behind it change hourly, so a
+ * five-minute stale time costs nothing. */
+export const useSecurityActivity = (window: SecurityActivityWindow) => {
+  const locationId = useCustomerStore((s) => s.activeLocationId);
+  return useQuery({
+    queryKey: securityKeys.activity(locationId, window),
+    queryFn: () => securityService.activity(window, locationId),
+    staleTime: 5 * 60 * 1000,
+  });
+};
