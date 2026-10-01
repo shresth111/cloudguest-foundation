@@ -2,6 +2,8 @@ import { useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Link } from "@tanstack/react-router";
 import { Shield, Layers } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 import LocationPolicies from "./LocationPolicies";
 import CreateGroup from "./CreateGroup";
 
@@ -174,8 +176,20 @@ function PolicyShieldIllustration() {
 // mounted twice. The line under the tabs below points there, because an
 // owner who blocked guests here last week will look here first.
 const ACCESS_TABS = [
-  { id: "location", label: "Guest WiFi Limits", icon: Shield, tone: "indigo" as const },
-  { id: "group", label: "Access Tiers", icon: Layers, tone: "indigo" as const },
+  {
+    id: "location",
+    i18nKey: "tabLimits",
+    label: "Guest WiFi Limits",
+    icon: Shield,
+    tone: "indigo" as const,
+  },
+  {
+    id: "group",
+    i18nKey: "tabTiers",
+    label: "Access Tiers",
+    icon: Layers,
+    tone: "indigo" as const,
+  },
 ];
 
 const TAB_ACTIVE_CLASSES: Record<(typeof ACCESS_TABS)[number]["tone"], string> = {
@@ -190,6 +204,7 @@ const DIVIDER_BEFORE = new Set<string>();
 
 export default function PoliciesHub({ locationId }: { locationId?: string } = {}) {
   const [tab, setTab] = useState("location");
+  const { t } = useTranslation("accessRules", { i18n });
 
   return (
     <div className="space-y-6">
@@ -199,9 +214,11 @@ export default function PoliciesHub({ locationId }: { locationId?: string } = {}
             <Shield className="h-4.5 w-4.5 text-white" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold tracking-tight">Access Rules</h1>
+            <h1 className="text-lg font-semibold tracking-tight">
+              {t("nav:customerItem.policies", "Access Rules")}
+            </h1>
             <p className="text-sm text-muted-foreground">
-              Set usage limits and access tiers for this location.
+              {t("subtitle", "Set usage limits and access tiers for this location.")}
             </p>
           </div>
         </div>
@@ -224,25 +241,25 @@ export default function PoliciesHub({ locationId }: { locationId?: string } = {}
       <div className="relative">
         <div className="overflow-x-auto">
           <div className="inline-flex min-w-[360px] w-full items-center gap-1 rounded-lg border bg-muted/50 p-0.5 sm:w-auto">
-            {ACCESS_TABS.map((t) => {
-              const Icon = t.icon;
-              const active = tab === t.id;
+            {ACCESS_TABS.map((item) => {
+              const Icon = item.icon;
+              const active = tab === item.id;
               return (
-                <div key={t.id} className="flex flex-1 items-center">
-                  {DIVIDER_BEFORE.has(t.id) && (
+                <div key={item.id} className="flex flex-1 items-center">
+                  {DIVIDER_BEFORE.has(item.id) && (
                     <div aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-border" />
                   )}
                   <button
-                    onClick={() => setTab(t.id)}
+                    onClick={() => setTab(item.id)}
                     aria-current={active ? "page" : undefined}
                     className={`flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                       active
-                        ? TAB_ACTIVE_CLASSES[t.tone]
+                        ? TAB_ACTIVE_CLASSES[item.tone]
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     <Icon className="h-4 w-4" />
-                    {t.label}
+                    {t(item.i18nKey, item.label)}
                   </button>
                 </div>
               );
@@ -256,15 +273,16 @@ export default function PoliciesHub({ locationId }: { locationId?: string } = {}
       </div>
 
       <p className="text-sm text-muted-foreground">
-        Looking for blocked guests? They are now under{" "}
+        {t("blockedMovedPrefix", "Looking for blocked guests? They are now under")}{" "}
         <Link
           to="/blocking"
           search={{ tab: "guests" }}
           className="font-medium text-primary underline-offset-4 hover:underline"
         >
-          Security &rarr; Blocking
+          {t("nav:customerGroup.security", "Security")} &rarr;{" "}
+          {t("nav:customerItem.blocking", "Blocking")}
         </Link>
-        , together with blocked websites.
+        {t("blockedMovedSuffix", ", together with blocked websites.")}
       </p>
 
       {/* Content -- each of these already renders its own full header

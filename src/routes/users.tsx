@@ -268,7 +268,7 @@ function CustomerUsersPage() {
       }
 
       if (rows.length === 0) {
-        toast.info("Nothing to export for these filters.");
+        toast.info(t("exportNothing", "Nothing to export for these filters."));
         return;
       }
 
@@ -304,9 +304,9 @@ function CustomerUsersPage() {
         csv += `\n\nNOTE: this export stopped at ${rows.length} rows. Narrow the date range or filters, or ask support for a full extract.`;
       }
       downloadCsv(`guests-${csvDateStamp()}.csv`, csv);
-      toast.success(`Exported ${rows.length.toLocaleString()} guests`);
+      toast.success(t("exportSuccess", { count: rows.length }));
     } catch {
-      toast.error("Could not build the export. Nothing was changed.");
+      toast.error(t("exportFailed", "Could not build the export. Nothing was changed."));
     } finally {
       setExporting(false);
     }
@@ -459,7 +459,7 @@ function CustomerUsersPage() {
                 onClick={exportGuests}
               >
                 <Download className="mr-1.5 h-4 w-4" />
-                {exporting ? "Exporting…" : "Export CSV"}
+                {exporting ? t("exporting", "Exporting…") : t("exportCsv", "Export CSV")}
               </Button>
               <div className="flex gap-1 border rounded-lg p-0.5 bg-muted/50">
                 {(["all", "online", "offline"] as const).map((tab) => (
@@ -586,7 +586,7 @@ function CustomerUsersPage() {
                               lib/masking.ts), so nothing here is hidden. */}
                           {u.mac === "Unknown" ? (
                             <span className="font-sans text-muted-foreground">
-                              No device on record
+                              {t("noDevice", "No device on record")}
                             </span>
                           ) : masked ? (
                             maskMac(u.mac)
@@ -853,7 +853,7 @@ function CustomerUsersPage() {
                       }}
                       className="rounded-lg px-2 py-1.5 text-xs font-medium text-primary hover:bg-accent"
                     >
-                      Full history
+                      {t("fullHistory", "Full history")}
                     </button>
                   )}
                   <button

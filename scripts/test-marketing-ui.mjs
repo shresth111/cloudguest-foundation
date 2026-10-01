@@ -963,8 +963,8 @@ console.log("\nlock state comes from the backend, not the login radio");
 
 const nav = read("src/lib/customerNav.ts");
 check(
-  "the Marketing row is offered to both login roles",
-  /id: "marketing", label: "Marketing", icon: Send, roles: \["owner", "agent"\]/.test(nav),
+  "the Guest Messaging (marketing) row is offered to both login roles",
+  /id: "marketing", label: "Guest Messaging", icon: Send, roles: \["owner", "agent"\]/.test(nav),
 );
 const perms = read("src/lib/customerNavPermissions.ts");
 check(

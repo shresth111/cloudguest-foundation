@@ -104,7 +104,7 @@ const portalService = read(PORTAL_SERVICE);
 // ---------------------------------------------------------------------------
 // 1. ALWAYS ALLOWED -- one home, and it is the one with a URL
 // ---------------------------------------------------------------------------
-console.log("\nOnly Allowed");
+console.log("\nGuest Allow-list");
 
 check(
   "Access Rules no longer mounts WhiteList",
@@ -127,7 +127,7 @@ check(
 // exactly why it is the copy that was kept.
 const customerFeatures = readCode(CUSTOMER_FEATURES);
 check(
-  "the sidebar's Only Allowed still mounts WhiteList",
+  "the sidebar's Guest Allow-list still mounts WhiteList",
   /<WhiteList\b/.test(customerFeatures),
   "the surviving copy is gone too -- the feature has NO home now",
 );
@@ -383,7 +383,7 @@ if (gridStart !== -1) {
 }
 
 // ---------------------------------------------------------------------------
-// 5. The nav itself still offers Only Allowed as its own destination --
+// 5. The nav itself still offers Guest Allow-list as its own destination --
 // executed for real, not regex'd, since this is a plain module.
 // ---------------------------------------------------------------------------
 console.log("\nNav");
@@ -406,8 +406,8 @@ const nav = await import(outfile);
 const whitelistItem = nav.CUSTOMER_NAVS.find((i) => i.id === "whitelist");
 check("whitelist is still its own sidebar destination", Boolean(whitelistItem));
 check(
-  'it is still labelled "Only Allowed"',
-  whitelistItem?.label === "Only Allowed",
+  'it is labelled "Guest Allow-list" (was "Only Allowed")',
+  whitelistItem?.label === "Guest Allow-list",
   whitelistItem?.label,
 );
 check(

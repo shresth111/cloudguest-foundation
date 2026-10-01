@@ -295,8 +295,8 @@ const COLUMNS: Record<string, ColumnDef[]> = {
   "daywise-data": [
     { key: "date", label: "Date", sortType: "date" },
     { key: "totalData", label: "Total Data", sortType: "number" },
-    { key: "users", label: "Users", sortType: "number" },
-    { key: "avgPerUser", label: "Avg Per User", sortType: "number" },
+    { key: "users", label: "Guests", sortType: "number" },
+    { key: "avgPerUser", label: "Avg Per Guest", sortType: "number" },
   ],
   "daywise-unique": [
     { key: "date", label: "Date", sortType: "date" },

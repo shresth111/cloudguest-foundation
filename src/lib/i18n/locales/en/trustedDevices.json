@@ -1,0 +1,55 @@
+{
+  "title": "Trusted Devices",
+  "description": "Let a few of your own devices onto the WiFi without signing in.",
+  "addDevice": "Add device",
+  "errors": {
+    "badMac": "That doesn't look like a device address. Example: AA:BB:CC:DD:EE:FF",
+    "noExpiry": "Pick when access should end, or choose Always.",
+    "pastExpiry": "That time is in the past — pick a later one."
+  },
+  "toast": {
+    "added": "Device trusted",
+    "saveFailed": "Could not save — check the connection and try again.",
+    "updateFailed": "Could not update on the server.",
+    "removed": "Device removed",
+    "removeFailed": "Could not remove on the server."
+  },
+  "list": {
+    "title": "Trusted devices",
+    "description": "Devices that connect straight to the WiFi without seeing the sign-in screen.",
+    "errorTitle": "Couldn't load trusted devices",
+    "errorBody": "This list is not available right now, so we can't show which devices are authorized. Nothing has changed — try again in a moment.",
+    "tryAgain": "Try again",
+    "emptyTitle": "No trusted devices yet",
+    "emptyBody": "Click \"Add device\" above to let one of your own devices skip the sign-in screen."
+  },
+  "col": {
+    "address": "Device address",
+    "access": "Access",
+    "ends": "Ends",
+    "note": "Note",
+    "active": "Active",
+    "action": "Action"
+  },
+  "access": {
+    "always": "Always",
+    "untilDate": "Until a date"
+  },
+  "ends": {
+    "notSet": "Not set — never ends",
+    "never": "Never"
+  },
+  "dialog": {
+    "title": "Add a trusted device",
+    "description": "This device connects straight to the WiFi without the sign-in screen.",
+    "address": "Device address",
+    "addressHint": "Its MAC address — find it under WiFi settings on the device itself. Dashes, spaces, or no separators are fine too, e.g. AA-BB-CC-DD-EE-FF.",
+    "allowAccess": "Allow access",
+    "accessEnds": "Access ends",
+    "accessEndsHint": "After this the device signs in like any other guest.",
+    "note": "Note (optional)",
+    "notePlaceholder": "e.g. Front desk tablet",
+    "cancel": "Cancel",
+    "add": "Add"
+  }
+}

@@ -343,7 +343,7 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
     "the Overview group's own rows are untouched",
     (CUSTOMER_NAV_GROUPS.find((g) => g.id === "overview")?.items ?? [])
       .map((i) => `${i.id}:${i.label}`)
-      .join(",") === "dashboard:Dashboard,users:Users,reports:Reports,alerts:Alerts",
+      .join(",") === "dashboard:Dashboard,users:Guests,reports:Reports,alerts:Alerts",
   );
   const blocking = CUSTOMER_NAVS.find((n) => n.id === "blocking");
   check("Blocking is labelled for the job", blocking && blocking.label === "Block Websites");

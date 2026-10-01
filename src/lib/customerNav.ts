@@ -20,7 +20,6 @@ import {
   Server,
   Signal,
   Wifi,
-  Plug,
   Ban,
   BrickWall,
   LifeBuoy,
@@ -63,7 +62,7 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
     label: "Overview",
     items: [
       { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["owner", "agent"] },
-      { id: "users", label: "Users", icon: Users, roles: ["owner", "agent"] },
+      { id: "users", label: "Guests", icon: Users, roles: ["owner", "agent"] },
       { id: "reports", label: "Reports", icon: FileText, roles: ["owner", "agent"] },
       { id: "alerts", label: "Alerts", icon: Bell, roles: ["owner", "agent"] },
     ],
@@ -73,13 +72,13 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
     label: "Engagement",
     items: [
       { id: "portal", label: "Portal", icon: Palette, roles: ["owner"] },
-      { id: "campaigns", label: "Campaigns", icon: Megaphone, roles: ["owner"] },
+      { id: "campaigns", label: "Login Page Offers", icon: Megaphone, roles: ["owner"] },
       { id: "vouchers", label: "Vouchers", icon: Ticket, roles: ["owner", "agent"] },
     ],
   },
   {
     // The Marketing add-on (wyfy-specs/guest-marketing-campaigns.md §3.5).
-    // Its own group, not a row under Engagement -> Campaigns: those are
+    // Its own group, not a row under Engagement -> Login Page Offers: those are
     // captive-portal banners/surveys shown DURING login, this is outbound
     // WhatsApp/SMS/email to guests who opted in -- a different product with
     // its own consent and send lifecycle.
@@ -91,18 +90,18 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
     // `/me/entitlements` (CustomerSidebar's lock badge) and, finally, from
     // the backend's own 402 on every marketing route.
     //
-    // `Send`, not `Megaphone`: Megaphone is Campaigns, and in the collapsed
+    // `Send`, not `Megaphone`: Megaphone is Login Page Offers, and in the collapsed
     // rail two rows with the same glyph are indistinguishable.
     id: "marketing",
     label: "Marketing",
-    items: [{ id: "marketing", label: "Marketing", icon: Send, roles: ["owner", "agent"] }],
+    items: [{ id: "marketing", label: "Guest Messaging", icon: Send, roles: ["owner", "agent"] }],
   },
   {
     id: "access-policy",
     label: "Access & Policy",
     items: [
       { id: "policies", label: "Access Rules", icon: ShieldCheck, roles: ["owner"] },
-      { id: "whitelist", label: "Only Allowed", icon: Shield, roles: ["owner"] },
+      { id: "whitelist", label: "Guest Allow-list", icon: Shield, roles: ["owner"] },
       { id: "mac-auth", label: "Trusted Devices", icon: Fingerprint, roles: ["owner"] },
       // Renamed from "Business Hours" (same id/route/data) -- see
       // customerFeatureCatalog.ts's own note.
@@ -140,20 +139,6 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
       // requests; `/website-blocking` redirects to that tab. See
       // lib/blocking.ts.
       { id: "isp-details", label: "Internet Connection", icon: Globe, roles: ["owner"] },
-      // Owner-only, and not for tidiness: this screen owns the credentials
-      // to the venue's own network controller. Rotating them takes the
-      // guest WiFi down until the new ones work, and disconnecting stops
-      // guest authorisation outright -- neither is a front-desk action.
-      // Same three-layer shape as "admin-logs"/"network-activity": the nav
-      // narrows what is offered, `customerNavPermissions.ts` intersects it
-      // with the caller's real `network_integrations.read` grant, and the
-      // backend enforces every request on its own regardless.
-      //
-      // `Plug` is not used by any other row. That matters concretely: in the
-      // collapsed rail labels are hidden entirely, so a repeated glyph is
-      // two rows a customer cannot tell apart (see the Notifications/Alerts
-      // note in the Operations group and the icon-clash assertion in
-      // scripts/test-customer-nav-shell.mjs).
     ],
   },
   {
@@ -226,17 +211,17 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
       // -- see customer.$locationId.$feature.tsx's own AdminLogsView render
       // for the same restriction and why (a real, org-wide login + change
       // audit trail, independently enforced by the backend too).
-      { id: "admin-logs", label: "Logs", icon: ScrollText, roles: ["owner"] },
-      // Distinct nav item from "Logs" above -- different data (real *guest*
+      { id: "admin-logs", label: "Staff Activity", icon: ScrollText, roles: ["owner"] },
+      // Distinct nav item from "Staff Activity" above -- different data (real *guest*
       // WiFi usage records: session connections + login/access attempts),
       // different audience framing (a compliance-relevant record, not a
       // dashboard/infra-access log) -- see
       // docs/ipdr-logs-syslog-spec.md §4/§7 for the full reasoning against
       // merging this into admin-logs. Owner-only, same restriction and same
-      // reasoning as "Logs" (security-sensitive guest data) -- see
+      // reasoning as "Staff Activity" (security-sensitive guest data) -- see
       // NetworkActivityLog.tsx's own render-time guard for the matching
       // three-layer defense-in-depth.
-      { id: "network-activity", label: "Network Activity Log", icon: Radar, roles: ["owner"] },
+      { id: "network-activity", label: "Guest Connection Records", icon: Radar, roles: ["owner"] },
       // A static reference page, not a data-backed feature -- lives here
       // (rather than getting its own top-level nav group) because "Help" is
       // exactly where a customer already looks for it, right alongside
