@@ -45,3 +45,28 @@ export function useDeleteDhcpPool() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["dhcp", "list"] }),
   });
 }
+
+/** The router's DHCP leases, live -- for the firewall device picker. No
+ * retry: a router that cannot be read is "unknown" to the picker at once,
+ * not after three timeouts. */
+export const useRouterDhcpLeases = (
+  routerId: string,
+  organizationId?: string,
+  options?: { enabled?: boolean },
+) =>
+  useQuery({
+    queryKey: ["dhcp", "leases", routerId] as const,
+    queryFn: () => dhcpService.listLeases(routerId, organizationId),
+    enabled: !!routerId && (options?.enabled ?? true),
+    retry: false,
+    staleTime: 30_000,
+  });
+
+export function useKeepLeaseAddress(routerId: string, organizationId?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ macAddress, ipAddress }: { macAddress: string; ipAddress: string }) =>
+      dhcpService.keepLeaseAddress(routerId, macAddress, ipAddress, organizationId),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["dhcp", "leases", routerId] }),
+  });
+}

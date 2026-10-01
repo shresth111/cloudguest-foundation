@@ -111,14 +111,29 @@ export function describeService(rule: Pick<PlainFirewallRule, "protocol" | "dest
   return `Port ${s.port}${proto}`;
 }
 
-/** "Anyone" for no address -- that is what an empty match means. */
-export function describeWho(address: string | null): string {
-  return address && address.trim() ? address.trim() : "Anyone";
+/** "Anyone" for no address -- that is what an empty match means. With a
+ * device name (the rule was made by picking a device), "Front-desk printer
+ * (192.168.88.20)": the name is what the owner chose, the address is what
+ * the router actually matches, and both are shown so neither can mislead. */
+export function describeWho(address: string | null, deviceName?: string | null): string {
+  return describeEnd(address, deviceName, "Anyone");
 }
 
-/** "Anywhere" for no address. */
-export function describeWhere(address: string | null): string {
-  return address && address.trim() ? address.trim() : "Anywhere";
+/** "Anywhere" for no address; "Billing PC (192.168.88.30)" for a picked
+ * device. */
+export function describeWhere(address: string | null, deviceName?: string | null): string {
+  return describeEnd(address, deviceName, "Anywhere");
+}
+
+function describeEnd(
+  address: string | null,
+  deviceName: string | null | undefined,
+  empty: string,
+): string {
+  const a = (address ?? "").trim();
+  if (!a) return empty;
+  const name = (deviceName ?? "").trim();
+  return name ? `${name} (${a.replace(/\/32$/, "")})` : a;
 }
 
 /** Allow / Block. `reject` is a block too -- the device answers "refused"
@@ -685,4 +700,330 @@ export function privateNetworksOn(
         (r.destinationPort ?? null) === w.destinationPort,
     ),
   );
+}
+
+// ---------------------------------------------------------------------------
+// "A device on your network" -- Who/Where picked by name, not typed.
+// ---------------------------------------------------------------------------
+//
+// The router matches an address, never a name, so a picked device becomes
+// its current IP in `sourceAddress`/`destinationAddress` exactly as a typed
+// one would. What the picker adds is memory: which device that address was,
+// so the list can say "Front-desk printer (192.168.88.20)" and the dialog can
+// show the device again on edit.
+//
+// That memory is a tag line in the rule's `comment`, one per end:
+//
+//     wyfy-device:who:AA:BB:CC:DD:EE:20@192.168.88.20:Front-desk printer
+//
+// The address in the tag is the one the rule was written with. A rule whose
+// address was later changed by hand (here, or on the operator screen) no
+// longer matches its tag, and then the name is not shown: a name over the
+// wrong address would be worse than a bare address.
+//
+// The comment is this platform's own field -- the router is only ever given
+// `cloudguest-fw:<rule id>` as its comment (cloud-guest mikrotik_firewall),
+// so nothing here reaches the device -- and it needs no backend change or
+// migration. Anything else in the comment (an operator's note) is kept as it
+// is, and the tag lines are never shown as text.
+//
+// Keeping the address stable is a separate, explicit step: the dialog offers
+// to make the device's DHCP lease static (cloud-guest dhcp
+// `/dhcp-pools/routers/{id}/leases/keep-address`), because the tag remembers
+// WHICH device, but only a reservation keeps it on the address the rule uses.
+
+export type DeviceEnd = "who" | "where";
+
+export interface DeviceTag {
+  end: DeviceEnd;
+  /** Canonical uppercase, colon-separated. */
+  mac: string;
+  /** The address the rule was written with. */
+  ip: string;
+  name: string;
+}
+
+export const DEVICE_TAG_PREFIX = "wyfy-device:";
+const DEVICE_TAG_RE =
+  /^wyfy-device:(who|where):([0-9A-F]{2}(?::[0-9A-F]{2}){5})@(\d{1,3}(?:\.\d{1,3}){3}):(.*)$/;
+const MAC_RE =
+  /^([0-9a-f]{2})[:-]?([0-9a-f]{2})[:-]?([0-9a-f]{2})[:-]?([0-9a-f]{2})[:-]?([0-9a-f]{2})[:-]?([0-9a-f]{2})$/i;
+
+/** "aa-bb-cc-dd-ee-ff" -> "AA:BB:CC:DD:EE:FF"; `null` for anything that is
+ * not a six-octet MAC (including a masked one, "AA:BB:**:**:**:FF"). */
+export function normalizeMac(value: string | null | undefined): string | null {
+  const m = MAC_RE.exec((value ?? "").trim());
+  return m ? m.slice(1, 7).join(":").toUpperCase() : null;
+}
+
+/** The tag lines in a comment, and everything else in it. */
+export function deviceTagsIn(comment: string | null | undefined): {
+  tags: DeviceTag[];
+  rest: string;
+} {
+  const tags: DeviceTag[] = [];
+  const rest: string[] = [];
+  for (const line of (comment ?? "").split("\n")) {
+    const m = DEVICE_TAG_RE.exec(line.trim());
+    if (m && IPV4.test(m[3]) && m[4].trim()) {
+      tags.push({ end: m[1] as DeviceEnd, mac: m[2], ip: m[3], name: m[4].trim() });
+    } else rest.push(line);
+  }
+  return { tags, rest: rest.join("\n").trim() };
+}
+
+/** The device picked for one end of a rule, if the rule remembers one. */
+export function deviceTagFor(comment: string | null | undefined, end: DeviceEnd): DeviceTag | null {
+  return deviceTagsIn(comment).tags.find((t) => t.end === end) ?? null;
+}
+
+/** What the rules list shows as the rule's note: the comment without the
+ * tag lines. `null` when nothing else is left. */
+export function commentForDisplay(comment: string | null | undefined): string | null {
+  return deviceTagsIn(comment).rest || null;
+}
+
+/** A device name fit for one tag line: one line, trimmed, at most 64
+ * characters. */
+function tagName(name: string): string {
+  return name.replace(/\s+/g, " ").trim().slice(0, 64);
+}
+
+/**
+ * The comment a rule should carry: whatever was there that is not a tag,
+ * then one tag line per picked end. `null` when the result is empty -- an
+ * explicit null on PUT clears the field (cloud-guest#306), which is right
+ * when the owner switched a device back to a typed address.
+ */
+export function commentWithDeviceTags(
+  comment: string | null | undefined,
+  devices: Partial<Record<DeviceEnd, { mac: string; ip: string; name: string } | null>>,
+): string | null {
+  const { rest } = deviceTagsIn(comment);
+  const lines = rest ? [rest] : [];
+  for (const end of ["who", "where"] as const) {
+    const d = devices[end];
+    const mac = normalizeMac(d?.mac);
+    const ip = (d?.ip ?? "").trim().replace(/\/32$/, "");
+    const name = d ? tagName(d.name) : "";
+    if (mac && IPV4.test(ip) && name) lines.push(`${DEVICE_TAG_PREFIX}${end}:${mac}@${ip}:${name}`);
+  }
+  return lines.length ? lines.join("\n") : null;
+}
+
+/** The picked device for one end of a stored rule -- only while the rule
+ * still holds the address it was picked with. A rule edited to another
+ * address by hand (here or on the operator screen) stops claiming to be that
+ * device. */
+export function deviceTagOf(
+  rule: {
+    comment?: string | null;
+    sourceAddress: string | null;
+    destinationAddress: string | null;
+  },
+  end: DeviceEnd,
+): DeviceTag | null {
+  const tag = deviceTagFor(rule.comment, end);
+  const address = (end === "who" ? rule.sourceAddress : rule.destinationAddress) ?? "";
+  return tag && address.trim().replace(/\/32$/, "") === tag.ip ? tag : null;
+}
+
+// --- The picker's list --------------------------------------------------------
+
+/** Structural: the fields of a connected device the picker reads. */
+export interface NetworkDeviceInput {
+  macAddress: string;
+  ipAddress: string | null;
+  hostname: string | null;
+  vendor: string | null;
+  /** The owner's own name for the device (Devices screen). */
+  comment: string | null;
+  isActive: boolean;
+  guestId: string | null;
+}
+
+/** Structural: one DHCP lease, read live off the router. */
+export interface LeaseInput {
+  macAddress: string;
+  address: string | null;
+  dynamic: boolean;
+  disabled?: boolean;
+}
+
+/**
+ * What the router can say about the device's address:
+ *  - `static`  -- reserved; it gets this address every time.
+ *  - `dynamic` -- leased; it may get another address when the lease ends.
+ *  - `none`    -- the router handed it no address (set on the device, or
+ *                 from another DHCP server). Nothing here can keep it fixed.
+ *  - `unknown` -- the leases could not be read. Said as unknown, never
+ *                 guessed into one of the three above.
+ */
+export type LeaseState = "static" | "dynamic" | "none" | "unknown";
+
+export interface PickableDevice {
+  mac: string;
+  /** The address the rule will use: the live lease's when there is one,
+   * else the last one the device sync saw. */
+  ip: string;
+  /** What the owner reads first. */
+  name: string;
+  /** The second line -- maker and hostname, when they add something. */
+  detail: string | null;
+  isGuest: boolean;
+  isActive: boolean;
+  lease: LeaseState;
+}
+
+/** The friendliest true name: the owner's own name for it, then the name
+ * the device gave the router, then its maker. Never the MAC alone -- that
+ * is shown beside it anyway. */
+export function deviceDisplayName(
+  d: Pick<NetworkDeviceInput, "comment" | "hostname" | "vendor">,
+): string {
+  const own = (d.comment ?? "").trim();
+  if (own) return own.split("\n")[0].slice(0, 64);
+  const host = (d.hostname ?? "").trim();
+  if (host) return host;
+  const vendor = (d.vendor ?? "").trim();
+  return vendor ? `${vendor} device` : "Unnamed device";
+}
+
+/** A guest's device: the device sync tied it to a guest, or its address is
+ * on one of the router's guest networks (cloud-guest#317's band status). */
+export function isGuestDevice(
+  d: { guestId: string | null; ip: string | null },
+  guestNetworks: readonly string[],
+): boolean {
+  if (d.guestId) return true;
+  const ip = (d.ip ?? "").trim();
+  if (!ip || !IPV4.test(ip)) return false;
+  return guestNetworks.some((n) => isAddressOrRange(n) && n.includes("/") && ipInRange(ip, n));
+}
+
+/**
+ * The devices one end of a rule may pick, best first.
+ *
+ * GUESTS ARE NOT OFFERED AS "WHERE". A guest is on the network for an hour
+ * and its address goes back to the pool when it leaves; a rule pointing at
+ * it would soon point at the next guest. As "Who" a guest is offered (to
+ * block one guest device), listed after the venue's own devices, and the
+ * dialog says Block Users does that better -- by the device, not its
+ * address.
+ *
+ * A device with no IPv4 address is left out: there is nothing to match.
+ * `leases` null means they could not be read, which makes every device's
+ * lease `unknown`, not `none`.
+ */
+export function pickableDevices(
+  devices: readonly NetworkDeviceInput[],
+  leases: readonly LeaseInput[] | null,
+  guestNetworks: readonly string[],
+  end: DeviceEnd,
+): PickableDevice[] {
+  const leaseByMac = new Map<string, LeaseInput>();
+  for (const l of leases ?? []) {
+    const mac = normalizeMac(l.macAddress);
+    if (!mac || l.disabled) continue;
+    // A static lease is the stronger fact; keep it over a dynamic one.
+    const prev = leaseByMac.get(mac);
+    if (!prev || (prev.dynamic && !l.dynamic)) leaseByMac.set(mac, l);
+  }
+  const seen = new Set<string>();
+  const out: PickableDevice[] = [];
+  for (const d of devices) {
+    const mac = normalizeMac(d.macAddress);
+    if (!mac || seen.has(mac)) continue;
+    const lease = leaseByMac.get(mac);
+    const ip = ((lease?.address ?? "") || (d.ipAddress ?? "")).trim();
+    if (!IPV4.test(ip)) continue;
+    const isGuest = isGuestDevice({ guestId: d.guestId, ip }, guestNetworks);
+    if (end === "where" && isGuest) continue;
+    seen.add(mac);
+    const name = deviceDisplayName(d);
+    const extras = [d.vendor, d.hostname]
+      .map((x) => (x ?? "").trim())
+      .filter((x, i, a) => x && !name.includes(x) && a.indexOf(x) === i);
+    out.push({
+      mac,
+      ip,
+      name,
+      detail: extras.length ? extras.join(" · ") : null,
+      isGuest,
+      isActive: d.isActive,
+      lease: leases === null ? "unknown" : !lease ? "none" : lease.dynamic ? "dynamic" : "static",
+    });
+  }
+  return out.sort(
+    (a, b) =>
+      Number(a.isGuest) - Number(b.isGuest) ||
+      Number(b.isActive) - Number(a.isActive) ||
+      a.name.localeCompare(b.name),
+  );
+}
+
+/** The search box: name, address, MAC (with or without separators),
+ * maker. */
+export function deviceMatchesSearch(d: PickableDevice, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const flatMac = d.mac.replace(/:/g, "").toLowerCase();
+  return (
+    d.name.toLowerCase().includes(q) ||
+    (d.detail ?? "").toLowerCase().includes(q) ||
+    d.ip.includes(q) ||
+    d.mac.toLowerCase().includes(q) ||
+    flatMac.includes(q.replace(/[:-]/g, ""))
+  );
+}
+
+/**
+ * What the dialog offers about keeping the address, for a picked device:
+ *  - `offer`   -- a dynamic lease: "Keep this device on the same address",
+ *                 ticked by default.
+ *  - `kept`    -- already static: nothing to do, said so.
+ *  - `cannot`  -- no lease from this router: a warning that the rule stops
+ *                 matching if the device's address changes.
+ *  - `unknown` -- leases unreadable: the same warning, worded as unknown.
+ *  - `guest`   -- a guest: never offered. Reserving an address for a
+ *                 passing phone takes it out of the guest pool for good.
+ */
+export function keepAddressOffer(
+  d: Pick<PickableDevice, "isGuest" | "lease">,
+): "offer" | "kept" | "cannot" | "unknown" | "guest" {
+  if (d.isGuest) return "guest";
+  switch (d.lease) {
+    case "dynamic":
+      return "offer";
+    case "static":
+      return "kept";
+    case "none":
+      return "cannot";
+    default:
+      return "unknown";
+  }
+}
+
+/** One sentence for each way "keep this address" can be refused
+ * (cloud-guest dhcp keep-address 409 codes); `null` for anything else, so
+ * the backend's own message is shown instead. */
+export function keepAddressErrorSentence(
+  data: Record<string, unknown> | null | undefined,
+): string | null {
+  const code = typeof data?.code === "string" ? data.code : null;
+  const current = typeof data?.current_address === "string" ? data.current_address : null;
+  switch (code) {
+    case "DHCP_LEASE_NOT_FOUND":
+      return "This device didn't get its address from the router, so it can't be kept on it from here. Untick the box to save the rule anyway.";
+    case "DHCP_LEASE_ADDRESS_CHANGED":
+      return current
+        ? `This device has just moved to ${current}. Pick it again so the rule uses its new address.`
+        : "This device's address just changed. Pick it again so the rule uses its new address.";
+    case "DHCP_LEASE_RESERVED_ELSEWHERE":
+      return current
+        ? `The router already keeps this device on ${current}. It moves there when it reconnects — pick it again then.`
+        : "The router already keeps this device on another address. It moves there when it reconnects — pick it again then.";
+    default:
+      return null;
+  }
 }

@@ -98,10 +98,24 @@ import {
   privateNetworksOn,
   ruleToDraft,
   validateFirewallDraft,
+  commentForDisplay,
+  commentWithDeviceTags,
+  deviceTagOf,
+  keepAddressErrorSentence,
+  keepAddressOffer,
+  pickableDevices,
+  type DeviceEnd,
   type FirewallRuleDraft,
   type FirewallServiceId,
+  type PickableDevice,
   type PushErrorExplained,
 } from "@/lib/firewall-rules";
+import { useKeepLeaseAddress, useRouterDhcpLeases } from "@/hooks/useDhcp";
+import { usePickerDevices } from "@/hooks/useConnectedDevices";
+import {
+  DeviceAddressNote,
+  FirewallDevicePicker,
+} from "@/components/security/FirewallDevicePicker";
 import type { FirewallPushResult, FirewallRule, FloodLimitPreset } from "@/types/firewall";
 import type { RouterDevice } from "@/types/router";
 
@@ -523,8 +537,10 @@ function RouterFirewallCard({
                       </TableCell>
                       <TableCell>
                         <p className="text-sm font-medium">{rule.name}</p>
-                        {rule.comment && (
-                          <p className="text-xs text-muted-foreground">{rule.comment}</p>
+                        {commentForDisplay(rule.comment) && (
+                          <p className="text-xs text-muted-foreground">
+                            {commentForDisplay(rule.comment)}
+                          </p>
                         )}
                         {!editable.editable && (
                           <p className="mt-1 max-w-xs text-xs text-amber-700 dark:text-amber-400">
@@ -533,9 +549,9 @@ function RouterFirewallCard({
                         )}
                       </TableCell>
                       <TableCell className="text-sm">
-                        {describeWho(rule.sourceAddress)}{" "}
+                        {describeWho(rule.sourceAddress, deviceTagOf(rule, "who")?.name)}{" "}
                         <span className="text-muted-foreground">→</span>{" "}
-                        {describeWhere(rule.destinationAddress)}
+                        {describeWhere(rule.destinationAddress, deviceTagOf(rule, "where")?.name)}
                       </TableCell>
                       <TableCell className="text-sm">{describeService(rule)}</TableCell>
                       <TableCell>
@@ -622,6 +638,8 @@ function RouterFirewallCard({
       {(creating || editing) && (
         <RuleDialog
           routerId={router.id}
+          organizationId={organizationId}
+          guestNetworks={band.data?.guestNetworks ?? []}
           rule={editing}
           existing={rules}
           canApply={!bandBlocksApply}
@@ -1007,9 +1025,22 @@ function emptyDraft(): FirewallRuleDraft {
  * There is no order field: a new Allow goes to the top (it is an exception
  * to a Block, and the router stops at the first match), a new Block to the
  * bottom, and the arrows in the list move it after that. An edit keeps the
- * rule where it is. */
+ * rule where it is.
+ *
+ * Who and Where each take Anyone/Anywhere, "A device on your network" (picked
+ * by name from what the router sees -- see `FirewallDevicePicker` and the
+ * device section of lib/firewall-rules), or a typed address or range for
+ * power users. A picked device is still an address on the router; the dialog
+ * remembers which device in the rule's comment and, when its lease is
+ * dynamic, offers to keep it on that address (a static DHCP lease) before
+ * the rule is saved. */
+type EndMode = "any" | "device" | "specific";
+type DevicePick = { mac: string; ip: string; name: string };
+
 function RuleDialog({
   routerId,
+  organizationId,
+  guestNetworks,
   rule,
   existing,
   canApply,
@@ -1017,6 +1048,10 @@ function RuleDialog({
   onSavedAndApply,
 }: {
   routerId: string;
+  organizationId?: string;
+  /** The router's guest networks (band status), to tell a guest's device
+   * from the venue's own. */
+  guestNetworks: readonly string[];
   rule: FirewallRule | null;
   existing: readonly FirewallRule[];
   canApply: boolean;
@@ -1026,44 +1061,123 @@ function RuleDialog({
   const { t } = useTranslation("nav", { i18n });
   const create = useCreateFirewallRule();
   const update = useUpdateFirewallRule();
+  const keepAddress = useKeepLeaseAddress(routerId, organizationId);
   const [draft, setDraft] = useState<FirewallRuleDraft>(() =>
     rule ? ruleToDraft(rule) : emptyDraft(),
   );
-  const [whoMode, setWhoMode] = useState<"any" | "specific">(
-    rule?.sourceAddress ? "specific" : "any",
-  );
-  const [whereMode, setWhereMode] = useState<"any" | "specific">(
-    rule?.destinationAddress ? "specific" : "any",
-  );
+  const [picks, setPicks] = useState<Record<DeviceEnd, DevicePick | null>>(() => ({
+    who: rule ? deviceTagOf(rule, "who") : null,
+    where: rule ? deviceTagOf(rule, "where") : null,
+  }));
+  const [modes, setModes] = useState<Record<DeviceEnd, EndMode>>(() => ({
+    who: picks.who ? "device" : rule?.sourceAddress ? "specific" : "any",
+    where: picks.where ? "device" : rule?.destinationAddress ? "specific" : "any",
+  }));
+  const [keep, setKeep] = useState<Record<DeviceEnd, boolean>>({ who: true, where: true });
+  const [keepErrors, setKeepErrors] = useState<Partial<Record<DeviceEnd, string>>>({});
   const [showErrors, setShowErrors] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const pickerOpen = modes.who === "device" || modes.where === "device";
+  const devicesQuery = usePickerDevices(routerId, pickerOpen);
+  const leasesQuery = useRouterDhcpLeases(routerId, organizationId, { enabled: pickerOpen });
+  // Unreadable leases are "unknown" for every device -- never "no lease".
+  const leases = leasesQuery.isError ? null : (leasesQuery.data ?? null);
+  const lists = useMemo(() => {
+    const rows = devicesQuery.data?.rows ?? [];
+    return {
+      who: pickableDevices(rows, leases, guestNetworks, "who"),
+      where: pickableDevices(rows, leases, guestNetworks, "where"),
+    };
+  }, [devicesQuery.data, leases, guestNetworks]);
+  // The picked device as the router sees it now. Its current address is the
+  // one the rule uses -- a device that moved since the rule was saved is
+  // followed, and the dialog says so.
+  const live: Record<DeviceEnd, PickableDevice | null> = {
+    who: picks.who ? (lists.who.find((d) => d.mac === picks.who?.mac) ?? null) : null,
+    where: picks.where ? (lists.where.find((d) => d.mac === picks.where?.mac) ?? null) : null,
+  };
+  const addressFor = (end: DeviceEnd): string => {
+    if (modes[end] === "any") return "";
+    if (modes[end] === "device") return live[end]?.ip ?? picks[end]?.ip ?? "";
+    return end === "who" ? draft.who : draft.where;
+  };
+
   const effective: FirewallRuleDraft = {
     ...draft,
-    who: whoMode === "any" ? "" : draft.who,
-    where: whereMode === "any" ? "" : draft.where,
+    who: addressFor("who"),
+    where: addressFor("where"),
     priority: rule ? draft.priority : newRulePriority(draft.decision, existing),
   };
   const errors = validateFirewallDraft(effective);
+  for (const end of ["who", "where"] as const) {
+    if (modes[end] === "device" && !picks[end]) {
+      errors[end] = t("firewallPage.pickDevice", "Pick a device from the list.");
+    }
+  }
   const valid = Object.keys(errors).length === 0;
   const fields = draftToFields(effective);
   const set = <K extends keyof FirewallRuleDraft>(k: K, v: FirewallRuleDraft[K]) =>
     setDraft((d) => ({ ...d, [k]: v }));
+
+  function pick(end: DeviceEnd, d: PickableDevice) {
+    setPicks((p) => ({ ...p, [end]: { mac: d.mac, ip: d.ip, name: d.name } }));
+    setKeepErrors((e) => ({ ...e, [end]: undefined }));
+    // So that switching to "A specific address" afterwards starts from it.
+    set(end, d.ip);
+  }
 
   async function save(applyAfter = false) {
     setShowErrors(true);
     if (!valid) return;
     setSaving(true);
     try {
+      // Keep the address first: a reservation on the device's current
+      // address is harmless on its own, whereas a rule saved before a
+      // refused reservation would quietly depend on a lease that can move.
+      for (const end of ["who", "where"] as const) {
+        const d = live[end];
+        if (modes[end] !== "device" || !d || keepAddressOffer(d) !== "offer" || !keep[end]) {
+          continue;
+        }
+        try {
+          await keepAddress.mutateAsync({ macAddress: d.mac, ipAddress: d.ip });
+        } catch (err) {
+          const e = requestErrorOf(err);
+          setKeepErrors((x) => ({
+            ...x,
+            [end]:
+              keepAddressErrorSentence(e?.data) ??
+              e?.message ??
+              t("firewallPage.keepFailed", "Couldn't keep this device on its address."),
+          }));
+          return;
+        }
+      }
+      const tagOf = (end: DeviceEnd) => {
+        const p = picks[end];
+        return modes[end] === "device" && p
+          ? { mac: p.mac, ip: addressFor(end), name: live[end]?.name ?? p.name }
+          : null;
+      };
+      const comment = commentWithDeviceTags(rule?.comment, {
+        who: tagOf("who"),
+        where: tagOf("where"),
+      });
       if (!rule) {
-        await create.mutateAsync({ routerId, ...fields });
+        await create.mutateAsync({ routerId, ...fields, ...(comment ? { comment } : {}) });
       } else {
         // One PUT. `fields` carries an explicit `null` for an address or a
         // port the owner took away, and cloud-guest#306 clears a field on an
-        // explicit null (an omitted one is left unchanged). Nothing the form
-        // doesn't show -- source port, interface, comment -- is sent, so
-        // those are kept as they are.
-        await update.mutateAsync({ id: rule.id, payload: fields });
+        // explicit null (an omitted one is left unchanged). Fields the form
+        // doesn't show -- source port, interface -- are not sent, so they are
+        // kept. The comment is sent only when the picked devices changed it;
+        // anything else in it is carried over by `commentWithDeviceTags`.
+        const commentChanged = comment !== (rule.comment ?? null);
+        await update.mutateAsync({
+          id: rule.id,
+          payload: { ...fields, ...(commentChanged ? { comment } : {}) },
+        });
       }
       if (applyAfter) {
         onClose();
@@ -1085,6 +1199,134 @@ function RuleDialog({
         {errors[k]}
       </p>
     ) : null;
+
+  const endField = (end: DeviceEnd) => {
+    const isWho = end === "who";
+    const p = picks[end];
+    const d = live[end];
+    const moved = !!(p && d && d.ip !== p.ip && rule);
+    return (
+      <div className="space-y-1.5">
+        <Label>
+          {isWho ? t("firewallPage.fieldWho", "Who") : t("firewallPage.fieldWhere", "Where to")}
+        </Label>
+        <RadioGroup
+          value={modes[end]}
+          onValueChange={(v) =>
+            setModes((m) => ({
+              ...m,
+              [end]: v === "device" || v === "specific" ? v : "any",
+            }))
+          }
+          className="space-y-1"
+        >
+          <label className="flex items-center gap-2 text-sm">
+            <RadioGroupItem value="any" />{" "}
+            {isWho
+              ? t("firewallPage.whoAny", "Any device")
+              : t("firewallPage.whereAny", "Anywhere")}
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <RadioGroupItem value="device" />{" "}
+            {t("firewallPage.endDevice", "A device on your network")}
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <RadioGroupItem value="specific" />{" "}
+            {isWho
+              ? t("firewallPage.whoSpecificAddress", "A specific address or range")
+              : t("firewallPage.whereSpecific", "A specific address or range")}
+          </label>
+        </RadioGroup>
+        {modes[end] === "device" && (
+          <div className="space-y-2 rounded-md border bg-muted/20 p-2">
+            {p && (
+              <p className="text-sm">
+                <span className="font-medium">{d?.name ?? p.name}</span>{" "}
+                <span className="text-muted-foreground">
+                  ({d?.ip ?? p.ip} · {p.mac})
+                </span>
+              </p>
+            )}
+            {moved && d && (
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                {t(
+                  "firewallPage.deviceMoved",
+                  "{{name}} is now at {{ip}}. Saving moves this rule to its new address.",
+                  { name: d.name, ip: d.ip },
+                )}
+              </p>
+            )}
+            {p && !d && devicesQuery.isSuccess && (
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                {t(
+                  "firewallPage.deviceNotSeen",
+                  "We can't see this device on the router right now, so the rule keeps using {{ip}}.",
+                  { ip: p.ip },
+                )}
+              </p>
+            )}
+            {d && (
+              <DeviceAddressNote
+                device={d}
+                checking={leasesQuery.isLoading}
+                keep={keep[end]}
+                onKeepChange={(v) => {
+                  setKeep((k) => ({ ...k, [end]: v }));
+                  setKeepErrors((e) => ({ ...e, [end]: undefined }));
+                }}
+                error={keepErrors[end] ?? null}
+              />
+            )}
+            <FirewallDevicePicker
+              devices={lists[end]}
+              selectedMac={p?.mac ?? null}
+              loading={devicesQuery.isLoading}
+              failed={devicesQuery.isError}
+              onPick={(x) => pick(end, x)}
+              label={
+                isWho
+                  ? t("firewallPage.devicesForWho", "Devices for Who")
+                  : t("firewallPage.devicesForWhere", "Devices for Where to")
+              }
+            />
+            {!isWho && (
+              <p className="text-xs text-muted-foreground">
+                {t(
+                  "firewallPage.whereNoGuests",
+                  "Guests' devices aren't listed here: their addresses change and are handed to the next guest.",
+                )}
+              </p>
+            )}
+            {devicesQuery.data?.truncated && (
+              <p className="text-xs text-muted-foreground">
+                {t(
+                  "firewallPage.devicesTruncated",
+                  "Showing the first 500 devices. Search narrows these; for anything else, use “A specific address or range”.",
+                )}
+              </p>
+            )}
+          </div>
+        )}
+        {modes[end] === "specific" &&
+          (isWho ? (
+            <Input
+              value={draft.who}
+              onChange={(e) => set("who", e.target.value)}
+              placeholder="192.168.88.50 or 192.168.88.0/24"
+              aria-label={t("firewallPage.whoAddress", "Device address or range")}
+            />
+          ) : (
+            <Input
+              value={draft.where}
+              onChange={(e) => set("where", e.target.value)}
+              placeholder="203.0.113.9 or 203.0.113.0/24"
+              aria-label={t("firewallPage.whereAddress", "Destination address or range")}
+            />
+          ))}
+        {err(end)}
+      </div>
+    );
+  };
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -1140,57 +1382,9 @@ function RuleDialog({
             </RadioGroup>
           </div>
 
-          <div className="space-y-1.5">
-            <Label>{t("firewallPage.fieldWho", "Who")}</Label>
-            <RadioGroup
-              value={whoMode}
-              onValueChange={(v) => setWhoMode(v === "specific" ? "specific" : "any")}
-              className="space-y-1"
-            >
-              <label className="flex items-center gap-2 text-sm">
-                <RadioGroupItem value="any" /> {t("firewallPage.whoAny", "Any device")}
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <RadioGroupItem value="specific" />{" "}
-                {t("firewallPage.whoSpecific", "A specific device or group of devices")}
-              </label>
-            </RadioGroup>
-            {whoMode === "specific" && (
-              <Input
-                value={draft.who}
-                onChange={(e) => set("who", e.target.value)}
-                placeholder="192.168.88.50 or 192.168.88.0/24"
-                aria-label={t("firewallPage.whoAddress", "Device address or range")}
-              />
-            )}
-            {err("who")}
-          </div>
+          {endField("who")}
 
-          <div className="space-y-1.5">
-            <Label>{t("firewallPage.fieldWhere", "Where to")}</Label>
-            <RadioGroup
-              value={whereMode}
-              onValueChange={(v) => setWhereMode(v === "specific" ? "specific" : "any")}
-              className="space-y-1"
-            >
-              <label className="flex items-center gap-2 text-sm">
-                <RadioGroupItem value="any" /> {t("firewallPage.whereAny", "Anywhere")}
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <RadioGroupItem value="specific" />{" "}
-                {t("firewallPage.whereSpecific", "A specific address or range")}
-              </label>
-            </RadioGroup>
-            {whereMode === "specific" && (
-              <Input
-                value={draft.where}
-                onChange={(e) => set("where", e.target.value)}
-                placeholder="203.0.113.9 or 203.0.113.0/24"
-                aria-label={t("firewallPage.whereAddress", "Destination address or range")}
-              />
-            )}
-            {err("where")}
-          </div>
+          {endField("where")}
 
           <div className="space-y-1.5">
             <Label>{t("firewallPage.fieldService", "Which traffic")}</Label>
