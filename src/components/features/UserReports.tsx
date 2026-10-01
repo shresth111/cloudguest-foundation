@@ -435,7 +435,7 @@ const COLUMNS: Record<string, ColumnDef[]> = {
     // had nowhere to go.
     { key: "email", label: "Email", sortType: "string" },
     { key: "ip", label: "Private IP", sortType: "string" },
-    { key: "publicIp", label: "Public IP", sortType: "string" },
+    { key: "publicIp", label: "Venue public IP", sortType: "string" },
     { key: "mac", label: "Device MAC", sortType: "string" },
     { key: "device", label: "Device", sortType: "string" },
     { key: "authMethod", label: "Auth Method", sortType: "string" },
@@ -963,36 +963,16 @@ function isPrivateOrLocalIp(ip: string): boolean {
   return false;
 }
 
-const LOGIN_PUBLIC_IP_WINDOW_MS = 15 * 60 * 1000;
-
-/** Guest sign-in IP from login history when it is a real public address;
- * otherwise the venue router's WAN IP (NAT egress). */
+/** Venue NAT egress — only a globally routable IPv4 from the router heartbeat.
+ * Private WAN addresses (e.g. 192.168.x behind ISP CPE) are not shown. */
 function resolveSessionPublicIp(
   session: RealGuestSession,
-  loginAttempts: RealGuestLoginAttempt[],
   routerPublicIps: Map<string, string | null>,
 ): string | null {
-  if (session.guest_id) {
-    const start = new Date(session.started_at).getTime();
-    let bestIp: string | null = null;
-    let bestAt = 0;
-    for (const a of loginAttempts) {
-      if (!a.success || a.guest_id !== session.guest_id || !a.ip_address) continue;
-      if (isPrivateOrLocalIp(a.ip_address)) continue;
-      const at = new Date(a.attempted_at).getTime();
-      if (at > start || start - at > LOGIN_PUBLIC_IP_WINDOW_MS) continue;
-      if (at >= bestAt) {
-        bestAt = at;
-        bestIp = a.ip_address;
-      }
-    }
-    if (bestIp) return bestIp;
-  }
-  if (session.router_id) {
-    const wan = routerPublicIps.get(session.router_id);
-    if (wan) return wan;
-  }
-  return null;
+  if (!session.router_id) return null;
+  const wan = routerPublicIps.get(session.router_id);
+  if (!wan || isPrivateOrLocalIp(wan)) return null;
+  return wan;
 }
 
 function rowMatchesGuestSessionLogSearch(r: Row, q: string): boolean {
@@ -1201,11 +1181,10 @@ async function realGuestSessionLog(
   from: string,
   to: string,
 ): Promise<Row[]> {
-  const [sessions, guestsById, routerPublicIps, loginAttempts] = await Promise.all([
+  const [sessions, guestsById, routerPublicIps] = await Promise.all([
     fetchRealSessions(orgId, locationId, from, to),
     fetchRealGuestsById(orgId, locationId),
     fetchRouterPublicIpsById(orgId, locationId),
-    fetchRealLoginHistory(orgId, locationId, from, to),
   ]);
   return sessions
     .slice()
@@ -1221,7 +1200,7 @@ async function realGuestSessionLog(
         mobile: identity.phone || null,
         email: identity.email || null,
         ip: s.ip_address ?? null,
-        publicIp: resolveSessionPublicIp(s, loginAttempts, routerPublicIps),
+        publicIp: resolveSessionPublicIp(s, routerPublicIps),
         mac: s.device_mac ?? null, // Resolved server-side; null means genuinely no device, not a masked value.
         device: deviceLabelFrom(s.user_agent),
         authMethod: s.auth_method ?? null,
@@ -2643,7 +2622,7 @@ export function ReportPanel({
                     type="text"
                     placeholder={
                       reportType === "guest-session-log"
-                        ? "Private IP, public IP, phone, MAC…"
+                        ? "Private IP, venue public IP, phone, MAC…"
                         : reportType === "login-access-log"
                           ? "Identifier or IP…"
                           : "Filter…"

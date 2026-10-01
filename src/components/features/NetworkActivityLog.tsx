@@ -107,8 +107,10 @@ function PageHeader() {
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
         <p>
           This shows session-level connection and login records, not destination-level traffic (what
-          site a guest visited). The platform does not currently guarantee a specific data-retention
-          period for these records.
+          site a guest visited). Private IP is the guest&apos;s address on your WiFi; venue public IP
+          is your router&apos;s routable WAN address (shared NAT egress), shown only when the router
+          reports a real public address — not a LAN/CGNAT interface. The platform does not currently
+          guarantee a specific data-retention period for these records.
         </p>
       </div>
     </div>
