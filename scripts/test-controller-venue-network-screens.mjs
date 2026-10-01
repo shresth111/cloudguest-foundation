@@ -752,6 +752,57 @@ console.log("\nSecurity -> Firewall: plain words in, forward rules out");
   );
 }
 
+console.log("\nSecurity -> Firewall: a website is blocked by name, not by address");
+{
+  const fw = m.firewallRules;
+  check(
+    "website-pasted-from-the-address-bar-becomes-a-bare-name",
+    fw.websiteToDomain("https://www.YouTube.com/watch?v=1") === "youtube.com" &&
+      fw.websiteToDomain("m.facebook.com/") === "m.facebook.com" &&
+      fw.websiteToDomain("example.org.") === "example.org" &&
+      fw.websiteToDomain("http://site.in:8080/x") === "site.in",
+  );
+  check(
+    "www-is-dropped-so-the-whole-site-is-covered",
+    fw.websiteToDomain("www.instagram.com") === "instagram.com",
+    "the router's DNS block covers subdomains of the name it gets; www.x would leave x open",
+  );
+  check(
+    "not-a-website-name-is-refused-before-the-backend",
+    fw.websiteToDomain("youtube") === null &&
+      fw.websiteToDomain("203.0.113.9") === null &&
+      fw.websiteToDomain("bad_name.com") === null &&
+      fw.websiteToDomain("   ") === null,
+  );
+  const base = {
+    name: "x1",
+    decision: "block",
+    who: "",
+    service: "everything",
+    customProtocol: "tcp",
+    customPort: "",
+    priority: 100,
+    isEnabled: true,
+  };
+  check(
+    "a-website-typed-into-the-address-field-points-at-block-a-website",
+    /Block a website/.test(
+      fw.validateFirewallDraft({ ...base, where: "youtube.com" }).where ?? "",
+    ) &&
+      !/Block a website/.test(
+        fw.validateFirewallDraft({ ...base, where: "999.1.1.1" }).where ?? "",
+      ),
+  );
+  check(
+    "new-allow-goes-above-every-block-and-new-block-below",
+    fw.newRulePriority("allow", [{ priority: 100 }, { priority: 110 }]) === 90 &&
+      fw.newRulePriority("block", [{ priority: 100 }, { priority: 110 }]) === 120 &&
+      fw.newRulePriority("allow", [{ priority: 5 }]) === 0 &&
+      fw.newRulePriority("block", []) === 100,
+    "the router stops at the first match; an Allow below a Block does nothing",
+  );
+}
+
 // ---------------------------------------------------------------------------
 // 6. Security -> Web Filtering: the picker's rules and every refusal's
 //    sentence, executed from `lib/web-filtering.ts`.

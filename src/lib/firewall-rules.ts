@@ -224,7 +224,9 @@ export function validateFirewallDraft(
     errors.who = "Enter an address like 192.168.88.50, or a range like 192.168.88.0/24.";
   }
   if (d.where.trim() && !isAddressOrRange(d.where)) {
-    errors.where = "Enter an address like 203.0.113.9, or a range like 203.0.113.0/24.";
+    errors.where = looksLikeWebsite(d.where)
+      ? 'That\'s a website name. Use "Block a website" above instead — it blocks by name, no address needed.'
+      : "Enter an address like 203.0.113.9, or a range like 203.0.113.0/24.";
   }
   let port: number | null = null;
   if (d.service === "custom") {
@@ -479,4 +481,57 @@ export function applySummary(rules: readonly PlainFirewallRule[]): {
     blocks: on.filter((r) => r.action !== "accept").length,
     unpushable: rules.filter((r) => r.chain !== "forward" && r.isEnabled).length,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Websites by name (DNS), not by address.
+// ---------------------------------------------------------------------------
+
+const DOMAIN_LABEL = "[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?";
+const DOMAIN = new RegExp(`^${DOMAIN_LABEL}(\\.${DOMAIN_LABEL})+$`);
+
+/**
+ * What an owner typed -> the bare name the content-filtering domain takes,
+ * or `null` when it is not a website name.
+ *
+ * Owners paste what is in their address bar: "https://www.youtube.com/watch",
+ * "YouTube.com", "m.facebook.com/". The router's DNS block already covers
+ * every subdomain of the name it is given, so a leading `www.` is dropped:
+ * blocking `youtube.com` blocks `www.youtube.com` too, while blocking
+ * `www.youtube.com` would leave `youtube.com` and `m.youtube.com` open.
+ *
+ * Mirrors the backend's `normalize_domain` grammar (at least two labels,
+ * RFC 1035 labels) so a name accepted here is not refused on Save. An IPv4
+ * address is not a name -- that is a firewall rule's job -- and returns null.
+ */
+export function websiteToDomain(input: string): string | null {
+  let v = input.trim().toLowerCase();
+  if (!v) return null;
+  v = v.replace(/^[a-z][a-z0-9+.-]*:\/\//, "");
+  v = v.split(/[/?#]/, 1)[0];
+  v = v.replace(/:\d+$/, "").replace(/\.$/, "");
+  if (v.startsWith("www.")) v = v.slice(4);
+  // A real top-level domain is never all digits; "999.1.1.1" is a mistyped
+  // address, not a website.
+  if (IPV4.test(v) || /\.\d+$/.test(v)) return null;
+  return DOMAIN.test(v) ? v : null;
+}
+
+/** True when a "where to" entry is a website name rather than an address --
+ * the one mistake the address field invites most. */
+export function looksLikeWebsite(input: string): boolean {
+  return !isAddressOrRange(input) && websiteToDomain(input) !== null;
+}
+
+/** Where a new rule goes in the list. An Allow is almost always an exception
+ * to a Block ("block the office network, except the printer"), and the router
+ * stops at the first match, so it has to sit above the Blocks to do anything.
+ * A Block goes at the bottom, after every existing rule. */
+export function newRulePriority(
+  decision: "allow" | "block",
+  rules: readonly { priority: number }[],
+): number {
+  if (!rules.length) return 100;
+  const ps = rules.map((r) => r.priority);
+  return decision === "allow" ? Math.max(0, Math.min(...ps) - 10) : Math.max(...ps) + 10;
 }
