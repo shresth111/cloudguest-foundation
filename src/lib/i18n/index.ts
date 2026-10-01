@@ -6,12 +6,24 @@ import enGuests from "./locales/en/guests.json";
 import enAccount from "./locales/en/account.json";
 import enHelp from "./locales/en/help.json";
 import enMarketing from "./locales/en/marketing.json";
+import enWhitelist from "./locales/en/whitelist.json";
+import enTrustedDevices from "./locales/en/trustedDevices.json";
+import enOpenHours from "./locales/en/openHours.json";
+import enGuestGroups from "./locales/en/guestGroups.json";
+import enFixProblem from "./locales/en/fixProblem.json";
+import enAccessRules from "./locales/en/accessRules.json";
 import hiCommon from "./locales/hi/common.json";
 import hiNav from "./locales/hi/nav.json";
 import hiGuests from "./locales/hi/guests.json";
 import hiAccount from "./locales/hi/account.json";
 import hiHelp from "./locales/hi/help.json";
 import hiMarketing from "./locales/hi/marketing.json";
+import hiWhitelist from "./locales/hi/whitelist.json";
+import hiTrustedDevices from "./locales/hi/trustedDevices.json";
+import hiOpenHours from "./locales/hi/openHours.json";
+import hiGuestGroups from "./locales/hi/guestGroups.json";
+import hiFixProblem from "./locales/hi/fixProblem.json";
+import hiAccessRules from "./locales/hi/accessRules.json";
 
 const LANG_CACHE_KEY = "cg.dashboard.lang";
 
@@ -50,6 +62,10 @@ function readCachedLang(): string {
 // partial coverage this file already documents, rather than shipping
 // machine-quality Hindi to paying venues. They need a native review pass
 // before they are added to `hi/help.json`.
+// One namespace per translated customer screen (whitelist, trustedDevices,
+// openHours, guestGroups, fixProblem, accessRules) rather than piling every
+// screen body into nav.json: each file stays reviewable on its own, and a
+// native-speaker pass can be done one screen at a time.
 i18n.use(initReactI18next).init({
   resources: {
     en: {
@@ -59,6 +75,12 @@ i18n.use(initReactI18next).init({
       account: enAccount,
       help: enHelp,
       marketing: enMarketing,
+      whitelist: enWhitelist,
+      trustedDevices: enTrustedDevices,
+      openHours: enOpenHours,
+      guestGroups: enGuestGroups,
+      fixProblem: enFixProblem,
+      accessRules: enAccessRules,
     },
     hi: {
       common: hiCommon,
@@ -67,11 +89,30 @@ i18n.use(initReactI18next).init({
       account: hiAccount,
       help: hiHelp,
       marketing: hiMarketing,
+      whitelist: hiWhitelist,
+      trustedDevices: hiTrustedDevices,
+      openHours: hiOpenHours,
+      guestGroups: hiGuestGroups,
+      fixProblem: hiFixProblem,
+      accessRules: hiAccessRules,
     },
   },
   lng: readCachedLang(),
   fallbackLng: "en",
-  ns: ["common", "nav", "guests", "account", "help", "marketing"],
+  ns: [
+    "common",
+    "nav",
+    "guests",
+    "account",
+    "help",
+    "marketing",
+    "whitelist",
+    "trustedDevices",
+    "openHours",
+    "guestGroups",
+    "fixProblem",
+    "accessRules",
+  ],
   defaultNS: "common",
   interpolation: { escapeValue: false },
   returnNull: false,

@@ -156,14 +156,14 @@ export function MarketingView({
       return (
         <EmptyState
           icon={ShieldOff}
-          title="Your role doesn't include Marketing"
+          title="Your role doesn't include Guest Messaging"
           description="Ask your account owner to give your role Marketing access in Staff Access."
         />
       );
     }
     return (
       <ErrorState
-        title="Couldn't load Marketing"
+        title="Couldn't load Guest Messaging"
         description={marketingErrorMessage(status.error, "The server didn't answer.")}
         onRetry={() => void status.refetch()}
       />

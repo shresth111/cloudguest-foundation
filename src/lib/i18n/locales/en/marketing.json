@@ -1,5 +1,5 @@
 {
-  "title": "Marketing",
+  "title": "Guest Messaging",
   "intro": "Send WhatsApp, SMS and email campaigns to guests who opted in to hear from you on your WiFi login page.",
   "tabs": {
     "campaigns": "Campaigns",
@@ -38,10 +38,10 @@
   },
   "locked": {
     "badge": "Add-on",
-    "title": "Marketing is an add-on",
+    "title": "Guest Messaging is an add-on",
     "body": "Reach guests who opted in on your WiFi login page with WhatsApp, SMS and email offers. It is not part of your current plan.",
     "request": "Ask your Wyfy Guest account manager to turn it on for your organisation.",
-    "lapsed": "Your Wyfy Guest licence is not active, so Marketing is unavailable until it is renewed."
+    "lapsed": "Your Wyfy Guest licence is not active, so Guest Messaging is unavailable until it is renewed."
   },
   "demo": {
     "banner": "Demo workspace: sample guests, campaigns and numbers. Everything works, but nothing is actually sent, and your changes last only until you reload."

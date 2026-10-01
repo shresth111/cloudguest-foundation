@@ -338,7 +338,19 @@ console.log("\n7. EN/HI parity across the venue-admin dictionaries");
 // (`test:portal-i18n-parity`) is the GUEST PORTAL and does not read these
 // files. Nothing ran over them until now.
 
-const NAMESPACES = ["common", "nav", "guests", "account", "help"];
+const NAMESPACES = [
+  "common",
+  "nav",
+  "guests",
+  "account",
+  "help",
+  "whitelist",
+  "trustedDevices",
+  "openHours",
+  "guestGroups",
+  "fixProblem",
+  "accessRules",
+];
 /**
  * `help` is deliberately partial: `hi/help.json` carries the page chrome and
  * the eight group lines, and the 26 per-screen sentences reach a Hindi reader

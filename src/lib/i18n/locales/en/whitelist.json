@@ -1,0 +1,112 @@
+{
+  "thisProperty": "this property",
+  "header": {
+    "description": "The numbers and devices allowed to get online once this property is closed to everyone else."
+  },
+  "switch": {
+    "title": "Only allow the guests on this list",
+    "on": "On. Only the numbers and devices below get online at {{place}}.",
+    "off": "Off. Every guest signs in on the WiFi login page and gets online — this is how {{place}} works today.",
+    "explainer": "Turning this on does not hide your WiFi: everyone still reaches your login page, and the people below keep working. Everyone else is refused on that page, in your words, and is never sent a verification code. The list is checked when someone signs in, so anyone already online stays online until their session ends.",
+    "property": "Property",
+    "chooseProperty": "Choose a property",
+    "ariaLabel": "Only allow the guests on this list at {{place}}"
+  },
+  "denials": {
+    "unavailable": "Refused guests: not available right now",
+    "capped": "{{count}}+ guests were refused here in the last 24 hours",
+    "count_one": "{{count}} guest was refused here in the last 24 hours",
+    "count_other": "{{count}} guests were refused here in the last 24 hours",
+    "explainer": "Every refusal is recorded against this property. A number far higher than you expect usually means a list entry is stored in a form that cannot match anyone — check the entries below still show a country code."
+  },
+  "message": {
+    "label": "What a refused guest sees",
+    "placeholder": "e.g. Ask the front desk to add your number to the guest WiFi list.",
+    "help": "Shown on your WiFi login page to anyone who is not on the list. Leave it empty and guests see the standard message instead.",
+    "save": "Save message"
+  },
+  "confirm": {
+    "title": "Refuse everyone not on this list at {{place}}?",
+    "effect": "From the moment you save, a guest who is not on the list still reaches your WiFi login page and is refused there. They are not sent a verification code and no session starts for them.",
+    "scope": "This changes {{place}} only. Your other properties keep working exactly as they do now, and you can switch this back off at any time.",
+    "typeToConfirm": "Type <1>{{name}}</1> to confirm",
+    "action": "Turn on for {{place}}"
+  },
+  "status": {
+    "active": "Active",
+    "expired": "Expired"
+  },
+  "kpi": {
+    "totalNumbers": "Total numbers",
+    "totalDevices": "Total devices"
+  },
+  "tabs": {
+    "number": "Allow a Number",
+    "device": "Allow a Device"
+  },
+  "form": {
+    "titleNumber": "Allow a number",
+    "titleDevice": "Allow a device",
+    "whoTitle": "Who's Allowed",
+    "whoNumber": "The guest's mobile number, and who it belongs to.",
+    "whoDevice": "The device's address, and who it belongs to.",
+    "mobile": "Mobile Number",
+    "mobilePlaceholder": "10-digit mobile number",
+    "deviceAddress": "Device address",
+    "location": "Location",
+    "name": "Name",
+    "namePlaceholder": "Guest name",
+    "deviceLabel": "Device label",
+    "deviceLabelPlaceholder": "e.g. Office Printer",
+    "email": "Email",
+    "windowTitle": "Access Window",
+    "windowHelp": "How long this entry stays on the list.",
+    "starts": "Starts",
+    "startsValue": "As soon as you save",
+    "startsHelp": "Scheduling a later start isn’t supported yet.",
+    "endDate": "End Date"
+  },
+  "actions": {
+    "cancel": "Cancel",
+    "saveChanges": "Save Changes",
+    "allowNumber": "Allow Number",
+    "allowDevice": "Allow Device",
+    "editNamed": "Edit {{name}}",
+    "deleteNamed": "Delete {{name}}"
+  },
+  "list": {
+    "titleGuests": "Allow-listed guests",
+    "titleDevices": "Allow-listed devices",
+    "subtitle": "Everything currently allowed across your account.",
+    "search": "Search…",
+    "emptyTitle": "Nothing allowed yet",
+    "emptyBody": "Add a guest's mobile number or device above. When the switch above is on, only guests on this list can sign in. For a printer or till that should connect without signing in, use Trusted Devices.",
+    "emptyAction": "Allow a number or device",
+    "window": "Access window",
+    "noEndDate": "No end date",
+    "showing": "Showing {{from}}–{{to}} of {{total}}",
+    "previous": "Previous page",
+    "next": "Next page"
+  },
+  "errors": {
+    "readSettings": "Could not read this property's settings.",
+    "orgLoading": "Could not save — your organization is still loading. Refresh and try again.",
+    "readLoginPage": "Could not read this property's WiFi login page settings. Refresh and try again.",
+    "saveSetting": "Could not save this setting. Nothing changed — the property is still in its previous mode.",
+    "fixFirst": "Fix the issues below before turning this on.",
+    "mobile": "Mobile must be exactly 10 digits.",
+    "mac": "That doesn't look like a device address. Example: AA:BB:CC:DD:EE:FF",
+    "name": "Name is required.",
+    "email": "Enter a valid email address.",
+    "endDateRequired": "End date is required.",
+    "endDateFuture": "End date must be in the future."
+  },
+  "toast": {
+    "modeOn": "Whitelist-only mode is on for {{place}}.",
+    "modeOff": "Whitelist-only mode is off for {{place}}.",
+    "numberAllowed": "Number allowed.",
+    "deviceAllowed": "Device allowed.",
+    "noOrg": "No organization found for this session.",
+    "saveFailed": "Could not save — check the connection and try again."
+  }
+}

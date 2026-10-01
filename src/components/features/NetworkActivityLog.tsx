@@ -1,4 +1,6 @@
 import { Radar, ShieldAlert, Info } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/common/EmptyState";
 import { getCustomerLoginRole } from "@/lib/customerNav";
@@ -52,7 +54,7 @@ export default function NetworkActivityLog({ masked = true }: { masked?: boolean
             <EmptyState
               icon={ShieldAlert}
               title="Owner access only"
-              description="Network Activity Log shows a security-sensitive record of guest connections and login attempts. Only the Organization Owner can view this page."
+              description="Guest Connection Records shows a security-sensitive record of guest connections and login attempts. Only the Organization Owner can view this page."
             />
           </CardContent>
         </Card>
@@ -78,6 +80,7 @@ export default function NetworkActivityLog({ masked = true }: { masked?: boolean
  * recommended wording (§5) verbatim: describes what this page actually
  * does, no "compliance"/"IPDR" claim. */
 function PageHeader() {
+  const { t } = useTranslation("nav", { i18n });
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -87,7 +90,7 @@ function PageHeader() {
           </div>
           <div>
             <h2 className="text-lg font-semibold tracking-tight text-foreground">
-              Network Activity Log
+              {t("customerItem.network-activity", "Guest Connection Records")}
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Every guest's connection history: who connected, from which device, for how long, and
