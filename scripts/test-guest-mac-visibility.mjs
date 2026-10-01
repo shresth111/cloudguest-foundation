@@ -133,7 +133,11 @@ check(
 check(
   "Guest Session Log exposes router WAN public IP beside private session IP",
   /key:\s*"publicIp",\s*label:\s*"Public IP"/.test(userReports) &&
-    /publicIp:\s*\(s\.router_id/.test(userReports),
+    /resolveSessionPublicIp\(/.test(userReports),
+);
+check(
+  "Guest Session Log filter matches private and public IP columns",
+  /rowMatchesGuestSessionLogSearch/.test(userReports),
 );
 
 // ---------------------------------------------------------------------------

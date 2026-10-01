@@ -716,6 +716,7 @@ function mockRow(
       r.name = NAMES[i % NAMES.length];
       r.mobile = phone(i);
       r.ip = `10.0.${(i % 4) + 1}.${(i % 250) + 2}`;
+      r.publicIp = `103.${84 + (i % 3)}.${20 + (i % 10)}.${100 + (i % 50)}`;
       r.mac = ["00:1A:2B:3C:4D:5E", "AA:BB:CC:DD:EE:FF", "11:22:33:44:55:66", "AB:CD:EF:01:23:45"][
         i % 4
       ];
@@ -947,6 +948,64 @@ async function fetchRouterPublicIpsById(
   return new Map(routers.map((r) => [r.id, r.publicIpAddress ?? null]));
 }
 
+/** RFC1918 / link-local -- not shown as "public" in the session log. */
+function isPrivateOrLocalIp(ip: string): boolean {
+  const t = ip.trim().toLowerCase();
+  if (!t || t.includes(":")) return false; // v6: treat as opaque, not classified here
+  if (t.startsWith("10.")) return true;
+  if (t.startsWith("192.168.")) return true;
+  if (t.startsWith("127.")) return true;
+  if (t.startsWith("169.254.")) return true;
+  if (t.startsWith("172.")) {
+    const second = Number.parseInt(t.split(".")[1] ?? "", 10);
+    if (second >= 16 && second <= 31) return true;
+  }
+  return false;
+}
+
+const LOGIN_PUBLIC_IP_WINDOW_MS = 15 * 60 * 1000;
+
+/** Guest sign-in IP from login history when it is a real public address;
+ * otherwise the venue router's WAN IP (NAT egress). */
+function resolveSessionPublicIp(
+  session: RealGuestSession,
+  loginAttempts: RealGuestLoginAttempt[],
+  routerPublicIps: Map<string, string | null>,
+): string | null {
+  if (session.guest_id) {
+    const start = new Date(session.started_at).getTime();
+    let bestIp: string | null = null;
+    let bestAt = 0;
+    for (const a of loginAttempts) {
+      if (!a.success || a.guest_id !== session.guest_id || !a.ip_address) continue;
+      if (isPrivateOrLocalIp(a.ip_address)) continue;
+      const at = new Date(a.attempted_at).getTime();
+      if (at > start || start - at > LOGIN_PUBLIC_IP_WINDOW_MS) continue;
+      if (at >= bestAt) {
+        bestAt = at;
+        bestIp = a.ip_address;
+      }
+    }
+    if (bestIp) return bestIp;
+  }
+  if (session.router_id) {
+    const wan = routerPublicIps.get(session.router_id);
+    if (wan) return wan;
+  }
+  return null;
+}
+
+function rowMatchesGuestSessionLogSearch(r: Row, q: string): boolean {
+  const ql = q.toLowerCase().trim();
+  if (!ql) return true;
+  const ipKeys = ["ip", "publicIp", "mac"] as const;
+  for (const key of ipKeys) {
+    const raw = r[key];
+    if (raw != null && String(raw).toLowerCase().includes(ql)) return true;
+  }
+  return false;
+}
+
 // GET /guest-sessions caps page_size at 100 (backend/app/domains/guest/router.py's
 // `page_size: int = Query(default=25, ge=1, le=100)`) -- a single page_size=500
 // request 422s outright, which silently turned every real Bandwidth & Cost Report into
@@ -1142,10 +1201,11 @@ async function realGuestSessionLog(
   from: string,
   to: string,
 ): Promise<Row[]> {
-  const [sessions, guestsById, routerPublicIps] = await Promise.all([
+  const [sessions, guestsById, routerPublicIps, loginAttempts] = await Promise.all([
     fetchRealSessions(orgId, locationId, from, to),
     fetchRealGuestsById(orgId, locationId),
     fetchRouterPublicIpsById(orgId, locationId),
+    fetchRealLoginHistory(orgId, locationId, from, to),
   ]);
   return sessions
     .slice()
@@ -1161,7 +1221,7 @@ async function realGuestSessionLog(
         mobile: identity.phone || null,
         email: identity.email || null,
         ip: s.ip_address ?? null,
-        publicIp: (s.router_id ? routerPublicIps.get(s.router_id) : null) ?? null,
+        publicIp: resolveSessionPublicIp(s, loginAttempts, routerPublicIps),
         mac: s.device_mac ?? null, // Resolved server-side; null means genuinely no device, not a masked value.
         device: deviceLabelFrom(s.user_agent),
         authMethod: s.auth_method ?? null,
@@ -1550,6 +1610,7 @@ async function realVoucherBatchRate(
 
 interface RealGuestLoginAttempt {
   identifier: string;
+  guest_id?: string | null;
   ip_address?: string | null;
   auth_method: string;
   success: boolean;
@@ -1989,13 +2050,16 @@ export function ReportPanel({
     // actually left on screen, same as a sighted user manually scanning
     // the table would see.
     let filtered = q
-      ? rows.filter((r) =>
-          cols.some((c) =>
+      ? rows.filter((r) => {
+          const viaColumns = cols.some((c) =>
             fmtCell(c.key, r[c.key] ?? null)
               .toLowerCase()
               .includes(q),
-          ),
-        )
+          );
+          if (viaColumns) return true;
+          if (reportType === "guest-session-log") return rowMatchesGuestSessionLogSearch(r, q);
+          return false;
+        })
       : rows;
     const col = cols.find((c) => c.key === sortKey);
     if (col) {
@@ -2015,7 +2079,7 @@ export function ReportPanel({
       });
     }
     return filtered;
-  }, [rows, searchTxt, sortKey, sortDir, cols, fmtCell]);
+  }, [rows, searchTxt, sortKey, sortDir, cols, fmtCell, reportType]);
 
   const totalPages = Math.max(1, Math.ceil(sortedRows.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages - 1);
@@ -2577,7 +2641,13 @@ export function ReportPanel({
                   <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <input
                     type="text"
-                    placeholder="Filter…"
+                    placeholder={
+                      reportType === "guest-session-log"
+                        ? "Private IP, public IP, phone, MAC…"
+                        : reportType === "login-access-log"
+                          ? "Identifier or IP…"
+                          : "Filter…"
+                    }
                     value={searchTxt}
                     onChange={(e) => {
                       setSearchTxt(e.target.value);
