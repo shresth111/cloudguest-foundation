@@ -6,7 +6,7 @@ import { requireActiveLocationId } from "@/lib/customerLocationGuard";
  * Moved, kept as a redirect.
  *
  * Website Blocking used to be its own row in the Network group. It is now the
- * "Websites & IPs" tab of Security -> Blocking, beside blocked guests, so that
+ * "Websites" tab of Security -> Block Websites, beside blocked guests, so that
  * everything a venue can block is in one place (see `lib/blocking.ts`). The
  * rules, the screen and the requests are the same ones; only the address
  * moved.

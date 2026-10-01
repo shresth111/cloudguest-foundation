@@ -23,7 +23,6 @@ import {
   Plug,
   Ban,
   BrickWall,
-  Filter,
   LifeBuoy,
   Share2,
   HelpCircle,
@@ -160,38 +159,37 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
   {
     id: "security",
     label: "Security",
-    // Four rows, and each opens a screen that does something. The posture
+    // Three rows, and each opens a screen that does something. The posture
     // page is the only security surface whose numbers this platform can
-    // actually produce (see SecurityOverviewView's own note), and Blocking
-    // is the one place to stop a website, an address or a guest -- built
-    // entirely from screens that already worked elsewhere (lib/blocking.ts).
+    // actually produce (see SecurityOverviewView's own note), and Block
+    // Websites is the one place to stop a website (by name or by category),
+    // an address or a guest -- built entirely from screens that already
+    // worked elsewhere (lib/blocking.ts). "Web filtering" was a fourth row;
+    // its categories are a section of Block Websites now and /web-filtering
+    // redirects there, because two rows for "block a website" sent owners
+    // looking in the wrong one.
     // Firewall joined them once rules could actually reach the router
     // (cloud-guest#304's push): a rules screen with no way to apply them
     // would have been the placeholder this group refuses to ship. Zone
     // isolation joins when it is real; listing it now would put a row in the
     // sidebar that opens a placeholder.
     //
-    // The first label is "Overview", not "Security": the group header
+    // The first label is "Security Score", not "Security": the group header
     // already says Security, and a row repeating its own group is the same
-    // duplicated heading this dashboard has been pulled up on elsewhere.
+    // duplicated heading this dashboard has been pulled up on elsewhere. It
+    // was "Overview", which collided with the Overview group above it.
     //
     // Blocking takes `Ban`, which moved with it from the retired Network
     // row -- no other row uses it, so the collapsed rail stays unambiguous.
     // Owner-only, like Access Rules that "Blocked Guests" came from.
     items: [
-      { id: "security", label: "Overview", icon: ShieldAlert, roles: ["owner"] },
-      { id: "blocking", label: "Blocking", icon: Ban, roles: ["owner"] },
+      { id: "security", label: "Security Score", icon: ShieldAlert, roles: ["owner"] },
+      { id: "blocking", label: "Block Websites", icon: Ban, roles: ["owner"] },
       // Owner-only, like every other screen that writes the venue's router.
       // `BrickWall`: unused elsewhere, and it is what the word means. At a
       // controller-only venue the row is muted and the page shows the
       // controller notice ("firewall" is in CONTROLLER_UNSUPPORTED_FEATURE_IDS).
       { id: "firewall", label: "Firewall", icon: BrickWall, roles: ["owner"] },
-      // Cloudflare category filtering (cloud-guest#307). Owner-only: Turn on
-      // changes how the venue's router looks up every website. The page is
-      // never a placeholder -- with no Cloudflare account connected it says
-      // "Not set up yet" and mounts no control. Muted at a controller-only
-      // venue ("web-filtering" is in CONTROLLER_UNSUPPORTED_FEATURE_IDS).
-      { id: "web-filtering", label: "Web filtering", icon: Filter, roles: ["owner"] },
     ],
   },
   {

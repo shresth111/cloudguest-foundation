@@ -195,13 +195,20 @@ check(
   "the staff shell mounts the same Firewall page",
   /case "firewall":\s*return <FirewallView\b/.test(customerFeatures),
 );
+// Web filtering and the "Block a website" box both live in Block Websites
+// now: one home for blocking a website, mounted by BlockingView only.
 check(
-  "the customer shell mounts Web filtering once",
-  (customerShell.match(/<WebFilteringView\b/g) ?? []).length === 1,
+  "Block Websites mounts Web filtering and the website box, once each",
+  (blockingView.match(/<WebFilteringView\b/g) ?? []).length === 1 &&
+    (blockingView.match(/<WebsiteBlockBox\b/g) ?? []).length === 1,
 );
 check(
-  "the staff shell mounts the same Web filtering page",
-  /case "web-filtering":\s*return <WebFilteringView\b/.test(customerFeatures),
+  "neither shell nor Firewall mounts them as a second home",
+  [
+    "src/config/customerFeatures.tsx",
+    "src/components/customer/CustomerFeaturePage.tsx",
+    "src/components/security/FirewallView.tsx",
+  ].every((rel) => !/<WebFilteringView\b|<WebsiteBlockBox\b/.test(readCode(rel))),
 );
 check(
   "neither customer shell mounts the operator firewall screen",

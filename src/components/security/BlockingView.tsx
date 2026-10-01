@@ -1,16 +1,29 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Globe2, UserX } from "lucide-react";
+import { ChevronDown, Globe2, Loader2, Router as RouterIcon, UserX } from "lucide-react";
 import i18n from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { EmptyState } from "@/components/common/EmptyState";
 import { ContentFilterManagement } from "@/components/network/ContentFilterManagement";
+import { ControllerRoutersNote } from "@/components/network/RouterPickerItems";
 import BlockUsers from "@/components/features/BlockUsers";
 import { ControllerManagedFeatureNotice } from "@/components/customer/ControllerManagedFeatureNotice";
+import { WebsiteBlockBox } from "@/components/security/WebsiteBlockBox";
+import { WebFilteringView } from "@/components/security/WebFilteringView";
 import { useMyPermissions } from "@/hooks/useCustomerDashboard";
 import { useCustomerStore } from "@/stores/customerStore";
+import { routerService } from "@/services/router.service";
+import { isDemo, resolveOrgId } from "@/services/customer.service";
+import { requestErrorOf } from "@/services/api";
 import { locationControllerVendor, locationIsControllerManaged } from "@/lib/location-liveness";
-import { featureAppliesToControllerVenue } from "@/lib/router-vendors";
+import {
+  featureAppliesToControllerVenue,
+  partitionRoutersByDeviceWrite,
+} from "@/lib/router-vendors";
 import {
   blockingTabsFor,
   initialBlockingTab,
@@ -23,23 +36,48 @@ const TAB_ICON: Record<BlockingTabId, typeof Globe2> = {
   guests: UserX,
 };
 
+/** In-page anchors on the Websites tab. `/web-filtering` redirects to
+ * `#categories`; the Security Score's "Block an internet address" link opens
+ * `#advanced`, which also unfolds it. */
+export const BLOCK_WEBSITES_SECTION_IDS = {
+  specific: "specific-websites",
+  categories: "categories",
+  advanced: "advanced",
+} as const;
+
 /**
- * Security -> Blocking. One place to block a website, an address or a guest.
+ * Security -> Block Websites. The one place to block a website, plus the
+ * guests & devices tab that has always lived beside it.
  *
- * A shell and nothing else: every tab mounts the screen that already did the
- * job (see `lib/blocking.ts` for which, and why each one moved rather than
+ * A shell and nothing else: every section mounts the screen that already did
+ * the job (see `lib/blocking.ts` for which, and why each one moved rather than
  * being copied). No request is made here that those screens did not already
- * make, and there is no save on this page of its own.
+ * make, apart from the venue's router list, which shares its cache key with
+ * the categories section so the page asks for it once.
+ *
+ * ## The Websites tab, top to bottom
+ *
+ *  1. "Specific websites": the `WebsiteBlockBox` (type a name, press Block,
+ *     the bypass switch), once per router this platform can write -- picked
+ *     exactly as Firewall picks them (`partitionRoutersByDeviceWrite`, with
+ *     `ControllerRoutersNote` naming any controller left out).
+ *  2. "Categories": `WebFilteringView`, mounted whole. It already handles
+ *     "not set up", demo and its own controller gate, so embedding it costs
+ *     nothing and a link out would only have been a second page to find.
+ *  3. "Advanced", folded: `ContentFilterManagement`, the full rule list. It
+ *     is the only place an internet address (IP or range) is blocked, and it
+ *     shows every website rule with its status, so nothing that screen could
+ *     do is lost; it is folded because a venue owner almost never needs it.
  *
  * ## Controller-managed venues
  *
  * Same rule as `CustomerFeaturePage`, applied per tab rather than per page.
- * "Websites & IPs" writes to a MikroTik; at a venue whose only router is an
- * Omada controller there is nothing for it to write to, so that tab shows
- * the existing `ControllerManagedFeatureNotice` and the form is never
- * mounted. "Guests & devices" keeps working there exactly as it did under
- * Access Rules -- `BlockUsers` already reports what the controller did with
- * each block. The page therefore opens on that tab at such a venue.
+ * Everything on "Websites" writes to a MikroTik; at a venue whose only router
+ * is an Omada controller there is nothing for it to write to, so that tab
+ * shows the existing `ControllerManagedFeatureNotice` and none of the three
+ * sections is mounted. "Guests & devices" keeps working there exactly as it
+ * did under Access Rules -- `BlockUsers` already reports what the controller
+ * did with each block. The page therefore opens on that tab at such a venue.
  *
  * Reads the venue from the store rather than taking it as props, so the
  * owner's `/blocking` route and the staff `/agent` shell mount it the same
@@ -48,9 +86,10 @@ const TAB_ICON: Record<BlockingTabId, typeof Globe2> = {
  * ## The URL carries the tab
  *
  * With `syncWithUrl`, `?tab=websites|guests` picks the tab and switching tabs
- * rewrites it. That is what lets the Security overview and an old
- * `/website-blocking` bookmark land on the right tab. The `/agent` shell has
- * one URL for every feature, so it leaves this off and keeps the tab local.
+ * rewrites it. That is what lets the Security Score and old
+ * `/website-blocking` and `/web-filtering` bookmarks land on the right tab.
+ * The `/agent` shell has one URL for every feature, so it leaves this off and
+ * keeps the tab local.
  */
 export function BlockingView({
   locationId,
@@ -93,8 +132,8 @@ export function BlockingView({
     <div className="space-y-5">
       <p className="max-w-3xl text-sm text-muted-foreground">
         {t(
-          "blockingPage.intro",
-          "Stop a website, an internet address or a guest from using your guest WiFi.",
+          "blockWebsites.intro",
+          "Stop websites from opening on your guest WiFi, or stop a guest or device from using it.",
         )}{" "}
         {t("blockingPage.onlyAllowedPrefix", "To let in only people you have listed, use")}{" "}
         <Link
@@ -136,7 +175,7 @@ export function BlockingView({
                   vendor={controllerVendor}
                 />
               ) : o.id === "websites" ? (
-                <ContentFilterManagement locationId={locationId} />
+                <WebsitesTab locationId={locationId} />
               ) : (
                 <BlockUsers locationId={locationId} />
               )}
@@ -144,6 +183,176 @@ export function BlockingView({
           );
         })}
       </Tabs>
+    </div>
+  );
+}
+
+function currentHash(): string {
+  if (typeof window === "undefined") return "";
+  return window.location.hash.replace(/^#/, "");
+}
+
+function SectionHeading({ title, hint }: { title: string; hint?: string }) {
+  return (
+    <div className="space-y-0.5">
+      <h2 className="text-base font-semibold text-foreground">{title}</h2>
+      {hint && <p className="max-w-3xl text-sm text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+function WebsitesTab({ locationId }: { locationId?: string }) {
+  const { t } = useTranslation("nav", { i18n });
+  const [advancedOpen, setAdvancedOpen] = useState(
+    () => currentHash() === BLOCK_WEBSITES_SECTION_IDS.advanced,
+  );
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // A deep link to a section (`/web-filtering` -> `#categories`, the Security
+  // Score's address link -> `#advanced`) scrolls to it once the tab mounts.
+  useEffect(() => {
+    const hash = currentHash();
+    if (!hash) return;
+    const el = rootRef.current?.querySelector(`#${CSS.escape(hash)}`);
+    if (el && "scrollIntoView" in el) el.scrollIntoView({ block: "start" });
+  }, []);
+
+  return (
+    <div ref={rootRef} className="space-y-8">
+      <section id={BLOCK_WEBSITES_SECTION_IDS.specific} className="scroll-mt-20 space-y-3">
+        <SectionHeading
+          title={t("blockWebsites.specificTitle", "Specific websites")}
+          hint={t(
+            "blockWebsites.specificHint",
+            "Type a website's name and press Block. It stops opening on your guest WiFi, along with every page under it.",
+          )}
+        />
+        <SpecificWebsites locationId={locationId} />
+      </section>
+
+      <section id={BLOCK_WEBSITES_SECTION_IDS.categories} className="scroll-mt-20 space-y-3">
+        <SectionHeading title={t("blockWebsites.categoriesTitle", "Categories")} />
+        <WebFilteringView locationId={locationId} />
+      </section>
+
+      <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+        <section id={BLOCK_WEBSITES_SECTION_IDS.advanced} className="scroll-mt-20 space-y-3">
+          <CollapsibleTrigger className="flex w-full items-start justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 px-4 py-3 text-left">
+            <span className="space-y-0.5">
+              <span className="block text-sm font-semibold text-foreground">
+                {t("blockWebsites.advancedTitle", "Advanced: block an internet address")}
+              </span>
+              <span className="block text-xs text-muted-foreground">
+                {t(
+                  "blockWebsites.advancedHint",
+                  "For blocking a number like 203.0.113.7 instead of a name, and for seeing every block on each router with its status.",
+                )}
+              </span>
+            </span>
+            <ChevronDown
+              className={cn(
+                "mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                advancedOpen && "rotate-180",
+              )}
+              aria-hidden="true"
+            />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="pt-2">
+            <ContentFilterManagement locationId={locationId} />
+          </CollapsibleContent>
+        </section>
+      </Collapsible>
+    </div>
+  );
+}
+
+/** One `WebsiteBlockBox` per router this platform can write, chosen the same
+ * way Firewall chooses them. */
+function SpecificWebsites({ locationId }: { locationId?: string }) {
+  const { t } = useTranslation("nav", { i18n });
+  const activeLocation = useCustomerStore((s) => s.activeLocation);
+  const demo = isDemo();
+
+  // Same key and request as WebFilteringView's own router list just below,
+  // so the page fetches the venue's routers once.
+  const routersQuery = useQuery({
+    queryKey: ["dns-filtering", "venue-routers", locationId],
+    enabled: !!locationId && !demo,
+    queryFn: async () => {
+      const orgId = activeLocation?.organizationId || (await resolveOrgId());
+      return routerService.listForLocation(locationId as string, orgId);
+    },
+  });
+
+  if (demo) {
+    return (
+      <EmptyState
+        icon={Globe2}
+        title={t("blockWebsites.demoTitle", "Not part of the demo account")}
+        description={t(
+          "blockWebsites.demoBody",
+          "Blocking a website changes a real router, and the demo account has none.",
+        )}
+      />
+    );
+  }
+
+  if (!locationId) {
+    return <EmptyState icon={Globe2} title={t("blockWebsites.noVenue", "Choose a venue first")} />;
+  }
+
+  if (routersQuery.isLoading) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+        {t("blockWebsites.loadingRouters", "Loading this venue's routers…")}
+      </div>
+    );
+  }
+
+  if (routersQuery.isError) {
+    return (
+      <p role="alert" className="text-sm text-destructive">
+        {requestErrorOf(routersQuery.error)?.message ??
+          t("blockWebsites.routersError", "Couldn't load this venue's routers.")}
+      </p>
+    );
+  }
+
+  const rows = routersQuery.data ?? [];
+  const { writable } = partitionRoutersByDeviceWrite(rows);
+
+  if (writable.length === 0) {
+    return (
+      <EmptyState
+        icon={RouterIcon}
+        title={t("blockWebsites.noRouterTitle", "No router here can block websites")}
+        description={
+          rows.length === 0
+            ? t("blockWebsites.noRouterBody", "This venue has no router yet.")
+            : undefined
+        }
+      >
+        <ControllerRoutersNote rows={rows} />
+      </EmptyState>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <ControllerRoutersNote rows={rows} />
+      {writable.map((router) => (
+        <div key={router.id} className="space-y-2">
+          {/* The router's name only matters when there is a choice of them. */}
+          {writable.length > 1 && (
+            <p className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <RouterIcon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+              {router.name}
+            </p>
+          )}
+          <WebsiteBlockBox routerId={router.id} />
+        </div>
+      ))}
     </div>
   );
 }

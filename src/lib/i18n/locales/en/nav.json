@@ -115,10 +115,9 @@
     "port-forwarding": "Port Forwarding",
     "voip": "Call Priority",
     "isp-details": "Internet Connection",
-    "security": "Overview",
-    "blocking": "Blocking",
+    "security": "Security Score",
+    "blocking": "Block Websites",
     "firewall": "Firewall",
-    "web-filtering": "Web filtering",
     "debugging": "Fix a Problem",
     "tickets": "Support Tickets",
     "admin-logs": "Logs",
@@ -129,7 +128,7 @@
     "addon": "Add-on"
   },
   "blockingTab": {
-    "websites": "Websites & IPs",
+    "websites": "Websites",
     "guests": "Guests & devices"
   },
   "blockingPage": {
@@ -327,5 +326,62 @@
     "stuckNoReason": "no reason was recorded.",
     "retryMove": "Try the change again",
     "retriedToast": "{{router}} now uses this venue's list"
+  },
+  "blockWebsites": {
+    "intro": "Stop websites from opening on your guest WiFi, or stop a guest or device from using it.",
+    "specificTitle": "Specific websites",
+    "specificHint": "Type a website's name and press Block. It stops opening on your guest WiFi, along with every page under it.",
+    "categoriesTitle": "Categories",
+    "advancedTitle": "Advanced: block an internet address",
+    "advancedHint": "For blocking a number like 203.0.113.7 instead of a name, and for seeing every block on each router with its status.",
+    "demoTitle": "Not part of the demo account",
+    "demoBody": "Blocking a website changes a real router, and the demo account has none.",
+    "noVenue": "Choose a venue first",
+    "loadingRouters": "Loading this venue's routers…",
+    "routersError": "Couldn't load this venue's routers.",
+    "noRouterTitle": "No router here can block websites",
+    "noRouterBody": "This venue has no router yet.",
+    "siteInvalid": "Type a website name like youtube.com. To block an internet address, open Advanced at the bottom of this page.",
+    "firewallIntro": "Decide which devices on your network may reach which internet addresses. Rules are checked top first, and nothing changes on your router until you apply them.",
+    "firewallWebsitesPrefix": "To block a website by its name, use",
+    "advancedEyebrow": "Advanced",
+    "allRulesTitle": "Every block, router by router",
+    "allRulesBody": "Websites and internet addresses blocked on your guest WiFi. A blocked website stops opening; a blocked internet address can't be reached at all. A new block does nothing until you press Apply to send it to the router.",
+    "addBlock": "Block a website or address",
+    "blockButton": "Block",
+    "dialogBody": "Block a website (and every page under it) or an internet address on this router's guest WiFi.",
+    "typeWebsite": "Website",
+    "typeAddress": "Internet address",
+    "valueWebsite": "Website name",
+    "valueAddress": "Internet address, or a range of them",
+    "valueInvalid": "Type just the name, like facebook.com, or just the address, like 203.0.113.7 — no https:// and nothing after the name."
+  },
+  "securityScore": {
+    "capabilitiesTitle": "What you can protect",
+    "workingTitle": "Working now",
+    "workingNote": "Each of these works on your routers today. Follow the link to set it up.",
+    "laterTitle": "Coming later",
+    "laterNote": "Not something you can switch on yet.",
+    "link": {
+      "website": "Block a website",
+      "categories": "Choose kinds of website to block",
+      "address": "Block an internet address",
+      "guest": "Block a guest",
+      "firewall": "Set firewall rules"
+    },
+    "label": {
+      "zone_to_zone_firewall": "Keep your networks apart (Firewall)",
+      "domain_blocking_dns": "Block a website by name",
+      "domain_blocking_sni": "Block a website on secure (HTTPS) connections",
+      "ip_and_cidr_blocking": "Block an internet address",
+      "device_isolation": "Block a guest or device",
+      "rogue_dhcp_detection": "Warn me about an unknown router on my network",
+      "connection_flood_protection": "Limit connection floods and password guessing",
+      "web_category_filtering": "Block kinds of website (categories)",
+      "dns_bypass_protection": "Stop guests getting round website blocks",
+      "application_control": "Block particular apps",
+      "threat_intelligence": "Block known harmful websites automatically",
+      "geo_blocking": "Block by country"
+    }
   }
 }
