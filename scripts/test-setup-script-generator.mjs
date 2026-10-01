@@ -1645,7 +1645,7 @@ for (const [variant, opts] of VARIANTS) {
         .split("\n")
         .flatMap((l) => l.split(";"))
         .filter((s) => s.includes("public_ip_address") && !s.includes(":log"));
-      return stmts.length > 0 && stmts.every((s) => s.includes("$hbIp"));
+      return stmts.length > 0 && stmts.every((s) => s.includes("$hbPub"));
     })(),
     'the key is emitted unconditionally, so an unread address reaches the backend as "" and ' +
       "overwrites the last known good value",
@@ -1677,12 +1677,24 @@ for (const [variant, opts] of VARIANTS) {
   // of RouterOS escaping, so the scheduler's stored copy -- where the
   // quotes arrive as \" -- is counted too, not skipped.
   check(
-    `${variant}: both fetches leave a :log warning when they fail`,
-    (
-      all.replace(/\\(.)/g, "$1").match(/on-error=\{ :log warning "cloudguest-hb: \/tool fetch/g) ??
-      []
-    ).length === 2,
+    `${variant}: every heartbeat /tool fetch leaves a :log warning when it fails`,
+    (() => {
+      const un = all.replace(/\\(.)/g, "$1");
+      const master = (
+        un.match(/on-error=\{ :log warning "cloudguest-hb: \/tool fetch to master failed --/g) ?? []
+      ).length;
+      const ipify = (
+        un.match(/on-error=\{ :log warning "cloudguest-hb: \/tool fetch to api\.ipify\.org failed/g) ?? []
+      ).length;
+      // Immediate paste + scheduler on-event each carry the full program.
+      return master === 2 && ipify === 2;
+    })(),
     "a fetch failure would be completely silent",
+  );
+  check(
+    `${variant}: private WAN triggers an api.ipify.org egress lookup`,
+    all.includes("api.ipify.org"),
+    "missing",
   );
   // The reported run-count=0 / next-run stuck weeks in the past.
   check(
