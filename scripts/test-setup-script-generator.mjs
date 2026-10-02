@@ -829,6 +829,9 @@ writeFileSync(
     // which is the defect this file has shipped six times. The decision
     // lives beside `SetupScriptGap` for exactly that reason.
     `export { DESELECT_PHRASE, DESELECT_CONSEQUENCE, deselectAcknowledgement } from "@/components/routers/RouterDetailTabs";`,
+    // Section 17 asserts Guided Setup's "paste these generated chunks" list
+    // against the labels the generator really emits.
+    `export { GENERATED_CHUNKS } from "@/components/routers/guided-setup/generated-chunks";`,
   ].join("\n"),
 );
 
@@ -880,6 +883,7 @@ const {
   DESELECT_PHRASE,
   DESELECT_CONSEQUENCE,
   deselectAcknowledgement,
+  GENERATED_CHUNKS,
 } = await import(pathToFileURL(join(work, "bundle.mjs")).href);
 
 // ---------------------------------------------------------------------
@@ -9020,6 +9024,118 @@ console.log("\n-- 16. the partial-provision acknowledgement --");
     "the gate is on the deselect only. Making the safe direction expensive is how a gate " +
       "becomes something people route around",
   );
+}
+
+// =====================================================================
+// 17. A SCRIPT THAT CANNOT BUILD THE TUNNEL MUST NOT RUN ON TO AN EMPTY
+//     /radius -- and Guided Setup must name chunks that exist.
+// =====================================================================
+//
+// 2026-10-02, Farmao Cafe "Lobby Router" (hEX lite, fresh): the Add
+// Customer wizard allocates the router's hub peer at create time and keeps
+// no private key (`allocate_tunnel_via_hub` -> agent-allocated peers store
+// only a sentinel). The first default Generate therefore REUSES that peer
+// and the script carries no `private-key=`. On a fresh device the Tunnel
+// Identity Check used to print "RESULT: NEW ... The WireGuard chunk will
+// build one" -- it cannot, without a key -- and the run carried on until
+// the RADIUS chunk refused to write `src-address=` for an address the
+// device did not hold. Net effect: no tunnel, no /radius, operator told
+// "RADIUS nahi aaya". The keyless + tunnel-less case must stop at the
+// identity check, before anything on the device is changed.
+console.log("\n-- 17. keyless reused peer on a fresh device; Guided chunk labels --");
+{
+  const WG17 = {
+    serverPublicKey: "HUBPUB",
+    peerPublicKey: "PEERPUB",
+    routerTunnelIp: "10.20.0.32",
+    serverEndpointHost: "hub.example.test",
+    serverEndpointPort: "13231",
+    tunnelSubnet: "10.20.0.0/24",
+    hubTunnelIpAddress: "10.20.0.1",
+  };
+  const base17 = {
+    ...BASE,
+    wans: [DHCP_WAN],
+    portalUrl: PORTAL,
+    radius: { serverAddress: "10.20.0.1", sharedSecret: "S", srcAddress: "10.20.0.32" },
+  };
+  const idc = (wg) =>
+    buildRouterSetupScriptChunks({ ...base17, wireguard: wg }).find((c) =>
+      c.label.startsWith("Tunnel Identity Check"),
+    )?.script ?? "";
+  const keyless = idc({ ...WG17, routerPrivateKey: null });
+  const keyed = idc({ ...WG17, routerPrivateKey: "PRIV" });
+  const freshErr = /:if \(\[:len \$idHaveKey\] = 0\) do=\{ :error /;
+  check(
+    "keyless reuse: a device with no tunnel STOPS at the identity check",
+    freshErr.test(keyless),
+    "without a private key the WireGuard chunk cannot create the interface, so RADIUS can " +
+      "never be written; carrying on is how a fresh router ends up with an empty /radius",
+  );
+  check(
+    "keyless reuse: does not claim the WireGuard chunk will build a tunnel",
+    !/The WireGuard chunk will build one/.test(keyless),
+  );
+  check(
+    "keyless reuse: the stop names the remedy (Rotate)",
+    /Rotate the WireGuard tunnel/.test(keyless.split("\n").find((l) => freshErr.test(l)) ?? ""),
+  );
+  check(
+    "keyed allocation: a device with no tunnel is still NEW and carries on",
+    !freshErr.test(keyed) && /RESULT: NEW -- no wg-cloudguard tunnel here yet/.test(keyed),
+    "over-strict: a fresh allocation carries the key and must be allowed to build the tunnel",
+  );
+  check(
+    "keyless reuse: the stop is one statement per do={} on one entered line",
+    keyless
+      .split("\n")
+      .filter((l) => freshErr.test(l))
+      .every((l) => !/do=\{[^}]*;[^}]*\}/.test(l.replace(/"[^"]*"/g, '""'))),
+  );
+  // .rsc and one-line channels: the stop precedes every write.
+  const chunks17 = buildRouterSetupScriptChunks({
+    ...base17,
+    wireguard: { ...WG17, routerPrivateKey: null },
+  });
+  for (const [name, text] of [
+    ["rsc", chunksToRouterOsScript(chunks17, "r")],
+    ["one-line", chunksToSingleLineScript(chunks17)],
+  ]) {
+    const stop = text.search(/cloudguest-wg: STOPPING -- this router has no wg-cloudguard tunnel/);
+    const wgWrite = text.search(
+      /\/interface wireguard peers add|\/ip address add address="10\.20\.0\.32\/24"/,
+    );
+    const radWrite = text.search(/\/radius add /);
+    check(
+      `keyless reuse (${name}): the stop precedes the tunnel and /radius writes`,
+      stop >= 0 && stop < wgWrite && stop < radWrite,
+      `stop=${stop} wg=${wgWrite} radius=${radWrite}`,
+    );
+  }
+
+  // Guided Setup lists generated chunks BY LABEL for the operator to paste.
+  const emitted = new Set(
+    buildRouterSetupScriptChunks({
+      ...base17,
+      wireguard: { ...WG17, routerPrivateKey: "PRIV" },
+      apiAccess: { username: "cloudguest-api", secret: "x" },
+      identity: "Site",
+    }).map((c) => c.label),
+  );
+  for (const [phase, spec] of Object.entries(GENERATED_CHUNKS)) {
+    for (const label of spec.labels) {
+      check(`guided ${phase}: "${label}" is a label the generator emits`, emitted.has(label));
+    }
+  }
+  const listed = new Set(Object.values(GENERATED_CHUNKS).flatMap((s) => s.labels));
+  for (const must of [
+    "WireGuard Tunnel",
+    "RADIUS",
+    "Guest Access Sync (opens the gate for guests who signed in)",
+    "Heartbeat Scheduler (re-checks the live uplink every 5 minutes)",
+  ]) {
+    check(`guided: tells the operator to paste "${must}"`, listed.has(must));
+  }
 }
 
 // =====================================================================

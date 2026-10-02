@@ -708,7 +708,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
         // tunnel, so this degrades to "no WireGuard in this script" with a
         // clear toast instead of aborting generation entirely.
         try {
-          const wg = await api.post<{
+          let wg = await api.post<{
             /** Null when `reused` is true -- the backend deliberately did
              * NOT allocate a new peer. See the generator's
              * `routerPrivateKey` docstring and the backend's
@@ -776,6 +776,45 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
               // .3, and the orphans outlived the router's own DB rows.
               (rotateWireguard ? "?rotate=true" : ""),
           );
+          // A REUSED PEER ON A ROUTER THAT HAS NEVER CONNECTED IS A SCRIPT
+          // THAT CANNOT WORK ON A FRESH DEVICE.
+          //
+          // Reuse returns no private key (the platform never keeps one for a
+          // hub-allocated peer). That is right for a device that already holds
+          // the key -- and wrong for the commonest case of all: a router the
+          // Add Customer wizard just created, whose peer was allocated at
+          // create time and whose key nobody received. The script then cannot
+          // build the tunnel, and without the tunnel the RADIUS chunk cannot
+          // write /radius. Confirmed 2026-10-02 on Farmao Cafe's "Lobby
+          // Router": the operator got "RADIUS nahi aaya" and only the next
+          // Generate, with Rotate ticked, worked. The script now stops itself
+          // in that state (Tunnel Identity Check); this asks first, so the
+          // operator does not have to paste a script to find out.
+          //
+          // Only offered while the router has never checked in. Once it has,
+          // the device demonstrably holds a key and reuse is correct. The
+          // backend still refuses to allocate over a device it sees
+          // handshaking, so a wrong "OK" here cannot move a live router.
+          if (
+            wg.data.reused &&
+            !wg.data.peer_private_key &&
+            !rotateWireguard &&
+            (router.status === "pending_provisioning" || router.status === "provisioning") &&
+            window.confirm(
+              [
+                `This router has never connected, and the platform reused a WireGuard tunnel (${wg.data.tunnel_ip_address}) whose private key it does not have -- typically one allocated when the customer was created.`,
+                ``,
+                `A script without that key cannot build the tunnel on a fresh router, and without the tunnel RADIUS cannot be configured -- every guest login would fail.`,
+                ``,
+                `OK: allocate a new tunnel now (uses one hub address; the old one cannot be reclaimed).`,
+                `Cancel: keep the reused tunnel -- only correct if this device already has it from an earlier script.`,
+              ].join("\n"),
+            )
+          ) {
+            wg = await api.post<typeof wg.data>(
+              `/routers/${router.id}/wireguard-peer/allocate-external?rotate=true`,
+            );
+          }
           wireguard = {
             routerPrivateKey: wg.data.peer_private_key,
             serverPublicKey: wg.data.hub_public_key,
