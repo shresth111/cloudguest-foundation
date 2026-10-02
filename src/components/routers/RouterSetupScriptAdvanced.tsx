@@ -826,7 +826,10 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
             tunnelSubnet: wg.data.tunnel_network_cidr,
             hubTunnelIpAddress: wg.data.hub_tunnel_ip_address,
           };
-          if (wg.data.reused) {
+          // Only when the reused peer really came back WITHOUT a key. Once the
+          // backend retains hub-allocated keys, a reuse carries the key and the
+          // script does write `private-key=` (the same key, harmlessly).
+          if (wg.data.reused && !wg.data.peer_private_key) {
             toast.info(
               "Existing WireGuard tunnel reused -- no new peer was allocated on the hub. " +
                 'The script has no "private-key" line because the device already has the ' +
