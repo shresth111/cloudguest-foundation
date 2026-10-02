@@ -34,6 +34,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 import { useCustomerStore } from "@/stores/customerStore";
 import { locationControllerVendor, locationIsControllerManaged } from "@/lib/location-liveness";
+import { isNasOnlyVendor } from "@/lib/router-vendors";
 import {
   clientControlVerdict,
   deviceActionVerdict,
@@ -91,7 +92,11 @@ export function useClientControls(): ClientControls {
   const { data: read, isLoading } = useQuery({
     queryKey: ["controller-client-capabilities", locationId],
     queryFn: () => omadaClientControlsService.readCapabilities(locationId as string),
-    enabled: CUSTOMER_CLIENT_ROUTES_LANDED && controllerManaged && !!locationId,
+    // Never for a NAS-only vendor (Aruba Instant On): the route answers 404
+    // for "no controller", and the verdicts for such a venue are fixed and
+    // need no read (PM_SPEC §0.4 item 4).
+    enabled:
+      CUSTOMER_CLIENT_ROUTES_LANDED && controllerManaged && !isNasOnlyVendor(vendor) && !!locationId,
     // A venue's controller credentials do not change between two clicks on a
     // tab strip. One read for the whole dashboard, not one per screen.
     staleTime: 5 * 60_000,

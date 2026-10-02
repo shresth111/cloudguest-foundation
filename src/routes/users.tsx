@@ -713,8 +713,18 @@ function CustomerUsersPage() {
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8 text-destructive disabled:text-muted-foreground"
-                              disabled={u.status === "offline" || disconnect.isPending}
-                              title={u.status === "offline" ? t("alreadyOffline") : t("disconnect")}
+                              disabled={
+                                u.status === "offline" ||
+                                disconnect.isPending ||
+                                disconnectVerdict.availability === "unavailable"
+                              }
+                              title={
+                                u.status === "offline"
+                                  ? t("alreadyOffline")
+                                  : disconnectVerdict.availability === "unavailable"
+                                    ? (disconnectVerdict.reason ?? undefined)
+                                    : t("disconnect")
+                              }
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setConfirmDisconnect({
@@ -1018,7 +1028,16 @@ function CustomerUsersPage() {
                 <Button
                   variant="outline"
                   className="w-full text-destructive disabled:text-muted-foreground"
-                  disabled={detailUser.status === "offline" || disconnect.isPending}
+                  disabled={
+                    detailUser.status === "offline" ||
+                    disconnect.isPending ||
+                    disconnectVerdict.availability === "unavailable"
+                  }
+                  title={
+                    disconnectVerdict.availability === "unavailable"
+                      ? (disconnectVerdict.reason ?? undefined)
+                      : undefined
+                  }
                   onClick={() =>
                     setConfirmDisconnect({
                       id: detailUser.id,

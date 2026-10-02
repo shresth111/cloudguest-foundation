@@ -53,10 +53,13 @@
 import {
   CONTROLLER_STATE_COPY,
   CONTROLLER_STATE_NEXT_STEP,
+  controllerIdentitySentence,
+  controllerNounPhrase,
   controllerStateIsFault,
   controllerStateSentence,
   isControllerManagedRow,
   isControllerState,
+  isNasOnlyVendor,
   routerVendorLabel,
 } from "@/lib/router-vendors";
 import type { ControllerState } from "@/lib/router-vendors";
@@ -425,7 +428,7 @@ export function deriveRouterLiveness(raw: RawRouterLiveness, now: Date): RouterL
         state: controllerStateIsFault(declared) ? "controller-reported-down" : "not-applicable",
         shortLabel: copy.label,
         detail:
-          `${label} is a ${routerVendorLabel(raw.vendor)} controller. ` +
+          `${controllerIdentitySentence(label, raw.vendor)} ` +
           controllerStateSentence(declared, ago),
         nextStep: CONTROLLER_STATE_NEXT_STEP[declared],
         // Still `none`. `controller_last_contacted_at` is a sync, not a
@@ -461,13 +464,31 @@ export function deriveRouterLiveness(raw: RawRouterLiveness, now: Date): RouterL
         state: "controller-reported-down",
         shortLabel: "Controller down",
         detail:
-          `${label} is a ${routerVendorLabel(raw.vendor)} controller and it ${what}. ` +
+          `${label} ${isNasOnlyVendor(raw.vendor) ? "uses" : "is"} ${controllerNounPhrase(raw.vendor)} and it ${what}. ` +
           "That is not a missed check-in — this platform never waits for one here — it is a " +
           "state recorded against this controller, so guests at this venue may not be able to " +
           "get online.",
         nextStep:
           "Check this venue's network integration, then the controller itself. " +
           "Nothing on this platform will clear this on its own.",
+        lastContactIso: lastSeenIso,
+        lastContactKind: "none",
+      };
+    }
+    // A NAS-only vendor (Aruba Instant On) has no controller connection to
+    // check, so the fallback says what the backend's `no_controller_api`
+    // would have said, rather than pointing at a network integration that
+    // can never exist for it.
+    if (isNasOnlyVendor(raw.vendor)) {
+      return {
+        ...base,
+        status: "unknown",
+        state: "not-applicable",
+        shortLabel: CONTROLLER_STATE_COPY.no_controller_api.label,
+        detail:
+          `${controllerIdentitySentence(label, raw.vendor)} ` +
+          CONTROLLER_STATE_COPY.no_controller_api.sentence,
+        nextStep: CONTROLLER_STATE_NEXT_STEP.no_controller_api,
         lastContactIso: lastSeenIso,
         lastContactKind: "none",
       };

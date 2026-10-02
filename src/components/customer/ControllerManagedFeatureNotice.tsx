@@ -1,6 +1,6 @@
 import { Server } from "lucide-react";
 import {
-  CONTROLLER_UNSUPPORTED_HEADLINE,
+  controllerUnsupportedHeadline,
   controllerUnsupportedCopy,
   controllerVenueFeatureReason,
 } from "@/lib/router-vendors";
@@ -55,7 +55,7 @@ export function ControllerManagedFeatureNotice({
   // FIX-PLAN D4's exact copy where the feature is in its table; the older
   // vendor-neutral sentence otherwise, so a screen this panel is reused for
   // later still says something true rather than nothing.
-  const planned = controllerUnsupportedCopy(featureId, venueName);
+  const planned = controllerUnsupportedCopy(featureId, venueName, vendor);
   return (
     <div className="rounded-xl border border-dashed border-border bg-card/40 px-6 py-12 text-center">
       <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
@@ -63,7 +63,7 @@ export function ControllerManagedFeatureNotice({
       </div>
       <h3 className="text-base font-semibold text-foreground">
         {planned
-          ? CONTROLLER_UNSUPPORTED_HEADLINE
+          ? controllerUnsupportedHeadline(vendor)
           : `${featureLabel} is configured on this venue's controller`}
       </h3>
       <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">

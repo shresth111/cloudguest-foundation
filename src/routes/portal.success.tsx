@@ -32,6 +32,12 @@ import {
   type RadiusAuthorizeFailure,
 } from "@/lib/portal-radius-authorize";
 import { guestPortalIntegrationService } from "@/services/network-integration.service";
+import {
+  arubaLoginTarget,
+  arubaText,
+  buildArubaLoginFields,
+  isArubaInstantOnProvider,
+} from "@/lib/portal-aruba-login";
 
 // v4 §6.1: the same "taking longer than expected" threshold
 // portal.index.tsx's own loading screen already uses, for the identical
@@ -110,20 +116,29 @@ const HOTSPOT_FALLBACK_PASSWORD = "welcome123";
  * etc.) survives the round trip via PortalRuntimeContext's persisted
  * session, not a page-memory value that a real navigation would drop. */
 function submitHotspotLogin(loginUrl: string, username: string, dst: string) {
+  submitTopLevelForm(loginUrl, [
+    ["username", username],
+    ["password", HOTSPOT_FALLBACK_PASSWORD],
+    ["dst", dst],
+  ]);
+}
+
+/** A hidden, full-page form POST -- see `submitHotspotLogin` for why it is a
+ * top-level navigation and never an iframe or a `fetch`. Shared by the
+ * RouterOS and Aruba Instant On gates; only the action and field names
+ * differ. */
+function submitTopLevelForm(action: string, fields: Array<[string, string]>) {
   const form = document.createElement("form");
   form.method = "POST";
-  form.action = loginUrl;
+  form.action = action;
   form.style.display = "none";
-  const addField = (name: string, value: string) => {
+  for (const [name, value] of fields) {
     const input = document.createElement("input");
     input.type = "hidden";
     input.name = name;
     input.value = value;
     form.appendChild(input);
-  };
-  addField("username", username);
-  addField("password", HOTSPOT_FALLBACK_PASSWORD);
-  addField("dst", dst);
+  }
   document.body.appendChild(form);
   form.submit();
 }
@@ -191,6 +206,9 @@ function SuccessPage() {
     // What the Omada controller told us about this association, carried
     // from its redirect. Only the controller could have known any of it.
     omadaRedirect,
+    // Aruba Instant On's redirect -- `switchip` is where the AP takes the
+    // login, `url` is where the guest was going. Undefined elsewhere.
+    arubaRedirect,
     clientIp,
     t,
   } = usePortalRuntime();
@@ -211,7 +229,14 @@ function SuccessPage() {
   // rendering. html -> session page (it renders the venue's page); redirect
   // -> the URL itself (no intermediate portal page); default -> session
   // page (unchanged).
-  const destination = resolvePostLoginDestination(config, destinationUrl ?? omadaLandingUrl);
+  // Aruba's `url` (the page the guest was trying to open) answers the same
+  // question as RouterOS's `dst` and Omada's landing page, through the same
+  // guards. A venue is behind one vendor, so at most one is defined.
+  const arubaOriginalUrl = arubaText(arubaRedirect?.url);
+  const destination = resolvePostLoginDestination(
+    config,
+    destinationUrl ?? omadaLandingUrl ?? arubaOriginalUrl,
+  );
   const sessionTarget = () =>
     buildSessionUrl(organizationId, locationId, routerId, language, deviceMac);
   // The destination for the two assign branches that don't build a NAS
@@ -459,6 +484,57 @@ function SuccessPage() {
     }
   }
 
+  /**
+   * Open the Aruba AP's gate: a top-level form POST of the verified
+   * identifier to `https://<switchip>/cgi-bin/login`.
+   *
+   * Every way this cannot work ends on the failure screen, never on the
+   * spinner and never with a POST to a host we do not trust:
+   *  - no identifier (lost to a reload): the AP's RADIUS request is keyed
+   *    on it, so there is nothing to send -> "sign in again";
+   *  - no `switchip`, or one that is not an Aruba login host -> refused,
+   *    nothing is POSTed anywhere (PM_SPEC AC1-6).
+   */
+  function submitArubaLogin() {
+    if (!guestIdentifier) {
+      failRadius("rejected");
+      return;
+    }
+    const target = arubaLoginTarget(arubaRedirect?.switchip);
+    if ("refused" in target) {
+      failRadius("not-authorized");
+      return;
+    }
+    hotspotLoginSubmitted.current = true;
+    // Same destination rule as the RouterOS POST below: the CNA websheet
+    // lands on the session page, everyone else on the venue's decision.
+    const arubaDst = isCaptiveNetworkAssistant() ? sessionTarget() : directTarget();
+    // Same flick-flash cooldown as RouterOS: a remount moments after a real
+    // submit goes to the destination on a real document load. If the AP's
+    // gate is still shut, the AP intercepts that load and redirects back
+    // here with a fresh `switchip`, which submits again.
+    const lastSubmit = loadPersistedHotspotSubmit();
+    if (
+      lastSubmit &&
+      lastSubmit.identifier === guestIdentifier &&
+      Date.now() - lastSubmit.at < HOTSPOT_RESUBMIT_COOLDOWN_MS
+    ) {
+      window.location.assign(arubaDst);
+      return;
+    }
+    // ORDER IS LOAD-BEARING, exactly as in the RouterOS branch: the POST
+    // first, the bookkeeping second (sessionStorage throws inside iOS's CNA).
+    submitTopLevelForm(
+      target.url,
+      buildArubaLoginFields({
+        identifier: guestIdentifier,
+        password: HOTSPOT_FALLBACK_PASSWORD,
+        destination: arubaDst,
+      }),
+    );
+    persistHotspotSubmit({ identifier: guestIdentifier, at: Date.now() });
+  }
+
   /** One place the failure is recorded, so the guard release and the
    * screen can never disagree. Releasing the guard is what makes the
    * retry control below a real retry rather than a no-op. */
@@ -506,6 +582,20 @@ function SuccessPage() {
         return;
       }
       void authorizeOnController();
+      return;
+    }
+
+    // THE ARUBA INSTANT ON BRANCH. Also above the RouterOS guards, for the
+    // same reasons as Omada's: no `hspage` is ever stamped, and there is no
+    // `link-login-only`, so the `!hotspotLoginUrl` branch would send every
+    // Aruba guest to "you're connected" before the AP had let them on.
+    //
+    // The shape is RouterOS's, not Omada's: our backend cannot reach an AP
+    // on the guest's LAN, so the guest's browser submits the identifier to
+    // the AP's own login URL and the AP asks our RADIUS. See
+    // src/lib/portal-aruba-login.ts.
+    if (isArubaInstantOnProvider(netProvider)) {
+      submitArubaLogin();
       return;
     }
 
@@ -688,6 +778,7 @@ function SuccessPage() {
     navigate,
     netProvider,
     portalMode,
+    arubaRedirect,
   ]);
 
   useEffect(() => {
