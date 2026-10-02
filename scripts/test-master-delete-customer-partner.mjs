@@ -78,8 +78,8 @@ check(
 );
 check("cancel is disabled while in flight", /AlertDialogCancel disabled=\{busy\}/.test(dialog));
 check(
-  "the typed text is cleared when the dialog closes",
-  /if \(!open\) setTyped\(""\)/.test(dialog),
+  "the typed text is cleared each time the dialog opens",
+  /if \(open\) setTyped\(""\)/.test(dialog),
 );
 check("the dialog cannot be dismissed mid-flight", /if \(!o && !busy\) onCancel\(\)/.test(dialog));
 
