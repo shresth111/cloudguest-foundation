@@ -655,8 +655,14 @@ const IMPERSONATED_OWNER_STORAGE = {
     view: "switch",
     backend,
   });
+  // useCustomerLocations retries once (retry: 1), so the verdict lands after
+  // React Query's ~1s back-off, not on the first response.
   await page
-    .waitForSelector('[data-testid="venues-load-error"], text=No locations yet', { timeout: 10_000 })
+    .waitForFunction(
+      () => /Couldn.t load your venues|No locations yet/.test(document.body.innerText),
+      null,
+      { timeout: 15_000 },
+    )
     .catch(() => {});
   const text = await page.evaluate(() => document.body.innerText);
   check("403 renders \"Couldn't load your venues\"", /Couldn.t load your venues/.test(text), text.slice(0, 300));
@@ -664,7 +670,7 @@ const IMPERSONATED_OWNER_STORAGE = {
   check("the backend's reason is shown", /Permission denied/.test(text), text.slice(0, 300));
   // The read starts succeeding; Retry must recover without a reload.
   backend.ownerLocationsForbidden = false;
-  await page.getByRole("button", { name: /^Retry$/ }).click();
+  await page.getByRole("button", { name: /^Retry$/ }).click({ timeout: 5000 }).catch(() => {});
   await page.waitForFunction(() => document.body.innerText.includes("Hall"), null, { timeout: 10_000 }).catch(() => {});
   const after = await page.evaluate(() => document.body.innerText);
   check("Retry recovers to the real venue list", /Hall/.test(after) && !/Couldn.t load your venues/.test(after), after.slice(0, 300));
