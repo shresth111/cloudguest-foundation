@@ -108,6 +108,7 @@
     "test:controller-venue-nav": "node scripts/test-controller-venue-nav.mjs",
     "test:omada-onboarding-gaps": "node scripts/test-omada-onboarding-gaps.mjs",
     "test:customer-wizard-omada": "node scripts/test-customer-wizard-omada.mjs",
+    "test:customer-wizard-aruba": "node scripts/test-customer-wizard-aruba.mjs",
     "test:omada-guided-setup": "node scripts/test-omada-guided-setup.mjs",
     "test:aruba-instant-on": "node scripts/test-aruba-instant-on.mjs",
     "test:aruba-setup-panel": "node scripts/test-aruba-setup-panel.mjs",
