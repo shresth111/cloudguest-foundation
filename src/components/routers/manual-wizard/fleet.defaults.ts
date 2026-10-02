@@ -80,12 +80,16 @@ export const FLEET_DEFAULTS = {
   portalIp: "13.203.112.174" as Lit,
   portalBase: "https://auth.wyfyguest.com" as Lit,
 
-  /** WireGuard interface name emitted by the FRONTEND generator. */
-  wgInterface: "wg-cloudguest" as Lit,
-  /** WireGuard interface name emitted by the BACKEND bootstrap path.
-   * If both exist on one device the firewall rule is bound to the wrong
-   * one. Detecting this is a hard FAIL, not a warning. */
-  wgInterfaceBackendAlias: "wg-cloudguard" as Lit,
+  /** WireGuard interface name emitted by BOTH the frontend generator
+   * (`WIREGUARD_INTERFACE_NAME` in RouterDetailTabs.tsx) and the backend
+   * bootstrap (`network_config/renderers.py`). This file had the two names
+   * the wrong way round until 2026-10-02, so step 8 graded every correctly
+   * provisioned router "no tunnel". */
+  wgInterface: "wg-cloudguard" as Lit,
+  /** The LEGACY name, still on routers provisioned before the rename.
+   * Probes read it as a fallback; if both exist on one device the firewall
+   * rule is bound to the wrong one, which is a hard FAIL. */
+  wgInterfaceLegacy: "wg-cloudguest" as Lit,
   wgListenPort: 13231,
   /** Hub endpoint. Was the bare IP `20.219.72.235` in earlier content;
    * the fleet has moved to a DNS name. A DNS name means the router MUST

@@ -937,7 +937,7 @@ export const STEPS_PART5: ManualStep[] = [
 :put "WYFY-BEGIN step17"
 :local p [/ip hotspot profile find where name="hsprof1"]; :put ("profile-count=" . [:tostr [:len $p]]); :local p0 ""; :if ([:len $p] > 0) do={ :set p0 [:pick $p 0] }; :if ($p0 != "") do={ :put ("use-radius=" . [:tostr [/ip hotspot profile get $p0 use-radius]]) }; :if ($p0 != "") do={ :put ("radius-accounting=" . [:tostr [/ip hotspot profile get $p0 radius-accounting]]) }; :if ($p0 != "") do={ :put ("login-by=" . [:tostr [/ip hotspot profile get $p0 login-by]]) }
 :put ("radius-count=" . [:tostr [:len [/radius find]]])
-:local tip ""; :foreach ad in=[/ip address find where interface="wg-cloudguest"] do={ :set tip [:pick [/ip address get $ad address] 0 [:find [/ip address get $ad address] "/"]] }; :put ("tunnel-ip=" . $tip)
+:local wgn "wg-cloudguard"; :if ([:len [/interface wireguard find where name="wg-cloudguard"]] = 0 && [:len [/interface wireguard find where name="wg-cloudguest"]] > 0) do={ :set wgn "wg-cloudguest" }; :local tip ""; :foreach ad in=[/ip address find where interface=$wgn] do={ :set tip [:pick [/ip address get $ad address] 0 [:find [/ip address get $ad address] "/"]] }; :put ("tunnel-ip=" . $tip)
 :if ([:len [/radius find]] > 0) do={ :put ("radius-src=" . [:tostr [/radius get [:pick [/radius find] 0] src-address]]) }
 :put ("local-user-count=" . [:tostr [:len [/ip hotspot user find]]])
 :put ("radius-log-count=" . [:tostr [:len [/system logging find where topics~"radius"]]])
@@ -1226,7 +1226,7 @@ export const STEPS_PART5: ManualStep[] = [
           "The router is no longer sending login requests from its tunnel address. The server identifies routers by that address, so it cannot tell which router this is and will refuse with nothing logged on either side.",
         fix: [
           {
-            command: `:local tip ""; :foreach ad in=[/ip address find where interface="wg-cloudguest"] do={ :set tip [:pick [/ip address get $ad address] 0 [:find [/ip address get $ad address] "/"]] }; :put ("tunnel-ip=" . $tip); :local r [/radius find]; :put ("matching-count=" . [:tostr [:len $r]]); :if ($tip != "" && [:len $r] > 0) do={ /radius set $r src-address=$tip }
+            command: `:local wgn "wg-cloudguard"; :if ([:len [/interface wireguard find where name="wg-cloudguard"]] = 0 && [:len [/interface wireguard find where name="wg-cloudguest"]] > 0) do={ :set wgn "wg-cloudguest" }; :local tip ""; :foreach ad in=[/ip address find where interface=$wgn] do={ :set tip [:pick [/ip address get $ad address] 0 [:find [/ip address get $ad address] "/"]] }; :put ("tunnel-ip=" . $tip); :local r [/radius find]; :put ("matching-count=" . [:tostr [:len $r]]); :if ($tip != "" && [:len $r] > 0) do={ /radius set $r src-address=$tip }
 :put ("src-address=" . [:tostr [/radius get [:pick [/radius find] 0] src-address]])`,
             note: "Re-reads the tunnel address and writes it as the source, printing every value it used.",
             destructive: false,
