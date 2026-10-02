@@ -77,6 +77,8 @@ const LL = await bundle("src/lib/location-liveness.ts", "location-liveness.mjs")
 const SETUP = await bundle("src/lib/aruba-instant-on-setup.ts", "setup.mjs");
 const LOGIN = await bundle("src/lib/portal-aruba-login.ts", "login.mjs");
 const SEARCH = await bundle("src/lib/portal-search.ts", "portal-search.mjs");
+const VENUE = await bundle("src/lib/aruba-venue.ts", "aruba-venue.mjs");
+const VERDICTS = await bundle("src/lib/connection-verdicts.ts", "connection-verdicts.mjs");
 
 const ARUBA = "aruba_instant_on";
 const OMADA = "tplink_omada";
@@ -816,6 +818,183 @@ check(
     fleet,
   ),
 );
+
+// ---------------------------------------------------------------------------
+console.log("\n8. Customer venue view: our own records only, never Offline, never a stand-in 0");
+// ---------------------------------------------------------------------------
+{
+  const arubaVenue = LL.deriveLocationLiveness(
+    [row({ controller_state: "no_controller_api" })],
+    NOW,
+  );
+  eq(
+    "an Aruba-only venue's badge reads Set up in Instant On",
+    arubaVenue.label,
+    "Set up in Instant On",
+  );
+  eq("its state stays `unknown` (grey), never not-live", arubaVenue.state, "unknown");
+  eq("its summary is the §2.3 sentence", arubaVenue.summary, copy.sentence);
+  eq("locationIsNasOnly: yes", LL.locationIsNasOnly(arubaVenue), true);
+  const omadaVenue = LL.deriveLocationLiveness(
+    [
+      {
+        id: "o",
+        name: "OC200",
+        status: "pending_provisioning",
+        vendor: OMADA,
+        controller_state: "reachable",
+      },
+    ],
+    NOW,
+  );
+  eq("an Omada venue keeps its old label", omadaVenue.label, "Can't tell");
+  eq("locationIsNasOnly: not Omada", LL.locationIsNasOnly(omadaVenue), false);
+  const mixed = LL.deriveLocationLiveness(
+    [
+      row({ controller_state: "no_controller_api" }),
+      {
+        id: "o",
+        name: "OC200",
+        status: "pending_provisioning",
+        vendor: OMADA,
+        controller_state: "reachable",
+      },
+    ],
+    NOW,
+  );
+  check(
+    "a mixed Aruba + Omada venue is not NAS-only and keeps the old label",
+    !LL.locationIsNasOnly(mixed) && mixed.label === "Can't tell",
+  );
+  eq("no routers: not NAS-only", LL.locationIsNasOnly(LL.deriveLocationLiveness([], NOW)), false);
+  eq(
+    "unreadable routers: not NAS-only",
+    LL.locationIsNasOnly(LL.deriveLocationLiveness(null, NOW)),
+    false,
+  );
+
+  const dash = (over = {}) => ({
+    kpis: { onlineUsers: 3, todayGuests: 11, ...over },
+    recentUsers: [{ time: "4 min ago" }, { time: "2 hr ago" }],
+  });
+  const st = VENUE.arubaVenueStats(dash(), false);
+  check(
+    "real counts are shown as read",
+    st.online === "3" && st.today === "11",
+    JSON.stringify(st),
+  );
+  eq("last sign-in is the newest session", st.lastSignIn, "4 min ago");
+  const none = VENUE.arubaVenueStats(
+    { kpis: { onlineUsers: 0, todayGuests: 0 }, recentUsers: [] },
+    false,
+  );
+  check(
+    "a quiet venue: real zeros, and 'None in the last 24 hours'",
+    none.online === "0" && none.today === "0" && none.lastSignIn === "None in the last 24 hours",
+  );
+  const failedRead = VENUE.arubaVenueStats(dash({ sessionsReadFailed: true }), false);
+  check(
+    "a failed sessions read shows —, never a stand-in 0",
+    failedRead.online === "—" && failedRead.today === "—" && failedRead.lastSignIn === "—",
+  );
+  check("a failed query shows —", VENUE.arubaVenueStats(dash(), true).online === "—");
+  check("no data yet shows —", VENUE.arubaVenueStats(undefined, false).online === "—");
+  check(
+    "the 'managed in Instant On' list names speed, allowed domains and AP status",
+    VENUE.ARUBA_VENUE_IN_INSTANT_ON.some((x) => /Speed/.test(x)) &&
+      VENUE.ARUBA_VENUE_IN_INSTANT_ON.some((x) => /Allowed domains/.test(x)) &&
+      VENUE.ARUBA_VENUE_IN_INSTANT_ON.some((x) => /Access point status/.test(x)),
+  );
+  check(
+    "venue copy never says RADIUS, NAS, tunnel, secret, controller or Offline",
+    [...VENUE.ARUBA_VENUE_IN_WYFY, ...VENUE.ARUBA_VENUE_IN_INSTANT_ON].every(
+      (x) => !/RADIUS|\bNAS\b|tunnel|secret|controller|offline/i.test(x),
+    ),
+  );
+  eq(
+    "U5 for unreported session data",
+    RV.NAS_ONLY_DATA_USAGE_UNREPORTED,
+    "Data usage isn't reported for this venue yet.",
+  );
+
+  // Fix a Problem's verdict, through the real engine.
+  const verdict = (label) =>
+    VERDICTS.venueVerdict({
+      hasRouter: true,
+      links: [],
+      routerLastSeenAt: null,
+      routerReachable: null,
+      routerLivenessMeasured: false,
+      controllerReportedDown: false,
+      controllerVendorLabel: label,
+      guestsOnline: 2,
+    });
+  let aV;
+  let oV;
+  try {
+    aV = verdict("Aruba Instant On");
+    oV = verdict("TP-Link Omada");
+  } catch (e) {
+    check("venueVerdict accepts the signals shape", false, String(e));
+  }
+  if (aV && oV) {
+    check(
+      "Fix a Problem at Aruba: access points + Instant On app, no controller",
+      aV.status === "controller-not-measured" &&
+        /Aruba Instant On access points/.test(aV.headline) &&
+        /Instant On app/.test(aV.action ?? "") &&
+        !/controller/i.test(`${aV.headline} ${aV.meaning} ${aV.action}`),
+      JSON.stringify(aV),
+    );
+    check(
+      "Fix a Problem at Omada: unchanged controller wording",
+      oV.status === "controller-not-measured" && /TP-Link Omada controller/.test(oV.meaning ?? ""),
+      JSON.stringify(oV),
+    );
+  }
+
+  const dashPage = src("src/components/customer/CustomerDashboardPage.tsx");
+  check(
+    "dashboard: the venue card replaces the hardware card only at a NAS-only venue",
+    /nasOnlyVenue \? \(\s*<ArubaInstantOnVenueCard locationId=\{locationId\} \/>\s*\) : \(\s*<DeviceStatusCard/.test(
+      dashPage,
+    ),
+  );
+  check(
+    "dashboard: bandwidth gives way to U6 only at a NAS-only venue",
+    /nasOnlyVenue \? \([\s\S]{0,300}controllerDeviceMetricsReason\("aruba_instant_on"\)[\s\S]{0,200}\) : \(\s*<BandwidthUtilizationCard/.test(
+      dashPage,
+    ),
+  );
+  check(
+    "dashboard: the gate is locationIsNasOnly",
+    /const nasOnlyVenue = locationIsNasOnly\(liveness\)/.test(dashPage),
+  );
+  const hw = src("src/components/customer/BasicFeatureViews.tsx");
+  check(
+    "Devices: no controller-inventory request at a NAS-only venue",
+    /useControllerDevices\(nasOnlyVenue \? undefined : locationId\)/.test(hw),
+  );
+  check(
+    "Devices: the Aruba card stands where Omada's access-point list would",
+    /nasOnlyVenue && locationId \? \([\s\S]{0,120}<ArubaInstantOnVenueCard[\s\S]{0,120}\) : \(\s*<ControllerDevicesCard/.test(
+      hw,
+    ),
+  );
+  const card = src("src/components/customer/ArubaInstantOnVenueCard.tsx");
+  check(
+    "the venue card reads only the existing dashboard query (no new endpoint, no Instant On call)",
+    /useCustomerDashboard\(locationId\)/.test(card) &&
+      !/api\.|fetch\(|network-integrations|instant-on\.hpe|arubainstanton\.com/i.test(card),
+  );
+  check("the venue card has no Offline/Online wording", !/\b(Offline|Online)\b(?! now)/.test(card));
+  const usersSrc = src("src/routes/users.tsx");
+  check(
+    "Guests: '0 MB' becomes — with U5 only at a NAS-only venue",
+    /disconnectUnsupported && download === "0 MB"/.test(usersSrc) &&
+      (usersSrc.match(/sessionDataCell\(/g) ?? []).length >= 2,
+  );
+}
 
 console.log(`\n${ran} checks ran`);
 console.log(

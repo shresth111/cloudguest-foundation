@@ -831,6 +831,22 @@ export function deriveLocationLiveness(
   // established, we do not get to call the location not-live -- we do not
   // know that. Unknown wins over a definite answer we cannot support.
   if (unknown.length > 0) {
+    // A venue run entirely on a NAS-only vendor (Aruba Instant On) is not an
+    // unknown we failed to establish: nothing here CAN observe its access
+    // points, by design. Its badge says where the network is managed
+    // (PM_SPEC §2.3) instead of "Can't tell", and still never "Offline".
+    // Any other mix keeps the branch below unchanged.
+    if (derived.every((r) => r.state === "not-applicable" && isNasOnlyVendor(r.vendor))) {
+      return {
+        state: "unknown",
+        label: CONTROLLER_STATE_COPY.no_controller_api.label,
+        summary: CONTROLLER_STATE_COPY.no_controller_api.sentence,
+        nextStep: CONTROLLER_STATE_NEXT_STEP.no_controller_api,
+        routers: derived,
+        routersOnline: null,
+        routersTotal: total,
+      };
+    }
     const worst = pickSpokesperson(unknown);
     return {
       state: "unknown",
@@ -985,4 +1001,18 @@ export function locationControllerVendor(
 ): string | null {
   if (!locationIsControllerManaged(liveness)) return null;
   return liveness?.routers.find((r) => r.vendor)?.vendor ?? null;
+}
+
+/**
+ * True when every router at this venue is a NAS-only vendor (Aruba Instant
+ * On): the venue is run from the vendor's own app and this platform sees only
+ * its guests signing in. Same `every`-not-`some` posture as
+ * `locationIsControllerManaged`, so a mixed venue, a venue with no routers
+ * and one whose routers could not be read are all `false`.
+ */
+export function locationIsNasOnly(liveness: LocationLiveness | null | undefined): boolean {
+  return (
+    locationIsControllerManaged(liveness) &&
+    (liveness?.routers ?? []).every((r) => isNasOnlyVendor(r.vendor))
+  );
 }

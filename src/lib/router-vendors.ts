@@ -669,6 +669,11 @@ export function controllerUnsupportedHeadline(
  * Null for a feature that is not gated, so a call site cannot render this
  * panel over a screen that works.
  */
+/** PM_SPEC U5: per-session data at an Aruba Instant On venue before the V3
+ * hardware check (interim accounting with real octets) has passed. A session
+ * with no bytes recorded renders "—" with this, never a measured "0 MB". */
+export const NAS_ONLY_DATA_USAGE_UNREPORTED = "Data usage isn't reported for this venue yet.";
+
 /** PM_SPEC U7 / U8: the two screens only a NAS-only venue loses, each with
  * its own sentence because neither is "set up in the app" in the same way. */
 export const NAS_ONLY_FEATURE_COPY: Record<string, string> = {

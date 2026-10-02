@@ -2133,7 +2133,7 @@ jobs:
       - name: aruba instant on gating, guardrails and portal login
         run: |
           ./scripts/ci-gated-test.sh \
-            "aruba-instant-on" 237 \
+            "aruba-instant-on" 265 \
             "aruba instant on: all checks passed" \
             bun run test:aruba-instant-on
       - name: aruba instant on setup panel

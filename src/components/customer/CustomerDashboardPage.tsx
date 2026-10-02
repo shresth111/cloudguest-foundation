@@ -57,7 +57,14 @@ import {
   LocationLivenessBadge,
   LocationLivenessExplainer,
 } from "@/components/customer/LocationLiveness";
-import { livenessTone, CHECKING_LIVENESS, UNKNOWN_LIVENESS } from "@/lib/location-liveness";
+import {
+  livenessTone,
+  locationIsNasOnly,
+  CHECKING_LIVENESS,
+  UNKNOWN_LIVENESS,
+} from "@/lib/location-liveness";
+import { ArubaInstantOnVenueCard } from "@/components/customer/ArubaInstantOnVenueCard";
+import { controllerDeviceMetricsReason } from "@/lib/router-vendors";
 import type { LocationLiveness, LivenessTone } from "@/lib/location-liveness";
 import { useMyBillingDashboard } from "@/hooks/useBilling";
 import { customerFeatureHref } from "@/lib/customerNav";
@@ -301,6 +308,11 @@ export function CustomerDashboardPage() {
   const liveness: LocationLiveness =
     d?.liveness ?? activeLocation?.liveness ?? (isLoading ? CHECKING_LIVENESS : UNKNOWN_LIVENESS);
   const tone = livenessTone(liveness.state);
+  // An Aruba Instant On venue (NAS-only): nothing here measures its access
+  // points or its uplink traffic, so the hardware and bandwidth cards give
+  // way to the venue card (our own guest records) and copy U6. Every other
+  // venue renders exactly as before.
+  const nasOnlyVenue = locationIsNasOnly(liveness);
 
   const handleNav = (id: string) => navigate({ to: customerFeatureHref(id) });
   const handleLogout = async () => {
@@ -735,10 +747,19 @@ export function CustomerDashboardPage() {
           {/* 5. Bandwidth · Recent users · Recent alerts */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-12">
             <div className="lg:col-span-2 xl:col-span-5 [&>div]:h-full">
-              <BandwidthUtilizationCard
-                locationId={locationId}
-                onManage={() => handleNav("isp-details")}
-              />
+              {nasOnlyVenue ? (
+                <div className={cn(CARD, "p-5")} data-testid="aruba-traffic-unsupported">
+                  <p className="text-sm font-semibold text-foreground">Bandwidth</p>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {controllerDeviceMetricsReason("aruba_instant_on")}
+                  </p>
+                </div>
+              ) : (
+                <BandwidthUtilizationCard
+                  locationId={locationId}
+                  onManage={() => handleNav("isp-details")}
+                />
+              )}
             </div>
 
             <div className={cn(CARD, "p-5 xl:col-span-4")}>
@@ -885,7 +906,11 @@ export function CustomerDashboardPage() {
               bar's ISP and router figures at the top of this page. */}
           <div className="grid gap-6 lg:grid-cols-2">
             <WanStatusCard locationId={locationId} onManage={() => handleNav("isp-details")} />
-            <DeviceStatusCard locationId={locationId} onManage={() => handleNav("devices")} />
+            {nasOnlyVenue ? (
+              <ArubaInstantOnVenueCard locationId={locationId} />
+            ) : (
+              <DeviceStatusCard locationId={locationId} onManage={() => handleNav("devices")} />
+            )}
           </div>
         </main>
       </div>

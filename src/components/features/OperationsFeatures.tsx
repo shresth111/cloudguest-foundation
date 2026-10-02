@@ -15,6 +15,7 @@ import {
   controllerRouterDeviceWriteReason,
   isControllerManaged,
   routerVendorLabel,
+  isNasOnlyVendor,
 } from "@/lib/router-vendors";
 import {
   Activity,
@@ -3227,7 +3228,8 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
                     {isControllerManaged(r.vendor) && (
                       <span className="text-muted-foreground">
                         {" "}
-                        · {routerVendorLabel(r.vendor)} controller
+                        · {routerVendorLabel(r.vendor)}{" "}
+                        {isNasOnlyVendor(r.vendor) ? "access points" : "controller"}
                       </span>
                     )}
                   </SelectItem>

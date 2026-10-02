@@ -25,6 +25,9 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ControllerDevicesCard } from "@/components/customer/ControllerDevicesCard";
+import { useCustomerStore } from "@/stores/customerStore";
+import { ArubaInstantOnVenueCard } from "@/components/customer/ArubaInstantOnVenueCard";
+import { locationIsNasOnly } from "@/lib/location-liveness";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -378,7 +381,13 @@ const STRICT_MAC_RE = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
  * registered yet" rather than reusing an unrelated graphic. Purely
  * decorative -- aria-hidden.
  */
-function HardwareEmptyState({ controllerManaged }: { controllerManaged: boolean }) {
+function HardwareEmptyState({
+  controllerManaged,
+  nasOnly = false,
+}: {
+  controllerManaged: boolean;
+  nasOnly?: boolean;
+}) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-14 text-center">
       <svg aria-hidden="true" viewBox="0 0 120 90" className="h-20 w-28" fill="none">
@@ -426,12 +435,14 @@ function HardwareEmptyState({ controllerManaged }: { controllerManaged: boolean 
       <div>
         <p className="text-sm font-medium">No hardware set up yet</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          {controllerManaged
-            ? // "start monitoring it" is a promise this venue cannot be
-              // given: the liveness sweep only probes through an
-              // agent-managed uplink, and this one has none.
-              "Add a device by MAC address to keep a record of it. Status for your access points comes from your controller, above."
-            : "Add a device by MAC address to start monitoring it."}
+          {nasOnly
+            ? "Add a device by MAC address to keep a record of it. Wyfy doesn't see the status of Aruba Instant On access points; the Instant On app does."
+            : controllerManaged
+              ? // "start monitoring it" is a promise this venue cannot be
+                // given: the liveness sweep only probes through an
+                // agent-managed uplink, and this one has none.
+                "Add a device by MAC address to keep a record of it. Status for your access points comes from your controller, above."
+              : "Add a device by MAC address to start monitoring it."}
         </p>
       </div>
     </div>
@@ -442,14 +453,19 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
   const { devices, loading, addDevice, removeDevice } = useMonitoredHardware(locationId);
   // Owned here, not inside `ControllerDevicesCard`, because both cards need
   // the answer and one GET should serve both. See that component's own note.
-  const controllerInventory = useControllerDevices(locationId);
+  // An Aruba Instant On venue has no controller inventory to read (no API to
+  // Instant On, no network integration), so it is never asked for one; the
+  // venue card below stands where the Omada access-point list would.
+  const nasOnlyVenue = locationIsNasOnly(useCustomerStore((st) => st.activeLocation)?.liveness);
+  const controllerInventory = useControllerDevices(nasOnlyVenue ? undefined : locationId);
   // Whether this venue's network is run by a vendor controller. Taken from
   // the inventory read rather than guessed from the hardware rows, so the
   // answer is the same before any hardware has been registered -- which is
   // exactly when the "add a device to start monitoring it" empty state would
   // otherwise make a promise this venue cannot keep.
   const controllerManaged =
-    !controllerInventory.loading && controllerInventory.status !== "no_controller";
+    nasOnlyVenue ||
+    (!controllerInventory.loading && controllerInventory.status !== "no_controller");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyHardwareForm);
   const [macError, setMacError] = useState<string | null>(null);
@@ -510,7 +526,13 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
     >
       {/* Read-only controller inventory (Omada venues); renders nothing for a
           MikroTik venue, leaving the manual hardware card below unchanged. */}
-      <ControllerDevicesCard inventory={controllerInventory} />
+      {nasOnlyVenue && locationId ? (
+        <div className="mb-4">
+          <ArubaInstantOnVenueCard locationId={locationId} />
+        </div>
+      ) : (
+        <ControllerDevicesCard inventory={controllerInventory} />
+      )}
       <Card className="border-0 shadow-sm">
         <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
           <div className="flex items-start gap-2.5">
@@ -522,15 +544,17 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
                 Network Hardware
               </CardTitle>
               <CardDescription>
-                {controllerManaged
-                  ? // At a controller-managed venue nothing here pings these
-                    // MACs (the liveness sweep only dials agent-managed
-                    // uplinks), so the old copy -- "so Device Monitoring can
-                    // track them" -- was a promise the platform cannot keep.
-                    // The access points themselves are listed above, by the
-                    // controller.
-                    "Keep a record of other hardware at this location by MAC address and floor. Your access points are listed above, reported by your controller."
-                  : "Set up Access Points, Printers, and other hardware for this location by MAC address and floor so Device Monitoring can track them."}
+                {nasOnlyVenue
+                  ? "Keep a record of other hardware at this location by MAC address and floor. Wyfy doesn't see the status of Aruba Instant On access points; the Instant On app does."
+                  : controllerManaged
+                    ? // At a controller-managed venue nothing here pings these
+                      // MACs (the liveness sweep only dials agent-managed
+                      // uplinks), so the old copy -- "so Device Monitoring can
+                      // track them" -- was a promise the platform cannot keep.
+                      // The access points themselves are listed above, by the
+                      // controller.
+                      "Keep a record of other hardware at this location by MAC address and floor. Your access points are listed above, reported by your controller."
+                    : "Set up Access Points, Printers, and other hardware for this location by MAC address and floor so Device Monitoring can track them."}
               </CardDescription>
             </div>
           </div>
@@ -551,7 +575,7 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
               Loading devices…
             </div>
           ) : devices.length === 0 ? (
-            <HardwareEmptyState controllerManaged={controllerManaged} />
+            <HardwareEmptyState controllerManaged={controllerManaged} nasOnly={nasOnlyVenue} />
           ) : (
             <Table>
               <TableHeader>
@@ -677,9 +701,11 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
             <DialogHeader>
               <DialogTitle>Add Network Hardware</DialogTitle>
               <DialogDescription>
-                {controllerManaged
-                  ? "Enter the device's MAC address, type, and the floor it's installed on. This keeps a record of it — status for this venue's hardware comes from your controller, not from this platform."
-                  : "Enter the device's MAC address, type, and the floor it's installed on."}
+                {nasOnlyVenue
+                  ? "Enter the device's MAC address, type, and the floor it's installed on. This keeps a record of it — Wyfy doesn't see the status of hardware at this venue."
+                  : controllerManaged
+                    ? "Enter the device's MAC address, type, and the floor it's installed on. This keeps a record of it — status for this venue's hardware comes from your controller, not from this platform."
+                    : "Enter the device's MAC address, type, and the floor it's installed on."}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={submit} className="space-y-5">

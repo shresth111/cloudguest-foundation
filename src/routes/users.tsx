@@ -82,7 +82,7 @@ import { requireCustomerSession } from "@/lib/authGuards";
 import { requireActiveLocationId } from "@/lib/customerLocationGuard";
 import { customerFeatureHref } from "@/lib/customerNav";
 import { useClientControls, useDeviceActions } from "@/hooks/useClientControls";
-import { isNasOnlyVendor } from "@/lib/router-vendors";
+import { NAS_ONLY_DATA_USAGE_UNREPORTED, isNasOnlyVendor } from "@/lib/router-vendors";
 import { disconnectOutcome } from "@/lib/omada-client-controls";
 import { GuestDeviceControls, isSendableMac } from "@/components/customer/GuestDeviceControls";
 
@@ -151,6 +151,18 @@ function CustomerUsersPage() {
   // we do, and ending our own record would make this list say they left.
   // Omada and MikroTik venues keep the button exactly as before.
   const disconnectUnsupported = isNasOnlyVendor(clientControls.vendor);
+  // Per-session data at a NAS-only venue: bytes arrive only through RADIUS
+  // accounting interims, which are unverified on Instant On (PM_SPEC V3). A
+  // session with nothing recorded is "not reported" (U5), never a measured
+  // "0 MB". Every other venue renders the value exactly as before.
+  const sessionDataCell = (download: string) =>
+    disconnectUnsupported && download === "0 MB" ? (
+      <span title={NAS_ONLY_DATA_USAGE_UNREPORTED} data-testid="data-unreported">
+        —
+      </span>
+    ) : (
+      download
+    );
   // The venue-scoped client routes, bound to the active location. Used for the
   // per-device panel below and -- only when the session-level disconnect comes
   // back NOT enforced -- as a second, MAC-keyed attempt. Never on the happy
@@ -629,7 +641,9 @@ function CustomerUsersPage() {
                         <TableCell className="text-xs text-muted-foreground hidden xl:table-cell">
                           {u.disconnectedAt ? new Date(u.disconnectedAt).toLocaleString() : "—"}
                         </TableCell>
-                        <TableCell className="text-xs hidden lg:table-cell">{u.download}</TableCell>
+                        <TableCell className="text-xs hidden lg:table-cell">
+                          {sessionDataCell(u.download)}
+                        </TableCell>
                         <TableCell>
                           <span
                             className={cn(
@@ -967,7 +981,7 @@ function CustomerUsersPage() {
                     </p>
                     <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold">
                       <Download className="h-3.5 w-3.5 text-muted-foreground" />
-                      {detailUser.download}
+                      {sessionDataCell(detailUser.download)}
                     </p>
                   </div>
                 </div>
