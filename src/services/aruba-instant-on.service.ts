@@ -14,8 +14,35 @@ import {
   type ArubaRegistration,
   type ArubaSetupStatus,
 } from "@/lib/aruba-instant-on-setup";
+import {
+  buildInstantOnSiteBody,
+  toCreatedInstantOnSite,
+  type AddInstantOnSiteDraft,
+  type CreatedInstantOnSite,
+} from "@/lib/aruba-instant-on-site";
 
 export const arubaInstantOnService = {
+  /** Add an Instant On site: one `aruba_instant_on` fleet row at the chosen
+   * location. No agent, no WireGuard, no RADIUS yet -- Register on the setup
+   * panel is the next step. No `X-Organization-Id`: a `/platform/` route, and
+   * the organization travels in the body, where the backend checks the
+   * location against it. */
+  async createSite(draft: AddInstantOnSiteDraft): Promise<CreatedInstantOnSite> {
+    const { data } = await api.post(
+      "/platform/routers/instant-on-sites",
+      buildInstantOnSiteBody(draft),
+    );
+    return toCreatedInstantOnSite(data);
+  },
+
+  /** Remove a mistaken Instant On row: `DELETE /routers/{id}` (GLOBAL), the
+   * same decommission every fleet row uses. It deregisters the RADIUS client
+   * from the hub FIRST and refuses (502, nothing changed) if the hub will
+   * not drop it, so a removed row never leaves a live secret behind. */
+  async removeSite(routerId: string): Promise<void> {
+    await api.delete(`/routers/${routerId}`);
+  },
+
   /** §2. Registration status, the split portal URL, the RADIUS server and the
    * allowed domains -- or the gaps that stop them being shown. Never the
    * secret. */
