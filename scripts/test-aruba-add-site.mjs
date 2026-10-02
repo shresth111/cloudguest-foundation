@@ -219,6 +219,12 @@ console.log("\n2. master-only: no customer surface imports the add/remove code")
   );
   const fleet = readFileSync(join(ROOT, "src/routes/master.routers.tsx"), "utf8");
   check(
+    "the pre-check is fed the all-pages fleet read (#375), not a single page",
+    fleet.includes("useAllRouters(") &&
+      !/\buseRouters\(/.test(fleet) &&
+      /fleet=\{routers\}/.test(fleet),
+  );
+  check(
     "Router Fleet mounts the dialogs, and not in demo",
     fleet.includes("<AddInstantOnSiteDialog") &&
       fleet.includes("<RemoveInstantOnSiteDialog") &&
@@ -273,7 +279,7 @@ writeFileSync(
          <RemoveInstantOnSiteDialog router={target} onClose={() => { window.__closed++; }}
            onRemoved={(r) => { window.__removed.push(r.id); }} />
        ) : (
-         <AddInstantOnSiteDialog open fleet={fleet} onClose={() => { window.__closed++; }}
+         <AddInstantOnSiteDialog open fleet={fleet} fleetIncomplete={!!window.__incomplete} onClose={() => { window.__closed++; }}
            onCreated={(c) => { window.__created.push(c); }}
            onOpenExisting={(id) => { window.__opened.push(id); }} />
        )}
@@ -303,6 +309,7 @@ await build({
 // ---------------------------------------------------------------------------
 let requests = [];
 let mode = "add";
+let incomplete = false;
 /** What the create route answers: { status, message?, data? }. */
 let createAnswer = { status: 201 };
 let deleteAnswer = { status: 200 };
@@ -314,7 +321,7 @@ const server = createServer(async (req, res) => {
       res.writeHead(200, { "content-type": "text/html" });
       return res.end(
         `<!doctype html><meta charset=utf-8><title>add site harness</title>
-         <script>window.__mode = ${JSON.stringify(mode)};</script>
+         <script>window.__mode = ${JSON.stringify(mode)}; window.__incomplete = ${JSON.stringify(incomplete)};</script>
          <div id=root></div><script type=module src="./bundle.js"></script>`,
       );
     }
@@ -378,9 +385,10 @@ const { chromium } = await import("playwright");
 const browser = await chromium.launch();
 const context = await browser.newContext();
 
-async function open(m, waitFor) {
+async function open(m, waitFor, { partialFleet = false } = {}) {
   requests = [];
   mode = m;
+  incomplete = partialFleet;
   const page = await context.newPage();
   await page.goto(origin);
   await page.getByText(waitFor).first().waitFor({ timeout: 10_000 });
@@ -440,6 +448,29 @@ console.log("\n3. add: nothing is sent until the form is valid");
   await page.getByTestId("ios-mac-error").waitFor();
   check("a bad MAC blocks the request", creates().length === 0);
   await page.close();
+}
+
+{
+  const page = await open("add", "Add Instant On site", { partialFleet: true });
+  await waitForOptions(page, "#ios-org", 3);
+  await page.selectOption("#ios-org", "org-1");
+  await waitForOptions(page, "#ios-location", 3);
+  await page.selectOption("#ios-location", "loc-1");
+  check(
+    "a partly-read fleet says the pre-check may miss a device",
+    (await page.getByTestId("instant-on-site-fleet-incomplete").count()) === 1,
+  );
+  await page.close();
+  const full = await open("add", "Add Instant On site");
+  await waitForOptions(full, "#ios-org", 3);
+  await full.selectOption("#ios-org", "org-1");
+  await waitForOptions(full, "#ios-location", 3);
+  await full.selectOption("#ios-location", "loc-1");
+  check(
+    "a fully-read fleet does not",
+    (await full.getByTestId("instant-on-site-fleet-incomplete").count()) === 0,
+  );
+  await full.close();
 }
 
 // ---------------------------------------------------------------------------

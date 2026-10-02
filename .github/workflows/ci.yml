@@ -2166,7 +2166,7 @@ jobs:
       - name: aruba instant on add / remove site
         run: |
           ./scripts/ci-gated-test.sh \
-            "aruba-add-site" 40 \
+            "aruba-add-site" 43 \
             "aruba add site: all checks passed" \
             bun run test:aruba-add-site
 
