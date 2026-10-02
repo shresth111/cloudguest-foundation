@@ -4,6 +4,7 @@ import api from "@/services/api";
 import type {
   CreateRouterPayload,
   OnboardControllerPayload,
+  RouterListFilters,
   RouterListQuery,
   RouterStatus,
 } from "@/types/router";
@@ -11,6 +12,7 @@ import type {
 export const routerKeys = {
   all: ["routers"] as const,
   list: (q: RouterListQuery) => ["routers", "list", q] as const,
+  listAll: (q: RouterListFilters) => ["routers", "list-all", q] as const,
   detail: (id: string) => ["routers", "detail", id] as const,
   wireguardPeer: (id: string) => ["routers", "wireguard-peer", id] as const,
 };
@@ -19,6 +21,15 @@ export function useRouters(query: RouterListQuery) {
   return useQuery({
     queryKey: routerKeys.list(query),
     queryFn: () => routerService.list(query),
+  });
+}
+
+/** Every router matching `filters` -- no client-side page window. For screens
+ * that filter, count and paginate the whole fleet themselves. */
+export function useAllRouters(filters: RouterListFilters) {
+  return useQuery({
+    queryKey: routerKeys.listAll(filters),
+    queryFn: () => routerService.listAll(filters),
   });
 }
 

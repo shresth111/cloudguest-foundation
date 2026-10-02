@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import { getAllItems, listAllPages } from "@/services/list-all-pages";
 import { resolveOrganizationId as sharedResolveOrganizationId } from "./organization-id";
 import type {
   Campaign,
@@ -233,20 +234,15 @@ export const campaignService = {
    * "active campaigns" could only ever be counted client-side over whatever
    * fitted in the first page -- an organization with more than 100
    * campaigns undercounted silently, with nothing on screen saying the
-   * number was a cap. Bounded so a pathological total can't spin.
+   * number was a cap. `listAllPages` bounds a pathological total by
+   * THROWING at its page limit -- the old 20-page clamp here returned
+   * campaign 2,001+ as silently missing, the same bug one level up.
    */
   async listAll(locationId?: string): Promise<Campaign[]> {
-    const MAX_PAGES = 20;
-    const first = await campaignService.list({ locationId, page: 1, pageSize: 100 });
-    const totalPages = Math.min(first.totalPages ?? 1, MAX_PAGES);
-    if (totalPages <= 1) return first.rows;
-
-    const rest = await Promise.all(
-      Array.from({ length: totalPages - 1 }, (_, i) =>
-        campaignService.list({ locationId, page: i + 2, pageSize: 100 }),
-      ),
-    );
-    return [...first.rows, ...rest.flatMap((r) => r.rows)];
+    return listAllPages(async (page, pageSize) => {
+      const r = await campaignService.list({ locationId, page, pageSize });
+      return { rows: r.rows, hasNext: r.hasNext ?? page < (r.totalPages ?? 1) };
+    });
   },
 
   async get(id: string): Promise<Campaign> {
@@ -258,9 +254,11 @@ export const campaignService = {
   },
 
   async getKpis(): Promise<CampaignKpis> {
-    const { rows, total } = await campaignService.list({ page: 1, pageSize: 100 });
+    // Every campaign, not the first 100: the per-status counts were taken over
+    // one page while `total` was the server's, so they stopped adding up.
+    const rows = await campaignService.listAll();
     return {
-      total,
+      total: rows.length,
       active: rows.filter((c) => c.status === "active").length,
       scheduled: rows.filter((c) => c.status === "scheduled").length,
       draft: rows.filter((c) => c.status === "draft").length,
@@ -477,11 +475,11 @@ export const campaignService = {
     locationId: string,
   ): Promise<NextCampaign | null> {
     const headers = { "X-Organization-Id": orgId };
-    const { data } = await api.get<BackendCampaignListResponse>("/campaigns", {
-      params: { location_id: locationId, page: 1, page_size: 100 },
+    const items = await getAllItems<BackendCampaignListResponse["items"][number]>("/campaigns", {
+      params: { location_id: locationId },
       headers,
     });
-    const active = data.items.find((c) => c.status === "active");
+    const active = items.find((c) => c.status === "active");
     if (!active) return null;
 
     const base = {

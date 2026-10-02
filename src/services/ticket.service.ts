@@ -1,4 +1,5 @@
 import { api, TOKEN_STORAGE_KEY } from "@/services/api";
+import { getAllItems } from "@/services/list-all-pages";
 import { resolveOrganizationId as sharedResolveOrganizationId } from "./organization-id";
 import type {
   CreateTicketPayload,
@@ -120,11 +121,11 @@ export const ticketService = {
     search?: string;
   }): Promise<SupportTicket[]> {
     const orgId = await resolveOrgId();
-    const { data } = await api.get<BackendTicketListResponse>("/support-tickets", {
-      params: { page_size: 100, ...params },
-      headers: { "X-Organization-Id": orgId },
-    });
-    return data.items.map(toTicket);
+    const items = await getAllItems<BackendTicketListResponse["items"][number]>(
+      "/support-tickets",
+      { params: { ...params }, headers: { "X-Organization-Id": orgId } },
+    );
+    return items.map(toTicket);
   },
 
   /** No X-Organization-Id header -- the backend resolves this to "every
@@ -135,10 +136,11 @@ export const ticketService = {
     priority?: TicketPriority;
     search?: string;
   }): Promise<SupportTicket[]> {
-    const { data } = await api.get<BackendTicketListResponse>("/support-tickets", {
-      params: { page_size: 100, ...params },
-    });
-    return data.items.map(toTicket);
+    const items = await getAllItems<BackendTicketListResponse["items"][number]>(
+      "/support-tickets",
+      { params: { ...params } },
+    );
+    return items.map(toTicket);
   },
 
   async create(payload: CreateTicketPayload): Promise<SupportTicket> {

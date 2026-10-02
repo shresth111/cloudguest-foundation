@@ -92,8 +92,8 @@ function CustomersScreen() {
   async function refetch() {
     setLoading(true);
     try {
-      const [{ rows: orgs }, locations, snapshot] = await Promise.all([
-        organizationService.list({ page: 1, pageSize: 100 }),
+      const [orgs, locations, snapshot] = await Promise.all([
+        organizationService.listAll(),
         locationService.listAll(),
         billingService.getSnapshot().catch(() => null),
       ]);

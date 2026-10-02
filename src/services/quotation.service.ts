@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import { getAllItems } from "@/services/list-all-pages";
 import type { CreateQuotationPayload, Quotation, QuotationStatus } from "@/types/quotation";
 
 interface BackendQuotationLineItem {
@@ -103,10 +104,10 @@ export const quotationService = {
   /** Master console -- lists every generated quotation, gated by
    * quotations.read. */
   async list(params?: { status?: QuotationStatus; search?: string }): Promise<Quotation[]> {
-    const { data } = await api.get<BackendQuotationListResponse>("/quotations", {
-      params: { page_size: 100, ...params },
+    const items = await getAllItems<BackendQuotationListResponse["items"][number]>("/quotations", {
+      params: { ...params },
     });
-    return data.items.map(toQuotation);
+    return items.map(toQuotation);
   },
 
   /** Master console -- fetches one quotation, gated by quotations.read. */

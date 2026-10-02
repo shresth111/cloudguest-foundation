@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { guestService } from "@/services/guest.service";
+import { toast } from "sonner";
 import { organizationService } from "@/services/organization.service";
 import type {
   AccessCheckQuery,
@@ -28,9 +29,9 @@ async function fetchEnrichedRules(): Promise<{
 }> {
   const [rules, orgs] = await Promise.all([
     guestService.listAccessRules(),
-    organizationService.list({ page: 1, pageSize: 100 }),
+    organizationService.listAll(),
   ]);
-  const nameById = new Map(orgs.rows.map((o) => [o.id, o.name]));
+  const nameById = new Map(orgs.map((o) => [o.id, o.name]));
   const guest = rules
     .filter((r): r is GuestAccessRule & { kind: "identifier" } => r.kind === "identifier")
     .map((r) => ({ ...r, organizationName: nameById.get(r.organizationId) ?? "—" }));
@@ -75,7 +76,12 @@ export const useGuestAccessOrganizations = () =>
   useQuery({
     queryKey: guestAccessKeys.organizations,
     queryFn: async () => {
-      const { rows } = await organizationService.list({ page: 1, pageSize: 100 });
+      // Every page of the directory, and a failed page is said out loud:
+      // an empty customer dropdown with no error reads as "no customers".
+      const rows = await organizationService.listAll().catch((err: unknown) => {
+        toast.error("Could not load the customer list.");
+        throw err;
+      });
       return rows.map((o) => ({ id: o.id, name: o.name }));
     },
   });

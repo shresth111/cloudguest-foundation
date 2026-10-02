@@ -51,7 +51,7 @@ import { FirewallBandPanel } from "@/components/master/FirewallBandPanel";
 import { inputCls, RouterSetupDrilldown } from "@/components/routers/RouterSetupScriptAdvanced";
 import { routerService } from "@/services/router.service";
 import { isDemo } from "@/services/customer.service";
-import { useRouters, useUpdateRouterVendor } from "@/hooks/useRouters";
+import { useAllRouters, useUpdateRouterVendor } from "@/hooks/useRouters";
 import type { AppError } from "@/services/api";
 import type { RouterDevice } from "@/types/router";
 import type { NetworkIntegration } from "@/types/network-integration";
@@ -117,9 +117,10 @@ function RouterFleetRoute() {
 
 type Filter = "all" | "online" | "degraded" | "offline" | "controller";
 
+/** The WHOLE fleet: this table filters, counts and paginates client-side.
+ * It used to be `{ page: 1, pageSize: 200 }` through `useRouters`, whose
+ * client-side slice quietly capped the fleet at router 200. */
 const FLEET_LIST_QUERY = {
-  page: 1,
-  pageSize: 200,
   search: "",
   status: "all" as const,
   organizationId: "all",
@@ -301,7 +302,7 @@ function RouterFleetScreen() {
     return () => clearInterval(t);
   }, []);
 
-  const fleetQuery = useRouters(FLEET_LIST_QUERY);
+  const fleetQuery = useAllRouters(FLEET_LIST_QUERY);
   const updateVendor = useUpdateRouterVendor();
   const routers = fleetQuery.data?.rows ?? [];
   const loading = fleetQuery.isLoading;
@@ -711,6 +712,13 @@ function RouterFleetScreen() {
                 {fleetQuery.data?.unreachableLocationCount === 1 ? "" : "s"} could not be read, so
                 any routers there are missing from this list. The counts above cover only what
                 loaded.
+              </p>
+            )}
+            {(fleetQuery.data?.unreachableOrganizationCount ?? 0) > 0 && (
+              <p className="text-xs text-amber-600 dark:text-amber-500">
+                {fleetQuery.data?.unreachableOrganizationCount} customer
+                {fleetQuery.data?.unreachableOrganizationCount === 1 ? "" : "s"}&apos; locations
+                could not be read, so every router under them is missing from this list.
               </p>
             )}
 

@@ -196,7 +196,7 @@ export const superAdminService = {
   },
 
   async getRecentRouters(limit = 5): Promise<RouterRow[]> {
-    const { rows } = await routerService.list({ page: 1, pageSize: 1000 });
+    const { rows } = await routerService.listAll();
     return [...rows]
       .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
       .slice(0, limit)

@@ -63,9 +63,9 @@ function TicketsScreen() {
   async function refetch() {
     setLoading(true);
     try {
-      const [rows, { rows: orgs }] = await Promise.all([
+      const [rows, orgs] = await Promise.all([
         ticketService.listAllOrgs(),
-        organizationService.list({ page: 1, pageSize: 100 }),
+        organizationService.listAll(),
       ]);
       setTickets(rows);
       setOrgNames(new Map(orgs.map((o) => [o.id, o.name])));

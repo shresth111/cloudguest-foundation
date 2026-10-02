@@ -267,7 +267,7 @@ export function VlanManagement({ locationId }: { locationId?: string } = {}) {
         const rows = await routerService.listForLocation(locationId, orgId);
         return { rows, total: rows.length };
       }
-      return routerService.list({ page: 1, pageSize: 100 });
+      return routerService.listAll();
     },
   });
 

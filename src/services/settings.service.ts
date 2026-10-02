@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import { getAllItems } from "@/services/list-all-pages";
 import type { ApiKey, BackupEntry, IntegrationCard, PlatformSettings } from "@/types/settings";
 
 // ============================================================================
@@ -382,11 +383,10 @@ export const settingsService = {
   async getAll(): Promise<PlatformSettings> {
     await delay();
     const orgId = await resolveOrganizationId();
-    const { data } = await api.get<BackendApiKeyListResponse>("/api-keys", {
-      params: { page_size: 100 },
+    const items = await getAllItems<BackendApiKeyListResponse["items"][number]>("/api-keys", {
       headers: { "X-Organization-Id": orgId },
     });
-    state.api = { ...state.api, keys: data.items.map(toApiKeyFromList) };
+    state.api = { ...state.api, keys: items.map(toApiKeyFromList) };
     return structuredClone(state);
   },
   async updateSection<K extends keyof PlatformSettings>(

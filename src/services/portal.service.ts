@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import { getAllItems } from "@/services/list-all-pages";
 import { clampFeedbackDwellMinutes } from "@/lib/portal-post-connect";
 import {
   clampBackgroundOverlayStrength,
@@ -378,10 +379,8 @@ async function fetchOrgNameMap(orgId?: string): Promise<Map<string, string>> {
       });
       return new Map([[data.id, data.name]]);
     }
-    const { data } = await api.get<BackendListResponse<BackendOrg>>("/organizations", {
-      params: { page_size: 100 },
-    });
-    return new Map(data.items.map((o) => [o.id, o.name]));
+    const items = await getAllItems<BackendOrg>("/organizations");
+    return new Map(items.map((o) => [o.id, o.name]));
   } catch {
     return new Map();
   }
@@ -399,8 +398,7 @@ async function fetchLocationNameMap(orgIds: string[]): Promise<Map<string, strin
   const unique = [...new Set(orgIds)];
   const settled = await Promise.allSettled(
     unique.map((orgId) =>
-      api.get<BackendListResponse<BackendLocation>>(`/organizations/${orgId}/locations`, {
-        params: { page_size: 100 },
+      getAllItems<BackendLocation>(`/organizations/${orgId}/locations`, {
         headers: { "X-Organization-Id": orgId },
       }),
     ),
@@ -408,7 +406,7 @@ async function fetchLocationNameMap(orgIds: string[]): Promise<Map<string, strin
   const map = new Map<string, string>();
   for (const r of settled) {
     if (r.status !== "fulfilled") continue;
-    for (const loc of r.value.data.items) map.set(loc.id, loc.name);
+    for (const loc of r.value) map.set(loc.id, loc.name);
   }
   return map;
 }
@@ -537,14 +535,9 @@ function toPortal(
 // does hold GLOBAL scope) calls this with no orgId and keeps seeing every
 // organization's configs, unchanged.
 async function fetchAllConfigs(orgId?: string): Promise<BackendCaptivePortalConfig[]> {
-  const { data } = await api.get<BackendListResponse<BackendCaptivePortalConfig>>(
-    "/captive-portal-configs",
-    {
-      params: { page: 1, page_size: 100 },
-      headers: orgId ? { "X-Organization-Id": orgId } : undefined,
-    },
-  );
-  return data.items;
+  return getAllItems<BackendCaptivePortalConfig>("/captive-portal-configs", {
+    headers: orgId ? { "X-Organization-Id": orgId } : undefined,
+  });
 }
 
 async function hydrate(configs: BackendCaptivePortalConfig[], orgId?: string): Promise<Portal[]> {

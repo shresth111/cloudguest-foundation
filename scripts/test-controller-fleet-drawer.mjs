@@ -167,6 +167,8 @@ writeFileSync(
        isLoading: false, isError: false, error: null, refetch: () => {},
      };
    }
+   // The fleet screen reads the WHOLE fleet (no client-side 200 slice).
+   export function useAllRouters(...args) { return useRouters(...args); }
    export function useRouter() {
      return { data: window.__rows[0], isLoading: false, isError: false, refetch: () => {} };
    }

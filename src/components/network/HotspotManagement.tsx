@@ -117,7 +117,7 @@ export function HotspotManagement({ locationId }: { locationId?: string } = {}) 
         const rows = await routerService.listForLocation(locationId, await resolveOrgId());
         return { rows, total: rows.length };
       }
-      return routerService.list({ page: 1, pageSize: 100 });
+      return routerService.listAll();
     },
   });
 

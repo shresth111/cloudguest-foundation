@@ -64,5 +64,7 @@
   "historyEmptyTitle": "No checks recorded yet",
   "historyEmptyBody": "Anything this page runs against your router is listed here.",
   "showingRecent_one": "Showing the {{count}} most recent of {{total}}.",
-  "showingRecent_other": "Showing the {{count}} most recent of {{total}}."
+  "showingRecent_other": "Showing the {{count}} most recent of {{total}}.",
+  "rulesUnreadable": "We couldn't read this venue's blocked-website list.",
+  "rulesUnreadableBody": "The check below only covers whether the site is reachable, not whether one of your own rules blocks it."
 }

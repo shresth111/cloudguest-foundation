@@ -139,10 +139,10 @@ function LocationsScreen() {
     try {
       const [locs, orgList] = await Promise.all([
         locationService.listAll(),
-        organizationService.list({ page: 1, pageSize: 100 }),
+        organizationService.listAll(),
       ]);
       setLocations(locs);
-      setOrgs(orgList.rows.map((o) => ({ id: o.id, name: o.name })));
+      setOrgs(orgList.map((o) => ({ id: o.id, name: o.name })));
     } catch (err) {
       const message = requestErrorMessage(err, "Could not load locations from the server.");
       toast.error(message);

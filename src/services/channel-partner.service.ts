@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import { getAllItems } from "@/services/list-all-pages";
 import type {
   ChannelPartner,
   ChannelPartnerStatus,
@@ -108,10 +109,11 @@ export const channelPartnerService = {
     status?: ChannelPartnerStatus;
     search?: string;
   }): Promise<ChannelPartner[]> {
-    const { data } = await api.get<BackendChannelPartnerListResponse>("/channel-partners", {
-      params: { page_size: 100, ...params },
-    });
-    return data.items.map(toChannelPartner);
+    const items = await getAllItems<BackendChannelPartnerListResponse["items"][number]>(
+      "/channel-partners",
+      { params: { ...params } },
+    );
+    return items.map(toChannelPartner);
   },
 
   /** Master console -- fetches one channel partner, gated by

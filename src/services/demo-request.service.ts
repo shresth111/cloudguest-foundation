@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import { getAllItems } from "@/services/list-all-pages";
 import type {
   DemoRequest,
   DemoRequestStatus,
@@ -62,10 +63,11 @@ export const demoRequestService = {
   /** Master console -- lists every submitted demo request, gated by
    * demo_requests.read. */
   async list(params?: { status?: DemoRequestStatus; search?: string }): Promise<DemoRequest[]> {
-    const { data } = await api.get<BackendDemoRequestListResponse>("/demo-requests", {
-      params: { page_size: 100, ...params },
-    });
-    return data.items.map(toDemoRequest);
+    const items = await getAllItems<BackendDemoRequestListResponse["items"][number]>(
+      "/demo-requests",
+      { params: { ...params } },
+    );
+    return items.map(toDemoRequest);
   },
 
   /** Master console -- updates a demo request's status/internal notes,

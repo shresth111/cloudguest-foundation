@@ -104,7 +104,7 @@ export function FirewallManagement() {
   const del = useDeleteFirewallRule();
   const { data: routers = { rows: [], total: 0 } } = useQuery({
     queryKey: ["firewall", "router-options"],
-    queryFn: () => routerService.list({ page: 1, pageSize: 100 }),
+    queryFn: () => routerService.listAll(),
   });
 
   const routerName = (id: string) => routers.rows.find((r) => r.id === id)?.name ?? id.slice(0, 8);
