@@ -80,10 +80,7 @@ function NasScreen() {
   async function refetch() {
     setLoading(true);
     try {
-      const [nas, routerList] = await Promise.all([
-        nasService.listAll(),
-        routerService.list({ page: 1, pageSize: 100 }),
-      ]);
+      const [nas, routerList] = await Promise.all([nasService.listAll(), routerService.listAll()]);
       setNasClients(nas);
       setRouters(routerList.rows);
     } catch {

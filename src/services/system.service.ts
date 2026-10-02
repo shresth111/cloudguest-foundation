@@ -12,6 +12,7 @@
  */
 
 import { api } from "@/services/api";
+import { getAllItems } from "@/services/list-all-pages";
 
 const delay = (ms = 250) => new Promise((r) => setTimeout(r, ms));
 const iso = (offsetDays = 0) => new Date(Date.now() + offsetDays * 86_400_000).toISOString();
@@ -712,11 +713,10 @@ export const systemService = {
   // api keys -- real, see BackendApiKey* types above
   async listApiKeys() {
     const orgId = await resolveOrganizationId();
-    const { data } = await api.get<BackendApiKeyListResponse>("/api-keys", {
-      params: { page_size: 100 },
+    const items = await getAllItems<BackendApiKeyListResponse["items"][number]>("/api-keys", {
       headers: { "X-Organization-Id": orgId },
     });
-    return data.items.map((k) => toApiKeyRowFromList(k, keyScopes.get(k.id) ?? ["read"]));
+    return items.map((k) => toApiKeyRowFromList(k, keyScopes.get(k.id) ?? ["read"]));
   },
   async createApiKey(name: string, scopes: string[]) {
     const orgId = await resolveOrganizationId();

@@ -556,7 +556,7 @@ function AssignmentDialog({
 
   const { data: routers = { rows: [] } } = useQuery({
     queryKey: ["queue", "router-options"],
-    queryFn: () => routerService.list({ page: 1, pageSize: 100 }),
+    queryFn: () => routerService.listAll(),
     enabled: open,
   });
 

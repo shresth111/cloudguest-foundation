@@ -120,7 +120,7 @@ async function fetchLocationResources(
   organizationId?: string,
 ): Promise<LocationResources> {
   const [routersResult, sessionsResult, activeResult] = await Promise.allSettled([
-    routerService.list({ locationId, organizationId, page: 1, pageSize: 100 }),
+    routerService.listAll({ locationId, organizationId }),
     guestService.listSessions({ locationId, organizationId, page: 1, pageSize: 100 }),
     fetchActiveSessions(organizationId, locationId),
   ]);

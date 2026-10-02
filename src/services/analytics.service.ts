@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import { getAllItems } from "@/services/list-all-pages";
 import { isDemo } from "@/services/customer.service";
 import { registerSessionScopeCache } from "@/lib/session-scope-cache";
 import type {
@@ -540,16 +541,12 @@ export const analyticsService = {
   },
 
   async listScheduledReports(): Promise<ScheduledReport[]> {
-    const [{ data: templates }, { data: schedules }] = await Promise.all([
-      api.get<BackendListResponse<BackendReportTemplate>>("/reports/templates", {
-        params: { page_size: 100 },
-      }),
-      api.get<BackendListResponse<BackendScheduledReport>>("/reports/schedule", {
-        params: { page_size: 100 },
-      }),
+    const [templates, schedules] = await Promise.all([
+      getAllItems<BackendReportTemplate>("/reports/templates"),
+      getAllItems<BackendScheduledReport>("/reports/schedule"),
     ]);
-    const templateById = new Map(templates.items.map((t) => [t.id, t]));
-    return schedules.items.map((s) => toScheduledReport(s, templateById.get(s.template_id)));
+    const templateById = new Map(templates.map((t) => [t.id, t]));
+    return schedules.map((s) => toScheduledReport(s, templateById.get(s.template_id)));
   },
 
   async createScheduledReport(

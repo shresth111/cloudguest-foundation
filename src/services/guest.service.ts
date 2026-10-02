@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import { BACKEND_MAX_PAGE_SIZE, getAllItems } from "@/services/list-all-pages";
 import { DENIAL_WINDOW_MS, countRecentDenials } from "@/lib/whitelist-only";
 import type {
   AccessCheckQuery,
@@ -412,10 +413,7 @@ function toGuestTeamSummary(s: BackendGuestTeamSummary): GuestTeamSummary {
 }
 
 async function fetchAllOrganizations(): Promise<BackendOrgListItem[]> {
-  const { data } = await api.get<BackendListResponse<BackendOrgListItem>>("/organizations", {
-    params: { page_size: 100 },
-  });
-  return data.items;
+  return getAllItems<BackendOrgListItem>("/organizations");
 }
 
 async function fetchAllLocations(): Promise<
@@ -424,11 +422,10 @@ async function fetchAllLocations(): Promise<
   const orgs = await fetchAllOrganizations();
   const settled = await Promise.allSettled(
     orgs.map(async (org) => {
-      const { data } = await api.get<BackendListResponse<BackendLocation>>(
-        `/organizations/${org.id}/locations`,
-        { params: { page_size: 100 }, headers: { "X-Organization-Id": org.id } },
-      );
-      return data.items.map((l) => ({
+      const items = await getAllItems<BackendLocation>(`/organizations/${org.id}/locations`, {
+        headers: { "X-Organization-Id": org.id },
+      });
+      return items.map((l) => ({
         id: l.id,
         name: l.name,
         organizationId: org.id,
@@ -497,13 +494,24 @@ async function settledData<T>(requests: Array<Promise<{ data: T }>>): Promise<T[
 async function fanOutPerOrg<T>(
   path: string,
   toRow: (raw: unknown, org: BackendOrgListItem) => T,
+  { allPages = true }: { allPages?: boolean } = {},
 ): Promise<T[]> {
   const orgs = await fetchAllOrganizations();
   const settled = await Promise.allSettled(
     orgs.map(async (org) => {
+      const headers = { "X-Organization-Id": org.id };
+      if (allPages) {
+        const items = await getAllItems<unknown>(path, { headers });
+        return items.map((raw) => toRow(raw, org));
+      }
+      // FIRST PAGE ONLY, on purpose, for the two unbounded histories
+      // (`/guests`, `/guest-sessions`): walking every page of every tenant's
+      // session history on each cross-tenant page load is thousands of
+      // requests. These views need server-side pagination per tenant, not a
+      // bigger client-side read -- tracked as a follow-up, not hidden here.
       const { data } = await api.get<BackendListResponse<unknown>>(path, {
-        params: { page_size: 100 },
-        headers: { "X-Organization-Id": org.id },
+        params: { page_size: BACKEND_MAX_PAGE_SIZE },
+        headers,
       });
       return data.items.map((raw) => toRow(raw, org));
     }),
@@ -543,11 +551,15 @@ export const guestService = {
     }
 
     const locations = await fetchAllLocations();
-    let rows = await fanOutPerOrg<Guest>("/guests", (raw, org) => {
-      const g = raw as BackendGuest;
-      const loc = locations.find((l) => l.id === g.location_id);
-      return toGuest(g, loc?.name ?? null, org.name);
-    });
+    let rows = await fanOutPerOrg<Guest>(
+      "/guests",
+      (raw, org) => {
+        const g = raw as BackendGuest;
+        const loc = locations.find((l) => l.id === g.location_id);
+        return toGuest(g, loc?.name ?? null, org.name);
+      },
+      { allPages: false },
+    );
     if (query.search) {
       const s = query.search.toLowerCase();
       rows = rows.filter(
@@ -627,11 +639,15 @@ export const guestService = {
     }
 
     const locations = await fetchAllLocations();
-    let rows = await fanOutPerOrg<GuestSession>("/guest-sessions", (raw, org) => {
-      const s = raw as BackendGuestSession;
-      const loc = locations.find((l) => l.id === s.location_id);
-      return toGuestSession(s, loc?.name ?? "", org.name, s.router_name ?? s.router_id);
-    });
+    let rows = await fanOutPerOrg<GuestSession>(
+      "/guest-sessions",
+      (raw, org) => {
+        const s = raw as BackendGuestSession;
+        const loc = locations.find((l) => l.id === s.location_id);
+        return toGuestSession(s, loc?.name ?? "", org.name, s.router_name ?? s.router_id);
+      },
+      { allPages: false },
+    );
     if (query.status && query.status !== "all")
       rows = rows.filter((s) => s.status === query.status);
     if (query.locationId && query.locationId !== "all")
@@ -649,10 +665,14 @@ export const guestService = {
   },
 
   async sessionsForGuest(guestId: string): Promise<GuestSession[]> {
-    const rows = await fanOutPerOrg<GuestSession>("/guest-sessions", (raw, org) => {
-      const s = raw as BackendGuestSession;
-      return toGuestSession(s, "", org.name, s.router_name ?? s.router_id);
-    });
+    const rows = await fanOutPerOrg<GuestSession>(
+      "/guest-sessions",
+      (raw, org) => {
+        const s = raw as BackendGuestSession;
+        return toGuestSession(s, "", org.name, s.router_name ?? s.router_id);
+      },
+      { allPages: false },
+    );
     return rows.filter((s) => s.guestId === guestId);
   },
 
@@ -731,21 +751,13 @@ export const guestService = {
     if (organizationId) {
       const headers = { "X-Organization-Id": organizationId };
       const [identifierRes, deviceRes] = await Promise.allSettled([
-        api.get<BackendListResponse<BackendAccessRule>>("/guest-access/rules", {
-          params: { page_size: 100 },
-          headers,
-        }),
-        api.get<BackendListResponse<BackendDeviceAccessRule>>("/guest-access/device-rules", {
-          params: { page_size: 100 },
-          headers,
-        }),
+        getAllItems<BackendAccessRule>("/guest-access/rules", { headers }),
+        getAllItems<BackendDeviceAccessRule>("/guest-access/device-rules", { headers }),
       ]);
       const identifierRules =
-        identifierRes.status === "fulfilled"
-          ? identifierRes.value.data.items.map(toAccessRule)
-          : [];
+        identifierRes.status === "fulfilled" ? identifierRes.value.map(toAccessRule) : [];
       const deviceRules =
-        deviceRes.status === "fulfilled" ? deviceRes.value.data.items.map(toDeviceAccessRule) : [];
+        deviceRes.status === "fulfilled" ? deviceRes.value.map(toDeviceAccessRule) : [];
       return [...identifierRules, ...deviceRules];
     }
     const [identifierRules, deviceRules] = await Promise.all([
@@ -926,11 +938,10 @@ export const guestService = {
   // views) keep the original fan-out.
   async listTeams(organizationId?: string): Promise<GuestTeam[]> {
     if (organizationId) {
-      const { data } = await api.get<BackendListResponse<BackendGuestTeam>>("/guest-teams", {
-        params: { page_size: 100 },
+      const items = await getAllItems<BackendGuestTeam>("/guest-teams", {
         headers: { "X-Organization-Id": organizationId },
       });
-      return data.items.map((raw) => toGuestTeam(raw));
+      return items.map((raw) => toGuestTeam(raw));
     }
     return fanOutPerOrg<GuestTeam>("/guest-teams", (raw) => toGuestTeam(raw as BackendGuestTeam));
   },

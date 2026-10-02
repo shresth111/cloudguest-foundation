@@ -1137,8 +1137,8 @@ function ZoneCSiteCheck({
       //    I/O, and it is the answer often enough to be worth asking first.
       let blockedByRule: { name: string; confirmedOnRouter: boolean } | null = null;
       try {
-        const rules = await contentFilterService.list({ routerId, page: 1, pageSize: 200 });
-        const hit = rules.rows.find(
+        const rules = await contentFilterService.listAll(routerId);
+        const hit = rules.find(
           (r) =>
             r.isEnabled &&
             r.valueType === "domain" &&
@@ -1150,7 +1150,15 @@ function ZoneCSiteCheck({
         }
       } catch {
         // Not fatal -- fall through to the reachability half rather than
-        // failing the whole check on one unreadable list.
+        // failing the whole check on one unreadable list. But SAY so: this
+        // used to be silent, and it failed on every call (a `page_size=200`
+        // the route 422s), so every verdict quietly skipped our own rules.
+        toast.warning(t("rulesUnreadable", "We couldn't read this venue's blocked-website list."), {
+          description: t(
+            "rulesUnreadableBody",
+            "The check below only covers whether the site is reachable, not whether one of your own rules blocks it.",
+          ),
+        });
       }
 
       if (blockedByRule) {

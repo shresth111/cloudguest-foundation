@@ -44,8 +44,20 @@ function DeviceConsoleScreen() {
     let cancelled = false;
     (async () => {
       try {
-        const { rows } = await routerService.list({ page: 1, pageSize: 200 });
-        if (!cancelled) setRouters(rows);
+        // Every router, not the first 200 of a client-side slice.
+        const { rows, unreachableLocationCount, unreachableOrganizationCount } =
+          await routerService.listAll();
+        if (!cancelled) {
+          setRouters(rows);
+          if (unreachableOrganizationCount > 0)
+            toast.warning(
+              `${unreachableOrganizationCount} customer${unreachableOrganizationCount === 1 ? "" : "s"}' locations could not be read; their routers are missing from this list`,
+            );
+          if (unreachableLocationCount > 0)
+            toast.warning(
+              `${unreachableLocationCount} location${unreachableLocationCount === 1 ? "" : "s"} could not be read; their routers are missing from this list`,
+            );
+        }
       } catch {
         if (!cancelled) toast.error("Could not load routers");
       } finally {

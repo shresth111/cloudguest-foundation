@@ -1,5 +1,6 @@
 import { api } from "@/services/api";
 import { isDemo } from "@/services/customer.service";
+import { listAllPages } from "@/services/list-all-pages";
 import type {
   ContentFilterApp,
   ContentFilterAppList,
@@ -146,6 +147,18 @@ export const contentFilterService = {
       hasNext: data.has_next,
       hasPrevious: data.has_previous,
     };
+  },
+
+  /**
+   * Every rule on `routerId`, in pages of at most 100 -- the route caps
+   * `page_size` at 100, and Fix a Problem's one request for 200 422'd every
+   * time. Rejects if any page fails, so "no rule blocks this site" is never
+   * concluded from a list we could not read.
+   */
+  async listAll(routerId: string): Promise<ContentFilterRule[]> {
+    return listAllPages((page, pageSize) =>
+      contentFilterService.list({ routerId, page, pageSize }),
+    );
   },
 
   async create(payload: CreateContentFilterRulePayload): Promise<ContentFilterRule> {

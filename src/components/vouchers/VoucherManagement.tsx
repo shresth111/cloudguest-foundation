@@ -105,11 +105,15 @@ export function VoucherManagement() {
   const approve = useApproveVoucherBatch();
   const revoke = useRevokeVoucherBatch();
 
-  const { data: orgs = { rows: [] } } = useQuery({
+  const { data: orgs = [] } = useQuery({
     queryKey: ["voucher", "org-options"],
-    queryFn: () => organizationService.list({ page: 1, pageSize: 100 }),
+    queryFn: () =>
+      organizationService.listAll().catch((err: unknown) => {
+        toast.error("Could not load the customer list.");
+        throw err;
+      }),
   });
-  const orgName = (id: string) => orgs.rows.find((o) => o.id === id)?.name ?? id.slice(0, 8);
+  const orgName = (id: string) => orgs.find((o) => o.id === id)?.name ?? id.slice(0, 8);
 
   const rows = data?.rows ?? [];
 
@@ -295,7 +299,7 @@ export function VoucherManagement() {
         </CardContent>
       </Card>
 
-      <BatchDialog open={creating} onClose={() => setCreating(false)} orgs={orgs.rows} />
+      <BatchDialog open={creating} onClose={() => setCreating(false)} orgs={orgs} />
 
       <AlertDialog open={!!confirmRevoke} onOpenChange={(o) => !o && setConfirmRevoke(null)}>
         <AlertDialogContent>

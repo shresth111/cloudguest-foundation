@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import { getAllItems } from "@/services/list-all-pages";
 import { isDemo } from "@/services/customer.service";
 import type {
   CreateLocationPayload,
@@ -146,10 +147,7 @@ function toLocation(l: BackendLocation, organizationName: string): Location {
 
 async function fetchAllOrganizations(): Promise<BackendOrgListItem[]> {
   if (isDemo()) return DEMO_ORG_OPTIONS;
-  const { data } = await api.get<BackendListResponse<BackendOrgListItem>>("/organizations", {
-    params: { page_size: 100 },
-  });
-  return data.items;
+  return getAllItems<BackendOrgListItem>("/organizations");
 }
 
 /**
@@ -172,11 +170,10 @@ async function fetchAllLocations(): Promise<Location[]> {
   const orgs = await fetchAllOrganizations();
   const settled = await Promise.allSettled(
     orgs.map(async (org) => {
-      const { data } = await api.get<BackendListResponse<BackendLocation>>(
-        `/organizations/${org.id}/locations`,
-        { params: { page_size: 100 }, headers: { "X-Organization-Id": org.id } },
-      );
-      return data.items.map((l) => toLocation(l, org.name));
+      const items = await getAllItems<BackendLocation>(`/organizations/${org.id}/locations`, {
+        headers: { "X-Organization-Id": org.id },
+      });
+      return items.map((l) => toLocation(l, org.name));
     }),
   );
   const perOrg = settled
@@ -192,11 +189,11 @@ export const locationService = {
         ? await (async () => {
             const orgs = await fetchAllOrganizations();
             const org = orgs.find((o) => o.id === q.organizationId);
-            const { data } = await api.get<BackendListResponse<BackendLocation>>(
+            const items = await getAllItems<BackendLocation>(
               `/organizations/${q.organizationId}/locations`,
-              { params: { page_size: 100 }, headers: { "X-Organization-Id": q.organizationId } },
+              { headers: { "X-Organization-Id": q.organizationId } },
             );
-            return data.items.map((l) => toLocation(l, org?.name ?? ""));
+            return items.map((l) => toLocation(l, org?.name ?? ""));
           })()
         : await fetchAllLocations();
 
