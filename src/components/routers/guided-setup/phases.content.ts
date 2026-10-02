@@ -722,10 +722,18 @@ export const PHASES: Phase[] = [
       },
       {
         label: "Sirf secrets ka reset (router ka baaki config bacha rehta hai)",
-        script: `/radius remove [find]
-/interface wireguard remove [find name="wg-cloudguest"]
+        // The tunnel is NOT removed. This recovery is for a secret
+        // mismatch (API login / RADIUS refusals); the tunnel's key is not one
+        // of those secrets. It used to remove `wg-cloudguest` -- the LEGACY
+        // name, so on any current router it did nothing -- and if it had
+        // removed `wg-cloudguard`, the one Generate it prescribes (Rotate
+        // unticked by default) would reuse a peer whose private key nobody
+        // holds and could not rebuild the tunnel at all.
+        script: `/radius remove [find where comment="cloudguest-radius"]
 /user remove [find name="cloudguest-api"]
-:put "purane secrets hata diye -- ab Master console me EK BAAR Generate karo aur naye WireGuard + RADIUS + API chunks paste karo"`,
+:put ("tunnel rakha gaya: " . [:tostr [:len [/interface wireguard find where name~"^wg-cloudgu"]]])
+:put "purane secrets hata diye -- ab Master console me EK BAAR Generate karo, 'Rotate the API password' TICK karke (bina tick ke API chunk banta hi nahi), aur naye RADIUS + API Access chunks paste karo"
+:put "Tunnel khud kharab ho tabhi 'Rotate the WireGuard tunnel' bhi tick karo, aur pehle Tunnel Identity Check + WireGuard Tunnel chunks paste karo"`,
       },
       {
         label: "Poora factory reset (jab kuch samajh na aaye)",

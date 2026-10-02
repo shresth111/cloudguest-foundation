@@ -564,7 +564,7 @@ export const VERSION_BRANCHES: {
   },
   {
     topic: "wireguard",
-    v7: "/interface wireguard add name=wg-cloudguest ...",
+    v7: "/interface wireguard add name=wg-cloudguard ...",
     v6: "(not available)",
     note: "WireGuard does not exist on RouterOS 6 at all. On a v6 device the tunnel step returns a bad-command-name error and the router cannot be onboarded until it is upgraded.",
     confidence: "standard-routeros",

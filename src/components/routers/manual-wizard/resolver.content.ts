@@ -355,7 +355,7 @@ export const RESOLVER: ResolverEntry[] = [
             thenStepIndex: -1,
           },
           {
-            tell: "wg-cloudguest",
+            tell: "wg-cloudgu",
             means:
               "The tunnel exists, so the failing command named something else. Check for a typo in the tunnel name in the command that failed.",
             thenStepIndex: -1,
@@ -1042,22 +1042,21 @@ export const RESOLVER: ResolverEntry[] = [
             thenStepIndex: -1,
             fix: [
               {
-                command: `:local r [/radius find]; :local w [/interface wireguard find where name="wg-cloudguest"]; :local u [/user find where name="cloudguest-api"]; :put ("radius-count=" . [:tostr [:len $r]]); :put ("tunnel-count=" . [:tostr [:len $w]]); :put ("api-user-count=" . [:tostr [:len $u]])`,
+                command: `:local r [/radius find]; :local w [/interface wireguard find where name~"^wg-cloudgu"]; :local u [/user find where name="cloudguest-api"]; :put ("radius-count=" . [:tostr [:len $r]]); :put ("tunnel-count=" . [:tostr [:len $w]]); :put ("api-user-count=" . [:tostr [:len $u]])`,
                 note: "This only reports what would be removed. Read the three counts, confirm they are what you expect, and only then run the removal below. Nothing is changed by this command.",
                 destructive: false,
                 confidence: "field",
               },
               {
-                command: `/radius remove [find]
-/interface wireguard remove [find name="wg-cloudguest"]
+                command: `/radius remove [find where comment="cloudguest-radius"]
 /user remove [find name="cloudguest-api"]
-:put ("radius-remaining=" . [:tostr [:len [/radius find]]])
-:put ("tunnel-remaining=" . [:tostr [:len [/interface wireguard find where name="wg-cloudguest"]]])
+:put ("radius-remaining=" . [:tostr [:len [/radius find where comment="cloudguest-radius"]]])
+:put ("tunnel-kept=" . [:tostr [:len [/interface wireguard find where name~"^wg-cloudgu"]]])
 :put ("api-user-remaining=" . [:tostr [:len [/user find where name="cloudguest-api"]]])`,
-                note: "Removes only this platform's own tunnel, login server entry and account. The guest network, the hotspot and the internet connection are all untouched. Immediately afterwards, press Generate in Master console EXACTLY ONCE and paste the fresh tunnel, login server and account blocks. Do not press Generate again after that, whatever happens.",
+                note: 'Removes only this platform\'s own login server entry and account. The TUNNEL IS KEPT: a refusal is the secret, not the tunnel, and removing the tunnel means the next Generate must allocate a new one. Immediately afterwards, press Generate in Master console EXACTLY ONCE with "Rotate the API password" ticked (otherwise no account block is generated) and paste the RADIUS and API Access blocks. Only if the tunnel itself is broken, also tick "Rotate the WireGuard tunnel" and paste the Tunnel Identity Check and WireGuard Tunnel blocks first. Do not press Generate again after that, whatever happens.',
                 destructive: true,
                 confirmPrompt:
-                  "This removes the tunnel, the login server entry and the management account from this router. Guests already connected keep working, but no new guest can log in until the fresh blocks are pasted. You must have Master console open and ready before continuing. Continue?",
+                  "This removes the login server entry and the management account from this router (the tunnel is kept). Guests already connected keep working, but no new guest can log in until the fresh blocks are pasted. You must have Master console open and ready before continuing. Continue?",
                 confidence: "field",
               },
             ],

@@ -1466,6 +1466,128 @@ console.log("\n-- the console-scope guard --");
 }
 
 // =====================================================================
+// TUNNEL NAME: wg-cloudguard IS CANONICAL, wg-cloudguest IS LEGACY.
+// =====================================================================
+//
+// Until 2026-10-02 this wizard had the two the wrong way round:
+// `fleet.defaults.ts` called wg-cloudguest "the name the frontend generator
+// emits" and step 8 counted it as `expected-wg-count`. The generator
+// (`WIREGUARD_INTERFACE_NAME`) and the backend bootstrap both emit
+// wg-cloudguard. So step 8 graded every correctly provisioned router
+// "no-tunnel", and the tunnel-address/source-address helpers read nothing.
+console.log("\n-- tunnel name: canonical wg-cloudguard, legacy wg-cloudguest --");
+{
+  const { readFileSync } = await import("node:fs");
+  const gen = readFileSync(join(ROOT, "src/components/routers/RouterDetailTabs.tsx"), "utf8");
+  const canonical = gen.match(/const WIREGUARD_INTERFACE_NAME = "([^"]+)"/)?.[1];
+  const legacy = gen.match(/const WIREGUARD_LEGACY_INTERFACE_NAME = "([^"]+)"/)?.[1];
+  const fleet = readFileSync(
+    join(ROOT, "src/components/routers/manual-wizard/fleet.defaults.ts"),
+    "utf8",
+  );
+  check(
+    "fleet.defaults wgInterface is the generator's canonical tunnel name",
+    canonical === "wg-cloudguard" && fleet.includes(`wgInterface: "${canonical}" as Lit`),
+    `generator=${canonical}`,
+  );
+
+  const step08 = M.MANUAL_STEPS.find((st) => st.id === "step08-wireguard");
+  const probe = step08?.probe?.command ?? "";
+  const lineWith = (k) => probe.split("\n").find((l) => l.includes(`${k}=`)) ?? "";
+  check(
+    "step 8 counts the CANONICAL name as expected-wg-count",
+    lineWith("expected-wg-count").includes(`name="${canonical}"`),
+  );
+  check(
+    "step 8 counts the LEGACY name as legacy-wg-count",
+    lineWith("legacy-wg-count").includes(`name="${legacy}"`),
+  );
+
+  // Every command that binds to the legacy name by literal must also know
+  // the canonical one (prefer canonical, fall back to legacy). The only
+  // exemption is the line that exists to COUNT the legacy name.
+  const strings = [];
+  const walk = (v) => {
+    if (typeof v === "string") strings.push(v);
+    else if (Array.isArray(v)) v.forEach(walk);
+    else if (v && typeof v === "object") Object.values(v).forEach(walk);
+  };
+  walk(M.MANUAL_STEPS);
+  walk(M.RESOLVER);
+  const legacyOnly = strings
+    .flatMap((x) => x.split("\n"))
+    .filter(
+      (l) =>
+        /(interface|name)="wg-cloudguest"/.test(l) &&
+        !l.includes('"wg-cloudguard"') &&
+        !l.includes("legacy-wg-count"),
+    );
+  check(
+    "no wizard command reads the tunnel by the legacy name alone",
+    legacyOnly.length === 0,
+    legacyOnly.map((l) => l.slice(0, 90)).join(" || "),
+  );
+
+  const paste = (expected, legacyN) =>
+    [
+      "==== WIREGUARD ====",
+      "WYFY-BEGIN step08",
+      `wg-count=${expected + legacyN}`,
+      `expected-wg-count=${expected}`,
+      `legacy-wg-count=${legacyN}`,
+      "peer-count=1",
+      "peer-keepalive=25s",
+      "tunnel-address-count=1",
+      "tunnel-address=10.20.0.33/24",
+      "hub-resolves-to=13.201.253.36",
+      "WYFY-END step08",
+      "====================",
+    ].join("\n");
+  const legacyRouter = M.evaluateStep(step08, paste(0, 1));
+  check(
+    "a router with only the legacy tunnel gets its own named FAIL, not 'never pasted'",
+    legacyRouter.verdict === "FAIL" && legacyRouter.outcomeId === "legacy-name-only",
+    `${legacyRouter.verdict}/${legacyRouter.outcomeId}`,
+  );
+  const fresh = M.evaluateStep(step08, paste(1, 0));
+  check(
+    "a correctly provisioned router (canonical only) passes step 8",
+    fresh.verdict === "PASS",
+    `${fresh.verdict}/${fresh.outcomeId}`,
+  );
+  const none = M.evaluateStep(step08, paste(0, 0));
+  check("no tunnel at all is still 'no-tunnel'", none.outcomeId === "no-tunnel", none.outcomeId);
+
+  // RECOVERY RESETS MUST NOT DELETE THE TUNNEL. A secret-mismatch reset that
+  // removes wg-cloudguard, followed by the one default Generate it
+  // prescribes, gets a reused peer with no private key -- a script that
+  // cannot rebuild the tunnel and therefore cannot write /radius.
+  const resolverText = strings.join("\n");
+  check(
+    "manual-wizard recovery never removes a WireGuard interface",
+    !/\/interface wireguard remove/.test(resolverText),
+  );
+  check(
+    "manual-wizard recovery says to tick Rotate the API password",
+    /Rotate the API password/.test(resolverText),
+  );
+  const phases = readFileSync(
+    join(ROOT, "src/components/routers/guided-setup/phases.content.ts"),
+    "utf8",
+  );
+  const rec = phases.slice(phases.indexOf('id: "recovery"'));
+  const resetScript = rec.slice(rec.indexOf("script:"), rec.indexOf("Poora factory reset"));
+  check(
+    "guided recovery reset never removes a WireGuard interface",
+    !/\/interface wireguard remove/.test(resetScript),
+  );
+  check(
+    "guided recovery reset says to tick Rotate the API password",
+    /Rotate the API password/.test(resetScript),
+  );
+}
+
+// =====================================================================
 
 console.log("");
 if (failures.length) {
