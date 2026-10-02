@@ -26,14 +26,16 @@ import {
   MField,
   M_INPUT,
 } from "@/components/master/MasterKit";
+import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
-  AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
+  AlertDialogOverlay,
+  AlertDialogPortal,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/context/AuthContext";
@@ -353,36 +355,43 @@ function DemoRequestsScreen() {
           open={!!confirmDelete}
           onOpenChange={(open) => !open && !deleting && setConfirmDelete(null)}
         >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>
-                Delete demo request from {confirmDelete?.fullName} ({confirmDelete?.companyName})?
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                This removes the request from this list. Any demo already booked from it stays on
-                the calendar.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                disabled={deleting}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                onClick={(e) => {
-                  e.preventDefault();
-                  if (confirmDelete) handleDelete(confirmDelete);
-                }}
-              >
-                {deleting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" /> Deleting…
-                  </>
-                ) : (
-                  "Delete Demo Request"
-                )}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
+          {/* Portal + Content assembled here rather than ui/alert-dialog's
+              AlertDialogContent: MDrawer is an inline `z-[60]` layer and the
+              shared overlay/content are `z-50`, so the dialog would open
+              behind the drawer's backdrop (see CustomerAddonsPanel). */}
+          <AlertDialogPortal>
+            <AlertDialogOverlay className="z-[70]" />
+            <AlertDialogPrimitive.Content className="fixed left-[50%] top-[50%] z-[70] grid w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg">
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  Delete demo request from {confirmDelete?.fullName} ({confirmDelete?.companyName})?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  This removes the request from this list. Any demo already booked from it stays on
+                  the calendar.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  disabled={deleting}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (confirmDelete) handleDelete(confirmDelete);
+                  }}
+                >
+                  {deleting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" /> Deleting…
+                    </>
+                  ) : (
+                    "Delete Demo Request"
+                  )}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogPrimitive.Content>
+          </AlertDialogPortal>
         </AlertDialog>
       </MPageShell>
     </MasterShell>
