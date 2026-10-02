@@ -10,6 +10,7 @@ import {
   Search,
   Plus,
   Ban,
+  Trash2,
 } from "lucide-react";
 import { MasterShell } from "@/components/master/MasterShell";
 import {
@@ -38,6 +39,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { TypeToConfirmDialog } from "@/components/master/TypeToConfirmDialog";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import type { AppError } from "@/services/api";
@@ -126,6 +128,7 @@ function ChannelPartnersScreen() {
   const { can } = useAuth();
   const canCreate = can("channel_partners.create");
   const canManage = can("channel_partners.manage");
+  const canDelete = can("channel_partners.delete");
 
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
@@ -140,6 +143,9 @@ function ChannelPartnersScreen() {
 
   const [confirmRevoke, setConfirmRevoke] = useState<ChannelPartner | null>(null);
   const [revoking, setRevoking] = useState(false);
+
+  const [confirmDelete, setConfirmDelete] = useState<ChannelPartner | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function refetch() {
     setLoading(true);
@@ -285,6 +291,23 @@ function ChannelPartnersScreen() {
     }
   }
 
+  async function handleDelete(partner: ChannelPartner) {
+    setDeleting(true);
+    try {
+      await channelPartnerService.delete(partner.id);
+      // `partners` is this screen's only cache -- the stat tiles, filter and
+      // table all derive from it, so dropping the row here updates them all.
+      setPartners((prev) => prev.filter((p) => p.id !== partner.id));
+      setSelected((prev) => (prev && prev.id === partner.id ? null : prev));
+      setConfirmDelete(null);
+      toast.success(`${partner.name} deleted`);
+    } catch (err) {
+      toast.error((err as AppError).message || "Could not delete this channel partner.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <MasterShell title="Channel Partners">
       <MPageShell>
@@ -418,15 +441,29 @@ function ChannelPartnersScreen() {
           }
           footer={
             selected &&
-            canManage &&
-            selected.status === "active" && (
-              <MButton
-                variant="outline"
-                className="w-full text-destructive hover:text-destructive"
-                onClick={() => setConfirmRevoke(selected)}
-              >
-                <Ban /> Revoke Partner
-              </MButton>
+            ((canManage && selected.status === "active") || canDelete) && (
+              <div className="grid gap-2">
+                {canManage && selected.status === "active" && (
+                  <MButton
+                    variant="outline"
+                    className="w-full text-destructive hover:text-destructive"
+                    onClick={() => setConfirmRevoke(selected)}
+                  >
+                    <Ban /> Revoke Partner
+                  </MButton>
+                )}
+                {/* `channel_partners.delete` is GLOBAL-only, exactly what
+                    `DELETE /channel-partners/{id}` requires. */}
+                {canDelete && (
+                  <MButton
+                    variant="outline"
+                    className="w-full text-destructive hover:border-destructive hover:text-destructive"
+                    onClick={() => setConfirmDelete(selected)}
+                  >
+                    <Trash2 /> Delete Partner
+                  </MButton>
+                )}
+              </div>
             )
           }
         >
@@ -649,6 +686,32 @@ function ChannelPartnersScreen() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Delete confirmation -- type the partner's name to enable. */}
+        <TypeToConfirmDialog
+          open={!!confirmDelete}
+          onCancel={() => setConfirmDelete(null)}
+          onConfirm={() => {
+            if (confirmDelete) handleDelete(confirmDelete);
+          }}
+          title={`Delete ${confirmDelete?.name ?? "channel partner"}?`}
+          description={
+            <>
+              <p>
+                {confirmDelete?.name} will be removed from the channel partner list. Their record is
+                retained on the server, not erased.
+              </p>
+              <p>
+                To only stop them being an active partner, use Revoke instead — that keeps them
+                visible here as inactive.
+              </p>
+            </>
+          }
+          confirmName={confirmDelete?.name ?? ""}
+          confirmLabel="Delete Partner"
+          busyLabel="Deleting…"
+          busy={deleting}
+        />
       </MPageShell>
     </MasterShell>
   );

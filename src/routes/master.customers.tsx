@@ -2,7 +2,18 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Search, Plus, MapPin, CreditCard, Ban, CheckCircle, Mail, Phone, Eye } from "lucide-react";
+import {
+  Search,
+  Plus,
+  MapPin,
+  CreditCard,
+  Ban,
+  CheckCircle,
+  Mail,
+  Phone,
+  Eye,
+  Trash2,
+} from "lucide-react";
 import { MasterShell, useOperatorCaps } from "@/components/master/MasterShell";
 import {
   MPageShell,
@@ -36,6 +47,7 @@ import { useAuth } from "@/context/AuthContext";
 import { PlatformLocationWizard } from "@/components/locations/PlatformLocationWizard";
 import { CustomerAddonsPanel } from "@/components/master/CustomerAddonsPanel";
 import { CustomerCreditsPanel } from "@/components/master/CustomerCreditsPanel";
+import { TypeToConfirmDialog } from "@/components/master/TypeToConfirmDialog";
 import { businessTypeIcon } from "@/lib/business-type-icons";
 import type { AppError } from "@/services/api";
 import type { PropertyType } from "@/types/location";
@@ -89,6 +101,11 @@ function CustomersScreen() {
   const [impersonateOpen, setImpersonateOpen] = useState(false);
   const [impersonateReason, setImpersonateReason] = useState("");
   const [impersonateBusy, setImpersonateBusy] = useState(false);
+  // "Delete customer" confirm -- holds the row being deleted rather than
+  // reading `selected`, so the dialog keeps naming the right customer even
+  // if the drawer underneath it changes.
+  const [confirmDelete, setConfirmDelete] = useState<Enriched | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function refetch() {
     setLoading(true);
@@ -109,12 +126,18 @@ function CustomersScreen() {
       snapshot?.subscriptions.forEach((s) => planByOrg.set(s.organizationId, s.planName));
 
       setRows(
-        orgs.map((o) => ({
-          ...o,
-          locationCount: locCounts.get(o.id) ?? 0,
-          planName: planByOrg.get(o.id) ?? null,
-          businessType: businessTypeByOrg.get(o.id) ?? null,
-        })),
+        // `GET /organizations` already excludes soft-deleted (archived) orgs
+        // server-side; this guard only keeps an archived row from ever
+        // reappearing here if that filter changes, since "archived" is not
+        // one of this page's filter tabs and could never be filtered away.
+        orgs
+          .filter((o) => o.status !== "archived")
+          .map((o) => ({
+            ...o,
+            locationCount: locCounts.get(o.id) ?? 0,
+            planName: planByOrg.get(o.id) ?? null,
+            businessType: businessTypeByOrg.get(o.id) ?? null,
+          })),
       );
     } catch {
       toast.error("Could not load customers from the server.");
@@ -162,6 +185,22 @@ function CustomersScreen() {
       toast.error("Could not update customer status.");
     } finally {
       setBusyId(null);
+    }
+  }
+
+  async function handleDelete(c: Enriched) {
+    setDeleting(true);
+    try {
+      await organizationService.remove([c.id]);
+      toast.success(`${c.name} deleted`);
+      setConfirmDelete(null);
+      setSelected((prev) => (prev && prev.id === c.id ? null : prev));
+      setRows((prev) => prev.filter((row) => row.id !== c.id));
+      refetch();
+    } catch (err) {
+      toast.error((err as AppError).message || "Could not delete this customer.");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -386,6 +425,17 @@ function CustomersScreen() {
                     <Eye /> View as this customer
                   </MButton>
                 )}
+                {/* Gated on `customer.delete` (= `organizations.delete`,
+                    exactly what `DELETE /organizations/{id}` requires). */}
+                {caps.has("customer.delete") && (
+                  <MButton
+                    variant="outline"
+                    className="col-span-2 text-destructive hover:border-destructive hover:text-destructive"
+                    onClick={() => setConfirmDelete(selected)}
+                  >
+                    <Trash2 /> Delete customer
+                  </MButton>
+                )}
               </div>
             )
           }
@@ -506,6 +556,34 @@ function CustomersScreen() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+        {/* Delete customer -- the backend archives (status=archived + soft
+            delete), so the copy says exactly that, and what it does NOT
+            touch: the venue's routers. */}
+        <TypeToConfirmDialog
+          open={!!confirmDelete}
+          onCancel={() => setConfirmDelete(null)}
+          onConfirm={() => {
+            if (confirmDelete) handleDelete(confirmDelete);
+          }}
+          title={`Delete ${confirmDelete?.name ?? "customer"}?`}
+          description={
+            <>
+              <p>
+                {confirmDelete?.name} will be removed from this console and its users will lose
+                access to their dashboard.
+              </p>
+              <p>
+                Its data is retained: the customer is archived, not erased. Routers at its venues
+                are <span className="font-semibold text-foreground">not</span> reconfigured or
+                disconnected by this — they keep running whatever they were last given.
+              </p>
+            </>
+          }
+          confirmName={confirmDelete?.name ?? ""}
+          confirmLabel="Delete customer"
+          busyLabel="Deleting…"
+          busy={deleting}
+        />
       </MPageShell>
     </MasterShell>
   );
