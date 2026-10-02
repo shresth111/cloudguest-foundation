@@ -80,6 +80,11 @@ export function validateInstantOnSiteDraft(
   }
   if (draft.siteId.trim().length > 100) errors.siteId = "100 characters at most.";
   if (draft.siteName.trim().length > 200) errors.siteName = "200 characters at most.";
+  // The backend stores the name WITH the site mapping, so a name with no id
+  // has nowhere to go and is refused (422). Said here, on the field.
+  else if (draft.siteName.trim() && !draft.siteId.trim()) {
+    errors.siteName = "Enter the Instant On site id too — the name is stored with it.";
+  }
   return errors;
 }
 
@@ -157,3 +162,54 @@ export function instantOnSiteRefusal(error: unknown): {
   const existing = e.data?.existing_router_id;
   return { message, existingRouterId: typeof existing === "string" ? existing : null };
 }
+
+// ---------------------------------------------------------------------------
+// The Add Customer wizard's Aruba option (PM_SPEC §5 Wave 2)
+// ---------------------------------------------------------------------------
+//
+// Same fields and the same rules as "Add Instant On site", minus the
+// customer and location -- the wizard is creating those, in the same
+// `POST /locations/provision` transaction. The backend validates the
+// `instant_on_site` object with the very schema the Router Fleet route uses.
+
+/** The Instant On site as the wizard's Device step holds it. */
+export type InstantOnSiteFields = Omit<AddInstantOnSiteDraft, "organizationId" | "locationId">;
+
+export const EMPTY_INSTANT_ON_SITE_FIELDS: InstantOnSiteFields = {
+  name: "",
+  serialNumber: "",
+  macAddress: "",
+  siteId: "",
+  siteName: "",
+};
+
+/** `validateInstantOnSiteDraft` without the customer/location rules. */
+export function validateInstantOnSiteFields(
+  fields: InstantOnSiteFields,
+): Partial<Record<keyof InstantOnSiteFields, string>> {
+  const all = validateInstantOnSiteDraft({ ...fields, organizationId: "-", locationId: "-" });
+  const errors: Partial<Record<keyof InstantOnSiteFields, string>> = {};
+  for (const key of Object.keys(EMPTY_INSTANT_ON_SITE_FIELDS) as (keyof InstantOnSiteFields)[]) {
+    if (all[key]) errors[key] = all[key];
+  }
+  return errors;
+}
+
+/** The `instant_on_site` object of `POST /locations/provision`: the "Add
+ * Instant On site" body without `organization_id`/`location_id`. Blank
+ * optionals are omitted -- the schema forbids unknown keys and reads an
+ * absent serial/MAC as "mint a visibly synthetic one". */
+export function buildProvisionInstantOnSite(fields: InstantOnSiteFields): Record<string, string> {
+  const body = buildInstantOnSiteBody({ ...fields, organizationId: "", locationId: "" });
+  delete body.organization_id;
+  delete body.location_id;
+  return body;
+}
+
+/** Why the static-IP question is asked, and what "No" means. Aruba Instant On
+ * sends RADIUS from the venue's public address, and the hub authenticates a
+ * NAS by that address -- a dynamic one breaks guest sign-in the next time it
+ * changes. The fix for such a venue is a MikroTik gateway in front of the
+ * APs, which is then the NAS. */
+export const ARUBA_NO_STATIC_IP_WARNING =
+  "Aruba Instant On needs a static public IP: the access points send RADIUS from the venue's public address, and the RADIUS hub only accepts a registered one. With a dynamic IP, guest sign-in stops working the next time the address changes. For this venue, put a MikroTik gateway in front of the access points and onboard the MikroTik instead — the APs then need no row of their own.";

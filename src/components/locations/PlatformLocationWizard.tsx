@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
   AlertTriangle,
@@ -55,7 +55,14 @@ import { api, requestErrorMessage } from "@/services/api";
 import { isDemo } from "@/services/customer.service";
 import { locationService } from "@/services/location.service";
 import { useProvisionLocation } from "@/hooks/useLocations";
-import { useOnboardController } from "@/hooks/useRouters";
+import { routerKeys, useOnboardController } from "@/hooks/useRouters";
+import {
+  ARUBA_NO_STATIC_IP_WARNING,
+  EMPTY_INSTANT_ON_SITE_FIELDS,
+  buildProvisionInstantOnSite,
+  validateInstantOnSiteFields,
+  type InstantOnSiteFields,
+} from "@/lib/aruba-instant-on-site";
 import {
   PROPERTY_TYPE_LABEL,
   type PropertyType,
@@ -104,7 +111,12 @@ const STEPS = [
   { key: "org", title: "Organization", desc: "Select or create", icon: Building2 },
   { key: "location", title: "Location", desc: "Site details", icon: MapPin },
   { key: "owner", title: "Owner", desc: "Location owner account", icon: UserCog },
-  { key: "router", title: "Device", desc: "Router or Omada controller", icon: RouterIcon },
+  {
+    key: "router",
+    title: "Device",
+    desc: "Router, Omada controller or Aruba Instant On",
+    icon: RouterIcon,
+  },
   { key: "plan", title: "Plan", desc: "Assign a subscription plan", icon: Sparkles },
   {
     key: "features",
@@ -114,6 +126,34 @@ const STEPS = [
   },
   { key: "review", title: "Review", desc: "Confirm & provision", icon: Check },
 ] as const;
+
+/**
+ * The venue's first device. The device wizard's two vendors, plus Aruba
+ * Instant On -- offered here and NOT in the device wizard (`VENDOR_CHOICES`),
+ * because an Instant On row is Master-only and has its own Router Fleet
+ * entry ("Add Instant On site"). Unlike Omada it is created INSIDE the
+ * provisioning transaction (`instant_on_site` on `POST /locations/provision`),
+ * so there is no second request to fail.
+ */
+type DeviceKind = RouterVendorId | "aruba_instant_on";
+
+const ARUBA_CHOICE = {
+  id: "aruba_instant_on" as const,
+  label: "Aruba Instant On",
+  description: "Access points managed in the Instant On app; this platform is their RADIUS server.",
+};
+
+const DEVICE_CHOICES: Array<{ id: DeviceKind; label: string; description: string }> = [
+  ...VENDOR_CHOICES,
+  ARUBA_CHOICE,
+];
+
+/** The Instant On site, plus the Wave 2 static-IP question ("" = unanswered). */
+interface InstantOnDraft extends InstantOnSiteFields {
+  staticIp: "" | "yes" | "no";
+}
+
+const DEFAULT_INSTANT_ON: InstantOnDraft = { ...EMPTY_INSTANT_ON_SITE_FIELDS, staticIp: "" };
 
 interface FeatureOverrideState {
   isEnabled?: boolean;
@@ -140,10 +180,10 @@ interface WizardState {
     timezone: string;
   };
   owner: { firstName: string; lastName: string; email: string };
-  /** Which kind of device the venue runs. A venue is one or the other --
-   * see `ROUTER_VENDORS` -- so only the chosen branch's fields are
-   * validated or sent. */
-  device: RouterVendorId;
+  /** Which kind of device the venue runs. A venue is exactly one kind --
+   * see `ROUTER_VENDORS` and `DeviceKind` -- so only the chosen branch's
+   * fields are validated or sent. */
+  device: DeviceKind;
   router: {
     name: string;
     serialNumber: string;
@@ -152,6 +192,7 @@ interface WizardState {
     managementIpAddress: string;
   };
   controller: ControllerDraft;
+  instantOn: InstantOnDraft;
   planId: string;
   featureOverrides: Record<string, FeatureOverrideState>;
 }
@@ -247,6 +288,7 @@ const DEFAULT_STATE: WizardState = {
   device: "mikrotik",
   router: { name: "", serialNumber: "", macAddress: "", model: "", managementIpAddress: "" },
   controller: DEFAULT_CONTROLLER,
+  instantOn: DEFAULT_INSTANT_ON,
   planId: "",
   featureOverrides: {},
 };
@@ -306,6 +348,7 @@ export function PlatformLocationWizard({
   const [controllerOutcome, setControllerOutcome] = useState<ControllerOutcome | null>(null);
   const provision = useProvisionLocation();
   const onboard = useOnboardController();
+  const queryClient = useQueryClient();
   const busy = provision.isPending || onboard.isPending;
 
   // Re-seed on every open (not just mount) -- the dialog instance is reused
@@ -387,6 +430,8 @@ export function PlatformLocationWizard({
     } else if (step === 3) {
       if (state.device === "tplink_omada") {
         Object.assign(e, controllerErrors(state.controller));
+      } else if (state.device === "aruba_instant_on") {
+        Object.assign(e, instantOnErrors(state.instantOn));
       } else {
         (["name", "serialNumber", "macAddress", "model"] as const).forEach((k) => {
           if (!state.router[k].trim()) e[`router.${k}`] = "Required";
@@ -438,6 +483,13 @@ export function PlatformLocationWizard({
               ...state.router,
               managementIpAddress: state.router.managementIpAddress || undefined,
             }
+          : undefined,
+      // An Aruba venue's one fleet row, created in the same transaction as
+      // the customer. The static-IP answer is the operator's checklist, not
+      // a backend field: nothing is stored about it.
+      instantOnSite:
+        state.device === "aruba_instant_on"
+          ? buildProvisionInstantOnSite(state.instantOn)
           : undefined,
       planId: state.planId,
       featureOverrides: Object.entries(state.featureOverrides)
@@ -527,8 +579,8 @@ export function PlatformLocationWizard({
           </DialogTitle>
           <DialogDescription>
             Creates an organization (or reuses one), a location, its owner account, and its first
-            router in one transaction. A TP-Link Omada controller is connected straight after, as a
-            separate step.
+            device in one transaction — a MikroTik router or an Aruba Instant On site. A TP-Link
+            Omada controller is connected straight after, as a separate step.
           </DialogDescription>
         </DialogHeader>
 
@@ -586,6 +638,8 @@ export function PlatformLocationWizard({
                     setState={(v) => set("router", v)}
                     controller={state.controller}
                     setController={(v) => set("controller", v)}
+                    instantOn={state.instantOn}
+                    setInstantOn={(v) => set("instantOn", v)}
                     errors={errors}
                   />
                 )}
@@ -615,6 +669,20 @@ export function PlatformLocationWizard({
                     provisioning={provision.isPending}
                     failure={failure}
                     controllerFailed={controllerOutcome?.status === "failed"}
+                  />
+                )}
+                {step === 6 && result && state.device === "aruba_instant_on" && (
+                  <InstantOnOutcomePanel
+                    result={result}
+                    onOpenSetup={() => {
+                      // The setup drilldown finds its row in the fleet list,
+                      // so a cached list from before this provision would
+                      // land on "Couldn't find that router". Dropped
+                      // synchronously, before the link navigates, so Router
+                      // Fleet mounts and reads the list fresh.
+                      queryClient.removeQueries({ queryKey: routerKeys.all, type: "inactive" });
+                      onOpenChange(false);
+                    }}
                   />
                 )}
                 {step === 6 && result && controllerOutcome && (
@@ -709,6 +777,19 @@ function controllerErrors(c: ControllerDraft): Record<string, string> {
     const key = `controller.${issue.path[1]}`;
     e[key] ??= issue.message;
   }
+  return e;
+}
+
+/** The Instant On draft's errors, keyed `instantOn.<field>`. The field rules
+ * are Router Fleet's "Add Instant On site" ones (`validateInstantOnSiteFields`)
+ * so the two forms agree; the static-IP question must be answered. */
+function instantOnErrors(d: InstantOnDraft): Record<string, string> {
+  const e: Record<string, string> = {};
+  for (const [k, v] of Object.entries(validateInstantOnSiteFields(d))) {
+    if (v) e[`instantOn.${k}`] = v;
+  }
+  if (!d.staticIp)
+    e["instantOn.staticIp"] = "Answer this — it decides whether Aruba can work here.";
   return e;
 }
 
@@ -1119,27 +1200,32 @@ function RouterStep({
   setState,
   controller,
   setController,
+  instantOn,
+  setInstantOn,
   errors,
 }: {
-  device: RouterVendorId;
-  setDevice: (v: RouterVendorId) => void;
+  device: DeviceKind;
+  setDevice: (v: DeviceKind) => void;
   state: WizardState["router"];
   setState: (v: WizardState["router"]) => void;
   controller: ControllerDraft;
   setController: (v: ControllerDraft) => void;
+  instantOn: InstantOnDraft;
+  setInstantOn: (v: InstantOnDraft) => void;
   errors: Record<string, string>;
 }) {
   return (
     <div>
       <StepHeader
         title="First device"
-        description="The venue's network: a MikroTik router enrolled now, or a TP-Link Omada controller connected right after the customer is created."
+        description="The venue's network: a MikroTik router or an Aruba Instant On site, created with the customer; or a TP-Link Omada controller, connected right after the customer is created."
       />
       <div className="mb-4">
         <Label>Device type</Label>
-        {/* Same two cards, labels and descriptions as the device wizard. */}
-        <div className="mt-1.5 grid gap-2 sm:grid-cols-2">
-          {VENDOR_CHOICES.map((choice) => (
+        {/* The device wizard's two cards, labels and descriptions, plus
+            Aruba Instant On (Master-only, so not in the device wizard). */}
+        <div className="mt-1.5 grid gap-2 sm:grid-cols-3">
+          {DEVICE_CHOICES.map((choice) => (
             <button
               key={choice.id}
               type="button"
@@ -1160,8 +1246,133 @@ function RouterStep({
       </div>
       {device === "tplink_omada" ? (
         <ControllerFields state={controller} setState={setController} errors={errors} />
+      ) : device === "aruba_instant_on" ? (
+        <InstantOnFields
+          state={instantOn}
+          setState={setInstantOn}
+          errors={errors}
+          onSwitchToMikrotik={() => setDevice("mikrotik")}
+        />
       ) : (
         <MikrotikFields state={state} setState={setState} errors={errors} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Aruba Instant On: the same fields as Router Fleet's "Add Instant On site"
+ * (name, optional AP serial / MAC, optional Instant On site name / id), and
+ * the Wave 2 static-IP question. "No" does not block -- the operator may be
+ * about to get one -- but says plainly that Aruba will not work without it
+ * and offers the MikroTik path, which is what such a venue needs.
+ */
+function InstantOnFields({
+  state,
+  setState,
+  errors,
+  onSwitchToMikrotik,
+}: {
+  state: InstantOnDraft;
+  setState: (v: InstantOnDraft) => void;
+  errors: Record<string, string>;
+  onSwitchToMikrotik: () => void;
+}) {
+  const upd = <K extends keyof InstantOnDraft>(k: K, v: InstantOnDraft[K]) =>
+    setState({ ...state, [k]: v });
+  return (
+    <div className="grid gap-3 md:grid-cols-2" data-testid="wizard-instant-on-fields">
+      <p className="text-xs text-muted-foreground md:col-span-2">
+        One Instant On site becomes one fleet row at this new location. Nothing is sent to the
+        access points or the RADIUS hub now: after the customer is created, the Instant On setup
+        panel is where you register the venue&apos;s public IP.
+      </p>
+      <ControllerInput
+        id="instant-on-name"
+        className="md:col-span-2"
+        label="Device name"
+        value={state.name}
+        onChange={(v) => upd("name", v)}
+        placeholder="e.g. Aruba AP21 VNV5M1K1M6"
+        error={errors["instantOn.name"]}
+      />
+      <ControllerInput
+        id="instant-on-serial"
+        label="AP serial (optional)"
+        value={state.serialNumber}
+        onChange={(v) => upd("serialNumber", v)}
+        placeholder="VNV5M1K1M6"
+        mono
+        error={errors["instantOn.serialNumber"]}
+        help="Instant On › Inventory. Left blank, a visibly synthetic one is recorded."
+      />
+      <ControllerInput
+        id="instant-on-mac"
+        label="AP MAC (optional)"
+        value={state.macAddress}
+        onChange={(v) => upd("macAddress", v)}
+        placeholder="54:F0:B1:C8:A9:0A"
+        mono
+        error={errors["instantOn.macAddress"]}
+        help="Left blank, a locally administered one is recorded."
+      />
+      <ControllerInput
+        id="instant-on-site-name"
+        label="Instant On site name (optional)"
+        value={state.siteName}
+        onChange={(v) => upd("siteName", v)}
+        placeholder="inhouse-office"
+        error={errors["instantOn.siteName"]}
+      />
+      <ControllerInput
+        id="instant-on-site-id"
+        label="Instant On site id (optional)"
+        value={state.siteId}
+        onChange={(v) => upd("siteId", v)}
+        placeholder="fe0177b6-…"
+        mono
+        error={errors["instantOn.siteId"]}
+        help="Recorded so one site cannot be added twice."
+      />
+      <ChoiceCards<InstantOnDraft["staticIp"]>
+        label="Does this venue have a static public IP?"
+        choices={[
+          {
+            id: "yes",
+            label: "Yes, a static public IP",
+            description: "The ISP gave the venue a fixed address.",
+          },
+          {
+            id: "no",
+            label: "No / not sure",
+            description: "A dynamic address, or a shared one behind the ISP's NAT.",
+          },
+        ]}
+        value={state.staticIp}
+        onChange={(v) => upd("staticIp", v)}
+      />
+      {errors["instantOn.staticIp"] && (
+        <p className="-mt-2 text-xs text-destructive md:col-span-2">
+          {errors["instantOn.staticIp"]}
+        </p>
+      )}
+      {state.staticIp === "no" && (
+        <div
+          role="alert"
+          data-testid="instant-on-no-static-ip"
+          className="flex gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 md:col-span-2"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+          <div className="space-y-2 text-xs">
+            <p className="font-medium text-amber-800 dark:text-amber-300">
+              Aruba Instant On will not work at this venue without a static public IP.
+            </p>
+            <p className="text-muted-foreground">{ARUBA_NO_STATIC_IP_WARNING}</p>
+            <Button size="sm" variant="outline" onClick={onSwitchToMikrotik}>
+              Use a MikroTik gateway instead
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -1709,6 +1920,57 @@ function ControllerOutcomePanel({
   );
 }
 
+/**
+ * After an Aruba provision: the next step is the row's Instant On setup
+ * panel (Router Fleet's `?advanced=<routerId>`), where the venue's public IP
+ * is registered with the RADIUS hub -- the same place Router Fleet's "Add
+ * Instant On site" sends the operator.
+ */
+function InstantOnOutcomePanel({
+  result,
+  onOpenSetup,
+}: {
+  result: ProvisionLocationResult;
+  onOpenSetup: () => void;
+}) {
+  if (!result.routerId || result.routerVendor !== "aruba_instant_on") {
+    // A backend that did not create the row (or predates the Aruba option)
+    // must not be reported as having done so.
+    return (
+      <p
+        role="alert"
+        className="mt-4 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive"
+      >
+        The customer was created, but the backend did not report an Instant On site. Add it from
+        Router Fleet → Add Instant On site, choosing {result.locationName}.
+      </p>
+    );
+  }
+  return (
+    <div
+      className="mt-4 flex items-start gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3"
+      data-testid="instant-on-outcome"
+    >
+      <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+      <div className="space-y-1 text-sm">
+        <p className="font-medium text-emerald-700 dark:text-emerald-300">Instant On site added</p>
+        <p className="text-xs text-muted-foreground">
+          {result.routerName} is this venue&apos;s fleet row. Nothing has been sent to the access
+          points or the RADIUS hub yet: register the venue&apos;s public IP next.
+        </p>
+        <Link
+          to="/master/routers"
+          search={{ advanced: result.routerId }}
+          onClick={onOpenSetup}
+          className="inline-flex items-center gap-1 text-xs font-medium underline underline-offset-2"
+        >
+          Open Instant On setup <ChevronRight className="h-3 w-3" />
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 function PlanStep({
   value,
   onChange,
@@ -1922,7 +2184,14 @@ function ReviewStep({
             />
             {/* Null for an Omada venue, whose controller is reported in its
                 own panel below rather than as a router it is not. */}
-            {result.routerName && <SummaryRow label="Router" value={result.routerName} />}
+            {result.routerName && (
+              <SummaryRow
+                label={
+                  result.routerVendor === "aruba_instant_on" ? "Aruba Instant On site" : "Router"
+                }
+                value={result.routerName}
+              />
+            )}
             <SummaryRow label="Plan" value={result.planName} />
             <SummaryRow label="Owner" value={`${result.ownerName} · ${result.ownerEmail}`} />
             <div className="flex items-center justify-between rounded-lg bg-background/70 px-3 py-2">
@@ -1997,6 +2266,26 @@ function ReviewStep({
               }
             />
           </>
+        ) : state.device === "aruba_instant_on" ? (
+          <>
+            <SummaryRow label="Aruba Instant On site" value={state.instantOn.name || "—"} />
+            <SummaryRow
+              label="AP serial · MAC"
+              value={`${state.instantOn.serialNumber.trim() || "minted"} · ${state.instantOn.macAddress.trim() || "minted"}`}
+            />
+            <SummaryRow
+              label="Instant On site"
+              value={
+                state.instantOn.siteId.trim()
+                  ? `${state.instantOn.siteName.trim() || "—"} · ${state.instantOn.siteId.trim()}`
+                  : "Not recorded"
+              }
+            />
+            <SummaryRow
+              label="Static public IP"
+              value={state.instantOn.staticIp === "yes" ? "Yes" : "No — Aruba needs one for RADIUS"}
+            />
+          </>
         ) : (
           <SummaryRow
             label="Router"
@@ -2018,6 +2307,25 @@ function ReviewStep({
           Two steps: the customer, location and owner are created first, then the controller is
           connected. If the controller cannot be reached, the customer still exists and you can
           retry just the controller from the next screen.
+        </p>
+      )}
+      {state.device === "aruba_instant_on" &&
+        state.instantOn.staticIp === "no" &&
+        !provisioning &&
+        !failure && (
+          <p
+            className="mt-4 text-xs text-amber-700 dark:text-amber-400"
+            data-testid="review-no-static-ip"
+          >
+            This venue has no static public IP, so its Aruba access points cannot authenticate
+            guests yet. Go back to Device to switch to a MikroTik gateway, or provision now and
+            register the IP once the venue has one.
+          </p>
+        )}
+      {state.device === "aruba_instant_on" && !provisioning && !failure && (
+        <p className="mt-4 text-xs text-muted-foreground">
+          One transaction: the customer, location, owner and the Instant On site are created
+          together, or none of them is.
         </p>
       )}
       {provisioning && <p className="mt-4 text-sm text-muted-foreground">Provisioning…</p>}
