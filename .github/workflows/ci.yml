@@ -2185,6 +2185,18 @@ jobs:
             "aruba-add-site" 45 \
             "aruba add site: all checks passed" \
             bun run test:aruba-add-site
+      # The Add Customer wizard's Aruba Instant On option (PM_SPEC §5 Wave 2):
+      # one provision carrying `instant_on_site` (blank optionals omitted, never
+      # with `router`), no Omada onboard, the static-IP "No" warning that
+      # offers the MikroTik path without blocking, the result's link to the
+      # row's Instant On setup panel, refusals shown verbatim, and the
+      # MikroTik/Omada payloads unchanged.
+      - name: customer wizard aruba instant on
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "customer-wizard-aruba" 58 \
+            "customer wizard aruba: all checks passed" \
+            bun run test:customer-wizard-aruba
 
       # The customer dashboard's five guest controls, at a venue whose access
       # points are a TP-Link Omada controller. Three of them were written for
