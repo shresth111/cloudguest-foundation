@@ -323,7 +323,10 @@ function RouterFleetScreen() {
   const hasController = routers.some((r) => isControllerManaged(r.vendor));
   const integrations = useQuery({
     queryKey: ["master", "network-integrations", "fleet-join"],
-    queryFn: () => networkIntegrationService.listPlatformIntegrations({ page: 1, pageSize: 200 }),
+    // Every page, not one request for 200: the platform route caps
+    // `page_size` at 100 and 422'd this on every load, which left
+    // `integrationsByLocation` null and every warning below silent.
+    queryFn: () => networkIntegrationService.listAllPlatformIntegrations(),
     enabled: !demo && hasController,
     staleTime: 30_000,
     retry: false,
@@ -335,7 +338,7 @@ function RouterFleetScreen() {
   const integrationsByLocation = useMemo(() => {
     if (!integrations.data) return null;
     const map = new Map<string, NetworkIntegration[]>();
-    for (const row of integrations.data.rows) {
+    for (const row of integrations.data) {
       if (!row.locationId) continue;
       const at = map.get(row.locationId) ?? [];
       at.push(row);
@@ -344,11 +347,11 @@ function RouterFleetScreen() {
     return map;
   }, [integrations.data]);
 
-  /** Whether that map is the WHOLE picture. One page of 200 covers every
-   * estate this platform has today, but "I did not see it in the first 200"
-   * is not the same fact as "it does not exist" -- and the difference decides
-   * whether "No integration" below is a statement or a guess. */
-  const sawEveryIntegration = integrations.data ? !integrations.data.hasNext : false;
+  /** Whether that map is the WHOLE picture -- the difference decides whether
+   * "No integration" below is a statement or a guess. `listAllPlatformIntegrations`
+   * walks every page and rejects rather than return a partial list, so data
+   * present means complete. Kept as a named fact so the rule stays visible. */
+  const sawEveryIntegration = integrations.data !== undefined;
 
   /**
    * What to say next to a controller row, or null for "nothing to add".

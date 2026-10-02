@@ -1,5 +1,6 @@
 import { api, crossOrganizationHeaders } from "@/services/api";
 import { isDemo } from "@/services/customer.service";
+import { listAllPages } from "@/services/list-all-pages";
 import type {
   CreateOrgPayload,
   OrgListQuery,
@@ -139,6 +140,17 @@ export const organizationService = {
       hasNext: data.has_next,
       hasPrevious: data.has_previous,
     };
+  },
+
+  /**
+   * The WHOLE tenant directory, for a caller that has to offer every
+   * organization (the master scope picker). Walks `has_next` in pages the
+   * backend accepts -- `GET /organizations` caps `page_size` at 100 and 422s
+   * above it -- and rejects if any page fails, so a caller can never mistake a
+   * partial directory for a complete one. See `list-all-pages.ts`.
+   */
+  async listAll(): Promise<Organization[]> {
+    return listAllPages((page, pageSize) => organizationService.list({ page, pageSize }));
   },
 
   async get(id: string): Promise<Organization | null> {

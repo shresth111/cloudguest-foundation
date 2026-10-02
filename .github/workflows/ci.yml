@@ -537,6 +537,19 @@ jobs:
             "org-scope-header: all checks passed" \
             bun run test:org-scope-header
 
+      # Every backend list route caps `page_size` at 100 and 422s above it.
+      # The org scope picker and Router Fleet's integration join both asked
+      # for 200 to mean "all", so both 422'd on every Master page load. This
+      # pins that "all" means walking `has_next` in pages of <= 100, that a
+      # failed page is an error and not a short list, and that no call site
+      # goes back to a literal over the cap.
+      - name: master list page size
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "master-list-page-size" 22 \
+            "master-list-page-size: all checks passed" \
+            bun run test:master-list-page-size
+
       - name: firewall rule ordering
         run: |
           ./scripts/ci-gated-test.sh \

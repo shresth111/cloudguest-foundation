@@ -74,16 +74,23 @@ export function OrganizationScopePicker() {
   // captive-network websheet (see api.ts's `safeLocalGet`).
   useEffect(() => setScope(resolveOrganizationScope()), []);
 
-  const { data } = useQuery({
-    queryKey: ["organizations", "scope-picker"],
-    queryFn: () => organizationService.list({ page: 1, pageSize: 200 }),
+  // EVERY organization, not one page of them. This used to ask for
+  // `page_size=200` in a single request; `GET /organizations` caps it at 100
+  // and 422s above that, so on every Master page load the picker got nothing
+  // and offered "All organizations" with no tenants under it and no hint
+  // why. `listAll` pages through in 100s, and a failure is surfaced below
+  // rather than rendered as an empty directory.
+  const orgsQuery = useQuery({
+    queryKey: ["organizations", "scope-picker", "all"],
+    queryFn: () => organizationService.listAll(),
     staleTime: 5 * 60_000,
   });
-  // Memoised, not a bare `data?.rows ?? []`: that expression is a new array
+  const { data } = orgsQuery;
+  // Memoised, not a bare `data ?? []`: that expression is a new array
   // identity on every render, which would make the `names` map below rebuild
   // every time (and is the exact `react-hooks/exhaustive-deps` warning the
   // repo's eslint ratchet is pinned against).
-  const organizations = useMemo(() => data?.rows ?? [], [data]);
+  const organizations = useMemo(() => data ?? [], [data]);
 
   const names = useMemo(() => new Map(organizations.map((o) => [o.id, o.name])), [organizations]);
 
@@ -150,6 +157,21 @@ export function OrganizationScopePicker() {
             </p>
 
             <div className="my-1 h-px bg-border" />
+
+            {/* Not an empty list. An empty list says "there are no tenants to
+                pick", which is false; this says we could not read them. */}
+            {orgsQuery.isError ? (
+              <div role="alert" className="px-2 py-1.5 text-[11px] leading-snug text-destructive">
+                Could not load the organization list.{" "}
+                <button
+                  type="button"
+                  onClick={() => void orgsQuery.refetch()}
+                  className="font-medium underline underline-offset-2"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : null}
 
             {organizations.map((org) => {
               const selected = scope?.kind === "organization" && scope.organizationId === org.id;

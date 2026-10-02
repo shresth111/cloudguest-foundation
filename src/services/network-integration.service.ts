@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import { listAllPages } from "@/services/list-all-pages";
 import { guestPortalApi } from "@/services/guest-portal-api";
 import type { PortalAuthorizeBody } from "@/lib/portal-authorize-body";
 import {
@@ -995,6 +996,22 @@ export const networkIntegrationService = {
       hasNext: page.has_next,
       hasPrevious: page.has_previous,
     };
+  },
+
+  /**
+   * Every integration matching `q`, across every page. For a caller that
+   * joins against the full set -- Router Fleet decides "No integration" from
+   * absence, and absence is only evidence when the list is complete. The
+   * platform route caps `page_size` at 100 (a request for 200 422s, which is
+   * what this replaces); this walks `has_next` instead and rejects if any
+   * page fails. See `list-all-pages.ts`.
+   */
+  async listAllPlatformIntegrations(
+    q: Omit<PlatformIntegrationQuery, "page" | "pageSize"> = {},
+  ): Promise<NetworkIntegration[]> {
+    return listAllPages((page, pageSize) =>
+      networkIntegrationService.listPlatformIntegrations({ ...q, page, pageSize }),
+    );
   },
 
   async getPlatformIntegration(id: string): Promise<NetworkIntegration> {
