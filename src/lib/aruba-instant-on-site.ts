@@ -80,11 +80,6 @@ export function validateInstantOnSiteDraft(
   }
   if (draft.siteId.trim().length > 100) errors.siteId = "100 characters at most.";
   if (draft.siteName.trim().length > 200) errors.siteName = "200 characters at most.";
-  // The backend stores the name WITH the site mapping, so a name with no id
-  // has nowhere to go and is refused (422). Said here, on the field.
-  else if (draft.siteName.trim() && !draft.siteId.trim()) {
-    errors.siteName = "Enter the Instant On site id too — the name is stored with it.";
-  }
   return errors;
 }
 
@@ -191,6 +186,13 @@ export function validateInstantOnSiteFields(
   const errors: Partial<Record<keyof InstantOnSiteFields, string>> = {};
   for (const key of Object.keys(EMPTY_INSTANT_ON_SITE_FIELDS) as (keyof InstantOnSiteFields)[]) {
     if (all[key]) errors[key] = all[key];
+  }
+  // The backend stores the name WITH the site mapping, so a name with no id
+  // has nowhere to go and is refused (422, `instant_on_site_name needs
+  // instant_on_site_id`). In a provision that refusal would fail the whole
+  // customer, so it is said here, on the field, first.
+  if (!errors.siteName && fields.siteName.trim() && !fields.siteId.trim()) {
+    errors.siteName = "Enter the Instant On site id too — the name is stored with it.";
   }
   return errors;
 }

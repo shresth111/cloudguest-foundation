@@ -578,8 +578,8 @@ export function PlatformLocationWizard({
             Smart location provisioning
           </DialogTitle>
           <DialogDescription>
-            Creates an organization (or reuses one), a location, its owner account, and its first
-            device in one transaction — a MikroTik router or an Aruba Instant On site. A TP-Link
+            Creates an organization (or reuses one), a location, its owner account, and the
+            venue&apos;s MikroTik router or Aruba Instant On site in one transaction. A TP-Link
             Omada controller is connected straight after, as a separate step.
           </DialogDescription>
         </DialogHeader>
