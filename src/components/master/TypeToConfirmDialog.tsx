@@ -57,9 +57,12 @@ export function TypeToConfirmDialog({
   const inputId = useId();
   const [typed, setTyped] = useState("");
 
-  // A fresh dialog never starts pre-confirmed from a previous record.
+  // A fresh dialog never starts pre-confirmed from a previous record. Reset
+  // on OPEN, not on close: the content stays mounted through its exit
+  // animation and can still take input then (seen on staging), which a
+  // close-time reset would miss.
   useEffect(() => {
-    if (!open) setTyped("");
+    if (open) setTyped("");
   }, [open]);
 
   const matches = typedNameMatches(typed, confirmName);
