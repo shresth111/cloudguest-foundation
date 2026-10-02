@@ -248,12 +248,17 @@ const page_ = (items) => ({
   has_next: false,
   has_previous: false,
 });
-const VENUE = { id: LOC, name: "Hall", city: "Delhi", property_type: "hotel", organization_id: ORG };
+const VENUE = {
+  id: LOC,
+  name: "Hall",
+  city: "Delhi",
+  property_type: "hotel",
+  organization_id: ORG,
+};
 
 function subOf(auth) {
   try {
-    return JSON.parse(Buffer.from(auth.replace(/^Bearer /, "").split(".")[1], "base64url"))
-      .sub;
+    return JSON.parse(Buffer.from(auth.replace(/^Bearer /, "").split(".")[1], "base64url")).sub;
   } catch {
     return null;
   }
@@ -313,7 +318,12 @@ async function installBackend(page, opts = {}) {
         const data = {
           access_token: impToken(target),
           expires_at: new Date(Date.now() + 1.8e6).toISOString(),
-          target_user: { id: target, full_name: "Mohit Murari", email: "owner@cust.test", username: "m" },
+          target_user: {
+            id: target,
+            full_name: "Mohit Murari",
+            email: "owner@cust.test",
+            username: "m",
+          },
           ...(opts.legacyImpersonateResponse ? {} : grants),
         };
         return send(200, data);
@@ -380,7 +390,11 @@ async function openPage({ storage = STAFF_STORAGE, view = "", backend = {} } = {
 
 /** Starts a session the way master.customers.tsx does: the real service call,
  *  then the real beginImpersonation. Returns { ok, error }. */
-async function startImpersonation(page, targetId, organization = { id: ORG, name: "WyFy Guest", slug: "wyfy-guest" }) {
+async function startImpersonation(
+  page,
+  targetId,
+  organization = { id: ORG, name: "WyFy Guest", slug: "wyfy-guest" },
+) {
   return page.evaluate(
     async ({ targetId, organization }) => {
       try {
@@ -404,8 +418,7 @@ async function startImpersonation(page, targetId, organization = { id: ORG, name
   );
 }
 
-const storageOf = (page) =>
-  page.evaluate(() => Object.fromEntries(Object.entries(localStorage)));
+const storageOf = (page) => page.evaluate(() => Object.fromEntries(Object.entries(localStorage)));
 const settle = (page, ms = 400) => page.waitForTimeout(ms);
 
 /* ------------------------------------------------------------------------ */
@@ -475,7 +488,9 @@ console.log("\n2. Wire shape for an organization owner (what prod's tab held)");
   await page.close();
 }
 
-console.log("\n3. Master scope, workspace location, refresh token and query cache across both transitions");
+console.log(
+  "\n3. Master scope, workspace location, refresh token and query cache across both transitions",
+);
 {
   const { page } = await openPage();
   await page.evaluate(() => window.__qc.setQueryData(["operator-only"], { secret: 1 }));
@@ -630,7 +645,10 @@ console.log("\n5. Refusals: never start a session that is not the customer's own
   const roles = JSON.parse((await storageOf(page)).cloudguest_roles ?? "[]");
   check(
     "an older backend (no grants in the response) still starts, scoped to the chosen org",
-    r.ok && roles.length === 1 && roles[0].organizationId === ORG && roles[0].scopeType !== "global",
+    r.ok &&
+      roles.length === 1 &&
+      roles[0].organizationId === ORG &&
+      roles[0].scopeType !== "global",
     JSON.stringify(r),
   );
   await page.close();
@@ -641,10 +659,22 @@ const IMPERSONATED_OWNER_STORAGE = {
   cloudguest_token: impToken(OWNER),
   cloudguest_user: JSON.stringify({ id: OWNER, name: "Mohit Murari", email: "owner@cust.test" }),
   cloudguest_roles: JSON.stringify([
-    { roleId: "r-owner", roleName: "Organization Owner", roleSlug: "organization-owner", scopeType: "organization", organizationId: ORG },
+    {
+      roleId: "r-owner",
+      roleName: "Organization Owner",
+      roleSlug: "organization-owner",
+      scopeType: "organization",
+      organizationId: ORG,
+    },
   ]),
   cloudguest_organizations: JSON.stringify([
-    { organizationId: ORG, organizationName: "WyFy Guest", organizationSlug: "wyfy-guest", isPrimaryContact: true, enabledFeatures: [] },
+    {
+      organizationId: ORG,
+      organizationName: "WyFy Guest",
+      organizationSlug: "wyfy-guest",
+      isPrimaryContact: true,
+      enabledFeatures: [],
+    },
   ]),
   cloudguest_impersonation_expires_at: new Date(Date.now() + 1.8e6).toISOString(),
 };
@@ -665,15 +695,28 @@ const IMPERSONATED_OWNER_STORAGE = {
     )
     .catch(() => {});
   const text = await page.evaluate(() => document.body.innerText);
-  check("403 renders \"Couldn't load your venues\"", /Couldn.t load your venues/.test(text), text.slice(0, 300));
-  check("403 does NOT render \"No locations yet\"", !/No locations yet/.test(text));
+  check(
+    '403 renders "Couldn\'t load your venues"',
+    /Couldn.t load your venues/.test(text),
+    text.slice(0, 300),
+  );
+  check('403 does NOT render "No locations yet"', !/No locations yet/.test(text));
   check("the backend's reason is shown", /Permission denied/.test(text), text.slice(0, 300));
   // The read starts succeeding; Retry must recover without a reload.
   backend.ownerLocationsForbidden = false;
-  await page.getByRole("button", { name: /^Retry$/ }).click({ timeout: 5000 }).catch(() => {});
-  await page.waitForFunction(() => document.body.innerText.includes("Hall"), null, { timeout: 10_000 }).catch(() => {});
+  await page
+    .getByRole("button", { name: /^Retry$/ })
+    .click({ timeout: 5000 })
+    .catch(() => {});
+  await page
+    .waitForFunction(() => document.body.innerText.includes("Hall"), null, { timeout: 10_000 })
+    .catch(() => {});
   const after = await page.evaluate(() => document.body.innerText);
-  check("Retry recovers to the real venue list", /Hall/.test(after) && !/Couldn.t load your venues/.test(after), after.slice(0, 300));
+  check(
+    "Retry recovers to the real venue list",
+    /Hall/.test(after) && !/Couldn.t load your venues/.test(after),
+    after.slice(0, 300),
+  );
   check("no page errors", errors.length === 0, errors.join(" | "));
   await page.close();
 }
@@ -689,9 +732,17 @@ const IMPERSONATED_OWNER_STORAGE = {
     }),
   );
   await page.evaluate(() => window.__qc.invalidateQueries());
-  await page.waitForFunction(() => document.body.innerText.includes("No locations yet"), null, { timeout: 10_000 }).catch(() => {});
+  await page
+    .waitForFunction(() => document.body.innerText.includes("No locations yet"), null, {
+      timeout: 10_000,
+    })
+    .catch(() => {});
   const text = await page.evaluate(() => document.body.innerText);
-  check("an account with zero venues still shows \"No locations yet\"", /No locations yet/.test(text) && !/Couldn.t load/.test(text), text.slice(0, 300));
+  check(
+    'an account with zero venues still shows "No locations yet"',
+    /No locations yet/.test(text) && !/Couldn.t load/.test(text),
+    text.slice(0, 300),
+  );
   await page.close();
 }
 
@@ -712,7 +763,8 @@ console.log("\n7. Wiring pinned from source (React trees this harness does not m
   );
   check(
     "start passes the backend-reported roles and organizations through",
-    /roles:\s*session\.roles/.test(customers) && /organizations:\s*session\.organizations/.test(customers),
+    /roles:\s*session\.roles/.test(customers) &&
+      /organizations:\s*session\.organizations/.test(customers),
   );
 }
 
