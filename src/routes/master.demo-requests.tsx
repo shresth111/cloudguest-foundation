@@ -1,7 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { CalendarClock, Inbox, PhoneCall, CheckCircle2, Loader2, Search } from "lucide-react";
+import {
+  CalendarClock,
+  Inbox,
+  PhoneCall,
+  CheckCircle2,
+  Loader2,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { MasterShell } from "@/components/master/MasterShell";
 import {
   MPageShell,
@@ -18,6 +26,20 @@ import {
   MField,
   M_INPUT,
 } from "@/components/master/MasterKit";
+import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogOverlay,
+  AlertDialogPortal,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useAuth } from "@/context/AuthContext";
+import type { AppError } from "@/services/api";
 import { demoRequestService } from "@/services/demo-request.service";
 import {
   DEMO_REQUEST_STATUS_LABEL,
@@ -39,6 +61,10 @@ const STATUS_TONE: Record<DemoRequestStatus, string> = {
 };
 
 function DemoRequestsScreen() {
+  const { can } = useAuth();
+  // Gated on the backend's own key, at the same GLOBAL scope the endpoint
+  // checks -- an operator without it never sees a button that would 403.
+  const canDelete = can("demo_requests.delete");
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -46,6 +72,8 @@ function DemoRequestsScreen() {
   const [selected, setSelected] = useState<DemoRequest | null>(null);
   const [saving, setSaving] = useState(false);
   const [notes, setNotes] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState<DemoRequest | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function refetch() {
     setLoading(true);
@@ -114,6 +142,23 @@ function DemoRequestsScreen() {
       toast.error("Could not save notes.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDelete(r: DemoRequest) {
+    setDeleting(true);
+    try {
+      await demoRequestService.delete(r.id);
+      // The list lives in local state (no query cache), so dropping the row
+      // here is the invalidation; the stat tiles and filters recompute.
+      setRequests((prev) => prev.filter((x) => x.id !== r.id));
+      setSelected((prev) => (prev && prev.id === r.id ? null : prev));
+      setConfirmDelete(null);
+      toast.success(`Demo request from ${r.fullName} deleted`);
+    } catch (err) {
+      toast.error((err as AppError).message || "Could not delete this demo request.");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -206,41 +251,53 @@ function DemoRequestsScreen() {
           }
           footer={
             selected && (
-              <div className="grid grid-cols-2 gap-2">
-                {selected.status !== "contacted" && (
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  {selected.status !== "contacted" && (
+                    <MButton
+                      variant="outline"
+                      disabled={saving}
+                      onClick={() => updateStatus(selected, "contacted")}
+                    >
+                      Mark Contacted
+                    </MButton>
+                  )}
+                  {selected.status !== "scheduled" && (
+                    <MButton
+                      variant="primary"
+                      disabled={saving}
+                      onClick={() => updateStatus(selected, "scheduled")}
+                    >
+                      Mark Scheduled
+                    </MButton>
+                  )}
+                  {selected.status !== "closed" && (
+                    <MButton
+                      variant="outline"
+                      disabled={saving}
+                      onClick={() => updateStatus(selected, "closed")}
+                    >
+                      Close
+                    </MButton>
+                  )}
+                  {selected.status !== "new" && (
+                    <MButton
+                      variant="outline"
+                      disabled={saving}
+                      onClick={() => updateStatus(selected, "new")}
+                    >
+                      Reopen
+                    </MButton>
+                  )}
+                </div>
+                {canDelete && (
                   <MButton
                     variant="outline"
-                    disabled={saving}
-                    onClick={() => updateStatus(selected, "contacted")}
+                    className="w-full text-destructive hover:text-destructive"
+                    disabled={saving || deleting}
+                    onClick={() => setConfirmDelete(selected)}
                   >
-                    Mark Contacted
-                  </MButton>
-                )}
-                {selected.status !== "scheduled" && (
-                  <MButton
-                    variant="primary"
-                    disabled={saving}
-                    onClick={() => updateStatus(selected, "scheduled")}
-                  >
-                    Mark Scheduled
-                  </MButton>
-                )}
-                {selected.status !== "closed" && (
-                  <MButton
-                    variant="outline"
-                    disabled={saving}
-                    onClick={() => updateStatus(selected, "closed")}
-                  >
-                    Close
-                  </MButton>
-                )}
-                {selected.status !== "new" && (
-                  <MButton
-                    variant="outline"
-                    disabled={saving}
-                    onClick={() => updateStatus(selected, "new")}
-                  >
-                    Reopen
+                    <Trash2 /> Delete Demo Request
                   </MButton>
                 )}
               </div>
@@ -292,6 +349,50 @@ function DemoRequestsScreen() {
             </div>
           )}
         </MDrawer>
+
+        {/* Delete confirmation */}
+        <AlertDialog
+          open={!!confirmDelete}
+          onOpenChange={(open) => !open && !deleting && setConfirmDelete(null)}
+        >
+          {/* Portal + Content assembled here rather than ui/alert-dialog's
+              AlertDialogContent: MDrawer is an inline `z-[60]` layer and the
+              shared overlay/content are `z-50`, so the dialog would open
+              behind the drawer's backdrop (see CustomerAddonsPanel). */}
+          <AlertDialogPortal>
+            <AlertDialogOverlay className="z-[70]" />
+            <AlertDialogPrimitive.Content className="fixed left-[50%] top-[50%] z-[70] grid w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg">
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  Delete demo request from {confirmDelete?.fullName} ({confirmDelete?.companyName})?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  This removes the request from this list. Any demo already booked from it stays on
+                  the calendar.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  disabled={deleting}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (confirmDelete) handleDelete(confirmDelete);
+                  }}
+                >
+                  {deleting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" /> Deleting…
+                    </>
+                  ) : (
+                    "Delete Demo Request"
+                  )}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogPrimitive.Content>
+          </AlertDialogPortal>
+        </AlertDialog>
       </MPageShell>
     </MasterShell>
   );
