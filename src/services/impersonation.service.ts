@@ -1,4 +1,11 @@
 import { api } from "@/services/api";
+import {
+  toOrganizations,
+  toRoles,
+  type BackendOrganizationMembership,
+  type BackendRoleAssignment,
+} from "@/services/auth.service";
+import type { OrganizationMembership, RoleAssignment } from "@/types/auth";
 
 /** `POST /users/{user_id}/impersonate`'s success payload (already unwrapped
  * from the `{ success, message, data, request_id }` envelope by api.ts's
@@ -15,6 +22,13 @@ interface BackendImpersonateResponse {
     email: string;
     username: string;
   };
+  /** The target's REAL role assignments and active memberships, in the exact
+   * shape `POST /auth/login` returns them (the backend builds both with the
+   * same helpers). Absent from a backend older than cloud-guest's
+   * "impersonate returns the target's real grants" change -- `undefined`
+   * then, never an invented list. */
+  roles?: BackendRoleAssignment[];
+  organizations?: BackendOrganizationMembership[];
 }
 
 export interface ImpersonationTargetUser {
@@ -28,6 +42,9 @@ export interface ImpersonationSession {
   accessToken: string;
   expiresAt: string;
   targetUser: ImpersonationTargetUser;
+  /** `null` when the backend did not report them (older backend). */
+  roles: RoleAssignment[] | null;
+  organizations: OrganizationMembership[] | null;
 }
 
 export const impersonationService = {
@@ -46,6 +63,8 @@ export const impersonationService = {
         email: data.target_user.email,
         username: data.target_user.username,
       },
+      roles: Array.isArray(data.roles) ? toRoles(data.roles) : null,
+      organizations: Array.isArray(data.organizations) ? toOrganizations(data.organizations) : null,
     };
   },
 };

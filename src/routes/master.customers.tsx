@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Search, Plus, MapPin, CreditCard, Ban, CheckCircle, Mail, Phone, Eye } from "lucide-react";
@@ -66,6 +66,7 @@ interface Enriched extends Organization {
 
 function CustomersScreen() {
   const navigate = useNavigate();
+  const router = useRouter();
   const auth = useAuth();
   const caps = useOperatorCaps();
   const { open: openOrgId } = Route.useSearch();
@@ -221,15 +222,24 @@ function CustomersScreen() {
         targetUser.id,
         impersonateReason.trim() || null,
       );
-      await auth.beginImpersonation({
+      const impersonated = await auth.beginImpersonation({
         accessToken: session.accessToken,
         expiresAt: session.expiresAt,
         targetUser: session.targetUser,
         organization: { id: selected.id, name: selected.name, slug: selected.slug },
+        roles: session.roles,
+        organizations: session.organizations,
       });
       setImpersonateOpen(false);
       setImpersonateReason("");
       setSelected(null);
+      // Same race the banner's "End session" already closes, in the other
+      // direction: AuthRouterContextSync pushes the new roles into router
+      // context only in an effect after the next render, so a navigate() in
+      // this tick runs the customer guards against the OPERATOR's global
+      // roles -- which send an operator to /master, not into the customer
+      // view. Push the impersonated slice first.
+      router.update({ context: { ...router.options.context, auth: impersonated } });
       navigate({ to: "/", replace: true });
     } catch (err) {
       toast.error((err as AppError).message || "Could not start a session as this customer.");

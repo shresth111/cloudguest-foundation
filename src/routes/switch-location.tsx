@@ -27,6 +27,7 @@ import {
   RefreshCw,
   Quote,
   X,
+  AlertTriangle,
 } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { Input } from "@/components/ui/input";
@@ -57,6 +58,7 @@ import { livenessTone } from "@/lib/location-liveness";
 import { businessTypeIcon } from "@/lib/business-type-icons";
 import { toast } from "sonner";
 import { requireCustomerSession } from "@/lib/authGuards";
+import { requestErrorMessage } from "@/services/api";
 import { customerFeatureHref } from "@/lib/customerNav";
 import { IspProviderIcon } from "@/components/icons/isp";
 import { LocationWizard } from "@/components/locations/LocationWizard";
@@ -375,7 +377,14 @@ function CustomerHomePage() {
   const navigate = useNavigate();
   const { user, logout, organizations } = useAuth();
   const { setActiveLocation } = useCustomerStore();
-  const { data: locations, isLoading, refetch } = useCustomerLocations();
+  const {
+    data: locations,
+    isLoading,
+    isError: locationsFailed,
+    error: locationsError,
+    isFetching: locationsRefetching,
+    refetch,
+  } = useCustomerLocations();
   const { devices: allDevices, refetch: refetchDevices } = useMonitoredHardware();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
@@ -437,7 +446,13 @@ function CustomerHomePage() {
   // that search" to a brand-new owner who has never set up a location and
   // never typed a search either. `locations` (pre-filter) is the real
   // signal for the former.
-  const hasNoLocationsAtAll = !isLoading && (locations ?? []).length === 0;
+  //
+  // ...and neither is the same as "we could not read your venues". A failed
+  // read (a 403 during "View as this customer" was the measured case,
+  // 2026-10-02) used to land here as an empty list and render "No locations
+  // yet" -- telling an operator the customer had no venues when the truth
+  // was that the request had been refused. A failure is its own state.
+  const hasNoLocationsAtAll = !isLoading && !locationsFailed && (locations ?? []).length === 0;
   const myOrg = organizations[0];
   const toggleFav = (id: string) => {
     setFavorites((p) => {
@@ -805,6 +820,30 @@ function CustomerHomePage() {
                 </div>
               </div>
             ))}
+          </div>
+        ) : locationsFailed && (locations ?? []).length === 0 ? (
+          <div
+            role="alert"
+            data-testid="venues-load-error"
+            className="flex flex-col items-center justify-center rounded-2xl border border-rose-400/30 bg-rose-500/[0.06] py-16 text-center"
+          >
+            <AlertTriangle className="mb-4 h-10 w-10 text-rose-300" aria-hidden="true" />
+            <p className="text-base font-semibold text-white">Couldn't load your venues</p>
+            <p className="mt-1.5 max-w-md px-4 text-sm text-white/60">
+              {requestErrorMessage(locationsError, "The venue list could not be read.")}
+            </p>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              disabled={locationsRefetching}
+              className="mt-5 inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 disabled:opacity-60"
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${locationsRefetching ? "animate-spin" : ""}`}
+                aria-hidden="true"
+              />
+              {locationsRefetching ? "Retrying…" : "Retry"}
+            </button>
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
