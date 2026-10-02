@@ -96,7 +96,10 @@ export function useClientControls(): ClientControls {
     // for "no controller", and the verdicts for such a venue are fixed and
     // need no read (PM_SPEC §0.4 item 4).
     enabled:
-      CUSTOMER_CLIENT_ROUTES_LANDED && controllerManaged && !isNasOnlyVendor(vendor) && !!locationId,
+      CUSTOMER_CLIENT_ROUTES_LANDED &&
+      controllerManaged &&
+      !isNasOnlyVendor(vendor) &&
+      !!locationId,
     // A venue's controller credentials do not change between two clicks on a
     // tab strip. One read for the whole dashboard, not one per screen.
     staleTime: 5 * 60_000,

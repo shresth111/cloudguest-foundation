@@ -586,7 +586,7 @@ console.log("\n12. The How-it-works page answers for THIS venue");
 
 check(
   "the page applies the sidebar's controller gate",
-  /featureAppliesToControllerVenue\(item\.id\)/.test(howItWorks),
+  /featureAppliesToControllerVenue\(item\.id(, controllerVendor)?\)/.test(howItWorks),
 );
 check(
   "using the shared reason string, not a new sentence",
@@ -600,7 +600,11 @@ check(
 );
 check(
   "and the group note is shown only where something in it is gated",
-  /group\.items\.some\(\(item\) => !featureAppliesToControllerVenue\(item\.id\)\)/.test(howItWorks),
+  // `controllerVendor` is passed since Aruba Instant On (NAS-only) greys two
+  // more rows; prettier then wraps the call, hence the `\s*` and `,?`.
+  /group\.items\.some\(\s*\(item\) => !featureAppliesToControllerVenue\(item\.id(, controllerVendor)?\),?\s*\)/.test(
+    howItWorks,
+  ),
 );
 check(
   "a MikroTik venue reaches none of it",

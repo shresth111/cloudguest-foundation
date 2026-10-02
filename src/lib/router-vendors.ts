@@ -79,7 +79,10 @@ export function controllerNounPhrase(vendor: string | null | undefined): string 
 
 /** "<label> is a TP-Link Omada controller." / "<label> uses Aruba Instant On
  * access points." -- the one sentence location-liveness opens with. */
-export function controllerIdentitySentence(label: string, vendor: string | null | undefined): string {
+export function controllerIdentitySentence(
+  label: string,
+  vendor: string | null | undefined,
+): string {
   if (isNasOnlyVendor(vendor)) return `${label} uses ${controllerNounPhrase(vendor)}.`;
   return `${label} is a ${routerVendorLabel(vendor)} controller.`;
 }
@@ -267,8 +270,30 @@ export const CONTROLLER_UNSUPPORTED_FEATURE_IDS: readonly string[] = [
   // "website-blocking" above, and WebFilteringView gates on that same id.
 ];
 
-export function featureAppliesToControllerVenue(featureId: string): boolean {
-  return !CONTROLLER_UNSUPPORTED_FEATURE_IDS.includes(featureId);
+/**
+ * The extra screens a NAS-only venue (Aruba Instant On) cannot use, on top of
+ * the list above. Omada keeps both: its controller has a walled garden and MAC
+ * authentication that this platform drives. Instant On holds its own "Allowed
+ * domains" list that we cannot write, and has no MAC authentication at all
+ * (PM_SPEC §3.2, copy U7 / U8).
+ */
+export const NAS_ONLY_EXTRA_UNSUPPORTED_FEATURE_IDS: readonly string[] = ["whitelist", "mac-auth"];
+
+/**
+ * Whether a customer screen works at a controller-managed venue. `vendor` is
+ * optional and only ever REMOVES screens, and only for a NAS-only vendor: a
+ * caller that does not pass it, and every Omada venue, get exactly the answer
+ * they got before it existed.
+ */
+export function featureAppliesToControllerVenue(
+  featureId: string,
+  vendor?: string | null,
+): boolean {
+  if (CONTROLLER_UNSUPPORTED_FEATURE_IDS.includes(featureId)) return false;
+  if (isNasOnlyVendor(vendor) && NAS_ONLY_EXTRA_UNSUPPORTED_FEATURE_IDS.includes(featureId)) {
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -622,8 +647,14 @@ const CONTROLLER_UNSUPPORTED_NOUNS: Record<string, { noun: string; verb: string 
 export const CONTROLLER_UNSUPPORTED_HEADLINE = "Configured in Omada, not here.";
 
 /** The headline for a vendor; Omada's is the constant above, unchanged. */
-export function controllerUnsupportedHeadline(vendor: string | null | undefined): string {
-  return isNasOnlyVendor(vendor) ? "Set up in the Instant On app, not here." : CONTROLLER_UNSUPPORTED_HEADLINE;
+export function controllerUnsupportedHeadline(
+  vendor: string | null | undefined,
+  featureId?: string,
+): string {
+  if (!isNasOnlyVendor(vendor)) return CONTROLLER_UNSUPPORTED_HEADLINE;
+  // Trusted Devices is not "elsewhere": Instant On has no MAC authentication.
+  if (featureId === "mac-auth") return "Not available with Aruba Instant On.";
+  return "Set up in the Instant On app, not here.";
 }
 
 /**
@@ -638,19 +669,34 @@ export function controllerUnsupportedHeadline(vendor: string | null | undefined)
  * Null for a feature that is not gated, so a call site cannot render this
  * panel over a screen that works.
  */
+/** PM_SPEC U7 / U8: the two screens only a NAS-only venue loses, each with
+ * its own sentence because neither is "set up in the app" in the same way. */
+export const NAS_ONLY_FEATURE_COPY: Record<string, string> = {
+  whitelist:
+    "Websites guests can open before signing in are set in the Instant On app, under " +
+    "Guest portal > Allowed domains.",
+  "mac-auth":
+    "Aruba Instant On can't let devices skip the sign-in page, so trusted devices aren't " +
+    "available here.",
+};
+
 export function controllerUnsupportedCopy(
   featureId: string,
   venueName: string | null | undefined,
   vendor?: string | null,
 ): string | null {
+  if (isNasOnlyVendor(vendor) && NAS_ONLY_FEATURE_COPY[featureId]) {
+    return NAS_ONLY_FEATURE_COPY[featureId];
+  }
   const entry = CONTROLLER_UNSUPPORTED_NOUNS[featureId];
   if (!entry) return null;
   const who = venueName?.trim() || "This venue";
   if (isNasOnlyVendor(vendor)) {
+    // PM_SPEC U0 (= U9) verbatim first, then what it means for this screen.
     return (
-      `${who} runs on ${routerVendorLabel(vendor)} access points. ${entry.noun} for this venue ` +
-      `${entry.verb} set in the Instant On app, not here — Wyfy signs guests in at this venue, ` +
-      "it doesn't configure the access points."
+      `${controllerVenueFeatureReason(vendor)} ${entry.noun} for ${who === "This venue" ? "this venue" : who} ` +
+      `${entry.verb} part of that. Wyfy signs guests in at this venue; it doesn't configure the ` +
+      "access points."
     );
   }
   return (

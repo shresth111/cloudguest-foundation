@@ -82,6 +82,7 @@ import { requireCustomerSession } from "@/lib/authGuards";
 import { requireActiveLocationId } from "@/lib/customerLocationGuard";
 import { customerFeatureHref } from "@/lib/customerNav";
 import { useClientControls, useDeviceActions } from "@/hooks/useClientControls";
+import { isNasOnlyVendor } from "@/lib/router-vendors";
 import { disconnectOutcome } from "@/lib/omada-client-controls";
 import { GuestDeviceControls, isSendableMac } from "@/components/customer/GuestDeviceControls";
 
@@ -145,6 +146,11 @@ function CustomerUsersPage() {
   const clientControls = useClientControls();
   const disconnectVerdict = clientControls.verdict("disconnect");
   const disconnectReachesDevice = disconnectVerdict.availability === "available";
+  // Only at a NAS-only venue (Aruba Instant On) is Disconnect greyed outright:
+  // there is no controller API and no CoA, so the device stays online whatever
+  // we do, and ending our own record would make this list say they left.
+  // Omada and MikroTik venues keep the button exactly as before.
+  const disconnectUnsupported = isNasOnlyVendor(clientControls.vendor);
   // The venue-scoped client routes, bound to the active location. Used for the
   // per-device panel below and -- only when the session-level disconnect comes
   // back NOT enforced -- as a second, MAC-keyed attempt. Never on the happy
@@ -709,22 +715,34 @@ function CustomerUsersPage() {
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             )}
+                            {/* A NAS-only venue (Aruba Instant On): nothing
+                             * can end the device's connection, and ending
+                             * only our record would show an online guest as
+                             * gone. Greyed with PM_SPEC U2; the title is on
+                             * the wrapper because a disabled button takes no
+                             * pointer events. The live button below is
+                             * `hidden` there and untouched everywhere else. */}
+                            {disconnectUnsupported && (
+                              <span title={disconnectVerdict.reason ?? undefined}>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 disabled:text-muted-foreground"
+                                  disabled
+                                  aria-label={disconnectVerdict.reason ?? t("disconnect")}
+                                  data-testid="disconnect-unsupported-icon"
+                                >
+                                  <XCircle className="h-3.5 w-3.5" />
+                                </Button>
+                              </span>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8 text-destructive disabled:text-muted-foreground"
-                              disabled={
-                                u.status === "offline" ||
-                                disconnect.isPending ||
-                                disconnectVerdict.availability === "unavailable"
-                              }
-                              title={
-                                u.status === "offline"
-                                  ? t("alreadyOffline")
-                                  : disconnectVerdict.availability === "unavailable"
-                                    ? (disconnectVerdict.reason ?? undefined)
-                                    : t("disconnect")
-                              }
+                              hidden={disconnectUnsupported}
+                              disabled={u.status === "offline" || disconnect.isPending}
+                              title={u.status === "offline" ? t("alreadyOffline") : t("disconnect")}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setConfirmDisconnect({
@@ -1029,14 +1047,7 @@ function CustomerUsersPage() {
                   variant="outline"
                   className="w-full text-destructive disabled:text-muted-foreground"
                   disabled={
-                    detailUser.status === "offline" ||
-                    disconnect.isPending ||
-                    disconnectVerdict.availability === "unavailable"
-                  }
-                  title={
-                    disconnectVerdict.availability === "unavailable"
-                      ? (disconnectVerdict.reason ?? undefined)
-                      : undefined
+                    detailUser.status === "offline" || disconnect.isPending || disconnectUnsupported
                   }
                   onClick={() =>
                     setConfirmDisconnect({
@@ -1050,6 +1061,11 @@ function CustomerUsersPage() {
                   <XCircle className="mr-2 h-4 w-4" />
                   {detailUser.status === "offline" ? t("alreadyOffline") : t("disconnectUser")}
                 </Button>
+                {disconnectUnsupported && (
+                  <p className="text-xs text-muted-foreground" data-testid="disconnect-unsupported">
+                    {disconnectVerdict.reason}
+                  </p>
+                )}
               </div>
             </motion.div>
           </>

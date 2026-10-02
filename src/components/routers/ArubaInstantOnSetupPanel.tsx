@@ -33,7 +33,9 @@ import { toast } from "sonner";
 import { CopyValueRow } from "@/components/network-integrations/OmadaPortalSetupSteps";
 import { MButton, MDialog, M_INPUT } from "@/components/master/MasterKit";
 import {
+  ARUBA_RADIUS_PROFILE_NAME,
   PUBLIC_IP_PROBLEM_COPY,
+  arubaSetupIsReady,
   checkVenuePublicIp,
   describeArubaSetupGap,
   type ArubaRegistration,
@@ -93,7 +95,16 @@ function SecretOnceDialog({
   onClose: () => void;
 }) {
   return (
-    <MDialog open={!!result} onClose={onClose} title="Shared secret — shown once">
+    <MDialog
+      open={!!result}
+      onClose={onClose}
+      title="Shared secret — shown once"
+      footer={
+        <MButton variant="primary" onClick={onClose}>
+          Done — it&rsquo;s in Instant On
+        </MButton>
+      }
+    >
       {result && (
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">
@@ -118,8 +129,8 @@ function SecretOnceDialog({
             </button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Fingerprint <code>{result.secretFingerprint ?? "—"}</code> · {result.secretLength}{" "}
-            chars · NAS-Identifier <code>{result.nasIdentifier}</code>
+            Fingerprint <code>{result.secretFingerprint ?? "—"}</code> · {result.secretLength} chars
+            · NAS-Identifier <code>{result.nasIdentifier}</code>
           </p>
           {!result.hubConfirmed && (
             <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
@@ -139,36 +150,59 @@ function SecretOnceDialog({
   );
 }
 
-function Checklist({ setup }: { setup: ArubaSetupStatus }) {
-  const portal = setup.portalUrl;
-  const radius = setup.radiusServer;
-  if (!portal || !radius || !setup.nasIdentifier) return null;
+/** A value ops types into Instant On -- or, while the backend still reports a
+ * gap, a placeholder with NO copy button (PM_SPEC §0.2 "gaps instead of
+ * values": a copyable value beside a warning gets pasted and walked away
+ * from). */
+function Value({ label, value }: { label: string; value: string | null | undefined }) {
+  if (value) return <CopyValueRow label={label} value={value} />;
   return (
-    <ol className="space-y-4" data-testid="aruba-setup-checklist">
+    <p className="text-xs" data-testid="aruba-value-pending">
+      <span className="text-foreground">{label}:</span>{" "}
+      <span className="italic">appears once the gaps above are fixed</span>
+    </p>
+  );
+}
+
+/**
+ * PM_SPEC §0.3, in order. Rendered whether or not the venue is ready, so ops
+ * can see the whole job up front; every value that comes from the backend is
+ * withheld (`ready === false`) until the backend reports no gaps.
+ */
+function Checklist({ setup, ready }: { setup: ArubaSetupStatus; ready: boolean }) {
+  const portal = ready ? setup.portalUrl : null;
+  const radius = ready ? setup.radiusServer : null;
+  const nasIdentifier = ready ? setup.nasIdentifier : null;
+  return (
+    <ol className="space-y-4" data-testid="aruba-setup-checklist" data-ready={ready}>
       <Step n={1} title="Instant On app › Site › RADIUS › Create RADIUS profile">
         <p>
-          Name <code>Wyfy Guest</code>. Shared secret: the one shown once when you registered or
-          rotated. Timeout 5, retries 3. RADIUS accounting ON. Require Message-Authenticator ON. NAS
-          IP: device IP (default).
+          Shared secret: the one shown once when you registered or rotated (it is never shown
+          again). Timeout 5, retries 3. <strong>RADIUS accounting ON.</strong>{" "}
+          <strong>Require Message-Authenticator ON.</strong> NAS IP: device IP (default).
         </p>
-        <CopyValueRow label="Primary server" value={radius.host} />
-        <CopyValueRow label="Authentication port" value={String(radius.authPort)} />
-        <CopyValueRow label="Accounting port" value={String(radius.accountingPort)} />
-        <CopyValueRow label="NAS-Identifier (custom)" value={setup.nasIdentifier} />
+        <Value label="Profile name" value={ARUBA_RADIUS_PROFILE_NAME} />
+        <Value label="Primary server" value={radius?.host} />
+        <Value label="Authentication port" value={radius ? String(radius.authPort) : null} />
+        <Value label="Accounting port" value={radius ? String(radius.accountingPort) : null} />
+        <Value label="NAS-Identifier (custom)" value={nasIdentifier} />
       </Step>
       <Step n={2} title="Site › Guest portal">
         <p>
-          Type External, provider Custom, mode Guest authentication (not &ldquo;Acknowledgment&rdquo;).
-          RADIUS profile: Wyfy Guest. Use HTTPS {portal.useHttps ? "ON" : "OFF"}.
+          Type External, provider Custom, mode Guest authentication (not
+          &ldquo;Acknowledgment&rdquo;). RADIUS profile: {ARUBA_RADIUS_PROFILE_NAME}. Use HTTPS{" "}
+          {portal ? (portal.useHttps ? "ON" : "OFF") : "ON"}.
         </p>
-        <CopyValueRow label="Server host" value={portal.serverHost} />
-        <CopyValueRow label="Server port" value={String(portal.serverPort)} />
-        <CopyValueRow label="Server URL path" value={portal.serverUrlPath} />
+        <Value label="Server host" value={portal?.serverHost} />
+        <Value label="Server port" value={portal ? String(portal.serverPort) : null} />
+        <Value label="Server URL path" value={portal?.serverUrlPath} />
       </Step>
       <Step n={3} title="Guest portal › Allowed domains">
-        {setup.allowedDomains.map((h) => (
-          <CopyValueRow key={h} label="Allowed domain" value={h} />
-        ))}
+        {ready && setup.allowedDomains.length > 0 ? (
+          setup.allowedDomains.map((h) => <Value key={h} label="Allowed domain" value={h} />)
+        ) : (
+          <Value label="Allowed domains" value={null} />
+        )}
       </Step>
       <Step n={4} title="Networks › Add › Wireless">
         <p>
@@ -190,9 +224,9 @@ function Checklist({ setup }: { setup: ArubaSetupStatus }) {
         </p>
       </Step>
       <p className="text-xs text-muted-foreground">
-        If the phone shows the portal but sign-in spins and fails: (1) the secret in Instant On
-        does not match — compare by rotating, not by retyping; (2) the hub is not open to the venue
-        IP; (3) the venue&rsquo;s public IP has changed.
+        If the phone shows the portal but sign-in spins and fails: (1) the secret in Instant On does
+        not match — compare by rotating, not by retyping; (2) the hub is not open to the venue IP;
+        (3) the venue&rsquo;s public IP has changed.
       </p>
     </ol>
   );
@@ -211,6 +245,9 @@ export function ArubaInstantOnSetupPanel({ router }: { router: RouterDevice }) {
   const [staticConfirmed, setStaticConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [reveal, setReveal] = useState<ArubaRegistration | null>(null);
+  // "Venue IP changed": re-registering takes the backend's rotate/move path
+  // (API_CONTRACT §3), so it mints a new secret too.
+  const [moving, setMoving] = useState(false);
   const ipProblem = checkVenuePublicIp(ip);
 
   const HUB_RESTART_WARNING =
@@ -220,6 +257,9 @@ export function ArubaInstantOnSetupPanel({ router }: { router: RouterDevice }) {
     setBusy(true);
     try {
       setReveal(await action());
+      setMoving(false);
+      setIp("");
+      setStaticConfirmed(false);
       // The secret stays in `reveal` only; the refetch reads the fingerprint.
       await qc.invalidateQueries({ queryKey: key });
     } catch (err) {
@@ -283,11 +323,47 @@ export function ArubaInstantOnSetupPanel({ router }: { router: RouterDevice }) {
   } else if (setup.isError || !setup.data) {
     content = (
       <Gaps
-        items={[requestErrorMessage(setup.error, "This device's RADIUS registration did not load.")]}
+        items={[
+          requestErrorMessage(setup.error, "This device's RADIUS registration did not load."),
+        ]}
       />
     );
   } else {
     const s = setup.data;
+    const registerForm = (title: string, cta: string) => (
+      <div className="space-y-2 rounded-lg border border-border p-3 text-xs">
+        <p className="text-sm font-medium text-foreground">{title}</p>
+        <label className="block text-muted-foreground" htmlFor="aruba-venue-ip">
+          Venue public IP
+        </label>
+        <input
+          id="aruba-venue-ip"
+          className={M_INPUT}
+          inputMode="decimal"
+          placeholder="203.0.113.10"
+          value={ip}
+          onChange={(e) => setIp(e.target.value)}
+        />
+        <p className="text-muted-foreground">
+          Measure it from a phone on the venue WiFi: open checkip.amazonaws.com.
+        </p>
+        {ip && ipProblem && <p className="text-destructive">{PUBLIC_IP_PROBLEM_COPY[ipProblem]}</p>}
+        <label className="flex items-center gap-2 text-foreground">
+          <input
+            type="checkbox"
+            checked={staticConfirmed}
+            onChange={(e) => setStaticConfirmed(e.target.checked)}
+          />
+          The ISP confirms this IP is static
+        </label>
+        <p className="text-muted-foreground">
+          If the IP changes, every sign-in at this venue times out silently.
+        </p>
+        <MButton disabled={!!ipProblem || !staticConfirmed || busy} onClick={register}>
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} {cta}
+        </MButton>
+      </div>
+    );
     const registration =
       s.registered && s.nasId ? (
         <div
@@ -307,8 +383,8 @@ export function ArubaInstantOnSetupPanel({ router }: { router: RouterDevice }) {
           </p>
           <p className="text-amber-700 dark:text-amber-400">
             Ask an engineer to open UDP {s.radiusServer?.authPort ?? 1812}-
-            {s.radiusServer?.accountingPort ?? 1813} from {s.nasIp ?? "the venue IP"}/32 on the
-            hub. Until then every sign-in times out. This panel does not do it.
+            {s.radiusServer?.accountingPort ?? 1813} from {s.nasIp ?? "the venue IP"}/32 on the hub.
+            Until then every sign-in times out. This panel does not do it.
           </p>
           <div className="flex flex-wrap gap-2 pt-1">
             <MButton variant="outline" disabled={busy} onClick={() => rotate(s.nasId as string)}>
@@ -321,53 +397,26 @@ export function ArubaInstantOnSetupPanel({ router }: { router: RouterDevice }) {
             >
               Deregister
             </MButton>
+            <MButton variant="ghost" disabled={busy} onClick={() => setMoving((m) => !m)}>
+              Venue IP changed
+            </MButton>
           </div>
+          {moving &&
+            registerForm(
+              "Register the venue's new public IP (issues a new secret, shown once)",
+              "Register new IP",
+            )}
         </div>
       ) : (
-        <div className="space-y-2 rounded-lg border border-border p-3 text-xs">
-          <p className="text-sm font-medium text-foreground">Register with RADIUS</p>
-          <label className="block text-muted-foreground" htmlFor="aruba-venue-ip">
-            Venue public IP
-          </label>
-          <input
-            id="aruba-venue-ip"
-            className={M_INPUT}
-            inputMode="decimal"
-            placeholder="203.0.113.10"
-            value={ip}
-            onChange={(e) => setIp(e.target.value)}
-          />
-          <p className="text-muted-foreground">
-            Measure it from a phone on the venue WiFi: open checkip.amazonaws.com.
-          </p>
-          {ip && ipProblem && (
-            <p className="text-destructive">{PUBLIC_IP_PROBLEM_COPY[ipProblem]}</p>
-          )}
-          <label className="flex items-center gap-2 text-foreground">
-            <input
-              type="checkbox"
-              checked={staticConfirmed}
-              onChange={(e) => setStaticConfirmed(e.target.checked)}
-            />
-            The ISP confirms this IP is static
-          </label>
-          <p className="text-muted-foreground">
-            If the IP changes, every sign-in at this venue times out silently.
-          </p>
-          <MButton disabled={!!ipProblem || !staticConfirmed || busy} onClick={register}>
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Register with RADIUS
-          </MButton>
-        </div>
+        registerForm("Register with RADIUS", "Register with RADIUS")
       );
     // Gaps instead of values: the backend nulls `portal_url` whenever it
     // reports a gap, and the checklist renders only when nothing is missing.
-    const ready = s.gaps.length === 0 && s.portalUrl && s.radiusServer && s.nasIdentifier;
+    const ready = arubaSetupIsReady(s);
     content = (
       <>
         {registration}
-        {ready ? (
-          <Checklist setup={s} />
-        ) : (
+        {!ready && (
           <Gaps
             items={
               s.gaps.length > 0
@@ -376,6 +425,7 @@ export function ArubaInstantOnSetupPanel({ router }: { router: RouterDevice }) {
             }
           />
         )}
+        <Checklist setup={s} ready={ready} />
       </>
     );
   }

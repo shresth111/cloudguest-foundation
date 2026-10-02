@@ -54,7 +54,6 @@ import {
   CONTROLLER_STATE_COPY,
   CONTROLLER_STATE_NEXT_STEP,
   controllerIdentitySentence,
-  controllerNounPhrase,
   controllerStateIsFault,
   controllerStateSentence,
   isControllerManagedRow,
@@ -442,6 +441,28 @@ export function deriveRouterLiveness(raw: RawRouterLiveness, now: Date): RouterL
       };
     }
 
+    // A NAS-only vendor (Aruba Instant On) has no controller connection to
+    // check, so the fallback says what the backend's `no_controller_api`
+    // would have said, rather than pointing at a network integration that
+    // can never exist for it. ABOVE the "marked down" branch: nothing on this
+    // platform can observe an Instant On AP, so an `offline` / `unhealthy`
+    // on such a row is residue (e.g. from before a vendor change), never a
+    // measurement -- and PM_SPEC §0.4 item 5 forbids "Offline" for it.
+    if (isNasOnlyVendor(raw.vendor)) {
+      return {
+        ...base,
+        status: "unknown",
+        state: "not-applicable",
+        shortLabel: CONTROLLER_STATE_COPY.no_controller_api.label,
+        detail:
+          `${controllerIdentitySentence(label, raw.vendor)} ` +
+          CONTROLLER_STATE_COPY.no_controller_api.sentence,
+        nextStep: CONTROLLER_STATE_NEXT_STEP.no_controller_api,
+        lastContactIso: lastSeenIso,
+        lastContactKind: "none",
+      };
+    }
+
     // FALLBACK, for a backend that has not deployed `controller_state` yet
     // or has grown a state this build has no words for. Negative evidence
     // first. Nothing heartbeats a controller, so neither of these values can
@@ -464,31 +485,13 @@ export function deriveRouterLiveness(raw: RawRouterLiveness, now: Date): RouterL
         state: "controller-reported-down",
         shortLabel: "Controller down",
         detail:
-          `${label} ${isNasOnlyVendor(raw.vendor) ? "uses" : "is"} ${controllerNounPhrase(raw.vendor)} and it ${what}. ` +
+          `${label} is a ${routerVendorLabel(raw.vendor)} controller and it ${what}. ` +
           "That is not a missed check-in — this platform never waits for one here — it is a " +
           "state recorded against this controller, so guests at this venue may not be able to " +
           "get online.",
         nextStep:
           "Check this venue's network integration, then the controller itself. " +
           "Nothing on this platform will clear this on its own.",
-        lastContactIso: lastSeenIso,
-        lastContactKind: "none",
-      };
-    }
-    // A NAS-only vendor (Aruba Instant On) has no controller connection to
-    // check, so the fallback says what the backend's `no_controller_api`
-    // would have said, rather than pointing at a network integration that
-    // can never exist for it.
-    if (isNasOnlyVendor(raw.vendor)) {
-      return {
-        ...base,
-        status: "unknown",
-        state: "not-applicable",
-        shortLabel: CONTROLLER_STATE_COPY.no_controller_api.label,
-        detail:
-          `${controllerIdentitySentence(label, raw.vendor)} ` +
-          CONTROLLER_STATE_COPY.no_controller_api.sentence,
-        nextStep: CONTROLLER_STATE_NEXT_STEP.no_controller_api,
         lastContactIso: lastSeenIso,
         lastContactKind: "none",
       };

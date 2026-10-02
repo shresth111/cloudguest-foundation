@@ -102,7 +102,9 @@ const TRUSTED_ARUBA_LOGIN_HOSTS: ReadonlySet<string> = new Set([
   "securelogin.arubanetworks.com",
   "captiveportal-login.arubainstanton.com",
 ]);
-const TRUSTED_ARUBA_LOGIN_HOST_PATTERNS: readonly RegExp[] = [/^captive-\d{4}\.aio\.cloudauth\.net$/];
+const TRUSTED_ARUBA_LOGIN_HOST_PATTERNS: readonly RegExp[] = [
+  /^captive-\d{4}\.aio\.cloudauth\.net$/,
+];
 
 export function isTrustedArubaLoginHost(host: string): boolean {
   const h = host.trim().toLowerCase().replace(/\.$/, "");

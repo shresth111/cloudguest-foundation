@@ -63,7 +63,7 @@ export function ControllerManagedFeatureNotice({
       </div>
       <h3 className="text-base font-semibold text-foreground">
         {planned
-          ? controllerUnsupportedHeadline(vendor)
+          ? controllerUnsupportedHeadline(vendor, featureId)
           : `${featureLabel} is configured on this venue's controller`}
       </h3>
       <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">

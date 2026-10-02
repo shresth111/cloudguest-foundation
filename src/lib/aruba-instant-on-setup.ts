@@ -121,6 +121,20 @@ export function toArubaRegistration(raw: any): ArubaRegistration {
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
+/** The RADIUS profile name ops creates in Instant On (PM_SPEC §0.3 step 1). */
+export const ARUBA_RADIUS_PROFILE_NAME = "Wyfy Guest";
+
+/**
+ * Whether the checklist may show copyable values. Every backend value must be
+ * present AND the backend must report no gap: `portal_url` is null whenever
+ * `gaps` is non-empty, but the console does not rely on that alone.
+ */
+export function arubaSetupIsReady(s: ArubaSetupStatus): boolean {
+  return (
+    s.gaps.length === 0 && !!s.portalUrl && !!s.radiusServer && !!s.nasIdentifier && s.registered
+  );
+}
+
 /** The backend's closed gap list, in ops' words. An unknown code is shown as
  * itself rather than dropped -- a gap nobody can read is still a gap. */
 const GAP_COPY: Record<string, string> = {
