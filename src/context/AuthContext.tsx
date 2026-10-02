@@ -17,8 +17,13 @@ import {
   USER_STORAGE_KEY,
   ROLES_STORAGE_KEY,
   ORGS_STORAGE_KEY,
+  ACTIVE_ORG_STORAGE_KEY,
 } from "@/services/api";
 import { getImpersonationClaim } from "@/lib/jwt";
+import {
+  resolveImpersonatedGrants,
+  type BeginImpersonationInput,
+} from "@/lib/impersonation-grants";
 import { DEMO_ACCESS_TOKEN, isDemoLogin, isHonouredDemoToken } from "@/lib/demo-host";
 import type {
   AuthSession,
@@ -57,7 +62,16 @@ interface PreImpersonationSession {
   user: User;
   roles: RoleAssignment[];
   organizations: OrganizationMembership[];
+  /** The operator's Master data scope (`cg.activeOrgId` -- an org id, or
+   * `"all"`) at the moment impersonation began, restored verbatim by
+   * `endImpersonation`. `null` when none was stored. Optional only so a
+   * session parked by an older build still restores. */
+  activeOrgScope?: string | null;
 }
+
+/** The customer workspace's own remembered location (WorkspaceContext,
+ * usePermissions, select-space). Per identity, like `activeLocationId`. */
+const WORKSPACE_ACTIVE_LOC_KEY = "cg.workspace.activeLoc";
 
 export type AuthStatus = "loading" | "authenticated" | "anonymous";
 
@@ -73,18 +87,7 @@ export interface RouterAuthContext {
   roles: RoleAssignment[];
 }
 
-/** Input to `beginImpersonation` -- everything `POST
- * /users/{id}/impersonate`'s response hands back (`accessToken`,
- * `expiresAt`, `targetUser`), plus the organization the master console
- * already knows the target belongs to (the endpoint's own response never
- * carries org/role data -- see `beginImpersonation`'s doc comment for why
- * that's synthesized client-side instead). */
-export interface BeginImpersonationInput {
-  accessToken: string;
-  expiresAt: string;
-  targetUser: { id: string; fullName: string; email: string; username: string };
-  organization: { id: string; name: string; slug: string };
-}
+export type { BeginImpersonationInput } from "@/lib/impersonation-grants";
 
 interface AuthContextValue {
   user: User | null;
@@ -104,7 +107,7 @@ interface AuthContextValue {
    * first tucked the operator's real session away in
    * `PRE_IMPERSONATION_SESSION_KEY` so `endImpersonation` can restore it.
    * See its own implementation comment for the full contract. */
-  beginImpersonation: (input: BeginImpersonationInput) => Promise<void>;
+  beginImpersonation: (input: BeginImpersonationInput) => Promise<RouterAuthContext>;
   /** Restores whatever real session `beginImpersonation` preserved (or, if
    * none is found, fails safe to signed-out) and discards the
    * impersonation token. Does not navigate -- same division of labor as
@@ -397,16 +400,72 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     writeStored(USER_STORAGE_KEY, JSON.stringify(next));
   }, []);
 
+  /** Puts the operator's parked session back. Shared by `endImpersonation`
+   * and by a `beginImpersonation` that fails after the swap, so a failed
+   * start can never strand the tab in a half-impersonated state. */
+  const restoreOperatorSession = useCallback((): RouterAuthContext => {
+    const preSession = readStoredJson<PreImpersonationSession>(PRE_IMPERSONATION_SESSION_KEY);
+    // Identity transition: nothing cached as the customer may be read as the
+    // operator (and vice versa on the way in).
+    queryClient.clear();
+    useCustomerStore.getState().clearLocation();
+    resetSessionScopeCaches();
+    removeStored(WORKSPACE_ACTIVE_LOC_KEY);
+    removeStored(PRE_IMPERSONATION_SESSION_KEY);
+    removeStored(IMPERSONATION_EXPIRES_AT_KEY);
+    // The customer's permission set must not survive into the operator's
+    // console even for the round trip it takes to re-read the operator's.
+    setPermissions(new Set());
+
+    if (!preSession || !preSession.accessToken) {
+      // Nothing real to restore to (storage was cleared from under us, or
+      // this somehow ran twice) -- fail safe to signed-out rather than
+      // leave a half-restored session standing.
+      clearStoredSession();
+      removeStored(ACTIVE_ORG_STORAGE_KEY);
+      setUser(null);
+      setRoles([]);
+      setOrganizations([]);
+      setStatus("anonymous");
+      return { status: "anonymous", roles: [] };
+    }
+
+    writeStored(TOKEN_STORAGE_KEY, preSession.accessToken);
+    if (preSession.refreshToken) writeStored(REFRESH_TOKEN_STORAGE_KEY, preSession.refreshToken);
+    else removeStored(REFRESH_TOKEN_STORAGE_KEY);
+    writeStored(USER_STORAGE_KEY, JSON.stringify(preSession.user));
+    writeStored(ROLES_STORAGE_KEY, JSON.stringify(preSession.roles));
+    writeStored(ORGS_STORAGE_KEY, JSON.stringify(preSession.organizations));
+    // The operator's Master data scope ("All organizations", or the one org
+    // they had narrowed to) comes back exactly as they left it.
+    if (preSession.activeOrgScope) writeStored(ACTIVE_ORG_STORAGE_KEY, preSession.activeOrgScope);
+    else removeStored(ACTIVE_ORG_STORAGE_KEY);
+
+    setUser(preSession.user);
+    setRoles(preSession.roles);
+    setOrganizations(preSession.organizations);
+    setStatus("authenticated");
+
+    // Best-effort re-confirmation of the operator's real permissions
+    // (mirrors rehydrate()'s own reasoning for the same call) -- a failure
+    // here is swallowed: the operator's session actually being restored
+    // matters more than this one call succeeding, and the interceptor's own
+    // 401 handling is still there as a backstop if the token really is stale.
+    authService
+      .myPermissions()
+      .then((perms) => setPermissions(new Set(perms)))
+      .catch(() => {});
+
+    return { status: "authenticated", roles: preSession.roles };
+  }, [queryClient]);
+
   const beginImpersonation = useCallback(
-    async (input: BeginImpersonationInput) => {
+    async (input: BeginImpersonationInput): Promise<RouterAuthContext> => {
       // Defense in depth. The real boundary is `/master`'s own route guard
       // (master.tsx's `isOperator` check): the entry point that calls this
       // lives under `/master/*`, and the ACTIVE token while impersonating
       // is the customer's, never a GLOBAL-scope one, so that guard already
       // redirects away before this could ever be reached a second time.
-      // This check exists anyway because it's the one function that could
-      // actually *start* a nested session, and it costs nothing to confirm
-      // rather than assume the guard holds.
       const currentToken = readStoredString(TOKEN_STORAGE_KEY);
       if (currentToken && getImpersonationClaim(currentToken)) {
         throw new Error(
@@ -422,27 +481,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error("No active operator session to preserve -- refusing to impersonate.");
       }
 
+      // Decided before anything is touched: a refusal leaves the operator's
+      // session exactly as it was.
+      const grants = resolveImpersonatedGrants(input);
+
       // Preserve the operator's real session before anything below
-      // overwrites it. Not `AuthSession`'s shape (that always has a real
-      // refresh token; a rehydrated-from-storage session's refresh token
-      // is whatever is actually sitting in storage right now, which this
-      // captures as-is instead of assuming one exists).
+      // overwrites it -- including the Master data scope, which is the
+      // operator's choice and is cleared for the customer (see below).
       const preSession: PreImpersonationSession = {
         accessToken: currentToken,
         refreshToken: readStoredString(REFRESH_TOKEN_STORAGE_KEY),
         user: operatorUser,
         roles,
         organizations,
+        activeOrgScope: readStoredString(ACTIVE_ORG_STORAGE_KEY),
       };
       writeStored(PRE_IMPERSONATION_SESSION_KEY, JSON.stringify(preSession));
 
-      // Same identity-switch hygiene login()/logout() already apply --
-      // an operator's cached queries and any leftover customerStore
-      // location must not leak into (or get overwritten by) the
-      // impersonated view.
+      // Identity-switch hygiene, same as login()/logout(): the operator's
+      // cached queries, customerStore location and module-level org caches
+      // must not leak into the impersonated view.
       queryClient.clear();
       useCustomerStore.getState().clearLocation();
       resetSessionScopeCaches();
+      removeStored(WORKSPACE_ACTIVE_LOC_KEY);
+      // The operator's permission set must not be what `can()` answers with
+      // while the customer's is fetched -- and must never be what it answers
+      // with if that fetch fails. Empty until the backend says otherwise.
+      setPermissions(new Set());
+      // The Master data scope ("all" -- every tenant) is the operator's. The
+      // interceptor already refuses "all" for a non-global session, but the
+      // key is the operator's to get back, not the customer's to inherit.
+      removeStored(ACTIVE_ORG_STORAGE_KEY);
 
       const fullName = input.targetUser.fullName.trim();
       const [firstName, ...rest] = fullName.split(/\s+/).filter(Boolean);
@@ -459,45 +529,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isActive: true,
         isVerified: true,
       };
-      // `POST /users/{id}/impersonate` hands back the target's identity
-      // only -- never their real role/org grants, so those two can't be
-      // read from the response. This role entry is a placeholder: its ONLY
-      // job is to read as non-"global" for the two guards that check
-      // `roles` client-side (`/master`'s `isOperator`,
-      // `requireCustomerSession`'s `hasCustomerRole` in authGuards.ts) --
-      // it grants nothing by itself. Real authorization for everything the
-      // impersonated session actually does comes from the backend, via the
-      // real `myPermissions()` call below, made authenticated AS the
-      // target (the request interceptor picks up the token written just
-      // after this).
-      const impersonatedRoles: RoleAssignment[] = [
-        {
-          roleId: "impersonated-session",
-          roleName: "Customer (impersonated)",
-          roleSlug: "impersonated-customer",
-          scopeType: "organization",
-          organizationId: input.organization.id,
-        },
-      ];
-      // This is the entry, and the ONLY entry, `resolveActiveOrganizationId()`
-      // (services/api.ts) needs to attach `X-Organization-Id` by default on
-      // every org-scoped call the impersonated dashboard makes -- without
-      // it those calls fall back to GLOBAL scope, where the target user
-      // holds nothing, and 403 (see that function's own doc comment for
-      // the exact failure this reproduces). `isPrimaryContact: true` isn't
-      // an arbitrary placeholder either: this feature's one entry point
-      // (master.customers.tsx) resolves the impersonation target by
-      // matching the organization's own `contactEmail`, i.e. it only ever
-      // impersonates that org's primary contact/owner account.
-      const impersonatedOrganizations: OrganizationMembership[] = [
-        {
-          organizationId: input.organization.id,
-          organizationName: input.organization.name,
-          organizationSlug: input.organization.slug,
-          isPrimaryContact: true,
-          enabledFeatures: ["all"],
-        },
-      ];
 
       writeStored(TOKEN_STORAGE_KEY, input.accessToken);
       // Deliberately no refresh token, and deliberately NOT the operator's
@@ -505,75 +536,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // `refreshAccessToken()`, which reads this exact key. Leaving the
       // operator's refresh token in place would let an expired
       // impersonation token silently mint a fresh OPERATOR access token
-      // instead of ending the impersonated session -- a real session
-      // boundary violation, not a cosmetic one. An impersonation session
-      // is meant to hard-stop at `expires_at`, never quietly renew.
+      // instead of ending the impersonated session. An impersonation
+      // session is meant to hard-stop at `expires_at`, never quietly renew.
       removeStored(REFRESH_TOKEN_STORAGE_KEY);
       writeStored(USER_STORAGE_KEY, JSON.stringify(impersonatedUser));
-      writeStored(ROLES_STORAGE_KEY, JSON.stringify(impersonatedRoles));
-      writeStored(ORGS_STORAGE_KEY, JSON.stringify(impersonatedOrganizations));
+      writeStored(ROLES_STORAGE_KEY, JSON.stringify(grants.roles));
+      writeStored(ORGS_STORAGE_KEY, JSON.stringify(grants.organizations));
       writeStored(IMPERSONATION_EXPIRES_AT_KEY, input.expiresAt);
 
       setUser(impersonatedUser);
-      setRoles(impersonatedRoles);
-      setOrganizations(impersonatedOrganizations);
+      setRoles(grants.roles);
+      setOrganizations(grants.organizations);
       setStatus("authenticated");
 
-      // Real, backend-issued permissions for the target user -- same
-      // post-persist call login() itself makes, just authenticated as
-      // someone else now that the token above has been swapped.
-      const myPermissions = await authService.myPermissions();
-      setPermissions(new Set(myPermissions));
+      // Real, backend-issued permissions for the target -- authenticated as
+      // them now that the token above has been swapped. A failure here
+      // puts the operator back rather than leaving a session whose
+      // permissions nobody could read.
+      try {
+        const myPermissions = await authService.myPermissions();
+        setPermissions(new Set(myPermissions));
+      } catch (err) {
+        restoreOperatorSession();
+        throw err;
+      }
+      return { status: "authenticated", roles: grants.roles };
     },
-    [queryClient, user, roles, organizations],
+    [queryClient, user, roles, organizations, restoreOperatorSession],
   );
 
-  const endImpersonation = useCallback((): RouterAuthContext => {
-    const preSession = readStoredJson<PreImpersonationSession>(PRE_IMPERSONATION_SESSION_KEY);
-    queryClient.clear();
-    useCustomerStore.getState().clearLocation();
-    resetSessionScopeCaches();
-    removeStored(PRE_IMPERSONATION_SESSION_KEY);
-    removeStored(IMPERSONATION_EXPIRES_AT_KEY);
-
-    if (!preSession || !preSession.accessToken) {
-      // Nothing real to restore to (storage was cleared from under us, or
-      // this somehow ran twice) -- fail safe to signed-out rather than
-      // leave a half-restored session standing.
-      clearStoredSession();
-      setUser(null);
-      setRoles([]);
-      setOrganizations([]);
-      setPermissions(new Set());
-      setStatus("anonymous");
-      return { status: "anonymous", roles: [] };
-    }
-
-    writeStored(TOKEN_STORAGE_KEY, preSession.accessToken);
-    if (preSession.refreshToken) writeStored(REFRESH_TOKEN_STORAGE_KEY, preSession.refreshToken);
-    else removeStored(REFRESH_TOKEN_STORAGE_KEY);
-    writeStored(USER_STORAGE_KEY, JSON.stringify(preSession.user));
-    writeStored(ROLES_STORAGE_KEY, JSON.stringify(preSession.roles));
-    writeStored(ORGS_STORAGE_KEY, JSON.stringify(preSession.organizations));
-
-    setUser(preSession.user);
-    setRoles(preSession.roles);
-    setOrganizations(preSession.organizations);
-    setStatus("authenticated");
-
-    // Best-effort re-confirmation of the operator's real permissions
-    // (mirrors rehydrate()'s own reasoning for the same call) -- unlike
-    // login()/beginImpersonation(), a failure here is swallowed rather
-    // than thrown: the operator's session actually being restored matters
-    // more than this one call succeeding, and the interceptor's own 401
-    // handling is still there as a backstop if the token really is stale.
-    authService
-      .myPermissions()
-      .then((perms) => setPermissions(new Set(perms)))
-      .catch(() => {});
-
-    return { status: "authenticated", roles: preSession.roles };
-  }, [queryClient]);
+  const endImpersonation = useCallback(
+    (): RouterAuthContext => restoreOperatorSession(),
+    [restoreOperatorSession],
+  );
 
   const value = useMemo<AuthContextValue>(
     () => ({
