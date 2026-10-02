@@ -66,6 +66,7 @@ import {
   vendorLooksWrong,
   vendorLabel as vendorLabelFor,
   vendorOptionsFor,
+  isNasOnlyVendor,
 } from "@/lib/router-vendors";
 import { deriveIntegrationSetup } from "@/lib/network-integration-readiness";
 import { networkIntegrationService } from "@/services/network-integration.service";
@@ -967,6 +968,23 @@ function RouterFleetScreen() {
                         onClick={() => goToAdvanced(sel.id)}
                       >
                         <FileCode2 className="h-4 w-4" /> Advanced setup script
+                      </MButton>
+                    </div>
+                  )}
+
+                  {/* Aruba Instant On (NAS-only): its setup is RADIUS
+                      registration plus a checklist for the Instant On app,
+                      rendered by the same `?advanced=` drilldown that
+                      dispatches on vendor. MikroTik and Omada rows are
+                      unchanged. */}
+                  {!demo && isNasOnlyVendor(sel.vendor) && (
+                    <div className="space-y-2">
+                      <MButton
+                        variant="primary"
+                        className="w-full justify-center"
+                        onClick={() => goToAdvanced(sel.id)}
+                      >
+                        <FileCode2 className="h-4 w-4" /> Instant On setup
                       </MButton>
                     </div>
                   )}

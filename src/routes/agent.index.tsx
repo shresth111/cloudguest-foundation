@@ -224,7 +224,7 @@ function AgentDashboard() {
            * rule that the backend refuses on vendor. Same predicate, same
            * panel, so the two doors cannot drift. */}
           <div className="mx-auto max-w-7xl">
-            {controllerManaged && !featureAppliesToControllerVenue(active) ? (
+            {controllerManaged && !featureAppliesToControllerVenue(active, controllerVendor) ? (
               <ControllerManagedFeatureNotice
                 featureId={active}
                 featureLabel={activeLabel}

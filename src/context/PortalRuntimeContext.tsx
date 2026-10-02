@@ -25,6 +25,7 @@ import type { OmadaRadiusRedirect } from "@/lib/portal-radius-authorize";
  * maps the `authType 2` set onto the RADIUS-mode one -- so a field from
  * the wrong contract is inert rather than wrong. */
 export type OmadaPortalRedirect = OmadaRedirectCapture & OmadaRadiusRedirect;
+import type { ArubaPortalRedirect } from "@/lib/portal-aruba-login";
 import type {
   RuntimeAuthMethod,
   RuntimeLanguage,
@@ -322,6 +323,10 @@ interface PersistedOmadaContext {
   portalMode?: string;
   clientIp?: string;
   redirect: OmadaPortalRedirect;
+  /** Aruba Instant On's redirect, mirrored under the same all-or-nothing
+   * `netProvider` rule. Absent in every mirror written before it existed
+   * and at every non-Aruba venue. */
+  aruba?: ArubaPortalRedirect;
 }
 
 function parsePersistedOmadaContext(raw: string | null): PersistedOmadaContext | undefined {
@@ -350,6 +355,10 @@ function parsePersistedOmadaContext(raw: string | null): PersistedOmadaContext |
     portalMode: typeof value.portalMode === "string" ? value.portalMode : undefined,
     clientIp: typeof value.clientIp === "string" ? value.clientIp : undefined,
     redirect,
+    aruba:
+      value.aruba && typeof value.aruba === "object"
+        ? (value.aruba as ArubaPortalRedirect)
+        : undefined,
   };
 }
 
@@ -528,6 +537,11 @@ interface PortalRuntimeState {
    * the integration's configured SSID, `site` is not the integration's
    * stored site, and `t` is not `Date.now()`. */
   omadaRedirect?: OmadaPortalRedirect;
+  /** Aruba Instant On's redirect (`switchip`, `essid`, `url`, ...), captured
+   * verbatim -- see src/lib/portal-aruba-login.ts. Undefined at every
+   * non-Aruba venue. `/portal/success` reads `switchip` from it to find the
+   * AP's login URL, and allowlists it before use. */
+  arubaRedirect?: ArubaPortalRedirect;
   /** WHICH VENDOR'S GATE STANDS BETWEEN THIS GUEST AND THE INTERNET.
    *
    * `"omada"` when it was in the External Portal Server URL the venue's
@@ -702,6 +716,8 @@ interface Props {
    * including why these nine are one object while `clientIp` is a flat
    * field. */
   omadaRedirect?: OmadaPortalRedirect;
+  /** Aruba Instant On's redirect -- see `PortalRuntimeState.arubaRedirect`. */
+  arubaRedirect?: ArubaPortalRedirect;
   /** Which vendor's gate this venue has -- see
    * `PortalRuntimeState.netProvider`. */
   netProvider?: string;
@@ -736,6 +752,7 @@ export function PortalRuntimeProvider({
   deviceIp,
   clientIp,
   omadaRedirect,
+  arubaRedirect,
   netProvider,
   portalMode,
   destinationUrl,
@@ -996,6 +1013,7 @@ export function PortalRuntimeProvider({
       deviceIp,
       clientIp,
       omadaRedirect,
+      arubaRedirect,
       netProvider,
       portalMode,
       destinationUrl,
@@ -1037,6 +1055,7 @@ export function PortalRuntimeProvider({
       deviceIp,
       clientIp,
       omadaRedirect,
+      arubaRedirect,
       netProvider,
       portalMode,
       destinationUrl,

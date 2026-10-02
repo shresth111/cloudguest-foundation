@@ -18,8 +18,9 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { MButton, MTag } from "@/components/master/MasterKit";
-import { vendorLabel, vendorOptionsFor } from "@/lib/router-vendors";
+import { ARUBA_INSTANT_ON_VENDOR, vendorLabel, vendorOptionsFor } from "@/lib/router-vendors";
 import { OmadaGuidedSetupPanel } from "@/components/routers/OmadaGuidedSetupPanel";
+import { ArubaInstantOnSetupPanel } from "@/components/routers/ArubaInstantOnSetupPanel";
 import {
   buildRouterSetupScriptChunks,
   chunksToMarkdown,
@@ -2031,6 +2032,8 @@ export function RouterSetupDrilldown({
             <RouterSetupScriptPanel router={router} />
           ) : vendor === "tplink_omada" ? (
             <OmadaGuidedSetupPanel router={router} />
+          ) : vendor === ARUBA_INSTANT_ON_VENDOR ? (
+            <ArubaInstantOnSetupPanel router={router} />
           ) : (
             <VendorNotSupportedPanel vendor={vendor} />
           )}

@@ -410,6 +410,25 @@ const portalSearchShape = {
   // browser can see -- recorded, not used.
   hostname: omadaRedirectParam(),
   serverPort: omadaRedirectParam(),
+  // ------------------------------------------------------------------
+  // Aruba Instant On's redirect (`netProvider=aruba_instant_on`). Aruba
+  // Instant appends `cmd`, `mac`, `essid`, `ip`, `apname`, `apmac`,
+  // `vcname`, `switchip` and `url` (IAP docs; RECON.md §3, not yet measured
+  // on Instant On hardware). `mac` and `ip` are declared above and mean the
+  // same thing here. Same rules as Omada's: captured, never derived; both
+  // primitives accepted; a value that is neither drops that one key only.
+  //
+  // `switchip` is the load-bearing one -- the host the guest's browser
+  // submits the login to. It is allowlisted before use
+  // (`arubaLoginTarget` in src/lib/portal-aruba-login.ts), never trusted.
+  // `apmac` is Aruba's lower-case spelling and is NOT Omada's `apMac`.
+  cmd: omadaRedirectParam(),
+  essid: omadaRedirectParam(),
+  apname: omadaRedirectParam(),
+  apmac: omadaRedirectParam(),
+  vcname: omadaRedirectParam(),
+  switchip: omadaRedirectParam(),
+  url: omadaRedirectParam(),
   // The guest's own chosen portal language, put here by `buildSessionUrl`
   // so it survives portal.success.tsx's full-document POST to the NAS --
   // the one boundary on this flow where React state and (on iOS's Captive

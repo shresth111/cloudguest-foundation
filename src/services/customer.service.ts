@@ -181,6 +181,12 @@ export interface CustomerDashboardData {
      * `newToday` went the same way: identical expression to `todayGuests`
      * below, and never rendered anywhere. */
     onlineUsers: number;
+    /** `true` when the guest-sessions read itself failed, so `onlineUsers`,
+     * `todayGuests` and `recentUsers` are empty for want of an answer, not
+     * because nobody signed in. Optional: absent (demo, older callers) means
+     * the read is not known to have failed. Read by the Aruba Instant On
+     * venue card, which must never print a stand-in zero. */
+    sessionsReadFailed?: boolean;
     /** `null` when the routers could not be read. Never a stand-in zero. */
     routersOnline: number | null;
     totalRouters: number | null;
@@ -1453,6 +1459,7 @@ export const customerService = {
       },
       kpis: {
         onlineUsers: activeSessionCount,
+        sessionsReadFailed: sR.status !== "fulfilled",
         routersOnline: liveness.routersOnline,
         totalRouters: liveness.routersTotal,
         todayGuests: (() => {

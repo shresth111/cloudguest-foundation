@@ -166,7 +166,7 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
   // boolean; the vendor only decides whether the copy can name a brand.
   const controllerGated =
     locationIsControllerManaged(activeLocation?.liveness) &&
-    !featureAppliesToControllerVenue(feature);
+    !featureAppliesToControllerVenue(feature, locationControllerVendor(activeLocation?.liveness));
   const controllerVendor = locationControllerVendor(activeLocation?.liveness);
 
   const handleLogout = async () => {
@@ -289,7 +289,10 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
               {feature === "portal" && <PortalPage locationId={locationId} />}
               {feature === "vouchers" && <VouchersPage locationId={locationId} />}
               {feature === "policies" && <PoliciesHub locationId={locationId} />}
-              {feature === "whitelist" && <WhiteList locationId={locationId} />}
+              {/* Allow-list and Trusted Devices are live everywhere except a
+                  NAS-only venue (Aruba Instant On), where `controllerGated`
+                  is true for them and the notice below renders instead. */}
+              {feature === "whitelist" && !controllerGated && <WhiteList locationId={locationId} />}
               {feature === "devices" && (
                 <div className="space-y-4">
                   <NetworkHardwareView locationId={locationId} />
@@ -328,7 +331,9 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                   Master console (FE-0 step 3, not done here). */}
               {feature === "admin-logs" && <AdminLogsView locationId={locationId} />}
               {feature === "network-activity" && <NetworkActivityLog masked={masked} />}
-              {feature === "mac-auth" && <MacAuthView locationId={locationId} />}
+              {feature === "mac-auth" && !controllerGated && (
+                <MacAuthView locationId={locationId} />
+              )}
               {/* The RouterOS screens. On a controller-managed venue
                   the view is NOT MOUNTED -- this is not a disabled form over
                   a live one. Each of these components fetches its own rules

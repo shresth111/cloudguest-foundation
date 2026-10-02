@@ -156,9 +156,8 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
   // genuinely work) all render exactly the nav they render today.
   const activeLocation = useCustomerStore((s) => s.activeLocation);
   const controllerManaged = locationIsControllerManaged(activeLocation?.liveness);
-  const controllerReason = controllerVenueFeatureReason(
-    locationControllerVendor(activeLocation?.liveness),
-  );
+  const controllerVendor = locationControllerVendor(activeLocation?.liveness);
+  const controllerReason = controllerVenueFeatureReason(controllerVendor);
 
   // The Marketing add-on's lock badge (wyfy-specs/guest-marketing-campaigns.md
   // §3.5). From `/me/entitlements` -- the backend's own entitlement snapshot,
@@ -286,7 +285,7 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
                     // destination is a panel with no form on it -- so
                     // nothing here can still be filled in and refused.
                     const viaController = controllerManaged
-                      ? !featureAppliesToControllerVenue(item.id)
+                      ? !featureAppliesToControllerVenue(item.id, controllerVendor)
                       : false;
                     return (
                       <SidebarMenuItem key={item.id}>
@@ -345,7 +344,9 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
                     it; this is the sentence for the one who does not. */}
                 {controllerManaged &&
                   !collapsed &&
-                  group.items.some((item) => !featureAppliesToControllerVenue(item.id)) && (
+                  group.items.some(
+                    (item) => !featureAppliesToControllerVenue(item.id, controllerVendor),
+                  ) && (
                     <p className="px-2 pt-1 text-[11px] leading-snug text-sidebar-foreground/55">
                       {controllerReason}
                     </p>

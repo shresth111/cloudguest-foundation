@@ -2117,6 +2117,32 @@ jobs:
             "omada guided setup: all checks passed" \
             bun run test:omada-guided-setup
 
+      # Aruba Instant On (AP21 / AP-503), a controller-managed AND NAS-only
+      # vendor: no agent, no WireGuard, and no API to Aruba's cloud -- the AP
+      # sends guests to our portal and asks our RADIUS hub. Two suites:
+      #
+      #   * the pure half: vendor gating (Omada and MikroTik asserted
+      #     UNCHANGED first), every customer control greyed with PM_SPEC's
+      #     copy, "Set up in Instant On" never "Offline", the setup contract,
+      #     and the guest portal refusing to POST an identifier to a
+      #     `switchip` outside Aruba's own login hosts;
+      #   * the Master setup panel in Chromium against a fake backend: gaps
+      #     instead of values, Register gated on a public IP plus the static
+      #     tick, and the shared secret shown once -- gone from the DOM and
+      #     the query cache the moment its dialog closes.
+      - name: aruba instant on gating, guardrails and portal login
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "aruba-instant-on" 265 \
+            "aruba instant on: all checks passed" \
+            bun run test:aruba-instant-on
+      - name: aruba instant on setup panel
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "aruba-setup-panel" 68 \
+            "aruba setup panel: all checks passed" \
+            bun run test:aruba-setup-panel
+
       # The customer dashboard's five guest controls, at a venue whose access
       # points are a TP-Link Omada controller. Three of them were written for
       # a MikroTik and shipped unchanged: a Bandwidth saved into a BANDWIDTH

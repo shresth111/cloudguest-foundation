@@ -89,6 +89,8 @@
  *   §10.6  What a block does to an ALREADY-AUTHORISED guest is UNMEASURED. No
  *          sentence here claims a block cuts a live guest off.
  */
+import { isNasOnlyVendor } from "@/lib/router-vendors";
+
 // ---------------------------------------------------------------------------
 // The controls.
 // ---------------------------------------------------------------------------
@@ -366,6 +368,7 @@ function controllerNoun(vendor: string | null): string {
     .trim()
     .toLowerCase()
     .replace(/[-_\s]/g, "");
+  if (v === "arubainstanton") return "Aruba Instant On access points";
   return v === "omada" || v === "tplinkomada"
     ? "a TP-Link Omada controller"
     : "a network controller";
@@ -496,6 +499,9 @@ export function clientControlVerdict(
   venue: ControllerVenueFacts,
 ): ClientControlVerdict {
   if (!venue.controllerManaged) return AVAILABLE(control);
+  // A NAS-only venue (Aruba Instant On) has no controller API at all, so
+  // there is nothing to ask and nothing the capabilities read could say.
+  if (isNasOnlyVendor(venue.vendor)) return nasOnlyControlVerdict(control);
 
   const { vendor } = venue;
   // A CONTROLLER THAT IS NOT ANSWERING READS AS "WE COULD NOT ASK".
@@ -690,6 +696,58 @@ export function clientControlVerdict(
 }
 
 // ---------------------------------------------------------------------------
+// NAS-only venues (Aruba Instant On): fixed answers, PM_SPEC §3 / §4.
+// ---------------------------------------------------------------------------
+
+/** U1. */
+export const NAS_ONLY_SPEED =
+  "Speed limits for Aruba Instant On are set in the Instant On app, on the guest network. " +
+  "Wyfy can't change them.";
+/** U2. */
+export const NAS_ONLY_DISCONNECT =
+  "Wyfy can't disconnect a device from Aruba Instant On access points. The guest stays online " +
+  "until their session time runs out.";
+/** U2, the live and qualified half: blocking a sign-in is our own record. */
+export const NAS_ONLY_BLOCK_SIGNIN =
+  "Blocking stops this person signing in again. If they're online right now, they stay online " +
+  "until their session ends.";
+/**
+ * Session timeout is PM_SPEC V1 (unmeasured). Qualified rather than greyed:
+ * the field is required on Guest WiFi Limits and it still governs our own
+ * session (expiry, and refusing the next sign-in), so greying it would make
+ * the screen unsavable and take away a half that works. What is uncertain is
+ * only whether the access point drops a connected device on time, and the
+ * caveat says exactly that, before the click.
+ */
+export const NAS_ONLY_SESSION_TIMEOUT =
+  "Wyfy ends the session when the time is up and the guest has to sign in again. Whether " +
+  "Aruba Instant On access points also drop a device that is already connected hasn't been " +
+  "confirmed yet, so it may stay on until it reconnects.";
+
+/**
+ * What a NAS-only venue gets for each control. No capabilities read: there
+ * is no controller connection to ask, and the answers do not depend on one.
+ *
+ *  - disconnect, block-device, speed-*: unavailable. No CoA, no API.
+ *  - block-signin: qualified. A row in our own database, read by our portal.
+ *  - session-timeout: qualified until the V1 hardware check passes.
+ */
+function nasOnlyControlVerdict(control: ClientControlId): ClientControlVerdict {
+  switch (control) {
+    case "block-signin":
+      return { control, availability: "qualified", reason: NAS_ONLY_BLOCK_SIGNIN };
+    case "disconnect":
+    case "block-device":
+      return { control, availability: "unavailable", reason: NAS_ONLY_DISCONNECT };
+    case "speed-limit":
+    case "speed-profile":
+      return { control, availability: "unavailable", reason: NAS_ONLY_SPEED };
+    case "session-timeout":
+      return { control, availability: "qualified", reason: NAS_ONLY_SESSION_TIMEOUT };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // The four per-device actions, each gated on its OWN capability.
 // ---------------------------------------------------------------------------
 
@@ -728,6 +786,15 @@ export function deviceActionVerdict(
 ): DeviceActionVerdict {
   if (!venue.controllerManaged) {
     return { control: action, availability: "available", reason: null };
+  }
+  // Every per-device action is a write to a controller API, which a NAS-only
+  // vendor does not have. PM_SPEC U1 (speed) / U2 (block, disconnect).
+  if (isNasOnlyVendor(venue.vendor)) {
+    return {
+      control: action,
+      availability: "unavailable",
+      reason: action === "speed" || action === "speed-clear" ? NAS_ONLY_SPEED : NAS_ONLY_DISCONNECT,
+    };
   }
   const { vendor } = venue;
   // The same normalization as the ladder above, and it must be here too: all

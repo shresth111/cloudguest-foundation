@@ -113,9 +113,8 @@ export function HowItWorksView() {
   // below collapses to what it rendered before.
   const activeLocation = useCustomerStore((s) => s.activeLocation);
   const controllerManaged = locationIsControllerManaged(activeLocation?.liveness);
-  const controllerReason = controllerVenueFeatureReason(
-    locationControllerVendor(activeLocation?.liveness),
-  );
+  const controllerVendor = locationControllerVendor(activeLocation?.liveness);
+  const controllerReason = controllerVenueFeatureReason(controllerVendor);
 
   // Same two-stage narrowing as the sidebar (CustomerSidebar.tsx) -- role
   // preference first, then the caller's real effective grants. Both only
@@ -207,7 +206,7 @@ export function HowItWorksView() {
                     // when opened; this page's job is to stop an owner planning
                     // around a feature their venue configures elsewhere.
                     const viaController = controllerManaged
-                      ? !featureAppliesToControllerVenue(item.id)
+                      ? !featureAppliesToControllerVenue(item.id, controllerVendor)
                       : false;
                     return (
                       <button
@@ -247,7 +246,9 @@ export function HowItWorksView() {
                     not, and this page is where a reader goes precisely BECAUSE
                     they did not understand the sidebar. */}
                 {controllerManaged &&
-                  group.items.some((item) => !featureAppliesToControllerVenue(item.id)) && (
+                  group.items.some(
+                    (item) => !featureAppliesToControllerVenue(item.id, controllerVendor),
+                  ) && (
                     <p className="px-1 pb-3 text-xs leading-snug text-muted-foreground">
                       {controllerReason}
                     </p>

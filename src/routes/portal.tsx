@@ -31,6 +31,12 @@ import { PortalCard, PG_FONT_STACK } from "@/components/portal-runtime/PortalShe
 import { PortalDefaultBrandBadge } from "@/components/portal-runtime/PortalDefaultBrandBadge";
 import { PortalErrorScreen } from "@/components/portal-runtime/PortalErrorScreen";
 import { portalSearchSchema, portalSearchMiddlewares } from "@/lib/portal-search";
+import {
+  captureArubaRedirect,
+  isArubaInstantOnProvider,
+  splitSwallowedQuery,
+  type ArubaPortalRedirect,
+} from "@/lib/portal-aruba-login";
 
 /**
  * A real NAS/router redirect always supplies all three search params (see
@@ -201,7 +207,7 @@ function PortalRuntimeLayout() {
     vid,
     t,
     redirectUrl,
-    netProvider: urlNetProvider,
+    netProvider: rawNetProvider,
     portalMode: urlPortalMode,
     // The RADIUS-mode (`authType 2`) half of a controller redirect. Same
     // rule as the nine above: captured, never derived.
@@ -209,8 +215,36 @@ function PortalRuntimeLayout() {
     targetPort,
     scheme,
     originUrl,
+    // Aruba Instant On's redirect. Destructured individually (not read off
+    // `search` inside the memo) so the memo depends on primitives, exactly
+    // as `urlOmadaRedirect` does.
+    cmd,
+    essid,
+    apname,
+    apmac,
+    vcname,
+    switchip,
+    url,
   } = search;
   const linkLoginOnly = search["link-login-only"];
+
+  // `netProvider` with any second-`?` tail split off. Aruba may join its
+  // parameters to the configured query with `?` rather than `&`, which would
+  // swallow the first one into this value -- see `splitSwallowedQuery`. A
+  // MikroTik or Omada value never contains `?`, so for them this is the
+  // identity.
+  const swallowed = useMemo(() => splitSwallowedQuery(rawNetProvider), [rawNetProvider]);
+  const urlNetProvider = swallowed.value;
+  const urlArubaRedirect = useMemo(
+    () =>
+      isArubaInstantOnProvider(urlNetProvider)
+        ? captureArubaRedirect(
+            { cmd, essid, apname, apmac, vcname, switchip, url },
+            swallowed.recovered,
+          )
+        : undefined,
+    [urlNetProvider, cmd, essid, apname, apmac, vcname, switchip, url, swallowed],
+  );
 
   // Fallback only -- read once per mount, same lazy-initializer idiom
   // PortalRuntimeContext's own `session`/`guestIdentifier` persistence
@@ -379,8 +413,28 @@ function PortalRuntimeLayout() {
       portalMode: urlPortalMode,
       clientIp,
       redirect: urlOmadaRedirect,
+      // Only present for an Aruba venue, so an Omada mirror is byte-for-byte
+      // what it was before this field existed.
+      ...(urlArubaRedirect ? { aruba: urlArubaRedirect } : {}),
     });
-  }, [urlNetProvider, urlPortalMode, clientIp, urlOmadaRedirect]);
+  }, [urlNetProvider, urlPortalMode, clientIp, urlOmadaRedirect, urlArubaRedirect]);
+
+  // Same per-key "URL wins, mirror fills a gap" rule as `omadaRedirect`,
+  // and only for an Aruba venue.
+  const arubaRedirect = useMemo(() => {
+    if (!isArubaInstantOnProvider(netProvider)) return undefined;
+    const merged: ArubaPortalRedirect = { ...(urlArubaRedirect ?? {}) };
+    const mirrored = persistedOmada?.aruba;
+    if (mirrored) {
+      for (const [key, value] of Object.entries(mirrored)) {
+        const k = key as keyof ArubaPortalRedirect;
+        if (merged[k] === undefined && (typeof value === "string" || typeof value === "number")) {
+          merged[k] = value;
+        }
+      }
+    }
+    return merged;
+  }, [netProvider, urlArubaRedirect, persistedOmada]);
 
   if (
     !looksLikeRealId(organizationId) ||
@@ -409,6 +463,10 @@ function PortalRuntimeLayout() {
       // where `clientIp` is a flat prop (doc 132060's `t` collides with the
       // context's own i18n `t`).
       omadaRedirect={omadaRedirect}
+      // Aruba Instant On's redirect, undefined at every other venue. The
+      // AP's login host (`switchip`) is allowlisted before use on
+      // /portal/success, never trusted as-is.
+      arubaRedirect={arubaRedirect}
       // Which vendor's gate `/portal/success` has to open. Baked into the
       // configured portal URL by the backend, which read the provider off
       // the integration row, mirrored alongside the controller's own
