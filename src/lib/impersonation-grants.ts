@@ -95,4 +95,3 @@ export function resolveImpersonatedGrants(input: BeginImpersonationInput): {
     organizations: [chosen, ...reportedOrgs.filter((o) => o !== chosen)],
   };
 }
-
