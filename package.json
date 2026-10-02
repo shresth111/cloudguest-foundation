@@ -89,6 +89,7 @@
     "test:portal-radius-mode": "node scripts/test-portal-radius-mode.mjs",
     "test:omada-guest-bridge": "node scripts/test-omada-guest-bridge.mjs",
     "test:org-scope-header": "node scripts/test-organization-scope-header.mjs",
+    "test:master-list-page-size": "node scripts/test-master-list-page-size.mjs",
     "test:session-rules": "node scripts/test-session-rules-enforcement.mjs",
     "test:data-limit-rules": "node scripts/test-data-limit-rules.mjs",
     "test:single-home": "node scripts/test-single-home-settings.mjs",
