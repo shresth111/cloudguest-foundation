@@ -3028,7 +3028,25 @@ function buildTunnelIdentityCheckChunk(wireguard: WireguardPeerInfo): RouterSetu
         `:put ("  platform expects: key " . $idWantKey . "  at " . $idWantAddr)`,
         `:put ("  this device has:  key " . $idHaveKey . "  at " . $idHaveAddr)`,
         `:if ([:len $idLegacyKey] > 0) do={ :put ("  legacy ${legacy} is ALSO present here, key " . $idLegacyKey) }`,
-        `:if ([:len $idHaveKey] = 0) do={ :put "  RESULT: NEW -- no ${iface} tunnel here yet. The WireGuard chunk will build one." }`,
+        // NEW IS ONLY A PASS WHEN THIS SCRIPT CAN ACTUALLY BUILD THE TUNNEL.
+        // With no private key in the script (the platform reused a peer whose
+        // key it never kept -- e.g. one the Add Customer wizard allocated at
+        // create time, see `allocate_tunnel_via_hub` and
+        // `_allocation_from_recorded_peer`), the WireGuard chunk below cannot
+        // create `${iface}`; the RADIUS chunk then refuses to write
+        // `src-address=` at an address the device does not hold. That used
+        // to be announced here as "the WireGuard chunk will build one", and
+        // the run carried on to an empty `/radius` -- the 2026-10-02 Farmao
+        // "RADIUS nahi aaya" shape. Stop before anything is touched instead.
+        ...(canRekey
+          ? [
+              `:if ([:len $idHaveKey] = 0) do={ :put "  RESULT: NEW -- no ${iface} tunnel here yet. The WireGuard chunk will build one." }`,
+            ]
+          : [
+              `:if ([:len $idHaveKey] = 0) do={ :put "  RESULT: FAIL -- no ${iface} tunnel here, and this script carries NO private key to build one." }`,
+              `:if ([:len $idHaveKey] = 0) do={ :log warning "cloudguest-wg: fresh device but the script has no private key (platform reused a peer whose key it never kept)" }`,
+              `:if ([:len $idHaveKey] = 0) do={ :error "cloudguest-wg: STOPPING -- this router has no ${iface} tunnel and this script carries no private key (the platform reused an existing peer whose key it never kept, e.g. one allocated when the customer was created). Without a tunnel there is no RADIUS either. Nothing has been changed by this chunk. Press Generate again with Rotate the WireGuard tunnel ticked, and use the NEW script." }`,
+            ]),
         `:if ([:len $idHaveKey] > 0 && $idOk) do={ :put "  RESULT: PASS -- this device holds the identity the platform has registered." }`,
         `:if ([:len $idHaveKey] > 0 && !$idOk) do={ :put "  RESULT: FAIL -- IDENTITY MISMATCH." }`,
         `:if ([:len $idHaveKey] > 0 && !$idOk) do={ :put "  The hub keys this router's FreeRADIUS client entry to the address the" }`,
