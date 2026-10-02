@@ -1,11 +1,13 @@
 import { useEffect, useId, useState, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
+import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
-  AlertDialogContent,
   AlertDialogDescription,
+  AlertDialogOverlay,
+  AlertDialogPortal,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
@@ -69,50 +71,57 @@ export function TypeToConfirmDialog({
         if (!o && !busy) onCancel();
       }}
     >
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription asChild>
-            <div className="space-y-2 text-sm text-muted-foreground">{description}</div>
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <div className="px-1 pb-1">
-          <label
-            htmlFor={inputId}
-            className="mb-1.5 block text-xs font-medium text-muted-foreground"
-          >
-            Type <span className="font-semibold text-foreground">{confirmName}</span> to confirm
-          </label>
-          <input
-            id={inputId}
-            className={M_INPUT}
-            value={typed}
-            onChange={(e) => setTyped(e.target.value)}
-            autoComplete="off"
-            spellCheck={false}
-            disabled={busy}
-          />
-        </div>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            className={buttonVariants({ variant: "destructive" })}
-            disabled={busy || !matches}
-            onClick={(e) => {
-              e.preventDefault();
-              if (matches && !busy) onConfirm();
-            }}
-          >
-            {busy ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" /> {busyLabel}
-              </>
-            ) : (
-              confirmLabel
-            )}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
+      {/* Portal + Content assembled here rather than ui/alert-dialog's
+          AlertDialogContent: the Master drawers are inline `z-[60]` layers and
+          the shared overlay/content are `z-50`, so the dialog would open
+          behind the drawer's backdrop (see CustomerAddonsPanel). */}
+      <AlertDialogPortal>
+        <AlertDialogOverlay className="z-[70]" />
+        <AlertDialogPrimitive.Content className="fixed left-[50%] top-[50%] z-[70] grid w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{title}</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">{description}</div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="px-1 pb-1">
+            <label
+              htmlFor={inputId}
+              className="mb-1.5 block text-xs font-medium text-muted-foreground"
+            >
+              Type <span className="font-semibold text-foreground">{confirmName}</span> to confirm
+            </label>
+            <input
+              id={inputId}
+              className={M_INPUT}
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              autoComplete="off"
+              spellCheck={false}
+              disabled={busy}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className={buttonVariants({ variant: "destructive" })}
+              disabled={busy || !matches}
+              onClick={(e) => {
+                e.preventDefault();
+                if (matches && !busy) onConfirm();
+              }}
+            >
+              {busy ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> {busyLabel}
+                </>
+              ) : (
+                confirmLabel
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogPrimitive.Content>
+      </AlertDialogPortal>
     </AlertDialog>
   );
 }
