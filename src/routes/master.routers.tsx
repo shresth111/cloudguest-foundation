@@ -20,6 +20,8 @@ import {
   ArrowLeft,
   WifiOff,
   Server,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MasterShell } from "@/components/master/MasterShell";
@@ -49,9 +51,13 @@ import {
 import { RemoteAccessCard } from "@/components/routers/RouterDetailTabs";
 import { FirewallBandPanel } from "@/components/master/FirewallBandPanel";
 import { inputCls, RouterSetupDrilldown } from "@/components/routers/RouterSetupScriptAdvanced";
+import {
+  AddInstantOnSiteDialog,
+  RemoveInstantOnSiteDialog,
+} from "@/components/routers/InstantOnSiteDialogs";
 import { routerService } from "@/services/router.service";
 import { isDemo } from "@/services/customer.service";
-import { useAllRouters, useUpdateRouterVendor } from "@/hooks/useRouters";
+import { routerKeys, useAllRouters, useUpdateRouterVendor } from "@/hooks/useRouters";
 import type { AppError } from "@/services/api";
 import type { RouterDevice } from "@/types/router";
 import type { NetworkIntegration } from "@/types/network-integration";
@@ -70,7 +76,7 @@ import {
 } from "@/lib/router-vendors";
 import { deriveIntegrationSetup } from "@/lib/network-integration-readiness";
 import { networkIntegrationService } from "@/services/network-integration.service";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 export const Route = createFileRoute("/master/routers")({
   // Same pattern as master.customers.tsx's `open` -- MasterSearch (the
@@ -289,6 +295,12 @@ function RouterFleetScreen() {
     vendor: string;
   } | null>(null);
   const demo = isDemo();
+  const queryClient = useQueryClient();
+  // Aruba Instant On sites (Master only): Add is the only way to create one;
+  // Remove is the fleet's ordinary decommission, which deregisters RADIUS
+  // first. See `InstantOnSiteDialogs.tsx`.
+  const [addSiteOpen, setAddSiteOpen] = useState(false);
+  const [removeSiteTarget, setRemoveSiteTarget] = useState<RouterDevice | null>(null);
 
   // A TICKING CLOCK, NOT A RENDER-TIME `new Date()`. Liveness here is an
   // AGE, so a page left open on a wall display would otherwise freeze every
@@ -601,6 +613,14 @@ function RouterFleetScreen() {
             advancedRouter ? (
               <MButton variant="outline" onClick={backToFleet}>
                 <ArrowLeft className="h-3.5 w-3.5" /> Back to Router Fleet
+              </MButton>
+            ) : !demo && !advancedId ? (
+              <MButton
+                variant="outline"
+                onClick={() => setAddSiteOpen(true)}
+                data-testid="add-instant-on-site"
+              >
+                <Plus className="h-3.5 w-3.5" /> Add Instant On site
               </MButton>
             ) : undefined
           }
@@ -997,6 +1017,14 @@ function RouterFleetScreen() {
                       >
                         <FileCode2 className="h-4 w-4" /> Instant On setup
                       </MButton>
+                      <MButton
+                        variant="outline"
+                        className="w-full justify-center text-destructive"
+                        onClick={() => setRemoveSiteTarget(sel)}
+                        data-testid="remove-instant-on-site"
+                      >
+                        <Trash2 className="h-4 w-4" /> Remove this Instant On site
+                      </MButton>
                     </div>
                   )}
 
@@ -1080,6 +1108,39 @@ function RouterFleetScreen() {
                 </div>
               )}
             </MDrawer>
+          </>
+        )}
+
+        {!demo && (
+          <>
+            <AddInstantOnSiteDialog
+              open={addSiteOpen}
+              onClose={() => setAddSiteOpen(false)}
+              fleet={routers}
+              fleetIncomplete={
+                (fleetQuery.data?.unreachableLocationCount ?? 0) > 0 ||
+                (fleetQuery.data?.unreachableOrganizationCount ?? 0) > 0
+              }
+              onCreated={async (created) => {
+                // Refetch first: the setup drilldown finds its row in the
+                // fleet list, so navigating before the list has it would
+                // land on "Couldn't find that router".
+                await queryClient.invalidateQueries({ queryKey: routerKeys.all });
+                setAddSiteOpen(false);
+                goToAdvanced(created.routerId);
+              }}
+              onOpenExisting={(routerId) => goToAdvanced(routerId)}
+            />
+            <RemoveInstantOnSiteDialog
+              router={removeSiteTarget}
+              onClose={() => setRemoveSiteTarget(null)}
+              onRemoved={async (removed) => {
+                setRemoveSiteTarget(null);
+                setSel(null);
+                await queryClient.invalidateQueries({ queryKey: routerKeys.all });
+                toast.success(`${removed.name} removed from the fleet`);
+              }}
+            />
           </>
         )}
 

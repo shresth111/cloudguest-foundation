@@ -111,6 +111,7 @@
     "test:omada-guided-setup": "node scripts/test-omada-guided-setup.mjs",
     "test:aruba-instant-on": "node scripts/test-aruba-instant-on.mjs",
     "test:aruba-setup-panel": "node scripts/test-aruba-setup-panel.mjs",
+    "test:aruba-add-site": "node scripts/test-aruba-add-site.mjs",
     "test:omada-client-controls": "node scripts/test-omada-client-controls.mjs",
     "test:omada-client-actions": "node scripts/test-omada-client-actions.mjs",
     "test:dashboard-qa-copy": "node scripts/test-customer-dashboard-qa-copy.mjs",

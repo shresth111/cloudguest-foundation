@@ -2158,6 +2158,17 @@ jobs:
             "aruba-setup-panel" 68 \
             "aruba setup panel: all checks passed" \
             bun run test:aruba-setup-panel
+      # Router Fleet's "Add Instant On site" / "Remove this Instant On site"
+      # (Master only): the request body (blank optionals omitted), refusals
+      # shown verbatim with no success claimed, Remove as DELETE /routers/{id}
+      # with a hub refusal NOT reported as removed, and no customer surface
+      # importing any of it.
+      - name: aruba instant on add / remove site
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "aruba-add-site" 40 \
+            "aruba add site: all checks passed" \
+            bun run test:aruba-add-site
 
       # The customer dashboard's five guest controls, at a venue whose access
       # points are a TP-Link Omada controller. Three of them were written for
