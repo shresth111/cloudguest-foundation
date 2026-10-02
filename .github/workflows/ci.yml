@@ -2149,13 +2149,13 @@ jobs:
       - name: aruba instant on gating, guardrails and portal login
         run: |
           ./scripts/ci-gated-test.sh \
-            "aruba-instant-on" 265 \
+            "aruba-instant-on" 301 \
             "aruba instant on: all checks passed" \
             bun run test:aruba-instant-on
       - name: aruba instant on setup panel
         run: |
           ./scripts/ci-gated-test.sh \
-            "aruba-setup-panel" 68 \
+            "aruba-setup-panel" 82 \
             "aruba setup panel: all checks passed" \
             bun run test:aruba-setup-panel
       # Router Fleet's "Add Instant On site" / "Remove this Instant On site"
@@ -2166,7 +2166,7 @@ jobs:
       - name: aruba instant on add / remove site
         run: |
           ./scripts/ci-gated-test.sh \
-            "aruba-add-site" 43 \
+            "aruba-add-site" 45 \
             "aruba add site: all checks passed" \
             bun run test:aruba-add-site
 

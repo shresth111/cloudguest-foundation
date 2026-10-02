@@ -1002,6 +1002,165 @@ console.log("\n8. Customer venue view: our own records only, never Offline, neve
   );
 }
 
+// ---------------------------------------------------------------------------
+console.log("\nRouter Fleet: a NAS-only row is never 'No integration' (prod test 2026-10-02)");
+{
+  const FV = await bundle("src/lib/fleet-row-verdicts.ts", "fleet-row-verdicts.mjs");
+  const halfConfigured = { isEnabled: true, status: "connected" }; // no site, no SSID
+  const w = (vendor, integrationsHere, isControllerRow = true) =>
+    FV.fleetControllerWarning({ vendor, isControllerRow, integrationsHere });
+
+  // Omada first, and unchanged.
+  eq(
+    "Omada, venue has no integration -> 'No integration'",
+    w("tplink_omada", []),
+    "No integration",
+  );
+  eq(
+    "Omada, only a half-configured integration -> 'Authorising nobody'",
+    w("tplink_omada", [halfConfigured]),
+    "Authorising nobody",
+  );
+  eq("Omada, integration list unreadable -> nothing", w("tplink_omada", null), null);
+  eq("a mislabelled agent row -> nothing", w("tplink_omada", [], false), null);
+  eq("MikroTik -> nothing", w("mikrotik", [], false), null);
+
+  // Aruba: never either warning, whatever the integration list says.
+  eq("Aruba, no integration row (by design) -> nothing", w("aruba_instant_on", []), null);
+  eq(
+    "Aruba, even beside a half-configured integration -> nothing",
+    w("aruba_instant_on", [halfConfigured]),
+    null,
+  );
+  eq("Aruba, display spelling -> nothing", w("Aruba_Instant_On", []), null);
+
+  // The badge and the summary tile.
+  eq(
+    "Omada badge stays 'Via controller'",
+    FV.notMeasuredBadge("tplink_omada").label,
+    "Via controller",
+  );
+  eq(
+    "Aruba badge is 'Set up in Instant On'",
+    FV.notMeasuredBadge("aruba_instant_on").label,
+    "Set up in Instant On",
+  );
+  eq("Aruba badge is neutral", FV.notMeasuredBadge("aruba_instant_on").tone, "normal");
+  eq(
+    "Omada counts under Via controller",
+    FV.fleetSummaryBucket("tplink_omada", "controller"),
+    "controller",
+  );
+  eq(
+    "Aruba counts under its own tile",
+    FV.fleetSummaryBucket("aruba_instant_on", "controller"),
+    "nas-only",
+  );
+  eq("MikroTik buckets are untouched", FV.fleetSummaryBucket("mikrotik", "offline"), "offline");
+  eq("filter label, Omada only", FV.notMeasuredFilterLabel(2, 0), "Controllers");
+  eq("filter label, Aruba only", FV.notMeasuredFilterLabel(0, 1), "Instant On");
+  eq("filter label, both", FV.notMeasuredFilterLabel(2, 1), "Controllers & Instant On");
+
+  const fleet = src("src/routes/master.routers.tsx");
+  check(
+    "the fleet page computes its warning through fleetControllerWarning (no inline copy)",
+    /fleetControllerWarning\(/.test(fleet) && !/\? "No integration" : null/.test(fleet),
+  );
+  check(
+    "an Instant On-only fleet does not fetch integrations",
+    /isControllerManaged\(r\.vendor\) && !isNasOnlyVendor\(r\.vendor\)/.test(fleet),
+  );
+  check(
+    "the 'not-applicable' badge goes through notMeasuredBadge",
+    /live\.state === "not-applicable"\) return notMeasuredBadge\(r\.vendor\)/.test(fleet),
+  );
+}
+
+console.log("\nSetup page header: an Aruba row never says 'Awaiting check-in'");
+{
+  const S = SETUP;
+  const st = (over) =>
+    S.toArubaSetupStatus({ registered: false, gaps: ["nas_not_registered"], ...over });
+  eq(
+    "loading / failed read -> 'Set up in Instant On'",
+    S.arubaSetupBadge(undefined).label,
+    "Set up in Instant On",
+  );
+  eq("not registered", S.arubaSetupBadge(st({})).label, "Not registered with RADIUS");
+  eq(
+    "registered, hub confirmed",
+    S.arubaSetupBadge(st({ registered: true, hub_confirmed: true, gaps: [] })).label,
+    "Registered with RADIUS",
+  );
+  eq(
+    "registered, hub not confirmed",
+    S.arubaSetupBadge(st({ registered: true, hub_confirmed: false })).label,
+    "Registered · hub not confirmed",
+  );
+  const all = [
+    undefined,
+    st({}),
+    st({ registered: true }),
+    st({ registered: true, hub_confirmed: true }),
+  ];
+  check(
+    "no state of the badge is 'Awaiting check-in'",
+    all.every((x) => !/check-in/i.test(S.arubaSetupBadge(x).label)),
+  );
+  const drill = src("src/components/routers/RouterSetupScriptAdvanced.tsx");
+  check(
+    "the drilldown header branches on isNasOnlyVendor before the check-in badge",
+    /isNasOnlyVendor\(vendor\) && !demo \? \(\s*<ArubaSetupHeaderBadge/.test(drill),
+  );
+}
+
+console.log("\nInstant On read access (backend #327): the poll state, in words");
+{
+  const S = SETUP;
+  const ov = (over = {}, sites = []) =>
+    S.toInstantOnSitesOverview({
+      poller_enabled: true,
+      service_account_configured: true,
+      api_version: 28,
+      sites,
+      ...over,
+    });
+  const site = (over = {}) => ({
+    id: "s1",
+    router_id: "r-aruba",
+    organization_id: "o",
+    location_id: "l",
+    site_id: "site-123",
+    site_name: "Inhouse Office",
+    poll_enabled: true,
+    customer_visible: false,
+    api_state: "ok",
+    last_success_at: "2026-10-02T10:00:00Z",
+    ...over,
+  });
+  const d = (o) => S.describeInstantOnReadAccess(o, "r-aruba");
+  eq(
+    "no service account -> off",
+    d(ov({ service_account_configured: false }, [site()])).state,
+    "off",
+  );
+  eq("not mapped -> off", d(ov({}, [site({ router_id: "other" })])).state, "off");
+  check("not mapped says so", /not mapped/.test(d(ov({}, [])).sentence));
+  eq("poller off platform-wide -> off", d(ov({ poller_enabled: false }, [site()])).state, "off");
+  eq("polling off for this venue -> off", d(ov({}, [site({ poll_enabled: false })])).state, "off");
+  eq("ok -> reading", d(ov({}, [site()])).state, "reading");
+  check("reading names the site", d(ov({}, [site()])).sentence.includes("“Inhouse Office”"));
+  eq("never polled -> waiting", d(ov({}, [site({ api_state: "never_polled" })])).state, "waiting");
+  const failing = d(
+    ov({}, [site({ api_state: "auth_failed", last_error_message: "token rejected" })]),
+  );
+  eq("auth_failed -> failing", failing.state, "failing");
+  check(
+    "failing carries the state and the message",
+    /auth_failed/.test(failing.sentence) && /token rejected/.test(failing.sentence),
+  );
+}
+
 console.log(`\n${ran} checks ran`);
 console.log(
   failures === 0

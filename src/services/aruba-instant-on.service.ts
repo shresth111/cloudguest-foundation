@@ -11,8 +11,10 @@ import { api } from "./api";
 import {
   toArubaRegistration,
   toArubaSetupStatus,
+  toInstantOnSitesOverview,
   type ArubaRegistration,
   type ArubaSetupStatus,
+  type InstantOnSitesOverview,
 } from "@/lib/aruba-instant-on-setup";
 import {
   buildInstantOnSiteBody,
@@ -66,6 +68,14 @@ export const arubaInstantOnService = {
   async rotate(nasId: string): Promise<ArubaRegistration> {
     const { data } = await api.post(`/platform/radius/nas/${nasId}/regenerate-secret`);
     return toArubaRegistration(data);
+  },
+
+  /** Backend #327: the read-only poller's platform switches and every mapped
+   * Instant On site with its poll state. GLOBAL (`network_integrations.read`),
+   * a platform-DB read -- it never calls Instant On itself. */
+  async listInstantOnSites(): Promise<InstantOnSitesOverview> {
+    const { data } = await api.get("/platform/instant-on/sites");
+    return toInstantOnSitesOverview(data);
   },
 
   /** §5. Removes the hub stanza through the agent and soft-deletes the row. */

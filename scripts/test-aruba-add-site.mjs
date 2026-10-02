@@ -230,6 +230,23 @@ console.log("\n2. master-only: no customer surface imports the add/remove code")
       fleet.includes("<RemoveInstantOnSiteDialog") &&
       /\{!demo && \(\s*<>\s*<AddInstantOnSiteDialog/.test(fleet),
   );
+  // Prod test 2026-10-02: the header button looked dead on the first click.
+  // Its handler is a bare state setter, not gated on any query or loading
+  // flag, and the dialog does not wait for its pickers to render -- so the
+  // first click opens it. (The likely cause on prod: the row drawer was open,
+  // and the first click landed on its full-screen backdrop, closing it.)
+  check(
+    "Add Instant On site opens on the first click: a bare setter, never disabled",
+    /onClick=\{\(\) => setAddSiteOpen\(true\)\}\s*data-testid="add-instant-on-site"/.test(fleet) &&
+      !/disabled=\{[^}]*\}\s*onClick=\{\(\) => setAddSiteOpen/.test(fleet),
+  );
+  check(
+    "Router Fleet never tags a NAS-only row 'No integration' (warning goes through fleetControllerWarning)",
+    /fleetControllerWarning\(\{/.test(fleet) &&
+      readFileSync(join(ROOT, "src/lib/fleet-row-verdicts.ts"), "utf8").includes(
+        "if (isNasOnlyVendor(input.vendor)) return null;",
+      ),
+  );
   check(
     "Remove is offered only on NAS-only rows",
     /isNasOnlyVendor\(sel\.vendor\) && \([\s\S]{0,900}remove-instant-on-site/.test(fleet),
