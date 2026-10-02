@@ -23,21 +23,27 @@
  * ## What this does NOT do, said on screen
  *
  * It does not open the hub's firewall to the venue IP (a manual engineer
- * step in Wave 1), and nothing here can see the access points: AP status,
- * clients, SSIDs and speeds live in Instant On.
+ * step in Wave 1). RADIUS stays the sign-in path. Since backend #327 a
+ * READ-ONLY poller can read AP status, clients, SSIDs and alerts from
+ * Instant On once the service account is configured and polling is on for
+ * the site; this panel shows that poll state, not the data. Nothing can be
+ * WRITTEN to Instant On: speed limits, disconnect/block, allowed domains and
+ * the SSID itself stay in Aruba's app.
  */
 import { useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Copy, Loader2, Radio } from "lucide-react";
 import { toast } from "sonner";
 import { CopyValueRow } from "@/components/network-integrations/OmadaPortalSetupSteps";
-import { MButton, MDialog, M_INPUT } from "@/components/master/MasterKit";
+import { MButton, MDialog, MTag, M_INPUT } from "@/components/master/MasterKit";
 import {
   ARUBA_RADIUS_PROFILE_NAME,
   PUBLIC_IP_PROBLEM_COPY,
+  arubaSetupBadge,
   arubaSetupIsReady,
   checkVenuePublicIp,
   describeArubaSetupGap,
+  describeInstantOnReadAccess,
   type ArubaRegistration,
   type ArubaSetupStatus,
 } from "@/lib/aruba-instant-on-setup";
@@ -50,10 +56,52 @@ import type { RouterDevice } from "@/types/router";
  * sentence; this is the one place ops sees the whole list. */
 const NOT_FROM_HERE: readonly string[] = [
   "Guest speed limits (set per guest network in Instant On)",
-  "Disconnecting or blocking a device on the network (no CoA, no Aruba API)",
-  "Client lists, AP online/offline, firmware and SSIDs",
-  "Allowed domains and the guest network itself (set in Instant On, steps below)",
+  "Disconnecting or blocking a device on the network (no CoA, and the Instant On API is read-only)",
+  "Allowed domains and the guest network / SSID settings (set in Instant On, steps below)",
 ];
+
+/** One query key for the status read, shared with the page header's badge
+ * so the two never disagree and React Query issues one request. */
+export function arubaSetupQueryKey(routerId: string) {
+  return ["master", "aruba-instant-on-setup", routerId];
+}
+
+/** The setup page header's badge for an Aruba row: RADIUS registration, not
+ * the agent check-in an Instant On site can never perform. */
+export function ArubaSetupHeaderBadge({ router }: { router: RouterDevice }) {
+  const setup = useQuery({
+    queryKey: arubaSetupQueryKey(router.id),
+    queryFn: () => arubaInstantOnService.getSetup(router.id),
+    retry: false,
+  });
+  const badge = arubaSetupBadge(setup.data);
+  return (
+    <span data-testid="aruba-header-badge">
+      <MTag label={badge.label} tone={badge.tone} />
+    </span>
+  );
+}
+
+/** Whether Wyfy is reading this venue from Instant On (backend #327). A
+ * cheap platform-DB read; on any failure it says so and nothing else. */
+function InstantOnReadAccess({ routerId }: { routerId: string }) {
+  const sites = useQuery({
+    queryKey: ["master", "instant-on-sites"],
+    queryFn: () => arubaInstantOnService.listInstantOnSites(),
+    retry: false,
+    staleTime: 30_000,
+  });
+  let sentence: string;
+  if (sites.isLoading) sentence = "Checking whether Wyfy is reading this site from Instant On…";
+  else if (sites.isError || !sites.data)
+    sentence = "Could not check whether Wyfy is reading this site from Instant On.";
+  else sentence = describeInstantOnReadAccess(sites.data, routerId).sentence;
+  return (
+    <p className="mt-1 text-xs text-foreground" data-testid="aruba-read-access">
+      {sentence}
+    </p>
+  );
+}
 
 function Gaps({ items }: { items: string[] }) {
   return (
@@ -234,7 +282,7 @@ function Checklist({ setup, ready }: { setup: ArubaSetupStatus; ready: boolean }
 
 export function ArubaInstantOnSetupPanel({ router }: { router: RouterDevice }) {
   const qc = useQueryClient();
-  const key = ["master", "aruba-instant-on-setup", router.id];
+  const key = arubaSetupQueryKey(router.id);
   const setup = useQuery({
     queryKey: key,
     queryFn: () => arubaInstantOnService.getSetup(router.id),
@@ -442,10 +490,17 @@ export function ArubaInstantOnSetupPanel({ router }: { router: RouterDevice }) {
             Aruba Instant On is set up in Aruba&rsquo;s Instant On app, not by a script
           </p>
           <p className="mt-1 max-w-2xl text-xs text-muted-foreground">
-            Wyfy has no API to Instant On. The access points send guests to our portal and ask our
-            RADIUS hub whether they signed in — that is the whole connection. One Instant On site
-            maps to this one location; its guest portal and RADIUS settings are site-wide.
+            Guests sign in over RADIUS: the access points send guests to our portal and ask our
+            RADIUS hub whether they signed in. That is the only path that lets a guest online, and
+            the setup below is all it needs. One Instant On site maps to this one location; its
+            guest portal and RADIUS settings are site-wide.
           </p>
+          <p className="mt-1 max-w-2xl text-xs text-muted-foreground">
+            Separately, Wyfy can <em>read</em> (never change) AP status, connected clients, SSIDs
+            and alerts from Instant On, once the Wyfy service account is configured and polling is
+            switched on for this site.
+          </p>
+          <InstantOnReadAccess routerId={router.id} />
           <p className="mt-1 text-xs text-muted-foreground">
             {router.organizationName} / {router.locationName} · {router.name} · serial{" "}
             {router.serialNumber || "—"} · MAC {router.macAddress || "—"}

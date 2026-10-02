@@ -237,6 +237,18 @@ let servedRouter = ARUBA_ROUTER;
 let statusAnswer = { status: 200, body: unregistered() };
 /** What register answers, and the status read becomes after it. */
 let registerAnswer = null;
+/** What `GET /platform/instant-on/sites` (backend #327) answers. */
+let sitesAnswer = { status: 404 };
+const instantOnSites = (sites, over = {}) => ({
+  status: 200,
+  body: {
+    poller_enabled: true,
+    service_account_configured: true,
+    api_version: 28,
+    sites,
+    ...over,
+  },
+});
 
 const envelope = (data) => JSON.stringify({ success: true, message: "ok", data });
 const server = createServer(async (req, res) => {
@@ -272,6 +284,14 @@ const server = createServer(async (req, res) => {
       statusAnswer.status === 200
         ? envelope(statusAnswer.body)
         : JSON.stringify({ success: false, message: statusAnswer.message, data: {} }),
+    );
+  }
+  if (req.method === "GET" && path === "/platform/instant-on/sites") {
+    res.writeHead(sitesAnswer.status);
+    return res.end(
+      sitesAnswer.status === 200
+        ? envelope(sitesAnswer.body)
+        : JSON.stringify({ success: false, message: "not found", data: {} }),
     );
   }
   if (req.method === "POST" && path === "/platform/radius/nas/register-public/r-aruba") {
@@ -329,7 +349,11 @@ const { chromium } = await import("playwright");
 const browser = await chromium.launch();
 const context = await browser.newContext({ permissions: ["clipboard-read", "clipboard-write"] });
 
-const arubaCalls = () => requests.filter((r) => r.path.startsWith("/platform/radius/nas/"));
+const arubaCalls = () =>
+  requests.filter(
+    (r) => r.path.startsWith("/platform/radius/nas/") || r.path.startsWith("/platform/instant-on/"),
+  );
+const headerBadge = (page) => page.getByTestId("aruba-header-badge").innerText();
 
 async function open(router, waitFor) {
   requests = [];
@@ -367,9 +391,47 @@ console.log("\n1. not registered: gaps, the checklist without values, Register g
     (await page.locator("select").first().inputValue()) === "aruba_instant_on",
   );
   check(
-    "says there is no script and no API",
+    "says there is no script, and RADIUS is the sign-in path",
     t.includes("Aruba Instant On is set up in Aruba’s Instant On app, not by a script") &&
-      t.includes("Wyfy has no API to Instant On"),
+      t.includes("Guests sign in over RADIUS"),
+  );
+  check(
+    "the stale pre-#327 copy is gone (Wyfy can read Instant On now)",
+    !t.includes("Wyfy has no API to Instant On") &&
+      !t.includes("Client lists, AP online/offline, firmware and SSIDs") &&
+      !/no Aruba API/.test(t),
+    t,
+  );
+  check(
+    "says what CAN be read, and only once the service account and polling are on",
+    t.includes("AP status, connected clients, SSIDs and alerts") &&
+      t.includes("once the Wyfy service account is configured and polling is"),
+  );
+  check(
+    "still names what is impossible: speed limits, disconnect/block, allowed domains & SSID",
+    t.includes("Guest speed limits") &&
+      t.includes("Disconnecting or blocking a device") &&
+      t.includes("Allowed domains and the guest network / SSID settings"),
+  );
+  check(
+    "header badge: 'Not registered with RADIUS', never 'Awaiting check-in'",
+    (await headerBadge(page)) === "Not registered with RADIUS" && !t.includes("Awaiting check-in"),
+    await headerBadge(page),
+  );
+  await page
+    .getByTestId("aruba-read-access")
+    .getByText(/Instant On/)
+    .waitFor();
+  check(
+    "poll-state read failed (404): says it could not check, and nothing more",
+    (await page.getByTestId("aruba-read-access").innerText()).includes(
+      "Could not check whether Wyfy is reading this site from Instant On.",
+    ),
+  );
+  check(
+    "the poll-state read is the cheap platform-DB route, a GET",
+    requests.some((r) => r.method === "GET" && r.path === "/platform/instant-on/sites") &&
+      !requests.some((r) => r.path.includes("/account/sites")),
   );
   check("no 'coming soon' panel", !/coming soon/i.test(t));
   check(
@@ -538,6 +600,11 @@ console.log("\n1. not registered: gaps, the checklist without values, Register g
   check("and it is not in the query cache", !cacheHasSecret);
   const after = await text(page);
   check(
+    "header badge follows the registration: 'Registered with RADIUS'",
+    (await headerBadge(page)) === "Registered with RADIUS",
+    await headerBadge(page),
+  );
+  check(
     "registered: identifier, IP, fingerprint and length, hub confirmed",
     after.includes("cg-aruba-r-aruba0") &&
       after.includes("203.0.113.10") &&
@@ -563,8 +630,30 @@ console.log("\n1. not registered: gaps, the checklist without values, Register g
 console.log("\n2. registered (a reload): fingerprint only, the checklist with every value");
 {
   statusAnswer = { status: 200, body: registered() };
-  const page = await open(ARUBA_ROUTER, "Registered with RADIUS");
+  sitesAnswer = instantOnSites([
+    {
+      id: "s1",
+      router_id: "r-aruba",
+      organization_id: "org-1",
+      location_id: "loc-1",
+      site_id: "site-123",
+      site_name: "Inhouse Office",
+      poll_enabled: true,
+      customer_visible: false,
+      api_state: "ok",
+      last_success_at: "2026-10-02T10:00:00Z",
+    },
+  ]);
+  const page = await open(ARUBA_ROUTER, "Reading Instant On site");
   const t = await text(page);
+  check(
+    "header badge on a reload: 'Registered with RADIUS'",
+    (await headerBadge(page)) === "Registered with RADIUS",
+  );
+  check(
+    "a mapped, polling site: 'Reading Instant On site “Inhouse Office”'",
+    t.includes("Reading Instant On site “Inhouse Office”"),
+  );
   check("no secret on a reload", !(await html(page)).includes(SECRET_1));
   check(
     "no 'show again' control",
@@ -647,9 +736,15 @@ console.log("\n3. registered but the hub did not confirm: gaps again, no values"
     status: 200,
     body: registered({ hub_confirmed: false, portal_url: null, gaps: ["hub_not_confirmed"] }),
   };
-  const page = await open(ARUBA_ROUTER, "Guests cannot sign in at this venue yet");
+  sitesAnswer = instantOnSites([]);
+  const page = await open(ARUBA_ROUTER, "not mapped to its Instant On site");
   const t = await text(page);
   check("says the hub has not confirmed", t.includes("The hub has not confirmed"));
+  check(
+    "header badge: 'Registered · hub not confirmed'",
+    (await headerBadge(page)) === "Registered · hub not confirmed",
+  );
+  check("an unmapped site says it is not being read", t.includes("Not reading Instant On"));
   check("hub NOT confirmed on the registration line", t.includes("hub NOT confirmed"));
   check("no copyable portal path", (await copyButtons(page, "Server URL path")) === 0);
   await page.close();
@@ -660,6 +755,11 @@ console.log("\n4. the status read fails: the backend's message, not an empty pan
   statusAnswer = { status: 403, message: "You need radius.read at platform scope" };
   const page = await open(ARUBA_ROUTER, "You need radius.read at platform scope");
   check("no checklist values", (await copyButtons(page, "Server URL path")) === 0);
+  check(
+    "header badge falls back to 'Set up in Instant On', not 'Awaiting check-in'",
+    (await headerBadge(page)) === "Set up in Instant On" &&
+      !(await text(page)).includes("Awaiting check-in"),
+  );
   await page.close();
 }
 
@@ -675,6 +775,11 @@ console.log("\n5. MikroTik and Omada rows never call the Aruba routes");
     (await page.getByTestId("aruba-instant-on-setup").count()) === 0,
   );
   check("MikroTik: no Aruba request", arubaCalls().length === 0);
+  check(
+    "MikroTik: header still 'Awaiting check-in' (unchanged)",
+    (await text(page)).includes("Awaiting check-in") &&
+      (await page.getByTestId("aruba-header-badge").count()) === 0,
+  );
   await page.close();
 }
 {
@@ -687,6 +792,10 @@ console.log("\n5. MikroTik and Omada rows never call the Aruba routes");
     (await page.getByTestId("aruba-instant-on-setup").count()) === 0,
   );
   check("Omada: no Aruba request", arubaCalls().length === 0);
+  check(
+    "Omada: no Aruba header badge (unchanged)",
+    (await page.getByTestId("aruba-header-badge").count()) === 0,
+  );
   await page.close();
 }
 

@@ -18,9 +18,17 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { MButton, MTag } from "@/components/master/MasterKit";
-import { ARUBA_INSTANT_ON_VENDOR, vendorLabel, vendorOptionsFor } from "@/lib/router-vendors";
+import {
+  ARUBA_INSTANT_ON_VENDOR,
+  isNasOnlyVendor,
+  vendorLabel,
+  vendorOptionsFor,
+} from "@/lib/router-vendors";
 import { OmadaGuidedSetupPanel } from "@/components/routers/OmadaGuidedSetupPanel";
-import { ArubaInstantOnSetupPanel } from "@/components/routers/ArubaInstantOnSetupPanel";
+import {
+  ArubaInstantOnSetupPanel,
+  ArubaSetupHeaderBadge,
+} from "@/components/routers/ArubaInstantOnSetupPanel";
 import {
   buildRouterSetupScriptChunks,
   chunksToMarkdown,
@@ -1970,10 +1978,20 @@ export function RouterSetupDrilldown({
             {router.organizationName} / {router.locationName}
           </p>
         </div>
-        <MTag
-          label={router.status === "pending_provisioning" ? "Awaiting check-in" : router.status}
-          tone={router.status === "pending_provisioning" ? "pending" : undefined}
-        />
+        {/* An Instant On row has no agent, so it never checks in and
+            "Awaiting check-in" would be permanent. Its real state is RADIUS
+            registration, read by the same query the panel below uses. In the
+            demo there is no backend to ask. */}
+        {isNasOnlyVendor(vendor) && !demo ? (
+          <ArubaSetupHeaderBadge router={router} />
+        ) : isNasOnlyVendor(vendor) ? (
+          <MTag label="Set up in Instant On" tone="normal" />
+        ) : (
+          <MTag
+            label={router.status === "pending_provisioning" ? "Awaiting check-in" : router.status}
+            tone={router.status === "pending_provisioning" ? "pending" : undefined}
+          />
+        )}
       </div>
 
       {/* THE "START SOMEWHERE ELSE" CALLOUT IS GONE. It stood here twice,

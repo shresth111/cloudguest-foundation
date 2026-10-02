@@ -184,3 +184,133 @@ export const PUBLIC_IP_PROBLEM_COPY: Record<PublicIpProblem, string> = {
   private:
     "That's a private address. Use the venue's public IP, measured from a phone on the venue WiFi.",
 };
+
+// ---------------------------------------------------------------------------
+// The setup page's header badge.
+// ---------------------------------------------------------------------------
+
+/**
+ * The status badge on an Aruba row's setup page. NOT the fleet row's
+ * `pending_provisioning` ("Awaiting check-in"): an Instant On site has no
+ * agent, so nothing ever checks in and that badge would be permanent. What
+ * this row actually waits on is RADIUS registration, which the panel below
+ * already reads. `undefined` (loading, or the read failed) falls back to the
+ * neutral "Set up in Instant On" rather than guessing.
+ */
+export function arubaSetupBadge(setup: ArubaSetupStatus | undefined): {
+  label: string;
+  tone: string;
+} {
+  if (!setup) return { label: "Set up in Instant On", tone: "normal" };
+  if (!setup.registered) return { label: "Not registered with RADIUS", tone: "pending" };
+  if (!setup.hubConfirmed) return { label: "Registered · hub not confirmed", tone: "warning" };
+  return { label: "Registered with RADIUS", tone: "online" };
+}
+
+// ---------------------------------------------------------------------------
+// Instant On read access (backend #327): `GET /platform/instant-on/sites`.
+// ---------------------------------------------------------------------------
+
+/** One mapped site, as `InstantOnSiteStatus` returns it. */
+export interface InstantOnSiteStatus {
+  routerId: string;
+  siteId: string;
+  siteName: string | null;
+  pollEnabled: boolean;
+  customerVisible: boolean;
+  /** ok | auth_failed | incompatible | rate_limited | not_invited |
+   * upstream_error | not_configured | never_polled */
+  apiState: string;
+  lastSuccessAt: string | null;
+  lastErrorCode: string | null;
+  lastErrorMessage: string | null;
+}
+
+/** `InstantOnSitesResponse`: the poller's platform-wide switches plus every
+ * mapped site. A DB read on the backend, never a call to Instant On. */
+export interface InstantOnSitesOverview {
+  pollerEnabled: boolean;
+  serviceAccountConfigured: boolean;
+  sites: InstantOnSiteStatus[];
+}
+
+/* eslint-disable @typescript-eslint/no-explicit-any -- wire mapper */
+export function toInstantOnSitesOverview(raw: any): InstantOnSitesOverview {
+  return {
+    pollerEnabled: raw?.poller_enabled === true,
+    serviceAccountConfigured: raw?.service_account_configured === true,
+    sites: Array.isArray(raw?.sites)
+      ? raw.sites.map((s: any) => ({
+          routerId: String(s?.router_id ?? ""),
+          siteId: String(s?.site_id ?? ""),
+          siteName: s?.site_name ?? null,
+          pollEnabled: s?.poll_enabled === true,
+          customerVisible: s?.customer_visible === true,
+          apiState: String(s?.api_state ?? "never_polled"),
+          lastSuccessAt: s?.last_success_at ?? null,
+          lastErrorCode: s?.last_error_code ?? null,
+          lastErrorMessage: s?.last_error_message ?? null,
+        }))
+      : [],
+  };
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+/**
+ * One line about whether Wyfy is reading this venue's Instant On data (AP
+ * status, clients, SSIDs, alerts) -- in ops' words, never as "connected"
+ * unless the last poll actually succeeded.
+ */
+export function describeInstantOnReadAccess(
+  overview: InstantOnSitesOverview,
+  routerId: string,
+): { state: "reading" | "off" | "failing" | "waiting"; sentence: string } {
+  if (!overview.serviceAccountConfigured) {
+    return {
+      state: "off",
+      sentence:
+        "Not reading Instant On: the Wyfy Instant On service account is not configured on the platform yet.",
+    };
+  }
+  const site = overview.sites.find((s) => s.routerId === routerId);
+  if (!site) {
+    return {
+      state: "off",
+      sentence:
+        "Not reading Instant On: this row is not mapped to its Instant On site yet (an engineer maps it through the platform API).",
+    };
+  }
+  const name = site.siteName ? `“${site.siteName}”` : site.siteId;
+  if (!overview.pollerEnabled) {
+    return {
+      state: "off",
+      sentence: `Mapped to Instant On site ${name}, but polling is switched off platform-wide.`,
+    };
+  }
+  if (!site.pollEnabled) {
+    return {
+      state: "off",
+      sentence: `Mapped to Instant On site ${name}, but polling is off for this venue.`,
+    };
+  }
+  if (site.apiState === "ok") {
+    return {
+      state: "reading",
+      sentence:
+        `Reading Instant On site ${name}` +
+        (site.lastSuccessAt ? `, last successful poll ${site.lastSuccessAt}.` : "."),
+    };
+  }
+  if (site.apiState === "never_polled") {
+    return {
+      state: "waiting",
+      sentence: `Mapped to Instant On site ${name}; waiting for the first poll.`,
+    };
+  }
+  return {
+    state: "failing",
+    sentence:
+      `Instant On reads for site ${name} are failing (${site.apiState})` +
+      (site.lastErrorMessage ? `: ${site.lastErrorMessage}` : "."),
+  };
+}

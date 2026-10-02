@@ -74,7 +74,13 @@ import {
   vendorOptionsFor,
   isNasOnlyVendor,
 } from "@/lib/router-vendors";
-import { deriveIntegrationSetup } from "@/lib/network-integration-readiness";
+import {
+  fleetControllerWarning,
+  fleetSummaryBucket,
+  NAS_ONLY_FLEET_LABEL,
+  notMeasuredBadge,
+  notMeasuredFilterLabel,
+} from "@/lib/fleet-row-verdicts";
 import { networkIntegrationService } from "@/services/network-integration.service";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -333,7 +339,11 @@ function RouterFleetScreen() {
    * and the honest response to "we could not look" is to say nothing extra,
    * not to raise an error about a feature they were not using.
    */
-  const hasController = routers.some((r) => isControllerManaged(r.vendor));
+  // NAS-only rows (Aruba Instant On) never have an integration, so an
+  // Instant On-only fleet has nothing to join and issues no request.
+  const hasController = routers.some(
+    (r) => isControllerManaged(r.vendor) && !isNasOnlyVendor(r.vendor),
+  );
   const integrations = useQuery({
     queryKey: ["master", "network-integrations", "fleet-join"],
     // Every page, not one request for 200: the platform route caps
@@ -377,16 +387,19 @@ function RouterFleetScreen() {
     // integration by definition, and tagging it "No integration" would send an
     // operator to connect a controller that does not exist. `vendorLooksWrong`
     // below is what such a row gets instead, and it is the accurate complaint.
-    if (!isControllerManagedRow(rowEvidence(r))) return null;
-    if (!integrationsByLocation) return null; // we could not look
-    const here = integrationsByLocation.get(r.locationId) ?? [];
-    // Absence is only evidence when the list was complete. Otherwise this
-    // says nothing rather than accusing a working venue of having no
-    // integration at all.
-    if (here.length === 0) return sawEveryIntegration ? "No integration" : null;
-    return here.every((i) => deriveIntegrationSetup(i).isHalfConfigured)
-      ? "Authorising nobody"
-      : null;
+    // A NAS-only row (Aruba Instant On) never gets either tag: it has no
+    // integration by design -- see `lib/fleet-row-verdicts.ts`.
+    //
+    // Absence is only evidence when the list was complete, so an incomplete
+    // read is passed as "could not look" (null) rather than as an empty list.
+    return fleetControllerWarning({
+      vendor: r.vendor,
+      isControllerRow: isControllerManagedRow(rowEvidence(r)),
+      integrationsHere:
+        integrationsByLocation && sawEveryIntegration
+          ? (integrationsByLocation.get(r.locationId) ?? [])
+          : null,
+    });
   }
 
   useEffect(() => {
@@ -496,14 +509,18 @@ function RouterFleetScreen() {
     let degraded = 0;
     let offline = 0;
     let controller = 0;
+    // Aruba Instant On rows: still "not measured here" (never Online /
+    // Offline, PM_SPEC §2.1), but not controllers, so not counted as one.
+    let nasOnly = 0;
     for (const r of routers) {
-      const s = displayStatus(r, now);
+      const s = fleetSummaryBucket(r.vendor, displayStatus(r, now));
       if (s === "online") online++;
       else if (s === "degraded") degraded++;
       else if (s === "controller") controller++;
+      else if (s === "nas-only") nasOnly++;
       else offline++;
     }
-    return { total: routers.length, online, degraded, offline, controller };
+    return { total: routers.length, online, degraded, offline, controller, nasOnly };
   }, [routers, now]);
 
   const advancedRouter = useMemo(
@@ -595,6 +612,9 @@ function RouterFleetScreen() {
       },
       now,
     );
+    // A NAS-only row is "not measured here" too, but it is not reached
+    // through a controller: it says "Set up in Instant On" instead.
+    if (live.state === "not-applicable") return notMeasuredBadge(r.vendor);
     // No `??` fallback any more. It was there to catch a missing key, but a
     // fallback that prints `r.status` turns a rendering gap into a leaked
     // database enum on the operator's screen -- it is the mechanism of this
@@ -683,7 +703,12 @@ function RouterFleetScreen() {
             <div
               className={cn(
                 "grid grid-cols-2 gap-3",
-                summary.controller > 0 ? "sm:grid-cols-5" : "sm:grid-cols-4",
+                // Literal classes (Tailwind only ships what it can see).
+                (summary.controller > 0 ? 1 : 0) + (summary.nasOnly > 0 ? 1 : 0) === 2
+                  ? "sm:grid-cols-6"
+                  : summary.controller > 0 || summary.nasOnly > 0
+                    ? "sm:grid-cols-5"
+                    : "sm:grid-cols-4",
               )}
             >
               <MStat label="At active locations" value={summary.total} icon={RouterIcon} />
@@ -703,6 +728,11 @@ function RouterFleetScreen() {
               {summary.controller > 0 && (
                 <MStat label="Via controller" value={summary.controller} icon={Server} />
               )}
+              {/* Aruba Instant On: managed in Aruba's app, no controller and
+               * no agent. Its own tile, untoned for the same reason. */}
+              {summary.nasOnly > 0 && (
+                <MStat label={NAS_ONLY_FLEET_LABEL} value={summary.nasOnly} icon={Server} />
+              )}
             </div>
 
             {/* What that tile does and does not mean. "Via controller" counts
@@ -718,6 +748,14 @@ function RouterFleetScreen() {
                 &ldquo;Via controller&rdquo; counts controllers this platform does not measure and
                 has nothing recorded against. A controller that is marked offline, or whose last
                 health check failed, is counted under Offline.
+              </p>
+            )}
+            {summary.nasOnly > 0 && (
+              <p className="text-xs text-muted-foreground">
+                &ldquo;{NAS_ONLY_FLEET_LABEL}&rdquo; counts Aruba Instant On sites. They are managed
+                in Aruba&rsquo;s Instant On app and reach Wyfy only over RADIUS, so they have no
+                controller, no agent and no network integration, and are never counted as Online or
+                Offline here.
               </p>
             )}
 
@@ -753,8 +791,13 @@ function RouterFleetScreen() {
                   { value: "offline", label: "Offline" },
                   // Only offered once there is something to filter to, so a
                   // MikroTik-only fleet's controls look exactly as they did.
-                  ...(summary.controller > 0
-                    ? [{ value: "controller" as const, label: "Controllers" }]
+                  ...(summary.controller > 0 || summary.nasOnly > 0
+                    ? [
+                        {
+                          value: "controller" as const,
+                          label: notMeasuredFilterLabel(summary.controller, summary.nasOnly),
+                        },
+                      ]
                     : []),
                 ]}
               />
@@ -921,9 +964,11 @@ function RouterFleetScreen() {
                         {isControllerManaged(sel.vendor) ? "Software" : "RouterOS"}
                       </p>
                       <p className="text-lg font-semibold">
-                        {isControllerManaged(sel.vendor)
-                          ? "On its controller"
-                          : (sel.routerOsVersion ?? "—")}
+                        {isNasOnlyVendor(sel.vendor)
+                          ? "In Instant On"
+                          : isControllerManaged(sel.vendor)
+                            ? "On its controller"
+                            : (sel.routerOsVersion ?? "—")}
                       </p>
                     </div>
                   </div>
