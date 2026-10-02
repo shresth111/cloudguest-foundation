@@ -218,6 +218,10 @@ const CAP_PERMISSIONS: Record<string, string[]> = {
   "router.control": ["routers.execute", "routers.manage"],
   "nas.generate": ["radius.execute", "radius.manage"],
   impersonate: ["users.manage"],
+  /** "Delete customer" in the Customers drawer -- `DELETE
+   * /organizations/{id}` requires exactly `organizations.delete` (an
+   * archive: status=archived + soft delete, not a hard delete). */
+  "customer.delete": ["organizations.delete"],
   /** Lock/unlock a customer's paid add-ons (today: Guest Marketing) from the
    * Customers drawer (`CustomerAddonsPanel`). The platform PUT/DELETE are
    * `billing.manage` pinned to GLOBAL scope

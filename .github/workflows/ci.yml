@@ -2280,6 +2280,20 @@ jobs:
             "All quotation delete checks passed." \
             bun run test:quotation-delete
 
+      # Master console "Delete customer" / "Delete Partner": type-the-name
+      # confirmation, permission gate, right id, list + drawer cleared, and
+      # customer copy that says it archives and does not touch routers. The
+      # channel_partners.delete seed check is a `note`, not a failure, until
+      # the backend seeds that key.
+      #
+      # Floor 44, observed green at 44.
+      - name: master delete (customer + channel partner)
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "master-delete" 44 \
+            "All master delete checks passed." \
+            bun run test:master-delete
+
       # The preview-then-apply machinery, extracted out of
       # `master.integrations.tsx` so the Omada management surfaces inherit it
       # rather than copying it. Two of its behaviours break silently under a
