@@ -2759,7 +2759,17 @@ function buildClockNtpChunk(): RouterSetupScriptChunk {
     // statement in each `do=`/`on-error=` body, nested -- the same shape
     // the Heartbeat chunk already uses for its immediate-gw/gateway/ARP
     // ladder.
-    `:do { /system ntp client set enabled=yes servers=${serverList} } on-error={ :do { /system ntp client set enabled=yes primary-ntp=${CLOCK_NTP_SERVERS[0]} secondary-ntp=${CLOCK_NTP_SERVERS[1]} } on-error={ :log warning "cloudguest-clock: the NTP client would accept neither the RouterOS 7 (servers=) nor the RouterOS 6 (primary-ntp=) syntax -- configure NTP by hand in WinBox under System > NTP Client" } }`,
+    //
+    // THE v6 HALF IS A STRING, COMPILED ONLY IF IT IS REACHED. RouterOS
+    // resolves property names at PARSE time, not run time, and the whole
+    // `.rsc` is parsed before its first line runs. `primary-ntp=` does not
+    // exist on RouterOS 7, so as a literal command it was "expected end of
+    // command" -- and `/import` rejected the ENTIRE file with nothing
+    // executed (measured on CHR 7.20.1, 2026-10-02: no WAN list, no bridge,
+    // no NAT, no /radius). `:do {} on-error={}` cannot catch a parse error
+    // in its own body. `[[:parse "..."]]` defers compiling the v6 command to
+    // run time, inside the `on-error`, where a failure IS catchable.
+    `:do { /system ntp client set enabled=yes servers=${serverList} } on-error={ :do { [[:parse "/system ntp client set enabled=yes primary-ntp=${CLOCK_NTP_SERVERS[0]} secondary-ntp=${CLOCK_NTP_SERVERS[1]}"]] } on-error={ :log warning "cloudguest-clock: the NTP client would accept neither the RouterOS 7 (servers=) nor the RouterOS 6 (primary-ntp=) syntax -- configure NTP by hand in WinBox under System > NTP Client" } }`,
     `:put "===================================================="`,
     `:put "  CLOCK / NTP CHECK"`,
     // The `:error` is appended INSIDE this `;`-joined line, not placed on

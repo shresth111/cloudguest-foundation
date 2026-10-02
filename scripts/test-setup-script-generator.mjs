@@ -9023,6 +9023,49 @@ console.log("\n-- 16. the partial-provision acknowledgement --");
 }
 
 // =====================================================================
+// 18. NOTHING RouterOS 7 CANNOT PARSE MAY APPEAR AS A LITERAL COMMAND.
+// =====================================================================
+//
+// RouterOS parses the whole `.rsc` before it runs line 1, and property
+// names are resolved at PARSE time. The Clock + NTP chunk's RouterOS 6
+// fallback (`primary-ntp=`/`secondary-ntp=`) was a literal command inside
+// `:do {} on-error={}`; on CHR 7.20.1 that was "expected end of command"
+// and `/import` rejected the entire file with nothing executed. on-error
+// cannot catch a parse error in its own body. The fallback is now a string
+// handed to `[[:parse "..."]]`, compiled only if reached. Measured on CHR
+// 7.20.1 (2026-10-02): the full generated `.rsc` imports end to end.
+console.log("\n-- 18. v6-only property names only ever inside [:parse] strings --");
+{
+  const V6_ONLY = /\b(primary-ntp|secondary-ntp)=/;
+  const outsideParse = (text) =>
+    // Every double-quoted string is data to the parser (log text, and the
+    // `[:parse "..."]` argument itself), so strip them all; what is left is
+    // what RouterOS resolves property names in.
+    text.split("\n").some((line) => V6_ONLY.test(line.replace(/"(?:[^"\\]|\\.)*"/g, '""')));
+  for (const [name, opts] of VARIANTS) {
+    const chunks = buildRouterSetupScriptChunks(opts);
+    check(
+      `${name}: .rsc has no v6-only property outside a [:parse] string`,
+      !outsideParse(chunksToRouterOsScript(chunks, "r")),
+    );
+    check(
+      `${name}: one-line has no v6-only property outside a [:parse] string`,
+      !outsideParse(chunksToSingleLineScript(chunks)),
+    );
+  }
+  const clock = buildRouterSetupScriptChunks(VARIANTS[0][1]).find((c) =>
+    c.label.startsWith("Clock + NTP"),
+  );
+  check(
+    "the v6 NTP fallback still exists, deferred to run time",
+    /on-error=\{ :do \{ \[\[:parse "\/system ntp client set enabled=yes primary-ntp=/.test(
+      clock?.script ?? "",
+    ),
+    "over-strict: the fix must defer the fallback, not silently delete it",
+  );
+}
+
+// =====================================================================
 
 console.log("");
 if (failures.length) {
