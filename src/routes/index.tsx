@@ -129,12 +129,66 @@ function IndexRedirect() {
     }
     // Master (navigating away) or no active location yet (navigating to
     // the picker) -- the effect above is already handling it.
+    return <HandoffSpinner />;
+  }
+
+  return isMaster ? <MasterLoginPage /> : <LoginPage />;
+}
+
+/** How long the hand-off spinner may stand before it admits it is stuck. A
+ * client-side navigation to /switch-location or /master takes milliseconds;
+ * anything near this long means a guard refused or redirected it somewhere
+ * that did not re-render this route. */
+const HANDOFF_STALL_MS = 8000;
+
+/**
+ * The authenticated hand-off spinner, with a floor under it.
+ *
+ * "/" renders this while its effect navigates to the venue picker (customer)
+ * or the console (operator). That navigation is the only way off the spinner,
+ * so when a guard refused it -- measured on prod 2026-10-02 during "View as
+ * this customer", where "/" spun with no way out -- the page spun forever.
+ * The spinner now resolves: to the destination, or, after
+ * {@link HANDOFF_STALL_MS}, to an error that says so and offers the way on.
+ */
+function HandoffSpinner() {
+  const [stalled, setStalled] = useState(false);
+  useEffect(() => {
+    const id = window.setTimeout(() => setStalled(true), HANDOFF_STALL_MS);
+    return () => window.clearTimeout(id);
+  }, []);
+  if (!stalled) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       </div>
     );
   }
-
-  return isMaster ? <MasterLoginPage /> : <LoginPage />;
+  return (
+    <div
+      role="alert"
+      data-testid="root-handoff-stalled"
+      className="flex min-h-screen flex-col items-center justify-center gap-3 bg-background px-4 text-center"
+    >
+      <p className="text-base font-semibold text-foreground">Couldn't open your dashboard</p>
+      <p className="max-w-md text-sm text-muted-foreground">
+        The page didn't finish loading. Pick a venue to continue, or reload to try again.
+      </p>
+      <div className="flex gap-2">
+        <a
+          href="/switch-location"
+          className="rounded-md border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted"
+        >
+          Choose a venue
+        </a>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="rounded-md border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted"
+        >
+          Reload
+        </button>
+      </div>
+    </div>
+  );
 }
