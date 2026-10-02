@@ -34,6 +34,8 @@ import { rbacService } from "@/services/rbac.service";
 import { impersonationService } from "@/services/impersonation.service";
 import { useAuth } from "@/context/AuthContext";
 import { PlatformLocationWizard } from "@/components/locations/PlatformLocationWizard";
+import { CustomerAddonsPanel } from "@/components/master/CustomerAddonsPanel";
+import { CustomerCreditsPanel } from "@/components/master/CustomerCreditsPanel";
 import { businessTypeIcon } from "@/lib/business-type-icons";
 import type { AppError } from "@/services/api";
 import type { PropertyType } from "@/types/location";
@@ -90,8 +92,8 @@ function CustomersScreen() {
   async function refetch() {
     setLoading(true);
     try {
-      const [{ rows: orgs }, locations, snapshot] = await Promise.all([
-        organizationService.list({ page: 1, pageSize: 100 }),
+      const [orgs, locations, snapshot] = await Promise.all([
+        organizationService.listAll(),
         locationService.listAll(),
         billingService.getSnapshot().catch(() => null),
       ]);
@@ -417,6 +419,10 @@ function CustomersScreen() {
                   <p className="text-sm">{selected.legalName}</p>
                 </div>
               )}
+              {/* Paid add-ons (Guest Marketing), lock/unlock per customer --
+                  wyfy-specs/guest-marketing-campaigns.md §3.4. */}
+              <CustomerAddonsPanel organizationId={selected.id} organizationName={selected.name} />
+              <CustomerCreditsPanel organizationId={selected.id} />
             </div>
           )}
         </MDrawer>

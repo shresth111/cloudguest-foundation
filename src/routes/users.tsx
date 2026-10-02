@@ -82,6 +82,7 @@ import { requireCustomerSession } from "@/lib/authGuards";
 import { requireActiveLocationId } from "@/lib/customerLocationGuard";
 import { customerFeatureHref } from "@/lib/customerNav";
 import { useClientControls, useDeviceActions } from "@/hooks/useClientControls";
+import { NAS_ONLY_DATA_USAGE_UNREPORTED, isNasOnlyVendor } from "@/lib/router-vendors";
 import { disconnectOutcome } from "@/lib/omada-client-controls";
 import { GuestDeviceControls, isSendableMac } from "@/components/customer/GuestDeviceControls";
 
@@ -145,6 +146,23 @@ function CustomerUsersPage() {
   const clientControls = useClientControls();
   const disconnectVerdict = clientControls.verdict("disconnect");
   const disconnectReachesDevice = disconnectVerdict.availability === "available";
+  // Only at a NAS-only venue (Aruba Instant On) is Disconnect greyed outright:
+  // there is no controller API and no CoA, so the device stays online whatever
+  // we do, and ending our own record would make this list say they left.
+  // Omada and MikroTik venues keep the button exactly as before.
+  const disconnectUnsupported = isNasOnlyVendor(clientControls.vendor);
+  // Per-session data at a NAS-only venue: bytes arrive only through RADIUS
+  // accounting interims, which are unverified on Instant On (PM_SPEC V3). A
+  // session with nothing recorded is "not reported" (U5), never a measured
+  // "0 MB". Every other venue renders the value exactly as before.
+  const sessionDataCell = (download: string) =>
+    disconnectUnsupported && download === "0 MB" ? (
+      <span title={NAS_ONLY_DATA_USAGE_UNREPORTED} data-testid="data-unreported">
+        —
+      </span>
+    ) : (
+      download
+    );
   // The venue-scoped client routes, bound to the active location. Used for the
   // per-device panel below and -- only when the session-level disconnect comes
   // back NOT enforced -- as a second, MAC-keyed attempt. Never on the happy
@@ -268,7 +286,7 @@ function CustomerUsersPage() {
       }
 
       if (rows.length === 0) {
-        toast.info("Nothing to export for these filters.");
+        toast.info(t("exportNothing", "Nothing to export for these filters."));
         return;
       }
 
@@ -304,9 +322,9 @@ function CustomerUsersPage() {
         csv += `\n\nNOTE: this export stopped at ${rows.length} rows. Narrow the date range or filters, or ask support for a full extract.`;
       }
       downloadCsv(`guests-${csvDateStamp()}.csv`, csv);
-      toast.success(`Exported ${rows.length.toLocaleString()} guests`);
+      toast.success(t("exportSuccess", { count: rows.length }));
     } catch {
-      toast.error("Could not build the export. Nothing was changed.");
+      toast.error(t("exportFailed", "Could not build the export. Nothing was changed."));
     } finally {
       setExporting(false);
     }
@@ -459,7 +477,7 @@ function CustomerUsersPage() {
                 onClick={exportGuests}
               >
                 <Download className="mr-1.5 h-4 w-4" />
-                {exporting ? "Exporting…" : "Export CSV"}
+                {exporting ? t("exporting", "Exporting…") : t("exportCsv", "Export CSV")}
               </Button>
               <div className="flex gap-1 border rounded-lg p-0.5 bg-muted/50">
                 {(["all", "online", "offline"] as const).map((tab) => (
@@ -586,7 +604,7 @@ function CustomerUsersPage() {
                               lib/masking.ts), so nothing here is hidden. */}
                           {u.mac === "Unknown" ? (
                             <span className="font-sans text-muted-foreground">
-                              No device on record
+                              {t("noDevice", "No device on record")}
                             </span>
                           ) : masked ? (
                             maskMac(u.mac)
@@ -623,7 +641,9 @@ function CustomerUsersPage() {
                         <TableCell className="text-xs text-muted-foreground hidden xl:table-cell">
                           {u.disconnectedAt ? new Date(u.disconnectedAt).toLocaleString() : "—"}
                         </TableCell>
-                        <TableCell className="text-xs hidden lg:table-cell">{u.download}</TableCell>
+                        <TableCell className="text-xs hidden lg:table-cell">
+                          {sessionDataCell(u.download)}
+                        </TableCell>
                         <TableCell>
                           <span
                             className={cn(
@@ -709,10 +729,32 @@ function CustomerUsersPage() {
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             )}
+                            {/* A NAS-only venue (Aruba Instant On): nothing
+                             * can end the device's connection, and ending
+                             * only our record would show an online guest as
+                             * gone. Greyed with PM_SPEC U2; the title is on
+                             * the wrapper because a disabled button takes no
+                             * pointer events. The live button below is
+                             * `hidden` there and untouched everywhere else. */}
+                            {disconnectUnsupported && (
+                              <span title={disconnectVerdict.reason ?? undefined}>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 disabled:text-muted-foreground"
+                                  disabled
+                                  aria-label={disconnectVerdict.reason ?? t("disconnect")}
+                                  data-testid="disconnect-unsupported-icon"
+                                >
+                                  <XCircle className="h-3.5 w-3.5" />
+                                </Button>
+                              </span>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8 text-destructive disabled:text-muted-foreground"
+                              hidden={disconnectUnsupported}
                               disabled={u.status === "offline" || disconnect.isPending}
                               title={u.status === "offline" ? t("alreadyOffline") : t("disconnect")}
                               onClick={(e) => {
@@ -853,7 +895,7 @@ function CustomerUsersPage() {
                       }}
                       className="rounded-lg px-2 py-1.5 text-xs font-medium text-primary hover:bg-accent"
                     >
-                      Full history
+                      {t("fullHistory", "Full history")}
                     </button>
                   )}
                   <button
@@ -939,7 +981,7 @@ function CustomerUsersPage() {
                     </p>
                     <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold">
                       <Download className="h-3.5 w-3.5 text-muted-foreground" />
-                      {detailUser.download}
+                      {sessionDataCell(detailUser.download)}
                     </p>
                   </div>
                 </div>
@@ -1018,7 +1060,9 @@ function CustomerUsersPage() {
                 <Button
                   variant="outline"
                   className="w-full text-destructive disabled:text-muted-foreground"
-                  disabled={detailUser.status === "offline" || disconnect.isPending}
+                  disabled={
+                    detailUser.status === "offline" || disconnect.isPending || disconnectUnsupported
+                  }
                   onClick={() =>
                     setConfirmDisconnect({
                       id: detailUser.id,
@@ -1031,6 +1075,11 @@ function CustomerUsersPage() {
                   <XCircle className="mr-2 h-4 w-4" />
                   {detailUser.status === "offline" ? t("alreadyOffline") : t("disconnectUser")}
                 </Button>
+                {disconnectUnsupported && (
+                  <p className="text-xs text-muted-foreground" data-testid="disconnect-unsupported">
+                    {disconnectVerdict.reason}
+                  </p>
+                )}
               </div>
             </motion.div>
           </>

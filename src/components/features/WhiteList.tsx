@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   Smartphone,
@@ -16,6 +17,7 @@ import {
   User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import i18n from "@/lib/i18n";
 import { CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -61,8 +63,8 @@ const pad2 = (n: number) => String(n).padStart(2, "0");
 // `new Date("")` is Invalid Date -- which this used to render, verbatim, as
 // "NaN-NaN-NaN NaN:NaN" in the Access window column. Say "No end date"
 // instead: that is what an empty `expires_at` actually means.
-const fmtDT = (iso: string) => {
-  if (!iso) return "No end date";
+const fmtDT = (iso: string, noEndLabel: string) => {
+  if (!iso) return noEndLabel;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
   return `${pad2(d.getDate())}-${pad2(d.getMonth() + 1)}-${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
@@ -323,6 +325,7 @@ function toEntry(r: AnyAccessRule): Entry {
 }
 
 export default function WhiteList({ locationId }: { locationId?: string } = {}) {
+  const { t } = useTranslation("whitelist", { i18n });
   const demo = useIsDemo();
   // UNITS is demo-only seed data (fake hotel names) -- a real customer only
   // has their own locations, so the "Business Unit" picker below must offer
@@ -384,6 +387,9 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
   const wlLocationName = demo
     ? wlDemoUnit
     : (locations?.find((l) => l.id === wlLocationId)?.name ?? "");
+  // The property's name, or a plain "this property" while none is known --
+  // one value so every sentence below interpolates the same thing.
+  const wlPlace = wlLocationName || t("thisProperty", "this property");
 
   // Default the switch's property picker to whichever property the page is
   // already scoped to, else the first one the account holds.
@@ -393,6 +399,16 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
       locationId && locations.some((l) => l.id === locationId) ? locationId : locations[0].id,
     );
   }, [demo, locations, locationId, wlLocationId]);
+
+  // New list entries must count toward the same property the switch is
+  // about — otherwise the form's Location picker and the header property
+  // picker drift apart and the toggle stays blocked on an "empty" list.
+  useEffect(() => {
+    if (demo || !wlLocationName || editingId) return;
+    setF((prev) =>
+      prev.businessUnit === wlLocationName ? prev : { ...prev, businessUnit: wlLocationName },
+    );
+  }, [demo, wlLocationName, editingId]);
 
   // Read the selected property's own config, and -- when the mode is
   // already on -- how many guests it turned away in the last 24 hours.
@@ -423,7 +439,12 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
           setWlDenials(null);
         }
       } catch {
-        if (!cancelled) setWlError("Could not read this property's settings.");
+        // `i18n.t`, not the hook's `t`: keeps `t` out of this effect's
+        // dependencies, so a language switch never re-fetches the config.
+        if (!cancelled)
+          setWlError(
+            i18n.t("whitelist:errors.readSettings", "Could not read this property's settings."),
+          );
       } finally {
         if (!cancelled) setWlLoading(false);
       }
@@ -466,13 +487,36 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
       setWlMessageDirty(false);
       setToast(
         enabled
-          ? `Whitelist-only mode is on for ${wlLocationName}.`
-          : `Whitelist-only mode is off for ${wlLocationName}.`,
+          ? t("toast.modeOn", "Whitelist-only mode is on for {{place}}.", {
+              place: wlLocationName,
+            })
+          : t("toast.modeOff", "Whitelist-only mode is off for {{place}}.", {
+              place: wlLocationName,
+            }),
       );
       setTimeout(() => setToast(null), 2500);
       return;
     }
-    if (!orgId || !wlConfig) return;
+    if (!orgId) {
+      setWlError(
+        t(
+          "errors.orgLoading",
+          "Could not save — your organization is still loading. Refresh and try again.",
+        ),
+      );
+      return;
+    }
+    if (!wlConfig) {
+      setWlError(
+        wlMissingConfig
+          ? describeBlocker({ kind: "no-portal-config" }, wlLocationName).detail
+          : t(
+              "errors.readLoginPage",
+              "Could not read this property's WiFi login page settings. Refresh and try again.",
+            ),
+      );
+      return;
+    }
     setWlSaving(true);
     setWlError(null);
     try {
@@ -500,8 +544,12 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
       }
       setToast(
         enabled
-          ? `Whitelist-only mode is on for ${wlLocationName}.`
-          : `Whitelist-only mode is off for ${wlLocationName}.`,
+          ? t("toast.modeOn", "Whitelist-only mode is on for {{place}}.", {
+              place: wlLocationName,
+            })
+          : t("toast.modeOff", "Whitelist-only mode is off for {{place}}.", {
+              place: wlLocationName,
+            }),
       );
       setTimeout(() => setToast(null), 2500);
     } catch (err) {
@@ -512,7 +560,10 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
       const message = err instanceof Error ? err.message : "";
       setWlError(
         message ||
-          "Could not save this setting. Nothing changed — the property is still in its previous mode.",
+          t(
+            "errors.saveSetting",
+            "Could not save this setting. Nothing changed — the property is still in its previous mode.",
+          ),
       );
     } finally {
       setWlSaving(false);
@@ -527,7 +578,16 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
       void persistWhitelistOnly(false, wlMessage);
       return;
     }
-    if (!canEnable) return;
+    if (!canEnable) {
+      const blocker = wlBlockers[0];
+      if (blocker) {
+        const { title, detail } = describeBlocker(blocker, wlLocationName);
+        setWlError(`${title} ${detail}`);
+      } else {
+        setWlError(t("errors.fixFirst", "Fix the issues below before turning this on."));
+      }
+      return;
+    }
     setConfirmText("");
     setConfirmOpen(true);
   };
@@ -595,13 +655,17 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
     const e: Errors = {};
     if (tab === "number") {
       if (!f.mobile || f.mobile.length !== 10 || !/^\d{10}$/.test(f.mobile))
-        e.mobile = "Mobile must be exactly 10 digits.";
+        e.mobile = t("errors.mobile", "Mobile must be exactly 10 digits.");
     } else {
       if (!f.mac || !MAC_RE.test(f.mac))
-        e.mac = "That doesn't look like a device address. Example: AA:BB:CC:DD:EE:FF";
+        e.mac = t(
+          "errors.mac",
+          "That doesn't look like a device address. Example: AA:BB:CC:DD:EE:FF",
+        );
     }
-    if (!f.name) e.name = "Name is required.";
-    if (!f.email || !EMAIL_RE.test(f.email)) e.email = "Enter a valid email address.";
+    if (!f.name) e.name = t("errors.name", "Name is required.");
+    if (!f.email || !EMAIL_RE.test(f.email))
+      e.email = t("errors.email", "Enter a valid email address.");
     // No start-date validation any more: there is no start field on an
     // access rule (CreateAccessRulePayload carries only `expires_at`, and
     // the list read maps `startDate` from the rule's own createdAt), so a
@@ -609,9 +673,9 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
     // silently replaced on reload by whenever the row happened to be
     // created. The control is now read-only -- see the Access Window
     // section below.
-    if (!f.endDate) e.endDate = "End date is required.";
+    if (!f.endDate) e.endDate = t("errors.endDateRequired", "End date is required.");
     if (f.endDate && new Date(f.endDate).getTime() <= Date.now())
-      e.endDate = "End date must be in the future.";
+      e.endDate = t("errors.endDateFuture", "End date must be in the future.");
     return e;
   };
 
@@ -678,12 +742,16 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
       }
       resetForm();
       setPage(0);
-      setToast(tab === "number" ? "Number allowed." : "Device allowed.");
+      setToast(
+        tab === "number"
+          ? t("toast.numberAllowed", "Number allowed.")
+          : t("toast.deviceAllowed", "Device allowed."),
+      );
       setTimeout(() => setToast(null), 2500);
       return;
     }
     if (!orgId) {
-      setToast("No organization found for this session.");
+      setToast(t("toast.noOrg", "No organization found for this session."));
       setTimeout(() => setToast(null), 2500);
       return;
     }
@@ -732,10 +800,14 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
       }
       resetForm();
       setPage(0);
-      setToast(tab === "number" ? "Number allowed." : "Device allowed.");
+      setToast(
+        tab === "number"
+          ? t("toast.numberAllowed", "Number allowed.")
+          : t("toast.deviceAllowed", "Device allowed."),
+      );
       setTimeout(() => setToast(null), 2500);
     } catch {
-      setToast("Could not save — check the connection and try again.");
+      setToast(t("toast.saveFailed", "Could not save — check the connection and try again."));
       setTimeout(() => setToast(null), 2500);
     }
   };
@@ -807,6 +879,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
   const tabEntries = useMemo(() => entries.filter((e) => e.tab === tab), [entries, tab]);
   const activeCount = tabEntries.filter((e) => isActive(e.endDate)).length;
   const expiredCount = tabEntries.length - activeCount;
+  const noEnd = t("list.noEndDate", "No end date");
 
   return (
     <div className="space-y-6">
@@ -820,7 +893,9 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
             <ShieldCheck className="h-4.5 w-4.5 text-white" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold tracking-tight">Only Allowed</h1>
+            <h1 className="text-lg font-semibold tracking-tight">
+              {t("nav:customerItem.whitelist", "Guest Allow-list")}
+            </h1>
             {/* Was "Allow specific numbers or devices to bypass the captive
              * portal." -- a promise this list has never kept, and the source
              * of the "Always Allowed not working" report. Under the portal's
@@ -830,8 +905,10 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
              * guest signs in normally rather than skipping the page. The
              * description now says what the list is actually consulted for. */}
             <p className="text-sm text-muted-foreground">
-              The numbers and devices allowed to get online once this property is closed to everyone
-              else.
+              {t(
+                "header.description",
+                "The numbers and devices allowed to get online once this property is closed to everyone else.",
+              )}
             </p>
           </div>
         </div>
@@ -859,11 +936,23 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
               />
             </div>
             <div className="min-w-0">
-              <h2 className="text-sm font-semibold">Only allow the guests on this list</h2>
+              <h2 className="text-sm font-semibold">
+                {t("switch.title", "Only allow the guests on this list")}
+              </h2>
               <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
                 {wlEnabled
-                  ? `On. Only the numbers and devices below get online at ${wlLocationName || "this property"}.`
-                  : `Off. Every guest signs in on the WiFi login page and gets online — this is how ${wlLocationName || "this property"} works today.`}
+                  ? t(
+                      "switch.on",
+                      "On. Only the numbers and devices below get online at {{place}}.",
+                      {
+                        place: wlPlace,
+                      },
+                    )
+                  : t(
+                      "switch.off",
+                      "Off. Every guest signs in on the WiFi login page and gets online — this is how {{place}} works today.",
+                      { place: wlPlace },
+                    )}
               </p>
               {/* THE LIVE-SESSION HALF WAS A PROMISE NOTHING KEEPS.
                *
@@ -903,10 +992,10 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
                * venue's SMS credit. Hedging those would be the opposite
                * error. */}
               <p className="mt-2 max-w-2xl text-xs leading-relaxed text-muted-foreground">
-                Turning this on does not hide your WiFi: everyone still reaches your login page, and
-                the people below keep working. Everyone else is refused on that page, in your words,
-                and is never sent a verification code. The list is checked when someone signs in, so
-                anyone already online stays online until their session ends.
+                {t(
+                  "switch.explainer",
+                  "Turning this on does not hide your WiFi: everyone still reaches your login page, and the people below keep working. Everyone else is refused on that page, in your words, and is never sent a verification code. The list is checked when someone signs in, so anyone already online stays online until their session ends.",
+                )}
               </p>
             </div>
           </div>
@@ -916,7 +1005,10 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
              * switch has to say which one it is about. */}
             {demo ? (
               <Select value={wlDemoUnit} onValueChange={setWlDemoUnit}>
-                <SelectTrigger className="h-9 w-[180px]" aria-label="Property">
+                <SelectTrigger
+                  className="h-9 w-[180px]"
+                  aria-label={t("switch.property", "Property")}
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -929,8 +1021,11 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
               </Select>
             ) : (
               <Select value={wlLocationId} onValueChange={setWlLocationId}>
-                <SelectTrigger className="h-9 w-[180px]" aria-label="Property">
-                  <SelectValue placeholder="Choose a property" />
+                <SelectTrigger
+                  className="h-9 w-[180px]"
+                  aria-label={t("switch.property", "Property")}
+                >
+                  <SelectValue placeholder={t("switch.chooseProperty", "Choose a property")} />
                 </SelectTrigger>
                 <SelectContent>
                   {(locations ?? []).map((l) => (
@@ -947,8 +1042,10 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
             <Switch
               checked={wlEnabled}
               onCheckedChange={onSwitchChange}
-              disabled={wlSaving || wlLoading || (!wlEnabled && !canEnable)}
-              aria-label={`Only allow the guests on this list at ${wlLocationName || "this property"}`}
+              disabled={wlSaving || wlLoading}
+              aria-label={t("switch.ariaLabel", "Only allow the guests on this list at {{place}}", {
+                place: wlPlace,
+              })}
               data-testid="whitelist-only-switch"
             />
           </div>
@@ -995,15 +1092,26 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
           >
             <p className="text-sm font-medium">
               {wlDenials === null
-                ? "Refused guests: not available right now"
-                : `${wlDenials.capped ? `${wlDenials.count}+` : wlDenials.count} ${
-                    wlDenials.count === 1 && !wlDenials.capped ? "guest was" : "guests were"
-                  } refused here in the last 24 hours`}
+                ? t("denials.unavailable", "Refused guests: not available right now")
+                : wlDenials.capped
+                  ? t(
+                      "denials.capped",
+                      "{{count}}+ guests were refused here in the last 24 hours",
+                      {
+                        count: wlDenials.count,
+                      },
+                    )
+                  : t("denials.count", {
+                      count: wlDenials.count,
+                      defaultValue_one: "{{count}} guest was refused here in the last 24 hours",
+                      defaultValue_other: "{{count}} guests were refused here in the last 24 hours",
+                    })}
             </p>
             <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-              Every refusal is recorded against this property. A number far higher than you expect
-              usually means a list entry is stored in a form that cannot match anyone — check the
-              entries below still show a country code.
+              {t(
+                "denials.explainer",
+                "Every refusal is recorded against this property. A number far higher than you expect usually means a list entry is stored in a form that cannot match anyone — check the entries below still show a country code.",
+              )}
             </p>
           </div>
         )}
@@ -1019,14 +1127,17 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
          * by accident. */}
         <div className="mt-4 border-t pt-4">
           <Label htmlFor="wl-denied-message" className="text-sm">
-            What a refused guest sees
+            {t("message.label", "What a refused guest sees")}
           </Label>
           <Textarea
             id="wl-denied-message"
             value={wlMessage}
             rows={2}
             maxLength={500}
-            placeholder="e.g. Ask the front desk to add your number to the guest WiFi list."
+            placeholder={t(
+              "message.placeholder",
+              "e.g. Ask the front desk to add your number to the guest WiFi list.",
+            )}
             onChange={(e) => {
               setWlMessage(e.target.value);
               setWlMessageDirty(true);
@@ -1036,8 +1147,10 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
           />
           <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs text-muted-foreground">
-              Shown on your WiFi login page to anyone who is not on the list. Leave it empty and
-              guests see the standard message instead.
+              {t(
+                "message.help",
+                "Shown on your WiFi login page to anyone who is not on the list. Leave it empty and guests see the standard message instead.",
+              )}
             </p>
             {wlMessageDirty && (
               <Button
@@ -1046,7 +1159,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
                 disabled={wlSaving || (!demo && !wlConfig)}
                 onClick={() => void persistWhitelistOnly(wlEnabled, wlMessage)}
               >
-                Save message
+                {t("message.save", "Save message")}
               </Button>
             )}
           </div>
@@ -1060,26 +1173,39 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Refuse everyone not on this list at {wlLocationName || "this property"}?
+              {t("confirm.title", "Refuse everyone not on this list at {{place}}?", {
+                place: wlPlace,
+              })}
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm">
                 <p>{whitelistOnlySummary(readiness, wlLocationName)}</p>
                 <p>
-                  From the moment you save, a guest who is not on the list still reaches your WiFi
-                  login page and is refused there. They are not sent a verification code and no
-                  session starts for them.
+                  {t(
+                    "confirm.effect",
+                    "From the moment you save, a guest who is not on the list still reaches your WiFi login page and is refused there. They are not sent a verification code and no session starts for them.",
+                  )}
                 </p>
                 <p>
-                  This changes {wlLocationName || "this property"} only. Your other properties keep
-                  working exactly as they do now, and you can switch this back off at any time.
+                  {t(
+                    "confirm.scope",
+                    "This changes {{place}} only. Your other properties keep working exactly as they do now, and you can switch this back off at any time.",
+                    { place: wlPlace },
+                  )}
                 </p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-1.5">
             <Label htmlFor="wl-confirm" className="text-sm">
-              Type <span className="font-semibold">{wlLocationName}</span> to confirm
+              <Trans
+                i18n={i18n}
+                ns="whitelist"
+                i18nKey="confirm.typeToConfirm"
+                defaults="Type <1>{{name}}</1> to confirm"
+                values={{ name: wlLocationName }}
+                components={{ 1: <span className="font-semibold" /> }}
+              />
             </Label>
             <Input
               id="wl-confirm"
@@ -1091,7 +1217,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
             />
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("actions.cancel", "Cancel")}</AlertDialogCancel>
             <AlertDialogAction
               disabled={!confirmMatches}
               data-testid="whitelist-only-confirm-action"
@@ -1103,7 +1229,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
                 void persistWhitelistOnly(true, wlMessage);
               }}
             >
-              Turn on for {wlLocationName}
+              {t("confirm.action", "Turn on for {{place}}", { place: wlLocationName })}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1120,7 +1246,9 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
             <ShieldCheck className="h-5 w-5 text-emerald-500" />
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-medium uppercase text-muted-foreground">Active</p>
+            <p className="text-xs font-medium uppercase text-muted-foreground">
+              {t("status.active", "Active")}
+            </p>
             <p className="truncate text-lg font-bold">{activeCount}</p>
           </div>
         </div>
@@ -1129,7 +1257,9 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
             <Calendar className="h-5 w-5 text-muted-foreground" />
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-medium uppercase text-muted-foreground">Expired</p>
+            <p className="text-xs font-medium uppercase text-muted-foreground">
+              {t("status.expired", "Expired")}
+            </p>
             <p className="truncate text-lg font-bold">{expiredCount}</p>
           </div>
         </div>
@@ -1143,7 +1273,9 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
           </div>
           <div className="min-w-0">
             <p className="text-xs font-medium uppercase text-muted-foreground">
-              Total {tab === "number" ? "numbers" : "devices"}
+              {tab === "number"
+                ? t("kpi.totalNumbers", "Total numbers")
+                : t("kpi.totalDevices", "Total devices")}
             </p>
             <p className="truncate text-lg font-bold">{tabEntries.length}</p>
           </div>
@@ -1172,7 +1304,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
               : "text-muted-foreground hover:text-foreground",
           )}
         >
-          <Smartphone className="h-4 w-4" /> Allow a Number
+          <Smartphone className="h-4 w-4" /> {t("tabs.number", "Allow a Number")}
         </button>
         <button
           onClick={() => {
@@ -1187,7 +1319,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
               : "text-muted-foreground hover:text-foreground",
           )}
         >
-          <Laptop className="h-4 w-4" /> Allow a Device
+          <Laptop className="h-4 w-4" /> {t("tabs.device", "Allow a Device")}
         </button>
       </div>
 
@@ -1206,7 +1338,9 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
             )}
           </span>
           <CardTitle className="text-sm">
-            {tab === "number" ? "Allow a number" : "Allow a device"}
+            {tab === "number"
+              ? t("form.titleNumber", "Allow a number")
+              : t("form.titleDevice", "Allow a device")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -1216,19 +1350,24 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
           <div className="rounded-xl border bg-muted/30 p-4">
             <div className="mb-1 flex items-center gap-2">
               <User className="h-4 w-4 text-primary" />
-              <h3 className="text-sm font-semibold text-foreground">Who's Allowed</h3>
+              <h3 className="text-sm font-semibold text-foreground">
+                {t("form.whoTitle", "Who's Allowed")}
+              </h3>
             </div>
             <p className="mb-4 text-xs text-muted-foreground">
+              {/* Was "The number/device that skips the portal" -- the same
+               * false bypass promise as the empty state below. A listed guest
+               * still signs in; the list only decides who may. */}
               {tab === "number"
-                ? "The number that skips the portal, and who it belongs to."
-                : "The device that skips the portal, and who it belongs to."}
+                ? t("form.whoNumber", "The guest's mobile number, and who it belongs to.")
+                : t("form.whoDevice", "The device's address, and who it belongs to.")}
             </p>
             <div className="grid gap-4 md:grid-cols-2">
               {/* Mobile / MAC */}
               {tab === "number" ? (
                 <div className="space-y-1.5">
                   <Label>
-                    Mobile Number <span className="text-destructive">*</span>
+                    {t("form.mobile", "Mobile Number")} <span className="text-destructive">*</span>
                   </Label>
                   <div className="flex gap-2">
                     <Select value={f.mobileCC} onValueChange={(v) => setField("mobileCC", v)}>
@@ -1247,7 +1386,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
                       type="text"
                       inputMode="numeric"
                       maxLength={10}
-                      placeholder="10-digit mobile number"
+                      placeholder={t("form.mobilePlaceholder", "10-digit mobile number")}
                       value={f.mobile}
                       onChange={(e) =>
                         setField("mobile", e.target.value.replace(/\D/g, "").slice(0, 10))
@@ -1258,13 +1397,14 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
                 </div>
               ) : (
                 <div className="space-y-1.5">
-                  {/* "Only Allowed" in the header, "Device address" on the
+                  {/* "Guest Allow-list" in the header, "Device address" on the
                     control -- the rename stopped at the title. The MAC
                     itself still belongs in the hint, because that is the
                     exact phrase the owner reads off the device's WiFi
                     settings. */}
                   <Label>
-                    Device address <span className="text-destructive">*</span>
+                    {t("form.deviceAddress", "Device address")}{" "}
+                    <span className="text-destructive">*</span>
                   </Label>
                   <Input
                     type="text"
@@ -1288,7 +1428,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
 
               <div className="space-y-1.5">
                 <Label>
-                  Location <span className="text-destructive">*</span>
+                  {t("form.location", "Location")} <span className="text-destructive">*</span>
                 </Label>
                 <Select value={f.businessUnit} onValueChange={(v) => setField("businessUnit", v)}>
                   <SelectTrigger>
@@ -1306,12 +1446,18 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
 
               <div className="space-y-1.5">
                 <Label>
-                  {tab === "number" ? "Name" : "Device label"}{" "}
+                  {tab === "number"
+                    ? t("form.name", "Name")
+                    : t("form.deviceLabel", "Device label")}{" "}
                   <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   type="text"
-                  placeholder={tab === "number" ? "Guest name" : "e.g. Office Printer"}
+                  placeholder={
+                    tab === "number"
+                      ? t("form.namePlaceholder", "Guest name")
+                      : t("form.deviceLabelPlaceholder", "e.g. Office Printer")
+                  }
                   value={f.name}
                   onChange={(e) => setField("name", e.target.value)}
                 />
@@ -1320,7 +1466,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
 
               <div className="space-y-1.5">
                 <Label>
-                  Email <span className="text-destructive">*</span>
+                  {t("form.email", "Email")} <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   type="email"
@@ -1340,10 +1486,14 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
           <div className="rounded-xl border bg-muted/30 p-4">
             <div className="mb-1 flex items-center gap-2">
               <Calendar className="h-4 w-4 text-primary" />
-              <h3 className="text-sm font-semibold text-foreground">Access Window</h3>
+              <h3 className="text-sm font-semibold text-foreground">
+                {t("form.windowTitle", "Access Window")}
+              </h3>
             </div>
             <p className="mb-4 text-xs text-muted-foreground">
-              When this guest stops needing to sign in, and when that ends.
+              {/* Was "When this guest stops needing to sign in" -- same false
+               * bypass promise. The window is how long the entry counts. */}
+              {t("form.windowHelp", "How long this entry stays on the list.")}
             </p>
             <div className="grid gap-4 md:grid-cols-2">
               {/* Read-only, deliberately. An access rule has no start field
@@ -1353,16 +1503,16 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
                 a required-looking control that quietly discards what you
                 type, say what actually happens. */}
               <div className="space-y-1.5">
-                <Label className="text-muted-foreground">Starts</Label>
-                <Input value="As soon as you save" disabled readOnly />
+                <Label className="text-muted-foreground">{t("form.starts", "Starts")}</Label>
+                <Input value={t("form.startsValue", "As soon as you save")} disabled readOnly />
                 <p className="text-xs text-muted-foreground">
-                  Scheduling a later start isn&rsquo;t supported yet.
+                  {t("form.startsHelp", "Scheduling a later start isn’t supported yet.")}
                 </p>
               </div>
 
               <div className="space-y-1.5">
                 <Label>
-                  End Date <span className="text-destructive">*</span>
+                  {t("form.endDate", "End Date")} <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   type="datetime-local"
@@ -1378,11 +1528,15 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
           <div className="flex justify-center gap-2">
             {editingId && (
               <Button type="button" variant="outline" size="lg" onClick={cancelEdit}>
-                Cancel
+                {t("actions.cancel", "Cancel")}
               </Button>
             )}
             <Button type="submit" size="lg" className="px-8">
-              {editingId ? "Save Changes" : tab === "number" ? "Allow Number" : "Allow Device"}
+              {editingId
+                ? t("actions.saveChanges", "Save Changes")
+                : tab === "number"
+                  ? t("actions.allowNumber", "Allow Number")
+                  : t("actions.allowDevice", "Allow Device")}
             </Button>
           </div>
         </CardContent>
@@ -1397,14 +1551,16 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
             </span>
             <div>
               <CardTitle className="text-sm">
-                Only Allowed {tab === "number" ? "Guests" : "Devices"}
+                {tab === "number"
+                  ? t("list.titleGuests", "Allow-listed guests")
+                  : t("list.titleDevices", "Allow-listed devices")}
               </CardTitle>
               {/* Not "for this location": listAccessRules takes an org id
                 and no location filter, so this table is every allow rule
                 in the account. Saying "this location" made a rule saved
                 against another site look like it applied here. */}
               <p className="text-xs text-muted-foreground">
-                Everything currently allowed across your account.
+                {t("list.subtitle", "Everything currently allowed across your account.")}
               </p>
             </div>
           </div>
@@ -1412,7 +1568,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
-              placeholder="Search…"
+              placeholder={t("list.search", "Search…")}
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -1426,10 +1582,18 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
           {paged.length === 0 ? (
             <EmptyState
               icon={ShieldCheck}
-              title="Nothing allowed yet"
-              description="Fill the form above to let a trusted number or device skip the portal."
+              title={t("list.emptyTitle", "Nothing allowed yet")}
+              // Was "...let a trusted number or device skip the portal." --
+              // false (a listed guest still signs in; the list only matters
+              // once the switch above is on) and it described Trusted
+              // Devices, the separate screen for equipment that connects
+              // without signing in.
+              description={t(
+                "list.emptyBody",
+                "Add a guest's mobile number or device above. When the switch above is on, only guests on this list can sign in. For a printer or till that should connect without signing in, use Trusted Devices.",
+              )}
               action={{
-                label: "Allow a number or device",
+                label: t("list.emptyAction", "Allow a number or device"),
                 onClick: () => formRef.current?.querySelector<HTMLInputElement>("input")?.focus(),
               }}
             />
@@ -1475,36 +1639,38 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
                           isActive(e.endDate) ? "bg-emerald-500" : "bg-slate-400",
                         )}
                       />
-                      {isActive(e.endDate) ? "Active" : "Expired"}
+                      {isActive(e.endDate)
+                        ? t("status.active", "Active")
+                        : t("status.expired", "Expired")}
                     </span>
                   </div>
                   <div className="mt-3 flex items-end justify-between gap-3 text-xs">
                     <div className="min-w-0">
                       <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">
-                        Location
+                        {t("form.location", "Location")}
                       </p>
                       <p className="truncate text-foreground">{e.businessUnit || "—"}</p>
                     </div>
                     <div className="min-w-0 text-right">
                       <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">
-                        Access window
+                        {t("list.window", "Access window")}
                       </p>
                       <p className="truncate text-foreground">
-                        {fmtDT(e.startDate)} → {fmtDT(e.endDate)}
+                        {fmtDT(e.startDate, noEnd)} → {fmtDT(e.endDate, noEnd)}
                       </p>
                     </div>
                   </div>
                   <div className="mt-3 flex justify-end gap-1 border-t border-border/60 pt-2">
                     <button
                       type="button"
-                      aria-label={`Edit ${e.name}`}
+                      aria-label={t("actions.editNamed", "Edit {{name}}", { name: e.name })}
                       onClick={() => startEdit(e)}
                       className="inline-flex items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
                     >
                       <Pencil className="h-4 w-4" />
                     </button>
                     <button
-                      aria-label={`Delete ${e.name}`}
+                      aria-label={t("actions.deleteNamed", "Delete {{name}}", { name: e.name })}
                       onClick={() => handleDelete(e.id)}
                       className="inline-flex items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                     >
@@ -1524,11 +1690,15 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
               )}
             >
               <span>
-                Showing {safePage * PAGE_SIZE + 1}–
-                {Math.min((safePage + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
+                {t("list.showing", "Showing {{from}}–{{to}} of {{total}}", {
+                  from: safePage * PAGE_SIZE + 1,
+                  to: Math.min((safePage + 1) * PAGE_SIZE, filtered.length),
+                  total: filtered.length,
+                })}
               </span>
               <div className="flex items-center gap-1">
                 <button
+                  aria-label={t("list.previous", "Previous page")}
                   disabled={safePage === 0}
                   onClick={() => setPage(safePage - 1)}
                   className="inline-flex items-center justify-center rounded-lg p-1.5 hover:bg-accent disabled:opacity-40"
@@ -1536,6 +1706,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
                   <ChevronLeft className="h-4 w-4" />
                 </button>
                 <button
+                  aria-label={t("list.next", "Next page")}
                   disabled={safePage >= totalPages - 1}
                   onClick={() => setPage(safePage + 1)}
                   className="inline-flex items-center justify-center rounded-lg p-1.5 hover:bg-accent disabled:opacity-40"

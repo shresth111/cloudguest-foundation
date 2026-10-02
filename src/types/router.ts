@@ -67,6 +67,9 @@ export interface RouterListQuery {
   pageSize: number;
 }
 
+/** `RouterListQuery` without the client-side page window -- see `routerService.listAll`. */
+export type RouterListFilters = Omit<RouterListQuery, "page" | "pageSize">;
+
 export interface RouterListResult {
   /** How many locations could not be read while assembling this list.
    *
@@ -81,6 +84,10 @@ export interface RouterListResult {
    * Zero for the location-scoped path, which reads one location directly
    * and has nothing to fan out. */
   unreachableLocationCount: number;
+  /** Organizations whose location list could not be read (a failed page
+   * included), so every router under them is missing. Same reasoning as
+   * above, one level up; zero on the location-scoped path. */
+  unreachableOrganizationCount: number;
   rows: RouterDevice[];
   total: number;
 }

@@ -100,6 +100,12 @@ export const NAV_PERMISSION_KEYS: Record<string, readonly string[]> = {
   campaigns: ["campaigns.read"],
   portal: ["captive_portal.read"],
   vouchers: ["voucher.read"],
+  // Marketing (paid add-on). The backend's new `marketing` module
+  // (wyfy-specs/guest-marketing-campaigns.md §4.9); `read` gates every list,
+  // count and preview the page opens with. Whether the add-on is UNLOCKED is
+  // a separate question answered by entitlements, not permissions -- a
+  // locked org's owner still sees the row (with a lock badge) and the upsell.
+  marketing: ["marketing.read"],
   // Access & Policy
   policies: ["policy.read"],
   whitelist: ["guest_access.read"],
@@ -134,6 +140,13 @@ export const NAV_PERMISSION_KEYS: Record<string, readonly string[]> = {
   // working tab from a role that only holds the other. The page narrows its
   // own tabs by the same keys (`blockingTabsFor`).
   blocking: ["content_filtering.read", "guest_access.read"],
+  // Security -> Firewall reads `/firewall-rules` (`firewall.read`); Apply is
+  // `firewall.execute`, which the backend checks on the push itself. Same
+  // module Port Forwarding is guarded by -- there is one FIREWALL module.
+  firewall: ["firewall.read"],
+  // No "web-filtering" row any more: its categories are a section of Block
+  // Websites' Websites tab, and `/dns-filtering/*` is guarded by the same
+  // content_filtering keys (cloud-guest#307) that tab already reads.
   // A real module, added to the backend's `PermissionModule` alongside this
   // feature (CONTRACT.md §4), with `MODULE_NARROWEST_SCOPE = LOCATION` --
   // same profile as `mac_authorization` and `network_device` above, since an

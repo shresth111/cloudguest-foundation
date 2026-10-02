@@ -104,7 +104,7 @@ const portalService = read(PORTAL_SERVICE);
 // ---------------------------------------------------------------------------
 // 1. ALWAYS ALLOWED -- one home, and it is the one with a URL
 // ---------------------------------------------------------------------------
-console.log("\nOnly Allowed");
+console.log("\nGuest Allow-list");
 
 check(
   "Access Rules no longer mounts WhiteList",
@@ -127,7 +127,7 @@ check(
 // exactly why it is the copy that was kept.
 const customerFeatures = readCode(CUSTOMER_FEATURES);
 check(
-  "the sidebar's Only Allowed still mounts WhiteList",
+  "the sidebar's Guest Allow-list still mounts WhiteList",
   /<WhiteList\b/.test(customerFeatures),
   "the surviving copy is gone too -- the feature has NO home now",
 );
@@ -179,6 +179,40 @@ check(
     "src/components/customer/CustomerFeaturePage.tsx",
     POLICIES_HUB,
   ].every((rel) => !/<BlockUsers\b/.test(readCode(rel))),
+);
+
+// Security -> Firewall is the customer's one home for firewall rules. The
+// operator screen (`network/FirewallManagement.tsx`, on the orphaned
+// `/network/firewall` route) edits the same rows in RouterOS terms and is not
+// a customer surface; neither customer shell may mount it, or an owner would
+// have two screens for one set of rules speaking two vocabularies.
+console.log("\nFirewall rules");
+check(
+  "the customer shell mounts Firewall once",
+  (customerShell.match(/<FirewallView\b/g) ?? []).length === 1,
+);
+check(
+  "the staff shell mounts the same Firewall page",
+  /case "firewall":\s*return <FirewallView\b/.test(customerFeatures),
+);
+// Web filtering and the "Block a website" box both live in Block Websites
+// now: one home for blocking a website, mounted by BlockingView only.
+check(
+  "Block Websites mounts Web filtering and the website box, once each",
+  (blockingView.match(/<WebFilteringView\b/g) ?? []).length === 1 &&
+    (blockingView.match(/<WebsiteBlockBox\b/g) ?? []).length === 1,
+);
+check(
+  "neither shell nor Firewall mounts them as a second home",
+  [
+    "src/config/customerFeatures.tsx",
+    "src/components/customer/CustomerFeaturePage.tsx",
+    "src/components/security/FirewallView.tsx",
+  ].every((rel) => !/<WebFilteringView\b|<WebsiteBlockBox\b/.test(readCode(rel))),
+);
+check(
+  "neither customer shell mounts the operator firewall screen",
+  !/<FirewallManagement\b/.test(customerShell) && !/<FirewallManagement\b/.test(customerFeatures),
 );
 
 // ---------------------------------------------------------------------------
@@ -349,7 +383,7 @@ if (gridStart !== -1) {
 }
 
 // ---------------------------------------------------------------------------
-// 5. The nav itself still offers Only Allowed as its own destination --
+// 5. The nav itself still offers Guest Allow-list as its own destination --
 // executed for real, not regex'd, since this is a plain module.
 // ---------------------------------------------------------------------------
 console.log("\nNav");
@@ -372,8 +406,8 @@ const nav = await import(outfile);
 const whitelistItem = nav.CUSTOMER_NAVS.find((i) => i.id === "whitelist");
 check("whitelist is still its own sidebar destination", Boolean(whitelistItem));
 check(
-  'it is still labelled "Only Allowed"',
-  whitelistItem?.label === "Only Allowed",
+  'it is labelled "Guest Allow-list" (was "Only Allowed")',
+  whitelistItem?.label === "Guest Allow-list",
   whitelistItem?.label,
 );
 check(

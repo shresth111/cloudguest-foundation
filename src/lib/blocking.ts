@@ -1,6 +1,6 @@
 /**
- * Security -> Blocking: which tabs the page has, who may see each, and which
- * one opens first.
+ * Security -> Block Websites: which tabs the page has, who may see each, and
+ * which one opens first.
  *
  * Pure and dependency-free on purpose, so the nav guards can execute it
  * rather than grep it (see scripts/test-controller-venue-network-screens.mjs
@@ -11,9 +11,14 @@
  * Nothing on this page is new behaviour. Each tab mounts the component that
  * already did the job somewhere else, and that somewhere else stops doing it:
  *
- *  - "Websites & IPs" is `ContentFilterManagement` -- the screen that was
- *    Network -> Website Blocking. That row is gone from the sidebar and
- *    `/website-blocking` redirects here, so an old bookmark lands on the same
+ *  - "Websites" is the one place a venue blocks a website. It stacks the
+ *    "Block a website" box (`WebsiteBlockBox`, which used to sit on
+ *    Security -> Firewall), the Cloudflare categories (`WebFilteringView`,
+ *    which used to be Security -> Web filtering) and, folded under
+ *    "Advanced", the full rule list (`ContentFilterManagement`, the screen
+ *    that was Network -> Website Blocking) -- which is also where an
+ *    internet address (IP) is blocked. `/website-blocking` and
+ *    `/web-filtering` redirect here, so an old bookmark lands on the same
  *    rules.
  *  - "Guests & devices" is `BlockUsers` -- the screen that was the "Blocked
  *    Guests" tab of Access Rules. That tab is gone from Access Rules.
@@ -42,7 +47,8 @@ export interface BlockingTab {
   permissionKeys: readonly string[];
   /** The id `CONTROLLER_UNSUPPORTED_FEATURE_IDS` knows this tab's screen by,
    * when a controller-managed venue cannot use it. The Websites tab writes
-   * RouterOS DNS and address-list entries; there is no RouterOS at an
+   * RouterOS DNS and address-list entries and switches the router's DNS onto
+   * Cloudflare; there is no RouterOS at an
    * Omada-only venue. `null` for a tab that works on both -- blocking a
    * guest is enforced at sign-in on our side and, at a controller venue,
    * reaches the controller through its own client-block call. */
@@ -52,7 +58,7 @@ export interface BlockingTab {
 export const BLOCKING_TABS: readonly BlockingTab[] = [
   {
     id: "websites",
-    label: "Websites & IPs",
+    label: "Websites",
     permissionKeys: ["content_filtering.read"],
     controllerGatedAs: "website-blocking",
   },

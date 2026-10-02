@@ -48,6 +48,7 @@ import { voucherService } from "@/services/voucher.service";
 import type { VoucherBatch } from "@/types/voucher";
 import { campaignService } from "@/services/campaign.service";
 import type { CampaignType } from "@/types/campaign";
+import { routerService } from "@/services/router.service";
 
 const CATEGORIES = [
   "Guest Activity Report",
@@ -294,8 +295,8 @@ const COLUMNS: Record<string, ColumnDef[]> = {
   "daywise-data": [
     { key: "date", label: "Date", sortType: "date" },
     { key: "totalData", label: "Total Data", sortType: "number" },
-    { key: "users", label: "Users", sortType: "number" },
-    { key: "avgPerUser", label: "Avg Per User", sortType: "number" },
+    { key: "users", label: "Guests", sortType: "number" },
+    { key: "avgPerUser", label: "Avg Per Guest", sortType: "number" },
   ],
   "daywise-unique": [
     { key: "date", label: "Date", sortType: "date" },
@@ -433,7 +434,8 @@ const COLUMNS: Record<string, ColumnDef[]> = {
     // guest rendered a blank identity row -- the value was in the payload and
     // had nowhere to go.
     { key: "email", label: "Email", sortType: "string" },
-    { key: "ip", label: "IP Address", sortType: "string" },
+    { key: "ip", label: "Private IP", sortType: "string" },
+    { key: "publicIp", label: "Venue public IP", sortType: "string" },
     { key: "mac", label: "Device MAC", sortType: "string" },
     { key: "device", label: "Device", sortType: "string" },
     { key: "authMethod", label: "Auth Method", sortType: "string" },
@@ -714,6 +716,7 @@ function mockRow(
       r.name = NAMES[i % NAMES.length];
       r.mobile = phone(i);
       r.ip = `10.0.${(i % 4) + 1}.${(i % 250) + 2}`;
+      r.publicIp = `103.${84 + (i % 3)}.${20 + (i % 10)}.${100 + (i % 50)}`;
       r.mac = ["00:1A:2B:3C:4D:5E", "AA:BB:CC:DD:EE:FF", "11:22:33:44:55:66", "AB:CD:EF:01:23:45"][
         i % 4
       ];
@@ -934,6 +937,53 @@ interface RealGuestSession {
   // that presented no MAC, or a device outside the caller's org scope --
   // never a hidden value the unmask flow would reveal.
   device_mac?: string | null;
+  router_id?: string;
+}
+
+async function fetchRouterPublicIpsById(
+  orgId: string,
+  locationId: string,
+): Promise<Map<string, string | null>> {
+  const routers = await routerService.listForLocation(locationId, orgId);
+  return new Map(routers.map((r) => [r.id, r.publicIpAddress ?? null]));
+}
+
+/** RFC1918 / link-local -- not shown as "public" in the session log. */
+function isPrivateOrLocalIp(ip: string): boolean {
+  const t = ip.trim().toLowerCase();
+  if (!t || t.includes(":")) return false; // v6: treat as opaque, not classified here
+  if (t.startsWith("10.")) return true;
+  if (t.startsWith("192.168.")) return true;
+  if (t.startsWith("127.")) return true;
+  if (t.startsWith("169.254.")) return true;
+  if (t.startsWith("172.")) {
+    const second = Number.parseInt(t.split(".")[1] ?? "", 10);
+    if (second >= 16 && second <= 31) return true;
+  }
+  return false;
+}
+
+/** Venue NAT egress — only a globally routable IPv4 from the router heartbeat.
+ * Private WAN addresses (e.g. 192.168.x behind ISP CPE) are not shown. */
+function resolveSessionPublicIp(
+  session: RealGuestSession,
+  routerPublicIps: Map<string, string | null>,
+): string | null {
+  if (!session.router_id) return null;
+  const wan = routerPublicIps.get(session.router_id);
+  if (!wan || isPrivateOrLocalIp(wan)) return null;
+  return wan;
+}
+
+function rowMatchesGuestSessionLogSearch(r: Row, q: string): boolean {
+  const ql = q.toLowerCase().trim();
+  if (!ql) return true;
+  const ipKeys = ["ip", "publicIp", "mac"] as const;
+  for (const key of ipKeys) {
+    const raw = r[key];
+    if (raw != null && String(raw).toLowerCase().includes(ql)) return true;
+  }
+  return false;
 }
 
 // GET /guest-sessions caps page_size at 100 (backend/app/domains/guest/router.py's
@@ -1131,9 +1181,10 @@ async function realGuestSessionLog(
   from: string,
   to: string,
 ): Promise<Row[]> {
-  const [sessions, guestsById] = await Promise.all([
+  const [sessions, guestsById, routerPublicIps] = await Promise.all([
     fetchRealSessions(orgId, locationId, from, to),
     fetchRealGuestsById(orgId, locationId),
+    fetchRouterPublicIpsById(orgId, locationId),
   ]);
   return sessions
     .slice()
@@ -1149,6 +1200,7 @@ async function realGuestSessionLog(
         mobile: identity.phone || null,
         email: identity.email || null,
         ip: s.ip_address ?? null,
+        publicIp: resolveSessionPublicIp(s, routerPublicIps),
         mac: s.device_mac ?? null, // Resolved server-side; null means genuinely no device, not a masked value.
         device: deviceLabelFrom(s.user_agent),
         authMethod: s.auth_method ?? null,
@@ -1537,6 +1589,7 @@ async function realVoucherBatchRate(
 
 interface RealGuestLoginAttempt {
   identifier: string;
+  guest_id?: string | null;
   ip_address?: string | null;
   auth_method: string;
   success: boolean;
@@ -1925,10 +1978,12 @@ export function ReportPanel({
       // explicitly rather than skipped so a future policy change here applies
       // automatically.
       if (key === "mac") return maskMac(String(val));
-      // "ip" (Guest Session Log, Login/Access Attempt Log) is intentionally
-      // never masked -- see COLUMNS["guest-session-log"]'s own doc comment
-      // just above: this report's reason to exist is showing real IP-to-guest
-      // mapping.
+      // "ip" / "publicIp" (Guest Session Log, Login/Access Attempt Log) are
+      // intentionally never masked -- see COLUMNS["guest-session-log"]'s own
+      // doc comment just above: this report's reason to exist is showing real
+      // IP-to-guest mapping. publicIp is the venue router's WAN address (NAT
+      // egress), not a per-guest capture.
+      if (key === "publicIp") return String(val);
       if (key === "cost") return `₹${(+val).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
       if (key === "peakMbps") return `${(+val).toFixed(1)} Mbps`;
       // uploadGB/downloadGB/totalGB are computed in GB (see realDataConsumption),
@@ -1974,13 +2029,16 @@ export function ReportPanel({
     // actually left on screen, same as a sighted user manually scanning
     // the table would see.
     let filtered = q
-      ? rows.filter((r) =>
-          cols.some((c) =>
+      ? rows.filter((r) => {
+          const viaColumns = cols.some((c) =>
             fmtCell(c.key, r[c.key] ?? null)
               .toLowerCase()
               .includes(q),
-          ),
-        )
+          );
+          if (viaColumns) return true;
+          if (reportType === "guest-session-log") return rowMatchesGuestSessionLogSearch(r, q);
+          return false;
+        })
       : rows;
     const col = cols.find((c) => c.key === sortKey);
     if (col) {
@@ -2000,7 +2058,7 @@ export function ReportPanel({
       });
     }
     return filtered;
-  }, [rows, searchTxt, sortKey, sortDir, cols, fmtCell]);
+  }, [rows, searchTxt, sortKey, sortDir, cols, fmtCell, reportType]);
 
   const totalPages = Math.max(1, Math.ceil(sortedRows.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages - 1);
@@ -2562,7 +2620,13 @@ export function ReportPanel({
                   <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <input
                     type="text"
-                    placeholder="Filter…"
+                    placeholder={
+                      reportType === "guest-session-log"
+                        ? "Private IP, venue public IP, phone, MAC…"
+                        : reportType === "login-access-log"
+                          ? "Identifier or IP…"
+                          : "Filter…"
+                    }
                     value={searchTxt}
                     onChange={(e) => {
                       setSearchTxt(e.target.value);

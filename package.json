@@ -75,6 +75,7 @@
     "test:customer-nav-shell": "node scripts/test-customer-nav-shell.mjs",
     "test:block-users-e164": "node scripts/test-block-users-e164.mjs",
     "test:block-scope": "node scripts/test-block-scope.mjs",
+    "test:app-and-harmful-blocking": "node scripts/test-app-and-harmful-blocking.mjs",
     "test:block-device-outcome": "node scripts/test-block-device-outcome.mjs",
     "test:whitelist-only": "node scripts/test-whitelist-only-guardrails.mjs",
     "test:whitelist-refusal": "node scripts/test-portal-whitelist-refusal.mjs",
@@ -88,6 +89,7 @@
     "test:portal-radius-mode": "node scripts/test-portal-radius-mode.mjs",
     "test:omada-guest-bridge": "node scripts/test-omada-guest-bridge.mjs",
     "test:org-scope-header": "node scripts/test-organization-scope-header.mjs",
+    "test:master-list-page-size": "node scripts/test-master-list-page-size.mjs",
     "test:session-rules": "node scripts/test-session-rules-enforcement.mjs",
     "test:data-limit-rules": "node scripts/test-data-limit-rules.mjs",
     "test:single-home": "node scripts/test-single-home-settings.mjs",
@@ -107,10 +109,16 @@
     "test:omada-onboarding-gaps": "node scripts/test-omada-onboarding-gaps.mjs",
     "test:customer-wizard-omada": "node scripts/test-customer-wizard-omada.mjs",
     "test:omada-guided-setup": "node scripts/test-omada-guided-setup.mjs",
+    "test:aruba-instant-on": "node scripts/test-aruba-instant-on.mjs",
+    "test:aruba-setup-panel": "node scripts/test-aruba-setup-panel.mjs",
+    "test:aruba-add-site": "node scripts/test-aruba-add-site.mjs",
     "test:omada-client-controls": "node scripts/test-omada-client-controls.mjs",
     "test:omada-client-actions": "node scripts/test-omada-client-actions.mjs",
     "test:dashboard-qa-copy": "node scripts/test-customer-dashboard-qa-copy.mjs",
-    "test:quotation-delete": "node scripts/test-quotation-delete.mjs"
+    "test:quotation-delete": "node scripts/test-quotation-delete.mjs",
+    "test:marketing-ui": "node scripts/test-marketing-ui.mjs",
+    "test:marketing-composer": "node scripts/test-marketing-composer.mjs",
+    "test:marketing-demo": "node scripts/test-marketing-demo.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

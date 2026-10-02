@@ -9,10 +9,13 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 import {
   controllerRouterDeviceWriteReason,
   isControllerManaged,
   routerVendorLabel,
+  isNasOnlyVendor,
 } from "@/lib/router-vendors";
 import {
   Activity,
@@ -872,6 +875,7 @@ function DebuggingIllustration() {
 }
 
 export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
+  const { t } = useTranslation("openHours", { i18n });
   // `demo` itself (a plain isDemo() read, not the SSR-safe useIsDemo()
   // hook) is fine to use in effects/handlers below -- those only ever run
   // client-side. What isn't safe is seeding useState's *initial* value
@@ -979,7 +983,7 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
           setSaved(idle);
           return;
         }
-        const message = (err as AppError).message || "Could not load open hours.";
+        const message = (err as AppError).message || t("loadFailed", "Could not load open hours.");
         setLoadError(message);
         toast.error(message);
       })
@@ -1015,11 +1019,11 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
     const sent = draft;
     if (demo) {
       setSaved(sent);
-      toast.success("Open hours saved");
+      toast.success(t("saved", "Open hours saved"));
       return;
     }
     if (!locationId) {
-      toast.error("No location selected.");
+      toast.error(t("noLocation", "No location selected."));
       return;
     }
     setSaving(true);
@@ -1047,10 +1051,10 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
       }
       await businessHoursService.save(id, sent);
       setSaved(sent);
-      toast.success("Open hours saved");
+      toast.success(t("saved", "Open hours saved"));
     } catch (err) {
       // The draft is left exactly as it was, so nothing typed is lost.
-      toast.error((err as AppError).message || "Could not save open hours.");
+      toast.error((err as AppError).message || t("saveFailed", "Could not save open hours."));
       return;
     } finally {
       setSaving(false);
@@ -1090,17 +1094,22 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
     ...(liveStatusKnown
       ? [
           {
-            label: "Right now",
-            value: currentlyOpen ? "Open" : "Closed",
+            label: t("kpi.rightNow", "Right now"),
+            value: currentlyOpen ? t("kpi.open", "Open") : t("kpi.closed", "Closed"),
             tone: (currentlyOpen ? "success" : "danger") as StatTone,
             icon: currentlyOpen ? Sun : Moon,
           },
         ]
       : []),
-    { label: "Days open", value: `${openDaysCount}/7`, tone: "info" as StatTone, icon: Clock },
     {
-      label: "Enforced",
-      value: enabled ? "On" : "Off",
+      label: t("kpi.daysOpen", "Days open"),
+      value: `${openDaysCount}/7`,
+      tone: "info" as StatTone,
+      icon: Clock,
+    },
+    {
+      label: t("kpi.enforced", "Enforced"),
+      value: enabled ? t("kpi.on", "On") : t("kpi.off", "Off"),
       tone: (enabled ? "primary" : "default") as StatTone,
       icon: enabled ? CheckCircle2 : XCircle,
     },
@@ -1110,14 +1119,16 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
     <div className="flex flex-wrap items-center justify-end gap-2">
       {dirty && (
         <span className="text-xs text-muted-foreground">
-          {hasErrors ? "Fix the highlighted days to save" : "Unsaved changes"}
+          {hasErrors
+            ? t("fixDays", "Fix the highlighted days to save")
+            : t("unsaved", "Unsaved changes")}
         </span>
       )}
       <Button size="sm" variant="outline" onClick={handleDiscard} disabled={!dirty || saving}>
-        Discard
+        {t("discard", "Discard")}
       </Button>
       <Button size="sm" onClick={handleSave} disabled={!canSave}>
-        {saving ? "Saving…" : "Save"}
+        {saving ? t("saving", "Saving…") : t("save", "Save")}
       </Button>
     </div>
   );
@@ -1145,8 +1156,11 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
            * Vendor-independent: this gate is ours, in our portal, so it reads
            * identically at a MikroTik and an Omada venue and needs no gating. */}
           <FeatureHeader
-            title="Open Hours"
-            description="Guests can only sign in inside this schedule — outside it they see your closed message instead of the sign-in page. Anyone already online stays online until their session ends."
+            title={t("title", "Open Hours")}
+            description={t(
+              "description",
+              "Guests can only sign in inside this schedule — outside it they see your closed message instead of the sign-in page. Anyone already online stays online until their session ends.",
+            )}
             icon={Sun}
             action={saveActions}
           />
@@ -1159,8 +1173,11 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
           role="alert"
           className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300"
         >
-          Could not load this location's saved open hours ({loadError}). Saving is turned off so the
-          real schedule is not overwritten -- reload the page to try again.
+          {t(
+            "loadErrorBanner",
+            "Could not load this location's saved open hours ({{error}}). Saving is turned off so the real schedule is not overwritten -- reload the page to try again.",
+            { error: loadError },
+          )}
         </div>
       )}
 
@@ -1171,17 +1188,26 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
           role="alert"
           className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
         >
-          This schedule is enforced in {timezone.replace(/_/g, " ")} — not your browser's{" "}
-          {browserTimezone.replace(/_/g, " ")}. Times below are the venue's local time.
+          {t(
+            "timezoneMismatch",
+            "This schedule is enforced in {{venueZone}} — not your browser's {{browserZone}}. Times below are the venue's local time.",
+            {
+              venueZone: timezone.replace(/_/g, " "),
+              browserZone: browserTimezone.replace(/_/g, " "),
+            },
+          )}
         </div>
       )}
 
       <Card className="border-0 shadow-sm">
         <CardHeader>
-          <CardTitle className="text-sm">Weekly schedule</CardTitle>
+          <CardTitle className="text-sm">{t("weekly.title", "Weekly schedule")}</CardTitle>
           <CardDescription>
-            Tap a day to open it, then set when it starts and ends. Times are in{" "}
-            {timezone.replace(/_/g, " ")}.
+            {t(
+              "weekly.description",
+              "Tap a day to open it, then set when it starts and ends. Times are in {{zone}}.",
+              { zone: timezone.replace(/_/g, " ") },
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -1211,11 +1237,11 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
             <div className="@container">
               <div className="mb-4 flex flex-wrap items-center gap-2">
                 <Label htmlFor="open-hours-timezone" className="text-sm font-medium">
-                  Timezone
+                  {t("timezone", "Timezone")}
                 </Label>
                 <Select value={timezone} onValueChange={setTimezone}>
                   <SelectTrigger id="open-hours-timezone" className="w-64">
-                    <SelectValue placeholder="Select a timezone" />
+                    <SelectValue placeholder={t("timezonePlaceholder", "Select a timezone")} />
                   </SelectTrigger>
                   <SelectContent>
                     {timezoneOptions.map((tz) => (
@@ -1227,9 +1253,20 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
                 </Select>
               </div>
               <div className="grid grid-cols-1 gap-3 @[34rem]:grid-cols-2 @[52rem]:grid-cols-3 @[70rem]:grid-cols-4">
-                {BH_DAYS.map(({ key, label }) => {
+                {BH_DAYS.map(({ key, label: englishLabel }) => {
                   const d = dayState(key);
-                  const error = dayErrors[key];
+                  const label = t(`days.${key}`, englishLabel);
+                  // The validator (lib/open-hours-draft.ts) returns one of two
+                  // fixed English sentences; show the translated one. Any
+                  // other text falls through unchanged.
+                  const rawError = dayErrors[key];
+                  const error = !rawError
+                    ? rawError
+                    : rawError.startsWith("Set both")
+                      ? t("dayErrors.missing", rawError)
+                      : rawError.startsWith("Closing time")
+                        ? t("dayErrors.order", rawError)
+                        : rawError;
                   return (
                     <div
                       key={key}
@@ -1257,7 +1294,7 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
                                 : "bg-muted text-muted-foreground",
                             )}
                           >
-                            {label.slice(0, 2)}
+                            {t(`daysShort.${key}`, englishLabel.slice(0, 2))}
                           </span>
                           <span className="truncate text-sm font-medium">{label}</span>
                         </div>
@@ -1298,7 +1335,7 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
                             <Input
                               type="time"
                               className="h-8 min-w-[6.5rem] flex-1 px-2 text-xs"
-                              aria-label={`${label} opens`}
+                              aria-label={t("opensAria", "{{day}} opens", { day: label })}
                               aria-invalid={Boolean(error)}
                               value={d.start ?? "09:00"}
                               onChange={(e) => setDay(key, { start: e.target.value })}
@@ -1307,7 +1344,7 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
                             <Input
                               type="time"
                               className="h-8 min-w-[6.5rem] flex-1 px-2 text-xs"
-                              aria-label={`${label} closes`}
+                              aria-label={t("closesAria", "{{day}} closes", { day: label })}
                               aria-invalid={Boolean(error)}
                               value={d.end ?? "18:00"}
                               onChange={(e) => setDay(key, { end: e.target.value })}
@@ -1321,11 +1358,13 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
                             onClick={() => setDay(key, { start: "00:00", end: "23:59" })}
                             className="text-xs font-medium text-primary hover:underline"
                           >
-                            Open all day
+                            {t("openAllDay", "Open all day")}
                           </button>
                         </div>
                       ) : (
-                        <p className="text-xs text-muted-foreground">Closed all day</p>
+                        <p className="text-xs text-muted-foreground">
+                          {t("closedAllDay", "Closed all day")}
+                        </p>
                       )}
                     </div>
                   );
@@ -1339,32 +1378,41 @@ export function OpenHoursView({ locationId }: { locationId?: string } = {}) {
       {!loading && (
         <Card className="border-0 shadow-sm">
           <CardHeader>
-            <CardTitle className="text-sm">Guest experience</CardTitle>
+            <CardTitle className="text-sm">
+              {t("guestExperience.title", "Guest experience")}
+            </CardTitle>
             <CardDescription>
-              What guests see, and how strictly the schedule above is enforced.
+              {t(
+                "guestExperience.description",
+                "What guests see, and how strictly the schedule above is enforced.",
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <label className="flex items-center justify-between gap-4 rounded-xl border-0 bg-muted/40 px-4 py-3 shadow-sm">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground">Enforce this schedule</p>
+                  <p className="text-sm font-medium text-foreground">
+                    {t("enforce.title", "Enforce this schedule")}
+                  </p>
                   <p className="text-xs text-muted-foreground">
-                    Outside open hours, guests are shown the closed message below instead of the
-                    sign-in page.
+                    {t(
+                      "enforce.description",
+                      "Outside open hours, guests are shown the closed message below instead of the sign-in page.",
+                    )}
                   </p>
                 </div>
                 <Switch checked={enabled} onCheckedChange={setEnabled} />
               </label>
               <div className="space-y-1.5">
                 <Label htmlFor="open-hours-closed-message" className="text-xs">
-                  Message shown to guests while closed
+                  {t("closedMessageLabel", "Message shown to guests while closed")}
                 </Label>
                 <Textarea
                   id="open-hours-closed-message"
                   value={closedMessage}
                   onChange={(e) => setClosedMessage(e.target.value)}
-                  placeholder="We're currently closed."
+                  placeholder={t("closedMessagePlaceholder", "We're currently closed.")}
                   rows={3}
                   className="resize-none"
                 />
@@ -3180,7 +3228,8 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
                     {isControllerManaged(r.vendor) && (
                       <span className="text-muted-foreground">
                         {" "}
-                        · {routerVendorLabel(r.vendor)} controller
+                        · {routerVendorLabel(r.vendor)}{" "}
+                        {isNasOnlyVendor(r.vendor) ? "access points" : "controller"}
                       </span>
                     )}
                   </SelectItem>
@@ -3708,6 +3757,8 @@ function LogSectionHeader({
 }
 
 export function AdminLogsView({ locationId }: { locationId?: string }) {
+  // `tNav`, not `t`: this view already uses `t` as the tab loop variable.
+  const { t: tNav } = useTranslation("nav", { i18n });
   // Owner-only, render-time check -- defense in depth alongside the
   // sidebar/route-nav guard (customerNav.ts / customer.$locationId.$feature
   // .tsx's own NAV_GROUPS) and the backend's own independent enforcement
@@ -3746,7 +3797,7 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
     return (
       <div className="space-y-6">
         <FeatureHeader
-          title="Logs"
+          title={tNav("customerItem.admin-logs", "Staff Activity")}
           description="Who logged into the dashboard and when, router activity, and account changes across every location."
           icon={ScrollText}
         />
@@ -3755,7 +3806,7 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
             <EmptyState
               icon={ShieldAlert}
               title="Owner access only"
-              description="Logs shows a security-sensitive login and change-audit trail for the whole organization. Only the Organization Owner can view this page."
+              description="Staff Activity shows a security-sensitive login and change-audit trail for the whole organization. Only the Organization Owner can view this page."
             />
           </CardContent>
         </Card>
@@ -3799,7 +3850,7 @@ export function AdminLogsView({ locationId }: { locationId?: string }) {
   return (
     <div className="space-y-6">
       <FeatureHeader
-        title="Logs"
+        title={tNav("customerItem.admin-logs", "Staff Activity")}
         description="Real login activity, router events, and account/config changes across every location in your organization."
         icon={ScrollText}
       />
@@ -4093,6 +4144,7 @@ interface MacAuthEntry {
 }
 
 export function MacAuthView({ locationId }: { locationId?: string }) {
+  const { t } = useTranslation("trustedDevices", { i18n });
   // `isError`/`refetch` are read because customerService.getFeatureData no
   // longer resolves with demo fixtures when the fetch fails (see its own
   // docstring). Without an error branch below, a failed load would fall
@@ -4129,7 +4181,10 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
     // real inline error instead of only a fading toast.
     const normalizedMac = normalizeMac(form.mac);
     if (!normalizedMac) {
-      const msg = "That doesn't look like a device address. Example: AA:BB:CC:DD:EE:FF";
+      const msg = t(
+        "errors.badMac",
+        "That doesn't look like a device address. Example: AA:BB:CC:DD:EE:FF",
+      );
       setMacError(msg);
       toast.error(msg);
       return;
@@ -4145,13 +4200,13 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
     // `.refine(... "Expiry required for temporary entries")`).
     const isTemporary = form.type === "temporary";
     if (isTemporary && !form.expiresAt) {
-      const msg = "Pick when access should end, or choose Always.";
+      const msg = t("errors.noExpiry", "Pick when access should end, or choose Always.");
       setExpiryError(msg);
       toast.error(msg);
       return;
     }
     if (isTemporary && new Date(form.expiresAt).getTime() <= Date.now()) {
-      const msg = "That time is in the past — pick a later one.";
+      const msg = t("errors.pastExpiry", "That time is in the past — pick a later one.");
       setExpiryError(msg);
       toast.error(msg);
       return;
@@ -4191,7 +4246,7 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
           ...e,
         ]);
       }
-      toast.success("Device trusted");
+      toast.success(t("toast.added", "Device trusted"));
       setForm({ mac: "", type: "permanent", expiresAt: "", comment: "" });
       setMacError(null);
       setExpiryError(null);
@@ -4201,7 +4256,8 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
       // instead of a generic "check the connection" -- a genuine rejection
       // needs to read as a rejection, not a dead click.
       const msg =
-        (err as AppError).message || "Could not save — check the connection and try again.";
+        (err as AppError).message ||
+        t("toast.saveFailed", "Could not save — check the connection and try again.");
       setMacError(msg);
       toast.error(msg);
     }
@@ -4213,7 +4269,7 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
       try {
         await macAuthorizationService.update(entry.id, { isEnabled: !entry.enabled });
       } catch {
-        toast.error("Could not update on the server.");
+        toast.error(t("toast.updateFailed", "Could not update on the server."));
         setEntries((es) =>
           es.map((e) => (e.id === entry.id ? { ...e, enabled: entry.enabled } : e)),
         );
@@ -4223,12 +4279,12 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
 
   const removeEntry = async (entry: MacAuthEntry) => {
     setEntries((es) => es.filter((e) => e.id !== entry.id));
-    toast.success("Device removed");
+    toast.success(t("toast.removed", "Device removed"));
     if (!isDemo()) {
       try {
         await macAuthorizationService.remove(entry.id);
       } catch {
-        toast.error("Could not remove on the server.");
+        toast.error(t("toast.removeFailed", "Could not remove on the server."));
         setEntries((es) => [entry, ...es]);
       }
     }
@@ -4239,8 +4295,11 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
           <FeatureHeader
-            title="Trusted Devices"
-            description="Let a few of your own devices onto the WiFi without signing in."
+            title={t("title", "Trusted Devices")}
+            description={t(
+              "description",
+              "Let a few of your own devices onto the WiFi without signing in.",
+            )}
             icon={Fingerprint}
             action={
               <Button
@@ -4252,7 +4311,7 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
                 }}
               >
                 <Plus className="h-4 w-4" />
-                Add device
+                {t("addDevice", "Add device")}
               </Button>
             }
           />
@@ -4261,9 +4320,12 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
       </div>
       <Card className="border-0 shadow-sm">
         <CardHeader>
-          <CardTitle className="text-sm">Trusted devices</CardTitle>
+          <CardTitle className="text-sm">{t("list.title", "Trusted devices")}</CardTitle>
           <CardDescription>
-            Devices that connect straight to the WiFi without seeing the sign-in screen.
+            {t(
+              "list.description",
+              "Devices that connect straight to the WiFi without seeing the sign-in screen.",
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
@@ -4274,26 +4336,36 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
           ) : isError && entries.length === 0 ? (
             <EmptyState
               icon={AlertTriangle}
-              title="Couldn't load trusted devices"
-              description="This list is not available right now, so we can't show which devices are authorized. Nothing has changed — try again in a moment."
-              action={{ label: "Try again", onClick: () => void refetch() }}
+              title={t("list.errorTitle", "Couldn't load trusted devices")}
+              description={t(
+                "list.errorBody",
+                "This list is not available right now, so we can't show which devices are authorized. Nothing has changed — try again in a moment.",
+              )}
+              action={{ label: t("list.tryAgain", "Try again"), onClick: () => void refetch() }}
             />
           ) : entries.length === 0 ? (
             <EmptyState
               icon={Shield}
-              title="No trusted devices yet"
-              description='Click "Add device" above to let one of your own devices skip the sign-in screen.'
+              title={t("list.emptyTitle", "No trusted devices yet")}
+              description={t(
+                "list.emptyBody",
+                'Click "Add device" above to let one of your own devices skip the sign-in screen.',
+              )}
             />
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-xs font-medium">Device address</TableHead>
-                  <TableHead className="text-xs font-medium">Access</TableHead>
-                  <TableHead className="text-xs font-medium">Ends</TableHead>
-                  <TableHead className="text-xs font-medium">Note</TableHead>
-                  <TableHead className="text-xs font-medium">Active</TableHead>
-                  <TableHead className="text-right text-xs font-medium">Action</TableHead>
+                  <TableHead className="text-xs font-medium">
+                    {t("col.address", "Device address")}
+                  </TableHead>
+                  <TableHead className="text-xs font-medium">{t("col.access", "Access")}</TableHead>
+                  <TableHead className="text-xs font-medium">{t("col.ends", "Ends")}</TableHead>
+                  <TableHead className="text-xs font-medium">{t("col.note", "Note")}</TableHead>
+                  <TableHead className="text-xs font-medium">{t("col.active", "Active")}</TableHead>
+                  <TableHead className="text-right text-xs font-medium">
+                    {t("col.action", "Action")}
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -4301,7 +4373,9 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
                   <TableRow key={e.id} className="border-b">
                     <TableCell className="font-mono text-xs">{e.mac}</TableCell>
                     <TableCell className="text-xs">
-                      {e.type === "temporary" ? "Until a date" : "Always"}
+                      {e.type === "temporary"
+                        ? t("access.untilDate", "Until a date")
+                        : t("access.always", "Always")}
                     </TableCell>
                     {/* A row saved before the dialog collected an expiry can
                       be temporary with no date at all. That used to render
@@ -4312,8 +4386,8 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
                       {e.expiresAt
                         ? new Date(e.expiresAt).toLocaleString()
                         : e.type === "temporary"
-                          ? "Not set — never ends"
-                          : "Never"}
+                          ? t("ends.notSet", "Not set — never ends")
+                          : t("ends.never", "Never")}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {e.comment || "—"}
@@ -4351,9 +4425,12 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
       >
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Add a trusted device</DialogTitle>
+            <DialogTitle>{t("dialog.title", "Add a trusted device")}</DialogTitle>
             <DialogDescription>
-              This device connects straight to the WiFi without the sign-in screen.
+              {t(
+                "dialog.description",
+                "This device connects straight to the WiFi without the sign-in screen.",
+              )}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -4366,7 +4443,7 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
                 the owner has to go to read this value off. So: plain-
                 English label, technical term in the hint that tells them
                 where to find it. */}
-              <Label>Device address</Label>
+              <Label>{t("dialog.address", "Device address")}</Label>
               <Input
                 placeholder="AA:BB:CC:DD:EE:FF"
                 value={form.mac}
@@ -4381,13 +4458,15 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
                 aria-invalid={!!macError}
               />
               <p className="text-[11px] text-muted-foreground">
-                Its MAC address — find it under WiFi settings on the device itself. Dashes, spaces,
-                or no separators are fine too, e.g. AA-BB-CC-DD-EE-FF.
+                {t(
+                  "dialog.addressHint",
+                  "Its MAC address — find it under WiFi settings on the device itself. Dashes, spaces, or no separators are fine too, e.g. AA-BB-CC-DD-EE-FF.",
+                )}
               </p>
               {macError && <p className="text-xs font-medium text-destructive">{macError}</p>}
             </div>
             <div className="space-y-2">
-              <Label>Allow access</Label>
+              <Label>{t("dialog.allowAccess", "Allow access")}</Label>
               <Select
                 value={form.type}
                 onValueChange={(v) => {
@@ -4399,14 +4478,14 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="permanent">Always</SelectItem>
-                  <SelectItem value="temporary">Until a date</SelectItem>
+                  <SelectItem value="permanent">{t("access.always", "Always")}</SelectItem>
+                  <SelectItem value="temporary">{t("access.untilDate", "Until a date")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             {form.type === "temporary" && (
               <div className="space-y-2">
-                <Label>Access ends</Label>
+                <Label>{t("dialog.accessEnds", "Access ends")}</Label>
                 <Input
                   type="datetime-local"
                   value={form.expiresAt}
@@ -4420,7 +4499,10 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
                   aria-invalid={!!expiryError}
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  After this the device signs in like any other guest.
+                  {t(
+                    "dialog.accessEndsHint",
+                    "After this the device signs in like any other guest.",
+                  )}
                 </p>
                 {expiryError && (
                   <p className="text-xs font-medium text-destructive">{expiryError}</p>
@@ -4428,9 +4510,9 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
               </div>
             )}
             <div className="space-y-2">
-              <Label>Note (optional)</Label>
+              <Label>{t("dialog.note", "Note (optional)")}</Label>
               <Input
-                placeholder="e.g. Front desk tablet"
+                placeholder={t("dialog.notePlaceholder", "e.g. Front desk tablet")}
                 value={form.comment}
                 onChange={(e) => setForm({ ...form, comment: e.target.value })}
               />
@@ -4438,9 +4520,9 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>
-              Cancel
+              {t("dialog.cancel", "Cancel")}
             </Button>
-            <Button onClick={addEntry}>Add</Button>
+            <Button onClick={addEntry}>{t("dialog.add", "Add")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

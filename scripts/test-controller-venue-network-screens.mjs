@@ -56,7 +56,7 @@
  * Run: node scripts/test-controller-venue-network-screens.mjs
  */
 import { build } from "esbuild";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -163,12 +163,14 @@ writeFileSync(
    import { CUSTOMER_NAV_GROUPS } from "${p("src/lib/customerNav.ts")}";
    import { BLOCKING_TABS, blockingTabsFor, initialBlockingTab }
      from "${p("src/lib/blocking.ts")}";
+   import * as firewallRules from "${p("src/lib/firewall-rules.ts")}";
+   import * as webFiltering from "${p("src/lib/web-filtering.ts")}";
    export { React, renderToStaticMarkup, QueryClient, QueryClientProvider,
             ControllerManagedFeatureNotice, deriveLocationLiveness,
             locationIsControllerManaged, locationControllerVendor,
             featureAppliesToControllerVenue, CONTROLLER_UNSUPPORTED_FEATURE_IDS,
             controllerVenueFeatureReason, CUSTOMER_NAV_GROUPS,
-            BLOCKING_TABS, blockingTabsFor, initialBlockingTab };`,
+            BLOCKING_TABS, blockingTabsFor, initialBlockingTab, firewallRules, webFiltering };`,
 );
 
 const outfile = join(outdir, "bundle.cjs");
@@ -313,7 +315,7 @@ check(
 
 console.log("\nwhich screens the gate covers");
 
-for (const id of ["vlans", "dhcp", "port-forwarding", "voip", "website-blocking"]) {
+for (const id of ["vlans", "dhcp", "port-forwarding", "voip", "website-blocking", "firewall"]) {
   check(`${id}-is-gated`, m.featureAppliesToControllerVenue(id) === false);
 }
 for (const id of [
@@ -334,9 +336,15 @@ for (const id of [
 ]) {
   check(`${id}-is-not-gated`, m.featureAppliesToControllerVenue(id) === true);
 }
+// Six since Security -> Firewall: cloud-guest#304's push is MikroTik-only
+// and refuses a controller-managed router at create, push and band. Seven
+// since Security -> Web Filtering: cloud-guest#307 switches a MikroTik's DNS
+// and refuses a controller-managed router before any write. Six again since
+// Web Filtering became the Categories section of Block Websites' Websites
+// tab, which is gated as "website-blocking" already.
 check(
-  "the-gated-list-is-exactly-five",
-  m.CONTROLLER_UNSUPPORTED_FEATURE_IDS.length === 5,
+  "the-gated-list-is-exactly-six",
+  m.CONTROLLER_UNSUPPORTED_FEATURE_IDS.length === 6,
   `got ${m.CONTROLLER_UNSUPPORTED_FEATURE_IDS.length}`,
 );
 // Every gated id still has to name a real screen -- a typo here would
@@ -349,22 +357,38 @@ const networkIds = (m.CUSTOMER_NAV_GROUPS.find((g) => g.id === "network")?.items
   (i) => i.id,
 );
 const tabGatedIds = m.BLOCKING_TABS.map((t) => t.controllerGatedAs).filter(Boolean);
+// The one gated row outside Network, named rather than inferred: Security ->
+// Firewall is a whole page that writes RouterOS and nothing else, so greying
+// the whole row at a controller-only venue is right for it (unlike Blocking,
+// whose Guests tab works there).
+const securityIds = (m.CUSTOMER_NAV_GROUPS.find((g) => g.id === "security")?.items ?? []).map(
+  (i) => i.id,
+);
+// Web Filtering was a second one until it moved under Block Websites.
+const GATED_OUTSIDE_NETWORK = ["firewall"];
 check(
   "every-gated-id-is-a-real-screen",
   m.CONTROLLER_UNSUPPORTED_FEATURE_IDS.every(
-    (id) => networkIds.includes(id) !== tabGatedIds.includes(id),
+    (id) =>
+      [networkIds.includes(id), tabGatedIds.includes(id), securityIds.includes(id)].filter(Boolean)
+        .length === 1,
   ),
   "a typo here would silently gate nothing",
 );
 check(
-  "every-gated-nav-row-is-in-the-Network-group",
-  m.CONTROLLER_UNSUPPORTED_FEATURE_IDS.filter((id) => !tabGatedIds.includes(id)).every((id) =>
-    networkIds.includes(id),
-  ) &&
+  "every-gated-nav-row-is-in-Network-or-is-a-named-Security-row",
+  m.CONTROLLER_UNSUPPORTED_FEATURE_IDS.filter(
+    (id) => !tabGatedIds.includes(id) && !GATED_OUTSIDE_NETWORK.includes(id),
+  ).every((id) => networkIds.includes(id)) &&
     m.CUSTOMER_NAV_GROUPS.filter((g) => g.id !== "network")
       .flatMap((g) => g.items.map((i) => i.id))
+      .filter((id) => !GATED_OUTSIDE_NETWORK.includes(id))
       .every((id) => m.featureAppliesToControllerVenue(id)),
   "a gated row outside Network would grey a whole page, not a screen",
+);
+check(
+  "the-firewall-row-is-in-Security-and-gated",
+  securityIds.includes("firewall") && m.featureAppliesToControllerVenue("firewall") === false,
 );
 check(
   "website-blocking-is-a-blocking-tab-not-a-nav-row",
@@ -452,7 +476,9 @@ check(
 check("notice-names-the-vendor", /TP-Link Omada controller/.test(notice));
 check(
   "notice-names-the-other-four-screens-too",
-  /Network Zones, IP Addresses, Port Forwarding, Call Priority and website blocking/.test(notice),
+  /Network Zones, IP Addresses, Port Forwarding, Call Priority, website blocking, firewall\s+rules and web filtering/.test(
+    notice,
+  ),
   "an owner told only about this one will try the other four in turn",
 );
 check(
@@ -498,6 +524,903 @@ check(
   /managed by a network controller/.test(neutralNotice) &&
     !/undefined|null|a --/.test(neutralNotice),
 );
+
+// ---------------------------------------------------------------------------
+// 5. Security -> Firewall speaks plainly, and says what the push said.
+//    `lib/firewall-rules.ts` is the whole translation between the owner's
+//    pickers and cloud-guest#304's rule fields and error codes, so it is
+//    executed here rather than grepped.
+// ---------------------------------------------------------------------------
+
+console.log("\nSecurity -> Firewall: plain words in, forward rules out");
+{
+  const fw = m.firewallRules;
+  const draft = (over = {}) => ({
+    name: "Printer off-limits",
+    decision: "block",
+    who: "",
+    where: "192.168.88.20",
+    service: "everything",
+    customProtocol: "tcp",
+    customPort: "",
+    priority: 100,
+    isEnabled: true,
+    ...over,
+  });
+  const f = fw.draftToFields(draft());
+  check(
+    "a-customer-rule-is-always-forward",
+    f.chain === "forward" && fw.draftToFields(draft({ decision: "allow" })).chain === "forward",
+    "the writer manages forward only; input/output is how a router got cut off",
+  );
+  check(
+    "block-is-drop-and-allow-is-accept",
+    f.action === "drop" && fw.draftToFields(draft({ decision: "allow" })).action === "accept",
+  );
+  check(
+    "anyone-and-anywhere-are-empty-not-0.0.0.0",
+    f.sourceAddress === null &&
+      fw.draftToFields(draft({ where: "", decision: "allow" })).destinationAddress === null,
+  );
+  check(
+    "a-preset-service-sets-protocol-and-port",
+    (() => {
+      const w = fw.draftToFields(draft({ service: "web-secure" }));
+      return w.protocol === "tcp" && w.destinationPort === 443;
+    })(),
+  );
+  check(
+    "a-custom-port-keeps-the-chosen-protocol",
+    (() => {
+      const w = fw.draftToFields(
+        draft({ service: "custom", customProtocol: "udp", customPort: "5060" }),
+      );
+      return w.protocol === "udp" && w.destinationPort === 5060;
+    })(),
+  );
+  check("a-valid-draft-has-no-errors", Object.keys(fw.validateFirewallDraft(draft())).length === 0);
+  check(
+    "a-block-with-no-who-and-no-where-is-refused-before-save",
+    !!fw.validateFirewallDraft(draft({ where: "" })).where,
+    "#304 refuses it at Apply (ACCESS_RULES_WOULD_BREAK_GUEST_PATH)",
+  );
+  check(
+    "blocking-a-management-port-is-refused-before-save",
+    !!fw.validateFirewallDraft(draft({ service: "custom", customPort: "8728" })).customPort,
+    "#304 refuses it at Apply (ACCESS_RULES_WOULD_ORPHAN_MANAGEMENT)",
+  );
+  check(
+    "no-preset-can-only-fail",
+    fw.FIREWALL_SERVICES.filter((s) => s.port != null).every(
+      (s) => !fw.MANAGEMENT_PORTS.includes(s.port),
+    ),
+  );
+  check(
+    "a-bad-address-is-caught",
+    !!fw.validateFirewallDraft(draft({ where: "10.0.0.300" })).where,
+  );
+  check("a-cidr-range-is-fine", !fw.validateFirewallDraft(draft({ where: "10.0.0.0/24" })).where);
+  check(
+    "a-stored-rule-round-trips-through-the-form",
+    (() => {
+      const rule = {
+        name: "x",
+        chain: "forward",
+        action: "drop",
+        protocol: "tcp",
+        sourceAddress: "192.168.88.5",
+        destinationAddress: null,
+        sourcePort: null,
+        destinationPort: 8080,
+        priority: 7,
+        isEnabled: false,
+      };
+      const back = fw.draftToFields(fw.ruleToDraft(rule));
+      return (
+        back.protocol === "tcp" &&
+        back.destinationPort === 8080 &&
+        back.sourceAddress === "192.168.88.5" &&
+        back.priority === 7 &&
+        back.isEnabled === false
+      );
+    })(),
+  );
+  check(
+    "an-edit-that-clears-a-field-sends-an-explicit-null",
+    (() => {
+      // cloud-guest#306: on PUT an omitted key is "unchanged" and an explicit
+      // null clears it. JSON drops \`undefined\`, so a cleared address or
+      // port must come out of the form as null or the edit keeps the old one.
+      const f = fw.draftToFields(
+        draft({ decision: "allow", who: "", where: "", service: "everything" }),
+      );
+      const body = JSON.parse(JSON.stringify(f));
+      return (
+        "sourceAddress" in body &&
+        body.sourceAddress === null &&
+        "destinationAddress" in body &&
+        body.destinationAddress === null &&
+        "destinationPort" in body &&
+        body.destinationPort === null
+      );
+    })(),
+    "a cleared field serialised as undefined is silently kept by the backend",
+  );
+  check(
+    "operator-made-router-rules-are-read-only-here",
+    fw.isCustomerEditable({
+      chain: "input",
+      action: "drop",
+      protocol: "all",
+      sourceAddress: null,
+      destinationAddress: null,
+      sourcePort: null,
+      destinationPort: null,
+      priority: 1,
+      isEnabled: true,
+    }).editable === false,
+  );
+  check(
+    "the-table-is-in-router-order",
+    fw
+      .inRouterOrder([
+        { priority: 20, createdAt: "b" },
+        { priority: 10, createdAt: "c" },
+        { priority: 20, createdAt: "a" },
+      ])
+      .map((r) => `${r.priority}${r.createdAt}`)
+      .join(",") === "10c,20a,20b",
+  );
+  check(
+    "no-routeros-vocabulary-in-what-the-owner-reads",
+    [
+      fw.describeService({ protocol: "all", destinationPort: null }),
+      fw.describeWho(null),
+      fw.describeWhere(null),
+      fw.describeAction("drop"),
+      ...fw.FIREWALL_SERVICES.map((s) => s.label),
+    ].every((t) => !/chain|forward|place-before|accept|drop|reject/i.test(t)),
+  );
+
+  console.log("\nSecurity -> Firewall: every push failure is a sentence");
+  const say = (status, data, message = "raw backend text") =>
+    fw.firewallPushErrorSentence({ status, data, message });
+  const band = say(409, { code: "ACCESS_RULES_BAND_MISSING" });
+  check(
+    "band-missing-says-contact-support",
+    band.sentence ===
+      "This router hasn't been prepared for firewall rules yet. Our team needs to set it up once — contact support." &&
+      band.needsSupport,
+  );
+  check(
+    "push-in-progress-says-try-again-in-a-minute",
+    say(409, { code: "FIREWALL_PUSH_IN_PROGRESS" }).sentence ===
+      "Another change is being applied to this router — try again in a minute.",
+  );
+  const unrestored = say(502, { code: "ACCESS_RULES_PUSH_FAILED", restored: false });
+  check(
+    "restored-false-is-said-honestly",
+    unrestored.sentence ===
+      "The change failed partway; we could not confirm the router's previous rules were restored — contact support." &&
+      unrestored.needsSupport,
+  );
+  check(
+    "restored-true-says-nothing-changed",
+    /previous firewall rules were put back/.test(
+      say(502, { code: "ACCESS_RULES_PUSH_FAILED", restored: true }).sentence,
+    ),
+  );
+  check(
+    "a-chain-refusal-names-the-rules",
+    /Guest SSH, Old input rule/.test(
+      say(422, { code: "ACCESS_RULES_CHAIN_UNSUPPORTED", rules: ["Guest SSH", "Old input rule"] })
+        .sentence,
+    ),
+  );
+  check(
+    "a-controller-refusal-shows-the-backend-sentence",
+    say(422, undefined, "Firewall Rules isn't available for this venue.").sentence ===
+      "Firewall Rules isn't available for this venue.",
+  );
+  check(
+    "no-sentence-shows-a-bare-code",
+    [
+      "ACCESS_RULES_BAND_MISSING",
+      "FIREWALL_PUSH_IN_PROGRESS",
+      "ACCESS_RULES_PUSH_FAILED",
+      "ACCESS_RULES_WOULD_ORPHAN_MANAGEMENT",
+      "ACCESS_RULES_WOULD_BREAK_GUEST_PATH",
+      "ACCESS_RULES_ORPHAN_MARKER",
+      "ACCESS_RULES_SOMETHING_NEW",
+    ]
+      .map((code) => say(409, { code }).sentence)
+      .every((t) => !/ACCESS_RULES|FIREWALL_PUSH/.test(t)),
+  );
+  check("an-unknown-band-state-says-nothing", fw.bandStateSentence(null) === null);
+  check(
+    "a-missing-band-and-a-refused-push-say-the-same-thing",
+    fw.bandStateSentence("missing") === band.sentence,
+  );
+  const sum = fw.applySummary([
+    { chain: "forward", action: "drop", isEnabled: true },
+    { chain: "forward", action: "accept", isEnabled: true },
+    { chain: "forward", action: "drop", isEnabled: false },
+    { chain: "input", action: "drop", isEnabled: true },
+  ]);
+  check(
+    "the-apply-dialog-counts-what-will-change",
+    sum.on === 2 && sum.off === 1 && sum.blocks === 1 && sum.unpushable === 1,
+    JSON.stringify(sum),
+  );
+}
+
+console.log("\nSecurity -> Firewall: keep guests off private networks, no addresses typed");
+{
+  const fw = m.firewallRules;
+  const w = fw.privateNetworkRules(["192.168.88.0/24"], ["192.168.88.1"]);
+  check(
+    "one-block-per-private-range-from-the-guest-network",
+    w.blocks.length === 3 &&
+      w.blocks.every((b) => b.sourceAddress === "192.168.88.0/24" && b.action === "drop") &&
+      w.blocks.map((b) => b.destinationAddress).join(",") ===
+        "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16",
+  );
+  check(
+    "the-router-as-dns-needs-no-allow",
+    w.allows.length === 0,
+    "a DNS server on the guest network is the router itself, which forward never sees",
+  );
+  const isp = fw.privateNetworkRules(["192.168.88.0/24"], ["192.168.1.1", "8.8.8.8"]);
+  check(
+    "a-private-upstream-dns-gets-udp-and-tcp-53-allowed-first",
+    isp.allows.length === 2 &&
+      isp.allows.every(
+        (a) =>
+          a.action === "accept" &&
+          a.destinationAddress === "192.168.1.1/32" &&
+          a.destinationPort === 53,
+      ),
+    "without it the Blocks take the guests' DNS with them; a public DNS needs nothing",
+  );
+  check(
+    "no-guest-network-reported-means-no-switch",
+    fw.privateNetworkRules([], ["192.168.1.1"]).blocks.length === 0 &&
+      fw.privateNetworkRules(["2001:db8::/64"], []).blocks.length === 0,
+  );
+  const stored = [...isp.allows, ...isp.blocks].map((r, i) => ({
+    ...r,
+    destinationAddress: r.destinationAddress.replace(/\/32$/, ""),
+    sourcePort: null,
+    priority: i,
+  }));
+  check("switch-reads-on-when-every-rule-is-there", fw.privateNetworksOn(stored, isp));
+  check(
+    "switch-reads-off-when-one-is-switched-off-or-missing",
+    !fw.privateNetworksOn(
+      stored.map((r, i) => (i === 3 ? { ...r, isEnabled: false } : r)),
+      isp,
+    ) && !fw.privateNetworksOn(stored.slice(1), isp),
+  );
+  check(
+    "only-rules-stamped-by-the-switch-count-as-its-own",
+    fw.privateNetworkRulesIn([...stored, { ...stored[2], comment: "owner's own" }]).length ===
+      stored.length,
+  );
+  check(
+    "a-rule-aimed-at-the-router-gets-a-sentence",
+    /router's own address/.test(
+      fw.firewallPushErrorSentence({ status: 409, data: { code: "ACCESS_RULES_TARGETS_ROUTER" } })
+        .sentence,
+    ),
+  );
+}
+
+console.log("\nSecurity -> Firewall: a website is blocked by name, not by address");
+{
+  const fw = m.firewallRules;
+  check(
+    "website-pasted-from-the-address-bar-becomes-a-bare-name",
+    fw.websiteToDomain("https://www.YouTube.com/watch?v=1") === "youtube.com" &&
+      fw.websiteToDomain("m.facebook.com/") === "m.facebook.com" &&
+      fw.websiteToDomain("example.org.") === "example.org" &&
+      fw.websiteToDomain("http://site.in:8080/x") === "site.in",
+  );
+  check(
+    "www-is-dropped-so-the-whole-site-is-covered",
+    fw.websiteToDomain("www.instagram.com") === "instagram.com",
+    "the router's DNS block covers subdomains of the name it gets; www.x would leave x open",
+  );
+  check(
+    "not-a-website-name-is-refused-before-the-backend",
+    fw.websiteToDomain("youtube") === null &&
+      fw.websiteToDomain("203.0.113.9") === null &&
+      fw.websiteToDomain("bad_name.com") === null &&
+      fw.websiteToDomain("   ") === null,
+  );
+  const base = {
+    name: "x1",
+    decision: "block",
+    who: "",
+    service: "everything",
+    customProtocol: "tcp",
+    customPort: "",
+    priority: 100,
+    isEnabled: true,
+  };
+  check(
+    "a-website-typed-into-the-address-field-points-at-block-a-website",
+    /Block a website/.test(
+      fw.validateFirewallDraft({ ...base, where: "youtube.com" }).where ?? "",
+    ) &&
+      !/Block a website/.test(
+        fw.validateFirewallDraft({ ...base, where: "999.1.1.1" }).where ?? "",
+      ),
+  );
+  check(
+    "new-allow-goes-above-every-block-and-new-block-below",
+    fw.newRulePriority("allow", [{ priority: 100 }, { priority: 110 }]) === 90 &&
+      fw.newRulePriority("block", [{ priority: 100 }, { priority: 110 }]) === 120 &&
+      fw.newRulePriority("allow", [{ priority: 5 }]) === 0 &&
+      fw.newRulePriority("block", []) === 100,
+    "the router stops at the first match; an Allow below a Block does nothing",
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 6. Security -> Web Filtering: the picker's rules and every refusal's
+//    sentence, executed from `lib/web-filtering.ts`.
+// ---------------------------------------------------------------------------
+
+console.log("\nSecurity -> Web Filtering: selection and plain-language refusals");
+{
+  const wf = m.webFiltering;
+  const cat = (id, name, over = {}) => ({
+    id,
+    name,
+    description: "",
+    categoryClass: "free",
+    beta: false,
+    isSecurity: false,
+    subcategories: [],
+    ...over,
+  });
+  const security = cat(21, "Security threats", {
+    isSecurity: true,
+    subcategories: [
+      cat(117, "Malware"),
+      cat(131, "Phishing"),
+      cat(999, "Gone", { categoryClass: "removalPending" }),
+    ],
+  });
+  const adult = cat(2, "Adult themes", { subcategories: [cat(67, "Nudity")] });
+  const unblockable = cat(5, "Never", { categoryClass: "noBlock" });
+  const items = [adult, security, unblockable];
+
+  check("security-threats-is-listed-first", wf.orderedGroups(items)[0].id === 21);
+  const ticked = wf.toggleCategory(new Set(), security, true);
+  check(
+    "ticking-a-group-sends-the-group-and-every-selectable-subcategory",
+    wf.canonicalIds(ticked).join(",") === "21,117,131",
+    wf.canonicalIds(ticked).join(","),
+  );
+  check("a-ticked-group-reads-all", wf.groupState(ticked, security) === "all");
+  const minusOne = wf.toggleCategory(ticked, security.subcategories[0], false, security);
+  check(
+    "unticking-one-subcategory-drops-the-group-id-too",
+    wf.canonicalIds(minusOne).join(",") === "131" && wf.groupState(minusOne, security) === "some",
+    wf.canonicalIds(minusOne).join(","),
+  );
+  const back = wf.toggleCategory(minusOne, security.subcategories[0], true, security);
+  check(
+    "ticking-the-last-subcategory-restores-the-group",
+    wf.canonicalIds(back).join(",") === "21,117,131",
+  );
+  check(
+    "a-class-cloudflare-refuses-is-never-selectable",
+    !wf.isSelectable(unblockable) &&
+      wf.canonicalIds(wf.toggleCategory(new Set(), unblockable, true)).length === 0,
+  );
+  check("order-does-not-make-a-list-different", wf.sameIds([3, 1, 2], [2, 3, 1, 1]));
+  const described = wf.describeIds([21, 117, 131, 67, 4242], items);
+  check(
+    "a-whole-group-is-named-once-and-unknown-ids-are-counted-not-invented",
+    described.names.join("|") === "Security threats|Nudity" && described.unknown === 1,
+    JSON.stringify(described),
+  );
+
+  const sentence = (err) => wf.webFilterErrorSentence(err);
+  check(
+    "503-is-not-set-up",
+    sentence({ status: 503, message: "x" }).sentence ===
+      "Not set up yet for this account — contact support.",
+  );
+  check(
+    "a-rolled-back-switch-says-guests-are-fine",
+    /switched back to its own settings/.test(
+      sentence({
+        status: 502,
+        message: "probe",
+        data: { code: "DOH_PROBE_FAILED", rolled_back: true },
+      }).sentence,
+    ),
+  );
+  check(
+    "a-switch-that-did-not-roll-back-says-contact-support-now",
+    /contact support now/.test(
+      sentence({ status: 502, message: "probe", data: { rolled_back: false } }).sentence,
+    ),
+  );
+  check(
+    "too-old-routeros-names-the-fix",
+    sentence({ status: 409, message: "x", data: { code: "ROUTEROS_TOO_OLD" } }).key === "tooOld",
+  );
+  check(
+    "the-ceiling-is-support-not-retry",
+    sentence({ status: 409, message: "x", data: { resource: "DNS locations", limit: 250 } }).key ===
+      "ceiling",
+  );
+  check(
+    "an-unknown-refusal-shows-the-backend-message",
+    sentence({ status: 409, message: "Choose at least one category." }).sentence ===
+      "Choose at least one category.",
+  );
+  check(
+    "no-dns-or-doh-vocabulary-in-the-sentences",
+    [
+      "DOH_PROBE_FAILED",
+      "ROUTEROS_TOO_OLD",
+      "DNS_BOOTSTRAP_MISSING",
+      "TRUST_SETTING_UNKNOWN",
+      "DNS_CHANGED_EXTERNALLY",
+      "BYPASS_ANCHOR_MISSING",
+    ]
+      .map((code) => sentence({ status: 409, message: "", data: { code } }).sentence)
+      .every((x) => !/\bDNS\b|DoH|DoT|RouterOS|resolver/i.test(x)),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 7. Web Filtering after cloud-guest#307's shared category sets: the
+//    location-cap 409, the clear-while-live 409, and a router left on its
+//    previous set -- executed from `lib/web-filtering.ts`.
+// ---------------------------------------------------------------------------
+
+console.log("\nSecurity -> Web Filtering: shared category sets");
+{
+  const wf = m.webFiltering;
+  const cat = (id, name, subcategories = []) => ({
+    id,
+    name,
+    description: "",
+    categoryClass: "free",
+    beta: false,
+    isSecurity: false,
+    subcategories,
+  });
+  const items = [
+    cat(21, "Security threats", [cat(117, "Malware"), cat(131, "Phishing")]),
+    cat(2, "Adult themes", [cat(67, "Nudity")]),
+    cat(99, "Gambling"),
+  ];
+  const limitErr = (over = {}) => ({
+    status: 409,
+    message: "Category filtering can run at most 3 different category selections at once",
+    data: {
+      resource: "DNS locations",
+      limit: 3,
+      in_use: 3,
+      requested_category_ids: [2, 21, 67, 99],
+      nearest_category_ids: [21, 117, 2, 67],
+      nearest_adds: [117],
+      nearest_removes: [99],
+      ...over,
+    },
+  });
+
+  const both = wf.webFilterErrorSentence(limitErr(), { items });
+  check(
+    "set-limit-names-the-limit-and-how-the-closest-set-differs-by-name",
+    both.key === "setLimit" &&
+      both.sentence ===
+        "Your account can use up to 3 different filter sets and all are in use. " +
+          "The closest existing set differs by: adding Malware, removing Gambling.",
+    both.sentence,
+  );
+  check(
+    "set-limit-offers-the-closest-set-as-a-suggestion-not-a-save",
+    both.suggestedIds?.join(",") === "21,117,2,67",
+    JSON.stringify(both.suggestedIds),
+  );
+  check("set-limit-is-not-mistaken-for-the-account-ceiling", both.key !== "ceiling");
+  const addsOnly = wf.webFilterErrorSentence(limitErr({ nearest_removes: [] }), { items });
+  check(
+    "set-limit-with-only-additions",
+    addsOnly.sentence.endsWith("The closest existing set differs by: adding Malware."),
+    addsOnly.sentence,
+  );
+  const removesOnly = wf.webFilterErrorSentence(
+    limitErr({ nearest_adds: [], nearest_removes: [99, 4242] }),
+    { items },
+  );
+  check(
+    "set-limit-with-only-removals-and-an-unknown-id-shows-the-id-not-a-made-up-name",
+    removesOnly.sentence.endsWith("The closest existing set differs by: removing Gambling, #4242."),
+    removesOnly.sentence,
+  );
+  const noNearest = wf.webFilterErrorSentence(
+    limitErr({ nearest_category_ids: null, nearest_adds: [], nearest_removes: [] }),
+    { items },
+  );
+  check(
+    "set-limit-with-no-set-in-use-offers-nothing",
+    noNearest.suggestedIds === null &&
+      noNearest.sentence ===
+        "Your account can use up to 3 different filter sets and all are in use.",
+    JSON.stringify(noNearest),
+  );
+
+  const clearCount = wf.webFilterErrorSentence({
+    status: 409,
+    message: "Category filtering is still on for 2 router(s)",
+    data: { routers: 2 },
+  });
+  check(
+    "clearing-under-live-routers-without-names-gives-the-count",
+    clearCount.key === "routersStillOnCount" &&
+      clearCount.sentence ===
+        "Turn off web filtering on 2 router(s) at this venue first, or keep at least one category.",
+    clearCount.sentence,
+  );
+  const clearNamed = wf.webFilterErrorSentence(
+    { status: 409, message: "x", data: { routers: 2 } },
+    { activeRouterNames: ["Lobby", "Pool"] },
+  );
+  check(
+    "clearing-under-live-routers-names-them-when-the-page-knows-them-all",
+    clearNamed.key === "routersStillOn" &&
+      clearNamed.sentence === "Turn off web filtering on these routers first: Lobby, Pool.",
+    clearNamed.sentence,
+  );
+  const clearMismatch = wf.webFilterErrorSentence(
+    { status: 409, message: "x", data: { routers: 3 } },
+    { activeRouterNames: ["Lobby", "Pool"] },
+  );
+  check(
+    "a-partial-name-list-falls-back-to-the-count-rather-than-a-wrong-list",
+    clearMismatch.key === "routersStillOnCount" && /\b3 router/.test(clearMismatch.sentence),
+    clearMismatch.sentence,
+  );
+  const clearList = wf.webFilterErrorSentence({
+    status: 409,
+    message: "x",
+    data: { routers: [{ id: "a", name: "Lobby" }] },
+  });
+  check(
+    "a-backend-router-list-is-named-directly",
+    clearList.sentence === "Turn off web filtering on these routers first: Lobby.",
+    clearList.sentence,
+  );
+
+  check(
+    "active-with-a-failed-push-is-still-on-the-previous-set",
+    wf.stillOnPreviousSet({ state: "active", devicePushStatus: "failed" }) &&
+      !wf.stillOnPreviousSet({ state: "active", devicePushStatus: "active" }) &&
+      !wf.stillOnPreviousSet({ state: "failed", devicePushStatus: "failed" }) &&
+      !wf.stillOnPreviousSet(undefined),
+  );
+
+  // The translator path: templates go through `tr` with their params, and
+  // every key the refusals use has an en string equal to the lib's template
+  // (and an hi string).
+  const seen = [];
+  const rendered = wf.renderWebFilterError(both, (key, template, params) => {
+    seen.push(key);
+    return `[${key}:${Object.values(params ?? {}).join("/")}]`;
+  });
+  check(
+    "rendering-translates-every-sentence-with-its-params",
+    rendered === "[setLimit:3] [closestAddsRemoves:Malware/Gambling]",
+    rendered,
+  );
+  const locale = (l) =>
+    JSON.parse(readFileSync(join(ROOT, `src/lib/i18n/locales/${l}/nav.json`), "utf8"))
+      .webFilteringPage.err;
+  const en = locale("en");
+  const hi = locale("hi");
+  const phrases = [
+    both,
+    ...both.more,
+    ...addsOnly.more,
+    ...removesOnly.more,
+    clearCount,
+    clearNamed,
+    wf.webFilterErrorSentence({
+      status: 409,
+      message: "",
+      data: { resource: "DNS policies", limit: 10 },
+    }),
+  ];
+  const drift = phrases.filter((p) => en[p.key] !== p.template || !hi[p.key]);
+  check(
+    "en-strings-match-the-lib-templates-and-hi-has-each",
+    drift.length === 0,
+    drift.map((p) => p.key).join(","),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 7. Security -> Firewall: "A device on your network". The router matches an
+//    address; the picker remembers which device that address was (a tag line
+//    in the rule's comment), never offers a guest as a destination, and says
+//    plainly when the address may move.
+// ---------------------------------------------------------------------------
+
+console.log("\nSecurity -> Firewall: Who/Where picked by device");
+{
+  const fw = m.firewallRules;
+  const PRINTER = "AA:BB:CC:00:00:20";
+  const dev = (over = {}) => ({
+    macAddress: PRINTER,
+    ipAddress: "192.168.88.20",
+    hostname: "HP-LaserJet",
+    vendor: "HP",
+    comment: null,
+    isActive: true,
+    guestId: null,
+    ...over,
+  });
+  const guestNets = ["10.5.50.0/24"];
+
+  // Labeling
+  check(
+    "a-picked-device-reads-name-then-address",
+    fw.describeWho("192.168.88.20", "Front-desk printer") ===
+      "Front-desk printer (192.168.88.20)" &&
+      fw.describeWhere("192.168.88.30/32", "Billing PC") === "Billing PC (192.168.88.30)",
+  );
+  check(
+    "no-address-still-reads-anyone-anywhere-even-with-a-name",
+    fw.describeWho(null, "Front-desk printer") === "Anyone" &&
+      fw.describeWhere("", "x") === "Anywhere",
+  );
+  check(
+    "a-typed-address-reads-as-before",
+    fw.describeWho("192.168.88.0/24") === "192.168.88.0/24" &&
+      fw.describeWho("192.168.88.0/24", null) === "192.168.88.0/24",
+  );
+  check(
+    "the-owners-name-beats-hostname-beats-maker",
+    fw.deviceDisplayName({ comment: "Front-desk printer", hostname: "HP-LJ", vendor: "HP" }) ===
+      "Front-desk printer" &&
+      fw.deviceDisplayName({ comment: null, hostname: "HP-LJ", vendor: "HP" }) === "HP-LJ" &&
+      fw.deviceDisplayName({ comment: " ", hostname: "", vendor: "HP" }) === "HP device" &&
+      fw.deviceDisplayName({ comment: null, hostname: null, vendor: null }) === "Unnamed device",
+  );
+
+  // Rule <-> device mapping (the comment tag)
+  const tagged = fw.commentWithDeviceTags("Set up by Ravi", {
+    who: { mac: "aa-bb-cc-00-00-20", ip: "192.168.88.20", name: "Front-desk\nprinter" },
+    where: null,
+  });
+  check(
+    "a-tag-keeps-the-owners-note-and-adds-one-line",
+    tagged === "Set up by Ravi\nwyfy-device:who:AA:BB:CC:00:00:20@192.168.88.20:Front-desk printer",
+    JSON.stringify(tagged),
+  );
+  check(
+    "the-list-never-shows-the-tag-as-text",
+    fw.commentForDisplay(tagged) === "Set up by Ravi" &&
+      fw.commentForDisplay(
+        fw.commentWithDeviceTags(null, {
+          where: { mac: PRINTER, ip: "192.168.88.20", name: "P" },
+        }),
+      ) === null,
+  );
+  const ruleWith = (comment, src = "192.168.88.20", dst = null) => ({
+    comment,
+    sourceAddress: src,
+    destinationAddress: dst,
+  });
+  check(
+    "a-tagged-rule-maps-back-to-its-device",
+    (() => {
+      const t = fw.deviceTagOf(ruleWith(tagged), "who");
+      return t && t.mac === PRINTER && t.ip === "192.168.88.20" && t.name === "Front-desk printer";
+    })(),
+  );
+  check(
+    "a-rule-whose-address-was-changed-by-hand-stops-claiming-the-device",
+    fw.deviceTagOf(ruleWith(tagged, "192.168.88.99"), "who") === null &&
+      fw.deviceTagOf(ruleWith(tagged, "192.168.88.20/32"), "who") !== null,
+  );
+  check("a-tag-is-per-end", fw.deviceTagOf(ruleWith(tagged), "where") === null);
+  check(
+    "switching-back-to-a-typed-address-clears-the-tag-and-keeps-the-note",
+    fw.commentWithDeviceTags(tagged, { who: null, where: null }) === "Set up by Ravi" &&
+      fw.commentWithDeviceTags("wyfy-device:who:AA:BB:CC:00:00:20@192.168.88.20:P", {}) === null,
+    "null clears the comment on PUT (cloud-guest#306)",
+  );
+  check(
+    "re-tagging-replaces-not-appends",
+    fw.deviceTagsIn(
+      fw.commentWithDeviceTags(tagged, {
+        who: { mac: PRINTER, ip: "192.168.88.21", name: "Printer" },
+      }),
+    ).tags.length === 1,
+  );
+  check(
+    "a-masked-or-bad-mac-writes-no-tag",
+    fw.commentWithDeviceTags(null, {
+      who: { mac: "AA:BB:**:**:**:20", ip: "192.168.88.20", name: "P" },
+    }) === null && fw.normalizeMac("aabbcc000020") === PRINTER,
+  );
+  check(
+    "the-private-networks-mark-is-untouched-by-the-parser",
+    fw.commentForDisplay(fw.PRIVATE_NETWORKS_MARK) === fw.PRIVATE_NETWORKS_MARK,
+  );
+
+  // The picker's list
+  const devices = [
+    dev(),
+    dev({
+      macAddress: "aa:bb:cc:00:00:30",
+      ipAddress: "192.168.88.30",
+      hostname: "BILLING-PC",
+      vendor: null,
+      comment: "Billing PC",
+    }),
+    dev({
+      macAddress: "AA:BB:CC:00:00:40",
+      ipAddress: "10.5.50.17",
+      hostname: "Pixel-7",
+      vendor: "Google",
+    }),
+    dev({
+      macAddress: "AA:BB:CC:00:00:50",
+      ipAddress: "192.168.88.77",
+      hostname: "iPhone",
+      guestId: "g-1",
+    }),
+    dev({ macAddress: "AA:BB:CC:00:00:60", ipAddress: null, hostname: "no-ip" }),
+    dev({
+      macAddress: "AA:BB:CC:00:00:70",
+      ipAddress: "192.168.88.70",
+      hostname: "old-cam",
+      isActive: false,
+    }),
+  ];
+  const leases = [
+    { macAddress: PRINTER, address: "192.168.88.21", dynamic: true },
+    { macAddress: "AA:BB:CC:00:00:30", address: "192.168.88.30", dynamic: false },
+  ];
+  const where = fw.pickableDevices(devices, leases, guestNets, "where");
+  const who = fw.pickableDevices(devices, leases, guestNets, "who");
+  check(
+    "guests-are-never-offered-as-where",
+    where.every((d) => !d.isGuest) &&
+      !where.some((d) => d.mac === "AA:BB:CC:00:00:40" || d.mac === "AA:BB:CC:00:00:50"),
+    "a guest-network address and a sync-linked guest are both guests",
+  );
+  check(
+    "guests-are-offered-as-who-after-the-venues-own-devices",
+    who.some((d) => d.mac === "AA:BB:CC:00:00:40" && d.isGuest) &&
+      who.findIndex((d) => d.isGuest) > who.findIndex((d) => !d.isGuest) &&
+      who.slice(who.findIndex((d) => d.isGuest)).every((d) => d.isGuest),
+  );
+  check("a-device-with-no-address-is-not-offered", !who.some((d) => d.mac === "AA:BB:CC:00:00:60"));
+  check(
+    "the-live-lease-address-wins-over-the-synced-one",
+    who.find((d) => d.mac === PRINTER)?.ip === "192.168.88.21",
+    "the rule must use the device's current address",
+  );
+  check(
+    "lease-state-is-read-per-device",
+    who.find((d) => d.mac === PRINTER)?.lease === "dynamic" &&
+      who.find((d) => d.mac === "AA:BB:CC:00:00:30")?.lease === "static" &&
+      who.find((d) => d.mac === "AA:BB:CC:00:00:70")?.lease === "none",
+  );
+  check(
+    "unreadable-leases-are-unknown-never-none",
+    fw.pickableDevices(devices, null, guestNets, "who").every((d) => d.lease === "unknown"),
+  );
+  check(
+    "connected-devices-first-then-by-name",
+    (() => {
+      const own = where.map((d) => d.name);
+      return (
+        own[own.length - 1] === "old-cam" && own.indexOf("Billing PC") < own.indexOf("HP-LaserJet")
+      );
+    })(),
+  );
+  check(
+    "search-finds-name-address-and-mac-in-any-shape",
+    (() => {
+      const p = who.find((d) => d.mac === PRINTER);
+      return (
+        fw.deviceMatchesSearch(p, "laserjet") &&
+        fw.deviceMatchesSearch(p, "88.21") &&
+        fw.deviceMatchesSearch(p, "aabbcc000020") &&
+        fw.deviceMatchesSearch(p, "aa-bb-cc-00-00-20") &&
+        !fw.deviceMatchesSearch(p, "billing")
+      );
+    })(),
+  );
+  check(
+    "keep-address-is-offered-only-for-a-dynamic-lease-and-never-for-a-guest",
+    fw.keepAddressOffer({ isGuest: false, lease: "dynamic" }) === "offer" &&
+      fw.keepAddressOffer({ isGuest: false, lease: "static" }) === "kept" &&
+      fw.keepAddressOffer({ isGuest: false, lease: "none" }) === "cannot" &&
+      fw.keepAddressOffer({ isGuest: false, lease: "unknown" }) === "unknown" &&
+      fw.keepAddressOffer({ isGuest: true, lease: "dynamic" }) === "guest",
+  );
+  check(
+    "each-keep-address-refusal-is-a-sentence",
+    /192\.168\.88\.55/.test(
+      fw.keepAddressErrorSentence({
+        code: "DHCP_LEASE_ADDRESS_CHANGED",
+        current_address: "192.168.88.55",
+      }) ?? "",
+    ) &&
+      !!fw.keepAddressErrorSentence({ code: "DHCP_LEASE_NOT_FOUND" }) &&
+      /192\.168\.88\.99/.test(
+        fw.keepAddressErrorSentence({
+          code: "DHCP_LEASE_RESERVED_ELSEWHERE",
+          current_address: "192.168.88.99",
+        }) ?? "",
+      ) &&
+      fw.keepAddressErrorSentence({ code: "SOMETHING_ELSE" }) === null,
+  );
+  check(
+    "a-picked-device-goes-to-the-router-as-its-address",
+    (() => {
+      const p = who.find((d) => d.mac === PRINTER);
+      const f = fw.draftToFields({
+        name: "Printer off-limits",
+        decision: "block",
+        who: "",
+        where: p.ip,
+        service: "everything",
+        customProtocol: "tcp",
+        customPort: "",
+        priority: 100,
+        isEnabled: true,
+      });
+      return f.destinationAddress === "192.168.88.21" && f.chain === "forward";
+    })(),
+  );
+  const enFw = JSON.parse(
+    readFileSync(join(ROOT, "src/lib/i18n/locales/en/nav.json"), "utf8"),
+  ).firewallPage;
+  const hiFw = JSON.parse(
+    readFileSync(join(ROOT, "src/lib/i18n/locales/hi/nav.json"), "utf8"),
+  ).firewallPage;
+  const pickerKeys = [
+    "endDevice",
+    "whoSpecificAddress",
+    "pickDevice",
+    "keepAddress",
+    "keepAddressHint",
+    "keepAlready",
+    "keepCannot",
+    "keepUnknown",
+    "keepStopsMatching",
+    "guestWhoNote",
+    "whereNoGuests",
+    "deviceMoved",
+    "deviceGuest",
+  ];
+  check(
+    "every-picker-string-has-en-and-hi",
+    pickerKeys.every((k) => enFw[k] && hiFw[k]),
+    pickerKeys.filter((k) => !enFw[k] || !hiFw[k]).join(","),
+  );
+  check(
+    "hindi-calls-a-guest-mehmaan",
+    hiFw.deviceGuest === "मेहमान" &&
+      /मेहमान/.test(hiFw.guestWhoNote) &&
+      /मेहमान/.test(hiFw.whereNoGuests),
+  );
+}
 
 console.log(failures === 0 ? "\nall checks passed" : `\n${failures} check(s) failed`);
 process.exit(failures === 0 ? 0 : 1);

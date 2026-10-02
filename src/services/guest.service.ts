@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import { BACKEND_MAX_PAGE_SIZE, getAllItems } from "@/services/list-all-pages";
 import { DENIAL_WINDOW_MS, countRecentDenials } from "@/lib/whitelist-only";
 import type {
   AccessCheckQuery,
@@ -9,6 +10,7 @@ import type {
   CreateAccessRulePayload,
   CreateGuestTeamPayload,
   DeviceAccessRule,
+  RouterBlock,
   Guest,
   GuestAccessRule,
   GuestAnalyticsSummary,
@@ -156,6 +158,19 @@ interface BackendControllerBlock {
   release_error?: string | null;
 }
 
+interface BackendRouterBlock {
+  id: string;
+  router_id: string;
+  location_id?: string | null;
+  mac_address: string;
+  status?: string | null;
+  error_message?: string | null;
+  sessions_ended?: number | null;
+  blocked_at?: string | null;
+  cleared_at?: string | null;
+  release_error?: string | null;
+}
+
 interface BackendDeviceAccessRule {
   id: string;
   organization_id: string;
@@ -166,6 +181,9 @@ interface BackendDeviceAccessRule {
   email: string | null;
   expires_at: string | null;
   is_active: boolean;
+  // One entry per MikroTik router a blocklist device rule was written to.
+  // Optional: an older API omits it, which must read as "nothing written".
+  router_blocks?: BackendRouterBlock[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -328,6 +346,25 @@ function toControllerBlock(b: BackendControllerBlock): ControllerBlock {
   };
 }
 
+const ROUTER_BLOCK_STATUSES = ["not_applicable", "unenforced", "pending", "enforced", "failed"];
+
+function toRouterBlock(b: BackendRouterBlock): RouterBlock {
+  return {
+    id: b.id,
+    routerId: b.router_id,
+    locationId: b.location_id ?? null,
+    macAddress: b.mac_address,
+    status: ROUTER_BLOCK_STATUSES.includes(b.status ?? "")
+      ? (b.status as RouterBlock["status"])
+      : null,
+    errorMessage: b.error_message ?? null,
+    sessionsEnded: b.sessions_ended ?? 0,
+    blockedAt: b.blocked_at ?? null,
+    clearedAt: b.cleared_at ?? null,
+    releaseError: b.release_error ?? null,
+  };
+}
+
 function toDeviceAccessRule(r: BackendDeviceAccessRule): DeviceAccessRule {
   return {
     kind: "device",
@@ -340,6 +377,7 @@ function toDeviceAccessRule(r: BackendDeviceAccessRule): DeviceAccessRule {
     email: r.email,
     expiresAt: r.expires_at,
     isActive: r.is_active,
+    routerBlocks: (r.router_blocks ?? []).map(toRouterBlock),
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -375,10 +413,7 @@ function toGuestTeamSummary(s: BackendGuestTeamSummary): GuestTeamSummary {
 }
 
 async function fetchAllOrganizations(): Promise<BackendOrgListItem[]> {
-  const { data } = await api.get<BackendListResponse<BackendOrgListItem>>("/organizations", {
-    params: { page_size: 100 },
-  });
-  return data.items;
+  return getAllItems<BackendOrgListItem>("/organizations");
 }
 
 async function fetchAllLocations(): Promise<
@@ -387,11 +422,10 @@ async function fetchAllLocations(): Promise<
   const orgs = await fetchAllOrganizations();
   const settled = await Promise.allSettled(
     orgs.map(async (org) => {
-      const { data } = await api.get<BackendListResponse<BackendLocation>>(
-        `/organizations/${org.id}/locations`,
-        { params: { page_size: 100 }, headers: { "X-Organization-Id": org.id } },
-      );
-      return data.items.map((l) => ({
+      const items = await getAllItems<BackendLocation>(`/organizations/${org.id}/locations`, {
+        headers: { "X-Organization-Id": org.id },
+      });
+      return items.map((l) => ({
         id: l.id,
         name: l.name,
         organizationId: org.id,
@@ -460,13 +494,24 @@ async function settledData<T>(requests: Array<Promise<{ data: T }>>): Promise<T[
 async function fanOutPerOrg<T>(
   path: string,
   toRow: (raw: unknown, org: BackendOrgListItem) => T,
+  { allPages = true }: { allPages?: boolean } = {},
 ): Promise<T[]> {
   const orgs = await fetchAllOrganizations();
   const settled = await Promise.allSettled(
     orgs.map(async (org) => {
+      const headers = { "X-Organization-Id": org.id };
+      if (allPages) {
+        const items = await getAllItems<unknown>(path, { headers });
+        return items.map((raw) => toRow(raw, org));
+      }
+      // FIRST PAGE ONLY, on purpose, for the two unbounded histories
+      // (`/guests`, `/guest-sessions`): walking every page of every tenant's
+      // session history on each cross-tenant page load is thousands of
+      // requests. These views need server-side pagination per tenant, not a
+      // bigger client-side read -- tracked as a follow-up, not hidden here.
       const { data } = await api.get<BackendListResponse<unknown>>(path, {
-        params: { page_size: 100 },
-        headers: { "X-Organization-Id": org.id },
+        params: { page_size: BACKEND_MAX_PAGE_SIZE },
+        headers,
       });
       return data.items.map((raw) => toRow(raw, org));
     }),
@@ -506,11 +551,15 @@ export const guestService = {
     }
 
     const locations = await fetchAllLocations();
-    let rows = await fanOutPerOrg<Guest>("/guests", (raw, org) => {
-      const g = raw as BackendGuest;
-      const loc = locations.find((l) => l.id === g.location_id);
-      return toGuest(g, loc?.name ?? null, org.name);
-    });
+    let rows = await fanOutPerOrg<Guest>(
+      "/guests",
+      (raw, org) => {
+        const g = raw as BackendGuest;
+        const loc = locations.find((l) => l.id === g.location_id);
+        return toGuest(g, loc?.name ?? null, org.name);
+      },
+      { allPages: false },
+    );
     if (query.search) {
       const s = query.search.toLowerCase();
       rows = rows.filter(
@@ -590,11 +639,15 @@ export const guestService = {
     }
 
     const locations = await fetchAllLocations();
-    let rows = await fanOutPerOrg<GuestSession>("/guest-sessions", (raw, org) => {
-      const s = raw as BackendGuestSession;
-      const loc = locations.find((l) => l.id === s.location_id);
-      return toGuestSession(s, loc?.name ?? "", org.name, s.router_name ?? s.router_id);
-    });
+    let rows = await fanOutPerOrg<GuestSession>(
+      "/guest-sessions",
+      (raw, org) => {
+        const s = raw as BackendGuestSession;
+        const loc = locations.find((l) => l.id === s.location_id);
+        return toGuestSession(s, loc?.name ?? "", org.name, s.router_name ?? s.router_id);
+      },
+      { allPages: false },
+    );
     if (query.status && query.status !== "all")
       rows = rows.filter((s) => s.status === query.status);
     if (query.locationId && query.locationId !== "all")
@@ -612,10 +665,14 @@ export const guestService = {
   },
 
   async sessionsForGuest(guestId: string): Promise<GuestSession[]> {
-    const rows = await fanOutPerOrg<GuestSession>("/guest-sessions", (raw, org) => {
-      const s = raw as BackendGuestSession;
-      return toGuestSession(s, "", org.name, s.router_name ?? s.router_id);
-    });
+    const rows = await fanOutPerOrg<GuestSession>(
+      "/guest-sessions",
+      (raw, org) => {
+        const s = raw as BackendGuestSession;
+        return toGuestSession(s, "", org.name, s.router_name ?? s.router_id);
+      },
+      { allPages: false },
+    );
     return rows.filter((s) => s.guestId === guestId);
   },
 
@@ -694,21 +751,13 @@ export const guestService = {
     if (organizationId) {
       const headers = { "X-Organization-Id": organizationId };
       const [identifierRes, deviceRes] = await Promise.allSettled([
-        api.get<BackendListResponse<BackendAccessRule>>("/guest-access/rules", {
-          params: { page_size: 100 },
-          headers,
-        }),
-        api.get<BackendListResponse<BackendDeviceAccessRule>>("/guest-access/device-rules", {
-          params: { page_size: 100 },
-          headers,
-        }),
+        getAllItems<BackendAccessRule>("/guest-access/rules", { headers }),
+        getAllItems<BackendDeviceAccessRule>("/guest-access/device-rules", { headers }),
       ]);
       const identifierRules =
-        identifierRes.status === "fulfilled"
-          ? identifierRes.value.data.items.map(toAccessRule)
-          : [];
+        identifierRes.status === "fulfilled" ? identifierRes.value.map(toAccessRule) : [];
       const deviceRules =
-        deviceRes.status === "fulfilled" ? deviceRes.value.data.items.map(toDeviceAccessRule) : [];
+        deviceRes.status === "fulfilled" ? deviceRes.value.map(toDeviceAccessRule) : [];
       return [...identifierRules, ...deviceRules];
     }
     const [identifierRules, deviceRules] = await Promise.all([
@@ -829,6 +878,29 @@ export const guestService = {
     return data ? toAccessRule(data as BackendAccessRule) : null;
   },
 
+  /**
+   * Unblock one device rule and return the updated rule, whose
+   * `routerBlocks` now say whether each router's binding came off
+   * (`clearedAt`) or is still there with a `releaseError` the backend's
+   * sweep retries. `null` when the body could not be read -- "we do not
+   * know", never "released".
+   */
+  async deactivateDeviceRule(
+    ruleId: string,
+    organizationId?: string,
+  ): Promise<DeviceAccessRule | null> {
+    const res = await api.post(`/guest-access/device-rules/${ruleId}/deactivate`, undefined, {
+      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+    });
+    // Tolerant of both shapes, for the reason terminateSession documents:
+    // the interceptor may or may not have stripped the envelope already.
+    const body = res.data as { data?: unknown; mac_address?: unknown } | undefined;
+    const raw = (body && typeof body.mac_address === "string" ? body : body?.data) as
+      | BackendDeviceAccessRule
+      | undefined;
+    return raw && typeof raw.mac_address === "string" ? toDeviceAccessRule(raw) : null;
+  },
+
   async deleteAccessRule(
     kind: "identifier" | "device",
     ruleId: string,
@@ -866,11 +938,10 @@ export const guestService = {
   // views) keep the original fan-out.
   async listTeams(organizationId?: string): Promise<GuestTeam[]> {
     if (organizationId) {
-      const { data } = await api.get<BackendListResponse<BackendGuestTeam>>("/guest-teams", {
-        params: { page_size: 100 },
+      const items = await getAllItems<BackendGuestTeam>("/guest-teams", {
         headers: { "X-Organization-Id": organizationId },
       });
-      return data.items.map((raw) => toGuestTeam(raw));
+      return items.map((raw) => toGuestTeam(raw));
     }
     return fanOutPerOrg<GuestTeam>("/guest-teams", (raw) => toGuestTeam(raw as BackendGuestTeam));
   },

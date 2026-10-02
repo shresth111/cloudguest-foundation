@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WhitelistRouteImport } from './routes/whitelist'
 import { Route as WebsiteBlockingRouteImport } from './routes/website-blocking'
+import { Route as WebFilteringRouteImport } from './routes/web-filtering'
 import { Route as VoipRouteImport } from './routes/voip'
 import { Route as VlansRouteImport } from './routes/vlans'
 import { Route as VerifyOtpRouteImport } from './routes/verify-otp'
@@ -28,6 +29,7 @@ import { Route as PoliciesRouteImport } from './routes/policies'
 import { Route as NetworkActivityRouteImport } from './routes/network-activity'
 import { Route as MasterLoginRouteImport } from './routes/master-login'
 import { Route as MasterRouteImport } from './routes/master'
+import { Route as MarketingRouteImport } from './routes/marketing'
 import { Route as MacAuthRouteImport } from './routes/mac-auth'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IspDetailsRouteImport } from './routes/isp-details'
@@ -36,6 +38,7 @@ import { Route as GuestVouchersRouteImport } from './routes/guest-vouchers'
 import { Route as GuestPortalRouteImport } from './routes/guest-portal'
 import { Route as GuestCampaignsRouteImport } from './routes/guest-campaigns'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as FirewallRouteImport } from './routes/firewall'
 import { Route as DhcpRouteImport } from './routes/dhcp'
 import { Route as DevicesRouteImport } from './routes/devices'
 import { Route as DebuggingRouteImport } from './routes/debugging'
@@ -53,6 +56,7 @@ import { Route as MasterIndexRouteImport } from './routes/master.index'
 import { Route as CustomerIndexRouteImport } from './routes/customer.index'
 import { Route as CIndexRouteImport } from './routes/c.index'
 import { Route as AgentIndexRouteImport } from './routes/agent.index'
+import { Route as UTokenRouteImport } from './routes/u.$token'
 import { Route as PortalWelcomeRouteImport } from './routes/portal.welcome'
 import { Route as PortalVerifyRouteImport } from './routes/portal.verify'
 import { Route as PortalTermsRouteImport } from './routes/portal.terms'
@@ -73,6 +77,7 @@ import { Route as MasterQuotationsRouteImport } from './routes/master.quotations
 import { Route as MasterOperatorsRouteImport } from './routes/master.operators'
 import { Route as MasterNotificationChannelsRouteImport } from './routes/master.notification-channels'
 import { Route as MasterNasRouteImport } from './routes/master.nas'
+import { Route as MasterMarketingPricingRouteImport } from './routes/master.marketing-pricing'
 import { Route as MasterLocationsRouteImport } from './routes/master.locations'
 import { Route as MasterIntegrationsRouteImport } from './routes/master.integrations'
 import { Route as MasterHealthRouteImport } from './routes/master.health'
@@ -204,6 +209,11 @@ const WebsiteBlockingRoute = WebsiteBlockingRouteImport.update({
   path: '/website-blocking',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WebFilteringRoute = WebFilteringRouteImport.update({
+  id: '/web-filtering',
+  path: '/web-filtering',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const VoipRoute = VoipRouteImport.update({
   id: '/voip',
   path: '/voip',
@@ -289,6 +299,11 @@ const MasterRoute = MasterRouteImport.update({
   path: '/master',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MarketingRoute = MarketingRouteImport.update({
+  id: '/marketing',
+  path: '/marketing',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MacAuthRoute = MacAuthRouteImport.update({
   id: '/mac-auth',
   path: '/mac-auth',
@@ -327,6 +342,11 @@ const GuestCampaignsRoute = GuestCampaignsRouteImport.update({
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
   id: '/forgot-password',
   path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FirewallRoute = FirewallRouteImport.update({
+  id: '/firewall',
+  path: '/firewall',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DhcpRoute = DhcpRouteImport.update({
@@ -412,6 +432,11 @@ const AgentIndexRoute = AgentIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AgentRoute,
+} as any)
+const UTokenRoute = UTokenRouteImport.update({
+  id: '/u/$token',
+  path: '/u/$token',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const PortalWelcomeRoute = PortalWelcomeRouteImport.update({
   id: '/welcome',
@@ -512,6 +537,11 @@ const MasterNotificationChannelsRoute =
 const MasterNasRoute = MasterNasRouteImport.update({
   id: '/nas',
   path: '/nas',
+  getParentRoute: () => MasterRoute,
+} as any)
+const MasterMarketingPricingRoute = MasterMarketingPricingRouteImport.update({
+  id: '/marketing-pricing',
+  path: '/marketing-pricing',
   getParentRoute: () => MasterRoute,
 } as any)
 const MasterLocationsRoute = MasterLocationsRouteImport.update({
@@ -1210,6 +1240,7 @@ export interface FileRoutesByFullPath {
   '/debugging': typeof DebuggingRoute
   '/devices': typeof DevicesRoute
   '/dhcp': typeof DhcpRoute
+  '/firewall': typeof FirewallRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/guest-campaigns': typeof GuestCampaignsRoute
   '/guest-portal': typeof GuestPortalRoute
@@ -1218,6 +1249,7 @@ export interface FileRoutesByFullPath {
   '/isp-details': typeof IspDetailsRoute
   '/login': typeof LoginRoute
   '/mac-auth': typeof MacAuthRoute
+  '/marketing': typeof MarketingRoute
   '/master': typeof MasterRouteWithChildren
   '/master-login': typeof MasterLoginRoute
   '/network-activity': typeof NetworkActivityRoute
@@ -1235,6 +1267,7 @@ export interface FileRoutesByFullPath {
   '/verify-otp': typeof VerifyOtpRoute
   '/vlans': typeof VlansRoute
   '/voip': typeof VoipRoute
+  '/web-filtering': typeof WebFilteringRoute
   '/website-blocking': typeof WebsiteBlockingRoute
   '/whitelist': typeof WhitelistRoute
   '/account': typeof AuthenticatedAccountRoute
@@ -1261,6 +1294,7 @@ export interface FileRoutesByFullPath {
   '/master/health': typeof MasterHealthRoute
   '/master/integrations': typeof MasterIntegrationsRoute
   '/master/locations': typeof MasterLocationsRoute
+  '/master/marketing-pricing': typeof MasterMarketingPricingRoute
   '/master/nas': typeof MasterNasRoute
   '/master/notification-channels': typeof MasterNotificationChannelsRoute
   '/master/operators': typeof MasterOperatorsRoute
@@ -1281,6 +1315,7 @@ export interface FileRoutesByFullPath {
   '/portal/terms': typeof PortalTermsRoute
   '/portal/verify': typeof PortalVerifyRoute
   '/portal/welcome': typeof PortalWelcomeRoute
+  '/u/$token': typeof UTokenRoute
   '/agent/': typeof AgentIndexRoute
   '/c/': typeof CIndexRoute
   '/customer/': typeof CustomerIndexRoute
@@ -1394,6 +1429,7 @@ export interface FileRoutesByTo {
   '/debugging': typeof DebuggingRoute
   '/devices': typeof DevicesRoute
   '/dhcp': typeof DhcpRoute
+  '/firewall': typeof FirewallRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/guest-campaigns': typeof GuestCampaignsRoute
   '/guest-portal': typeof GuestPortalRoute
@@ -1402,6 +1438,7 @@ export interface FileRoutesByTo {
   '/isp-details': typeof IspDetailsRoute
   '/login': typeof LoginRoute
   '/mac-auth': typeof MacAuthRoute
+  '/marketing': typeof MarketingRoute
   '/master-login': typeof MasterLoginRoute
   '/network-activity': typeof NetworkActivityRoute
   '/policies': typeof PoliciesRoute
@@ -1417,6 +1454,7 @@ export interface FileRoutesByTo {
   '/verify-otp': typeof VerifyOtpRoute
   '/vlans': typeof VlansRoute
   '/voip': typeof VoipRoute
+  '/web-filtering': typeof WebFilteringRoute
   '/website-blocking': typeof WebsiteBlockingRoute
   '/whitelist': typeof WhitelistRoute
   '/account': typeof AuthenticatedAccountRoute
@@ -1442,6 +1480,7 @@ export interface FileRoutesByTo {
   '/master/health': typeof MasterHealthRoute
   '/master/integrations': typeof MasterIntegrationsRoute
   '/master/locations': typeof MasterLocationsRoute
+  '/master/marketing-pricing': typeof MasterMarketingPricingRoute
   '/master/nas': typeof MasterNasRoute
   '/master/notification-channels': typeof MasterNotificationChannelsRoute
   '/master/operators': typeof MasterOperatorsRoute
@@ -1461,6 +1500,7 @@ export interface FileRoutesByTo {
   '/portal/terms': typeof PortalTermsRoute
   '/portal/verify': typeof PortalVerifyRoute
   '/portal/welcome': typeof PortalWelcomeRoute
+  '/u/$token': typeof UTokenRoute
   '/agent': typeof AgentIndexRoute
   '/c': typeof CIndexRoute
   '/customer': typeof CustomerIndexRoute
@@ -1576,6 +1616,7 @@ export interface FileRoutesById {
   '/debugging': typeof DebuggingRoute
   '/devices': typeof DevicesRoute
   '/dhcp': typeof DhcpRoute
+  '/firewall': typeof FirewallRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/guest-campaigns': typeof GuestCampaignsRoute
   '/guest-portal': typeof GuestPortalRoute
@@ -1584,6 +1625,7 @@ export interface FileRoutesById {
   '/isp-details': typeof IspDetailsRoute
   '/login': typeof LoginRoute
   '/mac-auth': typeof MacAuthRoute
+  '/marketing': typeof MarketingRoute
   '/master': typeof MasterRouteWithChildren
   '/master-login': typeof MasterLoginRoute
   '/network-activity': typeof NetworkActivityRoute
@@ -1601,6 +1643,7 @@ export interface FileRoutesById {
   '/verify-otp': typeof VerifyOtpRoute
   '/vlans': typeof VlansRoute
   '/voip': typeof VoipRoute
+  '/web-filtering': typeof WebFilteringRoute
   '/website-blocking': typeof WebsiteBlockingRoute
   '/whitelist': typeof WhitelistRoute
   '/_authenticated/account': typeof AuthenticatedAccountRoute
@@ -1627,6 +1670,7 @@ export interface FileRoutesById {
   '/master/health': typeof MasterHealthRoute
   '/master/integrations': typeof MasterIntegrationsRoute
   '/master/locations': typeof MasterLocationsRoute
+  '/master/marketing-pricing': typeof MasterMarketingPricingRoute
   '/master/nas': typeof MasterNasRoute
   '/master/notification-channels': typeof MasterNotificationChannelsRoute
   '/master/operators': typeof MasterOperatorsRoute
@@ -1647,6 +1691,7 @@ export interface FileRoutesById {
   '/portal/terms': typeof PortalTermsRoute
   '/portal/verify': typeof PortalVerifyRoute
   '/portal/welcome': typeof PortalWelcomeRoute
+  '/u/$token': typeof UTokenRoute
   '/agent/': typeof AgentIndexRoute
   '/c/': typeof CIndexRoute
   '/customer/': typeof CustomerIndexRoute
@@ -1763,6 +1808,7 @@ export interface FileRouteTypes {
     | '/debugging'
     | '/devices'
     | '/dhcp'
+    | '/firewall'
     | '/forgot-password'
     | '/guest-campaigns'
     | '/guest-portal'
@@ -1771,6 +1817,7 @@ export interface FileRouteTypes {
     | '/isp-details'
     | '/login'
     | '/mac-auth'
+    | '/marketing'
     | '/master'
     | '/master-login'
     | '/network-activity'
@@ -1788,6 +1835,7 @@ export interface FileRouteTypes {
     | '/verify-otp'
     | '/vlans'
     | '/voip'
+    | '/web-filtering'
     | '/website-blocking'
     | '/whitelist'
     | '/account'
@@ -1814,6 +1862,7 @@ export interface FileRouteTypes {
     | '/master/health'
     | '/master/integrations'
     | '/master/locations'
+    | '/master/marketing-pricing'
     | '/master/nas'
     | '/master/notification-channels'
     | '/master/operators'
@@ -1834,6 +1883,7 @@ export interface FileRouteTypes {
     | '/portal/terms'
     | '/portal/verify'
     | '/portal/welcome'
+    | '/u/$token'
     | '/agent/'
     | '/c/'
     | '/customer/'
@@ -1947,6 +1997,7 @@ export interface FileRouteTypes {
     | '/debugging'
     | '/devices'
     | '/dhcp'
+    | '/firewall'
     | '/forgot-password'
     | '/guest-campaigns'
     | '/guest-portal'
@@ -1955,6 +2006,7 @@ export interface FileRouteTypes {
     | '/isp-details'
     | '/login'
     | '/mac-auth'
+    | '/marketing'
     | '/master-login'
     | '/network-activity'
     | '/policies'
@@ -1970,6 +2022,7 @@ export interface FileRouteTypes {
     | '/verify-otp'
     | '/vlans'
     | '/voip'
+    | '/web-filtering'
     | '/website-blocking'
     | '/whitelist'
     | '/account'
@@ -1995,6 +2048,7 @@ export interface FileRouteTypes {
     | '/master/health'
     | '/master/integrations'
     | '/master/locations'
+    | '/master/marketing-pricing'
     | '/master/nas'
     | '/master/notification-channels'
     | '/master/operators'
@@ -2014,6 +2068,7 @@ export interface FileRouteTypes {
     | '/portal/terms'
     | '/portal/verify'
     | '/portal/welcome'
+    | '/u/$token'
     | '/agent'
     | '/c'
     | '/customer'
@@ -2128,6 +2183,7 @@ export interface FileRouteTypes {
     | '/debugging'
     | '/devices'
     | '/dhcp'
+    | '/firewall'
     | '/forgot-password'
     | '/guest-campaigns'
     | '/guest-portal'
@@ -2136,6 +2192,7 @@ export interface FileRouteTypes {
     | '/isp-details'
     | '/login'
     | '/mac-auth'
+    | '/marketing'
     | '/master'
     | '/master-login'
     | '/network-activity'
@@ -2153,6 +2210,7 @@ export interface FileRouteTypes {
     | '/verify-otp'
     | '/vlans'
     | '/voip'
+    | '/web-filtering'
     | '/website-blocking'
     | '/whitelist'
     | '/_authenticated/account'
@@ -2179,6 +2237,7 @@ export interface FileRouteTypes {
     | '/master/health'
     | '/master/integrations'
     | '/master/locations'
+    | '/master/marketing-pricing'
     | '/master/nas'
     | '/master/notification-channels'
     | '/master/operators'
@@ -2199,6 +2258,7 @@ export interface FileRouteTypes {
     | '/portal/terms'
     | '/portal/verify'
     | '/portal/welcome'
+    | '/u/$token'
     | '/agent/'
     | '/c/'
     | '/customer/'
@@ -2315,6 +2375,7 @@ export interface RootRouteChildren {
   DebuggingRoute: typeof DebuggingRoute
   DevicesRoute: typeof DevicesRoute
   DhcpRoute: typeof DhcpRoute
+  FirewallRoute: typeof FirewallRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   GuestCampaignsRoute: typeof GuestCampaignsRoute
   GuestPortalRoute: typeof GuestPortalRoute
@@ -2323,6 +2384,7 @@ export interface RootRouteChildren {
   IspDetailsRoute: typeof IspDetailsRoute
   LoginRoute: typeof LoginRoute
   MacAuthRoute: typeof MacAuthRoute
+  MarketingRoute: typeof MarketingRoute
   MasterRoute: typeof MasterRouteWithChildren
   MasterLoginRoute: typeof MasterLoginRoute
   NetworkActivityRoute: typeof NetworkActivityRoute
@@ -2340,6 +2402,7 @@ export interface RootRouteChildren {
   VerifyOtpRoute: typeof VerifyOtpRoute
   VlansRoute: typeof VlansRoute
   VoipRoute: typeof VoipRoute
+  WebFilteringRoute: typeof WebFilteringRoute
   WebsiteBlockingRoute: typeof WebsiteBlockingRoute
   WhitelistRoute: typeof WhitelistRoute
   CFeatureRoute: typeof CFeatureRoute
@@ -2348,6 +2411,7 @@ export interface RootRouteChildren {
   CustomerFeatureRoute: typeof CustomerFeatureRoute
   CustomerLocationsRoute: typeof CustomerLocationsRoute
   CustomerUsersRoute: typeof CustomerUsersRoute
+  UTokenRoute: typeof UTokenRoute
   CIndexRoute: typeof CIndexRoute
   CustomerIndexRoute: typeof CustomerIndexRoute
   CustomerLocationIdFeatureRoute: typeof CustomerLocationIdFeatureRoute
@@ -2371,6 +2435,13 @@ declare module '@tanstack/react-router' {
       path: '/website-blocking'
       fullPath: '/website-blocking'
       preLoaderRoute: typeof WebsiteBlockingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/web-filtering': {
+      id: '/web-filtering'
+      path: '/web-filtering'
+      fullPath: '/web-filtering'
+      preLoaderRoute: typeof WebFilteringRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/voip': {
@@ -2492,6 +2563,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MasterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/marketing': {
+      id: '/marketing'
+      path: '/marketing'
+      fullPath: '/marketing'
+      preLoaderRoute: typeof MarketingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/mac-auth': {
       id: '/mac-auth'
       path: '/mac-auth'
@@ -2546,6 +2624,13 @@ declare module '@tanstack/react-router' {
       path: '/forgot-password'
       fullPath: '/forgot-password'
       preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/firewall': {
+      id: '/firewall'
+      path: '/firewall'
+      fullPath: '/firewall'
+      preLoaderRoute: typeof FirewallRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dhcp': {
@@ -2666,6 +2751,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/agent/'
       preLoaderRoute: typeof AgentIndexRouteImport
       parentRoute: typeof AgentRoute
+    }
+    '/u/$token': {
+      id: '/u/$token'
+      path: '/u/$token'
+      fullPath: '/u/$token'
+      preLoaderRoute: typeof UTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/portal/welcome': {
       id: '/portal/welcome'
@@ -2805,6 +2897,13 @@ declare module '@tanstack/react-router' {
       path: '/nas'
       fullPath: '/master/nas'
       preLoaderRoute: typeof MasterNasRouteImport
+      parentRoute: typeof MasterRoute
+    }
+    '/master/marketing-pricing': {
+      id: '/master/marketing-pricing'
+      path: '/marketing-pricing'
+      fullPath: '/master/marketing-pricing'
+      preLoaderRoute: typeof MasterMarketingPricingRouteImport
       parentRoute: typeof MasterRoute
     }
     '/master/locations': {
@@ -3935,6 +4034,7 @@ interface MasterRouteChildren {
   MasterHealthRoute: typeof MasterHealthRoute
   MasterIntegrationsRoute: typeof MasterIntegrationsRoute
   MasterLocationsRoute: typeof MasterLocationsRoute
+  MasterMarketingPricingRoute: typeof MasterMarketingPricingRoute
   MasterNasRoute: typeof MasterNasRoute
   MasterNotificationChannelsRoute: typeof MasterNotificationChannelsRoute
   MasterOperatorsRoute: typeof MasterOperatorsRoute
@@ -3955,6 +4055,7 @@ const MasterRouteChildren: MasterRouteChildren = {
   MasterHealthRoute: MasterHealthRoute,
   MasterIntegrationsRoute: MasterIntegrationsRoute,
   MasterLocationsRoute: MasterLocationsRoute,
+  MasterMarketingPricingRoute: MasterMarketingPricingRoute,
   MasterNasRoute: MasterNasRoute,
   MasterNotificationChannelsRoute: MasterNotificationChannelsRoute,
   MasterOperatorsRoute: MasterOperatorsRoute,
@@ -4033,6 +4134,7 @@ const rootRouteChildren: RootRouteChildren = {
   DebuggingRoute: DebuggingRoute,
   DevicesRoute: DevicesRoute,
   DhcpRoute: DhcpRoute,
+  FirewallRoute: FirewallRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   GuestCampaignsRoute: GuestCampaignsRoute,
   GuestPortalRoute: GuestPortalRoute,
@@ -4041,6 +4143,7 @@ const rootRouteChildren: RootRouteChildren = {
   IspDetailsRoute: IspDetailsRoute,
   LoginRoute: LoginRoute,
   MacAuthRoute: MacAuthRoute,
+  MarketingRoute: MarketingRoute,
   MasterRoute: MasterRouteWithChildren,
   MasterLoginRoute: MasterLoginRoute,
   NetworkActivityRoute: NetworkActivityRoute,
@@ -4058,6 +4161,7 @@ const rootRouteChildren: RootRouteChildren = {
   VerifyOtpRoute: VerifyOtpRoute,
   VlansRoute: VlansRoute,
   VoipRoute: VoipRoute,
+  WebFilteringRoute: WebFilteringRoute,
   WebsiteBlockingRoute: WebsiteBlockingRoute,
   WhitelistRoute: WhitelistRoute,
   CFeatureRoute: CFeatureRoute,
@@ -4066,6 +4170,7 @@ const rootRouteChildren: RootRouteChildren = {
   CustomerFeatureRoute: CustomerFeatureRoute,
   CustomerLocationsRoute: CustomerLocationsRoute,
   CustomerUsersRoute: CustomerUsersRoute,
+  UTokenRoute: UTokenRoute,
   CIndexRoute: CIndexRoute,
   CustomerIndexRoute: CustomerIndexRoute,
   CustomerLocationIdFeatureRoute: CustomerLocationIdFeatureRoute,

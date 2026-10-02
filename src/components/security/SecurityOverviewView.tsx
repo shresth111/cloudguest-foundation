@@ -1,4 +1,6 @@
 import { Link } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 import { ShieldAlert, ShieldCheck, Wifi, WifiOff, AlertTriangle, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard, type StatTone } from "@/components/ui-ext";
@@ -54,25 +56,31 @@ import type {
  * panel. */
 const PLAIN_COPY: Record<string, string> = {
   zone_to_zone_firewall:
-    "Stop one group of networks from reaching another -- guests to your office machines, for example -- while both still reach the internet. Only traffic the gateway routes between them can be controlled this way.",
+    "Stop one of your networks reaching another -- guests reaching your office computers, for example -- while both still reach the internet. It works between networks that are kept separate; devices on the same network are not covered.",
   domain_blocking_dns:
     "Block a website by name for anyone using this gateway as their DNS server. A device with its own DNS settings, or private DNS switched on after sign-in, is not covered.",
   domain_blocking_sni:
-    "Block a website by name over HTTPS, without opening or inspecting anyone's traffic. Coverage drops where newer browsers hide the site name, and it sees nothing over some newer protocols or a VPN.",
+    "Block a website by name on secure (https) connections too, without opening or reading anyone's traffic. It is switched on with every website you block, but we have not yet proven it on a real router, so it is listed here until we have. It cannot see a site whose browser hides the name, or newer kinds of connection (QUIC), or a VPN.",
   ip_and_cidr_blocking:
     "Block specific addresses or ranges, in both directions. Do not use this to block a website: popular services sit behind addresses that rotate constantly.",
   device_isolation:
-    "Cut a single device off, or confine it to everything except what you allow. Works reliably for hardware you have enrolled; anonymous guests can change their hardware identity and reappear as someone new.",
+    "Cut a single device off your router by its hardware address, now and every time it reconnects. Works reliably for devices you know; anonymous guests can switch on a private Wi-Fi address and come back as a new device. Keeping guests apart from each other is a separate switch.",
+  guest_client_isolation:
+    "Stop guests reaching each other's phones and laptops. Your router keeps apart guests on different access points; guests on the same access point are only kept apart if you also turn on “AP isolation” in that access point's settings.",
   rogue_dhcp_detection:
     "Tells you when a second device on the network starts handing out addresses, which is usually how an unauthorised access point gets introduced.",
   connection_flood_protection:
-    "Limits how many connections one source can open, which reduces floods and password-guessing. It reduces the exposure rather than removing it, and a strict limit can drop legitimate bursts.",
+    "Limits how many connections one guest device can hold, which slows floods and password-guessing tools. It reduces the exposure rather than removing it, and a strict limit can break busy apps such as cloud backup or video calls.",
+  // Written to be true whichever group the backend puts it in: the group
+  // heading says whether it works today.
   web_category_filtering:
-    "Needs a maintained list of which sites belong to which category, and something to apply it. This platform has neither yet -- a DNS filtering provider supplies both.",
+    "Block whole kinds of website, such as adult or gambling sites. Cloudflare keeps the list of which site belongs to which kind, and a site can be put in the wrong one. A phone set to use its own private DNS, or a VPN, can get round it unless you turn on the protection against that.",
+  dns_bypass_protection:
+    "Stops guests getting round your website blocks by changing their phone's DNS settings. It stops the easy ways round, not a determined user with a hidden VPN or a phone on mobile data.",
   application_control:
-    "Only partly achievable today, by matching an app's known website names. Telling one app from another reliably needs deep packet inspection, which this platform does not have.",
+    "Switch off apps such as YouTube, Instagram or BGMI on your guest WiFi. It blocks the website names each app uses, not the app itself, so some apps may still get through -- one that is already open, one with a built-in address, or a phone with its own DNS or a VPN.",
   threat_intelligence:
-    "Needs a maintained list of known-bad sites and addresses. The way to block them already works; the intelligence behind it is what is missing.",
+    "Stop guests opening websites known to spread viruses or steal passwords. Cloudflare keeps the list up to date. It works on routers where web filtering is on, and a phone with its own DNS or a VPN is not covered.",
   geo_blocking:
     "Needs a country-to-address database plus regular updates. Blocking traffic coming in from a country would be reliable; blocking traffic going out would not, because popular sites are served from many countries at once.",
   per_application_traffic:
@@ -85,28 +93,175 @@ const PLAIN_COPY: Record<string, string> = {
 
 /** Where a capability is managed, for the ones that have a screen.
  *
- * Only these three, and each is checked against what the screen actually
- * writes rather than against the capability's name:
+ * Each is checked against what the screen actually writes rather than
+ * against the capability's name:
  *
- *  - `domain_blocking_dns`: a website rule on the Websites tab is a DNS
- *    block -- that is the whole of what `content_filtering` pushes for a
- *    domain.
- *  - `ip_and_cidr_blocking`: an address rule on the same tab.
- *  - `device_isolation`: blocking a guest on the Guests tab refuses their
- *    next sign-in and ends the session they are in.
+ *  - `domain_blocking_dns`: Block Websites -> "Specific websites", which
+ *    pushes a DNS block -- the whole of what `content_filtering` does for a
+ *    website name.
+ *  - `web_category_filtering`: Block Websites -> "Categories", which sets
+ *    the venue's Cloudflare categories and switches its routers onto them
+ *    (cloud-guest#307/#308).
+ *  - `ip_and_cidr_blocking`: Block Websites -> "Advanced", the only place an
+ *    internet address is blocked; `#advanced` unfolds it.
+ *  - `device_isolation`: the Guests & devices tab, whose Device mode writes a
+ *    blocked binding to the router (and whose number/email modes refuse the
+ *    next sign-in and end the session they are in);
+ *  - `connection_flood_protection`: Security -> Firewall's "Limit connection
+ *    floods" switch, per router;
+ *  - `guest_client_isolation`: Security -> Firewall's "Guests can't see each
+ *    other" switch, per router;
+ *  - `zone_to_zone_firewall`: Security -> Firewall, whose rules are
+ *    between-network (`forward`) rules applied by cloud-guest#304's push.
  *
- * Deliberately absent: `domain_blocking_sni` (nothing in the product writes
- * an HTTPS-hostname rule yet, so a link would lead to a screen that does
- * something else), `zone_to_zone_firewall`, `connection_flood_protection`
- * and `rogue_dhcp_detection` (no customer screen manages them). A capability
- * with no entry here simply has no link -- and one the backend stops sending
- * is simply not rendered, since this list is only ever read through the
- * capabilities the backend returned. */
-const MANAGED_AT: Record<string, { tab: "websites" | "guests"; label: string }> = {
-  domain_blocking_dns: { tab: "websites", label: "Block a website" },
-  ip_and_cidr_blocking: { tab: "websites", label: "Block an address" },
-  device_isolation: { tab: "guests", label: "Block a guest" },
+ * Every link is data-driven: a row is only rendered for a capability the
+ * backend returned, and only linked from the "available" group. A backend
+ * that still lists the firewall or categories as needing more technology
+ * (before cloud-guest's capability update) shows them unlinked under
+ * "Coming later", so this page works against the old backend and the new.
+ *
+ *  - `application_control`: Block Websites -> "Apps" (`#apps`), the
+ *    per-app switches (cloud-guest content_filtering app catalogue).
+ *  - `threat_intelligence`: the "Block known harmful websites" switch at the
+ *    top of "Categories" -- Cloudflare's Security threats category.
+ *
+ * Deliberately absent: `domain_blocking_sni` (written with every website
+ * block but not yet proven against a real browser, so the backend keeps it
+ * under "Coming later") and `rogue_dhcp_detection` (no customer screen
+ * manages it). */
+type ManagedAt =
+  | {
+      to: "/blocking";
+      tab: "websites" | "guests";
+      hash?: string;
+      labelKey: string;
+      label: string;
+    }
+  | { to: "/firewall"; labelKey: string; label: string };
+
+const MANAGED_AT: Record<string, ManagedAt> = {
+  domain_blocking_dns: {
+    to: "/blocking",
+    tab: "websites",
+    labelKey: "securityScore.link.website",
+    label: "Block a website",
+  },
+  web_category_filtering: {
+    to: "/blocking",
+    tab: "websites",
+    hash: "categories",
+    labelKey: "securityScore.link.categories",
+    label: "Choose kinds of website to block",
+  },
+  application_control: {
+    to: "/blocking",
+    tab: "websites",
+    hash: "apps",
+    labelKey: "securityScore.link.apps",
+    label: "Choose apps to block",
+  },
+  threat_intelligence: {
+    to: "/blocking",
+    tab: "websites",
+    hash: "categories",
+    labelKey: "securityScore.link.harmful",
+    label: "Block known harmful websites",
+  },
+  ip_and_cidr_blocking: {
+    to: "/blocking",
+    tab: "websites",
+    hash: "advanced",
+    labelKey: "securityScore.link.address",
+    label: "Block an internet address",
+  },
+  device_isolation: {
+    to: "/blocking",
+    tab: "guests",
+    labelKey: "securityScore.link.guest",
+    label: "Block a guest",
+  },
+  zone_to_zone_firewall: {
+    to: "/firewall",
+    labelKey: "securityScore.link.firewall",
+    label: "Set firewall rules",
+  },
+  connection_flood_protection: {
+    to: "/firewall",
+    labelKey: "securityScore.link.floodLimit",
+    label: "Limit connection floods",
+  },
+  guest_client_isolation: {
+    to: "/firewall",
+    labelKey: "securityScore.link.guestIsolation",
+    label: "Keep guests apart",
+  },
 };
+
+/** The customer's name for each capability. The backend's `label` is the
+ * engineering name ("IP and CIDR blocking", "Zone-to-zone firewall") and is
+ * only the fallback, for a capability added after this list. */
+const PLAIN_LABEL: Record<string, [key: string, fallback: string]> = {
+  zone_to_zone_firewall: [
+    "securityScore.label.zone_to_zone_firewall",
+    "Keep your networks apart (Firewall)",
+  ],
+  domain_blocking_dns: ["securityScore.label.domain_blocking_dns", "Block a website by name"],
+  domain_blocking_sni: [
+    "securityScore.label.domain_blocking_sni",
+    "Block a website on secure (HTTPS) connections",
+  ],
+  ip_and_cidr_blocking: ["securityScore.label.ip_and_cidr_blocking", "Block an internet address"],
+  device_isolation: ["securityScore.label.device_isolation", "Block a guest or device"],
+  rogue_dhcp_detection: [
+    "securityScore.label.rogue_dhcp_detection",
+    "Warn me about an unknown router on my network",
+  ],
+  connection_flood_protection: [
+    "securityScore.label.connection_flood_protection",
+    "Limit connection floods and password guessing",
+  ],
+  guest_client_isolation: [
+    "securityScore.label.guest_client_isolation",
+    "Guests can't see each other",
+  ],
+  web_category_filtering: [
+    "securityScore.label.web_category_filtering",
+    "Block kinds of website (categories)",
+  ],
+  dns_bypass_protection: [
+    "securityScore.label.dns_bypass_protection",
+    "Stop guests getting round website blocks",
+  ],
+  application_control: ["securityScore.label.application_control", "Block particular apps"],
+  threat_intelligence: [
+    "securityScore.label.threat_intelligence",
+    "Block known harmful websites automatically",
+  ],
+  geo_blocking: ["securityScore.label.geo_blocking", "Block by country"],
+};
+
+/** One capability's link. Split by destination so each `<Link>` is typed
+ * against its own route's search params. */
+function ManagedAtLink({ at }: { at: ManagedAt }) {
+  const { t } = useTranslation("nav", { i18n });
+  const cls =
+    "mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-4 hover:underline";
+  const body = (
+    <>
+      {t(at.labelKey, at.label)}
+      <ArrowRight className="h-3 w-3" aria-hidden="true" />
+    </>
+  );
+  return at.to === "/blocking" ? (
+    <Link to="/blocking" search={{ tab: at.tab }} hash={at.hash} className={cls}>
+      {body}
+    </Link>
+  ) : (
+    <Link to="/firewall" className={cls}>
+      {body}
+    </Link>
+  );
+}
 
 const BAND_COPY: Record<NonNullable<SecurityScore["band"]>, string> = {
   excellent: "Nothing on this platform's checklist needs attention",
@@ -115,25 +270,35 @@ const BAND_COPY: Record<NonNullable<SecurityScore["band"]>, string> = {
   poor: "Multiple items need attention",
 };
 
+/** The two groups a customer sees. "not_supported" (intrusion detection,
+ * per-app traffic, URL-path filtering) is deliberately not rendered: a venue
+ * owner cannot act on it, and a list of things the product will never do
+ * reads as a list of things it is failing at. The backend still serves it,
+ * for the Master console and the API. "Coming later" is folded for the same
+ * reason -- honest to keep, and not what the owner came to the page for. */
 const AVAILABILITY_GROUPS: {
   availability: SecurityAvailability;
+  titleKey: string;
   title: string;
+  noteKey: string;
   note: string;
+  folded: boolean;
 }[] = [
   {
     availability: "available",
-    title: "Enforced today",
-    note: "Working now on the gateways this platform manages.",
+    titleKey: "securityScore.workingTitle",
+    title: "Working now",
+    noteKey: "securityScore.workingNote",
+    note: "Each of these works on your routers today. Follow the link to set it up.",
+    folded: false,
   },
   {
     availability: "requires_additional_technology",
-    title: "Needs something we do not have yet",
-    note: "The mechanism is here; the data or the service behind it is not.",
-  },
-  {
-    availability: "not_supported",
-    title: "Not available",
-    note: "Not deliverable on this platform as it stands, and not shown as a control you can switch on.",
+    titleKey: "securityScore.laterTitle",
+    title: "Coming later",
+    noteKey: "securityScore.laterNote",
+    note: "Not something you can switch on yet.",
+    folded: true,
   },
 ];
 
@@ -192,6 +357,7 @@ function CounterCard({ counter }: { counter: SecurityCounter }) {
 }
 
 export function SecurityOverviewView() {
+  const { t } = useTranslation("nav", { i18n });
   const overviewQuery = useSecurityOverview();
   const capabilitiesQuery = useSecurityCapabilities();
 
@@ -321,46 +487,63 @@ export function SecurityOverviewView() {
       </section>
 
       {/* The capability matrix. This is the part that keeps the product honest:
-          anything not enforceable is listed with what is missing, instead of
-          being offered as a switch that does nothing. */}
+          only what works is offered as something to do, each with a link to
+          the screen that does it. */}
       {capabilities.length > 0 && (
         <section className="space-y-4">
-          <h2 className="text-sm font-semibold text-foreground">What this platform can enforce</h2>
+          <h2 className="text-sm font-semibold text-foreground">
+            {t("securityScore.capabilitiesTitle", "What you can protect")}
+          </h2>
           {AVAILABILITY_GROUPS.map((group) => {
             const items = capabilities.filter((f) => f.availability === group.availability);
             if (items.length === 0) return null;
-            return (
-              <div key={group.availability} className="space-y-2">
-                <div className="flex flex-wrap items-baseline gap-2">
-                  <h3 className="text-sm font-medium text-foreground">{group.title}</h3>
-                  <p className="text-xs text-muted-foreground">{group.note}</p>
-                </div>
-                <ul className="grid gap-3 md:grid-cols-2">
-                  {items.map((feature) => (
+            const list = (
+              <ul className="grid gap-3 md:grid-cols-2">
+                {items.map((feature) => {
+                  const plain = PLAIN_LABEL[feature.key];
+                  return (
                     <li
                       key={feature.key}
                       className="rounded-lg border border-border/60 bg-card px-4 py-3"
                     >
-                      <p className="text-sm font-medium text-foreground">{feature.label}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {PLAIN_COPY[feature.key] ?? feature.detail}
+                      <p className="text-sm font-medium text-foreground">
+                        {plain ? t(plain[0], plain[1]) : feature.label}
                       </p>
-                      {/* Only an "Enforced today" row gets a link -- a row
-                          in the other two groups has no control to go to,
-                          even if its key were ever listed above. */}
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {PLAIN_COPY[feature.key]
+                          ? t(`securityScore.copy.${feature.key}`, PLAIN_COPY[feature.key])
+                          : feature.detail}
+                      </p>
+                      {/* Only a "Working now" row gets a link -- a row that
+                          is not working has no control to go to, even if its
+                          key were ever listed above. */}
                       {group.availability === "available" && MANAGED_AT[feature.key] && (
-                        <Link
-                          to="/blocking"
-                          search={{ tab: MANAGED_AT[feature.key].tab }}
-                          className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-4 hover:underline"
-                        >
-                          {MANAGED_AT[feature.key].label}
-                          <ArrowRight className="h-3 w-3" aria-hidden="true" />
-                        </Link>
+                        <ManagedAtLink at={MANAGED_AT[feature.key]} />
                       )}
                     </li>
-                  ))}
-                </ul>
+                  );
+                })}
+              </ul>
+            );
+            const heading = (
+              <>
+                <span className="text-sm font-medium text-foreground">
+                  {t(group.titleKey, group.title)}
+                </span>{" "}
+                <span className="text-xs text-muted-foreground">
+                  {t(group.noteKey, group.note)}
+                </span>
+              </>
+            );
+            return group.folded ? (
+              <details key={group.availability} className="space-y-2">
+                <summary className="cursor-pointer">{heading}</summary>
+                <div className="pt-2">{list}</div>
+              </details>
+            ) : (
+              <div key={group.availability} className="space-y-2">
+                <h3>{heading}</h3>
+                {list}
               </div>
             );
           })}

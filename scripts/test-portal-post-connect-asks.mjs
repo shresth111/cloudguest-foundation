@@ -136,6 +136,53 @@ check("hasProfile suppresses the profile card -- the localStorage flag it replac
   );
 });
 
+// ------------------------------------------------- marketing consent offer
+// wyfy-specs/guest-marketing-campaigns.md §5.8. The offer is the server's
+// answer to "ask this guest?", so it alone makes the card eligible.
+const OFFER = { text: "Send me offers from Cafe by SMS, WhatsApp and email.", textVersion: "v1" };
+
+check("no offer and nothing collected: still no card", () => {
+  eq(ask({ session: session({ marketingConsentOffer: null }) }), null, "null offer asks nothing");
+  eq(M.marketingConsentEligible(session()), false, "absent offer is not eligible");
+});
+
+check("an offer alone makes the card eligible, even when the venue collects nothing", () => {
+  eq(ask({ session: session({ marketingConsentOffer: OFFER }) }), "profile", "offer should ask");
+  eq(
+    M.profileFieldsEligible(config({}), session({ marketingConsentOffer: OFFER })),
+    false,
+    "but the name/email fields stay off",
+  );
+});
+
+check("an offer still asks a guest who already gave a profile (fields stay hidden)", () => {
+  const s = session({ hasProfile: true, marketingConsentOffer: OFFER });
+  eq(
+    ask({ config: config({ collectGuestName: true }), session: s }),
+    "profile",
+    "offer should ask",
+  );
+  eq(M.profileFieldsEligible(config({ collectGuestName: true }), s), false, "no re-ask of name");
+});
+
+check("an offer with blank text is not rendered as an empty checkbox", () => {
+  eq(
+    M.marketingConsentEligible(
+      session({ marketingConsentOffer: { text: "  ", textVersion: "v1" } }),
+    ),
+    false,
+    "blank wording must not render",
+  );
+});
+
+check("the offer respects a settled arrival slot like the profile card does", () => {
+  eq(
+    ask({ session: session({ marketingConsentOffer: OFFER }), arrivalAskSettled: true }),
+    null,
+    "settled slot closes",
+  );
+});
+
 check("isNewGuest is NOT consulted -- a returning guest at a newly-enabled venue is asked", () => {
   // The old rule gated on `isNewGuest`, so a venue enabling collection in
   // October could never ask the thousands of guests it already had.

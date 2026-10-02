@@ -1,4 +1,5 @@
 import { api, type AppError } from "@/services/api";
+import { getAllItems } from "@/services/list-all-pages";
 import type {
   CreateNasPayload,
   NasClient,
@@ -37,17 +38,6 @@ interface BackendNasSecretRotation extends BackendNasSecretReveal {
 interface BackendOrgListItem {
   id: string;
   name: string;
-}
-
-interface BackendListResponse<T> {
-  items: T[];
-  total_items: number;
-}
-
-interface BackendPagedListResponse<T> extends BackendListResponse<T> {
-  page: number;
-  page_size: number;
-  has_next: boolean;
 }
 
 interface BackendLocation {
@@ -89,10 +79,7 @@ function toNasSecretReveal(
 }
 
 async function fetchAllOrganizations(): Promise<BackendOrgListItem[]> {
-  const { data } = await api.get<BackendListResponse<BackendOrgListItem>>("/organizations", {
-    params: { page_size: 100 },
-  });
-  return data.items;
+  return getAllItems<BackendOrgListItem>("/organizations");
 }
 
 /**
@@ -113,11 +100,8 @@ async function fetchAllLocations(): Promise<
   const orgs = await fetchAllOrganizations();
   const settled = await Promise.allSettled(
     orgs.map(async (org) => {
-      const { data } = await api.get<BackendListResponse<BackendLocation>>(
-        `/organizations/${org.id}/locations`,
-        { params: { page_size: 100 } },
-      );
-      return data.items.map((l) => ({
+      const items = await getAllItems<BackendLocation>(`/organizations/${org.id}/locations`);
+      return items.map((l) => ({
         id: l.id,
         name: l.name,
         organizationId: org.id,
@@ -143,17 +127,9 @@ async function fetchAllLocations(): Promise<
  * 100-item pages rather than fanning out per location/org.
  */
 async function fetchAllNasRaw(): Promise<BackendNasClient[]> {
-  const items: BackendNasClient[] = [];
-  let page = 1;
-  for (;;) {
-    const { data } = await api.get<BackendPagedListResponse<BackendNasClient>>("/radius/nas", {
-      params: { page, page_size: 100 },
-    });
-    items.push(...data.items);
-    if (!data.has_next) break;
-    page += 1;
-  }
-  return items;
+  // Same walk, through the shared helper: it adds the runaway-`has_next`
+  // circuit breaker this hand-rolled loop never had.
+  return getAllItems<BackendNasClient>("/radius/nas");
 }
 
 export const nasService = {
@@ -161,14 +137,11 @@ export const nasService = {
     const locations = await fetchAllLocations();
     const loc = locations.find((l) => l.id === locationId);
     if (!loc) return [];
-    const { data } = await api.get<BackendListResponse<BackendNasClient>>(
-      `/locations/${locationId}/nas`,
-      { params: { page_size: 100 } },
-    );
+    const items = await getAllItems<BackendNasClient>(`/locations/${locationId}/nas`);
     // Delete is a soft delete server-side (status flips to "deleted", the row
     // is never removed) -- the list endpoint keeps returning it forever, so
     // filter it out here rather than showing a dead registration indefinitely.
-    return data.items
+    return items
       .filter((n) => n.status !== "deleted")
       .map((n) => toNasClient(n, loc.name, loc.organizationName));
   },

@@ -20,6 +20,8 @@ import {
   ArrowLeft,
   WifiOff,
   Server,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MasterShell } from "@/components/master/MasterShell";
@@ -47,10 +49,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { RemoteAccessCard } from "@/components/routers/RouterDetailTabs";
+import { FirewallBandPanel } from "@/components/master/FirewallBandPanel";
 import { inputCls, RouterSetupDrilldown } from "@/components/routers/RouterSetupScriptAdvanced";
+import {
+  AddInstantOnSiteDialog,
+  RemoveInstantOnSiteDialog,
+} from "@/components/routers/InstantOnSiteDialogs";
 import { routerService } from "@/services/router.service";
 import { isDemo } from "@/services/customer.service";
-import { useRouters, useUpdateRouterVendor } from "@/hooks/useRouters";
+import { routerKeys, useAllRouters, useUpdateRouterVendor } from "@/hooks/useRouters";
 import type { AppError } from "@/services/api";
 import type { RouterDevice } from "@/types/router";
 import type { NetworkIntegration } from "@/types/network-integration";
@@ -65,10 +72,17 @@ import {
   vendorLooksWrong,
   vendorLabel as vendorLabelFor,
   vendorOptionsFor,
+  isNasOnlyVendor,
 } from "@/lib/router-vendors";
-import { deriveIntegrationSetup } from "@/lib/network-integration-readiness";
+import {
+  fleetControllerWarning,
+  fleetSummaryBucket,
+  NAS_ONLY_FLEET_LABEL,
+  notMeasuredBadge,
+  notMeasuredFilterLabel,
+} from "@/lib/fleet-row-verdicts";
 import { networkIntegrationService } from "@/services/network-integration.service";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 export const Route = createFileRoute("/master/routers")({
   // Same pattern as master.customers.tsx's `open` -- MasterSearch (the
@@ -115,9 +129,10 @@ function RouterFleetRoute() {
 
 type Filter = "all" | "online" | "degraded" | "offline" | "controller";
 
+/** The WHOLE fleet: this table filters, counts and paginates client-side.
+ * It used to be `{ page: 1, pageSize: 200 }` through `useRouters`, whose
+ * client-side slice quietly capped the fleet at router 200. */
 const FLEET_LIST_QUERY = {
-  page: 1,
-  pageSize: 200,
   search: "",
   status: "all" as const,
   organizationId: "all",
@@ -286,6 +301,12 @@ function RouterFleetScreen() {
     vendor: string;
   } | null>(null);
   const demo = isDemo();
+  const queryClient = useQueryClient();
+  // Aruba Instant On sites (Master only): Add is the only way to create one;
+  // Remove is the fleet's ordinary decommission, which deregisters RADIUS
+  // first. See `InstantOnSiteDialogs.tsx`.
+  const [addSiteOpen, setAddSiteOpen] = useState(false);
+  const [removeSiteTarget, setRemoveSiteTarget] = useState<RouterDevice | null>(null);
 
   // A TICKING CLOCK, NOT A RENDER-TIME `new Date()`. Liveness here is an
   // AGE, so a page left open on a wall display would otherwise freeze every
@@ -299,7 +320,7 @@ function RouterFleetScreen() {
     return () => clearInterval(t);
   }, []);
 
-  const fleetQuery = useRouters(FLEET_LIST_QUERY);
+  const fleetQuery = useAllRouters(FLEET_LIST_QUERY);
   const updateVendor = useUpdateRouterVendor();
   const routers = fleetQuery.data?.rows ?? [];
   const loading = fleetQuery.isLoading;
@@ -318,10 +339,17 @@ function RouterFleetScreen() {
    * and the honest response to "we could not look" is to say nothing extra,
    * not to raise an error about a feature they were not using.
    */
-  const hasController = routers.some((r) => isControllerManaged(r.vendor));
+  // NAS-only rows (Aruba Instant On) never have an integration, so an
+  // Instant On-only fleet has nothing to join and issues no request.
+  const hasController = routers.some(
+    (r) => isControllerManaged(r.vendor) && !isNasOnlyVendor(r.vendor),
+  );
   const integrations = useQuery({
     queryKey: ["master", "network-integrations", "fleet-join"],
-    queryFn: () => networkIntegrationService.listPlatformIntegrations({ page: 1, pageSize: 200 }),
+    // Every page, not one request for 200: the platform route caps
+    // `page_size` at 100 and 422'd this on every load, which left
+    // `integrationsByLocation` null and every warning below silent.
+    queryFn: () => networkIntegrationService.listAllPlatformIntegrations(),
     enabled: !demo && hasController,
     staleTime: 30_000,
     retry: false,
@@ -333,7 +361,7 @@ function RouterFleetScreen() {
   const integrationsByLocation = useMemo(() => {
     if (!integrations.data) return null;
     const map = new Map<string, NetworkIntegration[]>();
-    for (const row of integrations.data.rows) {
+    for (const row of integrations.data) {
       if (!row.locationId) continue;
       const at = map.get(row.locationId) ?? [];
       at.push(row);
@@ -342,11 +370,11 @@ function RouterFleetScreen() {
     return map;
   }, [integrations.data]);
 
-  /** Whether that map is the WHOLE picture. One page of 200 covers every
-   * estate this platform has today, but "I did not see it in the first 200"
-   * is not the same fact as "it does not exist" -- and the difference decides
-   * whether "No integration" below is a statement or a guess. */
-  const sawEveryIntegration = integrations.data ? !integrations.data.hasNext : false;
+  /** Whether that map is the WHOLE picture -- the difference decides whether
+   * "No integration" below is a statement or a guess. `listAllPlatformIntegrations`
+   * walks every page and rejects rather than return a partial list, so data
+   * present means complete. Kept as a named fact so the rule stays visible. */
+  const sawEveryIntegration = integrations.data !== undefined;
 
   /**
    * What to say next to a controller row, or null for "nothing to add".
@@ -359,16 +387,19 @@ function RouterFleetScreen() {
     // integration by definition, and tagging it "No integration" would send an
     // operator to connect a controller that does not exist. `vendorLooksWrong`
     // below is what such a row gets instead, and it is the accurate complaint.
-    if (!isControllerManagedRow(rowEvidence(r))) return null;
-    if (!integrationsByLocation) return null; // we could not look
-    const here = integrationsByLocation.get(r.locationId) ?? [];
-    // Absence is only evidence when the list was complete. Otherwise this
-    // says nothing rather than accusing a working venue of having no
-    // integration at all.
-    if (here.length === 0) return sawEveryIntegration ? "No integration" : null;
-    return here.every((i) => deriveIntegrationSetup(i).isHalfConfigured)
-      ? "Authorising nobody"
-      : null;
+    // A NAS-only row (Aruba Instant On) never gets either tag: it has no
+    // integration by design -- see `lib/fleet-row-verdicts.ts`.
+    //
+    // Absence is only evidence when the list was complete, so an incomplete
+    // read is passed as "could not look" (null) rather than as an empty list.
+    return fleetControllerWarning({
+      vendor: r.vendor,
+      isControllerRow: isControllerManagedRow(rowEvidence(r)),
+      integrationsHere:
+        integrationsByLocation && sawEveryIntegration
+          ? (integrationsByLocation.get(r.locationId) ?? [])
+          : null,
+    });
   }
 
   useEffect(() => {
@@ -478,14 +509,18 @@ function RouterFleetScreen() {
     let degraded = 0;
     let offline = 0;
     let controller = 0;
+    // Aruba Instant On rows: still "not measured here" (never Online /
+    // Offline, PM_SPEC §2.1), but not controllers, so not counted as one.
+    let nasOnly = 0;
     for (const r of routers) {
-      const s = displayStatus(r, now);
+      const s = fleetSummaryBucket(r.vendor, displayStatus(r, now));
       if (s === "online") online++;
       else if (s === "degraded") degraded++;
       else if (s === "controller") controller++;
+      else if (s === "nas-only") nasOnly++;
       else offline++;
     }
-    return { total: routers.length, online, degraded, offline, controller };
+    return { total: routers.length, online, degraded, offline, controller, nasOnly };
   }, [routers, now]);
 
   const advancedRouter = useMemo(
@@ -577,6 +612,9 @@ function RouterFleetScreen() {
       },
       now,
     );
+    // A NAS-only row is "not measured here" too, but it is not reached
+    // through a controller: it says "Set up in Instant On" instead.
+    if (live.state === "not-applicable") return notMeasuredBadge(r.vendor);
     // No `??` fallback any more. It was there to catch a missing key, but a
     // fallback that prints `r.status` turns a rendering gap into a leaked
     // database enum on the operator's screen -- it is the mechanism of this
@@ -595,6 +633,14 @@ function RouterFleetScreen() {
             advancedRouter ? (
               <MButton variant="outline" onClick={backToFleet}>
                 <ArrowLeft className="h-3.5 w-3.5" /> Back to Router Fleet
+              </MButton>
+            ) : !demo && !advancedId ? (
+              <MButton
+                variant="outline"
+                onClick={() => setAddSiteOpen(true)}
+                data-testid="add-instant-on-site"
+              >
+                <Plus className="h-3.5 w-3.5" /> Add Instant On site
               </MButton>
             ) : undefined
           }
@@ -657,7 +703,12 @@ function RouterFleetScreen() {
             <div
               className={cn(
                 "grid grid-cols-2 gap-3",
-                summary.controller > 0 ? "sm:grid-cols-5" : "sm:grid-cols-4",
+                // Literal classes (Tailwind only ships what it can see).
+                (summary.controller > 0 ? 1 : 0) + (summary.nasOnly > 0 ? 1 : 0) === 2
+                  ? "sm:grid-cols-6"
+                  : summary.controller > 0 || summary.nasOnly > 0
+                    ? "sm:grid-cols-5"
+                    : "sm:grid-cols-4",
               )}
             >
               <MStat label="At active locations" value={summary.total} icon={RouterIcon} />
@@ -677,6 +728,11 @@ function RouterFleetScreen() {
               {summary.controller > 0 && (
                 <MStat label="Via controller" value={summary.controller} icon={Server} />
               )}
+              {/* Aruba Instant On: managed in Aruba's app, no controller and
+               * no agent. Its own tile, untoned for the same reason. */}
+              {summary.nasOnly > 0 && (
+                <MStat label={NAS_ONLY_FLEET_LABEL} value={summary.nasOnly} icon={Server} />
+              )}
             </div>
 
             {/* What that tile does and does not mean. "Via controller" counts
@@ -694,6 +750,14 @@ function RouterFleetScreen() {
                 health check failed, is counted under Offline.
               </p>
             )}
+            {summary.nasOnly > 0 && (
+              <p className="text-xs text-muted-foreground">
+                &ldquo;{NAS_ONLY_FLEET_LABEL}&rdquo; counts Aruba Instant On sites. They are managed
+                in Aruba&rsquo;s Instant On app and reach Wyfy only over RADIUS, so they have no
+                controller, no agent and no network integration, and are never counted as Online or
+                Offline here.
+              </p>
+            )}
 
             {/* A short list and a complete one look identical, so say when
                 it is short. `fetchAllRouters` keeps the page up when one
@@ -708,6 +772,13 @@ function RouterFleetScreen() {
                 loaded.
               </p>
             )}
+            {(fleetQuery.data?.unreachableOrganizationCount ?? 0) > 0 && (
+              <p className="text-xs text-amber-600 dark:text-amber-500">
+                {fleetQuery.data?.unreachableOrganizationCount} customer
+                {fleetQuery.data?.unreachableOrganizationCount === 1 ? "" : "s"}&apos; locations
+                could not be read, so every router under them is missing from this list.
+              </p>
+            )}
 
             <div className="flex flex-wrap items-center justify-between gap-3">
               <MSeg
@@ -720,8 +791,13 @@ function RouterFleetScreen() {
                   { value: "offline", label: "Offline" },
                   // Only offered once there is something to filter to, so a
                   // MikroTik-only fleet's controls look exactly as they did.
-                  ...(summary.controller > 0
-                    ? [{ value: "controller" as const, label: "Controllers" }]
+                  ...(summary.controller > 0 || summary.nasOnly > 0
+                    ? [
+                        {
+                          value: "controller" as const,
+                          label: notMeasuredFilterLabel(summary.controller, summary.nasOnly),
+                        },
+                      ]
                     : []),
                 ]}
               />
@@ -888,9 +964,11 @@ function RouterFleetScreen() {
                         {isControllerManaged(sel.vendor) ? "Software" : "RouterOS"}
                       </p>
                       <p className="text-lg font-semibold">
-                        {isControllerManaged(sel.vendor)
-                          ? "On its controller"
-                          : (sel.routerOsVersion ?? "—")}
+                        {isNasOnlyVendor(sel.vendor)
+                          ? "In Instant On"
+                          : isControllerManaged(sel.vendor)
+                            ? "On its controller"
+                            : (sel.routerOsVersion ?? "—")}
                       </p>
                     </div>
                   </div>
@@ -970,6 +1048,41 @@ function RouterFleetScreen() {
                     </div>
                   )}
 
+                  {/* Aruba Instant On (NAS-only): its setup is RADIUS
+                      registration plus a checklist for the Instant On app,
+                      rendered by the same `?advanced=` drilldown that
+                      dispatches on vendor. MikroTik and Omada rows are
+                      unchanged. */}
+                  {!demo && isNasOnlyVendor(sel.vendor) && (
+                    <div className="space-y-2">
+                      <MButton
+                        variant="primary"
+                        className="w-full justify-center"
+                        onClick={() => goToAdvanced(sel.id)}
+                      >
+                        <FileCode2 className="h-4 w-4" /> Instant On setup
+                      </MButton>
+                      <MButton
+                        variant="outline"
+                        className="w-full justify-center text-destructive"
+                        onClick={() => setRemoveSiteTarget(sel)}
+                        data-testid="remove-instant-on-site"
+                      >
+                        <Trash2 className="h-4 w-4" /> Remove this Instant On site
+                      </MButton>
+                    </div>
+                  )}
+
+                  {/* Customer firewall rules (cloud-guest#304): whether the
+                      router has its band, and the Master-only action that
+                      places it. Here rather than on the full router screen,
+                      which the master host cannot reach (see the panel's own
+                      note). MikroTik rows only -- the backend refuses a
+                      controller at this endpoint too. */}
+                  {!demo && !isControllerManaged(sel.vendor) && (
+                    <FirewallBandPanel routerId={sel.id} routerName={sel.name} />
+                  )}
+
                   {/* Remote access (WinBox/SSH over the platform's own
                       tunnel) is an agent verb: it reaches the device through
                       the hub, and a controller has no peer and never will --
@@ -1040,6 +1153,39 @@ function RouterFleetScreen() {
                 </div>
               )}
             </MDrawer>
+          </>
+        )}
+
+        {!demo && (
+          <>
+            <AddInstantOnSiteDialog
+              open={addSiteOpen}
+              onClose={() => setAddSiteOpen(false)}
+              fleet={routers}
+              fleetIncomplete={
+                (fleetQuery.data?.unreachableLocationCount ?? 0) > 0 ||
+                (fleetQuery.data?.unreachableOrganizationCount ?? 0) > 0
+              }
+              onCreated={async (created) => {
+                // Refetch first: the setup drilldown finds its row in the
+                // fleet list, so navigating before the list has it would
+                // land on "Couldn't find that router".
+                await queryClient.invalidateQueries({ queryKey: routerKeys.all });
+                setAddSiteOpen(false);
+                goToAdvanced(created.routerId);
+              }}
+              onOpenExisting={(routerId) => goToAdvanced(routerId)}
+            />
+            <RemoveInstantOnSiteDialog
+              router={removeSiteTarget}
+              onClose={() => setRemoveSiteTarget(null)}
+              onRemoved={async (removed) => {
+                setRemoveSiteTarget(null);
+                setSel(null);
+                await queryClient.invalidateQueries({ queryKey: routerKeys.all });
+                toast.success(`${removed.name} removed from the fleet`);
+              }}
+            />
           </>
         )}
 

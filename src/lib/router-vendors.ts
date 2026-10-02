@@ -19,12 +19,29 @@
  * Kept deliberately tiny and dependency-free so any component can ask.
  */
 
+/** Aruba Instant On (AP11/AP21/AP22/...). Not the `aruba` stub: that one is
+ * Aruba Instant / AOS, a different product. Matches the backend's
+ * `ARUBA_INSTANT_ON_VENDOR`. */
+export const ARUBA_INSTANT_ON_VENDOR = "aruba_instant_on";
+
 /** Matches the backend's `CONTROLLER_MANAGED_VENDORS`. */
-const CONTROLLER_MANAGED_VENDORS = new Set(["tplink_omada"]);
+const CONTROLLER_MANAGED_VENDORS = new Set(["tplink_omada", ARUBA_INSTANT_ON_VENDOR]);
+
+/**
+ * Matches the backend's `NAS_ONLY_VENDORS`: controller-managed vendors whose
+ * cloud this platform has NO API to. Aruba Instant On is run entirely from
+ * Aruba's Instant On app; the only thing such a venue does with us is send
+ * RADIUS. So every control that would go through a controller API (speed,
+ * disconnect, device block, client lists, AP health) cannot work there, and
+ * the copy says so rather than "we couldn't reach its connection" -- there is
+ * no connection to reach. Always a subset of `CONTROLLER_MANAGED_VENDORS`.
+ */
+const NAS_ONLY_VENDORS = new Set([ARUBA_INSTANT_ON_VENDOR]);
 
 export const ROUTER_VENDOR_LABEL: Record<string, string> = {
   mikrotik: "MikroTik",
   tplink_omada: "TP-Link Omada",
+  aruba_instant_on: "Aruba Instant On",
 };
 
 /**
@@ -40,6 +57,34 @@ export const ROUTER_VENDOR_LABEL: Record<string, string> = {
  */
 export function isControllerManaged(vendor: string | null | undefined): boolean {
   return CONTROLLER_MANAGED_VENDORS.has((vendor ?? "").toLowerCase());
+}
+
+/** True for a vendor this platform reaches only as a RADIUS NAS -- see
+ * `NAS_ONLY_VENDORS`. Lower-cased for the same reason as
+ * `isControllerManaged`. */
+export function isNasOnlyVendor(vendor: string | null | undefined): boolean {
+  return NAS_ONLY_VENDORS.has((vendor ?? "").toLowerCase());
+}
+
+/**
+ * What the device IS, as a noun phrase with its article, for sentences that
+ * used to read "is a ${label} controller". Aruba Instant On venues have
+ * access points managed from Aruba's app, not a controller the owner knows,
+ * and "a Aruba" is wrong English besides. Omada's phrase is unchanged.
+ */
+export function controllerNounPhrase(vendor: string | null | undefined): string {
+  if (isNasOnlyVendor(vendor)) return `${routerVendorLabel(vendor)} access points`;
+  return vendor ? `a ${routerVendorLabel(vendor)} controller` : "a network controller";
+}
+
+/** "<label> is a TP-Link Omada controller." / "<label> uses Aruba Instant On
+ * access points." -- the one sentence location-liveness opens with. */
+export function controllerIdentitySentence(
+  label: string,
+  vendor: string | null | undefined,
+): string {
+  if (isNasOnlyVendor(vendor)) return `${label} uses ${controllerNounPhrase(vendor)}.`;
+  return `${label} is a ${routerVendorLabel(vendor)} controller.`;
 }
 
 /** The complement: this platform's own agent runs on the device. */
@@ -217,10 +262,38 @@ export const CONTROLLER_UNSUPPORTED_FEATURE_IDS: readonly string[] = [
   "port-forwarding",
   "voip",
   "website-blocking",
+  // Security -> Firewall: cloud-guest#304's push is MikroTik-only and the
+  // backend refuses a controller-managed router at create, push and band.
+  "firewall",
+  // No "web-filtering": its categories (cloud-guest#307, MikroTik DNS only)
+  // are a section of Block Websites' Websites tab, which is gated as
+  // "website-blocking" above, and WebFilteringView gates on that same id.
 ];
 
-export function featureAppliesToControllerVenue(featureId: string): boolean {
-  return !CONTROLLER_UNSUPPORTED_FEATURE_IDS.includes(featureId);
+/**
+ * The extra screens a NAS-only venue (Aruba Instant On) cannot use, on top of
+ * the list above. Omada keeps both: its controller has a walled garden and MAC
+ * authentication that this platform drives. Instant On holds its own "Allowed
+ * domains" list that we cannot write, and has no MAC authentication at all
+ * (PM_SPEC §3.2, copy U7 / U8).
+ */
+export const NAS_ONLY_EXTRA_UNSUPPORTED_FEATURE_IDS: readonly string[] = ["whitelist", "mac-auth"];
+
+/**
+ * Whether a customer screen works at a controller-managed venue. `vendor` is
+ * optional and only ever REMOVES screens, and only for a NAS-only vendor: a
+ * caller that does not pass it, and every Omada venue, get exactly the answer
+ * they got before it existed.
+ */
+export function featureAppliesToControllerVenue(
+  featureId: string,
+  vendor?: string | null,
+): boolean {
+  if (CONTROLLER_UNSUPPORTED_FEATURE_IDS.includes(featureId)) return false;
+  if (isNasOnlyVendor(vendor) && NAS_ONLY_EXTRA_UNSUPPORTED_FEATURE_IDS.includes(featureId)) {
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -232,6 +305,14 @@ export function featureAppliesToControllerVenue(featureId: string): boolean {
  * a box with a brand on it and that is the word they will search for.
  */
 export function controllerVenueFeatureReason(vendor: string | null | undefined): string {
+  // PM_SPEC U0. A NAS-only venue has no controller the owner would
+  // recognise; it has access points and an app.
+  if (isNasOnlyVendor(vendor)) {
+    return (
+      `Your WiFi runs on ${routerVendorLabel(vendor)} access points. ` +
+      "This is set up in the Instant On app, not here."
+    );
+  }
   // A missing vendor string is a real case, not a defensive one: this reason
   // is rendered from a venue summary that may have been persisted by an
   // older build of this app, before rows carried a vendor at all. Name the
@@ -382,6 +463,7 @@ export const VENDOR_MISMATCH_DETAIL =
  * the unearned precision the rest of this module exists to prevent.
  */
 export type ControllerState =
+  | "no_controller_api"
   | "not_registered"
   | "disabled"
   | "credentials_rejected"
@@ -400,6 +482,15 @@ export interface ControllerStateCopy {
 }
 
 export const CONTROLLER_STATE_COPY: Record<ControllerState, ControllerStateCopy> = {
+  // NAS-only vendors (Aruba Instant On). Not a fault and not "not registered":
+  // there is no controller connection to register. PM_SPEC §2.3.
+  no_controller_api: {
+    label: "Set up in Instant On",
+    tone: "neutral",
+    sentence:
+      "This venue's access points are managed in Aruba's Instant On app. Wyfy doesn't see " +
+      "their status directly. It sees guests signing in.",
+  },
   not_registered: {
     label: "Not connected",
     tone: "neutral",
@@ -456,6 +547,8 @@ export const CONTROLLER_STATE_COPY: Record<ControllerState, ControllerStateCopy>
  * pretending to know anything about.
  */
 export const CONTROLLER_STATE_NEXT_STEP: Record<ControllerState, string> = {
+  no_controller_api:
+    "Nothing to do here. To change the WiFi name, password or speed, use the Instant On app.",
   not_registered: "Add this controller's connection details to the venue's network integration.",
   disabled: "Switch the integration back on when the venue should be signing guests in again.",
   credentials_rejected:
@@ -498,7 +591,9 @@ export const NOT_MEASURED_HERE = "Not measured here";
  * "Authorising nobody" rather than "Controller down".
  */
 export function controllerStateIsFault(state: ControllerState): boolean {
-  return state !== "reachable";
+  // `no_controller_api` is not a fault either: it is the permanent, correct
+  // state of a NAS-only venue, and guests there sign in fine.
+  return state !== "reachable" && state !== "no_controller_api";
 }
 
 /**
@@ -545,10 +640,22 @@ const CONTROLLER_UNSUPPORTED_NOUNS: Record<string, { noun: string; verb: string 
   "port-forwarding": { noun: "Port forwarding rules", verb: "are" },
   voip: { noun: "Traffic priority", verb: "is" },
   "website-blocking": { noun: "Website blocking", verb: "is" },
+  firewall: { noun: "Firewall rules", verb: "are" },
   "isp-details": { noun: "Internet connection details", verb: "are" },
 };
 
 export const CONTROLLER_UNSUPPORTED_HEADLINE = "Configured in Omada, not here.";
+
+/** The headline for a vendor; Omada's is the constant above, unchanged. */
+export function controllerUnsupportedHeadline(
+  vendor: string | null | undefined,
+  featureId?: string,
+): string {
+  if (!isNasOnlyVendor(vendor)) return CONTROLLER_UNSUPPORTED_HEADLINE;
+  // Trusted Devices is not "elsewhere": Instant On has no MAC authentication.
+  if (featureId === "mac-auth") return "Not available with Aruba Instant On.";
+  return "Set up in the Instant On app, not here.";
+}
 
 /**
  * The panel body for a gated screen.
@@ -562,13 +669,41 @@ export const CONTROLLER_UNSUPPORTED_HEADLINE = "Configured in Omada, not here.";
  * Null for a feature that is not gated, so a call site cannot render this
  * panel over a screen that works.
  */
+/** PM_SPEC U5: per-session data at an Aruba Instant On venue before the V3
+ * hardware check (interim accounting with real octets) has passed. A session
+ * with no bytes recorded renders "—" with this, never a measured "0 MB". */
+export const NAS_ONLY_DATA_USAGE_UNREPORTED = "Data usage isn't reported for this venue yet.";
+
+/** PM_SPEC U7 / U8: the two screens only a NAS-only venue loses, each with
+ * its own sentence because neither is "set up in the app" in the same way. */
+export const NAS_ONLY_FEATURE_COPY: Record<string, string> = {
+  whitelist:
+    "Websites guests can open before signing in are set in the Instant On app, under " +
+    "Guest portal > Allowed domains.",
+  "mac-auth":
+    "Aruba Instant On can't let devices skip the sign-in page, so trusted devices aren't " +
+    "available here.",
+};
+
 export function controllerUnsupportedCopy(
   featureId: string,
   venueName: string | null | undefined,
+  vendor?: string | null,
 ): string | null {
+  if (isNasOnlyVendor(vendor) && NAS_ONLY_FEATURE_COPY[featureId]) {
+    return NAS_ONLY_FEATURE_COPY[featureId];
+  }
   const entry = CONTROLLER_UNSUPPORTED_NOUNS[featureId];
   if (!entry) return null;
   const who = venueName?.trim() || "This venue";
+  if (isNasOnlyVendor(vendor)) {
+    // PM_SPEC U0 (= U9) verbatim first, then what it means for this screen.
+    return (
+      `${controllerVenueFeatureReason(vendor)} ${entry.noun} for ${who === "This venue" ? "this venue" : who} ` +
+      `${entry.verb} part of that. Wyfy signs guests in at this venue; it doesn't configure the ` +
+      "access points."
+    );
+  }
   return (
     `${who} runs on a TP-Link Omada controller. ${entry.noun} for this venue ${entry.verb} ` +
     "set in Omada's own interface — we connect to the controller to sign guests in, we don't " +
@@ -635,6 +770,15 @@ export function excludedControllerRoutersNote(
 ): string | null {
   const n = controllerManaged.length;
   if (n === 0) return null;
+  // NAS-only rows get their own words; a list with any Omada row keeps the
+  // Omada sentence byte-for-byte.
+  if (controllerManaged.every((r) => isNasOnlyVendor(r.vendor))) {
+    return n === 1
+      ? "One device at this venue is an Aruba Instant On access point and isn't listed here — " +
+          "it's set up in the Instant On app."
+      : `${n} devices at this venue are Aruba Instant On access points and aren't listed here — ` +
+          "they're set up in the Instant On app.";
+  }
   if (n === 1) {
     return (
       "One device at this venue is a TP-Link Omada controller and isn't listed here — " +
@@ -658,6 +802,13 @@ export function excludedControllerRoutersNote(
  * to the device.
  */
 export function controllerRouterDeviceWriteReason(vendor: string | null | undefined): string {
+  if (isNasOnlyVendor(vendor)) {
+    return (
+      `This venue uses ${controllerNounPhrase(vendor)} rather than a WyfyGuest-managed router, so ` +
+      "we do not reach the device itself from here. Health checks, failover and traffic routing " +
+      "are set up in the Instant On app."
+    );
+  }
   const who = vendor ? `a ${routerVendorLabel(vendor)} controller` : "a network controller";
   return (
     `This is ${who} rather than a WyfyGuest-managed router, so we do not reach the device ` +
@@ -678,6 +829,13 @@ export function controllerRouterDeviceWriteReason(vendor: string | null | undefi
  * model string for a controller venue.
  */
 export function controllerDeviceMetricsReason(vendor: string | null | undefined): string {
+  // PM_SPEC U6.
+  if (isNasOnlyVendor(vendor)) {
+    return (
+      "Traffic charts need a Wyfy-managed router. Your Aruba access points report guest " +
+      "sign-ins, not traffic."
+    );
+  }
   const who = vendor ? `a ${routerVendorLabel(vendor)} controller` : "a network controller";
   return (
     `This is ${who} and its readings live in that controller, not here. This platform ` +
@@ -718,6 +876,7 @@ export function hasWritableRouter(rows: readonly VendorJudgeableRouter[]): boole
 export const DEVICE_VENDORS: { value: string; label: string }[] = [
   { value: "mikrotik", label: "MikroTik" },
   { value: "tplink_omada", label: "TP-Link Omada" },
+  { value: ARUBA_INSTANT_ON_VENDOR, label: "Aruba Instant On" },
   { value: "ruckus", label: "Ruckus" },
   { value: "unifi", label: "UniFi" },
   { value: "aruba", label: "Aruba" },
@@ -748,7 +907,8 @@ export const DEVICE_VENDORS: { value: string; label: string }[] = [
  * not done here.
  */
 export const SELECTABLE_DEVICE_VENDORS: { value: string; label: string }[] = DEVICE_VENDORS.filter(
-  (v) => v.value === "mikrotik" || v.value === "tplink_omada",
+  (v) =>
+    v.value === "mikrotik" || v.value === "tplink_omada" || v.value === ARUBA_INSTANT_ON_VENDOR,
 );
 
 /** The label for a vendor string, including one this platform does not

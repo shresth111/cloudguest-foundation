@@ -1,0 +1,66 @@
+{
+  "title": "Open Hours",
+  "description": "Guests can only sign in inside this schedule — outside it they see your closed message instead of the sign-in page. Anyone already online stays online until their session ends.",
+  "loadFailed": "Could not load open hours.",
+  "saved": "Open hours saved",
+  "noLocation": "No location selected.",
+  "saveFailed": "Could not save open hours.",
+  "kpi": {
+    "rightNow": "Right now",
+    "open": "Open",
+    "closed": "Closed",
+    "daysOpen": "Days open",
+    "enforced": "Enforced",
+    "on": "On",
+    "off": "Off"
+  },
+  "fixDays": "Fix the highlighted days to save",
+  "unsaved": "Unsaved changes",
+  "discard": "Discard",
+  "saving": "Saving…",
+  "save": "Save",
+  "loadErrorBanner": "Could not load this location's saved open hours ({{error}}). Saving is turned off so the real schedule is not overwritten -- reload the page to try again.",
+  "timezoneMismatch": "This schedule is enforced in {{venueZone}} — not your browser's {{browserZone}}. Times below are the venue's local time.",
+  "weekly": {
+    "title": "Weekly schedule",
+    "description": "Tap a day to open it, then set when it starts and ends. Times are in {{zone}}."
+  },
+  "timezone": "Timezone",
+  "timezonePlaceholder": "Select a timezone",
+  "days": {
+    "monday": "Monday",
+    "tuesday": "Tuesday",
+    "wednesday": "Wednesday",
+    "thursday": "Thursday",
+    "friday": "Friday",
+    "saturday": "Saturday",
+    "sunday": "Sunday"
+  },
+  "daysShort": {
+    "monday": "Mo",
+    "tuesday": "Tu",
+    "wednesday": "We",
+    "thursday": "Th",
+    "friday": "Fr",
+    "saturday": "Sa",
+    "sunday": "Su"
+  },
+  "opensAria": "{{day}} opens",
+  "closesAria": "{{day}} closes",
+  "openAllDay": "Open all day",
+  "closedAllDay": "Closed all day",
+  "dayErrors": {
+    "missing": "Set both an opening and a closing time, or mark the day closed.",
+    "order": "Closing time must be after opening time. Overnight hours are not supported -- end at 23:59 and open the next day at 00:00."
+  },
+  "guestExperience": {
+    "title": "Guest experience",
+    "description": "What guests see, and how strictly the schedule above is enforced."
+  },
+  "enforce": {
+    "title": "Enforce this schedule",
+    "description": "Outside open hours, guests are shown the closed message below instead of the sign-in page."
+  },
+  "closedMessageLabel": "Message shown to guests while closed",
+  "closedMessagePlaceholder": "We're currently closed."
+}

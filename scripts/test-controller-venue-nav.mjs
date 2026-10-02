@@ -111,9 +111,14 @@ writeFileSync(
 
 writeFileSync(
   join(work, "sonner-stub.js"),
-  `const noop = () => {};
-   export const toast = Object.assign(noop, {
-     success: noop, error: noop, warning: noop, info: noop, message: noop,
+  `// Records every toast on window.__toasts so a case can assert which kind
+   // was shown (e.g. a warning, not a success, after a partial save).
+   const rec = (kind) => (message) => {
+     (window.__toasts = window.__toasts || []).push({ kind, message: String(message) });
+   };
+   export const toast = Object.assign(rec("default"), {
+     success: rec("success"), error: rec("error"), warning: rec("warning"),
+     info: rec("info"), message: rec("message"),
    });
    export const Toaster = () => null;`,
 );
@@ -217,8 +222,77 @@ await build({
 
 let served = { routers: [MIKROTIK], feature: "dhcp", search: {} };
 const MIME = { ".html": "text/html", ".js": "text/javascript" };
+/** The few API reads Security -> Firewall makes, answered from `served`, so
+ * the MikroTik case can show the real screen rather than a load error. Every
+ * other /api path 404s, as before. `/me/organizations` is what the shared org
+ * resolver asks; the band status 404s, which the screen must treat as
+ * "unknown" and still render. */
+function api(path, res, req) {
+  const json = (body) => {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ success: true, message: "ok", data: body }));
+  };
+  const refuse = (status, message) => {
+    res.writeHead(status, { "content-type": "application/json" });
+    res.end(JSON.stringify({ success: false, message, data: null }));
+  };
+  const page = (items) =>
+    json({
+      items,
+      page: 1,
+      page_size: 100,
+      total_items: items.length,
+      total_pages: 1,
+      has_next: false,
+      has_previous: false,
+    });
+  if (path === "/api/v1/locations/loc-1/routers") return (page(served.routers), true);
+  if (path === "/api/v1/firewall-rules") return (page(served.firewallRules ?? []), true);
+  if (path === "/api/v1/me/organizations") {
+    return (json([{ organization_id: "org-1", status: "active" }]), true);
+  }
+  // Security -> Web Filtering (cloud-guest#307). `served.dns` is null until a
+  // case sets it, which answers 404 -- a backend without #307.
+  if (path.startsWith("/api/v1/dns-filtering/")) {
+    const dns = served.dns;
+    if (!dns) return false;
+    if (path === "/api/v1/dns-filtering/categories") {
+      if (!dns.configured) {
+        return (
+          refuse(
+            503,
+            "Category filtering is not configured on this platform yet (no Cloudflare Gateway account is connected).",
+          ),
+          true
+        );
+      }
+      return (json({ provider: "cloudflare_gateway", items: dns.categories }), true);
+    }
+    if (path === "/api/v1/dns-filtering/locations/loc-1/policy" && req.method === "PUT") {
+      dns.putCalls = (dns.putCalls ?? 0) + 1;
+      const next = dns.onPut?.();
+      if (next?.refuse) {
+        res.writeHead(next.refuse.status, { "content-type": "application/json" });
+        res.end(
+          JSON.stringify({ success: false, message: next.refuse.message, data: next.refuse.data }),
+        );
+        return true;
+      }
+      return (json(dns.policy), true);
+    }
+    if (path === "/api/v1/dns-filtering/locations/loc-1/policy") return (json(dns.policy), true);
+    if (path === "/api/v1/dns-filtering/routers/r-hex/enable" && req.method === "POST") {
+      dns.enableCalls = (dns.enableCalls ?? 0) + 1;
+      return (json({ ...dns.status, enabled: true, state: "active" }), true);
+    }
+    if (path === "/api/v1/dns-filtering/routers/r-hex") return (json(dns.status), true);
+  }
+  return false;
+}
+
 const server = createServer((req, res) => {
   const name = req.url === "/" ? "/index.html" : req.url.split("?")[0];
+  if (name.startsWith("/api/") && api(name, res, req)) return;
   if (name === "/index.html") {
     res.writeHead(200, { "content-type": "text/html" });
     return res.end(
@@ -252,7 +326,7 @@ const NETWORK_LABELS = ["Network Zones", "IP Addresses", "Port Forwarding", "Cal
 /** Open one feature page at a venue with `routers`, and report what a venue
  * owner would see: the page body, and the nav rows with their muted state. */
 async function openFeature(feature, routers, search = {}) {
-  served = { feature, routers, search };
+  served = { ...served, feature, routers, search };
   const page = await browser.newPage();
   await page.goto(origin);
   await page.waitForSelector("[data-sidebar='menu']", { timeout: 10_000 });
@@ -320,9 +394,16 @@ console.log("\ncontroller venue: the five Network screens");
     "omada-nav-rows-carry-the-reason",
     network.every((row) => /managed by a TP-Link Omada controller/.test(row.title ?? "")),
   );
+  // Five: the four Network rows, and Security -> Firewall, which is a whole
+  // page of RouterOS writes (cloud-guest#304 is MikroTik-only). Blocking is
+  // NOT muted -- its Guests tab works here.
+  // (Six while Web filtering was its own row; it is a section of Block
+  // Websites now, gated with that page's Websites tab.)
   check(
     "omada-nav-mutes-nothing-else",
-    r.rows.filter((row) => row.muted).length === 4,
+    r.rows.filter((row) => row.muted).length === 5 &&
+      r.rows.some((row) => row.label === "Firewall" && row.muted) &&
+      !r.rows.some((row) => row.label === "Web filtering"),
     `${r.rows
       .filter((row) => row.muted)
       .map((n) => n.label)
@@ -398,7 +479,7 @@ const CONTROLLER_COPY = /is configured on this venue's controller|Configured in 
 console.log("\nSecurity -> Blocking at a controller venue");
 {
   const r = await openFeature("blocking", [OMADA]);
-  const row = r.rows.find((x) => x.label === "Blocking");
+  const row = r.rows.find((x) => x.label === "Block Websites");
   check("omada-blocking-row-is-in-the-nav", !!row);
   check(
     "omada-blocking-row-is-not-muted",
@@ -412,10 +493,10 @@ console.log("\nSecurity -> Blocking at a controller venue");
   );
   check(
     "omada-blocking-offers-both-tabs",
-    (await r.page.getByRole("tab", { name: "Websites & IPs" }).count()) === 1 &&
+    (await r.page.getByRole("tab", { name: "Websites" }).count()) === 1 &&
       (await r.page.getByRole("tab", { name: "Guests & devices" }).count()) === 1,
   );
-  await r.page.getByRole("tab", { name: "Websites & IPs" }).click();
+  await r.page.getByRole("tab", { name: "Websites" }).click();
   await r.page.waitForTimeout(300);
   const websites = (await r.page.locator("body").innerText()).replace(/\u2019/g, "'");
   check(
@@ -453,7 +534,27 @@ console.log("\nSecurity -> Blocking at a MikroTik venue");
   check(
     "website-blocking-is-no-longer-a-row-of-its-own",
     !r.rows.some((row) => row.label === "Website Blocking"),
-    "one home: it is the Websites & IPs tab now",
+    "one home: it is the Websites tab now",
+  );
+  check(
+    "mikrotik-websites-tab-has-the-three-sections-in-order",
+    r.text.indexOf("Specific websites") > -1 &&
+      r.text.indexOf("Specific websites") < r.text.indexOf("Categories") &&
+      r.text.indexOf("Categories") < r.text.indexOf("Advanced: block an internet address"),
+    r.text.slice(0, 800),
+  );
+  check(
+    "mikrotik-advanced-is-folded-so-the-full-rule-list-is-not-mounted",
+    !r.text.includes("Every block, router by router"),
+  );
+  await r.page.getByText("Advanced: block an internet address").click();
+  await r.page.waitForTimeout(300);
+  const unfolded = (await r.page.locator("body").innerText()).replace(/\u2019/g, "'");
+  check(
+    "mikrotik-advanced-unfolds-to-the-full-rule-list-in-plain-words",
+    unfolded.includes("Every block, router by router") &&
+      !/IP\/CIDR|IP \/ CIDR|dropped at the firewall|Network \/ Website Blocking/.test(unfolded),
+    unfolded.slice(0, 1200),
   );
   await r.page.close();
 }
@@ -464,6 +565,449 @@ console.log("\nSecurity -> Blocking at a MikroTik venue");
     r.text.includes(GUESTS_VIEW_CTA) && !r.text.includes(WEBSITES_VIEW_CTA),
   );
   await r.page.close();
+}
+
+// ---------------------------------------------------------------------------
+// Security -> Firewall. MikroTik only: at an Omada-only venue the page is the
+// existing controller notice and no rule form or Apply button exists at all.
+// ---------------------------------------------------------------------------
+
+const FIREWALL_APPLY = "Apply to router";
+const FIREWALL_ADD = "Add a rule";
+
+console.log("\nSecurity -> Firewall at a controller venue");
+{
+  const r = await openFeature("firewall", [OMADA]);
+  check(
+    "omada-firewall-shows-the-existing-notice",
+    /Configured in Omada, not here\./.test(r.text) &&
+      /Firewall rules for this venue are set in Omada's own interface/.test(r.text) &&
+      /Your Wyfy Guest contact manages this venue/.test(r.text),
+  );
+  check(
+    "omada-firewall-mounts-no-control",
+    !r.text.includes(FIREWALL_APPLY) &&
+      !r.text.includes(FIREWALL_ADD) &&
+      (await r.page.getByRole("button", { name: FIREWALL_APPLY }).count()) === 0 &&
+      !(await r.page.locator("form").count()),
+    "a control that does nothing is the defect this gate exists to prevent",
+  );
+  const row = r.rows.find((x) => x.label === "Firewall");
+  check(
+    "omada-firewall-row-is-muted-with-the-reason",
+    row && row.muted && /managed by a TP-Link Omada controller/.test(row.title ?? ""),
+  );
+  await r.page.close();
+}
+
+console.log("\nSecurity -> Firewall at a MikroTik venue");
+{
+  served.firewallRules = [
+    {
+      id: "fw-1",
+      router_id: "r-hex",
+      organization_id: "org-1",
+      location_id: "loc-1",
+      name: "Keep guests off the printer",
+      chain: "forward",
+      action: "drop",
+      protocol: "all",
+      source_address: null,
+      destination_address: "192.168.88.20",
+      source_port: null,
+      destination_port: null,
+      in_interface: null,
+      priority: 100,
+      comment: null,
+      is_enabled: true,
+      created_at: "2026-09-23T10:00:00Z",
+      device_push_status: "failed",
+      device_push_error: "no band",
+      device_pushed_at: null,
+    },
+  ];
+  const r = await openFeature("firewall", [MIKROTIK]);
+  await r.page
+    .getByText("Keep guests off the printer")
+    .waitFor({ timeout: 5_000 })
+    .catch(() => {});
+  const text = (await r.page.locator("body").innerText()).replace(/\u2019/g, "'");
+  check(
+    "mikrotik-firewall-mounts-the-real-screen",
+    text.includes(FIREWALL_APPLY) && text.includes(FIREWALL_ADD) && !CONTROLLER_COPY.test(text),
+  );
+  check(
+    "mikrotik-firewall-lists-the-rule-in-plain-words",
+    text.includes("Keep guests off the printer") &&
+      text.includes("Anyone") &&
+      text.includes("192.168.88.20") &&
+      text.includes("Block") &&
+      !/\bforward\b|\bchain\b|\bdrop\b/.test(text),
+  );
+  check(
+    "mikrotik-firewall-shows-push-status-and-reason",
+    text.includes("Failed") && text.includes("no band"),
+  );
+  check(
+    "an-unknown-band-status-does-not-block-apply",
+    (await r.page.getByRole("button", { name: FIREWALL_APPLY }).isDisabled()) === false,
+    "the band endpoint 404s here; unknown must not read as missing",
+  );
+  check("mikrotik-firewall-mutes-nothing", r.rows.filter((row) => row.muted).length === 0);
+  await r.page.close();
+  served.firewallRules = [];
+}
+
+// ---------------------------------------------------------------------------
+// Web filtering: the Categories section of Block Websites' Websites tab.
+// MikroTik only; with no Cloudflare account connected (503) the section says
+// so and mounts no control.
+// ---------------------------------------------------------------------------
+
+const WF_TURN_ON = "Turn on";
+const WF_SAVE = "Save list";
+
+console.log("\nSecurity -> Web Filtering at a controller venue");
+{
+  served.dns = { configured: true, categories: [], policy: null, status: null };
+  const r = await openFeature("blocking", [OMADA], { tab: "websites" });
+  check(
+    "omada-web-filtering-shows-the-existing-notice",
+    /Configured in Omada, not here\./.test(r.text) &&
+      /Website blocking for this venue is set in Omada's own interface/.test(r.text),
+    r.text.slice(0, 400),
+  );
+  check(
+    "omada-web-filtering-mounts-no-control",
+    !r.text.includes(WF_TURN_ON) &&
+      !r.text.includes(WF_SAVE) &&
+      (await r.page.getByRole("checkbox").count()) === 0,
+  );
+  check(
+    "omada-web-filtering-has-no-row-of-its-own",
+    !r.rows.some((x) => x.label === "Web filtering"),
+    "its categories live under Block Websites, whose Guests tab works here",
+  );
+  await r.page.close();
+}
+
+console.log("\nSecurity -> Web Filtering when Cloudflare is not connected");
+{
+  served.dns = { configured: false };
+  const r = await openFeature("blocking", [MIKROTIK], { tab: "websites" });
+  await r.page
+    .getByText("Not set up yet for this account")
+    .waitFor({ timeout: 5_000 })
+    .catch(() => {});
+  const text = (await r.page.locator("body").innerText()).replace(/\u2019/g, "'");
+  check(
+    "not-configured-says-so-calmly",
+    text.includes("Not set up yet for this account — contact support.") &&
+      !text.includes("Cloudflare Gateway account") &&
+      !/couldn't load/i.test(text),
+    text.slice(0, 600),
+  );
+  check(
+    "not-configured-mounts-no-control",
+    !text.includes(WF_TURN_ON) &&
+      !text.includes(WF_SAVE) &&
+      (await r.page.getByRole("checkbox").count()) === 0 &&
+      (await r.page.getByRole("switch").count()) === 0,
+  );
+  await r.page.close();
+}
+
+console.log("\nSecurity -> Web Filtering at a MikroTik venue");
+{
+  served.dns = {
+    configured: true,
+    categories: [
+      {
+        id: 21,
+        name: "Security threats",
+        description: "Malware, phishing and similar",
+        category_class: "free",
+        beta: false,
+        is_security: true,
+        subcategories: [
+          {
+            id: 117,
+            name: "Malware",
+            description: "",
+            category_class: "free",
+            beta: false,
+            is_security: true,
+            subcategories: [],
+          },
+        ],
+      },
+      {
+        id: 2,
+        name: "Gambling",
+        description: "",
+        category_class: "free",
+        beta: false,
+        is_security: false,
+        subcategories: [],
+      },
+    ],
+    policy: {
+      location_id: "loc-1",
+      organization_id: "org-1",
+      effective_category_ids: [2],
+      source: "organization",
+      location_category_ids: null,
+      organization_category_ids: [2],
+    },
+    status: {
+      router_id: "r-hex",
+      enabled: false,
+      state: "failed",
+      device_push_status: "failed",
+      device_push_error: "probe did not resolve",
+      device_pushed_at: "2026-09-24T10:00:00Z",
+      effective_category_ids: [2],
+      policy_source: "organization",
+      bypass_hardening_enabled: false,
+      bypass_hardening_status: "off",
+      bypass_hardening_error: null,
+      routeros_version: "7.19",
+      limitations: ["Blocks whole domains only: no URL paths, no in-app content."],
+    },
+  };
+  const r = await openFeature("blocking", [MIKROTIK], { tab: "websites" });
+  await r.page
+    .getByText("Lobby hEX")
+    .last()
+    .waitFor({ timeout: 5_000 })
+    .catch(() => {});
+  await r.page.waitForTimeout(300);
+  const text = (await r.page.locator("body").innerText()).replace(/\u2019/g, "'");
+  check(
+    "the-venue-list-and-the-account-default-are-both-shown",
+    text.includes("This venue uses your account's default list.") &&
+      text.includes("Your account's default list blocks: Gambling"),
+    text.slice(0, 800),
+  );
+  check(
+    "categories-come-from-the-backend-security-first",
+    text.indexOf("Security threats") > -1 &&
+      text.indexOf("Security threats") < text.lastIndexOf("Gambling"),
+  );
+  check(
+    "router-status-shows-state-last-result-and-reason",
+    text.includes("Didn't switch on") &&
+      text.includes("Last attempt failed") &&
+      text.includes("probe did not resolve"),
+  );
+  check(
+    "bypass-hardening-is-off-and-cannot-be-turned-on-before-filtering",
+    // By name: the "Block known harmful websites" switch now sits above it.
+    (await r.page
+      .getByRole("switch", { name: "Stop guests getting around the filter" })
+      .getAttribute("aria-checked")) === "false" &&
+      (await r.page
+        .getByRole("switch", { name: "Stop guests getting around the filter" })
+        .isDisabled()),
+  );
+  check(
+    "save-is-idle-until-the-list-changes",
+    await r.page.getByRole("button", { name: WF_SAVE }).isDisabled(),
+  );
+  await r.page.getByRole("button", { name: WF_TURN_ON }).click();
+  const dialog = r.page.getByRole("alertdialog");
+  await dialog.waitFor({ timeout: 5_000 }).catch(() => {});
+  const dialogText = ((await dialog.innerText().catch(() => "")) ?? "").replace(/\u2019/g, "'");
+  check(
+    "turn-on-states-the-whole-router-change-and-the-automatic-switch-back",
+    /looks up every website, for everyone on its network/.test(dialogText) &&
+      /switches back to its own settings automatically/.test(dialogText),
+    dialogText,
+  );
+  check("nothing-was-sent-before-confirming", (served.dns.enableCalls ?? 0) === 0);
+  await dialog.getByRole("button", { name: WF_TURN_ON }).click();
+  await r.page.waitForTimeout(500);
+  check("confirming-sends-exactly-one-enable", served.dns.enableCalls === 1);
+  check("mikrotik-web-filtering-mutes-nothing", r.rows.filter((row) => row.muted).length === 0);
+  await r.page.close();
+  served.dns = null;
+}
+
+console.log("\nSecurity -> Web Filtering: shared category sets (cloud-guest#307 profiles)");
+{
+  const status = {
+    router_id: "r-hex",
+    enabled: true,
+    state: "active",
+    device_push_status: "active",
+    device_push_error: null,
+    device_pushed_at: "2026-09-24T10:00:00Z",
+    effective_category_ids: [2],
+    policy_source: "location",
+    bypass_hardening_enabled: false,
+    bypass_hardening_status: "off",
+    bypass_hardening_error: null,
+    routeros_version: "7.19",
+    limitations: [],
+  };
+  const cat = (id, name, is_security = false, subcategories = []) => ({
+    id,
+    name,
+    description: "",
+    category_class: "free",
+    beta: false,
+    is_security,
+    subcategories,
+  });
+  served.dns = {
+    configured: true,
+    categories: [
+      cat(21, "Security threats", true, [cat(117, "Malware", true)]),
+      cat(2, "Gambling"),
+      cat(5, "Adult themes"),
+    ],
+    policy: {
+      location_id: "loc-1",
+      organization_id: "org-1",
+      effective_category_ids: [2],
+      source: "location",
+      location_category_ids: [2],
+      organization_category_ids: null,
+    },
+    status,
+    // First save: a new set past the cap. The closest set in use blocks
+    // Gambling + Security threats (so it adds Security threats and Malware,
+    // and drops Adult themes).
+    onPut: () => ({
+      refuse: {
+        status: 409,
+        message: "Category filtering can run at most 3 different category selections at once",
+        data: {
+          resource: "DNS locations",
+          limit: 3,
+          in_use: 3,
+          requested_category_ids: [2, 5],
+          nearest_category_ids: [2, 21, 117],
+          nearest_adds: [21, 117],
+          nearest_removes: [5],
+        },
+      },
+    }),
+  };
+  const r = await openFeature("blocking", [MIKROTIK], { tab: "websites" });
+  await r.page
+    .getByText("Adult themes")
+    .first()
+    .waitFor({ timeout: 5_000 })
+    .catch(() => {});
+  await r.page.getByRole("checkbox", { name: "Adult themes" }).click();
+  await r.page.getByRole("button", { name: WF_SAVE }).click();
+  await r.page
+    .getByText("different filter sets")
+    .waitFor({ timeout: 5_000 })
+    .catch(() => {});
+  let text = (await r.page.locator("body").innerText()).replace(/\u2019/g, "'");
+  check(
+    "set-limit-409-is-one-plain-sentence-with-category-names",
+    text.includes(
+      "Your account can use up to 3 different filter sets and all are in use. The closest existing set differs by: adding Security threats, Malware, removing Adult themes.",
+    ),
+    text.slice(0, 1200),
+  );
+  const putsBefore = served.dns.putCalls;
+  await r.page.getByRole("button", { name: "Use the closest set" }).click();
+  await r.page.waitForTimeout(300);
+  const checked = async (name) =>
+    (await r.page.getByRole("checkbox", { name }).first().getAttribute("aria-checked")) === "true";
+  check(
+    "use-the-closest-set-fills-the-picker-and-saves-nothing",
+    (await checked("Security threats")) &&
+      (await checked("Gambling")) &&
+      !(await checked("Adult themes")) &&
+      served.dns.putCalls === putsBefore &&
+      !(await r.page.getByRole("button", { name: WF_SAVE }).isDisabled()),
+    `puts ${putsBefore} -> ${served.dns.putCalls}`,
+  );
+
+  // Second save: 200, but the router failed to move and still filters with
+  // its previous set.
+  served.dns.onPut = () => {
+    served.dns.status = {
+      ...status,
+      device_push_status: "failed",
+      device_push_error:
+        "Router unreachable. The router still filters with its previous category selection.",
+    };
+    served.dns.policy = {
+      ...served.dns.policy,
+      effective_category_ids: [2, 21, 117],
+      location_category_ids: [2, 21, 117],
+    };
+    return null;
+  };
+  await r.page.getByRole("button", { name: WF_SAVE }).click();
+  await r.page
+    .getByText("Still using the previous filter set —")
+    .waitFor({ timeout: 5_000 })
+    .catch(() => {});
+  await r.page.waitForTimeout(300);
+  text = (await r.page.locator("body").innerText()).replace(/\u2019/g, "'");
+  const toasts = await r.page.evaluate(() => window.__toasts ?? []);
+  check(
+    "a-200-with-a-router-left-behind-is-a-warning-not-a-plain-saved",
+    toasts.some(
+      (x) =>
+        x.kind === "warning" &&
+        /^Saved, but 1 router\(s\) are still using the previous filter set: Lobby hEX/.test(
+          x.message,
+        ),
+    ) && !toasts.some((x) => x.kind === "success"),
+    JSON.stringify(toasts),
+  );
+  check(
+    "the-router-left-behind-says-why-and-offers-a-retry",
+    text.includes(
+      "Still using the previous filter set — the change didn't reach this router: Router unreachable.",
+    ) && (await r.page.getByRole("button", { name: "Try the change again" }).count()) === 1,
+  );
+
+  // Clearing everything while the router still filters: 409 naming it.
+  served.dns.status = { ...status };
+  served.dns.onPut = () => ({
+    refuse: {
+      status: 409,
+      message: "Category filtering is still on for 1 router(s)",
+      data: { routers: 1 },
+    },
+  });
+  await r.page.reload();
+  await r.page
+    .getByText("Security threats")
+    .first()
+    .waitFor({ timeout: 5_000 })
+    .catch(() => {});
+  await r.page
+    .getByText("Lobby hEX")
+    .last()
+    .waitFor({ timeout: 5_000 })
+    .catch(() => {});
+  await r.page.waitForTimeout(300);
+  for (const name of ["Security threats", "Gambling"]) {
+    await r.page.getByRole("checkbox", { name }).first().click();
+  }
+  await r.page.getByRole("button", { name: WF_SAVE }).click();
+  await r.page
+    .getByText("Turn off web filtering on")
+    .waitFor({ timeout: 5_000 })
+    .catch(() => {});
+  text = (await r.page.locator("body").innerText()).replace(/\u2019/g, "'");
+  check(
+    "clearing-under-a-live-router-names-it",
+    text.includes("Turn off web filtering on these routers first: Lobby hEX."),
+    text.slice(0, 1500),
+  );
+  await r.page.close();
+  served.dns = null;
 }
 
 console.log("\nmixed venue: a MikroTik beside the controller keeps everything");

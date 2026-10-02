@@ -302,7 +302,11 @@ function PlatformIntegrationsScreen() {
    * in the first 25, which is a filter that looks complete and is not. */
   const organizations = useQuery({
     queryKey: keys.organizations,
-    queryFn: () => organizationService.list({ page: 1, pageSize: 100 }),
+    queryFn: () =>
+      organizationService.listAll().catch((err: unknown) => {
+        toast.error("Could not load the customer list for the filter.");
+        throw err;
+      }),
     staleTime: 5 * 60_000,
     retry: 1,
   });
@@ -439,7 +443,7 @@ function PlatformIntegrationsScreen() {
             }}
           >
             <option value="">Any customer</option>
-            {(organizations.data?.rows ?? []).map((o) => (
+            {(organizations.data ?? []).map((o) => (
               <option key={o.id} value={o.id}>
                 {o.name}
               </option>

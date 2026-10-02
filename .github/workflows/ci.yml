@@ -537,6 +537,22 @@ jobs:
             "org-scope-header: all checks passed" \
             bun run test:org-scope-header
 
+      # Every backend list route caps `page_size` at 100 and 422s above it.
+      # The org scope picker and Router Fleet's integration join both asked
+      # for 200 to mean "all", so both 422'd on every Master page load. This
+      # pins that "all" means walking `has_next` in pages of <= 100, that a
+      # failed page is an error and not a short list, and that no call site
+      # goes back to a literal over the cap. Follow-up: the scan now looks
+      # at the number (object literals, constants, snake_case, defaults),
+      # not at two named callees, and the cross-tenant fan-outs are pinned
+      # past 100 at every level against per-endpoint caps.
+      - name: master list page size
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "master-list-page-size" 68 \
+            "master-list-page-size: all checks passed" \
+            bun run test:master-list-page-size
+
       - name: firewall rule ordering
         run: |
           ./scripts/ci-gated-test.sh \
@@ -1183,6 +1199,30 @@ jobs:
       # which needs no backend checkout at all.
       - name: vendored permission keys are current
         run: bun run test:permission-key-drift
+
+      # --- Marketing add-on UI ---------------------------------------------
+      #
+      # The SMS length/segment counter executed against the contract's rules,
+      # plus source guards: no fixture arrays anywhere in the marketing UI, no
+      # optimistic updates, no success toast that can fire before the server
+      # answered, and the add-on's lock state read from the backend
+      # (/me/entitlements + the 402), never from the login-role radio.
+      # wyfy-specs/guest-marketing-campaigns.md §8.3.
+      - name: marketing UI guards
+        run: bun run test:marketing-ui
+
+      # The campaign composer mounted in Chromium: an edited draft gets past
+      # Details (no reseed on refetch), unchanged drafts are not re-PATCHed,
+      # version conflicts recover, and the schedule idempotency key survives
+      # network/5xx errors while a double click sends one request.
+      - name: marketing composer (browser)
+        run: bun run test:marketing-composer
+
+      # The Marketing screens in the DEMO workspace, mounted in Chromium: every
+      # tab works from the in-memory demo backend, actions say "Demo: nothing
+      # was actually sent", and no request of any kind leaves the browser.
+      - name: marketing demo (browser)
+        run: bun run test:marketing-demo
 
       # --- Session rules actually reach the guest --------------------------
       #
@@ -2092,6 +2132,43 @@ jobs:
             "omada-guided-setup" 46 \
             "omada guided setup: all checks passed" \
             bun run test:omada-guided-setup
+
+      # Aruba Instant On (AP21 / AP-503), a controller-managed AND NAS-only
+      # vendor: no agent, no WireGuard, and no API to Aruba's cloud -- the AP
+      # sends guests to our portal and asks our RADIUS hub. Two suites:
+      #
+      #   * the pure half: vendor gating (Omada and MikroTik asserted
+      #     UNCHANGED first), every customer control greyed with PM_SPEC's
+      #     copy, "Set up in Instant On" never "Offline", the setup contract,
+      #     and the guest portal refusing to POST an identifier to a
+      #     `switchip` outside Aruba's own login hosts;
+      #   * the Master setup panel in Chromium against a fake backend: gaps
+      #     instead of values, Register gated on a public IP plus the static
+      #     tick, and the shared secret shown once -- gone from the DOM and
+      #     the query cache the moment its dialog closes.
+      - name: aruba instant on gating, guardrails and portal login
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "aruba-instant-on" 301 \
+            "aruba instant on: all checks passed" \
+            bun run test:aruba-instant-on
+      - name: aruba instant on setup panel
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "aruba-setup-panel" 82 \
+            "aruba setup panel: all checks passed" \
+            bun run test:aruba-setup-panel
+      # Router Fleet's "Add Instant On site" / "Remove this Instant On site"
+      # (Master only): the request body (blank optionals omitted), refusals
+      # shown verbatim with no success claimed, Remove as DELETE /routers/{id}
+      # with a hub refusal NOT reported as removed, and no customer surface
+      # importing any of it.
+      - name: aruba instant on add / remove site
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "aruba-add-site" 45 \
+            "aruba add site: all checks passed" \
+            bun run test:aruba-add-site
 
       # The customer dashboard's five guest controls, at a venue whose access
       # points are a TP-Link Omada controller. Three of them were written for

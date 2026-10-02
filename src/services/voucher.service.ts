@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import { getAllItems } from "@/services/list-all-pages";
 import type {
   CreateVoucherBatchPayload,
   Voucher,
@@ -200,12 +201,14 @@ export const voucherService = {
   },
 
   async kpis(): Promise<VoucherKpis> {
-    const { data } = await api.get<BackendVoucherBatchListResponse>("/voucher-batches", {
-      params: { page: 1, page_size: 100 },
-    });
-    const batches = data.items.map(toBatch);
+    // Every batch: the status counts below were computed over the first 100
+    // while `totalBatches` came from the server total, so past 100 the tiles
+    // disagreed with each other.
+    const items =
+      await getAllItems<BackendVoucherBatchListResponse["items"][number]>("/voucher-batches");
+    const batches = items.map(toBatch);
     return {
-      totalBatches: data.total_items,
+      totalBatches: batches.length,
       pendingApproval: batches.filter((b) => b.status === "pending_approval").length,
       activeBatches: batches.filter((b) => b.status === "active").length,
       totalVouchers: batches.reduce((sum, b) => sum + b.quantity, 0),
@@ -213,11 +216,11 @@ export const voucherService = {
   },
 
   async listPlans(organizationId?: string): Promise<VoucherPlan[]> {
-    const { data } = await api.get<BackendVoucherPlanListResponse>("/voucher-plans", {
-      params: { page_size: 100 },
-      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
-    });
-    return data.items.map(toPlan);
+    const items = await getAllItems<BackendVoucherPlanListResponse["items"][number]>(
+      "/voucher-plans",
+      { headers: organizationId ? { "X-Organization-Id": organizationId } : undefined },
+    );
+    return items.map(toPlan);
   },
 
   async createBatch(payload: CreateVoucherBatchPayload): Promise<VoucherBatch> {

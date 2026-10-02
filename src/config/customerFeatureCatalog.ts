@@ -22,15 +22,16 @@ import {
   Network,
   Wifi,
   Server,
-  Plug,
   Share2,
   Signal,
   Globe,
   Ban,
+  BrickWall,
   ScrollText,
   LifeBuoy,
   Radar,
   ShieldAlert,
+  Send,
 } from "lucide-react";
 
 export interface FeatureDef {
@@ -47,7 +48,7 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
     group: "Overview",
     items: [
       { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, core: true },
-      { id: "users", label: "Users", icon: Users },
+      { id: "users", label: "Guests", icon: Users },
       { id: "reports", label: "Reports", icon: FileText },
       { id: "alerts", label: "Alerts", icon: Bell },
     ],
@@ -55,10 +56,19 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
   {
     group: "Engagement",
     items: [
-      { id: "campaigns", label: "Campaigns", icon: Megaphone },
+      { id: "campaigns", label: "Login Page Offers", icon: Megaphone },
       { id: "portal", label: "Portal", icon: Palette },
       { id: "vouchers", label: "Vouchers", icon: Ticket },
     ],
+  },
+  {
+    // The Marketing add-on (wyfy-specs/guest-marketing-campaigns.md §3.5),
+    // grantable so Staff Access can give it to a staff role. Granting it here
+    // does not unlock the add-on -- that is the organisation's entitlement --
+    // and does not grant sending, which the backend gates on
+    // `marketing.execute` separately.
+    group: "Marketing",
+    items: [{ id: "marketing", label: "Guest Messaging", icon: Send }],
   },
   {
     group: "Access & Policy",
@@ -68,8 +78,11 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
       // bypass of the sign-in page that this list has never provided -- a
       // WHITELIST rule is inert while the portal default-allows everyone,
       // and only bites once "Only allow the guests on this list" is on. The
-      // name now says what the list is consulted for.
-      { id: "whitelist", label: "Only Allowed", icon: Shield },
+      // name now says what the list is consulted for. Then "Only Allowed"
+      // -> "Guest Allow-list" (PM naming review): a plain noun for the
+      // list itself, and clearly about guests, so it no longer reads like
+      // Trusted Devices (fixed equipment that connects on its own).
+      { id: "whitelist", label: "Guest Allow-list", icon: Shield },
       { id: "mac-auth", label: "Trusted Devices", icon: Fingerprint },
       // Renamed from "Business Hours" -- the old label/visual design read
       // too close to a competitor's equivalent feature. Same id/route/
@@ -104,14 +117,6 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
       { id: "port-forwarding", label: "Port Forwarding", icon: Share2 },
       { id: "voip", label: "Call Priority", icon: Signal },
       { id: "isp-details", label: "Internet Connection", icon: Globe },
-      // Connect a venue's own TP-Link Omada controller so guest logins are
-      // enforced on its access points. Listed here (grantable, not `core`)
-      // exactly as "network-activity" is, and with the same caveat: real
-      // access still requires the owner login role (customerNav.ts's
-      // `roles: ["owner"]`), so granting it to an agent has no effect until
-      // that separate restriction is ever relaxed. It is in the catalog
-      // anyway so the Staff Access screen enumerates a complete feature set
-      // rather than a set with one silent hole in it.
     ],
   },
   {
@@ -127,8 +132,11 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
     // together with the Blocked Guests tab of Access Rules -- see
     // lib/blocking.ts.
     items: [
-      { id: "security", label: "Security overview", icon: ShieldAlert },
-      { id: "blocking", label: "Blocking", icon: Ban },
+      { id: "security", label: "Security Score", icon: ShieldAlert },
+      // "web-filtering" was its own entry; its categories are a section of
+      // Block Websites now, so granting "blocking" grants both.
+      { id: "blocking", label: "Block Websites", icon: Ban },
+      { id: "firewall", label: "Firewall", icon: BrickWall },
     ],
   },
   {
@@ -148,7 +156,7 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
       { id: "tickets", label: "Support Tickets", icon: LifeBuoy, core: true },
       // "Audit Log" is no longer a separate grantable feature -- its real
       // data was merged into Admin Logs' own "Account Activity" section.
-      { id: "admin-logs", label: "Logs", icon: ScrollText },
+      { id: "admin-logs", label: "Staff Activity", icon: ScrollText },
       // Guest session/login records -- see customerNav.ts's matching entry
       // and NetworkActivityLog.tsx for why this is a separate feature id
       // from "admin-logs", not a merge into it. Listed here (grantable, not
@@ -156,7 +164,7 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
       // owner login role (customerNav.ts's `roles: ["owner"]` and this
       // component's own render-time guard), so granting it to an agent has
       // no effect until that separate restriction is ever relaxed.
-      { id: "network-activity", label: "Network Activity Log", icon: Radar },
+      { id: "network-activity", label: "Guest Connection Records", icon: Radar },
     ],
   },
 ];

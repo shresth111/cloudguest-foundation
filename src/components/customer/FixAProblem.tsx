@@ -54,6 +54,8 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -208,6 +210,7 @@ function VerdictCard({
   children?: React.ReactNode;
 }) {
   const Icon = TONE_ICON[tone];
+  const { t } = useTranslation("fixProblem", { i18n });
   return (
     <div className={cn("rounded-xl border p-4", TONE_CARD[tone])}>
       <div className="flex items-start gap-2.5">
@@ -217,7 +220,7 @@ function VerdictCard({
           {meaning && <p className="text-sm text-muted-foreground">{meaning}</p>}
           {action && (
             <p className="text-sm">
-              <span className="font-medium">What to do: </span>
+              <span className="font-medium">{t("whatToDo", "What to do:")} </span>
               <span className="text-muted-foreground">{action}</span>
             </p>
           )}
@@ -260,14 +263,18 @@ function Disclosure({
 /** §8.4 -- a swept value always carries its age, and anything past the
  * staleness line is never presented as current. */
 function CheckedAgo({ iso, stale }: { iso: string | null; stale: boolean }) {
+  const { t } = useTranslation("fixProblem", { i18n });
   if (!iso) return null;
   const mins = minutesSince(iso, new Date());
   if (mins == null) return null;
-  const text = mins < 1 ? "Checked seconds ago" : `Checked ${humanizeAge(mins * 60_000)} ago`;
+  const text =
+    mins < 1
+      ? t("checkedSecondsAgo", "Checked seconds ago")
+      : t("checkedAgo", "Checked {{age}} ago", { age: humanizeAge(mins * 60_000) });
   return (
     <span className="text-xs text-muted-foreground">
       {text}
-      {stale && " — this may have changed"}
+      {stale && ` — ${t("mayHaveChanged", "this may have changed")}`}
     </span>
   );
 }
@@ -275,9 +282,10 @@ function CheckedAgo({ iso, stale }: { iso: string | null; stale: boolean }) {
 /** What was and was not established. Rendering the gaps is the point:
  * an unchecked rung must never read as a clean bill of health. */
 function CheckedList({ checked, notChecked }: { checked: string[]; notChecked: string[] }) {
+  const { t } = useTranslation("fixProblem", { i18n });
   if (checked.length === 0 && notChecked.length === 0) return null;
   return (
-    <Disclosure label="What we checked">
+    <Disclosure label={t("whatWeChecked", "What we checked")}>
       <div className="space-y-2 rounded-lg border bg-background/60 p-3">
         {checked.length > 0 && (
           <ul className="space-y-1">
@@ -291,7 +299,7 @@ function CheckedList({ checked, notChecked }: { checked: string[]; notChecked: s
         )}
         {notChecked.length > 0 && (
           <>
-            <p className="pt-1 text-xs font-medium">We could not check:</p>
+            <p className="pt-1 text-xs font-medium">{t("couldNotCheck", "We could not check:")}</p>
             <ul className="space-y-1">
               {notChecked.map((c) => (
                 <li key={c} className="flex items-start gap-1.5 text-xs text-muted-foreground">
@@ -584,6 +592,7 @@ export function FixAProblem({
 }
 
 function PageHeading({ demo }: { demo: boolean }) {
+  const { t } = useTranslation("fixProblem", { i18n });
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-3">
@@ -591,16 +600,20 @@ function PageHeading({ demo }: { demo: boolean }) {
           <Wifi className="h-[18px] w-[18px] text-white" />
         </div>
         <div>
-          <h2 className="text-lg font-semibold tracking-tight">Fix a Problem</h2>
+          <h2 className="text-lg font-semibold tracking-tight">
+            {t("nav:customerItem.debugging", "Fix a Problem")}
+          </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Someone says the WiFi isn&apos;t working. Start with their phone number — most of the
-            time the answer is already here.
+            {t(
+              "intro",
+              "Someone says the WiFi isn't working. Start with their phone number — most of the time the answer is already here.",
+            )}
           </p>
         </div>
       </div>
       {demo && (
         <p className="text-xs text-muted-foreground">
-          This is an example, using sample guests. Sign in to see your own.
+          {t("demoNote", "This is an example, using sample guests. Sign in to see your own.")}
         </p>
       )}
     </div>
@@ -622,11 +635,15 @@ function ZoneA({
   onRetry: () => void;
   loadError: boolean;
 }) {
+  const { t } = useTranslation("fixProblem", { i18n });
   if (loadError) {
     return (
       <ErrorState
-        title="We couldn't load this location just now"
-        description="This is a problem reaching us, not a problem with your internet. Nothing has changed at your venue."
+        title={t("loadErrorTitle", "We couldn't load this location just now")}
+        description={t(
+          "loadErrorBody",
+          "This is a problem reaching us, not a problem with your internet. Nothing has changed at your venue.",
+        )}
         onRetry={onRetry}
       />
     );
@@ -647,7 +664,7 @@ function ZoneA({
           <CheckedAgo iso={venue.checkedAt} stale={venue.stale} />
           {guestsOnline != null && venue.status !== "no-router" && (
             <span className="text-xs text-muted-foreground">
-              · {guestsOnline} guest{guestsOnline === 1 ? "" : "s"} connected now
+              · {t("guestsConnectedNow", "{{count}} guests connected now", { count: guestsOnline })}
             </span>
           )}
           {router && (
@@ -658,7 +675,7 @@ function ZoneA({
     >
       {unreachable && (
         <Button size="sm" variant="outline" className="mt-1" onClick={onRetry}>
-          <RefreshCw className="mr-2 h-3.5 w-3.5" /> Try again
+          <RefreshCw className="mr-2 h-3.5 w-3.5" /> {t("tryAgain", "Try again")}
         </Button>
       )}
     </VerdictCard>
@@ -683,6 +700,7 @@ function ZoneBGuestLookup({
   onSessionReset: () => void;
 }) {
   const [phone, setPhone] = useState("");
+  const { t } = useTranslation("fixProblem", { i18n });
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{
     verdict: GuestVerdict;
@@ -717,7 +735,7 @@ function ZoneBGuestLookup({
   const lookup = async (rawIdentifier: string, knownSession?: GuestSession) => {
     const identifier = rawIdentifier.trim();
     if (!identifier) {
-      toast.error("Enter the phone number the guest used to log in.");
+      toast.error(t("enterPhone", "Enter the phone number the guest used to log in."));
       return;
     }
     if (demo) {
@@ -803,9 +821,9 @@ function ZoneBGuestLookup({
       const e = err as AppError;
       toast.error(
         e.status === 403
-          ? "You don't have permission to look up guests here."
-          : "We couldn't look that guest up just now.",
-        { description: "Try again in a moment." },
+          ? t("lookupForbidden", "You don't have permission to look up guests here.")
+          : t("lookupFailed", "We couldn't look that guest up just now."),
+        { description: t("tryAgainMoment", "Try again in a moment.") },
       );
     } finally {
       setBusy(false);
@@ -844,38 +862,52 @@ function ZoneBGuestLookup({
         })
       ) {
         case "device-cleared":
-          toast.success("Done — they're off the network and back at the login page.");
+          toast.success(
+            t("resetDeviceCleared", "Done — they're off the network and back at the login page."),
+          );
           break;
         case "controller-venue":
           // Not a failure and not a retry prompt: there is no router here to
           // check. Their session is closed and their next sign-in is clean.
-          toast.info("Session reset — their next sign-in starts fresh.", {
-            description: resetVerdict.reason ?? undefined,
-          });
+          toast.info(
+            t("resetControllerVenue", "Session reset — their next sign-in starts fresh."),
+            {
+              description: resetVerdict.reason ?? undefined,
+            },
+          );
           break;
         case "not-cleared":
-          toast.warning("Session reset in our records only.", {
-            description:
+          toast.warning(t("resetNotCleared", "Session reset in our records only."), {
+            description: t(
+              "resetNotClearedBody",
               "The router did not confirm taking their device off, so they may still be online. Ask them to forget the network and reconnect.",
+            ),
           });
           break;
         case "session-only":
-          toast.success("Session reset — they'll sign in again from the login page.", {
-            description: "Whether their device was taken off the network was not reported.",
-          });
+          toast.success(
+            t("resetSessionOnly", "Session reset — they'll sign in again from the login page."),
+            {
+              description: t(
+                "resetSessionOnlyBody",
+                "Whether their device was taken off the network was not reported.",
+              ),
+            },
+          );
           break;
         case "controller-refused":
-          toast.warning("Session reset, but their device was not taken off the network.", {
-            description: "This venue's controller declined the request.",
-          });
+          toast.warning(
+            t("resetRefused", "Session reset, but their device was not taken off the network."),
+            { description: t("resetRefusedBody", "This venue's controller declined the request.") },
+          );
           break;
       }
       setResult(null);
       setPhone("");
       onSessionReset();
     } catch {
-      toast.error("We couldn't reset that session.", {
-        description: "Try again in a moment.",
+      toast.error(t("resetFailed", "We couldn't reset that session."), {
+        description: t("tryAgainMoment", "Try again in a moment."),
       });
     } finally {
       setResetting(false);
@@ -887,10 +919,13 @@ function ZoneBGuestLookup({
     <Card className="border-0 shadow-sm">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-sm">
-          <Users className="h-4 w-4 text-primary" /> Who&apos;s having trouble?
+          <Users className="h-4 w-4 text-primary" /> {t("whoTitle", "Who's having trouble?")}
         </CardTitle>
         <CardDescription>
-          Type the number they used to log in. If you don&apos;t have it, pick them from the list.
+          {t(
+            "whoBody",
+            "Type the number they used to log in. If you don't have it, pick them from the list.",
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -909,12 +944,16 @@ function ZoneBGuestLookup({
             ) : (
               <Search className="h-3.5 w-3.5" />
             )}
-            <span className="ml-2">Look up</span>
+            <span className="ml-2">{t("lookUp", "Look up")}</span>
           </Button>
         </div>
 
         {sessions.length > 0 && (
-          <Disclosure label={`Or pick someone — connected now (${sessions.length})`}>
+          <Disclosure
+            label={t("pickSomeone", "Or pick someone — connected now ({{count}})", {
+              count: sessions.length,
+            })}
+          >
             <div className="max-h-40 overflow-y-auto rounded-lg border">
               {sessions.slice(0, 25).map((s) => (
                 <button
@@ -928,7 +967,7 @@ function ZoneBGuestLookup({
                       ? masked
                         ? maskPhone(s.guestIdentifier)
                         : s.guestIdentifier
-                      : `Guest ${s.guestId.slice(0, 8)}`}
+                      : t("guestRef", "Guest {{ref}}", { ref: s.guestId.slice(0, 8) })}
                   </span>
                   <span className="shrink-0 text-muted-foreground">{s.ipAddress ?? "—"}</span>
                 </button>
@@ -939,8 +978,10 @@ function ZoneBGuestLookup({
                 column of UUID fragments with no explanation. */}
             {sessions.some((s) => !s.guestIdentifier) && (
               <p className="mt-2 text-xs text-muted-foreground">
-                Some rows show an internal reference instead of a phone number — guest sessions
-                don&apos;t carry the number yet.
+                {t(
+                  "internalRefNote",
+                  "Some rows show an internal reference instead of a phone number — guest sessions don't carry the number yet.",
+                )}
               </p>
             )}
           </Disclosure>
@@ -948,10 +989,14 @@ function ZoneBGuestLookup({
 
         {!result && (
           <div className="rounded-lg border border-dashed p-4 text-center">
-            <p className="text-sm font-medium">Nothing needs fixing right now.</p>
+            <p className="text-sm font-medium">
+              {t("nothingToFix", "Nothing needs fixing right now.")}
+            </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              When a guest tells you the WiFi isn&apos;t working, type their number above and
-              we&apos;ll tell you what we can see.
+              {t(
+                "nothingToFixBody",
+                "When a guest tells you the WiFi isn't working, type their number above and we'll tell you what we can see.",
+              )}
             </p>
           </div>
         )}
@@ -969,7 +1014,9 @@ function ZoneBGuestLookup({
                     {masked ? maskPhone(result.identifier) : result.identifier}
                   </Badge>
                   <span className="text-xs text-muted-foreground">
-                    Confidence: {result.verdict.confidence}
+                    {t("confidence", "Confidence: {{level}}", {
+                      level: result.verdict.confidence,
+                    })}
                   </span>
                 </div>
                 <CheckedList
@@ -987,7 +1034,9 @@ function ZoneBGuestLookup({
                 disabled={resetting}
                 onClick={() => setConfirmReset(true)}
               >
-                {resetting ? "Resetting…" : "Reset this guest's session"}
+                {resetting
+                  ? t("resetting", "Resetting…")
+                  : t("resetButton", "Reset this guest's session")}
               </Button>
             )}
           </VerdictCard>
@@ -1010,13 +1059,22 @@ function ZoneBGuestLookup({
       <ConfirmDialog
         open={confirmReset}
         onOpenChange={setConfirmReset}
-        title="Reset this guest's session?"
+        title={t("resetConfirmTitle", "Reset this guest's session?")}
         description={
           resetReachesDevice
-            ? "They'll be disconnected and sent back to the login page to sign in again. Anything they're in the middle of will stop."
-            : `Their session ends and their next sign-in starts fresh at the login page. ${resetVerdict.reason ?? "We cannot take their device off this venue's network, so they may stay connected until they reconnect."}`
+            ? t(
+                "resetConfirmDevice",
+                "They'll be disconnected and sent back to the login page to sign in again. Anything they're in the middle of will stop.",
+              )
+            : `${t("resetConfirmFresh", "Their session ends and their next sign-in starts fresh at the login page.")} ${
+                resetVerdict.reason ??
+                t(
+                  "resetConfirmNoDevice",
+                  "We cannot take their device off this venue's network, so they may stay connected until they reconnect.",
+                )
+              }`
         }
-        confirmLabel="Reset session"
+        confirmLabel={t("resetConfirmLabel", "Reset session")}
         destructive
         onConfirm={doReset}
       />
@@ -1046,6 +1104,7 @@ function ZoneCSiteCheck({
   controllerVendor: string | null;
 }) {
   const [host, setHost] = useState("");
+  const { t } = useTranslation("fixProblem", { i18n });
   const [busy, setBusy] = useState(false);
   const [verdict, setVerdict] = useState<SiteVerdict | null>(null);
   const [runs, setRuns] = useState<DiagnosticRun[]>([]);
@@ -1056,7 +1115,7 @@ function ZoneCSiteCheck({
       .replace(/^https?:\/\//i, "")
       .replace(/\/.*$/, "");
     if (!clean) {
-      toast.error("Enter the website the guest can't open, e.g. instagram.com");
+      toast.error(t("enterSite", "Enter the website the guest can't open, e.g. instagram.com"));
       return;
     }
     if (demo) {
@@ -1078,8 +1137,8 @@ function ZoneCSiteCheck({
       //    I/O, and it is the answer often enough to be worth asking first.
       let blockedByRule: { name: string; confirmedOnRouter: boolean } | null = null;
       try {
-        const rules = await contentFilterService.list({ routerId, page: 1, pageSize: 200 });
-        const hit = rules.rows.find(
+        const rules = await contentFilterService.listAll(routerId);
+        const hit = rules.find(
           (r) =>
             r.isEnabled &&
             r.valueType === "domain" &&
@@ -1091,7 +1150,15 @@ function ZoneCSiteCheck({
         }
       } catch {
         // Not fatal -- fall through to the reachability half rather than
-        // failing the whole check on one unreadable list.
+        // failing the whole check on one unreadable list. But SAY so: this
+        // used to be silent, and it failed on every call (a `page_size=200`
+        // the route 422s), so every verdict quietly skipped our own rules.
+        toast.warning(t("rulesUnreadable", "We couldn't read this venue's blocked-website list."), {
+          description: t(
+            "rulesUnreadableBody",
+            "The check below only covers whether the site is reachable, not whether one of your own rules blocks it.",
+          ),
+        });
       }
 
       if (blockedByRule) {
@@ -1166,9 +1233,12 @@ function ZoneCSiteCheck({
       <Card className="border-0 shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-sm">
-            <Globe className="h-4 w-4 text-primary" /> A guest can&apos;t open one particular site?
+            <Globe className="h-4 w-4 text-primary" />{" "}
+            {t("siteTitle", "A guest can't open one particular site?")}
           </CardTitle>
-          <CardDescription>Not something we can test from here at this venue.</CardDescription>
+          <CardDescription>
+            {t("siteControllerBody", "Not something we can test from here at this venue.")}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="rounded-lg border border-dashed border-border bg-muted/30 p-4">
@@ -1176,9 +1246,10 @@ function ZoneCSiteCheck({
               {controllerRouterDeviceWriteReason(controllerVendor)}
             </p>
             <p className="mt-2 text-sm text-muted-foreground">
-              Website blocking and the &ldquo;try it from your router&rdquo; test both run on the
-              router itself, so they are done in that controller. The guest lookup beside this still
-              works normally — it reads sign-in records, not your network.
+              {t(
+                "siteControllerNote",
+                "Website blocking and the “try it from your router” test both run on the router itself, so they are done in that controller. The guest lookup beside this still works normally — it reads sign-in records, not your network.",
+              )}
             </p>
           </div>
         </CardContent>
@@ -1190,10 +1261,14 @@ function ZoneCSiteCheck({
     <Card className="border-0 shadow-sm">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-sm">
-          <Globe className="h-4 w-4 text-primary" /> A guest can&apos;t open one particular site?
+          <Globe className="h-4 w-4 text-primary" />{" "}
+          {t("siteTitle", "A guest can't open one particular site?")}
         </CardTitle>
         <CardDescription>
-          We&apos;ll check your own blocking rules first, then try it from your router.
+          {t(
+            "siteBody",
+            "We'll check your own blocking rules first, then try it from your router.",
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -1207,12 +1282,12 @@ function ZoneCSiteCheck({
           />
           <Button size="sm" disabled={busy} onClick={check}>
             {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-            <span className={busy ? "ml-2" : ""}>Check this site</span>
+            <span className={busy ? "ml-2" : ""}>{t("checkSite", "Check this site")}</span>
           </Button>
         </div>
         {busy && (
           <p className="text-xs text-muted-foreground">
-            Checking from your router — this takes a few seconds.
+            {t("checkingSite", "Checking from your router — this takes a few seconds.")}
           </p>
         )}
         {verdict && (
@@ -1224,7 +1299,7 @@ function ZoneCSiteCheck({
             footnote={
               runs.length > 0 ? (
                 <div className="pt-1">
-                  <Disclosure label="Show the technical detail">
+                  <Disclosure label={t("showTechnical", "Show the technical detail")}>
                     <div className="space-y-2">
                       {runs.map((r) => (
                         <TechnicalRun key={r.id} run={r} />
@@ -1246,6 +1321,7 @@ function ZoneCSiteCheck({
 function TechnicalRun({ run }: { run: DiagnosticRun }) {
   const v = diagnosticVerdict(run);
   const hops = run.diagnosticType === "traceroute" ? tracerouteHopsOf(run) : [];
+  const { t } = useTranslation("fixProblem", { i18n });
   return (
     <div className="rounded-lg border bg-background/60 p-2">
       <p className="font-mono text-xs">
@@ -1256,10 +1332,10 @@ function TechnicalRun({ run }: { run: DiagnosticRun }) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-xs">Hop</TableHead>
-                <TableHead className="text-xs">Address</TableHead>
-                <TableHead className="text-xs">Loss</TableHead>
-                <TableHead className="text-xs">RTT</TableHead>
+                <TableHead className="text-xs">{t("colHop", "Hop")}</TableHead>
+                <TableHead className="text-xs">{t("colAddress", "Address")}</TableHead>
+                <TableHead className="text-xs">{t("colLoss", "Loss")}</TableHead>
+                <TableHead className="text-xs">{t("colRtt", "RTT")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1267,7 +1343,9 @@ function TechnicalRun({ run }: { run: DiagnosticRun }) {
                 <TableRow key={h.hop_number}>
                   <TableCell className="text-xs">{h.hop_number}</TableCell>
                   <TableCell className="font-mono text-xs">
-                    {h.address ?? <span className="text-muted-foreground">* (no reply)</span>}
+                    {h.address ?? (
+                      <span className="text-muted-foreground">{t("noReply", "* (no reply)")}</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-xs">{h.packet_loss_percentage}%</TableCell>
                   <TableCell className="text-xs">
@@ -1296,6 +1374,7 @@ function ZoneEWhatWeChecked({
 }) {
   const [runs, setRuns] = useState<DiagnosticRun[]>([]);
   const [total, setTotal] = useState<number | null>(null);
+  const { t } = useTranslation("fixProblem", { i18n });
   const [error, setError] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [retry, setRetry] = useState(0);
@@ -1329,31 +1408,48 @@ function ZoneEWhatWeChecked({
   return (
     <Card className="border-0 shadow-sm">
       <CardHeader>
-        <CardTitle className="text-sm">What we checked</CardTitle>
+        <CardTitle className="text-sm">{t("whatWeChecked", "What we checked")}</CardTitle>
         <CardDescription>
-          Every test we ran, with the raw result. Useful if you&apos;re on the phone to your
-          internet provider.
+          {t(
+            "historyBody",
+            "Every test we ran, with the raw result. Useful if you're on the phone to your internet provider.",
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Disclosure label={error ? "Show what we know" : `Show ${runs.length} recent checks`}>
+        <Disclosure
+          label={
+            error
+              ? t("showWhatWeKnow", "Show what we know")
+              : t("showRecentChecks", "Show {{count}} recent checks", { count: runs.length })
+          }
+        >
           {error ? (
             <ErrorState
-              title="We couldn't read back this router's history"
-              description="Your earlier checks are still recorded — we just couldn't load them."
+              title={t("historyErrorTitle", "We couldn't read back this router's history")}
+              description={t(
+                "historyErrorBody",
+                "Your earlier checks are still recorded — we just couldn't load them.",
+              )}
               onRetry={() => setRetry((r) => r + 1)}
             />
           ) : runs.length === 0 ? (
             <EmptyState
               icon={RouterIcon}
-              title="No checks recorded yet"
-              description="Anything this page runs against your router is listed here."
+              title={t("historyEmptyTitle", "No checks recorded yet")}
+              description={t(
+                "historyEmptyBody",
+                "Anything this page runs against your router is listed here.",
+              )}
             />
           ) : (
             <div className="space-y-2">
               {total != null && total > runs.length && (
                 <p className="text-xs text-muted-foreground">
-                  Showing the {runs.length} most recent of {total}.
+                  {t("showingRecent", "Showing the {{count}} most recent of {{total}}.", {
+                    count: runs.length,
+                    total,
+                  })}
                 </p>
               )}
               {runs.map((r) => (

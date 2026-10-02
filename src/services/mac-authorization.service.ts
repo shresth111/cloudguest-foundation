@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import { getAllItems } from "@/services/list-all-pages";
 import { resolveOrganizationId as sharedResolveOrganizationId } from "./organization-id";
 import type {
   CreateMacAuthorizationPayload,
@@ -87,15 +88,17 @@ export const macAuthorizationService = {
 
   async getKpis(): Promise<MacAuthorizationKpis> {
     const orgId = await resolveOrganizationId();
-    const { data } = await api.get<BackendMacAuthorizationListResponse>(
+    // Every entry: `enabled`/`disabled` were counted over the first 100 while
+    // `total` was the server's, so past 100 entries the three did not add up.
+    const items = await getAllItems<BackendMacAuthorizationListResponse["items"][number]>(
       "/mac-authorization/entries",
-      { params: { page: 1, page_size: 100 }, headers: { "X-Organization-Id": orgId } },
+      { headers: { "X-Organization-Id": orgId } },
     );
-    const enabled = data.items.filter((e) => e.is_enabled).length;
+    const enabled = items.filter((e) => e.is_enabled).length;
     return {
-      total: data.total_items,
+      total: items.length,
       enabled,
-      disabled: data.items.length - enabled,
+      disabled: items.length - enabled,
     };
   },
 

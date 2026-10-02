@@ -338,7 +338,19 @@ console.log("\n7. EN/HI parity across the venue-admin dictionaries");
 // (`test:portal-i18n-parity`) is the GUEST PORTAL and does not read these
 // files. Nothing ran over them until now.
 
-const NAMESPACES = ["common", "nav", "guests", "account", "help"];
+const NAMESPACES = [
+  "common",
+  "nav",
+  "guests",
+  "account",
+  "help",
+  "whitelist",
+  "trustedDevices",
+  "openHours",
+  "guestGroups",
+  "fixProblem",
+  "accessRules",
+];
 /**
  * `help` is deliberately partial: `hi/help.json` carries the page chrome and
  * the eight group lines, and the 26 per-screen sentences reach a Hindi reader
@@ -574,7 +586,7 @@ console.log("\n12. The How-it-works page answers for THIS venue");
 
 check(
   "the page applies the sidebar's controller gate",
-  /featureAppliesToControllerVenue\(item\.id\)/.test(howItWorks),
+  /featureAppliesToControllerVenue\(item\.id(, controllerVendor)?\)/.test(howItWorks),
 );
 check(
   "using the shared reason string, not a new sentence",
@@ -588,7 +600,11 @@ check(
 );
 check(
   "and the group note is shown only where something in it is gated",
-  /group\.items\.some\(\(item\) => !featureAppliesToControllerVenue\(item\.id\)\)/.test(howItWorks),
+  // `controllerVendor` is passed since Aruba Instant On (NAS-only) greys two
+  // more rows; prettier then wraps the call, hence the `\s*` and `,?`.
+  /group\.items\.some\(\s*\(item\) => !featureAppliesToControllerVenue\(item\.id(, controllerVendor)?\),?\s*\)/.test(
+    howItWorks,
+  ),
 );
 check(
   "a MikroTik venue reaches none of it",

@@ -1,6 +1,9 @@
 import { api } from "@/services/api";
 import { isDemo } from "@/services/customer.service";
+import { listAllPages } from "@/services/list-all-pages";
 import type {
+  ContentFilterApp,
+  ContentFilterAppList,
   ContentFilterCategory,
   ContentFilterListQuery,
   ContentFilterListResult,
@@ -20,6 +23,8 @@ interface BackendContentFilterRule {
   value_type: string;
   value: string;
   comment: string | null;
+  /** Absent on a backend without the Apps toggle. */
+  app_key?: string | null;
   is_enabled: boolean;
   device_push_status: "pending" | "active" | "failed";
   device_push_error: string | null;
@@ -37,6 +42,50 @@ interface BackendContentFilterListResponse {
   has_previous: boolean;
 }
 
+interface BackendContentFilterApp {
+  key: string;
+  name: string;
+  category: string;
+  note: string | null;
+  state: ContentFilterApp["state"];
+  push_status: ContentFilterApp["pushStatus"];
+  targets: {
+    value_type: string;
+    value: string;
+    rule_id: string | null;
+    owned: boolean;
+    is_enabled: boolean;
+    device_push_status: ContentFilterApp["pushStatus"];
+    device_push_error: string | null;
+  }[];
+}
+
+interface BackendContentFilterAppList {
+  router_id: string;
+  items: BackendContentFilterApp[];
+  limitations: string[];
+}
+
+export function toApp(a: BackendContentFilterApp): ContentFilterApp {
+  return {
+    key: a.key,
+    name: a.name,
+    category: a.category,
+    note: a.note,
+    state: a.state,
+    pushStatus: a.push_status,
+    targets: a.targets.map((t) => ({
+      valueType: t.value_type as ContentFilterValueType,
+      value: t.value,
+      ruleId: t.rule_id,
+      owned: t.owned,
+      isEnabled: t.is_enabled,
+      devicePushStatus: t.device_push_status,
+      devicePushError: t.device_push_error,
+    })),
+  };
+}
+
 function toRule(r: BackendContentFilterRule): ContentFilterRule {
   return {
     id: r.id,
@@ -48,6 +97,7 @@ function toRule(r: BackendContentFilterRule): ContentFilterRule {
     valueType: r.value_type as ContentFilterValueType,
     value: r.value,
     comment: r.comment,
+    appKey: r.app_key ?? null,
     isEnabled: r.is_enabled,
     devicePushStatus: r.device_push_status,
     devicePushError: r.device_push_error,
@@ -82,7 +132,13 @@ export const contentFilterService = {
       return { rows: [], total: 0, totalPages: 1, hasNext: false, hasPrevious: false };
     }
     const { data } = await api.get<BackendContentFilterListResponse>("/content-filter-rules", {
-      params: { router_id: q.routerId, page: q.page, page_size: q.pageSize },
+      params: {
+        router_id: q.routerId,
+        page: q.page,
+        page_size: q.pageSize,
+        // Only sent when asked for, so an older backend sees the same request.
+        ...(q.excludeAppRules ? { exclude_app_rules: true } : {}),
+      },
     });
     return {
       rows: data.items.map(toRule),
@@ -91,6 +147,18 @@ export const contentFilterService = {
       hasNext: data.has_next,
       hasPrevious: data.has_previous,
     };
+  },
+
+  /**
+   * Every rule on `routerId`, in pages of at most 100 -- the route caps
+   * `page_size` at 100, and Fix a Problem's one request for 200 422'd every
+   * time. Rejects if any page fails, so "no rule blocks this site" is never
+   * concluded from a list we could not read.
+   */
+  async listAll(routerId: string): Promise<ContentFilterRule[]> {
+    return listAllPages((page, pageSize) =>
+      contentFilterService.list({ routerId, page, pageSize }),
+    );
   },
 
   async create(payload: CreateContentFilterRulePayload): Promise<ContentFilterRule> {
@@ -146,5 +214,38 @@ export const contentFilterService = {
   async push(id: string): Promise<ContentFilterRule> {
     const { data } = await api.post<BackendContentFilterRule>(`/content-filter-rules/${id}/push`);
     return toRule(data);
+  },
+
+  /** Every catalogue app and how much of it is blocked on this router. */
+  async listApps(routerId: string): Promise<ContentFilterAppList> {
+    const { data } = await api.get<BackendContentFilterAppList>(
+      `/content-filter-rules/routers/${routerId}/apps`,
+    );
+    return {
+      routerId: data.router_id,
+      items: data.items.map(toApp),
+      limitations: data.limitations,
+    };
+  },
+
+  /**
+   * Switch an app off: the backend creates a block for each of its website
+   * names and sends each one to the router. A partial result is a real 502
+   * (`CONTENT_FILTER_APP_INCOMPLETE`), so a `catch` here means some names did
+   * not reach the router; re-reading the list shows which.
+   */
+  async blockApp(routerId: string, appKey: string): Promise<ContentFilterApp> {
+    const { data } = await api.put<BackendContentFilterApp>(
+      `/content-filter-rules/routers/${routerId}/apps/${appKey}`,
+    );
+    return toApp(data);
+  },
+
+  /** Switch an app back on: removes only the blocks its toggle created. */
+  async unblockApp(routerId: string, appKey: string): Promise<ContentFilterApp> {
+    const { data } = await api.delete<BackendContentFilterApp>(
+      `/content-filter-rules/routers/${routerId}/apps/${appKey}`,
+    );
+    return toApp(data);
   },
 };

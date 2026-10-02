@@ -20,13 +20,14 @@ import {
   Server,
   Signal,
   Wifi,
-  Plug,
   Ban,
+  BrickWall,
   LifeBuoy,
   Share2,
   HelpCircle,
   Radar,
   ShieldAlert,
+  Send,
 } from "lucide-react";
 
 export type CustomerLoginRole = "owner" | "agent";
@@ -61,7 +62,7 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
     label: "Overview",
     items: [
       { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["owner", "agent"] },
-      { id: "users", label: "Users", icon: Users, roles: ["owner", "agent"] },
+      { id: "users", label: "Guests", icon: Users, roles: ["owner", "agent"] },
       { id: "reports", label: "Reports", icon: FileText, roles: ["owner", "agent"] },
       { id: "alerts", label: "Alerts", icon: Bell, roles: ["owner", "agent"] },
     ],
@@ -71,16 +72,36 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
     label: "Engagement",
     items: [
       { id: "portal", label: "Portal", icon: Palette, roles: ["owner"] },
-      { id: "campaigns", label: "Campaigns", icon: Megaphone, roles: ["owner"] },
+      { id: "campaigns", label: "Login Page Offers", icon: Megaphone, roles: ["owner"] },
       { id: "vouchers", label: "Vouchers", icon: Ticket, roles: ["owner", "agent"] },
     ],
+  },
+  {
+    // The Marketing add-on (wyfy-specs/guest-marketing-campaigns.md §3.5).
+    // Its own group, not a row under Engagement -> Login Page Offers: those are
+    // captive-portal banners/surveys shown DURING login, this is outbound
+    // WhatsApp/SMS/email to guests who opted in -- a different product with
+    // its own consent and send lifecycle.
+    //
+    // Both roles on purpose. `cg_login_role` is a sign-in radio button in
+    // localStorage and must not decide who sees this (known defect, see
+    // customerNavPermissions.ts). Visibility comes from the real
+    // `marketing.read` grant; whether the add-on is unlocked comes from
+    // `/me/entitlements` (CustomerSidebar's lock badge) and, finally, from
+    // the backend's own 402 on every marketing route.
+    //
+    // `Send`, not `Megaphone`: Megaphone is Login Page Offers, and in the collapsed
+    // rail two rows with the same glyph are indistinguishable.
+    id: "marketing",
+    label: "Marketing",
+    items: [{ id: "marketing", label: "Guest Messaging", icon: Send, roles: ["owner", "agent"] }],
   },
   {
     id: "access-policy",
     label: "Access & Policy",
     items: [
       { id: "policies", label: "Access Rules", icon: ShieldCheck, roles: ["owner"] },
-      { id: "whitelist", label: "Only Allowed", icon: Shield, roles: ["owner"] },
+      { id: "whitelist", label: "Guest Allow-list", icon: Shield, roles: ["owner"] },
       { id: "mac-auth", label: "Trusted Devices", icon: Fingerprint, roles: ["owner"] },
       // Renamed from "Business Hours" (same id/route/data) -- see
       // customerFeatureCatalog.ts's own note.
@@ -118,44 +139,42 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
       // requests; `/website-blocking` redirects to that tab. See
       // lib/blocking.ts.
       { id: "isp-details", label: "Internet Connection", icon: Globe, roles: ["owner"] },
-      // Owner-only, and not for tidiness: this screen owns the credentials
-      // to the venue's own network controller. Rotating them takes the
-      // guest WiFi down until the new ones work, and disconnecting stops
-      // guest authorisation outright -- neither is a front-desk action.
-      // Same three-layer shape as "admin-logs"/"network-activity": the nav
-      // narrows what is offered, `customerNavPermissions.ts` intersects it
-      // with the caller's real `network_integrations.read` grant, and the
-      // backend enforces every request on its own regardless.
-      //
-      // `Plug` is not used by any other row. That matters concretely: in the
-      // collapsed rail labels are hidden entirely, so a repeated glyph is
-      // two rows a customer cannot tell apart (see the Notifications/Alerts
-      // note in the Operations group and the icon-clash assertion in
-      // scripts/test-customer-nav-shell.mjs).
     ],
   },
   {
     id: "security",
     label: "Security",
-    // Two rows, and each opens a screen that does something. The posture
+    // Three rows, and each opens a screen that does something. The posture
     // page is the only security surface whose numbers this platform can
-    // actually produce (see SecurityOverviewView's own note), and Blocking
-    // is the one place to stop a website, an address or a guest -- built
-    // entirely from screens that already worked elsewhere (lib/blocking.ts).
-    // Firewall rules and zone isolation join them as they become real;
-    // listing them now would put rows in the sidebar that open a
-    // placeholder, which reads as broken features rather than shipped ones.
+    // actually produce (see SecurityOverviewView's own note), and Block
+    // Websites is the one place to stop a website (by name or by category),
+    // an address or a guest -- built entirely from screens that already
+    // worked elsewhere (lib/blocking.ts). "Web filtering" was a fourth row;
+    // its categories are a section of Block Websites now and /web-filtering
+    // redirects there, because two rows for "block a website" sent owners
+    // looking in the wrong one.
+    // Firewall joined them once rules could actually reach the router
+    // (cloud-guest#304's push): a rules screen with no way to apply them
+    // would have been the placeholder this group refuses to ship. Zone
+    // isolation joins when it is real; listing it now would put a row in the
+    // sidebar that opens a placeholder.
     //
-    // The first label is "Overview", not "Security": the group header
+    // The first label is "Security Score", not "Security": the group header
     // already says Security, and a row repeating its own group is the same
-    // duplicated heading this dashboard has been pulled up on elsewhere.
+    // duplicated heading this dashboard has been pulled up on elsewhere. It
+    // was "Overview", which collided with the Overview group above it.
     //
     // Blocking takes `Ban`, which moved with it from the retired Network
     // row -- no other row uses it, so the collapsed rail stays unambiguous.
     // Owner-only, like Access Rules that "Blocked Guests" came from.
     items: [
-      { id: "security", label: "Overview", icon: ShieldAlert, roles: ["owner"] },
-      { id: "blocking", label: "Blocking", icon: Ban, roles: ["owner"] },
+      { id: "security", label: "Security Score", icon: ShieldAlert, roles: ["owner"] },
+      { id: "blocking", label: "Block Websites", icon: Ban, roles: ["owner"] },
+      // Owner-only, like every other screen that writes the venue's router.
+      // `BrickWall`: unused elsewhere, and it is what the word means. At a
+      // controller-only venue the row is muted and the page shows the
+      // controller notice ("firewall" is in CONTROLLER_UNSUPPORTED_FEATURE_IDS).
+      { id: "firewall", label: "Firewall", icon: BrickWall, roles: ["owner"] },
     ],
   },
   {
@@ -192,17 +211,17 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
       // -- see customer.$locationId.$feature.tsx's own AdminLogsView render
       // for the same restriction and why (a real, org-wide login + change
       // audit trail, independently enforced by the backend too).
-      { id: "admin-logs", label: "Logs", icon: ScrollText, roles: ["owner"] },
-      // Distinct nav item from "Logs" above -- different data (real *guest*
+      { id: "admin-logs", label: "Staff Activity", icon: ScrollText, roles: ["owner"] },
+      // Distinct nav item from "Staff Activity" above -- different data (real *guest*
       // WiFi usage records: session connections + login/access attempts),
       // different audience framing (a compliance-relevant record, not a
       // dashboard/infra-access log) -- see
       // docs/ipdr-logs-syslog-spec.md §4/§7 for the full reasoning against
       // merging this into admin-logs. Owner-only, same restriction and same
-      // reasoning as "Logs" (security-sensitive guest data) -- see
+      // reasoning as "Staff Activity" (security-sensitive guest data) -- see
       // NetworkActivityLog.tsx's own render-time guard for the matching
       // three-layer defense-in-depth.
-      { id: "network-activity", label: "Network Activity Log", icon: Radar, roles: ["owner"] },
+      { id: "network-activity", label: "Guest Connection Records", icon: Radar, roles: ["owner"] },
       // A static reference page, not a data-backed feature -- lives here
       // (rather than getting its own top-level nav group) because "Help" is
       // exactly where a customer already looks for it, right alongside

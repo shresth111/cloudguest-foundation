@@ -118,9 +118,13 @@ const {
 // 1. The menu is the 26 again.
 // ---------------------------------------------------------------------------
 
-console.log("\nthe customer menu is 26 features in eight groups");
+console.log("\nthe customer menu is 29 features in nine groups");
 
-check("there are eight groups", CUSTOMER_NAV_GROUPS.length === 8, `${CUSTOMER_NAV_GROUPS.length}`);
+// Nine since the Marketing add-on arrived as its own group, directly after
+// Engagement (wyfy-specs/guest-marketing-campaigns.md §3.5): outbound guest
+// messaging is a paid add-on with its own consent and send lifecycle, not a
+// row under the captive-portal Campaigns screen.
+check("there are nine groups", CUSTOMER_NAV_GROUPS.length === 9, `${CUSTOMER_NAV_GROUPS.length}`);
 // 26: main removed the "Notifications" preferences screen (25), a branch
 // added "Network Integrations" to the Network group (26), and FIX-PLAN FE-0
 // retired that row again (25) -- backend `074d719` made every
@@ -134,14 +138,22 @@ check("there are eight groups", CUSTOMER_NAV_GROUPS.length === 8, `${CUSTOMER_NA
 // (26): the same screen, now a tab of the new page beside blocked guests, so
 // the count is unchanged by a move rather than by a removal. Section 10 pins
 // the move itself.
+// Then the Marketing add-on's row arrived (27) -- see the group note above.
+// Then Security -> Firewall arrived (28): a new screen, not a move -- rules
+// that reach the router through cloud-guest#304's push. Section 11 pins it.
+// Then Security -> Web Filtering (29): Cloudflare categories, switched on per
+// router through cloud-guest#307. Section 12 pins it.
+// Then back to 28: Web filtering stopped being its own row and became the
+// "Categories" section of Security -> Block Websites, so a venue owner finds
+// website blocking in one place. Section 12 pins where it went.
 // Asserted rather than derived on purpose -- it is what catches a row being
 // dropped by an unrelated refactor -- so moving it is a deliberate step, and
 // this is one.
-check("there are 26 features", CUSTOMER_NAVS.length === 26, `${CUSTOMER_NAVS.length}`);
+check("there are 28 features", CUSTOMER_NAVS.length === 28, `${CUSTOMER_NAVS.length}`);
 check(
-  "the eight groups are the canonical ones",
+  "the nine groups are the canonical ones",
   CUSTOMER_NAV_GROUPS.map((g) => g.id).join(",") ===
-    "overview,engagement,access-policy,devices-team,network,security,operations,support-logs",
+    "overview,engagement,marketing,access-policy,devices-team,network,security,operations,support-logs",
   CUSTOMER_NAV_GROUPS.map((g) => g.id).join(","),
 );
 const dupes = CUSTOMER_NAVS.map((n) => n.id).filter((id, i, all) => all.indexOf(id) !== i);
@@ -318,12 +330,23 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
 {
   const security = CUSTOMER_NAV_GROUPS.find((g) => g.id === "security");
   check(
-    "the Security group is Overview then Blocking",
-    security && security.items.map((i) => i.id).join(",") === "security,blocking",
+    "the Security group is Security Score, Block Websites, then Firewall",
+    security && security.items.map((i) => i.id).join(",") === "security,blocking,firewall",
     security ? security.items.map((i) => i.id).join(",") : "missing",
   );
+  const score = CUSTOMER_NAVS.find((n) => n.id === "security");
+  check(
+    "the Security group's first row is Security Score, not a second Overview",
+    score && score.label === "Security Score",
+  );
+  check(
+    "the Overview group's own rows are untouched",
+    (CUSTOMER_NAV_GROUPS.find((g) => g.id === "overview")?.items ?? [])
+      .map((i) => `${i.id}:${i.label}`)
+      .join(",") === "dashboard:Dashboard,users:Guests,reports:Reports,alerts:Alerts",
+  );
   const blocking = CUSTOMER_NAVS.find((n) => n.id === "blocking");
-  check("Blocking is labelled for the job", blocking && blocking.label === "Blocking");
+  check("Blocking is labelled for the job", blocking && blocking.label === "Block Websites");
   check(
     "Blocking is owner-only, like Access Rules its guests tab came from",
     blocking && blocking.roles.join(",") === "owner",
@@ -364,8 +387,36 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
   // them -- and those screens left their old homes.
   const view = strip(readFileSync(join(ROOT, "src/components/security/BlockingView.tsx"), "utf8"));
   check(
-    "the Websites tab is the existing content-filter screen",
-    /<ContentFilterManagement\b/.test(view),
+    "the Websites tab leads with the type-a-name box, once per writable router",
+    // One box per router through PerRouter, which the Apps section shares.
+    /<WebsiteBlockBox routerId=\{id\}/.test(view) &&
+      /\{render\(router\.id\)\}/.test(view) &&
+      /partitionRoutersByDeviceWrite\(rows\)/.test(view) &&
+      /<ControllerRoutersNote\b/.test(view),
+  );
+  check(
+    "then the Cloudflare categories, as the existing Web filtering screen",
+    /<WebFilteringView\b/.test(view) &&
+      view.indexOf("<WebsiteBlockBox") > -1 &&
+      view.indexOf("<WebsiteBlockBox") < view.indexOf("<WebFilteringView"),
+  );
+  check(
+    "with the per-app switches between the two, on the same routers",
+    /<AppBlockBox routerId=\{id\}/.test(view) &&
+      view.indexOf("<WebsiteBlockBox") < view.indexOf("<AppBlockBox") &&
+      view.indexOf("<AppBlockBox") < view.indexOf("<WebFilteringView"),
+  );
+  check(
+    "and keeps the full rule list (and address blocking) under a folded Advanced",
+    /<CollapsibleContent[^>]*>\s*<ContentFilterManagement\b/.test(view) &&
+      view.indexOf("<WebFilteringView") < view.indexOf("<ContentFilterManagement"),
+  );
+  const firewallView = strip(
+    readFileSync(join(ROOT, "src/components/security/FirewallView.tsx"), "utf8"),
+  );
+  check(
+    "Firewall no longer blocks websites, and points owners at Block Websites",
+    !/WebsiteBlockBox/.test(firewallView) && /<Link to="\/blocking"/.test(firewallView),
   );
   check("the Guests tab is the existing Blocked Guests screen", /<BlockUsers\b/.test(view));
   check(
@@ -389,20 +440,157 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
     "utf8",
   );
   const managed = overview.split("const MANAGED_AT")[1]?.split("};")[0] ?? "";
-  const linkedKeys = [...managed.matchAll(/^\s*([a-z_]+):\s*\{\s*tab:/gm)].map((mm) => mm[1]);
+  const linkedTo = (dest) =>
+    [...managed.matchAll(/^\s*([a-z_]+):\s*\{\s*to:\s*"([^"]+)"/gm)]
+      .filter((mm) => mm[2] === dest)
+      .map((mm) => mm[1]);
+  const linkedKeys = linkedTo("/blocking");
   check(
-    "the Security overview links domain, address and device blocking to it",
-    linkedKeys.sort().join(",") === "device_isolation,domain_blocking_dns,ip_and_cidr_blocking",
+    "the Security Score links website, app, harmful-site, category, address and device blocking to it",
+    linkedKeys.sort().join(",") ===
+      "application_control,device_isolation,domain_blocking_dns,ip_and_cidr_blocking,threat_intelligence,web_category_filtering",
     linkedKeys.join(","),
   );
   check(
-    "and links nothing that has no screen",
-    !linkedKeys.includes("domain_blocking_sni") && !linkedKeys.includes("zone_to_zone_firewall"),
+    "and links zone-to-zone firewalling, the flood limit and guest isolation to Security -> Firewall, and nothing else there",
+    linkedTo("/firewall").sort().join(",") ===
+      "connection_flood_protection,guest_client_isolation,zone_to_zone_firewall",
+    linkedTo("/firewall").join(","),
   );
+  check(
+    "and links nothing to the retired /web-filtering address",
+    linkedTo("/web-filtering").length === 0 && !/to="\/web-filtering"/.test(overview),
+  );
+  check(
+    "and never renders the not-supported group to a customer",
+    !/availability:\s*"not_supported"/.test(strip(overview)),
+  );
+  check(
+    "and names capabilities in plain words, not the backend's",
+    /PLAIN_LABEL\[feature\.key\]/.test(overview) &&
+      !/"IP and CIDR blocking"|"Rogue DHCP detection"|"Zone-to-zone firewall"/.test(
+        strip(overview),
+      ),
+  );
+  check("and links nothing that has no screen", !managed.includes("domain_blocking_sni"));
   check(
     "and only from the Enforced-today group",
     /group\.availability === "available" && MANAGED_AT\[feature\.key\]/.test(strip(overview)),
   );
+}
+
+// ---------------------------------------------------------------------------
+// 11. Security -> Firewall: MikroTik rules with an Apply, in plain words.
+// ---------------------------------------------------------------------------
+
+console.log("\nSecurity -> Firewall is a real screen, owner-only, gated at controller venues");
+
+{
+  const firewall = CUSTOMER_NAVS.find((n) => n.id === "firewall");
+  check("Firewall is labelled for the job", firewall && firewall.label === "Firewall");
+  check("Firewall is owner-only", firewall && firewall.roles.join(",") === "owner");
+  check("Firewall lives at /firewall", customerFeatureHref("firewall") === "/firewall");
+  const routeSrc = strip(readFileSync(join(ROOT, "src/routes/firewall.tsx"), "utf8"));
+  check(
+    "/firewall mounts the shared shell with the firewall id, behind the session guards",
+    /<CustomerFeaturePage feature="firewall" \/>/.test(routeSrc) &&
+      /requireCustomerSession/.test(routeSrc) &&
+      /requireActiveLocationId/.test(routeSrc),
+  );
+  const view = strip(readFileSync(join(ROOT, "src/components/security/FirewallView.tsx"), "utf8"));
+  check(
+    "the screen reuses the existing firewall service and hooks, not a fork",
+    /from "@\/hooks\/useFirewall"/.test(view) && !/api\.(get|post|put|delete)\(/.test(view),
+  );
+  check(
+    "the screen gates itself with the existing controller notice too (the /agent shell has no gate)",
+    /<ControllerManagedFeatureNotice\b/.test(view) &&
+      /featureAppliesToControllerVenue\(/.test(view),
+  );
+  check(
+    "Apply asks first",
+    /<AlertDialog open=\{confirmApply\}/.test(view) && /onClick=\{runPush\}/.test(view),
+  );
+  check(
+    "the form offers no RouterOS vocabulary",
+    !/chain|place-before|in_interface|inInterface/i.test(
+      view.split("function RuleDialog")[1] ?? "chain",
+    ),
+  );
+  const shellSrc = strip(
+    readFileSync(join(ROOT, "src/components/customer/CustomerFeaturePage.tsx"), "utf8"),
+  );
+  const gatedBlock = shellSrc.split("controllerGated ?")[1] ?? "";
+  check(
+    "the owner shell mounts it inside the controller gate",
+    /feature === "firewall" && <FirewallView\b/.test(gatedBlock),
+  );
+  // The operator screen is untouched and still where it was.
+  const operatorRoute = readFileSync(
+    join(ROOT, "src/routes/_authenticated/network.firewall.tsx"),
+    "utf8",
+  );
+  check(
+    "the old operator route still mounts FirewallManagement",
+    /<FirewallManagement\s*\/>/.test(operatorRoute),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 12. Web Filtering: Cloudflare categories, now a section of Block Websites.
+// ---------------------------------------------------------------------------
+
+console.log(
+  "\nWeb filtering is the Categories section of Block Websites, gated at controller venues",
+);
+
+{
+  check(
+    "Web filtering is not a row of its own any more",
+    !CUSTOMER_NAVS.some((n) => n.id === "web-filtering"),
+    "two rows for blocking a website is two places to look",
+  );
+  const routeSrc = strip(readFileSync(join(ROOT, "src/routes/web-filtering.tsx"), "utf8"));
+  check(
+    "/web-filtering redirects to the Categories section of the Websites tab",
+    /redirect\(\{\s*to:\s*"\/blocking",\s*search:\s*\{\s*tab:\s*"websites"\s*\},\s*hash:\s*"categories"/.test(
+      routeSrc,
+    ),
+  );
+  check(
+    "and still checks the session before it redirects",
+    routeSrc.indexOf("requireCustomerSession") > -1 &&
+      routeSrc.indexOf("requireCustomerSession") < routeSrc.indexOf("redirect({") &&
+      !/CustomerFeaturePage/.test(routeSrc),
+  );
+  const view = strip(
+    readFileSync(join(ROOT, "src/components/security/WebFilteringView.tsx"), "utf8"),
+  );
+  check(
+    "the screen talks to the backend only through its hooks",
+    /from "@\/hooks\/useDnsFiltering"/.test(view) && !/api\.(get|post|put|delete)\(/.test(view),
+  );
+  check(
+    "the screen gates itself with the Websites tab's own controller id",
+    /<ControllerManagedFeatureNotice\b/.test(view) &&
+      /featureAppliesToControllerVenue\("website-blocking"\)/.test(view),
+  );
+  check(
+    "Turn on and Turn off both ask first",
+    /<AlertDialog open=\{confirm !== null\}/.test(view) &&
+      /onClick=\{\(\) => setConfirm\("enable"\)\}/.test(view) &&
+      /onClick=\{\(\) => setConfirm\("disable"\)\}/.test(view),
+  );
+  check(
+    "the not-configured state renders before any control",
+    view.indexOf('categories.data.state === "not_configured"') > -1 &&
+      view.indexOf('categories.data.state === "not_configured"') < view.indexOf("<CategoriesCard"),
+  );
+  check("no fixture data in the screen", !/const\s+(MOCK|FAKE|SAMPLE|DEMO)_/i.test(view));
+  const shellSrc = strip(
+    readFileSync(join(ROOT, "src/components/customer/CustomerFeaturePage.tsx"), "utf8"),
+  );
+  check("the owner shell no longer mounts it on its own", !/<WebFilteringView\b/.test(shellSrc));
 }
 
 // ---------------------------------------------------------------------------
@@ -440,6 +628,36 @@ for (const loc of ["en", "hi"]) {
     `${loc}: the Blocking page's sentences are translated`,
     !!nav.blockingPage?.intro && !!nav.blockingPage?.onlyAllowedPrefix,
   );
+  check(
+    `${loc}: the Firewall page's key sentences are translated`,
+    !!nav.firewallPage?.intro &&
+      !!nav.firewallPage?.apply &&
+      !!nav.firewallPage?.bandMissing &&
+      !!nav.firewallPage?.status?.pending &&
+      !!nav.firewallPage?.status?.active &&
+      !!nav.firewallPage?.status?.failed,
+  );
+  check(
+    `${loc}: the Web filtering page's key sentences are translated`,
+    !!nav.webFilteringPage?.intro &&
+      !!nav.webFilteringPage?.enableWhat &&
+      !!nav.webFilteringPage?.enableSafety &&
+      !!nav.webFilteringPage?.bypassBody &&
+      !!nav.webFilteringPage?.err?.notSetUp &&
+      ["active", "disabled", "pending", "failed"].every((s) => !!nav.webFilteringPage?.state?.[s]),
+  );
+}
+{
+  // Every Web filtering key in English exists in Hindi, nested included.
+  const keys = (o, pre = "") =>
+    Object.entries(o ?? {}).flatMap(([k, v]) =>
+      v && typeof v === "object" ? keys(v, `${pre}${k}.`) : [`${pre}${k}`],
+    );
+  const read = (loc) =>
+    JSON.parse(readFileSync(join(ROOT, `src/lib/i18n/locales/${loc}/nav.json`), "utf8"))
+      .webFilteringPage;
+  const missing = keys(read("en")).filter((k) => !keys(read("hi")).includes(k));
+  check("hi has every Web filtering key en has", missing.length === 0, missing.join(", "));
 }
 // The rename in #216 reached customerNav.ts but not the locale, so the
 // translated label still read "Connection Tools" -- which is what a customer

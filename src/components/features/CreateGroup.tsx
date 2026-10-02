@@ -2302,7 +2302,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                     <TableHead className="text-xs font-medium">Data Limit</TableHead>
                     <TableHead className="text-xs font-medium">Members</TableHead>
                     <TableHead className="text-xs font-medium">Mapped to Location(s)</TableHead>
-                    <TableHead className="text-xs font-medium">Users</TableHead>
+                    <TableHead className="text-xs font-medium">Guests</TableHead>
                     <TableHead className="text-right text-xs font-medium">Action</TableHead>
                   </TableRow>
                 </TableHeader>

@@ -51,6 +51,12 @@
 
 /* ── Zone A: is the venue's internet working ────────────────────────── */
 
+import {
+  ARUBA_INSTANT_ON_VENDOR,
+  CONTROLLER_STATE_COPY,
+  ROUTER_VENDOR_LABEL,
+} from "@/lib/router-vendors";
+
 export type VerdictTone = "success" | "warning" | "danger" | "neutral";
 export type Confidence = "certain" | "high" | "medium";
 
@@ -371,6 +377,23 @@ export function venueVerdict(signals: VenueSignals): VenueVerdict {
   // not land -- both of which invite the owner to wait and refresh. Neither is
   // true here and no amount of waiting changes it: nothing on this platform
   // measures a controller, so the absence is permanent and is not a fault.
+  // Aruba Instant On (NAS-only): not a controller the owner knows, and there
+  // is no connection of ours to it at all -- the access points are run from
+  // the Instant On app. Same status and tone; PM_SPEC §2.3's words.
+  if (!measured && brand === ROUTER_VENDOR_LABEL[ARUBA_INSTANT_ON_VENDOR]) {
+    return {
+      ...base,
+      status: "controller-not-measured",
+      tone: "neutral",
+      headline:
+        "Your WiFi runs on Aruba Instant On access points, so there's no reading to show here.",
+      meaning:
+        CONTROLLER_STATE_COPY.no_controller_api.sentence + guestsClause(signals.guestsOnline),
+      action:
+        "Guest sign-ins, sessions and the lookup below all still work as normal. For the WiFi " +
+        "itself, use the Instant On app.",
+    };
+  }
   if (!measured) {
     return {
       ...base,

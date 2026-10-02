@@ -14,6 +14,7 @@
  * is needed between the two branches below.
  */
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { deviceHardwareService, type MonitoredDeviceRow } from "@/services/deviceHardware.service";
 import { isDemo } from "@/services/customer.service";
 import { useDeviceStore, type DeviceType } from "@/stores/deviceStore";
@@ -51,11 +52,18 @@ export function useMonitoredHardware(locationId?: string) {
     setLoading(true);
     try {
       setRealDevices(await deviceHardwareService.list(locationId));
-    } catch {
+    } catch (err) {
       // Honest empty state on failure (e.g. a staff role without
       // monitored_hardware.read) -- never fabricated rows, same posture
       // this codebase's other real-data fetches already take.
       setRealDevices([]);
+      // ...but only a 403 is "you may not see these". Anything else -- a
+      // failed page of the walk included -- is a list we could not read, and
+      // an empty table with no word about it reads as "no devices".
+      const status =
+        (err as { status?: number; response?: { status?: number } })?.status ??
+        (err as { response?: { status?: number } })?.response?.status;
+      if (status !== 403) toast.error("Could not load your monitored devices.");
     } finally {
       setLoading(false);
     }

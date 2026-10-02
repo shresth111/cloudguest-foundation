@@ -1,6 +1,7 @@
 import { api, type AppError } from "@/services/api";
 import { isControllerState } from "@/lib/router-vendors";
 import { isDemo } from "@/services/customer.service";
+import { getAllItems } from "@/services/list-all-pages";
 import type {
   CreateRouterPayload,
   DeviceInterface,
@@ -8,6 +9,7 @@ import type {
   OnboardControllerResult,
   ProvisioningToken,
   RouterDevice,
+  RouterListFilters,
   RouterListQuery,
   RouterListResult,
   RouterStatus,
@@ -124,11 +126,6 @@ interface BackendOrgListItem {
   name: string;
 }
 
-interface BackendListResponse<T> {
-  items: T[];
-  total_items: number;
-}
-
 interface BackendWireGuardPeer {
   id: string;
   router_id: string;
@@ -225,10 +222,8 @@ function toWireGuardAllocation(p: BackendWireGuardTunnelAllocation): WireGuardTu
 
 async function fetchAllOrganizations(): Promise<BackendOrgListItem[]> {
   if (isDemo()) return DEMO_ORGS;
-  const { data } = await api.get<BackendListResponse<BackendOrgListItem>>("/organizations", {
-    params: { page_size: 100 },
-  });
-  return data.items;
+  // Every page: one request for the first 100 silently dropped tenant 101+.
+  return getAllItems<BackendOrgListItem>("/organizations");
 }
 
 interface BackendLocation {
@@ -236,17 +231,25 @@ interface BackendLocation {
   name: string;
 }
 
-async function fetchAllLocations(): Promise<
-  Array<{ id: string; name: string; organizationId: string; organizationName: string }>
-> {
+type FleetLocation = { id: string; name: string; organizationId: string; organizationName: string };
+
+async function fetchAllLocations(): Promise<FleetLocation[]> {
+  return (await fetchAllLocationsCounted()).locations;
+}
+
+/** Same read, plus how many organizations' location lists could not be
+ * read -- the fleet view has to be able to say its list is short. */
+async function fetchAllLocationsCounted(): Promise<{
+  locations: FleetLocation[];
+  unreachableOrganizationCount: number;
+}> {
   const orgs = await fetchAllOrganizations();
   const settled = await Promise.allSettled(
     orgs.map(async (org) => {
-      const { data } = await api.get<BackendListResponse<BackendLocation>>(
-        `/organizations/${org.id}/locations`,
-        { params: { page_size: 100 }, headers: { "X-Organization-Id": org.id } },
-      );
-      return data.items.map((l) => ({
+      const items = await getAllItems<BackendLocation>(`/organizations/${org.id}/locations`, {
+        headers: { "X-Organization-Id": org.id },
+      });
+      return items.map((l) => ({
         id: l.id,
         name: l.name,
         organizationId: org.id,
@@ -254,15 +257,12 @@ async function fetchAllLocations(): Promise<
       }));
     }),
   );
-  return settled
-    .filter(
-      (
-        r,
-      ): r is PromiseFulfilledResult<
-        Array<{ id: string; name: string; organizationId: string; organizationName: string }>
-      > => r.status === "fulfilled",
-    )
-    .flatMap((r) => r.value);
+  return {
+    locations: settled
+      .filter((r): r is PromiseFulfilledResult<FleetLocation[]> => r.status === "fulfilled")
+      .flatMap((r) => r.value),
+    unreachableOrganizationCount: settled.filter((r) => r.status === "rejected").length,
+  };
 }
 
 /**
@@ -275,16 +275,17 @@ async function fetchAllLocations(): Promise<
 async function fetchAllRouters(): Promise<{
   routers: RouterDevice[];
   unreachableLocationCount: number;
+  unreachableOrganizationCount: number;
 }> {
-  if (isDemo()) return { routers: DEMO_ROUTERS, unreachableLocationCount: 0 };
-  const locations = await fetchAllLocations();
+  if (isDemo())
+    return { routers: DEMO_ROUTERS, unreachableLocationCount: 0, unreachableOrganizationCount: 0 };
+  const { locations, unreachableOrganizationCount } = await fetchAllLocationsCounted();
   const settled = await Promise.allSettled(
     locations.map(async (loc) => {
-      const { data } = await api.get<BackendListResponse<BackendRouter>>(
-        `/locations/${loc.id}/routers`,
-        { params: { page_size: 100 }, headers: { "X-Organization-Id": loc.organizationId } },
-      );
-      return data.items.map((r) => toRouter(r, loc.name, loc.organizationName));
+      const items = await getAllItems<BackendRouter>(`/locations/${loc.id}/routers`, {
+        headers: { "X-Organization-Id": loc.organizationId },
+      });
+      return items.map((r) => toRouter(r, loc.name, loc.organizationName));
     }),
   );
 
@@ -307,6 +308,7 @@ async function fetchAllRouters(): Promise<{
       .filter((r): r is PromiseFulfilledResult<RouterDevice[]> => r.status === "fulfilled")
       .flatMap((r) => r.value),
     unreachableLocationCount: rejected.length,
+    unreachableOrganizationCount,
   };
 }
 
@@ -504,15 +506,28 @@ export const routerService = {
    */
   async listForLocation(locationId: string, organizationId: string): Promise<RouterDevice[]> {
     if (isDemo()) return DEMO_ROUTERS.filter((r) => r.locationId === locationId);
-    const { data } = await api.get<BackendListResponse<BackendRouter>>(
-      `/locations/${locationId}/routers`,
-      { params: { page_size: 100 }, headers: { "X-Organization-Id": organizationId } },
-    );
-    return data.items.map((r) => toRouter(r, "", ""));
+    const items = await getAllItems<BackendRouter>(`/locations/${locationId}/routers`, {
+      headers: { "X-Organization-Id": organizationId },
+    });
+    return items.map((r) => toRouter(r, "", ""));
+  },
+
+  /**
+   * Every router matching `q`'s filters, unsliced. For callers that need
+   * the whole fleet (the Master Router Fleet table, the device console's
+   * picker, the dashboard's "recent routers"): `list()` slices client-side
+   * to `pageSize`, so the `pageSize: 200` / `1000` those callers used to pass
+   * quietly capped the fleet at that many rows.
+   */
+  async listAll(q: RouterListFilters = {}): Promise<Omit<RouterListResult, "total">> {
+    const { rows, unreachableLocationCount, unreachableOrganizationCount } =
+      await routerService.list({ ...q, page: 1, pageSize: Number.POSITIVE_INFINITY });
+    return { rows, unreachableLocationCount, unreachableOrganizationCount };
   },
 
   async list(q: RouterListQuery): Promise<RouterListResult> {
     let unreachableLocationCount = 0;
+    let unreachableOrganizationCount = 0;
     let rows =
       q.locationId && q.locationId !== "all"
         ? await (async () => {
@@ -524,26 +539,22 @@ export const routerService = {
             // that whole fan-out N times over, once per location card, to
             // learn something it already had in hand.
             if (q.organizationId && q.organizationId !== "all") {
-              const { data } = await api.get<BackendListResponse<BackendRouter>>(
-                `/locations/${q.locationId}/routers`,
-                {
-                  params: { page_size: 100 },
-                  headers: { "X-Organization-Id": q.organizationId },
-                },
-              );
-              return data.items.map((r) => toRouter(r, "", ""));
+              const items = await getAllItems<BackendRouter>(`/locations/${q.locationId}/routers`, {
+                headers: { "X-Organization-Id": q.organizationId },
+              });
+              return items.map((r) => toRouter(r, "", ""));
             }
             const locations = await fetchAllLocations();
             const loc = locations.find((l) => l.id === q.locationId);
-            const { data } = await api.get<BackendListResponse<BackendRouter>>(
-              `/locations/${q.locationId}/routers`,
-              { params: { page_size: 100 }, headers: { "X-Organization-Id": loc?.organizationId } },
-            );
-            return data.items.map((r) => toRouter(r, loc?.name ?? "", loc?.organizationName ?? ""));
+            const items = await getAllItems<BackendRouter>(`/locations/${q.locationId}/routers`, {
+              headers: { "X-Organization-Id": loc?.organizationId },
+            });
+            return items.map((r) => toRouter(r, loc?.name ?? "", loc?.organizationName ?? ""));
           })()
         : await (async () => {
             const fleet = await fetchAllRouters();
             unreachableLocationCount = fleet.unreachableLocationCount;
+            unreachableOrganizationCount = fleet.unreachableOrganizationCount;
             return fleet.routers;
           })();
 
@@ -563,9 +574,11 @@ export const routerService = {
       rows = rows.filter((r) => r.organizationId === q.organizationId);
 
     const total = rows.length;
-    const start = (q.page - 1) * q.pageSize;
-    rows = rows.slice(start, start + q.pageSize);
-    return { rows, total, unreachableLocationCount };
+    if (Number.isFinite(q.pageSize)) {
+      const start = (q.page - 1) * q.pageSize;
+      rows = rows.slice(start, start + q.pageSize);
+    }
+    return { rows, total, unreachableLocationCount, unreachableOrganizationCount };
   },
 
   async get(id: string): Promise<RouterDevice | null> {

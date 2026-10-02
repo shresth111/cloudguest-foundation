@@ -5,6 +5,8 @@ import type { CustomerUsersData } from "@/services/customer.service";
 import type { DashboardRange } from "@/lib/dashboard-range";
 import { guestService } from "@/services/guest.service";
 import { rbacService } from "@/services/rbac.service";
+import { getMyEntitlements } from "@/services/entitlements.service";
+import { resolveActiveOrganizationId } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 import { useDataMaskingStore } from "@/stores/dataMaskingStore";
 // From `@/lib/masking`, NOT `@/components/features/HeaderControls` (which
@@ -67,6 +69,10 @@ export function useIsDemo(): boolean {
 
 export const customerKeys = {
   permissions: ["customer", "permissions"] as const,
+  /** Per organization: a session that switches org must never read the
+   * previous org's lock state from cache. */
+  entitlements: (orgId: string | null) => ["customer", "entitlements", orgId] as const,
+  entitlementsAll: ["customer", "entitlements"] as const,
   sidebar: ["customer", "sidebar"] as const,
   locations: ["customer", "locations"] as const,
   dashboard: (locationId: string) => ["customer", "dashboard", locationId] as const,
@@ -115,6 +121,40 @@ export function useMyPermissions() {
     staleTime: 5 * 60_000,
     retry: false,
   });
+}
+
+/**
+ * The caller's own organization's entitlements (`GET /me/entitlements`).
+ *
+ * Added for the Marketing add-on (wyfy-specs/guest-marketing-campaigns.md
+ * §3.5): the sidebar badges the Marketing row "Add-on" when this reports
+ * `guest_marketing` disabled. The endpoint is ungated on the backend on
+ * purpose (every signed-in user may read their own org's entitlements), so
+ * front-desk staff get the same answer as the owner.
+ *
+ * `undefined` while loading, on error, or in the demo workspace (which has
+ * no backend session) -- callers treat all three as "don't know" and show no
+ * badge; the Marketing page itself resolves the truth from the 402 the
+ * backend returns.
+ */
+export function useMyEntitlements() {
+  const demo = useIsDemo();
+  return useQuery({
+    queryKey: customerKeys.entitlements(resolveActiveOrganizationId()),
+    queryFn: () => getMyEntitlements(),
+    enabled: !demo,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+}
+
+/** `true` / `false` when the backend has answered for `featureKey`; `null`
+ * while that answer is unknown (loading, failed, demo, or a backend that
+ * does not list the key yet). Never guesses. */
+export function useFeatureEntitled(featureKey: string): boolean | null {
+  const { data } = useMyEntitlements();
+  const hit = data?.features?.find((f) => f.feature_key === featureKey);
+  return hit ? hit.enabled : null;
 }
 
 export function useCustomerDashboard(locationId: string) {

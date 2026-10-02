@@ -147,6 +147,12 @@ export interface PostConnectSessionInput {
   startedAt: string;
   hasProfile: boolean;
   hasOpenedReviewLink: boolean;
+  /** The server's marketing opt-in offer for this guest (marketing spec
+   * §5.8), or null/absent when there is none. Its presence is itself the
+   * server's answer to "should this guest be asked": it is only non-null
+   * when the venue enabled the checkbox, the org is entitled, and the guest
+   * has no consent row yet. Structural, so this module keeps zero imports. */
+  marketingConsentOffer?: { text: string; textVersion: string } | null;
 }
 
 /** Does the venue collect anything, and has this guest not already
@@ -167,8 +173,33 @@ export function profileCardEligible(
   config: PostConnectConfigInput,
   session: PostConnectSessionInput,
 ): boolean {
+  return profileFieldsEligible(config, session) || marketingConsentEligible(session);
+}
+
+/** The name/email half of the card: the venue collects something and the
+ * guest has not already answered. */
+export function profileFieldsEligible(
+  config: PostConnectConfigInput,
+  session: PostConnectSessionInput,
+): boolean {
   const collectsSomething = config.collectGuestName || config.collectGuestEmail;
   return collectsSomething && !session.hasProfile;
+}
+
+/**
+ * The marketing opt-in half of the same card. It rides the profile card
+ * rather than getting a card of its own so the one-ask-per-screen rule
+ * holds: a guest is asked for their details and whether they want offers
+ * in ONE place, once, after they are already online.
+ *
+ * Eligible on the server's offer alone -- even at a venue that collects
+ * neither a name nor an email, and even for a guest who already gave a
+ * profile. The checkbox is unticked, never required, and never gates
+ * access (spec §5.8).
+ */
+export function marketingConsentEligible(session: PostConnectSessionInput): boolean {
+  const offer = session.marketingConsentOffer;
+  return !!offer && typeof offer.text === "string" && offer.text.trim().length > 0;
 }
 
 /**

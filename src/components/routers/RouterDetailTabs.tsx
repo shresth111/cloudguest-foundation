@@ -4244,7 +4244,8 @@ function buildWeightedPccPlan(
  * no address" and "we never looked" into one indistinguishable value.
  * This file has been burned by exactly that before (`gateway=0.0.0.0`
  * passing a non-empty check). So:
- *  - address read           -> `public_ip_address` is sent.
+ *  - address read           -> `public_ip_address` is sent (WAN IPv4, or
+ *    api.ipify.org when that WAN is RFC1918 behind CPE/CGNAT).
  *  - no active default route
  *  - route found, interface unresolved
  *  - interface found, no address
@@ -4362,13 +4363,13 @@ function buildHeartbeatStatements(opts: {
     // -- 1. which interface is carrying the default route ---------------
     ...buildUplinkDiscoveryStatements("hb"),
     // -- 2. say what was chosen, and flag a WAN-list disagreement -------
-    `:if ($hbDefCount > 1 && $hbIf != "") do={ :log info ("cloudguest-hb: " . $hbDefCount . " active default routes, using lowest distance via " . $hbIf) }`,
+    `:if ($hbDefCount > 1 && $hbIf != "") do={ :log info ("cloudguest-hb: " . $hbDefCount . " active default routes via " . $hbIf) }`,
     // Reported anyway rather than suppressed: the route is what actually
     // carries traffic, so its address is the true answer even when this
     // script's own "WAN" interface list disagrees. The disagreement is
     // itself worth a technician's attention -- it means the generated
     // script names the wrong ports -- so it is logged, not swallowed.
-    `:if ($hbIf != "" && [:len [/interface list member find where interface=$hbIf list="WAN"]] = 0) do={ :log warning ("cloudguest-hb: uplink " . $hbIf . " is not in the WAN interface list -- address reported anyway, re-generate this script with the right WAN ports") }`,
+    `:if ($hbIf != "" && [:len [/interface list member find where interface=$hbIf list="WAN"]] = 0) do={ :log warning ("cloudguest-hb: uplink " . $hbIf . " not in WAN list -- address reported anyway") }`,
     // -- 3. read the address off that interface -------------------------
     // `:foreach` + first-wins rather than `/ip address get [find ...]`:
     // `get` on a multi-element find errors, and an interface carrying two
@@ -4382,19 +4383,27 @@ function buildHeartbeatStatements(opts: {
     // once in the pasted copy and once (escaped) inside the scheduler's
     // stored on-event string, and this chunk's lines are already the
     // longest this generator emits.
-    `:if ($hbDefCount = 0) do={ :log warning "cloudguest-hb: no ACTIVE default route -- uplink unknown, public_ip_address not sent (master keeps its last known value). See /ip route print" }`,
-    `:if ($hbDefCount > 0 && $hbIf = "") do={ :log warning "cloudguest-hb: active default route found but its interface did not resolve (immediate-gw, gateway and ARP all failed) -- public_ip_address not sent" }`,
-    `:if ($hbIf != "" && $hbIp = "") do={ :log warning ("cloudguest-hb: uplink " . $hbIf . " carries no IPv4 address -- public_ip_address not sent (a different fault from having no uplink)") }`,
+    `:if ($hbDefCount = 0) do={ :log warning "cloudguest-hb: no ACTIVE default route -- public_ip_address not sent" }`,
+    `:if ($hbDefCount > 0 && $hbIf = "") do={ :log warning "cloudguest-hb: default route interface unresolved -- public_ip_address not sent" }`,
+    `:if ($hbIf != "" && $hbIp = "") do={ :log warning ("cloudguest-hb: uplink " . $hbIf . " has no IPv4 -- public_ip_address not sent") }`,
+    // -- 4b. CGNAT / double-NAT: WAN is RFC1918, ask the internet --------
+    // Uplink address stays useful on-device; venue egress needs ipify when
+    // WAN is private (router-originated fetch, same path as heartbeat).
+    `:local hbPub ""`,
+    `:if ($hbIp != "") do={ :set hbPub $hbIp }`,
+    `:if ($hbPub != "") do={ :if ([:pick $hbPub 0 3] = "10." || [:pick $hbPub 0 8] = "192.168.") do={ :set hbPub "" } }`,
+    `:if ($hbPub = "" && $hbIp != "" && $hbDefCount > 0) do={ :do { :set hbPub [:pick ([/tool fetch url="https://api.ipify.org" mode=https output=user as-value]->"data") 0 15] } on-error={ :log warning "cloudguest-hb: /tool fetch to api.ipify.org failed" } }`,
+    `:if ($hbPub != "") do={ :if ([:pick $hbPub 0 3] = "10." || [:pick $hbPub 0 8] = "192.168.") do={ :set hbPub "" } }`,
     // -- 5. build the body, omitting what was not read ------------------
     `:local hbJson "{${mgmtPair}}"`,
-    `:if ($hbIp != "") do={ :set hbJson ("{${mgmtThenComma}\\"public_ip_address\\":\\"" . $hbIp . "\\"}") }`,
+    `:if ($hbPub != "") do={ :set hbJson ("{${mgmtThenComma}\\"public_ip_address\\":\\"" . $hbPub . "\\"}") }`,
     // A scheduler `on-event` that fails produces no toast, no popup and
     // nothing waiting for anyone to look -- and the one-shot copy's
     // failure scrolls past in the terminal with everything else. Both
     // copies stay wrapped so a failure leaves a real, timestamped line in
     // `/log print` that a technician (or this platform's remote support)
     // can find later. One statement in each of `:do {}` and `on-error={}`.
-    `:do { /tool fetch url="${apiBase}/agent/heartbeat" http-method=post http-header-field="Content-Type: application/json,X-Agent-Credential: ${agentCredential}" http-data=$hbJson output=none } on-error={ :log warning "cloudguest-hb: /tool fetch to master failed (timeout/DNS/WAN down) -- see the WAN Connectivity Check chunk" }`,
+    `:do { /tool fetch url="${apiBase}/agent/heartbeat" http-method=post http-header-field="Content-Type: application/json,X-Agent-Credential: ${agentCredential}" http-data=$hbJson output=none } on-error={ :log warning "cloudguest-hb: /tool fetch to master failed -- see WAN Connectivity Check" }`,
   ].join("; ");
 }
 

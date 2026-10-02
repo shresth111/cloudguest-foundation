@@ -41,6 +41,7 @@
  * `lastSeenAt`.
  */
 import { api } from "@/services/api";
+import { getAllItems } from "@/services/list-all-pages";
 import { resolveOrgId } from "@/services/customer.service";
 import type {
   HardwareStatusReason,
@@ -152,13 +153,17 @@ export const deviceHardwareService = {
    * by design, not a location-specific read. */
   async list(locationId?: string): Promise<MonitoredDeviceRow[]> {
     const orgId = await resolveOrgId();
-    const { data } = await api.get<{ items: RawMonitoredHardware[] }>("/monitored-hardware", {
-      params: { location_id: locationId, page_size: 200 },
+    // `GET /monitored-hardware` is the one list route whose cap is not 100:
+    // `page_size: int = Query(default=100, ge=1, le=200)`. 200 per page is
+    // legal here, but one request still dropped device 201 -- walk every page.
+    const items = await getAllItems<RawMonitoredHardware>("/monitored-hardware", {
+      params: { location_id: locationId },
       headers: locationId
         ? { "X-Organization-Id": orgId, "X-Location-Id": locationId }
         : { "X-Organization-Id": orgId },
+      maxPageSize: 200,
     });
-    return (data?.items ?? []).map(toRow);
+    return items.map(toRow);
   },
 
   async register(

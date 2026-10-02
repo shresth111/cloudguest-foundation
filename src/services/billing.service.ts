@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import { getAllItems } from "@/services/list-all-pages";
 import { isDemo } from "@/services/customer.service";
 import type {
   BillingOverview,
@@ -556,10 +557,7 @@ function n(v: string | number | null | undefined): number {
 const delay = (ms = 400) => new Promise((r) => setTimeout(r, ms));
 
 async function fetchAllOrganizations(): Promise<BackendOrg[]> {
-  const { data } = await api.get<BackendListResponse<BackendOrg>>("/organizations", {
-    params: { page_size: 100 },
-  });
-  return data.items;
+  return getAllItems<BackendOrg>("/organizations");
 }
 
 // ============================================================================
@@ -655,14 +653,10 @@ async function fetchAllPlans(): Promise<BackendPlan[]> {
   // list_plans defaults is_active to true -- fetch both slices to also
   // surface deactivated plans in the admin management view.
   const [active, inactive] = await Promise.all([
-    api.get<BackendListResponse<BackendPlan>>("/plans", {
-      params: { include_private: true, is_active: true, page_size: 100 },
-    }),
-    api.get<BackendListResponse<BackendPlan>>("/plans", {
-      params: { include_private: true, is_active: false, page_size: 100 },
-    }),
+    getAllItems<BackendPlan>("/plans", { params: { include_private: true, is_active: true } }),
+    getAllItems<BackendPlan>("/plans", { params: { include_private: true, is_active: false } }),
   ]);
-  return [...active.data.items, ...inactive.data.items];
+  return [...active, ...inactive];
 }
 
 // ============================================================================
@@ -785,11 +779,10 @@ function toPayment(p: BackendPayment, org: BackendOrg): Payment {
 async function fetchAllPayments(orgs: BackendOrg[]): Promise<Payment[]> {
   const settled = await Promise.allSettled(
     orgs.map(async (org) => {
-      const { data } = await api.get<BackendListResponse<BackendPayment>>("/payments", {
-        params: { page_size: 100 },
+      const items = await getAllItems<BackendPayment>("/payments", {
         headers: { "X-Organization-Id": org.id },
       });
-      return data.items.map((p) => toPayment(p, org));
+      return items.map((p) => toPayment(p, org));
     }),
   );
   return settled
@@ -844,11 +837,10 @@ function toInvoice(inv: BackendInvoice, org: BackendOrg): Invoice[] {
 async function fetchAllInvoices(orgs: BackendOrg[]): Promise<Invoice[]> {
   const settled = await Promise.allSettled(
     orgs.map(async (org) => {
-      const { data } = await api.get<BackendListResponse<BackendInvoice>>("/invoices", {
-        params: { page_size: 100 },
+      const items = await getAllItems<BackendInvoice>("/invoices", {
         headers: { "X-Organization-Id": org.id },
       });
-      return data.items.flatMap((inv) => toInvoice(inv, org));
+      return items.flatMap((inv) => toInvoice(inv, org));
     }),
   );
   return settled
@@ -972,10 +964,7 @@ function toCoupon(c: BackendCoupon): Coupon {
 }
 
 async function fetchAllCoupons(): Promise<BackendCoupon[]> {
-  const { data } = await api.get<BackendListResponse<BackendCoupon>>("/coupons", {
-    params: { page_size: 100 },
-  });
-  return data.items;
+  return getAllItems<BackendCoupon>("/coupons");
 }
 
 // ============================================================================
@@ -1685,11 +1674,10 @@ export const billingService = {
     const orgs = await fetchAllOrganizations();
     const settled = await Promise.allSettled(
       orgs.map(async (org) => {
-        const { data } = await api.get<BackendListResponse<BackendPayment>>("/payments", {
-          params: { page_size: 100 },
+        const items = await getAllItems<BackendPayment>("/payments", {
           headers: { "X-Organization-Id": org.id },
         });
-        return { org, payment: data.items.find((p) => p.id === id) };
+        return { org, payment: items.find((p) => p.id === id) };
       }),
     );
     const found = settled
@@ -1867,10 +1855,8 @@ export const billingService = {
   // (validators.compute_tax_breakdown); this is the platform operator's
   // rate catalog, not a per-invoice control.
   async listTaxRates(): Promise<TaxRate[]> {
-    const { data } = await api.get<BackendListResponse<BackendTaxRate>>("/billing/tax-rates", {
-      params: { page_size: 100 },
-    });
-    return data.items.map(toTaxRate);
+    const items = await getAllItems<BackendTaxRate>("/billing/tax-rates");
+    return items.map(toTaxRate);
   },
 
   async saveTaxRate(

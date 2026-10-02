@@ -65,6 +65,7 @@ import {
   controllerDeviceMetricsReason,
   isControllerManaged,
   routerVendorLabel,
+  isNasOnlyVendor,
 } from "@/lib/router-vendors";
 
 /** Short clock label for an axis tick. */
@@ -243,7 +244,11 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
                         {d.name}
                         {isControllerManaged(d.vendor) && (
                           <span className="text-muted-foreground">
-                            ({routerVendorLabel(d.vendor)} controller)
+                            (
+                            {isNasOnlyVendor(d.vendor)
+                              ? `${routerVendorLabel(d.vendor)} access points`
+                              : `${routerVendorLabel(d.vendor)} controller`}
+                            )
                           </span>
                         )}
                       </span>
@@ -264,7 +269,7 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
                   whatever was typed at onboarding, which in production was a
                   MikroTik model string sitting under a TP-Link Omada badge. */}
               {activeIsController
-                ? `${routerVendorLabel(activeDevice.vendor)} controller`
+                ? `${routerVendorLabel(activeDevice.vendor)} ${isNasOnlyVendor(activeDevice.vendor) ? "access points" : "controller"}`
                 : activeDevice.model || activeDevice.vendor || "Network device"}
             </span>
             {/* No provenance badge either. `metricsSourceLabel(null)` renders

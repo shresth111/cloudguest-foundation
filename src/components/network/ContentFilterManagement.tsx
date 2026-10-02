@@ -58,6 +58,8 @@ import {
 import { StatCard, SectionHeader } from "@/components/ui-ext";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import i18n from "@/lib/i18n";
+import { useTranslation } from "react-i18next";
 import {
   useContentFilterRules,
   useCreateContentFilterRule,
@@ -91,27 +93,38 @@ const CATEGORIES = [
 // Mirrors app.domains.content_filtering.validators: a domain rule is a
 // bare hostname (no scheme/path -- this blocks the whole site via DNS,
 // not one URL), an ip_cidr rule is a real IP or CIDR block.
-const ruleSchema = z.object({
-  routerId: z.string().min(1, "Select a router"),
-  name: z.string().trim().min(2, "Required").max(48),
-  valueType: z.enum(VALUE_TYPES),
-  value: z
-    .string()
-    .trim()
-    .min(1, "Required")
-    .max(255)
-    .refine(
-      (v) => !v.includes("://") && !v.includes("/"),
-      "Enter a bare domain (e.g. facebook.com) or IP/CIDR — no https:// or path",
-    ),
-  category: z.enum(CATEGORIES).optional(),
-  comment: z.string().trim().max(255).optional(),
-  isEnabled: z.boolean(),
-});
+//
+// "/" is refused for a website only: a range like 203.0.113.0/24 needs it,
+// and refusing it for both types made ranges impossible to enter.
+const ruleSchema = z
+  .object({
+    routerId: z.string().min(1, "Select a router"),
+    name: z.string().trim().min(2, "Required").max(48),
+    valueType: z.enum(VALUE_TYPES),
+    value: z.string().trim().min(1, "Required").max(255),
+    category: z.enum(CATEGORIES).optional(),
+    comment: z.string().trim().max(255).optional(),
+    isEnabled: z.boolean(),
+  })
+  .superRefine((v, ctx) => {
+    if (v.value.includes("://") || (v.valueType === "domain" && v.value.includes("/"))) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["value"],
+        message: i18n.t("blockWebsites.valueInvalid", {
+          ns: "nav",
+          defaultValue:
+            "Type just the name, like facebook.com, or just the address, like 203.0.113.7 — no https:// and nothing after the name.",
+        }),
+      });
+    }
+  });
 type RuleFormValues = z.infer<typeof ruleSchema>;
 
-function valueTypeLabel(t: ContentFilterValueType): string {
-  return t === "domain" ? "Domain" : "IP / CIDR";
+function valueTypeLabel(type: ContentFilterValueType): string {
+  return type === "domain"
+    ? i18n.t("blockWebsites.typeWebsite", { ns: "nav", defaultValue: "Website" })
+    : i18n.t("blockWebsites.typeAddress", { ns: "nav", defaultValue: "Internet address" });
 }
 
 const DEVICE_PUSH_LABEL: Record<ContentFilterDevicePushStatus, string> = {
@@ -172,6 +185,7 @@ function DevicePushBadge({ rule }: { rule: ContentFilterRule }) {
 // GET /content-filter-rules only filters by router_id, not location,
 // same tradeoff every sibling network page here already makes).
 export function ContentFilterManagement({ locationId }: { locationId?: string } = {}) {
+  const { t } = useTranslation("nav", { i18n });
   const [page, setPage] = useState(1);
   const [routerFilter, setRouterFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -226,7 +240,7 @@ export function ContentFilterManagement({ locationId }: { locationId?: string } 
         const rows = await routerService.listForLocation(locationId, orgId);
         return { rows, total: rows.length };
       }
-      return routerService.list({ page: 1, pageSize: 100 });
+      return routerService.listAll();
     },
   });
 
@@ -235,11 +249,11 @@ export function ContentFilterManagement({ locationId }: { locationId?: string } 
   const filteredRows = (data?.rows ?? []).filter((r) => {
     if (locationId && r.locationId !== locationId) return false;
     if (!search.trim()) return true;
-    const t = search.trim().toLowerCase();
+    const q = search.trim().toLowerCase();
     return (
-      r.name.toLowerCase().includes(t) ||
-      r.value.toLowerCase().includes(t) ||
-      routerName(r.routerId).toLowerCase().includes(t)
+      r.name.toLowerCase().includes(q) ||
+      r.value.toLowerCase().includes(q) ||
+      routerName(r.routerId).toLowerCase().includes(q)
     );
   });
 
@@ -263,12 +277,16 @@ export function ContentFilterManagement({ locationId }: { locationId?: string } 
     <div className="space-y-6">
       <SectionHeader
         icon={Ban}
-        eyebrow="Network"
-        title="Website Blocking"
-        description="Block specific websites or IP ranges on guest WiFi -- a blocked domain simply fails to resolve; an IP/CIDR is dropped at the firewall. Apply a rule to send it to the router; nothing is blocked until you do."
+        eyebrow={t("blockWebsites.advancedEyebrow", "Advanced")}
+        title={t("blockWebsites.allRulesTitle", "Every block, router by router")}
+        description={t(
+          "blockWebsites.allRulesBody",
+          "Websites and internet addresses blocked on your guest WiFi. A blocked website stops opening; a blocked internet address can't be reached at all. A new block does nothing until you press Apply to send it to the router.",
+        )}
         actions={
           <Button onClick={() => setCreating(true)}>
-            <Plus className="mr-1.5 h-4 w-4" /> Block a website
+            <Plus className="mr-1.5 h-4 w-4" />{" "}
+            {t("blockWebsites.addBlock", "Block a website or address")}
           </Button>
         }
       />
@@ -465,7 +483,7 @@ export function ContentFilterManagement({ locationId }: { locationId?: string } 
             <AlertDialogTitle>Remove block on "{confirmDelete?.name}"?</AlertDialogTitle>
             <AlertDialogDescription>
               This removes the block from {confirmDelete ? routerName(confirmDelete.routerId) : ""}{" "}
-              and then deletes the rule. The site/IP resolves normally again as soon as that
+              and then deletes the rule. The website or address opens normally again as soon as that
               succeeds — and if the router can&apos;t be reached, nothing is deleted, so you can
               retry. This cannot be undone.
             </AlertDialogDescription>
@@ -504,6 +522,7 @@ function RuleDialog({
   routers: { id: string; name: string }[];
   onClose: () => void;
 }) {
+  const { t } = useTranslation("nav", { i18n });
   const create = useCreateContentFilterRule();
   const update = useUpdateContentFilterRule();
 
@@ -576,11 +595,16 @@ function RuleDialog({
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{rule ? "Edit rule" : "Block a website"}</DialogTitle>
+          <DialogTitle>
+            {rule ? "Edit rule" : t("blockWebsites.addBlock", "Block a website or address")}
+          </DialogTitle>
           <DialogDescription>
             {rule
               ? "The router this rule belongs to cannot be changed — delete and recreate to move it."
-              : "Block a domain (and every subdomain) or an IP/CIDR range for this router's guest network."}
+              : t(
+                  "blockWebsites.dialogBody",
+                  "Block a website (and every page under it) or an internet address on this router's guest WiFi.",
+                )}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(submit)} className="grid gap-3 sm:grid-cols-2">
@@ -631,8 +655,8 @@ function RuleDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="domain">Domain</SelectItem>
-                    <SelectItem value="ip_cidr">IP / CIDR</SelectItem>
+                    <SelectItem value="domain">{valueTypeLabel("domain")}</SelectItem>
+                    <SelectItem value="ip_cidr">{valueTypeLabel("ip_cidr")}</SelectItem>
                   </SelectContent>
                 </Select>
               )}
@@ -665,7 +689,9 @@ function RuleDialog({
           </div>
           <div className="sm:col-span-2 space-y-1.5">
             <Label className="text-xs font-medium">
-              {valueType === "domain" ? "Domain" : "IP address or CIDR"}
+              {valueType === "domain"
+                ? t("blockWebsites.valueWebsite", "Website name")
+                : t("blockWebsites.valueAddress", "Internet address, or a range of them")}
             </Label>
             <Input
               {...form.register("value")}
@@ -690,7 +716,7 @@ function RuleDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={create.isPending || update.isPending}>
-              {rule ? "Save changes" : "Block website"}
+              {rule ? "Save changes" : t("blockWebsites.blockButton", "Block")}
             </Button>
           </DialogFooter>
         </form>

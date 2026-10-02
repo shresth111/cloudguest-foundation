@@ -1,13 +1,21 @@
-import { api } from "@/services/api";
-import { resolveOrgId } from "@/services/customer.service";
+import { api, requestErrorOf } from "@/services/api";
+import { isDemo, resolveOrgId } from "@/services/customer.service";
 import type {
   CreateFirewallRulePayload,
   FirewallAction,
+  FirewallBandPlacement,
+  FirewallBandState,
+  FirewallBandStatus,
+  FirewallDevicePushStatus,
+  FirewallPushResult,
   FirewallChain,
   FirewallProtocol,
   FirewallRule,
   FirewallRuleListQuery,
   FirewallRuleListResult,
+  FloodLimitPreset,
+  FloodLimitState,
+  GuestIsolationState,
   UpdateFirewallRulePayload,
 } from "@/types/firewall";
 
@@ -29,6 +37,121 @@ interface BackendFirewallRule {
   comment: string | null;
   is_enabled: boolean;
   created_at: string;
+  // cloud-guest#304. Optional here because a backend without that PR does
+  // not send them, and "not sent" must not be read as "pending".
+  device_push_status?: string | null;
+  device_push_error?: string | null;
+  device_pushed_at?: string | null;
+}
+
+interface BackendFirewallPushResponse {
+  router_id: string;
+  added: number;
+  removed: number;
+  unchanged: number;
+  rules: BackendFirewallRule[];
+}
+
+interface BackendFirewallBandStatus {
+  state: string;
+  reason?: string | null;
+  checked_at?: string | null;
+  guest_networks?: string[] | null;
+  guest_dns_servers?: string[] | null;
+}
+
+interface BackendFirewallBandResponse {
+  router_id: string;
+  created: boolean;
+}
+
+interface BackendFloodLimit {
+  router_id: string;
+  preset: string | null;
+  limit: number | null;
+  enabled: boolean;
+  consistent: boolean;
+  band_state: string;
+  guest_networks?: string[] | null;
+  presets?: Record<string, number> | null;
+  checked_at?: string | null;
+}
+
+const FLOOD_PRESETS: readonly FloodLimitPreset[] = ["off", "relaxed", "normal", "strict"];
+
+function toFloodLimit(d: BackendFloodLimit): FloodLimitState {
+  return {
+    routerId: d.router_id,
+    preset: FLOOD_PRESETS.find((p) => p === d.preset) ?? null,
+    limit: typeof d.limit === "number" ? d.limit : null,
+    enabled: !!d.enabled,
+    consistent: d.consistent !== false,
+    bandState:
+      (["ready", "missing", "invalid"] as const).find((s) => s === d.band_state) ?? "missing",
+    guestNetworks: d.guest_networks ?? [],
+    presets: d.presets ?? {},
+    checkedAt: d.checked_at ?? null,
+  };
+}
+
+interface BackendGuestIsolation {
+  router_id: string;
+  enabled: boolean;
+  consistent: boolean;
+  between_ports: boolean;
+  routed_guard: boolean;
+  radios_isolated: boolean | null;
+  band_state: string;
+  guest_ports: number;
+  isolated_ports: number;
+  ap_ports: number;
+  ap_isolation_needed: boolean;
+  ports?: {
+    interface: string;
+    running: boolean;
+    isolatable: boolean;
+    isolated: boolean;
+    excluded_reason: string | null;
+    is_radio?: boolean;
+  }[];
+  refusal: string | null;
+  summary: string;
+  checked_at?: string | null;
+}
+
+function toGuestIsolation(d: BackendGuestIsolation): GuestIsolationState {
+  return {
+    routerId: d.router_id,
+    enabled: !!d.enabled,
+    consistent: d.consistent !== false,
+    betweenPorts: !!d.between_ports,
+    routedGuard: !!d.routed_guard,
+    radiosIsolated: typeof d.radios_isolated === "boolean" ? d.radios_isolated : null,
+    bandState:
+      (["ready", "missing", "invalid"] as const).find((s) => s === d.band_state) ?? "missing",
+    guestPorts: Number(d.guest_ports) || 0,
+    isolatedPorts: Number(d.isolated_ports) || 0,
+    apPorts: Number(d.ap_ports) || 0,
+    apIsolationNeeded: !!d.ap_isolation_needed,
+    ports: (d.ports ?? []).map((p) => ({
+      interface: p.interface,
+      running: !!p.running,
+      isolatable: !!p.isolatable,
+      isolated: !!p.isolated,
+      excludedReason: p.excluded_reason ?? null,
+      isRadio: !!p.is_radio,
+    })),
+    refusal: typeof d.refusal === "string" ? d.refusal : null,
+    summary: d.summary ?? "",
+    checkedAt: d.checked_at ?? null,
+  };
+}
+
+const PUSH_STATUSES: readonly FirewallDevicePushStatus[] = ["pending", "active", "failed"];
+const BAND_STATES: readonly FirewallBandState[] = ["ready", "missing", "invalid"];
+
+function pushStatusOf(value: string | null | undefined): FirewallDevicePushStatus | null {
+  return PUSH_STATUSES.find((s) => s === value) ?? null;
 }
 
 interface BackendFirewallRuleListResponse {
@@ -60,6 +183,9 @@ function toFirewallRule(r: BackendFirewallRule): FirewallRule {
     comment: r.comment,
     isEnabled: r.is_enabled,
     createdAt: r.created_at,
+    devicePushStatus: pushStatusOf(r.device_push_status),
+    devicePushError: r.device_push_error ?? null,
+    devicePushedAt: r.device_pushed_at ?? null,
   };
 }
 
@@ -69,6 +195,12 @@ export const firewallService = {
   // back to a GLOBAL-scope check an ordinary org-owner session never
   // holds, so every call here 403'd for a real customer (confirmed live).
   async list(q: FirewallRuleListQuery): Promise<FirewallRuleListResult> {
+    // The demo account has no firewall rules and no router to push to. Zero,
+    // honestly, rather than invented rules -- the same convention as
+    // contentFilter.service.ts's own demo guard.
+    if (isDemo()) {
+      return { rows: [], total: 0, totalPages: 1, hasNext: false, hasPrevious: false };
+    }
     const orgId = await resolveOrgId();
     const { data } = await api.get<BackendFirewallRuleListResponse>("/firewall-rules", {
       params: { router_id: q.routerId, page: q.page, page_size: q.pageSize },
@@ -133,5 +265,160 @@ export const firewallService = {
   async remove(id: string): Promise<void> {
     const orgId = await resolveOrgId();
     await api.delete(`/firewall-rules/${id}`, { headers: { "X-Organization-Id": orgId } });
+  },
+
+  /**
+   * Puts this router's switched-on rules on the device, in order, and takes
+   * off any of ours that are switched off or deleted (cloud-guest#304,
+   * `firewall.execute`, ROUTER scope). Per router, never per rule: a rule's
+   * position is a property of the whole set.
+   *
+   * Every failure is a real non-2xx and rejects with an `AppError` whose
+   * `data.code` says which (see `lib/firewall-rules.ts`'s
+   * `firewallPushErrorSentence`) -- never a 200 with a failure inside it.
+   */
+  async push(routerId: string): Promise<FirewallPushResult> {
+    const orgId = await resolveOrgId();
+    const { data } = await api.post<BackendFirewallPushResponse>(
+      `/firewall-rules/routers/${routerId}/push`,
+      undefined,
+      { headers: { "X-Organization-Id": orgId } },
+    );
+    return {
+      routerId: data.router_id,
+      added: data.added,
+      removed: data.removed,
+      unchanged: data.unchanged,
+      rules: data.rules.map(toFirewallRule),
+    };
+  },
+
+  /**
+   * Whether the router has been prepared for firewall rules (the sentinel
+   * band #304's push writes into). `firewall.read`.
+   *
+   * Returns `null` -- "status unknown" -- when the endpoint is not there
+   * (404: it lands in a PR parallel to #304, so a backend can have the push
+   * without it) or the caller cannot read it (403). Anything else is a real
+   * failure and rejects. Unknown never blocks the Apply button: the push
+   * itself refuses with ACCESS_RULES_BAND_MISSING if the band is absent, and
+   * that answer is rendered in full.
+   */
+  async getBand(routerId: string, organizationId?: string): Promise<FirewallBandStatus | null> {
+    if (isDemo()) return null;
+    const orgId = organizationId ?? (await resolveOrgId());
+    try {
+      const { data } = await api.get<BackendFirewallBandStatus>(
+        `/firewall-rules/routers/${routerId}/band`,
+        orgId ? { headers: { "X-Organization-Id": orgId } } : undefined,
+      );
+      const state = BAND_STATES.find((s) => s === data?.state);
+      if (!state) return null;
+      return {
+        state,
+        reason: data.reason ?? null,
+        checkedAt: data.checked_at ?? null,
+        guestNetworks: data.guest_networks ?? [],
+        guestDnsServers: data.guest_dns_servers ?? [],
+      };
+    } catch (err) {
+      const status = requestErrorOf(err)?.status;
+      if (status === 404 || status === 403 || status === 405) return null;
+      throw err;
+    }
+  },
+
+  /**
+   * The router's "Limit connection floods" switch, read off the router
+   * (`firewall.read`, ROUTER scope). `null` -- "unknown" -- when the
+   * endpoint is not there (an older backend) or not readable; the card then
+   * renders nothing rather than a switch that would 404.
+   */
+  async getFloodLimit(routerId: string, organizationId?: string): Promise<FloodLimitState | null> {
+    if (isDemo()) return null;
+    const orgId = organizationId ?? (await resolveOrgId());
+    try {
+      const { data } = await api.get<BackendFloodLimit>(
+        `/firewall-rules/routers/${routerId}/flood-limit`,
+        orgId ? { headers: { "X-Organization-Id": orgId } } : undefined,
+      );
+      return data && typeof data.enabled === "boolean" ? toFloodLimit(data) : null;
+    } catch (err) {
+      const status = requestErrorOf(err)?.status;
+      if (status === 404 || status === 403 || status === 405) return null;
+      throw err;
+    }
+  },
+
+  /** Turn the switch on at a preset, change it, or turn it off
+   * (`firewall.execute`). Refusals are real non-2xx with an
+   * `ACCESS_RULES_*` code -- see `firewallPushErrorSentence`. */
+  async setFloodLimit(
+    routerId: string,
+    preset: FloodLimitPreset,
+    organizationId?: string,
+  ): Promise<FloodLimitState> {
+    const orgId = organizationId ?? (await resolveOrgId());
+    const { data } = await api.put<BackendFloodLimit>(
+      `/firewall-rules/routers/${routerId}/flood-limit`,
+      { preset },
+      orgId ? { headers: { "X-Organization-Id": orgId } } : undefined,
+    );
+    return toFloodLimit(data);
+  },
+
+  /**
+   * "Guests can't see each other" for one router, read off the router
+   * (`firewall.read`, ROUTER scope). `null` -- "unknown" -- when the endpoint
+   * is not there (an older backend) or not readable; the card then renders
+   * nothing.
+   */
+  async getGuestIsolation(
+    routerId: string,
+    organizationId?: string,
+  ): Promise<GuestIsolationState | null> {
+    if (isDemo()) return null;
+    const orgId = organizationId ?? (await resolveOrgId());
+    try {
+      const { data } = await api.get<BackendGuestIsolation>(
+        `/firewall-rules/routers/${routerId}/guest-isolation`,
+        orgId ? { headers: { "X-Organization-Id": orgId } } : undefined,
+      );
+      return data && typeof data.enabled === "boolean" ? toGuestIsolation(data) : null;
+    } catch (err) {
+      const status = requestErrorOf(err)?.status;
+      if (status === 404 || status === 403 || status === 405) return null;
+      throw err;
+    }
+  },
+
+  /** Turn it on or off (`firewall.execute`). Refusals are real non-2xx with
+   * an `ISOLATION_*` code -- see `firewallPushErrorSentence`. */
+  async setGuestIsolation(
+    routerId: string,
+    enabled: boolean,
+    organizationId?: string,
+  ): Promise<GuestIsolationState> {
+    const orgId = organizationId ?? (await resolveOrgId());
+    const { data } = await api.put<BackendGuestIsolation>(
+      `/firewall-rules/routers/${routerId}/guest-isolation`,
+      { enabled },
+      orgId ? { headers: { "X-Organization-Id": orgId } } : undefined,
+    );
+    return toGuestIsolation(data);
+  },
+
+  /**
+   * Master console only (`firewall.manage`, GLOBAL scope): place the band
+   * above the router's established-connection accept. Idempotent -- an
+   * existing band is left where it is and `created` comes back false.
+   * No organization header: the route is pinned to GLOBAL scope, and a
+   * platform grant is the only thing that passes it.
+   */
+  async installBand(routerId: string): Promise<FirewallBandPlacement> {
+    const { data } = await api.post<BackendFirewallBandResponse>(
+      `/firewall-rules/routers/${routerId}/band`,
+    );
+    return { routerId: data.router_id, created: data.created };
   },
 };

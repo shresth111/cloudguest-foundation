@@ -1,0 +1,118 @@
+{
+  "title": "Guest Groups",
+  "subtitle": "Put guests into groups that share one data allowance, and manage them together.",
+  "tabs": {
+    "setup": "Groups",
+    "update": "Find a Guest",
+    "bulkGroups": "Add Many Groups",
+    "bulkMap": "Add Guests to Groups"
+  },
+  "templateDownloaded": "Template downloaded",
+  "csv": {
+    "unavailable": "CSV import isn't available yet",
+    "click": "Click to upload a CSV file",
+    "seeBelow": "See below",
+    "drag": "or drag and drop it here"
+  },
+  "bulk": {
+    "comingTitle": "Bulk import is coming",
+    "comingBody": "We haven't shipped spreadsheet import yet, so we've switched this off rather than take a file and quietly drop it. Add groups with <b>Create Group</b> above, or send us your sheet on a support ticket and we'll load it for you."
+  },
+  "notes": {
+    "title": "Quick Notes",
+    "sampleFormat": "Get sample format",
+    "downloadTemplate": "Download Template",
+    "fileSize": "Size of the file should not exceed 30kb (~200 records).",
+    "zeroUnlimited": "Set the number of guests to 0 to let any number of guests join a group.",
+    "max5000": "The number of guests should not be more than 5000."
+  },
+  "toast": {
+    "memberRemoved": "Member removed",
+    "removeFailed": "Could not remove this member — check the connection and try again.",
+    "created": "Group created",
+    "noOrg": "No organization found for this session.",
+    "createFailed": "Could not create the group — check the connection and try again.",
+    "revoked": "Group revoked",
+    "revokeFailed": "Could not revoke on the server."
+  },
+  "errors": {
+    "location": "Select a location.",
+    "groupName": "Enter a group name.",
+    "sharedUsers": "Enter how many guests can join, or 0 for unlimited."
+  },
+  "form": {
+    "title": "Create a Group",
+    "subtitle": "Create a shared group or desk account with its own member limit.",
+    "location": "Location",
+    "chooseLocation": "Choose location",
+    "groupName": "Group Name",
+    "groupNamePlaceholder": "Enter a group name",
+    "sharedUsers": "Number of Guests",
+    "sharedUsersPlaceholder": "How many guests can join, or 0 for unlimited",
+    "sharedQuota": "Shared Data Limit (MB)",
+    "sharedQuotaPlaceholder": "Leave blank or 0 for unlimited",
+    "create": "Create Group"
+  },
+  "list": {
+    "title": "Your Groups",
+    "total": "{{count}} total",
+    "emptyTitle": "No groups yet",
+    "emptyBody": "Create one above to get started.",
+    "members_one": "{{count}} member",
+    "members_other": "{{count}} members",
+    "dataQuota": "Data limit",
+    "noQuota": "No limit set",
+    "quotaUsed": "Data used",
+    "manage": "Manage",
+    "revoke": "Revoke"
+  },
+  "find": {
+    "title": "Find a Guest",
+    "subtitle": "Look up a guest by their mobile number.",
+    "mobile": "Mobile No.",
+    "mobilePlaceholder": "Mobile Number",
+    "searching": "Searching…",
+    "find": "Find Guest",
+    "noMatch": "No guest matched that number.",
+    "guest": "Guest",
+    "blocked": "blocked",
+    "lookupOnly": "Editing guest details isn't available yet — this is a lookup only.",
+    "enterMobile": "Enter a mobile number.",
+    "demo": "Guest lookup needs a real account.",
+    "error": "Could not search for that guest."
+  },
+  "bulkGroups": {
+    "title": "Add Many Groups at Once",
+    "subtitle": "Upload a CSV file to create many groups at once."
+  },
+  "bulkMap": {
+    "title": "Add Guests to Groups",
+    "subtitle": "Upload a CSV file to add many guests to groups at once."
+  },
+  "dialog": {
+    "title": "Group details",
+    "demoDesc": "What this group is set to today. Editing isn't available yet.",
+    "desc": "Group name and size are read-only, but you can remove members below.",
+    "groupName": "Group Name",
+    "members": "Members",
+    "sharedUsed": "Shared data used",
+    "percentOfLimit": "{{percent}}% of the shared limit",
+    "status": "Status",
+    "manageMembers": "Manage members",
+    "loadingMembers": "Loading members…",
+    "membersError": "Couldn't load this group's members. Close and reopen to try again.",
+    "noMembers": "No one has joined this group yet.",
+    "unknownMember": "Unknown member",
+    "joined": "Joined {{date}}",
+    "removing": "Removing…",
+    "remove": "Remove",
+    "removeHint": "Removing a member ends their group membership and any active session. They can rejoin with the team code.",
+    "readOnlyNote": "Renaming a group or changing its size isn't something we can save yet, so we've made this read-only rather than accept a change and lose it. Raise a support ticket and we'll make the change for you.",
+    "close": "Close"
+  },
+  "status": {
+    "active": "active",
+    "expired": "expired",
+    "revoked": "revoked"
+  }
+}

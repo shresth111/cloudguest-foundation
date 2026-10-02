@@ -656,4 +656,20 @@ export interface RuntimeSession {
    * leak review authorship. Nothing anywhere may report this as a count of
    * reviews; the only truthful label is "opened your review link". */
   hasOpenedReviewLink: boolean;
+  /** The marketing opt-in the venue offers this guest, or null when there
+   * is nothing to offer (wyfy-specs/guest-marketing-campaigns.md §5.8:
+   * `GuestLoginResponse.marketing_consent_offer`). Non-null only when the
+   * venue's portal has consent enabled, the org holds the Marketing add-on,
+   * and the guest has no consent row yet -- the server decides all three.
+   * `text` is the venue's own checkbox wording and `textVersion` is echoed
+   * back on the POST so the backend can prove which wording was shown.
+   *
+   * Optional so synthetic sessions (preview/demo) and a backend that
+   * predates the field both read as "no offer". */
+  marketingConsentOffer?: MarketingConsentOffer | null;
+}
+
+export interface MarketingConsentOffer {
+  text: string;
+  textVersion: string;
 }

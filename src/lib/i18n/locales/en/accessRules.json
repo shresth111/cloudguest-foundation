@@ -1,0 +1,7 @@
+{
+  "subtitle": "Set usage limits and access tiers for this location.",
+  "tabLimits": "Guest WiFi Limits",
+  "tabTiers": "Access Tiers",
+  "blockedMovedPrefix": "Looking for blocked guests? They are now under",
+  "blockedMovedSuffix": ", together with blocked websites."
+}
