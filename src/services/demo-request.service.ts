@@ -79,4 +79,13 @@ export const demoRequestService = {
     });
     return toDemoRequest(data);
   },
+
+  /** Master console -- soft-deletes one demo request, gated by
+   * `demo_requests.delete` at GLOBAL scope. The backend flags the row
+   * rather than removing it (a booking may still reference it), and a
+   * missing or already-deleted id is a 404. Any bookings attached to the
+   * request are left as they are. */
+  async delete(demoRequestId: string): Promise<void> {
+    await api.delete(`/demo-requests/${demoRequestId}`);
+  },
 };
