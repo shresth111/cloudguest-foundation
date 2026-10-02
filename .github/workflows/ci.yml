@@ -261,6 +261,22 @@ jobs:
           ./scripts/ci-gated-test.sh \
             "impersonation-master-host" 12 "all checks passed" \
             bun run test:impersonation-master-host
+      # 2026-10-02, prod: a "View as this customer" session showed "No
+      # locations yet" while the venue read 403'd, and "/" spun forever. The
+      # session's grants were invented client-side (a placeholder org role),
+      # and a failed read rendered as an empty account. Drives the real
+      # AuthProvider, axios interceptor, customer service and
+      # /switch-location in Chromium against a fake backend that authorizes
+      # by token identity: the session holds exactly the customer's grants
+      # and permissions (none of the operator's), Master scope is reset on
+      # start and restored on end, caches clear on both transitions, and a
+      # 403 renders "Couldn't load your venues" with a working Retry.
+      # 17 of these checks fail on the pre-fix code.
+      - name: impersonation session is the customer's own
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "impersonation-session" 42 "impersonation-session: all checks passed" \
+            bun run test:impersonation-session
       # The customer read of their Omada controller's device inventory must
       # never guess a status up to "ok" (inventing a device list from a state
       # it doesn't understand), must keep an empty-ok distinct from

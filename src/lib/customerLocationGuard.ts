@@ -47,9 +47,16 @@ export async function resolveCustomerLocationById(
   queryClient: QueryClient,
   locationId: string,
 ): Promise<CustomerLocationSummary | null> {
-  const locations = await queryClient.ensureQueryData({
-    queryKey: customerKeys.locations,
-    queryFn: () => customerService.listLocations(),
-  });
-  return locations.find((l) => l.id === locationId) ?? null;
+  // listLocations() now rejects on a failed read instead of resolving to [].
+  // This is only a compat redirect, so a failure resolves to "not found" and
+  // the caller falls back to the picker -- which shows the real error.
+  try {
+    const locations = await queryClient.ensureQueryData({
+      queryKey: customerKeys.locations,
+      queryFn: () => customerService.listLocations(),
+    });
+    return locations.find((l) => l.id === locationId) ?? null;
+  } catch {
+    return null;
+  }
 }

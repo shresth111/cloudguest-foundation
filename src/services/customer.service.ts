@@ -1008,164 +1008,177 @@ export const customerService = {
    */
   async listLocations(): Promise<CustomerLocationSummary[]> {
     if (isDemo()) return demoLocations();
-    try {
-      // /organizations is the platform-wide admin listing -- an ordinary
-      // customer/org-owner session gets a 403 (no organizations.read at
-      // GLOBAL scope), which silently emptied this whole page. The login
-      // response already carries every org the session belongs to,
-      // including its name (persisted by AuthContext), so there's no need
-      // to re-fetch it at all -- and no membership-scoped equivalent of
-      // GET /organizations/{id} exists to fall back on (it also requires
-      // GLOBAL scope, same bug, different endpoint).
-      const stored = localStorage.getItem(ORGS_STORAGE_KEY);
-      const memberships: OrganizationMembership[] = stored ? JSON.parse(stored) : [];
-      const orgs = memberships.map((m) => ({ id: m.organizationId, name: m.organizationName }));
+    // No blanket catch any more: it used to `return []` on ANY failure, and
+    // an empty array is indistinguishable from an account with no venues --
+    // a 403 rendered as "No locations yet". Failures now reach
+    // useCustomerLocations' isError, which /switch-location renders as
+    // "Couldn't load your venues" with a retry.
+    // /organizations is the platform-wide admin listing -- an ordinary
+    // customer/org-owner session gets a 403 (no organizations.read at
+    // GLOBAL scope), which silently emptied this whole page. The login
+    // response already carries every org the session belongs to,
+    // including its name (persisted by AuthContext), so there's no need
+    // to re-fetch it at all -- and no membership-scoped equivalent of
+    // GET /organizations/{id} exists to fall back on (it also requires
+    // GLOBAL scope, same bug, different endpoint).
+    const stored = localStorage.getItem(ORGS_STORAGE_KEY);
+    const memberships: OrganizationMembership[] = stored ? JSON.parse(stored) : [];
+    const orgs = memberships.map((m) => ({ id: m.organizationId, name: m.organizationName }));
 
-      // Deliberately not locationService.list({ organizationId }) -- even
-      // with an organizationId given, it unconditionally calls the same
-      // GLOBAL-only fetchAllOrganizations() just to resolve a display name
-      // we already have from `orgs` above. Hitting the org-scoped endpoint
-      // directly avoids that call (and its 403) entirely.
-      const roles: RoleAssignment[] = (() => {
+    // Deliberately not locationService.list({ organizationId }) -- even
+    // with an organizationId given, it unconditionally calls the same
+    // GLOBAL-only fetchAllOrganizations() just to resolve a display name
+    // we already have from `orgs` above. Hitting the org-scoped endpoint
+    // directly avoids that call (and its 403) entirely.
+    const roles: RoleAssignment[] = (() => {
+      try {
+        return JSON.parse(localStorage.getItem(ROLES_STORAGE_KEY) || "[]") as RoleAssignment[];
+      } catch {
+        return [];
+      }
+    })();
+    const perOrg = await Promise.allSettled(
+      orgs.map(async (org) => {
         try {
-          return JSON.parse(localStorage.getItem(ROLES_STORAGE_KEY) || "[]") as RoleAssignment[];
-        } catch {
-          return [];
-        }
-      })();
-      const perOrg = await Promise.allSettled(
-        orgs.map(async (org) => {
-          try {
-            const { data } = await api.get<{ items: RawLocationSummary[] }>(
-              `/organizations/${org.id}/locations`,
-              { params: { page_size: 50 }, headers: { "X-Organization-Id": org.id } },
-            );
-            return (data?.items ?? []).map((loc) => ({ loc, orgId: org.id, orgName: org.name }));
-          } catch (err) {
-            // A location-scoped staff role (Network Engineer, Office Admin,
-            // Location Manager, ...) can never satisfy this org-wide
-            // listing's permission check -- the backend's RBAC scope
-            // hierarchy correctly refuses a location-level grant for an
-            // organization-level check, no matter what permissions the role
-            // itself carries. Fall back to fetching just the specific
-            // location(s) this user's own location-scoped role assignments
-            // name -- the single-location endpoint CAN authorize that once
-            // X-Location-Id is sent, since the check then resolves at
-            // location scope instead. Without this, a location-scoped
-            // staff member's own venue silently never appeared here.
-            if ((err as { status?: number }).status !== 403) return [];
-            const locationIds = Array.from(
-              new Set(
-                roles
-                  .filter(
-                    (r) =>
-                      r.scopeType === "location" && r.organizationId === org.id && r.locationId,
-                  )
-                  .map((r) => r.locationId as string),
-              ),
-            );
-            const perLocation = await Promise.allSettled(
-              locationIds.map((locationId) =>
-                api.get<RawLocationSummary>(`/locations/${locationId}`, {
-                  headers: { "X-Organization-Id": org.id, "X-Location-Id": locationId },
-                }),
-              ),
-            );
-            const fallbackPairs: { loc: RawLocationSummary; orgId: string; orgName: string }[] = [];
-            for (const result of perLocation) {
-              if (result.status === "fulfilled") {
-                fallbackPairs.push({ loc: result.value.data, orgId: org.id, orgName: org.name });
-              }
-            }
-            return fallbackPairs;
-          }
-        }),
-      );
-      const locOrgPairs = perOrg
-        .filter(
-          (
-            r,
-          ): r is PromiseFulfilledResult<
-            { loc: RawLocationSummary; orgId: string; orgName: string }[]
-          > => r.status === "fulfilled",
-        )
-        .flatMap((r) => r.value);
-
-      const enriched = await Promise.allSettled(
-        locOrgPairs.map(async ({ loc, orgId, orgName }) => {
-          // X-Location-Id (not just X-Organization-Id) matters here too --
-          // without it, RBAC resolves these checks at organization scope,
-          // which a location-scoped staff role's grants (routers.read,
-          // guest_sessions.read) can never satisfy, same as the org-wide
-          // locations listing above.
-          const locationHeaders = { "X-Organization-Id": orgId, "X-Location-Id": loc.id };
-          const [routersR, sessionsR] = await Promise.allSettled([
-            api.get<{ items: RawRouterStatus[] }>(`/locations/${loc.id}/routers`, {
-              params: { page_size: 100 },
-              headers: locationHeaders,
-            }),
-            api.get<{ items: RawGuestSessionStatus[] }>("/guest-sessions", {
-              params: { location_id: loc.id, page_size: 50 },
-              headers: locationHeaders,
-            }),
-          ]);
-          // `null`, NOT `[]`, when the routers request failed. These are
-          // two completely different facts -- "this venue has no routers"
-          // versus "we could not find out" -- and folding the second into
-          // the first is what let a failed/forbidden read render as the
-          // confident, wrong word "Offline". deriveLocationLiveness()
-          // treats null as `unknown` and refuses to answer.
-          const routers =
-            routersR.status === "fulfilled" ? (routersR.value.data?.items ?? []) : null;
-          const sessions =
-            sessionsR.status === "fulfilled" ? (sessionsR.value.data?.items ?? []) : [];
-          const liveness = deriveLocationLiveness(routers);
-          // A location with zero online routers can't genuinely have online
-          // guests, so don't let a stale "active" session row contradict
-          // the status this same summary reports. Deliberately keyed off
-          // "we know nothing is checking in" rather than "routersOnline is
-          // falsy": when liveness is `unknown` we have no grounds to zero
-          // a real session count either, so the honest figure stands.
-          const nothingIsUp = liveness.routersOnline === 0;
-          // Presence, not the session row's own lifecycle -- the rule
-          // lib/guest-presence.ts states once for every surface. `is_online`
-          // is the server's own answer (session active AND the device not
-          // observed as gone), so a guest whose device dropped off the
-          // network stops counting here. `status` alone kept counting them
-          // until the timeout sweep, which never reaches a session that has
-          // no timeout at all.
-          const active = nothingIsUp
-            ? 0
-            : sessions.filter((s) => s.is_online ?? s.status === "active").length;
-          return summaryFromLiveness(
-            {
-              id: loc.id,
-              name: loc.name,
-              city: loc.city,
-              onlineUsers: active,
-              bandwidth: `${(sessions.reduce((s, se) => s + (se.bytes_downloaded || 0) + (se.bytes_uploaded || 0), 0) / 1e6).toFixed(0)} MB`,
-              isp: "Active",
-              lastSync: "Just now",
-              organizationId: orgId,
-              organizationName: orgName,
-              sessionsActive: active,
-              sessionsTotal: sessions.length,
-              propertyType: loc.property_type,
-            },
-            liveness,
+          const { data } = await api.get<{ items: RawLocationSummary[] }>(
+            `/organizations/${org.id}/locations`,
+            { params: { page_size: 50 }, headers: { "X-Organization-Id": org.id } },
           );
-        }),
-      );
-      const results = enriched
-        .filter(
-          (r): r is PromiseFulfilledResult<CustomerLocationSummary> => r.status === "fulfilled",
-        )
-        .map((r) => r.value);
-
-      return results;
-    } catch {
-      return [];
+          return (data?.items ?? []).map((loc) => ({ loc, orgId: org.id, orgName: org.name }));
+        } catch (err) {
+          // A location-scoped staff role (Network Engineer, Office Admin,
+          // Location Manager, ...) can never satisfy this org-wide
+          // listing's permission check -- the backend's RBAC scope
+          // hierarchy correctly refuses a location-level grant for an
+          // organization-level check, no matter what permissions the role
+          // itself carries. Fall back to fetching just the specific
+          // location(s) this user's own location-scoped role assignments
+          // name -- the single-location endpoint CAN authorize that once
+          // X-Location-Id is sent, since the check then resolves at
+          // location scope instead. Without this, a location-scoped
+          // staff member's own venue silently never appeared here.
+          // Anything but a 403 is a failed read, not an empty org: let it
+          // reject, so the caller can say "couldn't load" instead of "No
+          // locations yet" (see the allSettled verdict below).
+          if ((err as { status?: number }).status !== 403) throw err;
+          const locationIds = Array.from(
+            new Set(
+              roles
+                .filter(
+                  (r) => r.scopeType === "location" && r.organizationId === org.id && r.locationId,
+                )
+                .map((r) => r.locationId as string),
+            ),
+          );
+          const perLocation = await Promise.allSettled(
+            locationIds.map((locationId) =>
+              api.get<RawLocationSummary>(`/locations/${locationId}`, {
+                headers: { "X-Organization-Id": org.id, "X-Location-Id": locationId },
+              }),
+            ),
+          );
+          const fallbackPairs: { loc: RawLocationSummary; orgId: string; orgName: string }[] = [];
+          for (const result of perLocation) {
+            if (result.status === "fulfilled") {
+              fallbackPairs.push({ loc: result.value.data, orgId: org.id, orgName: org.name });
+            }
+          }
+          // The 403 stands when there was nothing to fall back to (no
+          // location-scoped role on this org) or every fallback read
+          // failed too. Returning [] here is what turned a refused read
+          // into the confident, wrong "No locations yet" -- measured on
+          // prod during "View as this customer", 2026-10-02.
+          if (fallbackPairs.length === 0) throw err;
+          return fallbackPairs;
+        }
+      }),
+    );
+    // Every organization's read failed: that is an error, never an empty
+    // account. (Some failing and some succeeding still shows what loaded --
+    // a partial list of real venues beats an error over all of them.)
+    const firstFailure = perOrg.find((r): r is PromiseRejectedResult => r.status === "rejected");
+    if (firstFailure && perOrg.every((r) => r.status === "rejected")) {
+      throw firstFailure.reason;
     }
+    const locOrgPairs = perOrg
+      .filter(
+        (
+          r,
+        ): r is PromiseFulfilledResult<
+          { loc: RawLocationSummary; orgId: string; orgName: string }[]
+        > => r.status === "fulfilled",
+      )
+      .flatMap((r) => r.value);
+
+    const enriched = await Promise.allSettled(
+      locOrgPairs.map(async ({ loc, orgId, orgName }) => {
+        // X-Location-Id (not just X-Organization-Id) matters here too --
+        // without it, RBAC resolves these checks at organization scope,
+        // which a location-scoped staff role's grants (routers.read,
+        // guest_sessions.read) can never satisfy, same as the org-wide
+        // locations listing above.
+        const locationHeaders = { "X-Organization-Id": orgId, "X-Location-Id": loc.id };
+        const [routersR, sessionsR] = await Promise.allSettled([
+          api.get<{ items: RawRouterStatus[] }>(`/locations/${loc.id}/routers`, {
+            params: { page_size: 100 },
+            headers: locationHeaders,
+          }),
+          api.get<{ items: RawGuestSessionStatus[] }>("/guest-sessions", {
+            params: { location_id: loc.id, page_size: 50 },
+            headers: locationHeaders,
+          }),
+        ]);
+        // `null`, NOT `[]`, when the routers request failed. These are
+        // two completely different facts -- "this venue has no routers"
+        // versus "we could not find out" -- and folding the second into
+        // the first is what let a failed/forbidden read render as the
+        // confident, wrong word "Offline". deriveLocationLiveness()
+        // treats null as `unknown` and refuses to answer.
+        const routers = routersR.status === "fulfilled" ? (routersR.value.data?.items ?? []) : null;
+        const sessions =
+          sessionsR.status === "fulfilled" ? (sessionsR.value.data?.items ?? []) : [];
+        const liveness = deriveLocationLiveness(routers);
+        // A location with zero online routers can't genuinely have online
+        // guests, so don't let a stale "active" session row contradict
+        // the status this same summary reports. Deliberately keyed off
+        // "we know nothing is checking in" rather than "routersOnline is
+        // falsy": when liveness is `unknown` we have no grounds to zero
+        // a real session count either, so the honest figure stands.
+        const nothingIsUp = liveness.routersOnline === 0;
+        // Presence, not the session row's own lifecycle -- the rule
+        // lib/guest-presence.ts states once for every surface. `is_online`
+        // is the server's own answer (session active AND the device not
+        // observed as gone), so a guest whose device dropped off the
+        // network stops counting here. `status` alone kept counting them
+        // until the timeout sweep, which never reaches a session that has
+        // no timeout at all.
+        const active = nothingIsUp
+          ? 0
+          : sessions.filter((s) => s.is_online ?? s.status === "active").length;
+        return summaryFromLiveness(
+          {
+            id: loc.id,
+            name: loc.name,
+            city: loc.city,
+            onlineUsers: active,
+            bandwidth: `${(sessions.reduce((s, se) => s + (se.bytes_downloaded || 0) + (se.bytes_uploaded || 0), 0) / 1e6).toFixed(0)} MB`,
+            isp: "Active",
+            lastSync: "Just now",
+            organizationId: orgId,
+            organizationName: orgName,
+            sessionsActive: active,
+            sessionsTotal: sessions.length,
+            propertyType: loc.property_type,
+          },
+          liveness,
+        );
+      }),
+    );
+    const results = enriched
+      .filter((r): r is PromiseFulfilledResult<CustomerLocationSummary> => r.status === "fulfilled")
+      .map((r) => r.value);
+
+    return results;
   },
 
   /* ── Executive Dashboard ───────────────────────────────── */
