@@ -82,7 +82,7 @@ export type ArubaPortalRedirect = Partial<Record<ArubaRedirectKey, string | numb
  * a RADIUS Access-Request. `/cgi-bin/login` was the earlier guess and was
  * never answered on hardware.
  */
-export const ARUBA_LOGIN_PATH = "/swarm.cgi" as const;
+export const ARUBA_LOGIN_PATH = "/cgi-bin/login" as const; // STAGING EXPERIMENT 2026-10-03: /swarm.cgi was rejected by the AP21 (redirected back to the portal, no RADIUS sent)
 
 /**
  * The hosts the AP's own captive-portal virtual host answers on. The name is

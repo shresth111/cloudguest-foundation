@@ -641,7 +641,7 @@ eq("Instant On: `post` becomes the login host", io.switchip, "captive-2022.aio.c
 eq(
   "Instant On: login goes to https://<post>/swarm.cgi",
   LOGIN.arubaLoginTarget(io.switchip).url,
-  "https://captive-2022.aio.cloudauth.net/swarm.cgi",
+  "https://captive-2022.aio.cloudauth.net/cgi-bin/login",
 );
 eq(
   "an explicit switchip still wins over post",
@@ -661,7 +661,7 @@ check(
   "refused" in
     LOGIN.arubaLoginTarget(LOGIN.captureArubaRedirect({ post: "evil.example.com" }).switchip),
 );
-eq("ARUBA_LOGIN_PATH is /swarm.cgi", LOGIN.ARUBA_LOGIN_PATH, "/swarm.cgi");
+eq("ARUBA_LOGIN_PATH is /cgi-bin/login (staging experiment)", LOGIN.ARUBA_LOGIN_PATH, "/cgi-bin/login");
 
 // The real search schema: what TanStack hands it after JSON-parsing values.
 const parsed = SEARCH.portalSearchSchema.parse({
