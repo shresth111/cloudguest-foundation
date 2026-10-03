@@ -143,6 +143,163 @@ eq("held speed: blank is 0", R.heldKbpsFromLabel("", KBPS), 0);
 // The bundle: the REAL LocationPolicies, with the network and the venue
 // stubbed at the module boundary.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+console.log("\n1b. Hybrid speed gateway (Aruba + Wyfy MikroTik): verdict and parsing (pure)");
+// ---------------------------------------------------------------------------
+for (const [entry, out] of [
+  ["src/lib/omada-client-controls.ts", "cc.mjs"],
+  ["src/lib/aruba-speed-gateway.ts", "gw.mjs"],
+]) {
+  await build({
+    entryPoints: [abs(entry)],
+    outfile: join(work, out),
+    bundle: true,
+    format: "esm",
+    platform: "node",
+    packages: "external",
+    logLevel: "silent",
+    alias: { "@": join(ROOT, "src") },
+  });
+}
+const CC = await import(pathToFileURL(join(work, "cc.mjs")).href);
+const GW = await import(pathToFileURL(join(work, "gw.mjs")).href);
+const arubaFacts = (perGuestSpeed) => ({
+  controllerManaged: true,
+  vendor: ARUBA,
+  capabilities: null,
+  controller: null,
+  perGuestSpeed,
+});
+for (const pgs of [undefined, null, false]) {
+  const v = CC.clientControlVerdict("speed-limit", arubaFacts(pgs));
+  check(
+    `Aruba, perGuestSpeed=${JSON.stringify(pgs)}: speed stays U1 (unavailable)`,
+    v.availability === "unavailable" && v.reason === U1,
+  );
+}
+for (const id of ["speed-limit", "speed-profile"]) {
+  const v = CC.clientControlVerdict(id, arubaFacts(true));
+  check(
+    `Aruba with a gateway: ${id} is live with the gateway sentence`,
+    v.availability === "qualified" && v.reason === CC.NAS_ONLY_GATEWAY_SPEED,
+  );
+}
+check(
+  "Aruba with a gateway: per-device speed buttons stay unavailable (no per-device write)",
+  CC.deviceActionVerdict("speed", arubaFacts(true)).availability === "unavailable",
+);
+check(
+  "Aruba with a gateway: disconnect is still U2",
+  CC.clientControlVerdict("disconnect", arubaFacts(true)).availability === "unavailable",
+);
+check(
+  "MikroTik: perGuestSpeed is ignored (speed available, no sentence)",
+  CC.clientControlVerdict("speed-limit", {
+    controllerManaged: false,
+    vendor: "mikrotik",
+    capabilities: null,
+    perGuestSpeed: true,
+  }).reason === null,
+);
+check(
+  "Omada: perGuestSpeed does not change the controller ladder's speed answer",
+  JSON.stringify(
+    CC.clientControlVerdict("speed-limit", {
+      controllerManaged: true,
+      vendor: OMADA,
+      capabilities: null,
+      perGuestSpeed: true,
+    }),
+  ) ===
+    JSON.stringify(
+      CC.clientControlVerdict("speed-limit", {
+        controllerManaged: true,
+        vendor: OMADA,
+        capabilities: null,
+      }),
+    ),
+);
+check(
+  "gateway sentence: a cap not a promise, no RADIUS/NAS/CoA",
+  /not a guaranteed speed/.test(CC.NAS_ONLY_GATEWAY_SPEED) &&
+    !/RADIUS|\bNAS\b|CoA/i.test(CC.NAS_ONLY_GATEWAY_SPEED),
+);
+eq(
+  "customer read: true only on an explicit true",
+  GW.toPerGuestSpeed({ per_guest_speed: true }),
+  true,
+);
+eq(
+  "customer read: 'true' string is not true",
+  GW.toPerGuestSpeed({ per_guest_speed: "true" }),
+  false,
+);
+eq("customer read: empty body is false", GW.toPerGuestSpeed(null), false);
+const st = GW.toSpeedGatewayStatus({
+  router_id: "r-aruba",
+  location_id: "loc-1",
+  feature_enabled: true,
+  gateway: null,
+  per_guest_speed_active: false,
+  candidates: [
+    { router_id: "mt-1", name: "Gate", model: "hEX", status: "online", has_api_credentials: true },
+    { router_id: "mt-2", name: "Spare", model: null, status: "offline" },
+    { name: "no id" },
+  ],
+});
+eq("master parse: candidates without an id are dropped", st.candidates.length, 2);
+eq("master parse: missing credentials flag is false", st.candidates[1].hasApiCredentials, false);
+check(
+  "a candidate without an API login cannot be picked, and says why",
+  GW.candidateVerdict(st.candidates[1]).selectable === false &&
+    GW.candidateVerdict(st.candidates[1]).reason === GW.NO_CREDENTIALS_REASON &&
+    GW.candidateVerdict(st.candidates[0]).selectable === true,
+);
+check(
+  "summary: nothing linked says Instant On decides speed",
+  /No gateway linked/.test(GW.speedGatewaySummary(st)),
+);
+check(
+  "summary: linked but feature off says nothing is applied",
+  /feature is off/.test(
+    GW.speedGatewaySummary({ ...st, featureEnabled: false, gateway: st.candidates[0] }),
+  ),
+);
+check(
+  "summary: live only when the backend says per_guest_speed_active",
+  /live/.test(
+    GW.speedGatewaySummary({ ...st, gateway: st.candidates[0], perGuestSpeedActive: true }),
+  ) && !/is live/.test(GW.speedGatewaySummary({ ...st, gateway: st.candidates[0] })),
+);
+eq(
+  "error copy comes from data.code, not the status",
+  GW.speedGatewayErrorMessage(
+    { status: 422, message: "x", data: { code: "SPEED_GATEWAY_LOCATION_MISMATCH" } },
+    "fb",
+  ),
+  GW.SPEED_GATEWAY_ERROR_COPY.SPEED_GATEWAY_LOCATION_MISMATCH,
+);
+eq(
+  "an unknown code falls back to the backend message",
+  GW.speedGatewayErrorMessage({ message: "boom", data: { code: "OTHER" } }, "fb"),
+  "boom",
+);
+check(
+  "every contract error code has a sentence",
+  [
+    "SPEED_GATEWAY_NOT_NAS_ONLY",
+    "SPEED_GATEWAY_WRONG_VENDOR",
+    "SPEED_GATEWAY_LOCATION_MISMATCH",
+    "SPEED_GATEWAY_NO_CREDENTIALS",
+    "SPEED_GATEWAY_ROUTER_NOT_FOUND",
+  ].every((c) => typeof GW.SPEED_GATEWAY_ERROR_COPY[c] === "string"),
+);
+check(
+  "Master wiring copy names the topology and the no-NAT rule",
+  GW.HYBRID_WIRING_COPY.some((x) => x.includes("ISP → MikroTik → AP")) &&
+    GW.HYBRID_WIRING_COPY.some((x) => /must not use Instant On's own NAT\/DHCP/.test(x)),
+);
+
 writeFileSync(
   join(work, "api-stub.js"),
   `const json = (x) => JSON.parse(JSON.stringify(x));
@@ -194,7 +351,7 @@ writeFileSync(
   `import { clientControlVerdict, deviceActionVerdict } from "${abs("src/lib/omada-client-controls.ts")}";
    export function useClientControls() {
      const vendor = window.__vendor;
-     const facts = { controllerManaged: vendor != null, vendor, capabilities: null, controller: null };
+     const facts = { controllerManaged: vendor != null, vendor, capabilities: null, controller: null, perGuestSpeed: window.__perGuestSpeed ?? null };
      return {
        controllerManaged: facts.controllerManaged, vendor, capabilities: null, controller: null, loading: false,
        verdict: (c) => clientControlVerdict(c, facts),
@@ -292,6 +449,7 @@ const server = createServer((req, res) => {
       `<!doctype html><meta charset=utf-8><title>access rules harness</title>
        <script>
          window.__vendor = ${JSON.stringify(url.searchParams.get("vendor") || null)};
+         window.__perGuestSpeed = ${url.searchParams.get("gateway") ? "true" : "null"};
          window.__policies = ${JSON.stringify(url.searchParams.get("empty") ? {} : POLICIES)};
          window.__bandwidth = ${JSON.stringify(url.searchParams.get("empty") ? [] : BANDWIDTH)};
          window.__calls = [];
@@ -315,11 +473,13 @@ const origin = `http://127.0.0.1:${server.address().port}`;
 const { chromium } = await import("playwright");
 const browser = await chromium.launch();
 
-async function open(vendor, { empty = false } = {}) {
+async function open(vendor, { empty = false, gateway = false } = {}) {
   const page = await browser.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));
-  await page.goto(`${origin}/?vendor=${vendor ?? ""}${empty ? "&empty=1" : ""}`);
+  await page.goto(
+    `${origin}/?vendor=${vendor ?? ""}${empty ? "&empty=1" : ""}${gateway ? "&gateway=1" : ""}`,
+  );
   await page.getByRole("button", { name: "Edit Office" }).waitFor({ timeout: 10_000 });
   page.__errors = errors;
   return page;
@@ -349,6 +509,47 @@ const bandwidthWritten = (calls) => calls.find((c) => c.method === "SAVE-BANDWID
 
 // ---------------------------------------------------------------------------
 console.log("\n2a. Guest WiFi Limits at an Aruba Instant On venue (rendered)");
+// ---------------------------------------------------------------------------
+console.log("\n2a-hybrid. Aruba venue WITH a Wyfy MikroTik gateway: speed is live");
+// ---------------------------------------------------------------------------
+{
+  const page = await open(ARUBA, { gateway: true });
+  check("the Bandwidth input is rendered", (await page.locator("#bw").count()) === 1);
+  check("and it is live", !(await page.locator("#bw").isDisabled()));
+  eq(
+    "speed carries the gateway sentence, not U1",
+    await noticeText(page, "speed-limit"),
+    CC.NAS_ONLY_GATEWAY_SPEED,
+  );
+  check(
+    "no 'set in Instant On' block",
+    (await page.getByTestId("nas-only-not-here").count()) === 0,
+  );
+  check(
+    "the table shows the Bandwidth column",
+    (await page.getByRole("columnheader", { name: "Bandwidth" }).count()) === 1,
+  );
+  await page.getByRole("button", { name: "Edit Office" }).evaluate((b) => b.click());
+  await page.getByText("Edit Guest WiFi Limits — Office").waitFor({ timeout: 10_000 });
+  await page.selectOption("#bw", "10 Mbps");
+  await page.selectOption("#st", "1 hr");
+  await page.evaluate(() => (window.__calls = []));
+  await page.getByRole("button", { name: "Save changes" }).evaluate((b) => b.click());
+  await page.getByText(/Limits saved for Office/).waitFor({ timeout: 10_000 });
+  const bw = bandwidthWritten(await page.evaluate(() => window.__calls));
+  check(
+    "save writes the CHOSEN speed (10 Mbps = 10240 kbps), not the held 5120",
+    bw?.downloadRateKbps === 10240 && bw?.uploadRateKbps === 10240,
+    JSON.stringify(bw),
+  );
+  check(
+    "data limit keeps its caveat",
+    (await noticeText(page, "data-limit")) === R.NAS_ONLY_DATA_LIMIT,
+  );
+  check("no page error", page.__errors.length === 0, page.__errors.join(" | "));
+  await page.close();
+}
+
 // ---------------------------------------------------------------------------
 {
   const page = await open(ARUBA);
@@ -582,8 +783,8 @@ console.log("\n3. Wiring of the screens not rendered here");
 // ---------------------------------------------------------------------------
 const tiers = src("src/components/features/CreateGroup.tsx");
 check(
-  "Access Tiers: a greyed speed writes back the tier's held rate at a NAS-only venue only",
-  /nasOnlyVenue\s*\?\s*heldKbpsFromLabel\(bw, BANDWIDTH_KBPS\)\s*:\s*\(BANDWIDTH_KBPS\[bw\] \?\? 0\)/.test(
+  "Access Tiers: a greyed speed writes back the tier's held rate at a NAS-only venue only (a hybrid venue's live select saves the choice)",
+  /nasOnlyVenue && !tierSpeedUsable\s*\?\s*heldKbpsFromLabel\(bw, BANDWIDTH_KBPS\)\s*:\s*\(BANDWIDTH_KBPS\[bw\] \?\? 0\)/.test(
     tiers,
   ),
 );
@@ -609,6 +810,18 @@ const limits = src("src/components/features/LocationPolicies.tsx");
 check(
   "Guest WiFi Limits: the idle timeout select is never disabled (session-rules guard)",
   !/id="it"[\s\S]{0,200}disabled=/.test(limits),
+);
+
+const hook = src("src/hooks/useClientControls.ts");
+check(
+  "useClientControls reads speed-control only at a NAS-only venue",
+  /const nasOnly = controllerManaged && isNasOnlyVendor\(vendor\)/.test(hook) &&
+    /enabled: nasOnly && !!locationId/.test(hook),
+);
+check(
+  "no customer surface imports the Master speed-gateway section",
+  !src("src/components/features/LocationPolicies.tsx").includes("ArubaSpeedGatewaySection") &&
+    !src("src/components/features/CreateGroup.tsx").includes("ArubaSpeedGatewaySection"),
 );
 
 console.log(`\n${ran} checks ran`);

@@ -906,9 +906,12 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       // that includes the account's MikroTik venues). Write back what the
       // tier holds instead. Scoped to NAS-only venues so every other vendor
       // saves exactly as before.
-      const rateKbps = nasOnlyVenue
-        ? heldKbpsFromLabel(bw, BANDWIDTH_KBPS)
-        : (BANDWIDTH_KBPS[bw] ?? 0);
+      // A hybrid Aruba venue (Wyfy MikroTik gateway applies speed per guest)
+      // has a LIVE select, so it saves the chosen rate like any other venue.
+      const rateKbps =
+        nasOnlyVenue && !tierSpeedUsable
+          ? heldKbpsFromLabel(bw, BANDWIDTH_KBPS)
+          : (BANDWIDTH_KBPS[bw] ?? 0);
       const saved = await bandwidthPolicyService.save(
         {
           id: editingId ?? undefined,

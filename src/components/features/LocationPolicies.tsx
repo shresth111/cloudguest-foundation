@@ -445,6 +445,13 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   // counts the bytes there yet), and the idle timeout and daily limit stay
   // live with a sentence saying how far they reach.
   const nasOnlyVenue = isNasOnlyVendor(clientControls.vendor);
+  // THE ONE EXCEPTION AT A NAS-ONLY VENUE: speed, when a Wyfy MikroTik gateway
+  // sits in front of the access points (the Aruba + MikroTik hybrid) and the
+  // backend says it is applying each guest's speed. Then the Bandwidth input
+  // is live, saves exactly as at a MikroTik venue, and carries the gateway
+  // sentence. Without a gateway the venue keeps U1 and no input at all.
+  const nasOnlySpeedLive = nasOnlyVenue && speedUsable;
+  const showBandwidth = !nasOnlyVenue || nasOnlySpeedLive;
   const dataLimitVerdict = nasOnlyLimitVerdict("data-limit", clientControls.vendor);
   const dataLimitUsable = dataLimitVerdict.availability !== "unavailable";
   const idleTimeoutVerdict = nasOnlyLimitVerdict("idle-timeout", clientControls.vendor);
@@ -1324,7 +1331,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                     whose read is in flight -- so a greyed dropdown is a dead
                     input. The sentence saying where speed IS set renders in
                     its place, under this grid. */}
-                {!nasOnlyVenue && (
+                {showBandwidth && (
                   <div>
                     <Select
                       id="bw"
@@ -1383,7 +1390,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                   sentence (U1) stands here in place of the dropdown. The data
                   limit stays live there: usage reporting was measured on the
                   AP21 (V3), and its caveat renders under the toggle. */}
-              {nasOnlyVenue && (
+              {nasOnlyVenue && !nasOnlySpeedLive && !speedAsking && (
                 <div className="mt-4" data-testid="nas-only-not-here">
                   <ControllerControlNotice verdict={speedVerdict} />
                 </div>
@@ -1682,7 +1689,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                 <TableHeader>
                   <TableRow>
                     <TableHead className="text-xs font-medium">Location</TableHead>
-                    {!nasOnlyVenue && (
+                    {showBandwidth && (
                       <TableHead className="text-xs font-medium">Bandwidth</TableHead>
                     )}
                     <TableHead className="text-xs font-medium">Session Timeout</TableHead>
@@ -1719,7 +1726,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                           this cell would still promise it. `—` with the reason
                           on hover is the same posture `lastContactLabel` takes
                           for a measurement we do not have. */}
-                      {!nasOnlyVenue && (
+                      {showBandwidth && (
                         <TableCell>
                           {speedUsable ? (
                             p.bandwidth
