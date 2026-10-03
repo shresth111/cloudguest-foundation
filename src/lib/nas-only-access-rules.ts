@@ -27,13 +27,22 @@
  *    the cap is refused at the next sign-in. Nothing can end the live session
  *    early (no CoA), so the guest stays online until their session ends.
  *  - Idle timeout: CAVEAT. Sent as Idle-Timeout; whether the AP honours it is
- *    hardware check V2. If it does not, the session simply runs to its time.
+ *    hardware check V2 (still unmeasured). If it does not, the session simply
+ *    runs to its time -- which IS enforced (see Session-Timeout below).
  *  - Guest Allow-list: CAVEAT. Allow rules and "only people on this list" are
  *    decided at sign-in for every vendor; a change cannot take an Instant On
  *    guest who is already online off the network.
- *  - Max daily session: CAVEAT. A guest who has used today's time can't sign
- *    in again (works now). The remaining time also caps Session-Timeout, which
- *    ends a session in progress only if the AP honours it (V1).
+ *  - Max daily session: ENFORCED, mid-session too. A guest who has used
+ *    today's time can't sign in again, and the remaining time caps
+ *    Session-Timeout. Hardware check V1 is MEASURED (2026-10-03, AP21): the AP
+ *    ends the session at Session-Timeout (Acct-Terminate-Cause=
+ *    Session-Timeout), so the guest is signed out when the time runs out.
+ *  - Open Hours: ENFORCED, mid-session too. Sign-in is refused while closed,
+ *    and the time until closing caps Session-Timeout, so a guest online at
+ *    closing time is signed out then (same V1 measurement).
+ *  - Speed: NOT SUPPORTED through sign-in. MEASURED 2026-10-03: the AP ignores
+ *    the bandwidth attributes Wyfy can send (512/256 kbps sent, ~200 Mbps
+ *    measured). Copy lives in `omada-client-controls.ts` (`NAS_ONLY_SPEED`).
  *
  * Session timeout, speed and blocking keep their verdicts in
  * `omada-client-controls.ts` (`NAS_ONLY_SESSION_TIMEOUT`, `NAS_ONLY_SPEED`,
@@ -46,6 +55,7 @@ export type NasOnlyLimitId =
   | "data-limit"
   | "idle-timeout"
   | "daily-limit"
+  | "open-hours"
   | "devices"
   | "allow-list";
 
@@ -65,11 +75,16 @@ export const NAS_ONLY_IDLE_TIMEOUT =
   "idle device hasn't been confirmed yet. If they don't, the guest stays online until " +
   "their session time runs out.";
 
-/** Max daily session: the sign-in half works now; the mid-session half is V1. */
+/** Max daily session after V1 was measured on the AP21 (2026-10-03): the
+ * remaining allowance caps the session time the access point enforces. */
 export const NAS_ONLY_DAILY_LIMIT =
-  "Applies the next time a guest signs in: someone who has used today's time can't sign " +
-  "in again. Wyfy also asks the access point to end a session when the time runs out, " +
-  "but whether Aruba Instant On does that hasn't been confirmed yet.";
+  "Enforced. When a guest's time for today runs out, Aruba Instant On access points end " +
+  "their session, and they can't sign in again until the allowance resets.";
+
+/** Open Hours after V1: the time until closing caps the session time. */
+export const NAS_ONLY_OPEN_HOURS =
+  "Enforced at Aruba Instant On access points too: a guest who is online at closing time " +
+  "is signed out then, and nobody can sign in until you open again.";
 
 /** Guest Allow-list (allow rules by phone/MAC, "only people on this list"):
  * decided at sign-in for every vendor, so it works -- but a change cannot
@@ -80,12 +95,14 @@ export const NAS_ONLY_ALLOW_LIST =
   "list\", doesn't take anyone offline who is online right now. They stay on until their " +
   "session ends.";
 
-/** The form footer at a NAS-only venue: nothing on it reaches a guest who is
- * already online, data limit included (it is greyed here). */
+/** The form footer at a NAS-only venue. A guest's session length (and the
+ * daily allowance / closing time that cap it) is fixed when they sign in and
+ * then enforced by the access point; a change reaches each guest at their
+ * next sign-in. */
 export const NAS_ONLY_LIMITS_FOOTER =
-  "These apply the next time each guest signs in. Wyfy can't disconnect a device from " +
-  "Aruba Instant On access points, so anyone online right now keeps going until their " +
-  "session ends.";
+  "Changes apply the next time each guest signs in. Aruba Instant On access points end " +
+  "each session when its time is up, so anyone online right now keeps the limits they " +
+  "signed in with until then.";
 
 const AVAILABLE = (control: NasOnlyLimitId): NasOnlyLimitVerdict => ({
   control,
@@ -112,6 +129,8 @@ export function nasOnlyLimitVerdict(
       return { control, availability: "qualified", reason: NAS_ONLY_IDLE_TIMEOUT };
     case "daily-limit":
       return { control, availability: "qualified", reason: NAS_ONLY_DAILY_LIMIT };
+    case "open-hours":
+      return { control, availability: "qualified", reason: NAS_ONLY_OPEN_HOURS };
     case "allow-list":
       return { control, availability: "qualified", reason: NAS_ONLY_ALLOW_LIST };
   }
