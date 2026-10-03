@@ -114,7 +114,11 @@ function VerifyPage() {
       // that helper and `PASSWORD_SIGN_IN_OFFERED`), and inviting a guest
       // to create a credential no sign-in form will ever offer to accept
       // is worse than either keeping the feature or removing it.
-      const offerPasswordSetup = passwordSignInOffered(config) && !session.hasPassword;
+      // Never in front of the required-name screen -- see the same rule in
+      // useGuestSignIn's `afterLogin`. /portal/success shows that screen
+      // first whenever `session.nameRequired`.
+      const offerPasswordSetup =
+        passwordSignInOffered(config) && !session.hasPassword && !session.nameRequired;
       navigate({
         to: offerPasswordSetup ? "/portal/set-password" : "/portal/success",
         search: (prev) => prev,

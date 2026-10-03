@@ -163,12 +163,14 @@ function PostConnectRow({
   checked,
   onCheckedChange,
   children,
+  disabled,
 }: {
   title: string;
   description: string;
   checked: boolean;
   onCheckedChange: (v: boolean) => void;
   children?: ReactNode;
+  disabled?: boolean;
 }) {
   return (
     <div className="rounded-lg border p-3">
@@ -177,7 +179,12 @@ function PostConnectRow({
           <p className="text-sm font-medium">{title}</p>
           <p className="text-xs text-muted-foreground">{description}</p>
         </div>
-        <Switch checked={checked} onCheckedChange={onCheckedChange} aria-label={title} />
+        <Switch
+          checked={checked}
+          onCheckedChange={onCheckedChange}
+          aria-label={title}
+          disabled={disabled}
+        />
       </div>
       {checked && children ? <div className="mt-3 space-y-2 border-t pt-3">{children}</div> : null}
     </div>
@@ -341,6 +348,9 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   // would see.
   const [venueName, setVenueName] = useState("");
   const [collectGuestName, setCollectGuestName] = useState(false);
+  // Name required at sign-in. Starts true -- the owner's default for every
+  // venue -- and is overwritten by the loaded config like every field here.
+  const [requireGuestName, setRequireGuestName] = useState(true);
   const [collectGuestEmail, setCollectGuestEmail] = useState(false);
   const [reviewCardEnabled, setReviewCardEnabled] = useState(false);
   const [reviewUrl, setReviewUrl] = useState("");
@@ -531,6 +541,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
     setPostLoginHtml(p.login.postLoginHtml || "");
     setVenueName(p.locationId ? p.locationName : "");
     setCollectGuestName(p.postConnect.collectGuestName);
+    setRequireGuestName(p.postConnect.requireGuestName);
     setCollectGuestEmail(p.postConnect.collectGuestEmail);
     setReviewUrl(p.postConnect.reviewUrl);
     // The switch is its OWN stored column, not something derived from the
@@ -759,6 +770,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       // does for the headline and colours.
       collectGuestName,
       collectGuestEmail,
+      requireGuestName,
       // Both, unconditionally -- the preview applies the same
       // `reviewCardEnabled && reviewUrl` rule a guest's portal does
       // (`reviewCardEligible`), rather than this page pre-collapsing them
@@ -800,6 +812,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       postLoginHtml,
       collectGuestName,
       collectGuestEmail,
+      requireGuestName,
       reviewCardEnabled,
       reviewUrl,
       guestFeedbackEnabled,
@@ -1051,7 +1064,9 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   // disabled row's own comment. Recomputed on every render so the meter
   // moves as toggles move, before anything is saved.
   const askCount = countPostConnectAsks({
-    collectGuestName,
+    // A name required at sign-in is never asked again after connecting, so
+    // it is not a post-connect ask and does not spend this budget.
+    collectGuestName: collectGuestName && !requireGuestName,
     collectGuestEmail,
     // The switch AND a link, because that pair is what a guest actually
     // meets. Counting the switch alone would tell a venue they are making
@@ -1154,6 +1169,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
         postConnect: {
           collectGuestName,
           collectGuestEmail,
+          requireGuestName,
           // The link is saved WHATEVER the switch says, and the switch is
           // saved as its own column. Turning the ask off used to clear the
           // stored URL on the theory that a venue resuming should
@@ -1871,12 +1887,34 @@ export function PortalPage({ locationId }: { locationId?: string }) {
               </p>
 
               <PostConnectRow
-                title="Ask for their name"
-                description="A dismissible card on the connected screen. Shown once ever, never during sign-in."
-                checked={collectGuestName}
-                onCheckedChange={setCollectGuestName}
+                title="Name required at sign-in"
+                description="OTP guests with no name on file enter it on one screen right after their code verifies. No internet until they do."
+                checked={requireGuestName}
+                onCheckedChange={(v) => {
+                  setRequireGuestName(v);
+                  // Required implies collected -- the backend forces it on
+                  // too; doing it here keeps the switch below honest.
+                  if (v) setCollectGuestName(true);
+                }}
               >
-                <NoDataYet />
+                <p className="text-xs text-muted-foreground">
+                  On by default. Returning guests whose name is already on file are not asked again.
+                  Applies to mobile, WhatsApp and email code sign-in.
+                </p>
+              </PostConnectRow>
+
+              <PostConnectRow
+                title="Ask for their name"
+                description={
+                  requireGuestName
+                    ? "Collected at sign-in while the name is required, so it is never asked again here."
+                    : "A dismissible card on the connected screen. Shown once ever, never during sign-in."
+                }
+                checked={collectGuestName || requireGuestName}
+                onCheckedChange={setCollectGuestName}
+                disabled={requireGuestName}
+              >
+                {!requireGuestName && <NoDataYet />}
               </PostConnectRow>
 
               <PostConnectRow

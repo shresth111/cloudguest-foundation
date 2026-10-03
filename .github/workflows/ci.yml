@@ -241,7 +241,7 @@ jobs:
       - name: portal CNA storage safety
         run: |
           ./scripts/ci-gated-test.sh \
-            "portal-cna-storage-safety" 21 "all checks passed" \
+            "portal-cna-storage-safety" 28 "all checks passed" \
             bun run test:portal-cna
 
       # The Master Console and the customer app are two products on two
@@ -349,6 +349,19 @@ jobs:
             "portal-signin-fields" 23 \
             "Sign-in field regression test: all checks passed." \
             bun run test:signin-fields
+
+      # Name required at sign-in (default ON for every venue): the one
+      # "Your name" screen between OTP verify and the network handoff. Pins
+      # the wire mapping (`name_required` -> `nameRequired`, `display_name`
+      # posted), the post-connect card never re-asking a required name, and
+      # the real component in Chromium: labelled, autocomplete=name, >=16px,
+      # empty/whitespace never submitted, and `onDone` (which starts the
+      # hotspot login) only after the name write resolved.
+      - name: portal guest name required
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "portal-guest-name" 34 "portal guest name: all checks passed" \
+            bun run test:portal-guest-name
 
       # The per-route errorComponent wiring under /portal. TanStack Router
       # does not inherit `errorComponent` to child routes, so this fix is one

@@ -455,6 +455,17 @@ export interface RuntimePortalConfig {
    * data it never agreed to hold. */
   collectGuestName: boolean;
   collectGuestEmail: boolean;
+  /** Name required at sign-in -- backend
+   * `captive_portal_configs.require_guest_name` (default ON for every venue,
+   * owner decision; implies `collectGuestName`). Informational on this
+   * surface: whether a given guest is shown the "Your name" screen is the
+   * SERVER's per-session answer, `RuntimeSession.nameRequired`, never
+   * derived from this flag (the server knows whether a name is already on
+   * file; the portal must not be told that before the code verifies).
+   * Read by the post-connect nudge so it never asks for the name a second
+   * time. `?? false` when absent: a backend that predates the column has no
+   * gate either. */
+  requireGuestName: boolean;
   /** The venue's own Google review link, pasted by the merchant and stored
    * verbatim (backend `captive_portal_configs.review_url`). Never
    * synthesised from a place id: neither `g.page/r/…` nor
@@ -656,6 +667,15 @@ export interface RuntimeSession {
    * leak review authorship. Nothing anywhere may report this as a count of
    * reviews; the only truthful label is "opened your review link". */
   hasOpenedReviewLink: boolean;
+  /** Name required at sign-in, for THIS session: the venue requires a name,
+   * this is an OTP login, and the guest has none on file. The session
+   * exists, but every step that opens the network refuses it (backend code
+   * `guest_name_required`) until `POST /guest/sign-in-name` stores a name --
+   * so `/portal/success` shows its one "Your name" screen and starts the
+   * hotspot login / controller authorize only after that call returns.
+   * Optional: synthetic sessions (preview/demo) and a backend that predates
+   * the field read as "not required". */
+  nameRequired?: boolean;
   /** The marketing opt-in the venue offers this guest, or null when there
    * is nothing to offer (wyfy-specs/guest-marketing-campaigns.md §5.8:
    * `GuestLoginResponse.marketing_consent_offer`). Non-null only when the
