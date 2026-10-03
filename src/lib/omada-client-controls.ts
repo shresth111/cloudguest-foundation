@@ -350,6 +350,14 @@ export interface ControllerVenueFacts {
    * nobody sent.
    */
   controller?: ControllerLiveness | null;
+  /**
+   * NAS-only venues only (Aruba Instant On): whether a Wyfy-managed MikroTik
+   * gateway in front of the access points applies each guest's speed
+   * (`GET /network-integrations/locations/{id}/speed-control`). `true` makes
+   * the venue's Bandwidth setting live; `false`, `null` or absent keep the
+   * fixed "set it in Instant On" answer. Ignored at every other vendor.
+   */
+  perGuestSpeed?: boolean | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -501,7 +509,7 @@ export function clientControlVerdict(
   if (!venue.controllerManaged) return AVAILABLE(control);
   // A NAS-only venue (Aruba Instant On) has no controller API at all, so
   // there is nothing to ask and nothing the capabilities read could say.
-  if (isNasOnlyVendor(venue.vendor)) return nasOnlyControlVerdict(control);
+  if (isNasOnlyVendor(venue.vendor)) return nasOnlyControlVerdict(control, venue.perGuestSpeed);
 
   const { vendor } = venue;
   // A CONTROLLER THAT IS NOT ANSWERING READS AS "WE COULD NOT ASK".
@@ -699,12 +707,21 @@ export function clientControlVerdict(
 // NAS-only venues (Aruba Instant On): fixed answers, PM_SPEC §3 / §4.
 // ---------------------------------------------------------------------------
 
-/** U1. */
 /** U1, re-measured 2026-10-03: the AP21 ignores the bandwidth attributes sent
  * at sign-in (512/256 kbps sent, ~200 Mbps measured). */
 export const NAS_ONLY_SPEED =
   "Speed limits aren't supported through sign-in on Aruba Instant On access points. Set " +
   "speed limits in the Instant On app, on the guest network.";
+/**
+ * Speed at an Aruba Instant On venue whose guests reach the internet through
+ * a Wyfy-managed MikroTik gateway (the hybrid setup). The limit is a queue per
+ * guest IP on that router, applied when the access point reports the guest
+ * online. A cap, not a promise of that speed.
+ */
+export const NAS_ONLY_GATEWAY_SPEED =
+  "Applied to each guest by your venue's Wyfy gateway router (a MikroTik in front of your " +
+  "Aruba access points) when they come online. This is the most a guest's device can use, " +
+  "not a guaranteed speed.";
 /** U2. */
 export const NAS_ONLY_DISCONNECT =
   "Wyfy can't disconnect a device from Aruba Instant On access points. The guest stays online " +
@@ -733,7 +750,10 @@ export const NAS_ONLY_SESSION_TIMEOUT =
  *  - session-timeout: qualified -- enforced by the AP (V1 measured), with a
  *    neutral note saying so.
  */
-function nasOnlyControlVerdict(control: ClientControlId): ClientControlVerdict {
+function nasOnlyControlVerdict(
+  control: ClientControlId,
+  perGuestSpeed: boolean | null | undefined,
+): ClientControlVerdict {
   switch (control) {
     case "block-signin":
       return { control, availability: "qualified", reason: NAS_ONLY_BLOCK_SIGNIN };
@@ -742,7 +762,11 @@ function nasOnlyControlVerdict(control: ClientControlId): ClientControlVerdict {
       return { control, availability: "unavailable", reason: NAS_ONLY_DISCONNECT };
     case "speed-limit":
     case "speed-profile":
-      return { control, availability: "unavailable", reason: NAS_ONLY_SPEED };
+      // Hybrid venue: a Wyfy MikroTik gateway applies the venue's speed per
+      // guest. Only `true` counts -- an unanswered read is not a gateway.
+      return perGuestSpeed === true
+        ? { control, availability: "qualified", reason: NAS_ONLY_GATEWAY_SPEED }
+        : { control, availability: "unavailable", reason: NAS_ONLY_SPEED };
     case "session-timeout":
       return { control, availability: "qualified", reason: NAS_ONLY_SESSION_TIMEOUT };
   }

@@ -49,13 +49,14 @@ import {
 } from "@/lib/aruba-instant-on-setup";
 import { requestErrorMessage } from "@/services/api";
 import { arubaInstantOnService } from "@/services/aruba-instant-on.service";
+import { ArubaSpeedGatewaySection } from "@/components/routers/ArubaSpeedGatewaySection";
 import type { RouterDevice } from "@/types/router";
 
 /** What Wyfy cannot do at an Instant On venue, named for ops (Master copy may
  * name RADIUS). The customer dashboard greys each of these with its own
  * sentence; this is the one place ops sees the whole list. */
 const NOT_FROM_HERE: readonly string[] = [
-  "Guest speed limits (set per guest network in Instant On)",
+  "Guest speed limits on the access points themselves (set per guest network in Instant On). Per-guest speed needs a Wyfy MikroTik gateway, below",
   "Disconnecting or blocking a device on the network (no CoA, and the Instant On API is read-only)",
   "Allowed domains and the guest network / SSID settings (set in Instant On, steps below)",
 ];
@@ -509,6 +510,8 @@ export function ArubaInstantOnSetupPanel({ router }: { router: RouterDevice }) {
       </div>
 
       {content}
+
+      <ArubaSpeedGatewaySection routerId={router.id} />
 
       <div className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
         <p className="mb-1 font-medium text-foreground">Not possible from Wyfy at this venue</p>

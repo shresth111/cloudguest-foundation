@@ -840,10 +840,11 @@ eq(
   // The setup panel, and Router Fleet's Add / Remove Instant On site dialogs
   // (both Master-only; test-aruba-add-site.mjs pins that no customer surface
   // imports the dialogs).
-  "the Aruba Master service is imported only by the setup panel and the fleet's site dialogs",
+  "the Aruba Master service is imported only by the setup panel (and its speed-gateway section) and the fleet's site dialogs",
   JSON.stringify(serviceUsers.sort()),
   JSON.stringify([
     "src/components/routers/ArubaInstantOnSetupPanel.tsx",
+    "src/components/routers/ArubaSpeedGatewaySection.tsx",
     "src/components/routers/InstantOnSiteDialogs.tsx",
   ]),
 );

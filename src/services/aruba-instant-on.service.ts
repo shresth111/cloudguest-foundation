@@ -22,6 +22,7 @@ import {
   type AddInstantOnSiteDraft,
   type CreatedInstantOnSite,
 } from "@/lib/aruba-instant-on-site";
+import { toSpeedGatewayStatus, type SpeedGatewayStatus } from "@/lib/aruba-speed-gateway";
 
 export const arubaInstantOnService = {
   /** Add an Instant On site: one `aruba_instant_on` fleet row at the chosen
@@ -76,6 +77,26 @@ export const arubaInstantOnService = {
   async listInstantOnSites(): Promise<InstantOnSitesOverview> {
     const { data } = await api.get("/platform/instant-on/sites");
     return toInstantOnSitesOverview(data);
+  },
+
+  /** Hybrid speed gateway (GLOBAL): which Wyfy MikroTik at this venue applies
+   * each guest's speed, and which routers could. Writes only to Wyfy's own
+   * database; nothing is sent to Instant On or to the router here. */
+  async getSpeedGateway(routerId: string): Promise<SpeedGatewayStatus> {
+    const { data } = await api.get(`/platform/instant-on/routers/${routerId}/speed-gateway`);
+    return toSpeedGatewayStatus(data);
+  },
+
+  async linkSpeedGateway(routerId: string, gatewayRouterId: string): Promise<SpeedGatewayStatus> {
+    const { data } = await api.put(`/platform/instant-on/routers/${routerId}/speed-gateway`, {
+      gateway_router_id: gatewayRouterId,
+    });
+    return toSpeedGatewayStatus(data);
+  },
+
+  async unlinkSpeedGateway(routerId: string): Promise<SpeedGatewayStatus> {
+    const { data } = await api.delete(`/platform/instant-on/routers/${routerId}/speed-gateway`);
+    return toSpeedGatewayStatus(data);
   },
 
   /** §5. Removes the hub stanza through the agent and soft-deletes the row. */
