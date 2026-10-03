@@ -222,10 +222,24 @@ eq(
 console.log("\n3. Customer screens greyed with the spec's copy (AC1-7)");
 // ---------------------------------------------------------------------------
 eq("U0 / U9: generic gated-screen reason", RV.controllerVenueFeatureReason(ARUBA), U0);
-for (const id of [...RV.CONTROLLER_UNSUPPORTED_FEATURE_IDS, "whitelist", "mac-auth"]) {
+for (const id of [...RV.CONTROLLER_UNSUPPORTED_FEATURE_IDS, "mac-auth"]) {
   eq(`"${id}" is greyed at an Aruba venue`, RV.featureAppliesToControllerVenue(id, ARUBA), false);
 }
-for (const id of ["reports", "network-activity", "isp-details", "vouchers", "portal", "users"]) {
+// Guest Allow-list is allow rules by phone/MAC + "only people on this list",
+// decided at the portal sign-in for every vendor -- it works at an Instant On
+// venue. U7 (Allowed domains) described a walled garden this screen is not.
+// See router-vendors.ts NAS_ONLY_EXTRA_UNSUPPORTED_FEATURE_IDS and
+// scripts/test-aruba-access-rules.mjs.
+for (const id of [
+  "reports",
+  "network-activity",
+  "isp-details",
+  "vouchers",
+  "portal",
+  "users",
+  "whitelist",
+  "policies",
+]) {
   eq(`"${id}" stays live at an Aruba venue`, RV.featureAppliesToControllerVenue(id, ARUBA), true);
 }
 check(
@@ -240,7 +254,16 @@ check(
     (id) => !/Omada|controller/i.test(RV.controllerUnsupportedCopy(id, "Office", ARUBA) ?? ""),
   ),
 );
-eq("U7: Guest Allow-list", RV.controllerUnsupportedCopy("whitelist", "Office", ARUBA), U7);
+eq(
+  "Guest Allow-list has no gated-screen copy at Aruba (it is live; U7 is not used)",
+  RV.controllerUnsupportedCopy("whitelist", "Office", ARUBA),
+  null,
+);
+check(
+  "U7 is not offered for any screen",
+  !Object.values(RV.NAS_ONLY_FEATURE_COPY).includes(U7) &&
+    !RV.NAS_ONLY_EXTRA_UNSUPPORTED_FEATURE_IDS.includes("whitelist"),
+);
 eq("U8: Trusted Devices", RV.controllerUnsupportedCopy("mac-auth", "Office", ARUBA), U8);
 eq(
   "Trusted Devices headline does not say 'set up in the app' (Instant On has no MAC auth)",
@@ -773,6 +796,10 @@ check(
   "Allow-list and Trusted Devices are not mounted when gated",
   /feature === "whitelist" && !controllerGated/.test(featurePage) &&
     /feature === "mac-auth" && !controllerGated/.test(featurePage),
+);
+check(
+  "Allow-list carries the NAS-only caveat above it",
+  /nasOnlyLimitVerdict\("allow-list", controllerVendor\)/.test(featurePage),
 );
 check(
   "the feature page passes the vendor to the gate",

@@ -48,6 +48,8 @@ import {
 } from "@/lib/block-outcome";
 import { blockScope, blockScopeConfirmation } from "@/lib/block-scope";
 import { useClientControls } from "@/hooks/useClientControls";
+import { NAS_ONLY_BLOCK_SIGNIN } from "@/lib/omada-client-controls";
+import { isNasOnlyVendor } from "@/lib/router-vendors";
 import { ControllerControlNotice } from "@/components/customer/ControllerControlNotice";
 
 // `identifier` holds a phone number, an email address, or a MAC (see
@@ -771,8 +773,14 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
       if (reloadedCount !== null && reloadedCount > countBefore) {
         setTextarea("");
         setShowModal(false);
+        // At a NAS-only venue (Aruba Instant On) this is the expected outcome
+        // for anyone online, not a fault: the backend refuses the live half
+        // with copy U2 (409), because nothing can take a device off an
+        // Instant On access point. Say what is true instead of "check".
         setToast(
-          "Saved, but we could not confirm they were taken off the WiFi — they may still be online. Check the list below.",
+          isNasOnlyVendor(clientControls.vendor)
+            ? `Saved. ${NAS_ONLY_BLOCK_SIGNIN}`
+            : "Saved, but we could not confirm they were taken off the WiFi — they may still be online. Check the list below.",
         );
         setTimeout(() => setToast(null), 6500);
         return;

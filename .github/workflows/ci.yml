@@ -2165,7 +2165,7 @@ jobs:
       - name: aruba instant on gating, guardrails and portal login
         run: |
           ./scripts/ci-gated-test.sh \
-            "aruba-instant-on" 307 \
+            "aruba-instant-on" 310 \
             "aruba instant on: all checks passed" \
             bun run test:aruba-instant-on
       - name: aruba instant on setup panel
@@ -2197,6 +2197,18 @@ jobs:
             "customer-wizard-aruba" 58 \
             "customer wizard aruba: all checks passed" \
             bun run test:customer-wizard-aruba
+      # Access Rules at an Aruba Instant On venue: the REAL Guest WiFi Limits
+      # screen in Chromium at an Aruba, a MikroTik and an Omada venue. Data
+      # limit greyed (U3a) and a save writes the held cap and speed back
+      # rather than "no limit"; idle / daily / session caveats; MikroTik and
+      # Omada render none of the NAS-only sentences. Plus Access Tiers' held
+      # speed, Guest Allow-list's caveat and the Blocking toast.
+      - name: aruba instant on access rules
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "aruba-access-rules" 80 \
+            "aruba access rules: all checks passed" \
+            bun run test:aruba-access-rules
 
       # The customer dashboard's five guest controls, at a venue whose access
       # points are a TP-Link Omada controller. Three of them were written for
