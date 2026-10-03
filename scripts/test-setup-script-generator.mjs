@@ -829,6 +829,9 @@ writeFileSync(
     // which is the defect this file has shipped six times. The decision
     // lives beside `SetupScriptGap` for exactly that reason.
     `export { DESELECT_PHRASE, DESELECT_CONSEQUENCE, deselectAcknowledgement } from "@/components/routers/RouterDetailTabs";`,
+    // Section 19 grades the version-sensitivity rules and the preflight.
+    `export { DEVICE_MODE_REQUIRED_FEATURES, ROUTEROS6_STOP_MESSAGE } from "@/components/routers/RouterDetailTabs";`,
+    `export { PHASES } from "@/components/routers/guided-setup/phases.content";`,
   ].join("\n"),
 );
 
@@ -880,6 +883,9 @@ const {
   DESELECT_PHRASE,
   DESELECT_CONSEQUENCE,
   deselectAcknowledgement,
+  DEVICE_MODE_REQUIRED_FEATURES,
+  ROUTEROS6_STOP_MESSAGE,
+  PHASES,
 } = await import(pathToFileURL(join(work, "bundle.mjs")).href);
 
 // ---------------------------------------------------------------------
@@ -1716,7 +1722,11 @@ for (const [variant, opts] of VARIANTS) {
 // for every DHCP renewal after the first.
 for (const [variant, opts] of VARIANTS) {
   const hb = heartbeatChunks(opts);
-  const immediate = hb.find((c) => !c.label.includes("Scheduler"))?.script ?? "";
+  // The FIRST line only: the immediate chunk carries a second, read-only
+  // line (the device-mode fetch verdict) that the scheduler must not repeat.
+  const immediate = (
+    hb.find((c) => c.label.startsWith("Heartbeat (check in now"))?.script ?? ""
+  ).split("\n")[0];
   const scheduler = hb.find((c) => c.label.includes("Scheduler"))?.script ?? "";
   const onEvent = scheduler.match(/on-event="((?:\\.|[^"\\])*)"/)?.[1] ?? "";
   // Undo exactly one level of RouterOS string escaping.
@@ -2400,12 +2410,13 @@ const elseBodies = (script) =>
   const wg = scriptOf((c) => c.label === "WireGuard Tunnel");
   check(
     "the WireGuard chunk updates an EXISTING interface's private key",
-    /\/interface wireguard set \[find where name=/.test(wg) && /private-key=/.test(wg),
+    /\/interface wireguard set \[\/interface wireguard find where name=/.test(wg) &&
+      /private-key=/.test(wg),
     "without this a re-paste leaves the device on its old private key and the tunnel never handshakes",
   );
   check(
     "...and updates an EXISTING hub peer's public key and endpoint",
-    /\/interface wireguard peers set \[find where interface=/.test(wg),
+    /\/interface wireguard peers set \[\/interface wireguard peers find where interface=/.test(wg),
     "the peer carries the hub's rotating public key; an add-only chunk cannot converge it",
   );
   check(
@@ -2442,7 +2453,9 @@ const elseBodies = (script) =>
     );
     check(
       "...but still converges the peer and the tunnel address",
-      /\/interface wireguard peers set \[find where interface=/.test(reused) &&
+      /\/interface wireguard peers set \[\/interface wireguard peers find where interface=/.test(
+        reused,
+      ) &&
         /:foreach wgAddrRow in=\[\/ip address find where interface=/.test(reused) &&
         /\/ip address remove \$wgAddrRow/.test(reused),
       "reuse must still repair everything it CAN, or a re-paste fixes nothing at all",
@@ -2550,7 +2563,13 @@ const elseBodies = (script) =>
   );
 }
 {
-  const hb = scriptOf((c) => c.label.startsWith("Heartbeat"));
+  // The two chunks that SEND the heartbeat. "Heartbeat Check" also carries
+  // the credential now (its read-only authorized-macs probe), but it is a
+  // verdict, not a sender: a stale copy of it FAILS loudly rather than
+  // leaving a router silently offline.
+  const hb = scriptOf(
+    (c) => c.label.startsWith("Heartbeat") && !c.label.startsWith("Heartbeat Check"),
+  );
   check(
     "the agent credential is carried inline by BOTH heartbeat chunks",
     (hb.match(/X-Agent-Credential: cred-abc123/g) ?? []).length === 2,
@@ -7552,6 +7571,16 @@ for (const { variant, chunks, rsc } of RSC_CASES) {
 const RADIUS_LABEL = "RADIUS";
 const ABORT_POLICY = [
   {
+    // Configures nothing. Stops a RouterOS 6 box (which cannot run the
+    // WireGuard tunnel) and a device-mode-restricted box (whose scheduler,
+    // fetch or hotspot writes would fail at run time half way through --
+    // measured live on a hEX lite, 7.21.4) BEFORE the first write.
+    match: /^Preflight/,
+    why:
+      "the router cannot finish this script (RouterOS 6, or device-mode blocks scheduler/" +
+      "fetch/hotspot); it configures nothing, so aborting leaves the device exactly as it was",
+  },
+  {
     // The one abort that is unambiguously right, and the only one that is
     // ALSO the first chunk: it configures nothing, so stopping there costs
     // nothing and leaves the device untouched. Listed here so that a
@@ -9062,6 +9091,245 @@ console.log("\n-- 18. v6-only property names only ever inside [:parse] strings -
       clock?.script ?? "",
     ),
     "over-strict: the fix must defer the fallback, not silently delete it",
+  );
+}
+
+// =====================================================================
+// 19. EVERY ROUTEROS 7.x PARSES IT, AND ROUTEROS 6 STOPS AT THE PREFLIGHT.
+// =====================================================================
+//
+// Measured on CHR 2026-10-03 across 6.49.22, 7.1.5, 7.6, 7.10.2, 7.12.2,
+// 7.14.3, 7.15.3, 7.16.2, 7.18.2, 7.20.1, 7.21.4, 7.23.7 and 7.24.5. BOTH v6
+// and v7 parse the WHOLE `.rsc` before line 1 runs, and a property name the
+// release does not know is a PARSE error that `:do {} on-error={}` cannot
+// catch: the import is rejected and nothing runs. An unknown MENU
+// (`/interface wireguard add` on v6) is only a run-time "bad command name",
+// which is why the Preflight's v6 stop can run at all -- once every v6 PARSE
+// blocker below is deferred.
+//
+// Each rule is a token measured to be a parse error on at least one
+// supported release. It may appear only inside a double-quoted string -- the
+// argument to `[:parse "..."]` (compiled at run time, where a failure IS
+// catchable) or plain log text. Strings are stripped before matching, so
+// what is left is exactly what RouterOS resolves at parse time.
+console.log("\n-- 19. version-sensitive tokens only inside [:parse] strings; the preflight --");
+{
+  const VERSION_SENSITIVE = [
+    {
+      re: /\b(?:primary-ntp|secondary-ntp)=/,
+      why: "v6-only NTP properties: parse error on 7.20.1 (PR #380)",
+    },
+    {
+      re: /\/system ntp client set\b[^\n]*?\bservers=/,
+      why: "v7-only NTP property: parse error on 6.49.22 (line 134 column 42), so the v6 stop never ran",
+    },
+    {
+      re: /\/ip route (?:add|set)\b[^\n{}]*?\brouting-table=/,
+      why: "v7-only route property on a write: parse error on 6.49.22 (two-WAN PCC routes)",
+    },
+    {
+      re: /\/interface wireguard(?: peers)? (?:set|remove) \[find\b/,
+      why: "a relative [find] inside a menu v6 does not have: parse error on 6.49.22; use the absolute [/interface wireguard ... find]",
+    },
+    {
+      re: /\/system device-mode\b/,
+      why: "no such menu before 7.13 and its properties differ per release; read it only through [:parse]",
+    },
+  ];
+  const stripStrings = (line) => line.replace(/"(?:[^"\\]|\\.)*"/g, '""');
+  const offenders = (text) =>
+    text
+      .split("\n")
+      .filter((l) => !/^\s*#/.test(l))
+      .flatMap((l) =>
+        VERSION_SENSITIVE.filter((r) => r.re.test(stripStrings(l))).map((r) => r.why),
+      );
+  for (const [name, opts] of VARIANTS) {
+    const chunks = buildRouterSetupScriptChunks(opts);
+    for (const [channel, text] of [
+      [".rsc", chunksToRouterOsScript(chunks, "r")],
+      ["one-line", chunksToSingleLineScript(chunks)],
+    ]) {
+      const bad = offenders(text);
+      check(
+        `${name}: ${channel} has no version-sensitive token outside a string`,
+        bad.length === 0,
+        [...new Set(bad)].join("; "),
+      );
+    }
+  }
+  // The guided pastes are RouterOS 7 only by design (they carry no
+  // preflight; measured: on 6.49.22 they stop at their own first v7-only
+  // line), so only the rules that break a RouterOS 7 parse apply to them.
+  const V7_BLOCKERS = (w) => /^v6-only|device-mode/.test(w);
+  for (const phase of PHASES) {
+    for (const p of phase.paste) {
+      const bad = offenders(p.script).filter(V7_BLOCKERS);
+      check(
+        `guided ${phase.id} / ${p.label}: no RouterOS 7 parse blocker outside a string`,
+        bad.length === 0,
+        bad.join("; "),
+      );
+    }
+  }
+
+  // The rules must be able to fail: each is fed the exact shape that broke.
+  const INJECTED = [
+    `:do { /system ntp client set enabled=yes primary-ntp=1.1.1.1 } on-error={ :log warning "x" }`,
+    `:do { /system ntp client set enabled=yes servers=1.1.1.1 } on-error={ :log warning "x" }`,
+    `:if (1 = 1) do={ /ip route add dst-address=0.0.0.0/0 gateway=$g routing-table="to_wan1" }`,
+    `:if (1 = 1) do={ /interface wireguard set [find where name="wg-cloudguard"] private-key="k" }`,
+    `:put [/system device-mode get scheduler]`,
+  ];
+  INJECTED.forEach((line, i) =>
+    check(
+      `INJECTED: version rule ${i + 1} fires on the shape that broke`,
+      offenders(line).length > 0,
+    ),
+  );
+  // ...and must not fire on the legal shapes they exist to allow.
+  const LEGAL = [
+    `:do { [[:parse "/system ntp client set enabled=yes servers=1.1.1.1"]] } on-error={ :log warning "x" }`,
+    `:local n [:len [/ip route find where dst-address="0.0.0.0/0" routing-table="main"]]`,
+    `:if (1 = 1) do={ [[:parse ("/ip route add gateway=\\"" . $g . "\\" routing-table=\\"to_wan1\\"")]] }`,
+    `:if (1 = 1) do={ /interface wireguard set [/interface wireguard find where name="wg-cloudguard"] private-key="k" }`,
+    `:do { :put [[:parse ":return [/system device-mode get scheduler]"]] } on-error={ :put "n/a" }`,
+  ];
+  LEGAL.forEach((line, i) =>
+    check(`over-strict guard: legal shape ${i + 1} is allowed`, offenders(line).length === 0),
+  );
+
+  // ---- THE PREFLIGHT ---------------------------------------------------
+  const GATED = {
+    scheduler: /\/system scheduler add\b/,
+    fetch: /\/tool fetch\b/,
+    hotspot: /\/ip hotspot add\b/,
+    proxy: /\/ip proxy\b/,
+    socks: /\/ip socks\b/,
+    romon: /\/tool romon\b/,
+    email: /\/tool e-mail\b/,
+    sniffer: /\/tool sniffer\b/,
+    container: /\/container\b/,
+    "bandwidth-test": /\/tool bandwidth-test\b/,
+    "traffic-gen": /\/tool traffic-generator\b/,
+    zerotier: /\/zerotier\b/,
+  };
+  for (const [name, opts] of VARIANTS) {
+    const chunks = buildRouterSetupScriptChunks(opts);
+    const at = chunks.findIndex((c) => c.label.startsWith("Preflight"));
+    check(
+      `${name}: the Preflight comes before every chunk that writes`,
+      at >= 0 && chunks.slice(0, at).every((c) => c.label.startsWith("INCOMPLETE SCRIPT")),
+      `Preflight at ${at}, after: ${chunks
+        .slice(0, at)
+        .map((c) => c.label)
+        .join(", ")}`,
+    );
+    // Every device-mode-gated menu the script writes must be in the
+    // preflight's list, or a restricted router half-applies again (the live
+    // hEX lite died at `/system scheduler add`, step 23).
+    const text = chunks.map((c) => c.script).join("\n");
+    const missing = Object.entries(GATED)
+      .filter(([f, re]) => re.test(text) && !DEVICE_MODE_REQUIRED_FEATURES.includes(f))
+      .map(([f]) => f);
+    check(
+      `${name}: every device-mode-gated menu the script uses is checked by the preflight`,
+      missing.length === 0,
+      `uses ${missing.join(", ")} but the preflight does not check it`,
+    );
+  }
+  check(
+    "INJECTED: the gated-menu sweep fires on a menu the preflight does not check",
+    GATED.proxy.test(`/ip proxy set enabled=yes`) &&
+      !DEVICE_MODE_REQUIRED_FEATURES.includes("proxy"),
+  );
+  const pre = buildRouterSetupScriptChunks(VARIANTS[0][1]).find((c) =>
+    c.label.startsWith("Preflight"),
+  );
+  const preText = pre?.script ?? "";
+  const preLines = preText.split("\n");
+  const v6Lines = preLines.filter((l) => /< 7\) do=/.test(l));
+  check(
+    "the v6 stop prints, logs AND :errors the agreed message",
+    v6Lines.some((l) => l.includes(`:put "  ${ROUTEROS6_STOP_MESSAGE}.`)) &&
+      v6Lines.some((l) => l.includes(`:log error "cloudguest: ${ROUTEROS6_STOP_MESSAGE}`)) &&
+      v6Lines.some((l) => /:error "cloudguest: STOPPING -- RouterOS 7 required/.test(l)),
+  );
+  check(
+    "the v6 stop comes BEFORE the device-mode line",
+    preLines.findIndex((l) => /:error "cloudguest: STOPPING -- RouterOS 7/.test(l)) <
+      preLines.findIndex((l) => /device-mode get/.test(l)),
+  );
+  check(
+    "the v6 lines use only v6 syntax (no slash paths, no :parse, no v7-only menus)",
+    v6Lines.length >= 3 &&
+      v6Lines.every(
+        (l) => !/\/system\/|:parse|wireguard|device-mode|:onerror/.test(stripStrings(l)),
+      ),
+  );
+  check(
+    "every device-mode read is a [:parse] string inside :do/on-error",
+    preText
+      .split("; ")
+      .filter((s) => /device-mode get/.test(s))
+      .every((s) => /^:(?:foreach|do)\b.*\[\[:parse .*on-error=/.test(s)),
+  );
+  check(
+    "a restricted router stops with the exact fix, before any change",
+    /\/system\/device-mode\/update mode=advanced/.test(preText) &&
+      /power-cycle/.test(preText) &&
+      /:error \("cloudguest: STOPPING -- device-mode blocks/.test(preText),
+  );
+
+  // ---- THE HEARTBEAT CHECK CANNOT PASS ON A FAILED FETCH ----------------
+  const hbc =
+    buildRouterSetupScriptChunks(VARIANTS[0][1]).find((c) => c.label.startsWith("Heartbeat Check"))
+      ?.script ?? "";
+  check(
+    "Heartbeat Check: PASS requires the fetch status to be finished",
+    /\$hbcFetch = "finished"\) do=\{ :put "  RESULT: PASS/.test(hbc) &&
+      !/RESULT: PASS[^"]*check-in was sent/.test(hbc),
+    "it printed PASS on a resolved uplink alone -- measured on CHR 7.24.5 with /tool fetch blocked by device-mode",
+  );
+  check(
+    "Heartbeat Check: a failed fetch prints FAIL and names device-mode when that is the cause",
+    /\$hbcFetch != "finished"\) do=\{ :put "  RESULT: FAIL/.test(hbc) &&
+      /\$hbcDm = "off"\) do=\{ :put "  \/tool fetch is DISABLED by device-mode/.test(hbc),
+  );
+  // The SENDING chunk too: its fetch sits inside on-error, so a fetch refused
+  // by device-mode used to end on DONE with nothing but a :log warning.
+  for (const [name, opts] of VARIANTS) {
+    const hbNow =
+      buildRouterSetupScriptChunks(opts).find((c) => c.label.startsWith("Heartbeat (check in now"))
+        ?.script ?? "";
+    const verdict = hbNow.split("\n")[1] ?? "";
+    check(
+      `${name}: the Heartbeat chunk prints FAIL when device-mode disables /tool fetch`,
+      /^:local hbDm ""; :do \{ :if \(\[:tostr \[\[:parse ":return \[\/system device-mode get fetch\]"\]\]\] = "false"\) do=\{ :set hbDm "off" \} \} on-error=\{/.test(
+        verdict,
+      ) &&
+        /\$hbDm = "off"\) do=\{ :put "  RESULT: FAIL -- \/tool fetch is DISABLED by device-mode/.test(
+          verdict,
+        ) &&
+        /\/system\/device-mode\/update mode=advanced/.test(verdict) &&
+        !/:error\b/.test(verdict),
+      "a fetch blocked by device-mode must read FAIL with the fix, not a bare DONE (and must not abort: Heartbeat is in NEVER_ABORTS)",
+    );
+  }
+
+  // ---- THE PORTAL PAGES ARE WAITED FOR ---------------------------------
+  const pages = buildRouterSetupScriptChunks(VARIANTS[6][1]).filter((c) =>
+    c.label.startsWith("Portal Redirect Page"),
+  );
+  check(
+    "every portal page chunk waits for the async-written stock page before counting it",
+    pages.length === 5 &&
+      pages.every((c) =>
+        /^:for pfTry from=1 to=10 do=\{ :if \(\[:len \[\/file find where name~"[^"]+"\]\] = 0\) do=\{ :delay 1s \} \}; :local pfHits/.test(
+          c.script,
+        ),
+      ),
+    "measured on CHR 7.15.3/7.16.2: 0 files at t=0 under /import, so nothing was written",
   );
 }
 
