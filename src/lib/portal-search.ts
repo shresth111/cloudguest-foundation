@@ -429,6 +429,18 @@ const portalSearchShape = {
   vcname: omadaRedirectParam(),
   switchip: omadaRedirectParam(),
   url: omadaRedirectParam(),
+  // MEASURED on a real Instant On AP21 (staging, 2026-10-03). Instant On
+  // does NOT send `switchip`, `essid`, `apname` or `vcname`. It joins with
+  // `&` and appends
+  //   cmd=login&mac=..&network=<ssid>&ip=..&apmac=..&site=<site name>
+  //   &post=captive-2022.aio.cloudauth.net&url=<original url>&nas-id=<NAS-Identifier>
+  // `post` is the login host (Instant On's name for `switchip`), allowlisted
+  // exactly like `switchip`. `network`, `site` and `nas-id` are recorded;
+  // nothing reads them.
+  post: omadaRedirectParam(),
+  network: omadaRedirectParam(),
+  site: omadaRedirectParam(),
+  "nas-id": omadaRedirectParam(),
   // The guest's own chosen portal language, put here by `buildSessionUrl`
   // so it survives portal.success.tsx's full-document POST to the NAS --
   // the one boundary on this flow where React state and (on iOS's Captive
