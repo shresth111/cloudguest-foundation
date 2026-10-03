@@ -64,7 +64,7 @@ const OMADA = "tplink_omada";
 
 // PM_SPEC §4, verbatim.
 const U1 =
-  "Speed limits for Aruba Instant On are set in the Instant On app, on the guest network. Wyfy can't change them.";
+  "Speed limits aren't supported through sign-in on Aruba Instant On access points. Set speed limits in the Instant On app, on the guest network.";
 // U3a ("aren't available yet") retired: V3 usage reporting MEASURED on the
 // AP21 (~/wyfy-ops/aruba-ap21/ACCESS_RULES.md sections 2-3).
 const U3A_RETIRED = "Data limits aren't available on Aruba Instant On yet.";
@@ -83,7 +83,7 @@ await build({
   alias: { "@": join(ROOT, "src") },
 });
 const R = await import(pathToFileURL(join(work, "rules.mjs")).href);
-const IDS = ["data-limit", "idle-timeout", "daily-limit", "devices", "allow-list"];
+const IDS = ["data-limit", "idle-timeout", "daily-limit", "open-hours", "devices", "allow-list"];
 
 for (const vendor of ["mikrotik", OMADA, null, undefined, ""]) {
   check(
@@ -105,7 +105,8 @@ check(
 );
 eq("Aruba: devices per user is plainly supported", at("devices").availability, "available");
 eq("Aruba: idle timeout is live with a caveat", at("idle-timeout").availability, "qualified");
-eq("Aruba: daily limit is live with a caveat", at("daily-limit").availability, "qualified");
+eq("Aruba: daily limit is live with a note", at("daily-limit").availability, "qualified");
+eq("Aruba: open hours is live with a note", at("open-hours").availability, "qualified");
 eq("Aruba: allow-list is live with a caveat", at("allow-list").availability, "qualified");
 eq(
   "vendor match is case-insensitive",
@@ -116,6 +117,7 @@ const copy = [
   R.NAS_ONLY_DATA_LIMIT,
   R.NAS_ONLY_IDLE_TIMEOUT,
   R.NAS_ONLY_DAILY_LIMIT,
+  R.NAS_ONLY_OPEN_HOURS,
   R.NAS_ONLY_ALLOW_LIST,
   R.NAS_ONLY_LIMITS_FOOTER,
 ];
@@ -128,9 +130,20 @@ check(
   copy.every((s) => s.includes("Aruba Instant On")),
 );
 check(
-  "the daily-limit caveat promises the sign-in half and hedges the live half",
-  /can't sign\s+in again/.test(R.NAS_ONLY_DAILY_LIMIT) &&
-    /hasn't been confirmed/.test(R.NAS_ONLY_DAILY_LIMIT),
+  "the daily limit is enforced mid-session now (V1 measured 2026-10-03)",
+  /^Enforced\./.test(R.NAS_ONLY_DAILY_LIMIT) &&
+    /end\s+their session/.test(R.NAS_ONLY_DAILY_LIMIT) &&
+    /can't sign in again/.test(R.NAS_ONLY_DAILY_LIMIT) &&
+    !/hasn't been confirmed/.test(R.NAS_ONLY_DAILY_LIMIT),
+);
+check(
+  "open hours: online at closing time is signed out then",
+  /signed out then/.test(R.NAS_ONLY_OPEN_HOURS) &&
+    !/hasn't been confirmed/.test(R.NAS_ONLY_OPEN_HOURS),
+);
+check(
+  "the footer says the access point ends each session on time",
+  /end\s+each session when its time is up/.test(R.NAS_ONLY_LIMITS_FOOTER),
 );
 
 const KBPS = { "10 Mbps": 10240, "20 Mbps": 20480 };
@@ -384,8 +397,8 @@ console.log("\n2a. Guest WiFi Limits at an Aruba Instant On venue (rendered)");
     R.NAS_ONLY_DAILY_LIMIT,
   );
   check(
-    "session timeout carries the V1 caveat",
-    /hasn't been confirmed/.test((await noticeText(page, "session-timeout")) ?? ""),
+    "session timeout says it is enforced (V1 measured)",
+    /^Enforced\./.test((await noticeText(page, "session-timeout")) ?? ""),
   );
   check("devices per user has no notice", (await notice(page, "devices").count()) === 0);
   check("devices per user stays live", !(await page.locator("#dp").isDisabled()));
@@ -597,6 +610,12 @@ check(
   "Guest Allow-list: mounted with the NAS-only caveat above it",
   /nasOnlyLimitVerdict\("allow-list", controllerVendor\)/.test(featurePage) &&
     /feature === "whitelist" && !controllerGated/.test(featurePage),
+);
+const operations = src("src/components/features/OperationsFeatures.tsx");
+check(
+  "Open Hours: the NAS-only note is mounted, from the persisted venue (no new request)",
+  /nasOnlyLimitVerdict\("open-hours", openHoursVendor\)/.test(operations) &&
+    /locationControllerVendor\(/.test(operations),
 );
 const blocking = src("src/components/features/BlockUsers.tsx");
 check(

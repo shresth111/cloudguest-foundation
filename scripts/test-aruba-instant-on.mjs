@@ -88,7 +88,7 @@ const src = (p) => readFileSync(join(ROOT, p), "utf8");
 const U0 =
   "Your WiFi runs on Aruba Instant On access points. This is set up in the Instant On app, not here.";
 const U1 =
-  "Speed limits for Aruba Instant On are set in the Instant On app, on the guest network. Wyfy can't change them.";
+  "Speed limits aren't supported through sign-in on Aruba Instant On access points. Set speed limits in the Instant On app, on the guest network.";
 const U2 =
   "Wyfy can't disconnect a device from Aruba Instant On access points. The guest stays online until their session time runs out.";
 const U2_BLOCK =
@@ -316,10 +316,21 @@ eq("Disconnect reason is U2", v("disconnect").reason, U2);
 eq("Block on the network: unavailable, U2", v("block-device").reason, U2);
 eq("Block sign-in: qualified (our own record)", v("block-signin").availability, "qualified");
 eq("Block sign-in reason is U2's block sentence", v("block-signin").reason, U2_BLOCK);
-eq("Session timeout: qualified until V1", v("session-timeout").availability, "qualified");
+eq(
+  "Session timeout: a neutral note (enforced, V1 measured)",
+  v("session-timeout").availability,
+  "qualified",
+);
 check(
-  "session-timeout caveat says the AP drop is unconfirmed",
-  /hasn't been confirmed/.test(v("session-timeout").reason ?? ""),
+  "session-timeout note says the access point ends the session (V1 measured 2026-10-03)",
+  /^Enforced\./.test(v("session-timeout").reason ?? "") &&
+    /end the session when the time is up/.test(v("session-timeout").reason ?? "") &&
+    !/hasn't been confirmed/.test(v("session-timeout").reason ?? ""),
+);
+check(
+  "speed says not supported through sign-in, and never promises a future fix",
+  /aren't supported through sign-in/.test(CC.NAS_ONLY_SPEED) &&
+    !/soon|coming|future|yet\b/i.test(CC.NAS_ONLY_SPEED),
 );
 check(
   "no control at an Aruba venue is plain `available`",
