@@ -135,6 +135,10 @@ export function isSafeGoogleReviewUrl(raw: string | null | undefined): boolean {
 export interface PostConnectConfigInput {
   collectGuestName: boolean;
   collectGuestEmail: boolean;
+  /** Name required at sign-in. When on, an OTP guest already gave their
+   * name before they got online, so the post-connect card never asks for
+   * it again. Optional: absent reads as off. */
+  requireGuestName?: boolean;
   reviewUrl: string | null;
   reviewCardEnabled: boolean;
   guestFeedbackEnabled: boolean;
@@ -147,6 +151,9 @@ export interface PostConnectSessionInput {
   startedAt: string;
   hasProfile: boolean;
   hasOpenedReviewLink: boolean;
+  /** How this session signed in -- only read to know whether the name was
+   * already required at sign-in (OTP methods only). Optional. */
+  authMethod?: string;
   /** The server's marketing opt-in offer for this guest (marketing spec
    * §5.8), or null/absent when there is none. Its presence is itself the
    * server's answer to "should this guest be asked": it is only non-null
@@ -182,8 +189,26 @@ export function profileFieldsEligible(
   config: PostConnectConfigInput,
   session: PostConnectSessionInput,
 ): boolean {
-  const collectsSomething = config.collectGuestName || config.collectGuestEmail;
+  const collectsSomething = postConnectAsksName(config, session) || config.collectGuestEmail;
   return collectsSomething && !session.hasProfile;
+}
+
+const NAME_REQUIRED_AUTH_METHODS = new Set(["otp_sms", "otp_email", "otp_whatsapp"]);
+
+/** Whether the post-connect card may ask this guest for their NAME. Never
+ * when the venue required the name at sign-in and this was an OTP sign-in
+ * -- the guest already gave it on the "Your name" screen before the
+ * network opened, and asking twice is the nag this module exists to stop.
+ * A voucher/password guest at the same venue was not asked at sign-in, so
+ * the venue's ordinary `collectGuestName` still applies to them. */
+export function postConnectAsksName(
+  config: PostConnectConfigInput,
+  session: PostConnectSessionInput,
+): boolean {
+  if (!config.collectGuestName) return false;
+  const askedAtSignIn =
+    !!config.requireGuestName && NAME_REQUIRED_AUTH_METHODS.has(session.authMethod ?? "");
+  return !askedAtSignIn;
 }
 
 /**
