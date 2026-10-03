@@ -17,6 +17,14 @@ import {
   type InstantOnSitesOverview,
 } from "@/lib/aruba-instant-on-setup";
 import {
+  toArubaSharedListener,
+  toArubaSharedSecretRotated,
+  toArubaSharedSecretStatus,
+  type ArubaSharedListener,
+  type ArubaSharedSecretRotated,
+  type ArubaSharedSecretStatus,
+} from "@/lib/aruba-shared-listener";
+import {
   buildInstantOnSiteBody,
   toCreatedInstantOnSite,
   type AddInstantOnSiteDraft,
@@ -76,6 +84,27 @@ export const arubaInstantOnService = {
   async listInstantOnSites(): Promise<InstantOnSitesOverview> {
     const { data } = await api.get("/platform/instant-on/sites");
     return toInstantOnSitesOverview(data);
+  },
+
+  /** Shared Aruba listener (ports 1912/1913): give this device a
+   * NAS-Identifier with no address. Idempotent; refused (422) without an AP
+   * MAC on the device. Never returns a secret. */
+  async registerShared(routerId: string): Promise<ArubaSharedListener | null> {
+    const { data } = await api.post(`/platform/radius/nas/register-shared/${routerId}`);
+    return toArubaSharedListener(data);
+  },
+
+  /** The platform-wide shared Aruba secret: fingerprint only. */
+  async getSharedSecret(): Promise<ArubaSharedSecretStatus> {
+    const { data } = await api.get("/platform/radius/aruba-shared");
+    return toArubaSharedSecretStatus(data);
+  },
+
+  /** Set or rotate the shared Aruba secret. Returns it ONCE. Breaks every
+   * venue on the shared listener until retyped in each Instant On site. */
+  async rotateSharedSecret(): Promise<ArubaSharedSecretRotated> {
+    const { data } = await api.post("/platform/radius/aruba-shared/rotate");
+    return toArubaSharedSecretRotated(data);
   },
 
   /** §5. Removes the hub stanza through the agent and soft-deletes the row. */
