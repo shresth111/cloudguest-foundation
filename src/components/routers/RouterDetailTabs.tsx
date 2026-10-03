@@ -2733,15 +2733,19 @@ export const ROUTEROS6_STOP_MESSAGE =
 /** THE PREFLIGHT: refuse, before ANY change, a router this script cannot
  * finish on. Always the FIRST chunk.
  *
- * 1. ROUTEROS 6. `/import` on v6 runs the file statement by statement
- *    (measured on CHR 6.49.22: line 1 ran, then `bad command name
- *    wireguard` aborted at line 2), unlike v7, which parses the whole file
- *    before line 1. So a v6-parseable version check on the first lines
- *    DOES get to run on v6 and can stop the import with a readable message
- *    before the first v7-only command is ever parsed. Every statement on
- *    these lines is v6 syntax (`/system resource get version`, `:pick`,
- *    `:find`, `:tonum`) -- nothing here may use a v7-only command or
- *    property, or v6 would die on THIS line instead.
+ * 1. ROUTEROS 6. v6, like v7, parses the WHOLE file before line 1, and an
+ *    unknown PROPERTY anywhere (`servers=` on the NTP client,
+ *    `routing-table=` on a route write) is a parse error that rejects the
+ *    file outright -- nothing runs, not even this chunk. An unknown MENU
+ *    (`/interface wireguard ...` on v6) is different: it only fails at RUN
+ *    time ("bad command name wireguard"), when execution reaches it. So
+ *    once every v6 parse blocker below is deferred into `[:parse]` (the
+ *    suite's section 19 pins that), this v6-parseable version check on the
+ *    first lines DOES run on v6 and stops the import with a readable
+ *    message before the first v7-only command executes (measured on CHR
+ *    6.49.22). Every statement on these lines is v6 syntax (`/system
+ *    resource get version`, `:pick`, `:find`, `:tonum`) -- nothing here may
+ *    use a v7-only command or property, or v6 would reject the whole file.
  *
  * 2. DEVICE-MODE (RouterOS 7.13+, enforced harder from 7.17). A router in
  *    `mode=home`, or with individual features switched off, rejects
@@ -2792,7 +2796,9 @@ function buildPreflightChunk(): RouterSetupScriptChunk {
     `:if (${off}) do={ :put "    /system/device-mode/update mode=advanced" }`,
     `:if (${off}) do={ :put "  then CONFIRM within 5 minutes: power-cycle the router (unplug the power," }`,
     `:if (${off}) do={ :put "  plug it back in) or briefly press its reset button. Unconfirmed, the change" }`,
-    `:if (${off}) do={ :put "  is discarded. Check with /system/device-mode/print -- scheduler, fetch and" }`,
+    `:if (${off}) do={ :put "  is discarded. A software /system reboot does NOT confirm it. On a CHR or" }`,
+    `:if (${off}) do={ :put "  other VM: stop and start the VM (a cold boot)." }`,
+    `:if (${off}) do={ :put "  Check with /system/device-mode/print -- scheduler, fetch and" }`,
     `:if (${off}) do={ :put "  hotspot must read yes -- then import this SAME file again." }`,
     `:if (${off}) do={ :put "====================================================" }`,
     `:if (${off}) do={ :log error ("cloudguest: device-mode blocks" . $pfDm . " -- run /system/device-mode/update mode=advanced and confirm with a power-cycle") }`,
@@ -8140,7 +8146,29 @@ export function buildRouterSetupScriptChunks(opts: {
       // instead (`Heartbeat Check`), re-deriving the uplink for itself rather
       // than borrowing variables across a boundary the console does not carry
       // them over.
-      script: buildHeartbeatStatements({ apiBase, agentCredential, wireguard }),
+      //
+      // ONE EXCEPTION, ON ITS OWN LINE: /tool fetch switched off by
+      // device-mode. The heartbeat's fetch sits inside `on-error`, so a
+      // fetch refused with "not allowed by device-mode" was only a `:log
+      // warning` and this chunk printed DONE as if it had checked in
+      // (measured on CHR 7.24.5 `mode=home`; the live hEX lite on 7.21.4 had
+      // the same flags). The flag is read on a SECOND line -- the first line
+      // stays byte-identical to the scheduler's copy and under the paste cap
+      // -- and prints FAIL with the fix. Not an `:error`: this chunk is in the
+      // suite's NEVER_ABORTS list, and in a full `/import` the Preflight has
+      // already stopped such a router before any change; this line is for a
+      // chunk-by-chunk paste. A fetch that fails for any other reason
+      // (route, clock, TLS, credential) is graded by `Heartbeat Check`.
+      script: [
+        buildHeartbeatStatements({ apiBase, agentCredential, wireguard }),
+        [
+          `:local hbDm ""`,
+          `:do { :if ([:tostr [[:parse ":return [/system device-mode get fetch]"]]] = "false") do={ :set hbDm "off" } } on-error={ :set hbDm "" }`,
+          `:if ($hbDm = "off") do={ :put "  RESULT: FAIL -- /tool fetch is DISABLED by device-mode. The check-in did NOT land." }`,
+          `:if ($hbDm = "off") do={ :log error "cloudguest-hb: /tool fetch disabled by device-mode -- heartbeat cannot land" }`,
+          `:if ($hbDm = "off") do={ :put "  Fix: /system/device-mode/update mode=advanced, then power-cycle within 5 minutes to confirm, then paste this chunk again." }`,
+        ].join("; "),
+      ].join("\n"),
     });
     const lines = [
       // `:local` + its reader on ONE line. Split over two entered lines,

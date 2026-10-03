@@ -1722,7 +1722,11 @@ for (const [variant, opts] of VARIANTS) {
 // for every DHCP renewal after the first.
 for (const [variant, opts] of VARIANTS) {
   const hb = heartbeatChunks(opts);
-  const immediate = hb.find((c) => !c.label.includes("Scheduler"))?.script ?? "";
+  // The FIRST line only: the immediate chunk carries a second, read-only
+  // line (the device-mode fetch verdict) that the scheduler must not repeat.
+  const immediate = (
+    hb.find((c) => c.label.startsWith("Heartbeat (check in now"))?.script ?? ""
+  ).split("\n")[0];
   const scheduler = hb.find((c) => c.label.includes("Scheduler"))?.script ?? "";
   const onEvent = scheduler.match(/on-event="((?:\\.|[^"\\])*)"/)?.[1] ?? "";
   // Undo exactly one level of RouterOS string escaping.
@@ -9292,6 +9296,26 @@ console.log("\n-- 19. version-sensitive tokens only inside [:parse] strings; the
     /\$hbcFetch != "finished"\) do=\{ :put "  RESULT: FAIL/.test(hbc) &&
       /\$hbcDm = "off"\) do=\{ :put "  \/tool fetch is DISABLED by device-mode/.test(hbc),
   );
+  // The SENDING chunk too: its fetch sits inside on-error, so a fetch refused
+  // by device-mode used to end on DONE with nothing but a :log warning.
+  for (const [name, opts] of VARIANTS) {
+    const hbNow =
+      buildRouterSetupScriptChunks(opts).find((c) => c.label.startsWith("Heartbeat (check in now"))
+        ?.script ?? "";
+    const verdict = hbNow.split("\n")[1] ?? "";
+    check(
+      `${name}: the Heartbeat chunk prints FAIL when device-mode disables /tool fetch`,
+      /^:local hbDm ""; :do \{ :if \(\[:tostr \[\[:parse ":return \[\/system device-mode get fetch\]"\]\]\] = "false"\) do=\{ :set hbDm "off" \} \} on-error=\{/.test(
+        verdict,
+      ) &&
+        /\$hbDm = "off"\) do=\{ :put "  RESULT: FAIL -- \/tool fetch is DISABLED by device-mode/.test(
+          verdict,
+        ) &&
+        /\/system\/device-mode\/update mode=advanced/.test(verdict) &&
+        !/:error\b/.test(verdict),
+      "a fetch blocked by device-mode must read FAIL with the fix, not a bare DONE (and must not abort: Heartbeat is in NEVER_ABORTS)",
+    );
+  }
 
   // ---- THE PORTAL PAGES ARE WAITED FOR ---------------------------------
   const pages = buildRouterSetupScriptChunks(VARIANTS[6][1]).filter((c) =>
