@@ -33,6 +33,8 @@ import { CUSTOMER_NAVS, customerFeatureHref } from "@/lib/customerNav";
 import { locationControllerVendor, locationIsControllerManaged } from "@/lib/location-liveness";
 import { featureAppliesToControllerVenue } from "@/lib/router-vendors";
 import { ControllerManagedFeatureNotice } from "@/components/customer/ControllerManagedFeatureNotice";
+import { ControllerControlNotice } from "@/components/customer/ControllerControlNotice";
+import { nasOnlyLimitVerdict } from "@/lib/nas-only-access-rules";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
 import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
 import AssistantWidget from "@/components/features/AssistantWidget";
@@ -340,11 +342,18 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
               {feature === "portal" && <PortalPage locationId={locationId} scope={pageScope} />}
               {feature === "vouchers" && <VouchersPage locationId={locationId} scope={pageScope} />}
               {feature === "policies" && <PoliciesHub locationId={locationId} scope={pageScope} />}
-              {/* Allow-list and Trusted Devices are live everywhere except a
-                  NAS-only venue (Aruba Instant On), where `controllerGated`
-                  is true for them and the notice below renders instead. */}
+              {/* Guest Allow-list is live everywhere. At a NAS-only venue
+                  (Aruba Instant On) it carries one caveat above it: rules are
+                  decided at sign-in, and nothing can take an Instant On guest
+                  who is already online off the network. */}
               {feature === "whitelist" && !controllerGated && (
-                <WhiteList locationId={locationId} scope={pageScope} />
+                <>
+                  <ControllerControlNotice
+                    verdict={nasOnlyLimitVerdict("allow-list", controllerVendor)}
+                    className="mb-4 mt-0"
+                  />
+                  <WhiteList locationId={locationId} scope={pageScope} />
+                </>
               )}
               {feature === "devices" && (
                 // Fleet strip + inventory, then how the hardware has been
