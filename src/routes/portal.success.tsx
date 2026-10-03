@@ -486,7 +486,7 @@ function SuccessPage() {
 
   /**
    * Open the Aruba AP's gate: a top-level form POST of the verified
-   * identifier to `https://<switchip>/cgi-bin/login`.
+   * identifier to `https://<switchip>/swarm.cgi` (Instant On: the `post` host).
    *
    * Every way this cannot work ends on the failure screen, never on the
    * spinner and never with a POST to a host we do not trust:
