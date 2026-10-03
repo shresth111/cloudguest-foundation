@@ -26,6 +26,8 @@ import { resolveOrgId } from "@/services/customer.service";
 import { guestService } from "@/services/guest.service";
 import { useClientControls } from "@/hooks/useClientControls";
 import { ControllerControlNotice } from "@/components/customer/ControllerControlNotice";
+import { isNasOnlyVendor } from "@/lib/router-vendors";
+import { heldKbpsFromLabel, nasOnlyLimitVerdict } from "@/lib/nas-only-access-rules";
 // A group's "Devices Per User" field lives on a completely separate
 // PolicyType.DEVICE policy from its bandwidth policy -- real per-guest
 // device-count enforcement (guest/service.py's _resolve_device_limit) reads
@@ -113,6 +115,12 @@ const IDLE_TIMEOUT_MINUTES: Record<string, number> = {
 
 // Mirrors the backend's DEFAULT_IDLE_TIMEOUT_MINUTES.
 const DEFAULT_IDLE_TIMEOUT_LABEL = "30 min";
+// A new tier opens on the platform defaults, not on "Choose …": 4 hr mirrors
+// DEFAULT_SESSION_TIMEOUT_MINUTES (guest/constants.py) and 3 mirrors
+// PLATFORM_DEFAULT_RULES[DEVICE].max_devices_per_guest -- what a guest gets
+// when no tier says otherwise. Same defaults as Guest WiFi Limits.
+const DEFAULT_SESSION_TIMEOUT_LABEL = "4 hr";
+const DEFAULT_DEVICES_LABEL = "3";
 const DAILY_LIMIT_MINUTES: Record<string, number | null> = {
   "No Limit": null,
   "1 hr": 60,
@@ -518,6 +526,10 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   const tierSpeedVerdict = clientControls.verdict("speed-profile");
   const tierSpeedUsable = tierSpeedVerdict.availability !== "unavailable";
   const tierSessionTimeoutVerdict = clientControls.verdict("session-timeout");
+  // NAS-only venue (Aruba Instant On) -- see lib/nas-only-access-rules.ts.
+  // `available`/false at every other vendor, so nothing changes there.
+  const nasOnlyVenue = isNasOnlyVendor(clientControls.vendor);
+  const tierIdleTimeoutVerdict = nasOnlyLimitVerdict("idle-timeout", clientControls.vendor);
   const demo = useIsDemo();
   const [groups, setGroups] = useState<Group[]>(demo ? DEMO_GROUPS : []);
   const [orgId, setOrgId] = useState<string | null>(null);
@@ -695,9 +707,9 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
 
   const [name, setName] = useState("");
   const [bw, setBw] = useState("");
-  const [st, setSt] = useState("");
-  const [it, setIt] = useState("");
-  const [dp, setDp] = useState("");
+  const [st, setSt] = useState(DEFAULT_SESSION_TIMEOUT_LABEL);
+  const [it, setIt] = useState(DEFAULT_IDLE_TIMEOUT_LABEL);
+  const [dp, setDp] = useState(DEFAULT_DEVICES_LABEL);
   const [dl, setDl] = useState("No Limit");
   const [loginOn, setLoginOn] = useState(false);
   const [loginDays, setLoginDays] = useState<string[]>(
@@ -808,9 +820,9 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   const resetForm = () => {
     setName("");
     setBw("");
-    setSt("");
+    setSt(DEFAULT_SESSION_TIMEOUT_LABEL);
     setIt(DEFAULT_IDLE_TIMEOUT_LABEL);
-    setDp("");
+    setDp(DEFAULT_DEVICES_LABEL);
     setDl("No Limit");
     setLoginOn(false);
     setLoginDays(["Mon", "Tue", "Wed", "Thu", "Fri"]);
@@ -886,7 +898,17 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
     }
 
     try {
-      const rateKbps = BANDWIDTH_KBPS[bw] ?? 0;
+      // A GREYED SPEED DOES NOT WRITE. At a NAS-only venue the Bandwidth
+      // select is disabled, so `bw` is whatever the tier was loaded with --
+      // and a rate that is not on the picker ("5120 Kbps") is not a key of
+      // BANDWIDTH_KBPS, so the lookup alone saved 0, "Unlimited", uncapping
+      // the tier at every venue it is mapped to (tiers are account-wide, so
+      // that includes the account's MikroTik venues). Write back what the
+      // tier holds instead. Scoped to NAS-only venues so every other vendor
+      // saves exactly as before.
+      const rateKbps = nasOnlyVenue
+        ? heldKbpsFromLabel(bw, BANDWIDTH_KBPS)
+        : (BANDWIDTH_KBPS[bw] ?? 0);
       const saved = await bandwidthPolicyService.save(
         {
           id: editingId ?? undefined,
@@ -2090,17 +2112,20 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                   />
                   <ControllerControlNotice verdict={tierSessionTimeoutVerdict} />
                 </div>
-                <Select
-                  id="g-it"
-                  label="Idle Timeout"
-                  required
-                  value={it}
-                  onChange={(v) => setField("it", v)}
-                  options={IDLE_TIMEOUT}
-                  placeholder="Choose idle timeout"
-                  caption="Disconnect after this much inactivity."
-                  err={errs.it}
-                />
+                <div>
+                  <Select
+                    id="g-it"
+                    label="Idle Timeout"
+                    required
+                    value={it}
+                    onChange={(v) => setField("it", v)}
+                    options={IDLE_TIMEOUT}
+                    placeholder="Choose idle timeout"
+                    caption="Disconnect after this much inactivity."
+                    err={errs.it}
+                  />
+                  <ControllerControlNotice verdict={tierIdleTimeoutVerdict} />
+                </div>
                 <Select
                   id="g-dl"
                   label="Maximum Daily Session Limit"
