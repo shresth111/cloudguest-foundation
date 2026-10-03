@@ -166,6 +166,13 @@ await build({
       "ni-service-stub.js",
       NETWORK_INTEGRATION_SERVICE_STUB,
     ),
+    // Speed tiers by WiFi network: only the Aruba branch calls it, and this
+    // suite exercises the MikroTik POST. Stubbed so axios stays out of the
+    // neutral-platform bundle.
+    "@/services/ssid-tiers.service": stub(
+      "ssid-tiers-service-stub.js",
+      "export const fetchGuestSsidAccess = async () => null;\nexport const ssidTiersService = {};\n",
+    ),
     "@": SRC,
   },
 });

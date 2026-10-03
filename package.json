@@ -115,6 +115,7 @@
     "test:aruba-setup-panel": "node scripts/test-aruba-setup-panel.mjs",
     "test:aruba-add-site": "node scripts/test-aruba-add-site.mjs",
     "test:aruba-access-rules": "node scripts/test-aruba-access-rules.mjs",
+    "test:aruba-ssid-tiers": "node scripts/test-aruba-ssid-tiers.mjs",
     "test:omada-client-controls": "node scripts/test-omada-client-controls.mjs",
     "test:omada-client-actions": "node scripts/test-omada-client-actions.mjs",
     "test:dashboard-qa-copy": "node scripts/test-customer-dashboard-qa-copy.mjs",
