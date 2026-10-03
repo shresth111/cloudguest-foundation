@@ -183,6 +183,13 @@ export function captureArubaRedirect(
     const post = search.post ?? recovered.post;
     if (typeof post === "string" || typeof post === "number") out.switchip = post;
   }
+  // Same rename for the SSID: Instant On sends `network`, never `essid`
+  // (measured 2026-10-03). Text only, never trusted for anything but the
+  // speed-tier question the backend answers.
+  if (out.essid === undefined) {
+    const network = search.network ?? recovered.network;
+    if (typeof network === "string" || typeof network === "number") out.essid = network;
+  }
   return out;
 }
 

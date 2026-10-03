@@ -433,6 +433,10 @@ const portalSearchShape = {
   // &post=captive-2022.aio.cloudauth.net&url&nas-id`. `post` names the same
   // AP login host, so `captureArubaRedirect` falls back to it.
   post: omadaRedirectParam(),
+  // Instant On 3.4.2 renames `essid` to `network` (measured 2026-10-03):
+  // the SSID the guest joined. `captureArubaRedirect` falls back to it for
+  // `essid`; speed tiers by WiFi network read it.
+  network: omadaRedirectParam(),
   url: omadaRedirectParam(),
   // The guest's own chosen portal language, put here by `buildSessionUrl`
   // so it survives portal.success.tsx's full-document POST to the NAS --
