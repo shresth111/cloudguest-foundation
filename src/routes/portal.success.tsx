@@ -38,6 +38,12 @@ import {
   buildArubaLoginFields,
   isArubaInstantOnProvider,
 } from "@/lib/portal-aruba-login";
+import { portalSsidVerdict, type PortalSsidVerdict } from "@/lib/ssid-tiers";
+import { fetchGuestSsidAccess } from "@/services/ssid-tiers.service";
+import {
+  SsidNeedsPassScreen,
+  SsidUpgradeHintScreen,
+} from "@/components/portal-runtime/SsidTierScreens";
 
 // v4 §6.1: the same "taking longer than expected" threshold
 // portal.index.tsx's own loading screen already uses, for the identical
@@ -294,6 +300,13 @@ function SuccessPage() {
    * before the fresh authorize call had even been answered.
    */
   const [radiusFailure, setRadiusFailure] = useState<RadiusAuthorizeFailure | null>(null);
+  // Speed tiers by WiFi network (Aruba Instant On): what the backend said
+  // about the network (`network` on the AP's redirect) this guest is on.
+  // `needs-pass` replaces the AP's generic "Login error" with the voucher
+  // path; an upgrade hint is shown once before the login POST. The ref is
+  // the session id already checked, so the check runs once per sign-in.
+  const [ssidGate, setSsidGate] = useState<PortalSsidVerdict | null>(null);
+  const ssidChecked = useRef<string | null>(null);
 
   // Our own login (OTP/password/voucher) only just created a session in
   // this platform's own database -- the NAS's own gate is a completely
@@ -503,6 +516,26 @@ function SuccessPage() {
     const target = arubaLoginTarget(arubaRedirect?.switchip);
     if ("refused" in target) {
       failRadius("not-authorized");
+      return;
+    }
+    // SPEED TIERS BY WIFI NETWORK. Ask once per sign-in whether this guest
+    // may use the network the AP named. Any failure proceeds (`null` ->
+    // "proceed"): the RADIUS hub is the enforcement point, this only lets
+    // the portal explain a refusal instead of the AP's generic error.
+    const ssid = arubaText(arubaRedirect?.essid);
+    const sessionId = session?.sessionId;
+    if (ssid && sessionId && ssidChecked.current !== sessionId) {
+      ssidChecked.current = sessionId;
+      hotspotLoginSubmitted.current = true;
+      void fetchGuestSsidAccess(sessionId, ssid).then((access) => {
+        hotspotLoginSubmitted.current = false;
+        const verdict = portalSsidVerdict(access);
+        if (verdict.kind === "needs-pass" || verdict.upgrade.length > 0) {
+          setSsidGate(verdict);
+          return;
+        }
+        submitArubaLogin();
+      });
       return;
     }
     hotspotLoginSubmitted.current = true;
@@ -812,6 +845,21 @@ function SuccessPage() {
   }
 
   if (!session) return null;
+
+  if (ssidGate?.kind === "needs-pass") {
+    return <SsidNeedsPassScreen network={ssidGate.network} portalSearch={portalSearch} />;
+  }
+  if (ssidGate?.kind === "proceed" && ssidGate.upgrade.length > 0) {
+    return (
+      <SsidUpgradeHintScreen
+        networks={ssidGate.upgrade}
+        onContinue={() => {
+          setSsidGate(null);
+          submitArubaLogin();
+        }}
+      />
+    );
+  }
 
   /**
    * THE FAILURE SCREEN THIS CONTRACT NEVER HAD.

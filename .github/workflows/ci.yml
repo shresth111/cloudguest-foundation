@@ -2209,6 +2209,18 @@ jobs:
             "aruba-access-rules" 110 \
             "aruba access rules: all checks passed" \
             bun run test:aruba-access-rules
+      # Speed tiers by WiFi network (Aruba Instant On): wire mapping, draft
+      # validation, the portal verdict (needs-pass only for a mapped paid
+      # network without a pass; no answer proceeds), Instant On's `network`
+      # captured as the SSID, the success page asking before the AP POST,
+      # and the Access Rules section mounted only at a NAS-only venue.
+      # Floor 61, observed green at 61.
+      - name: aruba instant on speed tiers by wifi network
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "aruba-ssid-tiers" 61 \
+            "aruba ssid tiers: all checks passed" \
+            bun run test:aruba-ssid-tiers
 
       # The customer dashboard's five guest controls, at a venue whose access
       # points are a TP-Link Omada controller. Three of them were written for

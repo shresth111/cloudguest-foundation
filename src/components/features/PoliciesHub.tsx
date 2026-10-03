@@ -6,6 +6,10 @@ import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import LocationPolicies from "./LocationPolicies";
 import CreateGroup from "./CreateGroup";
+import SsidSpeedTiers from "./SsidSpeedTiers";
+import { useClientControls } from "@/hooks/useClientControls";
+import { isNasOnlyVendor } from "@/lib/router-vendors";
+import { useCustomerStore } from "@/stores/customerStore";
 
 /**
  * Header-accent illustration for the "Access Rules" page. Replaces the old
@@ -204,6 +208,9 @@ const DIVIDER_BEFORE = new Set<string>();
 
 export default function PoliciesHub({ locationId }: { locationId?: string } = {}) {
   const [tab, setTab] = useState("location");
+  const { vendor } = useClientControls();
+  const activeLocationId = useCustomerStore((s) => s.activeLocationId);
+  const tiersLocationId = locationId ?? activeLocationId ?? null;
   const { t } = useTranslation("accessRules", { i18n });
 
   return (
@@ -289,6 +296,12 @@ export default function PoliciesHub({ locationId }: { locationId?: string } = {}
        * (icon badge + title + description), so this shell adds nothing
        * more than the tab row above it. */}
       {tab === "location" && <LocationPolicies locationId={locationId} />}
+      {/* Aruba Instant On only: one speed per WiFi network is the only speed
+       * control that venue has, so the per-network tiers live here, under
+       * Guest WiFi Limits. Every other vendor renders nothing new. */}
+      {tab === "location" && isNasOnlyVendor(vendor) && tiersLocationId && (
+        <SsidSpeedTiers locationId={tiersLocationId} />
+      )}
       {tab === "group" && <CreateGroup locationId={locationId} />}
     </div>
   );

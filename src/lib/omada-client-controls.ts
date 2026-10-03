@@ -707,10 +707,11 @@ export function clientControlVerdict(
 // NAS-only venues (Aruba Instant On): fixed answers, PM_SPEC §3 / §4.
 // ---------------------------------------------------------------------------
 
-/** U1. */
+/** U1, re-measured 2026-10-03: the AP21 ignores the bandwidth attributes sent
+ * at sign-in (512/256 kbps sent, ~200 Mbps measured). */
 export const NAS_ONLY_SPEED =
-  "Speed limits for Aruba Instant On are set in the Instant On app, on the guest network. " +
-  "Wyfy can't change them.";
+  "Speed limits aren't supported through sign-in on Aruba Instant On access points. Set " +
+  "speed limits in the Instant On app, on the guest network.";
 /**
  * Speed at an Aruba Instant On venue whose guests reach the internet through
  * a Wyfy-managed MikroTik gateway (the hybrid setup). The limit is a queue per
@@ -730,17 +731,15 @@ export const NAS_ONLY_BLOCK_SIGNIN =
   "Blocking stops this person signing in again. If they're online right now, they stay online " +
   "until their session ends.";
 /**
- * Session timeout is PM_SPEC V1 (unmeasured). Qualified rather than greyed:
- * the field is required on Guest WiFi Limits and it still governs our own
- * session (expiry, and refusing the next sign-in), so greying it would make
- * the screen unsavable and take away a half that works. What is uncertain is
- * only whether the access point drops a connected device on time, and the
- * caveat says exactly that, before the click.
+ * Session timeout is PM_SPEC V1, MEASURED 2026-10-03 on an AP21: the access
+ * point ends the session at the Session-Timeout Wyfy sends
+ * (Acct-Terminate-Cause=Session-Timeout). Still `qualified` rather than plain
+ * `available` because the note is the one place that tells an owner how it
+ * works at this venue -- it renders as a neutral note, not a warning.
  */
 export const NAS_ONLY_SESSION_TIMEOUT =
-  "Wyfy ends the session when the time is up and the guest has to sign in again. Whether " +
-  "Aruba Instant On access points also drop a device that is already connected hasn't been " +
-  "confirmed yet, so it may stay on until it reconnects.";
+  "Enforced. Aruba Instant On access points end the session when the time is up, and the " +
+  "guest has to sign in again.";
 
 /**
  * What a NAS-only venue gets for each control. No capabilities read: there
@@ -748,7 +747,8 @@ export const NAS_ONLY_SESSION_TIMEOUT =
  *
  *  - disconnect, block-device, speed-*: unavailable. No CoA, no API.
  *  - block-signin: qualified. A row in our own database, read by our portal.
- *  - session-timeout: qualified until the V1 hardware check passes.
+ *  - session-timeout: qualified -- enforced by the AP (V1 measured), with a
+ *    neutral note saying so.
  */
 function nasOnlyControlVerdict(
   control: ClientControlId,
