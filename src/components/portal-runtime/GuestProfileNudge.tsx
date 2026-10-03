@@ -14,6 +14,7 @@ import {
   PROFILE_SAVE_RETRY_DELAY_MS,
   isValidGuestEmail,
   marketingConsentEligible,
+  postConnectAsksName,
   profileFieldsEligible,
 } from "@/lib/portal-post-connect";
 import type { RuntimeSession } from "@/types/portal-runtime";
@@ -112,7 +113,9 @@ export function GuestProfileNudge({
   // the card can now also be here for the marketing opt-in alone (below),
   // and that must never re-ask a returning guest for a profile they gave.
   const fieldsEligible = !!config && profileFieldsEligible(config, session);
-  const collectName = fieldsEligible && !!config?.collectGuestName;
+  // Never the name when it was already required at sign-in -- see
+  // `postConnectAsksName`.
+  const collectName = fieldsEligible && !!config && postConnectAsksName(config, session);
   const collectEmail = fieldsEligible && !!config?.collectGuestEmail;
 
   // The marketing opt-in (wyfy-specs/guest-marketing-campaigns.md §5.8).

@@ -262,6 +262,13 @@ export interface PortalPostConnect {
    * to make. */
   collectGuestName: boolean;
   collectGuestEmail: boolean;
+  /** Name required at sign-in (backend `require_guest_name`). Defaults ON
+   * for every venue (owner decision, backend migration 0143). When on, an
+   * OTP guest with no name on file gets one "Your name" screen after the
+   * code verifies and before the network opens -- enforced server-side.
+   * Implies `collectGuestName`: the backend forces it on, and the editor
+   * greys the collect switch while this is on. */
+  requireGuestName: boolean;
   /** The venue's own Google review link, pasted verbatim from Business
    * Profile → Read reviews → Get more reviews (backend `review_url`).
    * "" means the review card never renders. Never synthesised from a
