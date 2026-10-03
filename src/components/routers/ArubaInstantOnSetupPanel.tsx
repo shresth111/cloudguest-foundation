@@ -280,6 +280,69 @@ function Checklist({ setup, ready }: { setup: ArubaSetupStatus; ready: boolean }
   );
 }
 
+/**
+ * Venue egress addresses the backend auto-learned from guest portal traffic
+ * (cloud-guest `app.domains.guest.nas_egress`). Each is an EXTRA RADIUS
+ * client on the hub beside the registered IP, same secret -- so a venue whose
+ * public IP changes (dynamic IP, dual WAN, failover) keeps signing guests in.
+ * The registered IP is never replaced by a learned one.
+ */
+function LearnedAddresses({
+  setup,
+  busy,
+  onRemove,
+}: {
+  setup: ArubaSetupStatus;
+  busy: boolean;
+  onRemove: (ip: string) => void;
+}) {
+  if (!setup.egressLearningEnabled && setup.learnedAddresses.length === 0) {
+    return (
+      <p className="text-muted-foreground" data-testid="aruba-learned-off">
+        Auto-learning the venue&rsquo;s changing public IP is off on this platform: only the
+        registered IP is accepted.
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-1" data-testid="aruba-learned-addresses">
+      <p className="font-medium text-foreground">Auto-learned venue IPs</p>
+      <p className="text-muted-foreground">
+        Learned from guests&rsquo; portal traffic, each accepted by the hub in addition to the
+        registered IP (same secret). Unseen for 14 days &rarr; removed, except the most recent.
+      </p>
+      {setup.learnedAddresses.length === 0 ? (
+        <p className="italic text-muted-foreground">None yet.</p>
+      ) : (
+        <ul className="space-y-1">
+          {setup.learnedAddresses.map((a) => (
+            <li
+              key={a.ipAddress}
+              className="flex flex-wrap items-center gap-2"
+              data-testid="aruba-learned-address"
+            >
+              <code>{a.ipAddress}</code>
+              <span className="text-muted-foreground">
+                last seen {formatSeen(a.lastSeenAt)} · first seen {formatSeen(a.firstSeenAt)} ·{" "}
+                {a.source === "portal_hint" ? "guest portal" : a.source} · hub{" "}
+                {a.hubConfirmed ? "confirmed" : "NOT confirmed"}
+              </span>
+              <MButton variant="ghost" disabled={busy} onClick={() => onRemove(a.ipAddress)}>
+                Remove
+              </MButton>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function formatSeen(iso: string): string {
+  const t = Date.parse(iso);
+  return Number.isNaN(t) ? "—" : new Date(t).toLocaleString();
+}
+
 export function ArubaInstantOnSetupPanel({ router }: { router: RouterDevice }) {
   const qc = useQueryClient();
   const key = arubaSetupQueryKey(router.id);
@@ -360,6 +423,26 @@ export function ArubaInstantOnSetupPanel({ router }: { router: RouterDevice }) {
     }
   }
 
+  async function removeLearned(ipAddress: string) {
+    if (
+      !window.confirm(
+        `Stop accepting RADIUS from ${ipAddress} for this venue?\n\nIt is learned again the next time a guest's portal traffic comes from it.\n\n` +
+          HUB_RESTART_WARNING,
+      )
+    )
+      return;
+    setBusy(true);
+    try {
+      await arubaInstantOnService.removeLearnedAddress(router.id, ipAddress);
+      toast.success(`${ipAddress} removed`);
+      await qc.invalidateQueries({ queryKey: key });
+    } catch (err) {
+      toast.error(requestErrorMessage(err, "Could not remove this address."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   let content: ReactNode;
   if (setup.isLoading) {
     content = (
@@ -429,6 +512,7 @@ export function ArubaInstantOnSetupPanel({ router }: { router: RouterDevice }) {
           <p className="text-muted-foreground">
             The secret is never shown again; rotate to issue a new one.
           </p>
+          <LearnedAddresses setup={s} busy={busy} onRemove={(ip) => void removeLearned(ip)} />
           <p className="text-amber-700 dark:text-amber-400">
             Ask an engineer to open UDP {s.radiusServer?.authPort ?? 1812}-
             {s.radiusServer?.accountingPort ?? 1813} from {s.nasIp ?? "the venue IP"}/32 on the hub.
