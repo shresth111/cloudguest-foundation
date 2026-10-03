@@ -435,11 +435,11 @@ const portalSearchShape = {
   //   cmd=login&mac=..&network=<ssid>&ip=..&apmac=..&site=<site name>
   //   &post=captive-2022.aio.cloudauth.net&url=<original url>&nas-id=<NAS-Identifier>
   // `post` is the login host (Instant On's name for `switchip`), allowlisted
-  // exactly like `switchip`. `network`, `site` and `nas-id` are recorded;
-  // nothing reads them.
+  // exactly like `switchip`. `network` and `nas-id` are recorded; nothing
+  // reads them. (`site` is already declared above as Omada's key, same
+  // validator, so it is captured too; only the Omada branch reads it.)
   post: omadaRedirectParam(),
   network: omadaRedirectParam(),
-  site: omadaRedirectParam(),
   "nas-id": omadaRedirectParam(),
   // The guest's own chosen portal language, put here by `buildSessionUrl`
   // so it survives portal.success.tsx's full-document POST to the NAS --

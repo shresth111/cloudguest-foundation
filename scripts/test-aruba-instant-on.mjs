@@ -698,7 +698,11 @@ eq("measured: `nas-id` is recorded", measured["nas-id"], "cg-aruba-9e6069de");
 eq("measured: client MAC via `mac`", measured.mac, "ee:9b:6f:61:32:05");
 const measuredSplit = LOGIN.splitSwallowedQuery(measured.netProvider);
 const measuredCap = LOGIN.captureArubaRedirect(measured, measuredSplit.recovered);
-eq("measured: captured redirect carries `post`", measuredCap.post, "captive-2022.aio.cloudauth.net");
+eq(
+  "measured: captured redirect carries `post`",
+  measuredCap.post,
+  "captive-2022.aio.cloudauth.net",
+);
 eq(
   "measured: login host comes from `post`",
   LOGIN.arubaLoginHost(measuredCap),
@@ -712,9 +716,16 @@ check(
   JSON.stringify(measuredTarget),
 );
 // `post` is allowlisted exactly like `switchip`: the key it came in on grants nothing.
-for (const bad of ["evil.example.com", "192.168.1.135", "captive-2022.aio.cloudauth.net.evil.com"]) {
+for (const bad of [
+  "evil.example.com",
+  "192.168.1.135",
+  "captive-2022.aio.cloudauth.net.evil.com",
+]) {
   const t = LOGIN.arubaLoginTarget(LOGIN.arubaLoginHost({ post: bad }));
-  check(`post=${bad} is refused (untrusted-host)`, "refused" in t && t.refused === "untrusted-host");
+  check(
+    `post=${bad} is refused (untrusted-host)`,
+    "refused" in t && t.refused === "untrusted-host",
+  );
 }
 eq(
   "IAP shape: `switchip` alone is still the login host",
