@@ -26,6 +26,8 @@ import { resolveOrgId } from "@/services/customer.service";
 import { guestService } from "@/services/guest.service";
 import { useClientControls } from "@/hooks/useClientControls";
 import { ControllerControlNotice } from "@/components/customer/ControllerControlNotice";
+import { isNasOnlyVendor } from "@/lib/router-vendors";
+import { heldKbpsFromLabel, nasOnlyLimitVerdict } from "@/lib/nas-only-access-rules";
 // A group's "Devices Per User" field lives on a completely separate
 // PolicyType.DEVICE policy from its bandwidth policy -- real per-guest
 // device-count enforcement (guest/service.py's _resolve_device_limit) reads
@@ -518,6 +520,10 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   const tierSpeedVerdict = clientControls.verdict("speed-profile");
   const tierSpeedUsable = tierSpeedVerdict.availability !== "unavailable";
   const tierSessionTimeoutVerdict = clientControls.verdict("session-timeout");
+  // NAS-only venue (Aruba Instant On) -- see lib/nas-only-access-rules.ts.
+  // `available`/false at every other vendor, so nothing changes there.
+  const nasOnlyVenue = isNasOnlyVendor(clientControls.vendor);
+  const tierIdleTimeoutVerdict = nasOnlyLimitVerdict("idle-timeout", clientControls.vendor);
   const demo = useIsDemo();
   const [groups, setGroups] = useState<Group[]>(demo ? DEMO_GROUPS : []);
   const [orgId, setOrgId] = useState<string | null>(null);
@@ -886,7 +892,17 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
     }
 
     try {
-      const rateKbps = BANDWIDTH_KBPS[bw] ?? 0;
+      // A GREYED SPEED DOES NOT WRITE. At a NAS-only venue the Bandwidth
+      // select is disabled, so `bw` is whatever the tier was loaded with --
+      // and a rate that is not on the picker ("5120 Kbps") is not a key of
+      // BANDWIDTH_KBPS, so the lookup alone saved 0, "Unlimited", uncapping
+      // the tier at every venue it is mapped to (tiers are account-wide, so
+      // that includes the account's MikroTik venues). Write back what the
+      // tier holds instead. Scoped to NAS-only venues so every other vendor
+      // saves exactly as before.
+      const rateKbps = nasOnlyVenue
+        ? heldKbpsFromLabel(bw, BANDWIDTH_KBPS)
+        : (BANDWIDTH_KBPS[bw] ?? 0);
       const saved = await bandwidthPolicyService.save(
         {
           id: editingId ?? undefined,
@@ -2090,17 +2106,20 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                   />
                   <ControllerControlNotice verdict={tierSessionTimeoutVerdict} />
                 </div>
-                <Select
-                  id="g-it"
-                  label="Idle Timeout"
-                  required
-                  value={it}
-                  onChange={(v) => setField("it", v)}
-                  options={IDLE_TIMEOUT}
-                  placeholder="Choose idle timeout"
-                  caption="Disconnect after this much inactivity."
-                  err={errs.it}
-                />
+                <div>
+                  <Select
+                    id="g-it"
+                    label="Idle Timeout"
+                    required
+                    value={it}
+                    onChange={(v) => setField("it", v)}
+                    options={IDLE_TIMEOUT}
+                    placeholder="Choose idle timeout"
+                    caption="Disconnect after this much inactivity."
+                    err={errs.it}
+                  />
+                  <ControllerControlNotice verdict={tierIdleTimeoutVerdict} />
+                </div>
                 <Select
                   id="g-dl"
                   label="Maximum Daily Session Limit"
