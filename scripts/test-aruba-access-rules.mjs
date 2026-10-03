@@ -18,7 +18,7 @@
  *   2. RENDERED. The REAL `LocationPolicies` (Access Rules -> Guest WiFi
  *      Limits) mounted in Chromium against a recorded API, at an Aruba venue,
  *      a MikroTik venue and an Omada venue:
- *        - Aruba: data limit greyed with U3a; idle / daily / session
+ *        - Aruba: data limit live with the V3 caveat (usage measured); idle / daily / session
  *          timeout live with their caveats; speed greyed with U1; footer and
  *          save toast say "next time each guest signs in"; and a save writes
  *          BACK the data cap and the speed the location already holds --
@@ -65,7 +65,9 @@ const OMADA = "tplink_omada";
 // PM_SPEC §4, verbatim.
 const U1 =
   "Speed limits for Aruba Instant On are set in the Instant On app, on the guest network. Wyfy can't change them.";
-const U3A = "Data limits aren't available on Aruba Instant On yet.";
+// U3a ("aren't available yet") retired: V3 usage reporting MEASURED on the
+// AP21 (~/wyfy-ops/aruba-ap21/ACCESS_RULES.md sections 2-3).
+const U3A_RETIRED = "Data limits aren't available on Aruba Instant On yet.";
 
 // ---------------------------------------------------------------------------
 console.log("1. Verdicts and copy (pure)");
@@ -93,8 +95,14 @@ for (const vendor of ["mikrotik", OMADA, null, undefined, ""]) {
   );
 }
 const at = (id) => R.nasOnlyLimitVerdict(id, ARUBA);
-eq("Aruba: data limit is greyed", at("data-limit").availability, "unavailable");
-eq("Aruba: data limit says U3a verbatim", at("data-limit").reason, U3A);
+eq("Aruba: data limit is live with a caveat", at("data-limit").availability, "qualified");
+check(
+  "Aruba: data-limit caveat claims the measured half only",
+  /Usage is counted/.test(at("data-limit").reason) &&
+    /can't sign in again/.test(at("data-limit").reason) &&
+    /stay online\s+until their session ends/.test(at("data-limit").reason) &&
+    at("data-limit").reason !== U3A_RETIRED,
+);
 eq("Aruba: devices per user is plainly supported", at("devices").availability, "available");
 eq("Aruba: idle timeout is live with a caveat", at("idle-timeout").availability, "qualified");
 eq("Aruba: daily limit is live with a caveat", at("daily-limit").availability, "qualified");
@@ -102,7 +110,7 @@ eq("Aruba: allow-list is live with a caveat", at("allow-list").availability, "qu
 eq(
   "vendor match is case-insensitive",
   R.nasOnlyLimitVerdict("data-limit", "ARUBA_INSTANT_ON").availability,
-  "unavailable",
+  "qualified",
 );
 const copy = [
   R.NAS_ONLY_DATA_LIMIT,
@@ -346,15 +354,20 @@ console.log("\n2a. Guest WiFi Limits at an Aruba Instant On venue (rendered)");
   const page = await open(ARUBA);
   const root = () => page.locator("#root").innerText();
 
-  check(
-    "no data-limit input at all (not a greyed one)",
-    (await dataLimitButton(page).count()) === 0,
-  );
-  eq("the data limit says U3a", await noticeText(page, "data-limit"), U3A);
+  check("the data limit can be opened", !(await dataLimitButton(page).isDisabled()));
   eq(
-    "the data-limit notice is the greyed kind",
+    "the data limit carries its caveat",
+    await noticeText(page, "data-limit"),
+    R.NAS_ONLY_DATA_LIMIT,
+  );
+  eq(
+    "the data-limit notice is the live-with-caveat kind",
     await notice(page, "data-limit").getAttribute("data-availability"),
-    "unavailable",
+    "qualified",
+  );
+  check(
+    "the controller-venue 'signed out' paragraph is not shown at Aruba",
+    !(await page.locator("#root").innerText()).includes("the controller cuts the device off"),
   );
   check("no speed input at all (not a greyed one)", (await page.locator("#bw").count()) === 0);
   eq("speed says U1", await noticeText(page, "speed-limit"), U1);
@@ -382,10 +395,10 @@ console.log("\n2a. Guest WiFi Limits at an Aruba Instant On venue (rendered)");
     !(await root()).includes("can sign someone out within minutes"),
   );
   check(
-    "the table has no Bandwidth / Data Limit columns and shows no cap the venue cannot apply",
+    "the table has no Bandwidth column and shows the saved data cap",
     (await page.getByRole("columnheader", { name: "Bandwidth" }).count()) === 0 &&
-      (await page.getByRole("columnheader", { name: "Data Limit" }).count()) === 0 &&
-      !(await root()).includes("2 GB / Daily"),
+      (await page.getByRole("columnheader", { name: "Data Limit" }).count()) === 1 &&
+      (await root()).includes("2 GB / Daily"),
   );
   eq(
     "the preselected location's saved session length is prefilled",
@@ -401,7 +414,7 @@ console.log("\n2a. Guest WiFi Limits at an Aruba Instant On venue (rendered)");
 
   const calls = await editAndSave(page);
   const fup = fupRulesWritten(calls);
-  eq("save writes the held 2 GB daily cap back, not 'no limit'", fup?.daily_data_limit_mb, 2048);
+  eq("save keeps the 2 GB daily cap the open panel shows", fup?.daily_data_limit_mb, 2048);
   eq("save leaves the daily time limit as chosen (No Limit)", fup?.daily_time_limit_minutes, null);
   eq(
     "save writes the chosen session length",
