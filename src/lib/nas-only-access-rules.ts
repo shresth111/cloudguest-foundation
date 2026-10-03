@@ -21,9 +21,11 @@
  * `RadiusService.authorize` / `nas_only_authorize_standing`.
  *
  *  - Devices per user: SUPPORTED. The sign-in refuses the extra device.
- *  - Data limit: UNSUPPORTED until hardware check V3 shows the access points
- *    report usage (copy U3a). Without usage reports nothing counts the bytes,
- *    so a saved cap would never be reached -- a control that does nothing.
+ *  - Data limit: CAVEAT. Hardware check V3 is MEASURED (2026-10-03,
+ *    ~/wyfy-ops/aruba-ap21/ACCESS_RULES.md): the AP21 sends Interim-Updates
+ *    every ~306 s with real octet counts, so usage IS counted and a guest over
+ *    the cap is refused at the next sign-in. Nothing can end the live session
+ *    early (no CoA), so the guest stays online until their session ends.
  *  - Idle timeout: CAVEAT. Sent as Idle-Timeout; whether the AP honours it is
  *    hardware check V2. If it does not, the session simply runs to its time.
  *  - Guest Allow-list: CAVEAT. Allow rules and "only people on this list" are
@@ -49,8 +51,13 @@ export type NasOnlyLimitId =
 
 export type NasOnlyLimitVerdict = ControlVerdict<NasOnlyLimitId>;
 
-/** PM_SPEC U3a, verbatim. */
-export const NAS_ONLY_DATA_LIMIT = "Data limits aren't available on Aruba Instant On yet.";
+/** Data limit after V3 (usage reporting) was measured on the AP21. Replaces
+ * U3a ("aren't available yet"), which was true only while nothing counted
+ * the bytes. Claims only the measured half plus the sign-in gate. */
+export const NAS_ONLY_DATA_LIMIT =
+  "Usage is counted. When a guest reaches the limit they can't sign in again, but Wyfy " +
+  "can't disconnect a device from Aruba Instant On access points, so they stay online " +
+  "until their session ends.";
 
 /** Idle timeout before hardware check V2. Says what happens either way. */
 export const NAS_ONLY_IDLE_TIMEOUT =
@@ -100,7 +107,7 @@ export function nasOnlyLimitVerdict(
     case "devices":
       return AVAILABLE(control);
     case "data-limit":
-      return { control, availability: "unavailable", reason: NAS_ONLY_DATA_LIMIT };
+      return { control, availability: "qualified", reason: NAS_ONLY_DATA_LIMIT };
     case "idle-timeout":
       return { control, availability: "qualified", reason: NAS_ONLY_IDLE_TIMEOUT };
     case "daily-limit":

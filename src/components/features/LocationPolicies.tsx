@@ -1378,35 +1378,34 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                 the device: the accounting arrives from RADIUS at a MikroTik
                 venue and from the Omada usage backfill at a controller one, so
                 there is no vendor gate to render here and none is faked. */}
-              {/* Greyed at a NAS-only venue (Aruba Instant On), with copy U3a:
-                  nothing there counts a guest's bytes yet, so a cap saved
-                  here would never be reached. Disabled rather than hidden --
-                  an absence cannot be asked a question. */}
-              {nasOnlyVenue ? (
-                /* What this venue cannot do, said once, with no input beside
-                   it: speed (U1) and data limit (U3a). */
-                <div className="mt-4 space-y-1" data-testid="nas-only-not-here">
+              {/* At a NAS-only venue (Aruba Instant On) speed has no input
+                  at all -- it is the Instant On app's, permanently -- so its
+                  sentence (U1) stands here in place of the dropdown. The data
+                  limit stays live there: usage reporting was measured on the
+                  AP21 (V3), and its caveat renders under the toggle. */}
+              {nasOnlyVenue && (
+                <div className="mt-4" data-testid="nas-only-not-here">
                   <ControllerControlNotice verdict={speedVerdict} />
-                  <ControllerControlNotice verdict={dataLimitVerdict} />
                 </div>
-              ) : (
-                <button
-                  type="button"
-                  disabled={!dataLimitUsable}
-                  onClick={() => setDataLimitOpen((prev) => !prev)}
-                  aria-expanded={dataLimitOpen && dataLimitUsable}
-                  aria-controls="data-limit-panel"
-                  className="mt-4 flex w-full items-center justify-between rounded-md border border-dashed border-slate-300 px-3 py-2.5 text-left transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent dark:border-slate-600 dark:hover:bg-slate-700"
-                >
-                  <span className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
-                    <Plus className="h-4 w-4 text-indigo-500" /> Add a data limit{" "}
-                    <span className="text-xs font-normal text-slate-400">(Optional)</span>
-                  </span>
-                  <ChevronDown
-                    className={`h-4 w-4 text-slate-400 transition-transform ${dataLimitOpen ? "rotate-180" : ""}`}
-                  />
-                </button>
               )}
+              <button
+                type="button"
+                disabled={!dataLimitUsable}
+                onClick={() => setDataLimitOpen((prev) => !prev)}
+                aria-expanded={dataLimitOpen && dataLimitUsable}
+                aria-controls="data-limit-panel"
+                className="mt-4 flex w-full items-center justify-between rounded-md border border-dashed border-slate-300 px-3 py-2.5 text-left transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent dark:border-slate-600 dark:hover:bg-slate-700"
+              >
+                <span className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
+                  <Plus className="h-4 w-4 text-indigo-500" /> Add a data limit{" "}
+                  <span className="text-xs font-normal text-slate-400">(Optional)</span>
+                </span>
+                <ChevronDown
+                  className={`h-4 w-4 text-slate-400 transition-transform ${dataLimitOpen ? "rotate-180" : ""}`}
+                />
+              </button>
+
+              <ControllerControlNotice verdict={dataLimitVerdict} />
 
               {dataLimitOpen && dataLimitUsable && (
                 <>
@@ -1416,12 +1415,14 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                     operator. Burying either half behind the (?) tooltip
                     pattern would be hiding the part that generates the support
                     call. */}
-                  <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-                    Each guest gets this much data per period. When they reach it their session ends
-                    and they are signed out — at a controller-managed venue the controller cuts the
-                    device off, and a device that reconnects lands back on the sign-in page. They
-                    cannot sign in again until the period resets.
-                  </p>
+                  {!nasOnlyVenue && (
+                    <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                      Each guest gets this much data per period. When they reach it their session
+                      ends and they are signed out — at a controller-managed venue the controller
+                      cuts the device off, and a device that reconnects lands back on the sign-in
+                      page. They cannot sign in again until the period resets.
+                    </p>
+                  )}
                   <div id="data-limit-panel" className="mt-4 grid gap-4 sm:grid-cols-3">
                     <div>
                       <label
@@ -1688,9 +1689,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                     <TableHead className="text-xs font-medium">Idle Timeout</TableHead>
                     <TableHead className="text-xs font-medium">Daily Limit</TableHead>
                     <TableHead className="text-xs font-medium">Devices</TableHead>
-                    {!nasOnlyVenue && (
-                      <TableHead className="text-xs font-medium">Data Limit</TableHead>
-                    )}
+                    <TableHead className="text-xs font-medium">Data Limit</TableHead>
                     <TableHead className="text-right text-xs font-medium">Action</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1772,24 +1771,22 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                       >
                         {p.devicesPerUser}
                       </TableCell>
-                      {!nasOnlyVenue && (
-                        <TableCell className="text-xs">
-                          {!dataLimitUsable ? (
-                            <span
-                              className="text-slate-400 dark:text-slate-500"
-                              title={dataLimitVerdict.reason ?? undefined}
-                            >
-                              Not applied here
-                            </span>
-                          ) : p.dataLimit ? (
-                            <span className="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 font-medium text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400">
-                              {p.dataLimit.quota} {p.dataLimit.unit} / {p.dataLimit.resets}
-                            </span>
-                          ) : (
-                            <span className="text-slate-400 dark:text-slate-500">No limit</span>
-                          )}
-                        </TableCell>
-                      )}
+                      <TableCell className="text-xs">
+                        {!dataLimitUsable ? (
+                          <span
+                            className="text-slate-400 dark:text-slate-500"
+                            title={dataLimitVerdict.reason ?? undefined}
+                          >
+                            Not applied here
+                          </span>
+                        ) : p.dataLimit ? (
+                          <span className="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 font-medium text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400">
+                            {p.dataLimit.quota} {p.dataLimit.unit} / {p.dataLimit.resets}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 dark:text-slate-500">No limit</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right">
                         <button
                           aria-label={`Edit ${p.businessUnit}`}
