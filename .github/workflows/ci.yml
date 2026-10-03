@@ -2158,6 +2158,15 @@ jobs:
             "aruba-setup-panel" 82 \
             "aruba setup panel: all checks passed" \
             bun run test:aruba-setup-panel
+      # Aruba Instant On on a dynamic public IP: the portal's one egress hint
+      # per page load (Aruba only, AP redirect params only, nothing about the
+      # guest, never throws) and the Master panel's learned-address read.
+      - name: aruba instant on egress hint
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "aruba-egress-hint" 28 \
+            "aruba egress hint: all checks passed" \
+            bun run test:aruba-egress-hint
       # Router Fleet's "Add Instant On site" / "Remove this Instant On site"
       # (Master only): the request body (blank optionals omitted), refusals
       # shown verbatim with no success claimed, Remove as DELETE /routers/{id}
@@ -2169,15 +2178,6 @@ jobs:
             "aruba-add-site" 45 \
             "aruba add site: all checks passed" \
             bun run test:aruba-add-site
-      # Aruba Instant On on a dynamic public IP: the portal's one egress hint
-      # per page load (Aruba only, AP redirect params only, nothing about the
-      # guest, never throws) and the Master panel's learned-address read.
-      - name: aruba instant on egress hint
-        run: |
-          ./scripts/ci-gated-test.sh \
-            "aruba-egress-hint" 28 \
-            "aruba egress hint: all checks passed" \
-            bun run test:aruba-egress-hint
 
       # The customer dashboard's five guest controls, at a venue whose access
       # points are a TP-Link Omada controller. Three of them were written for
