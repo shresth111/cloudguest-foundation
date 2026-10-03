@@ -31,6 +31,8 @@ import { PortalCard, PG_FONT_STACK } from "@/components/portal-runtime/PortalShe
 import { PortalDefaultBrandBadge } from "@/components/portal-runtime/PortalDefaultBrandBadge";
 import { PortalErrorScreen } from "@/components/portal-runtime/PortalErrorScreen";
 import { portalSearchSchema, portalSearchMiddlewares } from "@/lib/portal-search";
+import { buildNasEgressHint, sendNasEgressHintOnce } from "@/lib/portal-nas-egress-hint";
+import { guestPortalApi } from "@/services/guest-portal-api";
 import {
   captureArubaRedirect,
   isArubaInstantOnProvider,
@@ -245,6 +247,23 @@ function PortalRuntimeLayout() {
         : undefined,
     [urlNetProvider, cmd, essid, apname, apmac, vcname, switchip, url, swallowed],
   );
+
+  // Aruba Instant On on a dynamic public IP: tell the backend which address
+  // this venue's traffic leaves from right now, so the RADIUS hub accepts the
+  // AP's Access-Request from it. Once per document, fire-and-forget, only
+  // when the AP's own redirect params (`apmac`, `nas-id`) are on the URL --
+  // see src/lib/portal-nas-egress-hint.ts. Every other vendor: no request.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    void sendNasEgressHintOnce(
+      buildNasEgressHint({
+        routerId: urlRouterId,
+        netProvider: urlNetProvider,
+        href: window.location.href,
+      }),
+      (path, body) => guestPortalApi.post(path, body),
+    );
+  }, [urlRouterId, urlNetProvider]);
 
   // Fallback only -- read once per mount, same lazy-initializer idiom
   // PortalRuntimeContext's own `session`/`guestIdentifier` persistence
