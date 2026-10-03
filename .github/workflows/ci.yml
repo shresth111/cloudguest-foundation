@@ -2146,10 +2146,12 @@ jobs:
       #     instead of values, Register gated on a public IP plus the static
       #     tick, and the shared secret shown once -- gone from the DOM and
       #     the query cache the moment its dialog closes.
+      #     2026-10-03: floor 301 -> 320 for the MEASURED Instant On redirect
+      #     fixture (`post` is the login host; Instant On sends no `switchip`).
       - name: aruba instant on gating, guardrails and portal login
         run: |
           ./scripts/ci-gated-test.sh \
-            "aruba-instant-on" 301 \
+            "aruba-instant-on" 320 \
             "aruba instant on: all checks passed" \
             bun run test:aruba-instant-on
       - name: aruba instant on setup panel

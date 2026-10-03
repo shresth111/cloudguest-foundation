@@ -673,6 +673,81 @@ const junk = SEARCH.portalSearchSchema.parse({
   switchip: "s",
 });
 check("a junk value drops that one key only", junk.essid === undefined && junk.switchip === "s");
+
+// THE MEASURED REDIRECT (real Instant On AP21 -> staging, 2026-10-03, from
+// the staging nginx access log). Instant On joins with `&`, sends the login
+// host as `post`, and sends NO `switchip`. Before this fixture the portal
+// read only `switchip`, refused with "no-switchip" and showed every guest
+// "We couldn't get you online" without ever POSTing to the AP.
+const MEASURED_URL =
+  "https://staging.wyfyguest.com/portal?organizationId=711495a5-c9f7-44d5-a302-12b3cd92b6ae" +
+  "&locationId=4d5f309c-b225-4615-a2f8-480b656e66bc&routerId=9e6069de-f7a7-409f-8e4e-68d1cba75687" +
+  "&netProvider=aruba_instant_on&portalMode=radius&cmd=login&mac=ee%3A9b%3A6f%3A61%3A32%3A05" +
+  "&network=WYFY_ARUBA&ip=172.16.0.217&apmac=54%3Af0%3Ab1%3Ac8%3Aa9%3A0a&site=inhouse-office" +
+  "&post=captive-2022.aio.cloudauth.net&url=http%3A%2F%2Fcaptive.apple.com%2Fhotspot-detect.html" +
+  "&nas-id=cg-aruba-9e6069de";
+const measuredRaw = Object.fromEntries(new URL(MEASURED_URL).searchParams);
+const measured = SEARCH.portalSearchSchema.parse(measuredRaw);
+eq("measured: netProvider is clean (an `&` join, nothing swallowed)", measured.netProvider, ARUBA);
+eq("measured: portalMode survives", measured.portalMode, "radius");
+eq("measured: the schema keeps `post`", measured.post, "captive-2022.aio.cloudauth.net");
+eq("measured: no `switchip` is sent", measured.switchip, undefined);
+eq("measured: `network` (the SSID) is recorded", measured.network, "WYFY_ARUBA");
+eq("measured: `site` is recorded", measured.site, "inhouse-office");
+eq("measured: `nas-id` is recorded", measured["nas-id"], "cg-aruba-9e6069de");
+eq("measured: client MAC via `mac`", measured.mac, "ee:9b:6f:61:32:05");
+const measuredSplit = LOGIN.splitSwallowedQuery(measured.netProvider);
+const measuredCap = LOGIN.captureArubaRedirect(measured, measuredSplit.recovered);
+eq(
+  "measured: captured redirect carries `post`",
+  measuredCap.post,
+  "captive-2022.aio.cloudauth.net",
+);
+eq(
+  "measured: login host comes from `post`",
+  LOGIN.arubaLoginHost(measuredCap),
+  "captive-2022.aio.cloudauth.net",
+);
+const measuredTarget = LOGIN.arubaLoginTarget(LOGIN.arubaLoginHost(measuredCap));
+check(
+  "measured: the guest's browser POSTs to https://captive-2022.aio.cloudauth.net + login path",
+  "url" in measuredTarget &&
+    measuredTarget.url === `https://captive-2022.aio.cloudauth.net${LOGIN.ARUBA_LOGIN_PATH}`,
+  JSON.stringify(measuredTarget),
+);
+// `post` is allowlisted exactly like `switchip`: the key it came in on grants nothing.
+for (const bad of [
+  "evil.example.com",
+  "192.168.1.135",
+  "captive-2022.aio.cloudauth.net.evil.com",
+]) {
+  const t = LOGIN.arubaLoginTarget(LOGIN.arubaLoginHost({ post: bad }));
+  check(
+    `post=${bad} is refused (untrusted-host)`,
+    "refused" in t && t.refused === "untrusted-host",
+  );
+}
+eq(
+  "IAP shape: `switchip` alone is still the login host",
+  LOGIN.arubaLoginHost({ switchip: "securelogin.arubanetworks.com" }),
+  "securelogin.arubanetworks.com",
+);
+eq(
+  "`post` wins when both are present",
+  LOGIN.arubaLoginHost({ post: "captive-2022.aio.cloudauth.net", switchip: "x" }),
+  "captive-2022.aio.cloudauth.net",
+);
+eq(
+  "a blank `post` falls back to `switchip`",
+  LOGIN.arubaLoginHost({ post: "  ", switchip: "securelogin.arubanetworks.com" }),
+  "securelogin.arubanetworks.com",
+);
+eq("neither -> undefined -> no-switchip refusal", LOGIN.arubaLoginHost({}), undefined);
+check(
+  "`post`, `network`, `site`, `nas-id` are retained across /portal hops",
+  ["post", "network", "site", "nas-id"].every((k) => SEARCH.PORTAL_SEARCH_KEYS.includes(k)),
+);
+
 check(
   "Aruba's lower-case `apmac` is a different key from Omada's `apMac`",
   SEARCH.PORTAL_SEARCH_KEYS.includes("apMac") && SEARCH.PORTAL_SEARCH_KEYS.includes("apmac"),
@@ -709,7 +784,8 @@ check(
 );
 check(
   "the target comes only from the allowlist helper",
-  submitFn.includes("arubaLoginTarget(arubaRedirect?.switchip)") && submitFn.includes("target.url"),
+  submitFn.includes("arubaLoginTarget(arubaLoginHost(arubaRedirect))") &&
+    submitFn.includes("target.url"),
 );
 const loginLib = src("src/lib/portal-aruba-login.ts");
 check(

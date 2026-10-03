@@ -33,6 +33,7 @@ import {
 } from "@/lib/portal-radius-authorize";
 import { guestPortalIntegrationService } from "@/services/network-integration.service";
 import {
+  arubaLoginHost,
   arubaLoginTarget,
   arubaText,
   buildArubaLoginFields,
@@ -486,13 +487,14 @@ function SuccessPage() {
 
   /**
    * Open the Aruba AP's gate: a top-level form POST of the verified
-   * identifier to `https://<switchip>/cgi-bin/login`.
+   * identifier to `https://<post|switchip>/cgi-bin/login` (Instant On sends
+   * the host as `post`, measured 2026-10-03; see `arubaLoginHost`).
    *
    * Every way this cannot work ends on the failure screen, never on the
    * spinner and never with a POST to a host we do not trust:
    *  - no identifier (lost to a reload): the AP's RADIUS request is keyed
    *    on it, so there is nothing to send -> "sign in again";
-   *  - no `switchip`, or one that is not an Aruba login host -> refused,
+   *  - no `post`/`switchip`, or one that is not an Aruba login host -> refused,
    *    nothing is POSTed anywhere (PM_SPEC AC1-6).
    */
   function submitArubaLogin() {
@@ -500,7 +502,7 @@ function SuccessPage() {
       failRadius("rejected");
       return;
     }
-    const target = arubaLoginTarget(arubaRedirect?.switchip);
+    const target = arubaLoginTarget(arubaLoginHost(arubaRedirect));
     if ("refused" in target) {
       failRadius("not-authorized");
       return;

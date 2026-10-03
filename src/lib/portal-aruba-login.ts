@@ -22,7 +22,8 @@
  * Each assumption is one constant here, so the hardware test changes one
  * line, not a flow:
  *
- *   - redirect params:  ARUBA_REDIRECT_KEYS
+ *   - redirect params:  ARUBA_REDIRECT_KEYS (Instant On's MEASURED 2026-10-03:
+ *                       `&` join, login host in `post`, no `switchip`)
  *   - login path:       ARUBA_LOGIN_PATH
  *   - login fields:     buildArubaLoginFields
  *   - trusted hosts:    isTrustedArubaLoginHost
@@ -64,6 +65,9 @@ export const ARUBA_REDIRECT_KEYS = [
   "vcname",
   "switchip",
   "url",
+  // Instant On's own name for the login host (measured 2026-10-03; it sends
+  // `post` and no `switchip`). See `arubaLoginHost`.
+  "post",
 ] as const;
 
 export type ArubaRedirectKey = (typeof ARUBA_REDIRECT_KEYS)[number];
@@ -174,6 +178,20 @@ export function captureArubaRedirect(
     }
   }
   return out;
+}
+
+/**
+ * The AP's login host from its redirect. MEASURED on an Instant On AP21
+ * (staging, 2026-10-03): Instant On sends it as `post`
+ * (`post=captive-2022.aio.cloudauth.net`) and sends no `switchip` at all.
+ * `switchip` is Aruba Instant (IAP)'s documented name and stays the
+ * fallback. Either value still goes through `arubaLoginTarget`'s allowlist;
+ * which key it came from grants nothing.
+ */
+export function arubaLoginHost(
+  redirect: ArubaPortalRedirect | null | undefined,
+): string | number | undefined {
+  return arubaText(redirect?.post) !== undefined ? redirect?.post : redirect?.switchip;
 }
 
 export type ArubaLoginRefusal =
