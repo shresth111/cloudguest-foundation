@@ -508,19 +508,6 @@ jobs:
             "portal RADIUS mode: all checks passed" \
             bun run test:portal-radius-mode
 
-      # Aruba Instant On: vendor gating, the portal's AP login submit and
-      # its host allowlist. In package.json since the vendor landed and gated
-      # nowhere. The portal half regressed on the first real AP21 test
-      # (2026-10-03): Instant On sends the login host as `post`, not
-      # `switchip`, so every guest got "We couldn't get you online" and the
-      # AP never saw a login. The measured redirect is now a fixture.
-      - name: aruba instant on
-        run: |
-          ./scripts/ci-gated-test.sh \
-            "aruba-instant-on" 320 \
-            "aruba instant on: all checks passed" \
-            bun run test:aruba-instant-on
-
       # Ten hand-maintained guest dictionaries, ~235 keys each. The suite
       # has existed in package.json since it was written and was gated
       # NOWHERE -- the same "nothing runs it" state that let
@@ -2159,10 +2146,12 @@ jobs:
       #     instead of values, Register gated on a public IP plus the static
       #     tick, and the shared secret shown once -- gone from the DOM and
       #     the query cache the moment its dialog closes.
+      #     2026-10-03: floor 301 -> 320 for the MEASURED Instant On redirect
+      #     fixture (`post` is the login host; Instant On sends no `switchip`).
       - name: aruba instant on gating, guardrails and portal login
         run: |
           ./scripts/ci-gated-test.sh \
-            "aruba-instant-on" 301 \
+            "aruba-instant-on" 320 \
             "aruba instant on: all checks passed" \
             bun run test:aruba-instant-on
       - name: aruba instant on setup panel
