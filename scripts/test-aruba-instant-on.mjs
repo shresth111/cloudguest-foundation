@@ -639,7 +639,7 @@ const io = LOGIN.captureArubaRedirect({
 });
 eq("Instant On: `post` becomes the login host", io.switchip, "captive-2022.aio.cloudauth.net");
 eq(
-  "Instant On: login goes to https://<post>/swarm.cgi",
+  "Instant On: login goes to https://<post>/swarm.cgi by default",
   LOGIN.arubaLoginTarget(io.switchip).url,
   "https://captive-2022.aio.cloudauth.net/swarm.cgi",
 );
@@ -661,7 +661,94 @@ check(
   "refused" in
     LOGIN.arubaLoginTarget(LOGIN.captureArubaRedirect({ post: "evil.example.com" }).switchip),
 );
-eq("ARUBA_LOGIN_PATH is /swarm.cgi", LOGIN.ARUBA_LOGIN_PATH, "/swarm.cgi");
+eq("ARUBA_LOGIN_PATH (the default) is /swarm.cgi", LOGIN.ARUBA_LOGIN_PATH, "/swarm.cgi");
+
+// THE SWITCHABLE LOGIN CONTRACT (`arubaLogin`): a closed set; the default is
+// unchanged; a typo or a contradiction falls back to the default whole; and
+// no variant can move the login off an allowlisted host.
+const D = LOGIN.DEFAULT_ARUBA_LOGIN_VARIANT;
+eq("variant: default path", D.path, "/swarm.cgi");
+eq("variant: default method", D.method, "POST");
+eq("variant: default verb", D.fields, "cmd");
+for (const absent of [undefined, null, "", "  "]) {
+  check(
+    `variant: ${JSON.stringify(absent)} -> default`,
+    LOGIN.parseArubaLoginVariant(absent) === D,
+  );
+}
+const vcases = [
+  ["swarm-post", "/swarm.cgi", "POST", "cmd"],
+  ["swarm", "/swarm.cgi", "POST", "cmd"],
+  ["cgi-get", "/cgi-bin/login", "GET", "cmd"],
+  ["cgi", "/cgi-bin/login", "POST", "cmd"],
+  ["swarm-post-opcode", "/swarm.cgi", "POST", "opcode"],
+  ["OPCODE.Swarm,get", "/swarm.cgi", "GET", "opcode"],
+  ["cgi-post-cmd", "/cgi-bin/login", "POST", "cmd"],
+];
+for (const [raw, path, method, verb] of vcases) {
+  const v = LOGIN.parseArubaLoginVariant(raw);
+  check(
+    `variant ${raw} -> ${path} ${method} ${verb}`,
+    v.path === path && v.method === method && v.fields === verb,
+    JSON.stringify(v),
+  );
+}
+for (const bad of [
+  "swarm-evil",
+  "cgi-swarm",
+  "post-get",
+  "../etc",
+  "https://evil.example.com",
+  42,
+]) {
+  check(`variant ${JSON.stringify(bad)} -> default whole`, LOGIN.parseArubaLoginVariant(bad) === D);
+}
+eq(
+  "variant swarm: target path follows, host still the AP's",
+  LOGIN.arubaLoginTarget("captive-2022.aio.cloudauth.net", LOGIN.parseArubaLoginVariant("swarm"))
+    .url,
+  "https://captive-2022.aio.cloudauth.net/swarm.cgi",
+);
+check(
+  "variant cannot rescue an untrusted host",
+  "refused" in
+    LOGIN.arubaLoginTarget("evil.example.com", LOGIN.parseArubaLoginVariant("swarm-get")),
+);
+eq(
+  "variant opcode: first field is opcode=cp_auth",
+  JSON.stringify(
+    LOGIN.buildArubaLoginFields(
+      { identifier: "+919876543210", password: "p", destination: "http://x/" },
+      LOGIN.parseArubaLoginVariant("opcode"),
+    )[0],
+  ),
+  JSON.stringify(["opcode", "cp_auth"]),
+);
+eq(
+  "GET url: fields as a query string on the target",
+  LOGIN.arubaLoginGetUrl("https://captive-2022.aio.cloudauth.net/cgi-bin/login", [
+    ["cmd", "authenticate"],
+    ["user", "+919876543210"],
+  ]),
+  "https://captive-2022.aio.cloudauth.net/cgi-bin/login?cmd=authenticate&user=%2B919876543210",
+);
+eq(
+  "arubaLogin is captured from the redirect",
+  LOGIN.captureArubaRedirect({ post: "captive-2022.aio.cloudauth.net", arubaLogin: "swarm-post" })
+    .arubaLogin,
+  "swarm-post",
+);
+eq(
+  "arubaLogin is recovered from a second-`?` join",
+  LOGIN.captureArubaRedirect({}, { arubaLogin: "cgi-get" }).arubaLogin,
+  "cgi-get",
+);
+check(
+  "a GET variant navigates; POST stays a top-level form",
+  /variant\.method === "GET"[\s\S]{0,120}window\.location\.assign\(arubaLoginGetUrl\(target\.url, fields\)\)[\s\S]{0,60}submitTopLevelForm\(target\.url, fields\)/.test(
+    src("src/routes/portal.success.tsx"),
+  ),
+);
 
 // The real search schema: what TanStack hands it after JSON-parsing values.
 const parsed = SEARCH.portalSearchSchema.parse({
@@ -679,8 +766,10 @@ const parsed = SEARCH.portalSearchSchema.parse({
   vcname: "inhouse-office",
   switchip: "captive-2022.aio.cloudauth.net",
   url: "http://neverssl.com/",
+  arubaLogin: "swarm-post",
 });
 for (const k of [
+  "arubaLogin",
   "cmd",
   "essid",
   "apname",
@@ -697,7 +786,7 @@ eq("client MAC flows through the existing `mac` key", parsed.mac, "60:f4:45:0b:2
 eq("client IP flows through the existing `ip` key", parsed.ip, "192.168.1.50");
 check(
   "Aruba's keys are retained across /portal hops (derived from the schema)",
-  ["cmd", "essid", "apname", "apmac", "vcname", "switchip", "url"].every((k) =>
+  ["cmd", "essid", "apname", "apmac", "vcname", "switchip", "url", "arubaLogin"].every((k) =>
     SEARCH.PORTAL_SEARCH_KEYS.includes(k),
   ),
 );
@@ -745,7 +834,8 @@ check(
 );
 check(
   "the target comes only from the allowlist helper",
-  submitFn.includes("arubaLoginTarget(arubaRedirect?.switchip)") && submitFn.includes("target.url"),
+  submitFn.includes("arubaLoginTarget(arubaRedirect?.switchip, variant)") &&
+    submitFn.includes("target.url"),
 );
 const loginLib = src("src/lib/portal-aruba-login.ts");
 check(

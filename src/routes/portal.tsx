@@ -226,6 +226,7 @@ function PortalRuntimeLayout() {
     switchip,
     post,
     url,
+    arubaLogin,
   } = search;
   const linkLoginOnly = search["link-login-only"];
 
@@ -240,11 +241,11 @@ function PortalRuntimeLayout() {
     () =>
       isArubaInstantOnProvider(urlNetProvider)
         ? captureArubaRedirect(
-            { cmd, essid, apname, apmac, vcname, switchip, post, url },
+            { cmd, essid, apname, apmac, vcname, switchip, post, url, arubaLogin },
             swallowed.recovered,
           )
         : undefined,
-    [urlNetProvider, cmd, essid, apname, apmac, vcname, switchip, post, url, swallowed],
+    [urlNetProvider, cmd, essid, apname, apmac, vcname, switchip, post, url, arubaLogin, swallowed],
   );
 
   // Fallback only -- read once per mount, same lazy-initializer idiom

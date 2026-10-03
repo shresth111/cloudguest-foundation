@@ -33,10 +33,12 @@ import {
 } from "@/lib/portal-radius-authorize";
 import { guestPortalIntegrationService } from "@/services/network-integration.service";
 import {
+  arubaLoginGetUrl,
   arubaLoginTarget,
   arubaText,
   buildArubaLoginFields,
   isArubaInstantOnProvider,
+  parseArubaLoginVariant,
 } from "@/lib/portal-aruba-login";
 
 // v4 §6.1: the same "taking longer than expected" threshold
@@ -500,7 +502,10 @@ function SuccessPage() {
       failRadius("rejected");
       return;
     }
-    const target = arubaLoginTarget(arubaRedirect?.switchip);
+    // Which AP login contract (path/method/verb) -- default unless the portal
+    // URL configured in Instant On says otherwise. See parseArubaLoginVariant.
+    const variant = parseArubaLoginVariant(arubaRedirect?.arubaLogin);
+    const target = arubaLoginTarget(arubaRedirect?.switchip, variant);
     if ("refused" in target) {
       failRadius("not-authorized");
       return;
@@ -524,14 +529,19 @@ function SuccessPage() {
     }
     // ORDER IS LOAD-BEARING, exactly as in the RouterOS branch: the POST
     // first, the bookkeeping second (sessionStorage throws inside iOS's CNA).
-    submitTopLevelForm(
-      target.url,
-      buildArubaLoginFields({
+    const fields = buildArubaLoginFields(
+      {
         identifier: guestIdentifier,
         password: HOTSPOT_FALLBACK_PASSWORD,
         destination: arubaDst,
-      }),
+      },
+      variant,
     );
+    if (variant.method === "GET") {
+      window.location.assign(arubaLoginGetUrl(target.url, fields));
+    } else {
+      submitTopLevelForm(target.url, fields);
+    }
     persistHotspotSubmit({ identifier: guestIdentifier, at: Date.now() });
   }
 

@@ -71,7 +71,10 @@ export type ArubaRedirectKey = (typeof ARUBA_REDIRECT_KEYS)[number];
 /** Aruba's own redirect, captured verbatim. Values may arrive as numbers
  * (TanStack's search parser JSON.parses every raw value -- an SSID spelled
  * "5" becomes the number 5), which `arubaText` renders back to text. */
-export type ArubaPortalRedirect = Partial<Record<ArubaRedirectKey, string | number>>;
+export type ArubaPortalRedirect = Partial<Record<ArubaRedirectKey, string | number>> & {
+  /** Our own switch, not Aruba's -- see `parseArubaLoginVariant`. */
+  arubaLogin?: string | number;
+};
 
 /**
  * Where the guest's browser submits the login: `POST https://<host>/swarm.cgi`
@@ -79,10 +82,79 @@ export type ArubaPortalRedirect = Partial<Record<ArubaRedirectKey, string | numb
  * portal form (flomain.de, "Aruba Instant with External Captive Portal").
  * Instant On 3.4.2 redirects with `post=captive-2022.aio.cloudauth.net`
  * (measured 2026-10-03); the AP intercepts that name and turns the POST into
- * a RADIUS Access-Request. `/cgi-bin/login` was the earlier guess and was
- * never answered on hardware.
+ * a RADIUS Access-Request. `/cgi-bin/login` also reaches RADIUS on the AP21
+ * (staging log 2026-10-03) and stays selectable via `arubaLogin=cgi`.
  */
+// Default path. Both this and /cgi-bin/login made the AP21 send an Access-Request
+// (staging RADIUS log, 2026-10-03); switch per test with `arubaLogin`.
 export const ARUBA_LOGIN_PATH = "/swarm.cgi" as const;
+
+/**
+ * WHICH LOGIN CONTRACT, SWITCHABLE PER TEST WITHOUT A REDEPLOY.
+ *
+ * The AP login contract has three unmeasured axes (path, method, the verb
+ * field), so the portal URL configured in Instant On may carry
+ * `&arubaLogin=<tokens>` to pick one, e.g. `cgi-post`, `cgi-get`,
+ * `swarm-post-opcode`. Tokens (any order, `-`, `.` or `,` separated):
+ *
+ *   path:   `swarm` -> /swarm.cgi (default) | `cgi` -> /cgi-bin/login
+ *   method: `post` (default) | `get`
+ *   verb:   `cmd` -> cmd=authenticate (default) | `opcode` -> opcode=cp_auth
+ *
+ * A closed set: any unknown token, or two tokens on the same axis, discards
+ * the WHOLE value and the default applies -- a typo can never produce a
+ * half-applied contract. The variant only picks among these fixed paths; the
+ * HOST still comes from `arubaLoginTarget`'s allowlist, so this cannot widen
+ * where a guest identifier is sent.
+ *
+ * Measured 2026-10-03 (staging FreeRADIUS log): BOTH `cgi-post` and
+ * `swarm-post` made the AP21 send an Access-Request. The earlier "login
+ * error" was the RADIUS server dropping an unknown client IP, not the path.
+ */
+export type ArubaLoginVariant = {
+  path: "/cgi-bin/login" | "/swarm.cgi";
+  method: "POST" | "GET";
+  fields: "cmd" | "opcode";
+};
+
+export const DEFAULT_ARUBA_LOGIN_VARIANT: ArubaLoginVariant = {
+  path: ARUBA_LOGIN_PATH,
+  method: "POST",
+  fields: "cmd",
+};
+
+const VARIANT_TOKENS: Record<string, Partial<ArubaLoginVariant>> = {
+  cgi: { path: "/cgi-bin/login" },
+  swarm: { path: "/swarm.cgi" },
+  post: { method: "POST" },
+  get: { method: "GET" },
+  cmd: { fields: "cmd" },
+  opcode: { fields: "opcode" },
+};
+
+export function parseArubaLoginVariant(raw: string | number | null | undefined): ArubaLoginVariant {
+  const text = arubaText(raw);
+  if (!text) return DEFAULT_ARUBA_LOGIN_VARIANT;
+  const out: Partial<ArubaLoginVariant> = {};
+  for (const token of text
+    .toLowerCase()
+    .split(/[-.,\s]+/)
+    .filter(Boolean)) {
+    const patch = VARIANT_TOKENS[token];
+    if (!patch) return DEFAULT_ARUBA_LOGIN_VARIANT;
+    for (const [k, v] of Object.entries(patch)) {
+      const key = k as keyof ArubaLoginVariant;
+      if (out[key] !== undefined && out[key] !== v) return DEFAULT_ARUBA_LOGIN_VARIANT;
+      (out as Record<string, string>)[key] = v;
+    }
+  }
+  return { ...DEFAULT_ARUBA_LOGIN_VARIANT, ...out };
+}
+
+/** A GET login: the same fields as a query string on the allowlisted URL. */
+export function arubaLoginGetUrl(url: string, fields: Array<[string, string]>): string {
+  return `${url}?${new URLSearchParams(fields).toString()}`;
+}
 
 /**
  * The hosts the AP's own captive-portal virtual host answers on. The name is
@@ -183,6 +255,8 @@ export function captureArubaRedirect(
     const post = search.post ?? recovered.post;
     if (typeof post === "string" || typeof post === "number") out.switchip = post;
   }
+  const variant = search.arubaLogin ?? recovered.arubaLogin;
+  if (typeof variant === "string" || typeof variant === "number") out.arubaLogin = variant;
   return out;
 }
 
@@ -200,6 +274,7 @@ export type ArubaLoginRefusal =
  */
 export function arubaLoginTarget(
   switchip: string | number | null | undefined,
+  variant: ArubaLoginVariant = DEFAULT_ARUBA_LOGIN_VARIANT,
 ): { url: string } | { refused: ArubaLoginRefusal } {
   const raw = arubaText(switchip);
   if (!raw) return { refused: "no-switchip" };
@@ -214,7 +289,7 @@ export function arubaLoginTarget(
   // A bare host only: no port, path, credentials or whitespace smuggled in.
   if (!/^[A-Za-z0-9.-]+$/.test(host)) return { refused: "untrusted-host" };
   if (!isTrustedArubaLoginHost(host)) return { refused: "untrusted-host" };
-  return { url: `https://${host.toLowerCase().replace(/\.$/, "")}${ARUBA_LOGIN_PATH}` };
+  return { url: `https://${host.toLowerCase().replace(/\.$/, "")}${variant.path}` };
 }
 
 /**
@@ -227,13 +302,16 @@ export function arubaLoginTarget(
  * session lookup); the caller passes the same fixed value the MikroTik POST
  * sends, because PAP requires one to be present.
  */
-export function buildArubaLoginFields(input: {
-  identifier: string;
-  password: string;
-  destination: string;
-}): Array<[string, string]> {
+export function buildArubaLoginFields(
+  input: {
+    identifier: string;
+    password: string;
+    destination: string;
+  },
+  variant: ArubaLoginVariant = DEFAULT_ARUBA_LOGIN_VARIANT,
+): Array<[string, string]> {
   return [
-    ["cmd", "authenticate"],
+    variant.fields === "opcode" ? ["opcode", "cp_auth"] : ["cmd", "authenticate"],
     ["user", input.identifier],
     ["password", input.password],
     ["url", input.destination],
