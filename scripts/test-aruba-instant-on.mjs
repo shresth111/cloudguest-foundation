@@ -661,7 +661,11 @@ check(
   "refused" in
     LOGIN.arubaLoginTarget(LOGIN.captureArubaRedirect({ post: "evil.example.com" }).switchip),
 );
-eq("ARUBA_LOGIN_PATH is /cgi-bin/login (staging experiment)", LOGIN.ARUBA_LOGIN_PATH, "/cgi-bin/login");
+eq(
+  "ARUBA_LOGIN_PATH is /cgi-bin/login (staging experiment)",
+  LOGIN.ARUBA_LOGIN_PATH,
+  "/cgi-bin/login",
+);
 
 // The real search schema: what TanStack hands it after JSON-parsing values.
 const parsed = SEARCH.portalSearchSchema.parse({
