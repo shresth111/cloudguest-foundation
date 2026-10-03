@@ -995,8 +995,8 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
           ? nasOnlyVenue
             ? `Limits saved for ${f.businessUnit} — they take effect the next time each guest signs in.`
             : dataLimit
-            ? `Limits saved for ${f.businessUnit} — the data limit applies to guests online now; the rest apply as each guest next connects.`
-            : `Limits saved for ${f.businessUnit} — they take effect as each guest next connects.`
+              ? `Limits saved for ${f.businessUnit} — the data limit applies to guests online now; the rest apply as each guest next connects.`
+              : `Limits saved for ${f.businessUnit} — they take effect as each guest next connects.`
           : "Limits saved, but not applied to any location — reopen this page from the location you want them on.",
       );
       setTimeout(() => setToast(null), 2500);

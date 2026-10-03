@@ -99,7 +99,11 @@ eq("Aruba: devices per user is plainly supported", at("devices").availability, "
 eq("Aruba: idle timeout is live with a caveat", at("idle-timeout").availability, "qualified");
 eq("Aruba: daily limit is live with a caveat", at("daily-limit").availability, "qualified");
 eq("Aruba: allow-list is live with a caveat", at("allow-list").availability, "qualified");
-eq("vendor match is case-insensitive", R.nasOnlyLimitVerdict("data-limit", "ARUBA_INSTANT_ON").availability, "unavailable");
+eq(
+  "vendor match is case-insensitive",
+  R.nasOnlyLimitVerdict("data-limit", "ARUBA_INSTANT_ON").availability,
+  "unavailable",
+);
 const copy = [
   R.NAS_ONLY_DATA_LIMIT,
   R.NAS_ONLY_IDLE_TIMEOUT,
@@ -111,7 +115,10 @@ check(
   "customer copy never says RADIUS, NAS, CoA, tunnel or controller",
   copy.every((s) => !/RADIUS|\bNAS\b|CoA|tunnel|controller/i.test(s)),
 );
-check("customer copy names the product", copy.every((s) => s.includes("Aruba Instant On")));
+check(
+  "customer copy names the product",
+  copy.every((s) => s.includes("Aruba Instant On")),
+);
 check(
   "the daily-limit caveat promises the sign-in half and hedges the live half",
   /can't sign\s+in again/.test(R.NAS_ONLY_DAILY_LIMIT) &&
@@ -346,9 +353,17 @@ console.log("\n2a. Guest WiFi Limits at an Aruba Instant On venue (rendered)");
   check("speed is greyed", await page.locator("#bw").isDisabled());
   eq("speed says U1", await noticeText(page, "speed-limit"), U1);
   check("idle timeout stays live", !(await page.locator("#it").isDisabled()));
-  eq("idle timeout carries its caveat", await noticeText(page, "idle-timeout"), R.NAS_ONLY_IDLE_TIMEOUT);
+  eq(
+    "idle timeout carries its caveat",
+    await noticeText(page, "idle-timeout"),
+    R.NAS_ONLY_IDLE_TIMEOUT,
+  );
   check("daily limit stays live", !(await page.locator("#dl").isDisabled()));
-  eq("daily limit carries its caveat", await noticeText(page, "daily-limit"), R.NAS_ONLY_DAILY_LIMIT);
+  eq(
+    "daily limit carries its caveat",
+    await noticeText(page, "daily-limit"),
+    R.NAS_ONLY_DAILY_LIMIT,
+  );
   check(
     "session timeout carries the V1 caveat",
     /hasn't been confirmed/.test((await noticeText(page, "session-timeout")) ?? ""),
@@ -370,7 +385,11 @@ console.log("\n2a. Guest WiFi Limits at an Aruba Instant On venue (rendered)");
   const fup = fupRulesWritten(calls);
   eq("save writes the held 2 GB daily cap back, not 'no limit'", fup?.daily_data_limit_mb, 2048);
   eq("save leaves the daily time limit as chosen (No Limit)", fup?.daily_time_limit_minutes, null);
-  eq("save writes the chosen session length", sessionRulesWritten(calls)?.session_timeout_minutes, 60);
+  eq(
+    "save writes the chosen session length",
+    sessionRulesWritten(calls)?.session_timeout_minutes,
+    60,
+  );
   const bw = bandwidthWritten(calls);
   check(
     "save writes the held speed back (5120 kbps), not 0",
@@ -427,7 +446,8 @@ console.log("\n2c. The same screen at an Omada venue: no NAS-only sentence");
   check("the pre-existing footer", (await root()).includes("can sign someone out within minutes"));
   check(
     "the controller ladder still answers speed (unchanged, not U1)",
-    (await noticeText(page, "speed-limit")) !== U1 && (await notice(page, "speed-limit").count()) === 1,
+    (await noticeText(page, "speed-limit")) !== U1 &&
+      (await notice(page, "speed-limit").count()) === 1,
   );
   check("no page error", page.__errors.length === 0, page.__errors.join(" | "));
   await page.close();
@@ -460,7 +480,9 @@ check(
 const blocking = src("src/components/features/BlockUsers.tsx");
 check(
   "Blocking: at a NAS-only venue the saved-but-online toast is copy U2, not 'check'",
-  /isNasOnlyVendor\(clientControls\.vendor\)\s*\?\s*`Saved\. \$\{NAS_ONLY_BLOCK_SIGNIN\}`/.test(blocking),
+  /isNasOnlyVendor\(clientControls\.vendor\)\s*\?\s*`Saved\. \$\{NAS_ONLY_BLOCK_SIGNIN\}`/.test(
+    blocking,
+  ),
 );
 const limits = src("src/components/features/LocationPolicies.tsx");
 check(

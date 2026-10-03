@@ -230,7 +230,16 @@ for (const id of [...RV.CONTROLLER_UNSUPPORTED_FEATURE_IDS, "mac-auth"]) {
 // venue. U7 (Allowed domains) described a walled garden this screen is not.
 // See router-vendors.ts NAS_ONLY_EXTRA_UNSUPPORTED_FEATURE_IDS and
 // scripts/test-aruba-access-rules.mjs.
-for (const id of ["reports", "network-activity", "isp-details", "vouchers", "portal", "users", "whitelist", "policies"]) {
+for (const id of [
+  "reports",
+  "network-activity",
+  "isp-details",
+  "vouchers",
+  "portal",
+  "users",
+  "whitelist",
+  "policies",
+]) {
   eq(`"${id}" stays live at an Aruba venue`, RV.featureAppliesToControllerVenue(id, ARUBA), true);
 }
 check(

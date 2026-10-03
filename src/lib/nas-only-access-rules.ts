@@ -50,8 +50,7 @@ export type NasOnlyLimitId =
 export type NasOnlyLimitVerdict = ControlVerdict<NasOnlyLimitId>;
 
 /** PM_SPEC U3a, verbatim. */
-export const NAS_ONLY_DATA_LIMIT =
-  "Data limits aren't available on Aruba Instant On yet.";
+export const NAS_ONLY_DATA_LIMIT = "Data limits aren't available on Aruba Instant On yet.";
 
 /** Idle timeout before hardware check V2. Says what happens either way. */
 export const NAS_ONLY_IDLE_TIMEOUT =
@@ -70,7 +69,7 @@ export const NAS_ONLY_DAILY_LIMIT =
  * take anyone off an Instant On access point who is already online. */
 export const NAS_ONLY_ALLOW_LIST =
   "These rules apply when a guest signs in. Wyfy can't disconnect a device from Aruba " +
-  "Instant On access points, so removing someone, or switching on \"only people on this " +
+  'Instant On access points, so removing someone, or switching on "only people on this ' +
   "list\", doesn't take anyone offline who is online right now. They stay on until their " +
   "session ends.";
 
