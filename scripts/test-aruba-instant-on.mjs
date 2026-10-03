@@ -627,6 +627,42 @@ eq("a numeric SSID survives as a number", cap.essid, 5);
 eq("and renders back to text", LOGIN.arubaText(cap.essid), "5");
 check("unknown keys are not captured", !("foo" in LOGIN.captureArubaRedirect({ foo: "bar" })));
 
+// Instant On 3.4.2, MEASURED on the AP21 (2026-10-03): no `switchip`; the AP
+// login host arrives as `post`. It must be captured as the login host, still
+// pass the allowlist, and the login must go to /swarm.cgi.
+const io = LOGIN.captureArubaRedirect({
+  cmd: "login",
+  network: "WYFY_ARUBA",
+  site: "inhouse-office",
+  post: "captive-2022.aio.cloudauth.net",
+  url: "http://captive.apple.com/hotspot-detect.html",
+});
+eq("Instant On: `post` becomes the login host", io.switchip, "captive-2022.aio.cloudauth.net");
+eq(
+  "Instant On: login goes to https://<post>/swarm.cgi",
+  LOGIN.arubaLoginTarget(io.switchip).url,
+  "https://captive-2022.aio.cloudauth.net/swarm.cgi",
+);
+eq(
+  "an explicit switchip still wins over post",
+  LOGIN.captureArubaRedirect({
+    switchip: "securelogin.arubanetworks.com",
+    post: "captive-2022.aio.cloudauth.net",
+  }).switchip,
+  "securelogin.arubanetworks.com",
+);
+eq(
+  "a recovered `post` (second-`?` join) also works",
+  LOGIN.captureArubaRedirect({}, { post: "captive-2022.aio.cloudauth.net" }).switchip,
+  "captive-2022.aio.cloudauth.net",
+);
+check(
+  "an untrusted `post` host is still refused",
+  "refused" in
+    LOGIN.arubaLoginTarget(LOGIN.captureArubaRedirect({ post: "evil.example.com" }).switchip),
+);
+eq("ARUBA_LOGIN_PATH is /swarm.cgi", LOGIN.ARUBA_LOGIN_PATH, "/swarm.cgi");
+
 // The real search schema: what TanStack hands it after JSON-parsing values.
 const parsed = SEARCH.portalSearchSchema.parse({
   organizationId: "11111111-1111-1111-1111-111111111111",
