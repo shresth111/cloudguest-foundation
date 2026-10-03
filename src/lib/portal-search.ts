@@ -428,6 +428,11 @@ const portalSearchShape = {
   apmac: omadaRedirectParam(),
   vcname: omadaRedirectParam(),
   switchip: omadaRedirectParam(),
+  // Instant On 3.4.2 does NOT send `switchip`. Measured on the AP21
+  // (2026-10-03): it appends `cmd=login&mac&network&ip&apmac&site
+  // &post=captive-2022.aio.cloudauth.net&url&nas-id`. `post` names the same
+  // AP login host, so `captureArubaRedirect` falls back to it.
+  post: omadaRedirectParam(),
   url: omadaRedirectParam(),
   // The guest's own chosen portal language, put here by `buildSessionUrl`
   // so it survives portal.success.tsx's full-document POST to the NAS --
