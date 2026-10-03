@@ -115,6 +115,12 @@ const IDLE_TIMEOUT_MINUTES: Record<string, number> = {
 
 // Mirrors the backend's DEFAULT_IDLE_TIMEOUT_MINUTES.
 const DEFAULT_IDLE_TIMEOUT_LABEL = "30 min";
+// A new tier opens on the platform defaults, not on "Choose …": 4 hr mirrors
+// DEFAULT_SESSION_TIMEOUT_MINUTES (guest/constants.py) and 3 mirrors
+// PLATFORM_DEFAULT_RULES[DEVICE].max_devices_per_guest -- what a guest gets
+// when no tier says otherwise. Same defaults as Guest WiFi Limits.
+const DEFAULT_SESSION_TIMEOUT_LABEL = "4 hr";
+const DEFAULT_DEVICES_LABEL = "3";
 const DAILY_LIMIT_MINUTES: Record<string, number | null> = {
   "No Limit": null,
   "1 hr": 60,
@@ -701,9 +707,9 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
 
   const [name, setName] = useState("");
   const [bw, setBw] = useState("");
-  const [st, setSt] = useState("");
-  const [it, setIt] = useState("");
-  const [dp, setDp] = useState("");
+  const [st, setSt] = useState(DEFAULT_SESSION_TIMEOUT_LABEL);
+  const [it, setIt] = useState(DEFAULT_IDLE_TIMEOUT_LABEL);
+  const [dp, setDp] = useState(DEFAULT_DEVICES_LABEL);
   const [dl, setDl] = useState("No Limit");
   const [loginOn, setLoginOn] = useState(false);
   const [loginDays, setLoginDays] = useState<string[]>(
@@ -814,9 +820,9 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   const resetForm = () => {
     setName("");
     setBw("");
-    setSt("");
+    setSt(DEFAULT_SESSION_TIMEOUT_LABEL);
     setIt(DEFAULT_IDLE_TIMEOUT_LABEL);
-    setDp("");
+    setDp(DEFAULT_DEVICES_LABEL);
     setDl("No Limit");
     setLoginOn(false);
     setLoginDays(["Mon", "Tue", "Wed", "Thu", "Fri"]);

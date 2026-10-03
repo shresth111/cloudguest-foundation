@@ -152,6 +152,19 @@ const IDLE_TIMEOUT_MINUTES: Record<string, number> = {
 // showing the real current behaviour rather than a blank.
 const DEFAULT_IDLE_TIMEOUT_LABEL = "30 min";
 
+// The other two required fields get the same treatment, for the same reason:
+// a location with nothing saved is not "unset", it is running the platform's
+// defaults, and a required field opening on "Choose …" both misdescribes that
+// and makes the owner re-pick a value that is already in force before they can
+// save the one setting they came to change.
+//
+//  - 4 hr mirrors DEFAULT_SESSION_TIMEOUT_MINUTES = 240 (guest/constants.py).
+//  - 3 mirrors PLATFORM_DEFAULT_RULES[DEVICE].max_devices_per_guest
+//    (policy/constants.py), the fallback UNLIMITED_DEVICES_SENTINEL's comment
+//    above already names.
+const DEFAULT_SESSION_TIMEOUT_LABEL = "4 hr";
+const DEFAULT_DEVICES_LABEL = "3";
+
 const DAILY_LIMIT_MINUTES: Record<string, number | null> = {
   "No Limit": null,
   "1 hr": 60,
@@ -215,8 +228,38 @@ interface Policy {
   idleTimeout: string;
   devicesPerUser: string;
   dataLimit: { quota: number; unit: string; resets: string } | null;
+  /** True for a location nothing has been saved for: the row shows the
+   * platform defaults it is actually running, and there is nothing to delete. */
+  isDefault?: boolean;
 }
-type PolicyForm = Omit<Policy, "id">;
+type PolicyForm = Omit<Policy, "id" | "isDefault">;
+
+// What the form opens on before a location is chosen, and returns to on
+// "Cancel edit": the platform defaults, never a blank required field.
+const BLANK_FORM: PolicyForm = {
+  businessUnit: "",
+  bandwidth: "",
+  sessionTimeout: DEFAULT_SESSION_TIMEOUT_LABEL,
+  dailyLimit: "No Limit",
+  idleTimeout: DEFAULT_IDLE_TIMEOUT_LABEL,
+  devicesPerUser: DEFAULT_DEVICES_LABEL,
+  dataLimit: null,
+};
+
+/** The row for a location with no saved Guest WiFi Limits: what it really runs. */
+function defaultRowFor(name: string): Policy {
+  return {
+    id: `default:${name}`,
+    businessUnit: name,
+    bandwidth: "Unlimited",
+    sessionTimeout: DEFAULT_SESSION_TIMEOUT_LABEL,
+    dailyLimit: "No Limit",
+    idleTimeout: DEFAULT_IDLE_TIMEOUT_LABEL,
+    devicesPerUser: DEFAULT_DEVICES_LABEL,
+    dataLimit: null,
+    isDefault: true,
+  };
+}
 
 const SEED: Policy[] = [
   {
@@ -418,15 +461,12 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   // chosen name resolves to).
   const locationNames = useMemo(() => new Set((locations ?? []).map((l) => l.name)), [locations]);
   // ── state ─────────────────────────────────────────────────────
-  const [f, setF] = useState<PolicyForm>({
-    businessUnit: "",
-    bandwidth: "",
-    sessionTimeout: "",
-    dailyLimit: "No Limit",
-    idleTimeout: DEFAULT_IDLE_TIMEOUT_LABEL,
-    devicesPerUser: "",
-    dataLimit: null,
-  });
+  const [f, setF] = useState<PolicyForm>(BLANK_FORM);
+  // Whether the owner has changed a setting since the form was last filled.
+  // Until they have, picking a location (or the page preselecting one) fills
+  // the form with what that location is running now -- its saved limits, or
+  // the defaults -- so the form never contradicts the table under it.
+  const touched = useRef(false);
   const [errs, setErrs] = useState<Partial<Record<keyof PolicyForm, string>>>({});
   const [dataLimitOpen, setDataLimitOpen] = useState(false);
   const [dlQuota, setDlQuota] = useState("");
@@ -552,7 +592,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
             const maxDevices = deviceByName.get(p.name);
             const devicesPerUser =
               maxDevices == null
-                ? ""
+                ? DEFAULT_DEVICES_LABEL
                 : maxDevices >= UNLIMITED_DEVICES_SENTINEL
                   ? "Unlimited"
                   : String(maxDevices);
@@ -568,7 +608,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
               sessionTimeout: labelFromMinutes(
                 sessionByName.get(p.name) ?? p.sessionTimeoutMinutes,
                 SESSION_TIMEOUT_MINUTES,
-                "",
+                DEFAULT_SESSION_TIMEOUT_LABEL,
               ),
               // Prefer the real FUP policy -- that is the one the accrual
               // sweep and the login gate resolve. A location saved before
@@ -651,9 +691,58 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   }, [f.businessUnit, editingId, locationId, locations, units]);
 
   // ── derived ────────────────────────────────────────────────────
+  // EVERY LOCATION HAS LIMITS, WHETHER OR NOT ANYONE SAVED ANY.
+  //
+  // The table used to list saved policies only, so a live venue nobody had
+  // customised read "No policies yet" -- as if its guests had no limits at
+  // all, when every one of them was signing in under the platform defaults
+  // (4 hr sessions, 30 min idle, 3 devices). A location with nothing saved now
+  // gets a row saying exactly that, marked as the default, editable and with
+  // nothing to delete. Demo mode keeps its seed rows only.
+  const rows = useMemo(() => {
+    if (demo) return policies;
+    const saved = new Set(policies.map((p) => p.businessUnit));
+    const defaults = (locations ?? [])
+      .map((l) => l.name)
+      .filter((name) => !saved.has(name))
+      .map(defaultRowFor);
+    return [...policies, ...defaults];
+  }, [demo, policies, locations]);
+
+  // Fill the form with what the chosen location is running now, until the
+  // owner changes something. Covers the preselected location (filled as soon
+  // as its row arrives) and a location picked from the dropdown.
+  useEffect(() => {
+    if (editingId || touched.current || !f.businessUnit) return;
+    const row = rows.find((p) => p.businessUnit === f.businessUnit);
+    if (!row) return;
+    setF((prev) =>
+      prev.businessUnit !== row.businessUnit
+        ? prev
+        : {
+            ...prev,
+            bandwidth: row.bandwidth,
+            sessionTimeout: row.sessionTimeout || DEFAULT_SESSION_TIMEOUT_LABEL,
+            dailyLimit: row.dailyLimit,
+            idleTimeout: row.idleTimeout || DEFAULT_IDLE_TIMEOUT_LABEL,
+            devicesPerUser: row.devicesPerUser || DEFAULT_DEVICES_LABEL,
+            dataLimit: row.dataLimit,
+          },
+    );
+    if (row.dataLimit && dataLimitUsable) {
+      setDataLimitOpen(true);
+      setDlQuota(String(row.dataLimit.quota));
+      setDlUnit(row.dataLimit.unit);
+      setDlResets(row.dataLimit.resets);
+    } else {
+      setDataLimitOpen(false);
+      setDlQuota("");
+    }
+  }, [f.businessUnit, editingId, rows, dataLimitUsable]);
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return policies.filter(
+    return rows.filter(
       (p) =>
         !q ||
         Object.values(p).some((v) =>
@@ -662,17 +751,29 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
             : v && typeof v === "object" && "resets" in v,
         ),
     );
-  }, [policies, search]);
+  }, [rows, search]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages - 1);
   const paged = filtered.slice(safePage * pageSize, (safePage + 1) * pageSize);
 
   const setField = (k: keyof PolicyForm, v: string) => {
+    // Picking a location is not changing a setting: the form refills with
+    // that location's current limits (see the effect above). Any other field
+    // is the owner's choice, and from then on the form is theirs.
+    if (k === "businessUnit") {
+      if (!editingId) touched.current = false;
+    } else {
+      touched.current = true;
+    }
     setF((p) => ({ ...p, [k]: v }));
     setErrs((p) => {
       const n = { ...p };
       delete n[k];
+      // "Must not be longer than the session timeout" sits on the idle field
+      // but is about BOTH; changing the session length can resolve it, so it
+      // must not linger beside a pair of values that is now valid.
+      if (k === "sessionTimeout") delete n.idleTimeout;
       return n;
     });
   };
@@ -974,6 +1075,9 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         return existing >= 0 ? prev.map((p, i) => (i === existing ? row : p)) : [row, ...prev];
       });
       setEditingId(null);
+      // The form now shows what was just saved, which is also what the row
+      // says -- so it is "untouched" again and follows the location picker.
+      touched.current = false;
       // Say where it landed, and say when it landed nowhere. The old copy
       // read "Policies updated." whenever there was no page scope -- which is
       // exactly the case where nothing was assigned and no guest was
@@ -1151,15 +1255,8 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
               type="button"
               onClick={() => {
                 setEditingId(null);
-                setF({
-                  businessUnit: "",
-                  bandwidth: "",
-                  sessionTimeout: "",
-                  dailyLimit: "No Limit",
-                  idleTimeout: DEFAULT_IDLE_TIMEOUT_LABEL,
-                  devicesPerUser: "",
-                  dataLimit: null,
-                });
+                touched.current = false;
+                setF(BLANK_FORM);
                 setErrs({});
                 setDataLimitOpen(false);
                 setDlQuota("");
@@ -1221,25 +1318,33 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                     else in this section and the next still works at a
                     controller venue and stays editable -- which is exactly
                     why this screen is NOT replaced wholesale. */}
-                <div>
-                  <Select
-                    id="bw"
-                    label="Bandwidth"
-                    required
-                    disabled={!speedUsable}
-                    value={f.bandwidth}
-                    onChange={(v) => setField("bandwidth", v)}
-                    options={BANDWIDTH}
-                    placeholder="Choose bandwidth"
-                    caption="Maximum speed per guest device."
-                    err={errs.bandwidth}
-                  />
-                  {/* Suppressed while the capabilities read is still in
+                {/* NOT RENDERED AT A NAS-ONLY VENUE (Aruba Instant On). There
+                    the speed is the Instant On app's, permanently -- not a
+                    capability we are waiting on, as it is at an Omada venue
+                    whose read is in flight -- so a greyed dropdown is a dead
+                    input. The sentence saying where speed IS set renders in
+                    its place, under this grid. */}
+                {!nasOnlyVenue && (
+                  <div>
+                    <Select
+                      id="bw"
+                      label="Bandwidth"
+                      required
+                      disabled={!speedUsable}
+                      value={f.bandwidth}
+                      onChange={(v) => setField("bandwidth", v)}
+                      options={BANDWIDTH}
+                      placeholder="Choose bandwidth"
+                      caption="Maximum speed per guest device."
+                      err={errs.bandwidth}
+                    />
+                    {/* Suppressed while the capabilities read is still in
                     flight. The control above is already greyed for the same
                     reason; a sentence would be an answer, and we do not have
                     one yet. */}
-                  {!speedAsking && <ControllerControlNotice verdict={speedVerdict} />}
-                </div>
+                    {!speedAsking && <ControllerControlNotice verdict={speedVerdict} />}
+                  </div>
+                )}
                 <Select
                   id="dp"
                   label="Devices Per User"
@@ -1277,24 +1382,31 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                   nothing there counts a guest's bytes yet, so a cap saved
                   here would never be reached. Disabled rather than hidden --
                   an absence cannot be asked a question. */}
-              <button
-                type="button"
-                disabled={!dataLimitUsable}
-                onClick={() => setDataLimitOpen((prev) => !prev)}
-                aria-expanded={dataLimitOpen && dataLimitUsable}
-                aria-controls="data-limit-panel"
-                className="mt-4 flex w-full items-center justify-between rounded-md border border-dashed border-slate-300 px-3 py-2.5 text-left transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent dark:border-slate-600 dark:hover:bg-slate-700"
-              >
-                <span className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
-                  <Plus className="h-4 w-4 text-indigo-500" /> Add a data limit{" "}
-                  <span className="text-xs font-normal text-slate-400">(Optional)</span>
-                </span>
-                <ChevronDown
-                  className={`h-4 w-4 text-slate-400 transition-transform ${dataLimitOpen ? "rotate-180" : ""}`}
-                />
-              </button>
-
-              <ControllerControlNotice verdict={dataLimitVerdict} />
+              {nasOnlyVenue ? (
+                /* What this venue cannot do, said once, with no input beside
+                   it: speed (U1) and data limit (U3a). */
+                <div className="mt-4 space-y-1" data-testid="nas-only-not-here">
+                  <ControllerControlNotice verdict={speedVerdict} />
+                  <ControllerControlNotice verdict={dataLimitVerdict} />
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  disabled={!dataLimitUsable}
+                  onClick={() => setDataLimitOpen((prev) => !prev)}
+                  aria-expanded={dataLimitOpen && dataLimitUsable}
+                  aria-controls="data-limit-panel"
+                  className="mt-4 flex w-full items-center justify-between rounded-md border border-dashed border-slate-300 px-3 py-2.5 text-left transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent dark:border-slate-600 dark:hover:bg-slate-700"
+                >
+                  <span className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
+                    <Plus className="h-4 w-4 text-indigo-500" /> Add a data limit{" "}
+                    <span className="text-xs font-normal text-slate-400">(Optional)</span>
+                  </span>
+                  <ChevronDown
+                    className={`h-4 w-4 text-slate-400 transition-transform ${dataLimitOpen ? "rotate-180" : ""}`}
+                  />
+                </button>
+              )}
 
               {dataLimitOpen && dataLimitUsable && (
                 <>
@@ -1523,7 +1635,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
           <div>
             <CardTitle className="text-sm">Current Guest WiFi Limits</CardTitle>
             <p className="text-xs text-muted-foreground">
-              The policies currently active for the selected space.
+              What guests get at each location. A location marked Default has nothing saved yet.
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -1569,12 +1681,16 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                 <TableHeader>
                   <TableRow>
                     <TableHead className="text-xs font-medium">Location</TableHead>
-                    <TableHead className="text-xs font-medium">Bandwidth</TableHead>
+                    {!nasOnlyVenue && (
+                      <TableHead className="text-xs font-medium">Bandwidth</TableHead>
+                    )}
                     <TableHead className="text-xs font-medium">Session Timeout</TableHead>
                     <TableHead className="text-xs font-medium">Idle Timeout</TableHead>
                     <TableHead className="text-xs font-medium">Daily Limit</TableHead>
                     <TableHead className="text-xs font-medium">Devices</TableHead>
-                    <TableHead className="text-xs font-medium">Data Limit</TableHead>
+                    {!nasOnlyVenue && (
+                      <TableHead className="text-xs font-medium">Data Limit</TableHead>
+                    )}
                     <TableHead className="text-right text-xs font-medium">Action</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1587,6 +1703,14 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                             <MapPin className="h-3.5 w-3.5" />
                           </span>
                           {p.businessUnit}
+                          {p.isDefault && (
+                            <span
+                              className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-normal text-slate-500 dark:bg-slate-700 dark:text-slate-400"
+                              title="Nothing has been saved for this location yet, so its guests get these defaults."
+                            >
+                              Default
+                            </span>
+                          )}
                         </span>
                       </TableCell>
                       {/* THE SAME LIE, IN A SECOND PLACE. A row saved before
@@ -1596,18 +1720,20 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                           this cell would still promise it. `—` with the reason
                           on hover is the same posture `lastContactLabel` takes
                           for a measurement we do not have. */}
-                      <TableCell>
-                        {speedUsable ? (
-                          p.bandwidth
-                        ) : (
-                          <span
-                            className="text-slate-400 dark:text-slate-500"
-                            title={speedVerdict.reason ?? undefined}
-                          >
-                            Not applied here
-                          </span>
-                        )}
-                      </TableCell>
+                      {!nasOnlyVenue && (
+                        <TableCell>
+                          {speedUsable ? (
+                            p.bandwidth
+                          ) : (
+                            <span
+                              className="text-slate-400 dark:text-slate-500"
+                              title={speedVerdict.reason ?? undefined}
+                            >
+                              Not applied here
+                            </span>
+                          )}
+                        </TableCell>
+                      )}
                       <TableCell>{p.sessionTimeout}</TableCell>
                       {/* "No Limit"/"Unlimited" rows are muted so a stricter,
                       set value on another row visually stands out instead
@@ -1646,22 +1772,24 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                       >
                         {p.devicesPerUser}
                       </TableCell>
-                      <TableCell className="text-xs">
-                        {!dataLimitUsable ? (
-                          <span
-                            className="text-slate-400 dark:text-slate-500"
-                            title={dataLimitVerdict.reason ?? undefined}
-                          >
-                            Not applied here
-                          </span>
-                        ) : p.dataLimit ? (
-                          <span className="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 font-medium text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400">
-                            {p.dataLimit.quota} {p.dataLimit.unit} / {p.dataLimit.resets}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 dark:text-slate-500">No limit</span>
-                        )}
-                      </TableCell>
+                      {!nasOnlyVenue && (
+                        <TableCell className="text-xs">
+                          {!dataLimitUsable ? (
+                            <span
+                              className="text-slate-400 dark:text-slate-500"
+                              title={dataLimitVerdict.reason ?? undefined}
+                            >
+                              Not applied here
+                            </span>
+                          ) : p.dataLimit ? (
+                            <span className="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 font-medium text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400">
+                              {p.dataLimit.quota} {p.dataLimit.unit} / {p.dataLimit.resets}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 dark:text-slate-500">No limit</span>
+                          )}
+                        </TableCell>
+                      )}
                       <TableCell className="text-right">
                         <button
                           aria-label={`Edit ${p.businessUnit}`}
@@ -1670,19 +1798,21 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                         >
                           <Pencil className="h-4 w-4" />
                         </button>
-                        <button
-                          aria-label={
-                            confirming === p.id ? "Confirm delete" : `Delete ${p.businessUnit}`
-                          }
-                          onClick={() => handleDelete(p.id)}
-                          className={`inline-flex items-center justify-center rounded-lg p-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${confirming === p.id ? "bg-indigo-500 text-white" : "text-slate-400 hover:bg-slate-100 hover:text-red-500 dark:hover:bg-slate-700 dark:hover:text-red-400"}`}
-                        >
-                          {confirming === p.id ? (
-                            <span className="text-[11px] font-medium px-1">Confirm</span>
-                          ) : (
-                            <Trash2 className="h-4 w-4" />
-                          )}
-                        </button>
+                        {!p.isDefault && (
+                          <button
+                            aria-label={
+                              confirming === p.id ? "Confirm delete" : `Delete ${p.businessUnit}`
+                            }
+                            onClick={() => handleDelete(p.id)}
+                            className={`inline-flex items-center justify-center rounded-lg p-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${confirming === p.id ? "bg-indigo-500 text-white" : "text-slate-400 hover:bg-slate-100 hover:text-red-500 dark:hover:bg-slate-700 dark:hover:text-red-400"}`}
+                          >
+                            {confirming === p.id ? (
+                              <span className="text-[11px] font-medium px-1">Confirm</span>
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </button>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

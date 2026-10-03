@@ -176,7 +176,10 @@ writeFileSync(
 writeFileSync(
   join(work, "dashboard-stub.js"),
   `export function useIsDemo() { return false; }
-   export function useCustomerLocations() { return { data: [{ id: "loc-1", name: "Office" }] }; }`,
+   // One array for the life of the page, as react-query's cached data is: a
+   // fresh array per render re-runs the screen's load effect on every render.
+   const LOCATIONS = [{ id: "loc-1", name: "Office" }];
+   export function useCustomerLocations() { return { data: LOCATIONS }; }`,
 );
 writeFileSync(
   join(work, "client-controls-stub.js"),
@@ -281,8 +284,8 @@ const server = createServer((req, res) => {
       `<!doctype html><meta charset=utf-8><title>access rules harness</title>
        <script>
          window.__vendor = ${JSON.stringify(url.searchParams.get("vendor") || null)};
-         window.__policies = ${JSON.stringify(POLICIES)};
-         window.__bandwidth = ${JSON.stringify(BANDWIDTH)};
+         window.__policies = ${JSON.stringify(url.searchParams.get("empty") ? {} : POLICIES)};
+         window.__bandwidth = ${JSON.stringify(url.searchParams.get("empty") ? [] : BANDWIDTH)};
          window.__calls = [];
        </script>
        <div id=root></div><script type=module src="./bundle.js"></script>`,
@@ -304,11 +307,11 @@ const origin = `http://127.0.0.1:${server.address().port}`;
 const { chromium } = await import("playwright");
 const browser = await chromium.launch();
 
-async function open(vendor) {
+async function open(vendor, { empty = false } = {}) {
   const page = await browser.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));
-  await page.goto(`${origin}/?vendor=${vendor ?? ""}`);
+  await page.goto(`${origin}/?vendor=${vendor ?? ""}${empty ? "&empty=1" : ""}`);
   await page.getByRole("button", { name: "Edit Office" }).waitFor({ timeout: 10_000 });
   page.__errors = errors;
   return page;
@@ -343,14 +346,17 @@ console.log("\n2a. Guest WiFi Limits at an Aruba Instant On venue (rendered)");
   const page = await open(ARUBA);
   const root = () => page.locator("#root").innerText();
 
-  check("the data limit cannot be opened", await dataLimitButton(page).isDisabled());
+  check(
+    "no data-limit input at all (not a greyed one)",
+    (await dataLimitButton(page).count()) === 0,
+  );
   eq("the data limit says U3a", await noticeText(page, "data-limit"), U3A);
   eq(
     "the data-limit notice is the greyed kind",
     await notice(page, "data-limit").getAttribute("data-availability"),
     "unavailable",
   );
-  check("speed is greyed", await page.locator("#bw").isDisabled());
+  check("no speed input at all (not a greyed one)", (await page.locator("#bw").count()) === 0);
   eq("speed says U1", await noticeText(page, "speed-limit"), U1);
   check("idle timeout stays live", !(await page.locator("#it").isDisabled()));
   eq(
@@ -376,9 +382,21 @@ console.log("\n2a. Guest WiFi Limits at an Aruba Instant On venue (rendered)");
     !(await root()).includes("can sign someone out within minutes"),
   );
   check(
-    "the table does not show a cap the venue cannot apply",
-    (await page.getByRole("cell", { name: "Not applied here" }).count()) === 2 &&
+    "the table has no Bandwidth / Data Limit columns and shows no cap the venue cannot apply",
+    (await page.getByRole("columnheader", { name: "Bandwidth" }).count()) === 0 &&
+      (await page.getByRole("columnheader", { name: "Data Limit" }).count()) === 0 &&
       !(await root()).includes("2 GB / Daily"),
+  );
+  eq(
+    "the preselected location's saved session length is prefilled",
+    await page.locator("#st").inputValue(),
+    "4 hr",
+  );
+  eq("the saved idle timeout is prefilled", await page.locator("#it").inputValue(), "15 min");
+  eq("the saved device count is prefilled", await page.locator("#dp").inputValue(), "3");
+  check(
+    "a saved row can be deleted",
+    (await page.getByRole("button", { name: "Delete Office" }).count()) === 1,
   );
 
   const calls = await editAndSave(page);
@@ -406,6 +424,91 @@ console.log("\n2a. Guest WiFi Limits at an Aruba Instant On venue (rendered)");
 }
 
 // ---------------------------------------------------------------------------
+console.log("\n2a'. Aruba venue with nothing saved yet: defaults, not 'No policies yet'");
+// ---------------------------------------------------------------------------
+{
+  const page = await open(ARUBA, { empty: true });
+  const root = () => page.locator("#root").innerText();
+  check("the table is not empty", !(await root()).includes("No policies yet"));
+  check(
+    "the location's row is marked Default",
+    (await page.getByRole("row", { name: /Office\s*Default/ }).count()) === 1,
+  );
+  check(
+    "the default row shows what guests really get (4 hr / 30 min / 3)",
+    /4 hr\s+30 min\s+No Limit\s+3/.test(
+      await page.getByRole("row", { name: /Office/ }).innerText(),
+    ),
+  );
+  check(
+    "a default row has nothing to delete",
+    (await page.getByRole("button", { name: "Delete Office" }).count()) === 0,
+  );
+  eq(
+    "session timeout opens on the 4 hr default, not 'Choose…'",
+    await page.locator("#st").inputValue(),
+    "4 hr",
+  );
+  eq(
+    "devices per user opens on the default 3, not 'Choose…'",
+    await page.locator("#dp").inputValue(),
+    "3",
+  );
+  eq("idle timeout opens on 30 min", await page.locator("#it").inputValue(), "30 min");
+
+  // A stale cross-field error clears when the field that caused it changes.
+  await page.selectOption("#st", "30 min");
+  await page.selectOption("#it", "1 hr");
+  await page.getByRole("button", { name: "Update policies" }).evaluate((b) => b.click());
+  await page.getByText("Must not be longer than the session timeout.").waitFor({ timeout: 5_000 });
+  await page.selectOption("#st", "2 hr");
+  check(
+    "the idle-vs-session error clears when the session length is changed",
+    (await page.getByText("Must not be longer than the session timeout.").count()) === 0,
+  );
+
+  // Save straight away: every required field already holds a real value.
+  await page.selectOption("#st", "4 hr");
+  await page.selectOption("#it", "30 min");
+  await page.evaluate(() => (window.__calls = []));
+  await page.getByRole("button", { name: "Update policies" }).evaluate((b) => b.click());
+  await page.getByText(/Limits saved for Office/).waitFor({ timeout: 10_000 });
+  const calls = await page.evaluate(() => window.__calls);
+  const created = (type) =>
+    calls.find(
+      (c) => c.method === "POST" && c.path === "/policies" && c.body?.policy_type === type,
+    );
+  check("save creates the DEVICE policy", !!created("device"));
+  check("save creates the SESSION policy", !!created("session"));
+  const sessionVersion = calls.find(
+    (c) => c.method === "POST" && c.path === "/policies/new-session/versions",
+  )?.body?.rules;
+  eq("the session policy holds 240 min", sessionVersion?.session_timeout_minutes, 240);
+  eq(
+    "the device policy holds 3",
+    calls.find((c) => c.method === "POST" && c.path === "/policies/new-device/versions")?.body
+      ?.rules?.max_devices_per_guest,
+    3,
+  );
+  check(
+    "save assigns to the location",
+    calls.some((c) => c.method === "MAP" && c.body.locationId === "loc-1"),
+  );
+  await page
+    .getByRole("button", { name: "Delete Office" })
+    .waitFor({ timeout: 5_000 })
+    .catch(() => {});
+  check(
+    "after the save the row is the saved one, no longer Default",
+    (await page.getByRole("row", { name: /Office\s*Default/ }).count()) === 0 &&
+      (await page.getByRole("button", { name: "Delete Office" }).count()) === 1,
+    (await page.getByRole("table").innerText()).replace(/\s+/g, " "),
+  );
+  check("no page error", page.__errors.length === 0, page.__errors.join(" | "));
+  await page.close();
+}
+
+// ---------------------------------------------------------------------------
 console.log("\n2b. The same screen at a MikroTik venue: unchanged");
 // ---------------------------------------------------------------------------
 {
@@ -417,6 +520,11 @@ console.log("\n2b. The same screen at a MikroTik venue: unchanged");
   );
   check("the data limit opens", !(await dataLimitButton(page).isDisabled()));
   check("speed is live", !(await page.locator("#bw").isDisabled()));
+  check(
+    "MikroTik keeps its Bandwidth and Data Limit columns",
+    (await page.getByRole("columnheader", { name: "Bandwidth" }).count()) === 1 &&
+      (await page.getByRole("columnheader", { name: "Data Limit" }).count()) === 1,
+  );
   check(
     "the pre-existing footer",
     (await root()).includes("can sign someone out within minutes") &&
