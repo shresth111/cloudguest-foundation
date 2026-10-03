@@ -2158,6 +2158,16 @@ jobs:
             "aruba-setup-panel" 82 \
             "aruba setup panel: all checks passed" \
             bun run test:aruba-setup-panel
+      # Aruba Instant On without a static IP: the shared RADIUS listener
+      # (ports 1912/1913, NAS-Identifier + AP MAC) in the Master setup panel.
+      # An older backend renders nothing new; the secret is only ever on the
+      # rotate response; no customer surface imports it.
+      - name: aruba instant on shared listener
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "aruba-shared-listener" 25 \
+            "aruba shared listener: all checks passed" \
+            bun run test:aruba-shared-listener
       # Router Fleet's "Add Instant On site" / "Remove this Instant On site"
       # (Master only): the request body (blank optionals omitted), refusals
       # shown verbatim with no success claimed, Remove as DELETE /routers/{id}

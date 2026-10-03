@@ -47,6 +47,11 @@ import {
   type ArubaRegistration,
   type ArubaSetupStatus,
 } from "@/lib/aruba-instant-on-setup";
+import {
+  SHARED_ROTATE_CONFIRM,
+  describeSharedListenerGap,
+  type ArubaSharedListener,
+} from "@/lib/aruba-shared-listener";
 import { requestErrorMessage } from "@/services/api";
 import { arubaInstantOnService } from "@/services/aruba-instant-on.service";
 import type { RouterDevice } from "@/types/router";
@@ -280,6 +285,84 @@ function Checklist({ setup, ready }: { setup: ArubaSetupStatus; ready: boolean }
   );
 }
 
+/**
+ * The IP-independent alternative (cloud-guest `aruba_shared`): the hub's
+ * shared Aruba listener on its own ports, one platform-wide secret, and the
+ * venue identified by NAS-Identifier + AP MAC from inside each packet. For a
+ * venue without a static public IP. Values are withheld (no copy button)
+ * until the backend reports no gaps, like the checklist above.
+ */
+function SharedListenerSection({
+  shared,
+  busy,
+  onUse,
+  onRotate,
+}: {
+  shared: ArubaSharedListener;
+  busy: boolean;
+  onUse: () => void;
+  onRotate: () => void;
+}) {
+  const ready = shared.available;
+  const server = ready ? shared.radiusServer : null;
+  return (
+    <div
+      className="space-y-2 rounded-lg border border-border p-3 text-xs"
+      data-testid="aruba-shared-listener"
+      data-ready={ready}
+    >
+      <p className="text-sm font-medium text-foreground">
+        No static IP? Use the shared Aruba listener instead
+      </p>
+      <p className="text-muted-foreground">
+        The hub accepts this venue&rsquo;s RADIUS from <strong>any</strong> public IP on ports{" "}
+        {shared.authPort}/{shared.accountingPort}, with one shared Aruba secret for every venue on
+        this listener. It knows the venue by the NAS-Identifier below and by the access
+        point&rsquo;s MAC ({shared.apMac ?? "not recorded"}), so a changing IP, dual WAN or failover
+        does not break sign-in. A packet whose NAS-Identifier and AP MAC do not match this device is
+        rejected.
+      </p>
+      {shared.gaps.length > 0 && (
+        <ul className="list-disc space-y-0.5 pl-5 text-amber-700 dark:text-amber-400">
+          {shared.gaps.map((g) => (
+            <li key={g}>{describeSharedListenerGap(g)}</li>
+          ))}
+        </ul>
+      )}
+      <Value label="Primary server" value={server?.host} />
+      <Value label="Authentication port" value={server ? String(server.authPort) : null} />
+      <Value label="Accounting port" value={server ? String(server.accountingPort) : null} />
+      <Value label="NAS-Identifier (custom)" value={ready ? shared.nasIdentifier : null} />
+      <p className="text-muted-foreground">
+        Shared secret:{" "}
+        {shared.secretConfigured ? (
+          <>
+            fingerprint <code>{shared.secretFingerprint ?? "—"}</code>
+            {shared.secretLength ? ` · ${shared.secretLength} chars` : ""} · hub{" "}
+            {shared.hubConfirmed ? "confirmed" : "NOT confirmed"} — shown only when it is set or
+            rotated; whoever set it has it.
+          </>
+        ) : (
+          "not set yet."
+        )}{" "}
+        Message-Authenticator ON. Same Instant On settings as above otherwise.
+      </p>
+      <div className="flex flex-wrap gap-2 pt-1">
+        {shared.gaps.includes("nas_not_registered") && (
+          <MButton variant="outline" disabled={busy} onClick={onUse}>
+            Use the shared listener for this venue
+          </MButton>
+        )}
+        <MButton variant="ghost" disabled={busy} onClick={onRotate}>
+          {shared.secretConfigured
+            ? "Rotate shared Aruba secret (all venues)"
+            : "Set shared Aruba secret"}
+        </MButton>
+      </div>
+    </div>
+  );
+}
+
 export function ArubaInstantOnSetupPanel({ router }: { router: RouterDevice }) {
   const qc = useQueryClient();
   const key = arubaSetupQueryKey(router.id);
@@ -355,6 +438,53 @@ export function ArubaInstantOnSetupPanel({ router }: { router: RouterDevice }) {
       await qc.invalidateQueries({ queryKey: key });
     } catch (err) {
       toast.error(requestErrorMessage(err, "Could not deregister this venue."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function adoptShared() {
+    setBusy(true);
+    try {
+      await arubaInstantOnService.registerShared(router.id);
+      toast.success("This venue can use the shared Aruba listener");
+      await qc.invalidateQueries({ queryKey: key });
+    } catch (err) {
+      toast.error(requestErrorMessage(err, "Could not set up the shared listener for this venue."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function rotateShared() {
+    if (!window.confirm(SHARED_ROTATE_CONFIRM + "\n\n" + HUB_RESTART_WARNING)) return;
+    setBusy(true);
+    try {
+      const r = await arubaInstantOnService.rotateSharedSecret();
+      // Shown once, through the same dialog as a per-venue secret.
+      setReveal({
+        nasId: null,
+        nasIdentifier:
+          "shared Aruba listener (every venue on ports " +
+          r.authPort +
+          "/" +
+          r.accountingPort +
+          ")",
+        nasIp: null,
+        sharedSecret: r.sharedSecret,
+        secretFingerprint: r.secretFingerprint,
+        secretLength: r.secretLength ?? r.sharedSecret.length,
+        hubConfirmed: r.hubConfirmed,
+        rotated: true,
+        deviceAction: r.deviceAction || null,
+      });
+      await qc.invalidateQueries({ queryKey: key });
+    } catch (err) {
+      // The backend pushes to the hub first and stores second: a refusal
+      // means the old secret is still the one in force.
+      toast.error(
+        requestErrorMessage(err, "Could not set the shared Aruba secret — nothing was changed."),
+      );
     } finally {
       setBusy(false);
     }
@@ -464,6 +594,14 @@ export function ArubaInstantOnSetupPanel({ router }: { router: RouterDevice }) {
     content = (
       <>
         {registration}
+        {s.sharedListener && (
+          <SharedListenerSection
+            shared={s.sharedListener}
+            busy={busy}
+            onUse={() => void adoptShared()}
+            onRotate={() => void rotateShared()}
+          />
+        )}
         {!ready && (
           <Gaps
             items={
