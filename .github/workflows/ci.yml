@@ -2206,7 +2206,7 @@ jobs:
       - name: aruba instant on access rules
         run: |
           ./scripts/ci-gated-test.sh \
-            "aruba-access-rules" 80 \
+            "aruba-access-rules" 81 \
             "aruba access rules: all checks passed" \
             bun run test:aruba-access-rules
 
