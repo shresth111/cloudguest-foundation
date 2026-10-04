@@ -2260,6 +2260,20 @@ jobs:
             "aruba-access-points" 53 \
             "aruba access points: all checks passed" \
             bun run test:aruba-access-points
+      # Live-session actions at an Aruba Instant On venue (DASHBOARD_PLAN
+      # P0-D): customer Guests "Extend" and Fix-a-Problem "Reset this guest's
+      # session" greyed with Disconnect's own sentence at Aruba only.
+      # MikroTik/Omada FIRST: Guests page (drawer open) and Fix-a-Problem
+      # (after a lookup) keep their live controls; the admin Live Sessions
+      # table is untouched at every vendor (old toast, no extra request, even
+      # when disconnect_enforced is false). Floor 114, observed green at 114
+      # (136 locally with BASELINE_ROOT: DOM, toast and request diffs).
+      - name: aruba instant on live session actions
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "aruba-live-session-actions" 114 \
+            "aruba live session actions: all checks passed" \
+            bun run test:aruba-live-session-actions
 
       # The customer dashboard's five guest controls, at a venue whose access
       # points are a TP-Link Omada controller. Three of them were written for

@@ -1,6 +1,7 @@
 import { api } from "@/services/api";
 import { BACKEND_MAX_PAGE_SIZE, getAllItems } from "@/services/list-all-pages";
 import { DENIAL_WINDOW_MS, countRecentDenials } from "@/lib/whitelist-only";
+import { readDisconnectEnforced } from "@/lib/live-session-actions";
 import type {
   AccessCheckQuery,
   AccessCheckResult,
@@ -676,8 +677,15 @@ export const guestService = {
     return rows.filter((s) => s.guestId === guestId);
   },
 
-  async disconnectSession(sessionId: string, reason?: string): Promise<void> {
-    await api.post(`/guest-sessions/${sessionId}/disconnect`, { reason });
+  /** Resolves with the backend's `disconnect_enforced` (tri-state, see
+   * `terminateSession` below) so no caller toasts "disconnected" when the
+   * device was not taken off the network (DASHBOARD_PLAN P0-D). */
+  async disconnectSession(
+    sessionId: string,
+    reason?: string,
+  ): Promise<{ sessionEnforced: boolean | null }> {
+    const { data: body } = await api.post(`/guest-sessions/${sessionId}/disconnect`, { reason });
+    return { sessionEnforced: readDisconnectEnforced(body) };
   },
 
   /**
@@ -726,8 +734,14 @@ export const guestService = {
     return { sessionEnforced: typeof enforced === "boolean" ? enforced : null };
   },
 
-  async pauseSession(sessionId: string, reason?: string): Promise<void> {
-    await api.post(`/guest-sessions/${sessionId}/pause`, { reason });
+  /** Pausing also ends the device's live session (`issue_live_disconnect`),
+   * so it reports `disconnect_enforced` the same way. */
+  async pauseSession(
+    sessionId: string,
+    reason?: string,
+  ): Promise<{ sessionEnforced: boolean | null }> {
+    const { data: body } = await api.post(`/guest-sessions/${sessionId}/pause`, { reason });
+    return { sessionEnforced: readDisconnectEnforced(body) };
   },
 
   async resumeSession(sessionId: string): Promise<void> {

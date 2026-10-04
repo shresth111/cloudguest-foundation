@@ -93,6 +93,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { locationIsNasOnly } from "@/lib/location-liveness";
+import { liveSessionActionGate } from "@/lib/live-session-actions";
 import { useArubaAccessPoints } from "@/hooks/useArubaAccessPoints";
 import { apFilterOptions, sessionApLabel } from "@/lib/aruba-access-points";
 
@@ -161,6 +162,13 @@ function CustomerUsersPage() {
   // we do, and ending our own record would make this list say they left.
   // Omada and MikroTik venues keep the button exactly as before.
   const disconnectUnsupported = isNasOnlyVendor(clientControls.vendor);
+  // Extend follows the same verdict (DASHBOARD_PLAN P0-D): at a NAS-only venue
+  // it would only move the end time on OUR record -- the access point keeps
+  // the Session-Timeout it was given at sign-in -- and report success while
+  // nothing about the guest's connection changed. Greyed with Disconnect's own
+  // sentence; `greyed` is false at every other venue and nothing below renders
+  // differently there.
+  const extendGate = liveSessionActionGate("extend", clientControls.vendor);
   // Per-session data at a NAS-only venue: bytes arrive only through RADIUS
   // accounting interims, which are unverified on Instant On (PM_SPEC V3). A
   // session with nothing recorded is "not reported" (U5), never a measured
@@ -366,6 +374,7 @@ function CustomerUsersPage() {
   // pattern as DebuggingView's resetSession() checking `demo` before its
   // own terminateSession() call.
   const handleExtend = (sessionId: string, minutes: number) => {
+    if (extendGate.greyed) return;
     if (demoFlag) {
       toast.error(t("demoBlocked"));
       return;
@@ -767,7 +776,24 @@ function CustomerUsersPage() {
                             >
                               <Eye className="h-3.5 w-3.5" aria-hidden="true" />
                             </Button>
-                            {u.status !== "offline" && (
+                            {/* NAS-only venue: Extend greyed like Disconnect
+                             * beside it (P0-D). Nothing renders here anywhere
+                             * else, and the live menu below is unchanged. */}
+                            {u.status !== "offline" && extendGate.greyed && (
+                              <span title={extendGate.reason ?? undefined}>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 disabled:text-muted-foreground"
+                                  disabled
+                                  aria-label={extendGate.reason ?? t("extend")}
+                                  data-testid="extend-unsupported-icon"
+                                >
+                                  <Clock className="h-3.5 w-3.5" />
+                                </Button>
+                              </span>
+                            )}
+                            {u.status !== "offline" && !extendGate.greyed && (
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button
@@ -1100,7 +1126,22 @@ function CustomerUsersPage() {
                 <GuestDeviceControls mac={detailUser.mac} guestName={detailUser.name} />
               </div>
               <div className="space-y-2 border-t p-4">
-                {detailUser.status !== "offline" && (
+                {detailUser.status !== "offline" && extendGate.greyed && (
+                  <div className="space-y-1" data-testid="extend-unsupported">
+                    <div className="flex gap-2">
+                      <Button variant="outline" className="flex-1" disabled>
+                        <Clock className="mr-2 h-4 w-4" />
+                        {t("extend30")}
+                      </Button>
+                      <Button variant="outline" className="flex-1" disabled>
+                        <Clock className="mr-2 h-4 w-4" />
+                        {t("extend60")}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{extendGate.reason}</p>
+                  </div>
+                )}
+                {detailUser.status !== "offline" && !extendGate.greyed && (
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
