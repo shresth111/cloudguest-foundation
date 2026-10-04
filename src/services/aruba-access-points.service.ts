@@ -8,9 +8,9 @@
  * Master console's GLOBAL-scoped surface and the customer dashboard must not
  * import it.
  *
- * Any failure (404 before the backend ships the route, 403 for a role
- * without `locations.read`, a network error) is "unavailable" -- never an
- * empty list.
+ * Any failure (403 for a role without `locations.read`, a network error)
+ * and a `200 {applicable: false}` (a location the list does not apply to) are
+ * "unavailable" -- never an empty list.
  */
 import { api } from "@/services/api";
 import { resolveOrgId } from "@/services/customer.service";
@@ -21,6 +21,9 @@ export const arubaAccessPointsService = {
     try {
       const orgId = await resolveOrgId();
       const { data } = await api.get<unknown>(`/locations/${locationId}/access-points`, {
+        // "Today" is the viewer's day: the backend counts sessions_today and
+        // the byte totals from local midnight at this offset (IST = 330).
+        params: { tz_offset_minutes: -new Date().getTimezoneOffset() },
         headers: { "X-Organization-Id": orgId, "X-Location-Id": locationId },
       });
       return toArubaAccessPointsState(data);
