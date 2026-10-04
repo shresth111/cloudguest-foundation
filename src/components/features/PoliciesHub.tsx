@@ -346,7 +346,25 @@ export default function PoliciesHub({
       {tab === "location" && isNasOnlyVendor(vendor) && tiersLocationId && (
         <SsidSpeedTiers locationId={tiersLocationId} />
       )}
-      {tab === "group" && <CreateGroup locationId={locationId} />}
+      {tab === "group" && (
+        <CreateGroup
+          locationId={locationId}
+          // Aruba Instant On only: a tier's speed note links to the one speed
+          // control the venue has. Undefined (no link) at every other vendor.
+          onOpenSsidTiers={
+            isNasOnlyVendor(vendor) && tiersLocationId
+              ? () => {
+                  setTab("location");
+                  window.setTimeout(() => {
+                    document
+                      .querySelector('[data-testid="ssid-speed-tiers"]')
+                      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }, 150);
+                }
+              : undefined
+          }
+        />
+      )}
       {/* Guests & devices: the existing BlockUsers screen, unchanged --
        * same requests, same per-vendor copy, same locationId prop (a missing
        * one would write an org-wide rule; see agent.index.tsx's note). */}
