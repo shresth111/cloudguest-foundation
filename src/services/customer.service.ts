@@ -14,6 +14,7 @@ import { identityFromGuest } from "@/lib/guest-identity";
 import { dashboardRangeWindow } from "@/lib/dashboard-range";
 import type { DashboardRange, DashboardRangeWindow } from "@/lib/dashboard-range";
 import { guestPresence } from "@/lib/guest-presence";
+import { canonicalApMac } from "@/lib/aruba-access-points";
 // getDashboard()'s SLA-uptime leg reads the same `/isp/links` list the
 // dashboard's own WAN cards read, so it goes through the same service --
 // see that call site's comment. `isp.service` imports only `api` and the
@@ -82,6 +83,11 @@ interface RawGuestSession {
   guest_id?: string | null;
   bytes_downloaded?: number;
   user_agent?: string | null;
+  /** Aruba Instant On sessions only (DASHBOARD_PLAN P0-A2): the access point
+   * the guest signed in through / last roamed to, from RADIUS
+   * Called-Station-Id. Absent or null for every other vendor. */
+  ap_mac?: string | null;
+  ap_name?: string | null;
 }
 
 /** Minimal shape read from `/connected-devices` for the bulk guest_id ->
@@ -286,6 +292,10 @@ export interface CustomerUsersData {
     status: "online" | "offline" | "idle";
     guestId: string | null;
     /** Display-only: how many raw GuestSession rows this one table row represents -- see groupFragmentedVisits()'s own docstring. 1 (or absent) for an ungrouped row. */ mergedSessionCount?: number;
+    /** Aruba Instant On only: the session's access point. Set only when the
+     * backend sent one, so every other venue's rows are unchanged. */
+    apMac?: string;
+    apName?: string | null;
   }[];
   total: number;
   page: number;
@@ -1599,6 +1609,9 @@ export const customerService = {
     status?: string,
     page = 1,
     pageSize = 20,
+    /** Aruba Instant On venues only: narrow to one access point. Undefined
+     * everywhere else, so the request is exactly what it was before. */
+    apMac?: string,
   ): Promise<CustomerUsersData> {
     if (isDemo()) {
       const all = Array.from({ length: 24 }, (_, i) => {
@@ -1664,7 +1677,9 @@ export const customerService = {
       const orgHeaders = { headers: { "X-Organization-Id": orgId } };
       const [sessionsResult, devicesResult, guestsResult] = await Promise.allSettled([
         api.get<{ items: RawGuestSession[]; total_items: number }>("/guest-sessions", {
-          params: { location_id: locationId, page, page_size: pageSize },
+          params: apMac
+            ? { location_id: locationId, page, page_size: pageSize, ap_mac: apMac }
+            : { location_id: locationId, page, page_size: pageSize },
           ...orgHeaders,
         }),
         // Real MAC lookup: one bulk fetch of this location's connected-device
@@ -1769,6 +1784,7 @@ export const customerService = {
             : s.status === "paused"
               ? "idle"
               : "offline") as "online" | "offline" | "idle",
+          ...(s.ap_mac ? { apMac: s.ap_mac, apName: s.ap_name ?? null } : {}),
         };
       });
       // See groupFragmentedVisits()'s own docstring -- collapses a burst of
@@ -1782,6 +1798,13 @@ export const customerService = {
         users = users.filter((u) => u.name.toLowerCase().includes(q));
       }
       if (status && status !== "all") users = users.filter((u) => u.status === status);
+      // Also applied here, not only as `ap_mac` on the request: a backend
+      // that ignores the parameter must not make the filter look like it
+      // worked while listing every access point's guests.
+      if (apMac) {
+        const want = canonicalApMac(apMac);
+        users = users.filter((u) => !!u.apMac && canonicalApMac(u.apMac) === want);
+      }
       // The people-number is the /guests lookup's own server total (distinct
       // guests on file at this location), independent of the session page's
       // search/status/pagination. A failed guest lookup leaves it undefined

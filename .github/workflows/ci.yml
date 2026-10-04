@@ -2221,6 +2221,19 @@ jobs:
             "aruba-ssid-tiers" 61 \
             "aruba ssid tiers: all checks passed" \
             bun run test:aruba-ssid-tiers
+      # Access points at an Aruba Instant On venue (DASHBOARD_PLAN P0-A3): the
+      # REAL dashboard and Guests page in Chromium at a MikroTik, an Omada and
+      # an Aruba venue. MikroTik/Omada FIRST: no access-points request, no
+      # aruba-* element, eleven Guests columns, no `ap_mac` on /guest-sessions.
+      # Then the Aruba card (two APs, "—" not 0, never "Offline", a failed read
+      # says unavailable) and the Guests AP column + filter (sends ap_mac AND
+      # narrows even if the backend ignores it). Floor 53, observed green at 53.
+      - name: aruba instant on access points
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "aruba-access-points" 53 \
+            "aruba access points: all checks passed" \
+            bun run test:aruba-access-points
 
       # The customer dashboard's five guest controls, at a venue whose access
       # points are a TP-Link Omada controller. Three of them were written for
