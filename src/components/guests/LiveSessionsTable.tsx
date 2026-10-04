@@ -69,6 +69,7 @@ import type { GuestSession, GuestSessionStatus, SessionListQuery } from "@/types
 import type { AppError } from "@/services/api";
 import { GuestAuthMethodBadge, GuestPresenceBadge } from "./GuestBadges";
 import { GUEST_PRESENCE_LABEL, guestPresence } from "@/lib/guest-presence";
+import { type SessionEndAction, sessionEndToast } from "@/lib/live-session-actions";
 import { OmadaDisconnectDialog, OmadaDisconnectMenuItem } from "./OmadaSessionDisconnect";
 
 const PAGE_SIZES = [10, 20, 50];
@@ -187,15 +188,20 @@ export function LiveSessionsTable() {
     toast.success(`Exported ${rows.length} sessions`);
   }
 
-  // `Promise<unknown>`, not `Promise<void>`: `terminateSession` now resolves
-  // with the backend's `disconnect_enforced` instead of discarding it, and
-  // this helper does not read any action's result -- it only needs to know
-  // whether one threw. Narrowing to void would force every caller that DOES
-  // return something to launder it through a wrapper lambda.
-  async function withReasonToast(action: () => Promise<unknown>, ok: string, err: string) {
+  // Disconnect / terminate / pause all end the device's live session, and
+  // each response says whether that happened (`disconnect_enforced`). A
+  // `false` is never a "disconnected" success (DASHBOARD_PLAN P0-D); `true`
+  // and `null` keep the exact success toast these rows always showed.
+  async function withSessionEndToast(
+    action: () => Promise<{ sessionEnforced: boolean | null }>,
+    kind: SessionEndAction,
+    err: string,
+  ) {
     try {
-      await action();
-      toast.success(ok);
+      const { sessionEnforced } = await action();
+      const msg = sessionEndToast(kind, sessionEnforced);
+      if (msg.tone === "warning") toast.warning(msg.title, { description: msg.description });
+      else toast.success(msg.title);
     } catch (e) {
       toast.error((e as AppError).message || err);
     }
@@ -377,13 +383,13 @@ export function LiveSessionsTable() {
                                     setReasonDialog({
                                       title: "Pause session",
                                       onConfirm: (reasonText) =>
-                                        withReasonToast(
+                                        withSessionEndToast(
                                           () =>
                                             pause.mutateAsync({
                                               sessionId: r.id,
                                               reason: reasonText,
                                             }),
-                                          "Session paused",
+                                          "pause",
                                           "Failed to pause session",
                                         ),
                                     })
@@ -418,13 +424,13 @@ export function LiveSessionsTable() {
                                     setReasonDialog({
                                       title: "Disconnect session",
                                       onConfirm: (reasonText) =>
-                                        withReasonToast(
+                                        withSessionEndToast(
                                           () =>
                                             disconnect.mutateAsync({
                                               sessionId: r.id,
                                               reason: reasonText,
                                             }),
-                                          "Session disconnected",
+                                          "disconnect",
                                           "Failed to disconnect",
                                         ),
                                     })
@@ -465,9 +471,9 @@ export function LiveSessionsTable() {
                                         "Ends this session now and blocks the dashboard's Reconnect for this guest for 60 minutes. It does not stop them signing in again on the WiFi login page.",
                                       destructive: true,
                                       onConfirm: () =>
-                                        withReasonToast(
+                                        withSessionEndToast(
                                           () => terminate.mutateAsync({ sessionId: r.id }),
-                                          "Session terminated",
+                                          "terminate",
                                           "Failed to terminate",
                                         ),
                                     })

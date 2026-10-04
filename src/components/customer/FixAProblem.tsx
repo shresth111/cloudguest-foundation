@@ -131,6 +131,7 @@ import {
 } from "@/lib/router-vendors";
 import { useClientControls } from "@/hooks/useClientControls";
 import { disconnectOutcome } from "@/lib/omada-client-controls";
+import { liveSessionActionGate } from "@/lib/live-session-actions";
 
 /** `lastContactLabel` needs the derived liveness, not the wire row -- and
  * `deriveRouterLiveness` is what knows that `last_seen_at` on a still-
@@ -731,6 +732,12 @@ function ZoneBGuestLookup({
   const clientControls = useClientControls();
   const resetVerdict = clientControls.verdict("disconnect");
   const resetReachesDevice = resetVerdict.availability === "available";
+  // At a NAS-only venue (Aruba Instant On) Reset is greyed exactly as the
+  // Guests page greys Disconnect (DASHBOARD_PLAN P0-D): the terminate comes
+  // back `disconnect_enforced: false` on every call there, so the button could
+  // only ever report a reset the guest's device never felt. False everywhere
+  // else, where the button below renders exactly as before.
+  const resetGate = liveSessionActionGate("reset-session", clientControls.vendor);
 
   const lookup = async (rawIdentifier: string, knownSession?: GuestSession) => {
     const identifier = rawIdentifier.trim();
@@ -831,7 +838,7 @@ function ZoneBGuestLookup({
   };
 
   const doReset = async () => {
-    if (!result?.session) return;
+    if (!result?.session || resetGate.greyed) return;
     setResetting(true);
     try {
       // THE OUTCOME LADDER, NOT A SENTENCE ASSERTED ON ANY 2xx.
@@ -1026,7 +1033,15 @@ function ZoneBGuestLookup({
               </div>
             }
           >
-            {result.session && (
+            {result.session && resetGate.greyed && (
+              <div className="mt-1 space-y-1" data-testid="reset-session-unsupported">
+                <Button size="sm" variant="outline" disabled>
+                  {t("resetButton", "Reset this guest's session")}
+                </Button>
+                <p className="text-xs text-muted-foreground">{resetGate.reason}</p>
+              </div>
+            )}
+            {result.session && !resetGate.greyed && (
               <Button
                 size="sm"
                 variant="outline"
