@@ -24,6 +24,7 @@ import {
   apDisplayName,
   apStatusDetail,
   apStatusLabel,
+  apUnattributedNote,
 } from "@/lib/aruba-access-points";
 
 export function ArubaAccessPointsCard({ locationId }: { locationId: string }) {
@@ -82,7 +83,7 @@ export function ArubaAccessPointsCard({ locationId }: { locationId: string }) {
                       {[ap.model, ap.name ? ap.mac : null].filter(Boolean).join(" · ") || ap.mac}
                     </p>
                     <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                      {apStatusDetail(ap, relativeTime)}
+                      {apStatusDetail(ap, state.asOf, relativeTime)}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-4 text-xs">
@@ -116,6 +117,11 @@ export function ArubaAccessPointsCard({ locationId }: { locationId: string }) {
               );
             })}
           </ul>
+        )}
+        {state.status === "ok" && apUnattributedNote(state.unattributedClientsNow) && (
+          <p className="text-xs text-muted-foreground" data-testid="aruba-ap-unattributed">
+            {apUnattributedNote(state.unattributedClientsNow)}
+          </p>
         )}
         <p className="text-xs text-muted-foreground">{ARUBA_AP_MANAGE_NOTE}</p>
       </CardContent>

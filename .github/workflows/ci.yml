@@ -2227,11 +2227,16 @@ jobs:
       # aruba-* element, eleven Guests columns, no `ap_mac` on /guest-sessions.
       # Then the Aruba card (two APs, "—" not 0, never "Offline", a failed read
       # says unavailable) and the Guests AP column + filter (sends ap_mac AND
-      # narrows even if the backend ignores it). Floor 53, observed green at 53.
+      # narrows even if the backend ignores it). Since the BE P0-A1/A2 contract
+      # landed: real field names (download/upload_bytes_today, top-level as_of,
+      # applicable:false -> unavailable, id:null primary row, unattributed
+      # guests), tz_offset_minutes sent, and the Guests CSV gains the two AP
+      # columns at Aruba only (MikroTik/Omada header unchanged). Floor 77,
+      # observed green at 77 (81 locally with BASELINE_ROOT).
       - name: aruba instant on access points
         run: |
           ./scripts/ci-gated-test.sh \
-            "aruba-access-points" 53 \
+            "aruba-access-points" 77 \
             "aruba access points: all checks passed" \
             bun run test:aruba-access-points
 
