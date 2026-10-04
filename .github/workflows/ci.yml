@@ -2278,6 +2278,21 @@ jobs:
             "aruba-access-points" 77 \
             "aruba access points: all checks passed" \
             bun run test:aruba-access-points
+      # Internet Connection + Instant On data at an Aruba Instant On venue
+      # (DASHBOARD_PLAN P1-L, P1-K), real components in Chromium. MikroTik/
+      # Omada FIRST: Speed Test + "Real WAN uplinks per router" kept, no
+      # /instant-on/ request on Internet Connection, Alerts or the dashboard.
+      # Aruba: no Speed Test / WAN-uplinks header (ISP record kept); the
+      # customer instant-on/{access-points,clients,ssids,alerts} reads render
+      # "Data unavailable · source Instant On" when unavailable or failed,
+      # never 0, and the data when ok. Floor 34, observed 34 (46 locally with
+      # BASELINE_ROOT: DOM + request diff).
+      - name: aruba instant on internet connection and instant on data
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "aruba-instant-on-data" 34 \
+            "aruba instant on data: all checks passed" \
+            bun run test:aruba-instant-on-data
       # Live-session actions at an Aruba Instant On venue (DASHBOARD_PLAN
       # P0-D): customer Guests "Extend" and Fix-a-Problem "Reset this guest's
       # session" greyed with Disconnect's own sentence at Aruba only.

@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { relativeTime } from "@/lib/friendly";
 import { useArubaAccessPoints } from "@/hooks/useArubaAccessPoints";
+import { InstantOnVenueData } from "@/components/customer/InstantOnPanels";
 import {
   ARUBA_AP_EMPTY,
   ARUBA_AP_MANAGE_NOTE,
@@ -123,6 +124,9 @@ export function ArubaAccessPointsCard({ locationId }: { locationId: string }) {
             {apUnattributedNote(state.unattributedClientsNow)}
           </p>
         )}
+        {/* P1-K: what the Instant On app itself reports, when the venue's
+            poll is on; "Data unavailable · source Instant On" otherwise. */}
+        <InstantOnVenueData locationId={locationId} />
         <p className="text-xs text-muted-foreground">{ARUBA_AP_MANAGE_NOTE}</p>
       </CardContent>
     </Card>
