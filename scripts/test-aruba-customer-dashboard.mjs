@@ -513,25 +513,25 @@ console.log("\n3. Aruba liveness from the access points' own activity (P1-F)");
 
 console.log("\n4. Stale venue snapshot (P1-J)");
 {
-  // Picked while the routers read failed: the stored snapshot is "can't tell".
-  // The Guests page (not the dashboard) re-reads once on load and the Aruba
-  // gates apply -- here the access-point filter only an Aruba venue gets.
+  // Picked while the routers read failed: the stored snapshot is "can't
+  // tell". Owner rule: that venue behaves exactly as on origin/staging -- no
+  // re-read on load, snapshot untouched.
   const r = await render(ROOT, "aruba-active", "users", { mode: "stored-failed" });
   const routerReads = r.calls.filter((c) => c.url === "/locations/" + LOC + "/routers").length;
+  eq("stored-failed: no extra venue routers read on load", routerReads, 0);
+  const stored = await r.page.evaluate(() => window.__STORE__()?.liveness);
   check(
-    "stored-failed Aruba: venue routers re-read on load",
-    routerReads >= 1,
-    String(routerReads),
+    "stored-failed: snapshot left as the failed read",
+    stored && stored.routersTotal === null && stored.routers.length === 0,
   );
-  const vendors = await r.page.evaluate(() =>
-    window.__STORE__()?.liveness?.routers?.map((x) => x.vendor),
-  );
-  eq(
-    "stored snapshot refreshed to Aruba",
-    JSON.stringify(vendors),
-    JSON.stringify(["aruba_instant_on"]),
-  );
-  check("Aruba gates applied after load (AP filter)", has(r.html, "aruba-ap-filter"));
+  await done(r);
+}
+{
+  // Stored Aruba verdict: the Guests page re-reads it once on load.
+  const r = await render(ROOT, "aruba-active", "users");
+  const routerReads = r.calls.filter((c) => c.url === "/locations/" + LOC + "/routers").length;
+  eq("stored Aruba: venue routers re-read once on load", routerReads, 1);
+  check("stored Aruba: Aruba gates applied (AP filter)", has(r.html, "aruba-ap-filter"));
   await done(r);
 }
 {
@@ -561,6 +561,33 @@ console.log("\n4. Stale venue snapshot (P1-J)");
 }
 for (const venue of ["mikrotik", "omada"]) {
   for (const which of ["dashboard", "users"]) {
+    // A failed-read snapshot at a MikroTik/Omada venue: no extra request.
+    const f = await render(ROOT, venue, which, { mode: "stored-failed" });
+    eq(
+      `${venue} ${which} stored-failed: venue routers read count unchanged`,
+      f.calls.filter((c) => c.url === "/locations/" + LOC + "/routers").length,
+      which === "dashboard" ? 1 : 0,
+    );
+    if (BASELINE_ROOT) {
+      const fb = await render(BASELINE_ROOT, venue, which, { mode: "stored-failed" });
+      const fsig = (calls) =>
+        calls
+          .map((c) => `${c.method} ${c.url} ${JSON.stringify(c.params)}`)
+          .sort()
+          .join("\n");
+      check(
+        `${venue} ${which} stored-failed: request list identical to baseline`,
+        fsig(fb.calls) === fsig(f.calls),
+        `${fb.calls.length} vs ${f.calls.length}`,
+      );
+      check(
+        `${venue} ${which} stored-failed: DOM identical to baseline`,
+        fb.html === f.html,
+        `lengths ${fb.html.length} vs ${f.html.length}`,
+      );
+      await done(fb);
+    }
+    await done(f);
     const r = await render(ROOT, venue, which);
     const routerReads = r.calls.filter((c) => c.url === "/locations/" + LOC + "/routers").length;
     eq(

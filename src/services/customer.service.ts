@@ -1572,8 +1572,8 @@ export const customerService = {
   /**
    * DASHBOARD_PLAN P1-J: one fresh read of a venue's routers, for refreshing
    * the persisted venue snapshot. Only ever called for a venue whose stored
-   * snapshot is Aruba Instant On or a failed read (`venueSnapshotNeedsRefresh`),
-   * so a MikroTik or Omada venue never makes this request. A failed read
+   * snapshot is Aruba Instant On (`venueSnapshotNeedsRefresh`), so a MikroTik,
+   * Omada or failed-read venue never makes this request. A failed read
    * resolves to the "can't tell" verdict, which the caller never stores over
    * a known one. The demo account has nothing to refresh: `null`.
    */

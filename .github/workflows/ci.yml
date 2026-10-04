@@ -2255,22 +2255,23 @@ jobs:
       # session records, "—" when that read failed. P1-F: access-point count
       # and last guest activity (`last_radius_at`) in the strip, "Guest
       # sign-ins working" / "No guest activity for 3h", never Offline/Unknown.
-      # P1-J: a failed snapshot is re-read on load and a failed read never
-      # drops the Aruba gates; MikroTik/Omada make no extra routers read.
-      # Floor 52, observed 52 (60 locally with BASELINE_ROOT incl. request diff).
+      # P1-J: only an Aruba snapshot is re-read on load; a failed read never
+      # drops the Aruba gates; a failed-read, MikroTik or Omada snapshot makes
+      # no extra routers read (owner rule). Floor 57, observed 57 (73 locally
+      # with BASELINE_ROOT incl. DOM + request diff of failed-read snapshots).
       - name: aruba instant on customer dashboard
         run: |
           ./scripts/ci-gated-test.sh \
-            "aruba-customer-dashboard" 52 \
+            "aruba-customer-dashboard" 57 \
             "aruba customer dashboard: all checks passed" \
             bun run test:aruba-customer-dashboard
       # P1-F / P1-J pure halves: MikroTik/Omada/mixed verdicts byte-identical
       # with a stray last_radius_at, activity copy thresholds, snapshot
-      # reconcile rules. Floor 84, observed 84.
+      # reconcile rules. Floor 86, observed 86.
       - name: aruba instant on venue snapshot and activity
         run: |
           ./scripts/ci-gated-test.sh \
-            "aruba-venue-snapshot" 84 \
+            "aruba-venue-snapshot" 86 \
             "aruba venue snapshot: all checks passed" \
             bun run test:aruba-venue-snapshot
 

@@ -31,8 +31,8 @@ export function useWriteBackVenueLiveness(
 
 /**
  * On app load (any customer page but the dashboard, whose own read does
- * this), re-read the active venue's routers ONCE -- but only when the stored
- * snapshot is Aruba Instant On or a failed read. A MikroTik or Omada venue
+ * this), re-read the active venue's routers ONCE -- only when the stored
+ * snapshot is Aruba Instant On. A MikroTik, Omada or failed-read snapshot
  * never makes the request.
  */
 export function useVenueSnapshotRefresh(enabled: boolean): void {

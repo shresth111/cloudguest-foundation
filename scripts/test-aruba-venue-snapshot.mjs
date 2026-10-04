@@ -10,8 +10,9 @@
  *      · last activity X ago" (< 60 min) or "No guest activity for Xh"; the
  *      state stays `unknown` (neutral tone, no gate moves); never "Offline"
  *      or "Unknown"; no `last_radius_at` keeps "Set up in Instant On".
- *   3. P1-J: a failed fresh read never replaces an Aruba snapshot; a failed
- *      snapshot is refreshed and an Aruba answer replaces it.
+ *   3. P1-J: only an Aruba snapshot is ever re-read or replaced; a failed
+ *      fresh read never replaces it. A failed-read, MikroTik or Omada
+ *      snapshot is never re-read or written (owner rule: zero change there).
  *
  * Run: node scripts/test-aruba-venue-snapshot.mjs
  */
@@ -198,11 +199,19 @@ console.log("\n3. The venue snapshot (P1-J)");
     !L.livenessIsFailedRead(L.deriveLocationLiveness([], NOW)),
   );
   check("Aruba snapshot refreshes on load", L.venueSnapshotNeedsRefresh(aruba));
-  check("failed snapshot refreshes on load", L.venueSnapshotNeedsRefresh(failed));
+  check(
+    "failed snapshot is NOT re-read on load (as origin/staging)",
+    !L.venueSnapshotNeedsRefresh(failed),
+  );
+  check("missing snapshot is NOT re-read on load", !L.venueSnapshotNeedsRefresh(undefined));
+  check(
+    "CHECKING snapshot is NOT re-read on load",
+    !L.venueSnapshotNeedsRefresh(L.deriveLocationLiveness(null)),
+  );
   check("failed fresh read never replaces Aruba", L.reconcileVenueLiveness(aruba, failed) === null);
   check(
-    "failed snapshot + Aruba read -> Aruba stored",
-    L.reconcileVenueLiveness(failed, aruba) === aruba,
+    "failed snapshot + Aruba read -> left alone (as origin/staging)",
+    L.reconcileVenueLiveness(failed, aruba) === null,
   );
   check(
     "Aruba snapshot + fresh Aruba -> fresh stored",

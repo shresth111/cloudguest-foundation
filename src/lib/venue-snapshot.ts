@@ -8,13 +8,13 @@
  * at that moment stored "can't tell" -- and every gate then handed the venue
  * the MikroTik screens until it was picked again.
  *
- * THE RULE: only an Aruba Instant On (NAS-only) venue's snapshot is ever
- * refreshed or replaced here. A MikroTik or Omada snapshot is never written
- * and never causes a request, so those venues behave exactly as before.
- *  - Refreshed when the stored snapshot is NAS-only (to pick up the access
- *    points' latest activity) or is a failed read (it may be an Aruba venue
- *    we could not see).
- *  - Replaced only when the stored or the fresh verdict is NAS-only.
+ * THE RULE (owner: zero change at MikroTik/Omada, requests included): only
+ * a snapshot that is ALREADY Aruba Instant On (NAS-only) is ever refreshed or
+ * replaced here. A MikroTik, Omada or failed-read snapshot is never re-read
+ * and never written, so those venues behave exactly as on origin/staging.
+ *  - Refreshed on app load only when the stored snapshot is NAS-only.
+ *  - Replaced only when the stored snapshot is NAS-only and the fresh read
+ *    succeeded.
  *  - A FAILED fresh read never replaces a NAS-only snapshot: Aruba gates
  *    stay applied, never falling back to the MikroTik UI.
  */
@@ -28,7 +28,7 @@ export function livenessIsFailedRead(liveness: LocationLiveness | null | undefin
 
 /** Whether to read the venue's routers again on app load. */
 export function venueSnapshotNeedsRefresh(stored: LocationLiveness | null | undefined): boolean {
-  return locationIsNasOnly(stored) || livenessIsFailedRead(stored);
+  return locationIsNasOnly(stored);
 }
 
 /**
@@ -40,13 +40,10 @@ export function reconcileVenueLiveness(
   fresh: LocationLiveness | null | undefined,
 ): LocationLiveness | null {
   if (!fresh || livenessIsFailedRead(fresh)) return null;
-  if (locationIsNasOnly(fresh)) return fresh;
-  // The venue stopped being Aruba-only (its routers changed): the stored
-  // NAS-only verdict is wrong now, so it goes.
-  if (locationIsNasOnly(stored)) return fresh;
-  // A failed snapshot and a fresh non-Aruba answer: left alone, exactly as
-  // before this change (that venue is re-read when it is next picked).
-  return null;
+  // Only an Aruba snapshot is ever replaced (by a fresh Aruba verdict, or by
+  // the venue's new verdict if its routers changed). Any other snapshot --
+  // MikroTik, Omada, or a failed read -- is left exactly as it is.
+  return locationIsNasOnly(stored) ? fresh : null;
 }
 
 /**
