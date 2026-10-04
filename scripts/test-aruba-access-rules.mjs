@@ -796,8 +796,8 @@ console.log("\n3. Wiring of the screens not rendered here");
 // ---------------------------------------------------------------------------
 const tiers = src("src/components/features/CreateGroup.tsx");
 check(
-  "Access Tiers: a greyed speed writes back the tier's held rate at a NAS-only venue only (a hybrid venue's live select saves the choice)",
-  /nasOnlyVenue && !tierSpeedUsable\s*\?\s*heldKbpsFromLabel\(bw, BANDWIDTH_KBPS\)\s*:\s*\(BANDWIDTH_KBPS\[bw\] \?\? 0\)/.test(
+  "Access Tiers: a NAS-only venue saves the held/picked rate via heldKbpsFromLabel (picker label = the choice, off-picker rate kept); every other vendor keeps the table lookup",
+  /nasOnlyVenue\s*\?\s*heldKbpsFromLabel\(bw, BANDWIDTH_KBPS\)\s*:\s*\(BANDWIDTH_KBPS\[bw\] \?\? 0\)/.test(
     tiers,
   ),
 );
