@@ -78,5 +78,8 @@
   "exportNothing": "Nothing to export for these filters.",
   "exportFailed": "Could not build the export. Nothing was changed.",
   "exportSuccess_one": "Exported {{count}} guest",
-  "exportSuccess_other": "Exported {{count}} guests"
+  "exportSuccess_other": "Exported {{count}} guests",
+  "colAccessPoint": "Access point",
+  "allAccessPoints": "All access points",
+  "accessPointFilter": "Filter by access point"
 }

@@ -85,6 +85,16 @@ import { useClientControls, useDeviceActions } from "@/hooks/useClientControls";
 import { NAS_ONLY_DATA_USAGE_UNREPORTED, isNasOnlyVendor } from "@/lib/router-vendors";
 import { disconnectOutcome } from "@/lib/omada-client-controls";
 import { GuestDeviceControls, isSendableMac } from "@/components/customer/GuestDeviceControls";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { locationIsNasOnly } from "@/lib/location-liveness";
+import { useArubaAccessPoints } from "@/hooks/useArubaAccessPoints";
+import { apFilterOptions, sessionApLabel } from "@/lib/aruba-access-points";
 
 /**
  * Shared empty-state graphic for the Users table -- a magnifying glass over
@@ -226,11 +236,23 @@ function CustomerUsersPage() {
   } | null>(null);
   const PAGE_SIZE = 8;
 
+  // Aruba Instant On venues only (DASHBOARD_PLAN P0-A3): an "Access point"
+  // column and filter. At every other venue `arubaVenue` is false, the access
+  // point list is never requested, `apFilter` stays "all" and the users query
+  // is exactly what it was.
+  const arubaVenue = locationIsNasOnly(activeLocation?.liveness);
+  const accessPoints = useArubaAccessPoints(arubaVenue ? locationId : undefined);
+  const apItems = accessPoints.status === "ok" ? accessPoints.items : undefined;
+  const [apFilter, setApFilter] = useState("all");
+  const apMac = arubaVenue && apFilter !== "all" ? apFilter : undefined;
+  const columnCount = arubaVenue ? 12 : 11;
+
   const { data, isLoading, refetch } = useCustomerUsers(locationId, {
     search: search || undefined,
     status: statusTab !== "all" ? statusTab : undefined,
     page: page + 1,
     pageSize: PAGE_SIZE,
+    ...(apMac ? { apMac } : {}),
   });
   // Real, location-wide count -- independent of this page's search/tab/
   // pagination state, see useCustomerOnlineNow's own docstring.
@@ -279,6 +301,7 @@ function CustomerUsersPage() {
           statusTab !== "all" ? statusTab : undefined,
           p,
           EXPORT_PAGE_SIZE,
+          apMac,
         );
         rows.push(...chunk.users);
         if (rows.length >= chunk.total) break;
@@ -479,6 +502,31 @@ function CustomerUsersPage() {
                 <Download className="mr-1.5 h-4 w-4" />
                 {exporting ? t("exporting", "Exporting…") : t("exportCsv", "Export CSV")}
               </Button>
+              {arubaVenue && apItems && apItems.length > 1 && (
+                <Select
+                  value={apFilter}
+                  onValueChange={(v) => {
+                    setApFilter(v);
+                    setPage(0);
+                  }}
+                >
+                  <SelectTrigger
+                    className="h-10 w-[200px] bg-background text-xs"
+                    aria-label={t("accessPointFilter", "Filter by access point")}
+                    data-testid="aruba-ap-filter"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t("allAccessPoints", "All access points")}</SelectItem>
+                    {apFilterOptions(apItems).map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               <div className="flex gap-1 border rounded-lg p-0.5 bg-muted/50">
                 {(["all", "online", "offline"] as const).map((tab) => (
                   <button
@@ -523,6 +571,11 @@ function CustomerUsersPage() {
                     <TableHead className="text-xs font-medium uppercase tracking-wide hidden md:table-cell">
                       {t("colDevice")}
                     </TableHead>
+                    {arubaVenue && (
+                      <TableHead className="text-xs font-medium uppercase tracking-wide hidden md:table-cell">
+                        {t("colAccessPoint", "Access point")}
+                      </TableHead>
+                    )}
                     <TableHead className="text-xs font-medium uppercase tracking-wide">
                       {t("colDuration")}
                     </TableHead>
@@ -547,7 +600,7 @@ function CustomerUsersPage() {
                   {isLoading ? (
                     Array.from({ length: 5 }).map((_, i) => (
                       <TableRow key={i}>
-                        {Array.from({ length: 11 }).map((_, j) => (
+                        {Array.from({ length: columnCount }).map((_, j) => (
                           <TableCell key={j}>
                             <div className="h-4 w-full animate-pulse rounded bg-muted" />
                           </TableCell>
@@ -556,9 +609,13 @@ function CustomerUsersPage() {
                     ))
                   ) : !data || data.users.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={11} className="p-0">
+                      <TableCell colSpan={columnCount} className="p-0">
                         <UsersEmptyState
-                          label={search || statusTab !== "all" ? t("emptyNoMatch") : t("emptyNone")}
+                          label={
+                            search || statusTab !== "all" || apMac
+                              ? t("emptyNoMatch")
+                              : t("emptyNone")
+                          }
                         />
                       </TableCell>
                     </TableRow>
@@ -616,6 +673,14 @@ function CustomerUsersPage() {
                           {u.ip || "—"}
                         </TableCell>
                         <TableCell className="text-xs hidden md:table-cell">{u.device}</TableCell>
+                        {arubaVenue && (
+                          <TableCell
+                            className="text-xs hidden md:table-cell"
+                            data-testid="aruba-ap-cell"
+                          >
+                            {sessionApLabel(u.apMac, u.apName, apItems)}
+                          </TableCell>
+                        )}
                         {/* Honest about a grouped display row -- see
                           groupFragmentedVisits()'s own docstring: this is
                           one visit built from N real, separately-accounted

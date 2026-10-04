@@ -78,5 +78,8 @@
   "exportNothing": "इन फ़िल्टर में डाउनलोड करने को कुछ नहीं है।",
   "exportFailed": "फ़ाइल नहीं बन पाई। कुछ नहीं बदला गया।",
   "exportSuccess_one": "{{count}} मेहमान की फ़ाइल डाउनलोड हुई",
-  "exportSuccess_other": "{{count}} मेहमानों की फ़ाइल डाउनलोड हुई"
+  "exportSuccess_other": "{{count}} मेहमानों की फ़ाइल डाउनलोड हुई",
+  "colAccessPoint": "एक्सेस पॉइंट",
+  "allAccessPoints": "सभी एक्सेस पॉइंट",
+  "accessPointFilter": "एक्सेस पॉइंट से छाँटें"
 }
