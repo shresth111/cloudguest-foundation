@@ -2278,6 +2278,21 @@ jobs:
             "aruba-access-points" 77 \
             "aruba access points: all checks passed" \
             bun run test:aruba-access-points
+      # Devices page + legacy /workspace/locations/$id at an Aruba Instant On
+      # venue (DASHBOARD_PLAN P1-H, P1-I), the REAL components in Chromium.
+      # MikroTik/Omada FIRST: Connected Devices + /connected-devices read,
+      # "Device health & interface traffic", legacy page with Restart, no
+      # redirect. Aruba: "Online guests by access point" from the AP API, no
+      # /connected-devices request, unavailable (never 0) on a failed read;
+      # legacy page redirects to "/" with no Restart / Routers online / Never;
+      # 409 NAS_ONLY_DEVICE gets the Instant On sentence, other errors untouched.
+      # Floor 48, observed 48 (60 locally with BASELINE_ROOT: DOM + requests).
+      - name: aruba instant on devices page and legacy location page
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "aruba-devices-page" 48 \
+            "aruba devices page: all checks passed" \
+            bun run test:aruba-devices-page
       # Live-session actions at an Aruba Instant On venue (DASHBOARD_PLAN
       # P0-D): customer Guests "Extend" and Fix-a-Problem "Reset this guest's
       # session" greyed with Disconnect's own sentence at Aruba only.

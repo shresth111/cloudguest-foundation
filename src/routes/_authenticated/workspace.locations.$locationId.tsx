@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import { zodValidator } from "@tanstack/zod-adapter";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -52,7 +52,10 @@ import { useWorkspace } from "@/context/WorkspaceContext";
 import { useLocationResources } from "@/hooks/useWorkspace";
 import { useDeleteLocations, useUpdateLocation } from "@/hooks/useLocations";
 import { useRebootRouter } from "@/hooks/useRouters";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { isNasOnlyVendor } from "@/lib/router-vendors";
+import { resolveCustomerLocationById } from "@/lib/customerLocationGuard";
+import { useCustomerStore } from "@/stores/customerStore";
 import { monitoringService } from "@/services/monitoring.service";
 import { routerService } from "@/services/router.service";
 import { locationService } from "@/services/location.service";
@@ -132,6 +135,46 @@ function asTabSearchReducer(fn: (prev: { tab: TabKey }) => { tab: TabKey }): any
   return fn;
 }
 
+/** Sends an Aruba Instant On venue to the customer dashboard ("/"), with
+ * that venue made the active one. If the venue cannot be resolved for this
+ * account, says where it is managed instead -- never the router page. */
+function NasOnlyVenueRedirect({ locationId }: { locationId: string }) {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const [unresolved, setUnresolved] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    void resolveCustomerLocationById(queryClient, locationId).then((resolved) => {
+      if (cancelled) return;
+      if (!resolved) {
+        setUnresolved(true);
+        return;
+      }
+      useCustomerStore.getState().setActiveLocation(resolved.id, resolved);
+      navigate({ to: "/", replace: true });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [queryClient, locationId, navigate]);
+  if (!unresolved) return <LocationWorkspaceSkeleton />;
+  return (
+    <Alert data-testid="aruba-legacy-location-notice">
+      <Wifi className="h-4 w-4" />
+      <AlertTitle>This venue uses Aruba Instant On</AlertTitle>
+      <AlertDescription className="flex items-center justify-between gap-3">
+        <span>
+          Its access points are managed in Aruba&apos;s Instant On app. Open the venue from your
+          dashboard to see its guests.
+        </span>
+        <Button asChild size="sm" variant="outline">
+          <Link to="/switch-location">Choose venue</Link>
+        </Button>
+      </AlertDescription>
+    </Alert>
+  );
+}
+
 function LocationWorkspacePage() {
   const { locationId } = Route.useParams();
   const { tab } = Route.useSearch();
@@ -162,6 +205,18 @@ function LocationWorkspacePage() {
     });
 
   if (loadingCustomers) return <LocationWorkspaceSkeleton />;
+  // DASHBOARD_PLAN P1-I: an Aruba Instant On venue (every router NAS-only)
+  // never renders this page -- its Restart button, "Routers online 0/1",
+  // "Never" check-in and Monitoring tab are all router concepts that venue
+  // does not have. It goes to the customer dashboard instead. Every other
+  // venue renders exactly as before.
+  if (
+    resources &&
+    resources.routers.length > 0 &&
+    resources.routers.every((r) => isNasOnlyVendor(r.vendor))
+  ) {
+    return <NasOnlyVenueRedirect locationId={locationId} />;
+  }
   if (!context) {
     return (
       <Alert>

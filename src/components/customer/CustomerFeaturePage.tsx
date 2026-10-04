@@ -24,7 +24,11 @@ import {
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { CustomerHeader } from "@/components/customer/CustomerHeader";
 import { CUSTOMER_NAVS, customerFeatureHref } from "@/lib/customerNav";
-import { locationControllerVendor, locationIsControllerManaged } from "@/lib/location-liveness";
+import {
+  locationControllerVendor,
+  locationIsControllerManaged,
+  locationIsNasOnly,
+} from "@/lib/location-liveness";
 import { featureAppliesToControllerVenue } from "@/lib/router-vendors";
 import { ControllerManagedFeatureNotice } from "@/components/customer/ControllerManagedFeatureNotice";
 import { ControllerControlNotice } from "@/components/customer/ControllerControlNotice";
@@ -49,6 +53,7 @@ const NetworkHardwareView = lazyView(
   "NetworkHardwareView",
 );
 import { DeviceHealthTrafficView } from "@/components/customer/DeviceHealthTrafficView";
+import { ArubaGuestsByAccessPoint } from "@/components/customer/ArubaGuestsByAccessPoint";
 import { maskMac, DEMO_PLAN_RENEWAL_ISO } from "@/components/features/HeaderControls";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -311,7 +316,14 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                   {/* The venue's own network hardware and how it has been
                     performing, above the guest devices connected to it. */}
                   <DeviceHealthTrafficView locationId={locationId} />
-                  <DevicesView locationId={locationId} masked={masked} />
+                  {/* P1-H: Connected Devices is the router agent's device
+                      sync, always empty at Aruba Instant On; that venue gets
+                      its guests per access point instead. */}
+                  {locationIsNasOnly(activeLocation?.liveness) ? (
+                    <ArubaGuestsByAccessPoint locationId={locationId} />
+                  ) : (
+                    <DevicesView locationId={locationId} masked={masked} />
+                  )}
                 </div>
               )}
               {feature === "teams" && <ManageTeamsPage locationId={locationId} />}
