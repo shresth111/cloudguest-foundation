@@ -66,6 +66,7 @@ import {
 import { ArubaInstantOnVenueCard } from "@/components/customer/ArubaInstantOnVenueCard";
 import { ArubaAccessPointsCard } from "@/components/customer/ArubaAccessPointsCard";
 import { controllerDeviceMetricsReason } from "@/lib/router-vendors";
+import { arubaVenueStats } from "@/lib/aruba-venue";
 import type { LocationLiveness, LivenessTone } from "@/lib/location-liveness";
 import { useMyBillingDashboard } from "@/hooks/useBilling";
 import { customerFeatureHref } from "@/lib/customerNav";
@@ -314,6 +315,9 @@ export function CustomerDashboardPage() {
   // way to the venue card (our own guest records) and copy U6. Every other
   // venue renders exactly as before.
   const nasOnlyVenue = locationIsNasOnly(liveness);
+  // The venue card's own figures (guest_sessions, "—" when that read
+  // failed), reused by the Aruba KPI and status strip so they cannot drift.
+  const arubaStats = arubaVenueStats(d, isError);
 
   const handleNav = (id: string) => navigate({ to: customerFeatureHref(id) });
   const handleLogout = async () => {
@@ -381,22 +385,33 @@ export function CustomerDashboardPage() {
         </span>
       ) : null,
     },
-    {
-      label: "Uptime",
-      icon: <Activity className="h-4 w-4" />,
-      value: d?.kpis.slaUptime != null ? formatUptimePercent(d.kpis.slaUptime) : null,
-      loading: isLoading,
-      footer: d ? (
-        tone === "live" ? (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/70 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:border-emerald-800/50 dark:bg-emerald-950/50 dark:text-emerald-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            All systems healthy
-          </span>
-        ) : (
-          <LocationLivenessBadge liveness={liveness} />
-        )
-      ) : null,
-    },
+    // Aruba Instant On (P0-C): uptime here is ISP-link uptime, measured by a
+    // Wyfy-managed router this venue does not have -- it could only ever
+    // read "—". Sign-ins today is what this platform really sees there.
+    nasOnlyVenue
+      ? {
+          label: "Sign-ins today",
+          icon: <Activity className="h-4 w-4" />,
+          value: d ? arubaStats.today : null,
+          loading: isLoading,
+          footer: d ? <span>Last sign-in: {arubaStats.lastSignIn}</span> : null,
+        }
+      : {
+          label: "Uptime",
+          icon: <Activity className="h-4 w-4" />,
+          value: d?.kpis.slaUptime != null ? formatUptimePercent(d.kpis.slaUptime) : null,
+          loading: isLoading,
+          footer: d ? (
+            tone === "live" ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/70 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:border-emerald-800/50 dark:bg-emerald-950/50 dark:text-emerald-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                All systems healthy
+              </span>
+            ) : (
+              <LocationLivenessBadge liveness={liveness} />
+            )
+          ) : null,
+        },
   ];
 
   return (
@@ -473,7 +488,29 @@ export function CustomerDashboardPage() {
                     : liveness.summary || STATUS_BAR[tone].title}
               </span>
             </div>
-            {d && (
+            {/* Aruba Instant On (P0-C): System / Routers / ISP are all router
+                measurements this venue cannot have, so they read "Unknown" and
+                "No ISP link" -- a fault tone for a venue that is working. The
+                strip says what is known instead: guests online and the last
+                sign-in, from this platform's own records. */}
+            {d && nasOnlyVenue && (
+              <div
+                className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs"
+                data-testid="aruba-status-strip"
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <Wifi aria-hidden className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="opacity-70">Guests online</span>
+                  <span className="font-semibold">{arubaStats.online}</span>
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <Clock aria-hidden className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="opacity-70">Last sign-in</span>
+                  <span className="font-semibold">{arubaStats.lastSignIn}</span>
+                </span>
+              </div>
+            )}
+            {d && !nasOnlyVenue && (
               <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs">
                 <span className="inline-flex items-center gap-1.5">
                   <CheckCircle2
@@ -905,8 +942,14 @@ export function CustomerDashboardPage() {
 
           {/* Real uplink health and hardware -- the detail behind the status
               bar's ISP and router figures at the top of this page. */}
-          <div className="grid gap-6 lg:grid-cols-2">
-            <WanStatusCard locationId={locationId} onManage={() => handleNav("isp-details")} />
+          {/* Aruba Instant On (P0-C): no Internet Connection card. Its health
+              checks and Speed Test run on a Wyfy-managed router, which this
+              venue does not have, so it could only ever say "not set up" or
+              "unknown". The venue card spans the row instead. */}
+          <div className={cn("grid gap-6", !nasOnlyVenue && "lg:grid-cols-2")}>
+            {!nasOnlyVenue && (
+              <WanStatusCard locationId={locationId} onManage={() => handleNav("isp-details")} />
+            )}
             {nasOnlyVenue ? (
               <ArubaInstantOnVenueCard locationId={locationId} />
             ) : (
