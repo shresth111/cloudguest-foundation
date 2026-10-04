@@ -1,4 +1,7 @@
 import { Radar, ShieldAlert, Info } from "lucide-react";
+import { locationIsNasOnly } from "@/lib/location-liveness";
+import { useCustomerStore } from "@/stores/customerStore";
+import { ARUBA_CONNECTION_RECORDS_NOTE } from "@/lib/aruba-reports";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import { Card, CardContent } from "@/components/ui/card";
@@ -81,6 +84,8 @@ export default function NetworkActivityLog({ masked = true }: { masked?: boolean
  * does, no "compliance"/"IPDR" claim. */
 function PageHeader() {
   const { t } = useTranslation("nav", { i18n });
+  // P2-N: the Aruba Instant On wording for the active venue only.
+  const nasOnly = locationIsNasOnly(useCustomerStore((st) => st.activeLocation)?.liveness);
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -108,13 +113,17 @@ function PageHeader() {
        * review that would actually back such a claim. */}
       <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-xs text-muted-foreground">
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
-        <p>
-          This shows session-level connection and login records, not destination-level traffic (what
-          site a guest visited). Private IP is the guest&apos;s address on your WiFi; venue public
-          IP is your router&apos;s routable WAN address (shared NAT egress), shown only when the
-          router reports a real public address — not a LAN/CGNAT interface. The platform does not
-          currently guarantee a specific data-retention period for these records.
-        </p>
+        {nasOnly ? (
+          <p data-testid="aruba-connection-records-note">{ARUBA_CONNECTION_RECORDS_NOTE}</p>
+        ) : (
+          <p>
+            This shows session-level connection and login records, not destination-level traffic
+            (what site a guest visited). Private IP is the guest&apos;s address on your WiFi; venue
+            public IP is your router&apos;s routable WAN address (shared NAT egress), shown only
+            when the router reports a real public address — not a LAN/CGNAT interface. The platform
+            does not currently guarantee a specific data-retention period for these records.
+          </p>
+        )}
       </div>
     </div>
   );
