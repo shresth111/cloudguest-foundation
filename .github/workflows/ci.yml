@@ -2106,13 +2106,26 @@ jobs:
 
       # And the nav that leads to them.
       #
-      # Floor 21, observed green at 21.
+      # Floor 75, observed green at 75 (was 21; raised 2026-10-04 when Access
+      # Rules -> Guests & devices got its per-vendor render checks).
       - name: controller venue nav
         run: |
           ./scripts/ci-gated-test.sh \
-            "controller-venue-nav" 21 \
+            "controller-venue-nav" 75 \
             "all checks passed" \
             bun run test:controller-venue-nav
+
+      # Guests & devices (blocking a guest or device) lives under Access
+      # Rules after Access Tiers, on every dashboard and vendor (2026-10-04).
+      # Executes the tab table, the permission keys that moved with it, and
+      # the /blocking?tab=guests -> /policies?tab=guests redirect.
+      # Floor 17, observed green at 17.
+      - name: access rules guests tab
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "access-rules-guests-tab" 17 \
+            "access-rules guests tab: all checks passed" \
+            bun run test:access-rules-guests-tab
 
       # The Master console's Add customer wizard, for a venue whose network is
       # a TP-Link Omada controller. Two requests, not one transaction: provision

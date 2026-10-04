@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, Globe2, Loader2, Router as RouterIcon, UserX } from "lucide-react";
+import { ChevronDown, Globe2, Loader2, Router as RouterIcon } from "lucide-react";
 import i18n from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,7 +10,6 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { EmptyState } from "@/components/common/EmptyState";
 import { ContentFilterManagement } from "@/components/network/ContentFilterManagement";
 import { ControllerRoutersNote } from "@/components/network/RouterPickerItems";
-import BlockUsers from "@/components/features/BlockUsers";
 import { ControllerManagedFeatureNotice } from "@/components/customer/ControllerManagedFeatureNotice";
 import { WebsiteBlockBox } from "@/components/security/WebsiteBlockBox";
 import { AppBlockBox, AppBlockLimits } from "@/components/security/AppBlockBox";
@@ -34,7 +33,6 @@ import {
 
 const TAB_ICON: Record<BlockingTabId, typeof Globe2> = {
   websites: Globe2,
-  guests: UserX,
 };
 
 /** In-page anchors on the Websites tab. `/web-filtering` redirects to
@@ -48,8 +46,12 @@ export const BLOCK_WEBSITES_SECTION_IDS = {
 } as const;
 
 /**
- * Security -> Block Websites. The one place to block a website, plus the
- * guests & devices tab that has always lived beside it.
+ * Security -> Block Websites. The one place to block a website.
+ *
+ * Guests & devices (blocking a guest or a device) is NOT here any more: it
+ * is a tab of Access Rules, right after Access Tiers (owner instruction
+ * 2026-10-04, `lib/access-rules-tabs.ts`). The intro links there, and
+ * `/blocking?tab=guests` redirects there.
  *
  * A shell and nothing else: every section mounts the screen that already did
  * the job (see `lib/blocking.ts` for which, and why each one moved rather than
@@ -82,9 +84,8 @@ export const BLOCK_WEBSITES_SECTION_IDS = {
  * Everything on "Websites" writes to a MikroTik; at a venue whose only router
  * is an Omada controller there is nothing for it to write to, so that tab
  * shows the existing `ControllerManagedFeatureNotice` and none of the three
- * sections is mounted. "Guests & devices" keeps working there exactly as it
- * did under Access Rules -- `BlockUsers` already reports what the controller
- * did with each block. The page therefore opens on that tab at such a venue.
+ * sections is mounted. (Guests & devices, which does work there, lives under
+ * Access Rules.)
  *
  * Reads the venue from the store rather than taking it as props, so the
  * owner's `/blocking` route and the staff `/agent` shell mount it the same
@@ -92,7 +93,7 @@ export const BLOCK_WEBSITES_SECTION_IDS = {
  *
  * ## The URL carries the tab
  *
- * With `syncWithUrl`, `?tab=websites|guests` picks the tab and switching tabs
+ * With `syncWithUrl`, `?tab=websites` picks the tab and switching tabs
  * rewrites it. That is what lets the Security Score and old
  * `/website-blocking` and `/web-filtering` bookmarks land on the right tab.
  * The `/agent` shell has one URL for every feature, so it leaves this off and
@@ -138,10 +139,7 @@ export function BlockingView({
   return (
     <div className="space-y-5">
       <p className="max-w-3xl text-sm text-muted-foreground">
-        {t(
-          "blockWebsites.intro",
-          "Stop websites from opening on your guest WiFi, or stop a guest or device from using it.",
-        )}{" "}
+        {t("blockWebsites.intro", "Stop websites from opening on your guest WiFi.")}{" "}
         {t("blockingPage.onlyAllowedPrefix", "To let in only people you have listed, use")}{" "}
         <Link
           to="/whitelist"
@@ -150,6 +148,16 @@ export function BlockingView({
           {t("customerItem.whitelist", "Only Allowed")}
         </Link>
         .
+      </p>
+      <p className="max-w-3xl text-sm text-muted-foreground">
+        {t("blockWebsites.guestsMovedPrefix", "Blocking guests or devices?")}{" "}
+        <Link
+          to="/policies"
+          search={{ tab: "guests" }}
+          className="font-medium text-primary underline-offset-4 hover:underline"
+        >
+          {t("blockWebsites.guestsMovedLink", "Access Rules → Guests & devices")}
+        </Link>
       </p>
 
       <Tabs value={tab} onValueChange={selectTab}>
@@ -181,10 +189,8 @@ export function BlockingView({
                   venueName={activeLocation?.name ?? null}
                   vendor={controllerVendor}
                 />
-              ) : o.id === "websites" ? (
-                <WebsitesTab locationId={locationId} />
               ) : (
-                <BlockUsers locationId={locationId} />
+                <WebsitesTab locationId={locationId} />
               )}
             </TabsContent>
           );

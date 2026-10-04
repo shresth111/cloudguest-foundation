@@ -302,16 +302,22 @@ check(
   navItemAllowed("admin-logs", new Set(["audit_logs.read"])) &&
     !navItemAllowed("admin-logs", new Set(["admin_logs.read"])),
 );
-// Website Blocking moved into Security -> Blocking with the Blocked Guests
-// screen. The row is offered on EITHER domain's read key -- each tab is a
-// page worth opening alone -- and on neither key it is not offered at all.
+// Website Blocking moved into Security -> Block Websites. The row is offered
+// on content_filtering.read, and on an unrelated key it is not offered at all.
 check(
   "blocking is offered on content_filtering.read (the Websites tab)",
   navItemAllowed("blocking", new Set(["content_filtering.read"])),
 );
+// Guests & devices moved to Access Rules (2026-10-04): its key moved with it.
 check(
-  "blocking is offered on guest_access.read (the Guests tab)",
-  navItemAllowed("blocking", new Set(["guest_access.read"])),
+  "blocking is no longer offered on guest_access.read alone (Guests & devices left it)",
+  !navItemAllowed("blocking", new Set(["guest_access.read"])),
+);
+check(
+  "Access Rules is offered on policy.read or on guest_access.read (its Guests & devices tab)",
+  navItemAllowed("policies", new Set(["policy.read"])) &&
+    navItemAllowed("policies", new Set(["guest_access.read"])) &&
+    !navItemAllowed("policies", new Set(["content_filtering.read", "security.read"])),
 );
 check(
   "blocking is not offered on an unrelated key",

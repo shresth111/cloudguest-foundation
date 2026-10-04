@@ -133,31 +133,36 @@ check(
 );
 
 // ---------------------------------------------------------------------------
-// 1b. BLOCKED GUESTS and WEBSITE BLOCKING -- one home, Security -> Blocking
+// 1b. GUESTS & DEVICES -- one home, Access Rules; WEBSITE BLOCKING -- one
+// home, Security -> Block Websites
 //
-// Both moved into the same page so that everything a venue can block is in
-// one place. Moved, not copied: the page mounts the same two components, and
-// the places they came from stop mounting them.
+// Guests & devices (`BlockUsers`) sat beside website blocking for a while;
+// the owner moved it back under Access Rules, right after Access Tiers
+// (2026-10-04, lib/access-rules-tabs.ts). Moved, not copied: Access Rules
+// mounts it, and Block Websites stops mounting it.
 // ---------------------------------------------------------------------------
-console.log("\nBlocked Guests and Website Blocking");
+console.log("\nGuests & devices and Website Blocking");
 
 const blockingView = readCode("src/components/security/BlockingView.tsx");
-check("Security -> Blocking mounts BlockUsers", /<BlockUsers\b/.test(blockingView));
+check(
+  "Security -> Block Websites no longer mounts BlockUsers",
+  !/<BlockUsers\b/.test(blockingView) && !/^import\s+BlockUsers\b/m.test(blockingView),
+);
 check(
   "Security -> Blocking mounts the content-filter screen",
   /<ContentFilterManagement\b/.test(blockingView),
 );
 check(
-  "Access Rules no longer mounts BlockUsers",
-  !/<BlockUsers\b/.test(hub),
-  "PoliciesHub still renders <BlockUsers>",
+  "Access Rules mounts BlockUsers, with the venue's locationId",
+  /<BlockUsers locationId=\{locationId\} \/>/.test(hub),
 );
 check(
-  "Access Rules no longer imports BlockUsers",
-  !/^import\s+BlockUsers\b/m.test(hub),
-  "dead import left behind",
+  "Access Rules' Guests & devices tab comes right after Access Tiers",
+  (() => {
+    const ids = [...hub.matchAll(/id:\s*"(location|group|guests)"/g)].map((m) => m[1]);
+    return ids.join(",") === "location,group,guests";
+  })(),
 );
-check("Access Rules has no block tab left in ACCESS_TABS", !/id:\s*"block"/.test(hub));
 const customerShell = readCode("src/components/customer/CustomerFeaturePage.tsx");
 check(
   "the customer shell no longer mounts Website Blocking as its own page",
@@ -173,11 +178,11 @@ check(
   /case "blocking":\s*return <BlockingView\b/.test(customerFeatures),
 );
 check(
-  "nothing else mounts BlockUsers",
+  "nothing but Access Rules mounts BlockUsers",
   [
     "src/config/customerFeatures.tsx",
     "src/components/customer/CustomerFeaturePage.tsx",
-    POLICIES_HUB,
+    "src/components/security/BlockingView.tsx",
   ].every((rel) => !/<BlockUsers\b/.test(readCode(rel))),
 );
 

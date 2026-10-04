@@ -359,8 +359,8 @@ const networkIds = (m.CUSTOMER_NAV_GROUPS.find((g) => g.id === "network")?.items
 const tabGatedIds = m.BLOCKING_TABS.map((t) => t.controllerGatedAs).filter(Boolean);
 // The one gated row outside Network, named rather than inferred: Security ->
 // Firewall is a whole page that writes RouterOS and nothing else, so greying
-// the whole row at a controller-only venue is right for it (unlike Blocking,
-// whose Guests tab works there).
+// the whole row at a controller-only venue is right for it (Blocking gates
+// its one Websites tab in-page instead).
 const securityIds = (m.CUSTOMER_NAV_GROUPS.find((g) => g.id === "security")?.items ?? []).map(
   (i) => i.id,
 );
@@ -411,17 +411,18 @@ console.log("\nSecurity -> Blocking gates one tab, not the page");
 check(
   "the-blocking-page-itself-is-not-gated",
   m.featureAppliesToControllerVenue("blocking") === true,
-  "its Guests tab works at an Omada venue -- greying the row would hide it",
+  "the page gates its Websites tab with the existing notice; the row stays as it was",
 );
+// Guests & devices moved to Access Rules (2026-10-04, lib/access-rules-tabs.ts;
+// covered by scripts/test-access-rules-guests-tab.mjs). Block Websites is one tab.
 check(
-  "the-guests-tab-is-never-controller-gated",
-  m.BLOCKING_TABS.find((t) => t.id === "guests")?.controllerGatedAs === null,
-  "BlockUsers already reaches the controller with its own client block",
+  "guests-and-devices-is-no-longer-a-blocking-tab",
+  m.BLOCKING_TABS.map((t) => t.id).join(",") === "websites",
 );
 const everyTab = m.blockingTabsFor(null);
 check(
-  "a-controller-venue-opens-on-the-tab-that-works",
-  m.initialBlockingTab(undefined, everyTab, true) === "guests",
+  "a-controller-venue-opens-on-websites-which-shows-the-notice",
+  m.initialBlockingTab(undefined, everyTab, true) === "websites",
 );
 check(
   "a-mikrotik-venue-opens-on-websites",
@@ -434,24 +435,21 @@ check(
 );
 check(
   "an-unknown-tab-in-the-url-falls-back-rather-than-breaking",
-  m.initialBlockingTab("firewall", everyTab, false) === "websites",
+  m.initialBlockingTab("firewall", everyTab, false) === "websites" &&
+    m.initialBlockingTab("guests", everyTab, false) === "websites",
 );
 check(
   "tabs-fail-open-on-a-non-answer",
-  m.blockingTabsFor(null).length === 2 &&
-    m.blockingTabsFor(undefined).length === 2 &&
-    m.blockingTabsFor([]).length === 2,
+  m.blockingTabsFor(null).length === 1 &&
+    m.blockingTabsFor(undefined).length === 1 &&
+    m.blockingTabsFor([]).length === 1,
 );
 check(
-  "a-real-grant-set-narrows-the-tabs",
+  "a-real-grant-set-keeps-the-websites-tab",
   m
-    .blockingTabsFor(["guest_access.read"])
+    .blockingTabsFor(["content_filtering.read"])
     .map((t) => t.id)
-    .join(",") === "guests",
-);
-check(
-  "a-tab-that-is-not-offered-cannot-be-deep-linked-into",
-  m.initialBlockingTab("websites", m.blockingTabsFor(["guest_access.read"]), false) === "guests",
+    .join(",") === "websites",
 );
 
 // ---------------------------------------------------------------------------

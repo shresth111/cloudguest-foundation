@@ -290,7 +290,7 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
               {feature === "campaigns" && <CampaignsPage locationId={locationId} />}
               {feature === "portal" && <PortalPage locationId={locationId} />}
               {feature === "vouchers" && <VouchersPage locationId={locationId} />}
-              {feature === "policies" && <PoliciesHub locationId={locationId} />}
+              {feature === "policies" && <PoliciesHub locationId={locationId} syncWithUrl />}
               {/* Guest Allow-list is live everywhere. At a NAS-only venue
                   (Aruba Instant On) it carries one caveat above it: rules are
                   decided at sign-in, and nothing can take an Instant On guest

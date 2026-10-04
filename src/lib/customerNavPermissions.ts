@@ -107,7 +107,11 @@ export const NAV_PERMISSION_KEYS: Record<string, readonly string[]> = {
   // locked org's owner still sees the row (with a lock badge) and the upsell.
   marketing: ["marketing.read"],
   // Access & Policy
-  policies: ["policy.read"],
+  // Access Rules also carries Guests & devices (lib/access-rules-tabs.ts),
+  // read under `guest_access.read` -- the key that tab was offered on when it
+  // sat under Block Websites. Either key is a page worth opening, and the page
+  // narrows its own tabs by the same keys (`accessRulesTabsFor`).
+  policies: ["policy.read", "guest_access.read"],
   whitelist: ["guest_access.read"],
   "mac-auth": ["mac_authorization.read"],
   // Open Hours is a captive-portal config surface -- it reads and writes
@@ -133,13 +137,11 @@ export const NAV_PERMISSION_KEYS: Record<string, readonly string[]> = {
   // exactly what `scripts/test-customer-nav-permissions.mjs` is there to
   // catch, since a key nobody seeds hides the row from everyone.
   security: ["security.read"],
-  // Blocking is two screens that moved here (lib/blocking.ts), each guarded
-  // by its own domain: `/content-filter/rules` by `content_filtering.read`,
-  // `/guest-access/rules` by `guest_access.read`. Either one is a page worth
-  // opening, so either one offers the row -- requiring both would hide a
-  // working tab from a role that only holds the other. The page narrows its
-  // own tabs by the same keys (`blockingTabsFor`).
-  blocking: ["content_filtering.read", "guest_access.read"],
+  // Block Websites is websites only now (lib/blocking.ts): its reads are
+  // `/content-filter/rules` and `/dns-filtering/*`, both guarded by
+  // `content_filtering.read`. `guest_access.read` moved to `policies` above
+  // together with the Guests & devices tab it guarded.
+  blocking: ["content_filtering.read"],
   // Security -> Firewall reads `/firewall-rules` (`firewall.read`); Apply is
   // `firewall.execute`, which the backend checks on the push itself. Same
   // module Port Forwarding is guarded by -- there is one FIREWALL module.
