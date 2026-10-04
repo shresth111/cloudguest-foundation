@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
+import { nasOnlyDeviceRefusalMessage } from "@/lib/nas-only-device";
 import {
   Activity,
   AlertTriangle,
@@ -524,7 +525,12 @@ function ConnectedDevicesTab({ routerId }: { routerId: string }) {
       await action;
       toast.success(label);
     } catch (err) {
-      toast.error((err as unknown as AppError).message || `Failed to ${label.toLowerCase()}`);
+      // P1-H: an Aruba Instant On row answers 409 NAS_ONLY_DEVICE (BE #360);
+      // say where it is managed. Any other error: the old toast, unchanged.
+      toast.error(
+        nasOnlyDeviceRefusalMessage(err) ??
+          ((err as unknown as AppError).message || `Failed to ${label.toLowerCase()}`),
+      );
     }
   }
 
