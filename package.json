@@ -117,6 +117,7 @@
     "test:aruba-access-rules": "node scripts/test-aruba-access-rules.mjs",
     "test:aruba-ssid-tiers": "node scripts/test-aruba-ssid-tiers.mjs",
     "test:access-tiers-aruba": "node scripts/test-access-tiers-aruba.mjs",
+    "test:aruba-customer-dashboard": "node scripts/test-aruba-customer-dashboard.mjs",
     "test:aruba-access-points": "node scripts/test-aruba-access-points.mjs",
     "test:omada-client-controls": "node scripts/test-omada-client-controls.mjs",
     "test:omada-client-actions": "node scripts/test-omada-client-actions.mjs",
