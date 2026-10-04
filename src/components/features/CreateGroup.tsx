@@ -28,6 +28,24 @@ import { useClientControls } from "@/hooks/useClientControls";
 import { ControllerControlNotice } from "@/components/customer/ControllerControlNotice";
 import { isNasOnlyVendor } from "@/lib/router-vendors";
 import { heldKbpsFromLabel, nasOnlyLimitVerdict } from "@/lib/nas-only-access-rules";
+// Aruba Instant On venues only -- every use below is gated on `nasOnlyVenue`,
+// so MikroTik and Omada venues render and save exactly as before.
+import {
+  ARUBA_DAILY_VENUE_DEFAULT,
+  ARUBA_DATA_LIMIT_OFF,
+  ARUBA_UNLIMITED_DEVICES,
+  arubaDailyLimitLabel,
+  arubaDailyLimitMinutes,
+  ARUBA_TIER_APPLIES_TO,
+  ARUBA_TIER_RENAME_LOCKED,
+  ARUBA_TIER_SAVED,
+  arubaTierFormErrors,
+  arubaTierVerdict,
+  formatTierUsage,
+  tierUsage,
+  type TierAssignmentLike,
+} from "@/lib/access-tiers-aruba";
+import { ssidTiersService } from "@/services/ssid-tiers.service";
 // A group's "Devices Per User" field lives on a completely separate
 // PolicyType.DEVICE policy from its bandwidth policy -- real per-guest
 // device-count enforcement (guest/service.py's _resolve_device_limit) reads
@@ -49,6 +67,7 @@ import {
   latestVersion,
   deactivatePolicy,
   sessionPolicyRules,
+  listPolicyAssignments,
 } from "@/services/policy-engine";
 import { useCustomerStore } from "@/stores/customerStore";
 import type { Guest } from "@/types/guest";
@@ -353,6 +372,9 @@ interface Group {
   // Drives the "Mapped to N locations" column and seeds the "Map to
   // locations…" modal's checkboxes.
   mappedLocationIds: string[];
+  // Aruba Instant On venues only (undefined everywhere else): where the tier
+  // is used -- guests mapped into it, and the paid WiFi networks it unlocks.
+  usage?: { guestCount: number; ssids: string[] };
 }
 
 function Tooltip({ text }: { text: string }) {
@@ -509,7 +531,14 @@ const DEMO_GROUPS: Group[] = [
   },
 ];
 
-export default function CreateGroup({ locationId }: { locationId?: string } = {}) {
+export default function CreateGroup({
+  locationId,
+  onOpenSsidTiers,
+}: {
+  locationId?: string;
+  /** Aruba venues: jump to Guest WiFi Limits -> Speed tiers by WiFi network. */
+  onOpenSsidTiers?: () => void;
+} = {}) {
   // A tier's speed is the one field on this form whose reach depends on the
   // venue's hardware -- everything else a tier carries (how long, how many
   // devices, the daily limit, who is in it) is platform-side and works
@@ -530,6 +559,16 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   // `available`/false at every other vendor, so nothing changes there.
   const nasOnlyVenue = isNasOnlyVendor(clientControls.vendor);
   const tierIdleTimeoutVerdict = nasOnlyLimitVerdict("idle-timeout", clientControls.vendor);
+  // Aruba-only verdicts. At an Instant On venue the tier's speed note points
+  // at Speed tiers by WiFi network (unless a Wyfy gateway applies it), and the
+  // data limit / daily limit / login hours say what the venue really does.
+  const arubaSpeedVerdict = arubaTierVerdict(
+    "tier-speed",
+    tierSpeedVerdict.availability === "qualified",
+  );
+  const arubaDataLimitVerdict = arubaTierVerdict("tier-data-limit", null);
+  const arubaDailyLimitVerdict = arubaTierVerdict("tier-daily-limit", null);
+  const arubaLoginHoursVerdict = arubaTierVerdict("tier-login-hours", null);
   const demo = useIsDemo();
   const [groups, setGroups] = useState<Group[]>(demo ? DEMO_GROUPS : []);
   const [orgId, setOrgId] = useState<string | null>(null);
@@ -553,6 +592,12 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   // as deviceRealIds above. This is the policy the guest login path actually
   // resolves for a session timeout -- see the handleCreate block below.
   const [sessionRealIds, setSessionRealIds] = useState<Record<string, string>>({});
+  // Aruba venues only: list load state (the list used to read "No tiers yet"
+  // while loading and after a failed load), a retry key, and tiers created
+  // this visit, kept visible under "This location" until mapped.
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
+  const [reloadKey, setReloadKey] = useState(0);
+  const [recentIds, setRecentIds] = useState<Set<string>>(new Set());
 
   // Every location on this account. Lived further down beside
   // `mapModalLock` until the load effect below needed it: that effect's
@@ -579,15 +624,29 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
 
   useEffect(() => {
     if (demo) return;
+    // Two loads can overlap (the location list and the venue's vendor both
+    // arrive after the first one starts); only the latest may write state, or
+    // a slower first load could put location-named policies back in the list.
+    let cancelled = false;
+    setLoadState("loading");
     (async () => {
       try {
         const org = await resolveOrgId();
+        if (cancelled) return;
         setOrgId(org);
-        const [real, deviceDetailsAll, sessionDetailsAll] = await Promise.all([
+        const [real, deviceDetailsAll, sessionDetailsAll, ssidRows] = await Promise.all([
           bandwidthPolicyService.list(org),
           listPolicyDetails("device", org).catch(() => []),
           listPolicyDetails("session", org).catch(() => []),
+          // Aruba venues only -- no new request at any other vendor.
+          nasOnlyVenue && locationId
+            ? ssidTiersService
+                .list(locationId)
+                .then((v) => v.items)
+                .catch(() => [])
+            : Promise.resolve([]),
         ]);
+        if (cancelled) return;
         // Backend's GET /policies has no is_active filter -- it returns
         // deactivated (deleted) policies right alongside active ones, so a
         // group removed via handleDelete's deactivatePolicy() call would
@@ -641,8 +700,27 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           active.map(async (p) => {
             let mappedAssignmentId: string | null = null;
             let mappedLocationIds: string[] = [];
+            let usage: Group["usage"];
             try {
-              const mappings = await bandwidthPolicyService.listLocationMappings(p.id, org);
+              let mappings: { assignmentId: string; locationId: string }[];
+              if (nasOnlyVenue) {
+                // Same request listLocationMappings makes, read once for the
+                // locations AND the guest count.
+                const assignments = await listPolicyAssignments(p.id, org);
+                mappings = assignments
+                  .filter(
+                    (a) =>
+                      a.is_active &&
+                      a.scope_type === "location" &&
+                      a.target_type === "none" &&
+                      a.scope_id,
+                  )
+                  .map((a) => ({ assignmentId: a.id, locationId: a.scope_id as string }));
+                const u = tierUsage(assignments as TierAssignmentLike[], ssidRows, p.id);
+                usage = { guestCount: u.guestCount, ssids: u.ssids };
+              } else {
+                mappings = await bandwidthPolicyService.listLocationMappings(p.id, org);
+              }
               mappedLocationIds = mappings.map((m) => m.locationId);
               if (locationId) {
                 mappedAssignmentId =
@@ -664,7 +742,9 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                 ? deviceMax >= UNLIMITED_DEVICES_SENTINEL
                   ? "Unlimited"
                   : String(deviceMax)
-                : labelFromMinutes(p.devicesPerUser, DEVICES_COUNT, "");
+                : nasOnlyVenue && (p.devicesPerUser ?? 0) >= ARUBA_UNLIMITED_DEVICES
+                  ? "Unlimited"
+                  : labelFromMinutes(p.devicesPerUser, DEVICES_COUNT, "");
             return {
               id: p.id,
               name: p.name,
@@ -689,21 +769,33 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                 DEFAULT_IDLE_TIMEOUT_LABEL,
               ),
               devicesPerUser,
-              dailyLimit: labelFromMinutes(p.dailyLimitMinutes, DAILY_LIMIT_MINUTES, "No Limit"),
+              // Aruba: null = the venue's limit applies, 0 = no limit (the
+              // tier contract); every other vendor reads as before.
+              dailyLimit: nasOnlyVenue
+                ? arubaDailyLimitLabel(p.dailyLimitMinutes, DAILY_LIMIT_MINUTES)
+                : labelFromMinutes(p.dailyLimitMinutes, DAILY_LIMIT_MINUTES, "No Limit"),
               loginHours: p.loginHours ?? null,
               dataLimit: p.dataLimit ?? null,
               members: 0,
               mappedAssignmentId,
               mappedLocationIds,
+              usage,
             };
           }),
         );
+        if (cancelled) return;
         setGroups(withMapping);
+        setLoadState("ready");
       } catch {
-        // Leave groups empty -- the "no groups yet" state is accurate.
+        // Leave groups empty -- the "no groups yet" state is accurate at
+        // MikroTik/Omada (unchanged); an Aruba venue shows the error + retry.
+        if (!cancelled) setLoadState("error");
       }
     })();
-  }, [demo, locationId, locationNames]);
+    return () => {
+      cancelled = true;
+    };
+  }, [demo, locationId, locationNames, nasOnlyVenue, reloadKey]);
 
   const [name, setName] = useState("");
   const [bw, setBw] = useState("");
@@ -711,6 +803,13 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   const [it, setIt] = useState(DEFAULT_IDLE_TIMEOUT_LABEL);
   const [dp, setDp] = useState(DEFAULT_DEVICES_LABEL);
   const [dl, setDl] = useState("No Limit");
+  // Aruba: a new tier starts on "the venue's limit applies", not "No Limit"
+  // (which now LIFTS the venue cap). The vendor arrives after first render.
+  useEffect(() => {
+    if (nasOnlyVenue && !editingIdRef.current) {
+      setDl((cur) => (cur === "No Limit" ? ARUBA_DAILY_VENUE_DEFAULT : cur));
+    }
+  }, [nasOnlyVenue]);
   const [loginOn, setLoginOn] = useState(false);
   const [loginDays, setLoginDays] = useState<string[]>(
     ["Mon", "Tue", "Wed", "Thu", "Fri", "Mon", "Tue", "Wed", "Thu", "Fri"].slice(0, 5),
@@ -767,6 +866,8 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   // already branches create-vs-update on `input.id`, so this only needs
   // to track which group is being edited).
   const [editingId, setEditingId] = useState<string | null>(null);
+  const editingIdRef = useRef<string | null>(null);
+  editingIdRef.current = editingId;
 
   const toggleDay = (d: string) =>
     setLoginDays((p) =>
@@ -788,7 +889,52 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
     });
   };
 
+  // Aruba venues: errors are derived from the current values on every render
+  // once Save has been tried, so a message goes away the moment it is fixed.
+  const [arubaShowErrs, setArubaShowErrs] = useState(false);
+  const editingGroup = editingId ? groups.find((g) => g.id === editingId) : undefined;
+  const arubaErrs = useMemo(() => {
+    if (!nasOnlyVenue) return {};
+    const e = arubaTierFormErrors({
+      name,
+      otherNames: groups.filter((g) => g.id !== editingId).map((g) => g.name.toLowerCase()),
+      sessionTimeout: st,
+      idleTimeout: it,
+      devicesPerUser: dp,
+      dataLimitOn: dlOpen,
+      dataQuota: dlQuota,
+      loginHoursOn: loginOn,
+      loginDays,
+      loginFrom,
+      loginTo,
+    });
+    // Hybrid venue (Wyfy gateway applies speed): the select is live, so required.
+    if (tierSpeedUsable && !bw) e.bw = "Required.";
+    return e;
+  }, [
+    nasOnlyVenue,
+    name,
+    groups,
+    editingId,
+    st,
+    it,
+    dp,
+    dlOpen,
+    dlQuota,
+    tierSpeedUsable,
+    bw,
+    loginOn,
+    loginDays,
+    loginFrom,
+    loginTo,
+  ]);
+  const shownErrs: Record<string, string> = nasOnlyVenue ? (arubaShowErrs ? arubaErrs : {}) : errs;
+
   const validate = (): boolean => {
+    if (nasOnlyVenue) {
+      setArubaShowErrs(true);
+      return Object.keys(arubaErrs).length === 0;
+    }
     const e: Record<string, string> = {};
     if (!name) e.name = "Required.";
     else if (groups.some((g) => g.id !== editingId && g.name.toLowerCase() === name.toLowerCase()))
@@ -823,7 +969,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
     setSt(DEFAULT_SESSION_TIMEOUT_LABEL);
     setIt(DEFAULT_IDLE_TIMEOUT_LABEL);
     setDp(DEFAULT_DEVICES_LABEL);
-    setDl("No Limit");
+    setDl(nasOnlyVenue ? ARUBA_DAILY_VENUE_DEFAULT : "No Limit");
     setLoginOn(false);
     setLoginDays(["Mon", "Tue", "Wed", "Thu", "Fri"]);
     setLoginFrom("09:00");
@@ -831,6 +977,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
     setDlOpen(false);
     setDlQuota("");
     setEditingId(null);
+    setArubaShowErrs(false);
   };
 
   const handleCreate = async () => {
@@ -908,10 +1055,12 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       // saves exactly as before.
       // A hybrid Aruba venue (Wyfy MikroTik gateway applies speed per guest)
       // has a LIVE select, so it saves the chosen rate like any other venue.
-      const rateKbps =
-        nasOnlyVenue && !tierSpeedUsable
-          ? heldKbpsFromLabel(bw, BANDWIDTH_KBPS)
-          : (BANDWIDTH_KBPS[bw] ?? 0);
+      // heldKbpsFromLabel returns the picker's own value for a picker label,
+      // so a hybrid venue's live select still saves the choice -- and an
+      // off-picker rate ("5120 Kbps") is kept instead of becoming 0.
+      const rateKbps = nasOnlyVenue
+        ? heldKbpsFromLabel(bw, BANDWIDTH_KBPS)
+        : (BANDWIDTH_KBPS[bw] ?? 0);
       const saved = await bandwidthPolicyService.save(
         {
           id: editingId ?? undefined,
@@ -921,8 +1070,15 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           uploadRateKbps: rateKbps,
           sessionTimeoutMinutes: SESSION_TIMEOUT_MINUTES[st] ?? null,
           idleTimeoutMinutes: IDLE_TIMEOUT_MINUTES[it] ?? null,
-          devicesPerUser: DEVICES_COUNT[dp] ?? null,
-          dailyLimitMinutes: DAILY_LIMIT_MINUTES[dl] ?? null,
+          // Aruba: "Unlimited" must be explicit (9999) and "No Limit" is 0 --
+          // null means "the venue's limit applies" (ACCESS_TIERS.md §2).
+          devicesPerUser:
+            nasOnlyVenue && dp === "Unlimited"
+              ? ARUBA_UNLIMITED_DEVICES
+              : (DEVICES_COUNT[dp] ?? null),
+          dailyLimitMinutes: nasOnlyVenue
+            ? arubaDailyLimitMinutes(dl, DAILY_LIMIT_MINUTES)
+            : (DAILY_LIMIT_MINUTES[dl] ?? null),
           loginHours,
           dataLimit,
         },
@@ -1067,6 +1223,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           ),
         );
       } else {
+        if (nasOnlyVenue) setRecentIds((prev) => new Set(prev).add(saved.id));
         setGroups((prev) => [
           {
             id: saved.id,
@@ -1081,6 +1238,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
             members: 0,
             mappedAssignmentId: null,
             mappedLocationIds: [],
+            ...(nasOnlyVenue ? { usage: { guestCount: 0, ssids: [] } } : {}),
           },
           ...prev,
         ]);
@@ -1088,7 +1246,9 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       setStep1Done(true);
       setPage(0);
       resetForm();
-      setToast(isEdit ? "Access tier updated." : "Access tier created.");
+      setToast(
+        nasOnlyVenue ? ARUBA_TIER_SAVED : isEdit ? "Access tier updated." : "Access tier created.",
+      );
       setTimeout(() => setToast(null), 3500);
     } catch {
       setToast(
@@ -1108,6 +1268,9 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       const groupName = groups.find((g) => g.id === id)?.name;
       setGroups((p) => p.filter((g) => g.id !== id));
       setConfirmingId(null);
+      // Aruba venues: deleting the tier being edited must not leave its form
+      // open, where Save would write a new version onto a deactivated policy.
+      if (nasOnlyVenue && editingId === id) resetForm();
       if (confirmTimer.current) clearTimeout(confirmTimer.current);
       if (!demo) {
         bandwidthPolicyService.remove(id, orgId ?? undefined).catch(() => {
@@ -1471,6 +1634,19 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
     },
   ];
 
+  // Aruba venues: keep the "Used by" guest count in step with Map users,
+  // instead of until the next reload. A no-op at every other vendor.
+  const bumpGuestCount = (tierId: string, delta: number) => {
+    if (!nasOnlyVenue) return;
+    setGroups((prev) =>
+      prev.map((x) =>
+        x.id === tierId && x.usage
+          ? { ...x, usage: { ...x.usage, guestCount: Math.max(0, x.usage.guestCount + delta) } }
+          : x,
+      ),
+    );
+  };
+
   const openUsersModal = async (g: Group) => {
     setUsersModalGroup(g);
     setGuestSearch("");
@@ -1622,6 +1798,8 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
             assignmentId,
           },
         }));
+        if (!mappedGuests.some((m) => m.guestId === guest.id))
+          bumpGuestCount(usersModalGroup.id, 1);
       }
       setStep3Done(true);
       setToast(`${guest.displayName ?? guest.identifier} mapped into ${usersModalGroup.name}.`);
@@ -1701,6 +1879,8 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           assignmentId,
         },
       }));
+      bumpGuestCount(other.policyId, -1);
+      bumpGuestCount(usersModalGroup.id, 1);
       setStep3Done(true);
       setToast(
         `${guest.displayName ?? guest.identifier} moved from ${other.policyName} to ${usersModalGroup.name}.`,
@@ -1747,6 +1927,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       }
       setMappedGuests((p) => p.filter((m) => m.guestId !== mapping.guestId));
       setGuestCurrentGroups((p) => ({ ...p, [mapping.guestId]: null }));
+      if (!demo) bumpGuestCount(usersModalGroup.id, -1);
       setToast(`${mapping.label} unmapped from ${usersModalGroup.name}.`);
       setTimeout(() => setToast(null), 2500);
     } catch {
@@ -1814,15 +1995,20 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       setDlOpen(false);
     }
     setErrs({});
+    setArubaShowErrs(false);
     document.getElementById("create-group-form")?.scrollIntoView({ behavior: "smooth" });
   };
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
+    // Aruba venues: a tier created this visit stays listed under "This
+    // location" (marked "Not used here yet") instead of vanishing on Create.
     const scoped =
-      !showAllGroups && locationId ? groups.filter((g) => g.mappedAssignmentId) : groups;
+      !showAllGroups && locationId
+        ? groups.filter((g) => g.mappedAssignmentId || (nasOnlyVenue && recentIds.has(g.id)))
+        : groups;
     return scoped.filter((g) => !q || g.name.toLowerCase().includes(q) || g.bandwidth.includes(q));
-  }, [groups, search, showAllGroups, locationId]);
+  }, [groups, search, showAllGroups, locationId, nasOnlyVenue, recentIds]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages - 1);
   const paged = filtered.slice(safePage * pageSize, (safePage + 1) * pageSize);
@@ -1929,6 +2115,14 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                 Members of this tier get its bandwidth, timeout, and access settings instead of the
                 location default.
               </p>
+              {nasOnlyVenue && (
+                <p
+                  className="mt-1 text-sm text-slate-500 dark:text-slate-400"
+                  data-testid="tier-applies-to"
+                >
+                  {ARUBA_TIER_APPLIES_TO}
+                </p>
+              )}
             </div>
             {editingId && (
               <button
@@ -1953,14 +2147,20 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
               type="text"
               placeholder="e.g. Staff, Long-stay guests"
               value={name}
+              // Aruba venues: the backend has no rename, and the tier's paired
+              // policies are found by name -- a "renamed" tier used to keep its
+              // old name on reload and orphan its paired device/session policies.
+              disabled={nasOnlyVenue && !!editingId}
               onChange={(e) => setField("name", e.target.value)}
-              className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-500"
+              className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-500"
             />
-            {errs.name ? (
-              <p className="mt-1 text-xs text-indigo-500">{errs.name}</p>
+            {shownErrs.name ? (
+              <p className="mt-1 text-xs text-indigo-500">{shownErrs.name}</p>
             ) : (
               <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
-                A short, recognizable name for this tier.
+                {nasOnlyVenue && editingId
+                  ? ARUBA_TIER_RENAME_LOCKED
+                  : "A short, recognizable name for this tier."}
               </p>
             )}
           </div>
@@ -1993,12 +2193,40 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                     disabled={!tierSpeedUsable}
                     value={bw}
                     onChange={(v) => setField("bw", v)}
-                    options={BANDWIDTH}
+                    options={
+                      // Aruba (hybrid gateway): keep an off-picker rate selectable
+                      // so the select shows what the tier really holds.
+                      nasOnlyVenue && bw && !BANDWIDTH.includes(bw) ? [bw, ...BANDWIDTH] : BANDWIDTH
+                    }
                     placeholder="Choose bandwidth"
                     caption="Maximum speed per device in this tier."
-                    err={errs.bw}
+                    err={shownErrs.bw}
                   />
-                  <ControllerControlNotice verdict={tierSpeedVerdict} />
+                  {nasOnlyVenue ? (
+                    <>
+                      <ControllerControlNotice verdict={arubaSpeedVerdict} />
+                      {editingGroup?.usage?.ssids.length ? (
+                        <p
+                          className="mt-1 text-xs text-slate-500 dark:text-slate-400"
+                          data-testid="tier-ssids"
+                        >
+                          Guests in this tier can join {editingGroup.usage.ssids.join(", ")}.
+                        </p>
+                      ) : null}
+                      {arubaSpeedVerdict.availability === "unavailable" && onOpenSsidTiers && (
+                        <button
+                          type="button"
+                          onClick={onOpenSsidTiers}
+                          data-testid="tier-open-ssid-tiers"
+                          className="mt-1 text-xs font-medium text-indigo-600 hover:underline focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-indigo-400"
+                        >
+                          Open Speed tiers by WiFi network &rarr;
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <ControllerControlNotice verdict={tierSpeedVerdict} />
+                  )}
                 </div>
                 <Select
                   id="g-dp"
@@ -2009,7 +2237,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                   options={DEVICES}
                   placeholder="Choose devices per user"
                   caption="How many devices one person can connect at the same time."
-                  err={errs.dp}
+                  err={shownErrs.dp}
                 />
               </div>
 
@@ -2029,6 +2257,12 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                 />
               </button>
 
+              {nasOnlyVenue && !dlOpen && (
+                <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                  {ARUBA_DATA_LIMIT_OFF}
+                </p>
+              )}
+              {nasOnlyVenue && <ControllerControlNotice verdict={arubaDataLimitVerdict} />}
               {dlOpen && (
                 <div id="dl-panel" className="mt-4 grid gap-4 sm:grid-cols-3">
                   <div>
@@ -2048,7 +2282,9 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                       onChange={(e) => setDlQuota(e.target.value)}
                       className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
                     />
-                    {errs.dlQuota && <p className="mt-1 text-xs text-indigo-500">{errs.dlQuota}</p>}
+                    {shownErrs.dlQuota && (
+                      <p className="mt-1 text-xs text-indigo-500">{shownErrs.dlQuota}</p>
+                    )}
                   </div>
                   <div>
                     <label
@@ -2111,7 +2347,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                     options={SESSION_TIMEOUT}
                     placeholder="Choose session timeout"
                     caption="Re-authenticate after this much time."
-                    err={errs.st}
+                    err={shownErrs.st}
                   />
                   <ControllerControlNotice verdict={tierSessionTimeoutVerdict} />
                 </div>
@@ -2125,7 +2361,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                     options={IDLE_TIMEOUT}
                     placeholder="Choose idle timeout"
                     caption="Disconnect after this much inactivity."
-                    err={errs.it}
+                    err={shownErrs.it}
                   />
                   <ControllerControlNotice verdict={tierIdleTimeoutVerdict} />
                 </div>
@@ -2134,10 +2370,26 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                   label="Maximum Daily Session Limit"
                   value={dl}
                   onChange={(v) => setField("dl", v)}
-                  options={DAILY_LIMIT}
+                  options={
+                    nasOnlyVenue
+                      ? [
+                          ARUBA_DAILY_VENUE_DEFAULT,
+                          ...DAILY_LIMIT,
+                          ...(dl && dl !== ARUBA_DAILY_VENUE_DEFAULT && !DAILY_LIMIT.includes(dl)
+                            ? [dl]
+                            : []),
+                        ]
+                      : DAILY_LIMIT
+                  }
                   placeholder="Choose daily limit"
                   caption="Total session time allowed per day."
                 />
+                {nasOnlyVenue && (
+                  <ControllerControlNotice
+                    verdict={arubaDailyLimitVerdict}
+                    className="sm:col-span-3"
+                  />
+                )}
               </div>
 
               <div className="mt-4 flex items-center justify-between rounded-md border border-dashed border-slate-300 px-3 py-2.5 dark:border-slate-600">
@@ -2155,6 +2407,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                   aria-label="Restrict login hours"
                 />
               </div>
+              {nasOnlyVenue && <ControllerControlNotice verdict={arubaLoginHoursVerdict} />}
 
               {loginOn && (
                 <div className="mt-3 space-y-3">
@@ -2169,7 +2422,9 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                       </button>
                     ))}
                   </div>
-                  {errs.loginDays && <p className="text-xs text-indigo-500">{errs.loginDays}</p>}
+                  {shownErrs.loginDays && (
+                    <p className="text-xs text-indigo-500">{shownErrs.loginDays}</p>
+                  )}
                   <div className="flex gap-3">
                     <div>
                       <label
@@ -2202,7 +2457,9 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                       />
                     </div>
                   </div>
-                  {errs.loginTo && <p className="text-xs text-indigo-500">{errs.loginTo}</p>}
+                  {shownErrs.loginTo && (
+                    <p className="text-xs text-indigo-500">{shownErrs.loginTo}</p>
+                  )}
                   <p className="text-xs text-slate-400 dark:text-slate-500">
                     Members can only get online during these hours.
                   </p>
@@ -2297,7 +2554,26 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
               </div>
             </div>
           </div>
-          {paged.length === 0 ? (
+          {nasOnlyVenue && !demo && loadState === "loading" && groups.length === 0 ? (
+            <div data-testid="tiers-loading">
+              <LoadingSkeleton rows={3} />
+            </div>
+          ) : nasOnlyVenue && !demo && loadState === "error" ? (
+            <div
+              role="alert"
+              data-testid="tiers-load-error"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200"
+            >
+              <span>Couldn&apos;t load this account&apos;s access tiers. Nothing was changed.</span>
+              <button
+                type="button"
+                onClick={() => setReloadKey((k) => k + 1)}
+                className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 dark:bg-white dark:text-slate-900"
+              >
+                Try again
+              </button>
+            </div>
+          ) : paged.length === 0 ? (
             <EmptyState
               icon={Network}
               title={
@@ -2328,7 +2604,9 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                     <TableHead className="text-xs font-medium">Devices</TableHead>
                     <TableHead className="text-xs font-medium">Login Hours</TableHead>
                     <TableHead className="text-xs font-medium">Data Limit</TableHead>
-                    <TableHead className="text-xs font-medium">Members</TableHead>
+                    <TableHead className="text-xs font-medium">
+                      {nasOnlyVenue ? "Used by" : "Members"}
+                    </TableHead>
                     <TableHead className="text-xs font-medium">Mapped to Location(s)</TableHead>
                     <TableHead className="text-xs font-medium">Guests</TableHead>
                     <TableHead className="text-right text-xs font-medium">Action</TableHead>
@@ -2337,14 +2615,26 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                 <TableBody>
                   {paged.map((g) => (
                     <TableRow key={g.id} className="border-b">
-                      <TableCell className="font-medium">{g.name}</TableCell>
+                      <TableCell className="font-medium">
+                        {g.name}
+                        {nasOnlyVenue &&
+                          locationId &&
+                          !g.mappedAssignmentId &&
+                          recentIds.has(g.id) && (
+                            <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-normal text-slate-500 dark:bg-slate-700 dark:text-slate-300">
+                              Not used here yet
+                            </span>
+                          )}
+                      </TableCell>
                       <TableCell>{g.bandwidth}</TableCell>
                       <TableCell>{g.sessionTimeout}</TableCell>
                       <TableCell>{g.idleTimeout}</TableCell>
                       <TableCell>{g.devicesPerUser}</TableCell>
                       <TableCell className="text-xs">
                         {g.loginHours ? (
-                          `${g.loginHours.days.slice(0, 3).join(", ")}${g.loginHours.days.length > 3 ? "…" : ""}, ${g.loginHours.from}–${g.loginHours.to}`
+                          <>
+                            {`${g.loginHours.days.slice(0, 3).join(", ")}${g.loginHours.days.length > 3 ? "…" : ""}, ${g.loginHours.from}–${g.loginHours.to}`}
+                          </>
                         ) : (
                           <span className="text-muted-foreground">Any time</span>
                         )}
@@ -2356,7 +2646,9 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                           <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                      <TableCell>{g.members}</TableCell>
+                      <TableCell className={nasOnlyVenue ? "text-xs" : undefined}>
+                        {nasOnlyVenue ? (g.usage ? formatTierUsage(g.usage) : "—") : g.members}
+                      </TableCell>
                       <TableCell>
                         <div className="flex flex-col items-start gap-1">
                           {/* Primary action -- the real many-to-many picture and

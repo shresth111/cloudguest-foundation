@@ -2221,6 +2221,19 @@ jobs:
             "aruba-ssid-tiers" 61 \
             "aruba ssid tiers: all checks passed" \
             bun run test:aruba-ssid-tiers
+      # Access Rules -> Access Tiers at an Aruba Instant On venue: the REAL
+      # CreateGroup in Chromium. Aruba: speed note points at Speed tiers by
+      # WiFi network, data/daily/login-hours notes, a save writes the tier
+      # BANDWIDTH rules (backend contract, no paired FUP) + held rate, live validation, "Used
+      # by" (guests + SSIDs). MikroTik and Omada: nothing changed -- no note,
+      # no SSID/assignments request, no FUP write. Floor 124, observed green at 124.
+      - name: aruba instant on access tiers
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "access-tiers-aruba" 124 \
+            "access tiers aruba: all checks passed" \
+            bun run test:access-tiers-aruba
+
       # The customer dashboard at an Aruba Instant On venue (DASHBOARD_PLAN
       # P0-C), in Chromium at a MikroTik, an Omada and an Aruba venue.
       # MikroTik/Omada FIRST: Internet Connection card, System/Routers/ISP
