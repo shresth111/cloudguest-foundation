@@ -2278,6 +2278,18 @@ jobs:
             "aruba-access-points" 77 \
             "aruba access points: all checks passed" \
             bun run test:aruba-access-points
+      # Security Score + Guest Connection Records wording at an Aruba Instant
+      # On venue (DASHBOARD_PLAN P2-M, P2-N). MikroTik/Omada FIRST: "No gateway
+      # is connected yet" and the WAN-address note kept, DOM + requests
+      # unchanged. Aruba: no "connect a gateway"; public IP "Not reported by
+      # Instant On"; unaccounted sessions "—" not 0 MB. Floor 22, observed 22
+      # (30 locally with BASELINE_ROOT).
+      - name: aruba instant on security and connection records copy
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "aruba-p2-copy" 22 \
+            "aruba p2 copy: all checks passed" \
+            bun run test:aruba-p2-copy
       # Live-session actions at an Aruba Instant On venue (DASHBOARD_PLAN
       # P0-D): customer Guests "Extend" and Fix-a-Problem "Reset this guest's
       # session" greyed with Disconnect's own sentence at Aruba only.
