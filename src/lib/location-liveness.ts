@@ -213,6 +213,12 @@ export interface RouterLiveness {
   /** The last completed scheduled sync, for the `{ago}` in D2's sentence.
    * Not a check-in and not comparable with `lastContactIso`. */
   controllerLastContactedAt?: string | null;
+  /**
+   * NAS-only rows (Aruba Instant On) only: the last RADIUS packet any of the
+   * venue's access points sent (backend `last_radius_at`, P1-E). Absent on
+   * every other vendor and on summaries persisted by an older build.
+   */
+  lastGuestActivityIso?: string | null;
 }
 
 export type LocationLivenessState =
@@ -244,6 +250,12 @@ export interface LocationLiveness {
    */
   routersOnline: number | null;
   routersTotal: number | null;
+  /**
+   * An all-NAS-only venue (Aruba Instant On) only: the newest `last_radius_at`
+   * of its rows -- the last time any of its access points sent us a guest
+   * sign-in or accounting packet. Absent everywhere else.
+   */
+  lastGuestActivityIso?: string | null;
 }
 
 /** The wire shape, straight off `/locations/{id}/routers`. */
@@ -299,6 +311,10 @@ export interface RawRouterLiveness {
    * a controller. */
   controller_last_contacted_at?: string | null;
   routeros_version?: string | null;
+  /** Backend P1-E: the last RADIUS packet from this row's access points. Set
+   * ONLY for NAS-only rows (Aruba Instant On); null/absent for every other
+   * vendor, and read only on the NAS-only branch. */
+  last_radius_at?: string | null;
   has_api_credentials?: boolean | null;
 }
 
@@ -353,6 +369,72 @@ const PASTE_THE_HEARTBEAT_BLOCK =
  * unknown, so a backend that grows a seventh `RouterStatus` value cannot
  * make an older frontend build render an unknown router as live.
  */
+
+/**
+ * How recent a RADIUS packet has to be for "Guest sign-ins working". An
+ * access point sends nothing while no guest is on it, so anything older is
+ * "no guest activity" -- a neutral fact, never "Offline" (PLAN P1-F).
+ */
+export const GUEST_ACTIVITY_RECENT_MINUTES = 60;
+
+/** "3h", "2 days" -- the length of a quiet spell. Exported for the tests. */
+export function quietSpell(minutes: number): string {
+  if (minutes < 60) return `${Math.max(1, Math.round(minutes))} min`;
+  const hours = minutes / 60;
+  if (hours < 24) return `${Math.round(hours)}h`;
+  const days = Math.round(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"}`;
+}
+
+/**
+ * The guest-activity line for an Aruba Instant On venue (PLAN P1-F), or null
+ * when there is no usable `last_radius_at` -- the caller then keeps the
+ * "Set up in Instant On" copy it always had.
+ */
+export function guestActivityCopy(
+  iso: string | null | undefined,
+  now: Date,
+): { label: string; sentence: string } | null {
+  const minutes = minutesSince(iso, now);
+  if (minutes === null) return null;
+  if (minutes < GUEST_ACTIVITY_RECENT_MINUTES) {
+    const ago = formatAgo(iso, now) ?? "just now";
+    return {
+      label: "Guest sign-ins working",
+      sentence: `Guest sign-ins working · last activity ${ago}`,
+    };
+  }
+  return {
+    label: "No recent guest activity",
+    sentence: `No guest activity for ${quietSpell(minutes)}`,
+  };
+}
+
+/**
+ * NAS-only rows only, and only at a venue where EVERY row is NAS-only (see
+ * `deriveLocationLiveness`): say what the access points' own RADIUS traffic
+ * tells us. Any other row -- and a NAS-only row without `last_radius_at` -- is
+ * returned untouched (the same object). Only the words change: `status` and
+ * `state` stay what they were, so no gate, counter or tone moves. A mixed
+ * venue and every per-router caller (`deriveRouterLiveness`) are unchanged.
+ */
+function withGuestActivity(
+  live: RouterLiveness,
+  raw: RawRouterLiveness,
+  now: Date,
+): RouterLiveness {
+  if (!isNasOnlyVendor(raw.vendor) || live.state !== "not-applicable") return live;
+  const iso = typeof raw.last_radius_at === "string" ? raw.last_radius_at : null;
+  const copy = guestActivityCopy(iso, now);
+  if (!copy) return live;
+  return {
+    ...live,
+    shortLabel: copy.label,
+    detail: `${controllerIdentitySentence(live.label, raw.vendor)} ${copy.sentence}.`,
+    lastGuestActivityIso: iso,
+  };
+}
+
 export function deriveRouterLiveness(raw: RawRouterLiveness, now: Date): RouterLiveness {
   const rawStatus = typeof raw.status === "string" ? raw.status : "";
   const lastSeenIso = typeof raw.last_seen_at === "string" ? raw.last_seen_at : null;
@@ -837,6 +919,24 @@ export function deriveLocationLiveness(
     // (PM_SPEC §2.3) instead of "Can't tell", and still never "Offline".
     // Any other mix keeps the branch below unchanged.
     if (derived.every((r) => r.state === "not-applicable" && isNasOnlyVendor(r.vendor))) {
+      // P1-F: the newest RADIUS packet from any of its access points, when
+      // the backend sent one. Still `unknown` (neutral tone): sign-ins are
+      // evidence the venue works, not a measurement of the access points.
+      const withActivity = derived.map((r, i) => withGuestActivity(r, routers[i], now));
+      const lastGuestActivityIso = newestIso(withActivity.map((r) => r.lastGuestActivityIso));
+      const activity = guestActivityCopy(lastGuestActivityIso, now);
+      if (activity) {
+        return {
+          state: "unknown",
+          label: activity.label,
+          summary: activity.sentence,
+          nextStep: CONTROLLER_STATE_NEXT_STEP.no_controller_api,
+          routers: withActivity,
+          routersOnline: null,
+          routersTotal: total,
+          lastGuestActivityIso,
+        };
+      }
       return {
         state: "unknown",
         label: CONTROLLER_STATE_COPY.no_controller_api.label,
@@ -873,6 +973,19 @@ export function deriveLocationLiveness(
     routersOnline: 0,
     routersTotal: total,
   };
+}
+
+function newestIso(values: (string | null | undefined)[]): string | null {
+  let best: string | null = null;
+  let bestMs = -Infinity;
+  for (const v of values) {
+    const ms = v ? Date.parse(v) : NaN;
+    if (!Number.isNaN(ms) && ms > bestMs) {
+      best = v as string;
+      bestMs = ms;
+    }
+  }
+  return best;
 }
 
 function pickSpokesperson(candidates: RouterLiveness[]): RouterLiveness {

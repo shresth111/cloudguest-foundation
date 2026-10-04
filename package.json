@@ -119,6 +119,7 @@
     "test:aruba-ssid-tiers": "node scripts/test-aruba-ssid-tiers.mjs",
     "test:access-tiers-aruba": "node scripts/test-access-tiers-aruba.mjs",
     "test:aruba-customer-dashboard": "node scripts/test-aruba-customer-dashboard.mjs",
+    "test:aruba-venue-snapshot": "node scripts/test-aruba-venue-snapshot.mjs",
     "test:aruba-access-points": "node scripts/test-aruba-access-points.mjs",
     "test:aruba-live-session-actions": "node scripts/test-aruba-live-session-actions.mjs",
     "test:omada-client-controls": "node scripts/test-omada-client-controls.mjs",

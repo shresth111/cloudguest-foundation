@@ -2252,13 +2252,27 @@ jobs:
       # MikroTik/Omada FIRST: Internet Connection card, System/Routers/ISP
       # strip and Uptime KPI all still there, no aruba-* element. Aruba: none
       # of those; guests online / last sign-in / sign-ins today from our own
-      # session records, "—" when that read failed. Floor 26, observed 26.
+      # session records, "—" when that read failed. P1-F: access-point count
+      # and last guest activity (`last_radius_at`) in the strip, "Guest
+      # sign-ins working" / "No guest activity for 3h", never Offline/Unknown.
+      # P1-J: a failed snapshot is re-read on load and a failed read never
+      # drops the Aruba gates; MikroTik/Omada make no extra routers read.
+      # Floor 52, observed 52 (60 locally with BASELINE_ROOT incl. request diff).
       - name: aruba instant on customer dashboard
         run: |
           ./scripts/ci-gated-test.sh \
-            "aruba-customer-dashboard" 26 \
+            "aruba-customer-dashboard" 52 \
             "aruba customer dashboard: all checks passed" \
             bun run test:aruba-customer-dashboard
+      # P1-F / P1-J pure halves: MikroTik/Omada/mixed verdicts byte-identical
+      # with a stray last_radius_at, activity copy thresholds, snapshot
+      # reconcile rules. Floor 84, observed 84.
+      - name: aruba instant on venue snapshot and activity
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "aruba-venue-snapshot" 84 \
+            "aruba venue snapshot: all checks passed" \
+            bun run test:aruba-venue-snapshot
 
       # Access points at an Aruba Instant On venue (DASHBOARD_PLAN P0-A3): the
       # REAL dashboard and Guests page in Chromium at a MikroTik, an Omada and
