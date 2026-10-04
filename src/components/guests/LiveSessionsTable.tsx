@@ -69,7 +69,6 @@ import type { GuestSession, GuestSessionStatus, SessionListQuery } from "@/types
 import type { AppError } from "@/services/api";
 import { GuestAuthMethodBadge, GuestPresenceBadge } from "./GuestBadges";
 import { GUEST_PRESENCE_LABEL, guestPresence } from "@/lib/guest-presence";
-import { type SessionEndAction, sessionEndToast } from "@/lib/live-session-actions";
 import { OmadaDisconnectDialog, OmadaDisconnectMenuItem } from "./OmadaSessionDisconnect";
 
 const PAGE_SIZES = [10, 20, 50];
@@ -188,24 +187,15 @@ export function LiveSessionsTable() {
     toast.success(`Exported ${rows.length} sessions`);
   }
 
-  // Disconnect / terminate / pause all end the device's live session, and
-  // each response says whether that happened (`disconnect_enforced`). At an
-  // Aruba Instant On venue a `false` is never a "disconnected" success
-  // (DASHBOARD_PLAN P0-D); every other case keeps the exact old toast.
-  async function withSessionEndToast(
-    action: () => Promise<{ sessionEnforced: boolean | null }>,
-    kind: SessionEndAction,
-    err: string,
-    routerId: string,
-  ) {
+  // `Promise<unknown>`, not `Promise<void>`: `terminateSession` now resolves
+  // with the backend's `disconnect_enforced` instead of discarding it, and
+  // this helper does not read any action's result -- it only needs to know
+  // whether one threw. Narrowing to void would force every caller that DOES
+  // return something to launder it through a wrapper lambda.
+  async function withReasonToast(action: () => Promise<unknown>, ok: string, err: string) {
     try {
-      const { sessionEnforced } = await action();
-      // The router's vendor is asked only after a `false`, and only an Aruba
-      // Instant On router changes the toast; MikroTik/Omada keep the old one.
-      const nasOnly = sessionEnforced === false && (await guestService.routerIsNasOnly(routerId));
-      const msg = sessionEndToast(kind, sessionEnforced, nasOnly);
-      if (msg.tone === "warning") toast.warning(msg.title, { description: msg.description });
-      else toast.success(msg.title);
+      await action();
+      toast.success(ok);
     } catch (e) {
       toast.error((e as AppError).message || err);
     }
@@ -387,15 +377,14 @@ export function LiveSessionsTable() {
                                     setReasonDialog({
                                       title: "Pause session",
                                       onConfirm: (reasonText) =>
-                                        withSessionEndToast(
+                                        withReasonToast(
                                           () =>
                                             pause.mutateAsync({
                                               sessionId: r.id,
                                               reason: reasonText,
                                             }),
-                                          "pause",
+                                          "Session paused",
                                           "Failed to pause session",
-                                          r.routerId,
                                         ),
                                     })
                                   }
@@ -429,15 +418,14 @@ export function LiveSessionsTable() {
                                     setReasonDialog({
                                       title: "Disconnect session",
                                       onConfirm: (reasonText) =>
-                                        withSessionEndToast(
+                                        withReasonToast(
                                           () =>
                                             disconnect.mutateAsync({
                                               sessionId: r.id,
                                               reason: reasonText,
                                             }),
-                                          "disconnect",
+                                          "Session disconnected",
                                           "Failed to disconnect",
-                                          r.routerId,
                                         ),
                                     })
                                   }
@@ -477,11 +465,10 @@ export function LiveSessionsTable() {
                                         "Ends this session now and blocks the dashboard's Reconnect for this guest for 60 minutes. It does not stop them signing in again on the WiFi login page.",
                                       destructive: true,
                                       onConfirm: () =>
-                                        withSessionEndToast(
+                                        withReasonToast(
                                           () => terminate.mutateAsync({ sessionId: r.id }),
-                                          "terminate",
+                                          "Session terminated",
                                           "Failed to terminate",
-                                          r.routerId,
                                         ),
                                     })
                                   }

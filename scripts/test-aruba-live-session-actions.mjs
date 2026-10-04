@@ -8,10 +8,7 @@
  *
  *   A. THE PURE HELPERS. `liveSessionActionGate` greys Disconnect, Extend and
  *      Reset only for a NAS-only vendor, with Disconnect's own U2 sentence;
- *      `sessionEndToast` never says "disconnected"/"terminated"/"paused" as a
- *      success when `disconnect_enforced` is false AT ARUBA, and keeps the
- *      exact old title everywhere else (MikroTik/Omada even when false --
- *      owner decision); `readDisconnectEnforced` reads both shapes.
+ *      `readDisconnectEnforced` reads both response shapes.
  *
  *   B. MIKROTIK AND OMADA ARE UNCHANGED. The real Guests page (table + the
  *      opened guest drawer) and the real Fix-a-Problem (after a guest lookup,
@@ -24,14 +21,13 @@
  *   C. ARUBA: EXTEND AND RESET ARE GREYED LIKE DISCONNECT. Disabled, with
  *      Disconnect's sentence, and pressing them sends nothing.
  *
- *   E. ADMIN LIVE SESSIONS: Disconnect / Pause / Terminate answering
- *      `disconnect_enforced: false` toast exactly as origin/staging does at
- *      MikroTik and Omada (diffed against BASELINE_ROOT when set), and say
- *      "records only / may still be online" at Aruba.
+ *   E. ADMIN LIVE SESSIONS ARE UNTOUCHED (owner: "MikroTik mat chhedo"):
+ *      Disconnect / Pause / Terminate answering `disconnect_enforced: false`
+ *      toast the old success title at EVERY vendor and make no extra request;
+ *      with BASELINE_ROOT both the toast and the request list are diffed.
  *
  *   D. THE SERVICES READ `disconnect_enforced` from disconnect, terminate and
- *      pause responses (envelope stripped or not), and the admin screens no
- *      longer toast a hard-coded success after them.
+ *      pause responses (envelope stripped or not).
  *
  * Harness: the same as `scripts/test-aruba-access-points.mjs` -- only
  * `@/services/api` (a recording fake) and the router are substituted.
@@ -94,7 +90,7 @@ await build({
 });
 const CC = await import(pathToFileURL(join(occDir, "cc.mjs")).href);
 
-console.log("\nA. liveSessionActionGate / sessionEndToast / readDisconnectEnforced");
+console.log("\nA. liveSessionActionGate / readDisconnectEnforced");
 const ACTIONS = ["disconnect", "extend", "reset-session"];
 for (const vendor of ["mikrotik", "MikroTik", "tplink_omada", null, undefined, ""]) {
   for (const action of ACTIONS) {
@@ -122,43 +118,6 @@ for (const vendor of ["aruba_instant_on", "Aruba_Instant_On"]) {
 }
 eq("the sentence is NAS_ONLY_DISCONNECT", disconnectReason, CC.NAS_ONLY_DISCONNECT);
 
-const OLD_TITLE = {
-  disconnect: "Session disconnected",
-  terminate: "Session terminated",
-  pause: "Session paused",
-};
-for (const action of ["disconnect", "terminate", "pause"]) {
-  // MikroTik / Omada / unidentified venue: the old success title, whatever
-  // came back -- including `false` (owner decision: Aruba only).
-  for (const enforced of [true, null, undefined, false]) {
-    const m = L.sessionEndToast(action, enforced, false);
-    check(
-      `${action} not NAS-only, enforced=${String(enforced)}: same success toast as before`,
-      m.tone === "success" && m.title === OLD_TITLE[action] && m.description === undefined,
-      JSON.stringify(m),
-    );
-  }
-  for (const enforced of [true, null, undefined]) {
-    const m = L.sessionEndToast(action, enforced, true);
-    check(
-      `${action} Aruba, enforced=${String(enforced)}: same success toast as before`,
-      m.tone === "success" && m.title === OLD_TITLE[action],
-      JSON.stringify(m),
-    );
-  }
-  const f = L.sessionEndToast(action, false, true);
-  check(`${action} Aruba enforced=false: a warning, not a success`, f.tone === "warning");
-  check(
-    `${action} Aruba enforced=false: never the old success title`,
-    f.title !== OLD_TITLE[action] && /records only/.test(f.title),
-    f.title,
-  );
-  check(
-    `${action} Aruba enforced=false: says the device may still be online`,
-    /may still be online/.test(f.description ?? ""),
-    f.description,
-  );
-}
 eq("read: bare true", L.readDisconnectEnforced({ disconnect_enforced: true }), true);
 eq("read: bare false", L.readDisconnectEnforced({ disconnect_enforced: false }), false);
 eq("read: bare null", L.readDisconnectEnforced({ disconnect_enforced: null }), null);
@@ -609,7 +568,7 @@ console.log("\nC. Aruba: Extend and Reset greyed like Disconnect");
   await done(r);
 }
 
-console.log("\nD. Services read disconnect_enforced; admin toasts go through the ladder");
+console.log("\nD. Services read disconnect_enforced");
 {
   const key = "head-svc";
   if (!dirs.has(key)) dirs.set(key, await bundleFor(ROOT, "mikrotik"));
@@ -626,29 +585,12 @@ console.log("\nD. Services read disconnect_enforced; admin toasts go through the
   }
   await page.close();
 }
-const stripComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-const live = stripComments(
-  readFileSync(join(ROOT, "src/components/guests/LiveSessionsTable.tsx"), "utf8"),
-);
-const detail = stripComments(
-  readFileSync(join(ROOT, "src/components/guests/GuestDetailTabs.tsx"), "utf8"),
-);
-for (const [name, src] of [
-  ["LiveSessionsTable", live],
-  ["GuestDetailTabs", detail],
-]) {
-  check(
-    `${name}: no hard-coded "Session disconnected/terminated/paused" success`,
-    !/toast\.success\("Session (disconnected|terminated|paused)"\)/.test(src) &&
-      !/"Session (disconnected|terminated|paused)",\s*"Failed/.test(src),
-  );
-  check(`${name}: toasts go through sessionEndToast`, /sessionEndToast\(/.test(src));
-}
-
-console.log("\nE. Admin Live Sessions toasts when disconnect_enforced is false");
-/** Run one session-ending action from the first row's menu; return the toast. */
+console.log("\nE. Admin Live Sessions: unchanged for every vendor, even when enforced=false");
+/** Run one session-ending action from the first row's menu; return the toast
+ * and every request made from the click on. */
 async function endSession(r, item) {
   const p = r.page;
+  const before = (await p.evaluate(() => window.__CALLS__)).length;
   await p.locator("tbody tr").first().locator("button").last().click();
   await p.getByRole("menuitem", { name: item, exact: true }).click();
   await p.waitForTimeout(300);
@@ -658,44 +600,42 @@ async function endSession(r, item) {
     .click();
   await p.waitForTimeout(1500);
   const toasts = await p.$$eval("[data-sonner-toast]", (els) => els.map((e) => e.innerText));
-  return toasts.join(" | ").trim();
+  const after = (await p.evaluate(() => window.__CALLS__)).slice(before);
+  return { toast: toasts.join(" | ").trim(), calls: after };
 }
 const ITEMS = [
-  ["Disconnect", "Session disconnected"],
-  ["Pause", "Session paused"],
-  ["Terminate", "Session terminated"],
+  ["Disconnect", "Session disconnected", "disconnect"],
+  ["Pause", "Session paused", "pause"],
+  ["Terminate", "Session terminated", "terminate"],
 ];
-for (const venue of ["mikrotik", "omada"]) {
-  for (const [item, title] of ITEMS) {
+for (const venue of ["mikrotik", "omada", "aruba"]) {
+  for (const [item, title, verb] of ITEMS) {
     const r = await render(ROOT, venue, "sessions");
     const got = await endSession(r, item);
-    check(`${venue} ${item} (enforced=false): toast unchanged, "${title}"`, got === title, got);
-    const calls = await r.page.evaluate(() => window.__CALLS__);
+    eq(`${venue} ${item} (enforced=false): toast is the old "${title}"`, got.toast, title);
     check(
-      `${venue} ${item}: the POST really answered enforced=false`,
-      calls.some((c) => c.method === "post" && /-false\/(disconnect|pause|terminate)$/.test(c.url)),
+      `${venue} ${item}: the POST answered enforced=false`,
+      got.calls.some((c) => c.method === "post" && c.url.endsWith(`-false/${verb}`)),
+      JSON.stringify(got.calls),
+    );
+    check(
+      `${venue} ${item}: no vendor lookup (no GET /routers/*)`,
+      !got.calls.some((c) => c.method === "get" && c.url.startsWith("/routers/")),
+      JSON.stringify(got.calls),
     );
     if (BASELINE_ROOT) {
       const b = await render(BASELINE_ROOT, venue, "sessions");
       const want = await endSession(b, item);
-      eq(`${venue} ${item}: toast identical to baseline`, got, want);
+      eq(`${venue} ${item}: toast identical to baseline`, got.toast, want.toast);
+      eq(
+        `${venue} ${item}: requests identical to baseline`,
+        JSON.stringify(got.calls),
+        JSON.stringify(want.calls),
+      );
       await done(b);
     }
     await done(r);
   }
-}
-for (const [item, title] of ITEMS) {
-  const r = await render(ROOT, "aruba", "sessions");
-  const got = await endSession(r, item);
-  check(
-    `aruba ${item} (enforced=false): never "${title}"`,
-    got !== "" &&
-      got.split("\n")[0] !== title &&
-      /records only/.test(got) &&
-      /may still be online/.test(got),
-    got,
-  );
-  await done(r);
 }
 
 await browser.close();

@@ -43,54 +43,6 @@ export function liveSessionActionGate(
   return { action, greyed: true, reason: NAS_ONLY_DISCONNECT };
 }
 
-/** The session-ending actions whose response carries `disconnect_enforced`. */
-export type SessionEndAction = "disconnect" | "terminate" | "pause";
-
-export interface SessionEndToast {
-  tone: "success" | "warning";
-  title: string;
-  description?: string;
-}
-
-const DONE: Record<SessionEndAction, string> = {
-  disconnect: "Session disconnected",
-  terminate: "Session terminated",
-  pause: "Session paused",
-};
-
-const RECORDS_ONLY: Record<SessionEndAction, string> = {
-  disconnect: "Session ended in Wyfy's records only",
-  terminate: "Session terminated in Wyfy's records only",
-  pause: "Session paused in Wyfy's records only",
-};
-
-/**
- * The toast after a disconnect / terminate / pause, from the backend's own
- * `disconnect_enforced` (tri-state, see `DisconnectOutcomeFacts`).
- *
- * ARUBA INSTANT ON ONLY (owner decision, P0-D): at a NAS-only venue `false`
- * is the guaranteed outcome -- nothing can reach the access point -- so it is
- * never a "disconnected" success there. Everywhere else (`nasOnly` false:
- * MikroTik, Omada, or a venue we could not identify) the toast is exactly the
- * success title these screens have always shown, whatever came back.
- */
-export function sessionEndToast(
-  action: SessionEndAction,
-  sessionEnforced: boolean | null | undefined,
-  nasOnly: boolean,
-): SessionEndToast {
-  if (nasOnly && sessionEnforced === false) {
-    return {
-      tone: "warning",
-      title: RECORDS_ONLY[action],
-      description:
-        "Aruba Instant On access points can't be told to drop a device, so the guest may " +
-        "still be online until their session time runs out.",
-    };
-  }
-  return { tone: "success", title: DONE[action] };
-}
-
 /** Tolerant read of `disconnect_enforced` off a session response, with or
  * without the `{data}` envelope (see `guestService.terminateSession`). */
 export function readDisconnectEnforced(body: unknown): boolean | null {

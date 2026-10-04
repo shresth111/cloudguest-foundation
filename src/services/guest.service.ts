@@ -2,7 +2,6 @@ import { api } from "@/services/api";
 import { BACKEND_MAX_PAGE_SIZE, getAllItems } from "@/services/list-all-pages";
 import { DENIAL_WINDOW_MS, countRecentDenials } from "@/lib/whitelist-only";
 import { readDisconnectEnforced } from "@/lib/live-session-actions";
-import { isNasOnlyVendor } from "@/lib/router-vendors";
 import type {
   AccessCheckQuery,
   AccessCheckResult,
@@ -737,22 +736,6 @@ export const guestService = {
 
   /** Pausing also ends the device's live session (`issue_live_disconnect`),
    * so it reports `disconnect_enforced` the same way. */
-  /**
-   * Is this session's router a NAS-only access point (Aruba Instant On)?
-   * Asked ONLY after a session-ending action came back
-   * `disconnect_enforced: false`, so the admin toast can say so at Aruba
-   * (P0-D). Any failure answers false: the old success toast, unchanged.
-   */
-  async routerIsNasOnly(routerId: string | null | undefined): Promise<boolean> {
-    if (!routerId) return false;
-    try {
-      const { data } = await api.get<{ vendor?: string | null }>(`/routers/${routerId}`);
-      return isNasOnlyVendor(data?.vendor);
-    } catch {
-      return false;
-    }
-  },
-
   async pauseSession(
     sessionId: string,
     reason?: string,

@@ -58,8 +58,6 @@ import {
 import { useRouters } from "@/hooks/useRouters";
 import type { Guest } from "@/types/guest";
 import type { AppError } from "@/services/api";
-import { sessionEndToast } from "@/lib/live-session-actions";
-import { guestService } from "@/services/guest.service";
 import { GuestAuthMethodBadge, GuestSessionStatusBadge } from "./GuestBadges";
 
 function formatDate(iso?: string | null) {
@@ -388,21 +386,8 @@ function SessionsTab({ guestId }: { guestId: string }) {
                                 description: "This session will be forced offline.",
                                 onConfirm: async () => {
                                   try {
-                                    const { sessionEnforced } = await disconnect.mutateAsync({
-                                      sessionId: s.id,
-                                    });
-                                    // P0-D: at Aruba only, `false` is never a "disconnected" success.
-                                    const nasOnly =
-                                      sessionEnforced === false &&
-                                      (await guestService.routerIsNasOnly(s.routerId));
-                                    const msg = sessionEndToast(
-                                      "disconnect",
-                                      sessionEnforced,
-                                      nasOnly,
-                                    );
-                                    if (msg.tone === "warning")
-                                      toast.warning(msg.title, { description: msg.description });
-                                    else toast.success(msg.title);
+                                    await disconnect.mutateAsync({ sessionId: s.id });
+                                    toast.success("Session disconnected");
                                   } catch (err) {
                                     toast.error(
                                       (err as AppError).message || "Failed to disconnect",
@@ -427,21 +412,8 @@ function SessionsTab({ guestId }: { guestId: string }) {
                                   "Punitive — imposes a 60-minute reconnect cooldown for this guest.",
                                 onConfirm: async () => {
                                   try {
-                                    const { sessionEnforced } = await terminate.mutateAsync({
-                                      sessionId: s.id,
-                                    });
-                                    // P0-D: at Aruba only, `false` is never a "terminated" success.
-                                    const nasOnly =
-                                      sessionEnforced === false &&
-                                      (await guestService.routerIsNasOnly(s.routerId));
-                                    const msg = sessionEndToast(
-                                      "terminate",
-                                      sessionEnforced,
-                                      nasOnly,
-                                    );
-                                    if (msg.tone === "warning")
-                                      toast.warning(msg.title, { description: msg.description });
-                                    else toast.success(msg.title);
+                                    await terminate.mutateAsync({ sessionId: s.id });
+                                    toast.success("Session terminated");
                                   } catch (err) {
                                     toast.error((err as AppError).message || "Failed to terminate");
                                   }
