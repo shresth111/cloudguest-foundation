@@ -90,5 +90,8 @@
   "pageOf": "पेज {{page}} / {{pages}}",
   "pagePrevious": "पिछला",
   "pageNext": "अगला",
-  "closeDetails": "जानकारी बंद करें"
+  "closeDetails": "जानकारी बंद करें",
+  "colAccessPoint": "एक्सेस पॉइंट",
+  "allAccessPoints": "सभी एक्सेस पॉइंट",
+  "accessPointFilter": "एक्सेस पॉइंट से छाँटें"
 }

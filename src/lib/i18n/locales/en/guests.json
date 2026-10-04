@@ -90,5 +90,8 @@
   "pageOf": "Page {{page}} of {{pages}}",
   "pagePrevious": "Previous",
   "pageNext": "Next",
-  "closeDetails": "Close details"
+  "closeDetails": "Close details",
+  "colAccessPoint": "Access point",
+  "allAccessPoints": "All access points",
+  "accessPointFilter": "Filter by access point"
 }
