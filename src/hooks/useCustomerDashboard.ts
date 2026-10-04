@@ -191,7 +191,14 @@ export function useDashboardSeries(locationId: string, range: DashboardRange) {
 
 export function useCustomerUsers(
   locationId: string,
-  params?: { search?: string; status?: string; page?: number; pageSize?: number },
+  params?: {
+    search?: string;
+    status?: string;
+    page?: number;
+    pageSize?: number;
+    /** Aruba Instant On venues only; left undefined everywhere else. */
+    apMac?: string;
+  },
 ) {
   return useQuery({
     queryKey: customerKeys.users(locationId, params),
@@ -202,6 +209,7 @@ export function useCustomerUsers(
         params?.status,
         params?.page || 1,
         params?.pageSize || 20,
+        params?.apMac,
       ),
     enabled: !!locationId,
     staleTime: 10_000,

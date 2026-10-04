@@ -64,6 +64,7 @@ import {
   UNKNOWN_LIVENESS,
 } from "@/lib/location-liveness";
 import { ArubaInstantOnVenueCard } from "@/components/customer/ArubaInstantOnVenueCard";
+import { ArubaAccessPointsCard } from "@/components/customer/ArubaAccessPointsCard";
 import { controllerDeviceMetricsReason } from "@/lib/router-vendors";
 import { arubaVenueStats } from "@/lib/aruba-venue";
 import type { LocationLiveness, LivenessTone } from "@/lib/location-liveness";
@@ -955,6 +956,9 @@ export function CustomerDashboardPage() {
               <DeviceStatusCard locationId={locationId} onManage={() => handleNav("devices")} />
             )}
           </div>
+          {/* Aruba Instant On only: every access point of the venue, one list.
+              Not mounted (and not fetched) at any other venue. */}
+          {nasOnlyVenue && <ArubaAccessPointsCard locationId={locationId} />}
         </main>
       </div>
       <ChangePasswordDialog open={changePwOpen} onOpenChange={setChangePwOpen} />
