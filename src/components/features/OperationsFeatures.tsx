@@ -2938,6 +2938,10 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
    * fail on click.
    */
   const ispDeviceControlsApply = !isControllerManaged(selectedRouter?.vendor);
+  // DASHBOARD_PLAN P1-L: at an Aruba Instant On row there is no router to
+  // run a speed test on, and no "WAN uplinks per router". Only those two
+  // change; Omada and MikroTik are untouched.
+  const ispNasOnly = isNasOnlyVendor(selectedRouter?.vendor);
 
   const openCreate = () => {
     setEditingLink(null);
@@ -3198,7 +3202,11 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
         <div className="min-w-0 flex-1">
           <FeatureHeader
             title="Internet Connection"
-            description="Real WAN uplinks per router -- provider, bandwidth, DNS, live health status, manual/automatic failover, and policy-based routing rules."
+            description={
+              ispNasOnly
+                ? "Your venue's internet line -- provider, bandwidth and DNS, kept as a record. Aruba Instant On access points are managed in the Instant On app, so there is no router here to test or fail over."
+                : "Real WAN uplinks per router -- provider, bandwidth, DNS, live health status, manual/automatic failover, and policy-based routing rules."
+            }
             icon={Globe}
             action={
               selectedRouterId ? (
@@ -3529,21 +3537,23 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
                                 className={cn("h-4 w-4", checkingId === l.id && "animate-spin")}
                               />
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              title="Run a real speed test against this link's router"
-                              disabled={speedTests[l.id]?.status === "running"}
-                              onClick={() => runSpeedTest(l)}
-                            >
-                              <Gauge
-                                className={cn(
-                                  "h-4 w-4",
-                                  speedTests[l.id]?.status === "running" && "animate-spin",
-                                )}
-                              />
-                            </Button>
+                            {!ispNasOnly && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                title="Run a real speed test against this link's router"
+                                disabled={speedTests[l.id]?.status === "running"}
+                                onClick={() => runSpeedTest(l)}
+                              >
+                                <Gauge
+                                  className={cn(
+                                    "h-4 w-4",
+                                    speedTests[l.id]?.status === "running" && "animate-spin",
+                                  )}
+                                />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"

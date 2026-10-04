@@ -25,6 +25,8 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { CustomerHeader } from "@/components/customer/CustomerHeader";
 import { CUSTOMER_NAVS, customerFeatureHref } from "@/lib/customerNav";
 import { locationControllerVendor, locationIsControllerManaged } from "@/lib/location-liveness";
+import { locationIsNasOnly as venueIsNasOnly } from "@/lib/location-liveness";
+import { InstantOnAlertsCard } from "@/components/customer/InstantOnPanels";
 import { featureAppliesToControllerVenue } from "@/lib/router-vendors";
 import { ControllerManagedFeatureNotice } from "@/components/customer/ControllerManagedFeatureNotice";
 import { ControllerControlNotice } from "@/components/customer/ControllerControlNotice";
@@ -324,7 +326,15 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
               {feature === "audit" && <AdminLogsView locationId={locationId} />}
               {feature === "tickets" && <TicketsPage locationId={locationId} />}
               {feature === "how-it-works" && <HowItWorksView />}
-              {feature === "alerts" && <AlertsView />}
+              {feature === "alerts" && (
+                <>
+                  {/* P1-K: Instant On's own alerts, Aruba venues only. */}
+                  {venueIsNasOnly(activeLocation?.liveness) && (
+                    <InstantOnAlertsCard locationId={locationId} />
+                  )}
+                  <AlertsView />
+                </>
+              )}
               {feature === "business-hours" && <OpenHoursView locationId={locationId} />}
               {/* "background-image" no longer renders here -- the login-screen
                 backdrop is uploaded from Portal -> Design (PortalPage.tsx),

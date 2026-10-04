@@ -509,7 +509,11 @@ const done = async (r) => {
   await r.page.close();
   if (r.errors.length) throw new Error(`page errors: ${r.errors.join(" | ")}`);
 };
-const apCalls = (calls) => calls.filter((c) => c.url.endsWith("/access-points"));
+// The P0-A2 route only. The Instant On read (P1-K,
+// /network-integrations/locations/{id}/instant-on/access-points) also ends in
+// "/access-points" and is asserted in test-aruba-instant-on-data.mjs.
+const apCalls = (calls) =>
+  calls.filter((c) => c.url.endsWith("/access-points") && !c.url.includes("/instant-on/"));
 const sessionParams = (calls) =>
   calls.filter((c) => c.url === "/guest-sessions").map((c) => JSON.stringify(c.params));
 
