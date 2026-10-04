@@ -85,10 +85,16 @@ eq("bare-hex MAC is canonicalised", AP.canonicalApMac("aabbcc000001"), AP1);
 eq("a non-MAC is returned, not guessed", AP.canonicalApMac("not-a-mac"), "NOT-A-MAC");
 {
   const s = AP.toArubaAccessPointsState({
+    location_id: LOC,
+    applicable: true,
+    as_of: "2026-10-04T10:00:00Z",
+    unattributed_clients_now: 2,
     items: [{ mac: "aabbcc000002" }, { name: "Lobby", mac: AP1 }],
   });
   eq("items list -> ok", s.status, "ok");
   eq("sorted by display name", s.items.map((a) => a.mac).join(","), `${AP2},${AP1}`);
+  eq("as_of is read from the top level", s.asOf, "2026-10-04T10:00:00Z");
+  eq("unattributed_clients_now is read", s.unattributedClientsNow, 2);
   const bare = s.items[0];
   eq("absent count is null, not 0", bare.clientsNow, null);
   eq("absent count renders a dash", AP.apCount(bare.clientsNow), "—");
@@ -96,7 +102,30 @@ eq("a non-MAC is returned, not guessed", AP.canonicalApMac("not-a-mac"), "NOT-A-
   eq("unknown status is the neutral state", bare.status, "no_recent_activity");
   eq("neutral label never says offline", AP.apStatusLabel(bare.status), "No recent activity");
 }
-eq("a bare list is accepted", AP.toArubaAccessPointsState([{ mac: AP1 }]).status, "ok");
+{
+  const s = AP.toArubaAccessPointsState({
+    applicable: true,
+    items: [
+      { id: "ap-b", name: "Bar", mac: AP2, is_primary: false },
+      { id: null, name: null, mac: "54f0b1c8a90a", is_primary: true, clients_now: 0 },
+    ],
+  });
+  eq("the primary AP sorts first", s.items[0].mac, "54:F0:B1:C8:A9:0A");
+  eq("id null -> a stable primary key", s.items[0].id, "primary:54:F0:B1:C8:A9:0A");
+  eq("is_primary is read", s.items[0].isPrimary, true);
+  eq("a measured 0 stays 0", AP.apCount(s.items[0].clientsNow), "0");
+  eq("unattributed absent -> null", s.unattributedClientsNow, null);
+}
+eq(
+  "applicable:false is unavailable, not empty",
+  AP.toArubaAccessPointsState({ applicable: false, items: [] }).status,
+  "unavailable",
+);
+eq(
+  "a bare list is not the contract -> unavailable",
+  AP.toArubaAccessPointsState([{ mac: AP1 }]).status,
+  "unavailable",
+);
 eq(
   "an unrecognised payload is unavailable, not empty",
   AP.toArubaAccessPointsState({}).status,
@@ -109,27 +138,62 @@ eq(
   0,
 );
 eq(
-  "nested bytes_today is read",
-  AP.apDataToday(AP.toArubaAccessPoint({ mac: AP1, bytes_today: { in: 1500, out: 500 } })),
+  "download + upload today are summed",
+  AP.apDataToday(
+    AP.toArubaAccessPoint({ mac: AP1, download_bytes_today: 1500, upload_bytes_today: 500 }),
+  ),
   "2.0 KB",
 );
 eq(
   "one measured side is shown alone",
-  AP.apDataToday(AP.toArubaAccessPoint({ mac: AP1, bytes_today_in: 3000 })),
+  AP.apDataToday(AP.toArubaAccessPoint({ mac: AP1, download_bytes_today: 3000 })),
   "3.0 KB",
 );
 eq(
+  "the assumed bytes_today_in name is no longer read",
+  AP.apDataToday(AP.toArubaAccessPoint({ mac: AP1, bytes_today_in: 3000 })),
+  "—",
+);
+eq(
+  "instant_on_status is read",
+  AP.toArubaAccessPoint({ mac: AP1, instant_on_status: "offline" }).instantOnStatus,
+  "offline",
+);
+eq(
   "RADIUS evidence names the last activity",
-  AP.apStatusDetail({ statusSource: "radius", lastSeenAt: "t", asOf: null }, () => "2 minutes ago"),
+  AP.apStatusDetail(
+    { statusSource: "radius", lastSeenAt: "t", instantOnStatus: null },
+    null,
+    () => "2 minutes ago",
+  ),
   "Last guest activity 2 minutes ago",
 );
 eq(
-  "Instant On evidence names the app",
+  "Instant On evidence names the app, at the read's as_of",
   AP.apStatusDetail(
-    { statusSource: "instant_on", lastSeenAt: null, asOf: "t" },
+    { statusSource: "instant_on", lastSeenAt: null, instantOnStatus: "online" },
+    "t",
     () => "1 minute ago",
   ),
   "From the Instant On app, 1 minute ago",
+);
+check(
+  "an Instant On 'offline' is attributed to the app, never a bare Offline",
+  (() => {
+    const d = AP.apStatusDetail(
+      { statusSource: "instant_on", lastSeenAt: null, instantOnStatus: "offline" },
+      "t",
+      () => "1 minute ago",
+    );
+    return /Instant On app/.test(d) && !/Offline/.test(d);
+  })(),
+);
+eq("no unattributed note for 0", AP.apUnattributedNote(0), null);
+eq("no unattributed note for null", AP.apUnattributedNote(null), null);
+eq(
+  "unattributed note for 2",
+  AP.apUnattributedNote(2),
+  "2 guests online aren't matched to an access point yet.",
 );
 {
   const items = AP.toArubaAccessPointsState({ items: [{ mac: AP1, name: "Lobby" }] }).items;
@@ -148,7 +212,12 @@ eq(
   check(
     "customer copy never says RADIUS/NAS/WireGuard",
     !/RADIUS|NAS|WireGuard|tunnel/.test(
-      [AP.ARUBA_AP_UNAVAILABLE, AP.ARUBA_AP_EMPTY, AP.ARUBA_AP_MANAGE_NOTE].join(" "),
+      [
+        AP.ARUBA_AP_UNAVAILABLE,
+        AP.ARUBA_AP_EMPTY,
+        AP.ARUBA_AP_MANAGE_NOTE,
+        AP.apUnattributedNote(3),
+      ].join(" "),
     ),
   );
   const card = readFileSync(
@@ -204,14 +273,21 @@ function body(url, config) {
   if (url === "/me/organizations") return [{ id: "m1", organization_id: ORG, status: "active" }];
   if (url === "/locations/" + LOC + "/routers") return page(ROUTERS);
   if (url === "/locations/" + LOC + "/access-points") {
-    if (AP_MODE === "fail") throw Object.assign(new Error("404"), { status: 404 });
-    return { items: [
-      { id: "ap1", name: "Lobby", mac: "aa:bb:cc:00:00:01", model: "AP21", clients_now: 3,
-        sessions_today: 9, bytes_today_in: 2000000, bytes_today_out: 1000000,
-        last_seen_at: NOW, status: "online", status_source: "radius", as_of: NOW },
-      { id: "ap2", name: "Terrace", mac: "aa:bb:cc:00:00:02", model: "AP21", clients_now: null,
-        sessions_today: null, bytes_today_in: null, bytes_today_out: null,
-        last_seen_at: null, status: "no_recent_activity", status_source: "radius", as_of: NOW },
+    if (AP_MODE === "fail") throw Object.assign(new Error("500"), { status: 500 });
+    if (AP_MODE === "not-applicable") return { location_id: LOC, applicable: false, as_of: NOW,
+      day_start: NOW, online_window_seconds: 900, unattributed_clients_now: 0, items: [] };
+    // The real BE P0-A1/A2 contract (envelope already stripped by \`api\`).
+    return { location_id: LOC, applicable: true, as_of: NOW, day_start: NOW,
+      online_window_seconds: 900, unattributed_clients_now: AP_MODE === "unattributed" ? 2 : 0,
+      items: [
+      { id: null, name: "Lobby", mac: "AA:BB:CC:00:00:01", model: "AP21", serial: "VNV5M1K1M6",
+        is_primary: true, clients_now: 3, sessions_today: 9, download_bytes_today: 2000000,
+        upload_bytes_today: 1000000, last_seen_at: NOW, status: "online",
+        status_source: "radius", instant_on_status: null },
+      { id: "ap2", name: "Terrace", mac: "AA:BB:CC:00:00:02", model: "AP21", serial: null,
+        is_primary: false, clients_now: 0, sessions_today: 0, download_bytes_today: 0,
+        upload_bytes_today: 0, last_seen_at: null, status: "no_recent_activity",
+        status_source: "radius", instant_on_status: null },
     ] };
   }
   if (url === "/guest-sessions") {
@@ -437,6 +513,17 @@ const apCalls = (calls) => calls.filter((c) => c.url.endsWith("/access-points"))
 const sessionParams = (calls) =>
   calls.filter((c) => c.url === "/guest-sessions").map((c) => JSON.stringify(c.params));
 
+/** Press "Export CSV" and return the file's text. */
+async function exportCsv(page) {
+  const [dl] = await Promise.all([
+    page.waitForEvent("download", { timeout: 10_000 }),
+    page.getByRole("button", { name: /Export CSV/ }).click(),
+  ]);
+  return readFileSync(await dl.path(), "utf8");
+}
+const MIKROTIK_CSV_HEADER =
+  "Name,Email,Phone,Device,MAC,IP,Duration,Connected at,Disconnected at,Downloaded,Status";
+
 console.log("\nB1. MikroTik and Omada render unchanged");
 for (const venue of ["mikrotik", "omada"]) {
   for (const which of ["dashboard", "users"]) {
@@ -451,6 +538,14 @@ for (const venue of ["mikrotik", "omada"]) {
     if (which === "users") {
       const heads = await r.page.$$eval("thead th", (ths) => ths.length);
       eq(`${venue} users: eleven columns, as before`, heads, 11);
+    }
+    if (which === "users") {
+      const csv = await exportCsv(r.page);
+      eq(
+        `${venue} users: CSV header unchanged`,
+        csv.split(/\r?\n/)[0].replace(/^\uFEFF/, ""),
+        MIKROTIK_CSV_HEADER,
+      );
     }
     if (BASELINE_ROOT) {
       const b = await render(BASELINE_ROOT, venue, which);
@@ -487,17 +582,50 @@ console.log("\nB2. Aruba dashboard: the access points card");
     rows[0],
   );
   check(
-    "Terrace: no recent activity, dashes",
+    "Terrace: no recent activity, measured zeros",
     /Terrace/.test(rows[1]) &&
       /No recent activity/.test(rows[1]) &&
-      /—online now/.test(rows[1]) &&
-      /—data today/.test(rows[1]),
+      /No guest activity yet/.test(rows[1]) &&
+      /0online now/.test(rows[1]) &&
+      /0 Bdata today/.test(rows[1]),
     rows[1],
+  );
+  check("Lobby shows its last activity", /Last guest activity/.test(rows[0]), rows[0]);
+  const apCall = apCalls(r.calls)[0];
+  check(
+    "the read sends tz_offset_minutes as an integer",
+    Number.isInteger(apCall?.params?.tz_offset_minutes),
+    JSON.stringify(apCall?.params),
+  );
+  check(
+    "no unattributed note when there are none",
+    !/data-testid="aruba-ap-unattributed"/.test(r.html),
   );
   check("never Offline", !rows.some((t) => /Offline/.test(t)));
   check(
     "the manage note names the Instant On app",
     /Manage access points in the Instant On app/.test(r.html),
+  );
+  await done(r);
+}
+{
+  const r = await render(ROOT, "aruba", "dashboard", { apMode: "unattributed" });
+  const note = await r.page
+    .$eval('[data-testid="aruba-ap-unattributed"]', (e) => e.textContent)
+    .catch(() => "");
+  eq(
+    "unattributed guests are said, not dropped",
+    note,
+    "2 guests online aren't matched to an access point yet.",
+  );
+  await done(r);
+}
+{
+  const r = await render(ROOT, "aruba", "dashboard", { apMode: "not-applicable" });
+  check(
+    "applicable:false says unavailable, not 'no access points'",
+    /data-testid="aruba-ap-unavailable"/.test(r.html) &&
+      !/data-testid="aruba-ap-empty"/.test(r.html),
   );
   await done(r);
 }
@@ -536,6 +664,27 @@ console.log("\nB3. Aruba Guests page: column and filter");
     els.map((e) => e.textContent),
   );
   eq("filtered: only Terrace's guest is listed", after.join(","), "Terrace");
+  const csv = (await exportCsv(r.page)).replace(/^\uFEFF/, "").split(/\r?\n/);
+  eq(
+    "CSV: Access point columns appended at Aruba",
+    csv[0],
+    `${MIKROTIK_CSV_HEADER},Access point,Access point MAC`,
+  );
+  check(
+    "CSV: the filtered row names its AP and MAC",
+    csv.length >= 2 && csv[1].endsWith(`Terrace,${AP2}`),
+    csv[1],
+  );
+  // page_size 100 without a status filter = the export's pages (the
+  // "online now" count asks with status=active).
+  const exportCalls = sessionParams(await r.page.evaluate(() => window.__CALLS__)).filter(
+    (p) => p.includes('"page_size":100') && !p.includes('"status"'),
+  );
+  check(
+    "CSV export also sends ap_mac",
+    exportCalls.length > 0 && exportCalls.every((p) => p.includes(`"ap_mac":"${AP2}"`)),
+    exportCalls.join(" "),
+  );
   await done(r);
 }
 

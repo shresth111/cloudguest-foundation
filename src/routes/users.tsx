@@ -95,7 +95,7 @@ import {
 import { locationIsNasOnly } from "@/lib/location-liveness";
 import { liveSessionActionGate } from "@/lib/live-session-actions";
 import { useArubaAccessPoints } from "@/hooks/useArubaAccessPoints";
-import { apFilterOptions, sessionApLabel } from "@/lib/aruba-access-points";
+import { apFilterOptions, canonicalApMac, sessionApLabel } from "@/lib/aruba-access-points";
 
 /**
  * Shared empty-state graphic for the Users table -- a magnifying glass over
@@ -333,6 +333,9 @@ function CustomerUsersPage() {
         "Disconnected at",
         "Downloaded",
         "Status",
+        // Aruba Instant On venues only, last so every other column keeps its
+        // position; every other venue's export is exactly what it was.
+        ...(arubaVenue ? ["Access point", "Access point MAC"] : []),
       ];
       const body = rows.map((u) => [
         u.name,
@@ -346,6 +349,12 @@ function CustomerUsersPage() {
         u.disconnectedAt ?? "",
         u.download,
         u.status,
+        ...(arubaVenue
+          ? [
+              u.apMac ? sessionApLabel(u.apMac, u.apName, apItems) : "",
+              u.apMac ? canonicalApMac(u.apMac) : "",
+            ]
+          : []),
       ]);
 
       let csv = toCsv(header, body);

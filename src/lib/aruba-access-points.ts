@@ -27,29 +27,57 @@ import { formatBytes } from "@/lib/analytics-format";
 
 export type ArubaApStatus = "online" | "no_recent_activity";
 
+/** What the Instant On read said about the AP, when the venue's poller is on.
+ * Null when nothing was read (the usual case today). */
+export type InstantOnApStatus = "online" | "offline" | "unknown";
+
+/**
+ * One access point, as `GET /locations/{id}/access-points` returns it (BE
+ * P0-A1/A2 contract, DASHBOARD_STATUS.md "REAL API CONTRACT").
+ *
+ * The counts and byte totals are measured from OUR guest_sessions and are
+ * always integers on that contract; they stay `number | null` here so a row
+ * that ever arrives without one renders "—" rather than a 0 we did not
+ * measure.
+ */
 export interface ArubaAccessPoint {
+  /** The registry id, or `primary:<MAC>` for the synthesized primary row
+   * (the router's own MAC, no registry row -> backend `id: null`). Only ever
+   * used as a React key. */
   id: string;
   name: string | null;
   mac: string;
   model: string | null;
   serial: string | null;
+  /** The venue's first AP: the one whose MAC is on the router row itself. */
+  isPrimary: boolean;
   clientsNow: number | null;
   sessionsToday: number | null;
-  bytesTodayIn: number | null;
-  bytesTodayOut: number | null;
+  /** Guest download / upload today (sessions started today or still active). */
+  downloadBytesToday: number | null;
+  uploadBytesToday: number | null;
   lastSeenAt: string | null;
   status: ArubaApStatus;
   /** Where `status` came from: our RADIUS records, or the Instant On read. */
   statusSource: "radius" | "instant_on" | null;
-  asOf: string | null;
+  instantOnStatus: InstantOnApStatus | null;
 }
 
-/** The read's outcome. `unavailable` is a failed or refused read -- it never
- * carries an empty list standing in for "no access points". */
+/** The read's outcome. `unavailable` is a failed or refused read, or a
+ * venue the backend says the list does not apply to (`applicable: false`) --
+ * it never carries an empty list standing in for "no access points". */
 export type ArubaAccessPointsState =
   | { status: "loading" }
   | { status: "unavailable" }
-  | { status: "ok"; items: ArubaAccessPoint[] };
+  | {
+      status: "ok";
+      items: ArubaAccessPoint[];
+      /** When the backend computed the figures. */
+      asOf: string | null;
+      /** Guests online now whose session has not named its AP yet (signed in
+       * before the AP was recorded). Null when not sent. */
+      unattributedClientsNow: number | null;
+    };
 
 const DASH = "—";
 
@@ -74,49 +102,56 @@ export function canonicalApMac(mac: string): string {
 export function toArubaAccessPoint(raw: unknown): ArubaAccessPoint | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
-  const mac = str(r.mac);
-  if (!mac) return null;
-  const bytesToday =
-    r.bytes_today && typeof r.bytes_today === "object"
-      ? (r.bytes_today as Record<string, unknown>)
-      : null;
+  const rawMac = str(r.mac);
+  if (!rawMac) return null;
+  const mac = canonicalApMac(rawMac);
   const source = r.status_source;
+  const io = r.instant_on_status;
   return {
-    id: str(r.id) ?? canonicalApMac(mac),
+    id: str(r.id) ?? `primary:${mac}`,
     name: str(r.name),
-    mac: canonicalApMac(mac),
+    mac,
     model: str(r.model),
-    serial: str(r.serial) ?? str(r.serial_number),
+    serial: str(r.serial),
+    isPrimary: r.is_primary === true,
     clientsNow: num(r.clients_now),
     sessionsToday: num(r.sessions_today),
-    bytesTodayIn: num(r.bytes_today_in) ?? num(bytesToday?.in),
-    bytesTodayOut: num(r.bytes_today_out) ?? num(bytesToday?.out),
+    downloadBytesToday: num(r.download_bytes_today),
+    uploadBytesToday: num(r.upload_bytes_today),
     lastSeenAt: str(r.last_seen_at),
     // Anything but an explicit "online" is the neutral state. There is no
-    // "offline" here on purpose.
+    // "offline" pill here on purpose: an idle AP sends nothing.
     status: r.status === "online" ? "online" : "no_recent_activity",
     statusSource: source === "radius" || source === "instant_on" ? source : null,
-    asOf: str(r.as_of),
+    instantOnStatus: io === "online" || io === "offline" || io === "unknown" ? io : null,
   };
 }
 
-/** The payload as the `api` interceptor hands it over: `{items: [...]}` or a
- * bare list. Anything else is a contract we do not recognise, which is
- * "unavailable", not "none". */
+/** The payload as the `api` interceptor hands it over (envelope stripped):
+ * `{location_id, applicable, as_of, unattributed_clients_now, items: [...]}`.
+ * `applicable: false` (not a NAS-only venue, or not the caller's) and any
+ * shape we do not recognise are "unavailable", not "none". */
 export function toArubaAccessPointsState(payload: unknown): ArubaAccessPointsState {
-  const list = Array.isArray(payload)
-    ? payload
-    : payload &&
-        typeof payload === "object" &&
-        Array.isArray((payload as { items?: unknown }).items)
-      ? (payload as { items: unknown[] }).items
-      : null;
-  if (!list) return { status: "unavailable" };
-  const items = list
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return { status: "unavailable" };
+  }
+  const p = payload as Record<string, unknown>;
+  if (p.applicable === false || !Array.isArray(p.items)) return { status: "unavailable" };
+  const items = (p.items as unknown[])
     .map(toArubaAccessPoint)
     .filter((ap): ap is ArubaAccessPoint => ap !== null)
-    .sort((a, b) => apDisplayName(a).localeCompare(apDisplayName(b)));
-  return { status: "ok", items };
+    // The venue's primary AP first, then by name.
+    .sort(
+      (a, b) =>
+        Number(b.isPrimary) - Number(a.isPrimary) ||
+        apDisplayName(a).localeCompare(apDisplayName(b)),
+    );
+  return {
+    status: "ok",
+    items,
+    asOf: str(p.as_of),
+    unattributedClientsNow: num(p.unattributed_clients_now),
+  };
 }
 
 /** The AP's name, or its MAC when Instant On gave it none. */
@@ -128,15 +163,18 @@ export function apStatusLabel(status: ArubaApStatus): string {
   return status === "online" ? "Online" : "No recent activity";
 }
 
-/** "Guests are signing in through it (seen 2 minutes ago)" -- the evidence
- * behind the pill, so a reader can tell a RADIUS heartbeat from an Instant On
- * read. `relative` is injected so tests can pin the clock. */
+/** "Last guest activity 2 minutes ago" -- the evidence behind the pill, so a
+ * reader can tell our own sign-in records from an Instant On read. `asOf` is
+ * the read's own timestamp; `relative` is injected so tests can pin the
+ * clock. */
 export function apStatusDetail(
-  ap: Pick<ArubaAccessPoint, "statusSource" | "lastSeenAt" | "asOf">,
+  ap: Pick<ArubaAccessPoint, "statusSource" | "lastSeenAt" | "instantOnStatus">,
+  asOf: string | null,
   relative: (iso: string) => string,
 ): string {
   if (ap.statusSource === "instant_on") {
-    return ap.asOf ? `From the Instant On app, ${relative(ap.asOf)}` : "From the Instant On app";
+    const from = asOf ? `From the Instant On app, ${relative(asOf)}` : "From the Instant On app";
+    return ap.instantOnStatus === "offline" ? `${from} · the app shows it disconnected` : from;
   }
   return ap.lastSeenAt ? `Last guest activity ${relative(ap.lastSeenAt)}` : "No guest activity yet";
 }
@@ -145,13 +183,24 @@ export function apCount(v: number | null): string {
   return v == null ? DASH : v.toLocaleString();
 }
 
-/** Today's guest data through this AP. One side unmeasured is shown as such;
- * both unmeasured is "—", never "0 B". */
-export function apDataToday(ap: Pick<ArubaAccessPoint, "bytesTodayIn" | "bytesTodayOut">): string {
-  const { bytesTodayIn: down, bytesTodayOut: up } = ap;
+/** Today's guest data through this AP (download + upload). One side
+ * unmeasured is shown as such; both unmeasured is "—", never "0 B". */
+export function apDataToday(
+  ap: Pick<ArubaAccessPoint, "downloadBytesToday" | "uploadBytesToday">,
+): string {
+  const { downloadBytesToday: down, uploadBytesToday: up } = ap;
   if (down == null && up == null) return DASH;
   if (down != null && up != null) return formatBytes(down + up);
   return formatBytes(down ?? up);
+}
+
+/** "2 guests online haven't been matched to an access point yet" -- only when
+ * there are some; null otherwise (the line is then not rendered). */
+export function apUnattributedNote(n: number | null): string | null {
+  if (n == null || n <= 0) return null;
+  return n === 1
+    ? "1 guest online isn't matched to an access point yet."
+    : `${n.toLocaleString()} guests online aren't matched to an access point yet.`;
 }
 
 /** The filter options for the Guests page: one per AP, by MAC. */
