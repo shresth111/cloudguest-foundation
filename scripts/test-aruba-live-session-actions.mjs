@@ -9,8 +9,9 @@
  *   A. THE PURE HELPERS. `liveSessionActionGate` greys Disconnect, Extend and
  *      Reset only for a NAS-only vendor, with Disconnect's own U2 sentence;
  *      `sessionEndToast` never says "disconnected"/"terminated"/"paused" as a
- *      success when `disconnect_enforced` is false, and keeps the exact old
- *      title for true / null; `readDisconnectEnforced` reads both shapes.
+ *      success when `disconnect_enforced` is false AT ARUBA, and keeps the
+ *      exact old title everywhere else (MikroTik/Omada even when false --
+ *      owner decision); `readDisconnectEnforced` reads both shapes.
  *
  *   B. MIKROTIK AND OMADA ARE UNCHANGED. The real Guests page (table + the
  *      opened guest drawer) and the real Fix-a-Problem (after a guest lookup,
@@ -22,6 +23,11 @@
  *
  *   C. ARUBA: EXTEND AND RESET ARE GREYED LIKE DISCONNECT. Disabled, with
  *      Disconnect's sentence, and pressing them sends nothing.
+ *
+ *   E. ADMIN LIVE SESSIONS: Disconnect / Pause / Terminate answering
+ *      `disconnect_enforced: false` toast exactly as origin/staging does at
+ *      MikroTik and Omada (diffed against BASELINE_ROOT when set), and say
+ *      "records only / may still be online" at Aruba.
  *
  *   D. THE SERVICES READ `disconnect_enforced` from disconnect, terminate and
  *      pause responses (envelope stripped or not), and the admin screens no
@@ -122,23 +128,33 @@ const OLD_TITLE = {
   pause: "Session paused",
 };
 for (const action of ["disconnect", "terminate", "pause"]) {
-  for (const enforced of [true, null, undefined]) {
-    const m = L.sessionEndToast(action, enforced);
+  // MikroTik / Omada / unidentified venue: the old success title, whatever
+  // came back -- including `false` (owner decision: Aruba only).
+  for (const enforced of [true, null, undefined, false]) {
+    const m = L.sessionEndToast(action, enforced, false);
     check(
-      `${action} enforced=${String(enforced)}: same success toast as before`,
+      `${action} not NAS-only, enforced=${String(enforced)}: same success toast as before`,
       m.tone === "success" && m.title === OLD_TITLE[action] && m.description === undefined,
       JSON.stringify(m),
     );
   }
-  const f = L.sessionEndToast(action, false);
-  check(`${action} enforced=false: a warning, not a success`, f.tone === "warning");
+  for (const enforced of [true, null, undefined]) {
+    const m = L.sessionEndToast(action, enforced, true);
+    check(
+      `${action} Aruba, enforced=${String(enforced)}: same success toast as before`,
+      m.tone === "success" && m.title === OLD_TITLE[action],
+      JSON.stringify(m),
+    );
+  }
+  const f = L.sessionEndToast(action, false, true);
+  check(`${action} Aruba enforced=false: a warning, not a success`, f.tone === "warning");
   check(
-    `${action} enforced=false: never the old success title`,
+    `${action} Aruba enforced=false: never the old success title`,
     f.title !== OLD_TITLE[action] && /records only/.test(f.title),
     f.title,
   );
   check(
-    `${action} enforced=false: says the device may still be online`,
+    `${action} Aruba enforced=false: says the device may still be online`,
     /may still be online/.test(f.description ?? ""),
     f.description,
   );
@@ -194,8 +210,10 @@ const session = (id, guest, mac) => ({
   data_limit_mb: null, session_timeout_minutes: 60,
 });
 const SESSIONS = [
-  session("s1", "g1", "11:11:11:11:11:11"),
-  session("s22", "g2", "22:22:22:22:22:22"),
+  // Ids end in "-false": every session-ending POST answers
+  // disconnect_enforced: false (see postBody), the case P0-D is about.
+  session("s1-false", "g1", "11:11:11:11:11:11"),
+  session("s22-false", "g2", "22:22:22:22:22:22"),
 ];
 const GUEST = {
   id: "g1", organization_id: ORG, location_id: LOC, identifier: PHONE, display_name: "Asha",
@@ -208,6 +226,8 @@ function body(url, config) {
   if (url === "/me/organizations") return [{ id: "m1", organization_id: ORG, status: "active" }];
   if (url === "/locations/" + LOC + "/routers") return page(ROUTERS);
   if (url === "/guest-sessions") return page(SESSIONS);
+  if (url === "/routers/r1") return { ...ROUTERS[0], location_id: LOC, organization_id: ORG };
+  if (url === "/organizations") return page([{ id: ORG, name: "Acme", slug: "acme", status: "active" }]);
   if (url === "/guests") return page([GUEST]);
   if (url === "/guests/g1") return GUEST;
   if (/^\\/organizations\\/[^/]+\\/locations$/.test(url)) {
@@ -264,7 +284,8 @@ export default api;
 `;
 }
 
-const ROUTER_STUB = `export function createFileRoute() { return (o) => o; }
+const ROUTER_STUB = `import { createElement } from "react";
+export function createFileRoute() { return (o) => o; }
 export function createRootRoute() { return {}; }
 export function useNavigate() { return () => {}; }
 export function useRouter() { return { navigate: () => {} }; }
@@ -272,7 +293,7 @@ export function useRouterState() { return { location: { pathname: "/" } }; }
 export function useParams() { return {}; }
 export function useSearch() { return {}; }
 export function redirect(o) { return o; }
-export function Link({ children }) { return children ?? null; }
+export function Link({ children }) { return createElement("a", { href: "#" }, children); }
 export function Outlet() { return null; }
 `;
 
@@ -286,6 +307,8 @@ import { deriveLocationLiveness } from "@/lib/location-liveness";
 import { FixAProblem } from "@/components/customer/FixAProblem";
 import { Route as UsersRoute } from "@/routes/users";
 import { guestService } from "@/services/guest.service";
+import { LiveSessionsTable } from "@/components/guests/LiveSessionsTable";
+import { Toaster } from "sonner";
 
 const LOC = ${JSON.stringify(LOC)};
 const ORG = ${JSON.stringify(ORG)};
@@ -326,7 +349,14 @@ if (which === "svc") {
     <QueryClientProvider client={client}>
       <AuthProvider>
         <TooltipProvider>
-          {which === "users" ? <Users /> : <FixAProblem locationId={LOC} masked={false} />}
+          {which === "users" ? (
+            <Users />
+          ) : which === "sessions" ? (
+            <LiveSessionsTable />
+          ) : (
+            <FixAProblem locationId={LOC} masked={false} />
+          )}
+          <Toaster />
         </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>,
@@ -355,7 +385,11 @@ async function bundleFor(root, venue) {
       ".jpg": "dataurl",
       ".webp": "dataurl",
     },
-    define: { "process.env.NODE_ENV": '"production"' },
+    define: {
+      "process.env.NODE_ENV": '"production"',
+      // LiveSessionsTable's imports read Vite env at module load.
+      "import.meta.env": JSON.stringify({ MODE: "production", DEV: false, PROD: true }),
+    },
     plugins: [
       {
         name: "aliases",
@@ -426,6 +460,7 @@ const normalise = (html) =>
 /** Guests page with the first guest's drawer open (its Extend buttons live
  * there); Fix-a-Problem after looking up a guest who has a live session. */
 const OPEN = {
+  sessions: async () => {},
   users: async (page) => {
     await page.locator('button[aria-label^="View "]').first().click();
     await page.waitForTimeout(800);
@@ -447,7 +482,9 @@ async function render(root, venue, which) {
   await page.goto(`${origin}/${key}/index.html?page=${which}`);
   await page.waitForFunction(() => Array.isArray(window.__CALLS__), null, { timeout: 15_000 });
   await page.waitForTimeout(2500);
-  await OPEN[which](page);
+  await OPEN[which](page).catch((e) => {
+    throw new Error(`${e.message}\nPAGE ERRORS: ${errors.join(" | ")}`);
+  });
   // Portals (the drawer, dialogs) render outside #root.
   const html = normalise(await page.evaluate(() => document.body.innerHTML));
   const calls = await page.evaluate(() => window.__CALLS__);
@@ -606,6 +643,59 @@ for (const [name, src] of [
       !/"Session (disconnected|terminated|paused)",\s*"Failed/.test(src),
   );
   check(`${name}: toasts go through sessionEndToast`, /sessionEndToast\(/.test(src));
+}
+
+console.log("\nE. Admin Live Sessions toasts when disconnect_enforced is false");
+/** Run one session-ending action from the first row's menu; return the toast. */
+async function endSession(r, item) {
+  const p = r.page;
+  await p.locator("tbody tr").first().locator("button").last().click();
+  await p.getByRole("menuitem", { name: item, exact: true }).click();
+  await p.waitForTimeout(300);
+  await p
+    .getByRole("button", { name: /^(Confirm|Terminate|Continue)$/ })
+    .last()
+    .click();
+  await p.waitForTimeout(1500);
+  const toasts = await p.$$eval("[data-sonner-toast]", (els) => els.map((e) => e.innerText));
+  return toasts.join(" | ").trim();
+}
+const ITEMS = [
+  ["Disconnect", "Session disconnected"],
+  ["Pause", "Session paused"],
+  ["Terminate", "Session terminated"],
+];
+for (const venue of ["mikrotik", "omada"]) {
+  for (const [item, title] of ITEMS) {
+    const r = await render(ROOT, venue, "sessions");
+    const got = await endSession(r, item);
+    check(`${venue} ${item} (enforced=false): toast unchanged, "${title}"`, got === title, got);
+    const calls = await r.page.evaluate(() => window.__CALLS__);
+    check(
+      `${venue} ${item}: the POST really answered enforced=false`,
+      calls.some((c) => c.method === "post" && /-false\/(disconnect|pause|terminate)$/.test(c.url)),
+    );
+    if (BASELINE_ROOT) {
+      const b = await render(BASELINE_ROOT, venue, "sessions");
+      const want = await endSession(b, item);
+      eq(`${venue} ${item}: toast identical to baseline`, got, want);
+      await done(b);
+    }
+    await done(r);
+  }
+}
+for (const [item, title] of ITEMS) {
+  const r = await render(ROOT, "aruba", "sessions");
+  const got = await endSession(r, item);
+  check(
+    `aruba ${item} (enforced=false): never "${title}"`,
+    got !== "" &&
+      got.split("\n")[0] !== title &&
+      /records only/.test(got) &&
+      /may still be online/.test(got),
+    got,
+  );
+  await done(r);
 }
 
 await browser.close();

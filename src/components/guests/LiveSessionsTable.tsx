@@ -189,17 +189,21 @@ export function LiveSessionsTable() {
   }
 
   // Disconnect / terminate / pause all end the device's live session, and
-  // each response says whether that happened (`disconnect_enforced`). A
-  // `false` is never a "disconnected" success (DASHBOARD_PLAN P0-D); `true`
-  // and `null` keep the exact success toast these rows always showed.
+  // each response says whether that happened (`disconnect_enforced`). At an
+  // Aruba Instant On venue a `false` is never a "disconnected" success
+  // (DASHBOARD_PLAN P0-D); every other case keeps the exact old toast.
   async function withSessionEndToast(
     action: () => Promise<{ sessionEnforced: boolean | null }>,
     kind: SessionEndAction,
     err: string,
+    routerId: string,
   ) {
     try {
       const { sessionEnforced } = await action();
-      const msg = sessionEndToast(kind, sessionEnforced);
+      // The router's vendor is asked only after a `false`, and only an Aruba
+      // Instant On router changes the toast; MikroTik/Omada keep the old one.
+      const nasOnly = sessionEnforced === false && (await guestService.routerIsNasOnly(routerId));
+      const msg = sessionEndToast(kind, sessionEnforced, nasOnly);
       if (msg.tone === "warning") toast.warning(msg.title, { description: msg.description });
       else toast.success(msg.title);
     } catch (e) {
@@ -391,6 +395,7 @@ export function LiveSessionsTable() {
                                             }),
                                           "pause",
                                           "Failed to pause session",
+                                          r.routerId,
                                         ),
                                     })
                                   }
@@ -432,6 +437,7 @@ export function LiveSessionsTable() {
                                             }),
                                           "disconnect",
                                           "Failed to disconnect",
+                                          r.routerId,
                                         ),
                                     })
                                   }
@@ -475,6 +481,7 @@ export function LiveSessionsTable() {
                                           () => terminate.mutateAsync({ sessionId: r.id }),
                                           "terminate",
                                           "Failed to terminate",
+                                          r.routerId,
                                         ),
                                     })
                                   }

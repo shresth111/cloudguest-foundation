@@ -68,23 +68,24 @@ const RECORDS_ONLY: Record<SessionEndAction, string> = {
  * The toast after a disconnect / terminate / pause, from the backend's own
  * `disconnect_enforced` (tri-state, see `DisconnectOutcomeFacts`).
  *
- * `false` means something was asked to remove the device and it did not --
- * a fault at a MikroTik venue, the guaranteed outcome at an Aruba Instant On
- * one. Either way the device may still be online, so it is NEVER a
- * "disconnected" success. `true` and `null` keep the exact title these screens
- * have always shown, so the ordinary MikroTik/Omada toast is unchanged.
+ * ARUBA INSTANT ON ONLY (owner decision, P0-D): at a NAS-only venue `false`
+ * is the guaranteed outcome -- nothing can reach the access point -- so it is
+ * never a "disconnected" success there. Everywhere else (`nasOnly` false:
+ * MikroTik, Omada, or a venue we could not identify) the toast is exactly the
+ * success title these screens have always shown, whatever came back.
  */
 export function sessionEndToast(
   action: SessionEndAction,
   sessionEnforced: boolean | null | undefined,
+  nasOnly: boolean,
 ): SessionEndToast {
-  if (sessionEnforced === false) {
+  if (nasOnly && sessionEnforced === false) {
     return {
       tone: "warning",
       title: RECORDS_ONLY[action],
       description:
-        "The guest's device was not taken off the network, so they may still be online until " +
-        "their session time runs out.",
+        "Aruba Instant On access points can't be told to drop a device, so the guest may " +
+        "still be online until their session time runs out.",
     };
   }
   return { tone: "success", title: DONE[action] };
