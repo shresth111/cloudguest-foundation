@@ -1,15 +1,23 @@
 import { useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Link } from "@tanstack/react-router";
-import { Shield, Layers } from "lucide-react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
+import { Shield, Layers, UserX } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import LocationPolicies from "./LocationPolicies";
 import CreateGroup from "./CreateGroup";
 import SsidSpeedTiers from "./SsidSpeedTiers";
+import BlockUsers from "./BlockUsers";
 import { useClientControls } from "@/hooks/useClientControls";
 import { isNasOnlyVendor } from "@/lib/router-vendors";
 import { useCustomerStore } from "@/stores/customerStore";
+import { useMyPermissions } from "@/hooks/useCustomerDashboard";
+import {
+  accessRulesTabsFor,
+  initialAccessRulesTab,
+  isAccessRulesTabId,
+  type AccessRulesTabId,
+} from "@/lib/access-rules-tabs";
 
 /**
  * Header-accent illustration for the "Access Rules" page. Replaces the old
@@ -173,13 +181,20 @@ function PolicyShieldIllustration() {
 //     genuinely enforced one -- moved there rather than being deleted with
 //     the tab. See PortalPage.tsx's AUTH_OPTIONS.
 //
-// And "Blocked Guests" left for the same reason, in the other direction: it
-// is now the "Guests & devices" tab of Security -> Blocking, next to website
-// and address blocking, so everything a venue can block is in one place
-// (see lib/blocking.ts). The same `BlockUsers` component, moved rather than
-// mounted twice. The line under the tabs below points there, because an
-// owner who blocked guests here last week will look here first.
-const ACCESS_TABS = [
+// "Guests & devices" (blocking a guest or a device) is back here, right after
+// Access Tiers, on the owner's instruction (2026-10-04) -- on every dashboard
+// and for every vendor. It had spent a while as a tab of Security -> Block
+// Websites; it is the same `BlockUsers` component, MOVED back rather than
+// mounted twice, so blocking still has one home. Block Websites now holds
+// websites only and links here. `/blocking?tab=guests` redirects to
+// `/policies?tab=guests`. See lib/access-rules-tabs.ts.
+const ACCESS_TABS: {
+  id: AccessRulesTabId;
+  i18nKey: string;
+  label: string;
+  icon: typeof Shield;
+  tone: "indigo" | "rose";
+}[] = [
   {
     id: "location",
     i18nKey: "tabLimits",
@@ -194,20 +209,59 @@ const ACCESS_TABS = [
     icon: Layers,
     tone: "indigo" as const,
   },
+  {
+    id: "guests",
+    i18nKey: "tabGuests",
+    label: "Guests & devices",
+    icon: UserX,
+    // The rose "blocked" colour GuestBadges.tsx / OperationsFeatures.tsx use
+    // for the blocklist everywhere else in this feature.
+    tone: "rose" as const,
+  },
 ];
 
 const TAB_ACTIVE_CLASSES: Record<(typeof ACCESS_TABS)[number]["tone"], string> = {
   indigo: "bg-[#4f46e5]/10 text-[#4f46e5] shadow-sm",
+  rose: "bg-rose-500/10 text-rose-600 shadow-sm dark:text-rose-400",
 };
 
-// Tabs with these ids get a static divider before them. Empty now: it used
-// to fence "Blocked Guests" off as its own visual group, and that tab has
-// moved (see above). Kept as a set rather than deleted so a future group
-// has the same mechanism to use.
-const DIVIDER_BEFORE = new Set<string>();
+// Tabs with these ids get a static divider before them: it fences the
+// blocking tab off from the two limit/tier tabs as its own visual group.
+const DIVIDER_BEFORE = new Set<string>(["guests"]);
 
-export default function PoliciesHub({ locationId }: { locationId?: string } = {}) {
-  const [tab, setTab] = useState("location");
+/**
+ * With `syncWithUrl` (the owner's `/policies` route, which Master's "View as
+ * customer" renders too), `?tab=location|group|guests` picks the tab and
+ * switching tabs rewrites it -- that is what lets the Security Score,
+ * Firewall and old `/blocking?tab=guests` bookmarks land on Guests & devices.
+ * The staff `/agent` shell has one URL for every feature, so it leaves this
+ * off and keeps the tab local (same split as BlockingView).
+ */
+export default function PoliciesHub({
+  locationId,
+  syncWithUrl = false,
+}: { locationId?: string; syncWithUrl?: boolean } = {}) {
+  const navigate = useNavigate();
+  const search = useSearch({ strict: false }) as { tab?: unknown };
+  const { data: permissions } = useMyPermissions();
+  const offered = accessRulesTabsFor(permissions);
+  const [localTab, setLocalTab] = useState<AccessRulesTabId>(() =>
+    initialAccessRulesTab(syncWithUrl ? search.tab : undefined, offered),
+  );
+  // From the URL when it carries a tab we offer; otherwise the local choice.
+  // Recomputed each render, so the browser's back button moves the tab too.
+  const tab: AccessRulesTabId =
+    syncWithUrl && isAccessRulesTabId(search.tab) && offered.includes(search.tab)
+      ? search.tab
+      : offered.includes(localTab)
+        ? localTab
+        : initialAccessRulesTab(undefined, offered);
+  const setTab = (next: AccessRulesTabId) => {
+    setLocalTab(next);
+    if (syncWithUrl) {
+      void navigate({ to: "/policies", search: { tab: next }, replace: true });
+    }
+  };
   const { vendor } = useClientControls();
   const activeLocationId = useCustomerStore((s) => s.activeLocationId);
   const tiersLocationId = locationId ?? activeLocationId ?? null;
@@ -225,7 +279,10 @@ export default function PoliciesHub({ locationId }: { locationId?: string } = {}
               {t("nav:customerItem.policies", "Access Rules")}
             </h1>
             <p className="text-sm text-muted-foreground">
-              {t("subtitle", "Set usage limits and access tiers for this location.")}
+              {t(
+                "subtitle",
+                "Set usage limits and access tiers, and block guests or devices, for this location.",
+              )}
             </p>
           </div>
         </div>
@@ -235,7 +292,7 @@ export default function PoliciesHub({ locationId }: { locationId?: string } = {}
       {/* One flat row, one click away from any of the 3 real sections --
        * no second tab level underneath it. `relative` wrapper + a
        * right-edge fade: at narrow widths this row can still be wider than
-       * the viewport (min-w-[360px] so the three tabs never get cramped --
+       * the viewport (min-w-[480px] so the three tabs -- Guests & devices included -- never get cramped; it was 360px for two tabs, and
        * down from 600px, which was sized for the five tabs this row used to
        * carry and now only forced a scrollbar that had nothing to scroll
        * to) and would silently clip "Access Tiers" at the screen edge with
@@ -247,8 +304,8 @@ export default function PoliciesHub({ locationId }: { locationId?: string } = {}
        * the very narrowest widths. */}
       <div className="relative">
         <div className="overflow-x-auto">
-          <div className="inline-flex min-w-[360px] w-full items-center gap-1 rounded-lg border bg-muted/50 p-0.5 sm:w-auto">
-            {ACCESS_TABS.map((item) => {
+          <div className="inline-flex min-w-[480px] w-full items-center gap-1 rounded-lg border bg-muted/50 p-0.5 sm:w-auto">
+            {ACCESS_TABS.filter((item) => offered.includes(item.id)).map((item) => {
               const Icon = item.icon;
               const active = tab === item.id;
               return (
@@ -279,19 +336,6 @@ export default function PoliciesHub({ locationId }: { locationId?: string } = {}
         />
       </div>
 
-      <p className="text-sm text-muted-foreground">
-        {t("blockedMovedPrefix", "Looking for blocked guests? They are now under")}{" "}
-        <Link
-          to="/blocking"
-          search={{ tab: "guests" }}
-          className="font-medium text-primary underline-offset-4 hover:underline"
-        >
-          {t("nav:customerGroup.security", "Security")} &rarr;{" "}
-          {t("nav:customerItem.blocking", "Blocking")}
-        </Link>
-        {t("blockedMovedSuffix", ", together with blocked websites.")}
-      </p>
-
       {/* Content -- each of these already renders its own full header
        * (icon badge + title + description), so this shell adds nothing
        * more than the tab row above it. */}
@@ -321,6 +365,10 @@ export default function PoliciesHub({ locationId }: { locationId?: string } = {}
           }
         />
       )}
+      {/* Guests & devices: the existing BlockUsers screen, unchanged --
+       * same requests, same per-vendor copy, same locationId prop (a missing
+       * one would write an org-wide rule; see agent.index.tsx's note). */}
+      {tab === "guests" && <BlockUsers locationId={locationId} />}
     </div>
   );
 }

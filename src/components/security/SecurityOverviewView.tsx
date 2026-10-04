@@ -132,11 +132,13 @@ const PLAIN_COPY: Record<string, string> = {
 type ManagedAt =
   | {
       to: "/blocking";
-      tab: "websites" | "guests";
+      tab: "websites";
       hash?: string;
       labelKey: string;
       label: string;
     }
+  // Guests & devices lives under Access Rules (lib/access-rules-tabs.ts).
+  | { to: "/policies"; tab: "guests"; labelKey: string; label: string }
   | { to: "/firewall"; labelKey: string; label: string };
 
 const MANAGED_AT: Record<string, ManagedAt> = {
@@ -175,7 +177,7 @@ const MANAGED_AT: Record<string, ManagedAt> = {
     label: "Block an internet address",
   },
   device_isolation: {
-    to: "/blocking",
+    to: "/policies",
     tab: "guests",
     labelKey: "securityScore.link.guest",
     label: "Block a guest",
@@ -252,6 +254,13 @@ function ManagedAtLink({ at }: { at: ManagedAt }) {
       <ArrowRight className="h-3 w-3" aria-hidden="true" />
     </>
   );
+  if (at.to === "/policies") {
+    return (
+      <Link to="/policies" search={{ tab: at.tab }} className={cls}>
+        {body}
+      </Link>
+    );
+  }
   return at.to === "/blocking" ? (
     <Link to="/blocking" search={{ tab: at.tab }} hash={at.hash} className={cls}>
       {body}

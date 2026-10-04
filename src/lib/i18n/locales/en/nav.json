@@ -128,8 +128,7 @@
     "addon": "Add-on"
   },
   "blockingTab": {
-    "websites": "Websites",
-    "guests": "Guests & devices"
+    "websites": "Websites"
   },
   "blockingPage": {
     "intro": "Stop a website, an internet address or a guest from using your guest WiFi.",
@@ -270,7 +269,7 @@
     "deviceOffline": "Not connected now",
     "keepStopsMatching": "If this device's address changes, this rule will stop matching it.",
     "guestWhoNote": "This is a guest's device. Guests' addresses change and are handed to the next guest, so this rule may soon match someone else. To keep one guest device off your WiFi, use",
-    "guestWhoLink": "Block Websites → Guests & devices",
+    "guestWhoLink": "Access Rules → Guests & devices",
     "guestWhoTail": "— it blocks the device itself, not its address.",
     "keepChecking": "Checking whether this device keeps its address…",
     "keepAddress": "Keep this device on the same address",
@@ -382,7 +381,9 @@
     "retriedToast": "{{router}} now uses this venue's list"
   },
   "blockWebsites": {
-    "intro": "Stop websites from opening on your guest WiFi, or stop a guest or device from using it.",
+    "intro": "Stop websites from opening on your guest WiFi.",
+    "guestsMovedPrefix": "Blocking guests or devices?",
+    "guestsMovedLink": "Access Rules → Guests & devices",
     "specificTitle": "Specific websites",
     "specificHint": "Type a website's name and press Block. It stops opening on your guest WiFi, along with every page under it.",
     "categoriesTitle": "Categories",

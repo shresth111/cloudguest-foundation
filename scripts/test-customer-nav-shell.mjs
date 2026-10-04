@@ -418,7 +418,13 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
     "Firewall no longer blocks websites, and points owners at Block Websites",
     !/WebsiteBlockBox/.test(firewallView) && /<Link to="\/blocking"/.test(firewallView),
   );
-  check("the Guests tab is the existing Blocked Guests screen", /<BlockUsers\b/.test(view));
+  // Guests & devices moved to Access Rules (2026-10-04,
+  // lib/access-rules-tabs.ts): Block Websites is websites only and links there.
+  check("Block Websites no longer mounts the Guests & devices screen", !/<BlockUsers\b/.test(view));
+  check(
+    "and points owners at Access Rules -> Guests & devices",
+    /to="\/policies"/.test(view) && /tab:\s*"guests"/.test(view),
+  );
   check(
     "the page gates the Websites tab with the existing controller notice",
     /<ControllerManagedFeatureNotice\b/.test(view) &&
@@ -426,12 +432,12 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
   );
   const hub = strip(readFileSync(join(ROOT, "src/components/features/PoliciesHub.tsx"), "utf8"));
   check(
-    "Access Rules no longer mounts Blocked Guests",
-    !/<BlockUsers\b/.test(hub) && !/id:\s*"block"/.test(hub),
+    "Access Rules mounts Guests & devices (BlockUsers) as its third tab",
+    /<BlockUsers locationId=\{locationId\} \/>/.test(hub) && /id:\s*"guests"/.test(hub),
   );
   check(
-    "and points owners at where it went",
-    /to="\/blocking"/.test(hub) && /tab:\s*"guests"/.test(hub),
+    "and no longer sends owners to Block Websites for it",
+    !/to="\/blocking"/.test(hub) && !/blockedMoved/.test(hub),
   );
   // The overview links each enforced capability that has a control to it --
   // and only those.
@@ -446,10 +452,16 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
       .map((mm) => mm[1]);
   const linkedKeys = linkedTo("/blocking");
   check(
-    "the Security Score links website, app, harmful-site, category, address and device blocking to it",
+    "the Security Score links website, app, harmful-site, category and address blocking to it",
     linkedKeys.sort().join(",") ===
-      "application_control,device_isolation,domain_blocking_dns,ip_and_cidr_blocking,threat_intelligence,web_category_filtering",
+      "application_control,domain_blocking_dns,ip_and_cidr_blocking,threat_intelligence,web_category_filtering",
     linkedKeys.join(","),
+  );
+  check(
+    "and links device blocking to Access Rules -> Guests & devices",
+    linkedTo("/policies").join(",") === "device_isolation" &&
+      /<Link to="\/policies" search=\{\{ tab: at\.tab \}\}/.test(overview),
+    linkedTo("/policies").join(","),
   );
   check(
     "and links zone-to-zone firewalling, the flood limit and guest isolation to Security -> Firewall, and nothing else there",
@@ -620,9 +632,18 @@ for (const loc of ["en", "hi"]) {
     !nav.customerDestination && !nav.customerDestinationGroup,
   );
   // The Blocking page's own tab names and sentences, in the same namespace.
+  const accessRules = JSON.parse(
+    readFileSync(join(ROOT, `src/lib/i18n/locales/${loc}/accessRules.json`), "utf8"),
+  );
   check(
-    `${loc}: both Blocking tabs are named`,
-    !!nav.blockingTab?.websites && !!nav.blockingTab?.guests,
+    `${loc}: Block Websites' tab is named, and Guests & devices is named under Access Rules`,
+    !!nav.blockingTab?.websites &&
+      !nav.blockingTab?.guests &&
+      !!accessRules.tabGuests &&
+      !!nav.blockWebsites?.guestsMovedPrefix &&
+      !!nav.blockWebsites?.guestsMovedLink &&
+      !accessRules.blockedMovedPrefix &&
+      !accessRules.blockedMovedSuffix,
   );
   check(
     `${loc}: the Blocking page's sentences are translated`,

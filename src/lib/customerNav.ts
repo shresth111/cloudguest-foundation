@@ -147,8 +147,8 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
     // Three rows, and each opens a screen that does something. The posture
     // page is the only security surface whose numbers this platform can
     // actually produce (see SecurityOverviewView's own note), and Block
-    // Websites is the one place to stop a website (by name or by category),
-    // an address or a guest -- built entirely from screens that already
+    // Websites is the one place to stop a website (by name or by category)
+    // or an address -- built entirely from screens that already
     // worked elsewhere (lib/blocking.ts). "Web filtering" was a fourth row;
     // its categories are a section of Block Websites now and /web-filtering
     // redirects there, because two rows for "block a website" sent owners
@@ -166,7 +166,9 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
     //
     // Blocking takes `Ban`, which moved with it from the retired Network
     // row -- no other row uses it, so the collapsed rail stays unambiguous.
-    // Owner-only, like Access Rules that "Blocked Guests" came from.
+    // Owner-only, like Access Rules. Guests & devices (blocking a guest or a
+    // device) is a tab of Access Rules, not of this page (2026-10-04,
+    // lib/access-rules-tabs.ts).
     items: [
       { id: "security", label: "Security Score", icon: ShieldAlert, roles: ["owner"] },
       { id: "blocking", label: "Block Websites", icon: Ban, roles: ["owner"] },

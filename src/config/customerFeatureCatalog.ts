@@ -129,8 +129,9 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
     // anyway so the Staff Access screen enumerates a complete feature set
     // rather than one with a silent hole in it.
     // "blocking" moved here from the Network group (was "website-blocking")
-    // together with the Blocked Guests tab of Access Rules -- see
-    // lib/blocking.ts.
+    // -- see lib/blocking.ts. Guests & devices is NOT part of it: that tab is
+    // under Access Rules ("policies"), so granting "policies" grants it
+    // (lib/access-rules-tabs.ts).
     items: [
       { id: "security", label: "Security Score", icon: ShieldAlert },
       // "web-filtering" was its own entry; its categories are a section of

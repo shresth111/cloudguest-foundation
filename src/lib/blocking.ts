@@ -1,6 +1,7 @@
 /**
  * Security -> Block Websites: which tabs the page has, who may see each, and
- * which one opens first.
+ * which one opens first. One tab today ("Websites"); the tab machinery is
+ * kept so a second blocking surface has a place to go without a rewrite.
  *
  * Pure and dependency-free on purpose, so the nav guards can execute it
  * rather than grep it (see scripts/test-controller-venue-network-screens.mjs
@@ -20,8 +21,10 @@
  *    internet address (IP) is blocked. `/website-blocking` and
  *    `/web-filtering` redirect here, so an old bookmark lands on the same
  *    rules.
- *  - "Guests & devices" is `BlockUsers` -- the screen that was the "Blocked
- *    Guests" tab of Access Rules. That tab is gone from Access Rules.
+ *  - "Guests & devices" (`BlockUsers`) WAS a second tab here. It moved back
+ *    to Access Rules, right after Access Tiers, on the owner's instruction
+ *    (2026-10-04) -- see `lib/access-rules-tabs.ts`. `/blocking?tab=guests`
+ *    redirects to `/policies?tab=guests`, and the page links there.
  *
  * Two homes for one setting is how two people end up looking at different
  * screens and believing different things (see PoliciesHub's note on why
@@ -34,7 +37,7 @@
  * second copy.
  */
 
-export type BlockingTabId = "websites" | "guests";
+export type BlockingTabId = "websites";
 
 export interface BlockingTab {
   id: BlockingTabId;
@@ -42,7 +45,7 @@ export interface BlockingTab {
   label: string;
   /** Backend keys the tab's own reads are guarded by -- the same keys the
    * endpoints it calls check (`content_filtering.read` on
-   * `/content-filter/rules`, `guest_access.read` on `/guest-access/rules`).
+   * `/content-filter/rules`).
    * Any one is enough, the same OR shape as `NAV_PERMISSION_KEYS`. */
   permissionKeys: readonly string[];
   /** The id `CONTROLLER_UNSUPPORTED_FEATURE_IDS` knows this tab's screen by,
@@ -61,12 +64,6 @@ export const BLOCKING_TABS: readonly BlockingTab[] = [
     label: "Websites",
     permissionKeys: ["content_filtering.read"],
     controllerGatedAs: "website-blocking",
-  },
-  {
-    id: "guests",
-    label: "Guests & devices",
-    permissionKeys: ["guest_access.read"],
-    controllerGatedAs: null,
   },
 ];
 

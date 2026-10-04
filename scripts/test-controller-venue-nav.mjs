@@ -395,8 +395,8 @@ console.log("\ncontroller venue: the five Network screens");
     network.every((row) => /managed by a TP-Link Omada controller/.test(row.title ?? "")),
   );
   // Five: the four Network rows, and Security -> Firewall, which is a whole
-  // page of RouterOS writes (cloud-guest#304 is MikroTik-only). Blocking is
-  // NOT muted -- its Guests tab works here.
+  // page of RouterOS writes (cloud-guest#304 is MikroTik-only). Block
+  // Websites is NOT muted -- it gates its one Websites tab in-page.
   // (Six while Web filtering was its own row; it is a section of Block
   // Websites now, gated with that page's Websites tab.)
   check(
@@ -465,9 +465,9 @@ for (const feature of ["port-forwarding", "dhcp", "vlans", "voip"]) {
 }
 
 // ---------------------------------------------------------------------------
-// Security -> Blocking. The gate moved with Website Blocking: it now applies
-// to that one TAB, and the page around it -- whose Guests tab works at an
-// Omada venue -- stays a live, unmuted row.
+// Security -> Block Websites is websites only; Guests & devices (BlockUsers)
+// is a tab of Access Rules, right after Access Tiers, for EVERY vendor
+// (owner instruction 2026-10-04, lib/access-rules-tabs.ts).
 // ---------------------------------------------------------------------------
 
 /** BlockUsers' own "Block User" card title -- positive evidence the real
@@ -475,42 +475,41 @@ for (const feature of ["port-forwarding", "dhcp", "vlans", "voip"]) {
 const GUESTS_VIEW_CTA = "Block User";
 const WEBSITES_VIEW_CTA = "Block a website";
 const CONTROLLER_COPY = /is configured on this venue's controller|Configured in Omada, not here\./;
+const ARUBA = {
+  id: "r-aruba",
+  name: "Lobby AP21",
+  status: "online",
+  vendor: "aruba_instant_on",
+  last_seen_at: new Date().toISOString(),
+};
 
-console.log("\nSecurity -> Blocking at a controller venue");
+console.log("\nSecurity -> Block Websites at a controller venue");
 {
   const r = await openFeature("blocking", [OMADA]);
   const row = r.rows.find((x) => x.label === "Block Websites");
   check("omada-blocking-row-is-in-the-nav", !!row);
   check(
-    "omada-blocking-row-is-not-muted",
-    row && !row.muted && row.title === null,
-    "its Guests tab works here; greying the row would hide a working screen",
+    "omada-blocking-has-no-guests-tab-any-more",
+    (await r.page.getByRole("tab", { name: "Guests & devices" }).count()) === 0 &&
+      !r.text.includes(GUESTS_VIEW_CTA),
   );
-  check(
-    "omada-blocking-opens-on-guests",
-    r.text.includes(GUESTS_VIEW_CTA) && !r.text.includes(WEBSITES_VIEW_CTA),
-    "the first screen at an Omada venue should be the one that does something",
-  );
-  check(
-    "omada-blocking-offers-both-tabs",
-    (await r.page.getByRole("tab", { name: "Websites" }).count()) === 1 &&
-      (await r.page.getByRole("tab", { name: "Guests & devices" }).count()) === 1,
-  );
-  await r.page.getByRole("tab", { name: "Websites" }).click();
-  await r.page.waitForTimeout(300);
-  const websites = (await r.page.locator("body").innerText()).replace(/\u2019/g, "'");
   check(
     "omada-websites-tab-mounts-no-form",
-    !websites.includes(WEBSITES_VIEW_CTA) &&
-      !/Total Rules/.test(websites) &&
+    !r.text.includes(WEBSITES_VIEW_CTA) &&
+      !/Total Rules/.test(r.text) &&
       !(await r.page.locator("form").count()),
     "the content-filter view fetches rules and offers Add on mount; it must not mount",
   );
   check(
     "omada-websites-tab-shows-the-existing-notice",
-    /Configured in Omada, not here\./.test(websites) &&
-      /Website blocking for this venue is set in Omada's own interface/.test(websites) &&
-      /Your Wyfy Guest contact manages this venue/.test(websites),
+    /Configured in Omada, not here\./.test(r.text) &&
+      /Website blocking for this venue is set in Omada's own interface/.test(r.text) &&
+      /Your Wyfy Guest contact manages this venue/.test(r.text),
+  );
+  check(
+    "omada-blocking-points-at-access-rules-guests-and-devices",
+    /Blocking guests or devices\?/.test(r.text) &&
+      (await r.page.getByRole("link", { name: "Access Rules → Guests & devices" }).count()) === 1,
   );
   await r.page.close();
 }
@@ -523,12 +522,17 @@ console.log("\nSecurity -> Blocking at a controller venue");
   await r.page.close();
 }
 
-console.log("\nSecurity -> Blocking at a MikroTik venue");
+console.log("\nSecurity -> Block Websites at a MikroTik venue");
 {
   const r = await openFeature("blocking", [MIKROTIK]);
   check(
     "mikrotik-blocking-opens-on-websites-with-the-real-view",
     r.text.includes(WEBSITES_VIEW_CTA) && !CONTROLLER_COPY.test(r.text),
+  );
+  check(
+    "mikrotik-blocking-has-no-guests-tab-and-links-to-access-rules",
+    !r.text.includes(GUESTS_VIEW_CTA) &&
+      (await r.page.getByRole("link", { name: "Access Rules → Guests & devices" }).count()) === 1,
   );
   check("mikrotik-blocking-mutes-nothing", r.rows.filter((row) => row.muted).length === 0);
   check(
@@ -558,13 +562,54 @@ console.log("\nSecurity -> Blocking at a MikroTik venue");
   );
   await r.page.close();
 }
-{
-  const r = await openFeature("blocking", [MIKROTIK], { tab: "guests" });
-  check(
-    "mikrotik-deep-link-to-guests-mounts-blocked-guests",
-    r.text.includes(GUESTS_VIEW_CTA) && !r.text.includes(WEBSITES_VIEW_CTA),
-  );
-  await r.page.close();
+
+console.log("\nAccess Rules -> Guests & devices, every vendor");
+for (const [name, routers] of [
+  ["mikrotik", [MIKROTIK]],
+  ["omada", [OMADA]],
+  ["aruba", [ARUBA]],
+]) {
+  {
+    const r = await openFeature("policies", routers);
+    const tabs = await r.page.$$eval("button[aria-current], button", (els) =>
+      els
+        .map((el) => el.innerText.trim())
+        .filter((x) => /^(Guest WiFi Limits|Access Tiers|Guests & devices)$/.test(x)),
+    );
+    check(
+      `${name}-access-rules-tabs-are-limits-tiers-then-guests-and-devices`,
+      tabs.join("|") === "Guest WiFi Limits|Access Tiers|Guests & devices",
+      tabs.join("|"),
+    );
+    check(
+      `${name}-access-rules-drops-the-moved-note`,
+      !/Looking for blocked guests\?/.test(r.text),
+    );
+    check(
+      `${name}-access-rules-row-is-not-muted`,
+      (() => {
+        const row = r.rows.find((x) => x.label === "Access Rules");
+        return !!row && !row.muted;
+      })(),
+    );
+    await r.page.getByRole("button", { name: "Guests & devices" }).click();
+    await r.page.waitForTimeout(400);
+    const after = (await r.page.locator("body").innerText()).replace(/\u2019/g, "'");
+    check(
+      `${name}-guests-and-devices-tab-mounts-blocked-guests`,
+      after.includes(GUESTS_VIEW_CTA) && !CONTROLLER_COPY.test(after),
+    );
+    await r.page.close();
+  }
+  {
+    // The deep link the old /blocking?tab=guests address now redirects to.
+    const r = await openFeature("policies", routers, { tab: "guests" });
+    check(
+      `${name}-deep-link-policies-tab-guests-opens-blocked-guests`,
+      r.text.includes(GUESTS_VIEW_CTA),
+    );
+    await r.page.close();
+  }
 }
 
 // ---------------------------------------------------------------------------
