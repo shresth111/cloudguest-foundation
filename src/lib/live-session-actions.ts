@@ -13,6 +13,12 @@
  * buttons therefore report success while the guest's device carries on
  * exactly as before, so they take Disconnect's verdict and its sentence.
  *
+ * 2026-10-05: the Guests table's own Disconnect is LIVE at a NAS-only venue
+ * (it ends the Wyfy session and, with Instant On cloud control on, drops the
+ * device) and says what it does -- see `lib/aruba-disconnect.ts`. Extend and
+ * Reset stay greyed here; the "disconnect" verdict below is kept for callers
+ * that still ask it.
+ *
  * EVERY OTHER VENUE IS UNTOUCHED: the gate is `greyed: false, reason: null`
  * for MikroTik, Omada, a mixed venue and one whose routers could not be read,
  * and the screens render the live button exactly as before.

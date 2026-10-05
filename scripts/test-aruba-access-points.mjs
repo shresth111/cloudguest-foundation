@@ -295,6 +295,16 @@ function body(url, config) {
     // page must still narrow on its own.
     return page(SESSIONS);
   }
+  if (url === "/guest-session-groups") {
+    // The Guests table's one-row-per-guest listing (2026-10-05). Also
+    // ignores ap_mac, for the same reason. One session per guest here.
+    return page(SESSIONS.map((s) => ({
+      guest_id: s.guest_id, guest_identifier: null, session_count: 1,
+      active_session_count: 1, device_count: 1, first_started_at: NOW,
+      last_started_at: NOW, bytes_downloaded_total: 0, bytes_uploaded_total: 0,
+      active_session_ids: [s.id], latest_session: s,
+    })));
+  }
   if (url === "/guest-analytics/dashboard-series") {
     return { start: "", end: "", bucket: "hour", guests: 2, sessions: 2, avg_session_seconds: 600,
              peak_online: 2, series: [{ bucket_start: NOW, arrivals: 1, online: 2 }],
@@ -510,8 +520,13 @@ const done = async (r) => {
   if (r.errors.length) throw new Error(`page errors: ${r.errors.join(" | ")}`);
 };
 const apCalls = (calls) => calls.filter((c) => c.url.endsWith("/access-points"));
+// The Guests table's list request: `/guest-session-groups` since the table
+// went one-row-per-guest (2026-10-05); `/guest-sessions` for the "online now"
+// count and the dashboard.
 const sessionParams = (calls) =>
-  calls.filter((c) => c.url === "/guest-sessions").map((c) => JSON.stringify(c.params));
+  calls
+    .filter((c) => c.url === "/guest-sessions" || c.url === "/guest-session-groups")
+    .map((c) => JSON.stringify(c.params));
 
 /** Press "Export CSV" and return the file's text. */
 async function exportCsv(page) {

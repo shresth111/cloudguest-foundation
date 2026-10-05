@@ -96,6 +96,12 @@ import { locationIsNasOnly } from "@/lib/location-liveness";
 import { liveSessionActionGate } from "@/lib/live-session-actions";
 import { useArubaAccessPoints } from "@/hooks/useArubaAccessPoints";
 import { apFilterOptions, canonicalApMac, sessionApLabel } from "@/lib/aruba-access-points";
+import {
+  arubaAccessCutoff,
+  arubaDisconnectOutcome,
+  arubaSignedOutUntil,
+  formatCutoff,
+} from "@/lib/aruba-disconnect";
 
 /**
  * Shared empty-state graphic for the Users table -- a magnifying glass over
@@ -157,11 +163,13 @@ function CustomerUsersPage() {
   const clientControls = useClientControls();
   const disconnectVerdict = clientControls.verdict("disconnect");
   const disconnectReachesDevice = disconnectVerdict.availability === "available";
-  // Only at a NAS-only venue (Aruba Instant On) is Disconnect greyed outright:
-  // there is no controller API and no CoA, so the device stays online whatever
-  // we do, and ending our own record would make this list say they left.
-  // Omada and MikroTik venues keep the button exactly as before.
-  const disconnectUnsupported = isNasOnlyVendor(clientControls.vendor);
+  // A NAS-only venue (Aruba Instant On). Disconnect is LIVE here now (owner,
+  // 2026-10-05: "isme disconnect wala feature bhi add krdo"), with its own
+  // honest copy -- see lib/aruba-disconnect.ts for exactly what it does with
+  // Instant On cloud control on and off. The table also shows a signed-out
+  // guest whose device may still have WiFi as "Signing out", never as gone.
+  // Omada and MikroTik venues keep the button and its copy exactly as before.
+  const nasOnlyVenue = isNasOnlyVendor(clientControls.vendor);
   // Extend follows the same verdict (DASHBOARD_PLAN P0-D): at a NAS-only venue
   // it would only move the end time on OUR record -- the access point keeps
   // the Session-Timeout it was given at sign-in -- and report success while
@@ -174,7 +182,7 @@ function CustomerUsersPage() {
   // session with nothing recorded is "not reported" (U5), never a measured
   // "0 MB". Every other venue renders the value exactly as before.
   const sessionDataCell = (download: string) =>
-    disconnectUnsupported && download === "0 MB" ? (
+    nasOnlyVenue && download === "0 MB" ? (
       <span title={NAS_ONLY_DATA_USAGE_UNREPORTED} data-testid="data-unreported">
         —
       </span>
@@ -209,22 +217,7 @@ function CustomerUsersPage() {
   const masked = dataMasking.masked;
   const [changePwOpen, setChangePwOpen] = useState(false);
   const [tfaOpen, setTfaOpen] = useState(false);
-  const [detailUser, setDetailUser] = useState<{
-    id: string;
-    name: string;
-    email: string;
-    phone: string;
-    mac: string;
-    ip: string;
-    device: string;
-    duration: string;
-    connectedAt: string;
-    disconnectedAt: string | null;
-    download: string;
-    status: string;
-    guestId: string | null;
-    mergedSessionCount?: number;
-  } | null>(null);
+  const [detailUser, setDetailUser] = useState<CustomerUsersData["users"][number] | null>(null);
   // The full connection-history drawer (QA: click a user -> details + a log
   // of its connections). Opened from the visit slide-over; the drawer then
   // owns the screen, showing the guest's whole story across page boundaries.
@@ -241,7 +234,33 @@ function CustomerUsersPage() {
      * not enforce can be retried against the controller by MAC. The table
      * writes the literal "Unknown" when a session has none. */
     mac: string;
+    /** Every ACTIVE session of this guest at the venue (a guest row can be
+     * online on a phone and a laptop). Empty/absent: just `id`. */
+    activeSessionIds?: string[];
+    /** Aruba copy only: when the access point's own timeout runs out. */
+    cutoff?: Date | null;
   } | null>(null);
+  /** Guest-row Disconnect: the row's own session first (exactly the call it
+   * always made), then any OTHER active session the same guest has here. */
+  const askDisconnect = (u: {
+    id: string;
+    name: string;
+    guestId: string | null;
+    mac: string;
+    connectedAt: string;
+    activeSessionIds?: string[];
+    sessionTimeoutMinutes?: number | null;
+  }) =>
+    setConfirmDisconnect({
+      id: u.id,
+      name: u.name,
+      guestId: u.guestId,
+      mac: u.mac,
+      activeSessionIds: u.activeSessionIds,
+      cutoff: nasOnlyVenue ? arubaAccessCutoff(u.connectedAt, u.sessionTimeoutMinutes) : null,
+    });
+  const otherActiveSessions = (c: { id: string; activeSessionIds?: string[] } | null) =>
+    (c?.activeSessionIds ?? []).filter((sid) => sid !== c?.id);
   const PAGE_SIZE = 8;
 
   // Aruba Instant On venues only (DASHBOARD_PLAN P0-A3): an "Access point"
@@ -265,6 +284,10 @@ function CustomerUsersPage() {
   // Real, location-wide count -- independent of this page's search/tab/
   // pagination state, see useCustomerOnlineNow's own docstring.
   const onlineNow = useCustomerOnlineNow(locationId);
+  // Aruba only: whether Instant On cloud control can drop a device here.
+  const instantOnCloud = nasOnlyVenue && data?.instantOnCloudDisconnect === true;
+  // "Signing out until HH:MM" is a function of the clock; re-read per render.
+  const renderNow = new Date();
 
   const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 0;
 
@@ -690,7 +713,19 @@ function CustomerUsersPage() {
                         <TableCell className="font-mono text-xs hidden xl:table-cell">
                           {u.ip || "—"}
                         </TableCell>
-                        <TableCell className="text-xs hidden md:table-cell">{u.device}</TableCell>
+                        <TableCell className="text-xs hidden md:table-cell">
+                          {u.device}
+                          {/* Grouped rows: the guest used more devices here
+                              than the one this row describes. */}
+                          {!!u.deviceCount && u.deviceCount > 1 && (
+                            <span
+                              className="ml-1 text-[10px] text-muted-foreground"
+                              data-testid="guest-device-count"
+                            >
+                              {t("moreDevices", { count: u.deviceCount - 1 })}
+                            </span>
+                          )}
+                        </TableCell>
                         {arubaVenue && (
                           <TableCell
                             className="text-xs hidden md:table-cell"
@@ -716,6 +751,27 @@ function CustomerUsersPage() {
                                 ×{u.mergedSessionCount}
                               </Badge>
                             )}
+                            {/* One row per guest: the rest of their sessions
+                                are one click away, in the history drawer. */}
+                            {!!u.sessionCount && u.sessionCount > 1 && u.guestId && (
+                              <button
+                                type="button"
+                                data-testid="guest-session-count"
+                                className="rounded-full bg-secondary px-1.5 text-[10px] font-normal text-secondary-foreground hover:bg-accent"
+                                title={t("sessionHistoryTooltip", { count: u.sessionCount })}
+                                aria-label={t("sessionHistoryTooltip", { count: u.sessionCount })}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setHistoryUser({
+                                    guestId: u.guestId,
+                                    title: u.name,
+                                    subtitle: masked ? maskEmail(u.email) : u.email,
+                                  });
+                                }}
+                              >
+                                {t("sessionsCount", { count: u.sessionCount })}
+                              </button>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground hidden lg:table-cell">
@@ -728,7 +784,24 @@ function CustomerUsersPage() {
                           {sessionDataCell(u.download)}
                         </TableCell>
                         <TableCell>
+                          {(() => {
+                            // Aruba only: Wyfy signed this guest out but the
+                            // access point was not told to drop the device, so
+                            // it may have WiFi until its own timeout.
+                            const until = nasOnlyVenue ? arubaSignedOutUntil(u, renderNow) : null;
+                            return until ? (
+                              <span
+                                className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-600 dark:text-amber-400"
+                                title={t("arubaSigningOutTooltip", { time: formatCutoff(until) })}
+                                data-testid="aruba-signing-out"
+                              >
+                                <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
+                                {t("arubaSigningOut", { time: formatCutoff(until) })}
+                              </span>
+                            ) : null;
+                          })()}
                           <span
+                            hidden={nasOnlyVenue && !!arubaSignedOutUntil(u, renderNow)}
                             className={cn(
                               "inline-flex items-center gap-1.5 text-xs font-medium",
                               u.status === "online"
@@ -829,42 +902,19 @@ function CustomerUsersPage() {
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             )}
-                            {/* A NAS-only venue (Aruba Instant On): nothing
-                             * can end the device's connection, and ending
-                             * only our record would show an online guest as
-                             * gone. Greyed with PM_SPEC U2; the title is on
-                             * the wrapper because a disabled button takes no
-                             * pointer events. The live button below is
-                             * `hidden` there and untouched everywhere else. */}
-                            {disconnectUnsupported && (
-                              <span title={disconnectVerdict.reason ?? undefined}>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 disabled:text-muted-foreground"
-                                  disabled
-                                  aria-label={disconnectVerdict.reason ?? t("disconnect")}
-                                  data-testid="disconnect-unsupported-icon"
-                                >
-                                  <XCircle className="h-3.5 w-3.5" />
-                                </Button>
-                              </span>
-                            )}
+                            {/* Live at every venue, Aruba Instant On included
+                             * (its confirm dialog and toasts say what Instant
+                             * On can and cannot do -- lib/aruba-disconnect). */}
                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8 text-destructive disabled:text-muted-foreground"
-                              hidden={disconnectUnsupported}
                               disabled={u.status === "offline" || disconnect.isPending}
                               title={u.status === "offline" ? t("alreadyOffline") : t("disconnect")}
+                              data-testid="guest-row-disconnect"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setConfirmDisconnect({
-                                  id: u.id,
-                                  name: u.name,
-                                  guestId: u.guestId,
-                                  mac: u.mac,
-                                });
+                                askDisconnect(u);
                               }}
                             >
                               <XCircle className="h-3.5 w-3.5" />
@@ -895,12 +945,14 @@ function CustomerUsersPage() {
                   say only the part we can see -- "11 sessions" -- rather
                   than quoting the session count twice under two names. */}
                 <span className="text-xs text-muted-foreground">
-                  {data?.uniqueGuests === undefined
-                    ? t("sessionsCount", { count: data?.total ?? 0 })
-                    : t("sessionsFromGuests", {
-                        sessions: t("sessionsCount", { count: data.total }),
-                        guests: t("guestsCount", { count: data.uniqueGuests }),
-                      })}
+                  {data?.grouped
+                    ? t("guestsCount", { count: data.total })
+                    : data?.uniqueGuests === undefined
+                      ? t("sessionsCount", { count: data?.total ?? 0 })
+                      : t("sessionsFromGuests", {
+                          sessions: t("sessionsCount", { count: data.total }),
+                          guests: t("guestsCount", { count: data.uniqueGuests }),
+                        })}
                 </span>
                 <div className="flex items-center gap-1">
                   <Button
@@ -1175,24 +1227,15 @@ function CustomerUsersPage() {
                 <Button
                   variant="outline"
                   className="w-full text-destructive disabled:text-muted-foreground"
-                  disabled={
-                    detailUser.status === "offline" || disconnect.isPending || disconnectUnsupported
-                  }
-                  onClick={() =>
-                    setConfirmDisconnect({
-                      id: detailUser.id,
-                      name: detailUser.name,
-                      guestId: detailUser.guestId,
-                      mac: detailUser.mac,
-                    })
-                  }
+                  disabled={detailUser.status === "offline" || disconnect.isPending}
+                  onClick={() => askDisconnect(detailUser)}
                 >
                   <XCircle className="mr-2 h-4 w-4" />
                   {detailUser.status === "offline" ? t("alreadyOffline") : t("disconnectUser")}
                 </Button>
-                {disconnectUnsupported && (
-                  <p className="text-xs text-muted-foreground" data-testid="disconnect-unsupported">
-                    {disconnectVerdict.reason}
+                {nasOnlyVenue && detailUser.status !== "offline" && (
+                  <p className="text-xs text-muted-foreground" data-testid="aruba-disconnect-note">
+                    {instantOnCloud ? t("arubaDisconnectNoteCloud") : t("arubaDisconnectNote")}
                   </p>
                 )}
               </div>
@@ -1227,9 +1270,25 @@ function CustomerUsersPage() {
                 verdict's own sentence replaces it, rather than being appended
                 as a caveat to a claim we have just made. */}
             <AlertDialogDescription>
-              {disconnectReachesDevice
-                ? t("confirmDisconnectDescription")
-                : disconnectVerdict.reason}
+              {nasOnlyVenue
+                ? instantOnCloud
+                  ? t("arubaConfirmCloud", { name: confirmDisconnect?.name })
+                  : confirmDisconnect?.cutoff
+                    ? t("arubaConfirmTimeout", {
+                        name: confirmDisconnect?.name,
+                        time: formatCutoff(confirmDisconnect.cutoff),
+                      })
+                    : t("arubaConfirmTimeoutNoTime", { name: confirmDisconnect?.name })
+                : disconnectReachesDevice
+                  ? t("confirmDisconnectDescription")
+                  : disconnectVerdict.reason}
+              {otherActiveSessions(confirmDisconnect).length > 0 && (
+                <span className="mt-2 block" data-testid="disconnect-all-devices">
+                  {t("disconnectAllDevices", {
+                    count: otherActiveSessions(confirmDisconnect).length + 1,
+                  })}
+                </span>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1238,6 +1297,61 @@ function CustomerUsersPage() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
                 if (!confirmDisconnect) return;
+                const others = otherActiveSessions(confirmDisconnect);
+                // The same guest's OTHER active sessions (a second device).
+                // Best-effort, after the row's own session: its verdicts are
+                // what the Aruba toast reads; elsewhere the toast is the
+                // row's own, exactly as before.
+                const endOthers = async (): Promise<(boolean | null)[]> => {
+                  const verdicts: (boolean | null)[] = [];
+                  for (const sid of others) {
+                    try {
+                      const r = await customerService.disconnectSession(
+                        sid,
+                        confirmDisconnect.guestId,
+                        locationId,
+                      );
+                      verdicts.push(r.sessionEnforced);
+                    } catch {
+                      verdicts.push(null);
+                    }
+                  }
+                  return verdicts;
+                };
+                if (nasOnlyVenue) {
+                  const name = confirmDisconnect.name;
+                  const cutoff = confirmDisconnect.cutoff ?? null;
+                  disconnect.mutate(
+                    {
+                      sessionId: confirmDisconnect.id,
+                      guestId: confirmDisconnect.guestId,
+                      locationId,
+                    },
+                    {
+                      onSuccess: async (result) => {
+                        const verdicts = [result.sessionEnforced, ...(await endOthers())];
+                        // Never a success toast on an unconfirmed drop: only
+                        // an Instant On block that was READ BACK (backend
+                        // `disconnect_enforced: true`) says "disconnected".
+                        if (arubaDisconnectOutcome(verdicts) === "dropped") {
+                          toast.success(t("arubaDisconnectDropped", { name }));
+                        } else if (cutoff) {
+                          toast.info(
+                            t("arubaDisconnectSignedOut", { name, time: formatCutoff(cutoff) }),
+                          );
+                        } else {
+                          toast.info(t("arubaDisconnectSignedOutNoTime", { name }));
+                        }
+                      },
+                      onError: (err) =>
+                        toast.error((err as unknown as AppError).message || t("disconnectError")),
+                    },
+                  );
+                  setConfirmDisconnect(null);
+                  setDetailUser(null);
+                  return;
+                }
+                if (others.length > 0) void endOthers();
                 disconnect.mutate(
                   {
                     sessionId: confirmDisconnect.id,

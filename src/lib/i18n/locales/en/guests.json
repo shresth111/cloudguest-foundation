@@ -81,5 +81,21 @@
   "exportSuccess_other": "Exported {{count}} guests",
   "colAccessPoint": "Access point",
   "allAccessPoints": "All access points",
-  "accessPointFilter": "Filter by access point"
+  "accessPointFilter": "Filter by access point",
+  "moreDevices_one": "+{{count}} device",
+  "moreDevices_other": "+{{count}} devices",
+  "sessionHistoryTooltip_one": "See {{count}} session",
+  "sessionHistoryTooltip_other": "See all {{count}} sessions",
+  "disconnectAllDevices_one": "This guest is online on {{count}} device.",
+  "disconnectAllDevices_other": "This guest is online on {{count}} devices — all of them will be disconnected.",
+  "arubaSigningOut": "Signing out · {{time}}",
+  "arubaSigningOutTooltip": "Signed out in Wyfy. Aruba Instant On keeps this device on WiFi until about {{time}}, when the access point's session time runs out. After that they have to sign in again.",
+  "arubaConfirmCloud": "Wyfy signs {{name}} out and asks Aruba Instant On to drop their device. Instant On blocks it briefly, then they can sign in again.",
+  "arubaConfirmTimeout": "Wyfy signs {{name}} out now. Aruba Instant On access points can't be told to drop a device, so theirs keeps WiFi until about {{time}}, when the access point's session time runs out. After that they have to sign in again.",
+  "arubaConfirmTimeoutNoTime": "Wyfy signs {{name}} out now. Aruba Instant On access points can't be told to drop a device, so theirs keeps WiFi until the session time the access point gave it at sign-in runs out. After that they have to sign in again.",
+  "arubaDisconnectNote": "Aruba Instant On can't drop a device on command: the guest is signed out in Wyfy and loses WiFi when the access point's session time runs out.",
+  "arubaDisconnectNoteCloud": "Wyfy signs the guest out and drops their device through Aruba Instant On.",
+  "arubaDisconnectDropped": "{{name}} disconnected — Aruba Instant On confirmed it dropped their device",
+  "arubaDisconnectSignedOut": "{{name}} is signed out. Their device keeps WiFi until about {{time}}, when the access point's session time runs out.",
+  "arubaDisconnectSignedOutNoTime": "{{name}} is signed out. Their device keeps WiFi until the access point's session time runs out, then they have to sign in again."
 }
