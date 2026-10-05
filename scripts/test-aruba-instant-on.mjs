@@ -1048,17 +1048,24 @@ console.log("\n8. Customer venue view: our own records only, never Offline, neve
   }
 
   const dashPage = src("src/components/customer/CustomerDashboardPage.tsx");
+  // 2026-10-05 redesign: at a NAS-only venue the access points take the
+  // Bandwidth card's slot, and the Internet Connection + hardware row is not
+  // rendered at all (the venue card no longer repeats the status bar).
   check(
-    "dashboard: the venue card replaces the hardware card only at a NAS-only venue",
-    /nasOnlyVenue \? \(\s*<ArubaInstantOnVenueCard locationId=\{locationId\} \/>\s*\) : \(\s*<DeviceStatusCard/.test(
+    "dashboard: the WAN + hardware row renders only at a non-NAS-only venue",
+    /\{!nasOnlyVenue && \(\s*<div className="grid gap-6 lg:grid-cols-2">\s*<WanStatusCard[\s\S]{0,200}<DeviceStatusCard/.test(
       dashPage,
     ),
   );
   check(
-    "dashboard: bandwidth gives way to U6 only at a NAS-only venue",
-    /nasOnlyVenue \? \([\s\S]{0,300}controllerDeviceMetricsReason\("aruba_instant_on"\)[\s\S]{0,200}\) : \(\s*<BandwidthUtilizationCard/.test(
+    "dashboard: bandwidth gives way to the access points only at a NAS-only venue",
+    /nasOnlyVenue \? \(\s*<ArubaAccessPointsCard locationId=\{locationId\} \/>\s*\) : \(\s*<BandwidthUtilizationCard/.test(
       dashPage,
     ),
+  );
+  check(
+    "dashboard: no venue card and no U6 'needs a router' card",
+    !/<ArubaInstantOnVenueCard/.test(dashPage) && !/controllerDeviceMetricsReason/.test(dashPage),
   );
   check(
     "dashboard: the gate is locationIsNasOnly",

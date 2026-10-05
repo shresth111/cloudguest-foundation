@@ -576,21 +576,24 @@ console.log("\nB2. Aruba dashboard: the access points card");
   check(
     "Lobby: online, 3 now, 3.0 MB today",
     /Lobby/.test(rows[0]) &&
-      /Online/.test(rows[0]) &&
+      /Active/.test(rows[0]) &&
       /3online now/.test(rows[0]) &&
       /3\.0 MBdata today/.test(rows[0]),
     rows[0],
   );
+  // 2026-10-05 redesign: one verdict sentence per AP ("Idle · ...") instead
+  // of a "No recent activity" pill beside a separate activity line, and an
+  // idle AP's open sessions read "signed in", not "online now".
   check(
-    "Terrace: no recent activity, measured zeros",
+    "Terrace: idle, one verdict, measured zeros",
     /Terrace/.test(rows[1]) &&
-      /No recent activity/.test(rows[1]) &&
-      /No guest activity yet/.test(rows[1]) &&
-      /0online now/.test(rows[1]) &&
+      /Idle · no guest activity yet/.test(rows[1]) &&
+      !/No recent activity/.test(rows[1]) &&
+      /0signed in/.test(rows[1]) &&
       /0 Bdata today/.test(rows[1]),
     rows[1],
   );
-  check("Lobby shows its last activity", /Last guest activity/.test(rows[0]), rows[0]);
+  check("Lobby shows its last activity", /Active · guest activity /.test(rows[0]), rows[0]);
   const apCall = apCalls(r.calls)[0];
   check(
     "the read sends tz_offset_minutes as an integer",

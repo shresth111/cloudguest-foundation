@@ -10,7 +10,7 @@
  * in for a failed read (see `lib/aruba-access-points.ts`). Customer copy names
  * the Instant On app only -- never RADIUS, NAS or a tunnel.
  */
-import { Radio } from "lucide-react";
+import { ChevronDown, Radio } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { relativeTime } from "@/lib/friendly";
@@ -22,10 +22,54 @@ import {
   apCount,
   apDataToday,
   apDisplayName,
-  apStatusDetail,
-  apStatusLabel,
   apUnattributedNote,
 } from "@/lib/aruba-access-points";
+import { apVerdict } from "@/lib/aruba-dashboard";
+import { ARUBA_VENUE_IN_INSTANT_ON, ARUBA_VENUE_IN_WYFY } from "@/lib/aruba-venue";
+
+/**
+ * The ONE "managed in the Instant On app" note on the dashboard, collapsed:
+ * the summary line is the whole message, the two lists are there for whoever
+ * asks "so what can I change here?". It replaces the venue card and the
+ * liveness explainer, which said the same sentence twice above it.
+ */
+function InstantOnManagedNote() {
+  return (
+    <details
+      className="group border-t border-border/60 pt-3 text-xs"
+      data-testid="aruba-managed-note"
+    >
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-muted-foreground [&::-webkit-details-marker]:hidden">
+        <span>{ARUBA_AP_MANAGE_NOTE}</span>
+        <span className="inline-flex shrink-0 items-center gap-1 font-medium text-foreground/80">
+          What's managed where
+          <ChevronDown
+            aria-hidden
+            className="h-3.5 w-3.5 transition-transform group-open:rotate-180"
+          />
+        </span>
+      </summary>
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div>
+          <p className="mb-1 font-medium text-foreground">Here, in Wyfy</p>
+          <ul className="list-disc space-y-0.5 pl-4 text-muted-foreground">
+            {ARUBA_VENUE_IN_WYFY.map((x) => (
+              <li key={x}>{x}</li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <p className="mb-1 font-medium text-foreground">In the Instant On app</p>
+          <ul className="list-disc space-y-0.5 pl-4 text-muted-foreground">
+            {ARUBA_VENUE_IN_INSTANT_ON.map((x) => (
+              <li key={x}>{x}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </details>
+  );
+}
 
 export function ArubaAccessPointsCard({ locationId }: { locationId: string }) {
   const state = useArubaAccessPoints(locationId);
@@ -68,45 +112,48 @@ export function ArubaAccessPointsCard({ locationId }: { locationId: string }) {
         ) : (
           <ul className="divide-y divide-border/60" data-testid="aruba-ap-list">
             {state.items.map((ap) => {
-              const active = ap.status === "online";
+              // ONE verdict per AP: the label, its evidence and the meaning
+              // of the guest counter all come from `apVerdict`, so "Idle"
+              // can no longer sit beside "1 online now".
+              const v = apVerdict(ap, relativeTime);
               return (
                 <li
                   key={ap.id}
-                  className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between"
+                  className="flex items-start justify-between gap-3 py-3"
                   data-testid="aruba-ap-row"
                 >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-foreground">
-                      {apDisplayName(ap)}
-                    </p>
-                    <p className="truncate text-[11px] text-muted-foreground">
-                      {[ap.model, ap.name ? ap.mac : null].filter(Boolean).join(" · ") || ap.mac}
-                    </p>
-                    <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                      {apStatusDetail(ap, state.asOf, relativeTime)}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-4 text-xs">
+                  <div className="flex min-w-0 items-start gap-2.5">
                     <span
+                      aria-hidden
                       className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium",
-                        active
-                          ? "border-emerald-200/70 bg-emerald-50 text-emerald-700 dark:border-emerald-800/50 dark:bg-emerald-950/50 dark:text-emerald-400"
-                          : "border-border bg-muted text-muted-foreground",
+                        "mt-1.5 h-2 w-2 shrink-0 rounded-full",
+                        v.active ? "bg-emerald-500" : "bg-muted-foreground/50",
                       )}
-                    >
-                      <span
-                        aria-hidden
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-foreground">
+                        {apDisplayName(ap)}
+                      </p>
+                      <p className="truncate text-[11px] text-muted-foreground">
+                        {[ap.model, ap.name ? ap.mac : null].filter(Boolean).join(" · ") || ap.mac}
+                      </p>
+                      <p
                         className={cn(
-                          "h-1.5 w-1.5 rounded-full",
-                          active ? "bg-emerald-500" : "bg-muted-foreground/60",
+                          "mt-0.5 text-[11px]",
+                          v.active
+                            ? "text-emerald-700 dark:text-emerald-400"
+                            : "text-muted-foreground",
                         )}
-                      />
-                      {apStatusLabel(ap.status)}
-                    </span>
+                        data-testid="aruba-ap-verdict"
+                      >
+                        {v.sentence}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-start gap-4 text-xs">
                     <div className="text-right">
                       <p className="font-semibold tabular-nums">{apCount(ap.clientsNow)}</p>
-                      <p className="text-[10px] text-muted-foreground">online now</p>
+                      <p className="text-[10px] text-muted-foreground">{v.countLabel}</p>
                     </div>
                     <div className="text-right">
                       <p className="font-semibold tabular-nums">{apDataToday(ap)}</p>
@@ -123,7 +170,7 @@ export function ArubaAccessPointsCard({ locationId }: { locationId: string }) {
             {apUnattributedNote(state.unattributedClientsNow)}
           </p>
         )}
-        <p className="text-xs text-muted-foreground">{ARUBA_AP_MANAGE_NOTE}</p>
+        <InstantOnManagedNote />
       </CardContent>
     </Card>
   );
