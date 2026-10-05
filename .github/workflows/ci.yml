@@ -2248,11 +2248,14 @@ jobs:
       # WiFi network, data/daily/login-hours notes, a save writes the tier
       # BANDWIDTH rules (backend contract, no paired FUP) + held rate, live validation, "Used
       # by" (guests + SSIDs). MikroTik and Omada: nothing changed -- no note,
-      # no SSID/assignments request, no FUP write. Floor 124, observed green at 124.
+      # no SSID/assignments request, no FUP write. A 502 during an API restart
+      # is waited out (lib/transient-retry.ts); Map tier at Aruba maps the
+      # tier only, never its paired SESSION/DEVICE for everyone (MikroTik and
+      # Omada still mirror them). Floor 159, observed green at 159.
       - name: aruba instant on access tiers
         run: |
           ./scripts/ci-gated-test.sh \
-            "access-tiers-aruba" 124 \
+            "access-tiers-aruba" 159 \
             "access tiers aruba: all checks passed" \
             bun run test:access-tiers-aruba
 
