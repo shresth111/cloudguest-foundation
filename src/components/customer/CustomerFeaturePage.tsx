@@ -407,8 +407,17 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                 <NetworkActivityLog masked={masked} scope={pageScope} />
               )}
               {feature === "netlogs" && <NetLogsView locationId={locationId} scope={pageScope} />}
+              {/* Trusted Devices is live at an Aruba Instant On venue too: the
+                  portal signs a trusted device in by itself there, so it
+                  carries a caveat saying what the owner will see. */}
               {feature === "mac-auth" && !controllerGated && (
-                <MacAuthView locationId={locationId} scope={pageScope} />
+                <>
+                  <ControllerControlNotice
+                    verdict={nasOnlyLimitVerdict("trusted-devices", controllerVendor)}
+                    className="mb-4 mt-0"
+                  />
+                  <MacAuthView locationId={locationId} scope={pageScope} />
+                </>
               )}
               {/* The RouterOS screens. On a controller-managed venue
                   the view is NOT MOUNTED -- this is not a disabled form over
