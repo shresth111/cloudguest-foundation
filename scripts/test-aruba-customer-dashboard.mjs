@@ -98,13 +98,24 @@ function body(url, config) {
   if (url === "/locations/" + LOC + "/routers") return page(ROUTERS);
   if (url === "/locations/" + LOC + "/access-points") {
     if (MODE === "ap-fail") throw Object.assign(new Error("404"), { status: 404 });
-    return { items: [
+    // The real P0-A2 contract (download_/upload_bytes_today, as_of at the
+    // top level). MODE "ap-idle": the owner's 2026-10-05 screen -- one AP,
+    // a session still open, last packet 31 minutes ago.
+    if (MODE === "ap-idle") {
+      return { location_id: LOC, applicable: true, as_of: NOW, unattributed_clients_now: 0, items: [
+        { id: null, name: null, mac: "54:f0:b1:c8:a9:0a", model: "AP21", is_primary: true,
+          clients_now: 1, sessions_today: 2, download_bytes_today: 400000000,
+          upload_bytes_today: 75000000, last_seen_at: "2026-10-04T09:29:00.000Z",
+          status: "no_recent_activity", status_source: null, instant_on_status: null },
+      ] };
+    }
+    return { location_id: LOC, applicable: true, as_of: NOW, unattributed_clients_now: 0, items: [
       { id: "ap1", name: "Lobby", mac: "aa:bb:cc:00:00:01", model: "AP21", clients_now: 3,
-        sessions_today: 9, bytes_today_in: 2000000, bytes_today_out: 1000000,
-        last_seen_at: NOW, status: "online", status_source: "radius", as_of: NOW },
+        sessions_today: 9, download_bytes_today: 2000000, upload_bytes_today: 1000000,
+        last_seen_at: "2026-10-04T09:58:00.000Z", status: "online", status_source: "radius" },
       { id: "ap2", name: "Terrace", mac: "aa:bb:cc:00:00:02", model: "AP21", clients_now: null,
-        sessions_today: null, bytes_today_in: null, bytes_today_out: null,
-        last_seen_at: null, status: "no_recent_activity", status_source: "radius", as_of: NOW },
+        sessions_today: null, download_bytes_today: null, upload_bytes_today: null,
+        last_seen_at: null, status: "no_recent_activity", status_source: null },
     ] };
   }
   if (url === "/guest-sessions") {
@@ -334,6 +345,102 @@ const sessionParams = (calls) =>
 const has = (html, testid) => html.includes(`data-testid="${testid}"`);
 const text = async (page) => page.evaluate(() => document.getElementById("root").innerText);
 
+console.log("\n0. One verdict per AP and per venue (pure, lib/aruba-dashboard)");
+{
+  const pureDir = mkdtempSync(join(tmpdir(), "aruba-dash-pure-"));
+  await build({
+    entryPoints: [join(ROOT, "src/lib/aruba-dashboard.ts")],
+    outfile: join(pureDir, "dash.mjs"),
+    bundle: true,
+    format: "esm",
+    platform: "node",
+    logLevel: "silent",
+    alias: { "@": join(ROOT, "src") },
+  });
+  const D = await import(pathToFileURL(join(pureDir, "dash.mjs")).href);
+  const rel = (iso) => `at ${iso.slice(11, 16)}`;
+  const ap = (o) => ({
+    status: "no_recent_activity",
+    statusSource: null,
+    lastSeenAt: null,
+    instantOnStatus: null,
+    downloadBytesToday: null,
+    uploadBytesToday: null,
+    ...o,
+  });
+  const active = ap({
+    status: "online",
+    statusSource: "radius",
+    lastSeenAt: "2026-10-04T09:58:00Z",
+  });
+  const idle = ap({ lastSeenAt: "2026-10-04T09:29:00Z" });
+  const never = ap({});
+  eq(
+    "active AP: one sentence",
+    D.apVerdict(active, rel).sentence,
+    "Active · guest activity at 09:58",
+  );
+  eq("active AP: counter is online now", D.apVerdict(active, rel).countLabel, "online now");
+  eq(
+    "idle AP: one sentence carrying the evidence",
+    D.apVerdict(idle, rel).sentence,
+    "Idle · last guest activity at 09:29",
+  );
+  eq("idle AP: counter is signed in", D.apVerdict(idle, rel).countLabel, "signed in");
+  eq("never-heard AP", D.apVerdict(never, rel).sentence, "Idle · no guest activity yet");
+  eq(
+    "Instant On online -> active, says where from",
+    D.apVerdict(ap({ status: "online", statusSource: "instant_on" }), rel).sentence,
+    "Active · online in the Instant On app",
+  );
+  check(
+    "no verdict ever says Offline",
+    ![
+      active,
+      idle,
+      never,
+      ap({ instantOnStatus: "offline", lastSeenAt: "2026-10-04T09:29:00Z" }),
+    ].some((a) => /offline/i.test(`${D.apVerdict(a, rel).label}`)),
+  );
+  const ok = (items) => ({ status: "ok", items, asOf: null, unattributedClientsNow: 0 });
+  const v1 = D.arubaVenueStatus(ok([active, idle]), rel);
+  eq("venue: any AP active -> live tone", v1.tone, "live");
+  eq("venue: '1 of 2 active'", v1.accessPoints, "1 of 2 active");
+  eq("venue: last activity is the newest AP's", v1.lastActivity, "at 09:58");
+  const v2 = D.arubaVenueStatus(ok([idle]), rel);
+  eq("venue: no AP active -> neutral, never a fault tone", v2.tone, "neutral");
+  eq("venue: idle title", v2.title, "No recent guest activity");
+  eq("venue: single idle AP", v2.accessPoints, "1 idle");
+  const v3 = D.arubaVenueStatus({ status: "unavailable" }, rel);
+  eq("venue: failed read -> —, not 0", `${v3.accessPoints}/${v3.lastActivity}`, "—/—");
+  eq("venue: failed read is neutral", v3.tone, "neutral");
+  eq(
+    "venue: no APs listed -> 0, a measured fact",
+    D.arubaVenueStatus(ok([]), rel).accessPoints,
+    "0",
+  );
+  eq(
+    "venue: never heard -> None yet",
+    D.arubaVenueStatus(ok([never]), rel).lastActivity,
+    "None yet",
+  );
+  eq("venue: loading -> …", D.arubaVenueStatus({ status: "loading" }, rel).accessPoints, "…");
+  eq(
+    "data today: sum of measured octets",
+    D.arubaDataToday(
+      ok([ap({ downloadBytesToday: 2e6, uploadBytesToday: 1e6 }), ap({ downloadBytesToday: 5e5 })]),
+    ),
+    "3.5 MB",
+  );
+  eq("data today: nothing measured -> null (—), not 0 B", D.arubaDataToday(ok([never])), null);
+  eq("data today: failed read -> null", D.arubaDataToday({ status: "unavailable" }), null);
+  eq(
+    "data today: measured zero is a real 0 B",
+    D.arubaDataToday(ok([ap({ downloadBytesToday: 0, uploadBytesToday: 0 })])),
+    "0 B",
+  );
+}
+
 console.log("\n1. MikroTik and Omada render unchanged");
 for (const venue of ["mikrotik", "omada"]) {
   const r = await render(ROOT, venue, "dashboard");
@@ -371,7 +478,7 @@ for (const venue of ["mikrotik", "omada"]) {
 }
 if (!BASELINE_ROOT) console.log("  (set BASELINE_ROOT=<origin/staging checkout> for the DOM diff)");
 
-console.log("\n2. Aruba: no router-only figure on the dashboard (P0-C)");
+console.log("\n2. Aruba: one verdict, no router-only figure, no repeats");
 {
   const r = await render(ROOT, "aruba", "dashboard");
   const t = await text(r.page);
@@ -390,32 +497,131 @@ console.log("\n2. Aruba: no router-only figure on the dashboard (P0-C)");
     t.match(/.{0,40}Unknown(?! guest).{0,40}/)?.[0],
   );
   check("no 'No ISP link'", !/No ISP link/.test(t));
-  check("the Aruba strip is shown", has(r.html, "aruba-status-strip"));
+  // The dead cards are gone, not reworded.
+  check("no Bandwidth card", !/\bBandwidth\b/.test(t) && !has(r.html, "aruba-traffic-unsupported"));
+  check("no 'needs a Wyfy-managed router' sentence", !/Wyfy-managed router/.test(t));
+  check("no duplicate venue card", !has(r.html, "aruba-venue-card"));
+  check("no 'Set up in Instant On' block", !/Set up in Instant On/.test(t));
+  check("no 'Nothing to do here'", !/Nothing to do here/.test(t));
+  check("no 'Not measured here'", !/Not measured here/.test(t));
+  check("no Offline anywhere", !/\bOffline\b/.test(t));
+  // The status bar: one verdict + access points, guests online, last activity.
+  check("the Aruba status bar is shown", has(r.html, "aruba-status-bar"));
+  const title = await r.page.$eval('[data-testid="aruba-status-title"]', (e) => e.innerText);
+  eq(
+    "verdict: an AP heard from inside its window -> Guest WiFi is active",
+    title,
+    "Guest WiFi is active",
+  );
   const strip = await r.page.$eval('[data-testid="aruba-status-strip"]', (e) => e.innerText);
+  check("strip: access points 1 of 2 active", /Access points\s*1 of 2 active/.test(strip), strip);
   check("strip: guests online from sessions (2)", /Guests online\s*2/.test(strip), strip);
   check(
-    "strip: last sign-in is a real time",
-    /Last sign-in\s*\S/.test(strip) && !/—/.test(strip),
+    "strip: last guest activity is the newest AP packet",
+    /Last guest activity\s*2 minutes ago/.test(strip),
     strip,
+  );
+  check("the header pill says the same verdict", /Guest WiFi active/.test(t));
+  eq("'Guests online' is printed once", (t.match(/Guests online/g) ?? []).length, 1);
+  check("no 'Currently online' tile repeating it", !/Currently online/.test(t));
+  // KPI row: four tiles, no repeats.
+  const kpiLabels = await r.page.$$eval(
+    "main .grid.lg\\:grid-cols-4 > div span.text-xs.font-medium",
+    (els) => els.map((e) => e.textContent),
+  );
+  eq(
+    "KPI row: Guests, Sign-ins today, Avg session, Guest data today",
+    kpiLabels.join(" | "),
+    "Guests | Sign-ins today | Avg. session time | Guest data today",
   );
   check(
     "Sign-ins today KPI shows today's sessions (2)",
     /Sign-ins today\s*2/.test(t),
     t.match(/Sign-ins today.{0,20}/s)?.[0],
   );
-  check("the venue card is there", has(r.html, "aruba-venue-card"));
-  check("Bandwidth still gives way to U6", has(r.html, "aruba-traffic-unsupported"));
+  check(
+    "Guest data today is the sum of the APs' measured octets (3.0 MB)",
+    /Guest data today\s*3\.0 MB/.test(t),
+    t.match(/Guest data today.{0,30}/s)?.[0],
+  );
+  // The access points take the Bandwidth slot, with one verdict per AP.
+  check("the access points card is on the page", has(r.html, "aruba-access-points-card"));
+  const verdicts = await r.page.$$eval('[data-testid="aruba-ap-verdict"]', (els) =>
+    els.map((e) => e.textContent),
+  );
+  eq(
+    "per-AP verdicts are one sentence each",
+    verdicts.join(" | "),
+    "Active · guest activity 2 minutes ago | Idle · no guest activity yet",
+  );
+  // ONE managed-in-Instant-On note, collapsed.
+  eq(
+    "exactly one 'managed in the Instant On app' note",
+    (r.html.match(/data-testid="aruba-managed-note"/g) ?? []).length,
+    1,
+  );
+  check(
+    "the note is collapsed by default",
+    await r.page.$eval('[data-testid="aruba-managed-note"]', (e) => !e.open),
+  );
+  eq("'Instant On app' is said once on screen", (t.match(/Instant On app/g) ?? []).length, 1);
+  check(
+    "useful charts are kept",
+    /Guests Online/.test(t) && /Devices by OS/.test(t) && /Sessions by Hour/.test(t),
+  );
+  check("recent guests and alerts are kept", /Recent Users/.test(t) && /Recent Alerts/.test(t));
+  eq("one access-points request feeds bar, KPI and card", apCalls(r.calls).length, 1);
+  await done(r);
+}
+{
+  // The owner's screen: "Last guest activity 31 minutes ago" beside "No
+  // recent activity", and "1 online now". Now one statement.
+  const r = await render(ROOT, "aruba", "dashboard", { mode: "ap-idle" });
+  const t = await text(r.page);
+  const title = await r.page.$eval('[data-testid="aruba-status-title"]', (e) => e.innerText);
+  eq("idle venue: verdict is 'No recent guest activity'", title, "No recent guest activity");
+  const strip = await r.page.$eval('[data-testid="aruba-status-strip"]', (e) => e.innerText);
+  check("idle venue: access points 1 idle", /Access points\s*1 idle/.test(strip), strip);
+  check(
+    "idle venue: last activity 31 minutes ago",
+    /Last guest activity\s*31 minutes ago/.test(strip),
+    strip,
+  );
+  const row = await r.page.$eval('[data-testid="aruba-ap-row"]', (e) => e.innerText);
+  check("idle AP: one sentence", /Idle · last guest activity 31 minutes ago/.test(row), row);
+  check("idle AP: no 'No recent activity' pill beside it", !/No recent activity/.test(row), row);
+  check(
+    "idle AP: an open session reads 'signed in', not 'online now'",
+    /signed in/.test(row) && !/online now/.test(row),
+    row,
+  );
+  check("idle AP: 475 MB data today", /475 MB/.test(row), row);
+  check("idle venue: Guest data today 475 MB", /Guest data today\s*475 MB/.test(t));
+  check("idle venue: never Offline", !/\bOffline\b/.test(t));
+  check("idle venue: header pill is neutral 'Idle'", /\bIdle\b/.test(t));
+  await done(r);
+}
+{
+  const r = await render(ROOT, "aruba", "dashboard", { mode: "ap-fail" });
+  const t = await text(r.page);
+  const strip = await r.page.$eval('[data-testid="aruba-status-strip"]', (e) => e.innerText);
+  check("failed AP read: access points —, not 0", /Access points\s*—/.test(strip), strip);
+  check("failed AP read: last activity —", /Last guest activity\s*—/.test(strip), strip);
+  check("failed AP read: data today —, not 0 B", /Guest data today\s*—/.test(t) && !/0 B/.test(t));
+  check("failed AP read: card says unavailable", has(r.html, "aruba-ap-unavailable"));
+  check(
+    "failed AP read: still no Bandwidth / Internet card",
+    !/Bandwidth|Internet Connection/.test(t),
+  );
   await done(r);
 }
 {
   const r = await render(ROOT, "aruba", "dashboard", { mode: "sessions-fail" });
   const t = await text(r.page);
-  const strip = has(r.html, "aruba-status-strip")
-    ? await r.page.$eval('[data-testid="aruba-status-strip"]', (e) => e.innerText)
-    : "";
+  const strip = await r.page.$eval('[data-testid="aruba-status-strip"]', (e) => e.innerText);
   check(
-    "failed sessions read: strip says —, not 0",
-    !strip || (/Guests online\s*—/.test(strip) && !/Guests online\s*0/.test(strip)),
+    "failed sessions read: guests online says —, not 0",
+    /Guests online\s*—/.test(strip) && !/Guests online\s*0/.test(strip),
     strip,
   );
   check(
