@@ -17,6 +17,7 @@ import {
   persistHotspotSubmit,
 } from "@/context/PortalRuntimeContext";
 import { buildSessionUrl } from "@/lib/portal-session-url";
+import { HOTSPOT_FALLBACK_PASSWORD, submitTopLevelForm } from "@/lib/portal-top-level-form";
 import { nasAuthorizedFromSearch } from "@/lib/portal-nas-state";
 import { PORTAL_SLOW_NOTICE_DELAY_MS } from "@/lib/portal-post-connect";
 import { usePortalLinkSearch } from "@/components/portal-runtime/usePortalLinkSearch";
@@ -71,25 +72,6 @@ export const Route = createFileRoute("/portal/success")({
 // real WiFi-reconnect timescale that genuinely needs this POST to re-fire.
 const HOTSPOT_RESUBMIT_COOLDOWN_MS = 10_000;
 
-// Real incident #2, found live at Haldwani: a hardcoded shared
-// "guest"/"welcome123" here only ever worked for a hotspot profile with
-// `use-radius=no` (RouterOS checks its own local `/ip hotspot user`
-// list). Every `use-radius=yes` profile (the real, RADIUS-integrated
-// setup this whole platform is built around -- GuestSession, RadiusNasClient,
-// etc.) forwards the login to `RadiusService.authorize`, which checks
-// whether *this exact username* has a currently-ACTIVE GuestSession --
-// never checks the password at all (RADIUS has no "why", only
-// accept/reject, and this backend's Authorize phase is purely a
-// username-to-session lookup). A hardcoded "guest" username has no
-// session of its own, so it was rejected on every single attempt,
-// silently -- "redirect karne ke baad nahi chal raha hai internet" even
-// after confirming the login succeeded, the router was online, and (a
-// dead end) resetting the local hotspot user's password. The real fix is
-// `guestIdentifier` -- see PortalRuntimeState's own docstring -- the
-// actual phone/email this guest just verified via OTP/password/voucher,
-// which *does* have an active session under that exact identifier.
-const HOTSPOT_FALLBACK_PASSWORD = "welcome123";
-
 // The storage-probe that tells the CNA websheet from ordinary Safari --
 // see @/lib/portal-cna. (It used to be defined here together with the
 // Apple captive-success URL; portal.session.tsx needs the same probe so it
@@ -127,26 +109,6 @@ function submitHotspotLogin(loginUrl: string, username: string, dst: string) {
     ["password", HOTSPOT_FALLBACK_PASSWORD],
     ["dst", dst],
   ]);
-}
-
-/** A hidden, full-page form POST -- see `submitHotspotLogin` for why it is a
- * top-level navigation and never an iframe or a `fetch`. Shared by the
- * RouterOS and Aruba Instant On gates; only the action and field names
- * differ. */
-function submitTopLevelForm(action: string, fields: Array<[string, string]>) {
-  const form = document.createElement("form");
-  form.method = "POST";
-  form.action = action;
-  form.style.display = "none";
-  for (const [name, value] of fields) {
-    const input = document.createElement("input");
-    input.type = "hidden";
-    input.name = name;
-    input.value = value;
-    form.appendChild(input);
-  }
-  document.body.appendChild(form);
-  form.submit();
 }
 
 /**

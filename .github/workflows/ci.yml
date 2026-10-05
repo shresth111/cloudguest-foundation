@@ -2178,9 +2178,18 @@ jobs:
       - name: aruba instant on gating, guardrails and portal login
         run: |
           ./scripts/ci-gated-test.sh \
-            "aruba-instant-on" 310 \
+            "aruba-instant-on" 312 \
             "aruba instant on: all checks passed" \
             bun run test:aruba-instant-on
+      # Trusted Devices at an Instant On venue: the portal's loop guard
+      # (an AP refusal or a recent attempt stops the automatic login) and
+      # its wiring into /portal/.
+      - name: aruba trusted devices portal auto-login
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "portal-aruba-trusted" 14 \
+            "portal aruba trusted: all checks passed" \
+            bun run test:portal-aruba-trusted
       - name: aruba instant on setup panel
         run: |
           ./scripts/ci-gated-test.sh \

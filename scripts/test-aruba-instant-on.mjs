@@ -14,7 +14,7 @@
  *      sentence byte-for-byte, and a MikroTik venue's controls are all live.
  *   2. NO CONTROL IS SILENTLY LIVE AT AN ARUBA VENUE (AC1-7). Speed, per-guest
  *      disconnect / device block / speed and the network/security screens are
- *      `unavailable` with the spec's copy (U0/U1/U2/U6/U7/U8), never a
+ *      `unavailable` with the spec's copy (U0/U1/U2/U6/U7; U8 retired), never a
  *      controller sentence that says "we could not reach it".
  *   3. NO "OFFLINE" FOR AN ARUBA ROW (§0.4 item 5). `no_controller_api` is
  *      "Set up in Instant On", tone neutral, never a fault -- with or without
@@ -97,8 +97,6 @@ const U6 =
   "Traffic charts need a Wyfy-managed router. Your Aruba access points report guest sign-ins, not traffic.";
 const U7 =
   "Websites guests can open before signing in are set in the Instant On app, under Guest portal > Allowed domains.";
-const U8 =
-  "Aruba Instant On can't let devices skip the sign-in page, so trusted devices aren't available here.";
 
 // ---------------------------------------------------------------------------
 console.log("\n1. Omada and MikroTik are unchanged (AC1-8)");
@@ -222,7 +220,7 @@ eq(
 console.log("\n3. Customer screens greyed with the spec's copy (AC1-7)");
 // ---------------------------------------------------------------------------
 eq("U0 / U9: generic gated-screen reason", RV.controllerVenueFeatureReason(ARUBA), U0);
-for (const id of [...RV.CONTROLLER_UNSUPPORTED_FEATURE_IDS, "mac-auth"]) {
+for (const id of RV.CONTROLLER_UNSUPPORTED_FEATURE_IDS) {
   eq(`"${id}" is greyed at an Aruba venue`, RV.featureAppliesToControllerVenue(id, ARUBA), false);
 }
 // Guest Allow-list is allow rules by phone/MAC + "only people on this list",
@@ -239,6 +237,9 @@ for (const id of [
   "users",
   "whitelist",
   "policies",
+  // Trusted Devices: the portal signs a trusted device in by itself there
+  // (src/lib/portal-aruba-trusted.ts); U8 is retired.
+  "mac-auth",
 ]) {
   eq(`"${id}" stays live at an Aruba venue`, RV.featureAppliesToControllerVenue(id, ARUBA), true);
 }
@@ -264,11 +265,15 @@ check(
   !Object.values(RV.NAS_ONLY_FEATURE_COPY).includes(U7) &&
     !RV.NAS_ONLY_EXTRA_UNSUPPORTED_FEATURE_IDS.includes("whitelist"),
 );
-eq("U8: Trusted Devices", RV.controllerUnsupportedCopy("mac-auth", "Office", ARUBA), U8);
 eq(
-  "Trusted Devices headline does not say 'set up in the app' (Instant On has no MAC auth)",
-  RV.controllerUnsupportedHeadline(ARUBA, "mac-auth"),
-  "Not available with Aruba Instant On.",
+  "Trusted Devices has no gated-screen copy at Aruba (it is live)",
+  RV.controllerUnsupportedCopy("mac-auth", "Office", ARUBA),
+  null,
+);
+check(
+  "no screen is lost only at a NAS-only venue",
+  RV.NAS_ONLY_EXTRA_UNSUPPORTED_FEATURE_IDS.length === 0 &&
+    Object.keys(RV.NAS_ONLY_FEATURE_COPY).length === 0,
 );
 eq(
   "other headlines name the app",
@@ -807,6 +812,10 @@ check(
   "Allow-list and Trusted Devices are not mounted when gated",
   /feature === "whitelist" && !controllerGated/.test(featurePage) &&
     /feature === "mac-auth" && !controllerGated/.test(featurePage),
+);
+check(
+  "Trusted Devices carries the NAS-only caveat above it",
+  /nasOnlyLimitVerdict\("trusted-devices", controllerVendor\)/.test(featurePage),
 );
 check(
   "Allow-list carries the NAS-only caveat above it",

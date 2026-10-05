@@ -431,6 +431,25 @@ export const portalRuntimeService = {
   },
 
   /**
+   * Trusted Devices at an Aruba Instant On venue: the `user` to post to the
+   * AP's login form for this device, or `null` for every kind of no
+   * (including every MikroTik and Omada router). A hint, not a credential --
+   * the AP's RADIUS request carries the device's real MAC and the backend
+   * admits it only on that. Asked by `/portal/` once `checkActiveSession`
+   * has answered no; same 6s timeout and reason.
+   */
+  async checkTrustedDevice(params: {
+    routerId: string;
+    deviceMac: string;
+  }): Promise<string | null> {
+    const { data } = await guestPortalApi.get<{ identifier: string } | null>(
+      "/guest/session/trusted-device",
+      { params: { router_id: params.routerId, device_mac: params.deviceMac }, timeout: 6000 },
+    );
+    return data?.identifier ?? null;
+  },
+
+  /**
    * "This device had a session on this router and it has just ended" --
    * asked by `/portal/` only once `checkActiveSession` above has answered
    * no, so a connected guest never triggers it.

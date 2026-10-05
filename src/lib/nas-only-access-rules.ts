@@ -57,7 +57,8 @@ export type NasOnlyLimitId =
   | "daily-limit"
   | "open-hours"
   | "devices"
-  | "allow-list";
+  | "allow-list"
+  | "trusted-devices";
 
 export type NasOnlyLimitVerdict = ControlVerdict<NasOnlyLimitId>;
 
@@ -94,6 +95,14 @@ export const NAS_ONLY_ALLOW_LIST =
   'Instant On access points, so removing someone, or switching on "only people on this ' +
   "list\", doesn't take anyone offline who is online right now. They stay on until their " +
   "session ends.";
+
+/** Trusted Devices: Instant On has no MAC authentication, so a trusted
+ * device still lands on the portal, which signs it in by itself
+ * (src/lib/portal-aruba-trusted.ts). Says what the owner will see. */
+export const NAS_ONLY_TRUSTED_DEVICES =
+  "At Aruba Instant On access points a trusted device still opens the WiFi sign-in page " +
+  "for a moment, then connects on its own, with no code. Removing a device takes effect " +
+  "when its current session ends.";
 
 /** The form footer at a NAS-only venue. A guest's session length (and the
  * daily allowance / closing time that cap it) is fixed when they sign in and
@@ -133,6 +142,8 @@ export function nasOnlyLimitVerdict(
       return { control, availability: "qualified", reason: NAS_ONLY_OPEN_HOURS };
     case "allow-list":
       return { control, availability: "qualified", reason: NAS_ONLY_ALLOW_LIST };
+    case "trusted-devices":
+      return { control, availability: "qualified", reason: NAS_ONLY_TRUSTED_DEVICES };
   }
 }
 
