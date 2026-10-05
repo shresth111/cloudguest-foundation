@@ -1569,6 +1569,31 @@ export const customerService = {
    * so a busy venue or a 30-day range is not silently truncated at 100 rows.
    * Errors propagate: a failed read renders as an error state, never as zeros.
    */
+  /**
+   * DASHBOARD_PLAN P1-J: one fresh read of a venue's routers, for refreshing
+   * the persisted venue snapshot. Only ever called for a venue whose stored
+   * snapshot is Aruba Instant On (`venueSnapshotNeedsRefresh`), so a MikroTik,
+   * Omada or failed-read venue never makes this request. A failed read
+   * resolves to the "can't tell" verdict, which the caller never stores over
+   * a known one. The demo account has nothing to refresh: `null`.
+   */
+  async readVenueLiveness(locationId: string): Promise<LocationLiveness | null> {
+    if (isDemo()) return null;
+    try {
+      const orgId = await resolveOrgId();
+      const { data } = await api.get<{ items: RawRouterStatus[] }>(
+        `/locations/${locationId}/routers`,
+        {
+          params: { page_size: 100 },
+          headers: { "X-Organization-Id": orgId, "X-Location-Id": locationId },
+        },
+      );
+      return deriveLocationLiveness(data?.items ?? []);
+    } catch {
+      return deriveLocationLiveness(null);
+    }
+  },
+
   async getDashboardSeries(locationId: string, range: DashboardRange): Promise<DashboardSeries> {
     const win = dashboardRangeWindow(range);
     if (isDemo()) return demoDashboardSeries(win);

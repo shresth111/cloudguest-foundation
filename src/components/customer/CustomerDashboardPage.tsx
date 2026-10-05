@@ -62,7 +62,11 @@ import {
   locationIsNasOnly,
   CHECKING_LIVENESS,
   UNKNOWN_LIVENESS,
+  formatAgo,
 } from "@/lib/location-liveness";
+import { effectiveVenueLiveness } from "@/lib/venue-snapshot";
+import { useWriteBackVenueLiveness } from "@/hooks/useVenueSnapshotRefresh";
+import { useArubaAccessPoints } from "@/hooks/useArubaAccessPoints";
 import { ArubaInstantOnVenueCard } from "@/components/customer/ArubaInstantOnVenueCard";
 import { ArubaAccessPointsCard } from "@/components/customer/ArubaAccessPointsCard";
 import { controllerDeviceMetricsReason } from "@/lib/router-vendors";
@@ -307,8 +311,15 @@ export function CustomerDashboardPage() {
 
   // Loading is "checking", and a missing liveness is "can't tell" -- never
   // a red dot picked by an else-branch.
+  // P1-J: a failed routers read never overrides a stored Aruba Instant On
+  // verdict (`effectiveVenueLiveness` returns `d.liveness` unchanged for
+  // every other venue), and an Aruba verdict read here refreshes the stored
+  // snapshot every other page gates on.
   const liveness: LocationLiveness =
-    d?.liveness ?? activeLocation?.liveness ?? (isLoading ? CHECKING_LIVENESS : UNKNOWN_LIVENESS);
+    effectiveVenueLiveness(d?.liveness, activeLocation?.liveness) ??
+    activeLocation?.liveness ??
+    (isLoading ? CHECKING_LIVENESS : UNKNOWN_LIVENESS);
+  useWriteBackVenueLiveness(locationId, d?.liveness);
   const tone = livenessTone(liveness.state);
   // An Aruba Instant On venue (NAS-only): nothing here measures its access
   // points or its uplink traffic, so the hardware and bandwidth cards give
@@ -318,6 +329,11 @@ export function CustomerDashboardPage() {
   // The venue card's own figures (guest_sessions, "—" when that read
   // failed), reused by the Aruba KPI and status strip so they cannot drift.
   const arubaStats = arubaVenueStats(d, isError);
+  // Same query as the Access points card (one request, shared cache); a
+  // disabled no-op -- no request -- at every other venue.
+  const arubaAps = useArubaAccessPoints(nasOnlyVenue ? locationId : undefined);
+  const arubaApCount = arubaAps.status === "ok" ? String(arubaAps.items.length) : "—";
+  const arubaLastActivity = formatAgo(liveness.lastGuestActivityIso, new Date()) ?? "—";
 
   const handleNav = (id: string) => navigate({ to: customerFeatureHref(id) });
   const handleLogout = async () => {
@@ -508,6 +524,24 @@ export function CustomerDashboardPage() {
                   <span className="opacity-70">Last sign-in</span>
                   <span className="font-semibold">{arubaStats.lastSignIn}</span>
                 </span>
+                {/* P1-F: from the access points themselves -- the newest
+                    RADIUS packet any of them sent, and how many there are. */}
+                <span
+                  className="inline-flex items-center gap-1.5"
+                  data-testid="aruba-strip-activity"
+                >
+                  <Activity aria-hidden className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="opacity-70">Last guest activity</span>
+                  <span className="font-semibold">{arubaLastActivity}</span>
+                </span>
+                <span
+                  className="inline-flex items-center gap-1.5"
+                  data-testid="aruba-strip-ap-count"
+                >
+                  <Router aria-hidden className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="opacity-70">Access points</span>
+                  <span className="font-semibold">{arubaApCount}</span>
+                </span>
               </div>
             )}
             {d && !nasOnlyVenue && (
@@ -574,7 +608,7 @@ export function CustomerDashboardPage() {
           </div>
 
           {/* Why the venue is not live, and what to do. Nothing when it is. */}
-          {d && <LocationLivenessExplainer liveness={d.liveness} />}
+          {d && <LocationLivenessExplainer liveness={nasOnlyVenue ? liveness : d.liveness} />}
 
           {isError && !d && (
             <div className={cn(CARD, "flex flex-col items-center gap-3 py-8 text-center")}>
