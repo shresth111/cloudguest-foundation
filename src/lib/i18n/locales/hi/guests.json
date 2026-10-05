@@ -81,5 +81,21 @@
   "exportSuccess_other": "{{count}} मेहमानों की फ़ाइल डाउनलोड हुई",
   "colAccessPoint": "एक्सेस पॉइंट",
   "allAccessPoints": "सभी एक्सेस पॉइंट",
-  "accessPointFilter": "एक्सेस पॉइंट से छाँटें"
+  "accessPointFilter": "एक्सेस पॉइंट से छाँटें",
+  "moreDevices_one": "+{{count}} डिवाइस",
+  "moreDevices_other": "+{{count}} डिवाइस",
+  "sessionHistoryTooltip_one": "{{count}} सेशन देखें",
+  "sessionHistoryTooltip_other": "सभी {{count}} सेशन देखें",
+  "disconnectAllDevices_one": "यह गेस्ट {{count}} डिवाइस पर ऑनलाइन है।",
+  "disconnectAllDevices_other": "यह गेस्ट {{count}} डिवाइस पर ऑनलाइन है — सभी डिस्कनेक्ट होंगे।",
+  "arubaSigningOut": "साइन आउट हो रहा है · {{time}}",
+  "arubaSigningOutTooltip": "Wyfy में साइन आउट हो गया। Aruba Instant On इस डिवाइस को लगभग {{time}} तक WiFi पर रखेगा, जब एक्सेस पॉइंट का सेशन टाइम खत्म होगा। उसके बाद उन्हें फिर से साइन इन करना होगा।",
+  "arubaConfirmCloud": "Wyfy {{name}} को साइन आउट करेगा और Aruba Instant On से उनका डिवाइस हटाने को कहेगा। Instant On उसे थोड़ी देर ब्लॉक करेगा, फिर वे दोबारा साइन इन कर सकते हैं।",
+  "arubaConfirmTimeout": "Wyfy {{name}} को अभी साइन आउट करेगा। Aruba Instant On एक्सेस पॉइंट को डिवाइस हटाने का आदेश नहीं दिया जा सकता, इसलिए उनका डिवाइस लगभग {{time}} तक WiFi पर रहेगा, जब एक्सेस पॉइंट का सेशन टाइम खत्म होगा। उसके बाद उन्हें फिर से साइन इन करना होगा।",
+  "arubaConfirmTimeoutNoTime": "Wyfy {{name}} को अभी साइन आउट करेगा। Aruba Instant On एक्सेस पॉइंट को डिवाइस हटाने का आदेश नहीं दिया जा सकता, इसलिए उनका डिवाइस तब तक WiFi पर रहेगा जब तक साइन इन के समय मिला सेशन टाइम खत्म नहीं होता। उसके बाद उन्हें फिर से साइन इन करना होगा।",
+  "arubaDisconnectNote": "Aruba Instant On आदेश पर डिवाइस नहीं हटा सकता: गेस्ट Wyfy में साइन आउट हो जाता है और एक्सेस पॉइंट का सेशन टाइम खत्म होने पर WiFi खो देता है।",
+  "arubaDisconnectNoteCloud": "Wyfy गेस्ट को साइन आउट करता है और Aruba Instant On से उनका डिवाइस हटा देता है।",
+  "arubaDisconnectDropped": "{{name}} डिस्कनेक्ट हो गए — Aruba Instant On ने उनका डिवाइस हटाने की पुष्टि की",
+  "arubaDisconnectSignedOut": "{{name}} साइन आउट हो गए। उनका डिवाइस लगभग {{time}} तक WiFi पर रहेगा, जब एक्सेस पॉइंट का सेशन टाइम खत्म होगा।",
+  "arubaDisconnectSignedOutNoTime": "{{name}} साइन आउट हो गए। उनका डिवाइस एक्सेस पॉइंट का सेशन टाइम खत्म होने तक WiFi पर रहेगा, फिर उन्हें दोबारा साइन इन करना होगा।"
 }

@@ -802,10 +802,15 @@ check(
   /enabled:[\s\S]{0,200}!isNasOnlyVendor\(vendor\)/.test(hook),
 );
 const users = src("src/routes/users.tsx");
+// 2026-10-05: Disconnect is LIVE at a NAS-only venue (owner: "isme disconnect
+// wala feature bhi add krdo"), with its own Aruba copy -- the behaviour is
+// pinned by scripts/test-aruba-live-session-actions.mjs. Here: the venue
+// question is still asked of the same vendor helper, and the Aruba branch of
+// the confirm dialog is reached only through it.
 check(
-  "Guests: Disconnect is greyed only for a NAS-only vendor",
-  /const disconnectUnsupported = isNasOnlyVendor\(clientControls\.vendor\)/.test(users) &&
-    /hidden=\{disconnectUnsupported\}/.test(users),
+  "Guests: the Aruba Disconnect branch is gated on the NAS-only vendor helper",
+  /const nasOnlyVenue = isNasOnlyVendor\(clientControls\.vendor\)/.test(users) &&
+    /if \(nasOnlyVenue\) \{/.test(users),
 );
 const featurePage = src("src/components/customer/CustomerFeaturePage.tsx");
 check(
@@ -1092,7 +1097,7 @@ console.log("\n8. Customer venue view: our own records only, never Offline, neve
   const usersSrc = src("src/routes/users.tsx");
   check(
     "Guests: '0 MB' becomes — with U5 only at a NAS-only venue",
-    /disconnectUnsupported && download === "0 MB"/.test(usersSrc) &&
+    /nasOnlyVenue && download === "0 MB"/.test(usersSrc) &&
       (usersSrc.match(/sessionDataCell\(/g) ?? []).length >= 2,
   );
 }

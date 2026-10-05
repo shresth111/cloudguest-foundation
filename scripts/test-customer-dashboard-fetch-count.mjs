@@ -507,10 +507,14 @@ check(
   countOf(control, `/locations/${LOC}/routers`) === 2,
   `getDashboard + listLocations issued /locations/{id}/routers ${countOf(control, `/locations/${LOC}/routers`)} time(s); expected 2`,
 );
+// getUsers() lists `/guest-session-groups` since the Guests table went
+// one-row-per-guest (2026-10-05) -- the same list read under its new name.
+const sessionListReads = (calls) =>
+  countOf(calls, "/guest-sessions") + countOf(calls, "/guest-session-groups");
 check(
   "control-guest-sessions-triples",
-  countOf(control, "/guest-sessions") === 3,
-  `the pre-fix trio issued /guest-sessions ${countOf(control, "/guest-sessions")} time(s); expected 3 (100 / 1&6 / 50)`,
+  sessionListReads(control) === 3,
+  `the pre-fix trio issued /guest-sessions + /guest-session-groups ${sessionListReads(control)} time(s); expected 3 (100 / 1&6 / 50)`,
 );
 
 await browser.close();
