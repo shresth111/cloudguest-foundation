@@ -10,8 +10,13 @@ import {
   Database,
   Info,
   Laptop,
+  Monitor,
+  MonitorSmartphone,
   Radio,
   Router,
+  Smartphone,
+  Tablet,
+  UserRound,
   Users,
   Wifi,
   XCircle,
@@ -71,6 +76,7 @@ import { arubaDataToday, arubaVenueStatus } from "@/lib/aruba-dashboard";
 import type { ArubaVenueStatus } from "@/lib/aruba-dashboard";
 import { useArubaAccessPoints } from "@/hooks/useArubaAccessPoints";
 import { relativeTime } from "@/lib/friendly";
+import { deviceKind, guestAvatarInitials, type DeviceKind } from "@/lib/guest-row-visuals";
 import type { LocationLiveness, LivenessTone } from "@/lib/location-liveness";
 import { useMyBillingDashboard } from "@/hooks/useBilling";
 import { customerFeatureHref } from "@/lib/customerNav";
@@ -183,6 +189,98 @@ function CardHead({
       </div>
       {right}
     </div>
+  );
+}
+
+const DEVICE_ICON: Record<DeviceKind, typeof Laptop> = {
+  phone: Smartphone,
+  tablet: Tablet,
+  laptop: Laptop,
+  desktop: Monitor,
+  unknown: MonitorSmartphone,
+};
+
+/** Initials for a guest with a real name; a neutral person glyph for a
+ * phone/email label (masked or not) -- see `guestAvatarInitials`. */
+function GuestAvatar({ label }: { label: string }) {
+  const initials = guestAvatarInitials(label);
+  return (
+    <span
+      aria-hidden
+      className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#6C4EFF]/15 to-[#8B5CF6]/10 text-[10px] font-semibold text-[#6C4EFF] ring-1 ring-inset ring-[#6C4EFF]/15 dark:from-[#6C4EFF]/30 dark:to-[#8B5CF6]/15 dark:text-indigo-200 dark:ring-indigo-400/20 @[17rem]:flex"
+    >
+      {initials ?? <UserRound className="h-3.5 w-3.5" />}
+    </span>
+  );
+}
+
+/** "online" (green, softly pulsing) / anything else (grey). The word is
+ * always printed, so the colour is never the only signal. */
+function PresencePill({ status }: { status: string }) {
+  const online = status === "online";
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium capitalize ring-1 ring-inset",
+        online
+          ? "bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-400/25"
+          : "bg-muted text-muted-foreground ring-border",
+      )}
+    >
+      <span aria-hidden className="relative flex h-1.5 w-1.5">
+        {online && (
+          <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-60 motion-safe:animate-ping" />
+        )}
+        <span
+          className={cn(
+            "relative inline-flex h-1.5 w-1.5 rounded-full",
+            online ? "bg-emerald-500" : "bg-slate-400",
+          )}
+        />
+      </span>
+      {status}
+    </span>
+  );
+}
+
+/** Recent Alerts' empty state: a shield with a check, in the brand tint.
+ * Original line art, decorative only -- the sentence under it is the
+ * message. */
+function AllClearIllustration() {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 96 80"
+      className="h-20 w-24 text-[#6C4EFF] dark:text-indigo-300"
+      fill="none"
+    >
+      <circle cx="48" cy="40" r="34" fill="currentColor" fillOpacity="0.06" />
+      <circle cx="48" cy="40" r="25" fill="currentColor" fillOpacity="0.08" />
+      <path
+        d="M48 19.5 32.5 25v12.2c0 10 6.6 18.6 15.5 21.3 8.9-2.7 15.5-11.3 15.5-21.3V25L48 19.5Z"
+        fill="currentColor"
+        fillOpacity="0.14"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <path
+        d="m41.5 39 4.6 4.6 9-9.2"
+        className="stroke-emerald-500 dark:stroke-emerald-400"
+        strokeWidth="2.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="17" cy="22" r="2" fill="currentColor" fillOpacity="0.35" />
+      <circle cx="80" cy="56" r="2.5" fill="currentColor" fillOpacity="0.25" />
+      <path
+        d="M78 18v6M75 21h6"
+        stroke="currentColor"
+        strokeOpacity="0.4"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }
 
@@ -898,46 +996,54 @@ export function CustomerDashboardPage() {
                   No guests have connected in the last 24 hours.
                 </p>
               ) : (
-                <div className="-mx-1 overflow-x-auto">
+                // One row per guest: who (avatar, label, device) | when |
+                // presence. The device sits under the label, with its glyph,
+                // so the table fits this card's narrow column without
+                // scrolling; the avatar only appears where there is room
+                // (container query on this wrapper).
+                <div className="@container -mx-1 overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead>
                       <tr className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        <th className="px-1 pb-2 font-semibold">User</th>
-                        <th className="px-1 pb-2 font-semibold">Device</th>
+                        <th className="px-1 pb-2 font-semibold">User · Device</th>
                         <th className="px-1 pb-2 font-semibold">Time</th>
-                        <th className="px-1 pb-2 font-semibold">Status</th>
+                        <th className="px-1 pb-2 text-right font-semibold">Status</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {d.recentUsers.slice(0, 5).map((u) => (
-                        <tr key={u.id} className="border-t border-border/60">
-                          <td className="max-w-[9rem] px-1 py-2.5">
-                            <p className="truncate font-medium text-foreground">{u.name}</p>
-                            {u.email && (
-                              <p className="truncate text-[11px] text-muted-foreground">
-                                {masked ? maskEmail(u.email) : u.email}
-                              </p>
-                            )}
-                          </td>
-                          <td className="max-w-[7rem] truncate px-1 py-2.5 text-muted-foreground">
-                            {u.device}
-                          </td>
-                          <td className="whitespace-nowrap px-1 py-2.5 text-muted-foreground">
-                            {u.time}
-                          </td>
-                          <td className="px-1 py-2.5">
-                            <span className="inline-flex items-center gap-1.5">
-                              <span
-                                className={cn(
-                                  "h-1.5 w-1.5 rounded-full",
-                                  u.status === "online" ? "bg-emerald-500" : "bg-slate-400",
-                                )}
-                              />
-                              {u.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
+                      {d.recentUsers.slice(0, 5).map((u) => {
+                        const DeviceIcon = DEVICE_ICON[deviceKind(u.device)];
+                        return (
+                          <tr
+                            key={u.id}
+                            className="border-t border-border/60 transition-colors hover:bg-muted/40"
+                          >
+                            <td className="max-w-0 px-1 py-2.5">
+                              <div className="flex min-w-0 items-center gap-2.5">
+                                <GuestAvatar label={u.name} />
+                                <div className="min-w-0">
+                                  <p className="truncate font-medium text-foreground">{u.name}</p>
+                                  {u.email && (
+                                    <p className="truncate text-[11px] text-muted-foreground">
+                                      {masked ? maskEmail(u.email) : u.email}
+                                    </p>
+                                  )}
+                                  <p className="mt-0.5 flex min-w-0 items-center gap-1 text-[11px] text-muted-foreground">
+                                    <DeviceIcon aria-hidden className="h-3 w-3 shrink-0" />
+                                    <span className="truncate">{u.device}</span>
+                                  </p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="w-px whitespace-nowrap px-1 py-2.5 text-muted-foreground">
+                              {u.time}
+                            </td>
+                            <td className="w-px whitespace-nowrap px-1 py-2.5 text-right">
+                              <PresencePill status={u.status} />
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -967,11 +1073,14 @@ export function CustomerDashboardPage() {
               ) : !d ? (
                 <p className="py-8 text-center text-xs text-muted-foreground">Couldn't load.</p>
               ) : d.recentAlerts.length === 0 ? (
-                <p className="py-8 text-center text-xs text-muted-foreground">
-                  No alerts. Nothing needs your attention.
-                </p>
+                <div className="flex flex-col items-center justify-center gap-2 py-4 text-center">
+                  <AllClearIllustration />
+                  <p className="text-xs text-muted-foreground">
+                    No alerts. Nothing needs your attention.
+                  </p>
+                </div>
               ) : (
-                <ul className="space-y-3">
+                <ul className="space-y-1.5">
                   {d.recentAlerts.map((a, i) => {
                     const Icon =
                       a.type === "error"
@@ -990,8 +1099,12 @@ export function CustomerDashboardPage() {
                             ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400"
                             : "bg-sky-50 text-sky-600 dark:bg-sky-950/50 dark:text-sky-400";
                     return (
-                      <li key={i} className="flex items-start gap-3">
+                      <li
+                        key={i}
+                        className="-mx-2 flex items-start gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-muted/40"
+                      >
                         <span
+                          aria-hidden
                           className={cn(
                             "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
                             tint,
@@ -1000,7 +1113,21 @@ export function CustomerDashboardPage() {
                           <Icon className="h-4 w-4" />
                         </span>
                         <div className="min-w-0">
-                          <p className="line-clamp-2 text-xs font-medium">{a.msg}</p>
+                          <p className="line-clamp-2 text-xs font-medium">
+                            {/* The colour and icon are hidden from assistive
+                                tech; say the severity in words. A resolved
+                                alert's message already starts "Resolved:". */}
+                            {a.type !== "success" && (
+                              <span className="sr-only">
+                                {a.type === "error"
+                                  ? "Critical: "
+                                  : a.type === "warning"
+                                    ? "Warning: "
+                                    : "Info: "}
+                              </span>
+                            )}
+                            {a.msg}
+                          </p>
                           <p className="text-[11px] text-muted-foreground">{a.time}</p>
                         </div>
                       </li>
