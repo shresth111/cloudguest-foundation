@@ -38,13 +38,19 @@ import {
   arubaDailyLimitMinutes,
   ARUBA_TIER_APPLIES_TO,
   ARUBA_TIER_RENAME_LOCKED,
+  ARUBA_TIER_MAP_HINT,
   ARUBA_TIER_SAVED,
+  ARUBA_TIER_SPEED_PLACEHOLDER,
+  ARUBA_TIER_STEPS,
+  ARUBA_TIERS_LOAD_FAILED,
+  ARUBA_TIERS_LOAD_UNREACHABLE,
   arubaTierFormErrors,
   arubaTierVerdict,
   formatTierUsage,
   tierUsage,
   type TierAssignmentLike,
 } from "@/lib/access-tiers-aruba";
+import { isTransientServerError, retryTransient } from "@/lib/transient-retry";
 import { ssidTiersService } from "@/services/ssid-tiers.service";
 // A group's "Devices Per User" field lives on a completely separate
 // PolicyType.DEVICE policy from its bandwidth policy -- real per-guest
@@ -566,6 +572,10 @@ export default function CreateGroup({
     "tier-speed",
     tierSpeedVerdict.availability === "qualified",
   );
+  // Aruba without a per-guest speed gateway: the tier's speed reaches nobody
+  // here, so the Bandwidth select reads "Not applied at this venue" rather
+  // than looking like a picker (the held rate still saves back untouched).
+  const arubaSpeedOff = nasOnlyVenue && arubaSpeedVerdict.availability === "unavailable";
   const arubaDataLimitVerdict = arubaTierVerdict("tier-data-limit", null);
   const arubaDailyLimitVerdict = arubaTierVerdict("tier-daily-limit", null);
   const arubaLoginHoursVerdict = arubaTierVerdict("tier-login-hours", null);
@@ -597,6 +607,9 @@ export default function CreateGroup({
   // this visit, kept visible under "This location" until mapped.
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [reloadKey, setReloadKey] = useState(0);
+  // The failed load was the server being away (502/503/504/no response),
+  // not an answer -- the error says "couldn't reach" instead.
+  const [loadUnreachable, setLoadUnreachable] = useState(false);
   const [recentIds, setRecentIds] = useState<Set<string>>(new Set());
 
   // Every location on this account. Lived further down beside
@@ -622,6 +635,18 @@ export default function CreateGroup({
     sessionRealIds[groupName],
   ];
 
+  // Whether mapping a tier to `locId` (for everyone, target "none") also maps
+  // its paired SESSION/DEVICE policies there. Everywhere it does, as before --
+  // EXCEPT this Aruba Instant On venue. There a tier is enforced only for the
+  // guests mapped into it (the backend reads the tier's own rules for them,
+  // ACCESS_TIERS.md §1), and a location-wide paired SESSION/DEVICE would
+  // instead hand the tier's session timeout, idle timeout and device count to
+  // EVERY guest at the venue: it ties with Guest WiFi Limits' own location
+  // policy and the newest assignment wins (policy/service.py
+  // `_resolution_key`). Mapping a tier here only makes it available for Map
+  // users. Unmapping still clears any paired mirror an older save left.
+  const mirrorsPairedAt = (locId: string) => !(nasOnlyVenue && locId === locationId);
+
   useEffect(() => {
     if (demo) return;
     // Two loads can overlap (the location list and the venue's vendor both
@@ -631,17 +656,23 @@ export default function CreateGroup({
     setLoadState("loading");
     (async () => {
       try {
-        const org = await resolveOrgId();
+        // Every read below waits out a brief server outage (a 502 while the
+        // API restarts) before giving up -- see lib/transient-retry.ts for
+        // the staging incident. That includes the paired DEVICE/SESSION
+        // lists: they fall back to [] on failure, and an empty list made the
+        // next save create a SECOND same-named paired policy.
+        const retry = <T,>(fn: () => Promise<T>) =>
+          retryTransient(fn, { isCancelled: () => cancelled });
+        const org = await retry(() => resolveOrgId());
         if (cancelled) return;
         setOrgId(org);
         const [real, deviceDetailsAll, sessionDetailsAll, ssidRows] = await Promise.all([
-          bandwidthPolicyService.list(org),
-          listPolicyDetails("device", org).catch(() => []),
-          listPolicyDetails("session", org).catch(() => []),
+          retry(() => bandwidthPolicyService.list(org)),
+          retry(() => listPolicyDetails("device", org)).catch(() => []),
+          retry(() => listPolicyDetails("session", org)).catch(() => []),
           // Aruba venues only -- no new request at any other vendor.
           nasOnlyVenue && locationId
-            ? ssidTiersService
-                .list(locationId)
+            ? retry(() => ssidTiersService.list(locationId))
                 .then((v) => v.items)
                 .catch(() => [])
             : Promise.resolve([]),
@@ -786,10 +817,13 @@ export default function CreateGroup({
         if (cancelled) return;
         setGroups(withMapping);
         setLoadState("ready");
-      } catch {
+      } catch (err) {
         // Leave groups empty -- the "no groups yet" state is accurate at
         // MikroTik/Omada (unchanged); an Aruba venue shows the error + retry.
-        if (!cancelled) setLoadState("error");
+        if (!cancelled) {
+          setLoadUnreachable(isTransientServerError(err));
+          setLoadState("error");
+        }
       }
     })();
     return () => {
@@ -1193,11 +1227,13 @@ export default function CreateGroup({
             orgId ?? undefined,
           );
           await Promise.all(
-            existingMappings.flatMap((m) =>
-              createdPairedIds.map((policyId) =>
-                bandwidthPolicyService.mapToLocation(policyId, m.locationId, orgId ?? undefined),
+            existingMappings
+              .filter((m) => mirrorsPairedAt(m.locationId))
+              .flatMap((m) =>
+                createdPairedIds.map((policyId) =>
+                  bandwidthPolicyService.mapToLocation(policyId, m.locationId, orgId ?? undefined),
+                ),
               ),
-            ),
           );
         } catch {
           // Intentionally silent -- see above.
@@ -1364,7 +1400,8 @@ export default function CreateGroup({
           locationId,
           orgId ?? undefined,
         );
-        await mirrorPairedLocationMap(pairedIdsFor(g.name), locationId, orgId ?? undefined);
+        if (mirrorsPairedAt(locationId))
+          await mirrorPairedLocationMap(pairedIdsFor(g.name), locationId, orgId ?? undefined);
         setGroups((prev) =>
           prev.map((x) =>
             x.id === g.id
@@ -1485,7 +1522,9 @@ export default function CreateGroup({
             toAdd.map(async (locId) => {
               const [assignmentId] = await Promise.all([
                 bandwidthPolicyService.mapToLocation(g.id, locId, orgId ?? undefined),
-                mirrorPairedLocationMap(paired, locId, orgId ?? undefined),
+                mirrorsPairedAt(locId)
+                  ? mirrorPairedLocationMap(paired, locId, orgId ?? undefined)
+                  : Promise.resolve(),
               ]);
               return { locId, assignmentId };
             }),
@@ -2099,8 +2138,9 @@ export default function CreateGroup({
           })}
         </ol>
         <p className="mt-3 text-center text-xs text-slate-400 dark:text-slate-500">
-          Set a tier's limits, map it to the location(s) that should use it, then optionally assign
-          specific guests to it.
+          {nasOnlyVenue
+            ? ARUBA_TIER_STEPS
+            : "Set a tier's limits, map it to the location(s) that should use it, then optionally assign specific guests to it."}
         </p>
       </div>
 
@@ -2191,15 +2231,19 @@ export default function CreateGroup({
                     label="Bandwidth"
                     required
                     disabled={!tierSpeedUsable}
-                    value={bw}
+                    value={arubaSpeedOff ? "" : bw}
                     onChange={(v) => setField("bw", v)}
                     options={
-                      // Aruba (hybrid gateway): keep an off-picker rate selectable
-                      // so the select shows what the tier really holds.
-                      nasOnlyVenue && bw && !BANDWIDTH.includes(bw) ? [bw, ...BANDWIDTH] : BANDWIDTH
+                      arubaSpeedOff
+                        ? []
+                        : // Aruba (hybrid gateway): keep an off-picker rate selectable
+                          // so the select shows what the tier really holds.
+                          nasOnlyVenue && bw && !BANDWIDTH.includes(bw)
+                          ? [bw, ...BANDWIDTH]
+                          : BANDWIDTH
                     }
-                    placeholder="Choose bandwidth"
-                    caption="Maximum speed per device in this tier."
+                    placeholder={arubaSpeedOff ? ARUBA_TIER_SPEED_PLACEHOLDER : "Choose bandwidth"}
+                    caption={arubaSpeedOff ? undefined : "Maximum speed per device in this tier."}
                     err={shownErrs.bw}
                   />
                   {nasOnlyVenue ? (
@@ -2564,7 +2608,9 @@ export default function CreateGroup({
               data-testid="tiers-load-error"
               className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200"
             >
-              <span>Couldn&apos;t load this account&apos;s access tiers. Nothing was changed.</span>
+              <span>
+                {loadUnreachable ? ARUBA_TIERS_LOAD_UNREACHABLE : ARUBA_TIERS_LOAD_FAILED}
+              </span>
               <button
                 type="button"
                 onClick={() => setReloadKey((k) => k + 1)}
@@ -2626,7 +2672,14 @@ export default function CreateGroup({
                             </span>
                           )}
                       </TableCell>
-                      <TableCell>{g.bandwidth}</TableCell>
+                      <TableCell>
+                        {g.bandwidth}
+                        {arubaSpeedOff && (
+                          <span className="block text-[11px] text-slate-400 dark:text-slate-500">
+                            not applied here
+                          </span>
+                        )}
+                      </TableCell>
                       <TableCell>{g.sessionTimeout}</TableCell>
                       <TableCell>{g.idleTimeout}</TableCell>
                       <TableCell>{g.devicesPerUser}</TableCell>
@@ -2685,7 +2738,9 @@ export default function CreateGroup({
                               title={
                                 g.mappedAssignmentId
                                   ? `In use at ${activeLocationName ?? "this location"} -- click to stop using it here.`
-                                  : `Use this tier's settings at ${activeLocationName ?? "this location"}.`
+                                  : nasOnlyVenue
+                                    ? ARUBA_TIER_MAP_HINT
+                                    : `Use this tier's settings at ${activeLocationName ?? "this location"}.`
                               }
                               onClick={() => handleToggleMap(g)}
                               className="inline-flex items-center gap-1 pl-0.5 text-[11px] font-medium text-indigo-600 transition-colors hover:underline focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 dark:text-indigo-400"

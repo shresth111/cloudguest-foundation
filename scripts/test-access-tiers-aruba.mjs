@@ -76,18 +76,20 @@ eq(
   "qualified",
 );
 check(
-  "speed copy: one speed per network, points at Speed tiers by WiFi network",
-  /same WiFi network/.test(L.ARUBA_TIER_SPEED) &&
-    /Speed tiers by WiFi network/.test(L.ARUBA_TIER_SPEED),
+  "speed copy: one short sentence -- not applied, one speed per network",
+  /^Not applied here/.test(L.ARUBA_TIER_SPEED) &&
+    /same WiFi network/.test(L.ARUBA_TIER_SPEED) &&
+    L.ARUBA_TIER_SPEED.split(/(?<=\.)\s/).length === 1,
 );
 check(
   "gateway copy: a cap, not a promise",
   /not a guaranteed speed/.test(L.arubaTierVerdict("tier-speed", true).reason),
 );
 check(
-  "data limit: blocks the next sign-in, stays online, mid-session cut needs cloud control",
-  /stops them signing in again/.test(L.ARUBA_TIER_DATA_LIMIT) &&
-    /stay\s+online until\s+their session ends/.test(L.ARUBA_TIER_DATA_LIMIT) &&
+  "data limit: counted, stays online, blocks sign-in, mid-session cut needs cloud control",
+  /^Usage is counted\./.test(L.ARUBA_TIER_DATA_LIMIT) &&
+    /blocks sign-in until it resets/.test(L.ARUBA_TIER_DATA_LIMIT) &&
+    /stays online until their session ends/.test(L.ARUBA_TIER_DATA_LIMIT) &&
     /Instant On cloud control/.test(L.ARUBA_TIER_DATA_LIMIT),
 );
 eq(
@@ -102,16 +104,44 @@ eq(
   "qualified",
 );
 check(
-  "login hours copy: refused outside, session ends at the window end, overnight allowed",
-  /can't sign in outside these hours/.test(L.ARUBA_TIER_LOGIN_HOURS) &&
-    /end their session when the window closes/.test(L.ARUBA_TIER_LOGIN_HOURS) &&
+  "login hours copy: enforced, refused outside, signed out at the window end, overnight allowed",
+  /^Enforced\./.test(L.ARUBA_TIER_LOGIN_HOURS) &&
+    /can't sign in outside these hours/.test(L.ARUBA_TIER_LOGIN_HOURS) &&
+    /signed out when the window\s+closes/.test(L.ARUBA_TIER_LOGIN_HOURS) &&
     /past midnight/.test(L.ARUBA_TIER_LOGIN_HOURS),
 );
 check(
   "data limit copy does not claim a per-session cap blocks the next sign-in",
-  /daily, weekly or monthly limit also stops them signing in again/.test(L.ARUBA_TIER_DATA_LIMIT),
+  /daily, weekly or monthly limit blocks sign-in/.test(L.ARUBA_TIER_DATA_LIMIT),
 );
-check("applies-to copy names Map users", /Map users/.test(L.ARUBA_TIER_APPLIES_TO));
+check(
+  "every tier caveat is short (<= 3 sentences, <= 220 chars)",
+  [
+    L.ARUBA_TIER_SPEED,
+    L.ARUBA_TIER_DATA_LIMIT,
+    L.ARUBA_TIER_LOGIN_HOURS,
+    L.ARUBA_TIER_APPLIES_TO,
+  ].every((t) => t.length <= 220 && t.split(/(?<=\.)\s/).length <= 3),
+);
+check(
+  "steps caption: mapping guests is how a tier applies, not optional",
+  /map the guests it applies to/.test(L.ARUBA_TIER_STEPS) && !/optional/i.test(L.ARUBA_TIER_STEPS),
+);
+check(
+  "map hint: makes the tier available, changes nobody else",
+  /available here/.test(L.ARUBA_TIER_MAP_HINT) && /doesn't change/.test(L.ARUBA_TIER_MAP_HINT),
+);
+check(
+  "load errors both say nothing was changed; unreachable says so",
+  /Nothing was changed/.test(L.ARUBA_TIERS_LOAD_FAILED) &&
+    /Nothing was changed/.test(L.ARUBA_TIERS_LOAD_UNREACHABLE) &&
+    /Couldn't reach/.test(L.ARUBA_TIERS_LOAD_UNREACHABLE),
+);
+check(
+  "applies-to copy: only the guests mapped in (Map users)",
+  /applies only to the guests you map/.test(L.ARUBA_TIER_APPLIES_TO) &&
+    /Map users/.test(L.ARUBA_TIER_APPLIES_TO),
+);
 const lh = {
   ...{
     name: "Gold",
@@ -163,6 +193,10 @@ const allCopy = [
   L.ARUBA_TIER_DAILY_LIMIT,
   L.ARUBA_TIER_LOGIN_HOURS,
   L.ARUBA_TIER_SAVED,
+  L.ARUBA_TIER_MAP_HINT,
+  L.ARUBA_TIER_STEPS,
+  L.ARUBA_TIERS_LOAD_FAILED,
+  L.ARUBA_TIERS_LOAD_UNREACHABLE,
   L.arubaTierVerdict("tier-speed", true).reason,
 ];
 check(
@@ -248,6 +282,84 @@ eq("usage text, nothing", L.formatTierUsage({ guestCount: 0, ssids: [] }), "No g
 eq("usage text, one", L.formatTierUsage({ guestCount: 1, ssids: [] }), "1 guest");
 
 // ---------------------------------------------------------------------------
+console.log("\n1b. Pure: a read waits out a server restart (lib/transient-retry.ts)");
+// ---------------------------------------------------------------------------
+await build({
+  entryPoints: [abs("src/lib/transient-retry.ts")],
+  outfile: join(work, "retry.mjs"),
+  bundle: true,
+  format: "esm",
+  platform: "node",
+  logLevel: "silent",
+});
+const R = await import(pathToFileURL(join(work, "retry.mjs")).href);
+for (const status of [502, 503, 504])
+  check(`${status} is transient`, R.isTransientServerError({ status, code: "x", message: "" }));
+check(
+  "no response (network_error) is transient",
+  R.isTransientServerError({ status: null, code: "network_error", message: "" }),
+);
+for (const status of [400, 401, 403, 404, 422, 500])
+  check(`${status} is an answer, not transient`, !R.isTransientServerError({ status, code: "x" }));
+check("a plain Error is not transient", !R.isTransientServerError(new Error("boom")));
+{
+  const slept = [];
+  const sleep = async (ms) => void slept.push(ms);
+  let n = 0;
+  const v = await R.retryTransient(
+    async () => {
+      n += 1;
+      if (n < 3) throw { status: 502, code: "bad_gateway" };
+      return "ok";
+    },
+    { sleep },
+  );
+  eq("two 502s then success: resolves", v, "ok");
+  eq("…after waiting the first two delays", slept, R.TRANSIENT_RETRY_DELAYS_MS.slice(0, 2));
+  slept.length = 0;
+  let thrown = null;
+  n = 0;
+  await R.retryTransient(
+    async () => {
+      n += 1;
+      throw { status: 503 };
+    },
+    { sleep },
+  ).catch((e) => (thrown = e));
+  eq(
+    "a server that never comes back: tries 1 + one per delay",
+    n,
+    R.TRANSIENT_RETRY_DELAYS_MS.length + 1,
+  );
+  eq("…then rethrows the last error", thrown, { status: 503 });
+  n = 0;
+  thrown = null;
+  slept.length = 0;
+  await R.retryTransient(
+    async () => {
+      n += 1;
+      throw { status: 403, code: "forbidden" };
+    },
+    { sleep },
+  ).catch((e) => (thrown = e));
+  check(
+    "a 403 is returned at once, no retry",
+    n === 1 && slept.length === 0 && thrown?.status === 403,
+  );
+  n = 0;
+  let cancelled = false;
+  await R.retryTransient(
+    async () => {
+      n += 1;
+      cancelled = true;
+      throw { status: 502 };
+    },
+    { sleep, isCancelled: () => cancelled },
+  ).catch(() => {});
+  eq("a cancelled screen stops asking", n, 1);
+}
+
+// ---------------------------------------------------------------------------
 // The bundle: the REAL CreateGroup, network and venue stubbed at the module
 // boundary.
 // ---------------------------------------------------------------------------
@@ -291,6 +403,7 @@ writeFileSync(
      async list() {
        calls().push({ method: "LIST-BANDWIDTH" });
        if (window.__failList) throw new Error("boom");
+       if (window.__transient > 0) { window.__transient -= 1; throw { status: 502, code: "bad_gateway", message: "Bad Gateway" }; }
        return window.__bandwidth;
      },
      async save(input) { calls().push({ method: "SAVE-BANDWIDTH", body: JSON.parse(JSON.stringify(input)) }); return { ...input, id: input.id || "bw-new" }; },
@@ -495,6 +608,7 @@ const server = createServer((req, res) => {
          window.__vendor = ${JSON.stringify(url.searchParams.get("vendor") || null)};
          window.__perGuestSpeed = ${url.searchParams.get("gateway") ? "true" : "null"};
          window.__failList = ${url.searchParams.get("fail") ? "true" : "false"};
+         window.__transient = ${Number(url.searchParams.get("transient") || 0)};
          window.__policies = ${JSON.stringify(POLICIES)};
          window.__bandwidth = ${JSON.stringify(BANDWIDTH)};
          window.__assign = ${JSON.stringify(ASSIGN)};
@@ -519,14 +633,14 @@ const origin = `http://127.0.0.1:${server.address().port}`;
 const { chromium } = await import("playwright");
 const browser = await chromium.launch();
 
-async function open(vendor, { gateway = false, fail = false } = {}) {
+async function open(vendor, { gateway = false, fail = false, transient = 0 } = {}) {
   const page = await browser.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));
   await page.goto(
-    `${origin}/?vendor=${vendor ?? ""}${gateway ? "&gateway=1" : ""}${fail ? "&fail=1" : ""}`,
+    `${origin}/?vendor=${vendor ?? ""}${gateway ? "&gateway=1" : ""}${fail ? "&fail=1" : ""}${transient ? `&transient=${transient}` : ""}`,
   );
-  if (!fail) await page.getByRole("button", { name: "Edit Gold" }).waitFor({ timeout: 10_000 });
+  if (!fail) await page.getByRole("button", { name: "Edit Gold" }).waitFor({ timeout: 20_000 });
   page.__errors = errors;
   return page;
 }
@@ -544,6 +658,25 @@ console.log("\n2a. Aruba Instant On venue (rendered)");
   const page = await open(ARUBA);
   eq("speed note is the tier sentence", await noticeText(page, "tier-speed"), L.ARUBA_TIER_SPEED);
   check("the speed select is greyed", await page.locator("#g-bw").isDisabled());
+  eq(
+    "…and reads 'Not applied at this venue', offering no speed",
+    await page.locator("#g-bw option").allInnerTexts(),
+    [L.ARUBA_TIER_SPEED_PLACEHOLDER],
+  );
+  check(
+    "…without the 'Maximum speed per device' caption",
+    !(await page.locator("#create-group-form").innerText()).includes(
+      "Maximum speed per device in this tier.",
+    ),
+  );
+  check(
+    "the steps caption is the Aruba one",
+    (await page.locator("body").innerText()).includes(L.ARUBA_TIER_STEPS),
+  );
+  check(
+    "the table says the tier's speed is not applied here",
+    (await rowText(page)).includes("not applied here"),
+  );
   check(
     "the generic speed sentence is not shown",
     (await notice(page, "speed-profile").count()) === 0,
@@ -757,10 +890,71 @@ console.log("\n2a. Aruba Instant On venue (rendered)");
     (await page.getByText("No tiers yet").count()) === 0,
   );
   check("…with Try again", (await page.getByRole("button", { name: "Try again" }).count()) === 1);
+  eq(
+    "an answered failure reads the 'couldn't load' sentence",
+    (await page.getByTestId("tiers-load-error").innerText()).replace("Try again", "").trim(),
+    L.ARUBA_TIERS_LOAD_FAILED,
+  );
   await page.evaluate(() => (window.__failList = false));
   await click(page.getByRole("button", { name: "Try again" }));
   await page.getByRole("button", { name: "Edit Gold" }).waitFor({ timeout: 10_000 });
   check("Try again loads the list", (await page.getByRole("row", { name: /Gold/ }).count()) === 1);
+  await page.close();
+}
+
+{
+  // The staging incident: the list request 502s while the API restarts.
+  const page = await open(ARUBA, { transient: 1 });
+  check(
+    "a 502 during a restart is waited out: the list loads, no error",
+    (await page.getByTestId("tiers-load-error").count()) === 0 &&
+      (await page.getByRole("row", { name: /Gold/ }).count()) === 1,
+  );
+  eq(
+    "…after exactly one retry",
+    (await calls(page)).filter((x) => x.method === "LIST-BANDWIDTH").length >= 2,
+    true,
+  );
+  await page.close();
+}
+
+// Map tier -> this location. At Aruba it only makes the tier available for
+// Map users: the paired SESSION/DEVICE policies must NOT be mapped for
+// everyone (they would replace Guest WiFi Limits for every guest there).
+// MikroTik and Omada mirror them exactly as before.
+for (const [label, vendor, mirrors] of [
+  ["Aruba", ARUBA, false],
+  ["MikroTik", "mikrotik", true],
+  ["Omada", OMADA, true],
+]) {
+  const page = await open(vendor);
+  await click(page.getByRole("button", { name: "Unmap Gold from this location" }));
+  // "This location" hides an unmapped tier; browse the whole account.
+  await click(page.getByRole("button", { name: "All tiers", exact: true }));
+  await page
+    .getByRole("button", { name: "Map Gold to this location" })
+    .waitFor({ timeout: 10_000 });
+  if (vendor === ARUBA)
+    eq(
+      "Aruba: the quick-map button explains what mapping does here",
+      await page.getByRole("button", { name: "Map Gold to this location" }).getAttribute("title"),
+      L.ARUBA_TIER_MAP_HINT,
+    );
+  await page.evaluate(() => (window.__calls = []));
+  await click(page.getByRole("button", { name: "Map Gold to this location" }));
+  await page
+    .getByRole("button", { name: "Unmap Gold from this location" })
+    .waitFor({ timeout: 10_000 });
+  const mapped = (await calls(page))
+    .filter((x) => x.method === "MAP")
+    .map((x) => x.body.policyId)
+    .sort();
+  eq(
+    `${label}: Map tier maps ${mirrors ? "the tier and its paired policies" : "the tier only"}`,
+    mapped,
+    mirrors ? ["bw-g", "dev-g", "ses-g"] : ["bw-g"],
+  );
+  check(`${label}: no page error (map)`, page.__errors.length === 0, page.__errors.join(" | "));
   await page.close();
 }
 

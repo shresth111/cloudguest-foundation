@@ -356,9 +356,37 @@ export const DEVICE_MAC_RANDOMISATION_NOTE =
  * run by a controller, and an allow rule all return no rows, and none of
  * those is "the router blocked it". Each counted row is one router.
  */
-export function routerBlockSentences(created: readonly AnyAccessRule[]): string[] {
+/** A device rule at an Aruba Instant On venue with Instant On cloud control
+ * off: the backend records the Instant On row `not_applicable`. */
+export const ARUBA_DEVICE_RULE_SIGNIN_ONLY =
+  "Blocked from signing in: this device is refused the next time it tries to sign in. Keeping " +
+  "it off the WiFi right away needs Instant On cloud control, which isn't switched on for this " +
+  "venue yet — ask your Wyfy Guest contact to turn it on.";
+
+export function routerBlockSentences(
+  created: readonly AnyAccessRule[],
+  /** Aruba Instant On venue: the "router" is the venue's Instant On site. */
+  opts: { nasOnly?: boolean } = {},
+): string[] {
   const rows = created.flatMap((r) => (r.kind === "device" ? r.routerBlocks : []));
   const tried = rows.filter((b) => b.status === "enforced" || b.status === "failed");
+  if (opts.nasOnly) {
+    if (tried.length === 0) {
+      return rows.some((b) => b.status === "not_applicable") ? [ARUBA_DEVICE_RULE_SIGNIN_ONLY] : [];
+    }
+    const failedRow = tried.find((b) => b.status === "failed");
+    if (!failedRow) {
+      return [
+        "Blocked on your Instant On site — Instant On lists it, so it can't use the venue's WiFi " +
+          "until you unblock it, and it can't sign in either.",
+      ];
+    }
+    return [
+      "Instant On didn't confirm the block" +
+        (failedRow.errorMessage ? ` (${failedRow.errorMessage.replace(/\.$/, "")})` : "") +
+        ". It still cannot sign in; try again from this list.",
+    ];
+  }
   if (tried.length === 0) return [];
   const enforced = tried.filter((b) => b.status === "enforced");
   const failed = tried.filter((b) => b.status === "failed");
@@ -387,10 +415,13 @@ export function routerBlockSentences(created: readonly AnyAccessRule[]): string[
 /** After unblocking a device rule: whether every router let it go. */
 export function unblockRouterMessage(
   rule: { routerBlocks: readonly RouterBlock[] } | null,
+  opts: { nasOnly?: boolean } = {},
 ): string {
   const head = "Unblocked — the device can connect again.";
   if (!rule) return head;
   const stuck = rule.routerBlocks.filter((b) => !b.clearedAt && b.releaseError);
   if (stuck.length === 0) return head;
+  if (opts.nasOnly)
+    return `Unblocked in Wyfy, but Instant On did not confirm removing its block yet (${stuck[0].releaseError}). We keep retrying.`;
   return `${head} ${stuck.length === 1 ? "One router" : `${stuck.length} routers`} still ${stuck.length === 1 ? "has" : "have"} the block and did not confirm removing it. We keep retrying.`;
 }

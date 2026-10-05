@@ -340,7 +340,29 @@ eq("Bandwidth reason is U1", v("speed-limit").reason, U1);
 eq("Access-tier speed: unavailable, U1", v("speed-profile").reason, U1);
 eq("Disconnect: unavailable", v("disconnect").availability, "unavailable");
 eq("Disconnect reason is U2", v("disconnect").reason, U2);
-eq("Block on the network: unavailable, U2", v("block-device").reason, U2);
+// 2026-10-05: block-device at Aruba follows Instant On cloud control. Off:
+// unavailable, saying what is needed and that the sign-in block works (never
+// the "can't disconnect" sentence). On: live, with what the block does.
+eq(
+  "Block on the network, cloud control off: unavailable, says what is needed",
+  v("block-device").reason,
+  CC.NAS_ONLY_BLOCK_DEVICE_NEEDS_CLOUD,
+);
+check(
+  "Block on the network never says 'can't disconnect'",
+  !/can't disconnect/.test(v("block-device").reason ?? ""),
+);
+{
+  const on = CC.clientControlVerdict("block-device", {
+    ...ARUBA_VENUE,
+    instantOnCloudControl: true,
+  });
+  check(
+    "Block on the network, cloud control on: qualified, with the Instant On caveat",
+    on.availability === "qualified" && on.reason === CC.NAS_ONLY_BLOCK_DEVICE_CLOUD,
+    JSON.stringify(on),
+  );
+}
 eq("Block sign-in: qualified (our own record)", v("block-signin").availability, "qualified");
 eq("Block sign-in reason is U2's block sentence", v("block-signin").reason, U2_BLOCK);
 eq(
@@ -373,10 +395,47 @@ check(
 );
 for (const a of ["block", "unblock", "speed", "speed-clear"]) {
   const d = CC.deviceActionVerdict(a, ARUBA_VENUE);
+  const want = a.startsWith("speed")
+    ? CC.NAS_ONLY_DEVICE_SPEED
+    : CC.NAS_ONLY_BLOCK_DEVICE_NEEDS_CLOUD;
   check(
-    `per-device ${a}: unavailable with ${a.startsWith("speed") ? "U1" : "U2"}`,
-    d.availability === "unavailable" && d.reason === (a.startsWith("speed") ? U1 : U2),
+    `per-device ${a}, cloud control off: unavailable with the right sentence`,
+    d.availability === "unavailable" && d.reason === want,
     JSON.stringify(d),
+  );
+}
+{
+  const cloud = { ...ARUBA_VENUE, instantOnCloudControl: true };
+  const d = (a, venue = cloud) => CC.deviceActionVerdict(a, venue);
+  check(
+    "per-device block, cloud control on: qualified with the Instant On caveat",
+    d("block").availability === "qualified" && d("block").reason === CC.NAS_ONLY_BLOCK_DEVICE_CLOUD,
+  );
+  check(
+    "per-device unblock, cloud control on: available",
+    d("unblock").availability === "available",
+  );
+  check(
+    "per-device speed, cloud control on: still unavailable (no per-device rate exists)",
+    d("speed").availability === "unavailable" && d("speed").reason === CC.NAS_ONLY_DEVICE_SPEED,
+  );
+  check(
+    "per-device speed at a hybrid-gateway venue points at the gateway",
+    d("speed", { ...ARUBA_VENUE, perGuestSpeed: true }).reason === CC.NAS_ONLY_DEVICE_SPEED_GATEWAY,
+  );
+  check(
+    "only an explicit true opens cloud control",
+    d("block", { ...ARUBA_VENUE, instantOnCloudControl: null }).availability === "unavailable",
+  );
+  check(
+    "MikroTik ignores the flag",
+    CC.deviceActionVerdict("block", {
+      controllerManaged: false,
+      vendor: "mikrotik",
+      capabilities: null,
+      controller: null,
+      instantOnCloudControl: true,
+    }).availability === "available",
   );
 }
 

@@ -13,7 +13,7 @@ import { isNasOnlyVendor } from "@/lib/router-vendors";
 import { useCustomerStore } from "@/stores/customerStore";
 import { useMyPermissions } from "@/hooks/useCustomerDashboard";
 import {
-  accessRulesTabsFor,
+  accessRulesTabsForVenue,
   initialAccessRulesTab,
   isAccessRulesTabId,
   type AccessRulesTabId,
@@ -244,7 +244,10 @@ export default function PoliciesHub({
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as { tab?: unknown };
   const { data: permissions } = useMyPermissions();
-  const offered = accessRulesTabsFor(permissions);
+  const { vendor } = useClientControls();
+  // Aruba Instant On: no Access Tiers tab (owner, 2026-10-05) -- see
+  // `accessRulesTabsForVenue`. Every other venue: unchanged.
+  const offered = accessRulesTabsForVenue(permissions, isNasOnlyVendor(vendor));
   const [localTab, setLocalTab] = useState<AccessRulesTabId>(() =>
     initialAccessRulesTab(syncWithUrl ? search.tab : undefined, offered),
   );
@@ -262,7 +265,6 @@ export default function PoliciesHub({
       void navigate({ to: "/policies", search: { tab: next }, replace: true });
     }
   };
-  const { vendor } = useClientControls();
   const activeLocationId = useCustomerStore((s) => s.activeLocationId);
   const tiersLocationId = locationId ?? activeLocationId ?? null;
   const { t } = useTranslation("accessRules", { i18n });

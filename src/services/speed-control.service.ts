@@ -8,10 +8,14 @@
  */
 import { api } from "./api";
 import { resolveOrganizationId } from "./organization-id";
-import { toPerGuestSpeed } from "@/lib/aruba-speed-gateway";
+import { toSpeedControl, type SpeedControlRead } from "@/lib/aruba-speed-gateway";
+
+const NOTHING: SpeedControlRead = { perGuestSpeed: false, instantOnCloudControl: false };
 
 export const speedControlService = {
-  async readPerGuestSpeed(locationId: string): Promise<boolean> {
+  /** Per-guest speed (hybrid gateway) and Instant On cloud control, in one
+   * read. A 404 is "neither", never an error. */
+  async readSpeedControl(locationId: string): Promise<SpeedControlRead> {
     try {
       const { data } = await api.get<unknown>(
         `/network-integrations/locations/${locationId}/speed-control`,
@@ -22,10 +26,10 @@ export const speedControlService = {
           },
         },
       );
-      return toPerGuestSpeed(data);
+      return toSpeedControl(data);
     } catch (error) {
       const status = (error as { status?: unknown } | null)?.status;
-      if (status === 404) return false;
+      if (status === 404) return NOTHING;
       throw error;
     }
   },
