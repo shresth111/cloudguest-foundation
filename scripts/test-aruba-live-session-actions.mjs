@@ -124,7 +124,13 @@ for (const vendor of ["aruba_instant_on", "Aruba_Instant_On"]) {
   for (const action of ACTIONS) {
     const g = L.liveSessionActionGate(action, vendor);
     check(`${vendor} ${action}: greyed`, g.greyed === true, JSON.stringify(g));
-    eq(`${vendor} ${action}: Disconnect's own sentence`, g.reason, disconnectReason);
+    // 2026-10-05: Extend has its OWN reason (the AP keeps the Session-Timeout
+    // it was given at sign-in), never the disconnect sentence.
+    eq(
+      `${vendor} ${action}: ${action === "extend" ? "its own extend sentence" : "Disconnect's own sentence"}`,
+      g.reason,
+      action === "extend" ? L.NAS_ONLY_EXTEND : disconnectReason,
+    );
   }
 }
 eq("the sentence is NAS_ONLY_DISCONNECT", disconnectReason, CC.NAS_ONLY_DISCONNECT);
@@ -307,6 +313,7 @@ function body(url, config) {
     if (QS.get("legacy")) throw { status: 404, message: "Not Found" };
     return page(groups(), { instant_on_cloud_disconnect: QS.get("cloud") === "1" });
   }
+  if (/\\/speed-control$/.test(url)) return { per_guest_speed: false, instant_on_cloud_control: QS.get("cloud") === "1" };
   if (url === "/routers/r1") return { ...ROUTERS[0], location_id: LOC, organization_id: ORG };
   if (url === "/organizations") return page([{ id: ORG, name: "Acme", slug: "acme", status: "active" }]);
   if (url === "/guests") return page([GUEST]);
@@ -320,6 +327,8 @@ function body(url, config) {
 // Session-ending POSTs answer with the id's own verdict: "x-false" -> false,
 // "x-true" -> true, "x-null" -> null, "x-env" -> enveloped false, else no field.
 function postBody(url) {
+  const c = url.match(/\\/clients\\/(block|unblock)$/);
+  if (c) return { action: c[1], performed: QS.get("unconfirmed") !== "1", client_mac: "11:11:**:**:**:11", rate_limit: null };
   const m = url.match(/^\\/guest-sessions\\/([^/]+)\\/(disconnect|terminate|pause)$/);
   if (!m) return {};
   const id = m[1];
@@ -638,9 +647,9 @@ console.log("\nC. Aruba: Extend and Reset greyed like Disconnect");
   eq("table: one greyed Extend per online guest", await icons.count(), 2);
   check("table: greyed Extend is disabled", await icons.first().isDisabled());
   eq(
-    "table: greyed Extend carries Disconnect's sentence",
+    "table: greyed Extend carries the extend sentence",
     await icons.first().getAttribute("aria-label"),
-    CC.NAS_ONLY_DISCONNECT,
+    L.NAS_ONLY_EXTEND,
   );
   // 2026-10-05: Disconnect is LIVE at Aruba now (Part F); Extend stays greyed.
   eq(
@@ -658,7 +667,12 @@ console.log("\nC. Aruba: Extend and Reset greyed like Disconnect");
   const drawerText = await r.page
     .locator('[data-testid="extend-unsupported"]')
     .evaluate((e) => e.innerText);
-  check("drawer: the reason is printed", drawerText.includes(CC.NAS_ONLY_DISCONNECT), drawerText);
+  check("drawer: the reason is printed", drawerText.includes(L.NAS_ONLY_EXTEND), drawerText);
+  check(
+    "drawer: Extend never says 'can't disconnect'",
+    !drawerText.includes(CC.NAS_ONLY_DISCONNECT),
+    drawerText,
+  );
   check(
     "drawer: Disconnect is live, with the Aruba note",
     (await r.page.getByRole("button", { name: "Disconnect guest" }).isEnabled()) &&
@@ -670,6 +684,75 @@ console.log("\nC. Aruba: Extend and Reset greyed like Disconnect");
   check(
     "pressing greyed Extend sends nothing",
     !posts(await r.page.evaluate(() => window.__CALLS__)).some((c) => c.url.endsWith("/extend")),
+  );
+  await done(r);
+}
+
+console.log("\nC2. Aruba drawer 'This device': Block/Allow follow Instant On cloud control");
+{
+  // Cloud control OFF: Block/Allow greyed with what is needed (never the
+  // "can't disconnect" sentence); per-device speed points at the venue-level
+  // guest network speed.
+  const r = await render(ROOT, "aruba", "users");
+  const panel = r.page.locator('[data-testid="guest-device-controls"]');
+  await panel.waitFor({ timeout: 10_000 });
+  const panelText = await panel.innerText();
+  check(
+    "off: Block device is disabled",
+    await panel.getByRole("button", { name: "Block device" }).isDisabled(),
+  );
+  check(
+    "off: Allow device is disabled",
+    await panel.getByRole("button", { name: "Allow device" }).isDisabled(),
+  );
+  check(
+    "off: says what is needed",
+    panelText.includes(CC.NAS_ONLY_BLOCK_DEVICE_NEEDS_CLOUD),
+    panelText,
+  );
+  check(
+    "off: speed points at the guest network speed",
+    panelText.includes(CC.NAS_ONLY_DEVICE_SPEED),
+    panelText,
+  );
+  check(
+    "off: the panel never says 'can't disconnect'",
+    !panelText.includes(CC.NAS_ONLY_DISCONNECT),
+    panelText,
+  );
+  await done(r);
+}
+{
+  // Cloud control ON: Block is live; the POST goes to the venue-scoped block
+  // route and the success toast only follows `performed: true`.
+  const r = await render(ROOT, "aruba", "users", "&cloud=1");
+  const panel = r.page.locator('[data-testid="guest-device-controls"]');
+  await panel.waitFor({ timeout: 10_000 });
+  const block = panel.getByRole("button", { name: "Block device" });
+  check("on: Block device is live", await block.isEnabled());
+  check(
+    "on: the Instant On caveat is shown before the click",
+    (await panel.innerText()).includes(CC.NAS_ONLY_BLOCK_DEVICE_CLOUD),
+  );
+  await block.click();
+  await r.page.getByText(/Aruba Instant On lists it as blocked/).waitFor({ timeout: 5_000 });
+  check(
+    "on: the block went to the venue's clients/block route",
+    posts(await r.page.evaluate(() => window.__CALLS__)).some((c) =>
+      /\/locations\/[^/]+\/clients\/block$/.test(c.url),
+    ),
+  );
+  await done(r);
+}
+{
+  const r = await render(ROOT, "aruba", "users", "&cloud=1&unconfirmed=1");
+  const panel = r.page.locator('[data-testid="guest-device-controls"]');
+  await panel.waitFor({ timeout: 10_000 });
+  await panel.getByRole("button", { name: "Block device" }).click();
+  await r.page.getByText(/didn't confirm that when we checked/).waitFor({ timeout: 5_000 });
+  check(
+    "on, unconfirmed: no 'blocked' success toast",
+    !(await text(r.page)).includes("lists it as blocked"),
   );
   await done(r);
 }

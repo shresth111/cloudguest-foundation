@@ -59,6 +59,13 @@ const eq = (name, actual, expected) =>
     `expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`,
   );
 
+const deq = (name, actual, expected) =>
+  check(
+    name,
+    JSON.stringify(actual) === JSON.stringify(expected),
+    `expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`,
+  );
+
 const ARUBA = "aruba_instant_on";
 const OMADA = "tplink_omada";
 
@@ -170,6 +177,9 @@ console.log("\n1b. Hybrid speed gateway (Aruba + Wyfy MikroTik): verdict and par
 for (const [entry, out] of [
   ["src/lib/omada-client-controls.ts", "cc.mjs"],
   ["src/lib/aruba-speed-gateway.ts", "gw.mjs"],
+  ["src/lib/aruba-guest-speed.ts", "gs.mjs"],
+  ["src/lib/access-rules-tabs.ts", "tabs.mjs"],
+  ["src/lib/block-outcome.ts", "bo.mjs"],
 ]) {
   await build({
     entryPoints: [abs(entry)],
@@ -184,6 +194,149 @@ for (const [entry, out] of [
 }
 const CC = await import(pathToFileURL(join(work, "cc.mjs")).href);
 const GW = await import(pathToFileURL(join(work, "gw.mjs")).href);
+const GS = await import(pathToFileURL(join(work, "gs.mjs")).href);
+const TABS = await import(pathToFileURL(join(work, "tabs.mjs")).href);
+const BO = await import(pathToFileURL(join(work, "bo.mjs")).href);
+
+console.log("\n1d. Access Rules tabs at Aruba: no Access Tiers (owner, 2026-10-05)");
+deq("Aruba: Guest WiFi Limits + Guests & devices", TABS.accessRulesTabsForVenue(["*"], true), [
+  "location",
+  "guests",
+]);
+deq("MikroTik/Omada: unchanged", TABS.accessRulesTabsForVenue(["*"], false), [
+  "location",
+  "group",
+  "guests",
+]);
+deq("Aruba, policy keys only: never empty", TABS.accessRulesTabsForVenue(["policy.read"], true), [
+  "location",
+]);
+eq(
+  "Aruba: ?tab=group falls back",
+  TABS.initialAccessRulesTab("group", TABS.accessRulesTabsForVenue(null, true)),
+  "location",
+);
+
+console.log(
+  "\n1e. Guests & devices: a device rule's outcome at Aruba names Instant On, not a router",
+);
+{
+  const rule = (status, errorMessage = null) => [
+    { kind: "device", routerBlocks: [{ status, errorMessage, sessionsEnded: 0 }] },
+  ];
+  deq(
+    "cloud off (not_applicable): sign-in only, says what is needed",
+    BO.routerBlockSentences(rule("not_applicable"), { nasOnly: true }),
+    [BO.ARUBA_DEVICE_RULE_SIGNIN_ONLY],
+  );
+  check(
+    "cloud on, confirmed: blocked on Instant On",
+    /Blocked on your Instant On site/.test(
+      BO.routerBlockSentences(rule("enforced"), { nasOnly: true })[0] ?? "",
+    ),
+  );
+  check(
+    "cloud on, unconfirmed: never 'blocked'",
+    /didn't confirm the block/.test(
+      BO.routerBlockSentences(rule("failed", "write_not_confirmed."), { nasOnly: true })[0] ?? "",
+    ),
+  );
+  check(
+    "MikroTik wording unchanged",
+    /router/.test(BO.routerBlockSentences(rule("enforced"))[0] ?? ""),
+  );
+  check(
+    "no Aruba sentence mentions a router",
+    ![
+      ...BO.routerBlockSentences(rule("enforced"), { nasOnly: true }),
+      BO.ARUBA_DEVICE_RULE_SIGNIN_ONLY,
+    ].some((x) => /router/i.test(x)),
+  );
+}
+
+console.log("\n1c. Guest network speed at Aruba (pure): parsing, presets, outcomes");
+deq(
+  "speed-control read: both flags, only explicit true counts",
+  GW.toSpeedControl({ per_guest_speed: true, instant_on_cloud_control: "true" }),
+  { perGuestSpeed: true, instantOnCloudControl: false },
+);
+deq("speed-control read: empty is neither", GW.toSpeedControl(null), {
+  perGuestSpeed: false,
+  instantOnCloudControl: false,
+});
+deq(
+  "presets are 10..100 Mbps",
+  [...GS.GUEST_SPEED_PRESETS_MBPS],
+  [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+);
+{
+  const parsed = GS.toVenueGuestSpeed({
+    status: "ok",
+    presets_mbps: [10, 20],
+    networks: [
+      { network_id: "n1", network_name: "G", enabled: true, download_mbps: 20, upload_mbps: null },
+      { network_name: "no id" },
+    ],
+    preSharedKey: "never-read",
+  });
+  eq("a network without an id is dropped", parsed.networks.length, 1);
+  eq("a one-direction cap parses", parsed.networks[0].downloadMbps, 20);
+  check("no secret survives parsing", !JSON.stringify(parsed).includes("never-read"));
+}
+eq(
+  "an unknown status is failed, never 'no limit'",
+  GS.toVenueGuestSpeed({ status: "weird" }).status,
+  "failed",
+);
+eq("select value round trip: no limit", GS.fromSelectValue(GS.toSelectValue(null)), null);
+eq("select value round trip: 30", GS.fromSelectValue(GS.toSelectValue(30)), 30);
+eq("an off-preset select value is not sent", GS.fromSelectValue("35"), null);
+eq(
+  "applied only on Instant On's confirmation",
+  GS.applyOutcomeMessage(GS.toVenueGuestSpeed({ status: "applied" })).tone,
+  "error",
+);
+eq(
+  "write_not_confirmed is a warning that nothing changed",
+  GS.applyOutcomeMessage(GS.toVenueGuestSpeed({ status: "failed", reason: "write_not_confirmed" }))
+    .tone,
+  "warning",
+);
+check(
+  "a confirmed apply names both speeds",
+  GS.applyOutcomeMessage(
+    GS.toVenueGuestSpeed({
+      status: "applied",
+      applied: {
+        network_id: "n1",
+        network_name: "G",
+        enabled: true,
+        download_mbps: 50,
+        upload_mbps: 20,
+      },
+    }),
+  ).text.includes("50 Mbps down and 20 Mbps up"),
+);
+eq(
+  "cloud control off is never a save",
+  GS.applyOutcomeMessage(GS.toVenueGuestSpeed({ status: "unavailable" })).text,
+  GS.GUEST_SPEED_NEEDS_CLOUD,
+);
+eq(
+  "data limit: cloud control on says the device is taken off",
+  R.nasOnlyLimitVerdict("data-limit", ARUBA, { cloudControl: true }).reason,
+  R.NAS_ONLY_DATA_LIMIT_CLOUD,
+);
+eq(
+  "data limit: cloud control off keeps the sign-in-only caveat",
+  R.nasOnlyLimitVerdict("data-limit", ARUBA).reason,
+  R.NAS_ONLY_DATA_LIMIT,
+);
+eq(
+  "data limit: MikroTik ignores the flag",
+  R.nasOnlyLimitVerdict("data-limit", "mikrotik", { cloudControl: true }).availability,
+  "available",
+);
 const arubaFacts = (perGuestSpeed) => ({
   controllerManaged: true,
   vendor: ARUBA,
@@ -330,7 +483,10 @@ writeFileSync(
    export const api = {
      async get(path, cfg) {
        record("GET", path);
-       if (path === "/policies") return { data: listFor(cfg.params.policy_type) };
+       if (path === "/policies") {
+         if (window.__listFail && cfg.params.policy_type === "device") throw Object.assign(new Error("boom"), { status: 500 });
+         return { data: listFor(cfg.params.policy_type) };
+       }
        const m = /^\\/policies\\/([^/]+)$/.exec(path);
        if (m) return { data: byId(m[1]) || { id: m[1], name: "x", is_active: true, versions: [] } };
        throw new Error("unexpected GET " + path);
@@ -365,26 +521,50 @@ writeFileSync(
    // One array for the life of the page, as react-query's cached data is: a
    // fresh array per render re-runs the screen's load effect on every render.
    const LOCATIONS = [{ id: "loc-1", name: "Office" }];
-   export function useCustomerLocations() { return { data: LOCATIONS }; }`,
+   const NONE = [];
+   // ?nolist=1: the account-wide list comes back WITHOUT the scoped venue
+   // (seen on staging at the Aruba venue) -- the active venue in the store
+   // must still be "a location".
+   export function useCustomerLocations() { return { data: window.__noList ? NONE : LOCATIONS }; }`,
 );
 writeFileSync(
   join(work, "client-controls-stub.js"),
   `import { clientControlVerdict, deviceActionVerdict } from "${abs("src/lib/omada-client-controls.ts")}";
    export function useClientControls() {
      const vendor = window.__vendor;
-     const facts = { controllerManaged: vendor != null, vendor, capabilities: null, controller: null, perGuestSpeed: window.__perGuestSpeed ?? null };
+     const facts = { controllerManaged: vendor != null, vendor, capabilities: null, controller: null, perGuestSpeed: window.__perGuestSpeed ?? null, instantOnCloudControl: window.__cloud === true };
      return {
        controllerManaged: facts.controllerManaged, vendor, capabilities: null, controller: null, loading: false,
+       perGuestSpeed: facts.perGuestSpeed, instantOnCloudControl: facts.instantOnCloudControl,
        verdict: (c) => clientControlVerdict(c, facts),
        deviceVerdict: (a) => deviceActionVerdict(a, facts),
      };
    }`,
 );
 writeFileSync(
+  join(work, "guest-speed-stub.js"),
+  `import { toVenueGuestSpeed } from "${abs("src/lib/aruba-guest-speed.ts")}";
+   export const arubaGuestSpeedService = {
+     async read() { (window.__calls ||= []).push({ method: "GET-GUEST-SPEED" }); return toVenueGuestSpeed(window.__guestSpeed); },
+     async apply(locationId, req) {
+       (window.__calls ||= []).push({ method: "PUT-GUEST-SPEED", body: { locationId, ...req } });
+       const applied = { network_id: req.networkId, network_name: "WYFY_ARUBA", enabled: req.downloadMbps !== null || req.uploadMbps !== null, download_mbps: req.downloadMbps, upload_mbps: req.uploadMbps };
+       window.__guestSpeed = { ...window.__guestSpeed, status: "ok", networks: [applied] };
+       return toVenueGuestSpeed({ status: "applied", presets_mbps: window.__guestSpeed.presets_mbps, networks: [applied], applied });
+     },
+   };`,
+);
+writeFileSync(
   join(work, "entry.jsx"),
   `import { createRoot } from "react-dom/client";
+   import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+   import { useCustomerStore } from "${abs("src/stores/customerStore.ts")}";
    import LocationPolicies from "${abs("src/components/features/LocationPolicies.tsx")}";
-   createRoot(document.getElementById("root")).render(<LocationPolicies locationId="loc-1" />);`,
+   useCustomerStore.getState().setActiveLocation("loc-1", { id: "loc-1", name: "Office" });
+   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+   createRoot(document.getElementById("root")).render(
+     <QueryClientProvider client={qc}><LocationPolicies locationId="loc-1" /></QueryClientProvider>,
+   );`,
 );
 await build({
   entryPoints: [join(work, "entry.jsx")],
@@ -406,6 +586,7 @@ await build({
     "@/services/customer.service": join(work, "customer-stub.js"),
     "@/hooks/useCustomerDashboard": join(work, "dashboard-stub.js"),
     "@/hooks/useClientControls": join(work, "client-controls-stub.js"),
+    "@/services/aruba-guest-speed.service": join(work, "guest-speed-stub.js"),
     "@": join(ROOT, "src"),
   },
   loader: { ".ts": "ts", ".tsx": "tsx" },
@@ -471,6 +652,31 @@ const server = createServer((req, res) => {
        <script>
          window.__vendor = ${JSON.stringify(url.searchParams.get("vendor") || null)};
          window.__perGuestSpeed = ${url.searchParams.get("gateway") ? "true" : "null"};
+         window.__cloud = ${url.searchParams.get("cloud") ? "true" : "false"};
+         window.__noList = ${url.searchParams.get("nolist") ? "true" : "false"};
+         window.__listFail = ${url.searchParams.get("listfail") ? "true" : "false"};
+         window.__guestSpeed = ${JSON.stringify(
+           url.searchParams.get("cloud")
+             ? {
+                 status: "ok",
+                 presets_mbps: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+                 networks: [
+                   {
+                     network_id: "net-1",
+                     network_name: "WYFY_ARUBA",
+                     enabled: false,
+                     download_mbps: null,
+                     upload_mbps: null,
+                   },
+                 ],
+               }
+             : {
+                 status: "unavailable",
+                 reason: "cloud_control_not_enabled",
+                 presets_mbps: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+                 networks: [],
+               },
+         )};
          window.__policies = ${JSON.stringify(url.searchParams.get("empty") ? {} : POLICIES)};
          window.__bandwidth = ${JSON.stringify(url.searchParams.get("empty") ? [] : BANDWIDTH)};
          window.__calls = [];
@@ -494,14 +700,25 @@ const origin = `http://127.0.0.1:${server.address().port}`;
 const { chromium } = await import("playwright");
 const browser = await chromium.launch();
 
-async function open(vendor, { empty = false, gateway = false } = {}) {
+async function open(
+  vendor,
+  {
+    empty = false,
+    gateway = false,
+    cloud = false,
+    nolist = false,
+    listfail = false,
+    wait = true,
+  } = {},
+) {
   const page = await browser.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));
   await page.goto(
-    `${origin}/?vendor=${vendor ?? ""}${empty ? "&empty=1" : ""}${gateway ? "&gateway=1" : ""}`,
+    `${origin}/?vendor=${vendor ?? ""}${empty ? "&empty=1" : ""}${gateway ? "&gateway=1" : ""}` +
+      `${cloud ? "&cloud=1" : ""}${nolist ? "&nolist=1" : ""}${listfail ? "&listfail=1" : ""}`,
   );
-  await page.getByRole("button", { name: "Edit Office" }).waitFor({ timeout: 10_000 });
+  if (wait) await page.getByRole("button", { name: "Edit Office" }).waitFor({ timeout: 10_000 });
   page.__errors = errors;
   return page;
 }
@@ -592,7 +809,23 @@ console.log("\n2a-hybrid. Aruba venue WITH a Wyfy MikroTik gateway: speed is liv
     !(await page.locator("#root").innerText()).includes("the controller cuts the device off"),
   );
   check("no speed input at all (not a greyed one)", (await page.locator("#bw").count()) === 0);
-  eq("speed says U1", await noticeText(page, "speed-limit"), U1);
+  check("the old greyed U1 line is gone", (await noticeText(page, "speed-limit")) === null);
+  await page.getByTestId("aruba-guest-speed-needs-cloud").waitFor({ timeout: 10_000 });
+  eq(
+    "cloud control off: the guest speed control says what is needed, not a form",
+    (await page.getByTestId("aruba-guest-speed-needs-cloud").innerText()).trim(),
+    GS.GUEST_SPEED_NEEDS_CLOUD,
+  );
+  check(
+    "cloud control off: no Apply button",
+    (await page.getByRole("button", { name: "Apply guest speed" }).count()) === 0,
+  );
+  check(
+    "it says the speed is the same for every device",
+    (await page.getByTestId("aruba-guest-speed-same-for-all").innerText()).includes(
+      "One speed for every device on this guest WiFi network",
+    ),
+  );
   check("idle timeout stays live", !(await page.locator("#it").isDisabled()));
   eq(
     "idle timeout carries its caveat",
@@ -655,6 +888,110 @@ console.log("\n2a-hybrid. Aruba venue WITH a Wyfy MikroTik gateway: speed is liv
       !(await root()).includes("applies to guests online now"),
   );
   check("no page error", page.__errors.length === 0, page.__errors.join(" | "));
+  await page.close();
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n2a-cloud. Aruba venue WITH Instant On cloud control: guest network speed is live");
+// ---------------------------------------------------------------------------
+{
+  const page = await open(ARUBA, { cloud: true });
+  await page.getByRole("button", { name: "Apply guest speed" }).waitFor({ timeout: 10_000 });
+  eq(
+    "the data limit says the device is taken off through Instant On",
+    await noticeText(page, "data-limit"),
+    R.NAS_ONLY_DATA_LIMIT_CLOUD,
+  );
+  check(
+    "current state is read back from Instant On",
+    (await page.getByTestId("aruba-guest-speed-current").innerText()).includes(
+      "No speed limit on this network right now",
+    ),
+  );
+  check(
+    "Apply is off until something changes",
+    await page.getByRole("button", { name: "Apply guest speed" }).isDisabled(),
+  );
+  await page.getByRole("combobox", { name: "Download speed per device" }).click();
+  const options = await page.getByRole("option").allInnerTexts();
+  deq(
+    "download presets are No limit + 10..100 Mbps",
+    options.map((o) => o.trim()),
+    ["No limit", ...[10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map((n) => `${n} Mbps`)],
+  );
+  await page.getByRole("option", { name: "20 Mbps", exact: true }).click();
+  await page.getByRole("combobox", { name: "Upload speed per device" }).click();
+  await page.getByRole("option", { name: "10 Mbps", exact: true }).click();
+  await page.evaluate(() => (window.__calls = []));
+  await page.getByRole("button", { name: "Apply guest speed" }).click();
+  await page.getByRole("alertdialog").waitFor({ timeout: 5_000 });
+  check(
+    "the confirm says every device on the network",
+    (await page.getByRole("alertdialog").innerText()).includes("Every device on WYFY_ARUBA"),
+  );
+  await page.getByRole("button", { name: "Apply", exact: true }).click();
+  await page
+    .getByTestId("aruba-guest-speed-current")
+    .getByText(/held to 20 Mbps down and 10 Mbps up/)
+    .waitFor({ timeout: 10_000 });
+  const put = (await page.evaluate(() => window.__calls)).find(
+    (c) => c.method === "PUT-GUEST-SPEED",
+  );
+  deq("the PUT carries the network and both presets", put?.body, {
+    locationId: "loc-1",
+    networkId: "net-1",
+    downloadMbps: 20,
+    uploadMbps: 10,
+  });
+  check(
+    "no policy Bandwidth field appears (that is the hybrid gateway's)",
+    (await page.locator("#bw").count()) === 0,
+  );
+  check("no page error", page.__errors.length === 0, page.__errors.join(" | "));
+  await page.close();
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n2a-nolist. The scoped venue missing from the account list still has its row");
+// ---------------------------------------------------------------------------
+{
+  const page = await open(ARUBA, { nolist: true });
+  const root = () => page.locator("#root").innerText();
+  check("not 'No policies yet'", !(await root()).includes("No policies yet"));
+  check(
+    "the saved Office policy is listed (scoped venue counts as a location)",
+    (await page.getByRole("button", { name: "Delete Office" }).count()) === 1,
+  );
+  const calls = await editAndSave(page);
+  check(
+    "save assigns the policy to the scoped venue",
+    calls.some((c) => c.method === "MAP" && c.body?.locationId === "loc-1"),
+    JSON.stringify(calls.filter((c) => c.method === "MAP")),
+  );
+  check("no page error", page.__errors.length === 0, page.__errors.join(" | "));
+  await page.close();
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n2a-listfail. A failed policy-list read never turns the next save into a duplicate");
+// ---------------------------------------------------------------------------
+{
+  const page = await open(ARUBA, { listfail: true, wait: false });
+  await page.getByText("Couldn't load the saved limits").waitFor({ timeout: 10_000 });
+  check(
+    "not 'No policies yet'",
+    !(await page.locator("#root").innerText()).includes("No policies yet"),
+  );
+  await page.evaluate(() => (window.__calls = []));
+  await page
+    .getByRole("button", { name: /Update policies|Save changes/ })
+    .first()
+    .evaluate((b) => b.click());
+  await page.getByText(/nothing was saved/).waitFor({ timeout: 5_000 });
+  const writes = (await page.evaluate(() => window.__calls)).filter(
+    (c) => !c.method.startsWith("GET"),
+  );
+  deq("save refused: no policy was created or written", writes, []);
   await page.close();
 }
 

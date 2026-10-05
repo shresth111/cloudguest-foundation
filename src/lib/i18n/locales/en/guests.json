@@ -97,5 +97,9 @@
   "arubaDisconnectNoteCloud": "Wyfy signs the guest out and drops their device through Aruba Instant On.",
   "arubaDisconnectDropped": "{{name}} disconnected — Aruba Instant On confirmed it dropped their device",
   "arubaDisconnectSignedOut": "{{name}} is signed out. Their device keeps WiFi until about {{time}}, when the access point's session time runs out.",
-  "arubaDisconnectSignedOutNoTime": "{{name}} is signed out. Their device keeps WiFi until the access point's session time runs out, then they have to sign in again."
+  "arubaDisconnectSignedOutNoTime": "{{name}} is signed out. Their device keeps WiFi until the access point's session time runs out, then they have to sign in again.",
+  "deviceControlsSubtitleAruba": "What Wyfy can do about {{name}}’s device at this Aruba Instant On venue.",
+  "arubaDeviceBlocked": "{{name}}’s device is blocked — Aruba Instant On lists it as blocked on this venue’s WiFi.",
+  "arubaDeviceAllowed": "{{name}}’s device is allowed again — Aruba Instant On no longer lists it as blocked.",
+  "arubaDeviceActionNotConfirmed": "Aruba Instant On didn't confirm that when we checked, so nothing has changed for this device as far as we can tell. Try again in a moment."
 }

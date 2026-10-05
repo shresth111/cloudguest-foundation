@@ -67,6 +67,25 @@ export function accessRulesTabsFor(
 /** An explicit, offered `requested` tab wins (a deep link such as the
  * Security Score's "Block a guest or device", or an old
  * `/blocking?tab=guests` bookmark); otherwise the first offered tab. */
+/**
+ * The tabs offered at THIS venue. An Aruba Instant On venue (NAS-only) does
+ * not get Access Tiers -- owner, 2026-10-05: "access tier hata do aruba se".
+ * A tier's whole point is a different speed per group of guests, and Instant
+ * On has no per-guest speed on any path (one speed per WiFi network). Every
+ * other venue gets exactly `accessRulesTabsFor(permissions)`. Never leaves the
+ * list empty: an account with only the policy keys at an Aruba venue keeps
+ * Guest WiFi Limits.
+ */
+export function accessRulesTabsForVenue(
+  permissions: readonly string[] | null | undefined,
+  nasOnlyVenue: boolean,
+): readonly AccessRulesTabId[] {
+  const tabs = accessRulesTabsFor(permissions);
+  if (!nasOnlyVenue) return tabs;
+  const withoutTiers = tabs.filter((t) => t !== "group");
+  return withoutTiers.length > 0 ? withoutTiers : ["location"];
+}
+
 export function initialAccessRulesTab(
   requested: unknown,
   offered: readonly AccessRulesTabId[],

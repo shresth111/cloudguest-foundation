@@ -2178,7 +2178,7 @@ jobs:
       - name: aruba instant on gating, guardrails and portal login
         run: |
           ./scripts/ci-gated-test.sh \
-            "aruba-instant-on" 313 \
+            "aruba-instant-on" 321 \
             "aruba instant on: all checks passed" \
             bun run test:aruba-instant-on
       # Trusted Devices at an Instant On venue: the portal's loop guard
@@ -2228,7 +2228,7 @@ jobs:
       - name: aruba instant on access rules
         run: |
           ./scripts/ci-gated-test.sh \
-            "aruba-access-rules" 110 \
+            "aruba-access-rules" 161 \
             "aruba access rules: all checks passed" \
             bun run test:aruba-access-rules
       # Speed tiers by WiFi network (Aruba Instant On): wire mapping, draft
@@ -2299,7 +2299,7 @@ jobs:
       - name: aruba instant on live session actions
         run: |
           ./scripts/ci-gated-test.sh \
-            "aruba-live-session-actions" 156 \
+            "aruba-live-session-actions" 166 \
             "aruba live session actions: all checks passed" \
             bun run test:aruba-live-session-actions
 
