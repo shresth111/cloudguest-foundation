@@ -40,18 +40,21 @@ export type ArubaTierControl =
   | "tier-login-hours";
 export type ArubaTierVerdict = ControlVerdict<ArubaTierControl>;
 
-/** Speed, no gateway. Points at the one speed control the venue has. */
+/** Speed, no gateway. One sentence; the form puts the "Open Speed tiers by
+ * WiFi network" link right under it, and the select itself reads
+ * `ARUBA_TIER_SPEED_PLACEHOLDER` instead of offering a speed. */
 export const ARUBA_TIER_SPEED =
-  "Aruba Instant On can't give one guest a different speed from another on the same WiFi " +
-  "network, so this tier's speed isn't applied here. To give this tier's guests faster WiFi, " +
-  "add a paid network under Speed tiers by WiFi network and let this tier join it.";
+  "Not applied here: Aruba Instant On gives everyone on the same WiFi network one speed.";
+
+/** What the greyed Bandwidth select shows at an Instant On venue without a
+ * gateway, in place of "Choose bandwidth" or the tier's held rate. */
+export const ARUBA_TIER_SPEED_PLACEHOLDER = "Not applied at this venue";
 
 /** Data limit. Next sign-in is the enforced half; the live session runs on. */
 export const ARUBA_TIER_DATA_LIMIT =
-  "Usage is counted. When a guest in this tier uses up their allowance, Wyfy can't " +
-  "disconnect a device from Aruba Instant On access points, so they stay online until " +
-  "their session ends. A daily, weekly or monthly limit also stops them signing in again " +
-  "until it resets. Cutting them off mid-session needs Instant On cloud control.";
+  "Usage is counted. A guest who runs out stays online until their session ends, and a " +
+  "daily, weekly or monthly limit blocks sign-in until it resets. Cutting them off " +
+  "mid-session needs Instant On cloud control.";
 
 /** Max daily session: the measured, shared sentence. */
 export const ARUBA_TIER_DAILY_LIMIT = NAS_ONLY_DAILY_LIMIT;
@@ -59,14 +62,35 @@ export const ARUBA_TIER_DAILY_LIMIT = NAS_ONLY_DAILY_LIMIT;
 /** Login hours, per the tier contract (ACCESS_TIERS.md §0 b): sign-in refused
  * outside the window, Session-Timeout capped at the window end. */
 export const ARUBA_TIER_LOGIN_HOURS =
-  "Guests in this tier can't sign in outside these hours, and Aruba Instant On access " +
-  "points end their session when the window closes. A window can run past midnight " +
-  "(for example 22:00 to 06:00).";
+  "Enforced. Guests can't sign in outside these hours and are signed out when the window " +
+  "closes. A window can run past midnight (22:00 to 06:00).";
 
 /** What every tier limit at an Instant On venue applies to. */
 export const ARUBA_TIER_APPLIES_TO =
-  "At this venue a tier's limits apply to the guests you map into it (Map users), from " +
+  "At this venue a tier applies only to the guests you map into it (Map users), from " +
   "their next sign-in.";
+
+/** The three-step caption at an Instant On venue: mapping guests is not
+ * optional here -- it is the only thing that puts anyone in a tier. */
+export const ARUBA_TIER_STEPS =
+  "Set a tier's limits, map it to this location, then map the guests it applies to.";
+
+/** "Map tier" at an Instant On venue: it makes the tier available for Map
+ * users here and changes nobody's limits by itself (ACCESS_TIERS.md §1:
+ * location mapping is not tier membership). Title of the quick-map button. */
+export const ARUBA_TIER_MAP_HINT =
+  "Makes this tier available here, so you can map guests into it. It doesn't change " +
+  "anyone else's limits.";
+
+/** The Existing Access Tiers list could not be read because the server was
+ * away (502/503/504 or no response, after waiting it out --
+ * lib/transient-retry.ts). */
+export const ARUBA_TIERS_LOAD_UNREACHABLE =
+  "Couldn't reach Wyfy to load your access tiers. Nothing was changed. Try again in a moment.";
+
+/** Any other failed read of the list (the server answered with an error). */
+export const ARUBA_TIERS_LOAD_FAILED =
+  "Couldn't load this account's access tiers. Nothing was changed.";
 
 // ---------------------------------------------------------------------------
 // Precedence (ACCESS_TIERS.md §2): a tier field left unset (null) means "the

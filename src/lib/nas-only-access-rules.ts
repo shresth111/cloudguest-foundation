@@ -72,9 +72,8 @@ export const NAS_ONLY_DATA_LIMIT =
 
 /** Idle timeout before hardware check V2. Says what happens either way. */
 export const NAS_ONLY_IDLE_TIMEOUT =
-  "Wyfy sends this to your Aruba Instant On access points, but whether they sign out an " +
-  "idle device hasn't been confirmed yet. If they don't, the guest stays online until " +
-  "their session time runs out.";
+  "Sent to your Aruba Instant On access points, but not yet confirmed on hardware. If " +
+  "they ignore it, the session still ends at the session timeout.";
 
 /** Max daily session after V1 was measured on the AP21 (2026-10-03): the
  * remaining allowance caps the session time the access point enforces. */
