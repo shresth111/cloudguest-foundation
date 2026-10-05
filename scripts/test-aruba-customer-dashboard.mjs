@@ -441,6 +441,78 @@ console.log("\n0. One verdict per AP and per venue (pure, lib/aruba-dashboard)")
   );
 }
 
+console.log("\n0b. Card visuals read only what the row shows (pure)");
+{
+  const pureDir = mkdtempSync(join(tmpdir(), "aruba-dash-visuals-"));
+  await build({
+    entryPoints: [
+      join(ROOT, "src/lib/aruba-dashboard.ts"),
+      join(ROOT, "src/lib/guest-row-visuals.ts"),
+    ],
+    outdir: pureDir,
+    outExtension: { ".js": ".mjs" },
+    bundle: true,
+    format: "esm",
+    platform: "node",
+    logLevel: "silent",
+    alias: { "@": join(ROOT, "src") },
+  });
+  const D = await import(pathToFileURL(join(pureDir, "aruba-dashboard.mjs")).href);
+  const G = await import(pathToFileURL(join(pureDir, "guest-row-visuals.mjs")).href);
+  const rel = (iso) => `at ${iso.slice(11, 16)}`;
+  const base = { status: "no_recent_activity", statusSource: null, lastSeenAt: null };
+  const cases = [
+    { ...base, status: "online", statusSource: "radius", lastSeenAt: "2026-10-04T09:58:00Z" },
+    { ...base, status: "online", statusSource: "instant_on" },
+    { ...base, status: "online" },
+    { ...base, lastSeenAt: "2026-10-04T09:29:00Z" },
+    { ...base, instantOnStatus: "offline" },
+    base,
+  ];
+  check(
+    "pill label + detail always rebuild the one sentence",
+    cases.every((a) => {
+      const v = D.apVerdict(a, rel);
+      return v.sentence === (v.detail ? `${v.label} · ${v.detail}` : v.label);
+    }),
+  );
+  eq(
+    "idle detail drops the label",
+    D.apVerdict(cases[3], rel).detail,
+    "last guest activity at 09:29",
+  );
+  eq("bare Active has no detail", D.apVerdict(cases[2], rel).detail, "");
+  eq(
+    "device glyphs follow the Device column",
+    [
+      "iPhone",
+      "Android device",
+      "iPad",
+      "Mac",
+      "MacBook Pro",
+      "Windows PC",
+      "Linux device",
+      "Unknown device",
+      "",
+    ]
+      .map(G.deviceKind)
+      .join(","),
+    "phone,phone,tablet,laptop,laptop,desktop,desktop,unknown,unknown",
+  );
+  eq(
+    "a masked phone / email / phone / placeholder never becomes initials",
+    ["XXXXXXX55613", "a***@b.com", "+919876543210", "XXXXXXX", "", "Unknown guest", "Guest"]
+      .map((x) => String(G.guestAvatarInitials(x)))
+      .join(","),
+    "null,null,null,null,null,null,null",
+  );
+  eq(
+    "a real name becomes initials",
+    ["Asha Rao", "Ravi"].map(G.guestAvatarInitials).join(","),
+    "AR,R",
+  );
+}
+
 console.log("\n1. MikroTik and Omada render unchanged");
 for (const venue of ["mikrotik", "omada"]) {
   const r = await render(ROOT, venue, "dashboard");
@@ -571,6 +643,21 @@ console.log("\n2. Aruba: one verdict, no router-only figure, no repeats");
   );
   check("recent guests and alerts are kept", /Recent Users/.test(t) && /Recent Alerts/.test(t));
   eq("one access-points request feeds bar, KPI and card", apCalls(r.calls).length, 1);
+  // Visual polish (2026-10-05): status pill per AP, decorative art hidden.
+  eq(
+    "each AP row carries its status pill",
+    await r.page.$$eval('[data-testid="aruba-ap-verdict"]', (els) =>
+      els.map((e) => e.firstElementChild?.textContent).join("|"),
+    ),
+    "Active|Idle",
+  );
+  check(
+    "every svg in the access points card is aria-hidden",
+    await r.page.$eval('[data-testid="aruba-access-points-card"]', (e) =>
+      [...e.querySelectorAll("svg")].every((s) => s.closest("[aria-hidden]")),
+    ),
+  );
+
   await done(r);
 }
 {
