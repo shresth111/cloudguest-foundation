@@ -271,8 +271,8 @@ export const CONTROLLER_UNSUPPORTED_FEATURE_IDS: readonly string[] = [
 ];
 
 /**
- * Screens a NAS-only venue (Aruba Instant On) loses on top of the list above.
- * None today.
+ * Screens a NAS-only venue (Aruba Instant On) loses on top of the list above:
+ * Internet Connection.
  *
  * Trusted Devices (`mac-auth`) USED TO BE HERE AND IS NOT. Instant On has no
  * MAC authentication on a guest network, so a trusted device cannot skip the
@@ -295,7 +295,12 @@ export const CONTROLLER_UNSUPPORTED_FEATURE_IDS: readonly string[] = [
  * the one caveat it does have there (`NAS_ONLY_ALLOW_LIST`): a change reaches
  * guests at their next sign-in, never someone already online.
  */
-export const NAS_ONLY_EXTRA_UNSUPPORTED_FEATURE_IDS: readonly string[] = [];
+export const NAS_ONLY_EXTRA_UNSUPPORTED_FEATURE_IDS: readonly string[] = [
+  // Internet Connection (ISP/WAN details) reads a Wyfy-managed router's
+  // uplink. An Instant On venue has none, so the whole Network section is
+  // locked there (owner decision 2026-10-05).
+  "isp-details",
+];
 
 /**
  * Whether a customer screen works at a controller-managed venue. `vendor` is

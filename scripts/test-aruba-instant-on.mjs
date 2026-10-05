@@ -231,7 +231,6 @@ for (const id of RV.CONTROLLER_UNSUPPORTED_FEATURE_IDS) {
 for (const id of [
   "reports",
   "network-activity",
-  "isp-details",
   "vouchers",
   "portal",
   "users",
@@ -271,9 +270,32 @@ eq(
   null,
 );
 check(
-  "no screen is lost only at a NAS-only venue",
-  RV.NAS_ONLY_EXTRA_UNSUPPORTED_FEATURE_IDS.length === 0 &&
+  "Internet Connection is the one screen lost only at a NAS-only venue",
+  RV.NAS_ONLY_EXTRA_UNSUPPORTED_FEATURE_IDS.join(",") === "isp-details" &&
     Object.keys(RV.NAS_ONLY_FEATURE_COPY).length === 0,
+);
+eq(
+  "Internet Connection is greyed at an Aruba venue (the whole Network section is locked)",
+  RV.featureAppliesToControllerVenue("isp-details", ARUBA),
+  false,
+);
+check(
+  "its panel opens with U0 and names the screen",
+  (RV.controllerUnsupportedCopy("isp-details", "Office", ARUBA) ?? "").startsWith(U0) &&
+    /Internet connection details/.test(
+      RV.controllerUnsupportedCopy("isp-details", "Office", ARUBA) ?? "",
+    ),
+);
+const lockSidebarSrc = src("src/components/customer/CustomerSidebar.tsx");
+check(
+  "the sidebar marks locked rows and a fully locked section with a lock",
+  /sidebar-item-locked-/.test(lockSidebarSrc) && /sidebar-group-locked-/.test(lockSidebarSrc),
+);
+check(
+  "Internet Connection is not mounted when gated",
+  /feature === "isp-details" && !controllerGated/.test(
+    src("src/components/customer/CustomerFeaturePage.tsx"),
+  ),
 );
 eq(
   "other headlines name the app",
@@ -892,8 +914,11 @@ check(
 const sidebar = src("src/components/customer/CustomerSidebar.tsx");
 check(
   "the sidebar passes the vendor to the gate",
+  // Every call site (row mute, section note, section lock) passes it.
   (sidebar.match(/featureAppliesToControllerVenue\(item\.id, controllerVendor\)/g) ?? []).length ===
-    2,
+    (sidebar.match(/featureAppliesToControllerVenue\(/g) ?? []).length &&
+    (sidebar.match(/featureAppliesToControllerVenue\(item\.id, controllerVendor\)/g) ?? [])
+      .length >= 3,
 );
 
 // The Master-only modules may only be imported from Master surfaces.
