@@ -29,6 +29,17 @@
  *   D. THE SERVICES READ `disconnect_enforced` from disconnect, terminate and
  *      pause responses (envelope stripped or not).
  *
+ *   F. ONE ROW PER GUEST, AND A REAL DISCONNECT AT ARUBA (owner 2026-10-05:
+ *      "isme guest baar baar dikh rahe hai fix it ... isme disconnect wala
+ *      feature bhi add krdo"). The Guests table reads `/guest-session-groups`
+ *      (a guest with two sessions is ONE row, with a "2 sessions" link to the
+ *      history), falls back to `/guest-sessions` on a 404, and at an Aruba
+ *      venue Disconnect is live: with Instant On cloud control off it says the
+ *      device keeps WiFi until the access point's timeout and toasts "signed
+ *      out", never a success; only a read-back-confirmed drop
+ *      (`disconnect_enforced: true`) toasts "disconnected". A guest online on
+ *      two devices has both sessions ended, at every vendor.
+ *
  * Harness: the same as `scripts/test-aruba-access-points.mjs` -- only
  * `@/services/api` (a recording fake) and the router are substituted.
  */
@@ -134,6 +145,81 @@ eq(
   null,
 );
 
+console.log("\nA2. lib/aruba-disconnect");
+const adDir = mkdtempSync(join(tmpdir(), "aruba-lsa-ad-"));
+await build({
+  entryPoints: [join(ROOT, "src/lib/aruba-disconnect.ts")],
+  outfile: join(adDir, "ad.mjs"),
+  bundle: true,
+  format: "esm",
+  platform: "node",
+  logLevel: "silent",
+  alias: { "@": join(ROOT, "src") },
+});
+const AD = await import(pathToFileURL(join(adDir, "ad.mjs")).href);
+{
+  const now = new Date("2026-10-05T10:00:00Z");
+  const base = {
+    status: "offline",
+    connectedAt: "2026-10-05T09:50:00Z",
+    disconnectedAt: "2026-10-05T09:55:00Z",
+    disconnectEnforced: false,
+    sessionTimeoutMinutes: 60,
+  };
+  eq(
+    "cutoff = start + the session's own timeout",
+    AD.arubaAccessCutoff(base.connectedAt, 60)?.toISOString(),
+    "2026-10-05T10:50:00.000Z",
+  );
+  eq(
+    "no timeout -> no cutoff (never a guessed time)",
+    AD.arubaAccessCutoff(base.connectedAt, null),
+    null,
+  );
+  eq("zero timeout -> no cutoff", AD.arubaAccessCutoff(base.connectedAt, 0), null);
+  eq("bad date -> no cutoff", AD.arubaAccessCutoff("nope", 60), null);
+  eq(
+    "signed out, not dropped, inside the window -> until the cutoff",
+    AD.arubaSignedOutUntil(base, now)?.toISOString(),
+    "2026-10-05T10:50:00.000Z",
+  );
+  eq("online row -> null", AD.arubaSignedOutUntil({ ...base, status: "online" }, now), null);
+  eq(
+    "dropped by Instant On -> null",
+    AD.arubaSignedOutUntil({ ...base, disconnectEnforced: true }, now),
+    null,
+  );
+  eq(
+    "ended by the AP itself (null) -> null",
+    AD.arubaSignedOutUntil({ ...base, disconnectEnforced: null }, now),
+    null,
+  );
+  eq(
+    "field absent (old backend) -> null",
+    AD.arubaSignedOutUntil({ ...base, disconnectEnforced: undefined }, now),
+    null,
+  );
+  eq(
+    "window already over -> null",
+    AD.arubaSignedOutUntil(base, new Date("2026-10-05T11:00:00Z")),
+    null,
+  );
+  eq(
+    "ended after the cutoff (the AP's own timeout) -> null",
+    AD.arubaSignedOutUntil({ ...base, disconnectedAt: "2026-10-05T10:51:00Z" }, now),
+    null,
+  );
+  eq("outcome: all confirmed -> dropped", AD.arubaDisconnectOutcome([true, true]), "dropped");
+  eq(
+    "outcome: one unconfirmed -> signed-out",
+    AD.arubaDisconnectOutcome([true, false]),
+    "signed-out",
+  );
+  eq("outcome: null -> signed-out", AD.arubaDisconnectOutcome([null]), "signed-out");
+  eq("outcome: nothing -> signed-out", AD.arubaDisconnectOutcome([]), "signed-out");
+  eq("formatCutoff(null) is null", AD.formatCutoff(null), null);
+}
+
 // ---------------------------------------------------------------------------
 // The browser harness.
 // ---------------------------------------------------------------------------
@@ -168,12 +254,43 @@ const session = (id, guest, mac) => ({
   guest_id: guest, bytes_downloaded: 0, bytes_uploaded: 0, user_agent: "Android",
   data_limit_mb: null, session_timeout_minutes: 60,
 });
+const QS = new URLSearchParams(location.search);
+// "?ids=true" makes every session-ending POST answer enforced=true.
+const V = QS.get("ids") ?? "false";
 const SESSIONS = [
   // Ids end in "-false": every session-ending POST answers
   // disconnect_enforced: false (see postBody), the case P0-D is about.
-  session("s1-false", "g1", "11:11:11:11:11:11"),
-  session("s22-false", "g2", "22:22:22:22:22:22"),
+  session("s1-" + V, "g1", "11:11:11:11:11:11"),
+  // The same guest on a second device: ONE guest row, two active sessions.
+  session("s1b-" + V, "g1", "33:33:33:33:33:33"),
+  session("s22-" + V, "g2", "22:22:22:22:22:22"),
+  // Signed out in Wyfy 5 minutes ago, never dropped by the AP
+  // (disconnect_enforced: false), 60-minute session started 10 minutes ago.
+  {
+    ...session("s3-" + V, "g3", "44:44:44:44:44:44"),
+    status: "disconnected", is_online: false,
+    started_at: new Date(Date.parse(NOW) - 10 * 60000).toISOString(),
+    ended_at: new Date(Date.parse(NOW) - 5 * 60000).toISOString(),
+    disconnect_enforced: false,
+  },
 ];
+function groups() {
+  const by = new Map();
+  for (const s of SESSIONS) {
+    if (!by.has(s.guest_id)) by.set(s.guest_id, []);
+    by.get(s.guest_id).push(s);
+  }
+  return [...by.values()].map((list) => {
+    const act = list.filter((s) => s.status === "active");
+    const primary = act[0] ?? list[0];
+    return {
+      guest_id: primary.guest_id, guest_identifier: null, session_count: list.length,
+      active_session_count: act.length, device_count: new Set(list.map((s) => s.device_mac)).size,
+      first_started_at: NOW, last_started_at: NOW, bytes_downloaded_total: 0,
+      bytes_uploaded_total: 0, active_session_ids: act.map((s) => s.id), latest_session: primary,
+    };
+  });
+}
 const GUEST = {
   id: "g1", organization_id: ORG, location_id: LOC, identifier: PHONE, display_name: "Asha",
   mac_addresses: ["11:11:11:11:11:11"], device_count: 1, first_seen_at: NOW, last_seen_at: NOW,
@@ -185,6 +302,11 @@ function body(url, config) {
   if (url === "/me/organizations") return [{ id: "m1", organization_id: ORG, status: "active" }];
   if (url === "/locations/" + LOC + "/routers") return page(ROUTERS);
   if (url === "/guest-sessions") return page(SESSIONS);
+  if (url === "/guest-session-groups") {
+    // "?legacy=1": a backend that predates the grouped route.
+    if (QS.get("legacy")) throw { status: 404, message: "Not Found" };
+    return page(groups(), { instant_on_cloud_disconnect: QS.get("cloud") === "1" });
+  }
   if (url === "/routers/r1") return { ...ROUTERS[0], location_id: LOC, organization_id: ORG };
   if (url === "/organizations") return page([{ id: ORG, name: "Acme", slug: "acme", status: "active" }]);
   if (url === "/guests") return page([GUEST]);
@@ -431,14 +553,14 @@ const OPEN = {
   },
 };
 
-async function render(root, venue, which) {
+async function render(root, venue, which, extra = "") {
   const key = `${root === ROOT ? "head" : "base"}-${venue}`;
   if (!dirs.has(key)) dirs.set(key, await bundleFor(root, venue));
   const page = await browser.newPage({ viewport: { width: 1440, height: 1600 } });
   await page.clock.setFixedTime(new Date(NOW_ISO));
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));
-  await page.goto(`${origin}/${key}/index.html?page=${which}`);
+  await page.goto(`${origin}/${key}/index.html?page=${which}${extra}`);
   await page.waitForFunction(() => Array.isArray(window.__CALLS__), null, { timeout: 15_000 });
   await page.waitForTimeout(2500);
   await OPEN[which](page).catch((e) => {
@@ -520,13 +642,11 @@ console.log("\nC. Aruba: Extend and Reset greyed like Disconnect");
     await icons.first().getAttribute("aria-label"),
     CC.NAS_ONLY_DISCONNECT,
   );
+  // 2026-10-05: Disconnect is LIVE at Aruba now (Part F); Extend stays greyed.
   eq(
-    "table: Disconnect beside it carries the same sentence",
-    await r.page
-      .locator('[data-testid="disconnect-unsupported-icon"]')
-      .first()
-      .getAttribute("aria-label"),
-    CC.NAS_ONLY_DISCONNECT,
+    "table: no greyed Disconnect icon any more",
+    await r.page.locator('[data-testid="disconnect-unsupported-icon"]').count(),
+    0,
   );
   check("drawer: greyed Extend block shown", has(r.html, "extend-unsupported"));
   const d30 = r.page.getByRole("button", { name: "Extend (+30m)" });
@@ -539,7 +659,12 @@ console.log("\nC. Aruba: Extend and Reset greyed like Disconnect");
     .locator('[data-testid="extend-unsupported"]')
     .evaluate((e) => e.innerText);
   check("drawer: the reason is printed", drawerText.includes(CC.NAS_ONLY_DISCONNECT), drawerText);
-  check("drawer: Disconnect still greyed", has(r.html, "disconnect-unsupported"));
+  check(
+    "drawer: Disconnect is live, with the Aruba note",
+    (await r.page.getByRole("button", { name: "Disconnect guest" }).isEnabled()) &&
+      has(r.html, "aruba-disconnect-note") &&
+      !has(r.html, 'disconnect-unsupported"'),
+  );
   await d30.click({ force: true }).catch(() => {});
   await r.page.waitForTimeout(300);
   check(
@@ -636,6 +761,134 @@ for (const venue of ["mikrotik", "omada", "aruba"]) {
     }
     await done(r);
   }
+}
+
+console.log("\nF. One row per guest; a real, honest Disconnect at Aruba");
+const rowCount = (p) => p.locator("tbody tr").count();
+const toastText = async (p) =>
+  (await p.$$eval("[data-sonner-toast]", (els) => els.map((e) => e.innerText))).join(" | ");
+/** Press the first guest row's Disconnect, read the dialog, confirm. */
+async function disconnectFirstGuest(r) {
+  const p = r.page;
+  const before = (await p.evaluate(() => window.__CALLS__)).length;
+  await p.locator('[data-testid="guest-row-disconnect"]').first().click();
+  await p.waitForTimeout(300);
+  const dialog = await p.getByRole("alertdialog").innerText();
+  await p.getByRole("alertdialog").getByRole("button", { name: "Disconnect" }).click();
+  await p.waitForTimeout(1500);
+  const calls = (await p.evaluate(() => window.__CALLS__)).slice(before);
+  return { dialog, toast: await toastText(p), calls };
+}
+for (const venue of ["mikrotik", "omada", "aruba"]) {
+  const r = await render(ROOT, venue, "users");
+  eq(`${venue}: one row per guest (3 guests, 4 sessions)`, await rowCount(r.page), 3);
+  check(
+    `${venue}: the grouped route was asked, not the per-session list`,
+    r.calls.some((c) => c.url === "/guest-session-groups") &&
+      // ("Online now" still counts from /guest-sessions?status=active.)
+      !r.calls.some((c) => c.url === "/guest-sessions" && !c.params?.status),
+  );
+  check(
+    `${venue}: the two-session guest links to the history`,
+    (await r.page.locator('[data-testid="guest-session-count"]').count()) >= 1 &&
+      (await r.page.locator('[data-testid="guest-session-count"]').first().innerText()) ===
+        "2 sessions",
+  );
+  check(
+    `${venue}: "Signing out" only at Aruba`,
+    has(r.html, "aruba-signing-out") === (venue === "aruba"),
+  );
+  await done(r);
+}
+{
+  const r = await render(ROOT, "mikrotik", "users", "&legacy=1");
+  eq("legacy backend (404): one row per session, as before", await rowCount(r.page), 4);
+  check(
+    "legacy backend: fell back to /guest-sessions",
+    r.calls.some((c) => c.url === "/guest-sessions"),
+  );
+  await done(r);
+}
+{
+  // MikroTik: a guest online on two devices -- both sessions are ended, and
+  // the toast is the same ladder as before (enforced=false -> not cleared).
+  const r = await render(ROOT, "mikrotik", "users");
+  const got = await disconnectFirstGuest(r);
+  check("mikrotik: dialog names both devices", /online on 2 devices/.test(got.dialog), got.dialog);
+  check(
+    "mikrotik: dialog keeps the router copy",
+    got.dialog.includes("forces their device off this network's router"),
+  );
+  const ends = posts(got.calls).filter((c) => /\/guest-sessions\/[^/]+\/disconnect$/.test(c.url));
+  eq(
+    "mikrotik: both of the guest's sessions were ended",
+    ends
+      .map((c) => c.url)
+      .sort()
+      .join(","),
+    "/guest-sessions/s1-false/disconnect,/guest-sessions/s1b-false/disconnect",
+  );
+  check("mikrotik: no Aruba wording in the toast", !/Instant On|keeps WiFi/.test(got.toast));
+  await done(r);
+}
+{
+  // Aruba, cloud control OFF: honest "signed out until ~time", never success.
+  const r = await render(ROOT, "aruba", "users");
+  const got = await disconnectFirstGuest(r);
+  check(
+    "aruba off: the dialog says Instant On can't be told to drop it",
+    got.dialog.includes("can't be told to drop a device") && got.dialog.includes("until about"),
+    got.dialog,
+  );
+  check(
+    "aruba off: not the router promise",
+    !got.dialog.includes("forces their device off this network's router"),
+  );
+  const ends = posts(got.calls).filter((c) => /\/guest-sessions\/[^/]+\/disconnect$/.test(c.url));
+  eq("aruba off: both sessions ended in Wyfy", ends.length, 2);
+  check(
+    "aruba off: toast says signed out + keeps WiFi, not disconnected",
+    /is signed out/.test(got.toast) &&
+      /keeps WiFi until about/.test(got.toast) &&
+      !/confirmed it dropped/.test(got.toast),
+    got.toast,
+  );
+  check(
+    "aruba off: no extra device write was attempted",
+    !posts(got.calls).some(
+      (c) => c.url.startsWith("/connected-devices/") || c.url.includes("/clients/"),
+    ),
+    JSON.stringify(posts(got.calls)),
+  );
+  await done(r);
+}
+{
+  // Aruba, cloud control ON and Instant On confirmed (enforced=true).
+  const r = await render(ROOT, "aruba", "users", "&cloud=1&ids=true");
+  const got = await disconnectFirstGuest(r);
+  check(
+    "aruba on: the dialog says Instant On drops the device",
+    got.dialog.includes("asks Aruba Instant On to drop their device"),
+    got.dialog,
+  );
+  check(
+    "aruba on + confirmed: toast says disconnected",
+    /confirmed it dropped their device/.test(got.toast),
+    got.toast,
+  );
+  await done(r);
+}
+{
+  // Aruba, cloud control ON but the write was not confirmed (enforced=false):
+  // the fallback sentence, never a success.
+  const r = await render(ROOT, "aruba", "users", "&cloud=1");
+  const got = await disconnectFirstGuest(r);
+  check(
+    "aruba on, unconfirmed: toast falls back to signed out",
+    /is signed out/.test(got.toast) && !/confirmed it dropped/.test(got.toast),
+    got.toast,
+  );
+  await done(r);
 }
 
 await browser.close();
