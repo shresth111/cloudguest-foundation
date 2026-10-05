@@ -271,9 +271,16 @@ export const CONTROLLER_UNSUPPORTED_FEATURE_IDS: readonly string[] = [
 ];
 
 /**
- * The extra screen a NAS-only venue (Aruba Instant On) cannot use, on top of
- * the list above: Trusted Devices. Instant On has no MAC authentication, so
- * no device can skip its sign-in page (PM_SPEC §3.2, copy U8). Omada keeps it.
+ * Screens a NAS-only venue (Aruba Instant On) loses on top of the list above.
+ * None today.
+ *
+ * Trusted Devices (`mac-auth`) USED TO BE HERE AND IS NOT. Instant On has no
+ * MAC authentication on a guest network, so a trusted device cannot skip the
+ * AP's redirect -- but it does not need to: the portal asks
+ * `GET /guest/session/trusted-device` and, for a trusted device, posts the
+ * AP login itself, and RADIUS admits the device on the MAC the AP reports
+ * (src/lib/portal-aruba-trusted.ts). The caveat it has there is
+ * `NAS_ONLY_TRUSTED_DEVICES` (src/lib/nas-only-access-rules.ts).
  *
  * "Guest Allow-list" (`whitelist`) USED TO BE HERE AND IS NOT. PM_SPEC §3.2
  * row "Guest Allow-list (whitelist) | Pre-login domains" describes a walled
@@ -288,7 +295,7 @@ export const CONTROLLER_UNSUPPORTED_FEATURE_IDS: readonly string[] = [
  * the one caveat it does have there (`NAS_ONLY_ALLOW_LIST`): a change reaches
  * guests at their next sign-in, never someone already online.
  */
-export const NAS_ONLY_EXTRA_UNSUPPORTED_FEATURE_IDS: readonly string[] = ["mac-auth"];
+export const NAS_ONLY_EXTRA_UNSUPPORTED_FEATURE_IDS: readonly string[] = [];
 
 /**
  * Whether a customer screen works at a controller-managed venue. `vendor` is
@@ -663,8 +670,6 @@ export function controllerUnsupportedHeadline(
   featureId?: string,
 ): string {
   if (!isNasOnlyVendor(vendor)) return CONTROLLER_UNSUPPORTED_HEADLINE;
-  // Trusted Devices is not "elsewhere": Instant On has no MAC authentication.
-  if (featureId === "mac-auth") return "Not available with Aruba Instant On.";
   return "Set up in the Instant On app, not here.";
 }
 
@@ -685,14 +690,10 @@ export function controllerUnsupportedHeadline(
  * with no bytes recorded renders "—" with this, never a measured "0 MB". */
 export const NAS_ONLY_DATA_USAGE_UNREPORTED = "Data usage isn't reported for this venue yet.";
 
-/** PM_SPEC U8: the screen only a NAS-only venue loses, with its own sentence
- * because it is not "set up in the app" -- Instant On cannot do it at all.
- * (U7 is not used: see `NAS_ONLY_EXTRA_UNSUPPORTED_FEATURE_IDS`.) */
-export const NAS_ONLY_FEATURE_COPY: Record<string, string> = {
-  "mac-auth":
-    "Aruba Instant On can't let devices skip the sign-in page, so trusted devices aren't " +
-    "available here.",
-};
+/** Per-screen copy for a screen only a NAS-only venue loses. Empty since
+ * Trusted Devices went live there (PM_SPEC U8 retired; U7 is not used: see
+ * `NAS_ONLY_EXTRA_UNSUPPORTED_FEATURE_IDS`). */
+export const NAS_ONLY_FEATURE_COPY: Record<string, string> = {};
 
 export function controllerUnsupportedCopy(
   featureId: string,

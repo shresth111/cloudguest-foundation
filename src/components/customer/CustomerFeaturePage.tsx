@@ -294,8 +294,7 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
               {/* Guest Allow-list is live everywhere. At a NAS-only venue
                   (Aruba Instant On) it carries one caveat above it: rules are
                   decided at sign-in, and nothing can take an Instant On guest
-                  who is already online off the network. Trusted Devices is
-                  the screen a NAS-only venue loses (`controllerGated`). */}
+                  who is already online off the network. */}
               {feature === "whitelist" && !controllerGated && (
                 <>
                   <ControllerControlNotice
@@ -343,8 +342,17 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                   Master console (FE-0 step 3, not done here). */}
               {feature === "admin-logs" && <AdminLogsView locationId={locationId} />}
               {feature === "network-activity" && <NetworkActivityLog masked={masked} />}
+              {/* Trusted Devices is live at an Aruba Instant On venue too: the
+                  portal signs a trusted device in by itself there, so it
+                  carries a caveat saying what the owner will see. */}
               {feature === "mac-auth" && !controllerGated && (
-                <MacAuthView locationId={locationId} />
+                <>
+                  <ControllerControlNotice
+                    verdict={nasOnlyLimitVerdict("trusted-devices", controllerVendor)}
+                    className="mb-4 mt-0"
+                  />
+                  <MacAuthView locationId={locationId} />
+                </>
               )}
               {/* The RouterOS screens. On a controller-managed venue
                   the view is NOT MOUNTED -- this is not a disabled form over
