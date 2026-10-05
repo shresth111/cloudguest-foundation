@@ -83,7 +83,15 @@ await build({
   alias: { "@": join(ROOT, "src") },
 });
 const R = await import(pathToFileURL(join(work, "rules.mjs")).href);
-const IDS = ["data-limit", "idle-timeout", "daily-limit", "open-hours", "devices", "allow-list", "trusted-devices"];
+const IDS = [
+  "data-limit",
+  "idle-timeout",
+  "daily-limit",
+  "open-hours",
+  "devices",
+  "allow-list",
+  "trusted-devices",
+];
 
 for (const vendor of ["mikrotik", OMADA, null, undefined, ""]) {
   check(
