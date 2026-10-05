@@ -264,6 +264,20 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
             <SidebarGroup key={group.id}>
               <SidebarGroupLabel className="text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/75">
                 {t(`customerGroup.${group.id}`, group.label)}
+                {/* A section none of whose screens this venue can use is
+                    marked locked as a whole (e.g. Network at an Aruba
+                    Instant On venue). */}
+                {controllerManaged &&
+                  group.items.length > 0 &&
+                  group.items.every(
+                    (item) => !featureAppliesToControllerVenue(item.id, controllerVendor),
+                  ) && (
+                    <Lock
+                      aria-label="Locked at this venue"
+                      data-testid={`sidebar-group-locked-${group.id}`}
+                      className="ml-1.5 h-3 w-3 shrink-0"
+                    />
+                  )}
               </SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
@@ -321,6 +335,13 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
                             )}
                             <Icon className="h-4 w-4 shrink-0" />
                             <span className="flex-1 truncate">{label}</span>
+                            {viaController && (
+                              <Lock
+                                aria-label="Locked at this venue"
+                                data-testid={`sidebar-item-locked-${item.id}`}
+                                className="ml-auto h-3 w-3 shrink-0 group-data-[collapsible=icon]:hidden"
+                              />
+                            )}
                             {item.id === "marketing" && marketingEntitled === false && (
                               <span
                                 className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold text-sidebar-foreground/80 group-data-[collapsible=icon]:hidden"

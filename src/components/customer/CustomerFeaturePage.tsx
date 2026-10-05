@@ -331,7 +331,11 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                 Unlike "audit" above, old links don't need a fallback branch:
                 /background-image redirects to /guest-portal at beforeLoad,
                 so nothing reaches this switch with that id. */}
-              {feature === "isp-details" && <IspDetailsView locationId={locationId} />}
+              {/* Locked at an Aruba Instant On venue (no Wyfy-managed uplink);
+                  the gated notice below renders instead. */}
+              {feature === "isp-details" && !controllerGated && (
+                <IspDetailsView locationId={locationId} />
+              )}
               {/* No "network-integrations" branch -- FIX-PLAN FE-0. Backend
                   `074d719` moved every `network_integrations.*` route to
                   ScopeType.GLOBAL and `rbac.seed`'s RETIRED_NON_GLOBAL_MODULES
