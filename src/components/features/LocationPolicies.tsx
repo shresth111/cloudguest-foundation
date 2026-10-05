@@ -27,10 +27,12 @@ import {
 } from "@/components/ui/table";
 import { EmptyState } from "@/components/common/EmptyState";
 import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
+import { useCustomerStore } from "@/stores/customerStore";
 import { isLocationNamedPolicy } from "@/lib/policy-scope";
 import { bandwidthPolicyService } from "@/services/bandwidth-policy.service";
 import { useClientControls } from "@/hooks/useClientControls";
 import { ControllerControlNotice } from "@/components/customer/ControllerControlNotice";
+import { ArubaGuestSpeedControl } from "@/components/customer/ArubaGuestSpeedControl";
 import { isNasOnlyVendor } from "@/lib/router-vendors";
 import { NAS_ONLY_LIMITS_FOOTER, nasOnlyLimitVerdict } from "@/lib/nas-only-access-rules";
 import { resolveOrgId } from "@/services/customer.service";
@@ -452,7 +454,13 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   // sentence. Without a gateway the venue keeps U1 and no input at all.
   const nasOnlySpeedLive = nasOnlyVenue && speedUsable;
   const showBandwidth = !nasOnlyVenue || nasOnlySpeedLive;
-  const dataLimitVerdict = nasOnlyLimitVerdict("data-limit", clientControls.vendor);
+  // With Instant On cloud control on, a guest who reaches the cap is taken
+  // off the WiFi mid-session (backend #348: Instant On block + timed release,
+  // the session ends only on a confirmed read-back); off, they are refused at
+  // the next sign-in. The note says which.
+  const dataLimitVerdict = nasOnlyLimitVerdict("data-limit", clientControls.vendor, {
+    cloudControl: clientControls.instantOnCloudControl === true,
+  });
   const dataLimitUsable = dataLimitVerdict.availability !== "unavailable";
   const idleTimeoutVerdict = nasOnlyLimitVerdict("idle-timeout", clientControls.vendor);
   const dailyLimitVerdict = nasOnlyLimitVerdict("daily-limit", clientControls.vendor);
@@ -460,7 +468,33 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   // has their own locations, so the "Business Unit" picker below (whose
   // value becomes the saved bandwidth policy's own name) must offer those
   // instead. Same real-vs-demo split as WhiteList.tsx's units/realUnits.
-  const { data: locations } = useCustomerLocations();
+  const { data: fetchedLocations, isError: locationsFailed } = useCustomerLocations();
+  // The policy table and the save's id maps are keyed on location NAMES, so
+  // until the location list has settled (arrived, or failed and fallen back
+  // to the scoped venue below) a load would miss this account's policies and
+  // the next save would create duplicates of them.
+  const locationsSettled = demo || fetchedLocations !== undefined || locationsFailed;
+  // THE LOCATION THIS PAGE IS SCOPED TO IS ALWAYS ONE OF "THIS ACCOUNT'S
+  // LOCATIONS", even when the account-wide list did not come back with it.
+  //
+  // Seen at the Aruba venue on staging: the list came back without the venue
+  // (a session whose stored memberships do not carry the venue's
+  // organization, e.g. "View as customer"), so `locationNames` was empty, the
+  // policy saved for the venue was filtered out of the table as "not a
+  // location's own limits", no default row was drawn either -- "No policies
+  // yet" under a form full of values -- and a save could not resolve the
+  // venue's id to assign the policy to. The active venue (id + name, from the
+  // same store every customer screen routes on) is added when missing, so
+  // the table, the picker and the save all agree on it.
+  const scopedLocation = useCustomerStore((s) => s.activeLocation);
+  const locations = useMemo(() => {
+    const list: { id: string; name: string }[] = fetchedLocations ?? [];
+    const scopedId = locationId ?? scopedLocation?.id;
+    if (!scopedId || !scopedLocation?.name || scopedLocation.id !== scopedId) return list;
+    return list.some((l) => l.id === scopedId)
+      ? list
+      : [...list, { id: scopedId, name: scopedLocation.name }];
+  }, [fetchedLocations, locationId, scopedLocation]);
   const units = demo ? UNITS : (locations ?? []).map((l) => l.name);
   // This screen's identity rule -- see lib/policy-scope.ts. Both halves
   // below read it: the table (which rows are a location's own limits, as
@@ -508,18 +542,31 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   const [confirming, setConfirming] = useState<string | null>(null);
   const confirmTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [orgId, setOrgId] = useState<string | null>(null);
+  // WHETHER WE KNOW WHAT THIS ACCOUNT HAS SAVED. A save upserts by name: it
+  // updates the policy whose id the load found, and CREATES one when the load
+  // found none. So a load that failed (or a paired list that came back empty
+  // because its read failed -- the old `.catch(() => [])`) turned the next
+  // save into a second, duplicate set of policies, while the table said "No
+  // policies yet". Seen on staging at the Aruba venue: two active sets named
+  // after the venue, 13:23 and 15:01 UTC. Until every list has been read, the
+  // table says it could not load and Save refuses rather than duplicating.
+  const [loadState, setLoadState] = useState<"loading" | "ok" | "failed">(demo ? "ok" : "loading");
 
   useEffect(() => {
     if (demo) return;
+    setLoadState("loading");
     (async () => {
       try {
         const org = await resolveOrgId();
         setOrgId(org);
+        // No per-list `.catch(() => [])`: an empty list here means "nothing
+        // saved", and the save below creates on that answer. A failed read
+        // must fail the load instead (see `loadState`).
         const [realAll, deviceDetailsAll, sessionDetailsAll, fupDetailsAll] = await Promise.all([
           bandwidthPolicyService.list(org),
-          listPolicyDetails("device", org).catch(() => []),
-          listPolicyDetails("session", org).catch(() => []),
-          listPolicyDetails("fup", org).catch(() => []),
+          listPolicyDetails("device", org),
+          listPolicyDetails("session", org),
+          listPolicyDetails("fup", org),
         ]);
         // Deactivated (deleted) policies are excluded from both id maps --
         // bandwidthPolicyService.list()/listPolicyDetails() return every
@@ -669,8 +716,11 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         setDeviceRealIds(Object.fromEntries(deviceDetails.map((d) => [d.name, d.id])));
         setSessionRealIds(Object.fromEntries(sessionDetails.map((d) => [d.name, d.id])));
         setFupRealIds(Object.fromEntries(fupDetails.map((d) => [d.name, d.id])));
+        setLoadState("ok");
       } catch {
-        // Leave policies empty -- the "no policies yet" state is accurate.
+        // NOT "no policies yet": we do not know. Save is refused until a
+        // reload reads the lists, so it cannot create a duplicate set.
+        setLoadState("failed");
       }
     })();
   }, [demo, locationId, locationNames]);
@@ -829,6 +879,15 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   // ── save ──────────────────────────────────────────────────────
   const handleSave = async () => {
     if (!validate()) return;
+    if (!demo && (loadState !== "ok" || !locationsSettled)) {
+      setToast(
+        loadState === "failed"
+          ? "We couldn't read this location's saved limits, so nothing was saved — saving now could create a second copy. Reload the page and try again."
+          : "Still reading this location's saved limits — try again in a moment.",
+      );
+      setTimeout(() => setToast(null), 4000);
+      return;
+    }
     setSaving(true);
     // `validate()` has already refused a non-positive quota, so this cannot
     // produce the accidental zero-cap described there.
@@ -1390,9 +1449,18 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                   sentence (U1) stands here in place of the dropdown. The data
                   limit stays live there: usage reporting was measured on the
                   AP21 (V3), and its caveat renders under the toggle. */}
+              {/* Aruba without the hybrid gateway: the one speed Instant On
+                  has -- the guest network's, the same for every device on it
+                  -- set through Instant On's cloud and read back. With cloud
+                  control off it says what is needed; it never pretends to
+                  save. Replaces the old greyed "set it in the Instant On app"
+                  line. */}
               {nasOnlyVenue && !nasOnlySpeedLive && !speedAsking && (
-                <div className="mt-4" data-testid="nas-only-not-here">
-                  <ControllerControlNotice verdict={speedVerdict} />
+                <div data-testid="nas-only-not-here">
+                  <ArubaGuestSpeedControl
+                    locationId={locationId ?? scopedLocation?.id}
+                    demo={demo}
+                  />
                 </div>
               )}
               <button
@@ -1677,7 +1745,13 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {paged.length === 0 ? (
+          {loadState === "failed" ? (
+            <EmptyState
+              icon={Shield}
+              title="Couldn't load the saved limits"
+              description="Reload the page to try again. Saving is paused until they load, so nothing is duplicated."
+            />
+          ) : paged.length === 0 ? (
             <EmptyState
               icon={Shield}
               title="No policies yet"

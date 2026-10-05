@@ -72,6 +72,22 @@ export function toSpeedGatewayStatus(raw: unknown): SpeedGatewayStatus {
 /** The customer read: `true` only when the backend says so. Anything else --
  * no body, a missing field, an older backend -- is "no gateway", which keeps
  * the venue on the "set it in Instant On" answer it already has. */
+/** The whole customer `speed-control` read. Only an explicit `true` counts
+ * for either flag: an older backend that sends no `instant_on_cloud_control`
+ * reads as "cloud control off", which offers nothing it cannot do. */
+export interface SpeedControlRead {
+  perGuestSpeed: boolean;
+  instantOnCloudControl: boolean;
+}
+
+export function toSpeedControl(raw: unknown): SpeedControlRead {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  return {
+    perGuestSpeed: r.per_guest_speed === true,
+    instantOnCloudControl: r.instant_on_cloud_control === true,
+  };
+}
+
 export function toPerGuestSpeed(raw: unknown): boolean {
   return (
     !!raw && typeof raw === "object" && (raw as Record<string, unknown>).per_guest_speed === true

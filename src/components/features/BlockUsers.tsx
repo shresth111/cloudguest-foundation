@@ -749,7 +749,9 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
       // from a controller, and is just as worth keeping on screen: "cut off
       // on 1 of 2 routers" is the sentence an owner acts on.
       const sentences =
-        mode === "device" ? routerBlockSentences(created) : blockDeviceSentences(created);
+        mode === "device"
+          ? routerBlockSentences(created, { nasOnly: isNasOnlyVendor(clientControls.vendor) })
+          : blockDeviceSentences(created);
       setDeviceResult(
         sentences.length > 0
           ? {
@@ -848,7 +850,9 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
         // The backend takes the binding off each router BEFORE the rule
         // stops applying, and says per router whether it came off.
         const updated = await guestService.deactivateDeviceRule(id, orgId ?? undefined);
-        setToast(unblockRouterMessage(updated));
+        setToast(
+          unblockRouterMessage(updated, { nasOnly: isNasOnlyVendor(clientControls.vendor) }),
+        );
         setTimeout(() => setToast(null), 6500);
       } else if (row.kind === "device" && orgId) {
         const created = await guestService.createAccessRule({
@@ -863,7 +867,9 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
             b.id === id ? toBlockedUser(created, nameForLocation(created.locationId)) : b,
           ),
         );
-        const sentences = routerBlockSentences([created]);
+        const sentences = routerBlockSentences([created], {
+          nasOnly: isNasOnlyVendor(clientControls.vendor),
+        });
         setDeviceResult(sentences.length ? { sentences, reasons: [], at: Date.now() } : null);
       } else if (row.status === "Blocked") {
         const updated = await guestService.deactivateAccessRule(

@@ -70,6 +70,16 @@ export const NAS_ONLY_DATA_LIMIT =
   "can't disconnect a device from Aruba Instant On access points, so they stay online " +
   "until their session ends.";
 
+/** Data limit with Instant On cloud control ON for the venue (backend #348):
+ * at the interim that crosses the cap Wyfy blocks the device on Instant On
+ * (then lifts the block after a short hold) and ends the session only once
+ * Instant On lists the block. Says what is confirmed and what is not claimed. */
+export const NAS_ONLY_DATA_LIMIT_CLOUD =
+  "Usage is counted. When a guest reaches the limit, Wyfy takes their device off the WiFi " +
+  "through Instant On, within about 5 minutes of crossing it (usage arrives every ~5 " +
+  "minutes), and they can't sign in again until the limit resets. If Instant On doesn't " +
+  "confirm the block, the guest is refused at their next sign-in instead.";
+
 /** Idle timeout before hardware check V2. Says what happens either way. */
 export const NAS_ONLY_IDLE_TIMEOUT =
   "Sent to your Aruba Instant On access points, but not yet confirmed on hardware. If " +
@@ -126,13 +136,20 @@ const AVAILABLE = (control: NasOnlyLimitId): NasOnlyLimitVerdict => ({
 export function nasOnlyLimitVerdict(
   control: NasOnlyLimitId,
   vendor: string | null | undefined,
+  /** Aruba Instant On cloud control is on for the venue (only `true` counts).
+   * Changes only the data limit's sentence. */
+  opts: { cloudControl?: boolean } = {},
 ): NasOnlyLimitVerdict {
   if (!isNasOnlyVendor(vendor)) return AVAILABLE(control);
   switch (control) {
     case "devices":
       return AVAILABLE(control);
     case "data-limit":
-      return { control, availability: "qualified", reason: NAS_ONLY_DATA_LIMIT };
+      return {
+        control,
+        availability: "qualified",
+        reason: opts.cloudControl === true ? NAS_ONLY_DATA_LIMIT_CLOUD : NAS_ONLY_DATA_LIMIT,
+      };
     case "idle-timeout":
       return { control, availability: "qualified", reason: NAS_ONLY_IDLE_TIMEOUT };
     case "daily-limit":

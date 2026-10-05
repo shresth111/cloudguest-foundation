@@ -52,6 +52,7 @@ import {
   type ClientActionFacts,
 } from "@/lib/omada-client-controls";
 import { useClientControls, useDeviceActions } from "@/hooks/useClientControls";
+import { isNasOnlyVendor } from "@/lib/router-vendors";
 import { queueService } from "@/services/queue.service";
 import type { AppError } from "@/services/api";
 
@@ -92,7 +93,20 @@ export function GuestDeviceControls({ mac, guestName }: { mac: string; guestName
   const macUsable = isSendableMac(mac);
   const busy = actions.pending;
 
+  // Aruba Instant On: block/unblock go through Instant On's cloud and are
+  // only reported done once Instant On lists (or no longer lists) the device.
+  const nasOnly = isNasOnlyVendor(controls.vendor);
   const report = (facts: ClientActionFacts) => {
+    if (nasOnly && (facts.action === "block" || facts.action === "unblock")) {
+      if (!facts.performed) toast.warning(t("arubaDeviceActionNotConfirmed"));
+      else
+        toast.success(
+          t(facts.action === "block" ? "arubaDeviceBlocked" : "arubaDeviceAllowed", {
+            name: guestName,
+          }),
+        );
+      return;
+    }
     const message = clientActionMessage(facts);
     if (message.tone === "success") toast.success(message.text);
     else toast.warning(message.text);
@@ -110,7 +124,7 @@ export function GuestDeviceControls({ mac, guestName }: { mac: string; guestName
     <div className="rounded-xl border p-3" data-testid="guest-device-controls">
       <p className="text-[11px] font-medium text-muted-foreground">{t("deviceControlsTitle")}</p>
       <p className="mt-1 text-xs text-muted-foreground">
-        {t("deviceControlsSubtitle", { name: guestName })}
+        {t(nasOnly ? "deviceControlsSubtitleAruba" : "deviceControlsSubtitle", { name: guestName })}
       </p>
 
       {!macUsable && (

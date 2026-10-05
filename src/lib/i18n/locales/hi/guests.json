@@ -97,5 +97,9 @@
   "arubaDisconnectNoteCloud": "Wyfy गेस्ट को साइन आउट करता है और Aruba Instant On से उनका डिवाइस हटा देता है।",
   "arubaDisconnectDropped": "{{name}} डिस्कनेक्ट हो गए — Aruba Instant On ने उनका डिवाइस हटाने की पुष्टि की",
   "arubaDisconnectSignedOut": "{{name}} साइन आउट हो गए। उनका डिवाइस लगभग {{time}} तक WiFi पर रहेगा, जब एक्सेस पॉइंट का सेशन टाइम खत्म होगा।",
-  "arubaDisconnectSignedOutNoTime": "{{name}} साइन आउट हो गए। उनका डिवाइस एक्सेस पॉइंट का सेशन टाइम खत्म होने तक WiFi पर रहेगा, फिर उन्हें दोबारा साइन इन करना होगा।"
+  "arubaDisconnectSignedOutNoTime": "{{name}} साइन आउट हो गए। उनका डिवाइस एक्सेस पॉइंट का सेशन टाइम खत्म होने तक WiFi पर रहेगा, फिर उन्हें दोबारा साइन इन करना होगा।",
+  "deviceControlsSubtitleAruba": "इस Aruba Instant On वेन्यू पर {{name}} के डिवाइस के लिए Wyfy क्या कर सकता है।",
+  "arubaDeviceBlocked": "{{name}} का डिवाइस ब्लॉक हो गया — Aruba Instant On इसे इस वेन्यू के WiFi पर ब्लॉक दिखा रहा है।",
+  "arubaDeviceAllowed": "{{name}} का डिवाइस फिर से अनुमत है — Aruba Instant On अब इसे ब्लॉक नहीं दिखा रहा।",
+  "arubaDeviceActionNotConfirmed": "जाँच करने पर Aruba Instant On ने इसकी पुष्टि नहीं की, इसलिए जहाँ तक हम देख सकते हैं इस डिवाइस के लिए कुछ नहीं बदला। थोड़ी देर बाद फिर कोशिश करें।"
 }
