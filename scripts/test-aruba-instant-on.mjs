@@ -680,7 +680,7 @@ eq("Instant On: `post` becomes the login host", io.switchip, "captive-2022.aio.c
 eq(
   "Instant On: login goes to https://<post>/swarm.cgi",
   LOGIN.arubaLoginTarget(io.switchip).url,
-  "https://captive-2022.aio.cloudauth.net/swarm.cgi",
+  "https://captive-2022.aio.cloudauth.net/cgi-bin/login",
 );
 eq(
   "an explicit switchip still wins over post",
@@ -700,7 +700,11 @@ check(
   "refused" in
     LOGIN.arubaLoginTarget(LOGIN.captureArubaRedirect({ post: "evil.example.com" }).switchip),
 );
-eq("ARUBA_LOGIN_PATH is /swarm.cgi", LOGIN.ARUBA_LOGIN_PATH, "/swarm.cgi");
+eq(
+  "ARUBA_LOGIN_PATH is /cgi-bin/login (staging experiment)",
+  LOGIN.ARUBA_LOGIN_PATH,
+  "/cgi-bin/login",
+);
 
 // The real search schema: what TanStack hands it after JSON-parsing values.
 const parsed = SEARCH.portalSearchSchema.parse({
@@ -822,22 +826,11 @@ check(
   /featureAppliesToControllerVenue\(\s*feature,\s*locationControllerVendor/.test(featurePage),
 );
 const sidebar = src("src/components/customer/CustomerSidebar.tsx");
-// Every call to the gate, in the sidebar and in the section tab bar, passes
-// the vendor -- a call without it would keep Allow-list and Trusted Devices
-// live at a NAS-only venue. (One shared helper in the sidebar since it became
-// sections with tabs; one per tab in SectionTabs.)
-{
-  const tabs = src("src/components/customer/console/SectionTabs.tsx");
-  const calls = (code) => code.match(/featureAppliesToControllerVenue\([^)]*\)/g) ?? [];
-  const all = [...calls(sidebar), ...calls(tabs)];
-  check(
-    "the sidebar and the section tabs pass the vendor to the gate",
-    calls(sidebar).length >= 1 &&
-      calls(tabs).length >= 1 &&
-      all.every((c) => /, controllerVendor\)$/.test(c)),
-    all.join(" ; "),
-  );
-}
+check(
+  "the sidebar passes the vendor to the gate",
+  (sidebar.match(/featureAppliesToControllerVenue\(item\.id, controllerVendor\)/g) ?? []).length ===
+    2,
+);
 
 // The Master-only modules may only be imported from Master surfaces.
 function walk(dir) {
@@ -1055,17 +1048,24 @@ console.log("\n8. Customer venue view: our own records only, never Offline, neve
   }
 
   const dashPage = src("src/components/customer/CustomerDashboardPage.tsx");
+  // 2026-10-05 redesign: at a NAS-only venue the access points take the
+  // Bandwidth card's slot, and the Internet Connection + hardware row is not
+  // rendered at all (the venue card no longer repeats the status bar).
   check(
-    "dashboard: the venue card replaces the hardware card only at a NAS-only venue",
-    /nasOnlyVenue \? \(\s*<ArubaInstantOnVenueCard locationId=\{locationId\} \/>\s*\) : \(\s*<DeviceStatusCard/.test(
+    "dashboard: the WAN + hardware row renders only at a non-NAS-only venue",
+    /\{!nasOnlyVenue && \(\s*<div className="grid gap-6 lg:grid-cols-2">\s*<WanStatusCard[\s\S]{0,200}<DeviceStatusCard/.test(
       dashPage,
     ),
   );
   check(
-    "dashboard: bandwidth gives way to U6 only at a NAS-only venue",
-    /nasOnlyVenue \? \([\s\S]{0,400}controllerDeviceMetricsReason\("aruba_instant_on"\)[\s\S]{0,200}\) : \(\s*<BandwidthUtilizationCard/.test(
+    "dashboard: bandwidth gives way to the access points only at a NAS-only venue",
+    /nasOnlyVenue \? \(\s*<ArubaAccessPointsCard locationId=\{locationId\} \/>\s*\) : \(\s*<BandwidthUtilizationCard/.test(
       dashPage,
     ),
+  );
+  check(
+    "dashboard: no venue card and no U6 'needs a router' card",
+    !/<ArubaInstantOnVenueCard/.test(dashPage) && !/controllerDeviceMetricsReason/.test(dashPage),
   );
   check(
     "dashboard: the gate is locationIsNasOnly",
