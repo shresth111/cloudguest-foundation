@@ -2265,7 +2265,7 @@ jobs:
       - name: aruba instant on customer dashboard
         run: |
           ./scripts/ci-gated-test.sh \
-            "aruba-customer-dashboard" 83 \
+            "aruba-customer-dashboard" 91 \
             "aruba customer dashboard: all checks passed" \
             bun run test:aruba-customer-dashboard
 

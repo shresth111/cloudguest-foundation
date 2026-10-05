@@ -34,6 +34,11 @@ export interface ApVerdict {
   /** The one sentence behind the label: "Active · guest activity 2 minutes
    * ago", "Idle · last guest activity 31 minutes ago". */
   sentence: string;
+  /** The sentence without its leading label ("guest activity 2 minutes
+   * ago"), for a card that shows the label as a pill beside it. Empty when
+   * the label is the whole sentence. `sentence` is always
+   * `label + " · " + detail` (or just `label`). */
+  detail: string;
   /** What the guest counter beside it means. An idle AP whose sessions are
    * still open has guests SIGNED IN, not guests it has heard from lately --
    * printing "1 online now" beside "Idle" was the contradiction. */
@@ -44,27 +49,38 @@ export function apVerdict(
   ap: Pick<ArubaAccessPoint, "status" | "statusSource" | "lastSeenAt" | "instantOnStatus">,
   relative: (iso: string) => string,
 ): ApVerdict {
+  const verdict = (
+    active: boolean,
+    label: string,
+    detail: string,
+    countLabel: ApVerdict["countLabel"],
+  ): ApVerdict => ({
+    active,
+    label,
+    detail,
+    sentence: detail ? `${label} · ${detail}` : label,
+    countLabel,
+  });
   if (ap.status === "online") {
-    const sentence =
+    const detail =
       ap.statusSource === "instant_on"
-        ? "Active · online in the Instant On app"
+        ? "online in the Instant On app"
         : ap.lastSeenAt
-          ? `Active · guest activity ${relative(ap.lastSeenAt)}`
-          : "Active";
-    return { active: true, label: "Active", sentence, countLabel: "online now" };
+          ? `guest activity ${relative(ap.lastSeenAt)}`
+          : "";
+    return verdict(true, "Active", detail, "online now");
   }
-  const sentence = ap.lastSeenAt
-    ? `Idle · last guest activity ${relative(ap.lastSeenAt)}`
-    : "Idle · no guest activity yet";
-  return {
-    active: false,
-    label: "Idle",
-    sentence:
-      ap.instantOnStatus === "offline"
-        ? `${sentence} · the Instant On app shows it disconnected`
-        : sentence,
-    countLabel: "signed in",
-  };
+  const detail = ap.lastSeenAt
+    ? `last guest activity ${relative(ap.lastSeenAt)}`
+    : "no guest activity yet";
+  return verdict(
+    false,
+    "Idle",
+    ap.instantOnStatus === "offline"
+      ? `${detail} · the Instant On app shows it disconnected`
+      : detail,
+    "signed in",
+  );
 }
 
 /** The newest `lastSeenAt` across the venue's access points, or null. */
