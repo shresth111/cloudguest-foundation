@@ -21,12 +21,13 @@ import {
   ExternalLink,
   Info,
   Loader2,
+  Lock,
   MessageSquareText,
   Trash2,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
-import { useIsDemo } from "@/hooks/useCustomerDashboard";
+import { useFeatureEntitled, useIsDemo } from "@/hooks/useCustomerDashboard";
 import { portalService } from "@/services/portal.service";
 import { resolveOrgId } from "@/services/customer.service";
 import { brandAssetService } from "@/services/brand-asset.service";
@@ -235,8 +236,18 @@ function NoDataYet() {
   );
 }
 
+/** Shown when the plan lacks `white_label` (logo + background image). */
+const BRANDING_LOCKED_REASON =
+  "Your plan doesn't include a custom logo or background image (White label). Ask your " +
+  "Wyfy Guest contact to add it to your plan.";
+
 export function PortalPage({ locationId }: { locationId?: string }) {
   const demo = useIsDemo();
+  // Logo and background image are the plan's `white_label` feature: every
+  // /branding call answers 402 without it. `false` only when the backend has
+  // said so (null = unknown -> controls stay as they were), so the uploads
+  // are locked with the reason instead of offering a pick that can only fail.
+  const brandingLocked = useFeatureEntitled("white_label") === false;
   const [primary, setPrimary] = useState("#1B57F5");
   // The actual big heading a guest sees on the sign-in screen (e.g.
   // "Welcome to Haldwani") -- backed by `seo.pageTitle` / `splash_headline`.
@@ -1372,16 +1383,23 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                       <ImageUp className="h-5 w-5 text-muted-foreground" />
                     )}
                   </div>
-                  <label className="cursor-pointer">
+                  <label
+                    className={brandingLocked ? "cursor-not-allowed opacity-60" : "cursor-pointer"}
+                    title={brandingLocked ? BRANDING_LOCKED_REASON : undefined}
+                  >
                     <span className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-                      <ImageUp className="h-3.5 w-3.5" />
+                      {brandingLocked ? (
+                        <Lock className="h-3.5 w-3.5" aria-hidden />
+                      ) : (
+                        <ImageUp className="h-3.5 w-3.5" />
+                      )}
                       Upload logo
                     </span>
                     <input
                       type="file"
                       accept={BRAND_ASSET_ACCEPT_ATTR}
                       className="hidden"
-                      disabled={uploadingLogo}
+                      disabled={uploadingLogo || brandingLocked}
                       onChange={handleLogoUpload}
                     />
                   </label>
@@ -1416,16 +1434,23 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                       <ImageUp className="h-5 w-5 text-muted-foreground" />
                     )}
                   </div>
-                  <label className="cursor-pointer">
+                  <label
+                    className={brandingLocked ? "cursor-not-allowed opacity-60" : "cursor-pointer"}
+                    title={brandingLocked ? BRANDING_LOCKED_REASON : undefined}
+                  >
                     <span className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-                      <ImageUp className="h-3.5 w-3.5" />
+                      {brandingLocked ? (
+                        <Lock className="h-3.5 w-3.5" aria-hidden />
+                      ) : (
+                        <ImageUp className="h-3.5 w-3.5" />
+                      )}
                       {bgImage ? "Replace image" : "Upload image"}
                     </span>
                     <input
                       type="file"
                       accept={BRAND_ASSET_ACCEPT_ATTR}
                       className="hidden"
-                      disabled={uploadingBg}
+                      disabled={uploadingBg || brandingLocked}
                       onChange={handleBackgroundUpload}
                     />
                   </label>
@@ -1446,6 +1471,16 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                   important: the card sits over it.
                 </p>
               </div>
+              {brandingLocked && (
+                <p
+                  role="note"
+                  data-testid="portal-branding-locked"
+                  className="-mt-2 flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-snug text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200"
+                >
+                  <Lock aria-hidden className="mt-[1px] h-3.5 w-3.5 shrink-0" />
+                  {BRANDING_LOCKED_REASON}
+                </p>
+              )}
 
               {/* AFTER THEY CONNECT -- one destination, chosen here. The
               founder's flow review ("after login: session page -> 3-2-1

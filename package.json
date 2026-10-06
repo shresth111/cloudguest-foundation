@@ -114,6 +114,7 @@
     "test:omada-guided-setup": "node scripts/test-omada-guided-setup.mjs",
     "test:aruba-instant-on": "node scripts/test-aruba-instant-on.mjs",
     "test:portal-aruba-trusted": "node scripts/test-portal-aruba-trusted.mjs",
+    "test:portal-white-label-lock": "node scripts/test-portal-white-label-lock.mjs",
     "test:aruba-setup-panel": "node scripts/test-aruba-setup-panel.mjs",
     "test:aruba-add-site": "node scripts/test-aruba-add-site.mjs",
     "test:aruba-access-rules": "node scripts/test-aruba-access-rules.mjs",

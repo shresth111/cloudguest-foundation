@@ -2184,6 +2184,14 @@ jobs:
       # Trusted Devices at an Instant On venue: the portal's loop guard
       # (an AP refusal or a recent attempt stops the automatic login) and
       # its wiring into /portal/.
+      # Portal logo/background are the plan's white_label feature: the editor
+      # locks both uploads with the reason instead of failing on a 402.
+      - name: portal white label lock
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "portal-white-label-lock" 6 \
+            "portal white label lock: all checks passed" \
+            bun run test:portal-white-label-lock
       - name: aruba trusted devices portal auto-login
         run: |
           ./scripts/ci-gated-test.sh \
