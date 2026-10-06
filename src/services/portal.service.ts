@@ -108,6 +108,10 @@ interface BackendCaptivePortalConfig {
    * carry, so this editor behaves identically before and after it. */
   collect_guest_name?: boolean;
   collect_guest_email?: boolean;
+  /** Name required at sign-in. Absent only on a backend that predates the
+   * column, which has no such gate -- so absent reads as off, never as the
+   * new server default. */
+  require_guest_name?: boolean;
   review_url?: string | null;
   review_card_enabled?: boolean;
   guest_feedback_enabled?: boolean;
@@ -495,6 +499,7 @@ function toPortal(
     postConnect: {
       collectGuestName: c.collect_guest_name ?? false,
       collectGuestEmail: c.collect_guest_email ?? false,
+      requireGuestName: c.require_guest_name ?? false,
       reviewUrl: c.review_url ?? "",
       reviewCardEnabled: c.review_card_enabled ?? false,
       guestFeedbackEnabled: c.guest_feedback_enabled ?? false,
@@ -705,6 +710,9 @@ export const portalService = {
         // WRITE half (create) of the "After they connect" settings.
         collect_guest_name: input.postConnect?.collectGuestName ?? false,
         collect_guest_email: input.postConnect?.collectGuestEmail ?? false,
+        // Default ON (owner decision) -- the same value the backend column
+        // carries, sent explicitly so the create is not relying on it.
+        require_guest_name: input.postConnect?.requireGuestName ?? true,
         review_url: input.postConnect?.reviewUrl?.trim() || null,
         review_card_enabled: input.postConnect?.reviewCardEnabled ?? false,
         guest_feedback_enabled: input.postConnect?.guestFeedbackEnabled ?? false,
@@ -789,6 +797,8 @@ export const portalService = {
       body.collect_guest_name = patch.postConnect.collectGuestName;
     if (patch.postConnect?.collectGuestEmail !== undefined)
       body.collect_guest_email = patch.postConnect.collectGuestEmail;
+    if (patch.postConnect?.requireGuestName !== undefined)
+      body.require_guest_name = patch.postConnect.requireGuestName;
     // `|| null` -- clearing the field must clear the column, not store "".
     // Note these two travel INDEPENDENTLY: switching the card off leaves
     // `review_url` exactly as the venue typed it, so turning it back on

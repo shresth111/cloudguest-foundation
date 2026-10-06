@@ -426,6 +426,7 @@ function PortalPreviewPage() {
           // in, which is what this synthetic config exists to be true to.
           collectGuestName: false,
           collectGuestEmail: false,
+          requireGuestName: false,
           reviewUrl: null,
           reviewCardEnabled: false,
           guestFeedbackEnabled: false,

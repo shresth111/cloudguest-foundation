@@ -20,7 +20,9 @@ name: CI
 #   test:output-analyser  116 checks
 #   test:a11y ........... sentinel only
 #   test:manual-wizard .. 113 checks
-#   test:setup-script ... 3404 checks (was 3279; section 13.4b -- each
+#   test:setup-script ... 3626 checks (was 3474 before section 19 -- the
+#                         RouterOS-version + device-mode preflight -- landed
+#                         2026-10-04; was 3404, then 3279; section 13.4b -- each
 #                         hotspot page stamping its own `hspage` -- landed
 #                         2026-09-07 with 11 deliberately RED, and the
 #                         generator fix in the same PR turned them green,
@@ -239,7 +241,7 @@ jobs:
       - name: portal CNA storage safety
         run: |
           ./scripts/ci-gated-test.sh \
-            "portal-cna-storage-safety" 21 "all checks passed" \
+            "portal-cna-storage-safety" 28 "all checks passed" \
             bun run test:portal-cna
 
       # The Master Console and the customer app are two products on two
@@ -363,6 +365,19 @@ jobs:
             "portal-signin-fields" 23 \
             "Sign-in field regression test: all checks passed." \
             bun run test:signin-fields
+
+      # Name required at sign-in (default ON for every venue): the one
+      # "Your name" screen between OTP verify and the network handoff. Pins
+      # the wire mapping (`name_required` -> `nameRequired`, `display_name`
+      # posted), the post-connect card never re-asking a required name, and
+      # the real component in Chromium: labelled, autocomplete=name, >=16px,
+      # empty/whitespace never submitted, and `onDone` (which starts the
+      # hotspot login) only after the name write resolved.
+      - name: portal guest name required
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "portal-guest-name" 34 "portal guest name: all checks passed" \
+            bun run test:portal-guest-name
 
       # The per-route errorComponent wiring under /portal. TanStack Router
       # does not inherit `errorComponent` to child routes, so this fix is one
@@ -983,14 +998,16 @@ jobs:
       # grading is now a pure exported function this suite CALLS. All 25
       # caught on the second pass.
       #
-      # FLOOR: 3390, against 3404 observed green. Tight on purpose --
+      # FLOOR: 3610, against 3626 observed green (2026-10-04, section 19:
+      # version-sensitive tokens only inside [:parse], the preflight, the
+      # heartbeat's device-mode FAIL). Was 3390, against 3404 observed green. Tight on purpose --
       # deleting one assertion block fails the build -- with just enough
       # slack that correcting a single vacuous check does not. (Was
       # 3265/3279 before section 13.4b's sixteen `hspage` checks.)
       - name: setup script generator
         run: |
           ./scripts/ci-gated-test.sh \
-            "setup-script-generator" 3390 \
+            "setup-script-generator" 3610 \
             "setup-script-generator: all checks passed" \
             bun run test:setup-script
 

@@ -5,9 +5,13 @@ import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   PortalShell,
+  PortalCard,
   PortalTextPlate,
   GUEST_LEGIBILITY_CARD_CLASS,
 } from "@/components/portal-runtime/PortalShell";
+import { GuestNameStep } from "@/components/portal-runtime/GuestNameStep";
+import { isGuestNameRequiredError, needsNameStep } from "@/lib/portal-guest-name";
+import { portalRuntimeService } from "@/services/portal-runtime.service";
 import { PortalConnectingState, PG_PRIMARY_BTN } from "@/components/portal-runtime/PortalGuestUi";
 import { GlyphFailure } from "@/components/portal-runtime/PortalGlyphs";
 import { scriptClassOf } from "@/lib/portal-script";
@@ -178,6 +182,7 @@ function SuccessPage() {
     // login, `url` is where the guest was going. Undefined elsewhere.
     arubaRedirect,
     clientIp,
+    setSession,
     t,
   } = usePortalRuntime();
   // The controller's own landing page (doc 132060's `LANDING_PAGE`), fed
@@ -352,11 +357,15 @@ function SuccessPage() {
       // through the portal rather than sitting on a page that asserts
       // success from memory.
       window.location.assign(directTarget());
-    } catch {
+    } catch (error) {
       // Reached nothing, or the backend refused. Every refusal there is
       // one indistinguishable 403, so there is nothing to tell the guest
       // apart -- and nothing to do but let them retry.
       hotspotLoginSubmitted.current = false;
+      // The one refusal that IS distinguishable, deliberately: the session
+      // is real but its required name is not on file yet. Bring the name
+      // screen back rather than a retry that would be refused identically.
+      if (isGuestNameRequiredError(error)) setSession({ ...session, nameRequired: true });
     }
   }
 
@@ -455,6 +464,12 @@ function SuccessPage() {
       // result type at all; see `origin_url` in @/lib/portal-radius-authorize.
       window.location.assign(directTarget());
     } catch (error) {
+      // See the same branch in `authorizeOnController`.
+      if (isGuestNameRequiredError(error)) {
+        hotspotLoginSubmitted.current = false;
+        setSession({ ...session, nameRequired: true });
+        return;
+      }
       failRadius(radiusFailureFromError(error));
     }
   }
@@ -540,6 +555,14 @@ function SuccessPage() {
 
   function attemptSubmit() {
     if (!session || hotspotLoginSubmitted.current) return;
+    // NAME REQUIRED AT SIGN-IN. Nothing on this page may start opening the
+    // network while the session still needs its name: the name screen
+    // below runs first, AWAITS `POST /guest/sign-in-name`, and only its
+    // `onDone` clears `nameRequired` -- which re-runs this effect. So the
+    // name write and the hotspot login POST are strictly sequential. (The
+    // backend refuses this session at every gate anyway; this is what keeps
+    // the guest from ever seeing that refusal.)
+    if (needsNameStep(session)) return;
 
     // THE OMADA BRANCH, AND IT IS FIRST.
     //
@@ -820,6 +843,40 @@ function SuccessPage() {
           submitArubaLogin();
         }}
       />
+    );
+  }
+
+  /**
+   * NAME REQUIRED AT SIGN-IN: the one "Your name" screen, between the code
+   * verifying and the network opening. See `GuestNameStep` for why the
+   * ordering is the whole point. No skip and no sign-out link: without the
+   * name the backend will not open the gate for this session.
+   */
+  if (needsNameStep(session)) {
+    return (
+      <PortalShell showBrandPanel={false}>
+        <div className="flex flex-1 flex-col justify-center">
+          <PortalCard>
+            <GuestNameStep
+              submit={async (displayName) => {
+                await portalRuntimeService.submitSignInName({
+                  guestId: session.guestId,
+                  sessionId: session.sessionId,
+                  displayName,
+                });
+              }}
+              onDone={() => {
+                // Fresh slow-notice timers for the handoff that follows --
+                // the ones started on mount were counting the name screen.
+                setAttempt((a) => a + 1);
+                // `hasProfile` too: the name is on file now, so the
+                // post-connect card has nothing left to ask for it.
+                setSession({ ...session, nameRequired: false, hasProfile: true });
+              }}
+            />
+          </PortalCard>
+        </div>
+      </PortalShell>
     );
   }
 
