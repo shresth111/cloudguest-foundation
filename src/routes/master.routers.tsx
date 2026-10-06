@@ -50,6 +50,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { RemoteAccessCard } from "@/components/routers/RouterDetailTabs";
 import { FirewallBandPanel } from "@/components/master/FirewallBandPanel";
+import { RouterSnmpPanel } from "@/components/master/RouterSnmpPanel";
 import { inputCls, RouterSetupDrilldown } from "@/components/routers/RouterSetupScriptAdvanced";
 import {
   AddInstantOnSiteDialog,
@@ -1082,6 +1083,13 @@ function RouterFleetScreen() {
                   {!demo && !isControllerManaged(sel.vendor) && (
                     <FirewallBandPanel routerId={sel.id} routerName={sel.name} />
                   )}
+
+                  {/* SNMP monitoring. Every vendor, deliberately: for Omada
+                      and Instant On the panel states why the platform does
+                      not poll SNMP and where that device's health comes
+                      from instead, rather than the feature silently not
+                      existing. */}
+                  {!demo && <RouterSnmpPanel routerId={sel.id} routerName={sel.name} />}
 
                   {/* Remote access (WinBox/SSH over the platform's own
                       tunnel) is an agent verb: it reaches the device through
