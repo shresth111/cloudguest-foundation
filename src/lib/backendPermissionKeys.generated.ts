@@ -79,6 +79,8 @@ export const BACKEND_PERMISSION_KEYS: readonly string[] = [
   "demo_requests.read",
   "device_console.execute",
   "device_console.read",
+  "device_logs.manage",
+  "device_logs.read",
   "device_sync.execute",
   "device_sync.manage",
   "device_sync.read",

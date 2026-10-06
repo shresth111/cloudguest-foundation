@@ -24,6 +24,7 @@ import {
   ChevronsRight,
   Users,
   Coins,
+  FileSearch,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -69,6 +70,9 @@ export const MASTER_NAV: MasterNavItem[] = [
   // people to call.
   { to: "/master/integrations", label: "Network Integrations", icon: Plug, cap: "integrations" },
   { to: "/master/console", label: "Device Console", icon: TerminalSquare, cap: "console" },
+  // Syslog that venue routers send to the platform (MikroTik for now).
+  // Master only: the lines carry guest MACs/IPs (phones/e-mails masked).
+  { to: "/master/device-logs", label: "Device Logs", icon: FileSearch, cap: "device-logs" },
   { to: "/master/analytics", label: "Global Analytics", icon: LineChart, cap: "analytics" },
   {
     to: "/master/notification-channels",
@@ -118,6 +122,7 @@ const MASTER_NAV_GROUPS: { label: string; items: string[] }[] = [
       "/master/routers",
       "/master/integrations",
       "/master/console",
+      "/master/device-logs",
       "/master/health",
     ],
   },
@@ -232,6 +237,12 @@ const CAP_PERMISSIONS: Record<string, string[]> = {
    * gated separately on the `addons` cap (billing.manage), and the backend
    * pins both to GLOBAL scope (§13.7). */
   pricing: ["billing.read"],
+  /** `/master/device-logs` -- read with device_logs.read (Super Admin,
+   * Platform Admin, Platform Support). Set up / Remove on a router write to
+   * the live device and need device_logs.manage (`device-logs.manage`). The
+   * backend pins both to GLOBAL; no organization role holds either. */
+  "device-logs": ["device_logs.read"],
+  "device-logs.manage": ["device_logs.manage"],
 };
 
 /** Operator capability model. Previously returned the *same* full capability
