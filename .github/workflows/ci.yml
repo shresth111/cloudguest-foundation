@@ -1425,6 +1425,18 @@ jobs:
             "router liveness badge" 60 "all router liveness badge checks passed" \
             bun run test:liveness-badge
 
+      # --- Traffic Flow (NetFlow/IPFIX) stays operator-only and honest ----
+      #
+      # Guest traffic metadata must never reach a customer surface (DPDP;
+      # ~/wyfy-ops/netflow/DESIGN.md §7), an unknown state must never render
+      # as healthy, and the page must not claim per-application data it does
+      # not have (no DPI). None of that is visible to tsc or eslint.
+      - name: traffic flow page is operator-only and honest
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "traffic flow" 42 "all traffic flow checks passed" \
+            bun run test:traffic-flow
+
       # --- A venue's floors are the venue's, not a constant ---------------
       #
       # `FLOORS = ["5F".."GF"]` was shown to every venue as its floor list,

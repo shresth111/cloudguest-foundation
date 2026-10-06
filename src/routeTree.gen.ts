@@ -71,6 +71,7 @@ import { Route as PortalFailureRouteImport } from './routes/portal.failure'
 import { Route as PortalExpiredRouteImport } from './routes/portal.expired'
 import { Route as PortalClosedRouteImport } from './routes/portal.closed'
 import { Route as PortalAuthRouteImport } from './routes/portal.auth'
+import { Route as MasterTrafficFlowRouteImport } from './routes/master.traffic-flow'
 import { Route as MasterTicketsRouteImport } from './routes/master.tickets'
 import { Route as MasterRoutersRouteImport } from './routes/master.routers'
 import { Route as MasterQuotationsRouteImport } from './routes/master.quotations'
@@ -507,6 +508,11 @@ const PortalAuthRoute = PortalAuthRouteImport.update({
   id: '/auth',
   path: '/auth',
   getParentRoute: () => PortalRoute,
+} as any)
+const MasterTrafficFlowRoute = MasterTrafficFlowRouteImport.update({
+  id: '/traffic-flow',
+  path: '/traffic-flow',
+  getParentRoute: () => MasterRoute,
 } as any)
 const MasterTicketsRoute = MasterTicketsRouteImport.update({
   id: '/tickets',
@@ -1301,6 +1307,7 @@ export interface FileRoutesByFullPath {
   '/master/quotations': typeof MasterQuotationsRoute
   '/master/routers': typeof MasterRoutersRouteWithChildren
   '/master/tickets': typeof MasterTicketsRoute
+  '/master/traffic-flow': typeof MasterTrafficFlowRoute
   '/portal/auth': typeof PortalAuthRouteWithChildren
   '/portal/closed': typeof PortalClosedRoute
   '/portal/expired': typeof PortalExpiredRoute
@@ -1487,6 +1494,7 @@ export interface FileRoutesByTo {
   '/master/quotations': typeof MasterQuotationsRoute
   '/master/routers': typeof MasterRoutersRouteWithChildren
   '/master/tickets': typeof MasterTicketsRoute
+  '/master/traffic-flow': typeof MasterTrafficFlowRoute
   '/portal/closed': typeof PortalClosedRoute
   '/portal/expired': typeof PortalExpiredRoute
   '/portal/failure': typeof PortalFailureRoute
@@ -1677,6 +1685,7 @@ export interface FileRoutesById {
   '/master/quotations': typeof MasterQuotationsRoute
   '/master/routers': typeof MasterRoutersRouteWithChildren
   '/master/tickets': typeof MasterTicketsRoute
+  '/master/traffic-flow': typeof MasterTrafficFlowRoute
   '/portal/auth': typeof PortalAuthRouteWithChildren
   '/portal/closed': typeof PortalClosedRoute
   '/portal/expired': typeof PortalExpiredRoute
@@ -1869,6 +1878,7 @@ export interface FileRouteTypes {
     | '/master/quotations'
     | '/master/routers'
     | '/master/tickets'
+    | '/master/traffic-flow'
     | '/portal/auth'
     | '/portal/closed'
     | '/portal/expired'
@@ -2055,6 +2065,7 @@ export interface FileRouteTypes {
     | '/master/quotations'
     | '/master/routers'
     | '/master/tickets'
+    | '/master/traffic-flow'
     | '/portal/closed'
     | '/portal/expired'
     | '/portal/failure'
@@ -2244,6 +2255,7 @@ export interface FileRouteTypes {
     | '/master/quotations'
     | '/master/routers'
     | '/master/tickets'
+    | '/master/traffic-flow'
     | '/portal/auth'
     | '/portal/closed'
     | '/portal/expired'
@@ -2862,6 +2874,13 @@ declare module '@tanstack/react-router' {
       path: '/tickets'
       fullPath: '/master/tickets'
       preLoaderRoute: typeof MasterTicketsRouteImport
+      parentRoute: typeof MasterRoute
+    }
+    '/master/traffic-flow': {
+      id: '/master/traffic-flow'
+      path: '/traffic-flow'
+      fullPath: '/master/traffic-flow'
+      preLoaderRoute: typeof MasterTrafficFlowRouteImport
       parentRoute: typeof MasterRoute
     }
     '/master/routers': {
@@ -4041,6 +4060,7 @@ interface MasterRouteChildren {
   MasterQuotationsRoute: typeof MasterQuotationsRoute
   MasterRoutersRoute: typeof MasterRoutersRouteWithChildren
   MasterTicketsRoute: typeof MasterTicketsRoute
+  MasterTrafficFlowRoute: typeof MasterTrafficFlowRoute
   MasterIndexRoute: typeof MasterIndexRoute
 }
 
@@ -4062,6 +4082,7 @@ const MasterRouteChildren: MasterRouteChildren = {
   MasterQuotationsRoute: MasterQuotationsRoute,
   MasterRoutersRoute: MasterRoutersRouteWithChildren,
   MasterTicketsRoute: MasterTicketsRoute,
+  MasterTrafficFlowRoute: MasterTrafficFlowRoute,
   MasterIndexRoute: MasterIndexRoute,
 }
 
