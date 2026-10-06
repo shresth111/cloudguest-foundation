@@ -26,7 +26,8 @@ import type { PostLoginDestination } from "@/lib/portal-post-login";
 import { resolvePostLoginSequence } from "@/lib/portal-post-login-sequence";
 import { PostLoginSequenceRunner } from "@/components/portal-runtime/PostLoginSequenceRunner";
 import { expandSequenceItems } from "@/lib/portal-post-login-sequence-items";
-import { isCaptiveNetworkAssistant } from "@/lib/portal-cna";
+import { isCaptiveSheet } from "@/lib/portal-cna";
+import { preGateMarkerMatches } from "@/lib/portal-pre-gate";
 
 export const Route = createFileRoute("/portal/session")({
   errorComponent: PortalErrorScreen,
@@ -326,11 +327,22 @@ function SessionPage() {
   // page (that one is rendered as the destination itself, below).
   const preFinishSteps = sequence.pageIsResting ? sequence.steps.slice(0, -1) : sequence.steps;
   const wantsCampaigns = preFinishSteps.some((s) => s !== "page") || destination.mode === "default";
-  // Never auto-redirect inside Apple's captive websheet: it cannot be
-  // navigated to an arbitrary page (iOS closes the sheet itself once its
-  // own captive re-probe succeeds through the now-open gate -- see
-  // @/lib/portal-cna), and trying reads as a broken redirect.
-  const inCna = isCaptiveNetworkAssistant();
+  // Never auto-redirect inside a captive sign-in sheet -- Apple's CNA or
+  // Android's CaptivePortalLogin WebView: neither can be navigated to an
+  // arbitrary page (each OS closes its sheet itself once the network
+  // validates through the now-open gate -- see @/lib/portal-cna), and
+  // trying reads as a broken redirect.
+  const inCna = isCaptiveSheet();
+  // The pre-gate phase on /portal/success already showed this guest the
+  // arrival offer/survey and the profile ask (see @/lib/portal-pre-gate),
+  // and said so on this URL. Read once, off the document the gate's own
+  // navigation loaded, and only for THIS session id. Campaigns it showed
+  // are already left out of the queue below by the backend (shown-this-
+  // session); this marker is what stops the profile ask repeating.
+  const [landingSearch] = useState(() =>
+    typeof window !== "undefined" ? window.location.search : "",
+  );
+  const preGateShown = preGateMarkerMatches(landingSearch, session?.sessionId);
   const [now, setNow] = useState(0);
   const [disconnectError, setDisconnectError] = useState<string | null>(null);
 
@@ -641,7 +653,7 @@ function SessionPage() {
         now,
         reviewCardShownThisSession,
         starCampaignAvailable: !!starCampaign,
-        arrivalAskSettled,
+        arrivalAskSettled: arrivalAskSettled || preGateShown,
         feedbackSettled,
       })
     : null;

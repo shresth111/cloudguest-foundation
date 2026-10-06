@@ -218,6 +218,7 @@ const EN: Dict = {
   // Closes portal.success.tsx's gap (v4 §6.1 -- the timeout/retry escape
   // hatch this page never had).
   successSlowNotice: "This is taking longer than expected.",
+  preGateAlmostOnline: "Almost online. You'll be connected as soon as you continue.",
   successStuckNotice: "Still working on it -- you can wait, or try signing in again.",
   signInAgainLink: "Sign in again",
   // portal.index.tsx loading/error screens (v7 audit H item 1: these were
@@ -622,6 +623,7 @@ const HI: Dict = {
 
   // Closes portal.success.tsx's gap.
   successSlowNotice: "इसमें अपेक्षा से अधिक समय लग रहा है।",
+  preGateAlmostOnline: "बस एक कदम बाकी है। आगे बढ़ते ही आप ऑनलाइन हो जाएँगे।",
   successStuckNotice:
     "हम अभी भी कोशिश कर रहे हैं -- आप प्रतीक्षा कर सकते हैं, या फिर से साइन इन करने की कोशिश करें।",
   signInAgainLink: "फिर से साइन इन करें",
@@ -975,6 +977,7 @@ const BN: Dict = {
 
   // Closes portal.success.tsx's gap.
   successSlowNotice: "ভাবার চেয়ে একটু বেশি সময় লাগছে।",
+  preGateAlmostOnline: "আর একটু বাকি। এগিয়ে গেলেই আপনি অনলাইন হয়ে যাবেন।",
   successStuckNotice: "চেষ্টা এখনও চলছে — অপেক্ষা করতে পারেন, বা আবার sign in করে দেখুন।",
   signInAgainLink: "আবার sign in করুন",
 
@@ -1290,6 +1293,7 @@ const MR: Dict = {
 
   // Closes portal.success.tsx's gap.
   successSlowNotice: "अपेक्षेपेक्षा जास्त वेळ लागतो आहे.",
+  preGateAlmostOnline: "जवळजवळ झाले. पुढे जाताच तुम्ही ऑनलाइन व्हाल.",
   successStuckNotice: "अजून प्रयत्न सुरू आहे — तुम्ही थांबू शकता, किंवा पुन्हा sign in करून पाहा.",
   signInAgainLink: "पुन्हा sign in करा",
 
@@ -1608,6 +1612,7 @@ const TE: Dict = {
 
   // Closes portal.success.tsx's gap.
   successSlowNotice: "అనుకున్నదానికంటే ఎక్కువ సమయం పడుతోంది.",
+  preGateAlmostOnline: "దాదాపు అయిపోయింది. కొనసాగించగానే మీరు ఆన్‌లైన్‌లోకి వస్తారు.",
   successStuckNotice: "ఇంకా ప్రయత్నిస్తున్నాం -- మీరు ఆగవచ్చు, లేదా మళ్లీ సైన్ ఇన్ అవ్వచ్చు.",
   signInAgainLink: "మళ్లీ సైన్ ఇన్ అవ్వండి",
 
@@ -1926,6 +1931,7 @@ const TA: Dict = {
 
   // Closes portal.success.tsx's gap.
   successSlowNotice: "எதிர்பார்த்ததை விட அதிக நேரம் ஆகிறது.",
+  preGateAlmostOnline: "கிட்டத்தட்ட முடிந்தது. தொடர்ந்ததும் நீங்கள் ஆன்லைனில் இணைவீர்கள்.",
   successStuckNotice:
     "இன்னும் முயற்சிக்கிறோம் -- காத்திருக்கலாம், அல்லது மீண்டும் நுழைந்து பாருங்கள்.",
   signInAgainLink: "மீண்டும் நுழையுங்கள்",
@@ -2246,6 +2252,7 @@ const GU: Dict = {
 
   // Closes portal.success.tsx's gap.
   successSlowNotice: "ધાર્યા કરતાં વધુ સમય લાગે છે.",
+  preGateAlmostOnline: "લગભગ થઈ ગયું. આગળ વધતાં જ તમે ઓનલાઇન થઈ જશો.",
   successStuckNotice: "હજી કામ ચાલુ છે -- રાહ જુઓ, અથવા ફરી sign in કરો.",
   signInAgainLink: "ફરી sign in કરો",
 
@@ -2559,6 +2566,7 @@ const KN: Dict = {
 
   // Closes portal.success.tsx's gap.
   successSlowNotice: "ನಿರೀಕ್ಷೆಗಿಂತ ಹೆಚ್ಚು ಹೊತ್ತು ಆಗುತ್ತಿದೆ.",
+  preGateAlmostOnline: "ಬಹುತೇಕ ಮುಗಿಯಿತು. ಮುಂದುವರಿದ ತಕ್ಷಣ ನೀವು ಆನ್‌ಲೈನ್ ಆಗುತ್ತೀರಿ.",
   successStuckNotice: "ಇನ್ನೂ ಪ್ರಯತ್ನ ನಡೆಯುತ್ತಿದೆ — ಕಾಯಬಹುದು, ಅಥವಾ ಮತ್ತೆ sign in ಮಾಡಿ ನೋಡಬಹುದು.",
   signInAgainLink: "ಮತ್ತೆ sign in ಮಾಡಿ",
 
@@ -2876,6 +2884,7 @@ const ML: Dict = {
 
   // Closes portal.success.tsx's gap.
   successSlowNotice: "പ്രതീക്ഷിച്ചതിലും സമയമെടുക്കുന്നു.",
+  preGateAlmostOnline: "ഏകദേശം കഴിഞ്ഞു. തുടരുമ്പോൾ തന്നെ നിങ്ങൾ ഓൺലൈനാകും.",
   successStuckNotice:
     "ഞങ്ങൾ ഇപ്പോഴും ശ്രമിക്കുന്നു -- കാത്തിരിക്കാം, അല്ലെങ്കിൽ വീണ്ടും sign in ചെയ്ത് നോക്കൂ.",
   signInAgainLink: "വീണ്ടും sign in ചെയ്യൂ",
@@ -3194,6 +3203,7 @@ const PA: Dict = {
 
   // Closes portal.success.tsx's gap.
   successSlowNotice: "ਇਸ ਵਿੱਚ ਸੋਚ ਨਾਲੋਂ ਵੱਧ ਸਮਾਂ ਲੱਗ ਰਿਹਾ ਹੈ।",
+  preGateAlmostOnline: "ਬੱਸ ਥੋੜ੍ਹਾ ਹੋਰ। ਅੱਗੇ ਵਧਦੇ ਹੀ ਤੁਸੀਂ ਔਨਲਾਈਨ ਹੋ ਜਾਓਗੇ।",
   successStuckNotice:
     "ਅਸੀਂ ਹਾਲੇ ਵੀ ਕੋਸ਼ਿਸ਼ ਕਰ ਰਹੇ ਹਾਂ -- ਤੁਸੀਂ ਉਡੀਕ ਸਕਦੇ ਹੋ, ਜਾਂ ਫਿਰ ਤੋਂ sign in ਕਰ ਵੇਖੋ।",
   signInAgainLink: "ਫਿਰ ਤੋਂ sign in ਕਰੋ",

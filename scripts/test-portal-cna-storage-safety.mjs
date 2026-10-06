@@ -175,6 +175,16 @@ await build({
       "ssid-tiers-service-stub.js",
       "export const fetchGuestSsidAccess = async () => null;\nexport const ssidTiersService = {};\n",
     ),
+    // The pre-gate phase (offer/survey/profile before the gate) has its own
+    // suite, scripts/test-portal-pre-gate.mjs. Here it is stubbed to "nothing
+    // to show, ready" -- exactly the plan a venue with no offers produces --
+    // so every case below still exercises the gate itself. Stubbed rather
+    // than bundled because it pulls the campaign service (axios) into this
+    // neutral-platform bundle.
+    "@/components/portal-runtime/PreGatePhase": stub(
+      "pre-gate-stub.js",
+      "export const PreGatePhase = () => null;\nexport function usePreGatePlan() { return { ready: true, steps: [], campaign: null }; }\n",
+    ),
     "@": SRC,
   },
 });

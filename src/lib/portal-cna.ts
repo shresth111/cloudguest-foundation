@@ -37,3 +37,34 @@ export function isCaptiveNetworkAssistant(): boolean {
     return true;
   }
 }
+
+/**
+ * ANDROID'S SIGN-IN SHEET IS NOT DETECTED BY THE PROBE ABOVE.
+ *
+ * AOSP `CaptivePortalLoginActivity` calls `setDomStorageEnabled(true)` on
+ * its WebView (android11-release through main), so Web Storage works there
+ * and `isCaptiveNetworkAssistant()` returns false on every Android phone.
+ * What does identify it is the WebView user agent: Android WebView appends
+ * `; wv)` to the platform token, which Chrome itself never does. The
+ * sheet does not override the WebView's UA (its `EXTRA_CAPTIVE_PORTAL_
+ * USER_AGENT` is only used for downloads).
+ *
+ * A heuristic, and deliberately used only where a false positive is
+ * harmless: any Android in-app WebView matches. Nothing gates access on
+ * it. A false NEGATIVE is also possible -- an OEM sheet, or AOSP's
+ * Custom Tabs experiment (`captive_portal_custom_tabs`, off by default),
+ * runs in a real browser -- which is why the offer/survey timing fix does
+ * not depend on detection at all: the pre-gate phase (@/lib/portal-pre-gate)
+ * runs for every client.
+ */
+export function isAndroidCaptivePortalWebView(userAgent?: string): boolean {
+  const ua = userAgent ?? (typeof navigator !== "undefined" ? (navigator.userAgent ?? "") : "");
+  return /Android/i.test(ua) && /;\s*wv\)/.test(ua);
+}
+
+/** True inside either OS's captive sign-in sheet (as far as it can be
+ * told): a context the OS closes on its own once the gate is open, so it
+ * must never be sent to an arbitrary external URL. */
+export function isCaptiveSheet(): boolean {
+  return isCaptiveNetworkAssistant() || isAndroidCaptivePortalWebView();
+}

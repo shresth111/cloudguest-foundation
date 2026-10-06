@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { campaignPortalService } from "@/services/campaign-portal.service";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import type { CampaignAnswerValue, NextCampaign, NextCampaignQuestion } from "@/types/campaign";
+import { PRE_GATE_IMPRESSION_TIMEOUT_MS, withTimeout } from "@/lib/portal-pre-gate";
 
 /** How long a *skippable* banner/redirect campaign stays up before it
  * auto-advances on its own -- long enough to actually register (a real
@@ -131,8 +132,18 @@ interface Props {
   /** Called exactly once, after the guest is done with this campaign one
    * way or another (submitted, skipped, clicked through, or the
    * auto-advance timer elapsed) -- the caller reveals whatever it would
-   * have shown next. */
-  onDone: () => void;
+   * have shown next. In `preGate` mode it also carries the banner link the
+   * guest tapped, which the caller opens once the guest is online. */
+  onDone: (result?: { clickUrl?: string }) => void;
+  /** Rendered BEFORE the NAS gate opens (see @/lib/portal-pre-gate). Two
+   * things change, both because the guest is not online yet:
+   *   - a banner tap does not `window.open` its link (it would only reach
+   *     the captive portal again); the link is handed to `onDone` instead;
+   *   - the impression write is awaited (bounded) before `onDone`, because
+   *     the gate's full-document navigation right after would cancel it.
+   * The image hides itself if it cannot load pre-auth (a host outside the
+   * walled garden), so the headline/coupon still reads cleanly. */
+  preGate?: boolean;
   /** Threaded to `PortalShell` for the admin Portal Preview, which renders
    * this inside a fixed-size bezel and must keep the backdrop `absolute`
    * (not viewport-`fixed`, which would escape the bezel). Defaults to the
@@ -149,7 +160,13 @@ interface Props {
  * eligible campaign is being shown -- see that file's own comment on why
  * this never delays the real hotspot-login POST underneath it.
  */
-export function CampaignOverlay({ campaign, sessionId, onDone, constrained = false }: Props) {
+export function CampaignOverlay({
+  campaign,
+  sessionId,
+  onDone,
+  constrained = false,
+  preGate = false,
+}: Props) {
   const { t, previewMode, demoMode } = usePortalRuntime();
   const [answers, setAnswers] = useState<Record<string, CampaignAnswerValue>>({});
   const finished = useRef(false);
@@ -170,9 +187,22 @@ export function CampaignOverlay({ campaign, sessionId, onDone, constrained = fal
    */
   const isSimulated = previewMode || demoMode;
 
-  const finish = (outcome: { wasSkipped: boolean; wasClicked: boolean }) => {
+  const [imageFailed, setImageFailed] = useState(false);
+
+  const finish = (outcome: { wasSkipped: boolean; wasClicked: boolean }, clickUrl?: string) => {
     if (finished.current) return;
     finished.current = true;
+    if (preGate) {
+      const write = isSimulated
+        ? Promise.resolve()
+        : campaignPortalService
+            .recordImpression(campaign.campaignId, { guestSessionId: sessionId, ...outcome })
+            .then(() => undefined);
+      void withTimeout(write, PRE_GATE_IMPRESSION_TIMEOUT_MS, undefined).then(() =>
+        onDone(clickUrl ? { clickUrl } : undefined),
+      );
+      return;
+    }
     // Best-effort telemetry -- a failed impression/response write should
     // never trap a guest on this screen (they already got real value, or
     // explicitly chose to skip; see this file's own module docstring). The
@@ -234,6 +264,10 @@ export function CampaignOverlay({ campaign, sessionId, onDone, constrained = fal
     // keeps a malicious/compromised campaign from running code at guests.
     const clickUrl = campaign.asset?.clickUrl;
     const safeClickUrl = clickUrl && /^https?:\/\//i.test(clickUrl) ? clickUrl : null;
+    if (preGate) {
+      finish({ wasSkipped: false, wasClicked: !!safeClickUrl }, safeClickUrl ?? undefined);
+      return;
+    }
     if (safeClickUrl) {
       window.open(safeClickUrl, "_blank", "noopener,noreferrer");
     }
@@ -281,6 +315,14 @@ export function CampaignOverlay({ campaign, sessionId, onDone, constrained = fal
        * other) -- closing both is what makes the "zero framer-motion on
        * this surface" budget line actually true. */}
       <div className="flex flex-1 flex-col gap-5">
+        {preGate && (
+          // The guest is signed in but not online yet: say so, and say what
+          // gets them online, so a survey before the internet never reads
+          // as the WiFi having failed.
+          <p className="pg-meta text-center text-[var(--pg-ink-muted)]">
+            {t("preGateAlmostOnline")}
+          </p>
+        )}
         <div className="flex items-center justify-between">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-[color-mix(in_srgb,var(--pr-primary,#6366f1)_10%,var(--pg-surface,#fff))] px-3 py-1 text-[length:calc(0.6875rem*var(--pg-type-scale,1))] font-semibold uppercase tracking-wide text-[var(--pr-primary,#6366f1)]">
             <MessageSquareText className="h-3.5 w-3.5" />
@@ -331,12 +373,13 @@ export function CampaignOverlay({ campaign, sessionId, onDone, constrained = fal
         ) : (
           <>
             <PortalCard className="overflow-hidden p-0">
-              {asset?.imageUrl && (
+              {asset?.imageUrl && !imageFailed && (
                 <button type="button" onClick={openBanner} className="block w-full">
                   <img
                     src={asset.imageUrl}
                     alt={asset.altText ?? ""}
                     className="w-full object-cover"
+                    onError={() => setImageFailed(true)}
                   />
                 </button>
               )}
@@ -381,7 +424,7 @@ export function CampaignOverlay({ campaign, sessionId, onDone, constrained = fal
                   )}
                 </div>
               ) : (
-                !asset?.imageUrl && (
+                (!asset?.imageUrl || imageFailed) && (
                   <div className="p-8 text-center">
                     <p className="pg-body text-[var(--pg-ink-muted)]">{t("sponsorMessage")}</p>
                   </div>

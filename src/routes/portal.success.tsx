@@ -24,13 +24,22 @@ import {
   usePortalRuntime,
   loadPersistedHotspotSubmit,
   persistHotspotSubmit,
+  loadPreGateDone,
+  persistPreGateDone,
 } from "@/context/PortalRuntimeContext";
 import { buildSessionUrl } from "@/lib/portal-session-url";
 import { HOTSPOT_FALLBACK_PASSWORD, submitTopLevelForm } from "@/lib/portal-top-level-form";
 import { nasAuthorizedFromSearch } from "@/lib/portal-nas-state";
 import { PORTAL_SLOW_NOTICE_DELAY_MS } from "@/lib/portal-post-connect";
 import { usePortalLinkSearch } from "@/components/portal-runtime/usePortalLinkSearch";
-import { isCaptiveNetworkAssistant } from "@/lib/portal-cna";
+import { isCaptiveSheet } from "@/lib/portal-cna";
+import { isSafeRedirectTarget, resolvePostLoginDestination } from "@/lib/portal-post-login";
+import { preGateSkipReason } from "@/lib/portal-pre-gate";
+import {
+  PreGatePhase,
+  usePreGatePlan,
+  type PreGateResult,
+} from "@/components/portal-runtime/PreGatePhase";
 import { buildPortalAuthorizeBody, normalizeOmadaText } from "@/lib/portal-authorize-body";
 import {
   buildPortalRadiusAuthorizeBody,
@@ -186,6 +195,8 @@ function SuccessPage() {
     // login, `url` is where the guest was going. Undefined elsewhere.
     arubaRedirect,
     clientIp,
+    previewMode,
+    demoMode,
     setSession,
     t,
   } = usePortalRuntime();
@@ -219,8 +230,49 @@ function SuccessPage() {
     config,
     destinationUrl ?? omadaLandingUrl ?? arubaOriginalUrl,
   );
+  /**
+   * THE PRE-GATE PHASE -- see @/lib/portal-pre-gate for the whole why.
+   *
+   * Android's sign-in sheet (and iOS's) closes itself the moment the gate
+   * opens, so the offer/survey and the profile ask now run HERE, before
+   * any gate-opening request leaves this page. The decision to skip it is
+   * taken once, at mount: a remount bounce, a router that says the gate is
+   * already open, or a re-entry after the phase already ran all go straight
+   * to the gate exactly as before.
+   */
+  const [preGateSkip] = useState(() => {
+    const lastSubmit = loadPersistedHotspotSubmit();
+    return preGateSkipReason({
+      hasSession: !!session,
+      simulated: previewMode || demoMode,
+      nasAlreadyAuthorized:
+        typeof window !== "undefined" && nasAuthorizedFromSearch(window.location.search) === true,
+      recentlySubmitted:
+        !!lastSubmit &&
+        !!guestIdentifier &&
+        lastSubmit.identifier === guestIdentifier &&
+        Date.now() - lastSubmit.at < HOTSPOT_RESUBMIT_COOLDOWN_MS,
+      alreadyDone: !!session && loadPreGateDone() === session.sessionId,
+    });
+  });
+  const preGatePlan = usePreGatePlan(session, preGateSkip !== null);
+  const [preGateResult, setPreGateResult] = useState<PreGateResult | null>(null);
+  // Nothing on this page may open the gate until this is true. It never
+  // waits on more than the bounded offer lookup when there is nothing to
+  // show, and never on more than `PRE_GATE_MAX_MS` when there is.
+  const gateReady =
+    preGateSkip !== null ||
+    preGateResult !== null ||
+    (preGatePlan.ready && preGatePlan.steps.length === 0);
   const sessionTarget = () =>
-    buildSessionUrl(organizationId, locationId, routerId, language, deviceMac);
+    buildSessionUrl(
+      organizationId,
+      locationId,
+      routerId,
+      language,
+      deviceMac,
+      preGateResult?.shown ? session?.sessionId : undefined,
+    );
   // The destination for the two assign branches that don't build a NAS
   // POST (already-authorized, and no login URL at all): a redirect-mode
   // venue's guest goes STRAIGHT to the URL on a real document load (the
@@ -231,10 +283,17 @@ function SuccessPage() {
   // the honest resting place there too -- this page never points any
   // client at captive.apple.com (see the `dst` comment on the POST
   // branch).
-  const directTarget = () =>
-    !isCaptiveNetworkAssistant() && destination.mode === "redirect" && destination.url
-      ? destination.url
-      : sessionTarget();
+  //
+  // A banner link the guest tapped BEFORE the gate (the pre-gate offer) is
+  // honoured here, once they are online, and outranks the venue's own
+  // redirect -- it is the guest's explicit choice. Real browsers only, and
+  // through the same `isSafeRedirectTarget` guard as every other sink.
+  const directTarget = () => {
+    if (isCaptiveSheet()) return sessionTarget();
+    const tapped = preGateResult?.clickUrl;
+    if (tapped && isSafeRedirectTarget(tapped)) return tapped;
+    return destination.mode === "redirect" && destination.url ? destination.url : sessionTarget();
+  };
   // captive-portal-v7-design-spec.md §1.1 (L1). This route is NOT in the
   // spec's own L1 route list, and that list is wrong: the slow/stuck
   // notice below renders past SLOW_NOTICE_DELAY_MS as plain text directly
@@ -532,7 +591,7 @@ function SuccessPage() {
     hotspotLoginSubmitted.current = true;
     // Same destination rule as the RouterOS POST below: the CNA websheet
     // lands on the session page, everyone else on the venue's decision.
-    const arubaDst = isCaptiveNetworkAssistant() ? sessionTarget() : directTarget();
+    const arubaDst = directTarget();
     // Same flick-flash cooldown as RouterOS: a remount moments after a real
     // submit goes to the destination on a real document load. If the AP's
     // gate is still shut, the AP intercepts that load and redirects back
@@ -739,11 +798,7 @@ function SuccessPage() {
     //
     // Reachable ONLY for a client the NAS has NOT already authorized --
     // the guard at the top of this function returned for the other case.
-    const dst = isCaptiveNetworkAssistant()
-      ? sessionTarget()
-      : destination.mode === "redirect" && destination.url
-        ? destination.url
-        : sessionTarget();
+    const dst = directTarget();
 
     // Real incident, live captive-portal "flick flick" flash: a remount
     // landing back here within HOTSPOT_RESUBMIT_COOLDOWN_MS of this exact
@@ -794,6 +849,8 @@ function SuccessPage() {
   }
 
   useEffect(() => {
+    // The pre-gate phase holds every gate branch below until it is done.
+    if (!gateReady) return;
     attemptSubmit();
     // Real dependencies only -- `attemptSubmit` itself is intentionally
     // excluded (it's redefined every render but reads current props via
@@ -811,6 +868,7 @@ function SuccessPage() {
     netProvider,
     portalMode,
     arubaRedirect,
+    gateReady,
   ]);
 
   useEffect(() => {
@@ -824,13 +882,15 @@ function SuccessPage() {
   useEffect(() => {
     setShowSlowNotice(false);
     setShowEscapeHatch(false);
+    // The slow/stuck clock measures the GATE, not a guest reading an offer.
+    if (!gateReady) return;
     const slow = window.setTimeout(() => setShowSlowNotice(true), SLOW_NOTICE_DELAY_MS);
     const escape = window.setTimeout(() => setShowEscapeHatch(true), ESCAPE_HATCH_DELAY_MS);
     return () => {
       window.clearTimeout(slow);
       window.clearTimeout(escape);
     };
-  }, [attempt]);
+  }, [attempt, gateReady]);
 
   function retry() {
     hotspotLoginSubmitted.current = false;
@@ -844,6 +904,29 @@ function SuccessPage() {
   }
 
   if (!session) return null;
+
+  if (!gateReady) {
+    if (!preGatePlan.ready) {
+      // The bounded offer lookup: the same connecting visual the gate
+      // shows, so a venue with nothing to show sees no change at all.
+      return (
+        <PortalShell showBrandPanel={false}>
+          <PortalConnectingState />
+        </PortalShell>
+      );
+    }
+    return (
+      <PreGatePhase
+        steps={preGatePlan.steps}
+        campaign={preGatePlan.campaign}
+        session={session}
+        onFinished={(result) => {
+          persistPreGateDone(session.sessionId);
+          setPreGateResult(result);
+        }}
+      />
+    );
+  }
 
   if (ssidGate?.kind === "needs-pass") {
     return <SsidNeedsPassScreen network={ssidGate.network} portalSearch={portalSearch} />;
