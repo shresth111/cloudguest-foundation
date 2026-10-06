@@ -1,5 +1,6 @@
 import { guestPortalApi } from "@/services/guest-portal-api";
 import { clampFeedbackDwellMinutes } from "@/lib/portal-post-connect";
+import { toPostLoginSequence } from "@/lib/portal-post-login-sequence";
 import {
   clampBackgroundFocal,
   clampBackgroundOverlayStrength,
@@ -129,6 +130,12 @@ interface BackendCaptivePortalConfig {
    * production is not. */
   collect_guest_name?: boolean;
   collect_guest_email?: boolean;
+  /** Name required at sign-in. See `RuntimePortalConfig.requireGuestName`. */
+  require_guest_name?: boolean;
+  /** Email required at sign-in (migration 0148). */
+  require_guest_email?: boolean;
+  /** Ordered post-login sequence, or null when never saved. */
+  post_login_sequence?: unknown;
   review_url?: string | null;
   review_card_enabled?: boolean;
   guest_feedback_enabled?: boolean;
@@ -183,6 +190,15 @@ interface BackendGuestLoginResponse {
   has_opened_review_link?: boolean;
   /** §5.8 of the marketing spec; absent on a backend that predates it. */
   marketing_consent_offer?: { text: string; text_version: string } | null;
+  /** Name required at sign-in -- see `RuntimeSession.nameRequired`. Absent
+   * on a backend that predates it, which has no gate. */
+  name_required?: boolean;
+  /** Email required at sign-in -- see `RuntimeSession.emailRequired`. */
+  email_required?: boolean;
+  /** Known-detail bits -- see `RuntimeSession.hasName`/`hasEmail`. */
+  has_name?: boolean;
+  has_email?: boolean;
+  profile_declined?: boolean;
   session: BackendGuestSession;
   device: BackendGuestDevice | null;
 }
@@ -333,6 +349,9 @@ function toRuntimeConfig(c: BackendCaptivePortalConfig): RuntimePortalConfig {
     // docstring on `RuntimePortalConfig`.
     collectGuestName: c.collect_guest_name ?? false,
     collectGuestEmail: c.collect_guest_email ?? false,
+    requireGuestName: c.require_guest_name ?? false,
+    requireGuestEmail: c.require_guest_email ?? false,
+    postLoginSequence: toPostLoginSequence(c.post_login_sequence),
     // Stored and used VERBATIM -- never rebuilt from a place id. `null`
     // means the review card never renders, with no placeholder.
     reviewUrl: c.review_url ?? null,
@@ -379,6 +398,13 @@ function toRuntimeSession(data: BackendGuestLoginResponse): RuntimeSession {
     // landing ahead of the backend changes nothing for anyone.
     hasProfile: data.has_profile ?? false,
     hasOpenedReviewLink: data.has_opened_review_link ?? false,
+    nameRequired: data.name_required ?? false,
+    emailRequired: data.email_required ?? false,
+    // Left undefined (not false) on a backend that predates them, so the
+    // post-connect card can tell "unknown" from "not on file".
+    hasName: data.has_name,
+    hasEmail: data.has_email,
+    profileDeclined: data.profile_declined,
     marketingConsentOffer: data.marketing_consent_offer
       ? {
           text: data.marketing_consent_offer.text,
@@ -650,6 +676,54 @@ export const portalRuntimeService = {
       email: params.email || undefined,
       declined: params.declined || undefined,
     });
+  },
+
+  /** Name required at sign-in: `POST /guest/sign-in-name`, from the one
+   * "Your name" screen between OTP verify and the network handoff. The
+   * caller AWAITS this before starting the hotspot login / controller
+   * authorize, so the name is on file before anything asks the backend to
+   * open the gate. `guestId`/`sessionId` are the proof-of-session pair the
+   * OTP login just returned. Errors carry `data.code`:
+   * `guest_name_invalid` (400, empty/too long). */
+  async submitSignInName(params: {
+    guestId: string;
+    sessionId: string;
+    displayName: string;
+  }): Promise<{ displayName: string; hasProfile: boolean }> {
+    const { data } = await guestPortalApi.post<{
+      guest_id: string;
+      display_name: string;
+      has_profile: boolean;
+    }>("/guest/sign-in-name", {
+      guest_id: params.guestId,
+      session_id: params.sessionId,
+      display_name: params.displayName,
+    });
+    return { displayName: data.display_name, hasProfile: data.has_profile };
+  },
+
+  /** `POST /guest/sign-in-details` -- the name and/or email the venue
+   * requires at sign-in (the generalisation of `submitSignInName`). Awaited
+   * by `/portal/success` BEFORE it opens the gate. Errors carry
+   * `data.code` `guest_name_invalid` / `guest_email_invalid`. */
+  async submitSignInDetails(params: {
+    guestId: string;
+    sessionId: string;
+    displayName?: string;
+    email?: string;
+  }): Promise<{ hasName: boolean; hasEmail: boolean; hasProfile: boolean }> {
+    const { data } = await guestPortalApi.post<{
+      guest_id: string;
+      has_name: boolean;
+      has_email: boolean;
+      has_profile: boolean;
+    }>("/guest/sign-in-details", {
+      guest_id: params.guestId,
+      session_id: params.sessionId,
+      ...(params.displayName !== undefined ? { display_name: params.displayName } : {}),
+      ...(params.email !== undefined ? { email: params.email } : {}),
+    });
+    return { hasName: data.has_name, hasEmail: data.has_email, hasProfile: data.has_profile };
   },
 
   /** `POST /guest/marketing-consent` (marketing spec §5.8). Called ONLY

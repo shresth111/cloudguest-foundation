@@ -10,10 +10,6 @@ import {
   PG_PRIMARY_BTN,
   PG_SECONDARY_BTN,
 } from "@/components/portal-runtime/PortalGuestUi";
-import {
-  CampaignOverlay,
-  campaignHasRenderableContent,
-} from "@/components/portal-runtime/CampaignOverlay";
 import { GuestProfileNudge } from "@/components/portal-runtime/GuestProfileNudge";
 import { GoogleReviewNudge } from "@/components/portal-runtime/GoogleReviewNudge";
 import { GuestFeedbackNudge } from "@/components/portal-runtime/GuestFeedbackNudge";
@@ -26,7 +22,10 @@ import { usePortalLinkSearch } from "@/components/portal-runtime/usePortalLinkSe
 import { passwordSignInOffered } from "@/lib/portal-auth-methods";
 import { scriptClassOf } from "@/lib/portal-script";
 import { PostLoginHtmlFrame } from "@/components/portal-runtime/PostLoginHtmlFrame";
-import { resolvePostLoginDestination } from "@/lib/portal-post-login";
+import type { PostLoginDestination } from "@/lib/portal-post-login";
+import { resolvePostLoginSequence } from "@/lib/portal-post-login-sequence";
+import { PostLoginSequenceRunner } from "@/components/portal-runtime/PostLoginSequenceRunner";
+import { expandSequenceItems } from "@/lib/portal-post-login-sequence-items";
 import { isCaptiveNetworkAssistant } from "@/lib/portal-cna";
 
 export const Route = createFileRoute("/portal/session")({
@@ -307,10 +306,26 @@ function SessionPage() {
   }, [liveSession, setSession, setGuestIdentifier]);
   const navigate = useNavigate({ from: "/portal/session" });
   const portalSearch = usePortalLinkSearch();
-  // The single post-login destination decision -- html / redirect / default
-  // -- see @/lib/portal-post-login for the whole rule. This page renders
-  // it (html), bounces to it (redirect), or is it (default, unchanged).
-  const destination = resolvePostLoginDestination(config, destinationUrl);
+  // The venue's post-login SEQUENCE (@/lib/portal-post-login-sequence):
+  // ordered steps (survey -> offer -> page), then the finish (connected
+  // page or a website). A venue that never saved one is on the sequence
+  // derived from its old single choice, so its guests see what they always
+  // saw. `destination` below is that finish in the old three-way
+  // vocabulary (it used to come from `resolvePostLoginDestination`):
+  //   html     -> the venue's page is the LAST step and the finish is the
+  //               connected page, so the page IS the resting page
+  //   redirect -> leave for the URL once every step has run
+  //   default  -> the built-in connected page
+  const sequence = resolvePostLoginSequence(config, destinationUrl);
+  const destination: PostLoginDestination = sequence.pageIsResting
+    ? { mode: "html", html: sequence.html, url: sequence.url }
+    : sequence.finish === "redirect" && sequence.url
+      ? { mode: "redirect", html: null, url: sequence.url }
+      : { mode: "default", html: null, url: undefined };
+  // The steps that run BEFORE the finish: everything, except a resting
+  // page (that one is rendered as the destination itself, below).
+  const preFinishSteps = sequence.pageIsResting ? sequence.steps.slice(0, -1) : sequence.steps;
+  const wantsCampaigns = preFinishSteps.some((s) => s !== "page") || destination.mode === "default";
   // Never auto-redirect inside Apple's captive websheet: it cannot be
   // navigated to an arbitrary page (iOS closes the sheet itself once its
   // own captive re-probe succeeds through the now-open gate -- see
@@ -329,17 +344,25 @@ function SessionPage() {
   // together with `recordImpression` (fired by `CampaignOverlay` itself
   // once the guest is done) is what keeps this from re-showing on every
   // later visit to this same page.
-  const { data: nextCampaign } = useQuery({
-    queryKey: ["next-campaign", session?.sessionId],
-    queryFn: () => campaignPortalService.getNextCampaign(session!.sessionId),
-    // Only the built-in connected page shows campaigns: an owner-authored
-    // post-login page (or a bounce to a URL) is the destination, not a
-    // backdrop for one.
-    enabled: !!session?.sessionId && destination.mode === "default",
+  //
+  // Now the WHOLE eligible queue, not one campaign: `/next` returned
+  // exactly one per session, picked by a tie-break on `starts_at`, so a
+  // venue with an every-login offer and a survey starting the same day
+  // never showed the survey at all (staging QA 2026-10-06). The sequence
+  // runner below shows the survey step's and the offer step's campaigns in
+  // the venue's order; the one-question star prompt is left for the
+  // dwell-gated inline card.
+  const { data: campaignQueue, isFetched: queueFetched } = useQuery({
+    queryKey: ["campaign-queue", session?.sessionId],
+    queryFn: () => campaignPortalService.getCampaignQueue(session!.sessionId),
+    enabled: !!session?.sessionId && wantsCampaigns,
+    // Fetched once per page load: the runner walks a stable list, and the
+    // backend leaves out whatever this session has already been shown, so
+    // a reload resumes rather than replays.
     staleTime: Infinity,
     retry: false,
   });
-  const [campaignDismissed, setCampaignDismissed] = useState(false);
+  const [sequenceDone, setSequenceDone] = useState(false);
 
   // ===== THE POST-CONNECT ASK SLOT =====
   //
@@ -442,13 +465,24 @@ function SessionPage() {
     if (redirectFired.current) return;
     if (destination.mode !== "redirect" || inCna) return;
     if (!session || !destination.url) return;
+    // Only once every step before the finish has run.
+    if (preFinishSteps.length > 0 && !sequenceDone) return;
     if (hasExpiry && remainingMs <= 0) return;
     redirectFired.current = true;
     // A real document load: if the NAS gate is somehow still shut it
     // intercepts this request and reissues a portal URL, self-correcting
     // exactly as portal.success.tsx's own assigns do.
     window.location.assign(destination.url);
-  }, [destination.mode, destination.url, inCna, session, hasExpiry, remainingMs]);
+  }, [
+    destination.mode,
+    destination.url,
+    inCna,
+    session,
+    hasExpiry,
+    remainingMs,
+    preFinishSteps.length,
+    sequenceDone,
+  ]);
 
   const bytesUsed = (session?.bytesUploaded ?? 0) + (session?.bytesDownloaded ?? 0);
   const bytesLimit = (session?.dataLimitMb ?? 0) * 1024 * 1024;
@@ -466,6 +500,23 @@ function SessionPage() {
   }, [hasExpiry, remainingMs, t]);
 
   if (!session || now === 0) return null;
+
+  // ===== THE SEQUENCE, BEFORE THE FINISH =====
+  // Runs the venue's steps one screen at a time. A step with nothing in it
+  // for this guest is skipped. Waits for the campaign queue only when a
+  // campaign step exists (a failed fetch reads as "nothing eligible" -- the
+  // guest is online either way and must never be stuck here).
+  if (preFinishSteps.length > 0 && !sequenceDone) {
+    const needsQueue = preFinishSteps.some((s) => s !== "page");
+    if (needsQueue && !queueFetched) return null;
+    return (
+      <PostLoginSequenceRunner
+        items={expandSequenceItems(preFinishSteps, campaignQueue ?? [], sequence.html)}
+        sessionId={session.sessionId}
+        onDone={() => setSequenceDone(true)}
+      />
+    );
+  }
 
   // ===== OWNER-AUTHORED POST-LOGIN PAGE ("html" mode) =====
   //
@@ -579,27 +630,7 @@ function SessionPage() {
   // routed to an inline card below, behind a dwell gate. Everything else --
   // banners, redirects, real multi-question surveys -- keeps the takeover,
   // because those are arrival content a venue authored to be read.
-  const starCampaign = nextCampaign && isStarFeedbackCampaign(nextCampaign) ? nextCampaign : null;
-
-  // See this component's own comment on the `nextCampaign` query above --
-  // `campaignHasRenderableContent` is the same "an admin created a SURVEY
-  // with zero questions / a BANNER with no asset" guard `CampaignOverlay`
-  // itself relies on, checked here too so this never mounts that component
-  // for genuinely empty content.
-  if (
-    nextCampaign &&
-    !starCampaign &&
-    campaignHasRenderableContent(nextCampaign) &&
-    !campaignDismissed
-  ) {
-    return (
-      <CampaignOverlay
-        campaign={nextCampaign}
-        sessionId={session.sessionId}
-        onDone={() => setCampaignDismissed(true)}
-      />
-    );
-  }
+  const starCampaign = campaignQueue?.find((c) => isStarFeedbackCampaign(c)) ?? null;
 
   // `now` is the same 1s tick the countdown above already runs, so the
   // 25-minute dwell gate costs one comparison rather than a feature.

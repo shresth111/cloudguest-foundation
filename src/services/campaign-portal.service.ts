@@ -87,6 +87,32 @@ export const campaignPortalService = {
     return data ? toNextCampaign(data) : null;
   },
 
+  /** EVERY campaign eligible for this guest session right now, in the
+   * backend's deterministic order (newest start first, then created, then
+   * id), minus the ones this session has already been shown --
+   * `GET /portal/campaigns/queue`. The post-login sequence partitions it
+   * into its survey and offer steps, so a venue running a survey AND an
+   * offer gets both, in the order it configured, instead of whichever one
+   * won `/next`'s tie-break (staging QA 2026-10-06: the offer won a tie on
+   * `starts_at` and the survey could never show).
+   *
+   * Falls back to `/next` (a queue of at most one) against a backend that
+   * predates the route, so this frontend can ship first. */
+  async getCampaignQueue(sessionId: string): Promise<NextCampaign[]> {
+    try {
+      const { data } = await guestPortalApi.get<BackendNextCampaign[] | null>(
+        "/portal/campaigns/queue",
+        { params: { session_id: sessionId } },
+      );
+      return (data ?? []).map(toNextCampaign);
+    } catch (e) {
+      const status = (e as { status?: number | null } | null)?.status;
+      if (status !== 404 && status !== 405) throw e;
+      const one = await campaignPortalService.getNextCampaign(sessionId);
+      return one ? [one] : [];
+    }
+  },
+
   /** Records one "this campaign was shown to this guest session" event.
    * Fire-and-forget from the caller's perspective (best-effort telemetry,
    * never something a guest's own flow should block or fail on) -- but

@@ -1648,7 +1648,16 @@ function buildPortalOverrideFileSetLines(
     // consequence, rather than letting a clean-looking paste imply the
     // venue's portal is installed when the stock MikroTik page is still
     // there.
+    //
+    // WAIT FOR THE PAGES FIRST. RouterOS writes a new hotspot's stock pages
+    // ASYNCHRONOUSLY after `/ip hotspot add`. Measured on CHR 7.16.2: 0
+    // files at t=0, 1 at t=1s. Under `/import` this chunk runs microseconds
+    // after the Hotspot chunk, so on 7.15.3/7.16.2 every page chunk found 0
+    // files, wrote nothing, and the Portal Identity Check then stopped the
+    // import. Up to 10s, and only while nothing matches: a router whose pages
+    // already exist pays 10 quick `find`s and no delay.
     const line = [
+      `:for pfTry from=1 to=10 do={ :if ([:len [/file find where name~"${pattern}"]] = 0) do={ :delay 1s } }`,
       `:local pfHits [:len [/file find where name~"${pattern}"]]`,
       `:if ($pfHits > 0) do={ /file set [find where name~"${pattern}"] contents="${contents}" }`,
       `:if ($pfHits > 0) do={ :put ("  Portal page ${page.file}: OK, overwrote " . [:tostr $pfHits] . " file(s).") }`,
@@ -2709,6 +2718,116 @@ function wanExistenceCheckLines(ifNameExprs: string[], role: InterfaceRole = "WA
  * `$clkVerdict` sits on the same entered line as the `:local` that binds
  * it -- the RouterOS console runs each entered line as its own program.
  * Every `do={}` body holds exactly one statement. */
+/** The device-mode features this generator's output cannot work without.
+ * Measured against every `.rsc` this generator emits: `/ip hotspot` (the
+ * guest network itself), `/system scheduler` (heartbeat + guest access
+ * sync), `/tool fetch` (both of those talk to the platform through it).
+ * Nothing else it writes is in a device-mode-gated menu (no proxy, romon,
+ * socks, e-mail, sniffer, container ...). Exported for the suite. */
+export const DEVICE_MODE_REQUIRED_FEATURES = ["hotspot", "scheduler", "fetch"] as const;
+
+/** The exact text the preflight prints for a RouterOS 6 device. */
+export const ROUTEROS6_STOP_MESSAGE =
+  "RouterOS 7 required: WireGuard tunnel unavailable on v6, upgrade via System > Packages";
+
+/** THE PREFLIGHT: refuse, before ANY change, a router this script cannot
+ * finish on. Always the FIRST chunk.
+ *
+ * 1. ROUTEROS 6. v6, like v7, parses the WHOLE file before line 1, and an
+ *    unknown PROPERTY anywhere (`servers=` on the NTP client,
+ *    `routing-table=` on a route write) is a parse error that rejects the
+ *    file outright -- nothing runs, not even this chunk. An unknown MENU
+ *    (`/interface wireguard ...` on v6) is different: it only fails at RUN
+ *    time ("bad command name wireguard"), when execution reaches it. So
+ *    once every v6 parse blocker below is deferred into `[:parse]` (the
+ *    suite's section 19 pins that), this v6-parseable version check on the
+ *    first lines DOES run on v6 and stops the import with a readable
+ *    message before the first v7-only command executes (measured on CHR
+ *    6.49.22). Every statement on these lines is v6 syntax (`/system
+ *    resource get version`, `:pick`, `:find`, `:tonum`) -- nothing here may
+ *    use a v7-only command or property, or v6 would reject the whole file.
+ *
+ * 2. DEVICE-MODE (RouterOS 7.13+, enforced harder from 7.17). A router in
+ *    `mode=home`, or with individual features switched off, rejects
+ *    `/system scheduler add`, `/tool fetch` and `/ip hotspot` at RUN time
+ *    with "not allowed by device-mode". Measured live 2026-10-03 on a fresh
+ *    hEX lite (7.21.4): steps 1-22 applied, then step 23 died on the
+ *    scheduler -- a half-provisioned router. Reproduced on CHR 7.24.5 in
+ *    `mode=home` (scheduler, fetch and hotspot all `no`). So the flags are
+ *    read FIRST and the import stops before anything is touched.
+ *
+ *    `/system device-mode` does not exist before 7.13 and its property list
+ *    differs between releases. Property names resolve at PARSE time (see
+ *    the Clock + NTP chunk), so every read is a `[:parse ...]` string run
+ *    inside `:do {} on-error={}`: on a release without the menu or the
+ *    property it is a catchable run-time error, read as "not restricted"
+ *    (there is no device-mode there to restrict anything).
+ *
+ * One entered line per verdict: the console runs each entered line as its
+ * own program, so `$pfDm` is bound and consumed on the same line, and every
+ * `do={}` body holds exactly one statement. */
+function buildPreflightChunk(): RouterSetupScriptChunk {
+  // v6-safe major-version read, inlined (not a `:local`) so each line is
+  // self-contained for a chunk-by-chunk paste as well.
+  const major = `[:tonum [:pick [/system resource get version] 0 [:find [/system resource get version] "."]]]`;
+  const isV6 = `${major} < 7`;
+  const v6Lines = [
+    `:if (${isV6}) do={ :put "====================================================" }`,
+    `:if (${isV6}) do={ :put "  STOPPED BEFORE ANY CHANGE: this router runs RouterOS 6." }`,
+    `:if (${isV6}) do={ :put "  ${ROUTEROS6_STOP_MESSAGE}." }`,
+    `:if (${isV6}) do={ :put "  Upgrade to RouterOS 7, then import this SAME file again." }`,
+    `:if (${isV6}) do={ :put "====================================================" }`,
+    `:if (${isV6}) do={ :log error "cloudguest: ${ROUTEROS6_STOP_MESSAGE}" }`,
+    `:if (${isV6}) do={ :error "cloudguest: STOPPING -- ${ROUTEROS6_STOP_MESSAGE}. Under /import the file ENDS HERE: nothing below ran and nothing on this router was changed by this script." }`,
+  ];
+  const features = DEVICE_MODE_REQUIRED_FEATURES.map((f) => `"${f}"`).join(";");
+  const off = `[:len $pfDm] > 0`;
+  const dmLine = [
+    `:local pfDm ""`,
+    // `= "false"` on the STRING form: the property is a bool on 7.24.5;
+    // `:tostr` makes the comparison independent of the type a given
+    // release returns.
+    `:foreach pfF in={${features}} do={ :do { :if ([:tostr [[:parse (":return [/system device-mode get " . $pfF . "]")]]] = "false") do={ :set pfDm ($pfDm . " " . $pfF) } } on-error={ :set pfDm $pfDm } }`,
+    `:do { :if ([:tostr [[:parse ":return [/system device-mode get flagged]"]]] = "true") do={ :set pfDm ($pfDm . " (device FLAGGED: configuration is locked)") } } on-error={ :set pfDm $pfDm }`,
+    `:if (${off}) do={ :put "====================================================" }`,
+    `:if (${off}) do={ :put "  STOPPED BEFORE ANY CHANGE: RouterOS device-mode blocks what this script needs." }`,
+    `:if (${off}) do={ :put ("  disabled by device-mode:" . $pfDm) }`,
+    `:if (${off}) do={ :put "  Fix, in the router terminal:" }`,
+    `:if (${off}) do={ :put "    /system/device-mode/update mode=advanced" }`,
+    `:if (${off}) do={ :put "  then CONFIRM within 5 minutes: power-cycle the router (unplug the power," }`,
+    `:if (${off}) do={ :put "  plug it back in) or briefly press its reset button. Unconfirmed, the change" }`,
+    `:if (${off}) do={ :put "  is discarded. A software /system reboot does NOT confirm it. On a CHR or" }`,
+    `:if (${off}) do={ :put "  other VM: stop and start the VM (a cold boot)." }`,
+    `:if (${off}) do={ :put "  Check with /system/device-mode/print -- scheduler, fetch and" }`,
+    `:if (${off}) do={ :put "  hotspot must read yes -- then import this SAME file again." }`,
+    `:if (${off}) do={ :put "====================================================" }`,
+    `:if (${off}) do={ :log error ("cloudguest: device-mode blocks" . $pfDm . " -- run /system/device-mode/update mode=advanced and confirm with a power-cycle") }`,
+    `:if (${off}) do={ :error ("cloudguest: STOPPING -- device-mode blocks" . $pfDm . ". Under /import the file ENDS HERE: nothing below ran and nothing on this router was changed by this script. Run /system/device-mode/update mode=advanced, confirm it with a power-cycle within 5 minutes, then import the SAME file again.") }`,
+  ].join("; ");
+  // A WARNING, NOT A STOP: `:deserialize` only exists from 7.13 (measured:
+  // a run-time error on CHR 7.12.2, works on 7.24.5). Without it the Guest
+  // Access Sync chunk logs "authorized-MAC reply unparseable" every minute
+  // and never opens the gate for signed-in guests. Everything else in this
+  // script works on 7.1+, so the import carries on -- but the operator is
+  // told, on screen and in the log, before anything is written.
+  const noDeserialize = `:do { [[:parse ":local pfJ [:deserialize from=json value=\\"[]\\"]"]] } on-error={ :set pfOld "yes" }`;
+  const oldRosLine = [
+    `:local pfOld "no"`,
+    noDeserialize,
+    `:if ($pfOld = "yes") do={ :put "  WARNING: RouterOS older than 7.13 (no :deserialize). Guest Access Sync cannot read the platform's reply, so signed-in guests may get NO internet. Upgrade: System > Packages > Check For Updates." }`,
+    `:if ($pfOld = "yes") do={ :log warning "cloudguest: RouterOS older than 7.13 -- Guest Access Sync cannot work, upgrade RouterOS" }`,
+  ].join("; ");
+  return {
+    label: "Preflight (RouterOS 7 + device-mode)",
+    script: [
+      ...v6Lines,
+      dmLine,
+      oldRosLine,
+      `:put "  RESULT: PASS -- preflight: RouterOS 7, and device-mode allows ${DEVICE_MODE_REQUIRED_FEATURES.join(", ")}."`,
+    ].join("\n"),
+  };
+}
+
 function buildClockNtpChunk(): RouterSetupScriptChunk {
   const serverList = CLOCK_NTP_SERVERS.join(",");
   const notSynced = `$clkStatus != "synchronized"`;
@@ -2759,7 +2878,23 @@ function buildClockNtpChunk(): RouterSetupScriptChunk {
     // statement in each `do=`/`on-error=` body, nested -- the same shape
     // the Heartbeat chunk already uses for its immediate-gw/gateway/ARP
     // ladder.
-    `:do { /system ntp client set enabled=yes servers=${serverList} } on-error={ :do { /system ntp client set enabled=yes primary-ntp=${CLOCK_NTP_SERVERS[0]} secondary-ntp=${CLOCK_NTP_SERVERS[1]} } on-error={ :log warning "cloudguest-clock: the NTP client would accept neither the RouterOS 7 (servers=) nor the RouterOS 6 (primary-ntp=) syntax -- configure NTP by hand in WinBox under System > NTP Client" } }`,
+    //
+    // THE v6 HALF IS A STRING, COMPILED ONLY IF IT IS REACHED. RouterOS
+    // resolves property names at PARSE time, not run time, and the whole
+    // `.rsc` is parsed before its first line runs. `primary-ntp=` does not
+    // exist on RouterOS 7, so as a literal command it was "expected end of
+    // command" -- and `/import` rejected the ENTIRE file with nothing
+    // executed (measured on CHR 7.20.1, 2026-10-02: no WAN list, no bridge,
+    // no NAT, no /radius). `:do {} on-error={}` cannot catch a parse error
+    // in its own body. `[[:parse "..."]]` defers compiling the v6 command to
+    // run time, inside the `on-error`, where a failure IS catchable.
+    //
+    // AND SO IS THE v7 HALF, for the mirror-image reason. RouterOS 6 also
+    // parses the whole file first, and `servers=` is unknown there:
+    // measured on CHR 6.49.22, the literal v7 line was "expected end of
+    // command (line 134 column 42)" and NOTHING ran -- not even the
+    // Preflight chunk's RouterOS 6 stop at the top of the file.
+    `:do { [[:parse "/system ntp client set enabled=yes servers=${serverList}"]] } on-error={ :do { [[:parse "/system ntp client set enabled=yes primary-ntp=${CLOCK_NTP_SERVERS[0]} secondary-ntp=${CLOCK_NTP_SERVERS[1]}"]] } on-error={ :log warning "cloudguest-clock: the NTP client would accept neither the RouterOS 7 (servers=) nor the RouterOS 6 (primary-ntp=) syntax -- configure NTP by hand in WinBox under System > NTP Client" } }`,
     `:put "===================================================="`,
     `:put "  CLOCK / NTP CHECK"`,
     // The `:error` is appended INSIDE this `;`-joined line, not placed on
@@ -2874,7 +3009,7 @@ function buildWireguardPeerLines(
       // endpoint still carries a rotating public key, so an existing peer
       // must be converged onto the platform's current one rather than left
       // holding a key the hub no longer accepts.
-      `:if (!(${noPeerYet})) do={ /interface wireguard peers set [find where interface="${escapeForRouterOsString(WIREGUARD_INTERFACE_NAME)}"] ${peerArgs} endpoint-address="${host}" comment="${rawCmt}" }`,
+      `:if (!(${noPeerYet})) do={ /interface wireguard peers set [/interface wireguard peers find where interface="${escapeForRouterOsString(WIREGUARD_INTERFACE_NAME)}"] ${peerArgs} endpoint-address="${host}" comment="${rawCmt}" }`,
     ];
   }
   const fallback = wireguard.serverEndpointAddress?.trim();
@@ -2938,7 +3073,7 @@ function buildWireguardPeerLines(
     // peer: the correct steady state is exactly one hub peer on this
     // interface, and a device that has somehow accumulated several must
     // converge all of them rather than leave a stale one alongside.
-    `:if ($wgGo = true && !(${noPeerYet})) do={ /interface wireguard peers set [find where interface="${escapeForRouterOsString(WIREGUARD_INTERFACE_NAME)}"] ${peerArgs} endpoint-address=$wgEp comment=$wgCmt }`,
+    `:if ($wgGo = true && !(${noPeerYet})) do={ /interface wireguard peers set [/interface wireguard peers find where interface="${escapeForRouterOsString(WIREGUARD_INTERFACE_NAME)}"] ${peerArgs} endpoint-address=$wgEp comment=$wgCmt }`,
     `:if ($wgGo = true && !(${noPeerYet})) do={ :log info "cloudguest-wg: existing hub peer updated in place to the platform's current key/endpoint" }`,
   );
   return [stmts.join("; ")];
@@ -4975,6 +5110,13 @@ export function buildRouterSetupScriptChunks(opts: {
     });
   }
 
+  // THE PREFLIGHT: before the first chunk that changes anything (only the
+  // INCOMPLETE banner above, which changes nothing and is v6-safe, may come
+  // first). It is the only thing that can stop a RouterOS 6 or a
+  // device-mode-restricted router before the first write. See
+  // `buildPreflightChunk`.
+  chunks.push(buildPreflightChunk());
+
   {
     const lines: string[] = [];
     lines.push(WAN_RENAME_WARNING_HEADER);
@@ -5784,9 +5926,15 @@ export function buildRouterSetupScriptChunks(opts: {
             // at most one, but the read is wrapped rather than assumed.
             `:if ([:len $${g}Plain] > 0) do={ :do { :set ${g}Gw [:tostr [/ip route get $${g}Plain gateway]] } on-error={ :set ${g}Gw "" } }`,
             `:if (!(${gwOkM})) do={ :log warning "cloudguest: WAN${n} has no usable plain default route, so its load-balancing routes were not created -- guest traffic assigned to this WAN by the mangle rules would have nowhere to go. Fix this WAN's gateway and re-paste this chunk" }`,
-            `:if (${gwOkM} && ${own} = 0) do={ /ip route add dst-address=0.0.0.0/0 gateway=$${g}Gw ${ROUTE_TABLE_PROPERTY}="to_wan${n}" distance=1 check-gateway=ping comment="cloudguest-route-wan${n}" }`,
+            // `routing-table=` ON AN `add` IS A PARSE ERROR ON RouterOS 6
+            // ("expected end of command", measured on CHR 6.49.22), and v6
+            // parses the whole file first -- so this literal stopped the
+            // Preflight's v6 stop from ever running. Deferred to run time
+            // with `[:parse]`; the gateway is concatenated in because a
+            // parsed string cannot see this line's `:local`s.
+            `:if (${gwOkM} && ${own} = 0) do={ [[:parse ("/ip route add dst-address=0.0.0.0/0 gateway=\\"" . $${g}Gw . "\\" ${ROUTE_TABLE_PROPERTY}=\\"to_wan${n}\\" distance=1 check-gateway=ping comment=\\"cloudguest-route-wan${n}\\"")]] }`,
             `:if (${gwOkM} && ${own} > 0) do={ /ip route set [find comment="cloudguest-route-wan${n}"] gateway=$${g}Gw }`,
-            `:if (${gwOkM} && ${backup} = 0) do={ /ip route add dst-address=0.0.0.0/0 gateway=$${g}Gw ${ROUTE_TABLE_PROPERTY}="to_wan${nextN}" distance=2 check-gateway=ping comment="cloudguest-backup-wan${nextN}-via-wan${n}" }`,
+            `:if (${gwOkM} && ${backup} = 0) do={ [[:parse ("/ip route add dst-address=0.0.0.0/0 gateway=\\"" . $${g}Gw . "\\" ${ROUTE_TABLE_PROPERTY}=\\"to_wan${nextN}\\" distance=2 check-gateway=ping comment=\\"cloudguest-backup-wan${nextN}-via-wan${n}\\"")]] }`,
             `:if (${gwOkM} && ${backup} > 0) do={ /ip route set [find comment="cloudguest-backup-wan${nextN}-via-wan${n}"] gateway=$${g}Gw }`,
           ].join("; "),
         );
@@ -7474,12 +7622,12 @@ export function buildRouterSetupScriptChunks(opts: {
       // handshake could never complete and re-pasting repaired nothing.
       ...(wireguard.routerPrivateKey
         ? [
-            `:if ([:len [/interface wireguard find where name="${WIREGUARD_INTERFACE_NAME}"]] > 0) do={ /interface wireguard set [find where name="${WIREGUARD_INTERFACE_NAME}"] private-key="${wireguard.routerPrivateKey}" listen-port=13231 }`,
+            `:if ([:len [/interface wireguard find where name="${WIREGUARD_INTERFACE_NAME}"]] > 0) do={ /interface wireguard set [/interface wireguard find where name="${WIREGUARD_INTERFACE_NAME}"] private-key="${wireguard.routerPrivateKey}" listen-port=13231 }`,
           ]
         : [
             // Listen-port is still asserted -- it is not secret material and
             // an existing interface on the wrong port cannot handshake.
-            `:if ([:len [/interface wireguard find where name="${WIREGUARD_INTERFACE_NAME}"]] > 0) do={ /interface wireguard set [find where name="${WIREGUARD_INTERFACE_NAME}"] listen-port=13231 }`,
+            `:if ([:len [/interface wireguard find where name="${WIREGUARD_INTERFACE_NAME}"]] > 0) do={ /interface wireguard set [/interface wireguard find where name="${WIREGUARD_INTERFACE_NAME}"] listen-port=13231 }`,
           ]),
       // NOT a bare `:if (noPeerYet) do={ ...peers add endpoint-address=<host> }`.
       // RouterOS resolves `endpoint-address` once, at creation, and never
@@ -7998,7 +8146,29 @@ export function buildRouterSetupScriptChunks(opts: {
       // instead (`Heartbeat Check`), re-deriving the uplink for itself rather
       // than borrowing variables across a boundary the console does not carry
       // them over.
-      script: buildHeartbeatStatements({ apiBase, agentCredential, wireguard }),
+      //
+      // ONE EXCEPTION, ON ITS OWN LINE: /tool fetch switched off by
+      // device-mode. The heartbeat's fetch sits inside `on-error`, so a
+      // fetch refused with "not allowed by device-mode" was only a `:log
+      // warning` and this chunk printed DONE as if it had checked in
+      // (measured on CHR 7.24.5 `mode=home`; the live hEX lite on 7.21.4 had
+      // the same flags). The flag is read on a SECOND line -- the first line
+      // stays byte-identical to the scheduler's copy and under the paste cap
+      // -- and prints FAIL with the fix. Not an `:error`: this chunk is in the
+      // suite's NEVER_ABORTS list, and in a full `/import` the Preflight has
+      // already stopped such a router before any change; this line is for a
+      // chunk-by-chunk paste. A fetch that fails for any other reason
+      // (route, clock, TLS, credential) is graded by `Heartbeat Check`.
+      script: [
+        buildHeartbeatStatements({ apiBase, agentCredential, wireguard }),
+        [
+          `:local hbDm ""`,
+          `:do { :if ([:tostr [[:parse ":return [/system device-mode get fetch]"]]] = "false") do={ :set hbDm "off" } } on-error={ :set hbDm "" }`,
+          `:if ($hbDm = "off") do={ :put "  RESULT: FAIL -- /tool fetch is DISABLED by device-mode. The check-in did NOT land." }`,
+          `:if ($hbDm = "off") do={ :log error "cloudguest-hb: /tool fetch disabled by device-mode -- heartbeat cannot land" }`,
+          `:if ($hbDm = "off") do={ :put "  Fix: /system/device-mode/update mode=advanced, then power-cycle within 5 minutes to confirm, then paste this chunk again." }`,
+        ].join("; "),
+      ].join("\n"),
     });
     const lines = [
       // `:local` + its reader on ONE line. Split over two entered lines,
@@ -8117,9 +8287,10 @@ export function buildRouterSetupScriptChunks(opts: {
   // route table costs nothing and makes this pasteable on its own, against any
   // router, at any time.
   //
-  // Fetch success itself is deliberately NOT claimed. `/tool fetch
-  // output=none` leaves no artefact on the device to read back, so this
-  // reports what resolved and sends the operator to the one place that knows.
+  // The heartbeat's own `/tool fetch output=none` leaves no artefact to read
+  // back, so this chunk makes its OWN read-only fetch (authorized-macs, same
+  // host, same credential, same path) and grades that. The dashboard is still
+  // the final word on whether the check-in landed.
   deferredChecks.push({
     label: "Heartbeat Check (confirm this router actually appears online)",
     script: [
@@ -8130,10 +8301,26 @@ export function buildRouterSetupScriptChunks(opts: {
         `:local hbcIp ""`,
         `:if ($hbcIf != "") do={ :foreach hbcA in=[/ip address find where interface=$hbcIf] do={ :if ($hbcIp = "") do={ :set hbcIp [:pick [/ip address get $hbcA address] 0 [:find [/ip address get $hbcA address] "/"]] } } }`,
         `:put ("  uplink interface=" . $hbcIf . "   address=" . $hbcIp)`,
+        // THE FETCH ITSELF, READ BACK. This used to print "PASS ... the
+        // check-in was sent" on nothing more than a resolved uplink -- and
+        // the heartbeat's own `/tool fetch` failure is only a `:log
+        // warning`, so a router whose fetch was refused (no route, bad
+        // clock, TLS, a wrong credential, or `/tool fetch` switched off by
+        // device-mode: measured on CHR 7.24.5 `mode=home`) still printed
+        // PASS. One read-only, credentialed GET against the same host, over
+        // the same path the heartbeat uses, is the evidence: `finished` or
+        // FAIL.
+        `:local hbcFetch "failed"`,
+        `:if ($hbcIf != "" && $hbcIp != "") do={ :do { :set hbcFetch ([/tool fetch url="${apiBase}/agent/authorized-macs" http-header-field="X-Agent-Credential: ${agentCredential}" output=user as-value]->"status") } on-error={ :set hbcFetch "failed" } }`,
+        `:local hbcDm ""`,
+        `:do { :if ([:tostr [[:parse ":return [/system device-mode get fetch]"]]] = "false") do={ :set hbcDm "off" } } on-error={ :set hbcDm "" }`,
         `:if ($hbcDefCount = 0) do={ :put "  RESULT: FAIL -- no ACTIVE default route, so this router has no uplink." }`,
         `:if ($hbcDefCount > 0 && $hbcIf = "") do={ :put "  RESULT: FAIL -- a default route exists but its interface did not resolve." }`,
         `:if ($hbcIf != "" && $hbcIp = "") do={ :put "  RESULT: FAIL -- the uplink carries no IPv4 address." }`,
-        `:if ($hbcIf != "" && $hbcIp != "") do={ :put "  RESULT: PASS (device side) -- an uplink resolved and the check-in was sent." }`,
+        `:if ($hbcIf != "" && $hbcIp != "" && $hbcFetch = "finished") do={ :put "  RESULT: PASS (device side) -- an uplink resolved and this router reached the platform over HTTPS." }`,
+        `:if ($hbcIf != "" && $hbcIp != "" && $hbcFetch != "finished") do={ :put "  RESULT: FAIL -- an uplink resolved but /tool fetch to the platform FAILED. No check-in landed." }`,
+        `:if ($hbcDm = "off") do={ :put "  /tool fetch is DISABLED by device-mode. Run /system/device-mode/update mode=advanced, then power-cycle within 5 minutes to confirm." }`,
+        `:if ($hbcIf != "" && $hbcIp != "" && $hbcFetch != "finished") do={ :log warning "cloudguest-hbc: /tool fetch to the platform failed -- heartbeat cannot land" }`,
         `:put "  NOW CONFIRM IT LANDED: this router must show ONLINE in Master console."`,
         `:put "  If it does not, the fetch failed on clock, TLS or DNS. Read the log with"`,
         `:put "  /log print where message~cloudguest"`,

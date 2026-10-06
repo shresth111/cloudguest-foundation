@@ -196,7 +196,9 @@ console.log("post-login destination");
   const session = readFileSync(join(SRC, "routes/portal.session.tsx"), "utf8");
   check(
     "portal.session.tsx resolves the destination through the shared module",
-    /resolvePostLoginDestination/.test(session),
+    // The ordered post-login sequence (2026-10-06) owns the decision now;
+    // its finish is the same html / redirect / default destination.
+    /resolvePostLoginDestination|resolvePostLoginSequence/.test(session),
   );
   check(
     "portal.session.tsx renders the venue's HTML page directly (no /portal/redirect hop)",
@@ -215,7 +217,7 @@ console.log("post-login destination");
   const success = readFileSync(join(SRC, "routes/portal.success.tsx"), "utf8");
   check(
     "portal.success.tsx resolves the same destination",
-    /resolvePostLoginDestination/.test(success),
+    /resolvePostLoginDestination|gateDestinationForSequence/.test(success),
   );
   check(
     "the NAS dst goes straight to the venue URL for redirect mode",
