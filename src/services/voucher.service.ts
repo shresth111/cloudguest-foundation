@@ -46,6 +46,8 @@ interface BackendVoucherBatch {
   validity_minutes: number;
   batch_expires_at: string | null;
   max_uses_per_voucher: number;
+  /** Absent from a backend older than migration 0147. */
+  max_devices_per_voucher?: number;
   data_limit_mb: number | null;
   status: string;
   notes: string | null;
@@ -135,6 +137,7 @@ function toBatch(b: BackendVoucherBatch): VoucherBatch {
     validityMinutes: b.validity_minutes,
     batchExpiresAt: b.batch_expires_at,
     maxUsesPerVoucher: b.max_uses_per_voucher,
+    maxDevicesPerVoucher: b.max_devices_per_voucher ?? b.max_uses_per_voucher,
     dataLimitMb: b.data_limit_mb,
     status: b.status as VoucherBatch["status"],
     notes: b.notes,
@@ -236,7 +239,10 @@ export const voucherService = {
         code_prefix: payload.codePrefix ?? null,
         validity_minutes: payload.validityMinutes,
         batch_expires_at: payload.batchExpiresAt ?? null,
-        max_uses_per_voucher: payload.maxUsesPerVoucher,
+        // Both, equal: `max_devices_per_voucher` is what the backend enforces;
+        // the legacy field keeps an older backend admitting the same number.
+        max_devices_per_voucher: payload.maxDevicesPerVoucher,
+        max_uses_per_voucher: payload.maxDevicesPerVoucher,
         data_limit_mb: payload.dataLimitMb ?? null,
         notes: payload.notes ?? null,
       },
