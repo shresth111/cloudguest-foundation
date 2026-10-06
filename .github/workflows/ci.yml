@@ -1081,6 +1081,22 @@ jobs:
             "device-health" 40 "all checks passed" \
             bun run test:device-health
 
+      # --- Master console SNMP panel ---------------------------------------
+      #
+      # Never "Working" without a successful poll (and never for a vendor the
+      # platform cannot poll); "—" rather than a fabricated time/uptime;
+      # blank secret boxes are not sent; SNMP modules stay Master-only; the
+      # first-paste setup script never touches /snmp (the backend parity
+      # test covers writer vs renderer); the panel is shown for every vendor
+      # so Omada / Instant On say why there is no SNMP.
+      #
+      # Floor 37, observed green at 37.
+      - name: router snmp panel
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "router-snmp" 37 "all checks passed" \
+            bun run test:router-snmp
+
       # --- Customer dashboard KPI figures --------------------------------
       #
       # Two numbers that were shipping wrong to venue owners on the
