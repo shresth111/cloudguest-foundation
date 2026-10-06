@@ -53,6 +53,8 @@ name: CI
 #   test:voucher-walkthrough  51 checks (added 2026-09-02 -- the guest
 #                         walkthrough's voucher step, and the real voucher
 #                         sign-in it must leave alone)
+#   test:voucher-devices      12 checks (added 2026-10-06 -- the voucher
+#                         create screens send a device allowance)
 #   test:post-login-roundtrip 21 checks -- gated in the Jenkinsfile from the
 #                         day it shipped and in NO GitHub Actions step, i.e.
 #                         on nothing that can block a merge, until 2026-09-02
@@ -1660,6 +1662,16 @@ jobs:
             "voucher-walkthrough" 51 \
             "voucher-walkthrough: all checks passed" \
             bun run test:voucher-walkthrough
+      # A voucher's "Devices per voucher" reaches the backend (both the
+      # enforced max_devices_per_voucher and the legacy max_uses_per_voucher,
+      # equal) and both create screens ask for devices, not "Max Uses".
+      # QA 2026-10-06: one voucher admitted one phone. Floor 12, observed 12.
+      - name: voucher devices per code
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "voucher-devices-per-code" 12 \
+            "all checks passed" \
+            bun run test:voucher-devices
       # In package.json since it was written, gated nowhere until now: it
       # has been passing this whole time and proving nothing, the exact
       # state this file's header already records for test:portal-cna (which
