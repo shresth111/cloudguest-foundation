@@ -359,6 +359,17 @@ jobs:
             "portal-post-login" 20 "all checks passed" \
             bun run test:portal-post-login
 
+      # Portal QA 2026-10-06: the ordered post-login sequence (survey ->
+      # offer -> page -> finish), the campaign queue that lets a survey AND
+      # an offer both show, required name/email at sign-in, the
+      # post-connect card never re-asking a known detail, and the editor's
+      # single Save button.
+      - name: portal post-login sequence
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "portal-post-login-sequence" 37 "all checks passed" \
+            bun run test:post-login-sequence
+
       - name: portal sign-in fields
         run: |
           ./scripts/ci-gated-test.sh \

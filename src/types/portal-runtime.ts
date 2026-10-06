@@ -1,3 +1,4 @@
+import type { PostLoginSequence } from "@/lib/portal-post-login-sequence";
 export type RuntimeAuthMethod =
   | "otp_sms"
   | "otp_email"
@@ -466,6 +467,15 @@ export interface RuntimePortalConfig {
    * time. `?? false` when absent: a backend that predates the column has no
    * gate either. */
   requireGuestName: boolean;
+  /** Email required at sign-in -- backend `require_guest_email` (migration
+   * 0148, default OFF; implies `collectGuestEmail`). Same contract as
+   * `requireGuestName`: informational here; the per-session answer is
+   * `RuntimeSession.emailRequired`. Optional: absent reads as off. */
+  requireGuestEmail?: boolean;
+  /** The venue's ordered post-login sequence, or null when never saved
+   * (the portal then derives the old single choice) -- see
+   * `src/lib/portal-post-login-sequence.ts`. Optional on the wire. */
+  postLoginSequence?: PostLoginSequence | null;
   /** The venue's own Google review link, pasted by the merchant and stored
    * verbatim (backend `captive_portal_configs.review_url`). Never
    * synthesised from a place id: neither `g.page/r/…` nor
@@ -676,6 +686,19 @@ export interface RuntimeSession {
    * Optional: synthetic sessions (preview/demo) and a backend that predates
    * the field read as "not required". */
   nameRequired?: boolean;
+  /** The email twin of `nameRequired` (backend `email_required`, code
+   * `guest_email_required`), cleared by `POST /guest/sign-in-details`. */
+  emailRequired?: boolean;
+  /** Whether the backend already holds a name / an email for this guest
+   * (booleans only -- never the values). The post-connect card reads them
+   * so it never asks again for a detail the guest gave at sign-in or on an
+   * earlier visit. `hasEmail` is also true for an email-OTP guest. Absent on
+   * an older backend: the card then falls back to `hasProfile`. */
+  hasName?: boolean;
+  hasEmail?: boolean;
+  /** The guest said "not now" to the post-connect card (backend
+   * `profile_declined`). */
+  profileDeclined?: boolean;
   /** The marketing opt-in the venue offers this guest, or null when there
    * is nothing to offer (wyfy-specs/guest-marketing-campaigns.md §5.8:
    * `GuestLoginResponse.marketing_consent_offer`). Non-null only when the

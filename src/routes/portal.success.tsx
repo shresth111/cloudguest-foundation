@@ -10,7 +10,12 @@ import {
   GUEST_LEGIBILITY_CARD_CLASS,
 } from "@/components/portal-runtime/PortalShell";
 import { GuestNameStep } from "@/components/portal-runtime/GuestNameStep";
-import { isGuestNameRequiredError, needsNameStep } from "@/lib/portal-guest-name";
+import {
+  isGuestEmailRequiredError,
+  isGuestNameRequiredError,
+  needsDetailsStep,
+} from "@/lib/portal-guest-name";
+import { gateDestinationForSequence } from "@/lib/portal-post-login-sequence";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
 import { PortalConnectingState, PG_PRIMARY_BTN } from "@/components/portal-runtime/PortalGuestUi";
 import { GlyphFailure } from "@/components/portal-runtime/PortalGlyphs";
@@ -26,7 +31,6 @@ import { nasAuthorizedFromSearch } from "@/lib/portal-nas-state";
 import { PORTAL_SLOW_NOTICE_DELAY_MS } from "@/lib/portal-post-connect";
 import { usePortalLinkSearch } from "@/components/portal-runtime/usePortalLinkSearch";
 import { isCaptiveNetworkAssistant } from "@/lib/portal-cna";
-import { resolvePostLoginDestination } from "@/lib/portal-post-login";
 import { buildPortalAuthorizeBody, normalizeOmadaText } from "@/lib/portal-authorize-body";
 import {
   buildPortalRadiusAuthorizeBody,
@@ -206,7 +210,12 @@ function SuccessPage() {
   // question as RouterOS's `dst` and Omada's landing page, through the same
   // guards. A venue is behind one vendor, so at most one is defined.
   const arubaOriginalUrl = arubaText(arubaRedirect?.url);
-  const destination = resolvePostLoginDestination(
+  // The post-login SEQUENCE (survey -> offer -> page -> finish) decides it
+  // now: a redirect finish is the gate's direct target only when no step
+  // has to run first; otherwise the guest lands on /portal/session, which
+  // runs the steps and then redirects. Same three-way vocabulary as
+  // `resolvePostLoginDestination`, so nothing below changes shape.
+  const destination = gateDestinationForSequence(
     config,
     destinationUrl ?? omadaLandingUrl ?? arubaOriginalUrl,
   );
@@ -366,6 +375,7 @@ function SuccessPage() {
       // is real but its required name is not on file yet. Bring the name
       // screen back rather than a retry that would be refused identically.
       if (isGuestNameRequiredError(error)) setSession({ ...session, nameRequired: true });
+      else if (isGuestEmailRequiredError(error)) setSession({ ...session, emailRequired: true });
     }
   }
 
@@ -465,9 +475,13 @@ function SuccessPage() {
       window.location.assign(directTarget());
     } catch (error) {
       // See the same branch in `authorizeOnController`.
-      if (isGuestNameRequiredError(error)) {
+      if (isGuestNameRequiredError(error) || isGuestEmailRequiredError(error)) {
         hotspotLoginSubmitted.current = false;
-        setSession({ ...session, nameRequired: true });
+        setSession(
+          isGuestNameRequiredError(error)
+            ? { ...session, nameRequired: true }
+            : { ...session, emailRequired: true },
+        );
         return;
       }
       failRadius(radiusFailureFromError(error));
@@ -562,7 +576,7 @@ function SuccessPage() {
     // name write and the hotspot login POST are strictly sequential. (The
     // backend refuses this session at every gate anyway; this is what keeps
     // the guest from ever seeing that refusal.)
-    if (needsNameStep(session)) return;
+    if (needsDetailsStep(session)) return;
 
     // THE OMADA BRANCH, AND IT IS FIRST.
     //
@@ -852,17 +866,30 @@ function SuccessPage() {
    * ordering is the whole point. No skip and no sign-out link: without the
    * name the backend will not open the gate for this session.
    */
-  if (needsNameStep(session)) {
+  if (needsDetailsStep(session)) {
     return (
       <PortalShell showBrandPanel={false}>
         <div className="flex flex-1 flex-col justify-center">
           <PortalCard>
             <GuestNameStep
-              submit={async (displayName) => {
-                await portalRuntimeService.submitSignInName({
+              askName={!!session.nameRequired}
+              askEmail={!!session.emailRequired}
+              submit={async (displayName, email) => {
+                // Name only: the original endpoint, so this bundle keeps
+                // working against a backend that predates the email twin.
+                if (email === undefined) {
+                  await portalRuntimeService.submitSignInName({
+                    guestId: session.guestId,
+                    sessionId: session.sessionId,
+                    displayName,
+                  });
+                  return;
+                }
+                await portalRuntimeService.submitSignInDetails({
                   guestId: session.guestId,
                   sessionId: session.sessionId,
-                  displayName,
+                  ...(session.nameRequired ? { displayName } : {}),
+                  email,
                 });
               }}
               onDone={() => {
@@ -871,7 +898,14 @@ function SuccessPage() {
                 setAttempt((a) => a + 1);
                 // `hasProfile` too: the name is on file now, so the
                 // post-connect card has nothing left to ask for it.
-                setSession({ ...session, nameRequired: false, hasProfile: true });
+                setSession({
+                  ...session,
+                  hasName: session.hasName || !!session.nameRequired,
+                  hasEmail: session.hasEmail || !!session.emailRequired,
+                  nameRequired: false,
+                  emailRequired: false,
+                  hasProfile: true,
+                });
               }}
             />
           </PortalCard>

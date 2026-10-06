@@ -1,6 +1,7 @@
 import { api } from "@/services/api";
 import { getAllItems } from "@/services/list-all-pages";
 import { clampFeedbackDwellMinutes } from "@/lib/portal-post-connect";
+import { toPostLoginSequence } from "@/lib/portal-post-login-sequence";
 import {
   clampBackgroundOverlayStrength,
   toGuestFontChoice,
@@ -112,6 +113,8 @@ interface BackendCaptivePortalConfig {
    * column, which has no such gate -- so absent reads as off, never as the
    * new server default. */
   require_guest_name?: boolean;
+  require_guest_email?: boolean;
+  post_login_sequence?: unknown;
   review_url?: string | null;
   review_card_enabled?: boolean;
   guest_feedback_enabled?: boolean;
@@ -462,6 +465,9 @@ function toPortal(
       // there is silently dropped on save with a success toast, which is
       // exactly how `fontFamily` shipped as a live control bound to nothing.
       postLoginHtml: c.post_login_html ?? "",
+      // READ half of the post-login sequence (null = never saved; the
+      // editor then shows the sequence derived from the two fields above).
+      postLoginSequence: toPostLoginSequence(c.post_login_sequence),
       successPage: "",
       failurePage: "",
       autoLogin: true,
@@ -500,6 +506,7 @@ function toPortal(
       collectGuestName: c.collect_guest_name ?? false,
       collectGuestEmail: c.collect_guest_email ?? false,
       requireGuestName: c.require_guest_name ?? false,
+      requireGuestEmail: c.require_guest_email ?? false,
       reviewUrl: c.review_url ?? "",
       reviewCardEnabled: c.review_card_enabled ?? false,
       guestFeedbackEnabled: c.guest_feedback_enabled ?? false,
@@ -702,6 +709,7 @@ export const portalService = {
         // WRITE half (create). `|| null` -- an empty or whitespace-only
         // textarea must clear the column, not store "" or " \n".
         post_login_html: input.login?.postLoginHtml?.trim() || null,
+        post_login_sequence: input.login?.postLoginSequence ?? null,
         content_mode: input.content?.mode ?? "login",
         content_heading: input.content?.heading || null,
         content_body: input.content?.body || null,
@@ -713,6 +721,7 @@ export const portalService = {
         // Default ON (owner decision) -- the same value the backend column
         // carries, sent explicitly so the create is not relying on it.
         require_guest_name: input.postConnect?.requireGuestName ?? true,
+        require_guest_email: input.postConnect?.requireGuestEmail ?? false,
         review_url: input.postConnect?.reviewUrl?.trim() || null,
         review_card_enabled: input.postConnect?.reviewCardEnabled ?? false,
         guest_feedback_enabled: input.postConnect?.guestFeedbackEnabled ?? false,
@@ -784,6 +793,11 @@ export const portalService = {
     // column rather than storing an empty string.
     if (patch.login?.postLoginHtml !== undefined)
       body.post_login_html = patch.login.postLoginHtml.trim() || null;
+    // WRITE half (update) of the post-login sequence. Sent in the same body
+    // as the page and the URL it depends on -- the backend validates the
+    // three together against the merged values.
+    if (patch.login?.postLoginSequence !== undefined)
+      body.post_login_sequence = patch.login.postLoginSequence;
     if (patch.content?.mode !== undefined) body.content_mode = patch.content.mode;
     if (patch.content?.heading !== undefined) body.content_heading = patch.content.heading || null;
     if (patch.content?.body !== undefined) body.content_body = patch.content.body || null;
@@ -799,6 +813,8 @@ export const portalService = {
       body.collect_guest_email = patch.postConnect.collectGuestEmail;
     if (patch.postConnect?.requireGuestName !== undefined)
       body.require_guest_name = patch.postConnect.requireGuestName;
+    if (patch.postConnect?.requireGuestEmail !== undefined)
+      body.require_guest_email = patch.postConnect.requireGuestEmail;
     // `|| null` -- clearing the field must clear the column, not store "".
     // Note these two travel INDEPENDENTLY: switching the card off leaves
     // `review_url` exactly as the venue typed it, so turning it back on

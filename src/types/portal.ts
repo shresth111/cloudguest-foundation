@@ -1,3 +1,4 @@
+import type { PostLoginSequence } from "@/lib/portal-post-login-sequence";
 import {
   RUNTIME_LANGUAGE_LABEL,
   type GuestFontChoice,
@@ -126,6 +127,10 @@ export interface PortalLoginSettings {
    * decision -- what happens after a successful sign-in -- and a venue can
    * set either, both, or neither. */
   postLoginHtml: string;
+  /** The ordered post-login sequence (backend `post_login_sequence`), or
+   * null when the venue never saved one -- see
+   * `src/lib/portal-post-login-sequence.ts`. */
+  postLoginSequence?: PostLoginSequence | null;
   successPage: string;
   failurePage: string;
   autoLogin: boolean;
@@ -269,6 +274,9 @@ export interface PortalPostConnect {
    * Implies `collectGuestName`: the backend forces it on, and the editor
    * greys the collect switch while this is on. */
   requireGuestName: boolean;
+  /** Email required at sign-in (backend `require_guest_email`, migration
+   * 0148). Default OFF; implies `collectGuestEmail` (forced server-side). */
+  requireGuestEmail: boolean;
   /** The venue's own Google review link, pasted verbatim from Business
    * Profile → Read reviews → Get more reviews (backend `review_url`).
    * "" means the review card never renders. Never synthesised from a

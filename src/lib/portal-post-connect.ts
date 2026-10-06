@@ -139,6 +139,8 @@ export interface PostConnectConfigInput {
    * name before they got online, so the post-connect card never asks for
    * it again. Optional: absent reads as off. */
   requireGuestName?: boolean;
+  /** Email required at sign-in (migration 0148) -- the email twin. */
+  requireGuestEmail?: boolean;
   reviewUrl: string | null;
   reviewCardEnabled: boolean;
   guestFeedbackEnabled: boolean;
@@ -154,6 +156,13 @@ export interface PostConnectSessionInput {
   /** How this session signed in -- only read to know whether the name was
    * already required at sign-in (OTP methods only). Optional. */
   authMethod?: string;
+  /** Whether the backend already holds a name / an email for this guest
+   * (booleans only). `undefined` = an older backend that does not say, in
+   * which case the card falls back to the all-or-nothing `hasProfile`. */
+  hasName?: boolean;
+  hasEmail?: boolean;
+  /** The guest said "not now" to this card before. */
+  profileDeclined?: boolean;
   /** The server's marketing opt-in offer for this guest (marketing spec
    * §5.8), or null/absent when there is none. Its presence is itself the
    * server's answer to "should this guest be asked": it is only non-null
@@ -189,8 +198,34 @@ export function profileFieldsEligible(
   config: PostConnectConfigInput,
   session: PostConnectSessionInput,
 ): boolean {
-  const collectsSomething = postConnectAsksName(config, session) || config.collectGuestEmail;
-  return collectsSomething && !session.hasProfile;
+  const asksSomething =
+    postConnectAsksName(config, session) || postConnectAsksEmail(config, session);
+  if (!asksSomething) return false;
+  // Per-field answer from the server: ask while ANY asked-for detail is
+  // still missing, unless the guest already said "not now". Without it
+  // (older backend) keep the old all-or-nothing rule.
+  if (session.hasName !== undefined || session.hasEmail !== undefined) {
+    return !session.profileDeclined;
+  }
+  return !session.hasProfile;
+}
+
+/** Whether the post-connect card may ask this guest for their EMAIL. Never
+ * when the backend already holds one (`hasEmail`, which includes an
+ * email-OTP guest's sign-in address), when it was required at sign-in for
+ * this OTP session, or -- belt and braces for an older backend -- when the
+ * guest signed in with an email code. QA 2026-10-06: "information already
+ * entered while login should not be asked again". */
+export function postConnectAsksEmail(
+  config: PostConnectConfigInput,
+  session: PostConnectSessionInput,
+): boolean {
+  if (!config.collectGuestEmail) return false;
+  if (session.hasEmail) return false;
+  if (session.authMethod === "otp_email") return false;
+  const askedAtSignIn =
+    !!config.requireGuestEmail && NAME_REQUIRED_AUTH_METHODS.has(session.authMethod ?? "");
+  return !askedAtSignIn;
 }
 
 const NAME_REQUIRED_AUTH_METHODS = new Set(["otp_sms", "otp_email", "otp_whatsapp"]);
@@ -206,6 +241,9 @@ export function postConnectAsksName(
   session: PostConnectSessionInput,
 ): boolean {
   if (!config.collectGuestName) return false;
+  // Already on file (given at sign-in, on an earlier visit, or on another
+  // device): never asked again.
+  if (session.hasName) return false;
   const askedAtSignIn =
     !!config.requireGuestName && NAME_REQUIRED_AUTH_METHODS.has(session.authMethod ?? "");
   return !askedAtSignIn;
