@@ -1697,6 +1697,16 @@ jobs:
             "location-liveness" 105 "all checks passed" \
             bun run test:location-liveness
 
+      # Device Logs (Master): an unknown must never read as quiet -- a router
+      # set up but never heard from, a line with no priority, a line matched
+      # to no router, a write not yet read back. Pure wording module plus the
+      # screen's wiring to it; nothing else can see a label drifting.
+      - name: device logs presentation
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "device-logs" 39 "all checks passed" \
+            bun run test:device-logs
+
       # Same "gated nowhere" state, found the same way. Both of these were
       # wired into the Jenkinsfile when they shipped and into no GitHub
       # Actions step at all -- and it is this workflow, not Jenkins, that
