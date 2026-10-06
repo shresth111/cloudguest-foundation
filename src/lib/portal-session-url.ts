@@ -42,6 +42,10 @@ export function buildSessionUrl(
    * successfully signed in "your session has expired" while their
    * internet works perfectly. */
   deviceMac?: string,
+  /** The session id whose arrival content (offer/survey, profile ask) the
+   * pre-gate phase already showed -- see `PRE_GATE_SESSION_PARAM` in
+   * @/lib/portal-pre-gate. `/portal/session` then does not ask again. */
+  preGateSessionId?: string,
 ): string {
   const url = new URL("/portal/session", window.location.origin);
   url.searchParams.set("organizationId", organizationId);
@@ -49,6 +53,9 @@ export function buildSessionUrl(
   url.searchParams.set("routerId", routerId);
   if (language) url.searchParams.set("lang", language);
   if (deviceMac) url.searchParams.set("mac", deviceMac);
+  // Literal, not imported: kept equal to PRE_GATE_SESSION_PARAM by
+  // scripts/test-portal-pre-gate.mjs, so this module stays import-free.
+  if (preGateSessionId) url.searchParams.set("pregate", preGateSessionId);
   return url.toString();
 }
 

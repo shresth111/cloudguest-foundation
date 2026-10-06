@@ -15,6 +15,7 @@
     "test:output-analyser": "node scripts/test-output-analyser.mjs",
     "test:manual-wizard": "node scripts/test-manual-wizard-engine.mjs",
     "test:portal-cna": "node scripts/test-portal-cna-storage-safety.mjs",
+    "test:portal-pre-gate": "node scripts/test-portal-pre-gate.mjs",
     "test:consoles-never-mix": "node scripts/test-consoles-never-mix.mjs",
     "test:impersonation-master-host": "node scripts/test-impersonation-master-host.mjs",
     "test:impersonation-session": "node scripts/test-impersonation-session.mjs",

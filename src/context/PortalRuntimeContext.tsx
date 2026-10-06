@@ -479,6 +479,23 @@ function persistHotspotSubmit(v: PersistedHotspotSubmit) {
   safeSet(HOTSPOT_SUBMIT_STORAGE_KEY, JSON.stringify(v));
 }
 
+const PRE_GATE_DONE_STORAGE_KEY = "cloudguest_portal_pre_gate_done";
+
+/** The session id whose pre-gate phase (see @/lib/portal-pre-gate) has
+ * already run in this tab. Read by `/portal/success` so a re-entry -- the
+ * AP intercepting a load because its gate was not open yet, or an OS
+ * remount -- goes straight to the gate instead of re-serving an
+ * every-login offer a second time in one visit. Best-effort like every
+ * other key here: inside iOS's CNA storage throws, the record is simply
+ * absent, and the worst case is the offer showing twice. */
+function loadPreGateDone(): string | undefined {
+  return safeGet(PRE_GATE_DONE_STORAGE_KEY) ?? undefined;
+}
+
+function persistPreGateDone(sessionId: string) {
+  safeSet(PRE_GATE_DONE_STORAGE_KEY, sessionId);
+}
+
 interface PortalRuntimeState {
   organizationId: string;
   locationId: string;
@@ -1092,6 +1109,8 @@ export {
   persistRuntimeIds,
   loadPersistedHotspotSubmit,
   persistHotspotSubmit,
+  loadPreGateDone,
+  persistPreGateDone,
 };
 export type { PersistedRuntimeIds, PersistedHotspotSubmit, PersistedOmadaContext };
 

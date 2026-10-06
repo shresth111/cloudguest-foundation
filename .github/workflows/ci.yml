@@ -357,6 +357,20 @@ jobs:
             "portal-post-login" 20 "all checks passed" \
             bun run test:portal-post-login
 
+      # Arrival content BEFORE the gate. Android's sign-in sheet (AOSP
+      # CaptivePortalLogin) and iOS's CNA both close themselves the moment
+      # the gate opens, so the offer/survey/profile ask must run before any
+      # gate-opening request (MikroTik POST, Aruba swarm.cgi, Omada
+      # authorize) leaves /portal/success -- QA 2026-10-06 "auto closing
+      # login screen in android". Drives the real page over all three
+      # vendors, the phase's plan and sequencing, and Android sheet
+      # detection against real UAs.
+      - name: portal pre-gate phase
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "portal-pre-gate" 91 "portal pre-gate: all" \
+            bun run test:portal-pre-gate
+
       - name: portal sign-in fields
         run: |
           ./scripts/ci-gated-test.sh \

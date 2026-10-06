@@ -219,8 +219,13 @@ console.log("post-login destination");
   );
   check(
     "the NAS dst goes straight to the venue URL for redirect mode",
-    /destination\.mode === "redirect" && destination\.url/.test(success) &&
-      /destination\.url/.test(success.split("const dst")[1] ?? ""),
+    // The RouterOS \`dst\` and every other gate branch share one decision,
+    // \`directTarget()\` -- so it is that function's body that must send a
+    // redirect-mode guest straight to the URL.
+    /const dst = directTarget\(\)/.test(success) &&
+      /destination\.mode === "redirect" && destination\.url \? destination\.url/.test(
+        success.split("const directTarget")[1] ?? "",
+      ),
     "the NAS must send redirect-mode guests straight to the URL, no portal page",
   );
 }

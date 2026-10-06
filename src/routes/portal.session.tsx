@@ -27,7 +27,8 @@ import { passwordSignInOffered } from "@/lib/portal-auth-methods";
 import { scriptClassOf } from "@/lib/portal-script";
 import { PostLoginHtmlFrame } from "@/components/portal-runtime/PostLoginHtmlFrame";
 import { resolvePostLoginDestination } from "@/lib/portal-post-login";
-import { isCaptiveNetworkAssistant } from "@/lib/portal-cna";
+import { isCaptiveSheet } from "@/lib/portal-cna";
+import { preGateMarkerMatches } from "@/lib/portal-pre-gate";
 
 export const Route = createFileRoute("/portal/session")({
   errorComponent: PortalErrorScreen,
@@ -311,11 +312,22 @@ function SessionPage() {
   // -- see @/lib/portal-post-login for the whole rule. This page renders
   // it (html), bounces to it (redirect), or is it (default, unchanged).
   const destination = resolvePostLoginDestination(config, destinationUrl);
-  // Never auto-redirect inside Apple's captive websheet: it cannot be
-  // navigated to an arbitrary page (iOS closes the sheet itself once its
-  // own captive re-probe succeeds through the now-open gate -- see
-  // @/lib/portal-cna), and trying reads as a broken redirect.
-  const inCna = isCaptiveNetworkAssistant();
+  // Never auto-redirect inside a captive sign-in sheet -- Apple's CNA or
+  // Android's CaptivePortalLogin WebView: neither can be navigated to an
+  // arbitrary page (each OS closes its sheet itself once the network
+  // validates through the now-open gate -- see @/lib/portal-cna), and
+  // trying reads as a broken redirect.
+  const inCna = isCaptiveSheet();
+  // The pre-gate phase on /portal/success already showed this guest the
+  // arrival offer/survey and the profile ask (see @/lib/portal-pre-gate),
+  // and said so on this URL. Read once, off the document the gate's own
+  // navigation loaded, and only for THIS session id -- so neither is asked
+  // a second time in the same visit (an every-login offer would otherwise
+  // be served twice).
+  const [landingSearch] = useState(() =>
+    typeof window !== "undefined" ? window.location.search : "",
+  );
+  const preGateShown = preGateMarkerMatches(landingSearch, session?.sessionId);
   const [now, setNow] = useState(0);
   const [disconnectError, setDisconnectError] = useState<string | null>(null);
 
@@ -335,6 +347,9 @@ function SessionPage() {
     // Only the built-in connected page shows campaigns: an owner-authored
     // post-login page (or a bounce to a URL) is the destination, not a
     // backdrop for one.
+    // A guest the pre-gate phase already served gets no second takeover;
+    // the dwell-gated star prompt is the one campaign shape that stays
+    // here, and with no takeover to compete with it, it is still fetched.
     enabled: !!session?.sessionId && destination.mode === "default",
     staleTime: Infinity,
     retry: false,
@@ -589,6 +604,7 @@ function SessionPage() {
   if (
     nextCampaign &&
     !starCampaign &&
+    !preGateShown &&
     campaignHasRenderableContent(nextCampaign) &&
     !campaignDismissed
   ) {
@@ -610,7 +626,7 @@ function SessionPage() {
         now,
         reviewCardShownThisSession,
         starCampaignAvailable: !!starCampaign,
-        arrivalAskSettled,
+        arrivalAskSettled: arrivalAskSettled || preGateShown,
         feedbackSettled,
       })
     : null;
