@@ -208,7 +208,7 @@ export function VouchersPage({ locationId }: { locationId?: string }) {
     validMin: 60,
     prefix: "VCH",
     dataLimit: 0,
-    maxUses: 1,
+    maxDevices: 1,
     codeLen: 8,
   });
   const [planOpts] = useState([
@@ -403,7 +403,7 @@ export function VouchersPage({ locationId }: { locationId?: string }) {
         codeLength: form.codeLen,
         codePrefix: form.prefix,
         validityMinutes: form.validMin,
-        maxUsesPerVoucher: form.maxUses,
+        maxDevicesPerVoucher: form.maxDevices,
         dataLimitMb: form.dataLimit || null,
       });
       setBatches([
@@ -561,17 +561,31 @@ export function VouchersPage({ locationId }: { locationId?: string }) {
                     }
                   />
                 </div>
-                <div>
-                  <Label>Max Uses</Label>
+                <div className="col-span-2">
+                  <Label htmlFor="voucher-devices-per-code">Devices per voucher</Label>
                   <Input
+                    id="voucher-devices-per-code"
                     type="number"
                     min={1}
                     max={1000}
-                    value={form.maxUses}
+                    value={form.maxDevices}
+                    aria-describedby="voucher-devices-per-code-help"
                     onChange={(e) =>
-                      setForm({ ...form, maxUses: clamp(parseInt(e.target.value), 1, 1, 1000) })
+                      setForm({ ...form, maxDevices: clamp(parseInt(e.target.value), 1, 1, 1000) })
                     }
                   />
+                  {/* Says what the backend enforces (voucher/service.py
+                      redeem_voucher + GuestService.login_via_voucher):
+                      distinct devices, re-entry is free, and the venue's
+                      Devices per user does not apply to a voucher. */}
+                  <p
+                    id="voucher-devices-per-code-help"
+                    className="mt-1 text-[11px] text-muted-foreground"
+                  >
+                    How many different phones or laptops can sign in with one code. A device that
+                    already signed in can sign in again while the code is valid. For voucher
+                    sign-ins this replaces the location&apos;s Devices per user limit.
+                  </p>
                 </div>
               </div>
               <DialogFooter>

@@ -14,6 +14,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  ArrowDown,
+  ArrowUp,
   Download,
   ImageUp,
   Sparkles,
@@ -23,6 +25,7 @@ import {
   Loader2,
   Lock,
   MessageSquareText,
+  Plus,
   Trash2,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -61,6 +64,13 @@ import {
   countPostConnectAsks,
   isSafeGoogleReviewUrl,
 } from "@/lib/portal-post-connect";
+import {
+  POST_LOGIN_STEP_LABEL,
+  POST_LOGIN_STEP_TYPES,
+  deriveLegacySequence,
+  type PostLoginFinish,
+  type PostLoginStep,
+} from "@/lib/portal-post-login-sequence";
 import { DEMO_PORTAL_PREVIEW_STORAGE_KEY } from "@/lib/portal-preview-storage";
 import { BRAND_ASSET_ACCEPT_ATTR, brandAssetRejectionReason } from "@/lib/brand-asset-limits";
 import type { PortalLanguage, PortalLoginMethod } from "@/types/portal";
@@ -164,12 +174,14 @@ function PostConnectRow({
   checked,
   onCheckedChange,
   children,
+  disabled,
 }: {
   title: string;
   description: string;
   checked: boolean;
   onCheckedChange: (v: boolean) => void;
   children?: ReactNode;
+  disabled?: boolean;
 }) {
   return (
     <div className="rounded-lg border p-3">
@@ -178,7 +190,12 @@ function PostConnectRow({
           <p className="text-sm font-medium">{title}</p>
           <p className="text-xs text-muted-foreground">{description}</p>
         </div>
-        <Switch checked={checked} onCheckedChange={onCheckedChange} aria-label={title} />
+        <Switch
+          checked={checked}
+          onCheckedChange={onCheckedChange}
+          aria-label={title}
+          disabled={disabled}
+        />
       </div>
       {checked && children ? <div className="mt-3 space-y-2 border-t pt-3">{children}</div> : null}
     </div>
@@ -232,6 +249,57 @@ function NoDataYet() {
         Counts cover guests on Android and laptops. iPhone and iPad guests go straight online
         without opening this screen.
       </p>
+    </div>
+  );
+}
+
+/** Move one step of the post-login sequence up (-1) or down (+1). */
+function moveStep(steps: PostLoginStep[], index: number, delta: -1 | 1): PostLoginStep[] {
+  const target = index + delta;
+  if (target < 0 || target >= steps.length) return steps;
+  const next = [...steps];
+  [next[index], next[target]] = [next[target], next[index]];
+  return next;
+}
+
+/**
+ * The per-field "Required at sign-in" switch inside the name / email rows,
+ * with the plain-language statement of what "required" means. The wording
+ * is the contract: it says where it is enforced (the server, before the
+ * internet opens), who is asked (code sign-ins only) and who is not.
+ */
+function RequiredAtSignInSwitch({
+  id,
+  detail,
+  checked,
+  onCheckedChange,
+}: {
+  id: string;
+  detail: "name" | "email";
+  checked: boolean;
+  onCheckedChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="space-y-1.5 rounded-md border bg-muted/30 p-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <Label htmlFor={id} className="text-sm font-medium">
+          Required at sign-in
+        </Label>
+        <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {checked
+          ? `Guests who sign in with a mobile, WhatsApp or email code must enter their ${detail} on one short screen right after the code, and our server keeps their internet off until they do. Guests whose ${detail} is already on file are never asked again.`
+          : `Off: the ${detail} is optional and only asked on the card after they connect.`}
+      </p>
+      {checked && (
+        <p className="text-xs text-muted-foreground">
+          {detail === "email"
+            ? "Email-code sign-ins already gave an email and are not asked. "
+            : ""}
+          Voucher, password and PIN sign-ins are not asked — they have no screen for it.
+        </p>
+      )}
     </div>
   );
 }
@@ -297,17 +365,16 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   // post-login one, and a venue can set both. "" means "no post-login page",
   // which leaves `/portal/redirect` exactly as it was before this existed.
   const [postLoginHtml, setPostLoginHtml] = useState("");
-  // What a guest sees the moment they're online -- ONE picker, per the
-  // founder's flow review ("session page, then a 3-2-1 timer, then the
-  // URL" was two pages too many). "default" = the built-in connected page;
-  // "redirect" = straight to `redirectUrl` (no intermediate page, see
-  // @/lib/portal-post-login); "html" = the venue's own post-login page
-  // with a slim session strip above it. Single-source on save: switching
-  // clears the other two fields, so a venue can never accidentally set two
-  // post-login destinations and rediscover the two-page flow.
-  const [afterConnectMode, setAfterConnectMode] = useState<"default" | "redirect" | "html">(
-    "default",
-  );
+  // What a guest sees after they are online, as an ORDERED SEQUENCE
+  // (owner QA 2026-10-06: "after survey get discount/image, after that
+  // redirect"): steps (survey / offer / the venue's page) in the venue's
+  // order, then ONE finish (the connected page or a website). Replaces the
+  // old one-of-three picker; a venue that never saved a sequence loads the
+  // one derived from its old choice (`deriveLegacySequence`), so opening and
+  // saving this page changes nothing for its guests. See
+  // @/lib/portal-post-login-sequence.
+  const [seqSteps, setSeqSteps] = useState<PostLoginStep[]>(["survey", "offer"]);
+  const [seqFinish, setSeqFinish] = useState<PostLoginFinish>("connected");
   // What the preview iframe below is actually showing, trailing the textarea
   // by a beat. Changing an iframe's `srcdoc` RELOADS the document, so binding
   // it straight to `postLoginHtml` would tear down and re-parse the whole
@@ -352,6 +419,12 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   // would see.
   const [venueName, setVenueName] = useState("");
   const [collectGuestName, setCollectGuestName] = useState(false);
+  // Name required at sign-in. Starts true -- the owner's default for every
+  // venue -- and is overwritten by the loaded config like every field here.
+  const [requireGuestName, setRequireGuestName] = useState(true);
+  // Email required at sign-in (migration 0148). Starts false -- the
+  // backend's default for every venue -- and is overwritten on load.
+  const [requireGuestEmail, setRequireGuestEmail] = useState(false);
   const [collectGuestEmail, setCollectGuestEmail] = useState(false);
   const [reviewCardEnabled, setReviewCardEnabled] = useState(false);
   const [reviewUrl, setReviewUrl] = useState("");
@@ -520,13 +593,14 @@ export function PortalPage({ locationId }: { locationId?: string }) {
     // post-login page wins over a redirect URL, and a legacy row that used
     // the retired pre-login content-mode "redirect" (see the Before sign-in
     // picker's own comment) reads as the same after-connect "redirect".
-    setAfterConnectMode(
-      hasPostLoginHtml(p.login.postLoginHtml)
-        ? "html"
-        : p.login.redirectUrl.trim() || p.content.mode === "redirect"
-          ? "redirect"
-          : "default",
-    );
+    const loadedSequence =
+      p.login.postLoginSequence ??
+      deriveLegacySequence({
+        postLoginHtml: p.login.postLoginHtml,
+        redirectUrl: p.login.redirectUrl,
+      });
+    setSeqSteps(loadedSequence.steps);
+    setSeqFinish(loadedSequence.finish);
     // "survey" is a retired content mode (guest surveys are Campaigns-only
     // now); `portalService` already coerces a legacy `content_mode: "survey"`
     // row to "login" via `toPortalContentMode`, so `p.content.mode` is always
@@ -542,6 +616,8 @@ export function PortalPage({ locationId }: { locationId?: string }) {
     setPostLoginHtml(p.login.postLoginHtml || "");
     setVenueName(p.locationId ? p.locationName : "");
     setCollectGuestName(p.postConnect.collectGuestName);
+    setRequireGuestName(p.postConnect.requireGuestName);
+    setRequireGuestEmail(p.postConnect.requireGuestEmail);
     setCollectGuestEmail(p.postConnect.collectGuestEmail);
     setReviewUrl(p.postConnect.reviewUrl);
     // The switch is its OWN stored column, not something derived from the
@@ -726,7 +802,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       // state's own comment): only the chosen field reaches the runtime
       // preview, so the preview can never show a venue the two-page flow
       // the picker is designed to retire.
-      redirectUrl: afterConnectMode === "redirect" ? form.redirectUrl.trim() || null : null,
+      redirectUrl: seqFinish === "redirect" ? form.redirectUrl.trim() || null : null,
       // Post-login page. Carried on the runtime config so the shareable
       // /preview/portal/demo tab (which serializes this exact object) stays
       // in sync: the walkthrough that tab opens ends on this page as its own
@@ -734,7 +810,8 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       // the same from the saved config. The authoring preview under the
       // editor below is a separate, immediate view of the same HTML while it
       // is being typed. See the editor block's own comment.
-      postLoginHtml: afterConnectMode === "html" ? postLoginHtml || null : null,
+      postLoginHtml: seqSteps.includes("page") ? postLoginHtml || null : null,
+      postLoginSequence: { steps: seqSteps, finish: seqFinish },
       // Content mode + its source fields -- every edit rebuilds this memo and
       // re-renders PortalContentBlock in the preview immediately (task 4).
       contentMode,
@@ -770,6 +847,8 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       // does for the headline and colours.
       collectGuestName,
       collectGuestEmail,
+      requireGuestName,
+      requireGuestEmail,
       // Both, unconditionally -- the preview applies the same
       // `reviewCardEnabled && reviewUrl` rule a guest's portal does
       // (`reviewCardEligible`), rather than this page pre-collapsing them
@@ -803,7 +882,8 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       headline,
       msg,
       authMethods,
-      afterConnectMode,
+      seqSteps,
+      seqFinish,
       contentMode,
       contentHeading,
       contentBody,
@@ -811,6 +891,8 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       postLoginHtml,
       collectGuestName,
       collectGuestEmail,
+      requireGuestName,
+      requireGuestEmail,
       reviewCardEnabled,
       reviewUrl,
       guestFeedbackEnabled,
@@ -1055,15 +1137,30 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   // over it. See src/lib/post-login-html.ts.
   const postLoginBytes = postLoginHtmlByteLength(postLoginHtml);
   const postLoginBlocked = postLoginHtmlOverLimit(postLoginHtml);
-  const saveBlocked = splashBlocked || postLoginBlocked;
+  // The sequence's own two authoring mistakes, refused here with the reason
+  // rather than by a 400 after the click (the backend refuses them too).
+  const [saving, setSaving] = useState(false);
+  // The ONE save's last outcome, shown beside the one Save button (QA
+  // 2026-10-06: two save buttons on one page). Null until the first save.
+  const [saveStatus, setSaveStatus] = useState<{
+    state: "saved" | "failed";
+    message: string;
+  } | null>(null);
+  const sequencePageMissing = seqSteps.includes("page") && !hasPostLoginHtml(postLoginHtml);
+  const sequenceUrlMissing = seqFinish === "redirect" && !form.redirectUrl.trim();
+  const saveBlocked =
+    splashBlocked || postLoginBlocked || sequencePageMissing || sequenceUrlMissing;
 
   // ===== The ask budget, computed from the venue's own live settings =====
   // Dish ratings contribute 0 because they cannot be enabled -- see the
   // disabled row's own comment. Recomputed on every render so the meter
   // moves as toggles move, before anything is saved.
   const askCount = countPostConnectAsks({
-    collectGuestName,
-    collectGuestEmail,
+    // A name required at sign-in is never asked again after connecting, so
+    // it is not a post-connect ask and does not spend this budget.
+    collectGuestName: collectGuestName && !requireGuestName,
+    // Same for an email required at sign-in.
+    collectGuestEmail: collectGuestEmail && !requireGuestEmail,
     // The switch AND a link, because that pair is what a guest actually
     // meets. Counting the switch alone would tell a venue they are making
     // three asks when the third one cannot render.
@@ -1080,6 +1177,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
     reviewCardEnabled && !!reviewUrl.trim() && !isSafeGoogleReviewUrl(reviewUrl);
 
   const saveConfig = async () => {
+    if (saving) return;
     // The Save button is disabled while blocked; this guard just keeps the
     // rule airtight if another code path ever calls saveConfig directly.
     if (saveBlocked) return;
@@ -1100,6 +1198,8 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       toast.error("No organization found for this session.");
       return;
     }
+    setSaving(true);
+    setSaveStatus(null);
     try {
       const patch = {
         // The logo is no longer part of this patch -- it's the real,
@@ -1117,12 +1217,17 @@ export function PortalPage({ locationId }: { locationId?: string }) {
         // whitelist -- see the note on redirectUrl/postLoginHtml). A legacy
         // row with both set, saved once from here, becomes whichever one
         // the venue picked.
-        login:
-          afterConnectMode === "html"
-            ? { redirectUrl: "", postLoginHtml }
-            : afterConnectMode === "redirect"
-              ? { redirectUrl: form.redirectUrl.trim(), postLoginHtml: "" }
-              : { redirectUrl: "", postLoginHtml: "" },
+        //
+        // Now the ordered sequence: the page goes out only while a "My page"
+        // step is in it and the URL only while the finish is a website, and
+        // the sequence itself travels in the SAME body so the backend checks
+        // all three together (a page step with no page, or a website finish
+        // with no address, is refused there too).
+        login: {
+          redirectUrl: seqFinish === "redirect" ? form.redirectUrl.trim() : "",
+          postLoginHtml: seqSteps.includes("page") ? postLoginHtml : "",
+          postLoginSequence: { steps: seqSteps, finish: seqFinish },
+        },
         loginMethods: authMethods as PortalLoginMethod[],
         // The Terms & Conditions textarea. This whole group was missing from
         // the patch -- no `consent` key at all -- so the field displayed,
@@ -1165,6 +1270,8 @@ export function PortalPage({ locationId }: { locationId?: string }) {
         postConnect: {
           collectGuestName,
           collectGuestEmail,
+          requireGuestName,
+          requireGuestEmail,
           // The link is saved WHATEVER the switch says, and the switch is
           // saved as its own column. Turning the ask off used to clear the
           // stored URL on the theory that a venue resuming should
@@ -1191,7 +1298,14 @@ export function PortalPage({ locationId }: { locationId?: string }) {
         setPortalId(saved.id);
       }
       setSavedSplash({ headline, msg });
-      toast.success("Portal configuration saved");
+      toast.success("Portal saved");
+      setSaveStatus({
+        state: "saved",
+        message: `Everything on this page was saved at ${new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        })}.`,
+      });
 
       // Repaint the terms textarea from what came back, for the same reason
       // the post-login editor does below: the field is trimmed on the way
@@ -1236,11 +1350,21 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       // THIS tab, but an older tab (predating the limits) can still race a
       // save through -- surface the backend's own max_length/actual_length
       // envelope instead of a generic failure toast.
-      toast.error(
+      const message =
         postLoginHtmlLimitErrorMessage(err) ??
-          splashLimitErrorMessage(err) ??
-          requestErrorMessage(err, "Could not save — check the connection and try again."),
-      );
+        splashLimitErrorMessage(err) ??
+        requestErrorMessage(err, "Could not save — check the connection and try again.");
+      toast.error(message);
+      // Persistent, next to the one Save button: the whole portal (sign-in
+      // screen AND "After they connect") travels in ONE request, so a
+      // failure means NOTHING on this page was saved -- said plainly, so
+      // nobody assumes half of it went through.
+      setSaveStatus({
+        state: "failed",
+        message: `Nothing was saved. ${message}`,
+      });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -1482,131 +1606,6 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                 </p>
               )}
 
-              {/* AFTER THEY CONNECT -- one destination, chosen here. The
-              founder's flow review ("after login: session page -> 3-2-1
-              timer -> URL") is fixed at the source: a venue picks ONE of
-              three, and the guest flow (see @/lib/portal-post-login, shared
-              by /portal/success and /portal/session) honours exactly that.
-              "html" also gets a slim "session started · remaining · MAC"
-              strip above the venue's own page -- see portal.session.tsx. */}
-              <div className="space-y-3 rounded-lg border p-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="after-connect-mode">After they connect</Label>
-                  <Select
-                    value={afterConnectMode}
-                    onValueChange={(v) => setAfterConnectMode(v as "default" | "redirect" | "html")}
-                  >
-                    <SelectTrigger id="after-connect-mode">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="default">Show the connected page</SelectItem>
-                      <SelectItem value="redirect">Send guests to a website</SelectItem>
-                      <SelectItem value="html">Show a custom HTML page</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {afterConnectMode === "default" && (
-                  <p className="text-xs text-muted-foreground">
-                    Guests land on the built-in &quot;you&apos;re connected&quot; page with their
-                    session details. No redirect, no extra page.
-                  </p>
-                )}
-
-                {afterConnectMode === "redirect" && (
-                  <div className="space-y-1.5">
-                    <Label htmlFor="redirect-url">Website address</Label>
-                    <Input
-                      id="redirect-url"
-                      value={form.redirectUrl}
-                      onChange={(e) => setForm({ ...form, redirectUrl: e.target.value })}
-                      placeholder="https://wyfyguest.com/welcome"
-                      className="h-9"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Guests are sent straight here the moment they&apos;re online — no intermediate
-                      portal page.
-                    </p>
-                  </div>
-                )}
-
-                {afterConnectMode === "html" && (
-                  <>
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <Label htmlFor="post-login-html">Custom HTML page</Label>
-                      {/* Bytes, not characters -- the backend column's cap is a
-                      byte cap, and one Devanagari code point is 3 bytes. A
-                      character count would tell a Hindi-writing venue they had
-                      3x the room they actually have. */}
-                      <span
-                        aria-live="polite"
-                        className={`text-xs tabular-nums ${
-                          postLoginBlocked
-                            ? "font-medium text-destructive"
-                            : "text-muted-foreground"
-                        }`}
-                      >
-                        {postLoginBytes.toLocaleString()} /{" "}
-                        {POST_LOGIN_HTML_MAX_BYTES.toLocaleString()} bytes
-                      </span>
-                    </div>
-                    <Textarea
-                      id="post-login-html"
-                      rows={8}
-                      spellCheck={false}
-                      value={postLoginHtml}
-                      onChange={(e) => setPostLoginHtml(e.target.value)}
-                      placeholder={
-                        "<h2>Welcome!</h2>\n<p>Show your booking at the desk for a free coffee.</p>"
-                      }
-                      className="font-mono text-xs"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      This page IS what guests see right after they sign in, with a small
-                      &quot;session started&quot; bar above it. Leave it empty and pick the
-                      connected page instead if you don&apos;t want one.
-                    </p>
-                    {/* The one thing a venue WILL get wrong if we don't say it.
-                    This page runs on the same origin as the OTP screen, so the
-                    HTML is rendered in a sandboxed frame with scripts disabled
-                    -- an analytics or chat-widget snippet pasted here does
-                    nothing at all, silently. Saying so here is cheaper than the
-                    bug report. */}
-                    <p className="text-xs text-muted-foreground">
-                      <span className="font-medium text-foreground">Scripts will not run.</span> For
-                      your guests&apos; safety this page is displayed in a sandbox, so{" "}
-                      <code>&lt;script&gt;</code> tags, analytics snippets, chat widgets and inline{" "}
-                      <code>onclick</code> handlers are ignored. HTML, CSS, images and links all
-                      work — links open in a new tab. Saving also runs the page through a safety
-                      filter, so the editor may come back slightly changed from what you pasted;
-                      that version is what guests get.
-                    </p>
-                    {hasPostLoginHtml(previewHtml) && (
-                      <div className="space-y-1.5">
-                        <p className="text-xs font-medium">Preview</p>
-                        {/* The SAME component, with the SAME sandbox, that
-                        /portal/session renders for a real guest -- not a
-                        lookalike. That is the whole point: whatever gets
-                        silently dropped in this box is exactly what gets
-                        dropped on the guest's phone. */}
-                        <PostLoginHtmlFrame
-                          html={previewHtml}
-                          title="Post-login page preview"
-                          className="h-64 bg-white"
-                        />
-                      </div>
-                    )}
-                    {postLoginBlocked && (
-                      <p className="text-xs text-destructive" role="alert">
-                        This page is {postLoginBytes.toLocaleString()} bytes — the limit is{" "}
-                        {POST_LOGIN_HTML_MAX_BYTES.toLocaleString()}. Shorten it to save.
-                      </p>
-                    )}
-                  </>
-                )}
-              </div>
-
               {/* BEFORE SIGN-IN. This picker was removed once, for a good
               reason that no longer holds: it asked a venue to make a
               decision about a pre-sign-in content step "most of them do not
@@ -1805,30 +1804,6 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                     : "Blank: guests see our default terms & privacy copy on the Terms & Privacy page."}
                 </p>
               </div>
-              <div className="space-y-1.5">
-                <Button className="w-full sm:w-auto" onClick={saveConfig} disabled={saveBlocked}>
-                  Save Configuration
-                </Button>
-                {splashBlocked && (
-                  <p className="text-xs text-destructive" role="alert">
-                    {headlineBlocked && msgBlocked
-                      ? "The headline and welcome message are over their length limits — shorten them to save."
-                      : headlineBlocked
-                        ? `The headline is over the ${SPLASH_HEADLINE_MAX}-character limit — shorten it to save.`
-                        : `The welcome message is over the ${SPLASH_WELCOME_MAX}-character limit — shorten it to save.`}
-                  </p>
-                )}
-                {/* The post-login field has its own inline error next to the
-                counter, but it is far enough up the form to be off screen
-                from here -- repeat the reason at the disabled button rather
-                than leaving it looking broken. */}
-                {postLoginBlocked && (
-                  <p className="text-xs text-destructive" role="alert">
-                    The post-login page is over the {POST_LOGIN_HTML_MAX_BYTES.toLocaleString()}
-                    -byte limit — shorten it to save.
-                  </p>
-                )}
-              </div>
             </CardContent>
           </Card>
 
@@ -1847,10 +1822,229 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                 no "-12% conversions" chip anywhere here. See the note above
                 the "No data yet" lines. */}
               <p className="text-xs text-muted-foreground">
-                None of this affects whether a guest gets online.
+                Only the two &quot;Required at sign-in&quot; switches can keep a guest offline;
+                everything else here happens after they are connected.
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* THE POST-LOGIN SEQUENCE (QA 2026-10-06: "after survey get
+                discount/image, after that redirect"). Ordered steps, then one
+                finish. Replaces the old one-of-three picker; a venue that
+                never saved one is shown the sequence its old choice already
+                meant, so opening and saving changes nothing for its guests. */}
+              <div className="space-y-3 rounded-lg border p-3" data-testid="post-login-sequence">
+                <div>
+                  <p className="text-sm font-medium">What guests see after they connect</p>
+                  <p className="text-xs text-muted-foreground">
+                    Steps run in this order, one screen each, once the guest is online. A step with
+                    nothing to show for that guest (no live survey or offer) is skipped.
+                  </p>
+                </div>
+
+                {seqSteps.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    No steps — guests go straight to the finish below.
+                  </p>
+                ) : (
+                  <ol className="space-y-2">
+                    {seqSteps.map((step, i) => (
+                      <li
+                        key={step}
+                        className="flex items-start justify-between gap-2 rounded-md border bg-muted/30 p-2"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">
+                            {i + 1}. {POST_LOGIN_STEP_LABEL[step]}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {step === "survey"
+                              ? `Your live surveys from Login Page Offers. A survey that is a single 1–5 star question is not shown here — it waits for "Ask for private feedback" (at least ${DEFAULT_FEEDBACK_DWELL_MINUTES} minutes into a visit).`
+                              : step === "offer"
+                                ? "Your live banners and discounts from Login Page Offers."
+                                : "Your own page, written below. Guests tap Continue to move on."}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            aria-label={`Move ${POST_LOGIN_STEP_LABEL[step]} up`}
+                            disabled={i === 0}
+                            onClick={() => setSeqSteps(moveStep(seqSteps, i, -1))}
+                          >
+                            <ArrowUp className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            aria-label={`Move ${POST_LOGIN_STEP_LABEL[step]} down`}
+                            disabled={i === seqSteps.length - 1}
+                            onClick={() => setSeqSteps(moveStep(seqSteps, i, 1))}
+                          >
+                            <ArrowDown className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            aria-label={`Remove ${POST_LOGIN_STEP_LABEL[step]}`}
+                            onClick={() => setSeqSteps(seqSteps.filter((s) => s !== step))}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+
+                {seqSteps.length < POST_LOGIN_STEP_TYPES.length && (
+                  <div className="flex flex-wrap gap-2">
+                    {POST_LOGIN_STEP_TYPES.filter((t) => !seqSteps.includes(t)).map((t) => (
+                      <Button
+                        key={t}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSeqSteps([...seqSteps, t])}
+                      >
+                        <Plus className="mr-1 h-3.5 w-3.5" />
+                        {POST_LOGIN_STEP_LABEL[t]}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+
+                <div className="space-y-1.5 border-t pt-3">
+                  <Label htmlFor="after-connect-finish">Finally</Label>
+                  <Select
+                    value={seqFinish}
+                    onValueChange={(v) => setSeqFinish(v as PostLoginFinish)}
+                  >
+                    <SelectTrigger id="after-connect-finish">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="connected">Show the connected page</SelectItem>
+                      <SelectItem value="redirect">Send guests to a website</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {seqFinish === "connected" ? (
+                    <p className="text-xs text-muted-foreground">
+                      {seqSteps[seqSteps.length - 1] === "page"
+                        ? "Your page is the last step, so guests stay on it (with a small session bar) instead of the built-in connected page."
+                        : 'Guests end on the built-in "you\'re connected" page with their session details.'}
+                    </p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="redirect-url" className="text-xs">
+                        Website address
+                      </Label>
+                      <Input
+                        id="redirect-url"
+                        value={form.redirectUrl}
+                        onChange={(e) => setForm({ ...form, redirectUrl: e.target.value })}
+                        placeholder="https://wyfyguest.com/welcome"
+                        className="h-9"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        {seqSteps.length === 0
+                          ? "Guests are sent straight here the moment they're online — no portal page in between."
+                          : "Guests are sent here after the last step."}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {seqSteps.includes("page") && (
+                  <div className="space-y-2 border-t pt-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <Label htmlFor="post-login-html">My custom page (HTML)</Label>
+                      {/* Bytes, not characters -- the backend column's cap is a
+                      byte cap, and one Devanagari code point is 3 bytes. A
+                      character count would tell a Hindi-writing venue they had
+                      3x the room they actually have. */}
+                      <span
+                        aria-live="polite"
+                        className={`text-xs tabular-nums ${
+                          postLoginBlocked
+                            ? "font-medium text-destructive"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        {postLoginBytes.toLocaleString()} /{" "}
+                        {POST_LOGIN_HTML_MAX_BYTES.toLocaleString()} bytes
+                      </span>
+                    </div>
+                    <Textarea
+                      id="post-login-html"
+                      rows={8}
+                      spellCheck={false}
+                      value={postLoginHtml}
+                      onChange={(e) => setPostLoginHtml(e.target.value)}
+                      placeholder={
+                        "<h2>Welcome!</h2>\n<p>Show your booking at the desk for a free coffee.</p>"
+                      }
+                      className="font-mono text-xs"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Shown at its place in the steps above, with a small &quot;session
+                      started&quot; bar. Remove the step if you don&apos;t want a page.
+                    </p>
+                    {/* The one thing a venue WILL get wrong if we don't say it.
+                    This page runs on the same origin as the OTP screen, so the
+                    HTML is rendered in a sandboxed frame with scripts disabled
+                    -- an analytics or chat-widget snippet pasted here does
+                    nothing at all, silently. Saying so here is cheaper than the
+                    bug report. */}
+                    <p className="text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground">Scripts will not run.</span> For
+                      your guests&apos; safety this page is displayed in a sandbox, so{" "}
+                      <code>&lt;script&gt;</code> tags, analytics snippets, chat widgets and inline{" "}
+                      <code>onclick</code> handlers are ignored. HTML, CSS, images and links all
+                      work — links open in a new tab. Saving also runs the page through a safety
+                      filter, so the editor may come back slightly changed from what you pasted;
+                      that version is what guests get.
+                    </p>
+                    {hasPostLoginHtml(previewHtml) && (
+                      <div className="space-y-1.5">
+                        <p className="text-xs font-medium">Preview</p>
+                        {/* The SAME component, with the SAME sandbox, that
+                        /portal/session renders for a real guest -- not a
+                        lookalike. That is the whole point: whatever gets
+                        silently dropped in this box is exactly what gets
+                        dropped on the guest's phone. */}
+                        <PostLoginHtmlFrame
+                          html={previewHtml}
+                          title="Post-login page preview"
+                          className="h-64 bg-white"
+                        />
+                      </div>
+                    )}
+                    {postLoginBlocked && (
+                      <p className="text-xs text-destructive" role="alert">
+                        This page is {postLoginBytes.toLocaleString()} bytes — the limit is{" "}
+                        {POST_LOGIN_HTML_MAX_BYTES.toLocaleString()}. Shorten it to save.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* The iOS caveat, where the order is being decided. */}
+                <p className="flex items-start gap-1.5 border-t pt-2 text-xs text-muted-foreground">
+                  <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  iPhones that sign in inside Apple&apos;s pop-up: iOS closes the pop-up on its own
+                  once the connection is live, so those guests may only see the first step, or none.
+                  Android phones, laptops and iPhones in Safari see every step. Put the step that
+                  matters most first.
+                </p>
+              </div>
+
               {/* THE ASK BUDGET. The primary cost display, and the one that
                 will actually change behaviour, because it is present at the
                 moment of the decision rather than a month later. It costs
@@ -1905,31 +2099,71 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                 Guest details
               </p>
 
+              {/* NAME / EMAIL, each with its own Required switch (QA
+                2026-10-06: "name email fields are still optional"). Optional
+                = the dismissible card after connecting. Required = asked at
+                sign-in and ENFORCED BY THE SERVER: the session exists but
+                RADIUS Authorize, the router agent's bypass list and both
+                controller authorize routes refuse it until the detail is on
+                file (backend `require_guest_name` / `require_guest_email`).
+                That is the only place "required" can be true -- a card shown
+                after the internet is already open cannot require anything. */}
               <PostConnectRow
                 title="Ask for their name"
-                description="A dismissible card on the connected screen. Shown once ever, never during sign-in."
-                checked={collectGuestName}
-                onCheckedChange={setCollectGuestName}
+                description={
+                  requireGuestName
+                    ? "Required at sign-in — asked once, right after the code, before the internet opens."
+                    : "Optional — a dismissible card after they connect. Shown once ever; guests can skip it."
+                }
+                checked={collectGuestName || requireGuestName}
+                onCheckedChange={(v) => {
+                  setCollectGuestName(v);
+                  // Cannot require what is not collected.
+                  if (!v) setRequireGuestName(false);
+                }}
               >
-                <NoDataYet />
+                <RequiredAtSignInSwitch
+                  id="require-guest-name"
+                  detail="name"
+                  checked={requireGuestName}
+                  onCheckedChange={(v) => {
+                    setRequireGuestName(v);
+                    if (v) setCollectGuestName(true);
+                  }}
+                />
+                {!requireGuestName && <NoDataYet />}
               </PostConnectRow>
 
               <PostConnectRow
                 title="Ask for their email"
-                description="The only channel you can message without DLT or WhatsApp approval. Shown on the same card as the name."
-                checked={collectGuestEmail}
-                onCheckedChange={setCollectGuestEmail}
+                description={
+                  requireGuestEmail
+                    ? "Required at sign-in — asked once, right after the code, before the internet opens."
+                    : "Optional — on the same dismissible card as the name, after they connect."
+                }
+                checked={collectGuestEmail || requireGuestEmail}
+                onCheckedChange={(v) => {
+                  setCollectGuestEmail(v);
+                  if (!v) setRequireGuestEmail(false);
+                }}
               >
+                <RequiredAtSignInSwitch
+                  id="require-guest-email"
+                  detail="email"
+                  checked={requireGuestEmail}
+                  onCheckedChange={(v) => {
+                    setRequireGuestEmail(v);
+                    if (v) setCollectGuestEmail(true);
+                  }}
+                />
                 {/* A venue that turns this on expecting a mailing list and
                   gets a database column should learn that here, not in a
-                  support ticket. The marketing consent checkbox is
-                  deliberately NOT on the guest card until the consent model
-                  it would write to exists. */}
+                  support ticket. */}
                 <p className="text-xs text-muted-foreground">
-                  You collect the address now; sending to it needs the marketing consent work, which
-                  is not built yet.
+                  You collect the address now; sending to it needs the guest&apos;s marketing
+                  consent.
                 </p>
-                <NoDataYet />
+                {!requireGuestEmail && <NoDataYet />}
               </PostConnectRow>
 
               <PostConnectRow
@@ -2011,6 +2245,16 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                 checked={guestFeedbackEnabled}
                 onCheckedChange={setGuestFeedbackEnabled}
               >
+                {/* QA 2026-10-06 ("the survey didn't pop up"): say exactly
+                  when this card can appear, so a tester signing in and
+                  looking straight away is not misled. */}
+                <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                  <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  Testing it? It will not appear right after sign-in. It needs a live Login Page
+                  Offers survey with exactly one 1–5 star question, and the guest must keep the
+                  connected page open {DEFAULT_FEEDBACK_DWELL_MINUTES} minutes or more into their
+                  visit. Any other survey runs as the &quot;Survey&quot; step at sign-in instead.
+                </p>
                 <NoDataYet />
               </PostConnectRow>
 
@@ -2034,14 +2278,79 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                   Menus are not built yet — there is nothing for a guest to rate.
                 </p>
               </div>
-
-              <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-end">
-                <Button onClick={saveConfig} disabled={saveBlocked}>
-                  Save changes
-                </Button>
-              </div>
             </CardContent>
           </Card>
+          {/* THE ONE SAVE (QA 2026-10-06: "2 save buttons, 1 should be
+              enough"). Both cards above -- the sign-in screen and "After they
+              connect" -- were always written by the same single request;
+              there were simply two buttons for it. Now there is one, sticky
+              at the bottom of the settings column so it is in reach from
+              either card, with one persistent outcome line beside it. The
+              save is one PATCH, so it either all lands or none of it does --
+              there is no partial save to report, and the failure line says
+              exactly that. */}
+          <div className="sticky bottom-0 z-10 rounded-xl border bg-background/95 p-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0 space-y-1">
+                {saveStatus ? (
+                  <p
+                    role={saveStatus.state === "failed" ? "alert" : "status"}
+                    className={`text-xs ${
+                      saveStatus.state === "failed" ? "text-destructive" : "text-emerald-600"
+                    }`}
+                  >
+                    {saveStatus.message}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Saves the sign-in screen and everything under &quot;After they connect&quot;
+                    together.
+                  </p>
+                )}
+                {splashBlocked && (
+                  <p className="text-xs text-destructive" role="alert">
+                    {headlineBlocked && msgBlocked
+                      ? "The headline and welcome message are over their length limits — shorten them to save."
+                      : headlineBlocked
+                        ? `The headline is over the ${SPLASH_HEADLINE_MAX}-character limit — shorten it to save.`
+                        : `The welcome message is over the ${SPLASH_WELCOME_MAX}-character limit — shorten it to save.`}
+                  </p>
+                )}
+                {postLoginBlocked && (
+                  <p className="text-xs text-destructive" role="alert">
+                    Your page is over the {POST_LOGIN_HTML_MAX_BYTES.toLocaleString()}-byte limit —
+                    shorten it to save.
+                  </p>
+                )}
+                {sequencePageMissing && (
+                  <p className="text-xs text-destructive" role="alert">
+                    The &quot;My custom page&quot; step has no page yet — write one or remove the
+                    step.
+                  </p>
+                )}
+                {sequenceUrlMissing && (
+                  <p className="text-xs text-destructive" role="alert">
+                    Add the website address guests are sent to at the end, or finish on the
+                    connected page.
+                  </p>
+                )}
+              </div>
+              <Button
+                className="w-full shrink-0 sm:w-auto"
+                onClick={saveConfig}
+                disabled={saveBlocked || saving}
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving…
+                  </>
+                ) : (
+                  "Save portal"
+                )}
+              </Button>
+            </div>
+          </div>
         </fieldset>
 
         {/* The phone, stuck to the top of the viewport while the settings on

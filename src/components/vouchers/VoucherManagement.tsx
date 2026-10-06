@@ -80,7 +80,7 @@ const batchSchema = z.object({
   codeLength: z.coerce.number().int().min(4).max(20),
   codePrefix: z.string().trim().max(20).optional().or(z.literal("")),
   validityMinutes: z.coerce.number().int().min(1),
-  maxUsesPerVoucher: z.coerce.number().int().min(1),
+  maxDevicesPerVoucher: z.coerce.number().int().min(1).max(1000),
   dataLimitMb: z.coerce.number().int().min(0).optional().or(z.literal("")),
   notes: z.string().trim().max(2000).optional().or(z.literal("")),
 });
@@ -357,7 +357,7 @@ function BatchDialog({
       codeLength: 8,
       codePrefix: "",
       validityMinutes: 1440,
-      maxUsesPerVoucher: 1,
+      maxDevicesPerVoucher: 1,
       dataLimitMb: "",
       notes: "",
     },
@@ -382,7 +382,7 @@ function BatchDialog({
         codeLength: v.codeLength,
         codePrefix: v.codePrefix || null,
         validityMinutes: v.validityMinutes,
-        maxUsesPerVoucher: v.maxUsesPerVoucher,
+        maxDevicesPerVoucher: v.maxDevicesPerVoucher,
         dataLimitMb: v.dataLimitMb === "" ? null : Number(v.dataLimitMb),
         notes: v.notes || null,
       });
@@ -515,8 +515,12 @@ function BatchDialog({
             )}
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium">Max uses per voucher</Label>
-            <Input type="number" min={1} {...form.register("maxUsesPerVoucher")} />
+            <Label className="text-xs font-medium">Devices per voucher</Label>
+            <Input type="number" min={1} max={1000} {...form.register("maxDevicesPerVoucher")} />
+            <p className="text-[11px] text-muted-foreground">
+              Different devices one code admits. A device that already signed in can sign in again
+              while the code is valid.
+            </p>
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium">Data cap (MB, optional)</Label>

@@ -32,6 +32,10 @@ export interface VoucherBatch {
   validityMinutes: number;
   batchExpiresAt: string | null;
   maxUsesPerVoucher: number;
+  /** How many different devices one code admits. A device that already
+   * signed in with the code can sign in again while it is valid; this
+   * replaces the venue's "Devices per user" at a voucher sign-in. */
+  maxDevicesPerVoucher: number;
   dataLimitMb: number | null;
   status: VoucherBatchStatus;
   notes: string | null;
@@ -57,7 +61,8 @@ export interface CreateVoucherBatchPayload {
   codePrefix?: string | null;
   validityMinutes: number;
   batchExpiresAt?: string | null;
-  maxUsesPerVoucher: number;
+  /** Devices per voucher -- see `VoucherBatch.maxDevicesPerVoucher`. */
+  maxDevicesPerVoucher: number;
   dataLimitMb?: number | null;
   notes?: string | null;
 }

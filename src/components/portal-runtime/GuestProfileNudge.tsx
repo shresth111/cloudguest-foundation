@@ -14,6 +14,8 @@ import {
   PROFILE_SAVE_RETRY_DELAY_MS,
   isValidGuestEmail,
   marketingConsentEligible,
+  postConnectAsksEmail,
+  postConnectAsksName,
   profileFieldsEligible,
 } from "@/lib/portal-post-connect";
 import type { RuntimeSession } from "@/types/portal-runtime";
@@ -112,8 +114,12 @@ export function GuestProfileNudge({
   // the card can now also be here for the marketing opt-in alone (below),
   // and that must never re-ask a returning guest for a profile they gave.
   const fieldsEligible = !!config && profileFieldsEligible(config, session);
-  const collectName = fieldsEligible && !!config?.collectGuestName;
-  const collectEmail = fieldsEligible && !!config?.collectGuestEmail;
+  // Never the name when it was already required at sign-in -- see
+  // `postConnectAsksName`.
+  const collectName = fieldsEligible && !!config && postConnectAsksName(config, session);
+  // Never a detail the backend already holds (QA 2026-10-06: "if it was
+  // entered at login, don't ask again") -- see `postConnectAsksEmail`.
+  const collectEmail = fieldsEligible && !!config && postConnectAsksEmail(config, session);
 
   // The marketing opt-in (wyfy-specs/guest-marketing-campaigns.md §5.8).
   // Present only when the SERVER offered it -- venue enabled, org entitled,
@@ -179,6 +185,8 @@ export function GuestProfileNudge({
     setSession({
       ...session,
       hasProfile: session.hasProfile || collectName || collectEmail,
+      // Answered or declined either way: the card is done for this session.
+      profileDeclined: true,
       marketingConsentOffer: null,
     });
     onResolved();

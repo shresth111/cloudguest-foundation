@@ -98,6 +98,7 @@ export function useEffect(fn, deps) {
   if (changed) { h.slots[i] = deps ?? []; h.pending.push(fn); }
 }
 export function useMemo(fn) { return fn(); }
+export function useId() { return "id"; }
 export function useCallback(fn) { return fn; }
 export function useContext() { return H().runtime; }
 export function createContext() { return { Provider: () => null }; }
@@ -135,6 +136,7 @@ export const AlertBanner = () => null;
 export const ConnectingOverlay = () => null;
 export const PG_INPUT = "";
 export const PG_PRIMARY_BTN = "";
+export const GuestNameStep = () => null;
 export default new Proxy({}, { get: () => () => null });
 `;
 const ICONS_STUB = `export default new Proxy({}, { get: () => () => null });
@@ -179,6 +181,8 @@ const COMMON_ALIAS = {
   "lucide-react": stub("icons-stub.js", ICONS_STUB),
   "@/components/portal-runtime/PortalShell": stub("shell-stub.js", NOOP_COMPONENT_STUB),
   "@/components/portal-runtime/PortalGuestUi": stub("ui-stub.js", NOOP_COMPONENT_STUB),
+  // The required-name/email step (#417) renders AuthFields; not under test here.
+  "@/components/portal-runtime/GuestNameStep": stub("name-step-stub.js", NOOP_COMPONENT_STUB),
   "@/services/portal-runtime.service": stub("service-stub.js", SERVICE_STUB),
   "@/services/network-integration.service": stub("ni-stub.js", NI_SERVICE_STUB),
   "@/services/ssid-tiers.service": stub(
@@ -738,9 +742,20 @@ const Phase = await bundle(
   );
 
   const session = readFileSync(join(SRC, "routes/portal.session.tsx"), "utf8");
+  // No second offer takeover: since #417 the session page walks the whole
+  // eligible queue (GET /portal/campaigns/queue), and the backend leaves out
+  // every campaign this session already has an impression for -- which the
+  // pre-gate phase records before opening the gate.
   check(
-    "session page: no second offer takeover after the pre-gate phase",
-    /!preGateShown &&/.test(session),
+    "session page: no second offer takeover after the pre-gate phase (queue excludes shown)",
+    /getCampaignQueue\(/.test(session) && !/getNextCampaign\(/.test(session),
+  );
+  check(
+    "pre-gate phase records the impression before the gate opens",
+    /recordImpression/.test(
+      readFileSync(join(SRC, "components/portal-runtime/PreGatePhase.tsx"), "utf8") +
+        readFileSync(join(SRC, "components/portal-runtime/CampaignOverlay.tsx"), "utf8"),
+    ),
   );
   check(
     "session page: no second arrival ask after the pre-gate phase",

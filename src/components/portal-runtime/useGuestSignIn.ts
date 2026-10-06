@@ -654,7 +654,13 @@ export function useGuestSignIn() {
     // password yet, on a portal that offers password login / account creation --
     // offer the skippable "save a password for next time?" account setup prompt
     // before continuing on to the success screen.
-    const offerPasswordSetup = passwordSignInOffered(config) && !session.hasPassword;
+    //
+    // Not when the session still needs its required name: that guest's one
+    // extra screen is "Your name" (on /portal/success, before the network
+    // opens), and stacking a second optional screen in front of it is
+    // exactly the abandonment the name screen already risks.
+    const offerPasswordSetup =
+      passwordSignInOffered(config) && !session.hasPassword && !session.nameRequired;
     navigate({
       to: offerPasswordSetup ? "/portal/set-password" : "/portal/success",
       search: (prev) => prev,

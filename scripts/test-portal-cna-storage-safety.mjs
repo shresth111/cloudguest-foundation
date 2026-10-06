@@ -95,6 +95,7 @@ export const AlertBanner = () => null;
 export const ConnectingOverlay = () => null;
 export const PG_INPUT = "";
 export const PG_PRIMARY_BTN = "";
+export const GuestNameStep = () => null;
 export default new Proxy({}, { get: () => () => null });
 `;
 const ICONS_STUB = `export default new Proxy({}, { get: () => () => null });
@@ -162,6 +163,7 @@ await build({
     "@/components/portal-runtime/PortalShell": stub("shell-stub.js", NOOP_COMPONENT_STUB),
     "@/components/portal-runtime/PortalGuestUi": stub("ui-stub.js", NOOP_COMPONENT_STUB),
     "@/services/portal-runtime.service": stub("service-stub.js", SERVICE_STUB),
+    "@/components/portal-runtime/GuestNameStep": stub("name-step-stub.js", NOOP_COMPONENT_STUB),
     "@/services/network-integration.service": stub(
       "ni-service-stub.js",
       NETWORK_INTEGRATION_SERVICE_STUB,
@@ -589,6 +591,29 @@ console.log("portal captive-network-assistant storage safety");
   }
 
   installNavigator("none");
+}
+
+// Name required at sign-in. A session the server marked `nameRequired` must
+// NOT start opening the network -- no hotspot POST, no navigation -- until
+// the "Your name" screen has stored the name and cleared the bit. This is
+// the ordering that keeps the name write ahead of the login POST.
+{
+  const browser = installBrowser("working");
+  renderAndRunEffects({ ...RUNTIME, session: { ...RUNTIME.session, nameRequired: true } });
+  check(
+    "a session awaiting its required name never fires the hotspot POST",
+    browser.submits.length === 0 && browser.assigns.length === 0,
+    `submits=${browser.submits.length} assigns=${JSON.stringify(browser.assigns)}`,
+  );
+}
+{
+  const browser = installBrowser("working");
+  renderAndRunEffects({ ...RUNTIME, session: { ...RUNTIME.session, nameRequired: false } });
+  check(
+    "once the name is stored (nameRequired cleared) the hotspot POST fires",
+    browser.submits.length === 1,
+    `form.submit() called ${browser.submits.length}x`,
+  );
 }
 
 console.log(failures === 0 ? "\nall checks passed" : `\n${failures} check(s) failed`);
