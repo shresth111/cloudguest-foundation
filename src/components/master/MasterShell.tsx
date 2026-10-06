@@ -25,8 +25,10 @@ import {
   Users,
   Coins,
   FileSearch,
+  Waypoints,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { TRAFFIC_FLOW_MODULE_NAME } from "@/lib/traffic-flow";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
@@ -73,6 +75,16 @@ export const MASTER_NAV: MasterNavItem[] = [
   // Syslog that venue routers send to the platform (MikroTik for now).
   // Master only: the lines carry guest MACs/IPs (phones/e-mails masked).
   { to: "/master/device-logs", label: "Device Logs", icon: FileSearch, cap: "device-logs" },
+  // NetFlow/IPFIX rollups (MikroTik traffic-flow). Operator-only by design:
+  // guest traffic metadata never reaches a customer surface (DPDP; see
+  // ~/wyfy-ops/netflow/DESIGN.md §7). Backend flag default off. The label
+  // is the product name, held in one constant (src/lib/traffic-flow.ts).
+  {
+    to: "/master/traffic-flow",
+    label: TRAFFIC_FLOW_MODULE_NAME,
+    icon: Waypoints,
+    cap: "traffic-flow",
+  },
   { to: "/master/analytics", label: "Global Analytics", icon: LineChart, cap: "analytics" },
   {
     to: "/master/notification-channels",
@@ -123,6 +135,7 @@ const MASTER_NAV_GROUPS: { label: string; items: string[] }[] = [
       "/master/integrations",
       "/master/console",
       "/master/device-logs",
+      "/master/traffic-flow",
       "/master/health",
     ],
   },
@@ -192,6 +205,12 @@ const CAP_PERMISSIONS: Record<string, string[]> = {
    * write on the page (create, pause, delete, send test) is gated by the
    * backend on `notifications.manage`/`update`/`delete` independently. */
   "notification-channels": ["notifications.read"],
+  /** `/master/traffic-flow` -- `traffic_flows` is a GLOBAL-only module held
+   * by Super Admin and Platform Admin only (Platform Support is explicitly
+   * NONE in the seed: guest browsing metadata). */
+  "traffic-flow": ["traffic_flows.read"],
+  /** Apply / disable `/ip traffic-flow` on a router (dry run by default). */
+  "traffic-flow.apply": ["traffic_flows.update"],
   health: ["monitoring.read", "monitoring.view"],
   tickets: ["support_tickets.read"],
   "demo-requests": ["demo_requests.read"],
