@@ -81,6 +81,7 @@ import { Route as MasterMarketingPricingRouteImport } from './routes/master.mark
 import { Route as MasterLocationsRouteImport } from './routes/master.locations'
 import { Route as MasterIntegrationsRouteImport } from './routes/master.integrations'
 import { Route as MasterHealthRouteImport } from './routes/master.health'
+import { Route as MasterDeviceLogsRouteImport } from './routes/master.device-logs'
 import { Route as MasterDemoRequestsRouteImport } from './routes/master.demo-requests'
 import { Route as MasterCustomersRouteImport } from './routes/master.customers'
 import { Route as MasterConsoleRouteImport } from './routes/master.console'
@@ -557,6 +558,11 @@ const MasterIntegrationsRoute = MasterIntegrationsRouteImport.update({
 const MasterHealthRoute = MasterHealthRouteImport.update({
   id: '/health',
   path: '/health',
+  getParentRoute: () => MasterRoute,
+} as any)
+const MasterDeviceLogsRoute = MasterDeviceLogsRouteImport.update({
+  id: '/device-logs',
+  path: '/device-logs',
   getParentRoute: () => MasterRoute,
 } as any)
 const MasterDemoRequestsRoute = MasterDemoRequestsRouteImport.update({
@@ -1291,6 +1297,7 @@ export interface FileRoutesByFullPath {
   '/master/console': typeof MasterConsoleRoute
   '/master/customers': typeof MasterCustomersRoute
   '/master/demo-requests': typeof MasterDemoRequestsRoute
+  '/master/device-logs': typeof MasterDeviceLogsRoute
   '/master/health': typeof MasterHealthRoute
   '/master/integrations': typeof MasterIntegrationsRoute
   '/master/locations': typeof MasterLocationsRoute
@@ -1477,6 +1484,7 @@ export interface FileRoutesByTo {
   '/master/console': typeof MasterConsoleRoute
   '/master/customers': typeof MasterCustomersRoute
   '/master/demo-requests': typeof MasterDemoRequestsRoute
+  '/master/device-logs': typeof MasterDeviceLogsRoute
   '/master/health': typeof MasterHealthRoute
   '/master/integrations': typeof MasterIntegrationsRoute
   '/master/locations': typeof MasterLocationsRoute
@@ -1667,6 +1675,7 @@ export interface FileRoutesById {
   '/master/console': typeof MasterConsoleRoute
   '/master/customers': typeof MasterCustomersRoute
   '/master/demo-requests': typeof MasterDemoRequestsRoute
+  '/master/device-logs': typeof MasterDeviceLogsRoute
   '/master/health': typeof MasterHealthRoute
   '/master/integrations': typeof MasterIntegrationsRoute
   '/master/locations': typeof MasterLocationsRoute
@@ -1859,6 +1868,7 @@ export interface FileRouteTypes {
     | '/master/console'
     | '/master/customers'
     | '/master/demo-requests'
+    | '/master/device-logs'
     | '/master/health'
     | '/master/integrations'
     | '/master/locations'
@@ -2045,6 +2055,7 @@ export interface FileRouteTypes {
     | '/master/console'
     | '/master/customers'
     | '/master/demo-requests'
+    | '/master/device-logs'
     | '/master/health'
     | '/master/integrations'
     | '/master/locations'
@@ -2234,6 +2245,7 @@ export interface FileRouteTypes {
     | '/master/console'
     | '/master/customers'
     | '/master/demo-requests'
+    | '/master/device-logs'
     | '/master/health'
     | '/master/integrations'
     | '/master/locations'
@@ -2925,6 +2937,13 @@ declare module '@tanstack/react-router' {
       path: '/health'
       fullPath: '/master/health'
       preLoaderRoute: typeof MasterHealthRouteImport
+      parentRoute: typeof MasterRoute
+    }
+    '/master/device-logs': {
+      id: '/master/device-logs'
+      path: '/device-logs'
+      fullPath: '/master/device-logs'
+      preLoaderRoute: typeof MasterDeviceLogsRouteImport
       parentRoute: typeof MasterRoute
     }
     '/master/demo-requests': {
@@ -4031,6 +4050,7 @@ interface MasterRouteChildren {
   MasterConsoleRoute: typeof MasterConsoleRoute
   MasterCustomersRoute: typeof MasterCustomersRoute
   MasterDemoRequestsRoute: typeof MasterDemoRequestsRoute
+  MasterDeviceLogsRoute: typeof MasterDeviceLogsRoute
   MasterHealthRoute: typeof MasterHealthRoute
   MasterIntegrationsRoute: typeof MasterIntegrationsRoute
   MasterLocationsRoute: typeof MasterLocationsRoute
@@ -4052,6 +4072,7 @@ const MasterRouteChildren: MasterRouteChildren = {
   MasterConsoleRoute: MasterConsoleRoute,
   MasterCustomersRoute: MasterCustomersRoute,
   MasterDemoRequestsRoute: MasterDemoRequestsRoute,
+  MasterDeviceLogsRoute: MasterDeviceLogsRoute,
   MasterHealthRoute: MasterHealthRoute,
   MasterIntegrationsRoute: MasterIntegrationsRoute,
   MasterLocationsRoute: MasterLocationsRoute,
