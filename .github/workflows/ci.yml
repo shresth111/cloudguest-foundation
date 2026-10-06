@@ -1129,6 +1129,22 @@ jobs:
             "device-health" 40 "all checks passed" \
             bun run test:device-health
 
+      # --- Master console SNMP panel ---------------------------------------
+      #
+      # Never "Working" without a successful poll (and never for a vendor the
+      # platform cannot poll); "—" rather than a fabricated time/uptime;
+      # blank secret boxes are not sent; SNMP modules stay Master-only; the
+      # first-paste setup script never touches /snmp (the backend parity
+      # test covers writer vs renderer); the panel is shown for every vendor
+      # so Omada / Instant On say why there is no SNMP.
+      #
+      # Floor 37, observed green at 37.
+      - name: router snmp panel
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "router-snmp" 37 "all checks passed" \
+            bun run test:router-snmp
+
       # --- Customer dashboard KPI figures --------------------------------
       #
       # Two numbers that were shipping wrong to venue owners on the
@@ -1750,6 +1766,16 @@ jobs:
           ./scripts/ci-gated-test.sh \
             "location-liveness" 105 "all checks passed" \
             bun run test:location-liveness
+
+      # Device Logs (Master): an unknown must never read as quiet -- a router
+      # set up but never heard from, a line with no priority, a line matched
+      # to no router, a write not yet read back. Pure wording module plus the
+      # screen's wiring to it; nothing else can see a label drifting.
+      - name: device logs presentation
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "device-logs" 39 "all checks passed" \
+            bun run test:device-logs
 
       # Same "gated nowhere" state, found the same way. Both of these were
       # wired into the Jenkinsfile when they shipped and into no GitHub
