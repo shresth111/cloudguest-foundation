@@ -24,6 +24,7 @@ import {
   ChevronsRight,
   Users,
   Coins,
+  Waypoints,
   FileSearch,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -70,6 +71,10 @@ export const MASTER_NAV: MasterNavItem[] = [
   // people to call.
   { to: "/master/integrations", label: "Network Integrations", icon: Plug, cap: "integrations" },
   { to: "/master/console", label: "Device Console", icon: TerminalSquare, cap: "console" },
+  // NetFlow/IPFIX rollups (MikroTik traffic-flow). Operator-only by design:
+  // guest traffic metadata never reaches a customer surface (DPDP; see
+  // ~/wyfy-ops/netflow/DESIGN.md §7). Staging MVP, backend flag default off.
+  { to: "/master/traffic-flow", label: "Traffic Flow", icon: Waypoints, cap: "traffic-flow" },
   // Syslog that venue routers send to the platform (MikroTik for now).
   // Master only: the lines carry guest MACs/IPs (phones/e-mails masked).
   { to: "/master/device-logs", label: "Device Logs", icon: FileSearch, cap: "device-logs" },
@@ -122,6 +127,7 @@ const MASTER_NAV_GROUPS: { label: string; items: string[] }[] = [
       "/master/routers",
       "/master/integrations",
       "/master/console",
+      "/master/traffic-flow",
       "/master/device-logs",
       "/master/health",
     ],
@@ -192,6 +198,12 @@ const CAP_PERMISSIONS: Record<string, string[]> = {
    * write on the page (create, pause, delete, send test) is gated by the
    * backend on `notifications.manage`/`update`/`delete` independently. */
   "notification-channels": ["notifications.read"],
+  /** `/master/traffic-flow` -- `traffic_flows` is a GLOBAL-only module held
+   * by Super Admin and Platform Admin only (Platform Support is explicitly
+   * NONE in the seed: guest browsing metadata). */
+  "traffic-flow": ["traffic_flows.read"],
+  /** Apply / disable `/ip traffic-flow` on a router (dry run by default). */
+  "traffic-flow.apply": ["traffic_flows.update"],
   health: ["monitoring.read", "monitoring.view"],
   tickets: ["support_tickets.read"],
   "demo-requests": ["demo_requests.read"],

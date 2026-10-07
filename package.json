@@ -48,6 +48,7 @@
     "test:device-health": "node scripts/test-device-health.mjs",
     "test:router-snmp": "node scripts/test-router-snmp.mjs",
     "test:device-liveness": "node scripts/test-device-liveness.mjs",
+    "test:traffic-flow": "node scripts/test-traffic-flow.mjs",
     "test:router-action-gating": "node scripts/test-router-action-gating.mjs",
     "test:liveness-badge": "node scripts/test-router-liveness-badge.mjs",
     "test:device-floors": "node scripts/test-device-floors.mjs",
