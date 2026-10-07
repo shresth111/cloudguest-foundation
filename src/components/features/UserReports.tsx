@@ -49,6 +49,7 @@ import type { VoucherBatch } from "@/types/voucher";
 import { campaignService } from "@/services/campaign.service";
 import type { CampaignType } from "@/types/campaign";
 import { routerService } from "@/services/router.service";
+import { GuestSessionDeviceEventsDrawer } from "@/components/features/GuestSessionDeviceEventsDrawer";
 
 const CATEGORIES = [
   "Guest Activity Report",
@@ -908,6 +909,9 @@ const UNAVAILABLE_REASON: Record<string, string> = {
 // this endpoint (getUsers() and getDashboard() already read them), just
 // never previously requested by this file's own narrower type.
 interface RealGuestSession {
+  // Session id -- used only to open the row's "Device events" drawer
+  // (GuestSessionDeviceEventsDrawer); never a column, never exported.
+  id?: string;
   started_at: string;
   ended_at?: string | null;
   bytes_uploaded?: number;
@@ -1210,6 +1214,9 @@ async function realGuestSessionLog(
         bytesUp: (s.bytes_uploaded ?? 0) / 1e6, // MB, matches fmtCell's fmtBytes routing
         bytesDown: (s.bytes_downloaded ?? 0) / 1e6,
         disconnectReason: s.disconnect_reason ?? null,
+        // Not a column (COLUMNS drives both the table and the CSV), so it is
+        // never shown or exported -- it only opens the Device events drawer.
+        sessionId: s.id ?? null,
       };
     });
 }
@@ -1864,6 +1871,11 @@ export function ReportPanel({
   const [sortKey, setSortKey] = useState<string>("rank");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(0);
+  // Guest Session Log only: the session whose router-side "Device events"
+  // drawer is open (null = closed).
+  const [deviceEventsFor, setDeviceEventsFor] = useState<{ id: string; label: string } | null>(
+    null,
+  );
   const runCount = useRef(0);
 
   // Reset all per-report state when the category (and therefore its report list) changes.
@@ -1952,6 +1964,9 @@ export function ReportPanel({
   };
 
   const cols = reportType ? COLUMNS[reportType] || [] : [];
+  // Real accounts only: demo rows carry no session id, and the drawer reads
+  // a real endpoint.
+  const showDeviceEvents = reportType === "guest-session-log" && !demo;
 
   // Defined ahead of sortedRows below (rather than where fmtCell used to
   // sit, right before the JSX that renders each cell) because the filter
@@ -2700,6 +2715,11 @@ export function ReportPanel({
                           </TableHead>
                         );
                       })}
+                      {showDeviceEvents && (
+                        <TableHead className="text-xs font-medium uppercase tracking-wide print:hidden">
+                          <span className="sr-only">Device events</span>
+                        </TableHead>
+                      )}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -2710,6 +2730,27 @@ export function ReportPanel({
                             {fmtCell(c.key, r[c.key] ?? null)}
                           </TableCell>
                         ))}
+                        {showDeviceEvents && (
+                          <TableCell className="text-xs print:hidden">
+                            {typeof r.sessionId === "string" && r.sessionId ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setDeviceEventsFor({
+                                    id: r.sessionId as string,
+                                    label:
+                                      typeof r.sessionStart === "string"
+                                        ? `Session started ${fmtDT(r.sessionStart)}`
+                                        : "What the venue's router logged about this session's device.",
+                                  })
+                                }
+                                className="whitespace-nowrap rounded-md px-2 py-1 font-medium text-primary hover:bg-accent"
+                              >
+                                Device events
+                              </button>
+                            ) : null}
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
                   </TableBody>
@@ -2743,6 +2784,14 @@ export function ReportPanel({
           </Card>
         )}
       </div>
+      {showDeviceEvents && (
+        <GuestSessionDeviceEventsDrawer
+          sessionId={deviceEventsFor?.id ?? null}
+          sessionLabel={deviceEventsFor?.label}
+          masked={masked}
+          onClose={() => setDeviceEventsFor(null)}
+        />
+      )}
     </>
   );
 }

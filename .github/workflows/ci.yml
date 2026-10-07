@@ -1707,6 +1707,17 @@ jobs:
             "device-logs" 39 "all checks passed" \
             bun run test:device-logs
 
+      # Guest Connection Records -> "Device events" drawer. Locks the honest
+      # states (a router that doesn't send logs never reads as "no events"),
+      # the held-back count, the request shape (session id in the path, org
+      # in the scope header) and that the export stays one row per session.
+      # Floor 40, observed green at 40.
+      - name: guest device events
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "guest-device-events" 40 "all checks passed" \
+            bun run test:guest-device-events
+
       # Same "gated nowhere" state, found the same way. Both of these were
       # wired into the Jenkinsfile when they shipped and into no GitHub
       # Actions step at all -- and it is this workflow, not Jenkins, that
