@@ -39,6 +39,7 @@
     "test:discovery-preflight": "node scripts/test-discovery-preflight.mjs",
     "test:api-paths": "node scripts/test-api-paths.mjs",
     "test:platform-overview-requests": "node scripts/test-platform-overview-requests.mjs",
+    "test:master-landing-requests": "node scripts/test-master-landing-requests.mjs",
     "test:location-liveness": "node scripts/test-location-liveness.mjs",
     "test:device-logs": "node scripts/test-device-logs-presentation.mjs",
     "test:guest-device-events": "node scripts/test-guest-device-events.mjs",

@@ -107,10 +107,81 @@ const DEMO_ORGANIZATION_ROWS: OrganizationAnalyticsRow[] = [
   },
 ];
 
-async function fetchOrganizationRows(): Promise<OrganizationAnalyticsRow[]> {
-  if (isDemo()) return DEMO_ORGANIZATION_ROWS;
+interface BackendPlatformOrganizationSummaries {
+  items: {
+    organization_id: string;
+    organization_name: string;
+    guest_count_unique: number;
+    router_count: number;
+    location_count: number;
+  }[];
+}
+
+/** How many organization rows the two tables that show them ask for:
+ * /master/analytics lists twelve, the Platform Overview renders five. */
+export const ORGANIZATION_ROWS_DEFAULT_LIMIT = 12;
+
+/**
+ * Set once `GET /dashboard/super-admin/organizations` has answered 404 in
+ * this page session, i.e. this frontend is running against a backend that
+ * predates the endpoint. Remembered so the fallback below costs one wasted
+ * request per session rather than one per refetch.
+ */
+let bulkOrganizationRowsUnavailable = false;
+
+/**
+ * The organization table's rows: name, unique guests, routers, locations.
+ *
+ * ONE request. This used to be `1 + N`: list the organizations, then call
+ * `GET /dashboard/organization` once per row with that row's
+ * `X-Organization-Id`. Each of those computes a whole tenant dashboard --
+ * auth breakdown, OTP stats, vouchers, peak hour, traffic trend, health
+ * score, 26 SQL statements -- of which this table reads three numbers.
+ * Measured on production 2026-10-10 (12 rows, API timed in-process): 12
+ * requests, 312 statements, 407 ms of a single-process API, which was 58% of
+ * all the server time one load of /master cost. The backend now answers the
+ * same three figures for every row in three statements
+ * (`DashboardService.get_platform_organization_summaries`, each figure
+ * defined as the same-named field of `GET /dashboard/organization`).
+ *
+ * The per-row path is kept ONLY as the fallback for a backend that does not
+ * have the endpoint yet (404), so this frontend can deploy before or after
+ * it. `limit` bounds that fallback too: the Platform Overview shows five
+ * rows and used to fetch twelve.
+ */
+async function fetchOrganizationRows(
+  limit: number = ORGANIZATION_ROWS_DEFAULT_LIMIT,
+): Promise<OrganizationAnalyticsRow[]> {
+  if (isDemo()) return DEMO_ORGANIZATION_ROWS.slice(0, limit);
+  if (!bulkOrganizationRowsUnavailable) {
+    try {
+      const { data } = await api.get<BackendPlatformOrganizationSummaries>(
+        "/dashboard/super-admin/organizations",
+        { params: { limit } },
+      );
+      return data.items.map((row) => ({
+        id: row.organization_id,
+        name: row.organization_name,
+        activeUsers: row.guest_count_unique,
+        activeRouters: row.router_count,
+        activeLocations: row.location_count,
+        // Unavailable, exactly as on the per-row path below.
+        revenue: 0,
+        monthlyGrowth: 0,
+      }));
+    } catch (err) {
+      if ((err as { status?: number | null } | null)?.status !== 404) throw err;
+      bulkOrganizationRowsUnavailable = true;
+    }
+  }
+  return fetchOrganizationRowsPerOrganization(limit);
+}
+
+async function fetchOrganizationRowsPerOrganization(
+  limit: number,
+): Promise<OrganizationAnalyticsRow[]> {
   const { data } = await api.get<BackendListResponse<BackendOrgListItem>>("/organizations", {
-    params: { page_size: 12 },
+    params: { page_size: limit },
   });
   const settled = await Promise.allSettled(
     data.items.map(async (org): Promise<OrganizationAnalyticsRow> => {
@@ -135,6 +206,68 @@ async function fetchOrganizationRows(): Promise<OrganizationAnalyticsRow[]> {
   return settled
     .filter((r): r is PromiseFulfilledResult<OrganizationAnalyticsRow> => r.status === "fulfilled")
     .map((r) => r.value);
+}
+
+const DEMO_PLATFORM_KPIS: AnalyticsKpis = {
+  totalOrganizations: 2,
+  totalLocations: 6,
+  totalRouters: 8,
+  activeRouters: 8,
+  totalGuests: 2180,
+  activeGuests: 2,
+  totalSessions: 2,
+  avgSessionDuration: 0,
+  dailyLogins: 24,
+  monthlyLogins: 430,
+  revenue: 129940,
+  growthRate: 8,
+};
+
+/** The platform KPI tiles, and the router online/offline split that comes
+ * out of the same response. ONE request (`/dashboard/super-admin/unified`),
+ * whatever the tenant count. */
+async function fetchPlatformSummary(): Promise<{ kpis: AnalyticsKpis; routers: RouterAnalytics }> {
+  const { data: unified } = await api.get<BackendUnifiedDashboard>(
+    "/dashboard/super-admin/unified",
+  );
+  const platform = unified.platform;
+
+  const kpis: AnalyticsKpis = {
+    totalOrganizations: platform.total_organizations,
+    totalLocations: platform.total_locations,
+    totalRouters: platform.total_routers,
+    activeRouters: platform.routers_online,
+    totalGuests: platform.total_guests,
+    // Best available proxy: concurrent active sessions, not unique
+    // "active guests" -- there is no platform-wide unique-guest gauge.
+    activeGuests: platform.active_sessions,
+    totalSessions: platform.total_sessions,
+    // Unavailable platform-wide (OrganizationDashboardResponse has it
+    // per-org, no platform aggregate exists).
+    avgSessionDuration: 0,
+    dailyLogins: platform.todays_guests,
+    monthlyLogins: platform.monthly_guests,
+    revenue: unified.total_revenue ?? 0,
+    growthRate: platform.guest_growth.delta_percent ?? 0,
+  };
+
+  const routers: RouterAnalytics = {
+    online: platform.routers_online,
+    offline: platform.routers_offline,
+    // No platform-wide CPU/memory/temperature/WAN/WireGuard/RADIUS
+    // aggregate exists (those are per-router, via monitoring).
+    avgCpu: 0,
+    avgMemory: 0,
+    avgTemperature: 0,
+    wanAvailability: 0,
+    wireguardHealth: 0,
+    radiusHealth: 0,
+    performance: [],
+    cpuTrend: [],
+    memoryTrend: [],
+    healthScoreTrend: [],
+  };
+  return { kpis, routers };
 }
 
 function emptyGuestAnalytics(): GuestAnalytics {
@@ -447,23 +580,29 @@ export const analyticsService = {
     };
   },
 
+  /**
+   * The platform KPI tiles alone -- one request. The Platform Overview reads
+   * these through `usePlatformKpis` rather than through `getSnapshot`, which
+   * resolves only when the organization rows have ALSO arrived: the tiles
+   * were ready after one request and were being held behind a table they do
+   * not depend on.
+   */
+  async getPlatformKpis(): Promise<AnalyticsKpis> {
+    if (isDemo()) return DEMO_PLATFORM_KPIS;
+    return (await fetchPlatformSummary()).kpis;
+  },
+
+  /** The organization table's rows -- see `fetchOrganizationRows`. */
+  async getOrganizationRows(
+    limit: number = ORGANIZATION_ROWS_DEFAULT_LIMIT,
+  ): Promise<OrganizationAnalyticsRow[]> {
+    return fetchOrganizationRows(limit);
+  },
+
   async getSnapshot(_range: DateRangePreset = "last30"): Promise<AnalyticsSnapshot> {
     if (isDemo()) {
       return {
-        kpis: {
-          totalOrganizations: 2,
-          totalLocations: 6,
-          totalRouters: 8,
-          activeRouters: 8,
-          totalGuests: 2180,
-          activeGuests: 2,
-          totalSessions: 2,
-          avgSessionDuration: 0,
-          dailyLogins: 24,
-          monthlyLogins: 430,
-          revenue: 129940,
-          growthRate: 8,
-        },
+        kpis: DEMO_PLATFORM_KPIS,
         guests: emptyGuestAnalytics(),
         network: emptyNetworkAnalytics(),
         routers: {
@@ -486,47 +625,10 @@ export const analyticsService = {
         auth: emptyAuthAnalytics(),
       };
     }
-    const [{ data: unified }, organizations] = await Promise.all([
-      api.get<BackendUnifiedDashboard>("/dashboard/super-admin/unified"),
+    const [{ kpis, routers }, organizations] = await Promise.all([
+      fetchPlatformSummary(),
       fetchOrganizationRows(),
     ]);
-    const platform = unified.platform;
-
-    const kpis: AnalyticsKpis = {
-      totalOrganizations: platform.total_organizations,
-      totalLocations: platform.total_locations,
-      totalRouters: platform.total_routers,
-      activeRouters: platform.routers_online,
-      totalGuests: platform.total_guests,
-      // Best available proxy: concurrent active sessions, not unique
-      // "active guests" -- there is no platform-wide unique-guest gauge.
-      activeGuests: platform.active_sessions,
-      totalSessions: platform.total_sessions,
-      // Unavailable platform-wide (OrganizationDashboardResponse has it
-      // per-org, no platform aggregate exists).
-      avgSessionDuration: 0,
-      dailyLogins: platform.todays_guests,
-      monthlyLogins: platform.monthly_guests,
-      revenue: unified.total_revenue ?? 0,
-      growthRate: platform.guest_growth.delta_percent ?? 0,
-    };
-
-    const routers: RouterAnalytics = {
-      online: platform.routers_online,
-      offline: platform.routers_offline,
-      // No platform-wide CPU/memory/temperature/WAN/WireGuard/RADIUS
-      // aggregate exists (those are per-router, via monitoring).
-      avgCpu: 0,
-      avgMemory: 0,
-      avgTemperature: 0,
-      wanAvailability: 0,
-      wireguardHealth: 0,
-      radiusHealth: 0,
-      performance: [],
-      cpuTrend: [],
-      memoryTrend: [],
-      healthScoreTrend: [],
-    };
 
     return {
       kpis,

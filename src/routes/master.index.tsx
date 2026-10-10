@@ -25,7 +25,7 @@ import {
   MTr,
 } from "@/components/master/MasterKit";
 import { CHART_BODY_H } from "@/components/master/chart-layout";
-import { useAnalyticsSnapshot } from "@/hooks/useAnalytics";
+import { usePlatformKpis, usePlatformOrganizationRows } from "@/hooks/useAnalytics";
 import { useBillingOverview } from "@/hooks/useBilling";
 
 // Both point at the same module, so this is ONE extra chunk request, not two.
@@ -131,8 +131,9 @@ function CellSkeleton({ w }: { w: string }) {
  * gate. This page reads independent sources with wildly different costs, and
  * it used to render NOTHING until the two slowest had both resolved:
  *
- *   useAnalyticsSnapshot   2 + N requests, 2 waves  (N = organizations)
- *   useBillingOverview     3 requests,     1 wave
+ *   usePlatformKpis               1 request
+ *   usePlatformOrganizationRows   1 request  (was 1 + N, N = organizations)
+ *   useBillingOverview            3 requests, 1 wave
  *
  * Measured in real Chromium against a real `.output/` build (30Mbps/40ms
  * link, 150ms/request backend, 8 concurrent, 12 orgs): the KPI numbers, both
@@ -169,12 +170,24 @@ function CellSkeleton({ w }: { w: string }) {
  * to /master/billing for the rest, rather than quietly presenting a narrower
  * list as if it were all of them.
  */
+/** Rows the Organizations table renders. Also what it ASKS for: it used to
+ * fetch twelve and show five. */
+const ORGANIZATION_TABLE_ROWS = 5;
+
 function PlatformOverview() {
-  const analytics = useAnalyticsSnapshot("last30");
+  // Two queries, not one `useAnalyticsSnapshot`. That hook resolves only when
+  // the KPI response AND every organization row have arrived, so the seven
+  // KPI tiles -- one request -- sat behind the organization table's fetch,
+  // which until the backend grew `GET /dashboard/super-admin/organizations`
+  // was a further 1 + 12 requests (measured on production 2026-10-10: 58% of
+  // the server time of this whole page). The "every card gates on its OWN
+  // query" rule above was true of the JSX and not of the data underneath it.
+  const platformKpis = usePlatformKpis();
+  const organizationRows = usePlatformOrganizationRows(ORGANIZATION_TABLE_ROWS);
   const overview = useBillingOverview();
 
-  const kpis = analytics.data?.kpis;
-  const orgRows = analytics.data?.organizations ?? [];
+  const kpis = platformKpis.data;
+  const orgRows = organizationRows.data ?? [];
   const orgBilling = overview.data?.organizations ?? [];
 
   // Failed payments and outstanding invoices only -- see this component's
@@ -183,7 +196,7 @@ function PlatformOverview() {
   const reminders = overview.data?.reminders ?? [];
   const remindersPending = overview.isPending;
 
-  const recent = orgRows.slice(0, 5).map((o) => ({
+  const recent = orgRows.slice(0, ORGANIZATION_TABLE_ROWS).map((o) => ({
     ...o,
     sub: orgBilling.find((s) => s.organizationId === o.id),
   }));
@@ -322,7 +335,7 @@ function PlatformOverview() {
               // yet." empty state during loading, i.e. it stated something
               // false about the platform and then replaced it -- worse than a
               // blank, and the source of the row-count jump this page had.
-              loading={analytics.isPending}
+              loading={organizationRows.isPending}
               skeletonRows={5}
               head={
                 <>
@@ -368,7 +381,7 @@ function PlatformOverview() {
                   </MTd>
                 </MTr>
               ))}
-              {!analytics.isPending && recent.length === 0 && (
+              {!organizationRows.isPending && recent.length === 0 && (
                 <MTr>
                   <MTd className="py-8 text-center text-muted-foreground">
                     No organizations yet.

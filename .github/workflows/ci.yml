@@ -1061,6 +1061,36 @@ jobs:
             "api-paths" 5 "all checks passed" \
             bun run test:api-paths
 
+      # --- Master console request counts --------------------------------
+      #
+      # "The Master dashboard loads slowly" (2026-10-10) was not the
+      # database: it was request count against a one-process API that serves
+      # a burst one request after another. /master asked for a whole tenant
+      # dashboard per row of a five-row table (12 requests, 58% of the
+      # page's server time), and /master/customers ran the 5 + 4N billing
+      # snapshot to read one column. Both are one line to reintroduce and
+      # invisible to tsc, eslint and the build, so the counts are pinned by
+      # executing the real service modules against a counting fake.
+      #
+      # The second suite is the billing half of the same page (3 requests at
+      # any tenant count). It has existed since the 81-request fix and ran
+      # nowhere.
+      #
+      # Floors 38 and 36, observed green at 38 and 36.
+      - name: master landing request counts
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "master-landing-requests" 38 \
+            "All master-landing request checks passed" \
+            bun run test:master-landing-requests
+
+      - name: platform overview billing request counts
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "platform-overview-requests" 36 \
+            "All platform-overview request checks passed" \
+            bun run test:platform-overview-requests
+
       # Device health & interface traffic. The customer-facing numbers here
       # are all DIFFERENCES between two cumulative IF-MIB octet counters,
       # so the derivation is the entire feature and it fails silently
