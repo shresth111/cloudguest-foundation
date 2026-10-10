@@ -3314,6 +3314,159 @@ const unknownMenusIn = (script) => [...menusIn(script)].filter((m) => !KNOWN_MEN
 }
 
 // ---------------------------------------------------------------------
+// 11.2b GUESTS CANNOT OPEN THE ROUTER'S OWN ADMIN SERVICES.
+// ---------------------------------------------------------------------
+// `cloudguest-fw-allow-lan` accepts everything arriving on the guest
+// bridge and nothing touched `/ip service`, so WebFig, WinBox, SSH, Telnet,
+// FTP and the API answered any guest the hotspot was not managing -- which
+// the authorized-MAC sync makes of every signed-in one. The rule that
+// closes it is an input-chain DROP on a device nobody can reach physically,
+// so what is pinned here is mostly what it must NEVER be able to match.
+{
+  const LAN_ADMIN = "cloudguest-fw-drop-lan-admin";
+  const fwChunks = pasteables.filter(([label]) => / :: Firewall$/.test(label));
+  check(
+    "lan-admin: the Firewall chunk is emitted in the matrix, so the checks below run",
+    fwChunks.length > 0,
+    "no Firewall chunk bodies found -- every check in this section would be vacuous",
+  );
+  const ruleLineOf = (script) =>
+    script.split("\n").find((l) => l.includes(`comment="${LAN_ADMIN}" place-before=`)) ?? "";
+  const addsOf = (line) =>
+    topLevelStatements(line).filter((st) => /\/ip firewall filter add /.test(st));
+  for (const [label, script] of fwChunks.length ? fwChunks : [["MISSING Firewall chunk", ""]]) {
+    const line = ruleLineOf(script);
+    const adds = addsOf(line);
+    const bridge = /in-interface="([^"]+)" action=accept comment="cloudguest-fw-allow-lan"/.exec(
+      script,
+    )?.[1];
+    check(
+      `${label}: the guest-LAN admin drop is emitted`,
+      adds.length === 2,
+      "guests can open this router's WebFig/WinBox/SSH/API",
+    );
+    check(
+      `${label}: it matches ONLY packets that arrived on the guest bridge`,
+      Boolean(bridge) &&
+        adds.every(
+          (st) =>
+            st.includes(`chain=input in-interface="${bridge}" protocol=tcp `) &&
+            !/in-interface-list=|src-address|in-interface=!/.test(st),
+        ),
+      "a rule not pinned to the guest bridge can match the tunnel or the uplink",
+    );
+    check(
+      `${label}: it never names the WireGuard interface or a tunnel address`,
+      !/wg-|wireguard|10\.20\./i.test(line) && bridge !== "wg-cloudguard",
+      "the platform's 8728 and the owner's WinBox arrive over the tunnel; a drop that can see " +
+        "the tunnel is a lockout on a device nobody can reach",
+    );
+    const ports = (/dst-port=([0-9,]+)/.exec(adds[0] ?? "")?.[1] ?? "").split(",").map(Number);
+    check(
+      `${label}: the port list is exactly the /ip service set`,
+      ports.join(",") === "21,22,23,80,443,8291,8728,8729" &&
+        adds.every((st) => st.includes("dst-port=21,22,23,80,443,8291,8728,8729 ")),
+      `got ${ports.join(",")}`,
+    );
+    check(
+      `${label}: it cannot match DNS, DHCP or the hotspot's own servlet ports`,
+      ![53, 67, 68, 64872, 64873, 64874, 64875].some((p) => ports.includes(p)) &&
+        !/-/.test(/dst-port=(\S+)/.exec(adds[0] ?? "")?.[1] ?? "-") &&
+        !/protocol=udp/.test(line),
+      "dropping any of these takes the login page, name resolution or addressing away from guests",
+    );
+    check(
+      `${label}: only NEW connections are dropped, so it cannot kill the session it is pasted over`,
+      adds.every((st) => st.includes(" connection-state=new action=drop ")),
+      "an installer on the same bridge by IP would lose WinBox mid-paste",
+    );
+    check(
+      `${label}: idempotent -- each add is guarded on the rule being absent, found by comment`,
+      line.includes(`:local laDrop [/ip firewall filter find where comment="${LAN_ADMIN}"]`) &&
+        adds.every((st) => st.startsWith(":if ([:len $laDrop] = 0 && ")),
+      "/ip firewall filter add has no unique key: an unguarded add duplicates on every re-paste",
+    );
+    check(
+      `${label}: it lands ABOVE the allow-lan accept on a fresh router, a re-paste and a wrong order`,
+      line.includes(
+        `:local laAllow [/ip firewall filter find where comment="cloudguest-fw-allow-lan"]`,
+      ) &&
+        adds.some(
+          (st) =>
+            st.startsWith(":if ([:len $laDrop] = 0 && [:len $laAllow] > 0)") &&
+            st.includes("place-before=$laAllow"),
+        ) &&
+        adds.some(
+          (st) =>
+            st.startsWith(":if ([:len $laDrop] = 0 && [:len $laAllow] = 0)") &&
+            !st.includes("place-before"),
+        ) &&
+        line.includes(
+          ":if ([:len $laDrop] > 0 && [:len $laAllow] > 0) do={ /ip firewall filter move $laDrop destination=$laAllow }",
+        ) &&
+        script.indexOf(line) < script.indexOf('action=accept comment="cloudguest-fw-allow-lan"'),
+      "RouterOS stops at the first match: below the accept, the drop never sees a packet",
+    );
+    check(
+      `${label}: the locals and every statement that reads them are one entered line`,
+      line.startsWith(":local laAllow ") && !line.includes("\n"),
+      "the console runs each entered line as its own program; a :local read on a later line is empty",
+    );
+    check(
+      `${label}: the verdict reads the rule back and FAILs out loud when it is missing`,
+      script.includes(
+        `:local fwLanAdmin [:len [/ip firewall filter find where comment="${LAN_ADMIN}" disabled=no]]`,
+      ) &&
+        /:if \(\$fwLanAdmin != 1\) do=\{ :put "  RESULT: FAIL/.test(script) &&
+        /:if \(\$fwLanAdmin != 1\) do=\{ :log warning/.test(script),
+      "an add that silently did not happen is how this exposure existed in the first place",
+    );
+    check(
+      `${label}: the technician is told how to get back in from the LAN side`,
+      /MAC WinBox/.test(script),
+      "a new WinBox-by-IP connection from the guest LAN now fails; saying nothing strands an installer",
+    );
+  }
+  check(
+    "lan-admin: no chunk anywhere disables a service or writes a service address allowlist",
+    pasteables.every(
+      ([, script]) =>
+        !/\/ip service set[^\n;]*disabled=yes/.test(script) &&
+        !/\/ip service set[^\n;]*address=/.test(script),
+    ),
+    "the platform needs api/ssh/www over the tunnel; a wrong address= is a lockout in one line",
+  );
+  check(
+    "lan-admin: no other chunk drops or rejects anything in the input chain on a non-WAN interface",
+    pasteables.every(([, script]) =>
+      topLevelStatements(script)
+        .filter((st) => /firewall filter add chain=input[^\n]*action=(drop|reject)/.test(st))
+        .every(
+          (st) =>
+            st.includes(`comment="${LAN_ADMIN}"`) ||
+            /in-interface-list=WAN|connection-state=invalid/.test(st),
+        ),
+    ),
+    "a new input drop must be reasoned about against the tunnel before it ships",
+  );
+  check(
+    "INJECTED: the tunnel guard sees a drop aimed at the WireGuard interface",
+    /wg-|wireguard|10\.20\./i.test(
+      'chain=input in-interface="wg-cloudguard" protocol=tcp dst-port=8728 action=drop',
+    ),
+    "the guard cannot see the rule it exists to stop",
+  );
+  check(
+    "lan-admin: with the firewall deselected no input drop is emitted at all",
+    buildRouterSetupScriptChunks({ ...VARIANTS[0][1], enableFirewall: false }).every(
+      (c) => !c.script.includes(LAN_ADMIN),
+    ),
+    "the rule belongs to the Firewall chunk; emitting it elsewhere changes a router whose " +
+      "operator declined firewall rules",
+  );
+}
+
+// ---------------------------------------------------------------------
 // 11.3 THE PASTE STAYS INSIDE WHAT WinBox HAS SURVIVED.
 // ---------------------------------------------------------------------
 // This file's entire chunking discipline exists because WinBox's terminal

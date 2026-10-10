@@ -127,6 +127,7 @@ export const FLEET_DEFAULTS = {
     "cloudguest-nat-wan1",
     "cloudguest-fw-established",
     "cloudguest-fw-drop-invalid",
+    "cloudguest-fw-drop-lan-admin",
     "cloudguest-fw-allow-lan",
     "cloudguest-fw-allow-icmp",
     "cloudguest-fw-drop-wan-input",

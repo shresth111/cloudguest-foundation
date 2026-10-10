@@ -4250,6 +4250,16 @@ export function validateSetupScriptChunks(
  * routing/mangle reference instead of the physical `iface`, and resolves
  * its live gateway the same "can legitimately be empty on first paste,
  * self-heals via the Heartbeat scheduler" way DHCP's gateway is resolved. */
+/** TCP ports of the router's own management services (`/ip service`: ftp,
+ * ssh, telnet, www, www-ssl, winbox, api, api-ssl) that a device on the
+ * guest bridge has no business opening.
+ *
+ * WHAT MUST NEVER APPEAR HERE: 53 (the hotspot answers guests' DNS), 67
+ * (DHCP), and 64872-64875 (the hotspot's own servlet ports -- the login
+ * page itself). `test-setup-script-generator.mjs` pins all of them out. */
+const LAN_ADMIN_SERVICE_PORTS = [21, 22, 23, 80, 443, 8291, 8728, 8729] as const;
+const LAN_ADMIN_DROP_COMMENT = "cloudguest-fw-drop-lan-admin";
+
 export interface WanEntry {
   iface: string;
   mode: "static" | "dhcp" | "pppoe";
@@ -7414,16 +7424,69 @@ export function buildRouterSetupScriptChunks(opts: {
   }
 
   if (enableFirewall) {
+    const lanAdminDropMatch = `chain=input in-interface="${lanBridge}" protocol=tcp dst-port=${LAN_ADMIN_SERVICE_PORTS.join(",")} connection-state=new`;
     const lines = [
       `:if ([:len [/ip firewall filter find where comment="cloudguest-fw-established"]] = 0) do={ /ip firewall filter add chain=input connection-state=established,related action=accept comment="cloudguest-fw-established" }`,
       `:if ([:len [/ip firewall filter find where comment="cloudguest-fw-drop-invalid"]] = 0) do={ /ip firewall filter add chain=input connection-state=invalid action=drop comment="cloudguest-fw-drop-invalid" }`,
+      // GUESTS MUST NOT REACH THE ROUTER'S OWN ADMIN SERVICES.
+      //
+      // `cloudguest-fw-allow-lan` just below accepts EVERYTHING arriving on
+      // the guest bridge, and nothing here touches `/ip service`, so every
+      // factory service (WebFig, SSH, Telnet, FTP, WinBox, API) answered
+      // any guest. Seen on a fleet router: a guest opening
+      // `http://<hotspot address>/` got the WebFig login page.
+      //
+      // WHY ONLY SOME GUESTS SAW IT, and why this cannot break the login
+      // page. The input filter runs AFTER dst-nat. For a device the hotspot
+      // is managing, the hotspot's own dynamic NAT rules redirect port 80
+      // and 443 on the router's address to its servlet ports (64872-64875)
+      // before any filter rule is consulted, so those packets no longer
+      // carry port 80 when they get here and this rule does not match them.
+      // A `type=bypassed` host -- which is what the authorized-MAC sync
+      // makes of every signed-in guest -- skips the hotspot altogether, is
+      // not redirected, and lands on the real `www` service. That is the
+      // population this closes. DNS (53), DHCP (67) and the servlet ports
+      // are not in the list, and the test suite pins that they never are.
+      //
+      // IT CANNOT CUT THE PLATFORM OR THE OWNER OFF, BY CONSTRUCTION. The
+      // rule matches one thing: a packet whose in-interface is the guest
+      // bridge. The platform's 8728 and the owner's WinBox arrive on the
+      // WireGuard interface, which is never a member of that bridge, so no
+      // edit to this port list can reach them. Nothing is disabled in
+      // `/ip service`, no `address=` allowlist is written (a wrong one is a
+      // lockout in one line), and no other interface is named.
+      //
+      // `connection-state=new`, so it cannot kill the session it is pasted
+      // over. A technician doing this install from a laptop on the same
+      // bridge, by IP, keeps the WinBox window they have open whether or
+      // not the established-accept rule above made it onto the device.
+      // What they lose is a NEW WinBox/WebFig/SSH connection by IP from the
+      // guest LAN; MAC WinBox (Neighbors tab) is a layer-2 service this
+      // rule does not see and is how to get back in from the LAN side.
+      //
+      // ABOVE the allow-lan accept or it is theatre: RouterOS stops at the
+      // first match. Same three one-statement guards the WireGuard chunk
+      // uses for its own accept -- add before it when it exists, plain add
+      // when it does not yet (a fresh router: allow-lan is appended on the
+      // next line), and move into place when both already exist.
+      [
+        `:local laAllow [/ip firewall filter find where comment="cloudguest-fw-allow-lan"]`,
+        `:local laDrop [/ip firewall filter find where comment="${LAN_ADMIN_DROP_COMMENT}"]`,
+        `:if ([:len $laDrop] = 0 && [:len $laAllow] > 0) do={ /ip firewall filter add ${lanAdminDropMatch} action=drop comment="${LAN_ADMIN_DROP_COMMENT}" place-before=$laAllow }`,
+        `:if ([:len $laDrop] = 0 && [:len $laAllow] = 0) do={ /ip firewall filter add ${lanAdminDropMatch} action=drop comment="${LAN_ADMIN_DROP_COMMENT}" }`,
+        `:if ([:len $laDrop] > 0 && [:len $laAllow] > 0) do={ /ip firewall filter move $laDrop destination=$laAllow }`,
+        // Converge a rule left by an earlier Generate: a renamed bridge or
+        // a changed port list must not leave the old match in place.
+        `:if ([:len $laDrop] > 0) do={ /ip firewall filter set $laDrop ${lanAdminDropMatch} action=drop disabled=no }`,
+      ].join("; "),
       `:if ([:len [/ip firewall filter find where comment="cloudguest-fw-allow-lan"]] = 0) do={ /ip firewall filter add chain=input in-interface="${lanBridge}" action=accept comment="cloudguest-fw-allow-lan" }`,
       `:if ([:len [/ip firewall filter find where comment="cloudguest-fw-allow-icmp"]] = 0) do={ /ip firewall filter add chain=input protocol=icmp action=accept comment="cloudguest-fw-allow-icmp" }`,
       `:if ([:len [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]] = 0) do={ /ip firewall filter add chain=input in-interface-list=WAN action=drop comment="cloudguest-fw-drop-wan-input" }`,
       `:if ([:len [/ip firewall filter find where comment="cloudguest-fw-fwd-established"]] = 0) do={ /ip firewall filter add chain=forward connection-state=established,related action=accept comment="cloudguest-fw-fwd-established" }`,
       `:if ([:len [/ip firewall filter find where comment="cloudguest-fw-fwd-drop-invalid"]] = 0) do={ /ip firewall filter add chain=forward connection-state=invalid action=drop comment="cloudguest-fw-fwd-drop-invalid" }`,
     ];
-    // SEVEN RULES ADDED, SEVEN COUNTED. Every line above is
+    // EIGHT RULES ADDED, EIGHT COUNTED (seven until the guest-LAN admin
+    // drop joined them). Every line above is
     // `:if ([:len [find]] = 0) do={ add }`, silent whether it fired or not,
     // and this chunk printed nothing at all -- one of eight that did. Its
     // failure modes are not cosmetic: no `cloudguest-fw-drop-wan-input` means
@@ -7435,11 +7498,16 @@ export function buildRouterSetupScriptChunks(opts: {
       [
         `:local fwN [:len [/ip firewall filter find where comment~"cloudguest-fw-"]]`,
         `:local fwWanList [:len [/interface list member find where list="WAN"]]`,
-        `:put ("  cloudguest firewall rules present: " . [:tostr $fwN] . " of 7")`,
+        `:local fwLanAdmin [:len [/ip firewall filter find where comment="${LAN_ADMIN_DROP_COMMENT}" disabled=no]]`,
+        `:put ("  cloudguest firewall rules present: " . [:tostr $fwN] . " of 8")`,
         `:put ("  interfaces in the WAN list: " . [:tostr $fwWanList])`,
-        `:if ($fwN >= 7 && $fwWanList > 0) do={ :put "  RESULT: PASS -- the rule set is complete and the WAN list has something in it." }`,
-        `:if ($fwN < 7) do={ :put "  RESULT: FAIL -- a rule is missing. Re-paste this chunk and read the count again." }`,
-        `:if ($fwN < 7) do={ :log warning "cloudguest: firewall rule set incomplete after paste" }`,
+        `:if ($fwN >= 8 && $fwWanList > 0 && $fwLanAdmin = 1) do={ :put "  RESULT: PASS -- the rule set is complete and the WAN list has something in it." }`,
+        `:if ($fwN < 8) do={ :put "  RESULT: FAIL -- a rule is missing. Re-paste this chunk and read the count again." }`,
+        `:if ($fwN < 8) do={ :log warning "cloudguest: firewall rule set incomplete after paste" }`,
+        `:if ($fwLanAdmin = 1) do={ :put "  Guest LAN: NEW WinBox/WebFig/SSH/API connections by IP from ${lanBridge} are now dropped." }`,
+        `:if ($fwLanAdmin = 1) do={ :put "  This session stays up. To get back in from the LAN side use MAC WinBox (Neighbors)." }`,
+        `:if ($fwLanAdmin != 1) do={ :put "  RESULT: FAIL -- the guest-LAN admin drop is missing: guests can open this router's WebFig/WinBox/SSH." }`,
+        `:if ($fwLanAdmin != 1) do={ :log warning "cloudguest: guest-LAN admin drop rule missing -- router services reachable from guests" }`,
         `:if ($fwWanList = 0) do={ :put "  RESULT: FAIL -- the WAN interface list is EMPTY." }`,
         `:if ($fwWanList = 0) do={ :put "  cloudguest-fw-drop-wan-input matches in-interface-list=WAN, so with an empty" }`,
         `:if ($fwWanList = 0) do={ :put "  list it drops nothing and this router accepts input from its uplink." }`,
