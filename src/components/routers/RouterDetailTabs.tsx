@@ -4412,6 +4412,14 @@ function buildWeightedPccPlan(
  * nothing else" reason. */
 const AUTHORIZED_MAC_COMMENT = "cloudguest-authmac";
 
+/** Two needles for the authorized-MAC sync's own `:find` self-test: one it
+ * appends to the keep-list and must then find, one that is never appended
+ * and must miss. Neither can collide with a RouterOS internal id (`*1A`),
+ * which is all the keep-list otherwise holds. See
+ * `buildAuthorizedMacStatements`. */
+const AUTHORIZED_MAC_PROBE = "cloudguest-am-probe";
+const AUTHORIZED_MAC_ABSENT = "cloudguest-am-absent";
+
 function buildHeartbeatStatements(opts: {
   apiBase: string;
   agentCredential: string;
@@ -4593,7 +4601,62 @@ function buildAuthorizedMacStatements(opts: { apiBase: string; agentCredential: 
     // the comment is what keeps an operator's manual bindings safe -- a
     // live router in this fleet has one for the venue's own AP, and
     // deleting that would strand the hardware.
-    `:if ($amOk = 1) do={ :foreach amB in=[/ip hotspot ip-binding find where comment="${AUTHORIZED_MAC_COMMENT}"] do={ :if ([:typeof [:find $amMacs [/ip hotspot ip-binding get $amB mac-address]]] = "nothing") do={ /ip hotspot ip-binding remove $amB } } }`,
+    //
+    // THIS PASS NEVER REMOVED ANYTHING UNTIL NOW. It shipped as
+    //     :if ([:typeof [:find $amMacs <mac>]] = "nothing") do={ remove }
+    // and the typename of a `:find` that misses is `"nil"` -- measured on
+    // a hEX, RouterOS 7.23.3, and written up beside the Portal Identity
+    // Check in this same file, which had made the identical mistake. So
+    // the comparison was permanently false and a `cloudguest-authmac`
+    // bypass outlived its session for good: observed on a fleet router
+    // still carrying the binding more than twenty minutes after its only
+    // session was disconnected, with nothing else listing that MAC. A
+    // bypassed host skips the hotspot entirely, so "Disconnect" on the
+    // dashboard changed nothing the guest could notice, and the device
+    // came back online with no login on every later visit.
+    //
+    // (The "nil" measurement was taken against a STRING haystack. For an
+    // array haystack it is inference plus that observation -- which is
+    // exactly why nothing below spells a typename.)
+    //
+    // Three properties, each deliberate:
+    //
+    // 1. NO TYPENAME IS SPELLED. The not-found value is derived on the
+    //    device from a find that must miss (`$amMiss`), the same
+    //    self-calibrating sentinel the uplink helper and the Portal
+    //    Identity Check use.
+    //
+    // 2. "IS THIS BINDING STILL LISTED" IS ANSWERED BY ROUTEROS'S OWN MAC
+    //    COMPARISON, not by a string compare. `$amKeep` collects the ids
+    //    of our bindings that `find where mac-address=$amM` matches for
+    //    each listed MAC -- the very predicate the ADD pass below uses.
+    //    Add and remove therefore cannot disagree about whether a MAC is
+    //    bound. That matters the moment removal starts working: a string
+    //    compare would miss a listed MAC spelled differently from
+    //    RouterOS's own `AA:BB:CC:DD:EE:FF`, remove its binding, and the
+    //    ADD pass would put it straight back -- every minute, and RouterOS
+    //    drops the host each time a binding changes under it ("host
+    //    removed: ip binding changed").
+    //
+    // 3. IT PROVES `:find` WORKS HERE BEFORE IT TRUSTS IT. A probe string
+    //    is appended to `$amKeep` with the same `( , )` append the ids
+    //    use; unless finding it yields a different type from the miss,
+    //    `$amFind` stays 0, nothing is removed, and a warning is logged.
+    //    The failure this guards against is the mirror image of the old
+    //    one -- a find that never matches would remove EVERY guest's
+    //    bypass on every tick -- and it is far worse than a binding that
+    //    lingers, so the unknown case falls back to the old behaviour.
+    //
+    // An EMPTY list needs no special case: `$amKeep` then holds only the
+    // probe, every one of our bindings misses, and all are removed.
+    `:local amKeep [:toarray ""]`,
+    `:set amKeep ($amKeep , "${AUTHORIZED_MAC_PROBE}")`,
+    `:if ($amOk = 1) do={ :foreach amM in=$amMacs do={ :foreach amK in=[/ip hotspot ip-binding find where mac-address=$amM comment="${AUTHORIZED_MAC_COMMENT}"] do={ :set amKeep ($amKeep , [:tostr $amK]) } } }`,
+    `:local amMiss [:typeof [:find $amKeep "${AUTHORIZED_MAC_ABSENT}"]]`,
+    `:local amFind 0`,
+    `:if ([:typeof [:find $amKeep "${AUTHORIZED_MAC_PROBE}"]] != $amMiss) do={ :set amFind 1 }`,
+    `:if ($amOk = 1 && $amFind = 0) do={ :log warning "cloudguest-am: :find self-test failed -- no binding removed" }`,
+    `:if ($amOk = 1 && $amFind = 1) do={ :foreach amB in=[/ip hotspot ip-binding find where comment="${AUTHORIZED_MAC_COMMENT}"] do={ :if ([:typeof [:find $amKeep [:tostr $amB]]] = $amMiss) do={ /ip hotspot ip-binding remove $amB } } }`,
     // ADD only where NO binding exists -- not "none of ours". A MAC an
     // operator already bypassed by hand must not collect a duplicate row
     // on every tick.

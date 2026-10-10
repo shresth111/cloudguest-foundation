@@ -9334,6 +9334,148 @@ console.log("\n-- 19. version-sensitive tokens only inside [:parse] strings; the
 }
 
 // =====================================================================
+// 20. THE AUTHORIZED-MAC SYNC ACTUALLY WITHDRAWS A BYPASS.
+// =====================================================================
+// The removal pass shipped comparing `[:typeof [:find ...]]` against the
+// literal "nothing". A `:find` that misses is typed "nil" (measured on a
+// hEX, RouterOS 7.23.3 -- see the Portal Identity Check), so the pass was
+// permanently false and never removed a single binding: a bypass outlived
+// its session for good, "Disconnect" changed nothing a guest could notice,
+// and the device was back online with no login on every later visit.
+// Nothing in this file looked at the removal half at all.
+{
+  const sync = buildRouterSetupScriptChunks(VARIANTS[0][1]).find((c) =>
+    c.label.startsWith("Guest Access Sync"),
+  );
+  check("the Guest Access Sync chunk is generated", Boolean(sync), "no chunk to test");
+  const [direct = "", , schedLine = ""] = (sync?.script ?? "").split("\n");
+  // The scheduler stores the same statements one escape level deeper.
+  const stored = schedLine.replace(/\\(["\\$])/g, "$1");
+  const statements = topLevelStatements(direct);
+  const removal = statements.filter((st) => /\/ip hotspot ip-binding remove \$amB/.test(st));
+  const keepPass = statements.find((st) => /:set amKeep \(\$amKeep , \[:tostr \$amK\]\)/.test(st));
+  const addPass = statements.find((st) => /\/ip hotspot ip-binding add mac-address=\$amM/.test(st));
+
+  check(
+    "authmac: exactly one statement removes a binding, and the scheduler stores the same text",
+    removal.length === 1 && stored.includes(removal[0]),
+    "the pasted copy and the copy that runs every minute have drifted, or the removal is gone",
+  );
+  for (const [where, text] of [
+    ["pasted", direct],
+    ["scheduled", stored],
+  ]) {
+    check(
+      `authmac (${where}): no :find result is compared against a spelled typename`,
+      !/:typeof \[:find[^\n]*?\]\]\s*!?=\s*"/.test(text) && !/"nothing"|"nil"/.test(text),
+      'a literal "nothing" here is the original bug: the comparison is never true and no bypass ' +
+        "is ever withdrawn",
+    );
+  }
+  check(
+    "authmac: the not-found sentinel is derived on the device from a find that must miss",
+    statements.some(
+      (st) => st === ':local amMiss [:typeof [:find $amKeep "cloudguest-am-absent"]]',
+    ) && !direct.includes('($amKeep , "cloudguest-am-absent")'),
+    "the sentinel must come from a needle that is never appended to the keep-list",
+  );
+  check(
+    "authmac: removal is decided against the derived sentinel, by binding id",
+    removal.length === 1 &&
+      /:if \(\[:typeof \[:find \$amKeep \[:tostr \$amB\]\]\] = \$amMiss\) do=\{ \/ip hotspot ip-binding remove \$amB \}/.test(
+        removal[0],
+      ),
+    "comparing MAC strings lets a differently-spelled listed MAC be removed and re-added every tick",
+  );
+  check(
+    "authmac: no binding's MAC is read back and string-compared",
+    !/ip-binding get \$amB/.test(direct),
+    "RouterOS's own `find where mac-address=` is the comparison; a string compare can disagree with it",
+  );
+  check(
+    "authmac: the keep-list and the ADD pass ask RouterOS the same question about a MAC",
+    Boolean(keepPass) &&
+      Boolean(addPass) &&
+      keepPass.includes(
+        '/ip hotspot ip-binding find where mac-address=$amM comment="cloudguest-authmac"',
+      ) &&
+      addPass.includes("[/ip hotspot ip-binding find where mac-address=$amM]"),
+    "if the two passes match MACs differently, one removes what the other re-adds, every minute",
+  );
+  check(
+    "authmac: removal only ever touches rows carrying this platform's comment",
+    removal.length === 1 &&
+      removal[0].includes('in=[/ip hotspot ip-binding find where comment="cloudguest-authmac"]') &&
+      Boolean(keepPass) &&
+      keepPass.includes('comment="cloudguest-authmac"'),
+    "an operator's hand-made bypass (a venue AP) must never be removed by this sync",
+  );
+  // The fail-safe. A find that never matches would withdraw EVERY guest's
+  // bypass on every tick, which is far worse than the bug being fixed.
+  const idxProbe = statements.findIndex(
+    (st) => st === ':set amKeep ($amKeep , "cloudguest-am-probe")',
+  );
+  const idxSelfTest = statements.findIndex(
+    (st) =>
+      st ===
+      ':if ([:typeof [:find $amKeep "cloudguest-am-probe"]] != $amMiss) do={ :set amFind 1 }',
+  );
+  const idxRemoval = statements.indexOf(removal[0]);
+  check(
+    "authmac: a probe is appended with the same operator as the ids, then found, before any removal",
+    idxProbe >= 0 && idxSelfTest > idxProbe && idxRemoval > idxSelfTest,
+    "without a positive control, a :find that never matches removes every binding every minute",
+  );
+  check(
+    "authmac: removal runs only on a parsed reply AND a passed :find self-test",
+    removal.length === 1 && removal[0].startsWith(":if ($amOk = 1 && $amFind = 1) do={"),
+    "a failed fetch, an unparseable reply or an unproven :find must change nothing",
+  );
+  check(
+    "authmac: a failed self-test is logged, not silent",
+    statements.some((st) => st.startsWith(":if ($amOk = 1 && $amFind = 0) do={ :log warning")),
+    "the whole history of this sync is failures nothing reported",
+  );
+  check(
+    "authmac: an empty list still reaches the removal pass",
+    !/\[:len \$amMacs\] > 0/.test(direct) &&
+      statements.some((st) => st === ':local amKeep [:toarray ""]'),
+    'treating "no MACs" as "do nothing" leaves a guest bypassed forever after they disconnect',
+  );
+  check(
+    "authmac: the keep-list is built before the removal reads it",
+    statements.indexOf(keepPass) > idxProbe && statements.indexOf(keepPass) < idxRemoval,
+    "a removal that runs before the keep-list is filled removes every binding",
+  );
+  // The whole class, not just this instance.
+  const offenders = pasteables.filter(([, script]) =>
+    /:typeof \[:find[^\n]*?\]\]\s*!?=\s*"nothing"/.test(script),
+  );
+  check(
+    'QA: no generated chunk compares a :find result against the literal "nothing"',
+    offenders.length === 0,
+    offenders.map(([l]) => l).join(", "),
+  );
+  check(
+    "INJECTED: that sweep sees the original authmac line",
+    /:typeof \[:find[^\n]*?\]\]\s*!?=\s*"nothing"/.test(
+      ':if ([:typeof [:find $amMacs [/ip hotspot ip-binding get $amB mac-address]]] = "nothing") do={ /ip hotspot ip-binding remove $amB }',
+    ),
+    "the sweep cannot see the bug it exists for",
+  );
+  const wizardSrc = readFileSync(
+    join(ROOT, "src/components/routers/manual-wizard/steps.part5.ts"),
+    "utf8",
+  );
+  check(
+    'manual wizard: the login-page probe does not compare a :find result against "nothing"',
+    !/:typeof \[:find[^\n]*?\]\]\s*!?=\s*"nothing"/.test(wizardSrc) &&
+      wizardSrc.includes(':local lcMiss [:typeof [:find "a" "zz"]]'),
+    "it printed login-has-portal-url=true on every router, including one serving the stock page",
+  );
+}
+
+// =====================================================================
 
 console.log("");
 if (failures.length) {
