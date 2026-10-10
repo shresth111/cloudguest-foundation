@@ -376,7 +376,7 @@ export const STEPS_PART5: ManualStep[] = [
 :put ("plain-prefix-count=" . [:tostr [:len [/file find where name="hotspot/login.html"]]])
 :put ("login-file-count=" . [:tostr [:len [/file find where name~"login.html"]]])
 :foreach f in=[/file find where name~"login.html"] do={ :put ("login-file=" . [/file get $f name] . ";size=" . [:tostr [/file get $f size]]) }
-:local lc ""; :do { :set lc [:tostr [/file get [find where name~"login.html"] contents]] } on-error={ :set lc "" }; :put ("login-has-portal-url=" . [:tostr ([:typeof [:find $lc "auth.wyfyguest.com"]] != "nothing")]); :put ("login-has-link-token=" . [:tostr ([:typeof [:find $lc "link-login-only"]] != "nothing")])
+:local lc ""; :do { :set lc [:tostr [/file get [find where name~"login.html"] contents]] } on-error={ :set lc "" }; :local lcMiss [:typeof [:find "a" "zz"]]; :put ("login-has-portal-url=" . [:tostr ([:typeof [:find $lc "auth.wyfyguest.com"]] != $lcMiss)]); :put ("login-has-link-token=" . [:tostr ([:typeof [:find $lc "link-login-only"]] != $lcMiss)])
 :put ("wg-host-count=" . [:tostr [:len [/ip hotspot walled-garden find where comment="cloudguest-portal"]]])
 :put ("wg-ip-count=" . [:tostr [:len [/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"]]])
 :foreach w in=[/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"] do={ :put ("wg-ip=" . [:tostr [/ip hotspot walled-garden ip get $w dst-address]]) }

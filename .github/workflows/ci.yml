@@ -982,7 +982,9 @@ jobs:
       # grading is now a pure exported function this suite CALLS. All 25
       # caught on the second pass.
       #
-      # FLOOR: 3610, against 3626 observed green (2026-10-04, section 19:
+      # FLOOR: 3627, against 3643 observed green (2026-10-10, section 20:
+      # the authorized-MAC sync's removal pass). Was 3610, against 3626
+      # observed green (2026-10-04, section 19:
       # version-sensitive tokens only inside [:parse], the preflight, the
       # heartbeat's device-mode FAIL). Was 3390, against 3404 observed green. Tight on purpose --
       # deleting one assertion block fails the build -- with just enough
@@ -991,7 +993,7 @@ jobs:
       - name: setup script generator
         run: |
           ./scripts/ci-gated-test.sh \
-            "setup-script-generator" 3610 \
+            "setup-script-generator" 3627 \
             "setup-script-generator: all checks passed" \
             bun run test:setup-script
 
