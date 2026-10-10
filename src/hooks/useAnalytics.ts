@@ -18,6 +18,25 @@ export function useAnalyticsSnapshot(range: DateRangePreset) {
   });
 }
 
+/** The platform KPI tiles: one request, independent of the tenant count and
+ * of the organization table below them (see `analyticsService.getPlatformKpis`). */
+export function usePlatformKpis() {
+  return useQuery({
+    queryKey: ["analytics", "platform-kpis"],
+    queryFn: () => analyticsService.getPlatformKpis(),
+    staleTime: 30_000,
+  });
+}
+
+/** The first `limit` rows of the platform organization table. */
+export function usePlatformOrganizationRows(limit: number) {
+  return useQuery({
+    queryKey: ["analytics", "platform-organization-rows", limit],
+    queryFn: () => analyticsService.getOrganizationRows(limit),
+    staleTime: 30_000,
+  });
+}
+
 /**
  * The current session's own organization id, resolved once via the shared
  * `/me/organizations` resolver. The customer Analytics pages

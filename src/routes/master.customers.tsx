@@ -92,10 +92,19 @@ function CustomersScreen() {
   async function refetch() {
     setLoading(true);
     try {
-      const [orgs, locations, snapshot] = await Promise.all([
+      // getOverview(), not getSnapshot(). The only thing this page reads from
+      // billing is each customer's PLAN NAME, and getSnapshot() fetches every
+      // organization's subscription, payments, invoices and usage to get it:
+      // 5 + 4N requests. Measured on production 2026-10-10 with 17
+      // organizations: 73 of this page's 94 requests and most of its ~2.5s of
+      // API time, for one column. getOverview() is a fixed 3 requests and its
+      // `organizations` rows carry the same plan name, straight off the
+      // backend's subscription-plan join (so a plan missing from the catalog
+      // page is still named, where the snapshot said "Unknown plan").
+      const [orgs, locations, overview] = await Promise.all([
         organizationService.listAll(),
         locationService.listAll(),
-        billingService.getSnapshot().catch(() => null),
+        billingService.getOverview().catch(() => null),
       ]);
       const locCounts = new Map<string, number>();
       const businessTypeByOrg = new Map<string, PropertyType | null>();
@@ -105,7 +114,7 @@ function CustomersScreen() {
           businessTypeByOrg.set(l.organizationId, l.propertyType);
       }
       const planByOrg = new Map<string, string>();
-      snapshot?.subscriptions.forEach((s) => planByOrg.set(s.organizationId, s.planName));
+      overview?.organizations.forEach((o) => planByOrg.set(o.organizationId, o.planName));
 
       setRows(
         orgs.map((o) => ({
