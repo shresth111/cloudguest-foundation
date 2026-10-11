@@ -5326,6 +5326,23 @@ export function buildRouterSetupScriptChunks(opts: {
         `:if ($staleDefconfN = 0) do={ :put "  Expected, and not a fault: a router reset with NO default configuration" }`,
         `:if ($staleDefconfN = 0) do={ :put "  never had a bridgeLocal for one to sit on. This chunk had nothing to do." }`,
       ].join("; "),
+      // SAY SO WHEN THE ROUTER WAS NOT RESET BARE. Everything this script
+      // builds assumes a router with no default configuration. On one that
+      // still has it, the paste "works" and the venue is quietly wrong:
+      // MikroTik's own `defconf` DHCP server keeps answering on the bridge,
+      // so guests are handed 192.168.88.x instead of the hotspot pool
+      // (live 2026-10-11, "sector 37 d"). Counted and reported only --
+      // nothing is removed here: deleting the server a technician's own
+      // laptop got its lease from, mid-paste, is how an install gets
+      // stranded. The fix is a reset, and that is the operator's call.
+      [
+        `:local defconfDhcpN [:len [/ip dhcp-server find where name="defconf"]]`,
+        `:if ($defconfDhcpN > 0) do={ :put ("  WARNING: " . [:tostr $defconfDhcpN] . " factory-default DHCP server(s) named defconf found -- this router was NOT reset with no default configuration.") }`,
+        `:if ($defconfDhcpN > 0) do={ :put "  Guests may be handed 192.168.88.x instead of the hotspot pool. Nothing was removed." }`,
+        `:if ($defconfDhcpN > 0) do={ :put "  Cleanest fix: /system reset-configuration no-defaults=yes, then paste this script again from the top." }`,
+        `:if ($defconfDhcpN > 0) do={ :log warning "cloudguest: default configuration still present (defconf dhcp-server) -- router was not reset bare" }`,
+        `:if ($defconfDhcpN = 0) do={ :put "  Factory-default DHCP servers (name defconf): 0 found. Good: no default configuration left over." }`,
+      ].join("; "),
     ];
     chunks.push({ label: "Stale Factory-Default DHCP Client Cleanup", script: lines.join("\n") });
   }
@@ -7099,6 +7116,41 @@ export function buildRouterSetupScriptChunks(opts: {
         `:if ($hsProf = 0) do={ :put "  Sessions will never expire and device limits will not hold. Check /ip hotspot user profile print." }`,
         `:if ($hsProf = 0) do={ :log warning "cloudguest: hotspot default user profile missing -- session limits not applied" }`,
         `:if ($hsProf > 0) do={ :put ("  Hotspot default profile: idle-timeout=" . [:tostr [/ip hotspot user profile get [find where name="default"] idle-timeout]] . " shared-users=" . [:tostr [/ip hotspot user profile get [find where name="default"] shared-users]]) }`,
+      ].join("; "),
+      // FASTTRACK MAKES EVERY GUEST SPEED LIMIT A NO-OP.
+      //
+      // The platform limits a guest with a `/queue simple` row on their
+      // address. A FastTrack'd connection skips simple queues entirely, and
+      // MikroTik's default configuration ships a forward-chain
+      // `fasttrack-connection` rule that catches every established
+      // connection. So on a router that was not reset bare the queue row is
+      // created, shows the right max-limit, and shapes nothing. Confirmed
+      // live 2026-10-11 ("sector 37 d"): the FastTrack counter grew by
+      // ~100 MB in 8 s while the guest's 40M queue saw ~110 kB.
+      //
+      // In THIS chunk, not Firewall: Firewall is optional
+      // (`enableFirewall`), while this one is emitted for every venue that
+      // has a guest network at all -- which is exactly the set of routers
+      // that get queues. Matched on the ACTION, not on defconf's comment:
+      // a hand-added FastTrack rule bypasses the queues just the same, and
+      // a comment is something an operator edits.
+      //
+      // Disabled, never removed -- one click undoes it. Counted before and
+      // read back after, on ONE entered line: an empty `:foreach` is a
+      // silent no-op, so without the count a bare router (nothing to do)
+      // and a router where the disable failed would print the same nothing.
+      // `disabled=no` in the find is what makes a re-paste report 0.
+      [
+        `:local ftN [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no]]`,
+        `:foreach ftRule in=[/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no] do={ /ip firewall filter disable $ftRule }`,
+        `:local ftLeft [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no]]`,
+        `:if ($ftN > 0) do={ :put ("  FastTrack: disabled " . [:tostr $ftN] . " forward rule(s). FastTrack skips simple queues, so guest speed limits did nothing.") }`,
+        `:if ($ftN > 0) do={ :put "  Connections already open stay unlimited until they close; new ones are limited from now." }`,
+        `:if ($ftN > 0) do={ :log info ("cloudguest: disabled " . [:tostr $ftN] . " fasttrack rule(s) so guest queues apply") }`,
+        `:if ($ftN = 0) do={ :put "  FastTrack rules enabled in the forward chain: 0 found, nothing disabled." }`,
+        `:if ($ftN = 0) do={ :put "  Expected on a router reset with NO default configuration, and on a re-paste." }`,
+        `:if ($ftLeft > 0) do={ :put ("  RESULT: FAIL -- " . [:tostr $ftLeft] . " FastTrack rule(s) still enabled. Guest speed limits will NOT hold.") }`,
+        `:if ($ftLeft > 0) do={ :log warning "cloudguest: fasttrack still enabled in forward chain -- guest queues are bypassed" }`,
       ].join("; "),
     ];
     // Labelled from `HOTSPOT_CHUNK_LABEL` rather than a literal because the

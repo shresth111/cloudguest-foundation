@@ -189,8 +189,8 @@
  * an empty match SUCCEEDS on RouterOS and an empty `:foreach` exits clean,
  * so "no error" was never evidence of anything.
  *
- * Twenty mutations of the real generator and four of the guards
- * themselves were injected and this suite re-run. All twenty-four caught:
+ * Twenty-six mutations of the real generator and four of the guards
+ * themselves were injected and this suite re-run. All thirty caught:
  *
  *   the pppoe-client exclusion removed from the LAN sweep .............. 2
  *   the exclusion applied to the attach pass only ...................... 1
@@ -212,6 +212,12 @@
  *   the LAN bridge add loses its existence test ........................ 1
  *   a chunk starts matching on RouterOS's own `defconf` comment ........ 1
  *   a second chunk starts depending on the `bridgeLocal` name .......... 1
+ *   the FastTrack disable keyed on a comment, not the action ........... 2
+ *   FastTrack rules removed instead of disabled ........................ 2
+ *   the FastTrack read-back dropped .................................... 27
+ *   the leftover-defconf notice loses its :log warning ................. 1
+ *   the defconf-drop lift loses its length guard ....................... 2
+ *   the defconf-drop lift dropped (test-fw-rule-order.mjs catches too) . 2
  *   zero-branch guard stops accepting the negated-verdict form ......... 4
  *   the unguarded-add detector stops recognising an add ................ 2
  *   the place-before guard stops requiring the length test ............. 1
@@ -2870,6 +2876,108 @@ check(
   "counting is an addition to the removal, not a replacement for it -- the duplicate-address " +
     "fault on bridgeLocal is a confirmed live incident",
 );
+
+// ---------------------------------------------------------------------
+// 10.7b THE ROUTER THAT WAS *NOT* RESET BARE.
+// ---------------------------------------------------------------------
+// The mirror image of the rest of this section, found live on 2026-10-11
+// ("sector 37 d"): the script was pasted over MikroTik's default
+// configuration. Everything pasted clean and the venue was wrong in two
+// ways no chunk reported -- defconf's FastTrack rule carried every guest
+// connection past its speed queue, and defconf's DHCP server handed guests
+// 192.168.88.x. (The third, the management accept rule landing below
+// defconf's LAN drop, is pinned in test-fw-rule-order.mjs.)
+
+{
+  /** The FastTrack line, wherever it lives in a chunk: counted on
+   * `action=fasttrack-connection` (never on a comment), limited to rules
+   * that are still enabled, disabled rather than removed, read back, with
+   * a zero branch that names the count and a FAIL that leaves a log line.
+   * ONE predicate for the sweep and its self-checks. */
+  const fastTrackLineOk = (line) =>
+    /:local ftN \[:len \[\/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no\]\]/.test(
+      line,
+    ) &&
+    /:foreach ftRule in=\[\/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no\] do=\{ \/ip firewall filter disable \$ftRule \}/.test(
+      line,
+    ) &&
+    /:local ftLeft \[:len \[\/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no\]\]/.test(
+      line,
+    ) &&
+    /:if \(\$ftN > 0\) do=\{ :put \("[^"]*" \. \[:tostr \$ftN\]/.test(line) &&
+    /:if \(\$ftN = 0\) do=\{ :put "[^"]*\b0\b[^"]*" \}/.test(line) &&
+    /:if \(\$ftLeft > 0\) do=\{ :put \("  RESULT: FAIL/.test(line) &&
+    /:if \(\$ftLeft > 0\) do=\{ :log warning /.test(line) &&
+    !/comment[=~]/.test(line) &&
+    !/filter remove/.test(line);
+  const ftLines = (script) => script.split("\n").filter((l) => l.includes("fasttrack-connection"));
+
+  const hs = bareChunk(BARE_PPPOE, "Hotspot");
+  check(
+    "default config: the Hotspot chunk disables forward-chain FastTrack, counted and read back on one line",
+    ftLines(hs).length === 1 && fastTrackLineOk(ftLines(hs)[0]),
+    "FastTrack'd connections skip /queue simple, so on a router that still has defconf's " +
+      "fasttrack rule every guest speed limit exists and shapes nothing (live 2026-10-11)",
+  );
+  // In the Hotspot chunk because that is the chunk every guest venue gets;
+  // Firewall is optional, and a limit that depends on an unrelated tick-box
+  // is the bug again.
+  const noFw = buildRouterSetupScriptChunks({ ...VARIANTS[0][1], enableFirewall: false });
+  check(
+    "default config: FastTrack is still disabled when the Firewall chunk is switched off",
+    noFw.every((c) => c.label !== "Firewall") &&
+      noFw.some((c) => ftLines(c.script).some(fastTrackLineOk)),
+    "the FastTrack disable went missing with enableFirewall=false -- guest queues would be " +
+      "bypassed on exactly the routers nobody hardened",
+  );
+  check(
+    "default config: exactly one chunk touches FastTrack, and none removes a rule",
+    BARE_PPPOE.filter((c) => c.script.includes("fasttrack")).length === 1 &&
+      !BARE_PPPOE.some((c) => /filter remove[^;\n]*fasttrack/.test(c.script)),
+    "a second writer drifts, and a removed rule cannot be put back with one click",
+  );
+  check(
+    "INJECTED: a FastTrack line keyed on defconf's comment is rejected",
+    !fastTrackLineOk(
+      ftLines(hs)[0].replaceAll(
+        "chain=forward action=fasttrack-connection disabled=no",
+        'comment="defconf: fasttrack"',
+      ),
+    ),
+    "a hand-added FastTrack rule bypasses the queues just the same; the guard must hold the action match",
+  );
+  check(
+    "INJECTED: ...as is one that disables without reading the result back",
+    !fastTrackLineOk(ftLines(hs)[0].replace(/:local ftLeft [^;]*; /, "")) &&
+      !fastTrackLineOk(
+        ftLines(hs)[0].replace(/:if \(\$ftN = 0\) do=\{ :put "[^"]*0 found[^"]*" \}; /, ""),
+      ),
+    "the guard accepts a silent disable -- on a bare router that is indistinguishable from a failed one",
+  );
+
+  const cleanup = bareChunk(BARE_PPPOE, "Stale Factory-Default DHCP Client");
+  const noticeLine = cleanup.split("\n").find((l) => l.includes("defconfDhcpN")) ?? "";
+  check(
+    "default config: a leftover defconf DHCP server is counted and called out, with a log line",
+    /:local defconfDhcpN \[:len \[\/ip dhcp-server find where name="defconf"\]\]/.test(
+      noticeLine,
+    ) &&
+      /:if \(\$defconfDhcpN > 0\) do=\{ :put \("  WARNING: " \. \[:tostr \$defconfDhcpN\]/.test(
+        noticeLine,
+      ) &&
+      /:if \(\$defconfDhcpN > 0\) do=\{ :log warning /.test(noticeLine) &&
+      /no-defaults=yes/.test(noticeLine),
+    "pasting over a default config 'works' and hands guests 192.168.88.x; nothing told the operator",
+  );
+  check(
+    "default config: on a bare router that notice states 0, and it never removes anything",
+    /:if \(\$defconfDhcpN = 0\) do=\{ :put "[^"]*\b0\b[^"]*" \}/.test(noticeLine) &&
+      !/dhcp-server (remove|disable|set)/.test(noticeLine) &&
+      !BARE_PPPOE.some((c) => /dhcp-server remove[^;\n]*defconf/.test(c.script)),
+    "the zero case is the normal one and must read as an outcome; and deleting the DHCP server a " +
+      "technician's laptop is leased from, mid-paste, strands the install",
+  );
+}
 
 // ---------------------------------------------------------------------
 // 10.8 NOTHING IS POSITIONED AGAINST A RULE ONLY DEFCONF PROVIDES.
