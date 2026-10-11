@@ -80,12 +80,17 @@ export const FLEET_DEFAULTS = {
   portalIp: "13.203.112.174" as Lit,
   portalBase: "https://auth.wyfyguest.com" as Lit,
 
-  /** WireGuard interface name emitted by the FRONTEND generator. */
-  wgInterface: "wg-cloudguest" as Lit,
-  /** WireGuard interface name emitted by the BACKEND bootstrap path.
-   * If both exist on one device the firewall rule is bound to the wrong
-   * one. Detecting this is a hard FAIL, not a warning. */
-  wgInterfaceBackendAlias: "wg-cloudguard" as Lit,
+  /** WireGuard interface name the generator AND the backend both emit
+   * (`WIREGUARD_INTERFACE_NAME` in RouterDetailTabs.tsx). This file had the
+   * two names the wrong way round until 2026-10-12, so every wizard probe
+   * looked for the tunnel under the legacy name and its repair step bound
+   * the management accept rule to an interface that does not exist. */
+  wgInterface: "wg-cloudguard" as Lit,
+  /** The name the generator emitted before that fix
+   * (`WIREGUARD_LEGACY_INTERFACE_NAME`). Routers provisioned back then
+   * still carry it. If both exist on one device the firewall rule is
+   * bound to the wrong one. Detecting this is a hard FAIL, not a warning. */
+  wgInterfaceLegacy: "wg-cloudguest" as Lit,
   wgListenPort: 13231,
   /** Hub endpoint. Was the bare IP `20.219.72.235` in earlier content;
    * the fleet has moved to a DNS name. A DNS name means the router MUST

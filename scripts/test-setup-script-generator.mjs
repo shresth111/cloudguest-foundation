@@ -223,6 +223,19 @@
  *   the place-before guard stops requiring the length test ............. 1
  *   the existence-test predicate stops recognising `] = 0` ............. 1
  *
+ * SECTION 18 -- THREE PATHS, ONE SET OF STATEMENTS
+ * ------------------------------------------------
+ * The two default-config fixes (the defconf-drop lift and the FastTrack
+ * disable) are lifted out of this generator's real output and must appear
+ * verbatim in Guided Setup's blocks and the manual wizard's repair
+ * commands. Five mutations, one path at a time, each caught:
+ *
+ *   Guided's lift re-worded .............................................. 2
+ *   the wizard's FastTrack fix removes instead of disabling .............. 1
+ *   the wizard's repair step binds the rule to wg-cloudguest again ....... 1
+ *   the wizard resolver's WAN-drop move loses the lift after it .......... 2
+ *   the generator's own statement changes and nothing else follows ....... 7
+ *
  * SECTION 12 -- THE UPLINK IS DISCOVERED IN THE WAN CHUNKS TOO
  * ------------------------------------------------------------
  * Section 3 proved the HEARTBEAT derives its uplink from the routing
@@ -9778,6 +9791,152 @@ console.log("\n-- 19. version-sensitive tokens only inside [:parse] strings; the
 }
 
 // =====================================================================
+
+// =====================================================================
+// 18. THREE PATHS, ONE SET OF STATEMENTS
+// =====================================================================
+// A router gets configured by this generator, by Guided Setup's own
+// universal blocks, and by the manual wizard's repair commands. Fixes keep
+// landing on one of the three (memory: "generator vs writer drift"). The
+// two default-config fixes are therefore pinned ACROSS the paths: the
+// statements are lifted out of the generator's real output and every other
+// path must carry them verbatim. Change one side alone and this fails.
+//
+// The content files are pure data with a no-imports rule, so they cannot
+// share a constant with the generator; a parity gate is what stands in for
+// one.
+{
+  console.log("\n-- the default-config fixes are identical on all three paths --");
+  const stmts = (script) =>
+    script
+      .split("\n")
+      .flatMap((l) => l.split("; "))
+      .map((x) => x.trim());
+  const wgStmts = stmts(bareChunk(BARE_PPPOE, "WireGuard Tunnel"));
+  const hsStmts = stmts(bareChunk(BARE_PPPOE, "Hotspot"));
+  const LIFT = [
+    wgStmts.find((x) => x.startsWith(":local defconfDrop ")),
+    wgStmts.find((x) => x.startsWith(":local wgAllowNow ")),
+    wgStmts.find((x) => x.includes("move $wgAllowNow destination=$defconfDrop")),
+  ];
+  const FASTTRACK = [
+    hsStmts.find((x) => x.startsWith(":local ftN ")),
+    hsStmts.find((x) => x.startsWith(":foreach ftRule ")),
+    hsStmts.find((x) => x.startsWith(":local ftLeft ")),
+  ];
+  check(
+    "parity: the generator emits all six shared statements",
+    [...LIFT, ...FASTTRACK].every((x) => typeof x === "string" && x.length > 20),
+    `lift=${JSON.stringify(LIFT)} fasttrack=${JSON.stringify(FASTTRACK)}`,
+  );
+  const LIFT_LINE = LIFT.join("; ");
+  const FT_LINE = FASTTRACK.join("; ");
+  const read = (rel) => readFileSync(join(ROOT, rel), "utf8");
+  const G = "src/components/routers/guided-setup/";
+  const W = "src/components/routers/manual-wizard/";
+  const src = {
+    guidedPhases: read(`${G}phases.content.ts`),
+    guidedDiag: read(`${G}diagnostics.content.ts`),
+    wizard3: read(`${W}steps.part3.ts`),
+    wizard5: read(`${W}steps.part5.ts`),
+    wizardResolver: read(`${W}resolver.content.ts`),
+  };
+  const count = (hay, needle) => hay.split(needle).length - 1;
+
+  // Each number is the count of places that path performs the behaviour.
+  for (const [name, text, lift, ft] of [
+    ["Guided phases", src.guidedPhases, 3, 1],
+    ["Guided diagnostics", src.guidedDiag, 1, 1],
+    ["manual wizard step 9", src.wizard3, 4, 0],
+    ["manual wizard step 16", src.wizard5, 0, 1],
+    ["manual wizard resolver", src.wizardResolver, 1, 0],
+  ]) {
+    check(
+      `parity: ${name} carries the generator's defconf-drop lift verbatim (${lift}x)`,
+      count(text, LIFT_LINE) === lift,
+      `found ${count(text, LIFT_LINE)}; a path that lifts the rule with different statements has drifted`,
+    );
+    check(
+      `parity: ${name} carries the generator's FastTrack disable verbatim (${ft}x)`,
+      count(text, FT_LINE) === ft,
+      `found ${count(text, FT_LINE)}; a path that disables FastTrack with different statements has drifted`,
+    );
+  }
+
+  // THE LIFT MUST COME LAST. Every one of these paths also has a command
+  // that moves the accept rule to just above `cloudguest-fw-drop-wan-input`
+  // -- which, on a router with default config, is BELOW the defconf drop.
+  // A move to the WAN drop that is not followed by the lift on the same
+  // entered line undoes the fix it sits next to.
+  const WAN_MOVE = /filter move \$\w+ destination=\$\w+ \}/g;
+  // "Followed by" means later on the same entered line, or the very next
+  // entered line of the same block (Guided's TUNNEL FIXES does the latter:
+  // lines of one pasted block run in order).
+  const sinkers = Object.entries(src).flatMap(([name, text]) => {
+    const lines = text.split("\n");
+    return lines
+      .filter(
+        (line, n) =>
+          /cloudguest-fw-drop-wan-input/.test(line) &&
+          /filter move \$(a|allow) destination=\$(d|drop) \}/.test(line) &&
+          !(line.includes(LIFT_LINE) && line.lastIndexOf(LIFT_LINE) > line.search(WAN_MOVE)) &&
+          !(lines[n + 1] ?? "").startsWith(LIFT_LINE),
+      )
+      .map(() => name);
+  });
+  check(
+    "parity: no Guided or wizard command moves the accept rule to the WAN drop without lifting it again",
+    sinkers.length === 0,
+    `${sinkers.join(", ")}: the move lands the rule below 'defconf: drop all not coming from LAN'`,
+  );
+  check(
+    "INJECTED: that sweep sees the pre-fix Guided repair line",
+    /filter move \$(a|allow) destination=\$(d|drop) \}/.test(
+      ':local a [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :local d [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]; :if (([:len $a] > 0) && ([:len $d] > 0)) do={ /ip firewall filter move $a destination=$d }',
+    ),
+    "the sweep cannot see the line it exists for",
+  );
+
+  // THE LEGACY TUNNEL NAME MAY BE READ, REPORTED AND REMOVED -- NEVER
+  // BUILT ON. The wizard had the two names the wrong way round: its repair
+  // step added the management accept rule on `wg-cloudguest`, an interface
+  // no current router has, and Guided's diagnostics put the tunnel address
+  // on it.
+  const LEGACY_WRITE =
+    /(?:\badd\b[^\n;]*(?:in-)?interface="?wg-cloudguest|\bset\b[^\n;]*in-interface="?wg-cloudguest|wireguard add name="?wg-cloudguest)/;
+  const legacyWriters = Object.entries(src)
+    .filter(([, text]) => LEGACY_WRITE.test(text))
+    .map(([name]) => name);
+  check(
+    "parity: nothing in Guided or the wizard adds or binds anything on the legacy wg-cloudguest name",
+    legacyWriters.length === 0,
+    `${legacyWriters.join(", ")} still build on the legacy interface name`,
+  );
+  check(
+    "INJECTED: that sweep sees the pre-fix wizard repair and the pre-fix diagnostics fix",
+    LEGACY_WRITE.test(
+      '/ip firewall filter add chain=input in-interface="wg-cloudguest" action=accept comment="cloudguest-fw-allow-wg-mgmt"',
+    ) && LEGACY_WRITE.test('/ip address add address=10.20.0.<n>/24 interface="wg-cloudguest"'),
+    "the sweep cannot see the two lines it exists for",
+  );
+  check(
+    "parity: the wizard's expected tunnel is the name the generator creates",
+    src.wizard3.includes(
+      ':put ("expected-wg-count=" . [:tostr [:len [/interface wireguard find where name="wg-cloudguard"]]])',
+    ) &&
+      src.wizard3.includes(
+        ':put ("legacy-wg-count=" . [:tostr [:len [/interface wireguard find where name="wg-cloudguest"]]])',
+      ) &&
+      bareChunk(BARE_PPPOE, "WireGuard Tunnel").includes('name="wg-cloudguard"'),
+    "the wizard looks for the tunnel under a name the generator does not create, so step 8 fails on every correctly provisioned router",
+  );
+  check(
+    "parity: Guided's secrets reset removes the CURRENT tunnel as well as the legacy one",
+    src.guidedPhases.includes('/interface wireguard remove [find name="wg-cloudguard"]') &&
+      src.guidedPhases.includes('/interface wireguard remove [find name="wg-cloudguest"]'),
+    "the WireGuard chunk is add-if-missing: leave the current interface behind and the re-pasted chunk keeps the old key",
+  );
+}
 
 console.log("");
 if (failures.length) {

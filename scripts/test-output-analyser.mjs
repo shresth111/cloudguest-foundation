@@ -1000,6 +1000,77 @@ check(
       "====================",
     ].join("\n");
 
+  // Default-config leftovers (live 2026-10-11). Both verdicts are read
+  // from a label line the block prints, never inferred.
+  const fixes = (order) =>
+    [
+      "==== TUNNEL FIXES ====",
+      "firewall order: theek kar diya",
+      "defconf drop rules : 1",
+      "allow position : 1",
+      "defconf drop position : 9",
+      ...(order === null ? [] : [`defconf order : ${order}`]),
+      "====================",
+    ].join("\n");
+  check(
+    "defconf order above is PASS",
+    verdict("fw-defconf-order", fixes("above")) === "PASS",
+    verdict("fw-defconf-order", fixes("above")),
+  );
+  check(
+    "no defconf drop at all is PASS",
+    verdict("fw-defconf-order", fixes("none")) === "PASS",
+    verdict("fw-defconf-order", fixes("none")),
+  );
+  check(
+    "allow rule below the defconf drop is FAIL",
+    verdict("fw-defconf-order", fixes("below")) === "FAIL",
+    verdict("fw-defconf-order", fixes("below")),
+  );
+  check(
+    "a missing allow rule under a defconf drop is FAIL",
+    verdict("fw-defconf-order", fixes("missing")) === "FAIL",
+    verdict("fw-defconf-order", fixes("missing")),
+  );
+  check(
+    "...and it selects the lift",
+    pickedFix("fw-defconf-order", fixes("below")) === "defconf order : below ya missing",
+    `picked: ${pickedFix("fw-defconf-order", fixes("below"))}`,
+  );
+  check(
+    "a TUNNEL FIXES paste without the order line is not a PASS",
+    !["PASS", "WARNING"].includes(verdict("fw-defconf-order", fixes(null))),
+    verdict("fw-defconf-order", fixes(null)),
+  );
+  const audit = (n) =>
+    [
+      "==== HOTSPOT AUDIT ====",
+      "server       : hotspot1  interface=bridge  idle-timeout=00:05:00",
+      "login-by     : http-pap",
+      ...(n === null ? [] : [`fasttrack enabled : ${n}`]),
+      "====================",
+    ].join("\n");
+  check(
+    "fasttrack enabled 0 is PASS",
+    verdict("hs-fasttrack", audit("0")) === "PASS",
+    verdict("hs-fasttrack", audit("0")),
+  );
+  check(
+    "fasttrack enabled 1 is FAIL",
+    verdict("hs-fasttrack", audit("1")) === "FAIL",
+    verdict("hs-fasttrack", audit("1")),
+  );
+  check(
+    "...and it selects the disable",
+    pickedFix("hs-fasttrack", audit("1")) === "fasttrack enabled : 1 ya usse zyada",
+    `picked: ${pickedFix("hs-fasttrack", audit("1"))}`,
+  );
+  check(
+    "an audit paste without the fasttrack line is not a PASS",
+    !["PASS", "WARNING"].includes(verdict("hs-fasttrack", audit(null))),
+    verdict("hs-fasttrack", audit(null)),
+  );
+
   check(
     "a scheduler with a next-run is PASS",
     verdict("hb-scheduler", hb()) === "PASS",
