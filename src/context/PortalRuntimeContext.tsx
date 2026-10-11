@@ -458,25 +458,63 @@ const HOTSPOT_SUBMIT_STORAGE_KEY = "cloudguest_portal_hotspot_submit";
 interface PersistedHotspotSubmit {
   identifier: string;
   at: number;
+  /** The POST was SKIPPED: `/portal/success`'s probe found the gate already
+   * open (see src/lib/portal-gate-probe.ts). On a record being persisted
+   * it asks for the marker below to be written; on a loaded record it
+   * says a skip was already taken on this browser. */
+  gateSkipped?: boolean;
+}
+
+const HOTSPOT_GATE_SKIP_STORAGE_KEY = "cloudguest_portal_gate_skip";
+const HOTSPOT_GATE_SKIP_MAX_AGE_SECONDS = 12 * 60 * 60;
+
+/** At most one skipped POST per browser: if the probe's "already open" was
+ * wrong the guest comes back still gated, and that arrival must POST
+ * rather than probe-and-skip again.
+ *
+ * Kept apart from the submit record above (which every real POST
+ * overwrites, and which lives in one tab) and on both channels, like
+ * `persistRuntimeIds` and for the same reason: the cookie is what a fresh
+ * tab or a reopened captive webview can still see. Holds a timestamp and
+ * nothing about the guest. */
+function loadPersistedHotspotGateSkip(): boolean {
+  return !!safeGet(HOTSPOT_GATE_SKIP_STORAGE_KEY) || !!safeCookieGet(HOTSPOT_GATE_SKIP_STORAGE_KEY);
 }
 
 function loadPersistedHotspotSubmit(): PersistedHotspotSubmit | undefined {
+  let stored: PersistedHotspotSubmit | undefined;
   const raw = safeGet(HOTSPOT_SUBMIT_STORAGE_KEY);
-  if (!raw) return undefined;
-  try {
-    return JSON.parse(raw) as PersistedHotspotSubmit;
-  } catch {
-    return undefined;
+  if (raw) {
+    try {
+      stored = (JSON.parse(raw) as PersistedHotspotSubmit | null) ?? undefined;
+    } catch {
+      stored = undefined;
+    }
   }
+  if (!loadPersistedHotspotGateSkip()) return stored;
+  // A skip with no submit record beside it (another tab took it): an empty
+  // identifier matches no guest, so the cooldown reads it as "no submit".
+  return { identifier: stored?.identifier ?? "", at: stored?.at ?? 0, gateSkipped: true };
 }
 
 /** Best-effort: when storage is unavailable (see `safeSet`) the cooldown
  * simply never triggers, so an OS-triggered remount re-fires a harmless
  * duplicate hotspot POST. That is strictly better than the alternative
  * this function used to cause -- throwing on the line before
- * `submitHotspotLogin`, so the gate-opening POST never fired at all. */
-function persistHotspotSubmit(v: PersistedHotspotSubmit) {
-  safeSet(HOTSPOT_SUBMIT_STORAGE_KEY, JSON.stringify(v));
+ * `submitHotspotLogin`, so the gate-opening POST never fired at all.
+ *
+ * The return value matters to ONE caller. For a `gateSkipped` record it is
+ * `true` only if the skip marker read back -- there, persistence IS a
+ * precondition (of skipping the POST, never of firing it), and `false`
+ * means "POST as always". Every other caller ignores it. */
+function persistHotspotSubmit(v: PersistedHotspotSubmit): boolean {
+  const { gateSkipped, ...submit } = v;
+  safeSet(HOTSPOT_SUBMIT_STORAGE_KEY, JSON.stringify(submit));
+  if (!gateSkipped) return true;
+  const at = String(v.at);
+  safeSet(HOTSPOT_GATE_SKIP_STORAGE_KEY, at);
+  safeCookieSet(HOTSPOT_GATE_SKIP_STORAGE_KEY, at, HOTSPOT_GATE_SKIP_MAX_AGE_SECONDS);
+  return loadPersistedHotspotGateSkip();
 }
 
 interface PortalRuntimeState {

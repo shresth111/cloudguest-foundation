@@ -241,7 +241,7 @@ jobs:
       - name: portal CNA storage safety
         run: |
           ./scripts/ci-gated-test.sh \
-            "portal-cna-storage-safety" 28 "all checks passed" \
+            "portal-cna-storage-safety" 51 "all checks passed" \
             bun run test:portal-cna
 
       # The Master Console and the customer app are two products on two
@@ -342,6 +342,18 @@ jobs:
           ./scripts/ci-gated-test.sh \
             "portal-post-login" 20 "all checks passed" \
             bun run test:portal-post-login
+
+      # "Error 501" after a correct OTP: a hotspot-login POST from a device
+      # that already holds a bypass binding is answered by the router's
+      # management web server. portal.success.tsx probes first and skips the
+      # POST only on a yes -- and a WRONG yes strands a guest, so what this
+      # pins is every way the answer must be no. The route-level half runs
+      # in "portal CNA storage safety" above.
+      - name: portal hotspot gate probe
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "portal-gate-probe" 40 "all checks passed" \
+            bun run test:portal-gate-probe
 
       - name: portal sign-in fields
         run: |
