@@ -1440,7 +1440,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
               Off: anyone on the guest LAN can reach the WinBox login prompt by MAC address, and the
               admin password is the only thing protecting it. On: that door is closed — and a router
               whose tunnel is down can then only be recovered by a reset. The script always disables
-              FTP, Telnet, API-SSL, MAC-Telnet and MAC ping regardless.
+              FTP, Telnet, MAC-Telnet and MAC ping regardless.
             </span>
           </span>
         </label>

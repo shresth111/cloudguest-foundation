@@ -1983,20 +1983,26 @@ const HOTSPOT_CHUNK_LABEL = "Hotspot";
 /** Label of the chunk that closes the router's own unused admin surface. */
 const ADMIN_LOCKDOWN_CHUNK_LABEL = "Router Admin Lockdown";
 
-/** `/ip service` entries this script switches off on every router. Nothing
- * in the platform, the portal or the install procedure uses them.
+/** `/ip service` entries this script switches off on every router: the two
+ * plaintext-credential services nothing in the product uses.
  *
- * WHAT MUST NEVER APPEAR HERE, and the suite pins each one out:
- *  - `api` (8728): the platform's only way to write a queue, a binding or
- *    a firewall rule. Disabling it is the 2026-10-11 outage again.
- *  - `winbox` (8291): how an operator reaches the router over the tunnel.
- *  - `www` (80): not established that the hotspot login survives without
- *    it, and the guest side is already firewalled.
- *  - `ssh`: left enabled for now; a follow-up, not this change.
- * No `address=` allowlist is written on any service either: the platform
+ * THIS LIST MIRRORS THE BACKEND'S OWN POLICY and must not drift from it:
+ * cloud-guest `backend/app/domains/network_config/profiles/service_lockdown.py`
+ * defines `ALWAYS_DISABLED_SERVICES = ("telnet", "ftp")` and a hard floor
+ * `PLATFORM_REQUIRED_SERVICES = {"api", "api-ssl", "ssh", "www", "www-ssl"}`
+ * that `render_service_lockdown` raises rather than disable. Its docstring
+ * gives the reasons: `api` (8728) is the primary transport for every write
+ * and read-back, `ssh` moves config files and backups, `www` is what the
+ * console's "Open web console" WebFig proxy talks to. `winbox` is not
+ * restricted there either -- installers use it on site and operators over
+ * the tunnel.
+ *
+ * So: never `api`, `api-ssl`, `ssh`, `www`, `www-ssl` or `winbox` here, and
+ * no `address=` allowlist on any service from this script -- the platform
  * arrives through hub SNAT and an operator through a VPN address, and a
- * wrong subnet there locks the platform out of every new router at once. */
-const ADMIN_LOCKDOWN_SERVICES = ["ftp", "telnet", "api-ssl"] as const;
+ * wrong subnet there locks the platform out of every new router at once.
+ * The suite pins all six names out. */
+const ADMIN_LOCKDOWN_SERVICES = ["ftp", "telnet"] as const;
 
 /** The stable RouterOS certificate name that `/opt/wyfy/renew-hotspot-certs.sh`
  * binds on a router after pushing the fleet's real Let's Encrypt certificate
@@ -8581,9 +8587,9 @@ export function buildRouterSetupScriptChunks(opts: {
   // WITHIN THE DEFERRED BLOCK: EVERY READ-ONLY REPORT FIRST, EVERY HARD
   // THE ROUTER'S OWN ADMIN SURFACE.
   //
-  // Read on a freshly provisioned router (2026-10-12): ftp, telnet and
-  // api-ssl enabled, MAC-Telnet and MAC-WinBox allowed on every interface,
-  // MAC ping answering. `cloudguest-fw-drop-lan-admin` closes the IP side
+  // Read on a freshly provisioned router (2026-10-12): ftp and telnet
+  // enabled, MAC-Telnet and MAC-WinBox allowed on every interface, MAC
+  // ping answering. `cloudguest-fw-drop-lan-admin` closes the IP side
   // from the guest bridge and nothing else: it cannot see a layer-2
   // service at all, it does not exist when the Firewall box is unticked,
   // and it says nothing about any other interface.
@@ -8615,9 +8621,9 @@ export function buildRouterSetupScriptChunks(opts: {
         ),
         `:local svOff1 (${svcOff})`,
         `:put ("  Unused router services (${svcNames}): " . [:tostr ($svOff1 - $svOff0)] . " disabled now, " . [:tostr $svOff0] . " already off.")`,
-        `:if ($svOff1 >= ${svcTotal}) do={ :put "  RESULT: PASS -- ${svcNames} are all disabled." }`,
+        `:if ($svOff1 >= ${svcTotal}) do={ :put "  RESULT: PASS -- ${svcNames} are disabled." }`,
         `:if ($svOff1 < ${svcTotal}) do={ :put ("  RESULT: FAIL -- only " . [:tostr $svOff1] . " of ${svcTotal} are disabled. Check /ip service print.") }`,
-        `:if ($svOff1 < ${svcTotal}) do={ :log warning "cloudguest: an unused router service (${svcNames}) is still enabled" }`,
+        `:if ($svOff1 < ${svcTotal}) do={ :log warning "cloudguest: ${svcNames} still enabled on this router" }`,
       ].join("; "),
       [
         `:local mtBefore [:tostr [/tool mac-server get allowed-interface-list]]`,

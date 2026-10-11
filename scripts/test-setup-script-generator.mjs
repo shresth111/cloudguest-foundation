@@ -230,12 +230,15 @@
  * That made the guest-LAN admin drop read back as missing on every first
  * paste, and made the FastTrack disable count 0 on defconf's own rule.
  * Both now count "all minus disabled=yes", a sweep bans the old form on
- * firewall menus, and the new "Router Admin Lockdown" chunk is pinned.
+ * firewall menus, and the new "Router Admin Lockdown" chunk is pinned --
+ * including that it disables only the backend policy's two services
+ * (service_lockdown.py: telnet, ftp) and none of api, api-ssl, ssh, www,
+ * www-ssl, winbox.
  * Five further mutations of the real generator, each caught:
  *
  *   the admin-drop read-back put back on `disabled=no` ................. 3
  *   the MAC-Telnet read-back replaced by a constant .................... 1
- *   `winbox` added to the services the lockdown disables ............... 2
+ *   `api-ssl` added to the services the lockdown disables .............. 3
  *   the MAC-WinBox close made the default .............................. 1
  *   the FastTrack `:foreach` put back on `disabled=no` ................. 6
  *
@@ -3643,26 +3646,30 @@ const unknownMenusIn = (script) => [...menusIn(script)].filter((m) => !KNOWN_MEN
       "a new WinBox-by-IP connection from the guest LAN now fails; saying nothing strands an installer",
     );
   }
-  // "No chunk disables a service" used to be absolute. It is now: the three
-  // services nothing uses (ftp, telnet, api-ssl) may be disabled, by the
-  // "Router Admin Lockdown" chunk and by no other; api, winbox, www, ssh
-  // and www-ssl may never be, anywhere; and no service ever gets an
-  // `address=` allowlist. ONE predicate, shared with the self-checks.
+  // "No chunk disables a service" used to be absolute. It is now exactly
+  // the backend's own policy (cloud-guest
+  // backend/app/domains/network_config/profiles/service_lockdown.py):
+  // `ALWAYS_DISABLED_SERVICES = ("telnet", "ftp")` may be disabled, by the
+  // "Router Admin Lockdown" chunk and by no other; the hard floor
+  // `PLATFORM_REQUIRED_SERVICES` -- api, api-ssl, ssh, www, www-ssl -- may
+  // never be, anywhere, and neither may winbox; and no service ever gets an
+  // `address=` allowlist from this script. ONE predicate, shared with the
+  // self-checks.
   const serviceWritesOk = (label, script) =>
     [...script.matchAll(/\/ip service set ([^\s;}]+)([^\n;}]*)/g)].every(
       ([, name, rest]) =>
         !/address=/.test(rest) &&
         (!/disabled=yes/.test(rest) ||
-          (label.endsWith("Router Admin Lockdown") && ["ftp", "telnet", "api-ssl"].includes(name))),
+          (label.endsWith("Router Admin Lockdown") && ["ftp", "telnet"].includes(name))),
     ) && !/\/ip service (disable|remove)\b/.test(script);
   check(
-    "lan-admin: only ftp/telnet/api-ssl are ever disabled, only by the lockdown chunk, and no service gets an address allowlist",
+    "lan-admin: only ftp/telnet are ever disabled, only by the lockdown chunk, and no service gets an address allowlist",
     pasteables.every(([label, script]) => serviceWritesOk(label, script)),
     "the platform needs api over the tunnel and an operator needs winbox; a wrong address= is a lockout in one line",
   );
   check(
-    "INJECTED: disabling api, winbox, www or ssh is rejected even inside the lockdown chunk",
-    ["api", "winbox", "www", "ssh", "www-ssl"].every(
+    "INJECTED: disabling api, api-ssl, ssh, www, www-ssl or winbox is rejected even inside the lockdown chunk",
+    ["api", "api-ssl", "ssh", "www", "www-ssl", "winbox"].every(
       (svc) =>
         !serviceWritesOk("x :: Router Admin Lockdown", `/ip service set ${svc} disabled=yes`),
     ) &&
@@ -3671,6 +3678,40 @@ const unknownMenusIn = (script) => [...menusIn(script)].filter((m) => !KNOWN_MEN
       !serviceWritesOk("x :: Router Admin Lockdown", `/ip service set api address=10.20.0.0/24`) &&
       serviceWritesOk("x :: API Access", `/ip service set api disabled=no`),
     "the exemption admits a write it exists to ban (or bans the API chunk's own enable)",
+  );
+  // The same floor stated on its own, by name, over every statement of
+  // every chunk in every variant -- including with the MAC-WinBox option
+  // on -- so it holds whatever shape a future disable takes
+  // (`set X disabled=yes`, `disable X`, `set [find name="X"] disabled=yes`).
+  const REQUIRED_SERVICES = ["api", "api-ssl", "ssh", "www", "www-ssl", "winbox"];
+  const disablesRequiredService = (script) =>
+    REQUIRED_SERVICES.some((svc) =>
+      new RegExp(
+        String.raw`\/ip service (disable|remove)[^\n;}]*(?<![\w-])${svc}(?![\w-])|\/ip service set[^\n;}]*(?<![\w-])${svc}(?![\w-])[^\n;}]*disabled=yes`,
+      ).test(script),
+    );
+  check(
+    "lan-admin: the generator never disables api, api-ssl, ssh, www, www-ssl or winbox",
+    pasteables.every(([, script]) => !disablesRequiredService(script)) &&
+      buildRouterSetupScriptChunks({ ...VARIANTS[0][1], blockMacWinbox: true }).every(
+        (c) => !disablesRequiredService(c.script),
+      ),
+    "the backend's service_lockdown.py refuses to disable these; a script that does costs the " +
+      "platform its transport (api), its file path (ssh) or the WebFig console (www)",
+  );
+  check(
+    "INJECTED: that sweep sees each of the six, in every shape, and does not trip on ftp/telnet",
+    REQUIRED_SERVICES.every(
+      (svc) =>
+        disablesRequiredService(`:do { /ip service set ${svc} disabled=yes } on-error={}`) &&
+        disablesRequiredService(`/ip service disable ${svc}`) &&
+        disablesRequiredService(`/ip service disable ftp,${svc}`) &&
+        disablesRequiredService(`/ip service set [find name="${svc}"] disabled=yes`),
+    ) &&
+      !disablesRequiredService(`:do { /ip service set ftp disabled=yes } on-error={}`) &&
+      !disablesRequiredService(`:do { /ip service set telnet disabled=yes } on-error={}`) &&
+      !disablesRequiredService(`/ip service set api disabled=no`),
+    "the sweep misses a disable of a service the platform needs, or bans the two it may disable",
   );
 
   // The guest-LAN admin drop's own read-back. It counted the rule with
@@ -3756,8 +3797,8 @@ const unknownMenusIn = (script) => [...menusIn(script)].filter((m) => !KNOWN_MEN
 // ---------------------------------------------------------------------
 // 9b. THE ROUTER'S OWN ADMIN SURFACE IS CLOSED, AND SAYS WHAT IT LEFT OPEN.
 // ---------------------------------------------------------------------
-// Read on a freshly provisioned router, 2026-10-12: ftp, telnet and
-// api-ssl enabled, MAC-Telnet and MAC-WinBox allowed on every interface.
+// Read on a freshly provisioned router, 2026-10-12: ftp and telnet
+// enabled, MAC-Telnet and MAC-WinBox allowed on every interface.
 // The guest-LAN drop rule above cannot see a layer-2 service, and does not
 // exist at all when the Firewall box is unticked.
 {
@@ -3801,20 +3842,21 @@ const unknownMenusIn = (script) => [...menusIn(script)].filter((m) => !KNOWN_MEN
    * PASS and FAIL both spoken, FAIL logged. ONE predicate. */
   const servicesLineOk = (line) =>
     /^:local svOff0 \(/.test(line) &&
-    ["ftp", "telnet", "api-ssl"].every(
+    ["ftp", "telnet"].every(
       (svc) =>
         line.includes(`:do { /ip service set ${svc} disabled=yes } on-error={}`) &&
         line.split(`[:len [/ip service find where name="${svc}" disabled=yes]]`).length === 3,
     ) &&
     /:local svOff1 \(/.test(line) &&
     /:put \("[^"]*" \. \[:tostr \(\$svOff1 - \$svOff0\)\]/.test(line) &&
-    /:if \(\$svOff1 >= 3\) do=\{ :put "  RESULT: PASS/.test(line) &&
-    /:if \(\$svOff1 < 3\) do=\{ :put \("  RESULT: FAIL/.test(line) &&
-    /:if \(\$svOff1 < 3\) do=\{ :log warning /.test(line) &&
+    /:if \(\$svOff1 >= 2\) do=\{ :put "  RESULT: PASS/.test(line) &&
+    /:if \(\$svOff1 < 2\) do=\{ :put \("  RESULT: FAIL/.test(line) &&
+    /:if \(\$svOff1 < 2\) do=\{ :log warning /.test(line) &&
+    !/api-ssl|\bssh\b|\bwww\b|winbox/.test(line) &&
     !/disabled=no/.test(line);
   const svcLine = lockOff.split("\n").find((l) => l.includes("/ip service set")) ?? "";
   check(
-    "lockdown: ftp, telnet and api-ssl are disabled, guarded, counted and read back on one line",
+    "lockdown: ftp and telnet are disabled, guarded, counted and read back on one line",
     servicesLineOk(svcLine) &&
       lockOff.split("\n").filter((l) => l.includes("/ip service")).length === 1,
     "a set that silently did nothing must not read as success, and an unguarded error ends an /import",
@@ -3828,7 +3870,13 @@ const unknownMenusIn = (script) => [...menusIn(script)].filter((m) => !KNOWN_MEN
           "/ip service set telnet disabled=yes",
         ),
       ) &&
-      !servicesLineOk(svcLine.replace(/:if \(\$svOff1 < 3\) do=\{ :put \([^}]*\}; /, "")),
+      !servicesLineOk(svcLine.replace(/:if \(\$svOff1 < 2\) do=\{ :put \([^}]*\}; /, "")) &&
+      !servicesLineOk(
+        svcLine.replace(
+          ":do { /ip service set telnet disabled=yes } on-error={}",
+          ":do { /ip service set telnet disabled=yes } on-error={}; :do { /ip service set api-ssl disabled=yes } on-error={}",
+        ),
+      ),
     "the guard accepts a silent or abort-prone disable",
   );
 
