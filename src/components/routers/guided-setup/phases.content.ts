@@ -329,7 +329,7 @@ export const PHASES: Phase[] = [
 :foreach u in=[/ip hotspot user profile find where name="default"] do={ :put ("keepalive    : " . [:tostr [/ip hotspot user profile get $u keepalive-timeout]]) }
 :if ([:len [/ip hotspot user find where name="guest"]] = 0) do={ :put "guest user   : nahi hai (accha)" }
 :foreach g in=[/ip hotspot user find where name="guest"] do={ :put ("guest user   : disabled=" . [:tostr [/ip hotspot user get $g disabled]]) }
-:put ("fasttrack enabled : " . [:tostr [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no]]])
+:put ("fasttrack enabled : " . [:tostr ([:len [/ip firewall filter find where chain=forward action=fasttrack-connection]] - [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=yes]])])
 :put "===================="`,
       },
     ],
@@ -348,7 +348,7 @@ export const PHASES: Phase[] = [
         failFix: [
           {
             when: "fasttrack enabled : 1 ya usse zyada",
-            command: `:local ftN [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no]]; :foreach ftRule in=[/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no] do={ /ip firewall filter disable $ftRule }; :local ftLeft [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no]]; :put ("fasttrack disabled : " . [:tostr $ftN]); :put ("fasttrack enabled : " . [:tostr $ftLeft])`,
+            command: `:local ftN ([:len [/ip firewall filter find where chain=forward action=fasttrack-connection]] - [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=yes]]); :foreach ftRule in=[/ip firewall filter find where chain=forward action=fasttrack-connection] do={ /ip firewall filter disable $ftRule }; :local ftLeft ([:len [/ip firewall filter find where chain=forward action=fasttrack-connection]] - [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=yes]]); :put ("fasttrack disabled : " . [:tostr $ftN]); :put ("fasttrack enabled : " . [:tostr $ftLeft])`,
             note: "FastTrack wale connection simple queue ko bypass kar dete hain, to queue bani rehti hai par speed limit nahi hoti. Ye command rule ko sirf disable karti hai, hatati nahi. Jo connection pehle se khule hain wo band hone tak unlimited rahenge -- speed test dobara shuru karo.",
           },
         ],

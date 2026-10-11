@@ -223,6 +223,22 @@
  *   the place-before guard stops requiring the length test ............. 1
  *   the existence-test predicate stops recognising `] = 0` ............. 1
  *
+ * SECTION 9b AND THE `disabled=no` CLASS (2026-10-12)
+ * ----------------------------------------------------
+ * A router rule that was never given an explicit `disabled=` has no such
+ * property on RouterOS 7.21, and a `find where ... disabled=no` skips it.
+ * That made the guest-LAN admin drop read back as missing on every first
+ * paste, and made the FastTrack disable count 0 on defconf's own rule.
+ * Both now count "all minus disabled=yes", a sweep bans the old form on
+ * firewall menus, and the new "Router Admin Lockdown" chunk is pinned.
+ * Five further mutations of the real generator, each caught:
+ *
+ *   the admin-drop read-back put back on `disabled=no` ................. 3
+ *   the MAC-Telnet read-back replaced by a constant .................... 1
+ *   `winbox` added to the services the lockdown disables ............... 2
+ *   the MAC-WinBox close made the default .............................. 1
+ *   the FastTrack `:foreach` put back on `disabled=no` ................. 6
+ *
  * SECTION 18 -- THREE PATHS, ONE SET OF STATEMENTS
  * ------------------------------------------------
  * The two default-config fixes (the defconf-drop lift and the FastTrack
@@ -2911,20 +2927,27 @@ check(
 
 {
   /** The FastTrack line, wherever it lives in a chunk: counted on
-   * `action=fasttrack-connection` (never on a comment), limited to rules
-   * that are still enabled, disabled rather than removed, read back, with
-   * a zero branch that names the count and a FAIL that leaves a log line.
-   * ONE predicate for the sweep and its self-checks. */
+   * `action=fasttrack-connection` (never on a comment), disabled rather
+   * than removed, read back, with a zero branch that names the count and
+   * a FAIL that leaves a log line. ONE predicate for the sweep and its
+   * self-checks.
+   *
+   * "Still enabled" is ALL MINUS `disabled=yes`, and the predicate rejects
+   * `disabled=no` outright: on RouterOS 7.21 a rule never given an
+   * explicit `disabled=` has no such property and a `disabled=no` match
+   * skips it (read live 2026-10-12: 2 of 28 filter rules answered
+   * `disabled=false`). defconf's own fasttrack rule is such a rule, so the
+   * first version of this line counted 0 on the one router it was for. */
+  const FT_ALL = String.raw`\[\/ip firewall filter find where chain=forward action=fasttrack-connection\]`;
+  const FT_OFF = String.raw`\[\/ip firewall filter find where chain=forward action=fasttrack-connection disabled=yes\]`;
+  const FT_ENABLED = String.raw`\(\[:len ${FT_ALL}\] - \[:len ${FT_OFF}\]\)`;
   const fastTrackLineOk = (line) =>
-    /:local ftN \[:len \[\/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no\]\]/.test(
-      line,
-    ) &&
-    /:foreach ftRule in=\[\/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no\] do=\{ \/ip firewall filter disable \$ftRule \}/.test(
-      line,
-    ) &&
-    /:local ftLeft \[:len \[\/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no\]\]/.test(
-      line,
-    ) &&
+    new RegExp(String.raw`:local ftN ${FT_ENABLED}`).test(line) &&
+    new RegExp(
+      String.raw`:foreach ftRule in=${FT_ALL} do=\{ \/ip firewall filter disable \$ftRule \}`,
+    ).test(line) &&
+    new RegExp(String.raw`:local ftLeft ${FT_ENABLED}`).test(line) &&
+    !/disabled=no/.test(line) &&
     /:if \(\$ftN > 0\) do=\{ :put \("[^"]*" \. \[:tostr \$ftN\]/.test(line) &&
     /:if \(\$ftN = 0\) do=\{ :put "[^"]*\b0\b[^"]*" \}/.test(line) &&
     /:if \(\$ftLeft > 0\) do=\{ :put \("  RESULT: FAIL/.test(line) &&
@@ -2961,11 +2984,28 @@ check(
     "INJECTED: a FastTrack line keyed on defconf's comment is rejected",
     !fastTrackLineOk(
       ftLines(hs)[0].replaceAll(
-        "chain=forward action=fasttrack-connection disabled=no",
+        "chain=forward action=fasttrack-connection",
         'comment="defconf: fasttrack"',
       ),
     ),
     "a hand-added FastTrack rule bypasses the queues just the same; the guard must hold the action match",
+  );
+  check(
+    "INJECTED: a FastTrack count keyed on `disabled=no` is rejected",
+    !fastTrackLineOk(
+      ftLines(hs)[0].replaceAll(
+        "([:len [/ip firewall filter find where chain=forward action=fasttrack-connection]] - [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=yes]])",
+        "[:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no]]",
+      ),
+    ) &&
+      !fastTrackLineOk(
+        ftLines(hs)[0].replace(
+          "in=[/ip firewall filter find where chain=forward action=fasttrack-connection]",
+          "in=[/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no]",
+        ),
+      ),
+    "a rule with no explicit disabled= is skipped by a disabled=no match, so defconf's FastTrack " +
+      "rule would be counted as 0 and left enabled",
   );
   check(
     "INJECTED: ...as is one that disables without reading the result back",
@@ -3351,6 +3391,12 @@ const KNOWN_MENUS = new Set([
   // would pre-authorise the exact menu whose return this section exists
   // to make loud.
   "/file",
+  // The "Router Admin Lockdown" chunk -- MAC-Telnet, MAC ping and (behind
+  // an option) MAC-WinBox. Layer-2 services no firewall rule can see; see
+  // section 9b.
+  "/tool mac-server",
+  "/tool mac-server ping",
+  "/tool mac-server mac-winbox",
   "/interface",
   "/interface bridge",
   "/interface bridge port",
@@ -3585,7 +3631,7 @@ const unknownMenusIn = (script) => [...menusIn(script)].filter((m) => !KNOWN_MEN
     check(
       `${label}: the verdict reads the rule back and FAILs out loud when it is missing`,
       script.includes(
-        `:local fwLanAdmin [:len [/ip firewall filter find where comment="${LAN_ADMIN}" disabled=no]]`,
+        `:local fwLanAdmin ([:len [/ip firewall filter find where comment="${LAN_ADMIN}"]] - [:len [/ip firewall filter find where comment="${LAN_ADMIN}" disabled=yes]])`,
       ) &&
         /:if \(\$fwLanAdmin != 1\) do=\{ :put "  RESULT: FAIL/.test(script) &&
         /:if \(\$fwLanAdmin != 1\) do=\{ :log warning/.test(script),
@@ -3597,14 +3643,85 @@ const unknownMenusIn = (script) => [...menusIn(script)].filter((m) => !KNOWN_MEN
       "a new WinBox-by-IP connection from the guest LAN now fails; saying nothing strands an installer",
     );
   }
+  // "No chunk disables a service" used to be absolute. It is now: the three
+  // services nothing uses (ftp, telnet, api-ssl) may be disabled, by the
+  // "Router Admin Lockdown" chunk and by no other; api, winbox, www, ssh
+  // and www-ssl may never be, anywhere; and no service ever gets an
+  // `address=` allowlist. ONE predicate, shared with the self-checks.
+  const serviceWritesOk = (label, script) =>
+    [...script.matchAll(/\/ip service set ([^\s;}]+)([^\n;}]*)/g)].every(
+      ([, name, rest]) =>
+        !/address=/.test(rest) &&
+        (!/disabled=yes/.test(rest) ||
+          (label.endsWith("Router Admin Lockdown") && ["ftp", "telnet", "api-ssl"].includes(name))),
+    ) && !/\/ip service (disable|remove)\b/.test(script);
   check(
-    "lan-admin: no chunk anywhere disables a service or writes a service address allowlist",
-    pasteables.every(
-      ([, script]) =>
-        !/\/ip service set[^\n;]*disabled=yes/.test(script) &&
-        !/\/ip service set[^\n;]*address=/.test(script),
+    "lan-admin: only ftp/telnet/api-ssl are ever disabled, only by the lockdown chunk, and no service gets an address allowlist",
+    pasteables.every(([label, script]) => serviceWritesOk(label, script)),
+    "the platform needs api over the tunnel and an operator needs winbox; a wrong address= is a lockout in one line",
+  );
+  check(
+    "INJECTED: disabling api, winbox, www or ssh is rejected even inside the lockdown chunk",
+    ["api", "winbox", "www", "ssh", "www-ssl"].every(
+      (svc) =>
+        !serviceWritesOk("x :: Router Admin Lockdown", `/ip service set ${svc} disabled=yes`),
+    ) &&
+      !serviceWritesOk("x :: Router Admin Lockdown", `/ip service disable api`) &&
+      !serviceWritesOk("x :: Firewall", `/ip service set ftp disabled=yes`) &&
+      !serviceWritesOk("x :: Router Admin Lockdown", `/ip service set api address=10.20.0.0/24`) &&
+      serviceWritesOk("x :: API Access", `/ip service set api disabled=no`),
+    "the exemption admits a write it exists to ban (or bans the API chunk's own enable)",
+  );
+
+  // The guest-LAN admin drop's own read-back. It counted the rule with
+  // `find where comment=... disabled=no`, and on RouterOS 7.21 a rule that
+  // was never given an explicit `disabled=` has no such property, so the
+  // match skipped it: every clean FIRST paste printed RESULT: FAIL and
+  // logged "guest-LAN admin drop rule missing" about a rule that was there
+  // (router log, 2026-10-12). ONE predicate for the check and its
+  // self-check.
+  const lanAdminReadbackOk = (script) =>
+    script.includes(
+      `:local fwLanAdmin ([:len [/ip firewall filter find where comment="${LAN_ADMIN}"]] - [:len [/ip firewall filter find where comment="${LAN_ADMIN}" disabled=yes]])`,
+    ) && !/:local fwLanAdmin [^;\n]*disabled=no/.test(script);
+  const fwScript = bareChunk(BARE_PPPOE, "Firewall");
+  check(
+    "lan-admin: the read-back counts 'present minus disabled', never `disabled=no`",
+    lanAdminReadbackOk(fwScript),
+    "a rule with no explicit disabled= is skipped by a disabled=no match, so a first paste " +
+      "reports the drop as missing while it is in place",
+  );
+  check(
+    "INJECTED: the pre-fix read-back is rejected",
+    !lanAdminReadbackOk(
+      fwScript.replace(
+        /:local fwLanAdmin \([^;\n]*\)/,
+        `:local fwLanAdmin [:len [/ip firewall filter find where comment="${LAN_ADMIN}" disabled=no]]`,
+      ),
     ),
-    "the platform needs api/ssh/www over the tunnel; a wrong address= is a lockout in one line",
+    "the guard accepts the exact line that produced the false FAIL",
+  );
+  // The class, not just the two instances: no chunk decides "is this
+  // firewall rule enabled" with a `disabled=no` match.
+  const filterDisabledNo = (script) =>
+    /\/ip firewall (filter|nat|mangle|raw) find where [^\]]*disabled=no/.test(script);
+  check(
+    "no chunk counts enabled firewall rules with a `disabled=no` match",
+    pasteables.every(([, script]) => !filterDisabledNo(script)),
+    pasteables
+      .filter(([, script]) => filterDisabledNo(script))
+      .map(([label]) => label)
+      .join(", "),
+  );
+  check(
+    "INJECTED: that sweep sees the original FastTrack and admin-drop lines",
+    filterDisabledNo(
+      `:local ftN [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no]]`,
+    ) &&
+      filterDisabledNo(
+        `:local fwLanAdmin [:len [/ip firewall filter find where comment="${LAN_ADMIN}" disabled=no]]`,
+      ),
+    "the sweep cannot see the shape it exists to ban",
   );
   check(
     "lan-admin: no other chunk drops or rejects anything in the input chain on a non-WAN interface",
@@ -3633,6 +3750,160 @@ const unknownMenusIn = (script) => [...menusIn(script)].filter((m) => !KNOWN_MEN
     ),
     "the rule belongs to the Firewall chunk; emitting it elsewhere changes a router whose " +
       "operator declined firewall rules",
+  );
+}
+
+// ---------------------------------------------------------------------
+// 9b. THE ROUTER'S OWN ADMIN SURFACE IS CLOSED, AND SAYS WHAT IT LEFT OPEN.
+// ---------------------------------------------------------------------
+// Read on a freshly provisioned router, 2026-10-12: ftp, telnet and
+// api-ssl enabled, MAC-Telnet and MAC-WinBox allowed on every interface.
+// The guest-LAN drop rule above cannot see a layer-2 service, and does not
+// exist at all when the Firewall box is unticked.
+{
+  const LOCK = "Router Admin Lockdown";
+  const lockOf = (opts) => buildRouterSetupScriptChunks(opts).filter((c) => c.label === LOCK);
+  const base = VARIANTS[0][1];
+  const lockOff = lockOf(base)[0]?.script ?? "";
+  const lockOn = lockOf({ ...base, blockMacWinbox: true })[0]?.script ?? "";
+
+  check(
+    "lockdown: every variant gets exactly one lockdown chunk -- firewall off and basicConfigOnly included",
+    VARIANTS.every(([, opts]) => lockOf(opts).length === 1) &&
+      lockOf({ ...base, enableFirewall: false }).length === 1 &&
+      lockOf({ ...base, basicConfigOnly: true }).length === 1,
+    "an exposure that closes only when an unrelated box is ticked is the bug again",
+  );
+  check(
+    "lockdown: it runs after every configuring chunk and before the deferred verdicts",
+    VARIANTS.every(([, opts]) => {
+      const cs = buildRouterSetupScriptChunks(opts);
+      const at = cs.findIndex((c) => c.label === LOCK);
+      const firstVerdict = cs.findIndex((c) => c.label.startsWith("Guest Data Path"));
+      const lastWriter = Math.max(
+        ...cs.map((c, i) =>
+          /^(Hotspot|Firewall|RADIUS|WireGuard Tunnel|Heartbeat Scheduler|Guest Access Sync)/.test(
+            c.label,
+          )
+            ? i
+            : -1,
+        ),
+      );
+      return (
+        at > lastWriter && firstVerdict > at && cs.slice(at + 1).every((c) => c.label !== LOCK)
+      );
+    }),
+    "run earlier, the optional MAC-WinBox close can cost a MAC-WinBox installer the rest of the " +
+      "script; run after the checks that :error, a slow portal DNS skips it under /import",
+  );
+
+  /** The services line: counted before, each write guarded, read back,
+   * PASS and FAIL both spoken, FAIL logged. ONE predicate. */
+  const servicesLineOk = (line) =>
+    /^:local svOff0 \(/.test(line) &&
+    ["ftp", "telnet", "api-ssl"].every(
+      (svc) =>
+        line.includes(`:do { /ip service set ${svc} disabled=yes } on-error={}`) &&
+        line.split(`[:len [/ip service find where name="${svc}" disabled=yes]]`).length === 3,
+    ) &&
+    /:local svOff1 \(/.test(line) &&
+    /:put \("[^"]*" \. \[:tostr \(\$svOff1 - \$svOff0\)\]/.test(line) &&
+    /:if \(\$svOff1 >= 3\) do=\{ :put "  RESULT: PASS/.test(line) &&
+    /:if \(\$svOff1 < 3\) do=\{ :put \("  RESULT: FAIL/.test(line) &&
+    /:if \(\$svOff1 < 3\) do=\{ :log warning /.test(line) &&
+    !/disabled=no/.test(line);
+  const svcLine = lockOff.split("\n").find((l) => l.includes("/ip service set")) ?? "";
+  check(
+    "lockdown: ftp, telnet and api-ssl are disabled, guarded, counted and read back on one line",
+    servicesLineOk(svcLine) &&
+      lockOff.split("\n").filter((l) => l.includes("/ip service")).length === 1,
+    "a set that silently did nothing must not read as success, and an unguarded error ends an /import",
+  );
+  check(
+    "INJECTED: a services line with no read-back, or an unguarded write, is rejected",
+    !servicesLineOk(svcLine.replace(/:local svOff1 \([^;]*\); /, "")) &&
+      !servicesLineOk(
+        svcLine.replace(
+          ":do { /ip service set telnet disabled=yes } on-error={}",
+          "/ip service set telnet disabled=yes",
+        ),
+      ) &&
+      !servicesLineOk(svcLine.replace(/:if \(\$svOff1 < 3\) do=\{ :put \([^}]*\}; /, "")),
+    "the guard accepts a silent or abort-prone disable",
+  );
+
+  const macLineOk = (line, menu, v, bad) =>
+    line.includes(`:local ${v}Before [:tostr [${menu} get `) &&
+    new RegExp(
+      String.raw`:do \{ ${menu.replaceAll("/", "\\/")} set [a-z-]+=(none|no) \} on-error=\{\}`,
+    ).test(line) &&
+    line.includes(`:local ${v}After [:tostr [${menu} get `) &&
+    new RegExp(String.raw`:if \(\$${v}After != "${bad}"\) do=\{ :put "  RESULT: FAIL`).test(line);
+  const lineWith = (script, needle) => script.split("\n").find((l) => l.includes(needle)) ?? "";
+  check(
+    "lockdown: MAC-Telnet is closed to every interface and MAC ping is off, each read back",
+    macLineOk(lineWith(lockOff, "/tool mac-server set"), "/tool mac-server", "mt", "none") &&
+      macLineOk(
+        lineWith(lockOff, "/tool mac-server ping set"),
+        "/tool mac-server ping",
+        "mp",
+        "false",
+      ),
+    "layer-2 logins are invisible to every firewall rule this script writes",
+  );
+  check(
+    "INJECTED: a MAC-Telnet line that is not read back is rejected",
+    !macLineOk(
+      lineWith(lockOff, "/tool mac-server set").replace(/:local mtAfter [^;]*; /, ""),
+      "/tool mac-server",
+      "mt",
+      "none",
+    ),
+    "the guard accepts an unverified set",
+  );
+
+  check(
+    "lockdown: MAC-WinBox is left open by default, and the script says so and names what protects it",
+    !/mac-winbox set/.test(lockOff) &&
+      /NOTE: MAC-WinBox is still open on the guest LAN/.test(lockOff) &&
+      /admin password is the only thing protecting it/.test(lockOff) &&
+      /:local mwNow \[:tostr \[\/tool mac-server mac-winbox get allowed-interface-list\]\]/.test(
+        lockOff,
+      ),
+    "it is the only on-site way back into a router whose tunnel is down; closing it silently " +
+      "strands the next repair, and leaving it open silently hides the exposure",
+  );
+  check(
+    "lockdown: with the option on, MAC-WinBox is closed LAST, read back, and the reset-only consequence is stated",
+    macLineOk(
+      lineWith(lockOn, "/tool mac-server mac-winbox set"),
+      "/tool mac-server mac-winbox",
+      "mw",
+      "none",
+    ) &&
+      lockOn.split("\n").at(-1).includes("/tool mac-server mac-winbox set") &&
+      /the only way back in is a reset/.test(lockOn) &&
+      /it may end here/.test(lockOn) &&
+      !/NOTE: MAC-WinBox is still open/.test(lockOn),
+    "anything after it is lost to an installer whose session was MAC-WinBox",
+  );
+  check(
+    "lockdown: both forms tell the operator to set a strong password and admit the script cannot check",
+    [lockOff, lockOn].every(
+      (sc) =>
+        /WARNING: set a strong password/.test(sc) && /cannot read whether one is set/.test(sc),
+    ),
+    "the password is what stands between the guest LAN and MAC-WinBox when the option is off",
+  );
+  check(
+    "lockdown: the option changes nothing outside its own chunk",
+    JSON.stringify(buildRouterSetupScriptChunks(base).filter((c) => c.label !== LOCK)) ===
+      JSON.stringify(
+        buildRouterSetupScriptChunks({ ...base, blockMacWinbox: true }).filter(
+          (c) => c.label !== LOCK,
+        ),
+      ),
+    "a tick-box about MAC-WinBox reached into another chunk",
   );
 }
 
