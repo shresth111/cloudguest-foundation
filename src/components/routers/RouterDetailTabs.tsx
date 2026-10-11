@@ -7032,7 +7032,11 @@ export function buildRouterSetupScriptChunks(opts: {
       // Report the count instead: a non-zero number here is the operator's
       // to explain, and it is visible rather than buried.
       [
-        `:local hsLeft [:len [/ip hotspot user find]]`,
+        // `default=no`: RouterOS's built-in `default-trial` entry (counters
+        // for trial logins) exists on every hotspot, cannot be removed and
+        // is not a login account. Counting it made this warning fire on
+        // every router, a fresh one included (seen live 2026-10-12).
+        `:local hsLeft [:len [/ip hotspot user find where default=no]]`,
         `:if ($hsLeft = 0) do={ :put "  Local hotspot users remaining: 0 -- every guest login now goes to RADIUS/OTP." }`,
         `:if ($hsLeft > 0) do={ :put ("  WARNING: " . [:tostr $hsLeft] . " local hotspot user(s) still exist on this router.") }`,
         `:if ($hsLeft > 0) do={ :put "  RouterOS checks local users BEFORE RADIUS, so each one is a portal bypass:" }`,

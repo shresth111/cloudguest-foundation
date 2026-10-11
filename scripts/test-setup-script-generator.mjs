@@ -1902,10 +1902,18 @@ check(
 
 check(
   "hotspot: any REMAINING local user is counted and called a bypass out loud",
-  /:local hsLeft \[:len \[\/ip hotspot user find\]\]/.test(hotspotChunk) &&
+  /:local hsLeft \[:len \[\/ip hotspot user find where default=no\]\]/.test(hotspotChunk) &&
     hotspotChunk.includes("checks local users BEFORE RADIUS") &&
     hotspotChunk.includes(":tostr $hsLeft"),
   "a hand-added second bypass account stays invisible",
+);
+// RouterOS's built-in `default-trial` entry is on every hotspot and cannot
+// be removed. An unfiltered count is therefore never 0, and the bypass
+// warning fires on every router -- which teaches operators to ignore it.
+check(
+  "hotspot: the remaining-user count leaves out RouterOS's built-in default-trial entry",
+  !/\[:len \[\/ip hotspot user find\]\]/.test(hotspotChunk),
+  "an unfiltered `/ip hotspot user find` counts default-trial, so the warning is permanent",
 );
 
 // ---------------------------------------------------------------------
