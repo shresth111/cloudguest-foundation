@@ -599,5 +599,290 @@ console.log("portal captive-network-assistant storage safety");
   );
 }
 
+// =====================================================================
+// THE GATE PROBE: "Error 501" after a correct OTP.
+//
+// Measured on a real MikroTik: a hotspot-login POST from a device that
+// already holds a bypass binding returns 501 from the router's management
+// web server. So the RouterOS branch now asks whether the gate is already
+// open before it POSTs (src/lib/portal-gate-probe.ts, whose own decision
+// table is pinned in test-portal-gate-probe.mjs). These cases drive the
+// REAL `attemptSubmit`. Everything above this line ran with no
+// `window.fetch` and a session with no `startedAt` -- i.e. "cannot ask" --
+// and had to behave exactly as it did before; that is the first guarantee.
+// What follows is the rest: a yes skips the POST, anything else POSTs, and
+// a yes can never be given twice.
+{
+  const SESSION_PREFIX = "https://portal.example.com/portal/session?";
+  const PROBE_HOST = "https://www.cloudflare.com/";
+  const SKIP_KEY = "cloudguest_portal_gate_skip";
+  const fresh = () => ({
+    ...RUNTIME,
+    session: { ...RUNTIME.session, startedAt: new Date(Date.now() - 3_000).toISOString() },
+  });
+  /** @param {() => Promise<unknown>} behaviour */
+  const installFetch = (behaviour) => {
+    const probes = [];
+    globalThis.window.fetch = function (url, init) {
+      probes.push({ url, init });
+      return behaviour();
+    };
+    return probes;
+  };
+  const opened = () => Promise.resolve({ type: "opaque" });
+  const refused = () => Promise.reject(new TypeError("Failed to fetch"));
+  const settle = (ms = 0) => new Promise((r) => setTimeout(r, ms));
+
+  // A. The incident. The binding landed while the guest was typing the OTP.
+  let afterSkip;
+  {
+    const browser = installBrowser("working");
+    const probes = installFetch(opened);
+    renderAndRunEffects(fresh());
+    await settle();
+    check(
+      "gate already open: no hotspot POST (it would have answered 501)",
+      browser.submits.length === 0,
+      `form.submit() called ${browser.submits.length}x`,
+    );
+    check(
+      "gate already open: a real document load to where the POST's dst pointed",
+      browser.assigns.length === 1 && browser.assigns[0].startsWith(SESSION_PREFIX),
+      JSON.stringify(browser.assigns),
+    );
+    check(
+      "gate already open: exactly one probe, to the non-walled host",
+      probes.length === 1 && probes[0].url.startsWith(PROBE_HOST),
+      JSON.stringify(probes.map((p) => p.url)),
+    );
+    check(
+      "gate already open: the skip is recorded in storage AND in a cookie",
+      browser.store.has(SKIP_KEY) && String(globalThis.document.cookie).includes(`${SKIP_KEY}=`),
+    );
+    afterSkip = { store: Object.fromEntries(browser.store), cookie: globalThis.document.cookie };
+  }
+
+  // A2. Same, at a venue with a redirect URL: the skip goes where the
+  //     POST's `dst` would have gone, not to a destination of its own.
+  {
+    const browser = installBrowser("working");
+    installFetch(opened);
+    renderAndRunEffects({
+      ...fresh(),
+      config: { postLoginHtml: null, redirectUrl: "https://venue.example.org/hello" },
+    });
+    await settle();
+    check(
+      "gate already open at a redirect-mode venue: lands on the venue's URL, no POST",
+      browser.submits.length === 0 &&
+        browser.assigns.length === 1 &&
+        browser.assigns[0] === "https://venue.example.org/hello",
+      JSON.stringify({ submits: browser.submits.length, assigns: browser.assigns }),
+    );
+  }
+
+  // B. The ordinary case: still gated, the probe is refused. POST as today.
+  {
+    const browser = installBrowser("working");
+    installFetch(refused);
+    renderAndRunEffects(fresh());
+    await settle();
+    check(
+      "gate shut (probe refused): the gate-opening POST fires, once",
+      browser.submits.length === 1 && browser.assigns.length === 0,
+      `submits=${browser.submits.length} assigns=${JSON.stringify(browser.assigns)}`,
+    );
+    check("gate shut: no skip is recorded", !browser.store.has(SKIP_KEY));
+    check(
+      "gate shut: the POST's cooldown is still recorded",
+      browser.store.has("cloudguest_portal_hotspot_submit"),
+    );
+  }
+
+  // C. The probe hangs. The POST may wait for the timeout and no longer --
+  //    and the effect re-running during the wait must not start a second
+  //    attempt.
+  {
+    const browser = installBrowser("working");
+    const probes = installFetch(() => new Promise(() => {}));
+    const h = renderAndRunEffects(fresh());
+    for (const effect of h.effects) effect(); // a re-render's effect re-run
+    check(
+      "probe in flight: nothing has fired yet, and a re-run did not probe twice",
+      browser.submits.length === 0 && browser.assigns.length === 0 && probes.length === 1,
+      `submits=${browser.submits.length} probes=${probes.length}`,
+    );
+    await settle(1_700);
+    check(
+      "probe timed out: the gate-opening POST fires, exactly once",
+      browser.submits.length === 1 && browser.assigns.length === 0,
+      `submits=${browser.submits.length} assigns=${JSON.stringify(browser.assigns)}`,
+    );
+  }
+
+  // D. THE NO-LOOP GUARANTEE. The skip was wrong (the probe host happened
+  //    to be reachable through a shut gate) and the guest is back, past the
+  //    10s flick-flash cooldown. Same tab first, then a brand-new tab or
+  //    webview that can only see the cookie.
+  {
+    const staleSubmit = JSON.stringify({
+      identifier: RUNTIME.guestIdentifier,
+      at: Date.now() - 60_000,
+    });
+    const browser = installBrowser("working", {
+      ...afterSkip.store,
+      cloudguest_portal_hotspot_submit: staleSubmit,
+    });
+    const probes = installFetch(opened);
+    renderAndRunEffects(fresh());
+    check(
+      "second arrival after a skip (same tab): POSTs at once, without probing",
+      browser.submits.length === 1 && probes.length === 0 && browser.assigns.length === 0,
+      `submits=${browser.submits.length} probes=${probes.length}`,
+    );
+    await settle();
+    check("second arrival: still exactly one POST afterwards", browser.submits.length === 1);
+  }
+  {
+    const browser = installBrowser("working");
+    globalThis.document.cookie = afterSkip.cookie;
+    const probes = installFetch(opened);
+    renderAndRunEffects(fresh());
+    check(
+      "second arrival after a skip (fresh tab, cookie only): POSTs without probing",
+      browser.submits.length === 1 && probes.length === 0,
+      `submits=${browser.submits.length} probes=${probes.length}`,
+    );
+    // Here and below: leave nothing in flight that could land in the next
+    // case's fake document if one of these ever stops being synchronous.
+    await settle();
+  }
+  // ...and within the cooldown the existing flick-flash branch still wins,
+  // so an OS remount-bounce right after a skip does not POST into the 501.
+  {
+    const browser = installBrowser("working", afterSkip.store);
+    const probes = installFetch(opened);
+    renderAndRunEffects(fresh());
+    check(
+      "a remount-bounce seconds after a skip: document load, no POST, no probe",
+      browser.submits.length === 0 && browser.assigns.length === 1 && probes.length === 0,
+      `submits=${browser.submits.length} assigns=${browser.assigns.length} probes=${probes.length}`,
+    );
+    await settle();
+  }
+
+  // E. Storage THROWS (the CNA websheet). Must be byte-for-byte the old
+  //    behaviour: a synchronous POST and no request to anyone.
+  {
+    const browser = installBrowser(THROWING);
+    const probes = installFetch(opened);
+    let threw = null;
+    try {
+      renderAndRunEffects(fresh());
+    } catch (e) {
+      threw = e;
+    }
+    check(
+      "storage throws: the POST fires synchronously and nothing is probed",
+      threw === null && browser.submits.length === 1 && probes.length === 0,
+      `threw=${threw} submits=${browser.submits.length} probes=${probes.length}`,
+    );
+    await settle();
+  }
+
+  // F. Storage that silently keeps nothing (quota, a locked-down webview):
+  //    the probe says open but the skip cannot be recorded, so there is no
+  //    way to guarantee it is not repeated -- POST.
+  {
+    const browser = installBrowser("working");
+    globalThis.window.sessionStorage.setItem = () => {};
+    Object.defineProperty(globalThis.document, "cookie", { get: () => "", set: () => {} });
+    installFetch(opened);
+    renderAndRunEffects(fresh());
+    await settle();
+    check(
+      "probe says open but the skip marker does not stick: POST",
+      browser.submits.length === 1 && browser.assigns.length === 0,
+      `submits=${browser.submits.length} assigns=${JSON.stringify(browser.assigns)}`,
+    );
+  }
+
+  // G. A session that is not brand new: the bound that needs no storage.
+  {
+    const browser = installBrowser("working");
+    const probes = installFetch(opened);
+    renderAndRunEffects({
+      ...RUNTIME,
+      session: { ...RUNTIME.session, startedAt: new Date(Date.now() - 10 * 60_000).toISOString() },
+    });
+    check(
+      "an older session: POSTs at once, without probing",
+      browser.submits.length === 1 && probes.length === 0,
+      `submits=${browser.submits.length} probes=${probes.length}`,
+    );
+    await settle();
+  }
+
+  // H. Every OTHER branch is untouched: none of them may probe.
+  {
+    const cases = [
+      [
+        "hspage=status (router says authorized)",
+        fresh(),
+        "?hspage=status",
+        { submits: 0, assigns: 1 },
+      ],
+      [
+        "no hotspotLoginUrl",
+        { ...fresh(), hotspotLoginUrl: undefined },
+        "",
+        { submits: 0, assigns: 1 },
+      ],
+      [
+        "no guestIdentifier",
+        { ...fresh(), guestIdentifier: undefined },
+        "",
+        { submits: 0, assigns: 0 },
+      ],
+      ["Omada", { ...fresh(), netProvider: "omada" }, "", { submits: 0, assigns: 0 }],
+      [
+        "Aruba Instant On",
+        {
+          ...fresh(),
+          netProvider: "aruba_instant_on",
+          arubaRedirect: { switchip: "securelogin.arubanetworks.com" },
+        },
+        "",
+        { submits: 1, assigns: 0 },
+      ],
+      [
+        "recent submit (flick-flash cooldown)",
+        fresh(),
+        "",
+        { submits: 0, assigns: 1 },
+        {
+          cloudguest_portal_hotspot_submit: JSON.stringify({
+            identifier: RUNTIME.guestIdentifier,
+            at: Date.now(),
+          }),
+        },
+      ],
+    ];
+    for (const [name, runtime, search, want, seed] of cases) {
+      const browser = installBrowser("working", seed ?? {}, search);
+      const probes = installFetch(opened);
+      renderAndRunEffects(runtime);
+      await settle();
+      check(
+        `${name}: never probes, and does what it did before`,
+        probes.length === 0 &&
+          browser.submits.length === want.submits &&
+          browser.assigns.length === want.assigns,
+        `probes=${probes.length} submits=${browser.submits.length} assigns=${browser.assigns.length}`,
+      );
+    }
+  }
+}
+
 console.log(failures === 0 ? "\nall checks passed" : `\n${failures} check(s) failed`);
 process.exit(failures === 0 ? 0 : 1);

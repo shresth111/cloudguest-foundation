@@ -22,6 +22,11 @@ import {
 } from "@/context/PortalRuntimeContext";
 import { buildSessionUrl } from "@/lib/portal-session-url";
 import { nasAuthorizedFromSearch } from "@/lib/portal-nas-state";
+import {
+  hotspotGateAlreadyOpen,
+  hotspotGateProbeAllowed,
+  type HotspotGateProbeEnv,
+} from "@/lib/portal-gate-probe";
 import { PORTAL_SLOW_NOTICE_DELAY_MS } from "@/lib/portal-post-connect";
 import { usePortalLinkSearch } from "@/components/portal-runtime/usePortalLinkSearch";
 import { isCaptiveNetworkAssistant } from "@/lib/portal-cna";
@@ -307,6 +312,19 @@ function SuccessPage() {
   // Guarded to fire at most once per real attempt, not on every re-render
   // -- `retry()` below explicitly clears this to allow a second real one.
   const hotspotLoginSubmitted = useRef(false);
+  // The RouterOS branch now waits (at most 1.5s) on a probe before it
+  // POSTs. `hotspotLoginSubmitted` stays set across that wait, so an effect
+  // re-run cannot start a second attempt; these two cover what it cannot --
+  // a `retry()` that supersedes a probe still in flight, and the page
+  // unmounting under one -- so an answer that arrives late acts on nothing.
+  const gateProbeAttempt = useRef(0);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   /**
    * THE OMADA GATE. The counterpart of `submitHotspotLogin` below, and the
@@ -780,8 +798,68 @@ function SuccessPage() {
     // `safeSet`: even if that guard is ever lost, the worst outcome here
     // is a redundant (harmless) duplicate POST, never a guest with no
     // internet.
-    submitHotspotLogin(hotspotLoginUrl, guestIdentifier, dst);
-    persistHotspotSubmit({ identifier: guestIdentifier, at: Date.now() });
+    const postHotspotLogin = () => {
+      submitHotspotLogin(hotspotLoginUrl, guestIdentifier, dst);
+      persistHotspotSubmit({ identifier: guestIdentifier, at: Date.now() });
+    };
+
+    // IS THE GATE ALREADY OPEN? Measured on a real MikroTik: a POST to a
+    // bypassed host returns 501 from the router's management web server --
+    // a device let through by a bypass binding (a Trusted Device, or the
+    // binding the server pushes seconds after sign-in) is no longer routed
+    // to the hotspot servlet, so the POST above strands a guest whose
+    // internet already works on a bare "Error 501" page. `hspage` cannot
+    // see it: the binding lands AFTER the portal was loaded.
+    //
+    // So this asks, once, and believes only a yes -- see
+    // @/lib/portal-gate-probe for the signal and for the three fences
+    // around it. Not allowed to ask (the CNA websheet, storage that throws,
+    // an older session, a skip already taken on this browser) means the
+    // POST fires right here, synchronously, exactly as it did before.
+    let gateProbe: HotspotGateProbeEnv | null = null;
+    try {
+      gateProbe = {
+        captiveSheet: isCaptiveNetworkAssistant(),
+        sessionStartedAt: session.startedAt,
+        now: Date.now(),
+        skippedBefore: () => loadPersistedHotspotSubmit()?.gateSkipped === true,
+        // Recorded as a submit too, so an OS remount-bounce in the next few
+        // seconds takes the cooldown branch above instead of POSTing into
+        // the 501 this just avoided.
+        recordSkip: () =>
+          persistHotspotSubmit({ identifier: guestIdentifier, at: Date.now(), gateSkipped: true }),
+        fetchImpl: typeof window.fetch === "function" ? window.fetch.bind(window) : undefined,
+      };
+    } catch {
+      gateProbe = null;
+    }
+    if (!gateProbe || !hotspotGateProbeAllowed(gateProbe)) {
+      postHotspotLogin();
+      return;
+    }
+    const probeAttempt = ++gateProbeAttempt.current;
+    void hotspotGateAlreadyOpen(gateProbe).then((open) => {
+      if (!mounted.current || probeAttempt !== gateProbeAttempt.current) return;
+      if (!open) {
+        postHotspotLogin();
+        return;
+      }
+      // Same real document load as the cooldown branch above, to the same
+      // place the POST's `dst` would have reached.
+      //
+      // NOT self-correcting the way an intercepted load would be:
+      // `/portal/session` is on the portal's own walled host, so a shut
+      // gate does not catch this. What bounds a wrong answer is that it
+      // cannot be given twice -- `recordSkip` already ran (the answer is
+      // `true` only if its marker read back) and the session-age window
+      // closes by itself -- so the guest's next arrival POSTs.
+      try {
+        window.location.assign(dst);
+      } catch {
+        // A navigation the browser refused leaves nothing in flight.
+        postHotspotLogin();
+      }
+    });
   }
 
   useEffect(() => {
