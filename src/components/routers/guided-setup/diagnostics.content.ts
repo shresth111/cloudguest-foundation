@@ -680,7 +680,7 @@ export const SYMPTOMS: Symptom[] = [
         tell: "`fasttrack-connection` wali line enabled hai aur uske bytes tezi se badh rahe hain, jabki `/queue simple print stats` me guest ki queue ke bytes nahi badhte.",
         cause:
           "FastTrack wale connection simple queue ko bypass kar dete hain. Default config ye rule saath lata hai, isliye queue sahi limit ke saath bani rehti hai aur kuch rokti nahi.",
-        fix: `:local ftN [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no]]; :foreach ftRule in=[/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no] do={ /ip firewall filter disable $ftRule }; :local ftLeft [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no]]; :put ("fasttrack disabled : " . [:tostr $ftN]); :put ("fasttrack enabled : " . [:tostr $ftLeft])`,
+        fix: `:local ftN ([:len [/ip firewall filter find where chain=forward action=fasttrack-connection]] - [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=yes]]); :foreach ftRule in=[/ip firewall filter find where chain=forward action=fasttrack-connection] do={ /ip firewall filter disable $ftRule }; :local ftLeft ([:len [/ip firewall filter find where chain=forward action=fasttrack-connection]] - [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=yes]]); :put ("fasttrack disabled : " . [:tostr $ftN]); :put ("fasttrack enabled : " . [:tostr $ftLeft])`,
         note: "Rule sirf disable hota hai, hatta nahi. Jo connection pehle se khule hain wo band hone tak unlimited rahenge, isliye speed test dobara shuru karo.",
       },
       {

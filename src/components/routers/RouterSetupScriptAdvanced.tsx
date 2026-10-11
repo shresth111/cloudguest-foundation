@@ -377,6 +377,12 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
   // these interfaces join the LAN bridge, everything else is left alone.
   const [lanIfsRaw, setLanIfsRaw] = useState("");
   const [enableFirewall, setEnableFirewall] = useState(true);
+  // OFF BY DEFAULT, and not because it is unimportant. MAC-WinBox from the
+  // LAN is the only way into a router whose tunnel is down short of a reset
+  // -- it is how a venue was repaired on 2026-10-11 -- so closing it has to
+  // be something an operator chose, with the consequence in front of them.
+  // The script reports which way this was set either way.
+  const [blockMacWinbox, setBlockMacWinbox] = useState(false);
   // ON BY DEFAULT, AND THIS IS THE FIX FOR "RADIUS WASN'T THERE".
   //
   // Both of these defaulted to `false`, and NOTHING anywhere connected that
@@ -976,6 +982,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           basicConfigOnly,
           lanIfs: lanIfs.length > 0 ? lanIfs : undefined,
           enableFirewall,
+          blockMacWinbox,
           wireguard,
           radius,
           notProvisioned,
@@ -1419,6 +1426,23 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
             className="h-3.5 w-3.5 rounded border-input"
           />
           Also add basic firewall rules
+        </label>
+        <label className="flex items-start gap-2 text-xs text-foreground">
+          <input
+            type="checkbox"
+            checked={blockMacWinbox}
+            onChange={(e) => setBlockMacWinbox(e.target.checked)}
+            className="mt-0.5 h-3.5 w-3.5 rounded border-input"
+          />
+          <span>
+            Block MAC-WinBox from the guest network
+            <span className="mt-0.5 block text-[11px] text-muted-foreground">
+              Off: anyone on the guest LAN can reach the WinBox login prompt by MAC address, and the
+              admin password is the only thing protecting it. On: that door is closed — and a router
+              whose tunnel is down can then only be recovered by a reset. The script always disables
+              FTP, Telnet, MAC-Telnet and MAC ping regardless.
+            </span>
+          </span>
         </label>
         <label className="flex items-center gap-2 text-xs text-foreground">
           <input

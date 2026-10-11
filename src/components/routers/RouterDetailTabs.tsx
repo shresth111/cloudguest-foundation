@@ -1980,6 +1980,30 @@ const HOTSPOT_LOGIN_BY = "http-pap";
  * their chunk list is the same dead end as no instruction at all. */
 const HOTSPOT_CHUNK_LABEL = "Hotspot";
 
+/** Label of the chunk that closes the router's own unused admin surface. */
+const ADMIN_LOCKDOWN_CHUNK_LABEL = "Router Admin Lockdown";
+
+/** `/ip service` entries this script switches off on every router: the two
+ * plaintext-credential services nothing in the product uses.
+ *
+ * THIS LIST MIRRORS THE BACKEND'S OWN POLICY and must not drift from it:
+ * cloud-guest `backend/app/domains/network_config/profiles/service_lockdown.py`
+ * defines `ALWAYS_DISABLED_SERVICES = ("telnet", "ftp")` and a hard floor
+ * `PLATFORM_REQUIRED_SERVICES = {"api", "api-ssl", "ssh", "www", "www-ssl"}`
+ * that `render_service_lockdown` raises rather than disable. Its docstring
+ * gives the reasons: `api` (8728) is the primary transport for every write
+ * and read-back, `ssh` moves config files and backups, `www` is what the
+ * console's "Open web console" WebFig proxy talks to. `winbox` is not
+ * restricted there either -- installers use it on site and operators over
+ * the tunnel.
+ *
+ * So: never `api`, `api-ssl`, `ssh`, `www`, `www-ssl` or `winbox` here, and
+ * no `address=` allowlist on any service from this script -- the platform
+ * arrives through hub SNAT and an operator through a VPN address, and a
+ * wrong subnet there locks the platform out of every new router at once.
+ * The suite pins all six names out. */
+const ADMIN_LOCKDOWN_SERVICES = ["ftp", "telnet"] as const;
+
 /** The stable RouterOS certificate name that `/opt/wyfy/renew-hotspot-certs.sh`
  * binds on a router after pushing the fleet's real Let's Encrypt certificate
  * (SANs: `wifi.wyfyguest.com`, `portal.wyfyguest.com`, `*.portal.wyfyguest.com`).
@@ -4893,6 +4917,15 @@ export function buildRouterSetupScriptChunks(opts: {
    * for confirming a technician's manual WAN setup actually works as it
    * is for confirming this generator's own. */
   basicConfigOnly?: boolean;
+  /** Also close MAC-WinBox (`/tool mac-server mac-winbox`) to every
+   * interface. OFF by default, and deliberately an operator's decision:
+   * MAC-WinBox from the LAN is the only way into a router whose tunnel is
+   * down that does not involve a reset -- it is how "sector 37 d" was
+   * repaired on 2026-10-11. With it on, that recovery path is gone. With it
+   * off, anyone on the guest LAN can reach the WinBox login prompt at layer
+   * 2 (no firewall rule sees it), and the account password is all there is.
+   * The "Router Admin Lockdown" chunk says which of the two was chosen. */
+  blockMacWinbox?: boolean;
   /** Things the panel tried to provision and could not -- a hub bridge that
    * refused, a RADIUS registration that 502'd. Passed in so the SCRIPT can
    * announce the gap instead of quietly being shorter.
@@ -4943,6 +4976,7 @@ export function buildRouterSetupScriptChunks(opts: {
     generatedAt = new Date().toISOString(),
     wanRoutingMode = "load_balance",
     basicConfigOnly = false,
+    blockMacWinbox = false,
     notProvisioned = [],
   } = opts;
   // Escaped once up front -- `lanBridge` is an operator-editable free-text
@@ -7143,11 +7177,18 @@ export function buildRouterSetupScriptChunks(opts: {
       // read back after, on ONE entered line: an empty `:foreach` is a
       // silent no-op, so without the count a bare router (nothing to do)
       // and a router where the disable failed would print the same nothing.
-      // `disabled=no` in the find is what makes a re-paste report 0.
+      // "Enabled" is counted as ALL MINUS `disabled=yes`, never as
+      // `find where ... disabled=no`: a rule that was never given an
+      // explicit `disabled=` (the factory `defconf: fasttrack` rule is one)
+      // has no such property on RouterOS 7.21 and a `disabled=no` match
+      // skips it -- so the first version of this line found 0 on exactly
+      // the router it exists for. See the same note on `$fwLanAdmin` in the
+      // Firewall chunk. Disabling an already-disabled rule is a no-op, so
+      // the `:foreach` runs over all of them and a re-paste still reports 0.
       [
-        `:local ftN [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no]]`,
-        `:foreach ftRule in=[/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no] do={ /ip firewall filter disable $ftRule }`,
-        `:local ftLeft [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no]]`,
+        `:local ftN ([:len [/ip firewall filter find where chain=forward action=fasttrack-connection]] - [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=yes]])`,
+        `:foreach ftRule in=[/ip firewall filter find where chain=forward action=fasttrack-connection] do={ /ip firewall filter disable $ftRule }`,
+        `:local ftLeft ([:len [/ip firewall filter find where chain=forward action=fasttrack-connection]] - [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=yes]])`,
         `:if ($ftN > 0) do={ :put ("  FastTrack: disabled " . [:tostr $ftN] . " forward rule(s). FastTrack skips simple queues, so guest speed limits did nothing.") }`,
         `:if ($ftN > 0) do={ :put "  Connections already open stay unlimited until they close; new ones are limited from now." }`,
         `:if ($ftN > 0) do={ :log info ("cloudguest: disabled " . [:tostr $ftN] . " fasttrack rule(s) so guest queues apply") }`,
@@ -7554,7 +7595,19 @@ export function buildRouterSetupScriptChunks(opts: {
       [
         `:local fwN [:len [/ip firewall filter find where comment~"cloudguest-fw-"]]`,
         `:local fwWanList [:len [/interface list member find where list="WAN"]]`,
-        `:local fwLanAdmin [:len [/ip firewall filter find where comment="${LAN_ADMIN_DROP_COMMENT}" disabled=no]]`,
+        // NOT `find where ... disabled=no`. On RouterOS 7.21 a filter rule
+        // that was never given an explicit `disabled=` carries no such
+        // property at all, and a match on `disabled=no` skips it: read over
+        // the API on a freshly provisioned router, 2 of 28 rules answered
+        // `disabled=false` -- the two this script `set ... disabled=no` on --
+        // and this rule was not among them. So on every clean FIRST paste
+        // the count was 0, the chunk printed RESULT: FAIL and logged
+        // "guest-LAN admin drop rule missing" about a rule that was there
+        // and working (seen live 2026-10-12); only a re-paste, whose
+        // converge line sets `disabled=no`, made it read 1. `disabled=yes`
+        // IS reported for a disabled rule, so "present minus disabled" is
+        // right under either reading of the flag.
+        `:local fwLanAdmin ([:len [/ip firewall filter find where comment="${LAN_ADMIN_DROP_COMMENT}"]] - [:len [/ip firewall filter find where comment="${LAN_ADMIN_DROP_COMMENT}" disabled=yes]])`,
         `:put ("  cloudguest firewall rules present: " . [:tostr $fwN] . " of 8")`,
         `:put ("  interfaces in the WAN list: " . [:tostr $fwWanList])`,
         `:if ($fwN >= 8 && $fwWanList > 0 && $fwLanAdmin = 1) do={ :put "  RESULT: PASS -- the rule set is complete and the WAN list has something in it." }`,
@@ -8532,6 +8585,83 @@ export function buildRouterSetupScriptChunks(opts: {
     ].join("\n"),
   });
   // WITHIN THE DEFERRED BLOCK: EVERY READ-ONLY REPORT FIRST, EVERY HARD
+  // THE ROUTER'S OWN ADMIN SURFACE.
+  //
+  // Read on a freshly provisioned router (2026-10-12): ftp and telnet
+  // enabled, MAC-Telnet and MAC-WinBox allowed on every interface, MAC
+  // ping answering. `cloudguest-fw-drop-lan-admin` closes the IP side
+  // from the guest bridge and nothing else: it cannot see a layer-2
+  // service at all, it does not exist when the Firewall box is unticked,
+  // and it says nothing about any other interface.
+  //
+  // ITS OWN CHUNK, ALWAYS EMITTED -- not behind `enableFirewall`, because
+  // an exposure that depends on an unrelated tick-box is the bug again --
+  // and placed after every chunk that configures something and before the
+  // deferred read-only verdicts: late enough that a technician working over
+  // MAC-WinBox has already pasted everything that matters if the optional
+  // last statement costs them the session, and early enough that a portal
+  // check which `:error`s under /import cannot skip it.
+  //
+  // Each group is ONE entered line (the console runs every line as its own
+  // program, so a `:local` read on a later line is empty). Every write is
+  // wrapped in `:do {} on-error={}` and then READ BACK: under /import an
+  // unguarded error would end the run, and a `set` that silently did
+  // nothing must not look like success.
+  {
+    const svcOff = ADMIN_LOCKDOWN_SERVICES.map(
+      (svc) => `[:len [/ip service find where name="${svc}" disabled=yes]]`,
+    ).join(" + ");
+    const svcNames = ADMIN_LOCKDOWN_SERVICES.join(", ");
+    const svcTotal = ADMIN_LOCKDOWN_SERVICES.length;
+    const lines = [
+      [
+        `:local svOff0 (${svcOff})`,
+        ...ADMIN_LOCKDOWN_SERVICES.map(
+          (svc) => `:do { /ip service set ${svc} disabled=yes } on-error={}`,
+        ),
+        `:local svOff1 (${svcOff})`,
+        `:put ("  Unused router services (${svcNames}): " . [:tostr ($svOff1 - $svOff0)] . " disabled now, " . [:tostr $svOff0] . " already off.")`,
+        `:if ($svOff1 >= ${svcTotal}) do={ :put "  RESULT: PASS -- ${svcNames} are disabled." }`,
+        `:if ($svOff1 < ${svcTotal}) do={ :put ("  RESULT: FAIL -- only " . [:tostr $svOff1] . " of ${svcTotal} are disabled. Check /ip service print.") }`,
+        `:if ($svOff1 < ${svcTotal}) do={ :log warning "cloudguest: ${svcNames} still enabled on this router" }`,
+      ].join("; "),
+      [
+        `:local mtBefore [:tostr [/tool mac-server get allowed-interface-list]]`,
+        `:do { /tool mac-server set allowed-interface-list=none } on-error={}`,
+        `:local mtAfter [:tostr [/tool mac-server get allowed-interface-list]]`,
+        `:put ("  MAC-Telnet allowed on: " . $mtBefore . " -> " . $mtAfter)`,
+        `:if ($mtAfter != "none") do={ :put "  RESULT: FAIL -- MAC-Telnet is still allowed. Anyone on the guest LAN can reach its login prompt." }`,
+        `:if ($mtAfter != "none") do={ :log warning "cloudguest: MAC-Telnet still allowed on an interface list" }`,
+      ].join("; "),
+      [
+        `:local mpBefore [:tostr [/tool mac-server ping get enabled]]`,
+        `:do { /tool mac-server ping set enabled=no } on-error={}`,
+        `:local mpAfter [:tostr [/tool mac-server ping get enabled]]`,
+        `:put ("  MAC ping enabled: " . $mpBefore . " -> " . $mpAfter)`,
+        `:if ($mpAfter != "false") do={ :put "  RESULT: FAIL -- MAC ping is still enabled." }`,
+      ].join("; "),
+      // The script cannot read whether a password is set, or how good it
+      // is, and does not pretend to. Printed on every router, both ways.
+      `:put "  WARNING: set a strong password on admin and every other full-access account (/user print). This script cannot read whether one is set."`,
+      blockMacWinbox
+        ? [
+            `:put "  Closing MAC-WinBox on every interface. If this session is MAC-WinBox it may end here: reconnect over the tunnel and paste the remaining chunks."`,
+            `:local mwBefore [:tostr [/tool mac-server mac-winbox get allowed-interface-list]]`,
+            `:do { /tool mac-server mac-winbox set allowed-interface-list=none } on-error={}`,
+            `:local mwAfter [:tostr [/tool mac-server mac-winbox get allowed-interface-list]]`,
+            `:put ("  MAC-WinBox allowed on: " . $mwBefore . " -> " . $mwAfter)`,
+            `:if ($mwAfter = "none") do={ :put "  From now on this router is reachable only over the tunnel. If the tunnel is down, the only way back in is a reset." }`,
+            `:if ($mwAfter != "none") do={ :put "  RESULT: FAIL -- MAC-WinBox is still allowed. Anyone on the guest LAN can reach the WinBox login prompt." }`,
+            `:if ($mwAfter != "none") do={ :log warning "cloudguest: MAC-WinBox still allowed on an interface list" }`,
+          ].join("; ")
+        : [
+            `:local mwNow [:tostr [/tool mac-server mac-winbox get allowed-interface-list]]`,
+            `:put ("  NOTE: MAC-WinBox is still open on the guest LAN (allowed on: " . $mwNow . "), kept as the on-site way back in when the tunnel is down. The admin password is the only thing protecting it.")`,
+          ].join("; "),
+    ];
+    chunks.push({ label: ADMIN_LOCKDOWN_CHUNK_LABEL, script: lines.join("\n") });
+  }
+
   // STOP LAST.
   //
   // Two of these four checks `:error` (Walled Garden, Portal Identity) and

@@ -382,7 +382,7 @@ export const STEPS_PART5: ManualStep[] = [
 :foreach w in=[/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"] do={ :put ("wg-ip=" . [:tostr [/ip hotspot walled-garden ip get $w dst-address]]) }
 :local pip ""; :do { :set pip [:tostr [:resolve "auth.wyfyguest.com"]] } on-error={ :set pip "" }; :put ("portal-resolves-to=" . $pip)
 :put ("hotspot-dns-static-count=" . [:tostr [:len [/ip dns static find where name="wifi.wyfyguest.com"]]])
-:put ("fasttrack-enabled-count=" . [:tostr [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no]]])
+:put ("fasttrack-enabled-count=" . [:tostr ([:len [/ip firewall filter find where chain=forward action=fasttrack-connection]] - [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=yes]])])
 :put "WYFY-END step16"
 :put "===================="`,
       emits: [
@@ -654,7 +654,7 @@ export const STEPS_PART5: ManualStep[] = [
           "The row whose action is fasttrack-connection. If its byte counter climbs quickly while a guest is downloading, guest traffic is going around the speed queue.",
         fix: [
           {
-            command: `:local ftN [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no]]; :foreach ftRule in=[/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no] do={ /ip firewall filter disable $ftRule }; :local ftLeft [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no]]; :put ("fasttrack-disabled=" . [:tostr $ftN]); :put ("fasttrack-enabled-count=" . [:tostr $ftLeft])`,
+            command: `:local ftN ([:len [/ip firewall filter find where chain=forward action=fasttrack-connection]] - [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=yes]]); :foreach ftRule in=[/ip firewall filter find where chain=forward action=fasttrack-connection] do={ /ip firewall filter disable $ftRule }; :local ftLeft ([:len [/ip firewall filter find where chain=forward action=fasttrack-connection]] - [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=yes]]); :put ("fasttrack-disabled=" . [:tostr $ftN]); :put ("fasttrack-enabled-count=" . [:tostr $ftLeft])`,
             note: "Disables every enabled FastTrack rule in the forward chain. Nothing is removed, so it can be switched back on. Both the number disabled and the number still enabled are printed. Connections that are already open stay unlimited until they close, so start a fresh speed test to see the limit.",
             destructive: false,
             confidence: "field",
