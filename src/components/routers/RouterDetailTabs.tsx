@@ -7860,6 +7860,20 @@ export function buildRouterSetupScriptChunks(opts: {
               `:if ([:len $wgAllowRule] = 0 && [:len $wanDropRule] > 0) do={ /ip firewall filter add chain=input in-interface="${WIREGUARD_INTERFACE_NAME}" action=accept comment="cloudguest-fw-allow-wg-mgmt" place-before=$wanDropRule }`,
               `:if ([:len $wgAllowRule] = 0 && [:len $wanDropRule] = 0) do={ /ip firewall filter add chain=input in-interface="${WIREGUARD_INTERFACE_NAME}" action=accept comment="cloudguest-fw-allow-wg-mgmt" }`,
               `:if ([:len $wgAllowRule] > 0 && [:len $wanDropRule] > 0) do={ /ip firewall filter move $wgAllowRule destination=$wanDropRule }`,
+              // A router that was NOT reset with no-default-configuration
+              // still carries MikroTik's own `defconf: drop all not coming
+              // from LAN`, and it sits ABOVE everything this script adds --
+              // including the accept rule just placed. The tunnel then
+              // handshakes and answers ping (defconf accepts ICMP) while
+              // every TCP connection from the platform (8728, 8291) is
+              // dropped: no queues, no gate push, no reconcile. Confirmed
+              // live 2026-10-11 ("sector 37 d"). Must run AFTER the two
+              // placements above, which would otherwise pull the rule back
+              // down to the WAN drop; `$wgAllowRule` was read before the
+              // `add`, so the rule is looked up again here.
+              `:local defconfDrop [/ip firewall filter find where chain=input action=drop comment~"defconf: drop all not coming from LAN"]`,
+              `:local wgAllowNow [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]`,
+              `:if ([:len $wgAllowNow] > 0 && [:len $defconfDrop] > 0) do={ /ip firewall filter move $wgAllowNow destination=$defconfDrop }`,
               // Repoint, unconditionally, an accept rule that already
               // exists. The two `add` guards above only fire when the rule
               // is ABSENT, so on every router provisioned before the

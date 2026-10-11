@@ -3017,11 +3017,52 @@ check(
     elsewhere.length === 0,
     `${elsewhere.join(", ")} depend(s) on a name a bare router never had`,
   );
+  /** The one sanctioned defconf-comment match: the WireGuard chunk looks for
+   * `defconf: drop all not coming from LAN` so it can lift the management
+   * accept rule above it on a router that was NOT reset bare (that drop
+   * otherwise eats the platform's 8728 while the tunnel still pings --
+   * live 2026-10-11). It is sanctioned only in this exact shape: bound to
+   * a variable and length-checked `> 0` on the same entered line, so on a
+   * bare router it is a counted no-op rather than a set that "succeeds"
+   * against nothing. Anything else keyed on a defconf comment still fails. */
+  const defconfMatchOk = (label, line) =>
+    label === "WireGuard Tunnel" &&
+    (line.match(/comment[=~]"?defconf/g) ?? []).length === 1 &&
+    /:local defconfDrop \[\/ip firewall filter find where [^\]]*comment~"defconf: drop all not coming from LAN"\]/.test(
+      line,
+    ) &&
+    /\[:len \$defconfDrop\]\s*>\s*0/.test(line);
+  const defconfOffenders = BARE_PPPOE.flatMap((c) =>
+    c.script
+      .split("\n")
+      .filter((line) => /comment[=~]"?defconf/.test(line) && !defconfMatchOk(c.label, line))
+      .map(() => c.label),
+  );
   check(
-    "bare router: no chunk matches on RouterOS's own `defconf` comment either",
-    !BARE_PPPOE.some((c) => /comment[=~]"?defconf/.test(c.script)),
-    "defconf-commented rules do not exist on a router reset with no default configuration, so " +
-      "any find keyed on them is empty and every set against it succeeds while doing nothing",
+    "bare router: no chunk matches on RouterOS's own `defconf` comment, bar the one counted lookup",
+    defconfOffenders.length === 0,
+    `${defconfOffenders.join(", ")}: defconf-commented rules do not exist on a router reset with ` +
+      "no default configuration, so any find keyed on them is empty and every set against it " +
+      "succeeds while doing nothing",
+  );
+  check(
+    "INJECTED: an unguarded defconf-comment match is still rejected, even in the WireGuard chunk",
+    !defconfMatchOk(
+      "WireGuard Tunnel",
+      `/ip firewall filter set [find comment~"defconf: drop all not coming from LAN"] disabled=yes`,
+    ) &&
+      !defconfMatchOk(
+        "Firewall",
+        `:local defconfDrop [/ip firewall filter find where chain=input action=drop comment~"defconf: drop all not coming from LAN"]; :if ([:len $defconfDrop] > 0) do={ :put "x" }`,
+      ),
+    "the exemption accepts a shape it exists to ban",
+  );
+  check(
+    "the WireGuard chunk does carry that counted lookup",
+    bareChunk(BARE_PPPOE, "WireGuard Tunnel")
+      .split("\n")
+      .some((line) => defconfMatchOk("WireGuard Tunnel", line)),
+    "the lift above the default-config LAN drop is gone, or lost its length guard",
   );
 }
 
