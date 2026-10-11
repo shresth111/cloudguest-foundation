@@ -189,8 +189,8 @@
  * an empty match SUCCEEDS on RouterOS and an empty `:foreach` exits clean,
  * so "no error" was never evidence of anything.
  *
- * Twenty mutations of the real generator and four of the guards
- * themselves were injected and this suite re-run. All twenty-four caught:
+ * Twenty-six mutations of the real generator and four of the guards
+ * themselves were injected and this suite re-run. All thirty caught:
  *
  *   the pppoe-client exclusion removed from the LAN sweep .............. 2
  *   the exclusion applied to the attach pass only ...................... 1
@@ -212,10 +212,29 @@
  *   the LAN bridge add loses its existence test ........................ 1
  *   a chunk starts matching on RouterOS's own `defconf` comment ........ 1
  *   a second chunk starts depending on the `bridgeLocal` name .......... 1
+ *   the FastTrack disable keyed on a comment, not the action ........... 2
+ *   FastTrack rules removed instead of disabled ........................ 2
+ *   the FastTrack read-back dropped .................................... 27
+ *   the leftover-defconf notice loses its :log warning ................. 1
+ *   the defconf-drop lift loses its length guard ....................... 2
+ *   the defconf-drop lift dropped (test-fw-rule-order.mjs catches too) . 2
  *   zero-branch guard stops accepting the negated-verdict form ......... 4
  *   the unguarded-add detector stops recognising an add ................ 2
  *   the place-before guard stops requiring the length test ............. 1
  *   the existence-test predicate stops recognising `] = 0` ............. 1
+ *
+ * SECTION 18 -- THREE PATHS, ONE SET OF STATEMENTS
+ * ------------------------------------------------
+ * The two default-config fixes (the defconf-drop lift and the FastTrack
+ * disable) are lifted out of this generator's real output and must appear
+ * verbatim in Guided Setup's blocks and the manual wizard's repair
+ * commands. Five mutations, one path at a time, each caught:
+ *
+ *   Guided's lift re-worded .............................................. 2
+ *   the wizard's FastTrack fix removes instead of disabling .............. 1
+ *   the wizard's repair step binds the rule to wg-cloudguest again ....... 1
+ *   the wizard resolver's WAN-drop move loses the lift after it .......... 2
+ *   the generator's own statement changes and nothing else follows ....... 7
  *
  * SECTION 12 -- THE UPLINK IS DISCOVERED IN THE WAN CHUNKS TOO
  * ------------------------------------------------------------
@@ -2872,6 +2891,108 @@ check(
 );
 
 // ---------------------------------------------------------------------
+// 10.7b THE ROUTER THAT WAS *NOT* RESET BARE.
+// ---------------------------------------------------------------------
+// The mirror image of the rest of this section, found live on 2026-10-11
+// ("sector 37 d"): the script was pasted over MikroTik's default
+// configuration. Everything pasted clean and the venue was wrong in two
+// ways no chunk reported -- defconf's FastTrack rule carried every guest
+// connection past its speed queue, and defconf's DHCP server handed guests
+// 192.168.88.x. (The third, the management accept rule landing below
+// defconf's LAN drop, is pinned in test-fw-rule-order.mjs.)
+
+{
+  /** The FastTrack line, wherever it lives in a chunk: counted on
+   * `action=fasttrack-connection` (never on a comment), limited to rules
+   * that are still enabled, disabled rather than removed, read back, with
+   * a zero branch that names the count and a FAIL that leaves a log line.
+   * ONE predicate for the sweep and its self-checks. */
+  const fastTrackLineOk = (line) =>
+    /:local ftN \[:len \[\/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no\]\]/.test(
+      line,
+    ) &&
+    /:foreach ftRule in=\[\/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no\] do=\{ \/ip firewall filter disable \$ftRule \}/.test(
+      line,
+    ) &&
+    /:local ftLeft \[:len \[\/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no\]\]/.test(
+      line,
+    ) &&
+    /:if \(\$ftN > 0\) do=\{ :put \("[^"]*" \. \[:tostr \$ftN\]/.test(line) &&
+    /:if \(\$ftN = 0\) do=\{ :put "[^"]*\b0\b[^"]*" \}/.test(line) &&
+    /:if \(\$ftLeft > 0\) do=\{ :put \("  RESULT: FAIL/.test(line) &&
+    /:if \(\$ftLeft > 0\) do=\{ :log warning /.test(line) &&
+    !/comment[=~]/.test(line) &&
+    !/filter remove/.test(line);
+  const ftLines = (script) => script.split("\n").filter((l) => l.includes("fasttrack-connection"));
+
+  const hs = bareChunk(BARE_PPPOE, "Hotspot");
+  check(
+    "default config: the Hotspot chunk disables forward-chain FastTrack, counted and read back on one line",
+    ftLines(hs).length === 1 && fastTrackLineOk(ftLines(hs)[0]),
+    "FastTrack'd connections skip /queue simple, so on a router that still has defconf's " +
+      "fasttrack rule every guest speed limit exists and shapes nothing (live 2026-10-11)",
+  );
+  // In the Hotspot chunk because that is the chunk every guest venue gets;
+  // Firewall is optional, and a limit that depends on an unrelated tick-box
+  // is the bug again.
+  const noFw = buildRouterSetupScriptChunks({ ...VARIANTS[0][1], enableFirewall: false });
+  check(
+    "default config: FastTrack is still disabled when the Firewall chunk is switched off",
+    noFw.every((c) => c.label !== "Firewall") &&
+      noFw.some((c) => ftLines(c.script).some(fastTrackLineOk)),
+    "the FastTrack disable went missing with enableFirewall=false -- guest queues would be " +
+      "bypassed on exactly the routers nobody hardened",
+  );
+  check(
+    "default config: exactly one chunk touches FastTrack, and none removes a rule",
+    BARE_PPPOE.filter((c) => c.script.includes("fasttrack")).length === 1 &&
+      !BARE_PPPOE.some((c) => /filter remove[^;\n]*fasttrack/.test(c.script)),
+    "a second writer drifts, and a removed rule cannot be put back with one click",
+  );
+  check(
+    "INJECTED: a FastTrack line keyed on defconf's comment is rejected",
+    !fastTrackLineOk(
+      ftLines(hs)[0].replaceAll(
+        "chain=forward action=fasttrack-connection disabled=no",
+        'comment="defconf: fasttrack"',
+      ),
+    ),
+    "a hand-added FastTrack rule bypasses the queues just the same; the guard must hold the action match",
+  );
+  check(
+    "INJECTED: ...as is one that disables without reading the result back",
+    !fastTrackLineOk(ftLines(hs)[0].replace(/:local ftLeft [^;]*; /, "")) &&
+      !fastTrackLineOk(
+        ftLines(hs)[0].replace(/:if \(\$ftN = 0\) do=\{ :put "[^"]*0 found[^"]*" \}; /, ""),
+      ),
+    "the guard accepts a silent disable -- on a bare router that is indistinguishable from a failed one",
+  );
+
+  const cleanup = bareChunk(BARE_PPPOE, "Stale Factory-Default DHCP Client");
+  const noticeLine = cleanup.split("\n").find((l) => l.includes("defconfDhcpN")) ?? "";
+  check(
+    "default config: a leftover defconf DHCP server is counted and called out, with a log line",
+    /:local defconfDhcpN \[:len \[\/ip dhcp-server find where name="defconf"\]\]/.test(
+      noticeLine,
+    ) &&
+      /:if \(\$defconfDhcpN > 0\) do=\{ :put \("  WARNING: " \. \[:tostr \$defconfDhcpN\]/.test(
+        noticeLine,
+      ) &&
+      /:if \(\$defconfDhcpN > 0\) do=\{ :log warning /.test(noticeLine) &&
+      /no-defaults=yes/.test(noticeLine),
+    "pasting over a default config 'works' and hands guests 192.168.88.x; nothing told the operator",
+  );
+  check(
+    "default config: on a bare router that notice states 0, and it never removes anything",
+    /:if \(\$defconfDhcpN = 0\) do=\{ :put "[^"]*\b0\b[^"]*" \}/.test(noticeLine) &&
+      !/dhcp-server (remove|disable|set)/.test(noticeLine) &&
+      !BARE_PPPOE.some((c) => /dhcp-server remove[^;\n]*defconf/.test(c.script)),
+    "the zero case is the normal one and must read as an outcome; and deleting the DHCP server a " +
+      "technician's laptop is leased from, mid-paste, strands the install",
+  );
+}
+
+// ---------------------------------------------------------------------
 // 10.8 NOTHING IS POSITIONED AGAINST A RULE ONLY DEFCONF PROVIDES.
 // ---------------------------------------------------------------------
 // `place-before=` against a rule that does not exist is the exact syntax
@@ -3017,11 +3138,52 @@ check(
     elsewhere.length === 0,
     `${elsewhere.join(", ")} depend(s) on a name a bare router never had`,
   );
+  /** The one sanctioned defconf-comment match: the WireGuard chunk looks for
+   * `defconf: drop all not coming from LAN` so it can lift the management
+   * accept rule above it on a router that was NOT reset bare (that drop
+   * otherwise eats the platform's 8728 while the tunnel still pings --
+   * live 2026-10-11). It is sanctioned only in this exact shape: bound to
+   * a variable and length-checked `> 0` on the same entered line, so on a
+   * bare router it is a counted no-op rather than a set that "succeeds"
+   * against nothing. Anything else keyed on a defconf comment still fails. */
+  const defconfMatchOk = (label, line) =>
+    label === "WireGuard Tunnel" &&
+    (line.match(/comment[=~]"?defconf/g) ?? []).length === 1 &&
+    /:local defconfDrop \[\/ip firewall filter find where [^\]]*comment~"defconf: drop all not coming from LAN"\]/.test(
+      line,
+    ) &&
+    /\[:len \$defconfDrop\]\s*>\s*0/.test(line);
+  const defconfOffenders = BARE_PPPOE.flatMap((c) =>
+    c.script
+      .split("\n")
+      .filter((line) => /comment[=~]"?defconf/.test(line) && !defconfMatchOk(c.label, line))
+      .map(() => c.label),
+  );
   check(
-    "bare router: no chunk matches on RouterOS's own `defconf` comment either",
-    !BARE_PPPOE.some((c) => /comment[=~]"?defconf/.test(c.script)),
-    "defconf-commented rules do not exist on a router reset with no default configuration, so " +
-      "any find keyed on them is empty and every set against it succeeds while doing nothing",
+    "bare router: no chunk matches on RouterOS's own `defconf` comment, bar the one counted lookup",
+    defconfOffenders.length === 0,
+    `${defconfOffenders.join(", ")}: defconf-commented rules do not exist on a router reset with ` +
+      "no default configuration, so any find keyed on them is empty and every set against it " +
+      "succeeds while doing nothing",
+  );
+  check(
+    "INJECTED: an unguarded defconf-comment match is still rejected, even in the WireGuard chunk",
+    !defconfMatchOk(
+      "WireGuard Tunnel",
+      `/ip firewall filter set [find comment~"defconf: drop all not coming from LAN"] disabled=yes`,
+    ) &&
+      !defconfMatchOk(
+        "Firewall",
+        `:local defconfDrop [/ip firewall filter find where chain=input action=drop comment~"defconf: drop all not coming from LAN"]; :if ([:len $defconfDrop] > 0) do={ :put "x" }`,
+      ),
+    "the exemption accepts a shape it exists to ban",
+  );
+  check(
+    "the WireGuard chunk does carry that counted lookup",
+    bareChunk(BARE_PPPOE, "WireGuard Tunnel")
+      .split("\n")
+      .some((line) => defconfMatchOk("WireGuard Tunnel", line)),
+    "the lift above the default-config LAN drop is gone, or lost its length guard",
   );
 }
 
@@ -9629,6 +9791,152 @@ console.log("\n-- 19. version-sensitive tokens only inside [:parse] strings; the
 }
 
 // =====================================================================
+
+// =====================================================================
+// 18. THREE PATHS, ONE SET OF STATEMENTS
+// =====================================================================
+// A router gets configured by this generator, by Guided Setup's own
+// universal blocks, and by the manual wizard's repair commands. Fixes keep
+// landing on one of the three (memory: "generator vs writer drift"). The
+// two default-config fixes are therefore pinned ACROSS the paths: the
+// statements are lifted out of the generator's real output and every other
+// path must carry them verbatim. Change one side alone and this fails.
+//
+// The content files are pure data with a no-imports rule, so they cannot
+// share a constant with the generator; a parity gate is what stands in for
+// one.
+{
+  console.log("\n-- the default-config fixes are identical on all three paths --");
+  const stmts = (script) =>
+    script
+      .split("\n")
+      .flatMap((l) => l.split("; "))
+      .map((x) => x.trim());
+  const wgStmts = stmts(bareChunk(BARE_PPPOE, "WireGuard Tunnel"));
+  const hsStmts = stmts(bareChunk(BARE_PPPOE, "Hotspot"));
+  const LIFT = [
+    wgStmts.find((x) => x.startsWith(":local defconfDrop ")),
+    wgStmts.find((x) => x.startsWith(":local wgAllowNow ")),
+    wgStmts.find((x) => x.includes("move $wgAllowNow destination=$defconfDrop")),
+  ];
+  const FASTTRACK = [
+    hsStmts.find((x) => x.startsWith(":local ftN ")),
+    hsStmts.find((x) => x.startsWith(":foreach ftRule ")),
+    hsStmts.find((x) => x.startsWith(":local ftLeft ")),
+  ];
+  check(
+    "parity: the generator emits all six shared statements",
+    [...LIFT, ...FASTTRACK].every((x) => typeof x === "string" && x.length > 20),
+    `lift=${JSON.stringify(LIFT)} fasttrack=${JSON.stringify(FASTTRACK)}`,
+  );
+  const LIFT_LINE = LIFT.join("; ");
+  const FT_LINE = FASTTRACK.join("; ");
+  const read = (rel) => readFileSync(join(ROOT, rel), "utf8");
+  const G = "src/components/routers/guided-setup/";
+  const W = "src/components/routers/manual-wizard/";
+  const src = {
+    guidedPhases: read(`${G}phases.content.ts`),
+    guidedDiag: read(`${G}diagnostics.content.ts`),
+    wizard3: read(`${W}steps.part3.ts`),
+    wizard5: read(`${W}steps.part5.ts`),
+    wizardResolver: read(`${W}resolver.content.ts`),
+  };
+  const count = (hay, needle) => hay.split(needle).length - 1;
+
+  // Each number is the count of places that path performs the behaviour.
+  for (const [name, text, lift, ft] of [
+    ["Guided phases", src.guidedPhases, 3, 1],
+    ["Guided diagnostics", src.guidedDiag, 1, 1],
+    ["manual wizard step 9", src.wizard3, 4, 0],
+    ["manual wizard step 16", src.wizard5, 0, 1],
+    ["manual wizard resolver", src.wizardResolver, 1, 0],
+  ]) {
+    check(
+      `parity: ${name} carries the generator's defconf-drop lift verbatim (${lift}x)`,
+      count(text, LIFT_LINE) === lift,
+      `found ${count(text, LIFT_LINE)}; a path that lifts the rule with different statements has drifted`,
+    );
+    check(
+      `parity: ${name} carries the generator's FastTrack disable verbatim (${ft}x)`,
+      count(text, FT_LINE) === ft,
+      `found ${count(text, FT_LINE)}; a path that disables FastTrack with different statements has drifted`,
+    );
+  }
+
+  // THE LIFT MUST COME LAST. Every one of these paths also has a command
+  // that moves the accept rule to just above `cloudguest-fw-drop-wan-input`
+  // -- which, on a router with default config, is BELOW the defconf drop.
+  // A move to the WAN drop that is not followed by the lift on the same
+  // entered line undoes the fix it sits next to.
+  const WAN_MOVE = /filter move \$\w+ destination=\$\w+ \}/g;
+  // "Followed by" means later on the same entered line, or the very next
+  // entered line of the same block (Guided's TUNNEL FIXES does the latter:
+  // lines of one pasted block run in order).
+  const sinkers = Object.entries(src).flatMap(([name, text]) => {
+    const lines = text.split("\n");
+    return lines
+      .filter(
+        (line, n) =>
+          /cloudguest-fw-drop-wan-input/.test(line) &&
+          /filter move \$(a|allow) destination=\$(d|drop) \}/.test(line) &&
+          !(line.includes(LIFT_LINE) && line.lastIndexOf(LIFT_LINE) > line.search(WAN_MOVE)) &&
+          !(lines[n + 1] ?? "").startsWith(LIFT_LINE),
+      )
+      .map(() => name);
+  });
+  check(
+    "parity: no Guided or wizard command moves the accept rule to the WAN drop without lifting it again",
+    sinkers.length === 0,
+    `${sinkers.join(", ")}: the move lands the rule below 'defconf: drop all not coming from LAN'`,
+  );
+  check(
+    "INJECTED: that sweep sees the pre-fix Guided repair line",
+    /filter move \$(a|allow) destination=\$(d|drop) \}/.test(
+      ':local a [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :local d [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]; :if (([:len $a] > 0) && ([:len $d] > 0)) do={ /ip firewall filter move $a destination=$d }',
+    ),
+    "the sweep cannot see the line it exists for",
+  );
+
+  // THE LEGACY TUNNEL NAME MAY BE READ, REPORTED AND REMOVED -- NEVER
+  // BUILT ON. The wizard had the two names the wrong way round: its repair
+  // step added the management accept rule on `wg-cloudguest`, an interface
+  // no current router has, and Guided's diagnostics put the tunnel address
+  // on it.
+  const LEGACY_WRITE =
+    /(?:\badd\b[^\n;]*(?:in-)?interface="?wg-cloudguest|\bset\b[^\n;]*in-interface="?wg-cloudguest|wireguard add name="?wg-cloudguest)/;
+  const legacyWriters = Object.entries(src)
+    .filter(([, text]) => LEGACY_WRITE.test(text))
+    .map(([name]) => name);
+  check(
+    "parity: nothing in Guided or the wizard adds or binds anything on the legacy wg-cloudguest name",
+    legacyWriters.length === 0,
+    `${legacyWriters.join(", ")} still build on the legacy interface name`,
+  );
+  check(
+    "INJECTED: that sweep sees the pre-fix wizard repair and the pre-fix diagnostics fix",
+    LEGACY_WRITE.test(
+      '/ip firewall filter add chain=input in-interface="wg-cloudguest" action=accept comment="cloudguest-fw-allow-wg-mgmt"',
+    ) && LEGACY_WRITE.test('/ip address add address=10.20.0.<n>/24 interface="wg-cloudguest"'),
+    "the sweep cannot see the two lines it exists for",
+  );
+  check(
+    "parity: the wizard's expected tunnel is the name the generator creates",
+    src.wizard3.includes(
+      ':put ("expected-wg-count=" . [:tostr [:len [/interface wireguard find where name="wg-cloudguard"]]])',
+    ) &&
+      src.wizard3.includes(
+        ':put ("legacy-wg-count=" . [:tostr [:len [/interface wireguard find where name="wg-cloudguest"]]])',
+      ) &&
+      bareChunk(BARE_PPPOE, "WireGuard Tunnel").includes('name="wg-cloudguard"'),
+    "the wizard looks for the tunnel under a name the generator does not create, so step 8 fails on every correctly provisioned router",
+  );
+  check(
+    "parity: Guided's secrets reset removes the CURRENT tunnel as well as the legacy one",
+    src.guidedPhases.includes('/interface wireguard remove [find name="wg-cloudguard"]') &&
+      src.guidedPhases.includes('/interface wireguard remove [find name="wg-cloudguest"]'),
+    "the WireGuard chunk is add-if-missing: leave the current interface behind and the re-pasted chunk keeps the old key",
+  );
+}
 
 console.log("");
 if (failures.length) {

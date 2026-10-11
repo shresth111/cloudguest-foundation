@@ -194,6 +194,38 @@ if (firewall && wg) {
     wg.script.includes("/ip firewall filter move $wgAllowRule destination=$wanDropRule"),
     "no '/ip firewall filter move ... destination=$wanDropRule' self-heal",
   );
+
+  // 5. A router provisioned on top of MikroTik's default config keeps
+  //    `defconf: drop all not coming from LAN` above every rule this
+  //    script adds, so the tunnel pings while the platform's 8728 is
+  //    dropped (confirmed live 2026-10-11). The accept rule must be lifted
+  //    above that drop, and only AFTER the WAN-drop placement -- run
+  //    first, the `move ... destination=$wanDropRule` pulls it back down.
+  const defconfFind = statements.findIndex(
+    (s) =>
+      s.includes(":local defconfDrop") &&
+      s.includes("chain=input action=drop") &&
+      s.includes('comment~"defconf: drop all not coming from LAN"'),
+  );
+  const refind = statements.findIndex(
+    (s) => s.includes(":local wgAllowNow") && s.includes(`comment="${ALLOW}"`),
+  );
+  const defconfMove = statements.findIndex((s) =>
+    s.includes("/ip firewall filter move $wgAllowNow destination=$defconfDrop"),
+  );
+  const wanMove = statements.findIndex((s) =>
+    s.includes("/ip firewall filter move $wgAllowRule destination=$wanDropRule"),
+  );
+  const lastAdd = Math.max(placeBeforeAt, ...plainAdds.map((x) => x.i));
+  check(
+    "accept rule is lifted above the default-config LAN drop, after the WAN-drop placement",
+    defconfFind !== -1 &&
+      refind > lastAdd &&
+      defconfMove > refind &&
+      defconfMove > defconfFind &&
+      defconfMove > wanMove,
+    `defconf find at ${defconfFind}, re-find at ${refind}, defconf move at ${defconfMove}, wan move at ${wanMove}, last add at ${lastAdd}`,
+  );
 }
 
 if (failures.length) {

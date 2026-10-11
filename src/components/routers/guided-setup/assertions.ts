@@ -540,6 +540,33 @@ export const ASSERTIONS: Record<string, OutputAssertion> = {
     fallback: "idle-timeout ki value padhi nahi ja saki. Audit block dobara chalao.",
   },
 
+  // FastTrack'd connections skip /queue simple, so with defconf's
+  // fasttrack rule enabled every guest queue exists and shapes nothing
+  // (live 2026-10-11). The audit prints the count of ENABLED forward
+  // fasttrack rules; anything but 0 is a FAIL.
+  "hs-fasttrack": {
+    identify: { kind: "banner", banner: "HOTSPOT AUDIT" },
+    rules: [
+      {
+        when: { op: "absent", ref: { from: "label", label: "fasttrack enabled" } },
+        verdict: "INCOMPLETE",
+        why: "Audit ke output me `fasttrack enabled` wali line nahi mili. Poora audit block dobara chalao.",
+      },
+      {
+        when: { op: "textIs", ref: { from: "label", label: "fasttrack enabled" }, value: "0" },
+        verdict: "PASS",
+        why: "FastTrack band hai -- guest ki speed queue traffic ko pakdegi.",
+      },
+      {
+        when: { op: "present", ref: { from: "label", label: "fasttrack enabled" } },
+        verdict: "FAIL",
+        why: "FastTrack chalu hai. Iske connection simple queue ko bypass kar dete hain, to guest ki speed limit bani rehti hai par lagti nahi.",
+        fix: "fasttrack enabled : 1 ya usse zyada",
+      },
+    ],
+    fallback: "FastTrack ki ginti padhi nahi ja saki. Audit block dobara chalao.",
+  },
+
   "hs-loginby": {
     identify: { kind: "banner", banner: "HOTSPOT AUDIT" },
     rules: [
@@ -921,6 +948,40 @@ export const ASSERTIONS: Record<string, OutputAssertion> = {
       },
     ],
     fallback: "Heartbeat scheduler ki halat padhi nahi ja saki. HEARTBEAT block dobara chalao.",
+  },
+
+  // Router provisioned on top of MikroTik's default config (live
+  // 2026-10-11): `defconf: drop all not coming from LAN` above the tunnel
+  // accept rule drops the platform's 8728 while the tunnel still pings.
+  // The TUNNEL FIXES block lifts the rule, then prints where both rules
+  // actually sit -- the verdict is read from the positions' own summary
+  // line, never from the fact that a `move` was issued.
+  "fw-defconf-order": {
+    identify: { kind: "banner", banner: "TUNNEL FIXES" },
+    rules: [
+      {
+        when: { op: "absent", ref: { from: "label", label: "defconf order" } },
+        verdict: "INCOMPLETE",
+        why: "`defconf order` wali line output me nahi mili -- poora TUNNEL FIXES block dobara chalao aur puri output paste karo.",
+      },
+      {
+        when: { op: "textIs", ref: { from: "label", label: "defconf order" }, value: "none" },
+        verdict: "PASS",
+        why: "Router par defconf wali drop rule hai hi nahi -- router bina default config ke reset hua tha.",
+      },
+      {
+        when: { op: "textIs", ref: { from: "label", label: "defconf order" }, value: "above" },
+        verdict: "PASS",
+        why: "Tunnel wali allow rule defconf drop ke upar hai -- platform tunnel se router tak pahunch sakta hai.",
+      },
+      {
+        when: { op: "present", ref: { from: "label", label: "defconf order" } },
+        verdict: "FAIL",
+        why: "Tunnel wali allow rule defconf drop ke neeche hai ya hai hi nahi. Tunnel ping hoga par platform ka API nahi khulega, to guest ki speed queue kabhi nahi lagegi.",
+        fix: "defconf order : below ya missing",
+      },
+    ],
+    fallback: "Firewall rules ki jagah padhi nahi ja saki. TUNNEL FIXES block dobara chalao.",
   },
 
   "tunnel-up": {

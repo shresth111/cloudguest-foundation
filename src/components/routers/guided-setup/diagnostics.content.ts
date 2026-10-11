@@ -22,7 +22,7 @@
  *   router LAN IP `10.5.50.1`, guest pool
  *   `10.5.50.10-10.5.50.254`, hotspot profile `hsprof1`, hotspot dns-name
  *   `wifi.wyfyguest.com`, portal `auth.wyfyguest.com`, WireGuard
- *   interface `wg-cloudguest`, hub tunnel IP `10.20.0.1`, hub endpoint
+ *   interface `wg-cloudguard`, hub tunnel IP `10.20.0.1`, hub endpoint
  *   `20.219.72.235:51820`.
  */
 
@@ -310,7 +310,7 @@ export const SYMPTOMS: Symptom[] = [
         tell: "`tx=0 B` aur `rx=0 B` dono, `last-handshake=` bhi nahi.",
         cause:
           "Router ne ek bhi packet bheja hi nahi -- ya to peer galat/adhoora hai, ya tunnel interface par IP address nahi laga.",
-        fix: '/interface wireguard peers print detail where interface="wg-cloudguest"\n/ip address print where interface="wg-cloudguest"\n/interface wireguard print detail',
+        fix: '/interface wireguard peers print detail where interface="wg-cloudguard"\n/ip address print where interface="wg-cloudguard"\n/interface wireguard print detail',
         note: "`endpoint-address=20.219.72.235`, `endpoint-port=51820`, `persistent-keepalive=25s` aur tunnel par `10.20.0.x/24` -- chaaron honi chahiye. Ek bhi missing ho to WireGuard Tunnel chunk dobara paste karo. Generate dobara mat click karna: woh keys rotate kar deta hai aur chunk add-if-missing hai, isliye re-paste se bhi repair NAHI hoga.",
       },
       {
@@ -351,15 +351,15 @@ export const SYMPTOMS: Symptom[] = [
       {
         tell: "`sent=4 received=0` (saare timeout).",
         cause:
-          "Handshake hua par tunnel se data nahi ja raha. Sabse aam wajah: peer ka `allowed-address` hub ke tunnel subnet ko cover nahi karta, ya `wg-cloudguest` par router ka apna tunnel IP laga hi nahi.",
-        fix: '/ip address print where interface="wg-cloudguest"\n/interface wireguard peers print detail\n# tunnel IP missing ho to (apna assigned IP daalo):\n/ip address add address=10.20.0.<n>/24 interface="wg-cloudguest"',
+          "Handshake hua par tunnel se data nahi ja raha. Sabse aam wajah: peer ka `allowed-address` hub ke tunnel subnet ko cover nahi karta, ya `wg-cloudguard` par router ka apna tunnel IP laga hi nahi.",
+        fix: '/ip address print where interface="wg-cloudguard"\n/interface wireguard peers print detail\n# tunnel IP missing ho to (apna assigned IP daalo):\n/ip address add address=10.20.0.<n>/24 interface="wg-cloudguard"',
         note: '`allowed-address` me `10.20.0.0/24` (ya jo tunnel subnet script me tha) hona chahiye. `last-handshake=` hone ka matlab sirf itna hai ki keys match ho gayi -- routing alag cheez hai. Isliye dashboard "handshake OK" par bharosa mat karo, hamesha yeh ping chalao.',
       },
       {
         tell: "`no route to host` ya `host unreachable`.",
         cause:
           "Tunnel interface par address nahi hai, isliye `10.20.0.0/24` ke liye router ke paas koi connected route hi nahi.",
-        fix: '/ip address add address=10.20.0.<n>/24 interface="wg-cloudguest"\n/ping 10.20.0.1 count=4',
+        fix: '/ip address add address=10.20.0.<n>/24 interface="wg-cloudguard"\n/ping 10.20.0.1 count=4',
         note: "Sahi `<n>` Router Fleet me is router ke management IP se milta hai -- galat number daal doge to doosre router se clash hoga. Andaaza mat lagao, dashboard se dekho.",
       },
       {
@@ -393,7 +393,7 @@ export const SYMPTOMS: Symptom[] = [
       {
         tell: "`cloudguest-fw-allow-wg-mgmt` wali line hai hi nahi.",
         cause: "WireGuard chunk paste hi nahi hua, ya sirf uska firewall wala hissa nahi chala.",
-        fix: '/ip firewall filter add chain=input in-interface="wg-cloudguest" action=accept comment="cloudguest-fw-allow-wg-mgmt" place-before=[find comment="cloudguest-fw-drop-wan-input"]',
+        fix: '/ip firewall filter add chain=input in-interface="wg-cloudguard" action=accept comment="cloudguest-fw-allow-wg-mgmt" place-before=[find comment="cloudguest-fw-drop-wan-input"]',
         note: "`place-before=` zaroori hai -- plain `add` hamesha list ke aakhir me jodta hai, matlab drop rule ke neeche, matlab bekaar.",
       },
       {
@@ -632,6 +632,67 @@ export const SYMPTOMS: Symptom[] = [
         cause: "Heartbeat chunk kabhi paste hua hi nahi.",
         fix: "# Heartbeat chunk paste karo.",
         note: "Iske bina router dashboard me kabhi online nahi dikhega, chahe baaki sab perfect ho. Guests par iska koi asar nahi padta.",
+      },
+    ],
+  },
+
+  // Both seen live on 2026-10-11 ("sector 37 d", hEX lite 7.21.4): the
+  // router was provisioned on top of MikroTik's default configuration. The
+  // two fixes below are the same statements the Master console's WireGuard
+  // and Hotspot chunks emit; scripts/test-setup-script-generator.mjs fails
+  // if either side changes alone.
+  {
+    id: "defconf-blocks-platform-api",
+    seen: "Tunnel ping hota hai par platform router ka API nahi khol pata -- queue nahi lagti, aur guests ko `192.168.88.x` wala IP milta hai.",
+    surface: "dashboard",
+    probe: "/ip firewall filter print where chain=input",
+    causes: [
+      {
+        tell: "`defconf: drop all not coming from LAN` wali line `cloudguest-fw-allow-wg-mgmt` se UPAR hai.",
+        cause:
+          "Router bina default config hataye provision hua. MikroTik ka apna drop rule tunnel se aane wala TCP gira deta hai; ping isliye chalta hai kyunki defconf ICMP ko alag se allow karta hai.",
+        fix: `:local defconfDrop [/ip firewall filter find where chain=input action=drop comment~"defconf: drop all not coming from LAN"]; :local wgAllowNow [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :if ([:len $wgAllowNow] > 0 && [:len $defconfDrop] > 0) do={ /ip firewall filter move $wgAllowNow destination=$defconfDrop }\n/ip firewall filter print where chain=input`,
+        note: "Move ke baad allow rule ka number defconf drop se chhota hona chahiye. Uske baad guest ko ek baar dobara login karna hoga, tabhi queue lagegi.",
+      },
+      {
+        tell: "`/ip dhcp-server print` me `defconf` naam ka server dikh raha hai.",
+        cause:
+          "Default config ka DHCP server bridge par abhi bhi jawab de raha hai, isliye guests ko hotspot pool ki jagah `192.168.88.x` milta hai.",
+        fix: "/ip dhcp-server print\n/ip address print",
+        note: "Yahan kuch mat hatao -- jis laptop se kaam kar rahe ho uski lease isi server se ho sakti hai. Saaf ilaaj: `/system reset-configuration no-defaults=yes`, phir poori script shuru se paste karo.",
+      },
+      {
+        tell: "`defconf` wali koi line nahi hai, phir bhi API tunnel se nahi khulta.",
+        cause:
+          "Ye default config ka masla nahi hai -- allow rule hamari apni drop rule ke neeche hai ya hai hi nahi.",
+        note: "`wg-firewall-rule-order` par jao.",
+      },
+    ],
+  },
+
+  {
+    id: "queue-exists-speed-not-limited",
+    seen: "Guest ki queue router par bani hui hai par speed limit nahi ho rahi -- speed test poori line ki speed dikhata hai.",
+    surface: "router",
+    probe: "/ip firewall filter print stats where chain=forward",
+    causes: [
+      {
+        tell: "`fasttrack-connection` wali line enabled hai aur uske bytes tezi se badh rahe hain, jabki `/queue simple print stats` me guest ki queue ke bytes nahi badhte.",
+        cause:
+          "FastTrack wale connection simple queue ko bypass kar dete hain. Default config ye rule saath lata hai, isliye queue sahi limit ke saath bani rehti hai aur kuch rokti nahi.",
+        fix: `:local ftN [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no]]; :foreach ftRule in=[/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no] do={ /ip firewall filter disable $ftRule }; :local ftLeft [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no]]; :put ("fasttrack disabled : " . [:tostr $ftN]); :put ("fasttrack enabled : " . [:tostr $ftLeft])`,
+        note: "Rule sirf disable hota hai, hatta nahi. Jo connection pehle se khule hain wo band hone tak unlimited rahenge, isliye speed test dobara shuru karo.",
+      },
+      {
+        tell: "FastTrack band hai, par queue ka `target` guest ke abhi wale IP se alag hai.",
+        cause: "Queue login ke waqt ke IP par bani thi aur guest ko uske baad naya IP mil gaya.",
+        note: "Guest se ek baar dobara login karwao -- naya login sahi IP par queue banata hai. Queue ko haath se edit mat karo.",
+      },
+      {
+        tell: "Ek hi IP par ek se zyada queue dikh rahi hain.",
+        cause:
+          "RouterOS simple queue me pehli match hone wali row chalti hai, to purani row nayi limit ko dhak deti hai.",
+        note: "Dashboard se us guest ka session band karo aur dobara login karwao. Router par koi row andaaze se mat hatao -- galat row hatane se guest unlimited ho sakta hai.",
       },
     ],
   },

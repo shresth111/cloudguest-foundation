@@ -329,10 +329,30 @@ export const PHASES: Phase[] = [
 :foreach u in=[/ip hotspot user profile find where name="default"] do={ :put ("keepalive    : " . [:tostr [/ip hotspot user profile get $u keepalive-timeout]]) }
 :if ([:len [/ip hotspot user find where name="guest"]] = 0) do={ :put "guest user   : nahi hai (accha)" }
 :foreach g in=[/ip hotspot user find where name="guest"] do={ :put ("guest user   : disabled=" . [:tostr [/ip hotspot user get $g disabled]]) }
+:put ("fasttrack enabled : " . [:tostr [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no]]])
 :put "===================="`,
       },
     ],
     checks: [
+      {
+        // FastTrack'd connections skip /queue simple. On a router that
+        // still has defconf's fasttrack rule the guest's queue is created
+        // with the right max-limit and shapes nothing (live 2026-10-11:
+        // FastTrack counter +100 MB in 8 s, queue ~110 kB). The Master
+        // console's Hotspot chunk disables it; this proves it, and the fix
+        // is the same three statements that chunk emits (CI-gated parity).
+        id: "hs-fasttrack",
+        label: "FastTrack band hai (warna guest ki speed limit lagti hi nahi)",
+        command: "(upar wala audit block chalao)",
+        expect: "fasttrack enabled : 0",
+        failFix: [
+          {
+            when: "fasttrack enabled : 1 ya usse zyada",
+            command: `:local ftN [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no]]; :foreach ftRule in=[/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no] do={ /ip firewall filter disable $ftRule }; :local ftLeft [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no]]; :put ("fasttrack disabled : " . [:tostr $ftN]); :put ("fasttrack enabled : " . [:tostr $ftLeft])`,
+            note: "FastTrack wale connection simple queue ko bypass kar dete hain, to queue bani rehti hai par speed limit nahi hoti. Ye command rule ko sirf disable karti hai, hatati nahi. Jo connection pehle se khule hain wo band hone tak unlimited rahenge -- speed test dobara shuru karo.",
+          },
+        ],
+      },
       {
         id: "hs-idle",
         label: "Session apne aap band hoti hai (warna sessions jama hote rehte hain)",
@@ -518,6 +538,7 @@ export const PHASES: Phase[] = [
         label: "Firewall order + RADIUS src-address theek karo (WireGuard/RADIUS chunks ke baad)",
         script: `:put "==== TUNNEL FIXES ===="
 :local a [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :local d [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]; :local fwOk ([:len $a] > 0 && [:len $d] > 0); :if ($fwOk) do={ /ip firewall filter move $a destination=$d }; :if ($fwOk) do={ :put "firewall order: theek kar diya" }; :if (!$fwOk) do={ :put "firewall order: allow ya drop rule mili hi nahi -- Firewall aur WireGuard dono chunks paste hue?" }; :local tip ""; :foreach adNew in=[/ip address find where interface="wg-cloudguard"] do={ :set tip [:pick [/ip address get $adNew address] 0 [:find [/ip address get $adNew address] "/"]] }; :local tipOld ""; :foreach adOld in=[/ip address find where interface="wg-cloudguest"] do={ :set tipOld [:pick [/ip address get $adOld address] 0 [:find [/ip address get $adOld address] "/"]] }; :local usedLegacy ($tip = "" && $tipOld != ""); :if ($usedLegacy) do={ :set tip $tipOld }; :local rd [/radius find where comment="cloudguest-radius"]; :if ($tip != "" && [:len $rd] > 0) do={ /radius set $rd src-address=$tip }; :if ($tip != "" && [:len $rd] > 0) do={ :put ("radius src-address: " . $tip) }; :if ($tip != "" && [:len $rd] = 0) do={ :put "radius: cloudguest-radius marker wali koi entry nahi mili -- pehle RADIUS chunk paste karo, phir yeh dobara" }; :if ($usedLegacy) do={ :put "NOTE: tunnel purane naam wg-cloudguest par hai. Sahi naam wg-cloudguard hai -- Advanced panel se dobara provision karo." }; :if ($tip = "") do={ :put "wg-cloudguard aur wg-cloudguest, dono par koi address nahi -- WireGuard chunk paste hua?" }
+:local defconfDrop [/ip firewall filter find where chain=input action=drop comment~"defconf: drop all not coming from LAN"]; :local wgAllowNow [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :if ([:len $wgAllowNow] > 0 && [:len $defconfDrop] > 0) do={ /ip firewall filter move $wgAllowNow destination=$defconfDrop }; :local aId ""; :local dId ""; :if ([:len $wgAllowNow] > 0) do={ :set aId [:pick $wgAllowNow 0] }; :if ([:len $defconfDrop] > 0) do={ :set dId [:pick $defconfDrop 0] }; :local pos 0; :local aPos -1; :local dPos -1; :foreach f in=[/ip firewall filter find] do={ :set pos ($pos + 1); :if ($f = $aId) do={ :set aPos $pos }; :if ($f = $dId) do={ :set dPos $pos } }; :put ("defconf drop rules : " . [:tostr [:len $defconfDrop]]); :put ("allow position : " . [:tostr $aPos]); :put ("defconf drop position : " . [:tostr $dPos]); :if ($dPos = -1) do={ :put "defconf order : none" }; :if ($dPos > 0 && $aPos > 0 && $aPos < $dPos) do={ :put "defconf order : above" }; :if ($dPos > 0 && $aPos > $dPos) do={ :put "defconf order : below" }; :if ($dPos > 0 && $aPos = -1) do={ :put "defconf order : missing" }
 :put "===================="`,
       },
       {
@@ -556,12 +577,33 @@ export const PHASES: Phase[] = [
         failFix: [
           {
             when: "last-handshake bahut purana hai ya blank hai",
-            command: `:local a [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :local d [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]; :if (([:len $a] > 0) && ([:len $d] > 0)) do={ /ip firewall filter move $a destination=$d }`,
+            command: `:local a [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :local d [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]; :if (([:len $a] > 0) && ([:len $d] > 0)) do={ /ip firewall filter move $a destination=$d }; :local defconfDrop [/ip firewall filter find where chain=input action=drop comment~"defconf: drop all not coming from LAN"]; :local wgAllowNow [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :if ([:len $wgAllowNow] > 0 && [:len $defconfDrop] > 0) do={ /ip firewall filter move $wgAllowNow destination=$defconfDrop }`,
             note: "Sabse common wajah: firewall ka allow rule drop rule ke NEECHE aa gaya, to tunnel ka jawab hi block ho jata hai. Ye command usse upar utha deti hai. 30 second baad handshake aa jana chahiye.",
           },
           {
             when: "RESULT: FAIL -- koi RADIUS entry nahi hai",
             note: "Master console ka RADIUS chunk paste nahi hua. Dhyan rakho: RADIUS ke liye WireGuard pehle chahiye, isliye dono chunks order me paste karo.",
+          },
+        ],
+      },
+      {
+        // Seen live 2026-10-11 ("sector 37 d"): the router was provisioned
+        // on top of MikroTik's default config. `defconf: drop all not coming
+        // from LAN` sat above the tunnel accept rule, so the tunnel pinged
+        // (defconf accepts ICMP) while the platform's 8728 was dropped --
+        // no queues, no gate push. The TUNNEL FIXES block lifts the rule;
+        // this reads back where it landed. Same three statements the
+        // Master console's WireGuard chunk emits (parity is CI-gated).
+        id: "fw-defconf-order",
+        label:
+          "Tunnel wali allow rule defconf drop ke UPAR hai (warna platform router tak nahi pahunchta)",
+        command: "(upar wala TUNNEL FIXES block chalao)",
+        expect: "defconf order : above (ya none)",
+        failFix: [
+          {
+            when: "defconf order : below ya missing",
+            command: `:local defconfDrop [/ip firewall filter find where chain=input action=drop comment~"defconf: drop all not coming from LAN"]; :local wgAllowNow [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :if ([:len $wgAllowNow] > 0 && [:len $defconfDrop] > 0) do={ /ip firewall filter move $wgAllowNow destination=$defconfDrop }`,
+            note: "Tunnel ping hota rahega par platform ka API (8728) aur WinBox tunnel se nahi khulenge, isliye guest ki speed queue kabhi nahi lagegi. Ye command allow rule ko defconf drop ke upar utha deti hai. Dobara print karke number dekho.",
           },
         ],
       },
@@ -723,6 +765,7 @@ export const PHASES: Phase[] = [
       {
         label: "Sirf secrets ka reset (router ka baaki config bacha rehta hai)",
         script: `/radius remove [find]
+/interface wireguard remove [find name="wg-cloudguard"]
 /interface wireguard remove [find name="wg-cloudguest"]
 /user remove [find name="cloudguest-api"]
 :put "purane secrets hata diye -- ab Master console me EK BAAR Generate karo aur naye WireGuard + RADIUS + API chunks paste karo"`,

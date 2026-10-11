@@ -189,6 +189,17 @@
               "note": "Router पहले अपना local user check करता है, RADIUS बाद में। मतलब जिसे guest का password पता है वो portal को पूरा bypass कर सकता है — बिना OTP, बिना record, बिना data cap. Password Master console screen पे लिखा होता है, इसलिए ये असली risk है।"
             }
           }
+        },
+        "hs-fasttrack": {
+          "label": "FastTrack बंद है (वरना guest की speed limit लगती ही नहीं)",
+          "commandLabel": "(ऊपर वाला audit block चलाओ)",
+          "expectLabel": "fasttrack enabled : 0",
+          "failFix": {
+            "0": {
+              "whenLabel": "fasttrack enabled : 1 या उससे ज़्यादा",
+              "note": "FastTrack वाले connection simple queue को bypass कर देते हैं, तो queue बनी रहती है पर speed limit नहीं होती। ये command rule को सिर्फ़ disable करती है, हटाती नहीं। जो connection पहले से खुले हैं वो बंद होने तक unlimited रहेंगे -- speed test दोबारा शुरू करो।"
+            }
+          }
         }
       }
     },
@@ -315,6 +326,17 @@
             "2": {
               "whenLabel": "bad-replies बढ़ रहे हैं",
               "note": "जवाब आ रहा है पर router उसे reject कर रहा है। ये server side की problem है, router की नहीं — team को बताओ।"
+            }
+          }
+        },
+        "fw-defconf-order": {
+          "label": "Tunnel वाली allow rule defconf drop के ऊपर है (वरना platform router तक नहीं पहुंचता)",
+          "commandLabel": "(ऊपर वाला TUNNEL FIXES block चलाओ)",
+          "expectLabel": "defconf order : above (या none)",
+          "failFix": {
+            "0": {
+              "whenLabel": "defconf order : below या missing",
+              "note": "Tunnel ping होता रहेगा पर platform का API (8728) और WinBox tunnel से नहीं खुलेंगे, इसलिए guest की speed queue कभी नहीं लगेगी। ये command allow rule को defconf drop के ऊपर उठा देती है। दोबारा print करके number देखो।"
             }
           }
         }
@@ -650,7 +672,7 @@
       "causes": {
         "0": {
           "tell": "`sent=4 received=0` (सारे timeout)।",
-          "cause": "Handshake हुआ पर tunnel से data नहीं जा रहा। सबसे आम वजह: peer का `allowed-address` hub के tunnel subnet को cover नहीं करता, या `wg-cloudguest` पर router का अपना tunnel IP लगा ही नहीं।",
+          "cause": "Handshake हुआ पर tunnel से data नहीं जा रहा। सबसे आम वजह: peer का `allowed-address` hub के tunnel subnet को cover नहीं करता, या `wg-cloudguard` पर router का अपना tunnel IP लगा ही नहीं।",
           "note": "`allowed-address` में `10.20.0.0/24` (या जो tunnel subnet script में था) होना चाहिए। `last-handshake=` होने का मतलब सिर्फ़ इतना है कि keys match हो गईं -- routing अलग चीज़ है। इसलिए dashboard \"handshake OK\" पर भरोसा मत करो, हमेशा ये ping चलाओ।"
         },
         "1": {
@@ -847,6 +869,46 @@
           "tell": "`/system scheduler print` में heartbeat वाली entry है ही नहीं।",
           "cause": "Heartbeat chunk कभी paste हुआ ही नहीं।",
           "note": "इसके बिना router dashboard में कभी online नहीं दिखेगा, चाहे बाकी सब perfect हो। Guests पर इसका कोई असर नहीं पड़ता।"
+        }
+      }
+    },
+    "defconf-blocks-platform-api": {
+      "seen": "Tunnel ping होता है पर platform router का API नहीं खोल पाता -- queue नहीं लगती, और guests को `192.168.88.x` वाला IP मिलता है।",
+      "causes": {
+        "0": {
+          "tell": "`defconf: drop all not coming from LAN` वाली line `cloudguest-fw-allow-wg-mgmt` से ऊपर है।",
+          "cause": "Router बिना default config हटाए provision हुआ। MikroTik का अपना drop rule tunnel से आने वाला TCP गिरा देता है; ping इसलिए चलता है क्योंकि defconf ICMP को अलग से allow करता है।",
+          "note": "Move के बाद allow rule का number defconf drop से छोटा होना चाहिए। उसके बाद guest को एक बार दोबारा login करना होगा, तभी queue लगेगी।"
+        },
+        "1": {
+          "tell": "`/ip dhcp-server print` में `defconf` नाम का server दिख रहा है।",
+          "cause": "Default config का DHCP server bridge पर अभी भी जवाब दे रहा है, इसलिए guests को hotspot pool की जगह `192.168.88.x` मिलता है।",
+          "note": "यहां कुछ मत हटाओ -- जिस laptop से काम कर रहे हो उसकी lease इसी server से हो सकती है। साफ़ इलाज: `/system reset-configuration no-defaults=yes`, फिर पूरी script शुरू से paste करो।"
+        },
+        "2": {
+          "tell": "`defconf` वाली कोई line नहीं है, फिर भी API tunnel से नहीं खुलता।",
+          "cause": "ये default config का मसला नहीं है -- allow rule हमारी अपनी drop rule के नीचे है या है ही नहीं।",
+          "note": "`wg-firewall-rule-order` पर जाओ।"
+        }
+      }
+    },
+    "queue-exists-speed-not-limited": {
+      "seen": "Guest की queue router पर बनी हुई है पर speed limit नहीं हो रही -- speed test पूरी line की speed दिखाता है।",
+      "causes": {
+        "0": {
+          "tell": "`fasttrack-connection` वाली line enabled है और उसके bytes तेज़ी से बढ़ रहे हैं, जबकि `/queue simple print stats` में guest की queue के bytes नहीं बढ़ते।",
+          "cause": "FastTrack वाले connection simple queue को bypass कर देते हैं। Default config ये rule साथ लाता है, इसलिए queue सही limit के साथ बनी रहती है और कुछ रोकती नहीं।",
+          "note": "Rule सिर्फ़ disable होता है, हटता नहीं। जो connection पहले से खुले हैं वो बंद होने तक unlimited रहेंगे, इसलिए speed test दोबारा शुरू करो।"
+        },
+        "1": {
+          "tell": "FastTrack बंद है, पर queue का `target` guest के अभी वाले IP से अलग है।",
+          "cause": "Queue login के वक़्त के IP पर बनी थी और guest को उसके बाद नया IP मिल गया।",
+          "note": "Guest से एक बार दोबारा login करवाओ -- नया login सही IP पर queue बनाता है। Queue को हाथ से edit मत करो।"
+        },
+        "2": {
+          "tell": "एक ही IP पर एक से ज़्यादा queue दिख रही हैं।",
+          "cause": "RouterOS simple queue में पहली match होने वाली row चलती है, तो पुरानी row नई limit को ढक देती है।",
+          "note": "Dashboard से उस guest का session बंद करो और दोबारा login करवाओ। Router पर कोई row अंदाज़े से मत हटाओ -- ग़लत row हटाने से guest unlimited हो सकता है।"
         }
       }
     }
@@ -1196,6 +1258,37 @@
       "rules": {
         "0": {
           "why": "Router से connection बन गया -- model line आ रही है।"
+        }
+      }
+    },
+    "fw-defconf-order": {
+      "fallback": "Firewall rules की जगह पढ़ी नहीं जा सकी। TUNNEL FIXES block दोबारा चलाओ।",
+      "rules": {
+        "0": {
+          "why": "`defconf order` वाली line output में नहीं मिली -- पूरा TUNNEL FIXES block दोबारा चलाओ और पूरी output paste करो।"
+        },
+        "1": {
+          "why": "Router पर defconf वाली drop rule है ही नहीं -- router बिना default config के reset हुआ था।"
+        },
+        "2": {
+          "why": "Tunnel वाली allow rule defconf drop के ऊपर है -- platform tunnel से router तक पहुंच सकता है।"
+        },
+        "3": {
+          "why": "Tunnel वाली allow rule defconf drop के नीचे है या है ही नहीं। Tunnel ping होगा पर platform का API नहीं खुलेगा, तो guest की speed queue कभी नहीं लगेगी।"
+        }
+      }
+    },
+    "hs-fasttrack": {
+      "fallback": "FastTrack की गिनती पढ़ी नहीं जा सकी। Audit block दोबारा चलाओ।",
+      "rules": {
+        "0": {
+          "why": "Audit के output में `fasttrack enabled` वाली line नहीं मिली। पूरा audit block दोबारा चलाओ।"
+        },
+        "1": {
+          "why": "FastTrack बंद है -- guest की speed queue traffic को पकड़ेगी।"
+        },
+        "2": {
+          "why": "FastTrack चालू है। इसके connection simple queue को bypass कर देते हैं, तो guest की speed limit बनी रहती है पर लगती नहीं।"
         }
       }
     }

@@ -189,6 +189,17 @@
               "note": "The router checks its own local user first and RADIUS second. So anyone who knows the guest password can bypass the portal completely — no OTP, no record, no data cap. That password is printed on the Master console screen, which makes this a real risk."
             }
           }
+        },
+        "hs-fasttrack": {
+          "label": "FastTrack is off (otherwise a guest's speed limit never applies)",
+          "commandLabel": "(run the audit block above)",
+          "expectLabel": "fasttrack enabled : 0",
+          "failFix": {
+            "0": {
+              "whenLabel": "fasttrack enabled : 1 or more",
+              "note": "FastTracked connections bypass the simple queue, so the queue stays in place and the speed is not limited. This command only disables the rule, it does not remove it. Connections that are already open stay unlimited until they close -- start the speed test again."
+            }
+          }
         }
       }
     },
@@ -315,6 +326,17 @@
             "2": {
               "whenLabel": "bad-replies are climbing",
               "note": "A reply is coming back but the router is rejecting it. That is a server-side problem, not the router's — tell the team."
+            }
+          }
+        },
+        "fw-defconf-order": {
+          "label": "The tunnel allow rule sits ABOVE the defconf drop (otherwise the platform cannot reach the router)",
+          "commandLabel": "(run the TUNNEL FIXES block above)",
+          "expectLabel": "defconf order : above (or none)",
+          "failFix": {
+            "0": {
+              "whenLabel": "defconf order : below or missing",
+              "note": "The tunnel keeps answering ping, but the platform's API (8728) and WinBox will not open through it, so a guest's speed queue is never written. This command lifts the allow rule above the defconf drop. Print again and check the number."
             }
           }
         }
@@ -650,7 +672,7 @@
       "causes": {
         "0": {
           "tell": "`sent=4 received=0` (all timed out).",
-          "cause": "The handshake happened but no data is crossing the tunnel. The most common reason: the peer's `allowed-address` does not cover the hub's tunnel subnet, or the router's own tunnel IP was never put on `wg-cloudguest`.",
+          "cause": "The handshake happened but no data is crossing the tunnel. The most common reason: the peer's `allowed-address` does not cover the hub's tunnel subnet, or the router's own tunnel IP was never put on `wg-cloudguard`.",
           "note": "`allowed-address` must contain `10.20.0.0/24` (or whatever tunnel subnet was in the script). A `last-handshake=` only means the keys matched -- routing is a separate thing. So never trust a dashboard \"handshake OK\", always run this ping."
         },
         "1": {
@@ -847,6 +869,46 @@
           "tell": "There is no heartbeat entry at all in `/system scheduler print`.",
           "cause": "The Heartbeat chunk was never pasted.",
           "note": "Without it the router will never show as online in the dashboard, however perfect everything else is. It has no effect on guests whatsoever."
+        }
+      }
+    },
+    "defconf-blocks-platform-api": {
+      "seen": "The tunnel answers ping but the platform cannot open the router's API -- no queue is applied, and guests get a `192.168.88.x` address.",
+      "causes": {
+        "0": {
+          "tell": "The `defconf: drop all not coming from LAN` line is ABOVE `cloudguest-fw-allow-wg-mgmt`.",
+          "cause": "The router was provisioned without removing the default config. MikroTik's own drop rule discards TCP arriving from the tunnel; ping works because defconf allows ICMP separately.",
+          "note": "After the move the allow rule must have a smaller number than the defconf drop. The guest then has to log in once more before a queue is applied."
+        },
+        "1": {
+          "tell": "`/ip dhcp-server print` shows a server named `defconf`.",
+          "cause": "The default config's DHCP server is still answering on the bridge, so guests get `192.168.88.x` instead of the hotspot pool.",
+          "note": "Remove nothing here -- the laptop you are working from may hold its lease from this very server. The clean fix: `/system reset-configuration no-defaults=yes`, then paste the whole script again from the top."
+        },
+        "2": {
+          "tell": "There is no `defconf` line at all, and the API still will not open through the tunnel.",
+          "cause": "This is not a default-config problem -- the allow rule is below our own drop rule, or missing.",
+          "note": "Go to `wg-firewall-rule-order`."
+        }
+      }
+    },
+    "queue-exists-speed-not-limited": {
+      "seen": "The guest's queue exists on the router but the speed is not being limited -- a speed test shows the full line speed.",
+      "causes": {
+        "0": {
+          "tell": "The `fasttrack-connection` line is enabled and its bytes are climbing fast, while the guest's queue bytes in `/queue simple print stats` are not.",
+          "cause": "FastTracked connections bypass the simple queue. The default config ships this rule, so the queue sits there with the right limit and holds nothing back.",
+          "note": "The rule is only disabled, not removed. Connections that are already open stay unlimited until they close, so start the speed test again."
+        },
+        "1": {
+          "tell": "FastTrack is off, but the queue's `target` differs from the guest's current IP.",
+          "cause": "The queue was created on the IP the guest had at login, and the guest has been given a new IP since.",
+          "note": "Have the guest log in once more -- a fresh login creates the queue on the right IP. Do not edit the queue by hand."
+        },
+        "2": {
+          "tell": "More than one queue is showing for the same IP.",
+          "cause": "In a RouterOS simple queue the first matching row wins, so an old row masks the new limit.",
+          "note": "End that guest's session from the dashboard and have them log in again. Do not remove a row on the router by guesswork -- removing the wrong one can leave the guest unlimited."
         }
       }
     }
@@ -1196,6 +1258,37 @@
       "rules": {
         "0": {
           "why": "A connection to the router was established -- the model line is coming through."
+        }
+      }
+    },
+    "fw-defconf-order": {
+      "fallback": "The position of the firewall rules could not be read. Run the TUNNEL FIXES block again.",
+      "rules": {
+        "0": {
+          "why": "The `defconf order` line was not found in the output -- run the whole TUNNEL FIXES block again and paste all of the output."
+        },
+        "1": {
+          "why": "There is no defconf drop rule on this router -- it was reset without the default config."
+        },
+        "2": {
+          "why": "The tunnel allow rule is above the defconf drop -- the platform can reach the router through the tunnel."
+        },
+        "3": {
+          "why": "The tunnel allow rule is below the defconf drop, or missing. The tunnel will answer ping but the platform's API will not open, so a guest's speed queue is never written."
+        }
+      }
+    },
+    "hs-fasttrack": {
+      "fallback": "The FastTrack count could not be read. Run the audit block again.",
+      "rules": {
+        "0": {
+          "why": "The `fasttrack enabled` line was not found in the audit output. Run the whole audit block again."
+        },
+        "1": {
+          "why": "FastTrack is off -- the guest's speed queue will catch the traffic."
+        },
+        "2": {
+          "why": "FastTrack is on. Its connections bypass the simple queue, so the guest's speed limit stays in place and never applies."
         }
       }
     }

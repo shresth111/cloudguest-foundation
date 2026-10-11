@@ -382,9 +382,17 @@ export const STEPS_PART5: ManualStep[] = [
 :foreach w in=[/ip hotspot walled-garden ip find where comment="cloudguest-portal-https"] do={ :put ("wg-ip=" . [:tostr [/ip hotspot walled-garden ip get $w dst-address]]) }
 :local pip ""; :do { :set pip [:tostr [:resolve "auth.wyfyguest.com"]] } on-error={ :set pip "" }; :put ("portal-resolves-to=" . $pip)
 :put ("hotspot-dns-static-count=" . [:tostr [:len [/ip dns static find where name="wifi.wyfyguest.com"]]])
+:put ("fasttrack-enabled-count=" . [:tostr [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no]]])
 :put "WYFY-END step16"
 :put "===================="`,
       emits: [
+        {
+          key: "fasttrack-enabled-count",
+          type: "int",
+          required: true,
+          describe:
+            "How many enabled FastTrack rules sit in the forward chain. FastTrack carries connections past the per-guest speed queue, so anything above 0 means speed limits do nothing.",
+        },
         {
           key: "hotspot-count",
           type: "int",
@@ -623,12 +631,37 @@ export const STEPS_PART5: ManualStep[] = [
           { op: "gte", key: "wg-host-count", value: 1 },
           { op: "gte", key: "wg-ip-count", value: 1 },
           { op: "eq", key: "local-user-count", value: 0 },
+          { op: "eq", key: "fasttrack-enabled-count", value: 0 },
         ],
       },
       means:
         "The hotspot is running on the guest bridge, it accepts the portal's login form, the real portal pages are installed at the path this model actually uses, guests can reach the portal before logging in over both plain and encrypted traffic, and there is no local account that bypasses any of it.",
     },
     outcomes: [
+      {
+        // Seen live 2026-10-11 on a router set up over MikroTik's default
+        // configuration: the guest's 40M queue existed and the FastTrack
+        // counter grew ~100 MB in 8 s while the queue saw ~110 kB. Same
+        // three statements the Master console's Hotspot block emits
+        // (CI-gated parity).
+        id: "fasttrack-bypasses-queues",
+        verdict: "FAIL",
+        when: { op: "gte", key: "fasttrack-enabled-count", value: 1 },
+        meaning:
+          "A FastTrack rule is enabled. FastTrack carries established connections past the per-guest speed queue, so every guest speed limit is created with the right value and limits nothing. MikroTik's factory-default configuration ships this rule, which means this router was not reset with no default configuration before setup.",
+        nextCommand: "/ip firewall filter print stats without-paging chain=forward",
+        lookFor:
+          "The row whose action is fasttrack-connection. If its byte counter climbs quickly while a guest is downloading, guest traffic is going around the speed queue.",
+        fix: [
+          {
+            command: `:local ftN [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no]]; :foreach ftRule in=[/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no] do={ /ip firewall filter disable $ftRule }; :local ftLeft [:len [/ip firewall filter find where chain=forward action=fasttrack-connection disabled=no]]; :put ("fasttrack-disabled=" . [:tostr $ftN]); :put ("fasttrack-enabled-count=" . [:tostr $ftLeft])`,
+            note: "Disables every enabled FastTrack rule in the forward chain. Nothing is removed, so it can be switched back on. Both the number disabled and the number still enabled are printed. Connections that are already open stay unlimited until they close, so start a fresh speed test to see the limit.",
+            destructive: false,
+            confidence: "field",
+          },
+        ],
+        confidence: "field",
+      },
       {
         id: "portal-pages-not-installed",
         verdict: "FAIL",
@@ -937,7 +970,7 @@ export const STEPS_PART5: ManualStep[] = [
 :put "WYFY-BEGIN step17"
 :local p [/ip hotspot profile find where name="hsprof1"]; :put ("profile-count=" . [:tostr [:len $p]]); :local p0 ""; :if ([:len $p] > 0) do={ :set p0 [:pick $p 0] }; :if ($p0 != "") do={ :put ("use-radius=" . [:tostr [/ip hotspot profile get $p0 use-radius]]) }; :if ($p0 != "") do={ :put ("radius-accounting=" . [:tostr [/ip hotspot profile get $p0 radius-accounting]]) }; :if ($p0 != "") do={ :put ("login-by=" . [:tostr [/ip hotspot profile get $p0 login-by]]) }
 :put ("radius-count=" . [:tostr [:len [/radius find]]])
-:local tip ""; :foreach ad in=[/ip address find where interface="wg-cloudguest"] do={ :set tip [:pick [/ip address get $ad address] 0 [:find [/ip address get $ad address] "/"]] }; :put ("tunnel-ip=" . $tip)
+:local tip ""; :foreach ad in=[/ip address find where interface="wg-cloudguard"] do={ :set tip [:pick [/ip address get $ad address] 0 [:find [/ip address get $ad address] "/"]] }; :put ("tunnel-ip=" . $tip)
 :if ([:len [/radius find]] > 0) do={ :put ("radius-src=" . [:tostr [/radius get [:pick [/radius find] 0] src-address]]) }
 :put ("local-user-count=" . [:tostr [:len [/ip hotspot user find]]])
 :put ("radius-log-count=" . [:tostr [:len [/system logging find where topics~"radius"]]])
@@ -1226,7 +1259,7 @@ export const STEPS_PART5: ManualStep[] = [
           "The router is no longer sending login requests from its tunnel address. The server identifies routers by that address, so it cannot tell which router this is and will refuse with nothing logged on either side.",
         fix: [
           {
-            command: `:local tip ""; :foreach ad in=[/ip address find where interface="wg-cloudguest"] do={ :set tip [:pick [/ip address get $ad address] 0 [:find [/ip address get $ad address] "/"]] }; :put ("tunnel-ip=" . $tip); :local r [/radius find]; :put ("matching-count=" . [:tostr [:len $r]]); :if ($tip != "" && [:len $r] > 0) do={ /radius set $r src-address=$tip }
+            command: `:local tip ""; :foreach ad in=[/ip address find where interface="wg-cloudguard"] do={ :set tip [:pick [/ip address get $ad address] 0 [:find [/ip address get $ad address] "/"]] }; :put ("tunnel-ip=" . $tip); :local r [/radius find]; :put ("matching-count=" . [:tostr [:len $r]]); :if ($tip != "" && [:len $r] > 0) do={ /radius set $r src-address=$tip }
 :put ("src-address=" . [:tostr [/radius get [:pick [/radius find] 0] src-address]])`,
             note: "Re-reads the tunnel address and writes it as the source, printing every value it used.",
             destructive: false,

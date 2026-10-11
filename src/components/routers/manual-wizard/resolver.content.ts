@@ -355,7 +355,7 @@ export const RESOLVER: ResolverEntry[] = [
             thenStepIndex: -1,
           },
           {
-            tell: "wg-cloudguest",
+            tell: "wg-cloudguard",
             means:
               "The tunnel exists, so the failing command named something else. Check for a typo in the tunnel name in the command that failed.",
             thenStepIndex: -1,
@@ -774,8 +774,8 @@ export const RESOLVER: ResolverEntry[] = [
             thenStepIndex: -1,
             fix: [
               {
-                command: `:local allow [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :local drop [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]; :put ("allow-count=" . [:tostr [:len $allow]]); :put ("drop-count=" . [:tostr [:len $drop]]); :if ([:len $allow] > 0 && [:len $drop] > 0) do={ /ip firewall filter move $allow destination=$drop }`,
-                note: "Moves the allow rule above the drop rule and changes nothing else. Both counts print first, so a missing rule is visible rather than becoming a silent no-op.",
+                command: `:local allow [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :local drop [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]; :put ("allow-count=" . [:tostr [:len $allow]]); :put ("drop-count=" . [:tostr [:len $drop]]); :if ([:len $allow] > 0 && [:len $drop] > 0) do={ /ip firewall filter move $allow destination=$drop }; :local defconfDrop [/ip firewall filter find where chain=input action=drop comment~"defconf: drop all not coming from LAN"]; :local wgAllowNow [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :if ([:len $wgAllowNow] > 0 && [:len $defconfDrop] > 0) do={ /ip firewall filter move $wgAllowNow destination=$defconfDrop }; :put ("defconf-drop-count=" . [:tostr [:len $defconfDrop]])`,
+                note: "Moves the allow rule above the drop rule, then above the factory-default drop rule if this router still has one, and changes nothing else. The counts print, so a missing rule is visible rather than becoming a silent no-op.",
                 destructive: false,
                 confidence: "field",
               },
@@ -1042,17 +1042,17 @@ export const RESOLVER: ResolverEntry[] = [
             thenStepIndex: -1,
             fix: [
               {
-                command: `:local r [/radius find]; :local w [/interface wireguard find where name="wg-cloudguest"]; :local u [/user find where name="cloudguest-api"]; :put ("radius-count=" . [:tostr [:len $r]]); :put ("tunnel-count=" . [:tostr [:len $w]]); :put ("api-user-count=" . [:tostr [:len $u]])`,
+                command: `:local r [/radius find]; :local w [/interface wireguard find where name="wg-cloudguard"]; :local u [/user find where name="cloudguest-api"]; :put ("radius-count=" . [:tostr [:len $r]]); :put ("tunnel-count=" . [:tostr [:len $w]]); :put ("api-user-count=" . [:tostr [:len $u]])`,
                 note: "This only reports what would be removed. Read the three counts, confirm they are what you expect, and only then run the removal below. Nothing is changed by this command.",
                 destructive: false,
                 confidence: "field",
               },
               {
                 command: `/radius remove [find]
-/interface wireguard remove [find name="wg-cloudguest"]
+/interface wireguard remove [find name="wg-cloudguard"]
 /user remove [find name="cloudguest-api"]
 :put ("radius-remaining=" . [:tostr [:len [/radius find]]])
-:put ("tunnel-remaining=" . [:tostr [:len [/interface wireguard find where name="wg-cloudguest"]]])
+:put ("tunnel-remaining=" . [:tostr [:len [/interface wireguard find where name="wg-cloudguard"]]])
 :put ("api-user-remaining=" . [:tostr [:len [/user find where name="cloudguest-api"]]])`,
                 note: "Removes only this platform's own tunnel, login server entry and account. The guest network, the hotspot and the internet connection are all untouched. Immediately afterwards, press Generate in Master console EXACTLY ONCE and paste the fresh tunnel, login server and account blocks. Do not press Generate again after that, whatever happens.",
                 destructive: true,

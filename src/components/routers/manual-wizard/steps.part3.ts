@@ -388,11 +388,11 @@ export const STEPS_PART3: ManualStep[] = [
 :put "WYFY-BEGIN step08"
 :put ("wg-count=" . [:tostr [:len [/interface wireguard find]]])
 :foreach w in=[/interface wireguard find] do={ :put ("wg=" . [/interface wireguard get $w name] . ";running=" . [:tostr [/interface wireguard get $w running]] . ";listen-port=" . [:tostr [/interface wireguard get $w listen-port]]) }
-:put ("expected-wg-count=" . [:tostr [:len [/interface wireguard find where name="wg-cloudguest"]]])
-:put ("legacy-wg-count=" . [:tostr [:len [/interface wireguard find where name="wg-cloudguard"]]])
-:local w0 ""; :if ([:len [/interface wireguard find where name="wg-cloudguest"]] > 0) do={ :set w0 [:pick [/interface wireguard find where name="wg-cloudguest"] 0] }; :if ($w0 != "") do={ :put ("router-public-key=" . [:tostr [/interface wireguard get $w0 public-key]]) }
-:local p [/interface wireguard peers find where interface="wg-cloudguest"]; :put ("peer-count=" . [:tostr [:len $p]]); :local p0 ""; :if ([:len $p] > 0) do={ :set p0 [:pick $p 0] }; :if ($p0 != "") do={ :put ("peer-endpoint=" . [:tostr [/interface wireguard peers get $p0 endpoint-address]]) }; :if ($p0 != "") do={ :put ("peer-port=" . [:tostr [/interface wireguard peers get $p0 endpoint-port]]) }; :if ($p0 != "") do={ :put ("peer-allowed=" . [:tostr [/interface wireguard peers get $p0 allowed-address]]) }; :if ($p0 != "") do={ :put ("peer-keepalive=" . [:tostr [/interface wireguard peers get $p0 persistent-keepalive]]) }
-:local a [/ip address find where interface="wg-cloudguest"]; :put ("tunnel-address-count=" . [:tostr [:len $a]]); :foreach x in=$a do={ :put ("tunnel-address=" . [:tostr [/ip address get $x address]]) }
+:put ("expected-wg-count=" . [:tostr [:len [/interface wireguard find where name="wg-cloudguard"]]])
+:put ("legacy-wg-count=" . [:tostr [:len [/interface wireguard find where name="wg-cloudguest"]]])
+:local w0 ""; :if ([:len [/interface wireguard find where name="wg-cloudguard"]] > 0) do={ :set w0 [:pick [/interface wireguard find where name="wg-cloudguard"] 0] }; :if ($w0 != "") do={ :put ("router-public-key=" . [:tostr [/interface wireguard get $w0 public-key]]) }
+:local p [/interface wireguard peers find where interface="wg-cloudguard"]; :put ("peer-count=" . [:tostr [:len $p]]); :local p0 ""; :if ([:len $p] > 0) do={ :set p0 [:pick $p 0] }; :if ($p0 != "") do={ :put ("peer-endpoint=" . [:tostr [/interface wireguard peers get $p0 endpoint-address]]) }; :if ($p0 != "") do={ :put ("peer-port=" . [:tostr [/interface wireguard peers get $p0 endpoint-port]]) }; :if ($p0 != "") do={ :put ("peer-allowed=" . [:tostr [/interface wireguard peers get $p0 allowed-address]]) }; :if ($p0 != "") do={ :put ("peer-keepalive=" . [:tostr [/interface wireguard peers get $p0 persistent-keepalive]]) }
+:local a [/ip address find where interface="wg-cloudguard"]; :put ("tunnel-address-count=" . [:tostr [:len $a]]); :foreach x in=$a do={ :put ("tunnel-address=" . [:tostr [/ip address get $x address]]) }
 :local hip ""; :do { :set hip [:tostr [:resolve "hub.wyfyguest.com"]] } on-error={ :set hip "" }; :put ("hub-resolves-to=" . $hip)
 :put "WYFY-END step08"
 :put "===================="`,
@@ -421,7 +421,7 @@ export const STEPS_PART3: ManualStep[] = [
           type: "int",
           required: true,
           describe:
-            "Whether a tunnel exists under the other name the backend used to emit. Two tunnels means the firewall rule is bound to the wrong one.",
+            "Whether a tunnel exists under the legacy name the Master console emitted before the tunnel was renamed. Two tunnels means the firewall rule is bound to the wrong one.",
         },
         {
           key: "router-public-key",
@@ -489,7 +489,7 @@ export const STEPS_PART3: ManualStep[] = [
         purpose: "The hub peer in full, including the last handshake.",
       },
       {
-        command: `/ip address print detail without-paging where interface="wg-cloudguest"`,
+        command: `/ip address print detail without-paging where interface="wg-cloudguard"`,
         purpose: "The router's address inside the tunnel.",
       },
     ],
@@ -541,7 +541,7 @@ export const STEPS_PART3: ManualStep[] = [
           ],
         },
         meaning:
-          "Two tunnels exist under two different names. This happens when both the Master console blocks and the older automatic path were used on the same router. The firewall rule that lets management traffic in is bound to one of them, so the other one comes up and is silently blocked. Do not guess which to remove — check with the team which name the hub actually holds an entry for.",
+          "Two tunnels exist under two different names. This happens when a router that was set up before the tunnel was renamed has had the current Master console blocks pasted on top. The firewall rule that lets management traffic in is bound to one of them, so the other one comes up and is silently blocked. Do not guess which to remove — check with the team which name the hub actually holds an entry for.",
         nextCommand: "/interface wireguard peers print detail without-paging",
         lookFor:
           "Which of the two tunnels has a recent handshake. That is the one the hub is actually talking to.",
@@ -611,7 +611,7 @@ export const STEPS_PART3: ManualStep[] = [
           "No keepalive on the peer. The tunnel will connect and then quietly die whenever the venue's own router forgets the connection, typically within a few minutes of idleness. It then only comes back when the router happens to send something.",
         fix: [
           {
-            command: `:local p [/interface wireguard peers find where interface="wg-cloudguest"]; :put ("matching-count=" . [:tostr [:len $p]]); :if ([:len $p] > 0) do={ /interface wireguard peers set $p persistent-keepalive=25s }`,
+            command: `:local p [/interface wireguard peers find where interface="wg-cloudguard"]; :put ("matching-count=" . [:tostr [:len $p]]); :if ([:len $p] > 0) do={ /interface wireguard peers set $p persistent-keepalive=25s }`,
             note: "Sets the keepalive on the existing peer. The match count is printed first so an empty match cannot pass as done.",
             destructive: false,
             confidence: "generator",
@@ -644,18 +644,19 @@ export const STEPS_PART3: ManualStep[] = [
     configure: [
       {
         label:
-          "Move the tunnel rule above the drop rule, if it is below it. Safe to run more than once.",
-        script: `:local allow [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :local drop [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]; :put ("allow-count=" . [:tostr [:len $allow]]); :put ("drop-count=" . [:tostr [:len $drop]]); :if ([:len $allow] > 0 && [:len $drop] > 0) do={ /ip firewall filter move $allow destination=$drop }`,
+          "Move the tunnel rule above the drop rule, and above the factory-default drop rule if this router still has one. Safe to run more than once.",
+        script: `:local allow [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :local drop [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]; :put ("allow-count=" . [:tostr [:len $allow]]); :put ("drop-count=" . [:tostr [:len $drop]]); :if ([:len $allow] > 0 && [:len $drop] > 0) do={ /ip firewall filter move $allow destination=$drop }; :local defconfDrop [/ip firewall filter find where chain=input action=drop comment~"defconf: drop all not coming from LAN"]; :local wgAllowNow [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :if ([:len $wgAllowNow] > 0 && [:len $defconfDrop] > 0) do={ /ip firewall filter move $wgAllowNow destination=$defconfDrop }; :put ("defconf-drop-count=" . [:tostr [:len $defconfDrop]])`,
         oncePerRouter: false,
       },
     ],
     probe: {
       command: `:put "==== WIREGUARD VALIDATION ===="
 :put "WYFY-BEGIN step09"
-:local p [/interface wireguard peers find where interface="wg-cloudguest"]; :put ("peer-count=" . [:tostr [:len $p]]); :foreach x in=$p do={ :put ("peer=" . [:tostr [/interface wireguard peers get $x endpoint-address]] . ";handshake=" . [:tostr [/interface wireguard peers get $x last-handshake]] . ";rx=" . [:tostr [/interface wireguard peers get $x rx]] . ";tx=" . [:tostr [/interface wireguard peers get $x tx]]) }
+:local p [/interface wireguard peers find where interface="wg-cloudguard"]; :put ("peer-count=" . [:tostr [:len $p]]); :foreach x in=$p do={ :put ("peer=" . [:tostr [/interface wireguard peers get $x endpoint-address]] . ";handshake=" . [:tostr [/interface wireguard peers get $x last-handshake]] . ";rx=" . [:tostr [/interface wireguard peers get $x rx]] . ";tx=" . [:tostr [/interface wireguard peers get $x tx]]) }
 :put ("ping-hub=" . [:tostr [/ping 10.20.0.1 count=4]])
 :local allow [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :local drop [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]; :put ("allow-rule-count=" . [:tostr [:len $allow]]); :put ("drop-rule-count=" . [:tostr [:len $drop]]); :local allowId ""; :local dropId ""; :if ([:len $allow] > 0) do={ :set allowId [:pick $allow 0] }; :if ([:len $drop] > 0) do={ :set dropId [:pick $drop 0] }; :local pos 0; :local allowPos -1; :local dropPos -1; :foreach f in=[/ip firewall filter find] do={ :set pos ($pos + 1); :if ($f = $allowId) do={ :set allowPos $pos }; :if ($f = $dropId) do={ :set dropPos $pos } }; :put ("allow-position=" . [:tostr $allowPos]); :put ("drop-position=" . [:tostr $dropPos])
-:put ("tunnel-address-count=" . [:tostr [:len [/ip address find where interface="wg-cloudguest"]]])
+:local dd [/ip firewall filter find where chain=input action=drop comment~"defconf: drop all not coming from LAN"]; :local aw [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :put ("defconf-drop-count=" . [:tostr [:len $dd]]); :local awId ""; :local ddId ""; :if ([:len $aw] > 0) do={ :set awId [:pick $aw 0] }; :if ([:len $dd] > 0) do={ :set ddId [:pick $dd 0] }; :local pos 0; :local awPos -1; :local ddPos -1; :foreach f in=[/ip firewall filter find] do={ :set pos ($pos + 1); :if ($f = $awId) do={ :set awPos $pos }; :if ($f = $ddId) do={ :set ddPos $pos } }; :put ("defconf-drop-position=" . [:tostr $ddPos]); :local blocks 0; :if ($ddPos > 0 && ($awPos = -1 || $awPos > $ddPos)) do={ :set blocks 1 }; :put ("defconf-blocks-tunnel=" . [:tostr $blocks])
+:put ("tunnel-address-count=" . [:tostr [:len [/ip address find where interface="wg-cloudguard"]]])
 :put "WYFY-END step09"
 :put "===================="`,
       emits: [
@@ -710,6 +711,26 @@ export const STEPS_PART3: ManualStep[] = [
           required: true,
           describe: "Whether this router still has an address inside the tunnel.",
         },
+        {
+          key: "defconf-drop-count",
+          type: "int",
+          required: true,
+          describe:
+            "How many factory-default rules that drop everything not coming from the local network exist. 0 on a router that was reset without the default configuration.",
+        },
+        {
+          key: "defconf-drop-position",
+          type: "int",
+          required: true,
+          describe: "Where that factory-default drop rule sits. -1 means it is not there.",
+        },
+        {
+          key: "defconf-blocks-tunnel",
+          type: "int",
+          required: true,
+          describe:
+            "1 when the factory-default drop rule sits above the tunnel allow rule, or the allow rule is missing while that drop rule exists. The tunnel then answers ping while the platform cannot open the router.",
+        },
       ],
     },
     contextCommands: [
@@ -725,7 +746,13 @@ export const STEPS_PART3: ManualStep[] = [
     fingerprint: {
       sentinelId: "step09",
       expectedMenu: "/interface wireguard peers",
-      requireAllKeys: ["peer-count", "ping-hub", "allow-position", "drop-position"],
+      requireAllKeys: [
+        "peer-count",
+        "ping-hub",
+        "allow-position",
+        "drop-position",
+        "defconf-blocks-tunnel",
+      ],
       forbidKeys: ["address-pool", "html-directory"],
       discriminator:
         "This check prints ping-hub together with allow-position and drop-position. Neither the peer list nor the firewall list alone prints any of those.",
@@ -751,12 +778,39 @@ export const STEPS_PART3: ManualStep[] = [
           { op: "eq", key: "peer-count", value: 1 },
           { op: "gte", key: "ping-hub", value: 1 },
           { op: "gte", key: "tunnel-address-count", value: 1 },
+          { op: "eq", key: "defconf-blocks-tunnel", value: 0 },
         ],
       },
       means:
-        "The hub answers through the tunnel. This is the only proof that matters at this step.",
+        "The hub answers through the tunnel, and no factory-default rule sits between the platform and this router.",
     },
     outcomes: [
+      {
+        // Seen live 2026-10-11: the router was set up on top of MikroTik's
+        // default configuration. Checked FIRST and without reference to
+        // ping-hub, because in this state the ping SUCCEEDS -- the default
+        // configuration accepts ICMP separately -- so every other outcome
+        // here, all of which start from a failed ping, would stay silent.
+        // The fix is the same three statements the Master console's
+        // WireGuard block emits (CI-gated parity).
+        id: "defconf-drop-above-allow",
+        verdict: "FAIL",
+        when: { op: "eq", key: "defconf-blocks-tunnel", value: 1 },
+        meaning:
+          "This router still carries MikroTik's factory-default rule that drops everything not coming from the local network, and it sits above the rule that lets tunnel traffic in. The tunnel connects and answers ping, but the platform cannot open the router through it, so guest speed limits and session controls never reach this router. This happens when the router was not reset with no default configuration before setup.",
+        nextCommand: "/ip firewall filter print without-paging chain=input",
+        lookFor:
+          "The row whose comment starts with defconf and mentions LAN. The row whose comment mentions allow-wg-mgmt must appear above it.",
+        fix: [
+          {
+            command: `:local defconfDrop [/ip firewall filter find where chain=input action=drop comment~"defconf: drop all not coming from LAN"]; :local wgAllowNow [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :if ([:len $wgAllowNow] > 0 && [:len $defconfDrop] > 0) do={ /ip firewall filter move $wgAllowNow destination=$defconfDrop }; :put ("defconf-drop-count=" . [:tostr [:len $defconfDrop]]); :put ("allow-count=" . [:tostr [:len $wgAllowNow]])`,
+            note: "Moves the allow rule above the factory-default drop rule and touches nothing else. Both counts are printed, so a missing rule is visible. Run the check block again afterwards. Guests who are already connected must log in once more before a speed limit applies.",
+            destructive: false,
+            confidence: "field",
+          },
+        ],
+        confidence: "field",
+      },
       {
         id: "firewall-order-wrong",
         verdict: "FAIL",
@@ -776,8 +830,8 @@ export const STEPS_PART3: ManualStep[] = [
           "The row numbers of the two rules. The one whose comment mentions allow-wg-mgmt must appear above the one whose comment mentions drop-wan-input.",
         fix: [
           {
-            command: `:local allow [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :local drop [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]; :put ("allow-count=" . [:tostr [:len $allow]]); :put ("drop-count=" . [:tostr [:len $drop]]); :if ([:len $allow] > 0 && [:len $drop] > 0) do={ /ip firewall filter move $allow destination=$drop }`,
-            note: "Moves the allow rule directly above the drop rule and touches nothing else. Both counts are printed first, so if either rule is missing you will see it rather than getting a silent no-op. The handshake normally returns within 30 seconds.",
+            command: `:local allow [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :local drop [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]; :put ("allow-count=" . [:tostr [:len $allow]]); :put ("drop-count=" . [:tostr [:len $drop]]); :if ([:len $allow] > 0 && [:len $drop] > 0) do={ /ip firewall filter move $allow destination=$drop }; :local defconfDrop [/ip firewall filter find where chain=input action=drop comment~"defconf: drop all not coming from LAN"]; :local wgAllowNow [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :if ([:len $wgAllowNow] > 0 && [:len $defconfDrop] > 0) do={ /ip firewall filter move $wgAllowNow destination=$defconfDrop }; :put ("defconf-drop-count=" . [:tostr [:len $defconfDrop]])`,
+            note: "Moves the allow rule directly above the drop rule, then above the factory-default drop rule if one exists, and touches nothing else. The counts are printed, so if a rule is missing you will see it rather than getting a silent no-op. The handshake normally returns within 30 seconds.",
             destructive: false,
             confidence: "field",
           },
@@ -798,7 +852,8 @@ export const STEPS_PART3: ManualStep[] = [
           "The rule that lets tunnel traffic in does not exist at all, and the drop rule does. Everything the hub sends is discarded on arrival.",
         fix: [
           {
-            command: `:local a [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :local d [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]; :put ("allow-count=" . [:tostr [:len $a]]); :if ([:len $a] = 0 && [:len $d] > 0) do={ /ip firewall filter add chain=input in-interface="wg-cloudguest" action=accept comment="cloudguest-fw-allow-wg-mgmt" place-before=$d }; :if ([:len $a] = 0 && [:len $d] = 0) do={ /ip firewall filter add chain=input in-interface="wg-cloudguest" action=accept comment="cloudguest-fw-allow-wg-mgmt" }
+            command: `:local a [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :local d [/ip firewall filter find where comment="cloudguest-fw-drop-wan-input"]; :put ("allow-count=" . [:tostr [:len $a]]); :if ([:len $a] = 0 && [:len $d] > 0) do={ /ip firewall filter add chain=input in-interface="wg-cloudguard" action=accept comment="cloudguest-fw-allow-wg-mgmt" place-before=$d }; :if ([:len $a] = 0 && [:len $d] = 0) do={ /ip firewall filter add chain=input in-interface="wg-cloudguard" action=accept comment="cloudguest-fw-allow-wg-mgmt" }
+:local defconfDrop [/ip firewall filter find where chain=input action=drop comment~"defconf: drop all not coming from LAN"]; :local wgAllowNow [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]; :if ([:len $wgAllowNow] > 0 && [:len $defconfDrop] > 0) do={ /ip firewall filter move $wgAllowNow destination=$defconfDrop }
 :put ("after-count=" . [:tostr [:len [/ip firewall filter find where comment="cloudguest-fw-allow-wg-mgmt"]]])`,
             note: "Adds the rule, placing it above the drop rule when that rule exists. It prints the count before and after so an add that did nothing is visible.",
             destructive: false,
@@ -874,7 +929,7 @@ export const STEPS_PART3: ManualStep[] = [
       {
         label:
           "Set the source address to this router's own tunnel address. Run this after the block above.",
-        script: `:local tip ""; :foreach ad in=[/ip address find where interface="wg-cloudguest"] do={ :set tip [:pick [/ip address get $ad address] 0 [:find [/ip address get $ad address] "/"]] }; :put ("tunnel-ip=" . $tip); :local r [/radius find]; :put ("radius-count=" . [:tostr [:len $r]]); :if ($tip != "" && [:len $r] > 0) do={ /radius set $r src-address=$tip }
+        script: `:local tip ""; :foreach ad in=[/ip address find where interface="wg-cloudguard"] do={ :set tip [:pick [/ip address get $ad address] 0 [:find [/ip address get $ad address] "/"]] }; :put ("tunnel-ip=" . $tip); :local r [/radius find]; :put ("radius-count=" . [:tostr [:len $r]]); :if ($tip != "" && [:len $r] > 0) do={ /radius set $r src-address=$tip }
 :put ("src-address=" . [:tostr [/radius get [:pick [/radius find] 0] src-address]])`,
         oncePerRouter: false,
       },
@@ -882,7 +937,7 @@ export const STEPS_PART3: ManualStep[] = [
     probe: {
       command: `:put "==== RADIUS ===="
 :put "WYFY-BEGIN step10"
-:local r [/radius find]; :put ("radius-count=" . [:tostr [:len $r]]); :foreach x in=$r do={ :put ("radius=" . [:tostr [/radius get $x address]] . ";service=" . [:tostr [/radius get $x service]] . ";src=" . [:tostr [/radius get $x src-address]] . ";timeout=" . [:tostr [/radius get $x timeout]] . ";disabled=" . [:tostr [/radius get $x disabled]]) }; :local tip ""; :foreach ad in=[/ip address find where interface="wg-cloudguest"] do={ :set tip [:pick [/ip address get $ad address] 0 [:find [/ip address get $ad address] "/"]] }; :put ("tunnel-ip=" . $tip); :local h ""; :if ([:len $r] > 0) do={ :set h [:tostr [/radius get [:pick $r 0] address]] }; :put ("radius-address=" . $h); :if ($h != "") do={ :put ("ping-radius=" . [:tostr [/ping $h count=4]]) }
+:local r [/radius find]; :put ("radius-count=" . [:tostr [:len $r]]); :foreach x in=$r do={ :put ("radius=" . [:tostr [/radius get $x address]] . ";service=" . [:tostr [/radius get $x service]] . ";src=" . [:tostr [/radius get $x src-address]] . ";timeout=" . [:tostr [/radius get $x timeout]] . ";disabled=" . [:tostr [/radius get $x disabled]]) }; :local tip ""; :foreach ad in=[/ip address find where interface="wg-cloudguard"] do={ :set tip [:pick [/ip address get $ad address] 0 [:find [/ip address get $ad address] "/"]] }; :put ("tunnel-ip=" . $tip); :local h ""; :if ([:len $r] > 0) do={ :set h [:tostr [/radius get [:pick $r 0] address]] }; :put ("radius-address=" . $h); :if ($h != "") do={ :put ("ping-radius=" . [:tostr [/ping $h count=4]]) }
 :put ("incoming-accept=" . [:tostr [/radius incoming get accept]])
 :put "WYFY-END step10"
 :put "===================="`,
@@ -936,7 +991,7 @@ export const STEPS_PART3: ManualStep[] = [
         purpose: "The login server settings in full.",
       },
       {
-        command: `/ip address print detail without-paging where interface="wg-cloudguest"`,
+        command: `/ip address print detail without-paging where interface="wg-cloudguard"`,
         purpose: "The tunnel address the source must match.",
       },
     ],
@@ -1005,7 +1060,7 @@ export const STEPS_PART3: ManualStep[] = [
           "The src-address value. It must equal the tunnel-ip printed by this step's check, exactly.",
         fix: [
           {
-            command: `:local tip ""; :foreach ad in=[/ip address find where interface="wg-cloudguest"] do={ :set tip [:pick [/ip address get $ad address] 0 [:find [/ip address get $ad address] "/"]] }; :put ("tunnel-ip=" . $tip); :local r [/radius find]; :put ("matching-count=" . [:tostr [:len $r]]); :if ($tip != "" && [:len $r] > 0) do={ /radius set $r src-address=$tip }
+            command: `:local tip ""; :foreach ad in=[/ip address find where interface="wg-cloudguard"] do={ :set tip [:pick [/ip address get $ad address] 0 [:find [/ip address get $ad address] "/"]] }; :put ("tunnel-ip=" . $tip); :local r [/radius find]; :put ("matching-count=" . [:tostr [:len $r]]); :if ($tip != "" && [:len $r] > 0) do={ /radius set $r src-address=$tip }
 :put ("src-address=" . [:tostr [/radius get [:pick [/radius find] 0] src-address]])`,
             note: "Reads the router's tunnel address and writes it as the source. It prints the address it read, the number of entries it matched, and the value afterwards — so an empty match cannot look like success.",
             destructive: false,
