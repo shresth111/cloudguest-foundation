@@ -16,6 +16,7 @@ import { Route as VoipRouteImport } from './routes/voip'
 import { Route as VlansRouteImport } from './routes/vlans'
 import { Route as VerifyOtpRouteImport } from './routes/verify-otp'
 import { Route as UsersRouteImport } from './routes/users'
+import { Route as TrafficLensRouteImport } from './routes/traffic-lens'
 import { Route as TicketsRouteImport } from './routes/tickets'
 import { Route as TeamsRouteImport } from './routes/teams'
 import { Route as SwitchLocationRouteImport } from './routes/switch-location'
@@ -234,6 +235,11 @@ const VerifyOtpRoute = VerifyOtpRouteImport.update({
 const UsersRoute = UsersRouteImport.update({
   id: '/users',
   path: '/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TrafficLensRoute = TrafficLensRouteImport.update({
+  id: '/traffic-lens',
+  path: '/traffic-lens',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TicketsRoute = TicketsRouteImport.update({
@@ -1275,6 +1281,7 @@ export interface FileRoutesByFullPath {
   '/switch-location': typeof SwitchLocationRoute
   '/teams': typeof TeamsRoute
   '/tickets': typeof TicketsRoute
+  '/traffic-lens': typeof TrafficLensRoute
   '/users': typeof UsersRoute
   '/verify-otp': typeof VerifyOtpRoute
   '/vlans': typeof VlansRoute
@@ -1464,6 +1471,7 @@ export interface FileRoutesByTo {
   '/switch-location': typeof SwitchLocationRoute
   '/teams': typeof TeamsRoute
   '/tickets': typeof TicketsRoute
+  '/traffic-lens': typeof TrafficLensRoute
   '/users': typeof UsersRoute
   '/verify-otp': typeof VerifyOtpRoute
   '/vlans': typeof VlansRoute
@@ -1655,6 +1663,7 @@ export interface FileRoutesById {
   '/switch-location': typeof SwitchLocationRoute
   '/teams': typeof TeamsRoute
   '/tickets': typeof TicketsRoute
+  '/traffic-lens': typeof TrafficLensRoute
   '/users': typeof UsersRoute
   '/verify-otp': typeof VerifyOtpRoute
   '/vlans': typeof VlansRoute
@@ -1849,6 +1858,7 @@ export interface FileRouteTypes {
     | '/switch-location'
     | '/teams'
     | '/tickets'
+    | '/traffic-lens'
     | '/users'
     | '/verify-otp'
     | '/vlans'
@@ -2038,6 +2048,7 @@ export interface FileRouteTypes {
     | '/switch-location'
     | '/teams'
     | '/tickets'
+    | '/traffic-lens'
     | '/users'
     | '/verify-otp'
     | '/vlans'
@@ -2228,6 +2239,7 @@ export interface FileRouteTypes {
     | '/switch-location'
     | '/teams'
     | '/tickets'
+    | '/traffic-lens'
     | '/users'
     | '/verify-otp'
     | '/vlans'
@@ -2422,6 +2434,7 @@ export interface RootRouteChildren {
   SwitchLocationRoute: typeof SwitchLocationRoute
   TeamsRoute: typeof TeamsRoute
   TicketsRoute: typeof TicketsRoute
+  TrafficLensRoute: typeof TrafficLensRoute
   UsersRoute: typeof UsersRoute
   VerifyOtpRoute: typeof VerifyOtpRoute
   VlansRoute: typeof VlansRoute
@@ -2494,6 +2507,13 @@ declare module '@tanstack/react-router' {
       path: '/users'
       fullPath: '/users'
       preLoaderRoute: typeof UsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/traffic-lens': {
+      id: '/traffic-lens'
+      path: '/traffic-lens'
+      fullPath: '/traffic-lens'
+      preLoaderRoute: typeof TrafficLensRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tickets': {
@@ -4199,6 +4219,7 @@ const rootRouteChildren: RootRouteChildren = {
   SwitchLocationRoute: SwitchLocationRoute,
   TeamsRoute: TeamsRoute,
   TicketsRoute: TicketsRoute,
+  TrafficLensRoute: TrafficLensRoute,
   UsersRoute: UsersRoute,
   VerifyOtpRoute: VerifyOtpRoute,
   VlansRoute: VlansRoute,

@@ -37,6 +37,7 @@ import { useCustomerStore } from "@/stores/customerStore";
 import { DataMaskingOtpDialog } from "@/components/features/HeaderControls";
 import { useFeatureEntitled, useMyPermissions } from "@/hooks/useCustomerDashboard";
 import { GUEST_MARKETING_FEATURE_KEY } from "@/types/marketing";
+import { TRAFFIC_LENS_FEATURE_KEY } from "@/types/traffic-lens";
 import type { useDataMasking } from "@/hooks/useCustomerDashboard";
 
 /**
@@ -166,6 +167,8 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
   // truth from the backend's 402. The row stays visible and clickable when
   // locked (spec D5): a customer cannot ask for a feature they cannot see.
   const marketingEntitled = useFeatureEntitled(GUEST_MARKETING_FEATURE_KEY);
+  // Traffic Lens: the same badge, the same source, the same rules.
+  const trafficLensEntitled = useFeatureEntitled(TRAFFIC_LENS_FEATURE_KEY);
 
   return (
     <Sidebar
@@ -321,10 +324,11 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
                             )}
                             <Icon className="h-4 w-4 shrink-0" />
                             <span className="flex-1 truncate">{label}</span>
-                            {item.id === "marketing" && marketingEntitled === false && (
+                            {((item.id === "marketing" && marketingEntitled === false) ||
+                              (item.id === "traffic-lens" && trafficLensEntitled === false)) && (
                               <span
                                 className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold text-sidebar-foreground/80 group-data-[collapsible=icon]:hidden"
-                                title="Marketing is an add-on that isn't enabled for your organisation"
+                                title={`${label} is an add-on that isn't enabled for your organisation`}
                               >
                                 <Lock aria-hidden className="h-2.5 w-2.5" />
                                 {t("customerItemBadge.addon", "Add-on")}

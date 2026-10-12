@@ -40,13 +40,13 @@ import {
   timelineSlots,
   totalsView,
 } from "@/lib/traffic-flow";
-import type { TimelineMode } from "@/components/master/TrafficFlowTimelineChart";
+import type { TimelineMode } from "@/components/traffic-lens/TrafficLensTimelineChart";
 import type { FlowScope, RouterFlowStatus } from "@/types/traffic-flow";
 
 // recharts stays behind a dynamic import (see PlatformOverviewCharts).
 const TrafficFlowTimelineChart = lazy(() =>
-  import("@/components/master/TrafficFlowTimelineChart").then((m) => ({
-    default: m.TrafficFlowTimelineChart,
+  import("@/components/traffic-lens/TrafficLensTimelineChart").then((m) => ({
+    default: m.TrafficLensTimelineChart,
   })),
 );
 

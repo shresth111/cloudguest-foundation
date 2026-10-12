@@ -95,6 +95,11 @@ const MarketingView = lazyView(
   "MarketingView",
 );
 const FirewallView = lazyView(() => import("@/components/security/FirewallView"), "FirewallView");
+// Traffic Lens (paid add-on). Its own lazily fetched module, like Marketing.
+const TrafficLensView = lazyView(
+  () => import("@/components/traffic-lens/TrafficLensView"),
+  "TrafficLensView",
+);
 /** Not part of the OperationsFeatures barrel -- its own module, so opening
  * "Network Integrations" fetches only the Omada connect wizard and its
  * service layer rather than the whole 446 kB ops chunk. Lazy for the same
@@ -371,6 +376,10 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
               {feature === "security" && <SecurityOverviewView />}
               {feature === "blocking" && <BlockingView locationId={locationId} syncWithUrl />}
               {feature === "marketing" && <MarketingView locationId={locationId} syncWithUrl />}
+              {/* Not behind the controller gate above: the view shows its own
+                  "not available at this venue" from the backend's answer, and
+                  the lock screen has to show at any venue. */}
+              {feature === "traffic-lens" && <TrafficLensView locationId={locationId} />}
               {feature === "debugging" && <DebuggingView locationId={locationId} masked={masked} />}
               {feature === "hotspot" && <HotspotView locationId={locationId} />}
               {/* "audit" is handled above (redirected to AdminLogsView, see
