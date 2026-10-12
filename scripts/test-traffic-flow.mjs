@@ -1074,7 +1074,10 @@ console.log("\ncustomer: surface rules and wiring");
 const CUSTOMER_FILES = [
   "src/lib/traffic-lens-customer.ts",
   "src/lib/traffic-lens-shared.ts",
+  "src/lib/traffic-lens-insights.ts",
   "src/components/traffic-lens/TrafficLensView.tsx",
+  "src/components/traffic-lens/TrafficLensOverview.tsx",
+  "src/components/traffic-lens/TrafficLensParts.tsx",
   "src/components/traffic-lens/TrafficLensTimelineChart.tsx",
   "src/services/traffic-lens.service.ts",
   "src/hooks/useTrafficLens.ts",
@@ -1095,7 +1098,13 @@ for (const f of CUSTOMER_FILES) {
     ),
   );
 }
-const lensView = read("src/components/traffic-lens/TrafficLensView.tsx");
+// The page is three files since the 2026-10-13 redesign: the shell (screens,
+// views, the one range control), the Overview and the small parts.
+const lensShell = read("src/components/traffic-lens/TrafficLensView.tsx");
+const lensView =
+  lensShell +
+  read("src/components/traffic-lens/TrafficLensOverview.tsx") +
+  read("src/components/traffic-lens/TrafficLensParts.tsx");
 const lensService = read("src/services/traffic-lens.service.ts");
 const lensCode = strip(lensView);
 check("the customer service only reads", !/api\.(post|put|patch|delete)/.test(lensService));
@@ -1109,8 +1118,12 @@ check(
 );
 check("no screen says Application", !/application/i.test(lensCode));
 check(
-  "the services column is headed Service (port)",
-  /<TableHead>Service \(port\)<\/TableHead>/.test(lensView),
+  "a service with no plain name is captioned Service (port)",
+  /"Service \(port\)"/.test(lensView) && /serviceDisplayNames\(/.test(lensView),
+);
+check(
+  "no link to Guest Connection Records, and no sentence that leans on one",
+  !/Guest Connection Records|network-activity/.test(lensCode),
 );
 check(
   "a device row carries only what the API sends",

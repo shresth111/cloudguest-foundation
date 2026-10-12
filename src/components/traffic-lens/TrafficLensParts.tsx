@@ -108,7 +108,7 @@ export function NoticeCard({
           <p className="text-sm font-semibold">{notice.title}</p>
           <p className="mt-1 text-sm text-muted-foreground">{notice.body}</p>
         </div>
-        {notice.ask ? <SwitchOnAsk /> : action}
+        {notice.ask ? <AskAboutVenue /> : action}
       </div>
     );
   return (
@@ -119,12 +119,12 @@ export function NoticeCard({
         </p>
         <p className="mt-3 text-sm text-muted-foreground sm:text-base">{notice.body}</p>
       </div>
-      {notice.ask ? <SwitchOnAsk /> : action}
+      {notice.ask ? <AskAboutVenue /> : action}
     </div>
   );
 }
 
-function SwitchOnAsk() {
+function AskAboutVenue() {
   return (
     <AskWyfy
       subject={LENS_SWITCH_ON_SUBJECT}

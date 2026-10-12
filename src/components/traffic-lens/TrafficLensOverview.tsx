@@ -13,7 +13,6 @@ import {
   otherAtMostLabel,
   protocolRows,
   seriesColor,
-  serviceKey,
   servicesView,
   shareBarWidth,
   shareLabel,
@@ -41,7 +40,7 @@ import {
   lensPeriodPhrase,
   lensTopService,
   lensVolume,
-  serviceKind,
+  serviceDisplayNames,
   type LensCheck,
   type StripSegment,
 } from "@/lib/traffic-lens-insights";
@@ -155,7 +154,7 @@ export function TrafficLensOverview({
   const strip = lensComposition(s, LENS_SERIES_COLORS);
 
   const services = servicesView(s);
-  const kinds = new Map((s.services?.items ?? []).map((it) => [serviceKey(it), serviceKind(it)]));
+  const names = serviceDisplayNames(s.services?.items ?? []);
   const protocols = protocolRows(s);
   const gapNote = timelineGapNote(slots);
   const noServiceSteps = slots.filter((x) => x.measured && !x.servicesMeasured).length;
@@ -269,33 +268,43 @@ export function TrafficLensOverview({
         ) : (
           <ol className="divide-y divide-border">
             {[...services.rows, ...(services.other ? [services.other] : [])].map((r, i) => {
-              const kind = kinds.get(r.key) ?? null;
+              const name = names.get(r.key) ?? r.label;
               const color = seriesColor(s, r.key, LENS_SERIES_COLORS);
               return (
                 <li key={r.key} className="py-4 first:pt-0 last:pb-0">
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                    <span className="w-6 shrink-0 font-display text-lg font-semibold tabular-nums text-muted-foreground">
-                      {serviceFromKey(r.key) ? i + 1 : ""}
-                    </span>
-                    <span
-                      aria-hidden
-                      className="h-3 w-3 shrink-0 rounded-sm"
-                      style={{ background: color ?? "var(--muted-foreground)", opacity: color ? 1 : 0.35 }}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-base font-semibold">{kind ?? r.label}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {kind ? <span className="font-mono">{r.label}</span> : "Service (port)"}
-                        {" · "}average {r.rate}
-                        {serviceFromKey(r.key) ? ` · download ${r.down} · upload ${r.up}` : ""}
-                      </p>
+                    <div className="flex min-w-0 basis-full items-center gap-4 sm:flex-1 sm:basis-0">
+                      <span className="w-6 shrink-0 font-display text-lg font-semibold tabular-nums text-muted-foreground">
+                        {serviceFromKey(r.key) ? i + 1 : ""}
+                      </span>
+                      <span
+                        aria-hidden
+                        className="h-3 w-3 shrink-0 rounded-sm"
+                        style={{
+                          background: color ?? "var(--muted-foreground)",
+                          opacity: color ? 1 : 0.35,
+                        }}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-base font-semibold">{name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {name !== r.label ? (
+                            <span className="font-mono">{r.label}</span>
+                          ) : (
+                            "Service (port)"
+                          )}
+                          {" · "}average {r.rate}
+                          {serviceFromKey(r.key) ? ` · download ${r.down} · upload ${r.up}` : ""}
+                        </p>
+                      </div>
                     </div>
-                    <span className="font-display text-2xl font-semibold tabular-nums">
+                    <span className="ml-14 font-display text-2xl font-semibold tabular-nums sm:ml-0">
                       {r.share}
                     </span>
                     {serviceFromKey(r.key) && (
                       <Button
                         size="sm"
+                        className="ml-auto sm:ml-0"
                         variant={open?.key === r.key ? "default" : "outline"}
                         aria-expanded={open?.key === r.key}
                         onClick={() =>

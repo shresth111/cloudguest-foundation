@@ -1055,7 +1055,13 @@ for (const f of CUSTOMER_DESTINATION_FILES) {
 const lensService = read("src/services/traffic-lens-destinations.service.ts");
 const lensHook = read("src/hooks/useLensDestinations.ts");
 const lensTab = read("src/components/traffic-lens/TrafficLensDestinations.tsx");
-const lensPage = read("src/components/traffic-lens/TrafficLensView.tsx");
+// The shell and the Overview (where a service row opens its destinations).
+const lensPage =
+  read("src/components/traffic-lens/TrafficLensView.tsx") +
+  read("src/components/traffic-lens/TrafficLensOverview.tsx");
+const lensColumns = read("src/lib/traffic-lens-insights.ts").match(
+  /export const LENS_RECORD_COLUMNS[\s\S]*?\n\];/,
+)[0];
 const lensTabCode = code(lensTab);
 check("the customer service only reads", !/api\.(post|put|patch|delete)/.test(lensService));
 check(
@@ -1108,9 +1114,11 @@ check(
     ),
 );
 check(
-  "the customer table has the seven venue-level columns",
-  (lensTabCode.match(/\{ key: "/g) ?? []).length === 7 &&
-    !/Device|MAC|Guest|Source/.test(lensTabCode.match(/const COLUMNS[\s\S]*?\];/)[0]),
+  "the customer table has the eleven venue-level columns and none is a device",
+  /const COLUMNS = LENS_RECORD_COLUMNS;/.test(lensTabCode) &&
+    (lensColumns.match(/\{ id: "/g) ?? []).length === 11 &&
+    !/Device|MAC|Guest|Source|NAT/.test(lensColumns),
+  String((lensColumns.match(/\{ id: "/g) ?? []).length),
 );
 check(
   "the customer screens say in words that no device or guest is shown",
@@ -1139,8 +1147,8 @@ check(
 );
 check("no customer screen says Application", !/application/i.test(lensTabCode));
 check(
-  "the customer records column is headed Service (port)",
-  /label: "Service \(port\)"/.test(lensTab),
+  "the customer records columns are headed Service, Port and Protocol",
+  ["Service", "Port", "Protocol"].every((l) => lensColumns.includes(`label: "${l}"`)),
 );
 check(
   "the Destinations view reads the page's one range control",

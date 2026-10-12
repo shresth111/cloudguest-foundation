@@ -204,8 +204,9 @@ function LensRangeControl({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
       <Tabs
+        className="max-w-full"
         value={editing || value.kind === "custom" ? "custom" : value.window}
         onValueChange={(v) => {
           setError(null);
@@ -225,7 +226,7 @@ function LensRangeControl({
           }
         }}
       >
-        <TabsList aria-label="Period">
+        <TabsList aria-label="Period" className="max-w-full justify-start overflow-x-auto">
           {LENS_PRESETS.map((p) => (
             <TabsTrigger key={p.value} value={p.value}>
               {p.label}

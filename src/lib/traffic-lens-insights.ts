@@ -65,10 +65,27 @@ export function serviceKind(s: FlowServiceRef | null | undefined): string | null
   return SERVICE_KINDS[name] ?? null;
 }
 
-/** The name to lead with: the plain words when there are any, otherwise the
- * port label itself ("UDP/19305"). */
-export function serviceHeadlineName(s: FlowServiceRef): string {
-  return serviceKind(s) ?? serviceLabel(s);
+const PROTOCOL_SHORT: Record<number, string> = { 1: "ICMP", 6: "TCP", 17: "UDP", 58: "ICMPv6" };
+
+/** The name each service row leads with, by service key. Two services with
+ * the same plain name (https over TCP and over UDP) get their protocol
+ * added, so no two rows read the same. */
+export function serviceDisplayNames(items: readonly FlowServiceRef[]): Map<string, string> {
+  const count = new Map<string, number>();
+  for (const it of items) {
+    const kind = serviceKind(it);
+    if (kind) count.set(kind, (count.get(kind) ?? 0) + 1);
+  }
+  const names = new Map<string, string>();
+  for (const it of items) {
+    const kind = serviceKind(it);
+    const proto = typeof it.protocol === "number" ? PROTOCOL_SHORT[it.protocol] : undefined;
+    names.set(
+      serviceKey(it),
+      kind ? ((count.get(kind) ?? 0) > 1 && proto ? `${kind} (${proto})` : kind) : serviceLabel(it),
+    );
+  }
+  return names;
 }
 
 /** "in the last hour", or "from 12 Oct 13:07 to 12 Oct 13:52". */
@@ -142,7 +159,10 @@ export function lensTopService(summary: Summary, periodPhrase: string): TopServi
     };
   const sv = summary.services;
   const windowsMeasured = (sv as { windows_measured?: unknown } | null)?.windows_measured;
-  if (!sv || (summary.services_measured !== true && !(isNum(windowsMeasured) && windowsMeasured > 0)))
+  if (
+    !sv ||
+    (summary.services_measured !== true && !(isNum(windowsMeasured) && windowsMeasured > 0))
+  )
     return {
       kind: "not_measured",
       headline: "What the traffic was is not measured for this period.",
@@ -152,9 +172,7 @@ export function lensTopService(summary: Summary, periodPhrase: string): TopServi
       figure: null,
       figureCaption: null,
     };
-  const items = [...(sv.items ?? [])]
-    .filter((it) => isNum(it.bytes) && it.bytes > 0)
-    .sort((a, b) => b.bytes - a.bytes);
+  const items = (sv.items ?? []).filter((it) => isNum(it.bytes) && it.bytes > 0);
   if (items.length === 0)
     return {
       kind: "none",
@@ -170,32 +188,45 @@ export function lensTopService(summary: Summary, periodPhrase: string): TopServi
         ? ` Service detail covers ${formatCount(windowsMeasured)} of ${formatCount(summary.windows)} five-minute periods; shares are of that measured part.`
         : " Service detail covers only part of this period; shares are of the measured part."
       : "";
-  const top = items[0];
-  const tied = items.filter((it) => it.bytes === top.bytes);
+  // Services that mean the same thing in plain words (https over TCP and
+  // over UDP) are one answer; a port with no plain name stands alone.
+  const all =
+    items.reduce((sum, it) => sum + it.bytes, 0) + (isNum(sv.other_bytes) ? sv.other_bytes : 0);
+  const groups = new Map<string, { name: string; bytes: number; labels: string[] }>();
+  for (const it of items) {
+    const name = serviceKind(it) ?? serviceLabel(it);
+    const g = groups.get(name) ?? { name, bytes: 0, labels: [] };
+    g.bytes += it.bytes;
+    g.labels.push(serviceLabel(it));
+    groups.set(name, g);
+  }
+  const ranked = [...groups.values()].sort((a, b) => b.bytes - a.bytes);
+  const top = ranked[0];
+  const share = shareLabel(top.bytes / all);
+  const tied = ranked.filter((g) => g.bytes === top.bytes);
   if (tied.length > 1) {
-    const names = tied.map(serviceLabel);
+    const names = tied.map((g) => g.name);
     const list =
       names.length === 2
         ? `${names[0]} and ${names[1]}`
         : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
     return {
       kind: "tie",
-      headline: `${list} shared the top, ${shareLabel(top.share)} of your traffic each.`,
+      headline: `${list} shared the top, ${share} of your traffic each.`,
       detail: `${flowBytes(top.bytes)} each ${periodPhrase}.${partial}`,
       flagged: false,
-      figure: shareLabel(top.share),
+      figure: share,
       figureCaption: "each, of all traffic",
     };
   }
-  const kind = serviceKind(top);
-  const label = serviceLabel(top);
+  const plain = top.labels.length > 1 || top.labels[0] !== top.name;
   return {
     kind: "top",
-    headline: `${kind ?? label} was ${shareLabel(top.share)} of your traffic ${periodPhrase}.`,
-    detail: `${kind ? `${label} · ` : ""}${flowBytes(top.bytes)}, download and upload together.${partial}`,
+    headline: `${top.name} was ${share} of your traffic ${periodPhrase}.`,
+    detail: `${plain ? `${top.labels.join(" + ")} · ` : ""}${flowBytes(top.bytes)}, download and upload together.${partial}`,
     flagged: false,
-    figure: shareLabel(top.share),
-    figureCaption: `of all traffic was ${kind ? kind.toLowerCase() : label}`,
+    figure: share,
+    figureCaption: `of all traffic was ${plain ? top.name.toLowerCase() : top.name}`,
   };
 }
 
@@ -427,7 +458,8 @@ export function lensChecks(summary: Summary): LensCheck[] {
   const upload: LensCheck = {
     id: "upload_heavy",
     name: "More upload than download",
-    state: !measured || up === null || down === null ? "unchecked" : uploadHeavy ? "flagged" : "clear",
+    state:
+      !measured || up === null || down === null ? "unchecked" : uploadHeavy ? "flagged" : "clear",
     text:
       !measured || up === null || down === null
         ? "Could not be checked: no totals for this period."
@@ -519,9 +551,10 @@ export function lensComposition(summary: Summary, colors: readonly string[]): St
     .map((it) => ({ it, i: order.indexOf(serviceKey(it)) }))
     .filter((x) => x.i >= 0 && x.i < colors.length)
     .sort((a, b) => a.i - b.i);
+  const names = serviceDisplayNames(items);
   const segments: StripSegment[] = coloured.map(({ it, i }) => ({
     key: serviceKey(it),
-    name: serviceHeadlineName(it),
+    name: names.get(serviceKey(it)) ?? serviceLabel(it),
     label: serviceLabel(it),
     width: Math.round((it.bytes / total) * 1000) / 10,
     share: shareLabel(it.bytes / total),
@@ -628,8 +661,6 @@ export function recordDirection(row: Pick<DestinationRecord, "bytes_up" | "bytes
   return "No bytes";
 }
 
-const PROTOCOL_NAMES: Record<number, string> = { 1: "ICMP", 6: "TCP", 17: "UDP", 58: "ICMPv6" };
-
 /** One record as the cells of the table, keyed by column id. */
 export function recordCells(
   row: DestinationRecord,
@@ -638,7 +669,7 @@ export function recordCells(
   const end = Date.parse(row.window_end);
   const name = (row.protocol_name ?? "").trim().toLowerCase();
   const protocol =
-    PROTOCOL_NAMES[row.protocol] ??
+    PROTOCOL_SHORT[row.protocol] ??
     (name && name !== "other" ? name.toUpperCase() : `Protocol ${row.protocol}`);
   return {
     key: `${row.window_start}|${row.address}|${row.protocol}|${row.port}`,
