@@ -36,7 +36,7 @@ interface BackendTokens {
   refresh_expires_in: number;
 }
 
-interface BackendRoleAssignment {
+export interface BackendRoleAssignment {
   role_id: string;
   role_name: string;
   role_slug: string;
@@ -46,7 +46,7 @@ interface BackendRoleAssignment {
   router_id?: string | null;
 }
 
-interface BackendOrganizationMembership {
+export interface BackendOrganizationMembership {
   organization_id: string;
   organization_name: string;
   organization_slug: string;
@@ -93,7 +93,7 @@ function toTokens(t: BackendTokens): AuthTokens {
   };
 }
 
-function toRoles(roles: BackendRoleAssignment[]): RoleAssignment[] {
+export function toRoles(roles: BackendRoleAssignment[]): RoleAssignment[] {
   return roles.map((r) => ({
     roleId: r.role_id,
     roleName: r.role_name,
@@ -105,7 +105,7 @@ function toRoles(roles: BackendRoleAssignment[]): RoleAssignment[] {
   }));
 }
 
-function toOrganizations(orgs: BackendOrganizationMembership[]): OrganizationMembership[] {
+export function toOrganizations(orgs: BackendOrganizationMembership[]): OrganizationMembership[] {
   return orgs.map((o) => ({
     organizationId: o.organization_id,
     organizationName: o.organization_name,

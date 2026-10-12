@@ -17,6 +17,7 @@
     "test:portal-cna": "node scripts/test-portal-cna-storage-safety.mjs",
     "test:consoles-never-mix": "node scripts/test-consoles-never-mix.mjs",
     "test:impersonation-master-host": "node scripts/test-impersonation-master-host.mjs",
+    "test:impersonation-session": "node scripts/test-impersonation-session.mjs",
     "test:controller-devices": "node scripts/test-controller-devices-service.mjs",
     "test:ap-inventory-honesty": "node scripts/test-ap-inventory-honesty.mjs",
     "test:auth-email-trimmed": "node scripts/test-auth-email-trimmed.mjs",
