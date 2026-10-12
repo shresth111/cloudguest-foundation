@@ -78,6 +78,15 @@ export const arubaInstantOnService = {
     return toInstantOnSitesOverview(data);
   },
 
+  /** Remove one auto-learned venue egress address: the backend deletes it
+   * and re-pushes the NAS's remaining address set to the hub. The registered
+   * address is not removable here (re-register to change it). */
+  async removeLearnedAddress(routerId: string, ipAddress: string): Promise<void> {
+    await api.delete(
+      `/platform/radius/nas/public/${routerId}/learned/${encodeURIComponent(ipAddress)}`,
+    );
+  },
+
   /** §5. Removes the hub stanza through the agent and soft-deletes the row. */
   async deregister(nasId: string): Promise<void> {
     await api.delete(`/radius/nas/${nasId}`);

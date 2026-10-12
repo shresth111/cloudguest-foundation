@@ -45,6 +45,21 @@ export interface ArubaSetupStatus {
   /** Null whenever `gaps` is non-empty. */
   portalUrl: ArubaPortalUrl | null;
   gaps: string[];
+  /** Whether this deployment auto-learns the venue's public egress IPs from
+   * guest portal traffic. Absent on an older backend -> false. */
+  egressLearningEnabled: boolean;
+  /** Auto-learned addresses, each an extra RADIUS client on the hub beside
+   * `nasIp`. Most recently seen first. Absent on an older backend -> []. */
+  learnedAddresses: ArubaLearnedAddress[];
+}
+
+export interface ArubaLearnedAddress {
+  ipAddress: string;
+  source: string;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  hitCount: number;
+  hubConfirmed: boolean;
 }
 
 /** `POST /platform/radius/nas/register-public/{router_id}`, and the rotate
@@ -102,7 +117,23 @@ export function toArubaSetupStatus(raw: any): ArubaSetupStatus {
     gaps: Array.isArray(raw?.gaps)
       ? raw.gaps.filter((g: unknown): g is string => typeof g === "string")
       : [],
+    egressLearningEnabled: raw?.egress_learning_enabled === true,
+    learnedAddresses: toArubaLearnedAddresses(raw?.learned_addresses),
   };
+}
+
+export function toArubaLearnedAddresses(raw: any): ArubaLearnedAddress[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((r) => r && typeof r === "object" && typeof r.ip_address === "string")
+    .map((r) => ({
+      ipAddress: r.ip_address,
+      source: String(r.source ?? ""),
+      firstSeenAt: String(r.first_seen_at ?? ""),
+      lastSeenAt: String(r.last_seen_at ?? ""),
+      hitCount: typeof r.hit_count === "number" ? r.hit_count : 0,
+      hubConfirmed: r.hub_confirmed === true,
+    }));
 }
 
 export function toArubaRegistration(raw: any): ArubaRegistration {
