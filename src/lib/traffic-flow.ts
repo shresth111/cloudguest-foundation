@@ -270,10 +270,7 @@ export function atLeast(text: string, lowerBound: boolean): string {
 const PROTOCOL_BY_NUMBER: Record<number, string> = { 1: "ICMP", 6: "TCP", 17: "UDP", 58: "ICMPv6" };
 
 /** "TCP" / "UDP" / "Protocol 47" / "Other". */
-export function protocolLabel(
-  protocol: number | null | undefined,
-  name?: string | null,
-): string {
+export function protocolLabel(protocol: number | null | undefined, name?: string | null): string {
   const n = (name ?? "").trim();
   if (n && n.toLowerCase() === "other") return "Other";
   if (n) return n.toUpperCase();
@@ -641,7 +638,10 @@ export function lowerBoundNote(
 }
 
 /** The "everything else" line of a bounded list. */
-export function otherAtMostLabel(bytes: number | null | undefined, lowerBound: boolean): string | null {
+export function otherAtMostLabel(
+  bytes: number | null | undefined,
+  lowerBound: boolean,
+): string | null {
   if (!isNum(bytes)) return null;
   return lowerBound ? `at most ${formatBytes(bytes)}` : formatBytes(bytes);
 }
@@ -697,7 +697,10 @@ const BLOCKER_FALLBACK: Record<FlowBlockerCode, string> = {
 
 /** Why Apply is unavailable, one sentence per reason. Empty = it can run.
  * The backend's sentences win; a code without a sentence still gets one. */
-export function applyBlockers(config: RouterFlowConfig | null | undefined, canApply: boolean): string[] {
+export function applyBlockers(
+  config: RouterFlowConfig | null | undefined,
+  canApply: boolean,
+): string[] {
   if (!config) return [];
   const out: string[] = [];
   if (!canApply) out.push("Needs the traffic_flows.update permission.");
