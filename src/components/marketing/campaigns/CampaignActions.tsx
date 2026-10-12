@@ -23,6 +23,7 @@ import {
   useMarketingApi,
 } from "@/hooks/useMarketing";
 import { formatCredits } from "@/lib/marketing-credits";
+import { MIN_SCHEDULE_LEAD_MS, defaultScheduleTime } from "@/lib/marketing-schedule";
 import { marketingErrorCode, marketingErrorData } from "@/services/marketing.service";
 import { isValidGuestEmail } from "@/lib/portal-post-connect";
 import type {
@@ -286,9 +287,7 @@ export function ScheduleDialog({
     setKey(newIdempotencyKey());
     setError(null);
     setSuggested(null);
-    const d = new Date(Date.now() + 60 * 60_000);
-    d.setMinutes(0, 0, 0);
-    setWhen(toLocalInputValue(d));
+    setWhen(toLocalInputValue(defaultScheduleTime(new Date())));
   }, [open]);
 
   const cs = channelStatusFor(status.channels, campaign.channel);
@@ -302,7 +301,8 @@ export function ScheduleDialog({
   const quietApplies = quiet.applies_to.includes(campaign.channel);
 
   const whenDate = when ? new Date(when) : null;
-  const tooSoon = mode === "later" && whenDate && whenDate.getTime() < Date.now() + 5 * 60_000;
+  const tooSoon =
+    mode === "later" && whenDate && whenDate.getTime() < Date.now() + MIN_SCHEDULE_LEAD_MS;
   const tooFar = mode === "later" && whenDate && whenDate.getTime() > Date.now() + 60 * 86_400_000;
 
   const canGo =
