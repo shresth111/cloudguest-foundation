@@ -74,12 +74,15 @@ export type ArubaRedirectKey = (typeof ARUBA_REDIRECT_KEYS)[number];
 export type ArubaPortalRedirect = Partial<Record<ArubaRedirectKey, string | number>>;
 
 /**
- * Where the guest's browser submits the login. Aruba Instant's documented
- * external-captive-portal login (`https://securelogin.arubanetworks.com/
- * cgi-bin/login`). The older IAP path is `/swarm.cgi`; which of the two
- * Instant On 3.4.2 answers is RECON.md §7's first open question.
+ * Where the guest's browser submits the login: `POST https://<host>/swarm.cgi`
+ * with `cmd=authenticate&user&password&url` -- the Aruba Instant external
+ * portal form (flomain.de, "Aruba Instant with External Captive Portal").
+ * Instant On 3.4.2 redirects with `post=captive-2022.aio.cloudauth.net`
+ * (measured 2026-10-03); the AP intercepts that name and turns the POST into
+ * a RADIUS Access-Request. `/cgi-bin/login` was the earlier guess and was
+ * never answered on hardware.
  */
-export const ARUBA_LOGIN_PATH = "/cgi-bin/login" as const;
+export const ARUBA_LOGIN_PATH = "/swarm.cgi" as const;
 
 /**
  * The hosts the AP's own captive-portal virtual host answers on. The name is
@@ -172,6 +175,13 @@ export function captureArubaRedirect(
     } else if (recovered[key] !== undefined) {
       out[key] = recovered[key];
     }
+  }
+  // Instant On 3.4.2 sends the AP login host as `post`, never `switchip`
+  // (measured 2026-10-03). Same allowlist applies downstream
+  // (`arubaLoginTarget`), so this only renames, never trusts.
+  if (out.switchip === undefined) {
+    const post = search.post ?? recovered.post;
+    if (typeof post === "string" || typeof post === "number") out.switchip = post;
   }
   return out;
 }
