@@ -371,7 +371,12 @@ function ConfigDialog({
   }
 
   return (
-    <MDialog open onClose={onClose} title={`${TRAFFIC_FLOW_MODULE_NAME} config — ${router.routerName ?? ""}`} wide>
+    <MDialog
+      open
+      onClose={onClose}
+      title={`${TRAFFIC_FLOW_MODULE_NAME} config — ${router.routerName ?? ""}`}
+      wide
+    >
       <div className="space-y-3 text-sm">
         {error && <Banner tone="error" title={error} />}
         {!preview && !error && <Loader2 className="h-4 w-4 animate-spin" />}
