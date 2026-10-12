@@ -1,5 +1,4 @@
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { CHART_BODY_H } from "@/components/master/chart-layout";
 import {
   FLOW_OTHER_COLOR,
   FLOW_OTHER_KEY,
@@ -8,7 +7,7 @@ import {
   serviceLabel,
   timelineTickLabel,
   type TimelineSlot,
-} from "@/lib/traffic-flow";
+} from "@/lib/traffic-lens-shared";
 import type { FlowTimelineSeries } from "@/types/traffic-flow";
 
 /**
@@ -20,13 +19,15 @@ import type { FlowTimelineSeries } from "@/types/traffic-flow";
  * bar that is not drawn is simply absent. Every step of the range has a slot
  * on the axis (see `timelineSlots`), so a missing step is a visible blank.
  *
- * Not a route file, and reached through `lazy()` from the venue view, so
- * recharts stays off the route's critical path (see PlatformOverviewCharts
- * for the measurements behind that rule).
+ * Shared by the Master venue view and the customer dashboard page. Not a
+ * route file, and reached through `lazy()` from both, so recharts stays off
+ * either route's critical path (see PlatformOverviewCharts for the
+ * measurements behind that rule).
  *
- * Colours are the Master theme's chart tokens in a fixed order. They are one
- * hue, so identity never rests on colour alone: the legend above the plot,
- * the tooltip and the Services table all name each band.
+ * Colours are the calling console's own chart tokens, passed in a fixed
+ * order (`colors`); the Master theme's are one hue. Identity never rests on
+ * colour alone: the legend above the plot, the tooltip and the Services
+ * table all name each band.
  */
 
 const AXIS_TICK = { fontSize: 10, fill: "var(--muted-foreground)" } as const;
@@ -39,18 +40,24 @@ interface Band {
   color: string;
 }
 
-const DIRECTION_BANDS: Band[] = [
-  { key: "down", label: "Download", color: FLOW_SERIES_COLORS[0] },
-  { key: "up", label: "Upload", color: FLOW_SERIES_COLORS[1] },
-];
+/** Plot height. The same number as the Master console's TIMELINE_CHART_H. */
+export const TIMELINE_CHART_H = 220;
 
-function bandsFor(mode: TimelineMode, series: FlowTimelineSeries[]): Band[] {
-  if (mode === "direction") return DIRECTION_BANDS;
+function bandsFor(
+  mode: TimelineMode,
+  series: FlowTimelineSeries[],
+  colors: readonly string[],
+): Band[] {
+  if (mode === "direction")
+    return [
+      { key: "down", label: "Download", color: colors[0] },
+      { key: "up", label: "Upload", color: colors[1] },
+    ];
   return [
-    ...series.slice(0, FLOW_SERIES_COLORS.length).map((s, i) => ({
+    ...series.slice(0, colors.length).map((s, i) => ({
       key: s.key,
       label: serviceLabel(s),
-      color: FLOW_SERIES_COLORS[i],
+      color: colors[i],
     })),
     { key: FLOW_OTHER_KEY, label: "Other", color: FLOW_OTHER_COLOR },
   ];
@@ -112,18 +119,21 @@ function TimelineTooltip({
   );
 }
 
-export function TrafficFlowTimelineChart({
+export function TrafficLensTimelineChart({
   slots,
   series,
   mode,
   rangeMs,
+  colors = FLOW_SERIES_COLORS,
 }: {
   slots: TimelineSlot[];
   series: FlowTimelineSeries[];
   mode: TimelineMode;
   rangeMs: number;
+  /** Band colours in fixed order; at least four. Defaults to the Master set. */
+  colors?: readonly string[];
 }) {
-  const bands = bandsFor(mode, series);
+  const bands = bandsFor(mode, series, colors);
   const rows = rowsFor(mode, slots);
   const drawable =
     mode === "direction" ? slots.some((s) => s.measured) : slots.some((s) => s.services !== null);
@@ -132,7 +142,7 @@ export function TrafficFlowTimelineChart({
     return (
       <div
         className="flex w-full items-center justify-center rounded-lg border border-dashed border-border"
-        style={{ height: CHART_BODY_H }}
+        style={{ height: TIMELINE_CHART_H }}
       >
         <p className="px-4 text-center text-xs text-muted-foreground">
           {mode === "service"
@@ -153,7 +163,7 @@ export function TrafficFlowTimelineChart({
           </li>
         ))}
       </ul>
-      <ResponsiveContainer width="100%" height={CHART_BODY_H}>
+      <ResponsiveContainer width="100%" height={TIMELINE_CHART_H}>
         <BarChart data={rows} margin={{ left: 4, right: 6, top: 6, bottom: 0 }} barCategoryGap={1}>
           <CartesianGrid stroke="var(--border)" vertical={false} />
           <XAxis
