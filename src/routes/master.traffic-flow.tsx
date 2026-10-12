@@ -14,10 +14,12 @@ import {
   MTr,
   M_INPUT,
 } from "@/components/master/MasterKit";
+import { TrafficFlowDestinations } from "@/components/master/TrafficFlowDestinations";
 import { TrafficFlowRouterDrawer } from "@/components/master/TrafficFlowRouterDrawer";
 import { TrafficFlowVenueView } from "@/components/master/TrafficFlowVenueView";
 import { useTrafficFlowStatus } from "@/hooks/useTrafficFlow";
 import { requestErrorOf } from "@/services/api";
+import { flowRange } from "@/services/traffic-flow.service";
 import {
   FLOW_STATE_FILTER_OPTIONS,
   TRAFFIC_FLOW_MODULE_NAME,
@@ -37,7 +39,7 @@ export const Route = createFileRoute("/master/traffic-flow")({
   component: TrafficFlowScreen,
 });
 
-type Tab = "fleet" | "venue";
+type Tab = "fleet" | "venue" | "destinations";
 
 const EMPTY_FILTERS: FleetFilters = { organizationId: "", locationId: "", state: "", q: "" };
 const EMPTY_SCOPE: FlowScope = { window: "1h", locationId: "", routerId: "" };
@@ -55,9 +57,11 @@ const BANNER_CLASS: Record<FlowBanner["tone"], string> = {
  * Both are pinned to GLOBAL on the backend. Operator-only: guest traffic
  * metadata never reaches a customer surface (~/wyfy-ops/netflow/DESIGN.md §7).
  *
- * Two tabs. Fleet (M1) is the current state of every router, from GET
+ * Three tabs. Fleet (M1) is the current state of every router, from GET
  * /status; it has no time range. Venue view (M2) is one venue or router over
- * a range, from GET /summary. The setup drawer (M3) opens from either.
+ * a range, from GET /summary. Destinations is a search over one venue's
+ * destination records, venue-level and audited. The venue and the range are
+ * shared by the last two. The setup drawer (M3) opens from the first two.
  *
  * Honest states, never a zero that reads as "all quiet": the feature off,
  * a router not set up, set up but never heard from, silent, an unsupported
@@ -108,6 +112,7 @@ function TrafficFlowScreen() {
                 options={[
                   { value: "fleet", label: "Fleet" },
                   { value: "venue", label: "Venue view" },
+                  { value: "destinations", label: "Destinations" },
                 ]}
                 value={tab}
                 onChange={setTab}
@@ -302,12 +307,19 @@ function TrafficFlowScreen() {
               </>
             )}
           </section>
-        ) : (
+        ) : tab === "venue" ? (
           <TrafficFlowVenueView
             routers={routers}
             scope={scope}
             onScope={setScope}
             onSetup={setOpenRouter}
+          />
+        ) : (
+          <TrafficFlowDestinations
+            routers={routers}
+            scope={scope}
+            onScope={setScope}
+            rangeAt={(at) => flowRange(scope, at)}
           />
         )}
 
