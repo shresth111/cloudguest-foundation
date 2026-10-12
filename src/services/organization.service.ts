@@ -178,8 +178,23 @@ export const organizationService = {
     await Promise.all(ids.map((id) => api.post(`/organizations/${id}/${endpoint}`)));
   },
 
+  /**
+   * `DELETE /organizations/{id}` -- an ARCHIVE, not a hard delete: the
+   * backend sets status=archived and soft-deletes the row, so it drops out
+   * of `GET /organizations` (which filters `is_deleted`) while its data is
+   * retained. Gated by `organizations.delete`.
+   *
+   * Sent with the same `crossOrganizationHeaders()` as `list()`: a platform
+   * operator acts on the tenant directory, not from inside one tenant. Left
+   * to the default header, an operator who had some *other* customer picked
+   * in the scope picker would send that org's id and the backend's tenant
+   * check would refuse to archive a different org. For an org-scoped
+   * session this returns nothing and the default header applies unchanged.
+   */
   async remove(ids: string[]): Promise<void> {
-    await Promise.all(ids.map((id) => api.delete(`/organizations/${id}`)));
+    await Promise.all(
+      ids.map((id) => api.delete(`/organizations/${id}`, { headers: crossOrganizationHeaders() })),
+    );
   },
 
   async locationCount(id: string): Promise<number> {

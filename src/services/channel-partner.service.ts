@@ -132,4 +132,12 @@ export const channelPartnerService = {
     const { data } = await api.post<BackendChannelPartner>(`/channel-partners/${partnerId}/revoke`);
     return toChannelPartner(data);
   },
+
+  /** Master console -- deletes a channel partner, gated by
+   * channel_partners.delete (GLOBAL). A soft delete on the backend: the
+   * partner drops out of the list, the row is retained. 404s if the partner
+   * does not exist; that rejection carries the backend's own message. */
+  async delete(partnerId: string): Promise<void> {
+    await api.delete<{ message: string }>(`/channel-partners/${partnerId}`);
+  },
 };
