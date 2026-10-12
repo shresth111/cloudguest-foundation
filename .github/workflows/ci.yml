@@ -1476,11 +1476,39 @@ jobs:
       # least", devices / destinations / services stay three separate lists,
       # and a router write is reported by its read-back with an inline
       # confirm. Floor 176, observed green at 176 (was 45).
+      #
+      # And since the customer-dashboard page: every customer state is its
+      # own screen (add-on off, not switched on, equipment cannot report,
+      # stopped, not measured, not yours, failed), no customer file carries a
+      # word about how the data is gathered or imports an operator module,
+      # the page has no control, and destinations withheld under the
+      # small-venue rule are announced. Floor 287, observed green at 287.
       - name: traffic flow page is operator-only and honest
         run: |
           ./scripts/ci-gated-test.sh \
-            "traffic flow" 176 "all traffic flow checks passed" \
+            "traffic flow" 287 "all traffic flow checks passed" \
             bun run test:traffic-flow
+
+      # --- Traffic Lens Destinations: venue-level, audited, honest ---------
+      #
+      # The Destinations search, its CSV download, the custom time range and
+      # the drill-down from a service. A destination record says which
+      # outside address and service a VENUE exchanged traffic with; it never
+      # says which device. This suite fails if a wire type, request
+      # parameter, filter or column ever names a device, a MAC, a guest or a
+      # session.
+      #
+      # Every request also writes an audit row on the server, so the suite
+      # pins that nothing is fetched unasked (no retry, no refetch on focus,
+      # nothing before Search is pressed), and that an unmeasured range, a
+      # withheld range and "nothing matched" are never drawn as the same
+      # empty table. Floor 211, observed green at 211.
+      - name: traffic flow destinations are venue-level and audited
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "traffic flow destinations" 211 \
+            "all traffic flow destination checks passed" \
+            bun run test:traffic-flow-destinations
 
       # --- A venue's floors are the venue's, not a constant ---------------
       #
@@ -1508,10 +1536,16 @@ jobs:
       # collapse into a list of zeros, and an AS name is a network -- never an
       # app, a service or a site. The real component is rendered for every
       # state. Floor 130, observed green at 130.
+      #
+      # And since the customer dashboard's Countries view: it uses the venue
+      # path only, says nothing about how traffic is gathered, and networks
+      # withheld while fewer than five devices are connected are announced
+      # with how much they cover (country totals never are). Floor 190,
+      # observed green at 190.
       - name: traffic lens geo block is attributed and honest
         run: |
           ./scripts/ci-gated-test.sh \
-            "traffic flow geo" 130 "all traffic flow geo checks passed" \
+            "traffic flow geo" 190 "all traffic flow geo checks passed" \
             bun run test:traffic-flow-geo
 
       # --- Campaign results ----------------------------------------------

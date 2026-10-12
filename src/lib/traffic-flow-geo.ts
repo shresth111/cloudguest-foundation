@@ -13,8 +13,15 @@
  *     wherever results are shown, so the attribution is never empty: if the
  *     response's is unusable the built-in one is used.
  *  4. "Other" and "unknown" are their own rows, so the shares add up.
+ *  5. On the customer dashboard, a network withheld under the small-venue
+ *     rule is announced with how much it covers. It is never a missing row
+ *     that reads as "no networks".
+ *
+ * Shared by the Master console and the customer dashboard, so it is held to
+ * the customer rules: no word about how traffic is gathered, and nothing
+ * imported from an operator-only module.
  */
-import { flowBytes, shareBarWidth, shareLabel } from "@/lib/traffic-flow";
+import { flowBytes, shareBarWidth, shareLabel } from "@/lib/traffic-lens-shared";
 import type { FlowGeoCountry, FlowGeoSummary } from "@/types/traffic-flow-geo";
 
 export const GEO_BLOCK_TITLE = "Where traffic goes";
@@ -82,8 +89,15 @@ export interface GeoState {
   body: string;
 }
 
+/** Who is reading. The answers are the same; a customer is not told about
+ * servers and data files. */
+export type GeoAudience = "master" | "customer";
+
 /** Which of the four answers this response is. Only "ok" may show numbers. */
-export function geoState(geo: FlowGeoSummary | null | undefined): GeoState {
+export function geoState(
+  geo: FlowGeoSummary | null | undefined,
+  audience: GeoAudience = "master",
+): GeoState {
   if (geo && geo.feature_enabled === false)
     return {
       kind: "feature_off",
@@ -101,7 +115,16 @@ export function geoState(geo: FlowGeoSummary | null | undefined): GeoState {
       return {
         kind: "not_recorded",
         title: "Country was not recorded for this period.",
-        body: "Traffic in this range was recorded before country data was installed on the server. Newer traffic is being looked up.",
+        body:
+          audience === "customer"
+            ? "Traffic in this period was measured before countries were being recorded. Newer traffic has them."
+            : "Traffic in this range was recorded before country data was installed on the server. Newer traffic is being looked up.",
+      };
+    if (audience === "customer")
+      return {
+        kind: "geo_unavailable",
+        title: "Country information is not available yet.",
+        body: "Traffic was measured, but it has not been placed in a country, and no country is guessed. That is not the same as no traffic.",
       };
     return {
       kind: "geo_unavailable",
@@ -138,6 +161,9 @@ export interface GeoCountryRow {
   networksOther: string | null;
   /** "3.1 MB" whose network is not in the data; null when none. */
   networksUnknown: string | null;
+  /** Customer only: "8.2 MB" in periods with too few devices, where no
+   * network is named; null when none. */
+  networksWithheld: string | null;
   expandable: boolean;
 }
 
@@ -165,6 +191,8 @@ function countryRow(item: FlowGeoCountry): GeoCountryRow {
   const unknown = item.networks?.unknown_bytes;
   const networksOther = isNum(other) && other > 0 ? flowBytes(other) : null;
   const networksUnknown = isNum(unknown) && unknown > 0 ? flowBytes(unknown) : null;
+  const withheld = item.networks?.withheld_bytes;
+  const networksWithheld = isNum(withheld) && withheld > 0 ? flowBytes(withheld) : null;
   return {
     key: item.country_code,
     code: item.country_code,
@@ -177,7 +205,9 @@ function countryRow(item: FlowGeoCountry): GeoCountryRow {
     networks,
     networksOther,
     networksUnknown,
-    expandable: networks.length > 0 || !!networksOther || !!networksUnknown,
+    networksWithheld,
+    // Withheld alone still opens: the row must be able to say why it is empty.
+    expandable: networks.length > 0 || !!networksOther || !!networksUnknown || !!networksWithheld,
   };
 }
 
@@ -231,9 +261,35 @@ export function geoCoverageNote(geo: FlowGeoSummary | null | undefined): string 
 
 /** Said when stored results are shown but the server can no longer look
  * new traffic up. */
-export function geoStaleNote(geo: FlowGeoSummary | null | undefined): string | null {
+export function geoStaleNote(
+  geo: FlowGeoSummary | null | undefined,
+  audience: GeoAudience = "master",
+): string | null {
   if (geoState(geo).kind !== "ok" || geo?.geo_available !== false) return null;
-  return "Country data is no longer available on this server. These figures were looked up when the traffic was recorded; traffic arriving now is not being looked up.";
+  return audience === "customer"
+    ? "Countries are not being recorded for new traffic at the moment. These figures are from when they were."
+    : "Country data is no longer available on this server. These figures were looked up when the traffic was recorded; traffic arriving now is not being looked up.";
+}
+
+/** The sentence a withheld network list is replaced by. */
+export function geoNetworksWithheldSentence(minDevices: number | null | undefined): string {
+  const n = isNum(minDevices) && minDevices > 0 ? Math.trunc(minDevices) : 5;
+  return `Networks are not shown while fewer than ${n} devices are connected`;
+}
+
+/** Customer dashboard: what the small-venue rule did in this period. Null
+ * when no rule applies (the Master console) or nothing was withheld.
+ * Country totals are never withheld, and this says so. */
+export function geoWithheldNote(geo: FlowGeoSummary | null | undefined): string | null {
+  if (geoState(geo).kind !== "ok" || !geo) return null;
+  const min = geo.networks_min_devices;
+  const withheld = geo.networks_withheld_windows;
+  if (!isNum(min) || min <= 0 || !isNum(withheld) || withheld <= 0) return null;
+  const sentence = geoNetworksWithheldSentence(min);
+  if (isNum(geo.windows_measured) && withheld >= geo.windows_measured)
+    return `${sentence}, which was the case for this whole period. Country totals are complete.`;
+  const of = isNum(geo.windows_measured) ? ` of ${geo.windows_measured}` : "";
+  return `${sentence}: that was ${withheld}${of} five-minute periods here. Their traffic is in each country's total and under no network.`;
 }
 
 /** The link the licence requires. Never empty, and only ever an https link:

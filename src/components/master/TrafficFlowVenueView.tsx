@@ -12,9 +12,12 @@ import {
 } from "@/components/master/MasterKit";
 import { CHART_BODY_H } from "@/components/master/chart-layout";
 import { TrafficFlowGeoBlock } from "@/components/master/TrafficFlowGeoBlock";
+import { TrafficFlowRangeControl } from "@/components/master/TrafficFlowRangeControl";
+import { TrafficFlowServiceDestinations } from "@/components/master/TrafficFlowServiceDestinations";
 import { useFlowGeo, useFlowSummary } from "@/hooks/useTrafficFlow";
 import { requestErrorOf } from "@/services/api";
-import { FLOW_WINDOW_MS } from "@/services/traffic-flow.service";
+import { flowRange, flowRangeMs } from "@/services/traffic-flow.service";
+import { serviceFromKey } from "@/lib/traffic-flow-destinations";
 import {
   NOT_COUNTED_ITEMS,
   NOT_MEASURED,
@@ -38,22 +41,15 @@ import {
   timelineSlots,
   totalsView,
 } from "@/lib/traffic-flow";
-import type { TimelineMode } from "@/components/master/TrafficFlowTimelineChart";
-import type { FlowScope, FlowWindow, RouterFlowStatus } from "@/types/traffic-flow";
+import type { TimelineMode } from "@/components/traffic-lens/TrafficLensTimelineChart";
+import type { FlowScope, RouterFlowStatus } from "@/types/traffic-flow";
 
 // recharts stays behind a dynamic import (see PlatformOverviewCharts).
 const TrafficFlowTimelineChart = lazy(() =>
-  import("@/components/master/TrafficFlowTimelineChart").then((m) => ({
-    default: m.TrafficFlowTimelineChart,
+  import("@/components/traffic-lens/TrafficLensTimelineChart").then((m) => ({
+    default: m.TrafficLensTimelineChart,
   })),
 );
-
-const WINDOWS: { value: FlowWindow; label: string }[] = [
-  { value: "1h", label: "1 h" },
-  { value: "6h", label: "6 h" },
-  { value: "24h", label: "24 h" },
-  { value: "7d", label: "7 d" },
-];
 
 /**
  * Master -> Traffic Lens -> venue view (screen M2), from GET /summary.
@@ -63,9 +59,13 @@ const WINDOWS: { value: FlowWindow; label: string }[] = [
  * service is a protocol and a port with the port's IANA label; this screen
  * never names an application.
  *
+ * A service row opens that service's destinations for the VENUE (outside
+ * addresses with shares): see TrafficFlowServiceDestinations. That is the one
+ * pairing there is, and it has no device in it.
+ *
  * Below it, top devices and top destinations as two SEPARATE lists. Nothing
- * here places a device beside a destination or a service, there is no
- * drill-down from one list into another, and the API holds no such pairing.
+ * here places a device beside a destination or a service, there is no way
+ * from a device into either, and the API holds no such pairing.
  *
  * Then "Where traffic goes" (TrafficFlowGeoBlock): countries, and the
  * networks inside a country. A fourth independent list -- it holds no
@@ -89,6 +89,8 @@ export function TrafficFlowVenueView({
   const [organizationId, setOrganizationId] = useState("");
   const [at, setAt] = useState(() => Date.now());
   const [mode, setMode] = useState<TimelineMode>("service");
+  /** The service row whose destinations are open, as its "<protocol>/<port>" key. */
+  const [opened, setOpened] = useState<{ key: string; label: string } | null>(null);
   const q = useFlowSummary(scope, at);
   const s = q.data;
   // By country: its own request for the same pinned range, and only once
@@ -121,6 +123,7 @@ export function TrafficFlowVenueView({
 
   const set = (patch: Partial<FlowScope>) => {
     setAt(Date.now());
+    setOpened(null);
     onScope({ ...scope, ...patch });
   };
 
@@ -130,7 +133,7 @@ export function TrafficFlowVenueView({
   const noServiceSteps = slots.filter((x) => x.measured && !x.servicesMeasured).length;
   const services = servicesView(s);
   const protocols = protocolRows(s);
-  const rangeMs = FLOW_WINDOW_MS[scope.window];
+  const rangeMs = flowRangeMs(scope);
 
   return (
     <section className="mt-6 space-y-5">
@@ -182,8 +185,15 @@ export function TrafficFlowVenueView({
             </option>
           ))}
         </select>
-        <MSeg options={WINDOWS} value={scope.window} onChange={(w) => set({ window: w })} />
-        <MButton variant="outline" disabled={!picked} onClick={() => setAt(Date.now())}>
+        <TrafficFlowRangeControl scope={scope} onChange={set} />
+        <MButton
+          variant="outline"
+          disabled={!picked}
+          onClick={() => {
+            setOpened(null);
+            setAt(Date.now());
+          }}
+        >
           <RefreshCw /> Refresh
         </MButton>
       </div>
@@ -312,6 +322,7 @@ export function TrafficFlowVenueView({
                             <MTh>Average rate</MTh>
                             <MTh>Download</MTh>
                             <MTh>Upload</MTh>
+                            <MTh />
                           </>
                         }
                       >
@@ -334,6 +345,23 @@ export function TrafficFlowVenueView({
                               <MTd className="text-xs tabular-nums">{r.rate}</MTd>
                               <MTd className="text-xs tabular-nums">{r.down}</MTd>
                               <MTd className="text-xs tabular-nums">{r.up}</MTd>
+                              <MTd className="text-right">
+                                {serviceFromKey(r.key) && (
+                                  <MButton
+                                    variant={opened?.key === r.key ? "primary" : "outline"}
+                                    aria-expanded={opened?.key === r.key}
+                                    onClick={() =>
+                                      setOpened(
+                                        opened?.key === r.key
+                                          ? null
+                                          : { key: r.key, label: r.label },
+                                      )
+                                    }
+                                  >
+                                    Destinations
+                                  </MButton>
+                                )}
+                              </MTd>
                             </MTr>
                           ),
                         )}
@@ -367,6 +395,16 @@ export function TrafficFlowVenueView({
                     )}
                   </div>
                 </div>
+                {opened && (
+                  <TrafficFlowServiceDestinations
+                    key={`${opened.key}@${at}`}
+                    scope={scope}
+                    range={flowRange(scope, at)}
+                    serviceKey={opened.key}
+                    label={opened.label}
+                    onClose={() => setOpened(null)}
+                  />
+                )}
               </Block>
 
               <div className="grid gap-4 xl:grid-cols-2">

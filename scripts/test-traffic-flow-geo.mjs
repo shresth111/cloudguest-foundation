@@ -18,7 +18,12 @@
  *   4. THE SHARES ADD UP. "Other countries" and "Country not known" are
  *      their own rows; inside a country, "other" and "not known" networks
  *      are stated.
- *   5. NO MAP, NO FIXTURES, NO CUSTOMER SURFACE.
+ *   5. NO MAP, NO FIXTURES. The Master block stays a Master file.
+ *   6. THE CUSTOMER VIEW (Traffic Lens -> Countries) keeps the customer
+ *      rules: the venue path only, no word about how traffic is gathered,
+ *      nothing imported from an operator module, and networks withheld at a
+ *      small venue are announced with how much they cover -- country totals
+ *      are never withheld.
  *
  * Bundles the real modules with esbuild and executes them, and renders the
  * real component to static markup (this repo has no test runner -- see
@@ -59,6 +64,11 @@ writeFileSync(
    export { flowGeoParams, flowSummaryParams }
      from "${p("src/services/traffic-flow.service.ts")}";
    export { TrafficFlowGeoBlock } from "${p("src/components/master/TrafficFlowGeoBlock.tsx")}";
+   export { TrafficLensGeoTable } from "${p("src/components/traffic-lens/TrafficLensGeo.tsx")}";
+   export { lensGeoParams, lensSummaryParams, trafficLensService }
+     from "${p("src/services/traffic-lens.service.ts")}";
+   export { LENS_VIEWS } from "${p("src/lib/traffic-lens-customer.ts")}";
+   export { apiCalls } from "@/services/api";
    export { createElement } from "react";
    export { renderToStaticMarkup } from "react-dom/server";`,
 );
@@ -87,7 +97,28 @@ await build({
           namespace: "stub",
         }));
         b.onLoad({ filter: /^api$/, namespace: "stub" }, () => ({
-          contents: "export const api = {}; export default api;",
+          contents: `
+            export const apiCalls = [];
+            export const api = {
+              get: async (url, config) => {
+                apiCalls.push({ url, config });
+                return { data: { measured: false } };
+              },
+            };
+            export const requestErrorOf = () => null;
+            export const requestErrorMessage = (_e, fallback) => fallback;
+            export const resolveActiveOrganizationId = () => "o1";
+            export default api;`,
+          loader: "js",
+        }));
+        // The customer view's container asks through a react-query hook;
+        // only the table it renders is exercised here.
+        b.onResolve({ filter: /^@\/hooks\/useTrafficLens$/ }, () => ({
+          path: "lens-hook",
+          namespace: "stub",
+        }));
+        b.onLoad({ filter: /^lens-hook$/, namespace: "stub" }, () => ({
+          contents: "export const useTrafficLensGeo = () => ({ isLoading: true });",
           loader: "js",
         }));
         // The Master table kit pulls in the whole shell; plain table parts
@@ -578,9 +609,12 @@ eq(
   ["src/components/master/TrafficFlowVenueView.tsx"],
 );
 eq(
-  "only the block reads the geo wording module",
+  "only the two geo views read the geo wording module",
   users(/lib\/traffic-flow-geo/, "src/lib/traffic-flow-geo.ts"),
-  ["src/components/master/TrafficFlowGeoBlock.tsx"],
+  [
+    "src/components/master/TrafficFlowGeoBlock.tsx",
+    "src/components/traffic-lens/TrafficLensGeo.tsx",
+  ],
 );
 eq(
   "only the hook asks for geo",
@@ -595,6 +629,293 @@ check(
   "no country list shipped in the app (names come from Intl.DisplayNames)",
   /new Intl\.DisplayNames\(\["en"\], \{ type: "region" \}\)/.test(lib) &&
     !/"India"|"United States"/.test(lib),
+);
+
+// ---------------------------------------------------------------------------
+console.log("\ncustomer dashboard: the Countries view");
+const renderLens = (props) =>
+  m.renderToStaticMarkup(
+    m.createElement(m.TrafficLensGeoTable, { loading: false, error: null, ...props }),
+  );
+/** The customer shape: no platform switch, the venue, and the rule fields. */
+const lensGeo = (over = {}) => {
+  const { feature_enabled: _omit, ...rest } = geo();
+  return {
+    ...rest,
+    location_id: "l1",
+    networks_min_devices: 5,
+    networks_withheld_windows: 0,
+    ...over,
+  };
+};
+/** India: 400 MB of its networks' traffic was in small periods. */
+const withheldCountries = (() => {
+  const base = geo().countries;
+  const [india, usa] = base.items;
+  return {
+    ...base,
+    items: [
+      {
+        ...india,
+        networks: { ...india.networks, items: [india.networks.items[0]], withheld_bytes: 73400320 },
+      },
+      {
+        ...usa,
+        networks: { items: [], other_bytes: 0, unknown_bytes: 0, withheld_bytes: usa.bytes },
+      },
+    ],
+  };
+})();
+const LENS_WITHHELD = lensGeo({ networks_withheld_windows: 3, countries: withheldCountries });
+
+eq(
+  "the customer shape without the platform switch is a result",
+  m.geoState(lensGeo(), "customer").kind,
+  "ok",
+);
+eq(
+  "customer: geo unavailable is still its own answer",
+  m.geoState({ ...GEO_UNAVAILABLE, feature_enabled: undefined }, "customer").kind,
+  "geo_unavailable",
+);
+{
+  const s = m.geoState(GEO_UNAVAILABLE, "customer");
+  check(
+    "customer: unavailable says no country is guessed, and not 'no traffic'",
+    /no country is guessed/.test(s.body) && /not the same as no traffic/.test(s.body),
+  );
+  check(
+    "customer: no talk of servers or data files",
+    !/server|data file|installed/i.test(
+      s.title +
+        s.body +
+        m.geoState(NOT_RECORDED, "customer").body +
+        m.geoStaleNote(geo({ geo_available: false, source: null }), "customer"),
+    ),
+  );
+}
+eq(
+  "the views end with Countries",
+  m.LENS_VIEWS.map((v) => v.id),
+  ["overview", "destinations", "geo"],
+);
+eq("the view's label", m.LENS_VIEWS.find((v) => v.id === "geo").label, "Countries");
+
+console.log("\ncustomer dashboard: networks at a small venue");
+eq("nothing withheld: no note", m.geoWithheldNote(lensGeo()), null);
+eq("Master response: no note", m.geoWithheldNote(geo()), null);
+check(
+  "some periods withheld: says how many, and that totals are whole",
+  /fewer than 5 devices are connected: that was 3 of 12 five-minute periods/.test(
+    m.geoWithheldNote(LENS_WITHHELD),
+  ) && /in each country's total and under no network/.test(m.geoWithheldNote(LENS_WITHHELD)),
+);
+check(
+  "every period withheld: one sentence for the block",
+  /whole period\. Country totals are complete\./.test(
+    m.geoWithheldNote(lensGeo({ networks_withheld_windows: 12 })),
+  ),
+);
+eq(
+  "no note without a result",
+  m.geoWithheldNote({ ...NOT_MEASURED, networks_min_devices: 5, networks_withheld_windows: 4 }),
+  null,
+);
+eq(
+  "the threshold in the sentence is the API's",
+  m.geoNetworksWithheldSentence(8),
+  "Networks are not shown while fewer than 8 devices are connected",
+);
+{
+  const lensRows = m.geoCountryRows(LENS_WITHHELD);
+  eq(
+    "country totals are untouched by the rule",
+    lensRows.map((r) => r.bytes),
+    ["587 MB", "105 MB"],
+  );
+  eq("a country's withheld amount is stated", lensRows[0].networksWithheld, "73.4 MB");
+  eq(
+    "only the shown networks are listed",
+    lensRows[0].networks.map((n) => n.name),
+    ["Example Mobile Ltd"],
+  );
+  check(
+    "a country with every network withheld still opens, to say why",
+    lensRows[1].networks.length === 0 && lensRows[1].expandable === true,
+  );
+  eq(
+    "the Master rows carry no withheld amount",
+    m.geoCountryRows(geo()).map((r) => r.networksWithheld),
+    [null, null],
+  );
+}
+
+console.log("\ncustomer dashboard: the rendered view");
+{
+  const html = renderLens({ geo: LENS_WITHHELD });
+  const text = textOf(html);
+  check("ok: lists the countries with shares", /India/.test(text) && /80%/.test(text));
+  check(
+    "ok: other and unknown rows",
+    /Other countries/.test(text) && /Country not known/.test(text),
+  );
+  check("ok: attribution link", html.includes(LINK) && /IP Geolocation by DB-IP/.test(text));
+  check("ok: the withheld note is printed", /that was 3 of 12 five-minute periods/.test(text));
+  check("ok: says the country is an estimate", /estimate from the address/.test(text));
+  check(
+    "ok: countries open with a real button",
+    /<button type="button" aria-expanded="false"/.test(html),
+  );
+  check("ok: networks are closed until opened", !/Example Mobile Ltd/.test(text));
+}
+for (const [name, payload, title] of [
+  ["not measured", NOT_MEASURED, "Not measured for this period."],
+  ["geo unavailable", GEO_UNAVAILABLE, "Country information is not available yet."],
+  ["not recorded", NOT_RECORDED, "Country was not recorded for this period."],
+]) {
+  const html = renderLens({ geo: lying(payload) });
+  const text = textOf(html);
+  check(`customer ${name}: says so`, text.includes(title));
+  check(
+    `customer ${name}: no table, no country, no number`,
+    !/<table/.test(html) && !/India|\d+ ?MB|\d%/.test(text),
+  );
+  check(`customer ${name}: attribution link still rendered`, html.includes(LINK));
+}
+{
+  const text = textOf(renderLens({ geo: lensGeo(MEASURED_ZERO) }));
+  check(
+    "customer measured zero: its own sentence",
+    /No traffic to outside addresses in this period\./.test(text) && !/Not measured/.test(text),
+  );
+}
+{
+  const text = textOf(renderLens({ geo: undefined, error: "The country breakdown did not load." }));
+  check(
+    "customer failed request: a failure, not an empty list",
+    /Couldn't load countries for this period\./.test(text) &&
+      /an error is not an empty list/.test(text),
+  );
+}
+check(
+  "customer loading: a placeholder only",
+  /animate-pulse/.test(renderLens({ geo: undefined, loading: true })),
+);
+
+console.log("\ncustomer dashboard: request and surface rules");
+{
+  const preset = { kind: "preset", window: "24h" };
+  const gp = m.lensGeoParams(preset, NOW);
+  const sp = m.lensSummaryParams(preset, NOW);
+  eq("same bounds as the customer summary", [gp.since, gp.until], [sp.since, sp.until]);
+  eq("list sizes; the venue is not a parameter", Object.keys(gp).sort(), [
+    "limit",
+    "networks",
+    "since",
+    "until",
+  ]);
+  const custom = {
+    kind: "custom",
+    since: "2026-10-11T10:00:00.000Z",
+    until: "2026-10-11T12:30:00.000Z",
+  };
+  eq(
+    "a custom period is sent as given",
+    [m.lensGeoParams(custom, NOW).since, m.lensGeoParams(custom, NOW).until],
+    [custom.since, custom.until],
+  );
+  m.apiCalls.length = 0;
+  await m.trafficLensService.geo("l 1", gp);
+  check(
+    "the customer service uses the venue path",
+    m.apiCalls[0].url === "/traffic-flow/locations/l%201/geo" && m.apiCalls[0].config.params === gp,
+    JSON.stringify(m.apiCalls[0]),
+  );
+  const masterCustom = m.flowGeoParams(
+    {
+      window: "1h",
+      locationId: "l1",
+      routerId: "",
+      custom: { since: custom.since, until: custom.until },
+    },
+    NOW,
+  );
+  eq(
+    "Master: a custom period is sent as given",
+    [masterCustom.since, masterCustom.until],
+    [custom.since, custom.until],
+  );
+}
+const lensGeoView = read("src/components/traffic-lens/TrafficLensGeo.tsx");
+const lensPage = read("src/components/traffic-lens/TrafficLensView.tsx");
+const lensService = read("src/services/traffic-lens.service.ts");
+const lensHook = read("src/hooks/useTrafficLens.ts");
+for (const f of [
+  "src/components/traffic-lens/TrafficLensGeo.tsx",
+  // Shared with the Master console, so held to the customer rules too.
+  "src/lib/traffic-flow-geo.ts",
+  "src/types/traffic-flow-geo.ts",
+]) {
+  const src = strip(read(f));
+  const hit = src.match(
+    /wireguard|tunnel|exporter|collector|netflow|ipfix|routeros|mikrotik|read-back/i,
+  );
+  check(`${f}: no word about how it is gathered`, !hit, hit ? hit[0] : "");
+  check(
+    `${f}: imports nothing operator-only`,
+    !/lib\/traffic-flow"|traffic-flow\.service|hooks\/useTrafficFlow|components\/master\/|\/platform\//.test(
+      src,
+    ),
+  );
+  check(
+    `${f}: imports nothing about devices, guests or sessions`,
+    !/from "[^"]*(guest|session|device|connected|mac-)[^"]*"/i.test(src),
+  );
+}
+check(
+  "the customer view reads as a customer",
+  /geoState\(geo, "customer"\)/.test(lensGeoView) &&
+    /geoStaleNote\(geo, "customer"\)/.test(lensGeoView),
+);
+check(
+  "the customer view never calls a network anything else",
+  !/application/i.test(strip(lensGeoView)) && /\{GEO_NETWORK_HEADING\}/.test(lensGeoView),
+);
+check(
+  "the customer view renders the attribution link safely",
+  /geoAttribution\(geo\)/.test(lensGeoView) &&
+    /href=\{attribution\.url\}/.test(lensGeoView) &&
+    /rel="noopener noreferrer"/.test(lensGeoView) &&
+    !/dangerouslySetInnerHTML/.test(lensGeoView),
+);
+check(
+  "withheld networks are announced per country and for the block",
+  /row\.networksWithheld/.test(lensGeoView) && /geoWithheldNote\(geo\)/.test(lensGeoView),
+);
+check(
+  "the customer view has no control and no map",
+  !/<Switch|<svg|<path|recharts/.test(lensGeoView),
+);
+check(
+  "the page shows it as a view, with the page's own period",
+  /view === "geo" && \(\s*<TrafficLensGeo/.test(lensPage) &&
+    /range=\{range\}\s*at=\{at\}/.test(lensPage),
+);
+check("the customer service only reads", !/api\.(post|put|patch|delete)/.test(lensService));
+check(
+  "the request waits for its view and a venue, and a refusal is not retried",
+  /queryKey: trafficLensKeys\.geo\(resolveActiveOrganizationId\(\), locationId, range, at\)/.test(
+    lensHook,
+  ) && /enabled: enabled && !!locationId,\s*retry: retryUnlessRefused/.test(lensHook),
+);
+eq(
+  "only the customer page renders the customer view",
+  users(/<TrafficLensGeo\b/, "src/components/traffic-lens/TrafficLensGeo.tsx"),
+  ["src/components/traffic-lens/TrafficLensView.tsx"],
+);
+check(
+  "no fixture data in the customer files",
+  !/192\.168\.|10\.20\.0\.|Example Mobile|64500/.test(lensGeoView + lensService + lensHook),
 );
 
 console.log(

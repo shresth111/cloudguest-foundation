@@ -32,6 +32,9 @@ export interface FlowGeoCountry extends FlowGeoVolume {
     other_bytes: number;
     /** In this country, network not in the data. */
     unknown_bytes: number;
+    /** Customer responses only: this country's traffic in windows with too
+     * few devices. In the country's total, under no network. */
+    withheld_bytes?: number;
   } | null;
 }
 
@@ -43,7 +46,14 @@ export interface FlowGeoAttribution {
 }
 
 export interface FlowGeoSummary {
-  feature_enabled: boolean;
+  /** Absent on a customer response: the platform switch is not theirs. */
+  feature_enabled?: boolean;
+  /** Customer responses only. */
+  location_id?: string;
+  /** Customer responses only: the small-venue threshold for networks. */
+  networks_min_devices?: number;
+  /** Customer responses only: looked-up windows whose networks are withheld. */
+  networks_withheld_windows?: number;
   /** false = no traffic window in the range at all. */
   measured: boolean;
   /** The server has the country data files NOW. */

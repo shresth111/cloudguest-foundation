@@ -36,13 +36,31 @@ export const FLOW_WINDOW_MS: Record<FlowWindow, number> = {
  * getting an invented colour. */
 export const FLOW_TIMELINE_SERIES = 4;
 
+/** The range a scope means, as the explicit instants every request sends.
+ * A custom range is used as given; a preset ends at `now`. One function, so
+ * the summary, the Destinations search and the drill-down can never describe
+ * different ranges. */
+export function flowRange(scope: FlowScope, now: number): { since: string; until: string } {
+  if (scope.custom) return { since: scope.custom.since, until: scope.custom.until };
+  return {
+    since: new Date(now - FLOW_WINDOW_MS[scope.window]).toISOString(),
+    until: new Date(now).toISOString(),
+  };
+}
+
+/** Length of that range in milliseconds (for the timeline's tick labels). */
+export function flowRangeMs(scope: FlowScope): number {
+  if (!scope.custom) return FLOW_WINDOW_MS[scope.window];
+  const ms = Date.parse(scope.custom.until) - Date.parse(scope.custom.since);
+  return Number.isFinite(ms) && ms > 0 ? ms : FLOW_WINDOW_MS[scope.window];
+}
+
 /** Query params for GET /summary. The window is turned into explicit
  * `since`/`until` at request time so every block on the screen describes the
  * same range. Both ids are sent when both are picked (the API allows it). */
 export function flowSummaryParams(scope: FlowScope, now: number): Record<string, string> {
   const params: Record<string, string> = {
-    since: new Date(now - FLOW_WINDOW_MS[scope.window]).toISOString(),
-    until: new Date(now).toISOString(),
+    ...flowRange(scope, now),
     limit: "10",
     series: String(FLOW_TIMELINE_SERIES),
   };
@@ -56,8 +74,7 @@ export function flowSummaryParams(scope: FlowScope, now: number): Record<string,
  * does. */
 export function flowGeoParams(scope: FlowScope, now: number): Record<string, string> {
   const params: Record<string, string> = {
-    since: new Date(now - FLOW_WINDOW_MS[scope.window]).toISOString(),
-    until: new Date(now).toISOString(),
+    ...flowRange(scope, now),
     limit: "10",
     networks: "5",
   };

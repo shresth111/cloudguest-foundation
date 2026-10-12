@@ -447,6 +447,8 @@ export function MSeg<T extends string>({
       {options.map((o) => (
         <button
           key={o.value}
+          // A segment never submits a form it happens to sit in.
+          type="button"
           onClick={() => onChange(o.value)}
           className={cn(
             "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",

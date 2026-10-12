@@ -126,6 +126,11 @@ export const NAV_PERMISSION_KEYS: Record<string, readonly string[]> = {
   "port-forwarding": ["firewall.read"],
   voip: ["qos.read"],
   "isp-details": ["isp.read"],
+  // Traffic Lens (paid add-on). `venue_traffic.read` is the one action the
+  // backend's VENUE_TRAFFIC module seeds, held by Organization Owner only
+  // among customer roles (API.md, "Customer API"). Whether the add-on is
+  // unlocked is entitlements, not permissions -- see `marketing` above.
+  "traffic-lens": ["venue_traffic.read"],
   // Security: one key, and it is the only action the backend's SECURITY
   // module seeds today (`MODULE_ACTIONS[PermissionModule.SECURITY] ==
   // (READ,)`). The write actions arrive with the endpoints that check them,
