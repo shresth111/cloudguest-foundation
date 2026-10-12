@@ -1345,6 +1345,32 @@ jobs:
             "data-limit-rules" 23 "all data-limit rule checks passed" \
             bun run test:data-limit-rules
 
+      # --- Total venue speed, and the form opening on saved limits ---------
+      #
+      # Same rule as the step above, for the control added beside Bandwidth:
+      # the real `bandwidthPolicyService` is bundled and run against a fake
+      # policy backend, with exactly the object Guest WiFi Limits builds.
+      #
+      # What it holds in place: "No limit" leaves as null and never as 0 (on
+      # the per-guest keys 0 means unlimited; on the venue keys it would mean
+      # a venue that may use nothing); a save from a screen that has never
+      # heard of the field -- Access Tiers, the bandwidth policy manager, or a
+      # greyed control here -- carries the stored pair forward instead of
+      # publishing a version without it; a value the server did not keep is
+      # reported rather than shown; and the form opens on the chosen venue's
+      # saved limits. That last one loads a policy shaped like the live venue
+      # whose form read "Choose bandwidth" over a saved 40 Mbps.
+      #
+      # It also pins that Queue Management no longer offers organization,
+      # location or router assignments, which were saved and never enforced.
+      #
+      # Floor 137, observed green at 137.
+      - name: Venue speed cap
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "venue-speed-cap" 137 "all venue-speed-cap checks passed" \
+            bun run test:venue-speed-cap
+
       # --- One setting, one screen ---------------------------------------
       #
       # A QA pass found two customer-dashboard settings on two screens each.

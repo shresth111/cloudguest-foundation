@@ -90,6 +90,7 @@
  *          sentence here claims a block cuts a live guest off.
  */
 import { isNasOnlyVendor } from "@/lib/router-vendors";
+import { VENUE_SPEED_UNAVAILABLE } from "@/lib/venue-speed-cap";
 
 // ---------------------------------------------------------------------------
 // The controls.
@@ -111,6 +112,8 @@ export type ClientControlId =
   | "block-device"
   /** Access Rules -> Guest WiFi Limits -> the venue's guest speed. */
   | "speed-limit"
+  /** Access Rules -> Guest WiFi Limits -> the most all guests use together. */
+  | "venue-speed-limit"
   /** Access Rules -> Access Tiers -> a tier's own speed. */
   | "speed-profile"
   /** Access Rules -> session timeout, on either of those two tabs. */
@@ -121,6 +124,7 @@ export const CLIENT_CONTROL_IDS: readonly ClientControlId[] = [
   "block-signin",
   "block-device",
   "speed-limit",
+  "venue-speed-limit",
   "speed-profile",
   "session-timeout",
 ];
@@ -240,6 +244,17 @@ export interface ControllerClientCapabilities {
    */
   disconnect: ControllerClientCapability;
   clientStats: ControllerClientCapability;
+  /**
+   * Hold ALL of a venue's guests to one combined total (`venue_rate_limit`).
+   *
+   * Not a per-client action like the seven above, but it is the same kind of
+   * fact -- "can this venue's hardware do it" -- and it is read from the same
+   * place so there is one ladder. A backend that predates the field does not
+   * send it, and `toCapability` reads a missing capability as unsupported:
+   * at a controller venue the control stays greyed until the backend says
+   * otherwise, never the other way round.
+   */
+  venueRateLimit: ControllerClientCapability;
 }
 
 /** True only when the backend said so. Anything else -- no answer, a missing
@@ -632,6 +647,18 @@ export function clientControlVerdict(
       };
     }
 
+    // -----------------------------------------------------------------
+    // The venue total. A router venue never reaches this switch (first line
+    // of the function), so this is only ever a controller's answer, and it is
+    // yes only when the backend declared it. One fixed sentence either way:
+    // "we could not ask" and "it cannot" are the same thing to an owner
+    // looking at a greyed optional field, and neither needs a paragraph.
+    // -----------------------------------------------------------------
+    case "venue-speed-limit": {
+      if (capabilityIsSupported(capabilities?.venueRateLimit)) return AVAILABLE(control);
+      return { control, availability: "unavailable", reason: VENUE_SPEED_UNAVAILABLE };
+    }
+
     case "speed-profile": {
       if (capabilityIsSupported(capabilities?.setRateLimit)) {
         // Worth saying even when it works, because the SHAPE differs from
@@ -742,6 +769,8 @@ function nasOnlyControlVerdict(control: ClientControlId): ClientControlVerdict {
     case "speed-limit":
     case "speed-profile":
       return { control, availability: "unavailable", reason: NAS_ONLY_SPEED };
+    case "venue-speed-limit":
+      return { control, availability: "unavailable", reason: VENUE_SPEED_UNAVAILABLE };
     case "session-timeout":
       return { control, availability: "qualified", reason: NAS_ONLY_SESSION_TIMEOUT };
   }
