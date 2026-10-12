@@ -373,8 +373,14 @@ export const locationService = {
         locationCode: `LOC-DEMO-${Math.floor(Math.random() * 9000 + 1000)}`,
         planId: payload.planId,
         planName: "Demo Plan",
-        routerId: payload.router ? `router-demo-${Date.now()}` : null,
-        routerName: payload.router?.name ?? null,
+        routerId: payload.router || payload.instantOnSite ? `router-demo-${Date.now()}` : null,
+        routerName: payload.router?.name ?? payload.instantOnSite?.name ?? null,
+        routerVendor: payload.router
+          ? "mikrotik"
+          : payload.instantOnSite
+            ? "aruba_instant_on"
+            : null,
+        instantOnSiteId: payload.instantOnSite?.instant_on_site_id ?? null,
         ownerUserId: `user-demo-${Date.now()}`,
         ownerName: `${payload.owner.firstName} ${payload.owner.lastName}`,
         ownerUsername: payload.owner.email.split("@")[0],
@@ -395,6 +401,8 @@ export const locationService = {
       // Nullable (or absent) when the request carried no router.
       router_id?: string | null;
       router_name?: string | null;
+      router_vendor?: string | null;
+      instant_on_site_id?: string | null;
       owner_user_id: string;
       owner_name: string;
       owner_username: string;
@@ -455,6 +463,9 @@ export const locationService = {
             },
           }
         : {}),
+      // Same rule for an Aruba Instant On venue: absent unless chosen. The
+      // backend refuses `router` and `instant_on_site` together.
+      ...(payload.instantOnSite ? { instant_on_site: payload.instantOnSite } : {}),
       plan_id: payload.planId,
       feature_overrides: (payload.featureOverrides ?? []).map((f) => ({
         feature_key: f.featureKey,
@@ -473,6 +484,8 @@ export const locationService = {
       planName: data.plan_name,
       routerId: data.router_id ?? null,
       routerName: data.router_name ?? null,
+      routerVendor: data.router_vendor ?? null,
+      instantOnSiteId: data.instant_on_site_id ?? null,
       ownerUserId: data.owner_user_id,
       ownerName: data.owner_name,
       ownerUsername: data.owner_username,

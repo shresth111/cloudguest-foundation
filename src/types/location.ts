@@ -168,6 +168,12 @@ export interface ProvisionLocationPayload {
     managementIpAddress?: string;
     publicIpAddress?: string;
   };
+  /** The venue's Aruba Instant On site, instead of a router (never both):
+   * one NAS-only `aruba_instant_on` fleet row created in the same
+   * transaction. Snake-cased already -- built by
+   * `buildProvisionInstantOnSite`, which omits blank optionals because the
+   * backend schema forbids unknown keys and mints a missing serial/MAC. */
+  instantOnSite?: Record<string, string>;
   planId: string;
   featureOverrides?: Array<{ featureKey: string; isEnabled?: boolean; limitValue?: number }>;
   couponCode?: string;
@@ -184,6 +190,11 @@ export interface ProvisionLocationResult {
   /** Null when the provision carried no router (an Omada venue). */
   routerId: string | null;
   routerName: string | null;
+  /** The created fleet row's vendor (`mikrotik` / `aruba_instant_on`); null
+   * with no device, or from a backend older than the Aruba option. */
+  routerVendor: string | null;
+  /** The Instant On site id the mapping was written with, if any. */
+  instantOnSiteId: string | null;
   ownerUserId: string;
   ownerName: string;
   ownerUsername: string;
