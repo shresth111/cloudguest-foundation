@@ -1476,10 +1476,17 @@ jobs:
       # least", devices / destinations / services stay three separate lists,
       # and a router write is reported by its read-back with an inline
       # confirm. Floor 176, observed green at 176 (was 45).
+      #
+      # And since the customer-dashboard page: every customer state is its
+      # own screen (add-on off, not switched on, equipment cannot report,
+      # stopped, not measured, not yours, failed), no customer file carries a
+      # word about how the data is gathered or imports an operator module,
+      # the page has no control, and destinations withheld under the
+      # small-venue rule are announced. Floor 287, observed green at 287.
       - name: traffic flow page is operator-only and honest
         run: |
           ./scripts/ci-gated-test.sh \
-            "traffic flow" 176 "all traffic flow checks passed" \
+            "traffic flow" 287 "all traffic flow checks passed" \
             bun run test:traffic-flow
 
       # --- A venue's floors are the venue's, not a constant ---------------

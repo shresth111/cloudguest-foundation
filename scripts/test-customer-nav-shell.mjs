@@ -149,7 +149,10 @@ check("there are nine groups", CUSTOMER_NAV_GROUPS.length === 9, `${CUSTOMER_NAV
 // Asserted rather than derived on purpose -- it is what catches a row being
 // dropped by an unrelated refactor -- so moving it is a deliberate step, and
 // this is one.
-check("there are 28 features", CUSTOMER_NAVS.length === 28, `${CUSTOMER_NAVS.length}`);
+// Then Network -> Traffic Lens (29): the paid add-on's own row, owner-only
+// (wyfy-specs/flow-visibility/PRODUCT.md C1). scripts/test-traffic-flow.mjs
+// pins where it sits and what gates it.
+check("there are 29 features", CUSTOMER_NAVS.length === 29, `${CUSTOMER_NAVS.length}`);
 check(
   "the nine groups are the canonical ones",
   CUSTOMER_NAV_GROUPS.map((g) => g.id).join(",") ===
@@ -358,10 +361,10 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
     "the same screen reachable as a row and as a tab is two homes for one setting",
   );
   check(
-    "the Network group keeps its other five rows",
+    "the Network group keeps its other five rows (plus Traffic Lens, added later)",
     (CUSTOMER_NAV_GROUPS.find((g) => g.id === "network")?.items ?? [])
       .map((i) => i.id)
-      .join(",") === "dhcp,vlans,port-forwarding,voip,isp-details",
+      .join(",") === "dhcp,vlans,port-forwarding,voip,isp-details,traffic-lens",
   );
   // Old links must keep working: a bookmark to the old address is a
   // redirect to the tab it became, behind the same session guards.

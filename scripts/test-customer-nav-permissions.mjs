@@ -199,6 +199,9 @@ const EVERY_KEY_IMAGINABLE = [
   // The Marketing add-on's row (wyfy-specs/guest-marketing-campaigns.md
   // §3.5). Its own module, `marketing`, seeded by the backend alongside it.
   "marketing.read",
+  // The Traffic Lens add-on's row (wyfy-specs/flow-visibility/API.md,
+  // "Customer API"): the VENUE_TRAFFIC module's one action.
+  "venue_traffic.read",
   // Keys for screens this nav does not have at all.
   "system_settings.manage",
   "device_console.execute",
