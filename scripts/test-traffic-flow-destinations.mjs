@@ -64,7 +64,10 @@ writeFileSync(
      from "${p("src/services/traffic-flow.service.ts")}";
    export { trafficFlowDestinationsService }
      from "${p("src/services/traffic-flow-destinations.service.ts")}";
-   export { sameSearch } from "${p("src/hooks/useFlowDestinations.ts")}";`,
+   export { sameSearch } from "${p("src/hooks/useFlowDestinations.ts")}";
+   export { lensRangeBounds, LENS_VIEWS } from "${p("src/lib/traffic-lens-customer.ts")}";
+   export { trafficLensDestinationsService }
+     from "${p("src/services/traffic-lens-destinations.service.ts")}";`,
 );
 const bundle = join(outdir, "bundle.mjs");
 await build({
@@ -961,6 +964,213 @@ check(
   !/192\.168\.|10\.20\.0\.|142\.250\./.test(
     tab + panel + rangeControl + lib + service + hook + types,
   ),
+);
+
+// ---------------------------------------------------------------------------
+console.log("\ncustomer dashboard: same rules, the venue's own routes");
+const lensCustom = {
+  kind: "custom",
+  since: "2026-10-11T03:07:00.000Z",
+  until: "2026-10-11T09:52:00.000Z",
+};
+eq("a custom period is used exactly as given", m.lensRangeBounds(lensCustom, NOW), {
+  since: lensCustom.since,
+  until: lensCustom.until,
+  ms: (6 * 60 + 45) * 60000,
+});
+eq("a preset still ends now", m.lensRangeBounds({ kind: "preset", window: "6h" }, NOW), {
+  since: "2026-10-12T08:10:00.000Z",
+  until: "2026-10-12T14:10:00.000Z",
+  ms: 6 * 3600000,
+});
+check(
+  "an unreadable custom period has no negative length",
+  m.lensRangeBounds({ kind: "custom", since: "x", until: "y" }, NOW).ms > 0,
+);
+eq(
+  "the page has an Overview and a Destinations view",
+  m.LENS_VIEWS.map((v) => v.id),
+  ["overview", "destinations"],
+);
+calls.length = 0;
+nextResponse = { data: search({ min_devices: 5, windows_withheld: 2 }) };
+const lensGot = await m.trafficLensDestinationsService.search("l 1", bare.params);
+check(
+  "the customer search uses the venue path, and the venue is not also a parameter",
+  calls[0].url === "/traffic-flow/locations/l%201/destinations" &&
+    !("location_id" in calls[0].config.params) &&
+    calls[0].config.params.since === RANGE.since &&
+    lensGot.windows_withheld === 2,
+  JSON.stringify(calls[0]),
+);
+nextResponse = { data: "blob", headers: { "x-total-rows": "9", "x-export-rows": "9" } };
+const lensFile = await m.trafficLensDestinationsService.exportCsv("l1", full.params);
+check(
+  "the customer download keeps every filter and drops only the venue",
+  calls[1].url === "/traffic-flow/locations/l1/destinations/export" &&
+    calls[1].config.responseType === "blob" &&
+    calls[1].config.params.address === "142.250.0.0/16" &&
+    calls[1].config.params.port === "443" &&
+    !("location_id" in calls[1].config.params) &&
+    lensFile.truncated === false,
+);
+nextResponse = { data: drill() };
+await m.trafficLensDestinationsService.serviceDestinations("l1", {
+  location_id: "l1",
+  protocol: "6",
+  port: "443",
+});
+check(
+  "the customer drill-down uses the venue path",
+  calls[2].url === "/traffic-flow/locations/l1/services/destinations" &&
+    calls[2].config.params.protocol === "6" &&
+    !("location_id" in calls[2].config.params),
+);
+
+const CUSTOMER_DESTINATION_FILES = [
+  "src/services/traffic-lens-destinations.service.ts",
+  "src/hooks/useLensDestinations.ts",
+  "src/components/traffic-lens/TrafficLensDestinations.tsx",
+  // Shared with the Master console, so held to the customer rules too.
+  "src/lib/traffic-flow-destinations.ts",
+  "src/types/traffic-flow-destinations.ts",
+];
+for (const f of CUSTOMER_DESTINATION_FILES) {
+  const src = code(read(f));
+  const hit = src.match(
+    /wireguard|tunnel|exporter|collector|netflow|ipfix|routeros|mikrotik|read-back/i,
+  );
+  check(`${f}: no word about how it is gathered`, !hit, hit ? hit[0] : "");
+  check(
+    `${f}: imports nothing operator-only`,
+    !/lib\/traffic-flow"|traffic-flow\.service|traffic-flow-destinations\.service|hooks\/useTrafficFlow|hooks\/useFlowDestinations|components\/master\/|\/platform\//.test(
+      src,
+    ),
+  );
+  check(
+    `${f}: imports nothing about devices, guests or sessions`,
+    !/from "[^"]*(guest|session|device|connected|mac-)[^"]*"/i.test(src),
+  );
+}
+const lensService = read("src/services/traffic-lens-destinations.service.ts");
+const lensHook = read("src/hooks/useLensDestinations.ts");
+const lensTab = read("src/components/traffic-lens/TrafficLensDestinations.tsx");
+const lensPage = read("src/components/traffic-lens/TrafficLensView.tsx");
+const lensTabCode = code(lensTab);
+check("the customer service only reads", !/api\.(post|put|patch|delete)/.test(lensService));
+check(
+  "the customer service never sends an organisation or a threshold",
+  !/organization|min_devices/.test(code(lensService)),
+);
+for (const flag of [
+  "retry: false",
+  "staleTime: Infinity",
+  "refetchOnWindowFocus: false",
+  "refetchOnReconnect: false",
+  "refetchOnMount: false",
+])
+  check(`customer hooks: ${flag}`, lensHook.includes(flag));
+check(
+  "both customer queries use those settings and wait to be asked",
+  (code(lensHook).match(/\.\.\.ASKED_FOR_ONLY/g) ?? []).length === 2 &&
+    (code(lensHook).match(/enabled: !!locationId && params !== null/g) ?? []).length === 2 &&
+    !/refetchInterval/.test(lensHook),
+);
+check(
+  "the organisation is in both customer query keys",
+  (code(lensHook).match(/resolveActiveOrganizationId\(\), locationId, params\)/g) ?? []).length ===
+    2,
+);
+eq(
+  "only the customer hook imports the customer service",
+  importers(
+    /traffic-lens-destinations\.service/,
+    "src/services/traffic-lens-destinations.service.ts",
+  ),
+  ["src/hooks/useLensDestinations.ts"],
+);
+eq(
+  "only the customer component imports the customer hook",
+  importers(/hooks\/useLensDestinations/, "src/hooks/useLensDestinations.ts"),
+  ["src/components/traffic-lens/TrafficLensDestinations.tsx"],
+);
+check("nothing is searched from an effect on the customer screen", !/useEffect/.test(lensTabCode));
+check(
+  "a customer search starts only from the form's submit or a sort click",
+  (lensTabCode.match(/setParams\(/g) ?? []).length === 2 && /onSubmit=\{submit\}/.test(lensTabCode),
+  String((lensTabCode.match(/setParams\(/g) ?? []).length),
+);
+check(
+  "the customer form has four filters and none is a device",
+  (lensTabCode.match(/field\(\{/g) ?? []).length === 4 &&
+    ["address", "protocol", "port", "direction"].every((f) =>
+      new RegExp(`field\\(\\{ ${f}`).test(lensTabCode),
+    ),
+);
+check(
+  "the customer table has the seven venue-level columns",
+  (lensTabCode.match(/\{ key: "/g) ?? []).length === 7 &&
+    !/Device|MAC|Guest|Source/.test(lensTabCode.match(/const COLUMNS[\s\S]*?\];/)[0]),
+);
+check(
+  "the customer screens say in words that no device or guest is shown",
+  /no\s+record\s+says\s+which\s+device\s+or\s+guest/.test(lensTab) &&
+    /does\s+not\s+say\s+which\s+device\s+or\s+guest/.test(lensTab),
+);
+check(
+  "the customer screens say requests are audited",
+  (lensTabCode.match(/AUDIT_NOTE/g) ?? []).length >= 3,
+);
+check(
+  "customer empty states go through the shared rules",
+  /rangeStateMessage\(rangeState\(r, now\)\)/.test(lensTabCode) &&
+    /serviceDestinationsView\(/.test(lensTabCode) &&
+    /searchNotes\(r\)/.test(lensTabCode) &&
+    /resultLine\(r\)/.test(lensTabCode),
+);
+check(
+  "customer failures are not empty results",
+  /an\s+error\s+is\s+not\s+an\s+empty\s+result/.test(lensTab) &&
+    /an\s+error\s+is\s+not\s+an\s+empty\s+list/.test(lensTab),
+);
+check(
+  "the customer download reports what the file holds",
+  /exportMessage\(file\)/.test(lensTabCode),
+);
+check("no customer screen says Application", !/application/i.test(lensTabCode));
+check(
+  "the customer records column is headed Service (port)",
+  /label: "Service \(port\)"/.test(lensTab),
+);
+check(
+  "the Destinations view reads the page's one range control",
+  /view === "destinations" && \(\s*<TrafficLensDestinations\s+locationId=\{locationId\}\s+rangeAt=\{\(moment\) => lensRangeBounds\(range, moment\)\}/.test(
+    lensPage,
+  ) && (lensPage.match(/<LensRangeControl/g) ?? []).length === 1,
+);
+check(
+  "the range control offers Custom and refuses through customRangeFromInputs",
+  /<TabsTrigger value="custom">Custom<\/TabsTrigger>/.test(lensPage) &&
+    /customRangeFromInputs\(since, until, Date\.now\(\)\)/.test(lensPage) &&
+    /type="datetime-local"/.test(lensPage),
+);
+check(
+  "a customer service row opens its destinations, the all-other row does not",
+  /serviceFromKey\(r\.key\) && \(/.test(lensPage) &&
+    /<TrafficLensServiceDestinations/.test(lensPage),
+);
+check(
+  "the customer drill-down closes when the period changes",
+  /opened && opened\.period === period \? opened : null/.test(lensPage),
+);
+check(
+  "the customer drill-down is opened from a service row only",
+  (lensPage.match(/setOpened\(/g) ?? []).length === 2,
+  String((lensPage.match(/setOpened\(/g) ?? []).length),
+);
+check(
+  "no fixture data in the customer files",
+  !/192\.168\.|10\.20\.0\.|142\.250\./.test(lensService + lensHook + lensTab),
 );
 
 console.log(

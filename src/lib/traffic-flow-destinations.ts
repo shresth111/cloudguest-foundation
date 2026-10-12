@@ -1,7 +1,9 @@
 /**
  * Traffic Lens "Destinations": presentation rules for the search, the
  * download and the service drill-down. Pure functions, no React, so
- * scripts/test-traffic-flow-destinations.mjs can run them.
+ * scripts/test-traffic-flow-destinations.mjs can run them. Used by both the
+ * Master console and the customer dashboard, so it imports only the shared
+ * formatters and says nothing about how the records are gathered.
  *
  * The rules, worst mistake first:
  *
@@ -25,7 +27,7 @@ import {
   serviceLabel,
   shareBarWidth,
   shareLabel,
-} from "@/lib/traffic-flow";
+} from "@/lib/traffic-lens-shared";
 import type { FlowCustomRange } from "@/types/traffic-flow";
 import type {
   DestinationExport,

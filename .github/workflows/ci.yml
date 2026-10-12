@@ -1502,11 +1502,11 @@ jobs:
       # pins that nothing is fetched unasked (no retry, no refetch on focus,
       # nothing before Search is pressed), and that an unmeasured range, a
       # withheld range and "nothing matched" are never drawn as the same
-      # empty table. Floor 161, observed green at 161.
+      # empty table. Floor 211, observed green at 211.
       - name: traffic flow destinations are venue-level and audited
         run: |
           ./scripts/ci-gated-test.sh \
-            "traffic flow destinations" 161 \
+            "traffic flow destinations" 211 \
             "all traffic flow destination checks passed" \
             bun run test:traffic-flow-destinations
 
