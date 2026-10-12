@@ -104,6 +104,8 @@ interface RawCapabilities {
   list_blocked?: RawCapability;
   disconnect?: RawCapability;
   client_stats?: RawCapability;
+  /** Not a per-client verb: whether the venue can cap all guests together. */
+  venue_rate_limit?: RawCapability;
   controller?: RawLiveness | null;
 }
 
@@ -162,6 +164,7 @@ function toCapabilities(payload: RawCapabilities | null | undefined): Controller
     listBlocked: toCapability(body.list_blocked),
     disconnect: toCapability(body.disconnect),
     clientStats: toCapability(body.client_stats),
+    venueRateLimit: toCapability(body.venue_rate_limit),
   };
 }
 

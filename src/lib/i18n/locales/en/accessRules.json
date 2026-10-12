@@ -3,5 +3,17 @@
   "tabLimits": "Guest WiFi Limits",
   "tabTiers": "Access Tiers",
   "blockedMovedPrefix": "Looking for blocked guests? They are now under",
-  "blockedMovedSuffix": ", together with blocked websites."
+  "blockedMovedSuffix": ", together with blocked websites.",
+  "limitsApplyNote": "A speed change reaches guests who are already online, usually within a minute. Timeouts and device count apply the next time each guest connects — anyone online right now keeps those until then. A data limit is different: it counts usage guests have already spent this period, so adding or lowering one can sign someone out within minutes.",
+  "venueSpeed": {
+    "label": "Total venue speed",
+    "caption": "The most all guests together can use at this venue.",
+    "column": "Venue speed",
+    "unavailable": "Not available on this venue's hardware.",
+    "notApplied": "Not applied here",
+    "errorBelowPerGuest": "Must be at least the per-guest speed ({{perGuest}}).",
+    "errorRange": "Must be between 1 Mbps and 10,000 Mbps.",
+    "notSaved": "Limits saved for {{location}}, but the total venue speed was not — it reads back as {{actual}}.",
+    "rejected": "Could not save — {{message}}"
+  }
 }

@@ -98,6 +98,7 @@
     "test:master-list-page-size": "node scripts/test-master-list-page-size.mjs",
     "test:session-rules": "node scripts/test-session-rules-enforcement.mjs",
     "test:data-limit-rules": "node scripts/test-data-limit-rules.mjs",
+    "test:venue-speed-cap": "node scripts/test-venue-speed-cap.mjs",
     "test:single-home": "node scripts/test-single-home-settings.mjs",
     "check:node": "node scripts/check-node-version.mjs",
     "test:network-integration": "node scripts/test-network-integration-contract.mjs",

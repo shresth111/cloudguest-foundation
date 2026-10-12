@@ -27,7 +27,41 @@ import {
 } from "@/components/ui/table";
 import { EmptyState } from "@/components/common/EmptyState";
 import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
+import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 import { isLocationNamedPolicy } from "@/lib/policy-scope";
+import {
+  BANDWIDTH,
+  DAILY_LIMIT,
+  DAILY_LIMIT_MINUTES,
+  DEFAULT_IDLE_TIMEOUT_LABEL,
+  DEVICES,
+  IDLE_TIMEOUT,
+  IDLE_TIMEOUT_MINUTES,
+  SESSION_TIMEOUT,
+  SESSION_TIMEOUT_MINUTES,
+  UNLIMITED_DEVICES_SENTINEL,
+  bandwidthRatesForChoice,
+  blankLimitsForm,
+  limitsFormFromRow,
+  limitsRowFromSaved,
+  optionsWithCurrent,
+  prefillDecision,
+  prefillKey,
+  type GuestWifiLimitsForm,
+  type GuestWifiLimitsRow,
+} from "@/lib/guest-wifi-limits";
+import {
+  VENUE_SPEED_NO_LIMIT,
+  venueRates,
+  venueRatesEqual,
+  venueRatesForChoice,
+  venueSpeedLabel,
+  venueSpeedOptions,
+  venueSpeedProblem,
+  venueSpeedServerError,
+  type VenueRates,
+} from "@/lib/venue-speed-cap";
 import { bandwidthPolicyService } from "@/services/bandwidth-policy.service";
 import { useClientControls } from "@/hooks/useClientControls";
 import { ControllerControlNotice } from "@/components/customer/ControllerControlNotice";
@@ -45,12 +79,11 @@ import {
   FUP_DATA_RESET_PERIODS,
 } from "@/services/policy-engine";
 
-// DevicePolicyRules.max_devices_per_guest (backend) is a required int >= 1
-// -- there's no real "unlimited" value in that schema today, so "Unlimited"
-// here is represented as this large practical ceiling rather than left
-// unenforced (an unassigned location falls back to the platform default of
-// 3, which would silently contradict what "Unlimited" promises).
-const UNLIMITED_DEVICES_SENTINEL = 9999;
+// The dropdowns' choice tables, and the mapping from a venue's saved limits to
+// what the form and the table show, live in lib/guest-wifi-limits.ts so a
+// test can run them. Total venue speed has its own module beside it.
+type Policy = GuestWifiLimitsRow;
+type PolicyForm = GuestWifiLimitsForm;
 
 // Session Timeout is a SESSION policy, not a bandwidth one -- the constants
 // and the full-rules helper now live in policy-engine.ts, next to the
@@ -89,101 +122,8 @@ const UNLIMITED_DEVICES_SENTINEL = 9999;
 // scripts/test-session-rules-enforcement.mjs now asserts its absence and
 // asserts the data-limit control is aimed at the fields that are read.
 
-const BANDWIDTH_KBPS: Record<string, number> = {
-  "10 Mbps": 10240,
-  "20 Mbps": 20480,
-  "30 Mbps": 30720,
-  "40 Mbps": 40960,
-  "50 Mbps": 51200,
-  "60 Mbps": 61440,
-  "70 Mbps": 71680,
-  "80 Mbps": 81920,
-};
-function kbpsToLabel(kbps: number): string {
-  const found = Object.entries(BANDWIDTH_KBPS).find(([, v]) => v === kbps);
-  return found?.[0] ?? (kbps > 0 ? `${kbps} Kbps` : "Unlimited");
-}
-
-// Session/Idle/Daily Timeout are real BandwidthPolicyRules fields (see
-// bandwidth-policy.service.ts's toRules) that this form was never actually
-// sending -- same class of bug CreateGroup.tsx already hit and fixed for
-// its own edit form (see BandwidthPolicy's own doc comment: "edit kaam
-// nahi karta" once required fields always read back blank). Mirroring that
-// exact fix here instead of reinventing it.
-const SESSION_TIMEOUT_MINUTES: Record<string, number> = {
-  "30 min": 30,
-  "1 hr": 60,
-  "2 hr": 120,
-  "4 hr": 240,
-  "8 hr": 480,
-  "24 hr": 1440,
-};
-// "No Limit" is deliberately NOT an option here, and its absence is the
-// honest half of making this control real.
-//
-// An idle timeout is the only thing on this fleet that reaps an abandoned
-// session promptly. The routers run `keepalive-timeout=none` -- a fix for a
-// confirmed incident where phones locking their screens were hard-logged-out
-// at RouterOS's factory two-minute keepalive -- so with the idle timeout also
-// off, nothing closes a session a guest walked away from: slots stay held
-// against `shared-users`, device counts only ever rise, and RADIUS never
-// receives an Accounting-Stop. That is the incident the 30-minute default
-// exists to close (see HOTSPOT_IDLE_TIMEOUT in RouterDetailTabs.tsx and
-// DEFAULT_IDLE_TIMEOUT_MINUTES in the backend's guest/constants.py).
-//
-// So "No Limit" could not be honoured without re-opening that. And offering
-// it while quietly applying 30 minutes is precisely what this screen was
-// already doing: the option existed, was the value an unconfigured location
-// read back as, and the router idled those guests out at 30 minutes anyway.
-// Removing it is what makes every value left on this list true.
-const IDLE_TIMEOUT_MINUTES: Record<string, number> = {
-  "5 min": 5,
-  "10 min": 10,
-  "15 min": 15,
-  "30 min": 30,
-  "1 hr": 60,
-};
-
-// What a location with no SESSION policy of its own is actually doing.
-// Mirrors the backend's DEFAULT_IDLE_TIMEOUT_MINUTES, which in turn mirrors
-// what the router setup script writes onto the device -- so the form opens
-// showing the real current behaviour rather than a blank.
-const DEFAULT_IDLE_TIMEOUT_LABEL = "30 min";
-
-const DAILY_LIMIT_MINUTES: Record<string, number | null> = {
-  "No Limit": null,
-  "1 hr": 60,
-  "2 hr": 120,
-  "4 hr": 240,
-  "8 hr": 480,
-};
-
-function labelFromMinutes(
-  minutes: number | null | undefined,
-  table: Record<string, number | null>,
-  fallback: string,
-): string {
-  const found = Object.entries(table).find(([, v]) => v === (minutes ?? null));
-  return found?.[0] ?? fallback;
-}
-
 // ── constants ───────────────────────────────────────────────────
 const UNITS = ["Mumbai HQ", "Delhi Office", "Bangalore DC", "Chennai Office"]; // Matches this demo account's real location roster (see customer.service.ts DEMO_LOCATIONS) instead of unrelated placeholder hospitality names that clashed with the rest of the demo persona.
-const BANDWIDTH = [
-  "Unlimited",
-  "10 Mbps",
-  "20 Mbps",
-  "30 Mbps",
-  "40 Mbps",
-  "50 Mbps",
-  "60 Mbps",
-  "70 Mbps",
-  "80 Mbps",
-];
-const SESSION_TIMEOUT = ["30 min", "1 hr", "2 hr", "4 hr", "8 hr", "24 hr"];
-const DAILY_LIMIT = ["No Limit", "1 hr", "2 hr", "4 hr", "8 hr"];
-const IDLE_TIMEOUT = ["5 min", "10 min", "15 min", "30 min", "1 hr"];
-const DEVICES = ["Unlimited", "1", "2", "3", "4", "5"];
 const DATA_UNITS = ["MB", "GB"];
 // "Per session" is deliberately NOT here any more, and its absence is the
 // honest half of making this control real -- the same trade IDLE_TIMEOUT made
@@ -204,23 +144,12 @@ const DATA_UNITS = ["MB", "GB"];
 const RESETS: readonly string[] = FUP_DATA_RESET_PERIODS;
 const PAGE_SIZE_OPTS = [10, 25, 50] as const;
 
-interface Policy {
-  id: string;
-  businessUnit: string;
-  bandwidth: string;
-  sessionTimeout: string;
-  dailyLimit: string;
-  idleTimeout: string;
-  devicesPerUser: string;
-  dataLimit: { quota: number; unit: string; resets: string } | null;
-}
-type PolicyForm = Omit<Policy, "id">;
-
 const SEED: Policy[] = [
   {
     id: "p1",
     businessUnit: "Mumbai HQ",
     bandwidth: "5 Mbps",
+    venueSpeed: "100 Mbps",
     sessionTimeout: "4 hr",
     dailyLimit: "No Limit",
     idleTimeout: "15 min",
@@ -231,6 +160,7 @@ const SEED: Policy[] = [
     id: "p2",
     businessUnit: "Delhi Office",
     bandwidth: "2 Mbps",
+    venueSpeed: VENUE_SPEED_NO_LIMIT,
     sessionTimeout: "24 hr",
     dailyLimit: "2 hr",
     idleTimeout: "30 min",
@@ -241,6 +171,7 @@ const SEED: Policy[] = [
     id: "p3",
     businessUnit: "Bangalore DC",
     bandwidth: "512 Kbps",
+    venueSpeed: VENUE_SPEED_NO_LIMIT,
     sessionTimeout: "1 hr",
     dailyLimit: "1 hr",
     idleTimeout: "10 min",
@@ -393,6 +324,13 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   const speedAsking = clientControls.loading;
   const speedUsable = !speedAsking && speedVerdict.availability !== "unavailable";
   const sessionTimeoutVerdict = clientControls.verdict("session-timeout");
+  // TOTAL VENUE SPEED -- gated like the speed above it, by the same ladder.
+  // Where the venue's hardware cannot hold all guests to a combined total,
+  // the control is greyed with one line saying so and a save leaves whatever
+  // is stored untouched; it never becomes a field that saves and does nothing.
+  const venueSpeedVerdict = clientControls.verdict("venue-speed-limit");
+  const venueSpeedUsable = !speedAsking && venueSpeedVerdict.availability !== "unavailable";
+  const { t } = useTranslation("accessRules", { i18n });
   // UNITS is demo-only seed data (fake hotel names) -- a real customer only
   // has their own locations, so the "Business Unit" picker below (whose
   // value becomes the saved bandwidth policy's own name) must offer those
@@ -405,15 +343,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   // chosen name resolves to).
   const locationNames = useMemo(() => new Set((locations ?? []).map((l) => l.name)), [locations]);
   // ── state ─────────────────────────────────────────────────────
-  const [f, setF] = useState<PolicyForm>({
-    businessUnit: "",
-    bandwidth: "",
-    sessionTimeout: "",
-    dailyLimit: "No Limit",
-    idleTimeout: DEFAULT_IDLE_TIMEOUT_LABEL,
-    devicesPerUser: "",
-    dataLimit: null,
-  });
+  const [f, setF] = useState<PolicyForm>(() => blankLimitsForm());
   const [errs, setErrs] = useState<Partial<Record<keyof PolicyForm, string>>>({});
   const [dataLimitOpen, setDataLimitOpen] = useState(false);
   const [dlQuota, setDlQuota] = useState("");
@@ -438,6 +368,14 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   // a control the owner cannot touch has expressed no opinion, and the
   // honest write for "no opinion" is the value that was already there.
   const [savedRates, setSavedRates] = useState<Record<string, { down: number; up: number }>>({});
+  // The venue total each location is ALREADY saved with, by policy name. Same
+  // job as `savedRates` one line up, for the same reason: a greyed control
+  // writes nothing, and a control the owner left where it was writes back
+  // exactly the pair it was showing.
+  const [savedVenueRates, setSavedVenueRates] = useState<Record<string, VenueRates>>({});
+  // Which saved row the form is mirroring right now (`prefillKey`), or null
+  // when what is in it is the owner's own typing. See `prefillDecision`.
+  const shownFor = useRef<string | null>(null);
   const [deviceRealIds, setDeviceRealIds] = useState<Record<string, string>>({}); // businessUnit -> real DEVICE-policy id
   const [sessionRealIds, setSessionRealIds] = useState<Record<string, string>>({}); // businessUnit -> real SESSION-policy id
   const [fupRealIds, setFupRealIds] = useState<Record<string, string>>({}); // businessUnit -> real FUP-policy id
@@ -535,49 +473,27 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
           fupDetails.map((d) => [d.name, fupDataLimitFromRules(latestVersion(d)?.rules)]),
         );
         setPolicies(
-          real.map((p) => {
-            const maxDevices = deviceByName.get(p.name);
-            const devicesPerUser =
-              maxDevices == null
-                ? ""
-                : maxDevices >= UNLIMITED_DEVICES_SENTINEL
-                  ? "Unlimited"
-                  : String(maxDevices);
-            return {
+          real.map((p) =>
+            limitsRowFromSaved({
               id: p.id,
-              businessUnit: p.name,
-              bandwidth: kbpsToLabel(p.downloadRateKbps),
+              name: p.name,
+              downloadRateKbps: p.downloadRateKbps,
+              venue: venueRates(p.venueDownloadRateKbps, p.venueUploadRateKbps),
               // Prefer the real SESSION policy -- that is the one the guest
-              // login path resolves. A location saved before this fix has
+              // login path resolves. A location saved before that fix has
               // only the (unread) bandwidth copy, so fall back to it so
-              // the row and the Edit form still show what was chosen; the
+              // the row and the form still show what was chosen; the
               // next save writes a real SESSION policy for it.
-              sessionTimeout: labelFromMinutes(
-                sessionByName.get(p.name) ?? p.sessionTimeoutMinutes,
-                SESSION_TIMEOUT_MINUTES,
-                "",
-              ),
-              // Prefer the real FUP policy -- that is the one the accrual
-              // sweep and the login gate resolve. A location saved before
-              // this fix has only the (unread) bandwidth copy, so fall back
-              // to it so the row and the Edit form still show what was
-              // chosen; the next save writes a real FUP policy for it.
-              dailyLimit: labelFromMinutes(
-                dailyByName.has(p.name) ? dailyByName.get(p.name) : p.dailyLimitMinutes,
-                DAILY_LIMIT_MINUTES,
-                "No Limit",
-              ),
+              sessionTimeoutMinutes: sessionByName.get(p.name) ?? p.sessionTimeoutMinutes,
               // Same shape for the idle timeout, against the SESSION policy.
-              // The fallback is the platform default rather than a blank:
-              // a location with no SESSION policy is not "unset", it is
-              // running the 30 minutes its router already applies, and
-              // showing an empty box would misdescribe that as nothing.
-              idleTimeout: labelFromMinutes(
-                idleByName.get(p.name) ?? p.idleTimeoutMinutes,
-                IDLE_TIMEOUT_MINUTES,
-                DEFAULT_IDLE_TIMEOUT_LABEL,
-              ),
-              devicesPerUser,
+              idleTimeoutMinutes: idleByName.get(p.name) ?? p.idleTimeoutMinutes,
+              // Prefer the real FUP policy -- that is the one the accrual
+              // sweep and the login gate resolve. Keyed on presence: `null`
+              // there is a chosen "No Limit", not an absent value.
+              dailyLimitMinutes: dailyByName.has(p.name)
+                ? dailyByName.get(p.name)
+                : p.dailyLimitMinutes,
+              maxDevices: deviceByName.get(p.name),
               // Prefer the real FUP policy -- the same preference the session
               // timeout and daily limit above make, and for the same reason.
               //
@@ -597,13 +513,18 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                 : p.dataLimit && RESETS.includes(p.dataLimit.resets)
                   ? p.dataLimit
                   : null,
-            };
-          }),
+            }),
+          ),
         );
         setRealIds(Object.fromEntries(real.map((p) => [p.name, p.id])));
         setSavedRates(
           Object.fromEntries(
             real.map((p) => [p.name, { down: p.downloadRateKbps, up: p.uploadRateKbps }]),
+          ),
+        );
+        setSavedVenueRates(
+          Object.fromEntries(
+            real.map((p) => [p.name, venueRates(p.venueDownloadRateKbps, p.venueUploadRateKbps)]),
           ),
         );
         setDeviceRealIds(Object.fromEntries(deviceDetails.map((d) => [d.name, d.id])));
@@ -637,6 +558,54 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
     if (preselect) setF((prev) => ({ ...prev, businessUnit: preselect }));
   }, [f.businessUnit, editingId, locationId, locations, units]);
 
+  // Put one saved row into the form -- every control, and the data-limit
+  // panel's own three pieces of state, which live outside `f`.
+  const showRow = useCallback((p: Policy) => {
+    setEditingId(p.id);
+    setF(limitsFormFromRow(p));
+    setErrs({});
+    if (p.dataLimit) {
+      setDataLimitOpen(true);
+      setDlQuota(String(p.dataLimit.quota));
+      setDlUnit(p.dataLimit.unit);
+      setDlResets(p.dataLimit.resets);
+    } else {
+      setDataLimitOpen(false);
+      setDlQuota("");
+    }
+    shownFor.current = prefillKey(p);
+  }, []);
+
+  // THE FORM OPENS ON THE CHOSEN VENUE'S CURRENT VALUES.
+  //
+  // It used to open blank and stay blank until the pencil in the table below
+  // was pressed, so a venue saved at 40 Mbps / Unlimited devices / 24 hr read
+  // "Choose bandwidth", "Choose devices per user", "Choose session timeout" --
+  // three required fields apparently unset -- beside an Idle Timeout and a
+  // Daily Limit that only LOOKED loaded because the blank form's defaults
+  // happened to match. Filling the three back in and pressing Update would
+  // have written those two defaults over whatever the venue really had and,
+  // with the data-limit panel starting closed, removed its data cap unseen.
+  //
+  // The decision itself is `prefillDecision`, in a module a test can run.
+  useEffect(() => {
+    const decision = prefillDecision({
+      location: f.businessUnit,
+      rows: policies,
+      shownFor: shownFor.current,
+    });
+    if (decision.kind === "fill") {
+      showRow(decision.row);
+    } else if (decision.kind === "clear") {
+      shownFor.current = null;
+      setEditingId(null);
+      setF((prev) => blankLimitsForm(prev.businessUnit));
+      setErrs({});
+      setDataLimitOpen(false);
+      setDlQuota("");
+    }
+  }, [f.businessUnit, policies, showRow]);
+
   // ── derived ────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -662,6 +631,30 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
       delete n[k];
       return n;
     });
+  };
+
+  // What this form will write for the two speeds, worked out in ONE place so
+  // the check before the click and the write after it cannot disagree.
+  const speedsToWrite = () => {
+    // A GREYED CONTROL DOES NOT WRITE.
+    //
+    // `downloadRateKbps`/`uploadRateKbps` are required numbers on
+    // `SaveBandwidthPolicyInput`, so there is no "omit it" -- the choice is
+    // between a number the owner chose and a number nobody chose. Where the
+    // control is live, it is theirs. Where it is greyed, it is whatever the
+    // policy already holds, so saving the four settings that DO work here
+    // cannot quietly uncap the venue on the way past.
+    const heldRate = savedRates[f.businessUnit];
+    const rates = speedUsable
+      ? bandwidthRatesForChoice(f.bandwidth, heldRate)
+      : { down: heldRate?.down ?? 0, up: heldRate?.up ?? 0 };
+    // The venue total follows the same rule with one difference: its keys are
+    // optional, so "no opinion" is expressed by leaving them out, and the
+    // service carries the stored pair forward (see bandwidthPolicyService.save).
+    const venue = venueSpeedUsable
+      ? venueRatesForChoice(f.venueSpeed, savedVenueRates[f.businessUnit])
+      : undefined;
+    return { rates, venue };
   };
 
   // ── validate ───────────────────────────────────────────────────
@@ -700,6 +693,19 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
     const sessionMins = SESSION_TIMEOUT_MINUTES[f.sessionTimeout];
     if (idleMins && sessionMins && idleMins > sessionMins) {
       e.idleTimeout = "Must not be longer than the session timeout.";
+    }
+    // The server refuses a venue total below the per-guest speed. Said here,
+    // under the field, before the click -- not as a failed save afterwards.
+    const { rates, venue } = speedsToWrite();
+    const problem = venue ? venueSpeedProblem(venue, rates) : null;
+    if (problem?.code === "belowPerGuest") {
+      e.venueSpeed = t(
+        "venueSpeed.errorBelowPerGuest",
+        "Must be at least the per-guest speed ({{perGuest}}).",
+        { perGuest: problem.perGuest },
+      );
+    } else if (problem?.code === "range") {
+      e.venueSpeed = t("venueSpeed.errorRange", "Must be between 1 Mbps and 10,000 Mbps.");
     }
     setErrs(e);
     return !Object.keys(e).length;
@@ -746,19 +752,8 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
       // speed they had. Bug report: "Guest WiFi Limit not controlling the
       // bandwidth". Both halves are this one line.
       const targetLocationId = (locations ?? []).find((l) => l.name === f.businessUnit)?.id;
-      // A GREYED CONTROL DOES NOT WRITE.
-      //
-      // `downloadRateKbps`/`uploadRateKbps` are required numbers on
-      // `SaveBandwidthPolicyInput`, so there is no "omit it" -- the choice is
-      // between a number the owner chose and a number nobody chose. Where the
-      // control is live, it is theirs. Where it is greyed, it is whatever the
-      // policy already holds, so saving the four settings that DO work here
-      // cannot quietly uncap the venue on the way past.
-      const heldRate = savedRates[f.businessUnit];
-      const chosenKbps = BANDWIDTH_KBPS[f.bandwidth] ?? 0;
-      const rates = speedUsable
-        ? { down: chosenKbps, up: chosenKbps }
-        : { down: heldRate?.down ?? 0, up: heldRate?.up ?? 0 };
+      // Both speeds, exactly as `validate()` just checked them.
+      const { rates, venue } = speedsToWrite();
       const existingId = realIds[f.businessUnit];
       const saved = await bandwidthPolicyService.save(
         {
@@ -767,6 +762,10 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
           status: "active",
           downloadRateKbps: rates.down,
           uploadRateKbps: rates.up,
+          // `undefined` where the control is greyed: the service then keeps
+          // the stored pair. `null` is a real choice -- "No limit".
+          venueDownloadRateKbps: venue?.down,
+          venueUploadRateKbps: venue?.up,
           // Session/Idle/Daily Timeout and the optional data limit are real
           // BandwidthPolicyRules fields (toRules already maps them) that this
           // form validates as required but, until now, never actually sent --
@@ -795,6 +794,12 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
       // second save in the same session preserves the same number rather than
       // the one this location had when the page loaded.
       setSavedRates((prev) => ({ ...prev, [f.businessUnit]: rates }));
+      // WHAT THE SERVER NOW HOLDS, NOT WHAT WAS CHOSEN. `saved` is a fresh read
+      // of the policy after the write, so this is the venue total as stored.
+      // The row, the form and the preserved pair all take it from here.
+      const storedVenue = venueRates(saved.venueDownloadRateKbps, saved.venueUploadRateKbps);
+      const venueKept = venue === undefined || venueRatesEqual(venue, storedVenue);
+      setSavedVenueRates((prev) => ({ ...prev, [f.businessUnit]: storedVenue }));
 
       // Devices Per User -- same "policy exists but was never applied" gap
       // bandwidth just had, except this one was never even wired to a
@@ -939,7 +944,16 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         setFupRealIds((prev) => ({ ...prev, [f.businessUnit]: createdFup.id }));
       }
 
-      const row: Policy = { id: saved.id, ...f, dataLimit };
+      const row: Policy = {
+        id: saved.id,
+        ...f,
+        venueSpeed: venueSpeedLabel(storedVenue),
+        dataLimit,
+      };
+      // The form follows the row, so a venue total the server did not keep is
+      // not left sitting in the dropdown as if it had been.
+      setF((prev) => ({ ...prev, venueSpeed: row.venueSpeed }));
+      shownFor.current = prefillKey(row);
       setPolicies((prev) => {
         // Matched by id OR businessUnit name -- a save can return a
         // *different* id than what this location's row currently shows
@@ -951,7 +965,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         );
         return existing >= 0 ? prev.map((p, i) => (i === existing ? row : p)) : [row, ...prev];
       });
-      setEditingId(null);
+      setEditingId(row.id);
       // Say where it landed, and say when it landed nowhere. The old copy
       // read "Policies updated." whenever there was no page scope -- which is
       // exactly the case where nothing was assigned and no guest was
@@ -968,17 +982,38 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
       // -- the policy is stored and pointed at this location -- and defers the
       // "when" to the sentence that already states it correctly, rather than
       // asserting a second, stronger answer beside it.
+      //
+      // SPEED IS NOT "NEXT CONNECT" ANY MORE. Publishing a bandwidth policy
+      // re-applies it to the guests who are online, so the toast names speed
+      // on the "now" side with the data limit and leaves timeouts and device
+      // count on the "next connect" side, where they still are.
       setToast(
-        targetLocationId
-          ? dataLimit
-            ? `Limits saved for ${f.businessUnit} — the data limit applies to guests online now; the rest apply as each guest next connects.`
-            : `Limits saved for ${f.businessUnit} — they take effect as each guest next connects.`
-          : "Limits saved, but not applied to any location — reopen this page from the location you want them on.",
+        !venueKept
+          ? t(
+              "venueSpeed.notSaved",
+              "Limits saved for {{location}}, but the total venue speed was not — it reads back as {{actual}}.",
+              { location: f.businessUnit, actual: row.venueSpeed },
+            )
+          : targetLocationId
+            ? dataLimit
+              ? `Limits saved for ${f.businessUnit} — speed and the data limit reach guests online now; the rest apply as each guest next connects.`
+              : `Limits saved for ${f.businessUnit} — speed reaches guests online now; the rest apply as each guest next connects.`
+            : "Limits saved, but not applied to any location — reopen this page from the location you want them on.",
       );
-      setTimeout(() => setToast(null), 2500);
-    } catch {
-      setToast("Could not save — check the connection and try again.");
-      setTimeout(() => setToast(null), 2500);
+      setTimeout(() => setToast(null), venueKept ? 2500 : 6000);
+    } catch (err) {
+      // The server's own sentence when it is the venue total it refused --
+      // under the field, where the owner can act on it -- rather than a line
+      // about the connection, which is not what went wrong.
+      const refused = venueSpeedServerError(err);
+      if (refused) {
+        setErrs((prev) => ({ ...prev, venueSpeed: refused }));
+        setToast(t("venueSpeed.rejected", "Could not save — {{message}}", { message: refused }));
+        setTimeout(() => setToast(null), 6000);
+      } else {
+        setToast("Could not save — check the connection and try again.");
+        setTimeout(() => setToast(null), 2500);
+      }
     } finally {
       setSaving(false);
     }
@@ -990,26 +1025,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   // name-based upsert matching -- the pencil icon previously had no
   // onClick at all (bug report: "edit button not working").
   const handleEdit = (p: Policy) => {
-    setEditingId(p.id);
-    setF({
-      businessUnit: p.businessUnit,
-      bandwidth: p.bandwidth,
-      sessionTimeout: p.sessionTimeout,
-      dailyLimit: p.dailyLimit,
-      idleTimeout: p.idleTimeout,
-      devicesPerUser: p.devicesPerUser,
-      dataLimit: p.dataLimit,
-    });
-    setErrs({});
-    if (p.dataLimit) {
-      setDataLimitOpen(true);
-      setDlQuota(String(p.dataLimit.quota));
-      setDlUnit(p.dataLimit.unit);
-      setDlResets(p.dataLimit.resets);
-    } else {
-      setDataLimitOpen(false);
-      setDlQuota("");
-    }
+    showRow(p);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -1040,6 +1056,12 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         // owner had just deleted -- the mirror image of the overwrite this map
         // exists to prevent.
         setSavedRates((prevRates) => {
+          const n = { ...prevRates };
+          delete n[businessUnit];
+          return n;
+        });
+        // The held venue total dies with it too, for the same reason.
+        setSavedVenueRates((prevRates) => {
           const n = { ...prevRates };
           delete n[businessUnit];
           return n;
@@ -1126,16 +1148,18 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
             <button
               type="button"
               onClick={() => {
+                // Back to what is saved, not to an empty form: the same row
+                // is shown again, with whatever was changed thrown away. An
+                // empty form over a venue that has limits is the state this
+                // screen no longer opens in.
+                const savedRow = policies.find((p) => p.id === editingId);
+                if (savedRow) {
+                  showRow(savedRow);
+                  return;
+                }
+                shownFor.current = null;
                 setEditingId(null);
-                setF({
-                  businessUnit: "",
-                  bandwidth: "",
-                  sessionTimeout: "",
-                  dailyLimit: "No Limit",
-                  idleTimeout: DEFAULT_IDLE_TIMEOUT_LABEL,
-                  devicesPerUser: "",
-                  dataLimit: null,
-                });
+                setF(blankLimitsForm());
                 setErrs({});
                 setDataLimitOpen(false);
                 setDlQuota("");
@@ -1205,7 +1229,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                     disabled={!speedUsable}
                     value={f.bandwidth}
                     onChange={(v) => setField("bandwidth", v)}
-                    options={BANDWIDTH}
+                    options={optionsWithCurrent(BANDWIDTH, f.bandwidth)}
                     placeholder="Choose bandwidth"
                     caption="Maximum speed per guest device."
                     err={errs.bandwidth}
@@ -1222,11 +1246,41 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                   required
                   value={f.devicesPerUser}
                   onChange={(v) => setField("devicesPerUser", v)}
-                  options={DEVICES}
+                  options={optionsWithCurrent(DEVICES, f.devicesPerUser)}
                   placeholder="Choose devices per user"
                   caption="How many devices the same guest can connect at once."
                   err={errs.devicesPerUser}
                 />
+                {/* TOTAL VENUE SPEED -- the same dropdown as Bandwidth, directly
+                    under it, because it is the same kind of answer one level
+                    up: Bandwidth is the most ONE guest gets, this is the most
+                    ALL of them get together. One value for both directions,
+                    like the control above; "No limit" is the default and is
+                    written as no cap at all, never as zero.
+                    Not required, so it carries no asterisk and cannot block a
+                    save. Greyed with one plain line where this venue's
+                    hardware cannot hold guests to a combined total -- and a
+                    greyed control writes nothing (see `speedsToWrite`). */}
+                <div>
+                  <Select
+                    id="vs"
+                    label={t("venueSpeed.label", "Total venue speed")}
+                    disabled={!venueSpeedUsable}
+                    value={f.venueSpeed}
+                    onChange={(v) => setField("venueSpeed", v)}
+                    options={venueSpeedOptions(savedVenueRates[f.businessUnit])}
+                    caption={t(
+                      "venueSpeed.caption",
+                      "The most all guests together can use at this venue.",
+                    )}
+                    err={errs.venueSpeed}
+                  />
+                  {!speedAsking && !venueSpeedUsable && (
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      {t("venueSpeed.unavailable", "Not available on this venue's hardware.")}
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* collapsible data limit -- a third, optional capacity setting.
@@ -1450,10 +1504,19 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
           <div className="flex flex-col items-center gap-3">
             <p className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
-              Speed, timeouts and device count apply the next time each guest connects — anyone
-              online right now keeps those until then. A data limit is different: it counts usage
-              guests have already spent this period, so adding or lowering one can sign someone out
-              within minutes.
+              {/* SPEED LEFT THE "NEXT CONNECT" LIST. Publishing a speed
+                  re-applies it to the guests who are online -- the per-guest
+                  speed and the venue total alike -- so the old opening,
+                  "Speed, timeouts and device count apply the next time each
+                  guest connects", understated the one setting an owner is
+                  most likely to be watching a phone for. Timeouts and device
+                  count are still resolved at sign-in and stay where they
+                  were. "usually within a minute" and not "immediately": the
+                  write goes to the venue's hardware and is not instant. */}
+              {t(
+                "limitsApplyNote",
+                "A speed change reaches guests who are already online, usually within a minute. Timeouts and device count apply the next time each guest connects — anyone online right now keeps those until then. A data limit is different: it counts usage guests have already spent this period, so adding or lowering one can sign someone out within minutes.",
+              )}
               <Tooltip
                 id="save-immediate-effect"
                 text="Double-check the limits above before saving. Need help? Contact support@wyfyguest.com."
@@ -1519,11 +1582,14 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
             />
           ) : (
             <div className="overflow-x-auto">
-              <Table className="min-w-[900px]">
+              <Table className="min-w-[1000px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="text-xs font-medium">Location</TableHead>
                     <TableHead className="text-xs font-medium">Bandwidth</TableHead>
+                    <TableHead className="text-xs font-medium">
+                      {t("venueSpeed.column", "Venue speed")}
+                    </TableHead>
                     <TableHead className="text-xs font-medium">Session Timeout</TableHead>
                     <TableHead className="text-xs font-medium">Idle Timeout</TableHead>
                     <TableHead className="text-xs font-medium">Daily Limit</TableHead>
@@ -1561,6 +1627,22 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                             Not applied here
                           </span>
                         )}
+                      </TableCell>
+                      {/* Same posture as the Bandwidth cell beside it: where
+                          this venue cannot apply a total, the stored number
+                          is not restated as if something enforced it. "No
+                          limit" is muted like the other unset values so a
+                          venue that HAS a total stands out. */}
+                      <TableCell
+                        className={
+                          !venueSpeedUsable || p.venueSpeed === VENUE_SPEED_NO_LIMIT
+                            ? "text-slate-400 dark:text-slate-500"
+                            : undefined
+                        }
+                      >
+                        {venueSpeedUsable
+                          ? p.venueSpeed
+                          : t("venueSpeed.notApplied", "Not applied here")}
                       </TableCell>
                       <TableCell>{p.sessionTimeout}</TableCell>
                       {/* "No Limit"/"Unlimited" rows are muted so a stricter,
