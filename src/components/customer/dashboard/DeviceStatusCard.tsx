@@ -59,7 +59,7 @@ export function DeviceStatusCard({
   ).length;
 
   return (
-    <Card className="premium-card premium-card-hover flex h-full flex-col">
+    <Card className="premium-card premium-card-hover flex h-full min-w-0 flex-col">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <div className="flex items-center gap-2.5">
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
@@ -135,111 +135,128 @@ export function DeviceStatusCard({
                     (d) => !hardwareLivenessIsMeasured(d),
                   ).length;
                   return (
-                    <div key={type} className="space-y-1.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="flex min-w-0 items-center gap-2 text-sm">
-                          <span
-                            title={type}
-                            className={cn(
-                              "flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gradient-to-br text-white",
-                              meta.gradient,
-                            )}
-                          >
-                            <Icon className="h-3.5 w-3.5" />
-                          </span>
-                          <span className="truncate font-medium text-foreground">
+                    <div key={type} className="space-y-1">
+                      {/* One line: "Access Points · 5 · all up". The count and
+                       * verdict sit right after the type name rather than
+                       * pushed to the far edge, so on a wide card they are
+                       * not read as belonging to the first device row. */}
+                      <p className="flex min-w-0 items-center gap-2 text-sm">
+                        <span
+                          title={type}
+                          className={cn(
+                            "flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gradient-to-br text-white",
+                            meta.gradient,
+                          )}
+                        >
+                          <Icon className="h-3.5 w-3.5" />
+                        </span>
+                        <span className="min-w-0 leading-snug">
+                          <span className="font-medium text-foreground">
                             {type}
                             {typeDevices.length !== 1 ? "s" : ""}
                           </span>
-                        </span>
-                        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                          <span className="font-semibold text-foreground">
-                            {typeDevices.length}
+                          <span className="text-xs tabular-nums text-muted-foreground">
+                            {" "}
+                            ·{" "}
+                            <span className="font-semibold text-foreground">
+                              {typeDevices.length}
+                            </span>
+                            {/* "all up" only when every one of them IS up. It used
+                             * to be printed whenever none was down, so a single
+                             * never-observed access point read "1 · all up". */}
+                            {typeDown > 0 ? (
+                              <span className="text-rose-600 dark:text-rose-400">
+                                {" "}
+                                · {typeDown} down
+                              </span>
+                            ) : typeUnreachable > 0 ? (
+                              <span className="text-amber-700 dark:text-amber-400">
+                                {" "}
+                                · {typeUnreachable} unconfirmed
+                              </span>
+                            ) : typeUp === typeDevices.length ? (
+                              <span className="text-emerald-600 dark:text-emerald-400">
+                                {" "}
+                                · all up
+                              </span>
+                            ) : typeUnmeasured > 0 ? (
+                              // A controller-managed venue: nothing here probes
+                              // these, so "not yet seen" would promise a "yet"
+                              // that never comes -- same wording as the footer.
+                              <span> · {typeUnmeasured} not measured here</span>
+                            ) : (
+                              <span> · {typeDevices.length - typeUp} not yet seen</span>
+                            )}
                           </span>
-                          {/* "all up" only when every one of them IS up. It used
-                           * to be printed whenever none was down, so a single
-                           * never-observed access point read "1 · all up". */}
-                          {typeDown > 0 ? (
-                            <span className="text-rose-600 dark:text-rose-400">
-                              {" "}
-                              · {typeDown} down
-                            </span>
-                          ) : typeUnreachable > 0 ? (
-                            <span className="text-amber-700 dark:text-amber-400">
-                              {" "}
-                              · {typeUnreachable} unconfirmed
-                            </span>
-                          ) : typeUp === typeDevices.length ? (
-                            <span className="text-emerald-600 dark:text-emerald-400">
-                              {" "}
-                              · all up
-                            </span>
-                          ) : typeUnmeasured > 0 ? (
-                            // A controller-managed venue: nothing here probes
-                            // these, so "not yet seen" would promise a "yet"
-                            // that never comes -- same wording as the footer.
-                            <span> · {typeUnmeasured} not measured here</span>
-                          ) : (
-                            <span> · {typeDevices.length - typeUp} not yet seen</span>
-                          )}
                         </span>
-                      </div>
+                      </p>
                       {/* Each device by name, not only the type's count: "5
                        * Access Points" does not tell an owner WHICH one is the
-                       * problem. Same words and tone as the Devices table,
-                       * because both come from describeLiveness. */}
+                       * problem. One row per device: name (truncated, full
+                       * name on hover -- an un-renamed Omada AP is called
+                       * "EAP225-B0-19-21-74-0A-90"), floor tag, then the same
+                       * status pill the Devices table draws, from the same
+                       * describeLiveness, pinned to the right edge. Rows sit
+                       * flush under the type icon rather than in an indented
+                       * tree, so a phone-width card keeps room for the name. */}
                       {listed.length > 0 && (
-                        <ul className="ml-3 space-y-1 border-l border-border/60 pl-5">
+                        <ul className="space-y-0.5">
                           {listed.map((d) => {
                             const live = describeLiveness(d);
                             const measured = hardwareLivenessIsMeasured(d);
                             return (
                               <li
                                 key={d.id}
-                                className="flex items-center justify-between gap-2 text-xs"
+                                className="flex min-w-0 items-center gap-2 rounded-md py-1 pl-8 pr-0.5 text-xs"
                               >
-                                <span className="flex min-w-0 items-center gap-1.5">
-                                  {/* No dot for an unmeasured row: a dot is a
-                                   * reading, and there is none. */}
-                                  <span
-                                    className={cn(
-                                      "h-1.5 w-1.5 shrink-0 rounded-full",
-                                      !measured
-                                        ? "bg-transparent"
-                                        : live.tone === "up"
-                                          ? "bg-emerald-500"
-                                          : live.tone === "down"
-                                            ? "bg-rose-500"
-                                            : live.tone === "warning"
-                                              ? "bg-amber-500"
-                                              : "bg-muted-foreground/50",
-                                    )}
-                                  />
-                                  <span className="truncate text-foreground">{d.name}</span>
-                                  {d.floor && (
-                                    <span className="shrink-0 text-muted-foreground">
-                                      · {d.floor}
-                                    </span>
-                                  )}
+                                <span
+                                  title={d.name}
+                                  className="min-w-0 flex-1 truncate text-foreground"
+                                >
+                                  {d.name}
                                 </span>
+                                {d.floor && (
+                                  <span
+                                    title={`Floor: ${d.floor}`}
+                                    className="max-w-[5rem] shrink-0 truncate rounded border border-border/60 bg-muted/40 px-1.5 py-px text-[10px] font-medium text-muted-foreground"
+                                  >
+                                    {d.floor}
+                                  </span>
+                                )}
                                 <span
                                   title={
                                     [live.detail, live.explanation].filter(Boolean).join(" — ") ||
                                     undefined
                                   }
                                   className={cn(
-                                    "shrink-0",
+                                    "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-2 py-px text-[11px] font-semibold",
                                     !measured
-                                      ? "text-muted-foreground"
+                                      ? "border-dashed border-border bg-transparent text-muted-foreground"
                                       : live.tone === "up"
-                                        ? "text-emerald-600 dark:text-emerald-400"
+                                        ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                                         : live.tone === "down"
-                                          ? "text-rose-600 dark:text-rose-400"
+                                          ? "border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400"
                                           : live.tone === "warning"
-                                            ? "text-amber-700 dark:text-amber-400"
-                                            : "text-muted-foreground",
+                                            ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                                            : "border-border bg-muted text-muted-foreground",
                                   )}
                                 >
+                                  {/* No dot for an unmeasured row: a dot is a
+                                   * reading, and there is none. */}
+                                  {measured && (
+                                    <span
+                                      className={cn(
+                                        "h-1.5 w-1.5 rounded-full",
+                                        live.tone === "up"
+                                          ? "bg-emerald-500"
+                                          : live.tone === "down"
+                                            ? "bg-rose-500"
+                                            : live.tone === "warning"
+                                              ? "bg-amber-500"
+                                              : "bg-muted-foreground/50",
+                                      )}
+                                    />
+                                  )}
                                   {live.state}
                                 </span>
                               </li>
@@ -255,9 +272,9 @@ export function DeviceStatusCard({
                 <button
                   type="button"
                   onClick={onManage}
-                  className="text-xs font-medium text-primary hover:underline"
+                  className="ml-8 text-xs font-medium text-primary hover:underline"
                 >
-                  +{devices.length - MAX_LISTED_DEVICES} more on the Devices page
+                  +{devices.length - MAX_LISTED_DEVICES} more · view all on the Devices page →
                 </button>
               )}
             </div>
