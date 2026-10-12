@@ -1060,6 +1060,67 @@ const untranslated = enKeys.filter(
 );
 check("hi marketing strings are in Devanagari", untranslated.length === 0, untranslated.join(", "));
 
+// ---------------------------------------------------------------------------
+// The Schedule dialog never opens on a time it refuses
+// ---------------------------------------------------------------------------
+console.log("\nthe schedule dialog's suggested time is always schedulable");
+{
+  const dir = mkdtempSync(join(tmpdir(), "marketing-schedule-"));
+  const src = join(dir, "entry.mjs");
+  writeFileSync(
+    src,
+    `export * from "${join(ROOT, "src/lib/marketing-schedule.ts").replace(/\\/g, "/")}";`,
+  );
+  const out = join(dir, "bundle.mjs");
+  await build({
+    entryPoints: [src],
+    bundle: true,
+    format: "esm",
+    platform: "node",
+    outfile: out,
+    logLevel: "silent",
+  });
+  const S = await import(`file://${out}`);
+  // Every minute of an hour, and the hour that crosses midnight. 06:56 is the
+  // minute a deploy failed on: the old suggestion was 07:00, four minutes off.
+  const bad = [];
+  for (const hour of [6, 23]) {
+    for (let minute = 0; minute < 60; minute += 1) {
+      const now = new Date(2026, 9, 12, hour, minute, 30);
+      const lead = S.defaultScheduleTime(now).getTime() - now.getTime();
+      if (lead < S.DEFAULT_SCHEDULE_LEAD_MS || lead > 2 * 60 * 60_000) {
+        bad.push(`${hour}:${String(minute).padStart(2, "0")} -> ${Math.round(lead / 60_000)} min`);
+      }
+    }
+  }
+  check(
+    "at every minute of the hour it is 15 minutes to 2 hours ahead",
+    bad.length === 0,
+    bad.join(", "),
+  );
+  const at = (h, m) => S.defaultScheduleTime(new Date(2026, 9, 12, h, m, 0));
+  check("06:10 suggests 07:00", at(6, 10).getHours() === 7 && at(6, 10).getMinutes() === 0);
+  check(
+    "06:56 suggests 08:00, not 07:00",
+    at(6, 56).getHours() === 8 && at(6, 56).getMinutes() === 0,
+  );
+  check(
+    "23:56 suggests 01:00 the next day",
+    at(23, 56).getHours() === 1 && at(23, 56).getDate() === 13,
+  );
+  check(
+    "the suggestion's margin is above the minimum the dialog enforces",
+    S.DEFAULT_SCHEDULE_LEAD_MS > S.MIN_SCHEDULE_LEAD_MS,
+  );
+  const actions = strip(read("src/components/marketing/campaigns/CampaignActions.tsx"));
+  check(
+    "the dialog uses the helper for its default and the shared minimum for 'too soon'",
+    /setWhen\(toLocalInputValue\(defaultScheduleTime\(/.test(actions) &&
+      /Date\.now\(\) \+ MIN_SCHEDULE_LEAD_MS/.test(actions) &&
+      !/setMinutes\(0, 0, 0\)/.test(actions),
+  );
+}
+
 console.log(
   failures === 0
     ? "\nall marketing UI checks passed\n"
