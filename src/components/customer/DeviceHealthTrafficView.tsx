@@ -134,6 +134,10 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
    * produce) is a measurement claim -- it says we looked.
    */
   const activeIsController = isControllerManaged(activeDevice?.vendor);
+  // DASHBOARD_PLAN P1-H: a venue whose every device is Aruba Instant On has
+  // no ports or interface traffic for this card to show, so its title and
+  // description say what it is there. Any other venue: unchanged.
+  const nasOnlyVenue = deviceList.length > 0 && deviceList.every((d) => isNasOnlyVendor(d.vendor));
   const history = useDeviceHealthHistory(activeIsController ? undefined : activeId);
   const readings: DeviceHealthReading[] = useMemo(
     () => history.data?.readings ?? [],
@@ -211,14 +215,31 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
       <CardHeader className="gap-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Activity className="h-4 w-4" /> Device health &amp; interface traffic
-            </CardTitle>
-            <CardDescription>
-              How much traffic each network port has carried, and how your hardware has been holding
-              up.
-              {span ? ` Showing the last ${span} of readings.` : ""}
-            </CardDescription>
+            {nasOnlyVenue ? (
+              <>
+                <CardTitle
+                  className="flex items-center gap-2 text-base"
+                  data-testid="aruba-device-health-title"
+                >
+                  <Activity className="h-4 w-4" /> Access point health
+                </CardTitle>
+                <CardDescription>
+                  Aruba Instant On access points report their health and traffic in the Instant On
+                  app. Wyfy sees the guests signing in through them.
+                </CardDescription>
+              </>
+            ) : (
+              <>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Activity className="h-4 w-4" /> Device health &amp; interface traffic
+                </CardTitle>
+                <CardDescription>
+                  How much traffic each network port has carried, and how your hardware has been
+                  holding up.
+                  {span ? ` Showing the last ${span} of readings.` : ""}
+                </CardDescription>
+              </>
+            )}
           </div>
 
           {deviceList.length > 0 && (

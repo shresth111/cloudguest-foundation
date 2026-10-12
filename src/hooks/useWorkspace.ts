@@ -21,6 +21,10 @@ export interface LocationRouterSummary {
   status: RouterStatus;
   publicIpAddress: string | null;
   lastSeenAt: string | null;
+  /** `routers.vendor` (DASHBOARD_PLAN P1-I): lets the legacy location page
+   * send an Aruba Instant On venue to the customer dashboard. Optional --
+   * read only to detect a NAS-only venue. */
+  vendor?: string | null;
 }
 
 export interface LocationGuestSessionSummary {
@@ -146,6 +150,7 @@ async function fetchLocationResources(
     status: r.status,
     publicIpAddress: r.publicIpAddress,
     lastSeenAt: r.lastSeenAt,
+    vendor: r.vendor,
   }));
 
   const sessionRows = sessionsResult.value.rows;
