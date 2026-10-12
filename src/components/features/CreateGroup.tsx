@@ -47,6 +47,9 @@ import {
   latestVersion,
   deactivatePolicy,
   sessionPolicyRules,
+  fupPolicyRules,
+  fupDataLimitFromRules,
+  FUP_DATA_RESET_PERIODS,
 } from "@/services/policy-engine";
 import { useCustomerStore } from "@/stores/customerStore";
 import type { Guest } from "@/types/guest";
@@ -173,7 +176,7 @@ async function mirrorPairedLocationMap(
 ): Promise<void> {
   await Promise.all(
     realIdsOf(pairedIds).map((id) =>
-      bandwidthPolicyService.mapToLocation(id, locationId, organizationId),
+      bandwidthPolicyService.mapTierToLocation(id, locationId, organizationId),
     ),
   );
 }
@@ -183,15 +186,9 @@ async function mirrorPairedLocationUnmap(
   organizationId: string | undefined,
 ): Promise<void> {
   await Promise.all(
-    realIdsOf(pairedIds).map(async (id) => {
-      const assignmentId = await bandwidthPolicyService.locationMapping(
-        id,
-        locationId,
-        organizationId,
-      );
-      if (assignmentId)
-        await bandwidthPolicyService.unmapFromLocation(id, assignmentId, organizationId);
-    }),
+    realIdsOf(pairedIds).map((id) =>
+      bandwidthPolicyService.unmapTierFromLocation(id, locationId, organizationId),
+    ),
   );
 }
 async function mirrorPairedGuestMap(
@@ -312,9 +309,11 @@ const SESSION_TIMEOUT = ["30 min", "1 hr", "2 hr", "4 hr", "8 hr", "24 hr"];
 const IDLE_TIMEOUT = ["5 min", "10 min", "15 min", "30 min", "1 hr"];
 const DEVICES = ["Unlimited", "1", "2", "3", "4", "5"];
 const DAILY_LIMIT = ["No Limit", "1 hr", "2 hr", "4 hr", "8 hr"];
-const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const DATA_UNITS = ["MB", "GB"];
-const RESETS = ["Per session", "Daily", "Weekly", "Monthly"];
+// Only the periods the backend keeps a usage counter for. "Per session" was
+// offered here and had nowhere to be written -- see FUP_DATA_RESET_PERIODS.
+const RESETS: readonly string[] = FUP_DATA_RESET_PERIODS;
+const resetOrDaily = (resets: string): string => (RESETS.includes(resets) ? resets : "Daily");
 const PAGE_SIZE_OPTS = [10, 25, 50] as const;
 
 interface Group {
@@ -327,9 +326,16 @@ interface Group {
   dailyLimit: string;
   loginHours: { days: string[]; from: string; to: string } | null;
   dataLimit: { quota: number; unit: string; resets: string } | null;
+  // Guests mapped into this tier: at the location being viewed when there is
+  // one, otherwise across the account. Counted from the tier's own
+  // assignments -- it was a hard-coded 0.
   members: number;
-  // "Map group" (stepper step 2) -- backed by the real, already-built
-  // backend PolicyAssignment (scope_type="location", target_type="none").
+  // True when this tier is mapped to the current location the OLD way (an
+  // untargeted assignment), which applies it to every guest there, not just
+  // its members. Never changed behind the operator's back; the row says so.
+  appliesToEveryoneHere?: boolean;
+  // "Map group" (stepper step 2) -- backed by a real backend
+  // PolicyAssignment (scope_type="location", target_type="members").
   // null == not mapped to this location; a string is that active
   // assignment's id (needed to deactivate it again on unmap). Bug report:
   // "policies>map group nhi hora hai" -- the stepper icon had no onClick
@@ -541,6 +547,11 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   // as deviceRealIds above. This is the policy the guest login path actually
   // resolves for a session timeout -- see the handleCreate block below.
   const [sessionRealIds, setSessionRealIds] = useState<Record<string, string>>({});
+  // Paired FUP policy id per tier -- the policy the backend actually reads a
+  // data limit and a daily time limit from. Both used to be written into the
+  // BANDWIDTH policy's rules, which nothing reads, so the two controls saved
+  // and did nothing. Same name-keying and lifecycle as the two above.
+  const [fupRealIds, setFupRealIds] = useState<Record<string, string>>({});
 
   // Every location on this account. Lived further down beside
   // `mapModalLock` until the load effect below needed it: that effect's
@@ -563,6 +574,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   const pairedIdsFor = (groupName: string): PairedPolicyIds => [
     deviceRealIds[groupName],
     sessionRealIds[groupName],
+    fupRealIds[groupName],
   ];
 
   useEffect(() => {
@@ -571,10 +583,11 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       try {
         const org = await resolveOrgId();
         setOrgId(org);
-        const [real, deviceDetailsAll, sessionDetailsAll] = await Promise.all([
+        const [real, deviceDetailsAll, sessionDetailsAll, fupDetailsAll] = await Promise.all([
           bandwidthPolicyService.list(org),
           listPolicyDetails("device", org).catch(() => []),
           listPolicyDetails("session", org).catch(() => []),
+          listPolicyDetails("fup", org).catch(() => []),
         ]);
         // Backend's GET /policies has no is_active filter -- it returns
         // deactivated (deleted) policies right alongside active ones, so a
@@ -615,6 +628,12 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           ]),
         );
         setSessionRealIds(Object.fromEntries(sessionDetails.map((d) => [d.name, d.id])));
+        // FUP policies: name-keyed and archive-filtered like the two above.
+        // A location's own FUP policy is named after the location, so it can
+        // never be mistaken for a tier's.
+        const fupDetails = fupDetailsAll.filter((d) => d.is_active);
+        const fupRulesByName = new Map(fupDetails.map((d) => [d.name, latestVersion(d)?.rules]));
+        setFupRealIds(Object.fromEntries(fupDetails.map((d) => [d.name, d.id])));
         // One assignments lookup per group -- listLocationMappings returns
         // *every* active location this group is mapped to in one call, so
         // this seeds both the "Map group" toggle's current-location state
@@ -629,17 +648,35 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           active.map(async (p) => {
             let mappedAssignmentId: string | null = null;
             let mappedLocationIds: string[] = [];
+            let appliesToEveryoneHere = false;
+            // The backend's own count covers every location; the assignments
+            // below narrow it to this one when a location is being viewed.
+            let members = p.memberCount ?? 0;
             try {
-              const mappings = await bandwidthPolicyService.listLocationMappings(p.id, org);
-              mappedLocationIds = mappings.map((m) => m.locationId);
+              const tier = await bandwidthPolicyService.tierAssignments(p.id, org);
+              mappedLocationIds = tier.mappings.map((m) => m.locationId);
+              members = locationId ? (tier.membersByLocation[locationId] ?? 0) : tier.members;
               if (locationId) {
-                mappedAssignmentId =
-                  mappings.find((m) => m.locationId === locationId)?.assignmentId ?? null;
+                const here = tier.mappings.find((m) => m.locationId === locationId);
+                mappedAssignmentId = here?.assignmentId ?? null;
+                appliesToEveryoneHere = here?.appliesToEveryone ?? false;
               }
             } catch {
               mappedAssignmentId = null;
               mappedLocationIds = [];
             }
+            // The FUP policy is the one the backend reads; a tier saved
+            // before it existed has only the (unread) bandwidth copy, shown
+            // so the row and the Edit form still say what was chosen.
+            const fupRules = fupRulesByName.get(p.name);
+            const fupDailyMinutes = fupRules
+              ? ((fupRules.daily_time_limit_minutes ?? null) as number | null)
+              : (p.dailyLimitMinutes ?? null);
+            const savedDataLimit = fupRules
+              ? fupDataLimitFromRules(fupRules)
+              : p.dataLimit && RESETS.includes(p.dataLimit.resets)
+                ? p.dataLimit
+                : null;
             // Real per-guest device enforcement reads the paired DEVICE
             // policy's max_devices_per_guest, never this bandwidth policy's
             // own (unread) devices_per_user field -- so the display value
@@ -677,10 +714,13 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                 DEFAULT_IDLE_TIMEOUT_LABEL,
               ),
               devicesPerUser,
-              dailyLimit: labelFromMinutes(p.dailyLimitMinutes, DAILY_LIMIT_MINUTES, "No Limit"),
-              loginHours: p.loginHours ?? null,
-              dataLimit: p.dataLimit ?? null,
-              members: 0,
+              dailyLimit: labelFromMinutes(fupDailyMinutes, DAILY_LIMIT_MINUTES, "No Limit"),
+              // Login hours are not enforced anywhere, so they are no longer
+              // offered or shown -- see the note where the control used to be.
+              loginHours: null,
+              dataLimit: savedDataLimit,
+              members,
+              appliesToEveryoneHere,
               mappedAssignmentId,
               mappedLocationIds,
             };
@@ -699,12 +739,6 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   const [it, setIt] = useState("");
   const [dp, setDp] = useState("");
   const [dl, setDl] = useState("No Limit");
-  const [loginOn, setLoginOn] = useState(false);
-  const [loginDays, setLoginDays] = useState<string[]>(
-    ["Mon", "Tue", "Wed", "Thu", "Fri", "Mon", "Tue", "Wed", "Thu", "Fri"].slice(0, 5),
-  );
-  const [loginFrom, setLoginFrom] = useState("09:00");
-  const [loginTo, setLoginTo] = useState("18:00");
   const [dlOpen, setDlOpen] = useState(false);
   const [dlQuota, setDlQuota] = useState("");
   const [dlUnit, setDlUnit] = useState("GB");
@@ -756,12 +790,6 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   // to track which group is being edited).
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const toggleDay = (d: string) =>
-    setLoginDays((p) =>
-      p.includes(d)
-        ? p.filter((x) => x !== d)
-        : [...p, d].sort((a, b) => DAYS.indexOf(a) - DAYS.indexOf(b)),
-    );
   const setField = (k: string, v: string) => {
     if (k === "name") setName(v);
     else if (k === "bw") setBw(v);
@@ -796,10 +824,6 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       };
       if (toMin(it) > toMin(st)) e.it = "Idle timeout can't be longer than the session timeout.";
     }
-    if (loginOn) {
-      if (loginDays.length === 0) e.loginDays = "Select at least one day.";
-      if (loginFrom >= loginTo) e.loginTo = "End must be after start.";
-    }
     if (dlOpen && (!dlQuota || parseFloat(dlQuota) <= 0)) e.dlQuota = "Must be greater than 0.";
     setErrs(e);
     return !Object.keys(e).length;
@@ -812,10 +836,6 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
     setIt(DEFAULT_IDLE_TIMEOUT_LABEL);
     setDp("");
     setDl("No Limit");
-    setLoginOn(false);
-    setLoginDays(["Mon", "Tue", "Wed", "Thu", "Fri"]);
-    setLoginFrom("09:00");
-    setLoginTo("18:00");
     setDlOpen(false);
     setDlQuota("");
     setEditingId(null);
@@ -827,13 +847,11 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
     const dataLimit = dlOpen
       ? { quota: parseFloat(dlQuota) || 0, unit: dlUnit, resets: dlResets }
       : null;
-    const loginHours = loginOn
-      ? {
-          days: [...loginDays].sort((a, b) => DAYS.indexOf(a) - DAYS.indexOf(b)),
-          from: loginFrom,
-          to: loginTo,
-        }
-      : null;
+    // "Restrict login hours" is gone from this form: nothing on the platform
+    // ever refused a sign-in or ended a session by a tier's hours, so the
+    // switch saved a window and changed nothing. Every save now writes null,
+    // which also clears a window an older save left behind.
+    const loginHours = null;
     const isEdit = editingId !== null;
 
     if (demo) {
@@ -885,6 +903,12 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       return;
     }
 
+    // Which part of the save is in flight, so a failure can name it. A tier
+    // is several policies written one after another; "check the connection"
+    // left the operator unable to tell a tier that did not save from one
+    // that saved its speed and nothing else.
+    let step = "speed";
+    let savedTierId: string | null = null;
     try {
       const rateKbps = BANDWIDTH_KBPS[bw] ?? 0;
       const saved = await bandwidthPolicyService.save(
@@ -897,12 +921,18 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           sessionTimeoutMinutes: SESSION_TIMEOUT_MINUTES[st] ?? null,
           idleTimeoutMinutes: IDLE_TIMEOUT_MINUTES[it] ?? null,
           devicesPerUser: DEVICES_COUNT[dp] ?? null,
-          dailyLimitMinutes: DAILY_LIMIT_MINUTES[dl] ?? null,
+          // The daily limit and the data limit used to be written here, on
+          // the BANDWIDTH policy, where nothing reads them. They now go to
+          // the paired FUP policy below -- the one that is enforced -- and
+          // are cleared here so a stale copy cannot be read back as a limit.
+          dailyLimitMinutes: null,
           loginHours,
-          dataLimit,
+          dataLimit: null,
         },
         orgId ?? undefined,
       );
+      savedTierId = saved.id;
+      step = "device limit";
 
       // Mirror the paired DEVICE policy -- the real, backend-enforced
       // per-guest device limit (guest/service.py's _resolve_device_limit)
@@ -919,6 +949,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       // ALREADY mapped they would resolve to nothing -- see the backfill
       // below.
       const createdPairedIds: string[] = [];
+      let backfillFailed = false;
 
       const maxDevices = dp === "Unlimited" ? UNLIMITED_DEVICES_SENTINEL : parseInt(dp, 10);
       const deviceRules = { max_devices_per_guest: maxDevices };
@@ -958,6 +989,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       // rules body are shared from policy-engine.ts rather than copied, so
       // the two screens cannot drift. Same name-keyed upsert shape as the
       // DEVICE policy directly above.
+      step = "session and idle timeouts";
       const sessionMinutes = SESSION_TIMEOUT_MINUTES[st];
       if (sessionMinutes) {
         // Idle Timeout rides on the same SESSION policy. This form's own
@@ -993,6 +1025,42 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         }
       }
 
+      // Maximum Daily Session Limit and the data limit -- the real ones. One
+      // FUP policy carries both (see fupPolicyRules for why it is one write,
+      // not two), exactly as Guest WiFi Limits does for a location. It
+      // reaches a guest through the same member mapping as the tier's other
+      // paired policies, so it applies to members and to nobody else.
+      //
+      // Not guarded by a truthiness check: "No Limit" and "no data cap" are
+      // real answers, and clearing a limit must publish a version that says
+      // so. A policy is only CREATED for a real cap -- a tier with neither
+      // limit needs no FUP policy at all.
+      step = "daily and data limits";
+      const dailyMinutes = DAILY_LIMIT_MINUTES[dl] ?? null;
+      const fupRules = fupPolicyRules({ dailyTimeLimitMinutes: dailyMinutes, dataLimit });
+      const existingFupId = fupRealIds[name];
+      if (existingFupId) {
+        await updatePolicyRules({
+          id: existingFupId,
+          rules: fupRules,
+          publish: true,
+          archive: false,
+          organizationId: orgId ?? undefined,
+        });
+      } else if (dailyMinutes !== null || dataLimit !== null) {
+        const createdFup = await createPolicyWithRules({
+          policyType: "fup",
+          name,
+          description: null,
+          rules: fupRules,
+          publish: true,
+          organizationId: orgId ?? undefined,
+        });
+        setFupRealIds((prev) => ({ ...prev, [name]: createdFup.id }));
+        createdPairedIds.push(createdFup.id);
+      }
+
+      step = "location and member mappings";
       // Backfill: a tier that already exists is already mapped to
       // locations, and a paired policy created just now has none of those
       // assignments. `resolve_effective_policy` walks assignments, so
@@ -1007,19 +1075,45 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       // table repairs it through the mirror helpers.
       if (createdPairedIds.length > 0) {
         try {
-          const existingMappings = await bandwidthPolicyService.listLocationMappings(
+          const existingMappings = await bandwidthPolicyService.listTierLocationMappings(
             saved.id,
             orgId ?? undefined,
           );
           await Promise.all(
             existingMappings.flatMap((m) =>
               createdPairedIds.map((policyId) =>
-                bandwidthPolicyService.mapToLocation(policyId, m.locationId, orgId ?? undefined),
+                bandwidthPolicyService.mapTierToLocation(
+                  policyId,
+                  m.locationId,
+                  orgId ?? undefined,
+                ),
               ),
             ),
           );
+          // ...and its members. A paired policy reaches a guest only through
+          // that guest's own mapping, so one created now for a tier that
+          // already has members would otherwise apply to none of them.
+          await Promise.all(
+            existingMappings.map(async (m) => {
+              const members = await bandwidthPolicyService.guestMappings(
+                saved.id,
+                m.locationId,
+                orgId ?? undefined,
+              );
+              await Promise.all(
+                members.map((member) =>
+                  mirrorPairedGuestMap(
+                    createdPairedIds,
+                    m.locationId,
+                    member.guestId,
+                    orgId ?? undefined,
+                  ),
+                ),
+              );
+            }),
+          );
         } catch {
-          // Intentionally silent -- see above.
+          backfillFailed = true;
         }
       }
 
@@ -1063,15 +1157,55 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       setStep1Done(true);
       setPage(0);
       resetForm();
-      setToast(isEdit ? "Access tier updated." : "Access tier created.");
-      setTimeout(() => setToast(null), 3500);
-    } catch {
       setToast(
-        isEdit
-          ? "Could not update the access tier — check the connection and try again."
-          : "Could not create the access tier — check the connection and try again.",
+        backfillFailed
+          ? `Access tier saved, but its new limits could not be linked to the locations and members it already has. Unmap and map ${name} again to finish.`
+          : isEdit
+            ? "Access tier updated."
+            : "Access tier created.",
       );
-      setTimeout(() => setToast(null), 3500);
+      setTimeout(() => setToast(null), backfillFailed ? 7000 : 3500);
+    } catch {
+      if (savedTierId === null) {
+        setToast(
+          isEdit
+            ? "Could not update the access tier — nothing was changed. Check the connection and try again."
+            : "Could not create the access tier — nothing was saved. Check the connection and try again.",
+        );
+      } else {
+        // The tier's speed is saved; a later part is not. Keep the form as it
+        // is and point it at the saved tier, so pressing Save again updates
+        // that tier instead of creating a second one with the same name.
+        const tierId = savedTierId;
+        if (!isEdit) {
+          setGroups((prev) =>
+            prev.some((g) => g.id === tierId)
+              ? prev
+              : [
+                  {
+                    id: tierId,
+                    name,
+                    bandwidth: bw,
+                    sessionTimeout: st,
+                    idleTimeout: it,
+                    devicesPerUser: dp,
+                    dailyLimit: dl,
+                    loginHours: null,
+                    dataLimit,
+                    members: 0,
+                    mappedAssignmentId: null,
+                    mappedLocationIds: [],
+                  },
+                  ...prev,
+                ],
+          );
+          setEditingId(tierId);
+        }
+        setToast(
+          `Saved ${name}'s speed, but could not save its ${step}. Press Save again to finish — it will not create a duplicate.`,
+        );
+      }
+      setTimeout(() => setToast(null), 7000);
     } finally {
       setSaving(false);
     }
@@ -1105,6 +1239,14 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
             return n;
           });
           setSessionRealIds((prevIds) => {
+            const n = { ...prevIds };
+            delete n[groupName];
+            return n;
+          });
+          // And the FUP policy: left behind it would keep refusing the
+          // sign-in of a member who had used up a data limit on a tier that
+          // no longer exists.
+          setFupRealIds((prevIds) => {
             const n = { ...prevIds };
             delete n[groupName];
             return n;
@@ -1153,11 +1295,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           ),
         );
       } else if (wasMapped) {
-        await bandwidthPolicyService.unmapFromLocation(
-          g.id,
-          g.mappedAssignmentId as string,
-          orgId ?? undefined,
-        );
+        await bandwidthPolicyService.unmapTierFromLocation(g.id, locationId, orgId ?? undefined);
         await mirrorPairedLocationUnmap(pairedIdsFor(g.name), locationId, orgId ?? undefined);
         setGroups((prev) =>
           prev.map((x) =>
@@ -1165,13 +1303,16 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
               ? {
                   ...x,
                   mappedAssignmentId: null,
+                  appliesToEveryoneHere: false,
+                  // Unmapping a tier ends its memberships at that location.
+                  members: 0,
                   mappedLocationIds: x.mappedLocationIds.filter((id) => id !== locationId),
                 }
               : x,
           ),
         );
       } else {
-        const assignmentId = await bandwidthPolicyService.mapToLocation(
+        const assignmentId = await bandwidthPolicyService.mapTierToLocation(
           g.id,
           locationId,
           orgId ?? undefined,
@@ -1190,7 +1331,9 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         );
       }
       setToast(
-        wasMapped ? `${g.name} unmapped from this location.` : `${g.name} mapped to this location.`,
+        wasMapped
+          ? `${g.name} unmapped from this location. Its members here are back on the location's limits.`
+          : `${g.name} mapped to this location. Add guests to it — it applies only to them.`,
       );
       setTimeout(() => setToast(null), 2500);
     } catch {
@@ -1226,7 +1369,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         setMapModalInitial(initial);
         setMapModalSelected(new Set(g.mappedLocationIds));
       } else {
-        const mappings = await bandwidthPolicyService.listLocationMappings(
+        const mappings = await bandwidthPolicyService.listTierLocationMappings(
           g.id,
           orgId ?? undefined,
         );
@@ -1296,7 +1439,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           Promise.all(
             toAdd.map(async (locId) => {
               const [assignmentId] = await Promise.all([
-                bandwidthPolicyService.mapToLocation(g.id, locId, orgId ?? undefined),
+                bandwidthPolicyService.mapTierToLocation(g.id, locId, orgId ?? undefined),
                 mirrorPairedLocationMap(paired, locId, orgId ?? undefined),
               ]);
               return { locId, assignmentId };
@@ -1305,11 +1448,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           Promise.all(
             toRemove.map((locId) =>
               Promise.all([
-                bandwidthPolicyService.unmapFromLocation(
-                  g.id,
-                  mapModalInitial[locId],
-                  orgId ?? undefined,
-                ),
+                bandwidthPolicyService.unmapTierFromLocation(g.id, locId, orgId ?? undefined),
                 mirrorPairedLocationUnmap(paired, locId, orgId ?? undefined),
               ]),
             ),
@@ -1331,6 +1470,10 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                 mappedAssignmentId: locationId
                   ? (finalMap[locationId] ?? null)
                   : x.mappedAssignmentId,
+                // Unmapping here ended the tier's memberships here.
+                ...(locationId && toRemove.includes(locationId)
+                  ? { members: 0, appliesToEveryoneHere: false }
+                  : {}),
               }
             : x,
         ),
@@ -1347,7 +1490,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       // shows a count that doesn't match reality.
       if (!demo) {
         try {
-          const mappings = await bandwidthPolicyService.listLocationMappings(
+          const mappings = await bandwidthPolicyService.listTierLocationMappings(
             g.id,
             orgId ?? undefined,
           );
@@ -1386,6 +1529,12 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   // above) -- mirrors the flow the bug report itself described: create the
   // group, map the group, then map users into it.
   const [usersModalGroup, setUsersModalGroup] = useState<Group | null>(null);
+  // Keeps the table's Members figure in step with the modal, so the count
+  // does not wait for a reload to be true.
+  const bumpMembers = (groupId: string, by: number) =>
+    setGroups((prev) =>
+      prev.map((x) => (x.id === groupId ? { ...x, members: Math.max(0, x.members + by) } : x)),
+    );
   const [mappedGuests, setMappedGuests] = useState<
     { assignmentId: string; guestId: string; label: string }[]
   >([]);
@@ -1597,6 +1746,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
             assignmentId,
           },
         }));
+        bumpMembers(usersModalGroup.id, +1);
       }
       setStep3Done(true);
       setToast(`${guest.displayName ?? guest.identifier} mapped into ${usersModalGroup.name}.`);
@@ -1676,6 +1826,8 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           assignmentId,
         },
       }));
+      bumpMembers(other.policyId, -1);
+      bumpMembers(usersModalGroup.id, +1);
       setStep3Done(true);
       setToast(
         `${guest.displayName ?? guest.identifier} moved from ${other.policyName} to ${usersModalGroup.name}.`,
@@ -1722,6 +1874,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
       }
       setMappedGuests((p) => p.filter((m) => m.guestId !== mapping.guestId));
       setGuestCurrentGroups((p) => ({ ...p, [mapping.guestId]: null }));
+      if (!demo) bumpMembers(usersModalGroup.id, -1);
       setToast(`${mapping.label} unmapped from ${usersModalGroup.name}.`);
       setTimeout(() => setToast(null), 2500);
     } catch {
@@ -1745,19 +1898,11 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
     setIt(g.idleTimeout);
     setDp(g.devicesPerUser);
     setDl(g.dailyLimit);
-    if (g.loginHours) {
-      setLoginOn(true);
-      setLoginDays(g.loginHours.days);
-      setLoginFrom(g.loginHours.from);
-      setLoginTo(g.loginHours.to);
-    } else {
-      setLoginOn(false);
-    }
     if (g.dataLimit) {
       setDlOpen(true);
       setDlQuota(String(g.dataLimit.quota));
       setDlUnit(g.dataLimit.unit);
-      setDlResets(g.dataLimit.resets);
+      setDlResets(resetOrDaily(g.dataLimit.resets));
     } else {
       setDlOpen(false);
     }
@@ -1772,19 +1917,11 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
     setIt(g.idleTimeout);
     setDp(g.devicesPerUser);
     setDl(g.dailyLimit);
-    if (g.loginHours) {
-      setLoginOn(true);
-      setLoginDays(g.loginHours.days);
-      setLoginFrom(g.loginHours.from);
-      setLoginTo(g.loginHours.to);
-    } else {
-      setLoginOn(false);
-    }
     if (g.dataLimit) {
       setDlOpen(true);
       setDlQuota(String(g.dataLimit.quota));
       setDlUnit(g.dataLimit.unit);
-      setDlResets(g.dataLimit.resets);
+      setDlResets(resetOrDaily(g.dataLimit.resets));
     } else {
       setDlOpen(false);
     }
@@ -2073,7 +2210,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                 Time Limits
               </h3>
               <p className="mb-4 mt-0.5 text-xs text-slate-400 dark:text-slate-500">
-                When a member gets disconnected, has to sign in again, or can connect at all.
+                When a member gets disconnected or has to sign in again.
               </p>
               <div className="grid gap-4 sm:grid-cols-3">
                 <div>
@@ -2108,78 +2245,14 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                   onChange={(v) => setField("dl", v)}
                   options={DAILY_LIMIT}
                   placeholder="Choose daily limit"
-                  caption="Total session time allowed per day."
+                  caption="Total time one member may be online per day."
                 />
               </div>
 
-              <div className="mt-4 flex items-center justify-between rounded-md border border-dashed border-slate-300 px-3 py-2.5 dark:border-slate-600">
-                <div>
-                  <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                    Restrict login hours
-                  </span>
-                  <p className="text-xs text-slate-400 dark:text-slate-500">
-                    Limit when members can connect. Off means any time.
-                  </p>
-                </div>
-                <Switch
-                  checked={loginOn}
-                  onCheckedChange={() => setLoginOn((p) => !p)}
-                  aria-label="Restrict login hours"
-                />
-              </div>
-
-              {loginOn && (
-                <div className="mt-3 space-y-3">
-                  <div className="flex flex-wrap gap-1.5">
-                    {DAYS.map((d) => (
-                      <button
-                        key={d}
-                        onClick={() => toggleDay(d)}
-                        className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${loginDays.includes(d) ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"}`}
-                      >
-                        {d}
-                      </button>
-                    ))}
-                  </div>
-                  {errs.loginDays && <p className="text-xs text-indigo-500">{errs.loginDays}</p>}
-                  <div className="flex gap-3">
-                    <div>
-                      <label
-                        htmlFor="g-lf"
-                        className="mb-0.5 block text-xs text-slate-500 dark:text-slate-400"
-                      >
-                        From
-                      </label>
-                      <input
-                        id="g-lf"
-                        type="time"
-                        value={loginFrom}
-                        onChange={(e) => setLoginFrom(e.target.value)}
-                        className="rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
-                      />
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="g-lt"
-                        className="mb-0.5 block text-xs text-slate-500 dark:text-slate-400"
-                      >
-                        To
-                      </label>
-                      <input
-                        id="g-lt"
-                        type="time"
-                        value={loginTo}
-                        onChange={(e) => setLoginTo(e.target.value)}
-                        className="rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
-                      />
-                    </div>
-                  </div>
-                  {errs.loginTo && <p className="text-xs text-indigo-500">{errs.loginTo}</p>}
-                  <p className="text-xs text-slate-400 dark:text-slate-500">
-                    Members can only get online during these hours.
-                  </p>
-                </div>
-              )}
+              {/* "Restrict login hours" lived here. Nothing on the platform ever
+                refused a sign-in or ended a session by a tier's hours, so the
+                switch saved a window and changed nothing. It is removed until
+                that is built, rather than left looking like a working control. */}
             </div>
           </div>
 
@@ -2214,7 +2287,8 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                 {!showAllGroups && locationId
                   ? `Mapped to ${activeLocationName ?? "this location"} -- other tiers in the account are hidden.`
                   : "Every tier in this account, across all locations."}{" "}
-                A tier only applies to guests once it's mapped to their location below.
+                A tier applies only to the guests you add to it, at the locations it is mapped to.
+                Everyone else keeps the location's own Guest WiFi Limits.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -2298,7 +2372,6 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                     <TableHead className="text-xs font-medium">Timeout</TableHead>
                     <TableHead className="text-xs font-medium">Idle</TableHead>
                     <TableHead className="text-xs font-medium">Devices</TableHead>
-                    <TableHead className="text-xs font-medium">Login Hours</TableHead>
                     <TableHead className="text-xs font-medium">Data Limit</TableHead>
                     <TableHead className="text-xs font-medium">Members</TableHead>
                     <TableHead className="text-xs font-medium">Mapped to Location(s)</TableHead>
@@ -2315,20 +2388,25 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                       <TableCell>{g.idleTimeout}</TableCell>
                       <TableCell>{g.devicesPerUser}</TableCell>
                       <TableCell className="text-xs">
-                        {g.loginHours ? (
-                          `${g.loginHours.days.slice(0, 3).join(", ")}${g.loginHours.days.length > 3 ? "…" : ""}, ${g.loginHours.from}–${g.loginHours.to}`
-                        ) : (
-                          <span className="text-muted-foreground">Any time</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-xs">
                         {g.dataLimit ? (
                           `${g.dataLimit.quota} ${g.dataLimit.unit} / ${g.dataLimit.resets}`
                         ) : (
                           <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                      <TableCell>{g.members}</TableCell>
+                      <TableCell>
+                        {g.appliesToEveryoneHere ? (
+                          <span
+                            className="text-xs text-amber-700 dark:text-amber-400"
+                            title="This tier was mapped before tiers became members-only, so at this location it applies to every guest, not just the ones added to it. Unmap it and map it again to limit it to its members."
+                          >
+                            All guests here
+                            {g.members > 0 ? ` (${g.members} added)` : ""}
+                          </span>
+                        ) : (
+                          g.members
+                        )}
+                      </TableCell>
                       <TableCell>
                         <div className="flex flex-col items-start gap-1">
                           {/* Primary action -- the real many-to-many picture and
@@ -2481,7 +2559,9 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                   Map guests — {usersModalGroup.name}
                 </h3>
                 <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
-                  Guests mapped here get this group's policy instead of the location default.
+                  Guests added here get this tier's limits instead of the location's. A guest who is
+                  online now gets the tier's speed within a few seconds; its timeouts and device
+                  limit apply from their next sign-in.
                 </p>
               </div>
               <button

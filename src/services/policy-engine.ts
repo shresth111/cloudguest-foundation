@@ -25,6 +25,10 @@ export interface BackendPolicy {
   created_by_user_id: string | null;
   created_at: string;
   updated_at: string;
+  /** Guests mapped into this policy right now (its active `guest`
+   * assignments, all locations). Absent from a backend older than the
+   * Access Tiers fix. */
+  member_count?: number;
 }
 
 export interface BackendPolicyVersion {

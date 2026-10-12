@@ -31,6 +31,8 @@ export interface BandwidthPolicy {
   dailyLimitMinutes?: number | null;
   loginHours?: { days: string[]; from: string; to: string } | null;
   dataLimit?: { quota: number; unit: string; resets: string } | null;
+  /** Guests mapped into this policy across every location -- read-only. */
+  memberCount?: number;
   createdAt: number;
   updatedAt: number;
 }

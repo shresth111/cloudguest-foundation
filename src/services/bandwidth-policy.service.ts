@@ -18,6 +18,10 @@ import type {
 
 const POLICY_TYPE = "bandwidth";
 
+/** `PolicyAssignmentTargetType.MEMBERS` on the backend: "this tier is offered
+ * at this location, to the guests mapped into it and to nobody else". */
+export const TIER_MAPPING_TARGET = "members";
+
 interface BandwidthRules {
   download_rate_kbps: number;
   upload_rate_kbps: number;
@@ -63,6 +67,7 @@ function toBandwidthPolicy(detail: BackendPolicyDetail): BandwidthPolicy {
         }
       : null,
     dataLimit: rules.data_limit ?? null,
+    memberCount: detail.member_count ?? 0,
     createdAt: new Date(detail.created_at).getTime(),
     updatedAt: new Date(detail.updated_at).getTime(),
   };
@@ -209,6 +214,129 @@ export const bandwidthPolicyService = {
     organizationId?: string,
   ): Promise<void> {
     await deactivatePolicyAssignment(policyId, assignmentId, organizationId);
+  },
+
+  // ---------------------------------------------------------------------
+  // Access Tiers (CreateGroup.tsx) -- a tier's mapping to a location.
+  //
+  // Deliberately NOT the three functions above. Those write and read
+  // `target_type: "none"`, which is what makes a policy a location's own
+  // default: Guest WiFi Limits needs exactly that. A tier mapped the same
+  // way applied to every guest at the venue, newest mapping wins, and the
+  // venue's own limits could not win it back.
+  //
+  // A tier is mapped with `target_type: "members"`: the backend records
+  // that the tier is offered at the location and never resolves it for
+  // anyone. Who it reaches is said only by the `guest` assignments beside
+  // it (mapGuestToLocation below).
+  //
+  // A tier mapped before that change still holds a `none` row. It is read
+  // here as mapped, flagged `appliesToEveryone` so the screen can say so,
+  // and is never rewritten behind the operator's back -- on some venues
+  // that row is the only speed their guests have. Unmapping removes it;
+  // mapping again writes the members-only kind.
+  // ---------------------------------------------------------------------
+
+  async tierAssignments(
+    policyId: string,
+    organizationId?: string,
+  ): Promise<{
+    mappings: { assignmentId: string; locationId: string; appliesToEveryone: boolean }[];
+    /** Active members per location id. */
+    membersByLocation: Record<string, number>;
+    members: number;
+  }> {
+    const assignments = (await listPolicyAssignments(policyId, organizationId)).filter(
+      (a) => a.is_active && a.scope_type === "location" && a.scope_id,
+    );
+    const byLocation = new Map<
+      string,
+      { assignmentId: string; locationId: string; appliesToEveryone: boolean }
+    >();
+    for (const a of assignments) {
+      if (a.target_type !== TIER_MAPPING_TARGET && a.target_type !== "none") continue;
+      const locationId = a.scope_id as string;
+      const seen = byLocation.get(locationId);
+      const everyone = a.target_type === "none";
+      byLocation.set(locationId, {
+        // When both kinds exist, keep pointing at the members-only row.
+        assignmentId: everyone && seen ? seen.assignmentId : a.id,
+        locationId,
+        appliesToEveryone: (seen?.appliesToEveryone ?? false) || everyone,
+      });
+    }
+    const membersByLocation: Record<string, number> = {};
+    let members = 0;
+    for (const a of assignments) {
+      if (a.target_type !== "guest" || !a.target_id) continue;
+      const locationId = a.scope_id as string;
+      membersByLocation[locationId] = (membersByLocation[locationId] ?? 0) + 1;
+      members += 1;
+    }
+    return { mappings: [...byLocation.values()], membersByLocation, members };
+  },
+
+  async listTierLocationMappings(
+    policyId: string,
+    organizationId?: string,
+  ): Promise<{ assignmentId: string; locationId: string; appliesToEveryone: boolean }[]> {
+    return (await bandwidthPolicyService.tierAssignments(policyId, organizationId)).mappings;
+  },
+
+  async tierLocationMapping(
+    policyId: string,
+    locationId: string,
+    organizationId?: string,
+  ): Promise<string | null> {
+    const mappings = await bandwidthPolicyService.listTierLocationMappings(
+      policyId,
+      organizationId,
+    );
+    return mappings.find((m) => m.locationId === locationId)?.assignmentId ?? null;
+  },
+
+  // Idempotent, like mapToLocation: a tier already mapped here -- either
+  // way -- is left exactly as it is.
+  async mapTierToLocation(
+    policyId: string,
+    locationId: string,
+    organizationId?: string,
+  ): Promise<string> {
+    const existing = await bandwidthPolicyService.tierLocationMapping(
+      policyId,
+      locationId,
+      organizationId,
+    );
+    if (existing) return existing;
+    const assignment = await createPolicyAssignment({
+      policyId,
+      scopeType: "location",
+      scopeId: locationId,
+      targetType: TIER_MAPPING_TARGET,
+      organizationId,
+    });
+    return assignment.id;
+  },
+
+  // Removes EVERY mapping of this tier to the location, the old kind
+  // included, so "unmapped" is true whichever way it was mapped. The backend
+  // ends the tier's memberships at that location when the last one goes.
+  async unmapTierFromLocation(
+    policyId: string,
+    locationId: string,
+    organizationId?: string,
+  ): Promise<void> {
+    const assignments = await listPolicyAssignments(policyId, organizationId);
+    const mappings = assignments.filter(
+      (a) =>
+        a.is_active &&
+        a.scope_type === "location" &&
+        a.scope_id === locationId &&
+        (a.target_type === TIER_MAPPING_TARGET || a.target_type === "none"),
+    );
+    for (const mapping of mappings) {
+      await deactivatePolicyAssignment(policyId, mapping.id, organizationId);
+    }
   },
 
   // "Map users" (CreateGroup.tsx step 3) -- every guest currently mapped
