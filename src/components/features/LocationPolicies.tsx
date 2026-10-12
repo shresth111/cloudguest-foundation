@@ -31,6 +31,8 @@ import { isLocationNamedPolicy } from "@/lib/policy-scope";
 import { bandwidthPolicyService } from "@/services/bandwidth-policy.service";
 import { useClientControls } from "@/hooks/useClientControls";
 import { ControllerControlNotice } from "@/components/customer/ControllerControlNotice";
+import { isNasOnlyVendor } from "@/lib/router-vendors";
+import { NAS_ONLY_LIMITS_FOOTER, nasOnlyLimitVerdict } from "@/lib/nas-only-access-rules";
 import { resolveOrgId } from "@/services/customer.service";
 import {
   createPolicyWithRules,
@@ -393,6 +395,17 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   const speedAsking = clientControls.loading;
   const speedUsable = !speedAsking && speedVerdict.availability !== "unavailable";
   const sessionTimeoutVerdict = clientControls.verdict("session-timeout");
+  // NAS-ONLY VENUES (Aruba Instant On) -- see lib/nas-only-access-rules.ts.
+  // At every other vendor all three verdicts are `available` with a null
+  // reason, `nasOnlyVenue` is false, and nothing below renders or saves any
+  // differently. At an Instant On venue the data limit is greyed (nothing
+  // counts the bytes there yet), and the idle timeout and daily limit stay
+  // live with a sentence saying how far they reach.
+  const nasOnlyVenue = isNasOnlyVendor(clientControls.vendor);
+  const dataLimitVerdict = nasOnlyLimitVerdict("data-limit", clientControls.vendor);
+  const dataLimitUsable = dataLimitVerdict.availability !== "unavailable";
+  const idleTimeoutVerdict = nasOnlyLimitVerdict("idle-timeout", clientControls.vendor);
+  const dailyLimitVerdict = nasOnlyLimitVerdict("daily-limit", clientControls.vendor);
   // UNITS is demo-only seed data (fake hotel names) -- a real customer only
   // has their own locations, so the "Business Unit" picker below (whose
   // value becomes the saved bandwidth policy's own name) must offer those
@@ -690,7 +703,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
     // have saved an accidental "no internet for anybody", refused at the very
     // next login, from a field they left empty.
     if (!f.idleTimeout) e.idleTimeout = "Required.";
-    if (dataLimitOpen) {
+    if (dataLimitOpen && dataLimitUsable) {
       const quota = parseFloat(dlQuota);
       if (!Number.isFinite(quota) || quota <= 0) {
         e.dataLimit = "Enter how much data each guest gets, or remove the limit.";
@@ -711,9 +724,18 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
     setSaving(true);
     // `validate()` has already refused a non-positive quota, so this cannot
     // produce the accidental zero-cap described there.
-    const dataLimit = dataLimitOpen
-      ? { quota: parseFloat(dlQuota), unit: dlUnit, resets: dlResets }
-      : null;
+    //
+    // A GREYED DATA LIMIT DOES NOT WRITE EITHER -- the same rule the
+    // Bandwidth field follows below. At a NAS-only venue the control cannot
+    // be opened, so "closed" is not the owner choosing "no limit": it is no
+    // opinion, and the honest write is whatever this location already holds.
+    const heldDataLimit =
+      policies.find((p) => p.businessUnit === f.businessUnit)?.dataLimit ?? null;
+    const dataLimit = !dataLimitUsable
+      ? heldDataLimit
+      : dataLimitOpen
+        ? { quota: parseFloat(dlQuota), unit: dlUnit, resets: dlResets }
+        : null;
 
     if (demo) {
       setTimeout(() => {
@@ -970,9 +992,11 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
       // asserting a second, stronger answer beside it.
       setToast(
         targetLocationId
-          ? dataLimit
-            ? `Limits saved for ${f.businessUnit} — the data limit applies to guests online now; the rest apply as each guest next connects.`
-            : `Limits saved for ${f.businessUnit} — they take effect as each guest next connects.`
+          ? nasOnlyVenue
+            ? `Limits saved for ${f.businessUnit} — they take effect the next time each guest signs in.`
+            : dataLimit
+              ? `Limits saved for ${f.businessUnit} — the data limit applies to guests online now; the rest apply as each guest next connects.`
+              : `Limits saved for ${f.businessUnit} — they take effect as each guest next connects.`
           : "Limits saved, but not applied to any location — reopen this page from the location you want them on.",
       );
       setTimeout(() => setToast(null), 2500);
@@ -1001,7 +1025,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
       dataLimit: p.dataLimit,
     });
     setErrs({});
-    if (p.dataLimit) {
+    if (p.dataLimit && dataLimitUsable) {
       setDataLimitOpen(true);
       setDlQuota(String(p.dataLimit.quota));
       setDlUnit(p.dataLimit.unit);
@@ -1249,12 +1273,17 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                 the device: the accounting arrives from RADIUS at a MikroTik
                 venue and from the Omada usage backfill at a controller one, so
                 there is no vendor gate to render here and none is faked. */}
+              {/* Greyed at a NAS-only venue (Aruba Instant On), with copy U3a:
+                  nothing there counts a guest's bytes yet, so a cap saved
+                  here would never be reached. Disabled rather than hidden --
+                  an absence cannot be asked a question. */}
               <button
                 type="button"
+                disabled={!dataLimitUsable}
                 onClick={() => setDataLimitOpen((prev) => !prev)}
-                aria-expanded={dataLimitOpen}
+                aria-expanded={dataLimitOpen && dataLimitUsable}
                 aria-controls="data-limit-panel"
-                className="mt-4 flex w-full items-center justify-between rounded-md border border-dashed border-slate-300 px-3 py-2.5 text-left transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:hover:bg-slate-700"
+                className="mt-4 flex w-full items-center justify-between rounded-md border border-dashed border-slate-300 px-3 py-2.5 text-left transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent dark:border-slate-600 dark:hover:bg-slate-700"
               >
                 <span className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
                   <Plus className="h-4 w-4 text-indigo-500" /> Add a data limit{" "}
@@ -1265,7 +1294,9 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                 />
               </button>
 
-              {dataLimitOpen && (
+              <ControllerControlNotice verdict={dataLimitVerdict} />
+
+              {dataLimitOpen && dataLimitUsable && (
                 <>
                   {/* Said here, in full, once. This is the only setting on the
                     form that ends a session someone is currently using, and
@@ -1385,26 +1416,35 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                   />
                   <ControllerControlNotice verdict={sessionTimeoutVerdict} />
                 </div>
-                <Select
-                  id="it"
-                  label="Idle Timeout"
-                  required
-                  value={f.idleTimeout}
-                  onChange={(v) => setField("idleTimeout", v)}
-                  options={IDLE_TIMEOUT}
-                  placeholder="Choose idle timeout"
-                  caption="Sign a device out after this much inactivity."
-                  err={errs.idleTimeout}
-                />
-                <Select
-                  id="dl"
-                  label="Maximum Daily Session Limit"
-                  value={f.dailyLimit}
-                  onChange={(v) => setField("dailyLimit", v)}
-                  options={DAILY_LIMIT}
-                  placeholder="Choose daily limit"
-                  caption="Total time one guest may be online per day."
-                />
+                {/* Live everywhere. At a NAS-only venue each carries a
+                    sentence saying how far it reaches (no `disabled`: the
+                    sign-in half of both is real there). */}
+                <div>
+                  <Select
+                    id="it"
+                    label="Idle Timeout"
+                    required
+                    value={f.idleTimeout}
+                    onChange={(v) => setField("idleTimeout", v)}
+                    options={IDLE_TIMEOUT}
+                    placeholder="Choose idle timeout"
+                    caption="Sign a device out after this much inactivity."
+                    err={errs.idleTimeout}
+                  />
+                  <ControllerControlNotice verdict={idleTimeoutVerdict} />
+                </div>
+                <div>
+                  <Select
+                    id="dl"
+                    label="Maximum Daily Session Limit"
+                    value={f.dailyLimit}
+                    onChange={(v) => setField("dailyLimit", v)}
+                    options={DAILY_LIMIT}
+                    placeholder="Choose daily limit"
+                    caption="Total time one guest may be online per day."
+                  />
+                  <ControllerControlNotice verdict={dailyLimitVerdict} />
+                </div>
               </div>
             </div>
           </div>
@@ -1450,10 +1490,16 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
           <div className="flex flex-col items-center gap-3">
             <p className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
-              Speed, timeouts and device count apply the next time each guest connects — anyone
-              online right now keeps those until then. A data limit is different: it counts usage
-              guests have already spent this period, so adding or lowering one can sign someone out
-              within minutes.
+              {nasOnlyVenue ? (
+                NAS_ONLY_LIMITS_FOOTER
+              ) : (
+                <>
+                  Speed, timeouts and device count apply the next time each guest connects — anyone
+                  online right now keeps those until then. A data limit is different: it counts
+                  usage guests have already spent this period, so adding or lowering one can sign
+                  someone out within minutes.
+                </>
+              )}
               <Tooltip
                 id="save-immediate-effect"
                 text="Double-check the limits above before saving. Need help? Contact support@wyfyguest.com."
@@ -1601,7 +1647,14 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                         {p.devicesPerUser}
                       </TableCell>
                       <TableCell className="text-xs">
-                        {p.dataLimit ? (
+                        {!dataLimitUsable ? (
+                          <span
+                            className="text-slate-400 dark:text-slate-500"
+                            title={dataLimitVerdict.reason ?? undefined}
+                          >
+                            Not applied here
+                          </span>
+                        ) : p.dataLimit ? (
                           <span className="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 font-medium text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400">
                             {p.dataLimit.quota} {p.dataLimit.unit} / {p.dataLimit.resets}
                           </span>

@@ -27,6 +27,8 @@ import { CUSTOMER_NAVS, customerFeatureHref } from "@/lib/customerNav";
 import { locationControllerVendor, locationIsControllerManaged } from "@/lib/location-liveness";
 import { featureAppliesToControllerVenue } from "@/lib/router-vendors";
 import { ControllerManagedFeatureNotice } from "@/components/customer/ControllerManagedFeatureNotice";
+import { ControllerControlNotice } from "@/components/customer/ControllerControlNotice";
+import { nasOnlyLimitVerdict } from "@/lib/nas-only-access-rules";
 import { AgentsPage } from "@/components/features/AgentsPage";
 import { CampaignsPage } from "@/components/features/CampaignsPage";
 import { VouchersPage } from "@/components/features/VouchersPage";
@@ -289,10 +291,20 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
               {feature === "portal" && <PortalPage locationId={locationId} />}
               {feature === "vouchers" && <VouchersPage locationId={locationId} />}
               {feature === "policies" && <PoliciesHub locationId={locationId} />}
-              {/* Allow-list and Trusted Devices are live everywhere except a
-                  NAS-only venue (Aruba Instant On), where `controllerGated`
-                  is true for them and the notice below renders instead. */}
-              {feature === "whitelist" && !controllerGated && <WhiteList locationId={locationId} />}
+              {/* Guest Allow-list is live everywhere. At a NAS-only venue
+                  (Aruba Instant On) it carries one caveat above it: rules are
+                  decided at sign-in, and nothing can take an Instant On guest
+                  who is already online off the network. Trusted Devices is
+                  the screen a NAS-only venue loses (`controllerGated`). */}
+              {feature === "whitelist" && !controllerGated && (
+                <>
+                  <ControllerControlNotice
+                    verdict={nasOnlyLimitVerdict("allow-list", controllerVendor)}
+                    className="mb-4 mt-0"
+                  />
+                  <WhiteList locationId={locationId} />
+                </>
+              )}
               {feature === "devices" && (
                 <div className="space-y-4">
                   <NetworkHardwareView locationId={locationId} />

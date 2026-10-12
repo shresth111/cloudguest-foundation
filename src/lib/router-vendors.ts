@@ -271,13 +271,24 @@ export const CONTROLLER_UNSUPPORTED_FEATURE_IDS: readonly string[] = [
 ];
 
 /**
- * The extra screens a NAS-only venue (Aruba Instant On) cannot use, on top of
- * the list above. Omada keeps both: its controller has a walled garden and MAC
- * authentication that this platform drives. Instant On holds its own "Allowed
- * domains" list that we cannot write, and has no MAC authentication at all
- * (PM_SPEC §3.2, copy U7 / U8).
+ * The extra screen a NAS-only venue (Aruba Instant On) cannot use, on top of
+ * the list above: Trusted Devices. Instant On has no MAC authentication, so
+ * no device can skip its sign-in page (PM_SPEC §3.2, copy U8). Omada keeps it.
+ *
+ * "Guest Allow-list" (`whitelist`) USED TO BE HERE AND IS NOT. PM_SPEC §3.2
+ * row "Guest Allow-list (whitelist) | Pre-login domains" describes a walled
+ * garden, and greyed this screen with copy U7 ("set in the Instant On app,
+ * under Guest portal > Allowed domains"). But the screen at that nav id is
+ * `WhiteList.tsx`: allow rules by phone number or device MAC, and the
+ * "only people on this list" switch -- `guest_access_rules` /
+ * `device_access_rules` and `whitelist_only_enabled`, decided by the portal
+ * sign-in (`GuestService._enforce_access_control`) for every vendor. That
+ * works at an Instant On venue unchanged, so greying it removed a working
+ * control and pointed the owner at an unrelated setting. It stays live, with
+ * the one caveat it does have there (`NAS_ONLY_ALLOW_LIST`): a change reaches
+ * guests at their next sign-in, never someone already online.
  */
-export const NAS_ONLY_EXTRA_UNSUPPORTED_FEATURE_IDS: readonly string[] = ["whitelist", "mac-auth"];
+export const NAS_ONLY_EXTRA_UNSUPPORTED_FEATURE_IDS: readonly string[] = ["mac-auth"];
 
 /**
  * Whether a customer screen works at a controller-managed venue. `vendor` is
@@ -674,12 +685,10 @@ export function controllerUnsupportedHeadline(
  * with no bytes recorded renders "—" with this, never a measured "0 MB". */
 export const NAS_ONLY_DATA_USAGE_UNREPORTED = "Data usage isn't reported for this venue yet.";
 
-/** PM_SPEC U7 / U8: the two screens only a NAS-only venue loses, each with
- * its own sentence because neither is "set up in the app" in the same way. */
+/** PM_SPEC U8: the screen only a NAS-only venue loses, with its own sentence
+ * because it is not "set up in the app" -- Instant On cannot do it at all.
+ * (U7 is not used: see `NAS_ONLY_EXTRA_UNSUPPORTED_FEATURE_IDS`.) */
 export const NAS_ONLY_FEATURE_COPY: Record<string, string> = {
-  whitelist:
-    "Websites guests can open before signing in are set in the Instant On app, under " +
-    "Guest portal > Allowed domains.",
   "mac-auth":
     "Aruba Instant On can't let devices skip the sign-in page, so trusted devices aren't " +
     "available here.",
