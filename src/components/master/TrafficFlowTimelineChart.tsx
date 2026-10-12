@@ -56,13 +56,19 @@ function bandsFor(mode: TimelineMode, series: FlowTimelineSeries[]): Band[] {
   ];
 }
 
-type Row = { t: number } & Record<string, number | null>;
+type Row = Record<string, number | null>;
 
 function rowsFor(mode: TimelineMode, slots: TimelineSlot[]): Row[] {
-  return slots.map((s) => {
+  return slots.map((s): Row => {
     // A key left out of the row draws nothing: that is the gap.
-    if (mode === "direction") return s.measured ? { t: s.t, down: s.down, up: s.up } : { t: s.t };
-    return s.services ? { t: s.t, ...s.services } : { t: s.t };
+    const row: Row = { t: s.t };
+    if (mode === "direction") {
+      if (s.measured) {
+        row.down = s.down;
+        row.up = s.up;
+      }
+    } else if (s.services) Object.assign(row, s.services);
+    return row;
   });
 }
 

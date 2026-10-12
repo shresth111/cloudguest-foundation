@@ -402,6 +402,9 @@ export interface TotalsView {
   uploadRate: string;
   devicesPeak: string;
   destinationsPeak: string;
+  /** The bare counts, for a tile whose caption says "at once". */
+  devicesPeakCount: string;
+  destinationsPeakCount: string;
   /** Own lines, never folded into a list. null = nothing to say. */
   internal: string | null;
   unclassified: string | null;
@@ -422,6 +425,8 @@ export function totalsView(summary: FlowSummary | null | undefined): TotalsView 
       uploadRate: NOT_MEASURED,
       devicesPeak: NOT_MEASURED,
       destinationsPeak: NOT_MEASURED,
+      devicesPeakCount: NOT_MEASURED,
+      destinationsPeakCount: NOT_MEASURED,
       internal: null,
       unclassified: null,
     };
@@ -437,6 +442,8 @@ export function totalsView(summary: FlowSummary | null | undefined): TotalsView 
     destinationsPeak: isNum(t.destinations_peak)
       ? `Up to ${formatCount(t.destinations_peak)} at once`
       : DASH,
+    devicesPeakCount: isNum(t.devices_peak) ? formatCount(t.devices_peak) : DASH,
+    destinationsPeakCount: isNum(t.destinations_peak) ? formatCount(t.destinations_peak) : DASH,
     internal: isNum(t.bytes_internal) ? formatBytes(t.bytes_internal) : null,
     unclassified:
       isNum(t.bytes_unclassified) && t.bytes_unclassified > 0

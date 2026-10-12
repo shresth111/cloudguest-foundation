@@ -119,6 +119,7 @@ export function TrafficFlowVenueView({
   const totals = totalsView(s);
   const slots = useMemo(() => timelineSlots(s), [s]);
   const gapNote = timelineGapNote(slots);
+  const noServiceSteps = slots.filter((x) => x.measured && !x.servicesMeasured).length;
   const services = servicesView(s);
   const protocols = protocolRows(s);
   const rangeMs = FLOW_WINDOW_MS[scope.window];
@@ -237,15 +238,15 @@ export function TrafficFlowVenueView({
                   icon={ArrowUp}
                 />
                 <MStat
-                  label="Devices seen"
-                  value={totals.devicesPeak}
-                  delta="most in any one window"
+                  label="Devices at once"
+                  value={totals.devicesPeakCount}
+                  delta="most in any one window, not a total"
                   icon={MonitorSmartphone}
                 />
                 <MStat
-                  label="Outside addresses seen"
-                  value={totals.destinationsPeak}
-                  delta="most in any one window"
+                  label="Outside addresses at once"
+                  value={totals.destinationsPeakCount}
+                  delta="most in any one window, not a total"
                   icon={Globe}
                 />
               </div>
@@ -280,6 +281,9 @@ export function TrafficFlowVenueView({
                 </Suspense>
                 <p className="mt-1 text-[11px] text-muted-foreground">
                   Rate over time, {stepLabel(s.step_seconds)}.{gapNote ? ` ${gapNote}` : ""}
+                  {mode === "service" && noServiceSteps > 0
+                    ? ` ${noServiceSteps} step${noServiceSteps === 1 ? " has" : "s have"} traffic but no per-service detail and are blank in this view; switch to Download / upload to see them.`
+                    : ""}
                 </p>
 
                 <div className="mt-4 grid gap-4 xl:grid-cols-3">
