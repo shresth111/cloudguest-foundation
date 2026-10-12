@@ -45,7 +45,10 @@ export const LENS_SERIES_COLORS = [
  * (`LensRangeControl`) on purpose: a custom start and end is one more
  * `kind` here and one more input there, and every view reads the same
  * bounds from `lensRangeBounds`. */
-export type LensRange = { kind: "preset"; window: FlowWindow };
+export type LensRange =
+  | { kind: "preset"; window: FlowWindow }
+  /** A custom start and end, minute precision, as UTC ISO instants. */
+  | { kind: "custom"; since: string; until: string };
 
 export const LENS_PRESETS: { value: FlowWindow; label: string; ms: number }[] = [
   { value: "1h", label: "1 hour", ms: 60 * 60 * 1000 },
@@ -63,14 +66,23 @@ export function lensRangeBounds(
   range: LensRange,
   now: number,
 ): { since: string; until: string; ms: number } {
+  if (range.kind === "custom") {
+    const span = Date.parse(range.until) - Date.parse(range.since);
+    return {
+      since: range.since,
+      until: range.until,
+      ms: Number.isFinite(span) && span > 0 ? span : LENS_PRESETS[0].ms,
+    };
+  }
   const ms = (LENS_PRESETS.find((p) => p.value === range.window) ?? LENS_PRESETS[0]).ms;
   return { since: new Date(now - ms).toISOString(), until: new Date(now).toISOString(), ms };
 }
 
-/** The page's views. One today; the tab strip appears by itself once a
- * second entry is added here, and each view gets the same venue and range. */
-export const LENS_VIEWS: { id: "overview"; label: string }[] = [
+/** The page's views. Each gets the same venue and the same range. */
+export const LENS_VIEWS: { id: "overview" | "destinations"; label: string }[] = [
   { id: "overview", label: "Overview" },
+  // The venue's destination records: search, download. Venue-level only.
+  { id: "destinations", label: "Destinations" },
 ];
 
 export type LensRefusal = "locked" | "licence" | "forbidden" | null;

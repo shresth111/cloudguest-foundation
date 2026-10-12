@@ -4,6 +4,7 @@ import { ArrowDown, ArrowUp, Check, Clock, Lock, RefreshCw } from "lucide-react"
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -61,6 +62,17 @@ import {
   TIMELINE_CHART_H,
   type TimelineMode,
 } from "@/components/traffic-lens/TrafficLensTimelineChart";
+import {
+  TrafficLensDestinations,
+  TrafficLensServiceDestinations,
+} from "@/components/traffic-lens/TrafficLensDestinations";
+import {
+  FLOW_RETENTION_DAYS,
+  customRangeFromInputs,
+  rangeLabel,
+  serviceFromKey,
+  toLocalInput,
+} from "@/lib/traffic-flow-destinations";
 import { TRAFFIC_LENS_FEATURE_KEY } from "@/types/traffic-lens";
 
 // recharts stays behind a dynamic import, as on every other chart screen.
@@ -188,6 +200,14 @@ export function TrafficLensView({ locationId }: { locationId: string }) {
               rangeMs={lensRangeBounds(range, at).ms}
               now={now}
               onRetry={() => setAt(Date.now())}
+              locationId={locationId}
+              bounds={lensRangeBounds(range, at)}
+            />
+          )}
+          {view === "destinations" && (
+            <TrafficLensDestinations
+              locationId={locationId}
+              rangeAt={(moment) => lensRangeBounds(range, moment)}
             />
           )}
 
@@ -215,22 +235,104 @@ function LensRangeControl({
   value: LensRange;
   onChange: (next: LensRange) => void;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [since, setSince] = useState("");
+  const [until, setUntil] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const earliest = toLocalInput(Date.now() - FLOW_RETENTION_DAYS * 86_400_000);
+
+  const apply = () => {
+    const result = customRangeFromInputs(since, until, Date.now());
+    if (!result.ok) {
+      setError(result.message);
+      return;
+    }
+    setError(null);
+    setEditing(false);
+    onChange({ kind: "custom", ...result.range });
+  };
+
   return (
-    <Tabs
-      value={value.window}
-      onValueChange={(v) => {
-        const preset = LENS_PRESETS.find((p) => p.value === v);
-        if (preset) onChange({ kind: "preset", window: preset.value });
-      }}
-    >
-      <TabsList aria-label="Period">
-        {LENS_PRESETS.map((p) => (
-          <TabsTrigger key={p.value} value={p.value}>
-            {p.label}
-          </TabsTrigger>
-        ))}
-      </TabsList>
-    </Tabs>
+    <div className="flex flex-wrap items-center gap-2">
+      <Tabs
+        value={editing || value.kind === "custom" ? "custom" : value.window}
+        onValueChange={(v) => {
+          setError(null);
+          if (v === "custom") {
+            // Opens on the period already in use, or the last hour.
+            const now = Date.now();
+            const custom = value.kind === "custom" ? value : null;
+            setSince(toLocalInput(custom ? Date.parse(custom.since) : now - 3_600_000));
+            setUntil(toLocalInput(custom ? Date.parse(custom.until) : now));
+            setEditing(true);
+            return;
+          }
+          const preset = LENS_PRESETS.find((p) => p.value === v);
+          if (preset) {
+            setEditing(false);
+            onChange({ kind: "preset", window: preset.value });
+          }
+        }}
+      >
+        <TabsList aria-label="Period">
+          {LENS_PRESETS.map((p) => (
+            <TabsTrigger key={p.value} value={p.value}>
+              {p.label}
+            </TabsTrigger>
+          ))}
+          <TabsTrigger value="custom">Custom</TabsTrigger>
+        </TabsList>
+      </Tabs>
+      {value.kind === "custom" && !editing && (
+        <span className="text-xs text-muted-foreground">{rangeLabel(value)}</span>
+      )}
+      {editing && (
+        <div className="flex w-full flex-wrap items-end gap-2 rounded-lg border border-border bg-card p-3">
+          <label className="block w-52 space-y-1.5">
+            <span className="text-xs font-medium text-muted-foreground">From</span>
+            <Input
+              type="datetime-local"
+              value={since}
+              min={earliest}
+              max={toLocalInput(Date.now())}
+              onChange={(e) => setSince(e.target.value)}
+            />
+          </label>
+          <label className="block w-52 space-y-1.5">
+            <span className="text-xs font-medium text-muted-foreground">To</span>
+            <Input
+              type="datetime-local"
+              value={until}
+              min={earliest}
+              onChange={(e) => setUntil(e.target.value)}
+            />
+          </label>
+          <Button size="sm" onClick={apply}>
+            Use this period
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              setEditing(false);
+              setError(null);
+            }}
+          >
+            Cancel
+          </Button>
+          <p className="w-full text-[11px] text-muted-foreground">
+            Your local time, to the minute. Figures are kept for {FLOW_RETENTION_DAYS} days, and a
+            period may be at most {FLOW_RETENTION_DAYS} days long. Figures are per five-minute
+            window, so a period covers the windows that start inside it.
+          </p>
+          {error && (
+            <p role="alert" className="w-full text-xs text-destructive">
+              {error}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -240,13 +342,22 @@ function OverviewView({
   rangeMs,
   now,
   onRetry,
+  locationId,
+  bounds,
 }: {
   query: ReturnType<typeof useTrafficLensSummary>;
   rangeMs: number;
   now: number;
   onRetry: () => void;
+  locationId: string;
+  /** The period on screen, for the drill-down from a service. */
+  bounds: { since: string; until: string };
 }) {
   const [mode, setMode] = useState<TimelineMode>("service");
+  /** The service row whose destinations are open, and for which period. */
+  const [opened, setOpened] = useState<{ key: string; label: string; period: string } | null>(null);
+  const period = `${bounds.since}|${bounds.until}`;
+  const open = opened && opened.period === period ? opened : null;
   const s = query.data;
   const slots = useMemo(() => timelineSlots(s), [s]);
 
@@ -357,6 +468,7 @@ function OverviewView({
                     <TableHead>Average speed</TableHead>
                     <TableHead>Download</TableHead>
                     <TableHead>Upload</TableHead>
+                    <TableHead />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -381,10 +493,36 @@ function OverviewView({
                       <TableCell className="tabular-nums">{r.rate}</TableCell>
                       <TableCell className="tabular-nums">{r.down}</TableCell>
                       <TableCell className="tabular-nums">{r.up}</TableCell>
+                      <TableCell className="text-right">
+                        {serviceFromKey(r.key) && (
+                          <Button
+                            size="sm"
+                            variant={open?.key === r.key ? "default" : "outline"}
+                            aria-expanded={open?.key === r.key}
+                            onClick={() =>
+                              setOpened(
+                                open?.key === r.key ? null : { key: r.key, label: r.label, period },
+                              )
+                            }
+                          >
+                            Destinations
+                          </Button>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
+            )}
+            {open && (
+              <TrafficLensServiceDestinations
+                key={`${open.key}@${period}`}
+                locationId={locationId}
+                range={bounds}
+                serviceKey={open.key}
+                label={open.label}
+                onClose={() => setOpened(null)}
+              />
             )}
           </div>
           <div>

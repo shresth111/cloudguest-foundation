@@ -266,6 +266,14 @@ export interface FlowScope {
   window: FlowWindow;
   locationId: string;
   routerId: string;
+  /** A custom range, minute precision, as UTC ISO instants. When set it
+   * replaces `window`; the presets stay available. */
+  custom?: FlowCustomRange | null;
+}
+
+export interface FlowCustomRange {
+  since: string;
+  until: string;
 }
 
 export interface FleetFilters {

@@ -1489,6 +1489,27 @@ jobs:
             "traffic flow" 287 "all traffic flow checks passed" \
             bun run test:traffic-flow
 
+      # --- Traffic Lens Destinations: venue-level, audited, honest ---------
+      #
+      # The Destinations search, its CSV download, the custom time range and
+      # the drill-down from a service. A destination record says which
+      # outside address and service a VENUE exchanged traffic with; it never
+      # says which device. This suite fails if a wire type, request
+      # parameter, filter or column ever names a device, a MAC, a guest or a
+      # session.
+      #
+      # Every request also writes an audit row on the server, so the suite
+      # pins that nothing is fetched unasked (no retry, no refetch on focus,
+      # nothing before Search is pressed), and that an unmeasured range, a
+      # withheld range and "nothing matched" are never drawn as the same
+      # empty table. Floor 211, observed green at 211.
+      - name: traffic flow destinations are venue-level and audited
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "traffic flow destinations" 211 \
+            "all traffic flow destination checks passed" \
+            bun run test:traffic-flow-destinations
+
       # --- A venue's floors are the venue's, not a constant ---------------
       #
       # `FLOORS = ["5F".."GF"]` was shown to every venue as its floor list,
