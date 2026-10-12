@@ -17,7 +17,7 @@ import {
   MSeg,
 } from "@/components/master/MasterKit";
 import { trafficFlowService } from "@/services/traffic-flow.service";
-import { formatBytes } from "@/lib/traffic-flow";
+import { TRAFFIC_FLOW_MODULE_NAME, formatBytes } from "@/lib/traffic-flow";
 import {
   TRAFFIC_FLOW_STATE_HELP,
   TRAFFIC_FLOW_STATE_LABEL,
@@ -72,7 +72,7 @@ function TrafficFlowScreen() {
     } catch (err) {
       // Never fall back to an empty table: an error reads as an error.
       setOverview(null);
-      setLoadError(errMsg(err, "Could not load traffic flow data."));
+      setLoadError(errMsg(err, `Could not load ${TRAFFIC_FLOW_MODULE_NAME} data.`));
     } finally {
       setLoading(false);
     }
@@ -84,11 +84,11 @@ function TrafficFlowScreen() {
   }, [period]);
 
   return (
-    <MasterShell title="Traffic Flow">
+    <MasterShell title={TRAFFIC_FLOW_MODULE_NAME}>
       <MPageShell>
         <MSectionHeader
           eyebrow="Infrastructure"
-          title="Traffic Flow (NetFlow / IPFIX)"
+          title={`${TRAFFIC_FLOW_MODULE_NAME} (NetFlow / IPFIX)`}
           description="Top talkers and top destinations per venue, from MikroTik traffic-flow export. Operator-only."
           actions={
             <>
@@ -103,7 +103,7 @@ function TrafficFlowScreen() {
         <HonestyNote />
 
         {loadError && (
-          <Banner tone="error" title="Traffic flow data could not be loaded">
+          <Banner tone="error" title={`${TRAFFIC_FLOW_MODULE_NAME} data could not be loaded`}>
             {loadError}
           </Banner>
         )}
@@ -184,7 +184,7 @@ function PipelineStatus({ overview }: { overview: TrafficFlowOverview }) {
   return (
     <div className="space-y-2">
       {!overview.enabled && (
-        <Banner tone="info" title="Traffic flow is disabled on this backend">
+        <Banner tone="info" title={`${TRAFFIC_FLOW_MODULE_NAME} is disabled on this backend`}>
           CLOUDGUEST_TRAFFIC_FLOW_ENABLED is off. Nothing is pulled from the hub and the generator
           renders no traffic-flow section.
         </Banner>
@@ -371,7 +371,7 @@ function ConfigDialog({
   }
 
   return (
-    <MDialog open onClose={onClose} title={`Traffic flow config — ${router.routerName ?? ""}`} wide>
+    <MDialog open onClose={onClose} title={`${TRAFFIC_FLOW_MODULE_NAME} config — ${router.routerName ?? ""}`} wide>
       <div className="space-y-3 text-sm">
         {error && <Banner tone="error" title={error} />}
         {!preview && !error && <Loader2 className="h-4 w-4 animate-spin" />}

@@ -147,6 +147,16 @@ check(
   /"traffic-flow\.apply": \["traffic_flows\.update"\]/.test(shell),
 );
 const page = readFileSync(join(ROOT, "src/routes/master.traffic-flow.tsx"), "utf8");
+eq("the visible module name is one constant", lib.TRAFFIC_FLOW_MODULE_NAME, "Traffic Lens");
+check(
+  "nav label reads the constant",
+  /to: "\/master\/traffic-flow",\s*label: TRAFFIC_FLOW_MODULE_NAME,/.test(shell),
+);
+check(
+  "no hard-coded module name left on the page or in the nav",
+  !/Traffic Flow|Traffic flow is|Traffic flow config|Traffic flow data/.test(page) &&
+    !/label: "Traffic Flow"/.test(shell),
+);
 check("page states there is no DPI", /no DPI/.test(page));
 check("page renders no Application column", !/<MTh>\s*App/i.test(page));
 check("real writes ask for confirmation", /window\.confirm\(/.test(page));

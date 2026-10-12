@@ -1472,7 +1472,7 @@ jobs:
       - name: traffic flow page is operator-only and honest
         run: |
           ./scripts/ci-gated-test.sh \
-            "traffic flow" 42 "all traffic flow checks passed" \
+            "traffic flow" 45 "all traffic flow checks passed" \
             bun run test:traffic-flow
 
       # --- A venue's floors are the venue's, not a constant ---------------

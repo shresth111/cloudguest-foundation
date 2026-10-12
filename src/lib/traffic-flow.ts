@@ -15,6 +15,12 @@ import type {
   TrafficFlowTalker,
 } from "@/types/traffic-flow";
 
+/** The module's visible name: the Master nav item, the page title and every
+ * banner read this one constant (wyfy-specs/flow-visibility/PRODUCT.md §1).
+ * The route path, permission keys and code identifiers keep "traffic flow",
+ * which is also MikroTik's name for the router feature. */
+export const TRAFFIC_FLOW_MODULE_NAME = "Traffic Lens";
+
 type Raw = Record<string, unknown>;
 
 const STATES: readonly TrafficFlowState[] = [
