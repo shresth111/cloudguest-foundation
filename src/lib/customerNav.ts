@@ -28,6 +28,7 @@ import {
   Radar,
   ShieldAlert,
   Send,
+  Waypoints,
 } from "lucide-react";
 
 export type CustomerLoginRole = "owner" | "agent";
@@ -139,6 +140,16 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
       // requests; `/website-blocking` redirects to that tab. See
       // lib/blocking.ts.
       { id: "isp-details", label: "Internet Connection", icon: Globe, roles: ["owner"] },
+      // Traffic Lens (paid add-on; wyfy-specs/flow-visibility/PRODUCT.md C1):
+      // what the venue's traffic is made of. Read-only, and owner-only like
+      // Guest Connection Records -- it shows device addresses. Three layers,
+      // as there: this row, `venue_traffic.read` in customerNavPermissions.ts,
+      // and the backend's own 402 / 403 on every route. Whether the add-on
+      // is UNLOCKED is the sidebar's lock badge (`/me/entitlements`), not
+      // this list: a locked owner still sees the row and the lock screen.
+      // Not in CONTROLLER_UNSUPPORTED_FEATURE_IDS: the page itself says
+      // "not available at this venue", from the backend's own answer.
+      { id: "traffic-lens", label: "Traffic Lens", icon: Waypoints, roles: ["owner"] },
     ],
   },
   {

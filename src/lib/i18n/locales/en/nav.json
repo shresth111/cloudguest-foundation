@@ -115,6 +115,7 @@
     "port-forwarding": "Port Forwarding",
     "voip": "Call Priority",
     "isp-details": "Internet Connection",
+    "traffic-lens": "Traffic Lens",
     "security": "Security Score",
     "blocking": "Block Websites",
     "firewall": "Firewall",
