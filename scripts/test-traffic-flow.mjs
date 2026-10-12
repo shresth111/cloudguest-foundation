@@ -683,7 +683,7 @@ const shell = read("src/components/master/MasterShell.tsx");
 const page = read("src/routes/master.traffic-flow.tsx");
 const venue = read("src/components/master/TrafficFlowVenueView.tsx");
 const drawer = read("src/components/master/TrafficFlowRouterDrawer.tsx");
-const chart = read("src/components/master/TrafficFlowTimelineChart.tsx");
+const chart = read("src/components/traffic-lens/TrafficLensTimelineChart.tsx");
 const service = read("src/services/traffic-flow.service.ts");
 const ui = page + venue + drawer + chart;
 check("nav item is cap-gated", /to: "\/master\/traffic-flow",[^}]*cap: "traffic-flow"/.test(shell));
@@ -758,7 +758,7 @@ check(
 );
 check(
   "the chart is lazy (recharts off the route's critical path)",
-  /lazy\(\(\) =>\s*import\("@\/components\/master\/TrafficFlowTimelineChart"\)/.test(venue) &&
+  /lazy\(\(\) =>\s*import\("@\/components\/traffic-lens\/TrafficLensTimelineChart"\)/.test(venue) &&
     !/from "recharts"/.test(venue + page),
 );
 check(
