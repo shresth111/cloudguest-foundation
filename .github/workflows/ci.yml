@@ -1497,6 +1497,23 @@ jobs:
       - name: venue floors are derived, not hardcoded
         run: bun run test:device-floors
 
+      # --- Traffic Lens "Where traffic goes" (country and network) --------
+      #
+      # The country data is DB-IP Lite, CC BY 4.0, and its publisher requires
+      # a link back on every page that shows results. Nothing in tsc, eslint
+      # or the build can see a missing link, so it is pinned here, with the
+      # two other things that are easy to get wrong on this block: four
+      # different answers (not measured / country data not available on the
+      # server / not recorded for this period / a real result) must never
+      # collapse into a list of zeros, and an AS name is a network -- never an
+      # app, a service or a site. The real component is rendered for every
+      # state. Floor 130, observed green at 130.
+      - name: traffic lens geo block is attributed and honest
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "traffic flow geo" 130 "all traffic flow geo checks passed" \
+            bun run test:traffic-flow-geo
+
       # --- Campaign results ----------------------------------------------
       #
       # The read half of a feature whose write half shipped months ago: an
