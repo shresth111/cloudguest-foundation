@@ -19,7 +19,16 @@
  */
 import { formatAgo } from "@/lib/device-logs-presentation";
 import { formatBytes, formatCount } from "@/lib/analytics-format";
-import type { FlowDeviceMatch, FlowServiceRef, FlowSummary } from "@/types/traffic-flow";
+import type {
+  FlowDeviceMatch,
+  FlowServiceRef,
+  FlowSummary as MasterFlowSummary,
+} from "@/types/traffic-flow";
+
+/** The part of a summary both consoles receive. The customer response is the
+ * Master one without `feature_enabled` (API.md, C-2), so the shared helpers
+ * are typed on what is common and accept either. */
+export type FlowSummary = Omit<MasterFlowSummary, "feature_enabled">;
 
 export { formatAgo };
 
@@ -151,9 +160,13 @@ export const FLOW_OTHER_KEY = "__other";
 
 /** Colour of a service row, by its place in the timeline's series; null
  * when the service has no band of its own (it is inside "Other"). */
-export function seriesColor(summary: FlowSummary | null | undefined, key: string): string | null {
+export function seriesColor(
+  summary: FlowSummary | null | undefined,
+  key: string,
+  colors: readonly string[] = FLOW_SERIES_COLORS,
+): string | null {
   const i = (summary?.timeline?.series ?? []).findIndex((s) => s.key === key);
-  return i >= 0 && i < FLOW_SERIES_COLORS.length ? FLOW_SERIES_COLORS[i] : null;
+  return i >= 0 && i < colors.length ? colors[i] : null;
 }
 
 export interface ServiceRow {
