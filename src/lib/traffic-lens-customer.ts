@@ -78,11 +78,14 @@ export function lensRangeBounds(
   return { since: new Date(now - ms).toISOString(), until: new Date(now).toISOString(), ms };
 }
 
-/** The page's views. Each gets the same venue and the same range. */
+/** The page's views, in one array: a new view is one more entry here and
+ * one more branch in TrafficLensView. Each gets the same venue and the same
+ * range. */
 export const LENS_VIEWS: { id: "overview" | "destinations"; label: string }[] = [
   { id: "overview", label: "Overview" },
-  // The venue's destination records: search, download. Venue-level only.
-  { id: "destinations", label: "Destinations" },
+  // The venue's destination records in one table: search, sort, columns,
+  // download. Venue-level only.
+  { id: "destinations", label: "Records" },
 ];
 
 export type LensRefusal = "locked" | "licence" | "forbidden" | null;
@@ -275,14 +278,18 @@ export function lensDestinationsState(
   return items.length === 0 ? { kind: "empty", note } : { kind: "rows", note };
 }
 
-/** The footnote under a lower-bound list, in a venue owner's words. */
+/** The footnote under a lower-bound list, in a venue owner's words. `topN`
+ * is how many the API says each five minutes keeps. */
 export function lensLowerBoundNote(
   lowerBound: boolean,
   list: "devices" | "destinations",
+  topN?: number | null,
 ): string | null {
   if (!lowerBound) return null;
-  const what = list === "devices" ? "device" : "address";
-  return `These are minimums. Only the busiest ${what === "device" ? "devices" : "addresses"} of each five-minute period are kept, so a ${what} that was just outside them for part of the time used more than is shown. Read every figure as "at least".`;
+  const many = list === "devices" ? "devices" : "addresses";
+  const one = list === "devices" ? "a device" : "an address";
+  const kept = isNum(topN) && topN > 0 ? `the ${topN} busiest ${many}` : `the busiest ${many}`;
+  return `Read these as "at least". Only ${kept} of each five minutes are kept, so ${one} may have used more than shown, never less.`;
 }
 
 /** What the page does and does not do: the lock screen's three lines. */

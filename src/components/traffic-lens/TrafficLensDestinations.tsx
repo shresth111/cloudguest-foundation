@@ -1,8 +1,16 @@
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { ArrowDown, ArrowUp, Download, Search, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Columns3, Download, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -22,6 +30,7 @@ import { requestErrorMessage } from "@/services/api";
 import {
   AUDIT_NOTE,
   DEFAULT_DESTINATION_SORT,
+  DESTINATION_CSV_MAX_ROWS,
   DESTINATION_DIRECTION_OPTIONS,
   DESTINATION_PROTOCOL_OPTIONS,
   EMPTY_DESTINATION_FILTERS,
@@ -32,7 +41,6 @@ import {
   rangeLabel,
   rangeState,
   rangeStateMessage,
-  recordView,
   resultLine,
   searchNotes,
   serviceDestinationParams,
@@ -40,28 +48,32 @@ import {
   serviceFromKey,
   totalsLine,
 } from "@/lib/traffic-flow-destinations";
+import {
+  LENS_RECORD_COLUMNS,
+  LENS_RECORD_DEFAULT_COLUMNS,
+  LENS_RECORD_NOT_RECORDED,
+  recordCells,
+  toggleRecordColumn,
+  type LensRecordColumnId,
+} from "@/lib/traffic-lens-insights";
 import type {
   DestinationFilterForm,
   DestinationSort,
   DestinationSortKey,
 } from "@/types/traffic-flow-destinations";
 
-const COLUMNS: { key: DestinationSortKey; label: string }[] = [
-  { key: "time", label: "Window" },
-  { key: "address", label: "Outside address" },
-  { key: "port", label: "Service (port)" },
-  { key: "bytes_down", label: "Download" },
-  { key: "bytes_up", label: "Upload" },
-  { key: "bytes", label: "Total" },
-  { key: "flows", label: "Flows" },
-];
+/** The table's columns, in order. Defined beside the functions that fill
+ * them (`recordCells`), so a column cannot exist without a field behind it. */
+const COLUMNS = LENS_RECORD_COLUMNS;
 
 const SELECT_CLASS =
   "h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 /**
- * Traffic Lens -> Destinations (customer dashboard): search this venue's
- * destination records and download them.
+ * Traffic Lens -> Records (customer dashboard): the venue's destination
+ * records in ONE table, with everything that acts on the table in one
+ * toolbar above it: the four filters, Search, the column chooser and the
+ * CSV download.
  *
  * A record is for the venue as a whole: this venue, this outside address and
  * service, this five-minute window. It never says which device or guest, and
@@ -70,8 +82,15 @@ const SELECT_CLASS =
  * on screen, because with so few online the venue's destinations would in
  * effect be one person's.
  *
+ * What a full connection log would carry and this table does not (source
+ * address and port, address translation, packets) is listed in the Columns
+ * menu as not recorded, so the absence is stated where it would be looked
+ * for.
+ *
  * Nothing is requested until Search is pressed: every search and download
- * is recorded in the audit log. Sorting asks again for the same search.
+ * is recorded in the audit log. Sorting asks again for the same search. The
+ * column chooser only hides and shows what was already fetched; the download
+ * always holds every column.
  */
 export function TrafficLensDestinations({
   locationId,
@@ -85,9 +104,11 @@ export function TrafficLensDestinations({
   const [sort, setSort] = useState<DestinationSort>(DEFAULT_DESTINATION_SORT);
   const [params, setParams] = useState<Record<string, string> | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [visible, setVisible] = useState<LensRecordColumnId[]>(LENS_RECORD_DEFAULT_COLUMNS);
   const q = useLensDestinationSearch(locationId, params);
   const download = useLensDestinationExport(locationId);
   const now = Date.now();
+  const shown = COLUMNS.filter((c) => visible.includes(c.id));
 
   const field = (patch: Partial<DestinationFilterForm>) => {
     setFormError(null);
@@ -147,175 +168,217 @@ export function TrafficLensDestinations({
   const searched = r ? rangeLabel({ since: r.since, until: r.until }) : "";
 
   return (
-    <div className="space-y-4">
-      <Card className="premium-card">
-        <CardContent className="p-5">
-          <form onSubmit={submit} className="space-y-3" aria-label="Search destination records">
-            <div>
-              <h3 className="text-base font-semibold tracking-tight">Destination records</h3>
-              <p className="mt-0.5 max-w-3xl text-xs text-muted-foreground">
-                One record is one outside address and service this venue exchanged traffic with in a
-                five-minute window. It is for the venue as a whole: no record says which device or
-                guest, and none is kept that could. {AUDIT_NOTE}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-end gap-3">
-              <Labelled label="Outside address or prefix" className="w-64">
-                <Input
-                  className="font-mono"
-                  placeholder="Any address"
-                  maxLength={64}
-                  autoComplete="off"
-                  spellCheck={false}
-                  value={form.address}
-                  onChange={(e) => field({ address: e.target.value })}
-                />
-              </Labelled>
-              <Labelled label="Protocol" className="w-40">
-                <select
-                  className={SELECT_CLASS}
-                  value={form.protocol}
-                  onChange={(e) => field({ protocol: e.target.value })}
-                >
-                  {DESTINATION_PROTOCOL_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </Labelled>
-              <Labelled label="Port" className="w-28">
-                <Input
-                  className="tabular-nums"
-                  placeholder="Any"
-                  inputMode="numeric"
-                  maxLength={5}
-                  value={form.port}
-                  onChange={(e) => field({ port: e.target.value.replace(/[^0-9]/g, "") })}
-                />
-              </Labelled>
-              <div>
-                <span className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                  Direction
-                </span>
-                <Tabs
-                  value={form.direction}
-                  onValueChange={(v) => {
-                    const option = DESTINATION_DIRECTION_OPTIONS.find((o) => o.value === v);
-                    if (option) field({ direction: option.value });
-                  }}
-                >
-                  <TabsList aria-label="Direction">
-                    {DESTINATION_DIRECTION_OPTIONS.map((o) => (
-                      <TabsTrigger key={o.value} value={o.value}>
-                        {o.label}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
-                </Tabs>
-              </div>
-              <div className="ml-auto flex gap-2">
-                <Button type="submit" size="sm" disabled={q.isFetching}>
-                  <Search className="h-4 w-4" /> {q.isFetching ? "Searching…" : "Search"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={download.isPending}
-                  onClick={save}
-                >
-                  <Download className="h-4 w-4" />{" "}
-                  {download.isPending ? "Preparing…" : "Download CSV"}
-                </Button>
-              </div>
-            </div>
-            {formError && (
-              <p role="alert" className="text-xs text-destructive">
-                {formError}
-              </p>
-            )}
-          </form>
-        </CardContent>
-      </Card>
-
-      {params === null ? (
-        <Plain title="Not searched yet.">
-          Choose a period and any filters, then press Search. Leave the filters empty to see every
-          record in the period.
-        </Plain>
-      ) : q.isLoading ? (
-        <div className="h-40 animate-pulse rounded-xl bg-muted" />
-      ) : q.isError || !r ? (
-        <Plain title="The search did not complete." tone="error">
-          {requestErrorMessage(q.error, "The server did not answer.")} No record is shown, because
-          an error is not an empty result.
-        </Plain>
-      ) : stateMessage ? (
-        <Plain title={stateMessage.title}>
-          {stateMessage.body} Searched: {searched}.
-        </Plain>
-      ) : (
-        <div className={`space-y-2 ${q.isFetching ? "opacity-60" : ""}`}>
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <p className="text-sm font-medium tabular-nums" aria-live="polite">
-              {resultLine(r)}
-            </p>
-            <p className="text-xs text-muted-foreground">{searched}</p>
-          </div>
-          {r.total === 0 ? (
-            <Plain title="No records match these filters.">
-              Traffic was measured in this period; none of its destination records matched.
-            </Plain>
-          ) : (
-            <>
-              {totalsLine(r) && <p className="text-xs text-muted-foreground">{totalsLine(r)}</p>}
-              <Card className="premium-card overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      {COLUMNS.map((c) => (
-                        <TableHead key={c.key} aria-sort={ariaSort(sort, c.key)}>
-                          <SortButton
-                            label={c.label}
-                            state={ariaSort(sort, c.key)}
-                            onClick={() => sortBy(c.key)}
-                          />
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {r.rows.map((row) => {
-                      const v = recordView(row, now);
-                      return (
-                        <TableRow key={v.key}>
-                          <TableCell className="whitespace-nowrap tabular-nums">
-                            {v.window}
-                          </TableCell>
-                          <TableCell className="font-mono text-xs">{v.address}</TableCell>
-                          <TableCell>{v.service}</TableCell>
-                          <TableCell className="tabular-nums">{v.down}</TableCell>
-                          <TableCell className="tabular-nums">{v.up}</TableCell>
-                          <TableCell className="tabular-nums">{v.total}</TableCell>
-                          <TableCell className="tabular-nums">{v.flows}</TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </Card>
-            </>
-          )}
-          <Notes
-            notes={[
-              ...searchNotes(r),
-              "Service is a protocol and a port, with the port's standard name where it has one. It does not say which app or site was used. Sorting asks again for the same search.",
-            ]}
-          />
+    <section aria-label="Records" className="premium-card overflow-hidden rounded-2xl">
+      <form
+        onSubmit={submit}
+        aria-label="Search destination records"
+        className="space-y-4 border-b border-border p-5 sm:p-6"
+      >
+        <div>
+          <h3 className="font-display text-xl font-semibold tracking-tight">Records</h3>
+          <p className="mt-1 max-w-3xl text-xs text-muted-foreground">
+            Every outside address and service this venue exchanged traffic with, five minutes at a
+            time, in one table. It is for the venue as a whole: no record says which device or
+            guest, and none is kept that could. {AUDIT_NOTE}
+          </p>
         </div>
-      )}
-    </div>
+        <div className="flex flex-wrap items-end gap-3">
+          <Labelled label="Outside address or prefix" className="w-full sm:w-64">
+            <Input
+              className="font-mono"
+              placeholder="Any address"
+              maxLength={64}
+              autoComplete="off"
+              spellCheck={false}
+              value={form.address}
+              onChange={(e) => field({ address: e.target.value })}
+            />
+          </Labelled>
+          <Labelled label="Protocol" className="w-36">
+            <select
+              className={SELECT_CLASS}
+              value={form.protocol}
+              onChange={(e) => field({ protocol: e.target.value })}
+            >
+              {DESTINATION_PROTOCOL_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </Labelled>
+          <Labelled label="Port" className="w-24">
+            <Input
+              className="tabular-nums"
+              placeholder="Any"
+              inputMode="numeric"
+              maxLength={5}
+              value={form.port}
+              onChange={(e) => field({ port: e.target.value.replace(/[^0-9]/g, "") })}
+            />
+          </Labelled>
+          <div>
+            <span className="mb-1.5 block text-xs font-medium text-muted-foreground">
+              Direction
+            </span>
+            <Tabs
+              value={form.direction}
+              onValueChange={(v) => {
+                const option = DESTINATION_DIRECTION_OPTIONS.find((o) => o.value === v);
+                if (option) field({ direction: option.value });
+              }}
+            >
+              <TabsList aria-label="Direction">
+                {DESTINATION_DIRECTION_OPTIONS.map((o) => (
+                  <TabsTrigger key={o.value} value={o.value}>
+                    {o.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          </div>
+          <div className="flex flex-wrap gap-2 sm:ml-auto">
+            <Button type="submit" disabled={q.isFetching}>
+              <Search className="h-4 w-4" /> {q.isFetching ? "Searching…" : "Search"}
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="outline">
+                  <Columns3 className="h-4 w-4" /> Columns
+                  <span className="tabular-nums text-muted-foreground">
+                    {shown.length}/{COLUMNS.length}
+                  </span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-72">
+                <DropdownMenuLabel>Show in the table</DropdownMenuLabel>
+                {COLUMNS.map((c) => (
+                  <DropdownMenuCheckboxItem
+                    key={c.id}
+                    checked={visible.includes(c.id)}
+                    disabled={c.fixed}
+                    onSelect={(e) => e.preventDefault()}
+                    onCheckedChange={() => setVisible((v) => toggleRecordColumn(v, c.id))}
+                  >
+                    {c.label}
+                  </DropdownMenuCheckboxItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Not recorded for any venue</DropdownMenuLabel>
+                {LENS_RECORD_NOT_RECORDED.map((c) => (
+                  <DropdownMenuItem key={c.label} disabled className="flex-col items-start gap-0">
+                    <span>{c.label}</span>
+                    <span className="text-[11px]">{c.why}</span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button type="button" variant="outline" disabled={download.isPending} onClick={save}>
+              <Download className="h-4 w-4" /> {download.isPending ? "Preparing…" : "Download CSV"}
+            </Button>
+          </div>
+        </div>
+        {formError && (
+          <p role="alert" className="text-xs text-destructive">
+            {formError}
+          </p>
+        )}
+      </form>
+
+      <div className="p-5 sm:p-6">
+        {params === null ? (
+          <Plain title="Not searched yet.">
+            Choose a period above and any filters, then press Search. Leave the filters empty to see
+            every record in the period. Download CSV saves the same records as a file, with every
+            column, up to {DESTINATION_CSV_MAX_ROWS.toLocaleString()} records.
+          </Plain>
+        ) : q.isLoading ? (
+          <div className="h-40 animate-pulse rounded-xl bg-muted" />
+        ) : q.isError || !r ? (
+          <Plain title="The search did not complete." tone="error">
+            {requestErrorMessage(q.error, "The server did not answer.")} No record is shown, because
+            an error is not an empty result.
+          </Plain>
+        ) : stateMessage ? (
+          <Plain title={stateMessage.title}>
+            {stateMessage.body} Searched: {searched}.
+          </Plain>
+        ) : (
+          <div className={`space-y-3 ${q.isFetching ? "opacity-60" : ""}`}>
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <p className="font-display text-lg font-semibold tabular-nums" aria-live="polite">
+                {resultLine(r)}
+              </p>
+              <p className="text-xs text-muted-foreground">{searched}</p>
+            </div>
+            {r.total === 0 ? (
+              <Plain title="No records match these filters.">
+                Traffic was measured in this period; none of its destination records matched.
+              </Plain>
+            ) : (
+              <>
+                {totalsLine(r) && <p className="text-xs text-muted-foreground">{totalsLine(r)}</p>}
+                <div className="overflow-x-auto rounded-xl border border-border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        {shown.map((c) => (
+                          <TableHead
+                            key={c.id}
+                            aria-sort={c.sort ? ariaSort(sort, c.sort) : undefined}
+                            className={`whitespace-nowrap ${c.numeric ? "text-right" : ""}`}
+                          >
+                            {c.sort ? (
+                              <SortButton
+                                label={c.label}
+                                state={ariaSort(sort, c.sort)}
+                                onClick={() => sortBy(c.sort as DestinationSortKey)}
+                              />
+                            ) : (
+                              c.label
+                            )}
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {r.rows.map((row) => {
+                        const v = recordCells(row, now);
+                        return (
+                          <TableRow key={v.key}>
+                            {shown.map((c) => (
+                              <TableCell
+                                key={c.id}
+                                className={`whitespace-nowrap ${
+                                  c.numeric ? "text-right tabular-nums" : ""
+                                } ${c.id === "address" ? "font-mono text-xs" : ""} ${
+                                  c.id === "from" || c.id === "to" ? "tabular-nums" : ""
+                                }`}
+                              >
+                                {v[c.id]}
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
+            )}
+            <Notes
+              notes={[
+                ...searchNotes(r),
+                "From and To are the five-minute period a record covers, in your local time. Service is the port's standard name; it does not say which app or site was used. Direction is read from the record's download and upload. Sorting asks again for the same search.",
+                shown.length < COLUMNS.length
+                  ? `${COLUMNS.length - shown.length} of ${COLUMNS.length} columns are hidden. The download holds all of them.`
+                  : null,
+              ]}
+            />
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -349,7 +412,7 @@ export function TrafficLensServiceDestinations({
       : null;
   }, [locationId, since, until, serviceKey]);
   const q = useLensServiceDestinations(locationId, params);
-  const view = q.data ? serviceDestinationsView(q.data, Date.now()) : null;
+  const view = q.data ? serviceDestinationsView(q.data, Date.now(), "Records") : null;
 
   return (
     <section
@@ -482,11 +545,12 @@ function Plain({ title, tone, children }: { title: string; tone?: "error"; child
   );
 }
 
-function Notes({ notes }: { notes: string[] }) {
-  if (notes.length === 0) return null;
+function Notes({ notes }: { notes: (string | null)[] }) {
+  const shown = notes.filter((n): n is string => !!n);
+  if (shown.length === 0) return null;
   return (
-    <div className="space-y-1 text-[11px] text-muted-foreground">
-      {notes.map((note) => (
+    <div className="space-y-1 text-[11px] leading-relaxed text-muted-foreground">
+      {shown.map((note) => (
         <p key={note}>{note}</p>
       ))}
     </div>

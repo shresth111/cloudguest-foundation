@@ -458,6 +458,8 @@ export type ServiceDestinationsView =
 export function serviceDestinationsView(
   r: ServiceDestinationsResult,
   now: number,
+  /** What the calling console names the view that lists every record. */
+  recordsView = "Destinations",
 ): ServiceDestinationsView {
   const message = rangeStateMessage(rangeState(r, now));
   if (message) return { kind: "state", message };
@@ -487,7 +489,7 @@ export function serviceDestinationsView(
   const more = r.destinations_listed - r.items.length;
   if (more > 0)
     notes.unshift(
-      `${formatCount(more)} more ${plural(more, "address", "addresses")} of this service ${plural(more, "is", "are")} not listed here; use the Destinations tab to see every record.`,
+      `${formatCount(more)} more ${plural(more, "address", "addresses")} of this service ${plural(more, "is", "are")} not listed here; use the ${recordsView} tab to see every record.`,
     );
   if (isNum(r.unlisted_bytes) && r.unlisted_bytes > 0)
     notes.unshift(
