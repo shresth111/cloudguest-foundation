@@ -2881,18 +2881,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PortalAuthRouteImport
       parentRoute: typeof PortalRoute
     }
-    '/master/tickets': {
-      id: '/master/tickets'
-      path: '/tickets'
-      fullPath: '/master/tickets'
-      preLoaderRoute: typeof MasterTicketsRouteImport
-      parentRoute: typeof MasterRoute
-    }
     '/master/traffic-flow': {
       id: '/master/traffic-flow'
       path: '/traffic-flow'
       fullPath: '/master/traffic-flow'
       preLoaderRoute: typeof MasterTrafficFlowRouteImport
+      parentRoute: typeof MasterRoute
+    }
+    '/master/tickets': {
+      id: '/master/tickets'
+      path: '/tickets'
+      fullPath: '/master/tickets'
+      preLoaderRoute: typeof MasterTicketsRouteImport
       parentRoute: typeof MasterRoute
     }
     '/master/routers': {
