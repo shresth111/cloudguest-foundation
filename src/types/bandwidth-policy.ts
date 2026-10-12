@@ -31,6 +31,8 @@ export interface BandwidthPolicy {
   dailyLimitMinutes?: number | null;
   loginHours?: { days: string[]; from: string; to: string } | null;
   dataLimit?: { quota: number; unit: string; resets: string } | null;
+  /** Guests mapped into this policy across every location -- read-only. */
+  memberCount?: number;
   /**
    * Total venue speed -- the most all guests together can use at the venue
    * this policy is assigned to (`venue_download_rate_kbps` /
