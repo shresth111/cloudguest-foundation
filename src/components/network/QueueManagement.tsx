@@ -83,6 +83,34 @@ type ProfileFormValues = z.infer<typeof profileSchema>;
 
 const TARGET_TYPES: QueueTargetType[] = ["organization", "location", "router"];
 
+/**
+ * TARGET TYPES THAT ARE SAVED AND NEVER ENFORCED.
+ *
+ * Assigning a profile to an organization, a location or a router creates a
+ * row and reaches no device. This form has never sent the address a device
+ * queue needs, organization and location rows have no router to be written
+ * to, and nothing in the backend reads any of the three: the only queues that
+ * are ever written are the per-session ones the platform creates itself when
+ * a guest signs in. The form reported "Assignment created" and the table
+ * showed the row as real.
+ *
+ * Disabled rather than removed, with the reason on the option and above the
+ * button, because an absence cannot be asked why -- and rows created before
+ * this stay listed below exactly as they were. The backend is being changed
+ * to refuse new ones as well; this is the half an operator sees first.
+ *
+ * It is all three of the form's options, so until one of them is wired the
+ * form cannot create anything. Wire a target here by taking it out of this
+ * set, not by adding a second list.
+ */
+const UNENFORCED_TARGET_TYPES: ReadonlySet<QueueTargetType> = new Set([
+  "organization",
+  "location",
+  "router",
+]);
+
+const NOT_SUPPORTED_YET = "Not supported yet";
+
 const STATUS_TONE: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   active: "default",
   pending: "secondary",
@@ -114,7 +142,7 @@ export function QueueManagement() {
       <SectionHeader
         eyebrow="Network"
         title="Queue Management"
-        description="Bandwidth-shaping profiles and their live assignments to organizations, locations, or routers."
+        description="Bandwidth-shaping profiles, and the queues the platform assigns to guest sessions."
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -573,6 +601,7 @@ function AssignmentDialog({
   }
 
   async function submit() {
+    if (UNENFORCED_TARGET_TYPES.has(targetType)) return;
     try {
       await create.mutateAsync({
         targetType,
@@ -595,6 +624,16 @@ function AssignmentDialog({
           <DialogDescription>
             Attach a bandwidth profile to an organization, location, or router.
           </DialogDescription>
+          {UNENFORCED_TARGET_TYPES.has(targetType) && (
+            <p
+              role="note"
+              className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
+            >
+              {NOT_SUPPORTED_YET}. An assignment to an organization, location or router is saved but
+              never reaches a device, so new ones cannot be created here. Guest speed is set under
+              Access Rules → Guest WiFi Limits.
+            </p>
+          )}
         </DialogHeader>
         <div className="grid gap-3">
           <div className="space-y-1.5">
@@ -605,8 +644,14 @@ function AssignmentDialog({
               </SelectTrigger>
               <SelectContent>
                 {TARGET_TYPES.map((t) => (
-                  <SelectItem key={t} value={t} className="capitalize">
+                  <SelectItem
+                    key={t}
+                    value={t}
+                    className="capitalize"
+                    disabled={UNENFORCED_TARGET_TYPES.has(t)}
+                  >
                     {t}
+                    {UNENFORCED_TARGET_TYPES.has(t) ? ` — ${NOT_SUPPORTED_YET.toLowerCase()}` : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -661,7 +706,15 @@ function AssignmentDialog({
           </Button>
           <Button
             onClick={submit}
-            disabled={create.isPending || !queueProfileId || (targetType === "router" && !routerId)}
+            disabled={
+              create.isPending ||
+              !queueProfileId ||
+              (targetType === "router" && !routerId) ||
+              // The guard that matters: the option is greyed in the list, but
+              // "router" is also this form's default, so without this the
+              // form would still submit the very thing it says is unsupported.
+              UNENFORCED_TARGET_TYPES.has(targetType)
+            }
           >
             Create assignment
           </Button>

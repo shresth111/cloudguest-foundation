@@ -289,8 +289,21 @@ check(
 // *promise of more*, which is the dangerous direction.
 // ---------------------------------------------------------------------------
 
+// Guest WiFi Limits' choice tables moved to lib/guest-wifi-limits.ts so a test
+// can run them (scripts/test-venue-speed-cap.mjs). The claim is unchanged and
+// is asserted where the list now lives -- plus that the screen takes it from
+// there and has not grown a second, local copy that could offer "No Limit"
+// again while this check went on reading the module.
+const guestWifiLimits = read("src/lib/guest-wifi-limits.ts");
+check(
+  /IDLE_TIMEOUT,[\s\S]*?\} from "@\/lib\/guest-wifi-limits"/.test(locationPolicies) &&
+    !/const IDLE_TIMEOUT(_MINUTES)?\b/.test(locationPolicies),
+  "LocationPolicies.tsx no longer takes its Idle Timeout choices from " +
+    "lib/guest-wifi-limits.ts, or defines its own beside them.",
+);
+
 for (const [name, source] of [
-  ["LocationPolicies.tsx", locationPolicies],
+  ["lib/guest-wifi-limits.ts (Guest WiFi Limits)", guestWifiLimits],
   ["CreateGroup.tsx", createGroup],
 ]) {
   const list = source.match(/const IDLE_TIMEOUT = \[([^\]]*)\]/);

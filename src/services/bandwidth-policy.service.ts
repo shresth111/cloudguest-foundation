@@ -3,6 +3,7 @@ import {
   createPolicyWithRules,
   deactivatePolicy,
   deactivatePolicyAssignment,
+  fetchPolicyDetail,
   getGuestGroupAssignment,
   listPolicyAssignments,
   listPolicyDetails,
@@ -34,6 +35,18 @@ interface BandwidthRules {
   daily_limit_minutes?: number | null;
   login_hours?: { days: string[]; start_time: string; end_time: string } | null;
   data_limit?: { quota: number; unit: string; resets: string } | null;
+  // Total venue speed. Optional on the wire: a version written before the
+  // field existed simply has no such keys, which reads as "no cap".
+  venue_download_rate_kbps?: number | null;
+  venue_upload_rate_kbps?: number | null;
+}
+
+/** A venue rate as stored: a positive number, or `null` for no cap. Zero is
+ * folded into `null` in BOTH directions of the wire -- on the per-guest keys 0
+ * means unlimited, and a 0 arriving here by that habit must never be sent as
+ * a cap of nothing for a whole venue. */
+function venueRate(kbps: number | null | undefined): number | null {
+  return typeof kbps === "number" && Number.isFinite(kbps) && kbps > 0 ? kbps : null;
 }
 
 function toBandwidthPolicy(detail: BackendPolicyDetail): BandwidthPolicy {
@@ -63,13 +76,30 @@ function toBandwidthPolicy(detail: BackendPolicyDetail): BandwidthPolicy {
         }
       : null,
     dataLimit: rules.data_limit ?? null,
+    venueDownloadRateKbps: venueRate(rules.venue_download_rate_kbps),
+    venueUploadRateKbps: venueRate(rules.venue_upload_rate_kbps),
     createdAt: new Date(detail.created_at).getTime(),
     updatedAt: new Date(detail.updated_at).getTime(),
   };
 }
 
+/**
+ * The rules object for one version.
+ *
+ * The two venue keys are written only when the caller GAVE an answer: a number
+ * or `null`. Left `undefined` they are omitted here -- and `save()` below has
+ * already replaced an `undefined` with the policy's stored value before this
+ * runs, so "omitted" only ever reaches the wire for a policy being created,
+ * where no cap is the truth.
+ */
 function toRules(input: SaveBandwidthPolicyInput): BandwidthRules {
   return {
+    ...(input.venueDownloadRateKbps !== undefined && {
+      venue_download_rate_kbps: venueRate(input.venueDownloadRateKbps),
+    }),
+    ...(input.venueUploadRateKbps !== undefined && {
+      venue_upload_rate_kbps: venueRate(input.venueUploadRateKbps),
+    }),
     download_rate_kbps: input.downloadRateKbps,
     upload_rate_kbps: input.uploadRateKbps,
     burst_download_kbps: input.burstDownloadKbps ?? null,
@@ -112,9 +142,36 @@ export const bandwidthPolicyService = {
 
   async save(input: SaveBandwidthPolicyInput, organizationId?: string): Promise<BandwidthPolicy> {
     if (input.id) {
+      // A SAVE THAT SAYS NOTHING ABOUT THE VENUE TOTAL MUST NOT ERASE IT.
+      //
+      // A policy version is a WHOLE rules object: publishing one without the
+      // two venue keys makes "no venue cap" the venue's current answer. Three
+      // screens write bandwidth policies through this function and only Guest
+      // WiFi Limits knows the field exists -- Access Tiers and the bandwidth
+      // policy manager would each have removed a venue's total on their next
+      // unrelated save, with nothing on either screen to show it had gone.
+      //
+      // So an `undefined` here is filled from what the policy holds now. If
+      // that read fails the save fails with it: writing the version anyway
+      // would be choosing "erase it" on the owner's behalf.
+      let rulesInput = input;
+      if (input.venueDownloadRateKbps === undefined || input.venueUploadRateKbps === undefined) {
+        const current = toBandwidthPolicy(await fetchPolicyDetail(input.id, organizationId));
+        rulesInput = {
+          ...input,
+          venueDownloadRateKbps:
+            input.venueDownloadRateKbps === undefined
+              ? current.venueDownloadRateKbps
+              : input.venueDownloadRateKbps,
+          venueUploadRateKbps:
+            input.venueUploadRateKbps === undefined
+              ? current.venueUploadRateKbps
+              : input.venueUploadRateKbps,
+        };
+      }
       const detail = await updatePolicyRules({
         id: input.id,
-        rules: toRules(input),
+        rules: toRules(rulesInput),
         publish: input.status !== "draft",
         archive: input.status === "archived",
         organizationId,
