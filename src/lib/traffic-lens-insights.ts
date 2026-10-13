@@ -318,8 +318,29 @@ export function lensPeak(summary: Summary, now: number): PeakAnswer {
 // 3. Whether one device is using most of it
 // ---------------------------------------------------------------------------
 
-/** A device with this share or more of all traffic is flagged. */
-export const LENS_HEAVY_DEVICE_SHARE = 0.5;
+/** The server's `dominant_device` finding (API.md, Findings) flags the top
+ * device at 60% of the period's traffic or more, when the period carried at
+ * least 1 GiB and at least 5 devices were online at once. These are the same
+ * three numbers, used only when the server's finding is not to hand, so the
+ * browser and the server can never disagree about one device. */
+export const LENS_HEAVY_DEVICE_SHARE = 0.6;
+export const LENS_HEAVY_MIN_PERIOD_BYTES = 1024 ** 3;
+export const LENS_HEAVY_MIN_DEVICES = 5;
+
+/** The server's verdict on the dominant device, when the page has it. */
+export type ServerDominantDevice = "flagged" | "clear" | "could_not_check";
+
+/** Whether the period is one the dominant-device rule can judge at all. */
+export function heavyDeviceJudgeable(summary: Summary): boolean {
+  const t = summary?.totals;
+  if (!summary || summary.measured !== true || !t) return false;
+  const period = (isNum(t.bytes_up) ? t.bytes_up : 0) + (isNum(t.bytes_down) ? t.bytes_down : 0);
+  return (
+    period >= LENS_HEAVY_MIN_PERIOD_BYTES &&
+    isNum(t.devices_peak) &&
+    t.devices_peak >= LENS_HEAVY_MIN_DEVICES
+  );
+}
 
 export type HeaviestDeviceKind = "not_measured" | "none" | "tie" | "top";
 
@@ -331,7 +352,12 @@ export interface HeaviestDeviceAnswer extends LensAnswer<HeaviestDeviceKind> {
 /** The device with the largest share. Its share is "at least" whenever the
  * API marks the list as lower bounds. Names no destination and no service:
  * the device list stands on its own. */
-export function lensHeaviestDevice(summary: Summary): HeaviestDeviceAnswer {
+export function lensHeaviestDevice(
+  summary: Summary,
+  /** The server's finding, when available: it decides the flag. Without it
+   * the same rule is applied here to the summary's own figures. */
+  server?: ServerDominantDevice | null,
+): HeaviestDeviceAnswer {
   if (!summary || summary.measured !== true)
     return {
       kind: "not_measured",
@@ -364,11 +390,13 @@ export function lensHeaviestDevice(summary: Summary): HeaviestDeviceAnswer {
       share: null,
     };
   const share = isNum(top.share_at_least) && top.share_at_least <= 1 ? top.share_at_least : null;
-  const heavy = share !== null && share >= LENS_HEAVY_DEVICE_SHARE;
+  const heavy = server
+    ? server === "flagged"
+    : share !== null && share >= LENS_HEAVY_DEVICE_SHARE && heavyDeviceJudgeable(summary);
   return {
     kind: "top",
     headline: `One device used ${least}${shareLabel(top.share_at_least)} of all traffic.`,
-    detail: `${lensDeviceLabel(top.match)} · ${least}${flowBytes(top.bytes)}.${heavy ? " That is half or more of everything." : ""}`,
+    detail: `${lensDeviceLabel(top.match)} · ${least}${flowBytes(top.bytes)}.${heavy ? " That is most of everything." : ""}`,
     flagged: heavy,
     share,
   };
@@ -432,24 +460,30 @@ export interface LensCheck {
 
 /** The page's three checks, always all three and always in this order, so
  * "nothing flagged" can say exactly what was looked at. */
-export function lensChecks(summary: Summary): LensCheck[] {
+export function lensChecks(summary: Summary, server?: ServerDominantDevice | null): LensCheck[] {
   const measured = !!summary && summary.measured === true && !!summary.totals;
-  const device = lensHeaviestDevice(summary);
+  const device = lensHeaviestDevice(summary, server);
   const devicesListed = (summary?.devices?.items ?? []).length > 0;
   const lb = isLowerBound(summary, "devices");
+  // The rule needs at least 1 GiB in the period and 5 devices online; below
+  // that it is not judged at all, which is not the same as clear.
+  const judged = server ? server !== "could_not_check" : heavyDeviceJudgeable(summary);
 
   const heavy: LensCheck = {
     id: "heavy_device",
-    name: "One device using half or more",
-    state: !measured || !devicesListed ? "unchecked" : device.flagged ? "flagged" : "clear",
+    name: "One device using 60% or more",
+    state:
+      !measured || !devicesListed || !judged ? "unchecked" : device.flagged ? "flagged" : "clear",
     text:
       !measured || !devicesListed
         ? "Could not be checked: no device figures for this period."
-        : device.flagged
-          ? `${device.headline} If the WiFi feels slow, this device is the first place to look.`
-          : lb
-            ? "No device shows up as using half or more. Device figures are minimums, so this is what was seen, not a guarantee."
-            : "No device used half or more.",
+        : !judged
+          ? "Could not be checked: this is judged only when the period carried at least 1 GB and at least 5 devices were online at once."
+          : device.flagged
+            ? `${device.headline} If the WiFi feels slow, this device is the first place to look.`
+            : lb
+              ? "No device shows up as using 60% or more. Device figures are minimums, so this is what was seen, not a guarantee."
+              : "No device used 60% or more.",
   };
 
   const t = summary?.totals;

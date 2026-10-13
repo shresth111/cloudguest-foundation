@@ -1546,11 +1546,11 @@ jobs:
       # table as placeholders. This suite pins that a placeholder is a dash
       # whatever the row object holds, is never sortable, and that the quick
       # filter box narrows loaded rows without a request.
-      # Floor 160, observed green at 160 (was 123).
+      # Floor 168, observed green at 168 (was 123).
       - name: traffic lens answers are computed and honest
         run: |
           ./scripts/ci-gated-test.sh \
-            "traffic lens insights" 160 \
+            "traffic lens insights" 168 \
             "all traffic lens insight checks passed" \
             bun run test:traffic-lens-insights
 
