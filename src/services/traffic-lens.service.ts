@@ -19,6 +19,7 @@ import {
   type LensRefusal,
 } from "@/lib/traffic-lens-customer";
 import type { LensStatus, LensSummary } from "@/types/traffic-lens";
+import type { FlowGeoSummary } from "@/types/traffic-flow-geo";
 
 const base = (locationId: string) => `/traffic-flow/locations/${encodeURIComponent(locationId)}`;
 
@@ -38,6 +39,13 @@ export function lensSummaryParams(range: LensRange, now: number): Record<string,
   };
 }
 
+/** Query params for the by-country view: the same explicit bounds as the
+ * summary. The venue is in the path, never also a parameter. */
+export function lensGeoParams(range: LensRange, now: number): Record<string, string> {
+  const { since, until } = lensRangeBounds(range, now);
+  return { since, until, limit: "10", networks: "5" };
+}
+
 /** Why a request was refused, when it was a refusal and not a failure.
  * The decision itself is `lensRefusalFrom` (pure, tested). */
 export function lensRefusal(err: unknown): LensRefusal {
@@ -53,6 +61,12 @@ export const trafficLensService = {
 
   async summary(locationId: string, params: Record<string, string>): Promise<LensSummary> {
     const { data } = await api.get<LensSummary>(`${base(locationId)}/summary`, { params });
+    return data;
+  },
+
+  /** By country and network, for the venue as a whole. */
+  async geo(locationId: string, params: Record<string, string>): Promise<FlowGeoSummary> {
+    const { data } = await api.get<FlowGeoSummary>(`${base(locationId)}/geo`, { params });
     return data;
   },
 };

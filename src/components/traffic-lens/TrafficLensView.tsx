@@ -66,6 +66,7 @@ import {
   TrafficLensDestinations,
   TrafficLensServiceDestinations,
 } from "@/components/traffic-lens/TrafficLensDestinations";
+import { TrafficLensGeo } from "@/components/traffic-lens/TrafficLensGeo";
 import {
   FLOW_RETENTION_DAYS,
   customRangeFromInputs,
@@ -208,6 +209,14 @@ export function TrafficLensView({ locationId }: { locationId: string }) {
             <TrafficLensDestinations
               locationId={locationId}
               rangeAt={(moment) => lensRangeBounds(range, moment)}
+            />
+          )}
+          {view === "geo" && (
+            <TrafficLensGeo
+              locationId={locationId}
+              range={range}
+              at={at}
+              onRetry={() => setAt(Date.now())}
             />
           )}
 

@@ -988,9 +988,9 @@ check(
   m.lensRangeBounds({ kind: "custom", since: "x", until: "y" }, NOW).ms > 0,
 );
 eq(
-  "the page has an Overview and a Destinations view",
+  "the page has an Overview and a Destinations view (and Countries after them)",
   m.LENS_VIEWS.map((v) => v.id),
-  ["overview", "destinations"],
+  ["overview", "destinations", "geo"],
 );
 calls.length = 0;
 nextResponse = { data: search({ min_devices: 5, windows_withheld: 2 }) };
