@@ -910,9 +910,9 @@ check(
   [
     "lensTopService(s, phrase)",
     "lensPeak(s, now)",
-    "lensHeaviestDevice(s)",
+    "lensHeaviestDevice(s, serverDevice)",
     "lensVolume(s, phrase)",
-    "lensChecks(s)",
+    "lensChecks(s, serverDevice)",
     "lensComposition(s, LENS_SERIES_COLORS)",
   ].every((call) => overview.includes(call)),
 );

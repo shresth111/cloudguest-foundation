@@ -1,9 +1,9 @@
 import { Suspense, lazy, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, Check, Flag, Minus, RefreshCw } from "lucide-react";
+import { ArrowRight, Flag, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { useTrafficLensSummary } from "@/hooks/useTrafficLens";
+import type { useTrafficLensFindings, useTrafficLensSummary } from "@/hooks/useTrafficLens";
 import { lensRefusal } from "@/services/traffic-lens.service";
 import {
   NOT_MEASURED,
@@ -33,7 +33,6 @@ import {
 import {
   LENS_STRIP_REST_KEY,
   lensChecks,
-  lensChecksSummary,
   lensComposition,
   lensHeaviestDevice,
   lensPeak,
@@ -41,7 +40,6 @@ import {
   lensTopService,
   lensVolume,
   serviceDisplayNames,
-  type LensCheck,
   type StripSegment,
 } from "@/lib/traffic-lens-insights";
 import {
@@ -49,7 +47,9 @@ import {
   type TimelineMode,
 } from "@/components/traffic-lens/TrafficLensTimelineChart";
 import { TrafficLensServiceDestinations } from "@/components/traffic-lens/TrafficLensDestinations";
+import { TrafficLensFindings } from "@/components/traffic-lens/TrafficLensFindings";
 import { NoticeCard } from "@/components/traffic-lens/TrafficLensParts";
+import { serverFindingState } from "@/lib/traffic-lens-findings";
 import { Empty, Footnotes, Panel, RankBar } from "@/components/traffic-lens/TrafficLensLayout";
 import { serviceFromKey } from "@/lib/traffic-flow-destinations";
 
@@ -82,6 +82,7 @@ const REST_FILL =
  */
 export function TrafficLensOverview({
   query,
+  findings,
   range,
   rangeMs,
   now,
@@ -92,6 +93,8 @@ export function TrafficLensOverview({
   onOpenCountries,
 }: {
   query: ReturnType<typeof useTrafficLensSummary>;
+  /** The server's checks for the same period. */
+  findings: ReturnType<typeof useTrafficLensFindings>;
   range: LensRange;
   rangeMs: number;
   now: number;
@@ -145,9 +148,12 @@ export function TrafficLensOverview({
   const phrase = lensPeriodPhrase(range);
   const top = lensTopService(s, phrase);
   const peak = lensPeak(s, now);
-  const heaviest = lensHeaviestDevice(s);
+  // The server's verdict on the heavy device, when it is to hand, decides
+  // the flag everywhere on the page that mentions it.
+  const serverDevice = serverFindingState(findings.data, "dominant_device");
+  const heaviest = lensHeaviestDevice(s, serverDevice);
   const volume = lensVolume(s, phrase);
-  const checks = lensChecks(s);
+  const checks = lensChecks(s, serverDevice);
   const strip = lensComposition(s, LENS_SERIES_COLORS);
 
   const services = servicesView(s);
@@ -213,7 +219,17 @@ export function TrafficLensOverview({
       </section>
 
       {/* 2. Worth a look ------------------------------------------------ */}
-      <WorthALook checks={checks} />
+      {/* The server's five checks. If they cannot be loaded, the page's own
+          three go through the same block: fewer, and said to be, but never a
+          failed request dressed as "nothing flagged". */}
+      <TrafficLensFindings
+        data={findings.data}
+        isLoading={findings.isLoading}
+        isError={findings.isError}
+        now={now}
+        surface="customer"
+        fallbackChecks={checks}
+      />
 
       {/* 3. The picture ------------------------------------------------- */}
       <Panel
@@ -541,58 +557,5 @@ function TrafficStrip({ segments }: { segments: StripSegment[] }) {
         ))}
       </ul>
     </div>
-  );
-}
-
-/** The three checks, always all three. A flag is an amber outline and a flag
- * icon with the measurement in words; a check without data says so. */
-function WorthALook({ checks }: { checks: LensCheck[] }) {
-  const summary = lensChecksSummary(checks);
-  const flagged = checks.filter((c) => c.state === "flagged").length;
-  return (
-    <section aria-label="Worth a look" className="premium-card rounded-2xl p-5 sm:p-6">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="font-display text-xl font-semibold tracking-tight">Worth a look</h3>
-        <p className="text-xs text-muted-foreground">
-          {flagged > 0
-            ? `${flagged} of ${checks.length} checks flagged for this period`
-            : `${checks.length} checks, run on this period's figures`}
-        </p>
-      </div>
-      {summary && <p className="mt-2 text-sm text-muted-foreground">{summary}</p>}
-      <ul className="mt-4 grid gap-3 md:grid-cols-3">
-        {checks.map((c) => (
-          <li
-            key={c.id}
-            className={`rounded-xl border p-4 ${
-              c.state === "flagged"
-                ? "border-amber-500/60 bg-amber-500/10"
-                : "border-border bg-transparent"
-            }`}
-          >
-            <p className="flex items-start gap-2 text-sm font-semibold">
-              {c.state === "flagged" ? (
-                <Flag className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden />
-              ) : c.state === "clear" ? (
-                <Check className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-              ) : (
-                <Minus className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-              )}
-              <span>
-                {c.name}
-                <span className="sr-only">
-                  {c.state === "flagged"
-                    ? " (flagged)"
-                    : c.state === "clear"
-                      ? " (not flagged)"
-                      : " (could not be checked)"}
-                </span>
-              </span>
-            </p>
-            <p className="mt-1.5 pl-6 text-xs leading-relaxed text-muted-foreground">{c.text}</p>
-          </li>
-        ))}
-      </ul>
-    </section>
   );
 }

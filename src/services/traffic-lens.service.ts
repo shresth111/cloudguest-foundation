@@ -20,6 +20,7 @@ import {
 } from "@/lib/traffic-lens-customer";
 import type { LensStatus, LensSummary } from "@/types/traffic-lens";
 import type { FlowGeoSummary } from "@/types/traffic-flow-geo";
+import type { FindingsResponse } from "@/types/traffic-lens-findings";
 
 const base = (locationId: string) => `/traffic-flow/locations/${encodeURIComponent(locationId)}`;
 
@@ -67,6 +68,18 @@ export const trafficLensService = {
   /** By country and network, for the venue as a whole. */
   async geo(locationId: string, params: Record<string, string>): Promise<FlowGeoSummary> {
     const { data } = await api.get<FlowGeoSummary>(`${base(locationId)}/geo`, { params });
+    return data;
+  },
+
+  /** The venue's findings for the same period as the summary (API.md,
+   * "Findings API"). Computed by the server when asked; nothing is stored. */
+  async findings(
+    locationId: string,
+    period: { since: string; until: string },
+  ): Promise<FindingsResponse> {
+    const { data } = await api.get<FindingsResponse>(`${base(locationId)}/findings`, {
+      params: period,
+    });
     return data;
   },
 };
