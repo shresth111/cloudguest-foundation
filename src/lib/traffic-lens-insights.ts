@@ -581,18 +581,35 @@ export function lensComposition(summary: Summary, colors: readonly string[]): St
 // ---------------------------------------------------------------------------
 // Records: the one table
 // ---------------------------------------------------------------------------
+//
+// The table has the SHAPE of a full connection log, column for column, in
+// the order the owner asked for: Start, End, Src addr, S.port, Dst addr,
+// D.port, Protocol, S.NAT, D.NAT, Bytes, Packets, Service, Export.
+//
+// Five of those have no data behind them, for any venue: a destination
+// record is for the venue as a whole and never says which device, address
+// translation is not recorded, and packets are not counted. They stay in
+// their position as PLACEHOLDERS: a greyed header, an em dash in every cell
+// and a one-line reason. A placeholder has no field, no sort and no filter,
+// and `recordCells` fills it with a dash whatever the row object holds, so
+// it cannot start showing a value by accident.
 
 export type LensRecordColumnId =
-  | "from"
-  | "to"
+  | "start"
+  | "end"
+  | "src_addr"
+  | "src_port"
   | "address"
   | "port"
   | "protocol"
+  | "src_nat"
+  | "dst_nat"
+  | "total"
+  | "packets"
   | "service"
-  | "direction"
   | "down"
   | "up"
-  | "total"
+  | "direction"
   | "flows";
 
 export interface LensRecordColumn {
@@ -603,41 +620,90 @@ export interface LensRecordColumn {
   /** Always shown: without these a row does not say what it is. */
   fixed: boolean;
   numeric: boolean;
+  /** Set on a column that has no data for any venue: why, in one line.
+   * Such a column is always shown, always a dash, never sortable. */
+  notRecorded: string | null;
+  /** Shown unless the person hides it. The extra columns start hidden so
+   * the table opens in the asked-for shape. */
+  initial: boolean;
 }
 
-/** The Records table, in order. Every column is a field of a destination
- * record (API.md, D-1) or read from two of them. A record is for the venue
- * as a whole: no column here, and no field behind it, says which device. */
+const live = (
+  id: LensRecordColumnId,
+  label: string,
+  sort: DestinationSortKey | null,
+  over: Partial<LensRecordColumn> = {},
+): LensRecordColumn => ({
+  id,
+  label,
+  sort,
+  fixed: false,
+  numeric: false,
+  notRecorded: null,
+  initial: true,
+  ...over,
+});
+const placeholder = (
+  id: LensRecordColumnId,
+  label: string,
+  notRecorded: string,
+): LensRecordColumn => ({
+  id,
+  label,
+  sort: null,
+  fixed: true,
+  numeric: false,
+  notRecorded,
+  initial: true,
+});
+
+const NO_DEVICE = "Not recorded: a record is for the venue as a whole and never says which device.";
+const NO_NAT = "Not recorded: address translation is not kept.";
+
+/** The Records table, in order. The last column of the asked-for shape,
+ * Export, is the row's download button and is drawn by the table itself. */
 export const LENS_RECORD_COLUMNS: LensRecordColumn[] = [
-  { id: "from", label: "From", sort: "time", fixed: true, numeric: false },
-  { id: "to", label: "To", sort: null, fixed: false, numeric: false },
-  { id: "address", label: "Outside address", sort: "address", fixed: true, numeric: false },
-  { id: "port", label: "Port", sort: "port", fixed: false, numeric: true },
-  { id: "protocol", label: "Protocol", sort: "protocol", fixed: false, numeric: false },
-  { id: "service", label: "Service", sort: null, fixed: false, numeric: false },
-  { id: "direction", label: "Direction", sort: null, fixed: false, numeric: false },
-  { id: "down", label: "Download", sort: "bytes_down", fixed: false, numeric: true },
-  { id: "up", label: "Upload", sort: "bytes_up", fixed: false, numeric: true },
-  { id: "total", label: "Total", sort: "bytes", fixed: false, numeric: true },
-  { id: "flows", label: "Flows", sort: "flows", fixed: false, numeric: true },
+  live("start", "Start", "time", { fixed: true }),
+  live("end", "End", null),
+  placeholder("src_addr", "Src addr", NO_DEVICE),
+  placeholder("src_port", "S.port", NO_DEVICE),
+  live("address", "Dst addr", "address", { fixed: true }),
+  live("port", "D.port", "port", { numeric: true }),
+  live("protocol", "Protocol", "protocol"),
+  placeholder("src_nat", "S.NAT", NO_NAT),
+  placeholder("dst_nat", "D.NAT", NO_NAT),
+  live("total", "Bytes", "bytes", { numeric: true }),
+  placeholder("packets", "Packets", "Not recorded: flows are counted, packets are not."),
+  live("service", "Service", null),
+  // Not in the asked-for shape, but real: off until switched on in Columns.
+  live("down", "Download", "bytes_down", { numeric: true, initial: false }),
+  live("up", "Upload", "bytes_up", { numeric: true, initial: false }),
+  live("direction", "Direction", null, { initial: false }),
+  live("flows", "Flows", "flows", { numeric: true, initial: false }),
 ];
 
-export const LENS_RECORD_DEFAULT_COLUMNS: LensRecordColumnId[] = LENS_RECORD_COLUMNS.map(
-  (c) => c.id,
-);
+export const LENS_RECORD_DEFAULT_COLUMNS: LensRecordColumnId[] = LENS_RECORD_COLUMNS.filter(
+  (c) => c.initial,
+).map((c) => c.id);
 
-/** What a full connection log would carry and this table does not, because
- * it is not recorded for any venue. Listed in the Columns menu, greyed, so
- * the absence is stated where someone would look for it. */
-export const LENS_RECORD_NOT_RECORDED: { label: string; why: string }[] = [
-  { label: "Source address", why: "No record says which device" },
-  { label: "Source port", why: "No record says which device" },
-  { label: "Source NAT", why: "Address translation is not recorded" },
-  { label: "Destination NAT", why: "Address translation is not recorded" },
-  { label: "Packets", why: "Flows are counted, packets are not" },
+/** The placeholder columns, as the Columns menu lists them. */
+export const LENS_RECORD_NOT_RECORDED: { label: string; why: string }[] =
+  LENS_RECORD_COLUMNS.filter((c) => c.notRecorded !== null).map((c) => ({
+    label: c.label,
+    why: c.notRecorded as string,
+  }));
+
+/** What the venue does have, but not on a destination record: the records
+ * endpoint returns no country and no network (API.md, "Not in this version
+ * (Geo)"), and none is joined on in the browser. Listed in the Columns menu
+ * with where to find it. */
+export const LENS_RECORD_ELSEWHERE: { label: string; why: string }[] = [
+  { label: "Country", why: "Not on a record. See the Countries view" },
+  { label: "Network", why: "Not on a record. See the Countries view" },
 ];
 
-/** Flip one column; a fixed column cannot be hidden. Order is the table's. */
+/** Flip one column; a fixed column (and every placeholder) cannot be
+ * hidden. Order is the table's. */
 export function toggleRecordColumn(
   visible: readonly LensRecordColumnId[],
   id: LensRecordColumnId,
@@ -661,31 +727,136 @@ export function recordDirection(row: Pick<DestinationRecord, "bytes_up" | "bytes
   return "No bytes";
 }
 
-/** One record as the cells of the table, keyed by column id. */
+/** "2026-10-12 19:35:00": an instant to the second, in the venue's time
+ * zone when it is known and usable, otherwise the browser's. */
+export function recordTime(iso: string | null | undefined, timeZone?: string | null): string {
+  const t = iso ? Date.parse(iso) : NaN;
+  if (Number.isNaN(t)) return DASH;
+  const parts = (zone: string | undefined) =>
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: zone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(new Date(t));
+  let p: Intl.DateTimeFormatPart[];
+  try {
+    p = parts(timeZone || undefined);
+  } catch {
+    p = parts(undefined);
+  }
+  const get = (type: string) => p.find((x) => x.type === type)?.value ?? "00";
+  return `${get("year")}-${get("month")}-${get("day")} ${get("hour")}:${get("minute")}:${get("second")}`;
+}
+
+/** Whose clock Start and End are on, for the line under the table. */
+export function recordTimeBasis(timeZone?: string | null): string {
+  if (timeZone) {
+    try {
+      new Intl.DateTimeFormat("en-GB", { timeZone });
+      return `the venue's time (${timeZone})`;
+    } catch {
+      // An unusable zone name: fall through to the browser's.
+    }
+  }
+  return "your browser's local time";
+}
+
+/** One record as the cells of the table, keyed by column id. A placeholder
+ * column is a dash here whatever the row holds. */
 export function recordCells(
   row: DestinationRecord,
-  now: number,
+  timeZone?: string | null,
 ): Record<LensRecordColumnId, string> & { key: string } {
-  const end = Date.parse(row.window_end);
   const name = (row.protocol_name ?? "").trim().toLowerCase();
   const protocol =
     PROTOCOL_SHORT[row.protocol] ??
     (name && name !== "other" ? name.toUpperCase() : `Protocol ${row.protocol}`);
   return {
     key: `${row.window_start}|${row.address}|${row.protocol}|${row.port}`,
-    from: clockLabel(row.window_start, now) ?? DASH,
-    to: Number.isNaN(end)
-      ? DASH
-      : new Date(end).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    start: recordTime(row.window_start, timeZone),
+    end: recordTime(row.window_end, timeZone),
+    src_addr: DASH,
+    src_port: DASH,
     address: row.address,
     // Port 0 is a protocol without ports, not a port.
     port: isNum(row.port) && row.port > 0 ? String(row.port) : DASH,
     protocol,
-    service: (row.service_name ?? "").trim() || "No standard name",
-    direction: recordDirection(row),
+    src_nat: DASH,
+    dst_nat: DASH,
+    total: flowBytes(row.bytes),
+    packets: DASH,
+    // "https (TCP/443)", the bare "UDP/19305" for an unnamed port, and just
+    // the protocol when it has no ports at all.
+    service: isNum(row.port) && row.port > 0 ? serviceLabel(row) : protocol,
     down: flowBytes(row.bytes_down),
     up: flowBytes(row.bytes_up),
-    total: flowBytes(row.bytes),
+    direction: recordDirection(row),
     flows: isNum(row.flows) ? formatCount(row.flows) : DASH,
   };
+}
+
+/** "Retrieved 72 records in 0.04 second", from the count and the database
+ * time the API returns. When the page is capped it says of how many. */
+export function retrievedLine(r: {
+  total: number;
+  returned: number;
+  query_ms: number;
+  rows: unknown[];
+}): string {
+  const total = isNum(r.total) ? r.total : 0;
+  const shown = isNum(r.returned) ? r.returned : r.rows.length;
+  const took = isNum(r.query_ms) ? ` in ${(r.query_ms / 1000).toFixed(2)} second` : "";
+  const noun = total === 1 ? "record" : "records";
+  if (total === 0) return `Retrieved no records${took}`;
+  if (shown < total)
+    return `Retrieved ${formatCount(shown)} of ${formatCount(total)} ${noun}${took}`;
+  return `Retrieved ${formatCount(total)} ${noun}${took}`;
+}
+
+/** The quick "Filter…" box: narrows the rows ALREADY LOADED, in the browser.
+ * It asks the server for nothing, so it is not a search and is not audited.
+ * Every word typed must appear somewhere in the row's shown cells. */
+export function filterLoadedRecords<T extends Record<string, string>>(
+  rows: readonly T[],
+  visible: readonly string[],
+  text: string,
+): T[] {
+  const words = text.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [...rows];
+  return rows.filter((row) => {
+    const hay = visible
+      .map((id) => row[id] ?? "")
+      .join(" ")
+      .toLowerCase();
+    return words.every((w) => hay.includes(w));
+  });
+}
+
+export interface RecordFilterChip {
+  field: "address" | "protocol" | "port" | "direction";
+  label: string;
+}
+
+/** The server filters of the search on screen, as removable chips. Read
+ * from the request that was sent, so a chip is always a filter in force. */
+export function recordFilterChips(params: Record<string, string> | null): RecordFilterChip[] {
+  if (!params) return [];
+  const chips: RecordFilterChip[] = [];
+  if (params.address) chips.push({ field: "address", label: `Dst addr ${params.address}` });
+  if (params.protocol) {
+    const n = Number(params.protocol);
+    chips.push({ field: "protocol", label: `Protocol ${PROTOCOL_SHORT[n] ?? params.protocol}` });
+  }
+  if (params.port) chips.push({ field: "port", label: `D.port ${params.port}` });
+  if (params.direction === "up" || params.direction === "down")
+    chips.push({
+      field: "direction",
+      label: params.direction === "up" ? "Upload only" : "Download only",
+    });
+  return chips;
 }

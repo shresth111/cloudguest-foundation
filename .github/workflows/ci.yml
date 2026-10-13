@@ -1487,11 +1487,12 @@ jobs:
       # Since the 2026-10-13 customer redesign the page is three files
       # (shell, Overview, parts), the "Open Guest Connection Records" link
       # is gone and stays gone, and the new files are held to the same
-      # customer-surface rules. Floor 294, observed green at 294.
+      # customer-surface rules. Floor 296, observed green at 296 (294
+      # before the layout parts became their own file).
       - name: traffic flow page is operator-only and honest
         run: |
           ./scripts/ci-gated-test.sh \
-            "traffic flow" 294 "all traffic flow checks passed" \
+            "traffic flow" 296 "all traffic flow checks passed" \
             bun run test:traffic-flow
 
       # --- Traffic Lens Destinations: venue-level, audited, honest ---------
@@ -1511,7 +1512,7 @@ jobs:
       - name: traffic flow destinations are venue-level and audited
         run: |
           ./scripts/ci-gated-test.sh \
-            "traffic flow destinations" 211 \
+            "traffic flow destinations" 215 \
             "all traffic flow destination checks passed" \
             bun run test:traffic-flow-destinations
 
@@ -1532,11 +1533,24 @@ jobs:
       # port, NAT, packets) is listed as not recorded, and the column
       # chooser never causes a request. And that no fixture data lives in
       # any Traffic Lens file under src/: the static preview's sample data
-      # is kept outside the repository. Floor 123, observed green at 123.
+      # is kept outside the repository.
+      #
+      # With the Countries view: country and network are listed in the
+      # Columns menu as "not on a record" (the records endpoint returns
+      # neither, and nothing is joined on in the browser), the answer block
+      # uses no country data, and the attribution link the country data's
+      # licence requires sits outside every state branch of that view.
+      #
+      # With the connection-log shape (owner request, 2026-10-13): Src addr,
+      # S.port, S.NAT, D.NAT and Packets keep their place in the Records
+      # table as placeholders. This suite pins that a placeholder is a dash
+      # whatever the row object holds, is never sortable, and that the quick
+      # filter box narrows loaded rows without a request.
+      # Floor 160, observed green at 160 (was 123).
       - name: traffic lens answers are computed and honest
         run: |
           ./scripts/ci-gated-test.sh \
-            "traffic lens insights" 123 \
+            "traffic lens insights" 160 \
             "all traffic lens insight checks passed" \
             bun run test:traffic-lens-insights
 
@@ -1573,6 +1587,29 @@ jobs:
       # answer rather than falling out of every filter.
       - name: venue floors are derived, not hardcoded
         run: bun run test:device-floors
+
+      # --- Traffic Lens "Where traffic goes" (country and network) --------
+      #
+      # The country data is DB-IP Lite, CC BY 4.0, and its publisher requires
+      # a link back on every page that shows results. Nothing in tsc, eslint
+      # or the build can see a missing link, so it is pinned here, with the
+      # two other things that are easy to get wrong on this block: four
+      # different answers (not measured / country data not available on the
+      # server / not recorded for this period / a real result) must never
+      # collapse into a list of zeros, and an AS name is a network -- never an
+      # app, a service or a site. The real component is rendered for every
+      # state. Floor 130, observed green at 130.
+      #
+      # And since the customer dashboard's Countries view: it uses the venue
+      # path only, says nothing about how traffic is gathered, and networks
+      # withheld while fewer than five devices are connected are announced
+      # with how much they cover (country totals never are). Floor 190,
+      # observed green at 190.
+      - name: traffic lens geo block is attributed and honest
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "traffic flow geo" 204 "all traffic flow geo checks passed" \
+            bun run test:traffic-flow-geo
 
       # --- Campaign results ----------------------------------------------
       #

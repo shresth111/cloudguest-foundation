@@ -11,10 +11,11 @@ import {
   M_INPUT,
 } from "@/components/master/MasterKit";
 import { CHART_BODY_H } from "@/components/master/chart-layout";
+import { TrafficFlowGeoBlock } from "@/components/master/TrafficFlowGeoBlock";
 import { TrafficFlowRangeControl } from "@/components/master/TrafficFlowRangeControl";
 import { TrafficFlowServiceDestinations } from "@/components/master/TrafficFlowServiceDestinations";
 import { TrafficLensFindings } from "@/components/traffic-lens/TrafficLensFindings";
-import { useFlowFindings, useFlowSummary } from "@/hooks/useTrafficFlow";
+import { useFlowFindings, useFlowGeo, useFlowSummary } from "@/hooks/useTrafficFlow";
 import { requestErrorOf } from "@/services/api";
 import { flowRange, flowRangeMs } from "@/services/traffic-flow.service";
 import { serviceFromKey } from "@/lib/traffic-flow-destinations";
@@ -67,6 +68,10 @@ const TrafficFlowTimelineChart = lazy(() =>
  * here places a device beside a destination or a service, there is no way
  * from a device into either, and the API holds no such pairing.
  *
+ * Then "Where traffic goes" (TrafficFlowGeoBlock): countries, and the
+ * networks inside a country. A fourth independent list -- it holds no
+ * address, and a network is never called anything but a network.
+ *
  * Three empties are kept apart: not set up, not measured for this period,
  * and measured-and-empty. Only the last may show a zero.
  */
@@ -90,6 +95,9 @@ export function TrafficFlowVenueView({
   const q = useFlowSummary(scope, at);
   const findings = useFlowFindings(scope, at);
   const s = q.data;
+  // By country: its own request for the same pinned range, and only once
+  // the summary says the range was measured at all.
+  const geoQ = useFlowGeo(scope, at, s?.measured === true);
   const now = Date.now();
 
   const customers = useMemo(() => {
@@ -526,6 +534,16 @@ export function TrafficFlowVenueView({
                   />
                 </Block>
               </div>
+
+              <TrafficFlowGeoBlock
+                geo={geoQ.data}
+                loading={geoQ.isLoading}
+                error={
+                  geoQ.isError
+                    ? (requestErrorOf(geoQ.error)?.message ?? "The server did not answer.")
+                    : null
+                }
+              />
             </>
           )}
 

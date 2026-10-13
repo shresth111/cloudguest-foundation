@@ -81,11 +81,13 @@ export function lensRangeBounds(
 /** The page's views, in one array: a new view is one more entry here and
  * one more branch in TrafficLensView. Each gets the same venue and the same
  * range. */
-export const LENS_VIEWS: { id: "overview" | "destinations"; label: string }[] = [
+export const LENS_VIEWS: { id: "overview" | "destinations" | "geo"; label: string }[] = [
   { id: "overview", label: "Overview" },
   // The venue's destination records in one table: search, sort, columns,
   // download. Venue-level only.
   { id: "destinations", label: "Records" },
+  // Where the venue's traffic goes: by country, and by network inside one.
+  { id: "geo", label: "Countries" },
 ];
 
 export type LensRefusal = "locked" | "licence" | "forbidden" | null;
