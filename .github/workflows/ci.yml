@@ -1546,11 +1546,11 @@ jobs:
       # table as placeholders. This suite pins that a placeholder is a dash
       # whatever the row object holds, is never sortable, and that the quick
       # filter box narrows loaded rows without a request.
-      # Floor 168, observed green at 168 (was 123).
+      # Floor 170, observed green at 170 (was 123).
       - name: traffic lens answers are computed and honest
         run: |
           ./scripts/ci-gated-test.sh \
-            "traffic lens insights" 168 \
+            "traffic lens insights" 170 \
             "all traffic lens insight checks passed" \
             bun run test:traffic-lens-insights
 
@@ -1569,11 +1569,12 @@ jobs:
       # matched are different sentences; nothing is fetched unasked (every
       # search and download is audited); and both consoles draw ONE table
       # component, which says nothing about how records are gathered.
-      # Floor 112, observed green at 112.
+      # Floor 131, observed green at 131 (merged ports read "several", repeats
+      # read "same", and the storage line always names all four figures).
       - name: traffic flow records are Master-only and honest
         run: |
           ./scripts/ci-gated-test.sh \
-            "traffic flow records" 112 \
+            "traffic flow records" 131 \
             "all traffic flow record checks passed" \
             bun run test:traffic-flow-records
 
@@ -1593,11 +1594,11 @@ jobs:
       # only where a value cannot exist; the incomplete notice and the
       # retention come from the API; nothing is fetched unasked; and no
       # customer file carries platform equipment or imports a Master
-      # flow-record file. Floor 90, observed green at 90.
+      # flow-record file. Floor 92, observed green at 92.
       - name: traffic lens connection records follow the entitlement
         run: |
           ./scripts/ci-gated-test.sh \
-            "traffic lens flow records" 90 \
+            "traffic lens flow records" 92 \
             "all traffic lens flow record checks passed" \
             bun run test:traffic-lens-flow-records
 

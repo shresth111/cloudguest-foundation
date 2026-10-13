@@ -109,7 +109,10 @@ export function RecordsTable<Id extends string, Sort extends string>({
             {rows.map((row) => (
               <TableRow key={row.key}>
                 {columns.map((c) => {
-                  const absent = c.notRecorded !== null || (row.missing ?? []).includes(c.id);
+                  const absent =
+                    c.notRecorded !== null ||
+                    (row.missing ?? []).includes(c.id) ||
+                    (row.muted ?? []).includes(c.id);
                   return (
                     <TableCell
                       key={c.id}

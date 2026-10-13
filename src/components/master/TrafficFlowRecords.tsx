@@ -32,6 +32,7 @@ import {
   incompleteNotice,
   nextFlowRecordSort,
   recordsSwitchedOffNote,
+  storageLine,
   toggleFlowRecordColumn,
   type FlowRecordColumnId,
 } from "@/lib/traffic-flow-records";
@@ -433,7 +434,10 @@ export function TrafficFlowRecords({
             </p>
           )}
           <div className="flex flex-wrap items-baseline justify-between gap-2 text-xs text-muted-foreground">
-            <p>{flowTotalsLine(r)}</p>
+            <p>
+              {flowTotalsLine(r)}
+              {storageLine(r) && <span className="block">{storageLine(r)}</span>}
+            </p>
             {quick.trim() && (
               <p aria-live="polite">
                 Filter box: {rows.length.toLocaleString()} of {loaded.length.toLocaleString()}{" "}
@@ -461,10 +465,11 @@ export function TrafficFlowRecords({
             <p>
               Start and End are the router's clock, shown in your browser's local time. A greyed
               "not recorded" cell is a value the record did not carry; it is not zero and not empty.
-              A greyed heading means no returned row carried that column: hover or click it for why.
-              Service is the protocol and the outside end's port with the port's standard name;
-              nothing here inspects traffic contents. Sorting asks the server again for the same
-              search.
+              "Several" on a port means the row sums records from different ports on the venue side
+              (hover for how many); "same" means the value only repeats the one before it. A greyed
+              heading means no returned row carried that column: hover or click it for why. Service
+              is the protocol and the outside end's port with the port's standard name; nothing here
+              inspects traffic contents. Sorting asks the server again for the same search.
             </p>
           </div>
         </div>

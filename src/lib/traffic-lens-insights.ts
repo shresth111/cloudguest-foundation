@@ -621,9 +621,9 @@ export function lensComposition(summary: Summary, colors: readonly string[]): St
 // the order the owner asked for: Start, End, Src addr, S.port, Dst addr,
 // D.port, Protocol, S.NAT, D.NAT, Bytes, Packets, Service, Export.
 //
-// Five of those have no data behind them, for any venue: a destination
-// record is for the venue as a whole and never says which device, address
-// translation is not recorded, and packets are not counted. They stay in
+// Four of those have no data behind them in a venue-level record: it is for
+// the venue as a whole and never says which device, and address translation
+// is not recorded. They stay in
 // their position as PLACEHOLDERS: a greyed header, an em dash in every cell
 // and a one-line reason. A placeholder has no field, no sort and no filter,
 // and `recordCells` fills it with a dash whatever the row object holds, so
@@ -714,11 +714,7 @@ export const LENS_RECORD_COLUMNS: LensRecordColumn[] = [
   placeholder("src_nat", "S.NAT", NO_NAT),
   placeholder("dst_nat", "D.NAT", NO_NAT),
   live("total", "Bytes", "bytes", { numeric: true }),
-  placeholder(
-    "packets",
-    "Packets",
-    "Not recorded: venue-level records count flows, not packets. Per-connection records are a separate add-on.",
-  ),
+  live("packets", "Packets", "packets", { numeric: true }),
   live("service", "Service", null),
   // Not in the asked-for shape, but real: off until switched on in Columns.
   live("down", "Download", "bytes_down", { numeric: true, initial: false }),
@@ -808,7 +804,8 @@ export function recordCells(
     src_nat: DASH,
     dst_nat: DASH,
     total: flowBytes(row.bytes),
-    packets: DASH,
+    // null = not measured for this record (older rows): a dash, never 0.
+    packets: isNum(row.packets) ? formatCount(row.packets) : DASH,
     // "https (TCP/443)", the bare "UDP/19305" for an unnamed port, and just
     // the protocol when it has no ports at all.
     service: isNum(row.port) && row.port > 0 ? serviceLabel(row) : protocol,

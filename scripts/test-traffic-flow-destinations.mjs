@@ -788,7 +788,7 @@ check(
 );
 check(
   "the sort keys are the venue-level columns only",
-  /"time"\s*\|\s*"address"\s*\|\s*"protocol"\s*\|\s*"port"\s*\|\s*"bytes"\s*\|\s*"bytes_up"\s*\|\s*"bytes_down"\s*\|\s*"flows";/.test(
+  /"time"\s*\|\s*"address"\s*\|\s*"protocol"\s*\|\s*"port"\s*\|\s*"bytes"\s*\|\s*"bytes_up"\s*\|\s*"bytes_down"\s*\|\s*"flows"\s*\|\s*"packets";/.test(
     types
       .replace(/\n\s*/g, " ")
       .replace(/\|\s+"/g, '| "')
@@ -1122,21 +1122,21 @@ check(
 // behind it: no field, no sort, no filter, and a dash in every cell.
 const lensPlaceholders = lensColumns.match(/placeholder\(\s*"[^"]+",\s*"[^"]+"/g) ?? [];
 check(
-  "the customer table has eleven live columns and five placeholders",
+  "the customer table has twelve live columns and four placeholders",
   /const COLUMNS = LENS_RECORD_COLUMNS;/.test(lensTabCode) &&
-    (lensColumns.match(/\blive\("/g) ?? []).length === 11 &&
-    lensPlaceholders.length === 5,
+    (lensColumns.match(/\blive\("/g) ?? []).length === 12 &&
+    lensPlaceholders.length === 4,
   `${(lensColumns.match(/\blive\("/g) ?? []).length} live, ${lensPlaceholders.length} placeholders`,
 );
 check(
-  "every device, translation and packet column is a placeholder, never a live one",
+  "every device and translation column is a placeholder, never a live one",
   !(lensColumns.match(/\blive\("[^"]+", "[^"]+"/g) ?? []).some((c) =>
-    /src|source|device|mac|guest|nat|packet|client|session/i.test(c),
+    /src|source|device|mac|guest|nat|client|session/i.test(c),
   ),
 );
 check(
   "a placeholder cell is a literal dash, whatever the row holds",
-  ["src_addr", "src_port", "src_nat", "dst_nat", "packets"].every((id) =>
+  ["src_addr", "src_port", "src_nat", "dst_nat"].every((id) =>
     new RegExp(`\\b${id}: DASH,`).test(read("src/lib/traffic-lens-insights.ts")),
   ),
 );

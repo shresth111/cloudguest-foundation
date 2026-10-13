@@ -117,6 +117,8 @@ const flow = (over = {}) => ({
   application: "https (TCP/443)",
   direction: "upload",
   router_id: "r1",
+  records_merged: 1,
+  ports_merged: false,
   ...over,
 });
 const page = (over = {}) => ({
@@ -206,9 +208,9 @@ check(
   !m.LENS_FLOW_COLUMNS.some((c) => /export|router|equipment/i.test(`${c.id} ${c.label}`)),
 );
 eq(
-  "three more start hidden",
+  "Records and three more start hidden on the customer page",
   m.LENS_FLOW_COLUMNS.filter((c) => !c.initial).map((c) => c.label),
-  ["Direction", "Arrived", "Window"],
+  ["Records", "Direction", "Arrived", "Window"],
 );
 check(
   "no heading says Application",
@@ -259,9 +261,25 @@ console.log("\n3. honest cells");
     ["192.168.88.24", "51544", "203.0.113.14", "443"],
   );
   eq(
-    "translations as address:port",
+    "a real translation is shown; one equal to the address is 'same'",
     [row.cells.nat_src, row.cells.nat_dst],
-    ["198.51.100.9:40001", "203.0.113.14:443"],
+    ["198.51.100.9:40001", "same"],
+  );
+  const merged = m.lensFlowRow(
+    flow({ src_port: null, nat_src_port: null, ports_merged: true, records_merged: 12 }),
+    0,
+    TZ,
+  );
+  check(
+    "a merged venue-side port reads 'several', with how many records it sums",
+    merged.cells.src_port === "several" &&
+      merged.reasons.src_port.includes("12 records") &&
+      !merged.missing.includes("src_port"),
+  );
+  eq(
+    "an end in the same second is shown once",
+    m.lensFlowRow(flow({ end: flow().start }), 0, TZ).cells.end,
+    "same",
   );
   eq(
     "bytes with a unit, packets, service",
@@ -564,10 +582,10 @@ check(
     (venueTable.match(/LENS_RECORDS_LOCKED_LINE\}/g) ?? []).length === 1,
 );
 check(
-  "the venue-level table still has its five placeholders, and never calls the records route",
+  "the venue-level table still has its four placeholders (Packets is real), and never calls the records route",
   m.LENS_RECORD_COLUMNS.filter((c) => c.notRecorded !== null)
     .map((c) => c.id)
-    .join() === "src_addr,src_port,src_nat,dst_nat,packets" &&
+    .join() === "src_addr,src_port,src_nat,dst_nat" &&
     !/useLensFlowRecord|\/flows/.test(code(venueTable)),
 );
 eq(
@@ -635,6 +653,7 @@ check(
     "lensFlowColumns(r)",
     "lensFlowRow(row, i, timeZone)",
     "lensFlowState(r, timeZone)",
+    "storageLine(r)",
     'incompleteNotice(r, "the Overview", timeZone)',
     "retrievedLine(r)",
     "flowExportMessage(file)",

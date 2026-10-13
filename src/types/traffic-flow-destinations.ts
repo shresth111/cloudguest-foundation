@@ -22,7 +22,8 @@ export type DestinationSortKey =
   | "bytes"
   | "bytes_up"
   | "bytes_down"
-  | "flows";
+  | "flows"
+  | "packets";
 
 export type DestinationSortOrder = "asc" | "desc";
 
@@ -47,6 +48,8 @@ export interface DestinationRecord {
   bytes_down: number;
   bytes: number;
   flows: number;
+  /** null = not measured for this record (never zero). */
+  packets?: number | null;
 }
 
 /** Fields D-1 and D-3 share. */

@@ -49,6 +49,7 @@ export {
   incompleteNotice,
   nextFlowRecordSort,
   retentionNote,
+  storageLine,
 } from "@/lib/flow-records";
 
 export const FLOW_RECORDS_AUDIT_NOTE =
@@ -65,7 +66,8 @@ export type FlowRecordColumn = FlowColumn<FlowRecordColumnId>;
 export const FLOW_RECORD_COLUMNS: FlowRecordColumn[] = [
   ...FLOW_REFERENCE_COLUMNS,
   flowColumn<FlowRecordColumnId>("exporter", "Export", null),
-  ...FLOW_EXTRA_COLUMNS,
+  // "Records" (how many exported records a row sums) is on here.
+  ...FLOW_EXTRA_COLUMNS.map((c) => (c.id === "records" ? { ...c, initial: true } : c)),
 ];
 
 export const FLOW_RECORD_DEFAULT_COLUMNS: FlowRecordColumnId[] = FLOW_RECORD_COLUMNS.filter(

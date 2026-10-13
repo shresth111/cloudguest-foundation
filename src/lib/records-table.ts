@@ -34,7 +34,9 @@ export interface RecordsRow<Id extends string = string> {
   cells: Record<Id, string>;
   /** Column ids whose value this row does not have. Drawn greyed. */
   missing?: readonly Id[];
-  /** Why, per missing cell: given on hover. */
+  /** Column ids whose value only repeats a neighbour's. Drawn greyed. */
+  muted?: readonly Id[];
+  /** Why, per cell that needs a word: given on hover. */
   reasons?: Partial<Record<Id, string>>;
 }
 

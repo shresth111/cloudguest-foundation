@@ -26,6 +26,7 @@ import {
   incompleteNotice,
   nextFlowRecordSort,
   retentionNote,
+  storageLine,
 } from "@/lib/flow-records";
 import { filterLoadedRecords, retrievedLine } from "@/lib/records-table";
 import {
@@ -362,7 +363,10 @@ export function TrafficLensFlowRecords({
         ) : (
           <div className={`space-y-3 ${q.isFetching ? "opacity-60" : ""}`}>
             <div className="flex flex-wrap items-baseline justify-between gap-2 text-xs text-muted-foreground">
-              <p>{flowTotalsLine(r)}</p>
+              <p>
+                {flowTotalsLine(r)}
+                {storageLine(r) && <span className="block">{storageLine(r)}</span>}
+              </p>
               {quick.trim() && (
                 <p aria-live="polite">
                   Filter box: {rows.length.toLocaleString()} of {loaded.length.toLocaleString()}{" "}

@@ -641,7 +641,7 @@ eq("plain name: an unknown label has none", m.serviceKind({ service_name: "openv
 // ---------------------------------------------------------------------------
 console.log("\n7. the Records table");
 const ids = m.LENS_RECORD_COLUMNS.map((c) => c.id);
-const PLACEHOLDERS = ["src_addr", "src_port", "src_nat", "dst_nat", "packets"];
+const PLACEHOLDERS = ["src_addr", "src_port", "src_nat", "dst_nat"];
 eq(
   "the asked-for shape, in the asked-for order",
   m.LENS_RECORD_DEFAULT_COLUMNS.map((id) => m.LENS_RECORD_COLUMNS.find((c) => c.id === id).label),
@@ -661,7 +661,7 @@ eq(
   ],
 );
 eq(
-  "exactly five columns are placeholders",
+  "exactly four columns are placeholders (Packets is real data now)",
   m.LENS_RECORD_COLUMNS.filter((c) => c.notRecorded !== null).map((c) => c.id),
   PLACEHOLDERS,
 );
@@ -672,9 +672,9 @@ check(
   ),
 );
 check(
-  "no LIVE column is a device, a guest, a translation or a packet count",
+  "no LIVE column is a device, a guest or a translation",
   !m.LENS_RECORD_COLUMNS.filter((c) => c.notRecorded === null).some((c) =>
-    /device|mac|guest|source|src|nat|session|client|packet/i.test(`${c.id} ${c.label}`),
+    /device|mac|guest|source|src|nat|session|client/i.test(`${c.id} ${c.label}`),
   ),
 );
 check(
@@ -684,12 +684,12 @@ check(
 eq(
   "every sort a header asks for is one the API accepts",
   m.LENS_RECORD_COLUMNS.filter((c) => c.sort).map((c) => c.sort),
-  ["time", "address", "port", "protocol", "bytes", "bytes_down", "bytes_up", "flows"],
+  ["time", "address", "port", "protocol", "bytes", "packets", "bytes_down", "bytes_up", "flows"],
 );
 eq(
   "the Columns menu lists the placeholders by their headings",
   m.LENS_RECORD_NOT_RECORDED.map((c) => c.label),
-  ["Src addr", "S.port", "S.NAT", "D.NAT", "Packets"],
+  ["Src addr", "S.port", "S.NAT", "D.NAT"],
 );
 eq(
   "the extra real columns start hidden",
@@ -741,9 +741,30 @@ eq("Service is the name with protocol and port", cells.service, "https (TCP/443)
 eq("cells: bytes carry units", [cells.total, cells.down, cells.up], ["202 MB", "200 MB", "2.0 MB"]);
 eq("cells: flows", cells.flows, "640");
 eq(
+  "Packets is real: the count when measured, a dash (never 0) when not, and 0 when it was zero",
+  [
+    m.recordCells(record({ packets: 151250 }), "Asia/Kolkata").packets,
+    m.recordCells(record({ packets: null }), "Asia/Kolkata").packets,
+    m.recordCells(record(), "Asia/Kolkata").packets,
+    m.recordCells(record({ packets: 0 }), "Asia/Kolkata").packets,
+  ],
+  [(151250).toLocaleString(), "—", "—", "0"],
+);
+check(
+  "Packets is a live, sortable column in the reference position",
+  (() => {
+    const c = m.LENS_RECORD_COLUMNS.find((x) => x.id === "packets");
+    return (
+      c.notRecorded === null &&
+      c.sort === "packets" &&
+      ids.indexOf("packets") === ids.indexOf("total") + 1
+    );
+  })(),
+);
+eq(
   "every placeholder cell is a dash",
   PLACEHOLDERS.map((id) => cells[id]),
-  ["—", "—", "—", "—", "—"],
+  ["—", "—", "—", "—"],
 );
 const smuggled = m.recordCells(
   record({
@@ -752,14 +773,13 @@ const smuggled = m.recordCells(
     client_ip: "x-device",
     src_nat: "x-nat",
     dst_nat: "x-nat",
-    packets: 61,
   }),
   "Asia/Kolkata",
 );
 check(
-  "a row that somehow carried a device, a NAT or a packet count still shows dashes",
+  "a row that somehow carried a device or a NAT still shows dashes",
   PLACEHOLDERS.every((id) => smuggled[id] === "—") &&
-    !Object.values(smuggled).some((v) => /x-device|x-nat|51544|^61$/.test(v)),
+    !Object.values(smuggled).some((v) => /x-device|x-nat|51544/.test(v)),
   JSON.stringify(smuggled),
 );
 eq(

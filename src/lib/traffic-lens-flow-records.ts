@@ -124,6 +124,6 @@ export function lensFlowNotes(
 ): string[] {
   return [
     truncatedNote(r),
-    `Start and End are when the record began and ended, to the second, in ${timeBasis}. A greyed "not recorded" is a value the record did not carry: it is not zero and not none; hover it for why. "Not applicable" is used only where the value cannot exist, such as a port on a protocol that has none. A greyed heading means no returned row carried that column. Service is the protocol and port with the port's standard name; it does not say which app or site was used. Sorting asks again for the same search.`,
+    `Start and End are when the record began and ended, to the second, in ${timeBasis}. A greyed "not recorded" is a value the record did not carry: it is not zero and not none; hover it for why. "Not applicable" is used only where the value cannot exist, such as a port on a protocol that has none. "Several" on a port means the row sums records that came from different ports on the venue side; hover it for how many. "Same" means the value only repeats the one before it (an end in the same second as the start, or an address that was not translated), so a row where it differs stands out. A greyed heading means no returned row carried that column. Service is the protocol and port with the port's standard name; it does not say which app or site was used. Sorting asks again for the same search.`,
   ].filter((n): n is string => !!n);
 }

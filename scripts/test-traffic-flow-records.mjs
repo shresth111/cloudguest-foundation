@@ -117,6 +117,8 @@ const flow = (over = {}) => ({
   direction: "upload",
   exporter: "10.20.0.31",
   router_id: "r1",
+  records_merged: 1,
+  ports_merged: false,
   ...over,
 });
 const result = (over = {}) => ({
@@ -156,7 +158,7 @@ const FORM = m.EMPTY_FLOW_RECORD_FILTERS;
 // ---------------------------------------------------------------------------
 console.log("\n1. the columns are the reference table's, in its order");
 eq(
-  "the thirteen default columns",
+  "the reference thirteen, then Records (on for this console)",
   m.FLOW_RECORD_DEFAULT_COLUMNS.map((id) => m.FLOW_RECORD_COLUMNS.find((c) => c.id === id).label),
   [
     "Start",
@@ -172,6 +174,7 @@ eq(
     "Packets",
     "Service",
     "Export",
+    "Records",
   ],
 );
 eq(
@@ -234,7 +237,7 @@ check(
     .flowRecordColumns(result({ fields_not_recorded: ["exporter_port", "something_new"] }))
     .every((c) => c.notRecorded === null),
 );
-check("no result yet: the plain columns", m.flowRecordColumns(null).length === 17);
+check("no result yet: the plain columns", m.flowRecordColumns(null).length === 18);
 {
   const D = m.FLOW_RECORD_DEFAULT_COLUMNS;
   eq(
@@ -274,10 +277,12 @@ console.log("\n2. a row: values as sent, null as 'not recorded'");
     ["192.168.88.24", "51544", "142.250.193.14", "443"],
   );
   eq(
-    "NAT is address:port",
-    [row.cells.nat_src, row.cells.nat_dst],
-    ["203.0.114.9:40001", "142.250.193.14:443"],
+    "a translation that differs is shown; one that only repeats the address is 'same'",
+    [row.cells.nat_src, row.cells.nat_dst, row.muted],
+    ["203.0.114.9:40001", "same", ["nat_dst"]],
   );
+  check("and says what it is the same as", /same as Dst addr/.test(row.reasons.nat_dst));
+  eq("Records is how many records the row sums", row.cells.records, "1");
   eq(
     "protocol, bytes with a unit, packets",
     [row.cells.protocol, row.cells.bytes, row.cells.packets],
@@ -330,6 +335,86 @@ console.log("\n2. a row: values as sent, null as 'not recorded'");
     ["0 B", "0", "0"],
   );
   check("and is not listed as missing", zero.missing.length === 0);
+}
+{
+  const up = m.flowRecordRow(
+    flow({
+      src_port: null,
+      nat_src_port: null,
+      ports_merged: true,
+      records_merged: 40,
+      direction: "upload",
+    }),
+    0,
+  );
+  eq(
+    "merged ports on an upload: the venue side is the source, and reads 'several'",
+    [up.cells.src_port, up.cells.dst_port, up.missing.includes("src_port")],
+    ["several", "443", false],
+  );
+  check(
+    "the reason says how many records the row sums",
+    up.reasons.src_port.includes(`${(40).toLocaleString()} records`) &&
+      /different ports on the venue side/.test(up.reasons.src_port),
+    up.reasons.src_port,
+  );
+  eq("and Records shows it", up.cells.records, "40");
+  const down = m.flowRecordRow(
+    flow({
+      src_address: "142.250.193.14",
+      src_port: 443,
+      dst_address: "192.168.88.24",
+      dst_port: null,
+      ports_merged: true,
+      records_merged: 7,
+      direction: "download",
+    }),
+    0,
+  );
+  eq(
+    "on a download the venue side is the destination",
+    [down.cells.dst_port, down.cells.src_port],
+    ["several", "443"],
+  );
+  const outside = m.flowRecordRow(
+    flow({ dst_port: null, ports_merged: true, records_merged: 3, direction: "upload" }),
+    0,
+  );
+  eq(
+    "the outside port is never merged: a null there is still 'not recorded'",
+    outside.cells.dst_port,
+    "not recorded",
+  );
+  eq(
+    "a null port without ports_merged is 'not recorded', not 'several'",
+    m.flowRecordRow(flow({ src_port: null, ports_merged: false }), 0).cells.src_port,
+    "not recorded",
+  );
+  const instant = m.flowRecordRow(flow({ end: flow().start }), 0);
+  check(
+    "an end in the same second as the start is shown once",
+    instant.cells.end === "same" &&
+      instant.muted.includes("end") &&
+      /same second/.test(instant.reasons.end) &&
+      /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:45$/.test(instant.cells.start),
+  );
+  check("a different end is shown in full", m.flowRecordRow(flow(), 0).cells.end.endsWith(":10"));
+  const untranslated = m.flowRecordRow(
+    flow({ nat_src_address: "192.168.88.24", nat_src_port: 51544 }),
+    0,
+  );
+  eq("S.NAT equal to Src addr is 'same'", untranslated.cells.nat_src, "same");
+  eq(
+    "the same address on another port is a translation, and is shown",
+    m.flowRecordRow(flow({ nat_src_address: "192.168.88.24", nat_src_port: 40001 }), 0).cells
+      .nat_src,
+    "192.168.88.24:40001",
+  );
+  eq(
+    "Records with no count is 'not recorded'",
+    m.flowRecordRow(flow({ records_merged: null }), 0).cells.records,
+    "not recorded",
+  );
 }
 eq("NAT with no port is the address alone", m.endpointLabel("203.0.114.9", null), "203.0.114.9");
 eq("an IPv6 endpoint is bracketed", m.endpointLabel("2001:db8::1", 443), "[2001:db8::1]:443");
@@ -519,6 +604,76 @@ eq("no totals, no line", m.flowTotalsLine(result({ totals: null })), null);
 }
 
 // ---------------------------------------------------------------------------
+console.log("\n4b. the storage line");
+{
+  const storage = (over = {}) => ({
+    from_day: "2026-10-12",
+    to_day: "2026-10-13",
+    records_received: 6500,
+    rows_stored: 180,
+    records_merged: 3900,
+    not_stored: { internal: 2400, daily_cap: 20 },
+    internal_records_stored: false,
+    ports_merged: true,
+    ...over,
+  });
+  eq("no storage block: nothing is said", m.storageLine(result()), null);
+  eq(
+    "everything received stored one-to-one: nothing is said",
+    m.storageLine(
+      result({
+        storage: storage({
+          records_received: 180,
+          records_merged: 0,
+          not_stored: { internal: 0, daily_cap: 0 },
+        }),
+      }),
+    ),
+    null,
+  );
+  const line = m.storageLine(
+    result({
+      storage: storage(),
+      rows: [flow({ records_merged: 40 }), flow({ records_merged: 2 }), flow()],
+    }),
+  );
+  check(
+    "it says how many records the rows on screen sum",
+    line.startsWith(`Showing 3 rows that sum ${(43).toLocaleString()} records. `),
+    line,
+  );
+  check(
+    "it names the UTC days, not 'this range', and all four figures",
+    /On 12 Oct to 13 Oct \(UTC\)/.test(line) &&
+      line.includes(`${(6500).toLocaleString()} records were received`) &&
+      line.includes(`${(180).toLocaleString()} kept as rows`) &&
+      line.includes(`${(3900).toLocaleString()} merged into those rows (nothing lost)`) &&
+      line.includes(`${(2400).toLocaleString()} inside the venue's own network are not kept`) &&
+      line.includes(`${(20).toLocaleString()} not stored after the daily limit`),
+    line,
+  );
+  check(
+    "one day reads as one day; a zero part is left out",
+    /On 13 Oct \(UTC\)/.test(
+      m.storageLine(result({ storage: storage({ from_day: "2026-10-13" }) })),
+    ) &&
+      !/daily limit/.test(
+        m.storageLine(
+          result({
+            storage: storage({
+              records_received: 6480,
+              not_stored: { internal: 2400, daily_cap: 0 },
+            }),
+          }),
+        ),
+      ),
+  );
+  check(
+    "rows that each stand for one record do not claim to sum more",
+    !/that sum/.test(m.storageLine(result({ storage: storage() }))),
+  );
+}
+
 console.log("\n5. records incomplete since ...");
 eq("not incomplete: no notice", m.incompleteNotice(result()), null);
 eq(
@@ -713,10 +868,10 @@ check(
     ),
 );
 check(
-  "the customer table still has its five placeholders",
+  "the customer venue-level table still has its four placeholders",
   m.LENS_RECORD_COLUMNS.filter((c) => c.notRecorded !== null)
     .map((c) => c.id)
-    .join() === "src_addr,src_port,src_nat,dst_nat,packets",
+    .join() === "src_addr,src_port,src_nat,dst_nat",
 );
 check("the service only reads", !/api\.(post|put|patch|delete)/.test(service));
 for (const flag of [

@@ -39,6 +39,13 @@ export const NOT_APPLICABLE_CELL = "not applicable";
 
 export const NOT_RECORDED_REASON = "Not recorded for this record. That is not zero and not none.";
 export const NO_PORTS_REASON = "Not applicable: this protocol has no ports.";
+/** A venue-side port of a row that sums records from different ports. */
+export const SEVERAL_CELL = "several";
+/** A value that only repeats the one beside it: shown once, so a row where
+ * it really differs stands out. */
+export const SAME_CELL = "same";
+export const SAME_SECOND_REASON = "Ended in the same second it started.";
+
 export const NAT_V6_REASON =
   "Not recorded. IPv6 addresses are normally not translated, so there may be nothing to record.";
 
@@ -62,6 +69,7 @@ export type FlowBaseColumnId =
   | "bytes"
   | "packets"
   | "service"
+  | "records"
   | "direction"
   | "arrived_at"
   | "window"
@@ -104,6 +112,8 @@ export const FLOW_REFERENCE_COLUMNS: FlowColumn[] = [
 
 /** Also returned for every record; off until switched on in Columns. */
 export const FLOW_EXTRA_COLUMNS: FlowColumn[] = [
+  // How many exported records the row sums (1 = one record).
+  flowColumn("records", "Records", null, { numeric: true, initial: false }),
   flowColumn("direction", "Direction", null, { initial: false }),
   flowColumn("arrived_at", "Arrived", null, { initial: false }),
   flowColumn("window", "Window", null, { initial: false }),
@@ -125,6 +135,7 @@ export const FLOW_BASE_COLUMN_FIELDS: Record<FlowBaseColumnId, readonly string[]
   bytes: ["bytes"],
   packets: ["packets"],
   service: ["application"],
+  records: ["records_merged"],
   direction: ["direction"],
   arrived_at: ["arrived_at"],
   window: ["window_start"],
@@ -230,6 +241,7 @@ export function flowRow<Row extends FlowRecordBase, Id extends string>(
     bytes: isNum(row.bytes) ? flowBytes(row.bytes) : null,
     packets: isNum(row.packets) ? formatCount(row.packets) : null,
     service: text(row.application),
+    records: isNum(row.records_merged) ? formatCount(row.records_merged) : null,
     direction: directionCell(row.direction),
     arrived_at: text(row.arrived_at) ? recordTime(row.arrived_at, zone) : null,
     window:
@@ -241,13 +253,51 @@ export function flowRow<Row extends FlowRecordBase, Id extends string>(
   };
   const portless = isNum(row.protocol) && PORTLESS.has(row.protocol);
   const v6 = (text(row.src_address) ?? "").includes(":");
+  // A row that sums records from different venue-side ports has that port
+  // null on purpose: "several", not unknown. The venue side is the source
+  // of an upload and the destination of a download.
+  const merged = row.ports_merged === true;
+  const way = (text(row.direction) ?? "").toLowerCase();
+  const venuePort = (id: string) =>
+    merged &&
+    ((id === "src_port" && way !== "download") || (id === "dst_port" && way !== "upload"));
+  const sums = isNum(row.records_merged) ? row.records_merged : null;
+  const severalReason = `Several: this row sums ${sums !== null ? `${formatCount(sums)} records` : "records"} that came from different ports on the venue side.`;
+  // A translated address that only repeats the plain one, and an end in the
+  // same second as the start, are shown once.
+  const sameAs = (
+    nat: string | null,
+    natPort: number | null,
+    plain: string | null,
+    port: number | null,
+  ) => !!text(nat) && text(nat) === text(plain) && (!isNum(natPort) || natPort === port);
+  const repeats: Record<string, string | false> = {
+    end: !!values.start && values.end === values.start && SAME_SECOND_REASON,
+    nat_src:
+      sameAs(row.nat_src_address, row.nat_src_port, row.src_address, row.src_port) &&
+      "Not translated: the same as Src addr.",
+    nat_dst:
+      sameAs(row.nat_dst_address, row.nat_dst_port, row.dst_address, row.dst_port) &&
+      "Not translated: the same as Dst addr.",
+  };
   const missing: Id[] = [];
+  const muted: Id[] = [];
   const reasons: Partial<Record<Id, string>> = {};
   const cells = {} as Record<Id, string>;
   for (const c of columns) {
     const v = values[c.id] ?? null;
     if (v !== null) {
-      cells[c.id] = v;
+      const repeat = repeats[c.id];
+      if (repeat) {
+        cells[c.id] = SAME_CELL;
+        muted.push(c.id);
+        reasons[c.id] = repeat;
+      } else cells[c.id] = v;
+      continue;
+    }
+    if (venuePort(c.id)) {
+      cells[c.id] = SEVERAL_CELL;
+      reasons[c.id] = severalReason;
       continue;
     }
     missing.push(c.id);
@@ -266,6 +316,7 @@ export function flowRow<Row extends FlowRecordBase, Id extends string>(
     key: `${index}|${row.start ?? row.window_start ?? ""}|${row.src_address ?? ""}|${row.src_port ?? ""}|${row.dst_address ?? ""}|${row.dst_port ?? ""}`,
     cells,
     missing,
+    muted,
     reasons,
   };
 }
@@ -423,6 +474,50 @@ export function incompleteNotice(
     title: `Records incomplete since ${recordTime(first.since, timeZone)}.`,
     body: `The limit${cap} on stored records was reached, and ${lost > 0 ? `${formatCount(lost)} ${lost === 1 ? "record" : "records"}` : "some records"} in this range ${lost === 1 ? "was" : "were"} not stored. Storing resumes at the start of the next day (UTC). Totals for the period are in ${totalsWhere}, which is not affected.`,
   };
+}
+
+const dayLabel = (day: string): string | null => {
+  const t = Date.parse(`${day}T00:00:00Z`);
+  return Number.isNaN(t)
+    ? null
+    : new Date(t).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+};
+
+/**
+ * One plain line above the table: how many records the rows on screen sum,
+ * and what happened to the records received on the UTC days the range
+ * touches. null when there is nothing to say: no storage block, or every
+ * record received was stored as its own row. Merged records are not a loss
+ * and are not worded as one; only the daily limit means records are missing.
+ */
+export function storageLine(
+  r: Pick<FlowRecordsPage, "storage" | "rows" | "returned">,
+): string | null {
+  const st = r.storage;
+  if (!st || !isNum(st.records_received) || !isNum(st.rows_stored)) return null;
+  const merged = isNum(st.records_merged) ? st.records_merged : 0;
+  const internal = isNum(st.not_stored?.internal) ? st.not_stored.internal : 0;
+  const capped = isNum(st.not_stored?.daily_cap) ? st.not_stored.daily_cap : 0;
+  if (merged === 0 && internal === 0 && capped === 0) return null;
+  const shown = r.rows.length;
+  const summed = r.rows.reduce(
+    (sum, row) => sum + (isNum(row.records_merged) ? row.records_merged : 1),
+    0,
+  );
+  const from = dayLabel(st.from_day);
+  const to = dayLabel(st.to_day);
+  const days = from && to ? (from === to ? `On ${from}` : `On ${from} to ${to}`) : "On these days";
+  const parts = [
+    `${formatCount(st.rows_stored)} kept as rows`,
+    merged > 0 ? `${formatCount(merged)} merged into those rows (nothing lost)` : null,
+    internal > 0 ? `${formatCount(internal)} inside the venue's own network are not kept` : null,
+    capped > 0 ? `${formatCount(capped)} not stored after the daily limit` : null,
+  ].filter(Boolean);
+  const head =
+    summed > shown
+      ? `Showing ${formatCount(shown)} ${shown === 1 ? "row" : "rows"} that sum ${formatCount(summed)} records. `
+      : "";
+  return `${head}${days} (UTC), ${formatCount(st.records_received)} records were received: ${parts.join("; ")}.`;
 }
 
 /** "61.3 MB · 51,200 packets across all matching records". */

@@ -42,6 +42,24 @@ export interface FlowRecordBase {
   application: string | null;
   direction: string | null;
   router_id: string | null;
+  /** How many exported records this row stands for; 1 = one record. */
+  records_merged?: number | null;
+  /** true: those records came from different ports on the venue side, so
+   * that port (and its translated twin) is null. "Several", not unknown. */
+  ports_merged?: boolean | null;
+}
+
+/** What happened to the records received, per whole UTC day the range
+ * touches. `records_received` is always the sum of the other four. */
+export interface FlowStorage {
+  from_day: string;
+  to_day: string;
+  records_received: number;
+  rows_stored: number;
+  records_merged: number;
+  not_stored: { internal: number; daily_cap: number };
+  internal_records_stored: boolean;
+  ports_merged: boolean;
 }
 
 export interface FlowIncompleteStretch {
@@ -76,6 +94,7 @@ export interface FlowRecordsPage<Row extends FlowRecordBase = FlowRecordBase> {
   truncated: boolean;
   query_ms: number;
   totals: { bytes: number; packets: number } | null;
+  storage?: FlowStorage | null;
   rows: Row[];
 }
 

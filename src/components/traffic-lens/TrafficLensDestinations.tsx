@@ -83,8 +83,8 @@ const SELECT_CLASS =
  * column: Start, End, Src addr, S.port, Dst addr, D.port, Protocol, S.NAT,
  * D.NAT, Bytes, Packets, Service, Export.
  *
- * Five of those columns have no data for any venue (source address and
- * port, both address translations, packets). They keep their place as
+ * Four of those columns have no data in a venue-level record (source
+ * address and port, both address translations). They keep their place as
  * placeholders: a greyed header, an em dash in every cell, and the reason on
  * hover or tap. Nothing is requested, joined or made up to fill them. A
  * record is for the venue as a whole: it never says which device or guest,
@@ -432,7 +432,13 @@ export function TrafficLensDestinations({
                 </div>
                 <RecordsTable
                   columns={shown}
-                  rows={rows.map((x) => ({ key: x.cells.key, cells: x.cells }))}
+                  rows={rows.map((x) => ({
+                    key: x.cells.key,
+                    cells: x.cells,
+                    // A record collected before packets were counted.
+                    missing: typeof x.row.packets === "number" ? [] : (["packets"] as const),
+                    reasons: { packets: "Not measured for this record. That is not zero." },
+                  }))}
                   sort={sort}
                   onSort={sortBy}
                   mono={["address"]}
