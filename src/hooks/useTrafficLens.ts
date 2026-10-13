@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { resolveActiveOrganizationId } from "@/services/api";
 import {
+  lensGeoParams,
   lensRefusal,
   lensSummaryParams,
   trafficLensService,
@@ -15,6 +16,8 @@ export const trafficLensKeys = {
     ["traffic-lens", org, locationId, "status"] as const,
   summary: (org: string | null, locationId: string, range: LensRange, at: number) =>
     ["traffic-lens", org, locationId, "summary", range, at] as const,
+  geo: (org: string | null, locationId: string, range: LensRange, at: number) =>
+    ["traffic-lens", org, locationId, "geo", range, at] as const,
 };
 
 /** A refusal (add-on off, not this caller's venue) is an answer, not a
@@ -44,6 +47,22 @@ export function useTrafficLensSummary(
   return useQuery({
     queryKey: trafficLensKeys.summary(resolveActiveOrganizationId(), locationId, range, at),
     queryFn: () => trafficLensService.summary(locationId, lensSummaryParams(range, at)),
+    enabled: enabled && !!locationId,
+    retry: retryUnlessRefused,
+  });
+}
+
+/** By country and network, for the same pinned period. Asked for only while
+ * its view is open. */
+export function useTrafficLensGeo(
+  locationId: string,
+  range: LensRange,
+  at: number,
+  enabled: boolean,
+) {
+  return useQuery({
+    queryKey: trafficLensKeys.geo(resolveActiveOrganizationId(), locationId, range, at),
+    queryFn: () => trafficLensService.geo(locationId, lensGeoParams(range, at)),
     enabled: enabled && !!locationId,
     retry: retryUnlessRefused,
   });

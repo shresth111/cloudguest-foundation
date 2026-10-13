@@ -17,6 +17,7 @@ import type {
   RouterFlowConfig,
   TrafficFlowStatus,
 } from "@/types/traffic-flow";
+import type { FlowGeoSummary } from "@/types/traffic-flow-geo";
 
 const BASE = "/platform/traffic-flow";
 
@@ -68,6 +69,20 @@ export function flowSummaryParams(scope: FlowScope, now: number): Record<string,
   return params;
 }
 
+/** Query params for GET /geo: the same pinned range and scope as the
+ * summary, so the country block describes the range the rest of the screen
+ * does. */
+export function flowGeoParams(scope: FlowScope, now: number): Record<string, string> {
+  const params: Record<string, string> = {
+    ...flowRange(scope, now),
+    limit: "10",
+    networks: "5",
+  };
+  if (scope.locationId) params.location_id = scope.locationId;
+  if (scope.routerId) params.router_id = scope.routerId;
+  return params;
+}
+
 export const trafficFlowService = {
   async status(): Promise<TrafficFlowStatus> {
     const { data } = await api.get<TrafficFlowStatus>(`${BASE}/status`);
@@ -103,6 +118,13 @@ export const trafficFlowService = {
 
   async summary(params: Record<string, string>): Promise<FlowSummary> {
     const { data } = await api.get<FlowSummary>(`${BASE}/summary`, { params });
+    return data;
+  },
+
+  /** By country and network. Its own request: a failure here must not take
+   * the rest of the venue view down with it. */
+  async geo(params: Record<string, string>): Promise<FlowGeoSummary> {
+    const { data } = await api.get<FlowGeoSummary>(`${BASE}/geo`, { params });
     return data;
   },
 };

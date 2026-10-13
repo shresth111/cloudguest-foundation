@@ -1078,6 +1078,7 @@ const CUSTOMER_FILES = [
   "src/components/traffic-lens/TrafficLensView.tsx",
   "src/components/traffic-lens/TrafficLensOverview.tsx",
   "src/components/traffic-lens/TrafficLensParts.tsx",
+  "src/components/traffic-lens/TrafficLensLayout.tsx",
   "src/components/traffic-lens/TrafficLensTimelineChart.tsx",
   "src/services/traffic-lens.service.ts",
   "src/hooks/useTrafficLens.ts",
@@ -1104,7 +1105,8 @@ const lensShell = read("src/components/traffic-lens/TrafficLensView.tsx");
 const lensView =
   lensShell +
   read("src/components/traffic-lens/TrafficLensOverview.tsx") +
-  read("src/components/traffic-lens/TrafficLensParts.tsx");
+  read("src/components/traffic-lens/TrafficLensParts.tsx") +
+  read("src/components/traffic-lens/TrafficLensLayout.tsx");
 const lensService = read("src/services/traffic-lens.service.ts");
 const lensCode = strip(lensView);
 check("the customer service only reads", !/api\.(post|put|patch|delete)/.test(lensService));

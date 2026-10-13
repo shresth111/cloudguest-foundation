@@ -23,6 +23,7 @@ import {
   type LensRange,
 } from "@/lib/traffic-lens-customer";
 import { TrafficLensDestinations } from "@/components/traffic-lens/TrafficLensDestinations";
+import { TrafficLensGeo } from "@/components/traffic-lens/TrafficLensGeo";
 import { TrafficLensOverview } from "@/components/traffic-lens/TrafficLensOverview";
 import { AskWyfy, NoticeCard } from "@/components/traffic-lens/TrafficLensParts";
 import {
@@ -53,10 +54,19 @@ type LensViewId = (typeof LENS_VIEWS)[number]["id"];
  *     picture, then the ranked lists.
  *   - Records (TrafficLensDestinations): the venue's destination records in
  *     one table, with search, sort, a column chooser and the download.
+ *   - Countries (TrafficLensGeo): where the traffic went, by country and by
+ *     network inside one. A country is an estimate, and the view says so.
  *
  * See wyfy-specs/flow-visibility/UX-REDESIGN.md for why it is laid out so.
  */
-export function TrafficLensView({ locationId }: { locationId: string }) {
+export function TrafficLensView({
+  locationId,
+  timeZone,
+}: {
+  locationId: string;
+  /** The venue's time zone, for the Records table's Start and End. */
+  timeZone?: string | null;
+}) {
   const demo = useIsDemo();
   const entitled = useFeatureEntitled(TRAFFIC_LENS_FEATURE_KEY);
   const [range, setRange] = useState<LensRange>(LENS_DEFAULT_RANGE);
@@ -156,12 +166,22 @@ export function TrafficLensView({ locationId }: { locationId: string }) {
           locationId={locationId}
           bounds={bounds}
           onOpenRecords={() => setView("destinations")}
+          onOpenCountries={() => setView("geo")}
         />
       )}
       {view === "destinations" && (
         <TrafficLensDestinations
           locationId={locationId}
           rangeAt={(moment) => lensRangeBounds(range, moment)}
+          timeZone={timeZone}
+        />
+      )}
+      {view === "geo" && (
+        <TrafficLensGeo
+          locationId={locationId}
+          range={range}
+          at={at}
+          onRetry={() => setAt(Date.now())}
         />
       )}
 

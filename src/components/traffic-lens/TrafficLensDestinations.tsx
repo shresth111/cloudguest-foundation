@@ -41,7 +41,6 @@ import {
   rangeLabel,
   rangeState,
   rangeStateMessage,
-  resultLine,
   searchNotes,
   serviceDestinationParams,
   serviceDestinationsView,
@@ -51,13 +50,20 @@ import {
 import {
   LENS_RECORD_COLUMNS,
   LENS_RECORD_DEFAULT_COLUMNS,
+  LENS_RECORD_ELSEWHERE,
   LENS_RECORD_NOT_RECORDED,
+  filterLoadedRecords,
   recordCells,
+  recordFilterChips,
+  recordTimeBasis,
+  retrievedLine,
   toggleRecordColumn,
   type LensRecordColumnId,
+  type RecordFilterChip,
 } from "@/lib/traffic-lens-insights";
 import type {
   DestinationFilterForm,
+  DestinationRecord,
   DestinationSort,
   DestinationSortKey,
 } from "@/types/traffic-flow-destinations";
@@ -71,62 +77,80 @@ const SELECT_CLASS =
 
 /**
  * Traffic Lens -> Records (customer dashboard): the venue's destination
- * records in ONE table, with everything that acts on the table in one
- * toolbar above it: the four filters, Search, the column chooser and the
- * CSV download.
+ * records in ONE table, laid out like a full connection log, column for
+ * column: Start, End, Src addr, S.port, Dst addr, D.port, Protocol, S.NAT,
+ * D.NAT, Bytes, Packets, Service, Export.
  *
- * A record is for the venue as a whole: this venue, this outside address and
- * service, this five-minute window. It never says which device or guest, and
- * there is no device filter, column or link here. Windows in which fewer
- * than five devices were connected are withheld by the server and counted
- * on screen, because with so few online the venue's destinations would in
- * effect be one person's.
+ * Five of those columns have no data for any venue (source address and
+ * port, both address translations, packets). They keep their place as
+ * placeholders: a greyed header, an em dash in every cell, and the reason on
+ * hover or tap. Nothing is requested, joined or made up to fill them. A
+ * record is for the venue as a whole: it never says which device or guest,
+ * and there is no device filter or link here. Country and network are not on
+ * a record either; the Columns menu says where they are.
  *
- * What a full connection log would carry and this table does not (source
- * address and port, address translation, packets) is listed in the Columns
- * menu as not recorded, so the absence is stated where it would be looked
- * for.
- *
- * Nothing is requested until Search is pressed: every search and download
- * is recorded in the audit log. Sorting asks again for the same search. The
- * column chooser only hides and shows what was already fetched; the download
- * always holds every column.
+ * Above the table, in one form: the result line, Search, the four filters,
+ * the filters in force as removable chips, Download, Columns and a quick
+ * "Filter…" box. The box narrows the rows already loaded and asks the server
+ * for nothing. Everything else that fetches does so only when asked (Search,
+ * a sort click, removing a chip, a download): every search and download is
+ * recorded in the audit log. Windows in which fewer than five devices were
+ * connected are withheld by the server and counted on screen.
  */
 export function TrafficLensDestinations({
   locationId,
   rangeAt,
+  timeZone,
 }: {
   locationId: string;
   /** The period the page's one range control means at a given moment. */
   rangeAt: (now: number) => { since: string; until: string };
+  /** The venue's time zone, for Start and End. The browser's when absent. */
+  timeZone?: string | null;
 }) {
   const [form, setForm] = useState<DestinationFilterForm>(EMPTY_DESTINATION_FILTERS);
   const [sort, setSort] = useState<DestinationSort>(DEFAULT_DESTINATION_SORT);
   const [params, setParams] = useState<Record<string, string> | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [visible, setVisible] = useState<LensRecordColumnId[]>(LENS_RECORD_DEFAULT_COLUMNS);
+  /** The quick box: narrows the loaded rows in the browser. Never a request. */
+  const [quick, setQuick] = useState("");
+  /** The placeholder column whose reason is spelled out above the table. */
+  const [explained, setExplained] = useState<LensRecordColumnId | null>(null);
   const q = useLensDestinationSearch(locationId, params);
   const download = useLensDestinationExport(locationId);
   const now = Date.now();
   const shown = COLUMNS.filter((c) => visible.includes(c.id));
+  const choosable = COLUMNS.filter((c) => c.notRecorded === null);
 
   const field = (patch: Partial<DestinationFilterForm>) => {
     setFormError(null);
     setForm((f) => ({ ...f, ...patch }));
   };
 
-  const build = () =>
-    destinationSearchParams({ locationId, routerId: "" }, rangeAt(Date.now()), form, sort);
+  const build = (filters: DestinationFilterForm = form) =>
+    destinationSearchParams({ locationId, routerId: "" }, rangeAt(Date.now()), filters, sort);
 
-  const submit = (e?: FormEvent) => {
-    e?.preventDefault();
-    const built = build();
+  const search = (filters: DestinationFilterForm) => {
+    const built = build(filters);
     if (!built.ok) {
       setFormError(built.message);
       return;
     }
     setFormError(null);
     setParams(built.params);
+  };
+
+  const submit = (e?: FormEvent) => {
+    e?.preventDefault();
+    search(form);
+  };
+
+  /** Removing a chip is asking for the search again without that filter. */
+  const dropFilter = (name: RecordFilterChip["field"]) => {
+    const next = { ...form, [name]: name === "direction" ? "any" : "" } as DestinationFilterForm;
+    setForm(next);
+    search(next);
   };
 
   const sortBy = (key: DestinationSortKey) => {
@@ -136,17 +160,7 @@ export function TrafficLensDestinations({
     if (params) setParams({ ...params, sort: next.key, order: next.order });
   };
 
-  const save = () => {
-    // The search on screen if there is one, otherwise what the form says.
-    let request = params;
-    if (!request) {
-      const built = build();
-      if (!built.ok) {
-        setFormError(built.message);
-        return;
-      }
-      request = built.params;
-    }
+  const fetchFile = (request: Record<string, string>) =>
     download.mutate(request, {
       onSuccess: (file) => {
         const url = URL.createObjectURL(file.blob);
@@ -161,11 +175,47 @@ export function TrafficLensDestinations({
       },
       onError: (err) => toast.error(requestErrorMessage(err, "The download did not complete.")),
     });
+
+  const save = () => {
+    // The search on screen if there is one, otherwise what the form says.
+    if (params) return fetchFile(params);
+    const built = build();
+    if (!built.ok) return setFormError(built.message);
+    fetchFile(built.params);
+  };
+
+  /** The Export column: this one record as a file, asked for by its own
+   * period, address, protocol and port. */
+  const saveRecord = (row: DestinationRecord) => {
+    const built = destinationSearchParams(
+      { locationId, routerId: "" },
+      { since: row.window_start, until: row.window_end },
+      {
+        address: row.address,
+        protocol: String(row.protocol),
+        port: String(row.port),
+        direction: "any",
+      },
+      sort,
+    );
+    if (built.ok) fetchFile(built.params);
+    else setFormError(built.message);
   };
 
   const r = q.data;
   const stateMessage = r ? rangeStateMessage(rangeState(r, now)) : null;
   const searched = r ? rangeLabel({ since: r.since, until: r.until }) : "";
+  const chips = recordFilterChips(params);
+  const loaded = (r?.rows ?? []).map((row) => ({ row, cells: recordCells(row, timeZone) }));
+  const kept = new Set(
+    filterLoadedRecords(
+      loaded.map((x) => x.cells),
+      shown.map((c) => c.id),
+      quick,
+    ).map((cells) => cells.key),
+  );
+  const rows = loaded.filter((x) => kept.has(x.cells.key));
+  const why = COLUMNS.find((c) => c.id === explained && c.notRecorded !== null);
 
   return (
     <section aria-label="Records" className="premium-card overflow-hidden rounded-2xl">
@@ -182,8 +232,23 @@ export function TrafficLensDestinations({
             guest, and none is kept that could. {AUDIT_NOTE}
           </p>
         </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted/50 px-4 py-3">
+          <p className="font-display text-lg font-semibold tabular-nums" aria-live="polite">
+            {r && !stateMessage ? retrievedLine(r) : "Not searched yet"}
+            {searched && (
+              <span className="ml-2 font-sans text-xs font-normal text-muted-foreground">
+                {searched}
+              </span>
+            )}
+          </p>
+          <Button type="submit" disabled={q.isFetching}>
+            <Search className="h-4 w-4" /> {q.isFetching ? "Searching…" : "Search"}
+          </Button>
+        </div>
+
         <div className="flex flex-wrap items-end gap-3">
-          <Labelled label="Outside address or prefix" className="w-full sm:w-64">
+          <Labelled label="Dst addr or prefix" className="w-full sm:w-64">
             <Input
               className="font-mono"
               placeholder="Any address"
@@ -207,7 +272,7 @@ export function TrafficLensDestinations({
               ))}
             </select>
           </Labelled>
-          <Labelled label="Port" className="w-24">
+          <Labelled label="D.port" className="w-24">
             <Input
               className="tabular-nums"
               placeholder="Any"
@@ -237,60 +302,96 @@ export function TrafficLensDestinations({
               </TabsList>
             </Tabs>
           </div>
-          <div className="flex flex-wrap gap-2 sm:ml-auto">
-            <Button type="submit" disabled={q.isFetching}>
-              <Search className="h-4 w-4" /> {q.isFetching ? "Searching…" : "Search"}
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button type="button" variant="outline">
-                  <Columns3 className="h-4 w-4" /> Columns
-                  <span className="tabular-nums text-muted-foreground">
-                    {shown.length}/{COLUMNS.length}
-                  </span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-72">
-                <DropdownMenuLabel>Show in the table</DropdownMenuLabel>
-                {COLUMNS.map((c) => (
-                  <DropdownMenuCheckboxItem
-                    key={c.id}
-                    checked={visible.includes(c.id)}
-                    disabled={c.fixed}
-                    onSelect={(e) => e.preventDefault()}
-                    onCheckedChange={() => setVisible((v) => toggleRecordColumn(v, c.id))}
-                  >
-                    {c.label}
-                  </DropdownMenuCheckboxItem>
-                ))}
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel>Not recorded for any venue</DropdownMenuLabel>
-                {LENS_RECORD_NOT_RECORDED.map((c) => (
-                  <DropdownMenuItem key={c.label} disabled className="flex-col items-start gap-0">
-                    <span>{c.label}</span>
-                    <span className="text-[11px]">{c.why}</span>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button type="button" variant="outline" disabled={download.isPending} onClick={save}>
-              <Download className="h-4 w-4" /> {download.isPending ? "Preparing…" : "Download CSV"}
-            </Button>
-          </div>
         </div>
+
+        {chips.length > 0 && (
+          <ul aria-label="Filters in force" className="flex flex-wrap gap-2">
+            {chips.map((chip) => (
+              <li key={chip.field}>
+                <button
+                  type="button"
+                  onClick={() => dropFilter(chip.field)}
+                  aria-label={`Remove filter: ${chip.label}`}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 py-1 pl-3 pr-2 text-xs font-medium text-foreground hover:bg-primary/20"
+                >
+                  {chip.label}
+                  <X aria-hidden className="h-3.5 w-3.5" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
         {formError && (
           <p role="alert" className="text-xs text-destructive">
             {formError}
           </p>
         )}
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="outline" disabled={download.isPending} onClick={save}>
+            <Download className="h-4 w-4" /> {download.isPending ? "Preparing…" : "Download CSV"}
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="outline">
+                <Columns3 className="h-4 w-4" /> Columns
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-80">
+              <DropdownMenuLabel>Show in the table</DropdownMenuLabel>
+              {choosable.map((c) => (
+                <DropdownMenuCheckboxItem
+                  key={c.id}
+                  checked={visible.includes(c.id)}
+                  disabled={c.fixed}
+                  onSelect={(e) => e.preventDefault()}
+                  onCheckedChange={() => setVisible((v) => toggleRecordColumn(v, c.id))}
+                >
+                  {c.label}
+                </DropdownMenuCheckboxItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Not on a record</DropdownMenuLabel>
+              {LENS_RECORD_ELSEWHERE.map((c) => (
+                <DropdownMenuItem key={c.label} disabled className="flex-col items-start gap-0">
+                  <span>{c.label}</span>
+                  <span className="text-[11px]">{c.why}</span>
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Not recorded for any venue</DropdownMenuLabel>
+              {LENS_RECORD_NOT_RECORDED.map((c) => (
+                <DropdownMenuItem key={c.label} disabled className="flex-col items-start gap-0">
+                  <span>{c.label}</span>
+                  <span className="text-[11px]">{c.why}</span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <label className="ml-auto block w-full sm:w-64">
+            <span className="sr-only">Filter the loaded records</span>
+            <Input
+              type="search"
+              placeholder="Filter…"
+              value={quick}
+              disabled={loaded.length === 0}
+              onChange={(e) => setQuick(e.target.value)}
+              onKeyDown={(e) => {
+                // Narrowing what is loaded is not a search: Enter asks for nothing.
+                if (e.key === "Enter") e.preventDefault();
+              }}
+            />
+          </label>
+        </div>
       </form>
 
       <div className="p-5 sm:p-6">
         {params === null ? (
           <Plain title="Not searched yet.">
             Choose a period above and any filters, then press Search. Leave the filters empty to see
-            every record in the period. Download CSV saves the same records as a file, with every
-            column, up to {DESTINATION_CSV_MAX_ROWS.toLocaleString()} records.
+            every record in the period. Download CSV saves the same records as a file, up to{" "}
+            {DESTINATION_CSV_MAX_ROWS.toLocaleString()} records.
           </Plain>
         ) : q.isLoading ? (
           <div className="h-40 animate-pulse rounded-xl bg-muted" />
@@ -305,19 +406,29 @@ export function TrafficLensDestinations({
           </Plain>
         ) : (
           <div className={`space-y-3 ${q.isFetching ? "opacity-60" : ""}`}>
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <p className="font-display text-lg font-semibold tabular-nums" aria-live="polite">
-                {resultLine(r)}
-              </p>
-              <p className="text-xs text-muted-foreground">{searched}</p>
-            </div>
             {r.total === 0 ? (
               <Plain title="No records match these filters.">
                 Traffic was measured in this period; none of its destination records matched.
               </Plain>
             ) : (
               <>
-                {totalsLine(r) && <p className="text-xs text-muted-foreground">{totalsLine(r)}</p>}
+                <div className="flex flex-wrap items-baseline justify-between gap-2 text-xs text-muted-foreground">
+                  <p>{totalsLine(r)}</p>
+                  {quick.trim() && (
+                    <p aria-live="polite">
+                      Filter box: {rows.length.toLocaleString()} of {loaded.length.toLocaleString()}{" "}
+                      loaded records shown. The others are still loaded.
+                    </p>
+                  )}
+                </div>
+                {why && (
+                  <p
+                    role="status"
+                    className="rounded-lg border border-dashed border-border px-3 py-2 text-xs"
+                  >
+                    <span className="font-semibold">{why.label}</span>: {why.notRecorded}
+                  </p>
+                )}
                 <div className="overflow-x-auto rounded-xl border border-border">
                   <Table>
                     <TableHeader>
@@ -326,9 +437,19 @@ export function TrafficLensDestinations({
                           <TableHead
                             key={c.id}
                             aria-sort={c.sort ? ariaSort(sort, c.sort) : undefined}
-                            className={`whitespace-nowrap ${c.numeric ? "text-right" : ""}`}
+                            className={`whitespace-nowrap text-[11px] font-semibold uppercase tracking-wider ${c.numeric ? "text-right" : ""}`}
                           >
-                            {c.sort ? (
+                            {c.notRecorded !== null ? (
+                              <button
+                                type="button"
+                                title={c.notRecorded}
+                                aria-label={`${c.label}. ${c.notRecorded}`}
+                                onClick={() => setExplained(explained === c.id ? null : c.id)}
+                                className="cursor-help uppercase tracking-wider text-muted-foreground/60 underline decoration-dotted underline-offset-4"
+                              >
+                                {c.label}
+                              </button>
+                            ) : c.sort ? (
                               <SortButton
                                 label={c.label}
                                 state={ariaSort(sort, c.sort)}
@@ -339,40 +460,59 @@ export function TrafficLensDestinations({
                             )}
                           </TableHead>
                         ))}
+                        <TableHead className="whitespace-nowrap text-right text-[11px] font-semibold uppercase tracking-wider">
+                          Export
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {r.rows.map((row) => {
-                        const v = recordCells(row, now);
-                        return (
-                          <TableRow key={v.key}>
-                            {shown.map((c) => (
-                              <TableCell
-                                key={c.id}
-                                className={`whitespace-nowrap ${
-                                  c.numeric ? "text-right tabular-nums" : ""
-                                } ${c.id === "address" ? "font-mono text-xs" : ""} ${
-                                  c.id === "from" || c.id === "to" ? "tabular-nums" : ""
-                                }`}
-                              >
-                                {v[c.id]}
-                              </TableCell>
-                            ))}
-                          </TableRow>
-                        );
-                      })}
+                      {rows.map(({ row, cells }) => (
+                        <TableRow key={cells.key}>
+                          {shown.map((c) => (
+                            <TableCell
+                              key={c.id}
+                              title={c.notRecorded ?? undefined}
+                              className={`whitespace-nowrap ${
+                                c.numeric ? "text-right tabular-nums" : ""
+                              } ${c.id === "address" ? "font-mono text-xs" : ""} ${
+                                c.id === "start" || c.id === "end" ? "tabular-nums" : ""
+                              } ${c.notRecorded !== null ? "text-muted-foreground/50" : ""}`}
+                            >
+                              {cells[c.id]}
+                            </TableCell>
+                          ))}
+                          <TableCell className="text-right">
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              disabled={download.isPending}
+                              aria-label={`Download this record as CSV: ${cells.address}, ${cells.start}`}
+                              title="Download this record as CSV"
+                              onClick={() => saveRecord(row)}
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
                     </TableBody>
                   </Table>
                 </div>
+                {rows.length === 0 && (
+                  <Plain title="No loaded record matches the filter box.">
+                    The box only narrows what is already loaded. Clear it to see them again, or use
+                    Search to ask for different records.
+                  </Plain>
+                )}
               </>
             )}
             <Notes
               notes={[
                 ...searchNotes(r),
-                "From and To are the five-minute period a record covers, in your local time. Service is the port's standard name; it does not say which app or site was used. Direction is read from the record's download and upload. Sorting asks again for the same search.",
-                shown.length < COLUMNS.length
-                  ? `${COLUMNS.length - shown.length} of ${COLUMNS.length} columns are hidden. The download holds all of them.`
-                  : null,
+                `Start and End are the five-minute period a record covers, in ${recordTimeBasis(timeZone)}. Greyed columns are not recorded for any venue and always show a dash; hover or tap a greyed heading for why. Service is the port's standard name with its protocol and port; it does not say which app or site was used. Sorting asks again for the same search.`,
+                `More columns (download, upload, direction, flows) can be switched on in Columns. A download always holds every recorded column, up to ${DESTINATION_CSV_MAX_ROWS.toLocaleString()} records.`,
               ]}
             />
           </div>
@@ -504,7 +644,7 @@ function SortButton({
       type="button"
       onClick={onClick}
       title={state === "none" ? `Sort by ${label}` : `Sorted ${state}; click to reverse`}
-      className={`inline-flex items-center gap-1 hover:text-foreground ${state === "none" ? "" : "text-foreground"}`}
+      className={`inline-flex items-center gap-1 uppercase tracking-wider hover:text-foreground ${state === "none" ? "" : "text-foreground"}`}
     >
       {label}
       {state === "ascending" && <ArrowUp aria-hidden className="h-3 w-3" />}

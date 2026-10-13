@@ -1,5 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { flowSummaryParams, trafficFlowService } from "@/services/traffic-flow.service";
+import {
+  flowGeoParams,
+  flowSummaryParams,
+  trafficFlowService,
+} from "@/services/traffic-flow.service";
 import type { FlowScope } from "@/types/traffic-flow";
 
 export const trafficFlowKeys = {
@@ -7,6 +11,7 @@ export const trafficFlowKeys = {
   status: ["traffic-flow", "status"] as const,
   config: (id: string) => ["traffic-flow", "config", id] as const,
   summary: (scope: FlowScope, at: number) => ["traffic-flow", "summary", scope, at] as const,
+  geo: (scope: FlowScope, at: number) => ["traffic-flow", "geo", scope, at] as const,
 };
 
 export function useTrafficFlowStatus() {
@@ -54,6 +59,17 @@ export function useFlowSummary(scope: FlowScope, at: number) {
     queryKey: trafficFlowKeys.summary(scope, at),
     queryFn: () => trafficFlowService.summary(flowSummaryParams(scope, at)),
     enabled: !!(scope.locationId || scope.routerId),
+    retry: 1,
+  });
+}
+
+/** By country and network, for the same pinned range as the summary. Only
+ * asked for once the summary says the range was measured (`enabled`). */
+export function useFlowGeo(scope: FlowScope, at: number, enabled: boolean) {
+  return useQuery({
+    queryKey: trafficFlowKeys.geo(scope, at),
+    queryFn: () => trafficFlowService.geo(flowGeoParams(scope, at)),
+    enabled: enabled && !!(scope.locationId || scope.routerId),
     retry: 1,
   });
 }

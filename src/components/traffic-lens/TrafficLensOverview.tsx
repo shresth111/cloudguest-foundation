@@ -49,13 +49,8 @@ import {
   type TimelineMode,
 } from "@/components/traffic-lens/TrafficLensTimelineChart";
 import { TrafficLensServiceDestinations } from "@/components/traffic-lens/TrafficLensDestinations";
-import {
-  Empty,
-  Footnotes,
-  NoticeCard,
-  Panel,
-  RankBar,
-} from "@/components/traffic-lens/TrafficLensParts";
+import { NoticeCard } from "@/components/traffic-lens/TrafficLensParts";
+import { Empty, Footnotes, Panel, RankBar } from "@/components/traffic-lens/TrafficLensLayout";
 import { serviceFromKey } from "@/lib/traffic-flow-destinations";
 
 // recharts stays behind a dynamic import, as on every other chart screen.
@@ -94,6 +89,7 @@ export function TrafficLensOverview({
   locationId,
   bounds,
   onOpenRecords,
+  onOpenCountries,
 }: {
   query: ReturnType<typeof useTrafficLensSummary>;
   range: LensRange;
@@ -104,6 +100,7 @@ export function TrafficLensOverview({
   /** The period on screen, for the drill-down from a service. */
   bounds: { since: string; until: string };
   onOpenRecords: () => void;
+  onOpenCountries: () => void;
 }) {
   const [mode, setMode] = useState<TimelineMode>("service");
   /** The service row whose destinations are open, and for which period. */
@@ -395,9 +392,14 @@ export function TrafficLensOverview({
           title="Where it went"
           note="Outside addresses the venue as a whole exchanged traffic with. Addresses only: no site name is attached, and this list does not say which device went where."
           actions={
-            <Button variant="outline" size="sm" onClick={onOpenRecords}>
-              See every record <ArrowRight className="h-4 w-4" />
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={onOpenCountries}>
+                By country <ArrowRight className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="sm" onClick={onOpenRecords}>
+                See every record <ArrowRight className="h-4 w-4" />
+              </Button>
+            </div>
           }
         >
           {dest.kind === "all_withheld" ? (

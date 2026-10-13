@@ -15,8 +15,10 @@
  *   3. A CHECK WITHOUT DATA IS "COULD NOT BE CHECKED", never passed.
  *   4. A SERVICE IS A PORT LABEL: plain names are keyed on the port's
  *      standard name, an unnamed port gets none, and no product is named.
- *   5. THE RECORDS TABLE HAS NO DEVICE COLUMN, and what is not recorded
- *      (source address and port, NAT, packets) is listed as not recorded.
+ *   5. THE RECORDS TABLE HAS NO DEVICE DATA. It has the shape of a full
+ *      connection log, so source address and port, NAT and packets keep
+ *      their place, but as placeholders: a dash in every cell whatever the
+ *      row holds, no sort, no filter, and the reason in words.
  *   6. NO FIXTURE DATA UNDER src/, and the "Open Guest Connection Records"
  *      link is gone.
  *
@@ -586,57 +588,75 @@ eq("plain name: an unknown label has none", m.serviceKind({ service_name: "openv
 // ---------------------------------------------------------------------------
 console.log("\n7. the Records table");
 const ids = m.LENS_RECORD_COLUMNS.map((c) => c.id);
-eq("the columns, in order", ids, [
-  "from",
-  "to",
-  "address",
-  "port",
-  "protocol",
-  "service",
-  "direction",
-  "down",
-  "up",
-  "total",
-  "flows",
-]);
+const PLACEHOLDERS = ["src_addr", "src_port", "src_nat", "dst_nat", "packets"];
+eq(
+  "the asked-for shape, in the asked-for order",
+  m.LENS_RECORD_DEFAULT_COLUMNS.map((id) => m.LENS_RECORD_COLUMNS.find((c) => c.id === id).label),
+  [
+    "Start",
+    "End",
+    "Src addr",
+    "S.port",
+    "Dst addr",
+    "D.port",
+    "Protocol",
+    "S.NAT",
+    "D.NAT",
+    "Bytes",
+    "Packets",
+    "Service",
+  ],
+);
+eq(
+  "exactly five columns are placeholders",
+  m.LENS_RECORD_COLUMNS.filter((c) => c.notRecorded !== null).map((c) => c.id),
+  PLACEHOLDERS,
+);
 check(
-  "no column is a device, a guest or a translation",
-  !m.LENS_RECORD_COLUMNS.some((c) =>
-    /device|mac|guest|source|src|nat|session|client/i.test(`${c.id} ${c.label}`),
+  "a placeholder says 'Not recorded' and why, is never sortable and cannot be hidden",
+  m.LENS_RECORD_COLUMNS.filter((c) => c.notRecorded !== null).every(
+    (c) => /^Not recorded: .{15,}/.test(c.notRecorded) && c.sort === null && c.fixed === true,
+  ),
+);
+check(
+  "no LIVE column is a device, a guest, a translation or a packet count",
+  !m.LENS_RECORD_COLUMNS.filter((c) => c.notRecorded === null).some((c) =>
+    /device|mac|guest|source|src|nat|session|client|packet/i.test(`${c.id} ${c.label}`),
   ),
 );
 check(
   "no column is headed with the A-word",
-  !ids.concat(m.LENS_RECORD_COLUMNS.map((c) => c.label)).some((x) => /application|app\b/i.test(x)),
+  !m.LENS_RECORD_COLUMNS.some((c) => /application|app\b/i.test(`${c.id} ${c.label}`)),
 );
 eq(
   "every sort a header asks for is one the API accepts",
   m.LENS_RECORD_COLUMNS.filter((c) => c.sort).map((c) => c.sort),
-  ["time", "address", "port", "protocol", "bytes_down", "bytes_up", "bytes", "flows"],
+  ["time", "address", "port", "protocol", "bytes", "bytes_down", "bytes_up", "flows"],
 );
 eq(
-  "what is not recorded is listed, by name",
+  "the Columns menu lists the placeholders by their headings",
   m.LENS_RECORD_NOT_RECORDED.map((c) => c.label),
-  ["Source address", "Source port", "Source NAT", "Destination NAT", "Packets"],
-);
-check(
-  "each has a reason",
-  m.LENS_RECORD_NOT_RECORDED.every((c) => c.why.length > 10),
-);
-eq("all columns show by default", m.LENS_RECORD_DEFAULT_COLUMNS, ids);
-eq(
-  "hiding a column keeps the table's order",
-  m.toggleRecordColumn(ids, "port"),
-  ids.filter((x) => x !== "port"),
+  ["Src addr", "S.port", "S.NAT", "D.NAT", "Packets"],
 );
 eq(
-  "showing it again puts it back in place",
-  m.toggleRecordColumn(m.toggleRecordColumn(ids, "port"), "port"),
-  ids,
+  "the extra real columns start hidden",
+  ids.filter((id) => !m.LENS_RECORD_DEFAULT_COLUMNS.includes(id)),
+  ["down", "up", "direction", "flows"],
 );
-eq("the time cannot be hidden", m.toggleRecordColumn(ids, "from"), ids);
-eq("the address cannot be hidden", m.toggleRecordColumn(ids, "address"), ids);
-eq("an unknown column changes nothing", m.toggleRecordColumn(ids, "source"), ids);
+const DEFAULTS = m.LENS_RECORD_DEFAULT_COLUMNS;
+eq("switching one on puts it in the table's order", m.toggleRecordColumn(DEFAULTS, "flows"), [
+  ...DEFAULTS,
+  "flows",
+]);
+eq(
+  "hiding a live column keeps the order",
+  m.toggleRecordColumn(DEFAULTS, "port"),
+  DEFAULTS.filter((x) => x !== "port"),
+);
+eq("the start cannot be hidden", m.toggleRecordColumn(DEFAULTS, "start"), DEFAULTS);
+eq("the address cannot be hidden", m.toggleRecordColumn(DEFAULTS, "address"), DEFAULTS);
+eq("a placeholder cannot be hidden", m.toggleRecordColumn(DEFAULTS, "src_addr"), DEFAULTS);
+eq("an unknown column changes nothing", m.toggleRecordColumn(DEFAULTS, "source"), DEFAULTS);
 
 const record = (over = {}) => ({
   window_start: "2026-10-12T14:05:00+00:00",
@@ -652,15 +672,64 @@ const record = (over = {}) => ({
   flows: 640,
   ...over,
 });
-const cells = m.recordCells(record(), NOW);
+const cells = m.recordCells(record(), "Asia/Kolkata");
 eq("a record fills exactly the table's columns", Object.keys(cells).sort(), [...ids, "key"].sort());
 eq(
-  "cells: address, port, protocol, service",
-  [cells.address, cells.port, cells.protocol, cells.service],
-  ["203.0.113.14", "443", "TCP", "https"],
+  "Start and End are to the second, in the venue's time",
+  [cells.start, cells.end],
+  ["2026-10-12 19:35:00", "2026-10-12 19:40:00"],
 );
-eq("cells: bytes carry units", [cells.down, cells.up, cells.total], ["200 MB", "2.0 MB", "202 MB"]);
+eq(
+  "cells: address, port, protocol",
+  [cells.address, cells.port, cells.protocol],
+  ["203.0.113.14", "443", "TCP"],
+);
+eq("Service is the name with protocol and port", cells.service, "https (TCP/443)");
+eq("cells: bytes carry units", [cells.total, cells.down, cells.up], ["202 MB", "200 MB", "2.0 MB"]);
 eq("cells: flows", cells.flows, "640");
+eq(
+  "every placeholder cell is a dash",
+  PLACEHOLDERS.map((id) => cells[id]),
+  ["—", "—", "—", "—", "—"],
+);
+const smuggled = m.recordCells(
+  record({
+    src_addr: "x-device",
+    src_port: 51544,
+    client_ip: "x-device",
+    src_nat: "x-nat",
+    dst_nat: "x-nat",
+    packets: 61,
+  }),
+  "Asia/Kolkata",
+);
+check(
+  "a row that somehow carried a device, a NAT or a packet count still shows dashes",
+  PLACEHOLDERS.every((id) => smuggled[id] === "—") &&
+    !Object.values(smuggled).some((v) => /x-device|x-nat|51544|^61$/.test(v)),
+  JSON.stringify(smuggled),
+);
+eq(
+  "a time zone that is not one falls back, it does not throw",
+  typeof m.recordTime(record().window_start, "Not/AZone"),
+  "string",
+);
+check(
+  "without a venue time zone the time is still to the second",
+  /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(m.recordTime(record().window_start)),
+);
+eq("an unreadable instant is a dash", m.recordTime("nope", "Asia/Kolkata"), "—");
+eq(
+  "the line under the table names the venue's zone",
+  m.recordTimeBasis("Asia/Kolkata"),
+  "the venue's time (Asia/Kolkata)",
+);
+eq("and says so when it is the browser's", m.recordTimeBasis(null), "your browser's local time");
+eq(
+  "a bad zone name is not claimed as the venue's",
+  m.recordTimeBasis("Not/AZone"),
+  "your browser's local time",
+);
 eq("direction: both ways", cells.direction, "Both ways");
 eq("direction: download only", m.recordDirection({ bytes_up: 0, bytes_down: 5 }), "Download");
 eq("direction: upload only", m.recordDirection({ bytes_up: 5, bytes_down: 0 }), "Upload");
@@ -668,12 +737,96 @@ eq("direction: nothing", m.recordDirection({ bytes_up: 0, bytes_down: 0 }), "No 
 eq("direction: unreadable is a dash", m.recordDirection({ bytes_up: null, bytes_down: 5 }), "—");
 const odd = m.recordCells(
   record({ protocol: 47, protocol_name: "other", port: 0, service_name: null }),
-  NOW,
+  "Asia/Kolkata",
 );
 eq(
-  "an unnamed port says so; port 0 is a dash; protocol by number",
+  "no ports: the service is the protocol, the port a dash",
   [odd.service, odd.port, odd.protocol],
-  ["No standard name", "—", "Protocol 47"],
+  ["Protocol 47", "—", "Protocol 47"],
+);
+eq(
+  "an unnamed port is its bare label",
+  m.recordCells(record({ protocol: 17, protocol_name: "udp", port: 19305, service_name: null }))
+    .service,
+  "UDP/19305",
+);
+
+const res = (over = {}) => ({ total: 72, returned: 72, query_ms: 38, rows: [], ...over });
+eq(
+  "result line: count and the API's own timing",
+  m.retrievedLine(res()),
+  "Retrieved 72 records in 0.04 second",
+);
+eq(
+  "result line: a capped page says of how many",
+  m.retrievedLine(res({ total: 1834, returned: 1000, query_ms: 380 })),
+  `Retrieved ${(1000).toLocaleString()} of ${(1834).toLocaleString()} records in 0.38 second`,
+);
+eq(
+  "result line: one record",
+  m.retrievedLine(res({ total: 1, returned: 1 })),
+  "Retrieved 1 record in 0.04 second",
+);
+eq(
+  "result line: none",
+  m.retrievedLine(res({ total: 0, returned: 0 })),
+  "Retrieved no records in 0.04 second",
+);
+eq(
+  "result line: no timing sent, none invented",
+  m.retrievedLine(res({ query_ms: undefined })),
+  "Retrieved 72 records",
+);
+
+const loaded = [
+  m.recordCells(record(), "Asia/Kolkata"),
+  m.recordCells(
+    record({
+      address: "198.51.100.8",
+      protocol: 17,
+      protocol_name: "udp",
+      port: 53,
+      service_name: "domain",
+    }),
+    "Asia/Kolkata",
+  ),
+];
+eq(
+  "filter box: empty keeps every loaded row",
+  m.filterLoadedRecords(loaded, DEFAULTS, "  ").length,
+  2,
+);
+eq(
+  "filter box: matches on what is shown",
+  m.filterLoadedRecords(loaded, DEFAULTS, "domain").map((r) => r.address),
+  ["198.51.100.8"],
+);
+eq(
+  "filter box: every word must match, any case",
+  m.filterLoadedRecords(loaded, DEFAULTS, "TCP 203.0").map((r) => r.address),
+  ["203.0.113.14"],
+);
+eq("filter box: no match is no rows", m.filterLoadedRecords(loaded, DEFAULTS, "zzz"), []);
+eq(
+  "filter box: a hidden column is not searched",
+  m.filterLoadedRecords(loaded, DEFAULTS, "640").length,
+  0,
+);
+eq("chips: none before a search", m.recordFilterChips(null), []);
+eq(
+  "chips: none without filters",
+  m.recordFilterChips({ since: "a", until: "b", sort: "time" }),
+  [],
+);
+eq(
+  "chips: one per filter in force, in plain words",
+  m.recordFilterChips({ address: "203.0.113.0/24", protocol: "6", port: "443", direction: "down" }),
+  [
+    { field: "address", label: "Dst addr 203.0.113.0/24" },
+    { field: "protocol", label: "Protocol TCP" },
+    { field: "port", label: "D.port 443" },
+    { field: "direction", label: "Download only" },
+  ],
 );
 
 // ---------------------------------------------------------------------------
@@ -686,7 +839,14 @@ const parts = read("src/components/traffic-lens/TrafficLensParts.tsx");
 const records = read("src/components/traffic-lens/TrafficLensDestinations.tsx");
 const insights = read("src/lib/traffic-lens-insights.ts");
 const customer = read("src/lib/traffic-lens-customer.ts");
-const pageCode = strip2(shell + overview + parts + records);
+const pageCode = strip2(
+  shell +
+    overview +
+    parts +
+    records +
+    read("src/components/traffic-lens/TrafficLensLayout.tsx") +
+    read("src/components/traffic-lens/TrafficLensGeo.tsx"),
+);
 
 check(
   "'Open Guest Connection Records' is gone, with its footnote and its route",
@@ -714,10 +874,11 @@ check(
       overview.indexOf("lensTopService(s, phrase)"),
 );
 check(
-  "views are one array of two, Overview first, and the shell maps over it",
-  (customer.match(/\{ id: "(overview|destinations)", label: "/g) ?? []).length === 2 &&
+  "views are one array of three (Overview, Records, Countries), and the shell maps over it",
+  (customer.match(/\{ id: "(overview|destinations|geo)", label: "/g) ?? []).length === 3 &&
     /\{ id: "overview", label: "Overview" \}/.test(customer) &&
     /\{ id: "destinations", label: "Records" \}/.test(customer) &&
+    /\{ id: "geo", label: "Countries" \}/.test(customer) &&
     /LENS_VIEWS\.map/.test(shell),
 );
 check(
@@ -742,13 +903,84 @@ check(
     records,
   ) && (strip2(records).match(/setParams\(/g) ?? []).length === 2,
 );
+eq(
+  "country and network are listed as not on a record, with where to find them",
+  m.LENS_RECORD_ELSEWHERE.map((c) => `${c.label}: ${c.why}`),
+  [
+    "Country: Not on a record. See the Countries view",
+    "Network: Not on a record. See the Countries view",
+  ],
+);
 check(
-  "the table says the download holds every column",
-  /The download holds all of them/.test(records),
+  "no country or network column exists, and none is joined on in the browser",
+  !m.LENS_RECORD_COLUMNS.some((c) => /country|network|asn/i.test(`${c.id} ${c.label}`)) &&
+    /LENS_RECORD_ELSEWHERE\.map/.test(records) &&
+    !/traffic-flow-geo|useTrafficLensGeo|country_code|network_name/.test(records),
+);
+check(
+  "the Overview's answers use no country data and ask for none",
+  !/traffic-flow-geo|useTrafficLensGeo|country/i.test(strip2(overview)) ||
+    (!/traffic-flow-geo|useTrafficLensGeo|country_code/.test(strip2(overview)) &&
+      /onOpenCountries/.test(overview)),
+);
+check(
+  "the Overview reaches Countries only through the shell's view state",
+  /onOpenCountries=\{\(\) => setView\("geo"\)\}/.test(shell),
+);
+const geoView = read("src/components/traffic-lens/TrafficLensGeo.tsx");
+check(
+  "Countries opens on the tested sentence and says 'estimate' beside it",
+  /geoLead\(geo\)/.test(geoView) &&
+    /Read this as an estimate/.test(geoView) &&
+    /\{GEO_ESTIMATE_NOTE\}/.test(geoView),
+);
+check(
+  "Countries is built from the page's own layout parts",
+  /from "@\/components\/traffic-lens\/TrafficLensLayout"/.test(geoView) &&
+    /<Panel title=\{GEO_BLOCK_TITLE\}/.test(geoView) &&
+    !/<Table\b|components\/ui\/card/.test(geoView),
+);
+check(
+  "the attribution link is outside every state branch, so it shows for every answer",
+  /\{!loading && error === null && \(\s*<p[^>]*data-testid="lens-geo-attribution"/.test(
+    geoView.replace(/\n\s*/g, " "),
+  ) && /href=\{attribution\.url\}/.test(geoView),
+);
+check(
+  "the withheld-networks notice gives the count and the reason",
+  /\{withheld\}/.test(geoView) && /\{GEO_WITHHELD_WHY\}/.test(geoView),
+);
+check(
+  "the table says a download holds every recorded column",
+  /A download always holds every recorded column/.test(records),
+);
+check(
+  "placeholders are drawn greyed with their reason on hover and on tap",
+  /title=\{c\.notRecorded\}/.test(records) &&
+    /onClick=\{\(\) => setExplained\(explained === c\.id \? null : c\.id\)\}/.test(records) &&
+    /\{why\.notRecorded\}/.test(records),
+);
+check(
+  "the last column is the row's own download, not an address",
+  /saveRecord\(row\)/.test(records) &&
+    /since: row\.window_start, until: row\.window_end/.test(records) &&
+    !/exporter/i.test(records),
+);
+check(
+  "the result line, Search, chips, Download, Columns and the filter box are one form",
+  (() => {
+    const form = records.slice(records.indexOf("<form"), records.indexOf("</form>"));
+    return (
+      /retrievedLine\(r\)/.test(form) &&
+      /chips\.map/.test(form) &&
+      /dropFilter\(chip\.field\)/.test(form) &&
+      /placeholder="Filter…"/.test(form)
+    );
+  })(),
 );
 check(
   "rows are filled by recordCells, one cell per shown column",
-  /recordCells\(row, now\)/.test(records) && /\{v\[c\.id\]\}/.test(records),
+  /recordCells\(row, timeZone\)/.test(records) && /\{cells\[c\.id\]\}/.test(records),
 );
 check(
   "the lock screen shows no chart and no figure",
