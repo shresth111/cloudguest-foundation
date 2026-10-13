@@ -1,5 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from "react";
-import { Columns3, Download, Search, X } from "lucide-react";
+import { Columns3, Download, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { AboutRecords, FilterChips, FiltersButton } from "@/components/traffic-lens/RecordsChrome";
 import { RecordsTable } from "@/components/traffic-lens/RecordsTable";
 import { TrafficLensDestinations } from "@/components/traffic-lens/TrafficLensDestinations";
 import { useLensFlowRecordExport, useLensFlowRecordSearch } from "@/hooks/useLensFlowRecords";
@@ -36,7 +37,9 @@ import {
 } from "@/lib/traffic-flow-destinations";
 import { LENS_NOTICES } from "@/lib/traffic-lens-customer";
 import {
+  LENS_CONNECTIONS_ABOUT,
   LENS_CONNECTIONS_INTRO,
+  LENS_FLOW_FILTER_FIELDS,
   LENS_FLOW_DEFAULT_COLUMNS,
   lensFlowColumns,
   lensFlowNotes,
@@ -71,28 +74,40 @@ const SELECT_CLASS =
  * blank and never a guess; a field null in every row greys its column. When
  * the daily limit left the period incomplete, that is said above the table.
  *
- * Nothing is requested until Search is pressed: every search and download
- * is recorded in the audit log. Sorting and removing a filter chip ask
- * again. The quick filter box narrows the loaded rows and asks for nothing.
+ * The records come by themselves: the request is derived from the page's
+ * pinned period, the applied filters and the sort, so opening the view is a
+ * search and so is each change of one of the three. Nothing else is: no
+ * timer, no refetch on focus or remount. Every one of those requests, and
+ * every download, is recorded in the audit log like a search made by hand.
+ * The always-visible Filter box narrows the loaded rows and asks for
+ * nothing; the per-field filters sit behind "Filters", closed by default.
  */
 export function TrafficLensFlowRecords({
   locationId,
-  rangeAt,
+  bounds,
   timeZone,
 }: {
   locationId: string;
-  /** The period the page's one range control means at a given moment. */
-  rangeAt: (now: number) => { since: string; until: string };
+  /** The period on screen, pinned by the page: it changes only when the
+   * period is changed or Refresh is pressed, and each change is one load. */
+  bounds: { since: string; until: string };
   /** The venue's time zone, for Start and End. The browser's when absent. */
   timeZone?: string | null;
 }) {
+  /** What is typed in the Filters panel, and what was last applied. */
   const [form, setForm] = useState<FlowRecordFilterForm>(EMPTY_FLOW_RECORD_FILTERS);
+  const [applied, setApplied] = useState<FlowRecordFilterForm>(EMPTY_FLOW_RECORD_FILTERS);
   const [sort, setSort] = useState<FlowRecordSort>(DEFAULT_FLOW_RECORD_SORT);
-  const [params, setParams] = useState<Record<string, string> | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [visible, setVisible] = useState<LensFlowColumnId[]>(LENS_FLOW_DEFAULT_COLUMNS);
   /** The quick box: narrows the loaded rows in the browser. Never a request. */
   const [quick, setQuick] = useState("");
+  // The request is DERIVED from the period, the applied filters and the
+  // sort. Opening the view is therefore a search, and so is each change of
+  // one of the three; nothing else is (no timer, no focus, no remount).
+  const built = flowFilterParams(bounds, applied, sort);
+  const params = built.ok ? built.params : null;
   const q = useLensFlowRecordSearch(locationId, params);
   const download = useLensFlowRecordExport(locationId);
   const refusal = lensRefusal(q.error);
@@ -101,12 +116,7 @@ export function TrafficLensFlowRecords({
   // venue-level table, with its locked line.
   if (lensRecordsMode(true, refusal === "locked") === "venue_locked")
     return (
-      <TrafficLensDestinations
-        locationId={locationId}
-        rangeAt={rangeAt}
-        timeZone={timeZone}
-        locked
-      />
+      <TrafficLensDestinations locationId={locationId} bounds={bounds} timeZone={timeZone} locked />
     );
 
   const field = (patch: Partial<FlowRecordFilterForm>) => {
@@ -114,49 +124,33 @@ export function TrafficLensFlowRecords({
     setForm((f) => ({ ...f, ...patch }));
   };
 
-  const build = (filters: FlowRecordFilterForm = form) =>
-    flowFilterParams(rangeAt(Date.now()), filters, sort);
-
-  const search = (filters: FlowRecordFilterForm) => {
-    const built = build(filters);
-    if (!built.ok) {
-      setFormError(built.message);
+  /** Search, or Enter in a field: apply what is typed. Refused before any
+   * request when it could not succeed. */
+  const submit = (e?: FormEvent) => {
+    e?.preventDefault();
+    const check = flowFilterParams(bounds, form, sort);
+    if (!check.ok) {
+      setFormError(check.message);
+      setFiltersOpen(true);
       return;
     }
     setFormError(null);
-    setParams(built.params);
+    setApplied(form);
   };
 
-  const submit = (e?: FormEvent) => {
-    e?.preventDefault();
-    search(form);
-  };
-
-  /** Removing a chip is asking for the search again without that filter. */
+  /** Removing a chip is asking for the records again without that filter. */
   const dropFilter = (name: keyof FlowRecordFilterForm) => {
-    const next = { ...form, [name]: "" };
+    const next = { ...applied, [name]: "" };
     setForm(next);
-    search(next);
+    setApplied(next);
   };
 
-  const sortBy = (key: FlowRecordSortKey) => {
-    const next = nextFlowRecordSort(sort, key);
-    setSort(next);
-    // Re-ask for the SAME search in the new order: same period, same filters.
-    if (params) setParams({ ...params, sort: next.key, order: next.order });
-  };
+  const sortBy = (key: FlowRecordSortKey) => setSort(nextFlowRecordSort(sort, key));
 
   const save = () => {
-    // The search on screen if there is one, otherwise what the form says.
-    let request = params;
-    if (!request) {
-      const built = build();
-      if (!built.ok) {
-        setFormError(built.message);
-        return;
-      }
-      request = built.params;
-    }
+    // The records on screen: the same period, filters and order.
+    if (!params) return;
+    const request = params;
     download.mutate(request, {
       onSuccess: (file) => {
         const url = URL.createObjectURL(file.blob);
@@ -195,103 +189,58 @@ export function TrafficLensFlowRecords({
     <section aria-label="Records" className="premium-card overflow-hidden rounded-2xl">
       <form
         onSubmit={submit}
-        aria-label="Search connection records"
+        aria-label="Connection records"
         className="space-y-4 border-b border-border p-5 sm:p-6"
       >
-        <div>
+        <div className="space-y-1.5">
           <h3 className="font-display text-xl font-semibold tracking-tight">Records</h3>
-          <p className="mt-1 max-w-3xl text-xs text-muted-foreground">
-            {LENS_CONNECTIONS_INTRO} {AUDIT_NOTE}
-          </p>
+          <p className="max-w-3xl text-sm text-muted-foreground">{LENS_CONNECTIONS_INTRO}</p>
+          <AboutRecords>
+            {LENS_CONNECTIONS_ABOUT.map((line) => (
+              <p key={line}>{line}</p>
+            ))}
+            <p>{AUDIT_NOTE} Opening this view and changing the period count as searches.</p>
+          </AboutRecords>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted/50 px-4 py-3">
           <p className="font-display text-lg font-semibold tabular-nums" aria-live="polite">
-            {r && state?.kind === "rows" ? retrievedLine(r) : "Not searched yet"}
+            {q.isLoading
+              ? "Loading records…"
+              : r && state?.kind === "rows"
+                ? retrievedLine(r)
+                : "Records"}
             {searched && (
               <span className="ml-2 font-sans text-xs font-normal text-muted-foreground">
                 {searched}
               </span>
             )}
           </p>
-          <div className="flex items-center gap-3">
-            {kept_for && (
-              <span className="text-xs text-muted-foreground">Connection records: {kept_for}</span>
-            )}
-            <Button type="submit" disabled={q.isFetching}>
-              <Search className="h-4 w-4" /> {q.isFetching ? "Searching…" : "Search"}
-            </Button>
-          </div>
+          {kept_for && (
+            <span className="text-xs text-muted-foreground">Connection records: {kept_for}</span>
+          )}
         </div>
-
-        <div className="flex flex-wrap items-end gap-3">
-          {FLOW_RECORD_FILTERS.map((f) => (
-            <label
-              key={f.field}
-              className={`block space-y-1.5 ${f.kind === "address" ? "w-full sm:w-52" : "w-32"}`}
-            >
-              <span className="text-xs font-medium text-muted-foreground">{f.label}</span>
-              {f.kind === "protocol" ? (
-                <select
-                  className={SELECT_CLASS}
-                  value={form[f.field]}
-                  onChange={(e) => field({ [f.field]: e.target.value })}
-                >
-                  {DESTINATION_PROTOCOL_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <Input
-                  className={f.kind === "address" ? "font-mono" : "tabular-nums"}
-                  placeholder="Any"
-                  maxLength={f.kind === "address" ? 64 : 5}
-                  inputMode={f.kind === "address" ? "text" : "numeric"}
-                  autoComplete="off"
-                  spellCheck={false}
-                  value={form[f.field]}
-                  onChange={(e) =>
-                    field({
-                      [f.field]:
-                        f.kind === "port" ? e.target.value.replace(/[^0-9]/g, "") : e.target.value,
-                    })
-                  }
-                />
-              )}
-            </label>
-          ))}
-        </div>
-
-        {chips.length > 0 && (
-          <ul aria-label="Filters in force" className="flex flex-wrap gap-2">
-            {chips.map((chip) => (
-              <li key={chip.field}>
-                <button
-                  type="button"
-                  onClick={() => dropFilter(chip.field)}
-                  aria-label={`Remove filter: ${chip.label}`}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 py-1 pl-3 pr-2 text-xs font-medium text-foreground hover:bg-primary/20"
-                >
-                  {chip.label}
-                  <X aria-hidden className="h-3.5 w-3.5" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {formError && (
-          <p role="alert" className="text-xs text-destructive">
-            {formError}
-          </p>
-        )}
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" variant="outline" disabled={download.isPending} onClick={save}>
-            <Download className="h-4 w-4" /> {download.isPending ? "Preparing…" : "Download CSV"}
-          </Button>
+          <label className="block w-full sm:w-72">
+            <span className="sr-only">Filter the loaded records</span>
+            <Input
+              type="search"
+              placeholder="Filter…"
+              value={quick}
+              onChange={(e) => setQuick(e.target.value)}
+              onKeyDown={(e) => {
+                // Narrowing what is loaded is not a search: Enter asks for nothing.
+                if (e.key === "Enter") e.preventDefault();
+              }}
+            />
+          </label>
+          <FiltersButton
+            open={filtersOpen}
+            active={chips.length}
+            onToggle={() => setFiltersOpen((o) => !o)}
+            controls="lens-flow-filters"
+          />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button type="button" variant="outline">
@@ -316,21 +265,76 @@ export function TrafficLensFlowRecords({
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          <label className="ml-auto block w-full sm:w-64">
-            <span className="sr-only">Filter the loaded records</span>
-            <Input
-              type="search"
-              placeholder="Filter…"
-              value={quick}
-              disabled={loaded.length === 0}
-              onChange={(e) => setQuick(e.target.value)}
-              onKeyDown={(e) => {
-                // Narrowing what is loaded is not a search: Enter asks for nothing.
-                if (e.key === "Enter") e.preventDefault();
-              }}
-            />
-          </label>
+          <Button
+            type="button"
+            variant="outline"
+            className="sm:ml-auto"
+            disabled={download.isPending || !params}
+            onClick={save}
+          >
+            <Download className="h-4 w-4" /> {download.isPending ? "Preparing…" : "Download CSV"}
+          </Button>
         </div>
+
+        <FilterChips chips={chips} onRemove={dropFilter} />
+
+        {filtersOpen && (
+          <div
+            id="lens-flow-filters"
+            className="flex flex-wrap items-end gap-3 rounded-xl border border-border p-4"
+          >
+            {FLOW_RECORD_FILTERS.filter((f) =>
+              (LENS_FLOW_FILTER_FIELDS as readonly string[]).includes(f.field),
+            ).map((f) => (
+              <label
+                key={f.field}
+                className={`block space-y-1.5 ${f.kind === "address" ? "w-full sm:w-56" : "w-36"}`}
+              >
+                <span className="text-xs font-medium text-muted-foreground">{f.label}</span>
+                {f.kind === "protocol" ? (
+                  <select
+                    className={SELECT_CLASS}
+                    value={form[f.field]}
+                    onChange={(e) => field({ [f.field]: e.target.value })}
+                  >
+                    {DESTINATION_PROTOCOL_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <Input
+                    className={f.kind === "address" ? "font-mono" : "tabular-nums"}
+                    placeholder="Any"
+                    maxLength={f.kind === "address" ? 64 : 5}
+                    inputMode={f.kind === "address" ? "text" : "numeric"}
+                    autoComplete="off"
+                    spellCheck={false}
+                    value={form[f.field]}
+                    onChange={(e) =>
+                      field({
+                        [f.field]:
+                          f.kind === "port"
+                            ? e.target.value.replace(/[^0-9]/g, "")
+                            : e.target.value,
+                      })
+                    }
+                  />
+                )}
+              </label>
+            ))}
+            <Button type="submit" disabled={q.isFetching}>
+              <Search className="h-4 w-4" /> {q.isFetching ? "Searching…" : "Search"}
+            </Button>
+          </div>
+        )}
+
+        {formError && (
+          <p role="alert" className="text-xs text-destructive">
+            {formError}
+          </p>
+        )}
       </form>
 
       <div className="space-y-4 p-5 sm:p-6">
@@ -342,13 +346,12 @@ export function TrafficLensFlowRecords({
           </div>
         )}
 
-        {params === null ? (
-          <Plain title="Not searched yet.">
-            Choose a period above and any filters, then press Search. Leave the filters empty to see
-            every record in the period.
-          </Plain>
-        ) : q.isLoading ? (
-          <div className="h-40 animate-pulse rounded-xl bg-muted" />
+        {q.isLoading ? (
+          <div
+            role="status"
+            aria-label="Loading records"
+            className="h-40 animate-pulse rounded-xl bg-muted"
+          />
         ) : refusal === "forbidden" || refusal === "licence" ? (
           <Plain title={LENS_NOTICES[refusal].title}>{LENS_NOTICES[refusal].body}</Plain>
         ) : q.isError || !r || !state ? (

@@ -1,8 +1,9 @@
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { Columns3, Download, Search, X } from "lucide-react";
+import { Columns3, Download, Search } from "lucide-react";
 import { toast } from "sonner";
 import { MButton, MField, M_INPUT } from "@/components/master/MasterKit";
 import { TrafficFlowRangeControl } from "@/components/master/TrafficFlowRangeControl";
+import { AboutRecords, FilterChips, FiltersButton } from "@/components/traffic-lens/RecordsChrome";
 import { RecordsTable } from "@/components/traffic-lens/RecordsTable";
 import {
   DropdownMenu,
@@ -50,10 +51,14 @@ import type {
  * One row is one flow record as the router exported it, in one direction.
  * This is the one table where a device's address sits beside the address it
  * reached, so it exists on the Master console only, behind its own switch,
- * and every search and download is written to the audit log. Nothing is
- * requested until Search is pressed; sorting and removing a filter chip ask
- * again and are recorded too. The quick filter box narrows the rows already
- * loaded and asks for nothing.
+ * and every search and download is written to the audit log.
+ *
+ * The records come by themselves: the request is derived from the venue or
+ * router, the page's pinned range, the applied filters and the sort, so
+ * picking a venue is a search and so is each change of one of the four.
+ * Nothing else is: no timer, no refetch on focus or remount. The
+ * always-visible Filter box narrows the loaded rows and asks for nothing;
+ * the per-field filters sit behind "Filters", closed by default.
  *
  * The table is the same component the customer dashboard's Records view
  * draws (RecordsTable), with this console's columns: the reference flow
@@ -69,22 +74,31 @@ export function TrafficFlowRecords({
   routers,
   scope,
   onScope,
-  rangeAt,
+  bounds,
 }: {
   routers: RouterFlowStatus[];
   scope: FlowScope;
   onScope: (next: FlowScope) => void;
-  /** The range the page's control means at a given moment. */
-  rangeAt: (now: number) => { since: string; until: string };
+  /** The range on screen, pinned by the page: it changes only when the range
+   * is changed or Refresh is pressed, and each change is one load. */
+  bounds: { since: string; until: string };
 }) {
   const [organizationId, setOrganizationId] = useState("");
+  /** What is typed in the Filters panel, and what was last applied. */
   const [form, setForm] = useState<FlowRecordFilterForm>(EMPTY_FLOW_RECORD_FILTERS);
+  const [applied, setApplied] = useState<FlowRecordFilterForm>(EMPTY_FLOW_RECORD_FILTERS);
   const [sort, setSort] = useState<FlowRecordSort>(DEFAULT_FLOW_RECORD_SORT);
-  const [params, setParams] = useState<Record<string, string> | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [visible, setVisible] = useState<FlowRecordColumnId[]>(FLOW_RECORD_DEFAULT_COLUMNS);
   /** The quick box: narrows the loaded rows in the browser. Never a request. */
   const [quick, setQuick] = useState("");
+  // The request is DERIVED from the venue or router, the range, the applied
+  // filters and the sort. Picking a venue is therefore a search, and so is
+  // each change of one of the four; nothing else is (no timer, no focus, no
+  // remount). No venue and no router: no request.
+  const built = flowRecordParams(scope, bounds, applied, sort);
+  const params = built.ok ? built.params : null;
   const q = useFlowRecordSearch(params);
   const download = useFlowRecordExport();
 
@@ -110,10 +124,7 @@ export function TrafficFlowRecords({
   );
   const scoped = !!scope.locationId || !!scope.routerId;
 
-  /** A result belongs to the scope it was asked for: picking another venue
-   * or router clears it rather than leave it under the new name. */
   const pickScope = (patch: Partial<FlowScope>) => {
-    setParams(null);
     setFormError(null);
     onScope({ ...scope, ...patch });
   };
@@ -123,49 +134,33 @@ export function TrafficFlowRecords({
     setForm((f) => ({ ...f, ...patch }));
   };
 
-  const build = (filters: FlowRecordFilterForm = form) =>
-    flowRecordParams(scope, rangeAt(Date.now()), filters, sort);
-
-  const search = (filters: FlowRecordFilterForm) => {
-    const built = build(filters);
-    if (!built.ok) {
-      setFormError(built.message);
+  /** Search, or Enter in a field: apply what is typed. Refused before any
+   * request when it could not succeed. */
+  const submit = (e?: FormEvent) => {
+    e?.preventDefault();
+    const check = flowRecordParams(scope, bounds, form, sort);
+    if (!check.ok) {
+      setFormError(check.message);
+      setFiltersOpen(true);
       return;
     }
     setFormError(null);
-    setParams(built.params);
+    setApplied(form);
   };
 
-  const submit = (e?: FormEvent) => {
-    e?.preventDefault();
-    search(form);
-  };
-
-  /** Removing a chip is asking for the search again without that filter. */
+  /** Removing a chip is asking for the records again without that filter. */
   const dropFilter = (name: keyof FlowRecordFilterForm) => {
-    const next = { ...form, [name]: "" };
+    const next = { ...applied, [name]: "" };
     setForm(next);
-    search(next);
+    setApplied(next);
   };
 
-  const sortBy = (key: FlowRecordSortKey) => {
-    const next = nextFlowRecordSort(sort, key);
-    setSort(next);
-    // Re-ask for the SAME search in the new order: same range, same filters.
-    if (params) setParams({ ...params, sort: next.key, order: next.order });
-  };
+  const sortBy = (key: FlowRecordSortKey) => setSort(nextFlowRecordSort(sort, key));
 
   const save = () => {
-    // The search on screen if there is one, otherwise what the form says.
-    let request = params;
-    if (!request) {
-      const built = build();
-      if (!built.ok) {
-        setFormError(built.message);
-        return;
-      }
-      request = built.params;
-    }
+    // The records on screen: the same range, filters and order.
+    if (!params) return;
+    const request = params;
     download.mutate(request, {
       onSuccess: (file) => {
         const url = URL.createObjectURL(file.blob);
@@ -256,102 +251,65 @@ export function TrafficFlowRecords({
       <form
         onSubmit={submit}
         className="space-y-3 rounded-xl border border-border bg-card p-4"
-        aria-label="Search flow records"
+        aria-label="Flow records"
       >
-        <div>
+        <div className="space-y-1.5">
           <h3 className="text-sm font-semibold">Flow records</h3>
-          <p className="mt-0.5 max-w-3xl text-[11px] text-muted-foreground">
-            One row is one flow record as the router exported it, in one direction. A row shows a
-            device's address beside the address it reached, which is why this table is on this
-            console only. {FLOW_RECORDS_AUDIT_NOTE}
+          <p className="max-w-3xl text-xs text-muted-foreground">
+            One row is one flow record: a device's address beside the address it reached.
           </p>
+          <AboutRecords>
+            <p>
+              One row is one flow record as the router exported it, in one direction. A long
+              connection appears again each minute, and its two directions are separate rows.
+            </p>
+            <p>
+              A row shows a device's address beside the address it reached, which is why this table
+              is on this console only.
+            </p>
+            <p>
+              {FLOW_RECORDS_AUDIT_NOTE} Records load when a venue is picked and when the range
+              changes; each of those loads is recorded like a search made by hand.
+            </p>
+          </AboutRecords>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-muted/50 px-3 py-2">
           <p className="text-sm font-semibold tabular-nums" aria-live="polite">
-            {r && state?.kind === "rows" ? retrievedLine(r) : "Not searched yet"}
+            {!scoped
+              ? "Pick a venue"
+              : q.isLoading
+                ? "Loading records…"
+                : r && state?.kind === "rows"
+                  ? retrievedLine(r)
+                  : "Flow records"}
             {searched && (
               <span className="ml-2 text-xs font-normal text-muted-foreground">{searched}</span>
             )}
           </p>
-          <MButton type="submit" disabled={!scoped || q.isFetching}>
-            <Search /> {q.isFetching ? "Searching…" : "Search"}
-          </MButton>
         </div>
-
-        <div className="flex flex-wrap items-end gap-3">
-          {FLOW_RECORD_FILTERS.map((f) => (
-            <div key={f.field} className={f.kind === "address" ? "w-52" : "w-32"}>
-              <MField label={f.label}>
-                {f.kind === "protocol" ? (
-                  <select
-                    className={M_INPUT}
-                    value={form[f.field]}
-                    onChange={(e) => field({ [f.field]: e.target.value })}
-                  >
-                    {DESTINATION_PROTOCOL_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    className={`${M_INPUT} ${f.kind === "address" ? "font-mono" : "tabular-nums"}`}
-                    placeholder="Any"
-                    maxLength={f.kind === "address" ? 64 : 5}
-                    inputMode={f.kind === "address" ? "text" : "numeric"}
-                    autoComplete="off"
-                    spellCheck={false}
-                    value={form[f.field]}
-                    onChange={(e) =>
-                      field({
-                        [f.field]:
-                          f.kind === "port"
-                            ? e.target.value.replace(/[^0-9]/g, "")
-                            : e.target.value,
-                      })
-                    }
-                  />
-                )}
-              </MField>
-            </div>
-          ))}
-        </div>
-
-        {chips.length > 0 && (
-          <ul aria-label="Filters in force" className="flex flex-wrap gap-2">
-            {chips.map((chip) => (
-              <li key={chip.field}>
-                <button
-                  type="button"
-                  onClick={() => dropFilter(chip.field)}
-                  aria-label={`Remove filter: ${chip.label}`}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 py-1 pl-3 pr-2 text-xs font-medium hover:bg-primary/20"
-                >
-                  {chip.label}
-                  <X aria-hidden className="h-3.5 w-3.5" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {formError && (
-          <p role="alert" className="text-xs text-destructive">
-            {formError}
-          </p>
-        )}
 
         <div className="flex flex-wrap items-center gap-2">
-          <MButton
-            type="button"
-            variant="outline"
-            disabled={!scoped || download.isPending}
-            onClick={save}
-          >
-            <Download /> {download.isPending ? "Preparing…" : "Download CSV"}
-          </MButton>
+          <label className="block w-72">
+            <span className="sr-only">Filter the loaded records</span>
+            <input
+              type="search"
+              className={M_INPUT}
+              placeholder="Filter…"
+              value={quick}
+              onChange={(e) => setQuick(e.target.value)}
+              onKeyDown={(e) => {
+                // Narrowing what is loaded is not a search: Enter asks for nothing.
+                if (e.key === "Enter") e.preventDefault();
+              }}
+            />
+          </label>
+          <FiltersButton
+            open={filtersOpen}
+            active={chips.length}
+            onToggle={() => setFiltersOpen((o) => !o)}
+            controls="master-flow-filters"
+          />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <MButton type="button" variant="outline">
@@ -376,22 +334,72 @@ export function TrafficFlowRecords({
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          <label className="ml-auto block w-64">
-            <span className="sr-only">Filter the loaded records</span>
-            <input
-              type="search"
-              className={M_INPUT}
-              placeholder="Filter…"
-              value={quick}
-              disabled={loaded.length === 0}
-              onChange={(e) => setQuick(e.target.value)}
-              onKeyDown={(e) => {
-                // Narrowing what is loaded is not a search: Enter asks for nothing.
-                if (e.key === "Enter") e.preventDefault();
-              }}
-            />
-          </label>
+          <MButton
+            type="button"
+            variant="outline"
+            className="ml-auto"
+            disabled={!params || download.isPending}
+            onClick={save}
+          >
+            <Download /> {download.isPending ? "Preparing…" : "Download CSV"}
+          </MButton>
         </div>
+
+        <FilterChips chips={chips} onRemove={dropFilter} />
+
+        {filtersOpen && (
+          <div
+            id="master-flow-filters"
+            className="flex flex-wrap items-end gap-3 rounded-lg border border-border p-3"
+          >
+            {FLOW_RECORD_FILTERS.map((f) => (
+              <div key={f.field} className={f.kind === "address" ? "w-52" : "w-32"}>
+                <MField label={f.label}>
+                  {f.kind === "protocol" ? (
+                    <select
+                      className={M_INPUT}
+                      value={form[f.field]}
+                      onChange={(e) => field({ [f.field]: e.target.value })}
+                    >
+                      {DESTINATION_PROTOCOL_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      className={`${M_INPUT} ${f.kind === "address" ? "font-mono" : "tabular-nums"}`}
+                      placeholder="Any"
+                      maxLength={f.kind === "address" ? 64 : 5}
+                      inputMode={f.kind === "address" ? "text" : "numeric"}
+                      autoComplete="off"
+                      spellCheck={false}
+                      value={form[f.field]}
+                      onChange={(e) =>
+                        field({
+                          [f.field]:
+                            f.kind === "port"
+                              ? e.target.value.replace(/[^0-9]/g, "")
+                              : e.target.value,
+                        })
+                      }
+                    />
+                  )}
+                </MField>
+              </div>
+            ))}
+            <MButton type="submit" disabled={!scoped || q.isFetching}>
+              <Search /> {q.isFetching ? "Searching…" : "Search"}
+            </MButton>
+          </div>
+        )}
+
+        {formError && (
+          <p role="alert" className="text-xs text-destructive">
+            {formError}
+          </p>
+        )}
       </form>
 
       {/* Whenever the API says the range is incomplete, above everything. */}
@@ -404,16 +412,14 @@ export function TrafficFlowRecords({
 
       {!scoped ? (
         <Notice title="Pick a venue.">
-          Flow records are searched per venue or router. Nothing is requested until one is picked
-          and Search is pressed.
-        </Notice>
-      ) : params === null ? (
-        <Notice title="Not searched yet.">
-          Set a range and any filters, then press Search. Leave the filters empty to see every
-          record in the range.
+          Flow records are kept per venue or router. They load as soon as one is picked.
         </Notice>
       ) : q.isLoading ? (
-        <div className="h-40 animate-pulse rounded-xl bg-muted" />
+        <div
+          role="status"
+          aria-label="Loading records"
+          className="h-40 animate-pulse rounded-xl bg-muted"
+        />
       ) : q.isError || !r || !state ? (
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm">
           <p className="font-medium">The search did not complete.</p>

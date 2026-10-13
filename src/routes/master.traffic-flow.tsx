@@ -79,6 +79,10 @@ function TrafficFlowScreen() {
   const [filters, setFilters] = useState<FleetFilters>(EMPTY_FILTERS);
   const [scope, setScope] = useState<FlowScope>(EMPTY_SCOPE);
   const [openRouter, setOpenRouter] = useState<string | null>(null);
+  /** The moment the Flows tab's range ends at. It moves only on Refresh and
+   * when the venue or range is changed there, so the tab loads once per
+   * change and never by itself. */
+  const [flowsAt, setFlowsAt] = useState(() => Date.now());
 
   const routers = useMemo(() => status.data?.routers ?? [], [status.data]);
   const windowSeconds = status.data?.window_seconds ?? 0;
@@ -122,7 +126,13 @@ function TrafficFlowScreen() {
                 value={tab}
                 onChange={setTab}
               />
-              <MButton variant="outline" onClick={() => void status.refetch()}>
+              <MButton
+                variant="outline"
+                onClick={() => {
+                  setFlowsAt(Date.now());
+                  void status.refetch();
+                }}
+              >
                 <RefreshCw /> Refresh
               </MButton>
             </div>
@@ -330,8 +340,12 @@ function TrafficFlowScreen() {
           <TrafficFlowRecords
             routers={routers}
             scope={scope}
-            onScope={setScope}
-            rangeAt={(at) => flowRange(scope, at)}
+            // A new venue, router or range is a new load, as of now.
+            onScope={(next) => {
+              setFlowsAt(Date.now());
+              setScope(next);
+            }}
+            bounds={flowRange(scope, flowsAt)}
           />
         )}
 

@@ -628,9 +628,57 @@ check(
 );
 check("nothing is searched from an effect", !/useEffect/.test(viewCode));
 check(
-  "a search starts only from Search, a chip's removal or a sort click",
-  (viewCode.match(/setParams\(/g) ?? []).length === 2 && /onSubmit=\{submit\}/.test(viewCode),
-  String((viewCode.match(/setParams\(/g) ?? []).length),
+  "the records load by themselves: the request is derived, never kept in state",
+  /const params = built\.ok \? built\.params : null;/.test(viewCode) &&
+    /flowFilterParams\(bounds, applied, sort\)/.test(viewCode) &&
+    !/setParams|useState<Record<string, string> \| null>/.test(viewCode) &&
+    /useLensFlowRecordSearch\(locationId, params\)/.test(viewCode),
+);
+check(
+  "one load per open, period, applied filter or sort: no effect, timer, interval or focus refetch",
+  !/useEffect|setInterval|setTimeout|refetchInterval|refetch\(|visibilitychange|addEventListener/.test(
+    viewCode,
+  ),
+);
+check(
+  "typing in a filter field asks for nothing until Search or Enter applies it",
+  /const \[applied, setApplied\]/.test(viewCode) &&
+    /onSubmit=\{submit\}/.test(viewCode) &&
+    (viewCode.match(/setApplied\(/g) ?? []).length === 2 &&
+    /setApplied\(form\)/.test(viewCode),
+  String((viewCode.match(/setApplied\(/g) ?? []).length),
+);
+check(
+  "the per-field filters are behind Filters, closed by default; the Filter box is always there",
+  /const \[filtersOpen, setFiltersOpen\] = useState\(false\)/.test(viewCode) &&
+    /\{filtersOpen && \(/.test(viewCode) &&
+    /<FiltersButton/.test(viewCode) &&
+    /active=\{chips\.length\}/.test(viewCode) &&
+    /<FilterChips chips=\{chips\} onRemove=\{dropFilter\}/.test(viewCode) &&
+    viewCode.indexOf('placeholder="Filter…"') < viewCode.indexOf("{filtersOpen && ("),
+);
+check(
+  "the long explanation is behind About these records, and 'Not searched yet' is gone",
+  /<AboutRecords>/.test(viewCode) && !/Not searched yet/.test(viewCode),
+);
+check(
+  "a venue owner's filters only: address, port, protocol (the route has no direction filter)",
+  JSON.stringify(m.LENS_FLOW_FILTER_FIELDS) === '["address","port","protocol"]' &&
+    /LENS_FLOW_FILTER_FIELDS as readonly string\[\]\)\.includes\(f\.field\)/.test(viewCode),
+);
+check(
+  "both customer tables get the page's pinned period, so Refresh and a period change are the only reloads",
+  (shell.match(/bounds=\{bounds\}/g) ?? []).length >= 3 &&
+    /const bounds = lensRangeBounds\(range, at\);/.test(shell) &&
+    !/rangeAt=/.test(shell) &&
+    /<TrafficLensDestinations\s+locationId=\{locationId\}\s+bounds=\{bounds\}\s+timeZone=\{timeZone\}\s+locked/.test(
+      view,
+    ),
+);
+check(
+  "the locked venue-level table loads the same way",
+  /destinationSearchParams\(scope, bounds, applied, sort\)/.test(venueTable) &&
+    !/setParams|Not searched yet/.test(venueTable),
 );
 check(
   "the filter box only narrows what is loaded",
@@ -640,7 +688,7 @@ check(
 check(
   "the incomplete notice sits above every result branch",
   /\{incomplete && \(/.test(view) &&
-    view.indexOf("{incomplete && (") < view.indexOf("{params === null ? ("),
+    view.indexOf("{incomplete && (") < view.indexOf("{q.isLoading ? ("),
 );
 check(
   "retention is shown by the period control, from the API",
