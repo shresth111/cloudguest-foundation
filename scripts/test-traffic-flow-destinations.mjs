@@ -788,7 +788,7 @@ check(
 );
 check(
   "the sort keys are the venue-level columns only",
-  /"time"\s*\|\s*"address"\s*\|\s*"protocol"\s*\|\s*"port"\s*\|\s*"bytes"\s*\|\s*"bytes_up"\s*\|\s*"bytes_down"\s*\|\s*"flows";/.test(
+  /"time"\s*\|\s*"address"\s*\|\s*"protocol"\s*\|\s*"port"\s*\|\s*"bytes"\s*\|\s*"bytes_up"\s*\|\s*"bytes_down"\s*\|\s*"flows"\s*\|\s*"packets";/.test(
     types
       .replace(/\n\s*/g, " ")
       .replace(/\|\s+"/g, '| "')
@@ -897,11 +897,14 @@ eq(
   ["src/hooks/useFlowDestinations.ts"],
 );
 eq(
-  "only the two Master components import the hook",
+  "only the two Master components use the hooks (the flow-records hook borrows `sameSearch`)",
   importers(/hooks\/useFlowDestinations/, "src/hooks/useFlowDestinations.ts"),
   [
     "src/components/master/TrafficFlowDestinations.tsx",
     "src/components/master/TrafficFlowServiceDestinations.tsx",
+    // Imports the pure `sameSearch` only, and is itself Master-only:
+    // scripts/test-traffic-flow-records.mjs pins who may import it.
+    "src/hooks/useFlowRecords.ts",
   ],
 );
 eq(
@@ -1117,23 +1120,23 @@ check(
 // connection log: Src addr, S.port, S.NAT, D.NAT and Packets keep their place
 // as placeholders. What must stay true is that a placeholder has no data
 // behind it: no field, no sort, no filter, and a dash in every cell.
-const lensPlaceholders = lensColumns.match(/placeholder\("[^"]+", "[^"]+"/g) ?? [];
+const lensPlaceholders = lensColumns.match(/placeholder\(\s*"[^"]+",\s*"[^"]+"/g) ?? [];
 check(
-  "the customer table has eleven live columns and five placeholders",
+  "the customer table has twelve live columns and four placeholders",
   /const COLUMNS = LENS_RECORD_COLUMNS;/.test(lensTabCode) &&
-    (lensColumns.match(/\blive\("/g) ?? []).length === 11 &&
-    lensPlaceholders.length === 5,
+    (lensColumns.match(/\blive\("/g) ?? []).length === 12 &&
+    lensPlaceholders.length === 4,
   `${(lensColumns.match(/\blive\("/g) ?? []).length} live, ${lensPlaceholders.length} placeholders`,
 );
 check(
-  "every device, translation and packet column is a placeholder, never a live one",
+  "every device and translation column is a placeholder, never a live one",
   !(lensColumns.match(/\blive\("[^"]+", "[^"]+"/g) ?? []).some((c) =>
-    /src|source|device|mac|guest|nat|packet|client|session/i.test(c),
+    /src|source|device|mac|guest|nat|client|session/i.test(c),
   ),
 );
 check(
   "a placeholder cell is a literal dash, whatever the row holds",
-  ["src_addr", "src_port", "src_nat", "dst_nat", "packets"].every((id) =>
+  ["src_addr", "src_port", "src_nat", "dst_nat"].every((id) =>
     new RegExp(`\\b${id}: DASH,`).test(read("src/lib/traffic-lens-insights.ts")),
   ),
 );
@@ -1183,7 +1186,7 @@ check(
 );
 check(
   "the Destinations view reads the page's one range control",
-  /view === "destinations" && \(\s*<TrafficLensDestinations\s+locationId=\{locationId\}\s+rangeAt=\{\(moment\) => lensRangeBounds\(range, moment\)\}/.test(
+  /view === "destinations" && recordsMode !== "connections" && \(\s*<TrafficLensDestinations\s+locationId=\{locationId\}\s+rangeAt=\{\(moment\) => lensRangeBounds\(range, moment\)\}/.test(
     lensPage,
   ) && (lensPage.match(/<LensRangeControl/g) ?? []).length === 1,
 );

@@ -1546,14 +1546,61 @@ jobs:
       # table as placeholders. This suite pins that a placeholder is a dash
       # whatever the row object holds, is never sortable, and that the quick
       # filter box narrows loaded rows without a request.
-      # Floor 168, observed green at 168 (was 123).
+      # Floor 170, observed green at 170 (was 123).
       - name: traffic lens answers are computed and honest
         run: |
           ./scripts/ci-gated-test.sh \
-            "traffic lens insights" 168 \
+            "traffic lens insights" 170 \
             "all traffic lens insight checks passed" \
             bun run test:traffic-lens-insights
 
+      # --- Traffic Lens Flows: the Master flow table --------------------
+      #
+      # One row is one flow record: a device's address beside the address
+      # it reached. It is on the Master console only, and this suite fails
+      # if any customer file imports the service, the hook, the component
+      # or the rules, if a customer flow-records route appears in the app,
+      # or if the customer table's device columns stop being placeholders.
+      #
+      # Also pinned: null is "not recorded" (never zero, blank or a dash)
+      # and a field null in every row greys its column in place; the
+      # "records incomplete since" notice shows whenever the API sets the
+      # flag and never otherwise; switched off, nothing held and nothing
+      # matched are different sentences; nothing is fetched unasked (every
+      # search and download is audited); and both consoles draw ONE table
+      # component, which says nothing about how records are gathered.
+      # Floor 131, observed green at 131 (merged ports read "several", repeats
+      # read "same", and the storage line always names all four figures).
+      - name: traffic flow records are Master-only and honest
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "traffic flow records" 131 \
+            "all traffic flow record checks passed" \
+            bun run test:traffic-flow-records
+
+      # --- Traffic Lens connection records on the customer dashboard ------
+      #
+      # A customer who holds the SECOND add-on (`traffic_flow_records`) gets
+      # the connection-record table: the one place on the customer dashboard
+      # where a device's address sits beside the address it reached. This
+      # suite pins that the browser never decides that: the table is chosen
+      # from /me/entitlements for the second key, a 402 from the route wins,
+      # "unknown" is never "held", and the first add-on never implies the
+      # second. Without the add-on nothing changes (the venue-level table,
+      # its five placeholders, one locked line) and the records route is not
+      # called.
+      #
+      # Also: null is "not recorded" with its reason and "not applicable"
+      # only where a value cannot exist; the incomplete notice and the
+      # retention come from the API; nothing is fetched unasked; and no
+      # customer file carries platform equipment or imports a Master
+      # flow-record file. Floor 92, observed green at 92.
+      - name: traffic lens connection records follow the entitlement
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "traffic lens flow records" 92 \
+            "all traffic lens flow record checks passed" \
+            bun run test:traffic-lens-flow-records
       # --- Traffic Lens findings: "Worth a look" from the server ----------
       #
       # The block is fed by the server's five venue-level findings. What

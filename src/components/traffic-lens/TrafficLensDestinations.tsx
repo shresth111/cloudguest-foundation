@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { ArrowDown, ArrowUp, Columns3, Download, Search, X } from "lucide-react";
+import { Columns3, Download, Lock, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { RecordsTable } from "@/components/traffic-lens/RecordsTable";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -61,6 +62,7 @@ import {
   type LensRecordColumnId,
   type RecordFilterChip,
 } from "@/lib/traffic-lens-insights";
+import { LENS_RECORDS_LOCKED_LINE } from "@/lib/traffic-lens-flow-records";
 import type {
   DestinationFilterForm,
   DestinationRecord,
@@ -81,8 +83,8 @@ const SELECT_CLASS =
  * column: Start, End, Src addr, S.port, Dst addr, D.port, Protocol, S.NAT,
  * D.NAT, Bytes, Packets, Service, Export.
  *
- * Five of those columns have no data for any venue (source address and
- * port, both address translations, packets). They keep their place as
+ * Four of those columns have no data in a venue-level record (source
+ * address and port, both address translations). They keep their place as
  * placeholders: a greyed header, an em dash in every cell, and the reason on
  * hover or tap. Nothing is requested, joined or made up to fill them. A
  * record is for the venue as a whole: it never says which device or guest,
@@ -101,12 +103,16 @@ export function TrafficLensDestinations({
   locationId,
   rangeAt,
   timeZone,
+  locked = false,
 }: {
   locationId: string;
   /** The period the page's one range control means at a given moment. */
   rangeAt: (now: number) => { since: string; until: string };
   /** The venue's time zone, for Start and End. The browser's when absent. */
   timeZone?: string | null;
+  /** The backend says the organisation does not hold the second add-on:
+   * say, in one line, that the per-connection columns are part of it. */
+  locked?: boolean;
 }) {
   const [form, setForm] = useState<DestinationFilterForm>(EMPTY_DESTINATION_FILTERS);
   const [sort, setSort] = useState<DestinationSort>(DEFAULT_DESTINATION_SORT);
@@ -115,8 +121,6 @@ export function TrafficLensDestinations({
   const [visible, setVisible] = useState<LensRecordColumnId[]>(LENS_RECORD_DEFAULT_COLUMNS);
   /** The quick box: narrows the loaded rows in the browser. Never a request. */
   const [quick, setQuick] = useState("");
-  /** The placeholder column whose reason is spelled out above the table. */
-  const [explained, setExplained] = useState<LensRecordColumnId | null>(null);
   const q = useLensDestinationSearch(locationId, params);
   const download = useLensDestinationExport(locationId);
   const now = Date.now();
@@ -215,7 +219,6 @@ export function TrafficLensDestinations({
     ).map((cells) => cells.key),
   );
   const rows = loaded.filter((x) => kept.has(x.cells.key));
-  const why = COLUMNS.find((c) => c.id === explained && c.notRecorded !== null);
 
   return (
     <section aria-label="Records" className="premium-card overflow-hidden rounded-2xl">
@@ -231,6 +234,12 @@ export function TrafficLensDestinations({
             time, in one table. It is for the venue as a whole: no record says which device or
             guest, and none is kept that could. {AUDIT_NOTE}
           </p>
+          {locked && (
+            <p className="mt-2 flex max-w-3xl items-start gap-2 text-xs text-muted-foreground">
+              <Lock aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>{LENS_RECORDS_LOCKED_LINE}</span>
+            </p>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted/50 px-4 py-3">
@@ -360,7 +369,7 @@ export function TrafficLensDestinations({
                 </DropdownMenuItem>
               ))}
               <DropdownMenuSeparator />
-              <DropdownMenuLabel>Not recorded for any venue</DropdownMenuLabel>
+              <DropdownMenuLabel>Not in venue-level records</DropdownMenuLabel>
               {LENS_RECORD_NOT_RECORDED.map((c) => (
                 <DropdownMenuItem key={c.label} disabled className="flex-col items-start gap-0">
                   <span>{c.label}</span>
@@ -421,85 +430,30 @@ export function TrafficLensDestinations({
                     </p>
                   )}
                 </div>
-                {why && (
-                  <p
-                    role="status"
-                    className="rounded-lg border border-dashed border-border px-3 py-2 text-xs"
-                  >
-                    <span className="font-semibold">{why.label}</span>: {why.notRecorded}
-                  </p>
-                )}
-                <div className="overflow-x-auto rounded-xl border border-border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-muted/50">
-                        {shown.map((c) => (
-                          <TableHead
-                            key={c.id}
-                            aria-sort={c.sort ? ariaSort(sort, c.sort) : undefined}
-                            className={`whitespace-nowrap text-[11px] font-semibold uppercase tracking-wider ${c.numeric ? "text-right" : ""}`}
-                          >
-                            {c.notRecorded !== null ? (
-                              <button
-                                type="button"
-                                title={c.notRecorded}
-                                aria-label={`${c.label}. ${c.notRecorded}`}
-                                onClick={() => setExplained(explained === c.id ? null : c.id)}
-                                className="cursor-help uppercase tracking-wider text-muted-foreground/60 underline decoration-dotted underline-offset-4"
-                              >
-                                {c.label}
-                              </button>
-                            ) : c.sort ? (
-                              <SortButton
-                                label={c.label}
-                                state={ariaSort(sort, c.sort)}
-                                onClick={() => sortBy(c.sort as DestinationSortKey)}
-                              />
-                            ) : (
-                              c.label
-                            )}
-                          </TableHead>
-                        ))}
-                        <TableHead className="whitespace-nowrap text-right text-[11px] font-semibold uppercase tracking-wider">
-                          Export
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {rows.map(({ row, cells }) => (
-                        <TableRow key={cells.key}>
-                          {shown.map((c) => (
-                            <TableCell
-                              key={c.id}
-                              title={c.notRecorded ?? undefined}
-                              className={`whitespace-nowrap ${
-                                c.numeric ? "text-right tabular-nums" : ""
-                              } ${c.id === "address" ? "font-mono text-xs" : ""} ${
-                                c.id === "start" || c.id === "end" ? "tabular-nums" : ""
-                              } ${c.notRecorded !== null ? "text-muted-foreground/50" : ""}`}
-                            >
-                              {cells[c.id]}
-                            </TableCell>
-                          ))}
-                          <TableCell className="text-right">
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7"
-                              disabled={download.isPending}
-                              aria-label={`Download this record as CSV: ${cells.address}, ${cells.start}`}
-                              title="Download this record as CSV"
-                              onClick={() => saveRecord(row)}
-                            >
-                              <Download className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                <RecordsTable
+                  columns={shown}
+                  rows={rows.map((x) => ({
+                    key: x.cells.key,
+                    cells: x.cells,
+                    // A record collected before packets were counted.
+                    missing: typeof x.row.packets === "number" ? [] : (["packets"] as const),
+                    reasons: { packets: "Not measured for this record. That is not zero." },
+                  }))}
+                  sort={sort}
+                  onSort={sortBy}
+                  mono={["address"]}
+                  rowAction={{
+                    heading: "Export",
+                    title: "Download this record as CSV",
+                    label: (row) =>
+                      `Download this record as CSV: ${row.cells.address}, ${row.cells.start}`,
+                    disabled: download.isPending,
+                    onClick: (row) => {
+                      const hit = rows.find((x) => x.cells.key === row.key);
+                      if (hit) saveRecord(hit.row);
+                    },
+                  }}
+                />
                 {rows.length === 0 && (
                   <Plain title="No loaded record matches the filter box.">
                     The box only narrows what is already loaded. Clear it to see them again, or use
@@ -511,7 +465,7 @@ export function TrafficLensDestinations({
             <Notes
               notes={[
                 ...searchNotes(r),
-                `Start and End are the five-minute period a record covers, in ${recordTimeBasis(timeZone)}. Greyed columns are not recorded for any venue and always show a dash; hover or tap a greyed heading for why. Service is the port's standard name with its protocol and port; it does not say which app or site was used. Sorting asks again for the same search.`,
+                `Start and End are the five-minute period a record covers, in ${recordTimeBasis(timeZone)}. Greyed columns are not part of venue-level records and always show a dash; hover or tap a greyed heading for why. Service is the port's standard name with its protocol and port; it does not say which app or site was used. Sorting asks again for the same search.`,
                 `More columns (download, upload, direction, flows) can be switched on in Columns. A download always holds every recorded column, up to ${DESTINATION_CSV_MAX_ROWS.toLocaleString()} records.`,
               ]}
             />
@@ -627,29 +581,6 @@ export function TrafficLensServiceDestinations({
         </>
       )}
     </section>
-  );
-}
-
-function SortButton({
-  label,
-  state,
-  onClick,
-}: {
-  label: string;
-  state: "ascending" | "descending" | "none";
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={state === "none" ? `Sort by ${label}` : `Sorted ${state}; click to reverse`}
-      className={`inline-flex items-center gap-1 uppercase tracking-wider hover:text-foreground ${state === "none" ? "" : "text-foreground"}`}
-    >
-      {label}
-      {state === "ascending" && <ArrowUp aria-hidden className="h-3 w-3" />}
-      {state === "descending" && <ArrowDown aria-hidden className="h-3 w-3" />}
-    </button>
   );
 }
 
