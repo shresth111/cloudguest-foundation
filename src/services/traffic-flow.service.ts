@@ -9,6 +9,7 @@
  * already unwraps the `{success, data}` envelope.
  */
 import { api } from "./api";
+import type { FindingsResponse } from "@/types/traffic-lens-findings";
 import type {
   FlowScope,
   FlowSummary,
@@ -103,6 +104,18 @@ export const trafficFlowService = {
 
   async summary(params: Record<string, string>): Promise<FlowSummary> {
     const { data } = await api.get<FlowSummary>(`${BASE}/summary`, { params });
+    return data;
+  },
+
+  /** A venue's findings for a range (API.md, "Findings API"). Always for
+   * the venue: there is no per-router form. Computed when asked. */
+  async findings(
+    locationId: string,
+    period: { since: string; until: string },
+  ): Promise<FindingsResponse> {
+    const { data } = await api.get<FindingsResponse>(`${BASE}/findings`, {
+      params: { location_id: locationId, ...period },
+    });
     return data;
   },
 };

@@ -5,7 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useFeatureEntitled, useIsDemo } from "@/hooks/useCustomerDashboard";
-import { useTrafficLensStatus, useTrafficLensSummary } from "@/hooks/useTrafficLens";
+import {
+  useTrafficLensFindings,
+  useTrafficLensStatus,
+  useTrafficLensSummary,
+} from "@/hooks/useTrafficLens";
 import { lensRefusal } from "@/services/traffic-lens.service";
 import {
   LENS_DEFAULT_RANGE,
@@ -73,6 +77,13 @@ export function TrafficLensView({ locationId }: { locationId: string }) {
     status: status.data,
   });
   const summary = useTrafficLensSummary(locationId, range, at, screen.kind === "data");
+  // Asked only while the Overview is on screen: Records does not show them.
+  const findings = useTrafficLensFindings(
+    locationId,
+    range,
+    at,
+    screen.kind === "data" && view === "overview",
+  );
   const now = Date.now();
 
   if (screen.kind === "locked") return <LockedScreen />;
@@ -149,6 +160,7 @@ export function TrafficLensView({ locationId }: { locationId: string }) {
       {view === "overview" && (
         <TrafficLensOverview
           query={summary}
+          findings={findings}
           range={range}
           rangeMs={bounds.ms}
           now={now}

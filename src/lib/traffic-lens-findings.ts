@@ -73,8 +73,7 @@ const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? 
 const num = (v: unknown): number | null => (isNum(v) ? v : null);
 const obj = (v: unknown): Record<string, unknown> =>
   v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
-const list = (v: unknown): Record<string, unknown>[] =>
-  Array.isArray(v) ? v.map(obj) : [];
+const list = (v: unknown): Record<string, unknown>[] => (Array.isArray(v) ? v.map(obj) : []);
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 
@@ -197,7 +196,9 @@ function quietCard(f: Finding, now: number): Pick<FindingCard, "text" | "next" |
   const quiet = quietHoursLabel(e.quiet_hours_utc, now);
   return {
     text: `${findingHourLabel(p.start, p.end, now)}: ${flowBytes(num(p.bytes))} was used. At this hour this venue normally uses at most ${flowBytes(num(p.usual_at_most_bytes))}.${
-      hours > 1 ? ` ${hours - 1} more quiet ${hours - 1 === 1 ? "hour was" : "hours were"} like it.` : ""
+      hours > 1
+        ? ` ${hours - 1} more quiet ${hours - 1 === 1 ? "hour was" : "hours were"} like it.`
+        : ""
     }`,
     next: `The quiet hours are worked out from ${daysWord(num(e.baseline_days))} of traffic, not from your opening hours. If the venue was open or an update was running, this is expected.`,
     rows: [
@@ -218,7 +219,7 @@ function deviceCard(f: Finding): Pick<FindingCard, "text" | "next" | "rows"> {
   const share = num(p.share_at_least);
   return {
     text: `One device used at least ${shareLabel(share)} of all traffic (at least ${flowBytes(num(p.bytes_at_least))}).`,
-    next: "If the WiFi feels slow, this device is the first place to look. Read the figures as \"at least\": the device may have used more, never less.",
+    next: 'If the WiFi feels slow, this device is the first place to look. Read the figures as "at least": the device may have used more, never less.',
     rows: [
       { label: "Device", value: `${str(d.ip) ?? "Not known"} · ${lensDeviceLabel(str(d.match))}` },
       { label: "Share of traffic", value: `at least ${shareLabel(share)}` },
@@ -325,8 +326,7 @@ export function findingCard(f: Finding, now: number): FindingCard {
     return { ...base, tone: null, text: findingReasonText(f), next: null, rows: [] };
   if (f.state !== "flagged")
     return { ...base, state: "clear", tone: null, text: "Not flagged.", next: null, rows: [] };
-  const tone: FindingSeverity =
-    f.severity === "act" || f.severity === "info" ? f.severity : "look";
+  const tone: FindingSeverity = f.severity === "act" || f.severity === "info" ? f.severity : "look";
   if (findingPairsDeviceWithDestination(f))
     return {
       ...base,

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { flowSummaryParams, trafficFlowService } from "@/services/traffic-flow.service";
+import { flowRange, flowSummaryParams, trafficFlowService } from "@/services/traffic-flow.service";
 import type { FlowScope } from "@/types/traffic-flow";
 
 export const trafficFlowKeys = {
@@ -7,6 +7,7 @@ export const trafficFlowKeys = {
   status: ["traffic-flow", "status"] as const,
   config: (id: string) => ["traffic-flow", "config", id] as const,
   summary: (scope: FlowScope, at: number) => ["traffic-flow", "summary", scope, at] as const,
+  findings: (scope: FlowScope, at: number) => ["traffic-flow", "findings", scope, at] as const,
 };
 
 export function useTrafficFlowStatus() {
@@ -54,6 +55,18 @@ export function useFlowSummary(scope: FlowScope, at: number) {
     queryKey: trafficFlowKeys.summary(scope, at),
     queryFn: () => trafficFlowService.summary(flowSummaryParams(scope, at)),
     enabled: !!(scope.locationId || scope.routerId),
+    retry: 1,
+  });
+}
+
+/** The venue's findings for the range on screen (same `at` as the summary).
+ * Disabled until a venue is known: findings are for a venue, never for a
+ * router on its own. */
+export function useFlowFindings(scope: FlowScope, at: number) {
+  return useQuery({
+    queryKey: trafficFlowKeys.findings(scope, at),
+    queryFn: () => trafficFlowService.findings(scope.locationId, flowRange(scope, at)),
+    enabled: !!scope.locationId,
     retry: 1,
   });
 }

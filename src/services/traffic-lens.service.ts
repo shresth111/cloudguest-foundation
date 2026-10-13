@@ -19,6 +19,7 @@ import {
   type LensRefusal,
 } from "@/lib/traffic-lens-customer";
 import type { LensStatus, LensSummary } from "@/types/traffic-lens";
+import type { FindingsResponse } from "@/types/traffic-lens-findings";
 
 const base = (locationId: string) => `/traffic-flow/locations/${encodeURIComponent(locationId)}`;
 
@@ -53,6 +54,18 @@ export const trafficLensService = {
 
   async summary(locationId: string, params: Record<string, string>): Promise<LensSummary> {
     const { data } = await api.get<LensSummary>(`${base(locationId)}/summary`, { params });
+    return data;
+  },
+
+  /** The venue's findings for the same period as the summary (API.md,
+   * "Findings API"). Computed by the server when asked; nothing is stored. */
+  async findings(
+    locationId: string,
+    period: { since: string; until: string },
+  ): Promise<FindingsResponse> {
+    const { data } = await api.get<FindingsResponse>(`${base(locationId)}/findings`, {
+      params: period,
+    });
     return data;
   },
 };

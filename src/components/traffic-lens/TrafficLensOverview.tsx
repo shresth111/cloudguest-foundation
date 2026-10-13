@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { ArrowRight, Check, Flag, Minus, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { useTrafficLensSummary } from "@/hooks/useTrafficLens";
+import type { useTrafficLensFindings, useTrafficLensSummary } from "@/hooks/useTrafficLens";
 import { lensRefusal } from "@/services/traffic-lens.service";
 import {
   NOT_MEASURED,
@@ -49,6 +49,7 @@ import {
   type TimelineMode,
 } from "@/components/traffic-lens/TrafficLensTimelineChart";
 import { TrafficLensServiceDestinations } from "@/components/traffic-lens/TrafficLensDestinations";
+import { TrafficLensFindings } from "@/components/traffic-lens/TrafficLensFindings";
 import {
   Empty,
   Footnotes,
@@ -87,6 +88,7 @@ const REST_FILL =
  */
 export function TrafficLensOverview({
   query,
+  findings,
   range,
   rangeMs,
   now,
@@ -96,6 +98,8 @@ export function TrafficLensOverview({
   onOpenRecords,
 }: {
   query: ReturnType<typeof useTrafficLensSummary>;
+  /** The server's checks for the same period. */
+  findings: ReturnType<typeof useTrafficLensFindings>;
   range: LensRange;
   rangeMs: number;
   now: number;
@@ -216,7 +220,17 @@ export function TrafficLensOverview({
       </section>
 
       {/* 2. Worth a look ------------------------------------------------ */}
-      <WorthALook checks={checks} />
+      {/* The server's five checks. If they cannot be loaded, the three
+          checks this page can work out from the summary are shown instead:
+          fewer, but never a failed request dressed as "nothing flagged". */}
+      <TrafficLensFindings
+        data={findings.data}
+        isLoading={findings.isLoading}
+        isError={findings.isError}
+        now={now}
+        surface="customer"
+        fallback={<WorthALook checks={checks} />}
+      />
 
       {/* 3. The picture ------------------------------------------------- */}
       <Panel
