@@ -87,7 +87,7 @@ export function TrafficLensView({
     status: status.data,
   });
   const summary = useTrafficLensSummary(locationId, range, at, screen.kind === "data");
-  // Asked only while the Overview is on screen: Records does not show them.
+  // Asked only while the Overview is on screen: no other view shows them.
   const findings = useTrafficLensFindings(
     locationId,
     range,

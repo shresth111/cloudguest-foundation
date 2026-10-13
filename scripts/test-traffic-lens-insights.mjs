@@ -362,20 +362,57 @@ check(
 
 const exact = m.lensHeaviestDevice(summary({ list_accuracy: null }));
 eq("an exact list drops 'at least'", exact.headline, "One device used 44% of all traffic.");
-const hog = m.lensHeaviestDevice(
-  summary({ devices: { items: [device("d-a", 620, 0.62, "none")], other_bytes_at_most: 0 } }),
+// A period the rule can judge: at least 1 GiB, at least 5 devices at once.
+const BIG = { ...summary().totals, bytes_down: 2 * 1024 ** 3, bytes_up: 0, devices_peak: 14 };
+const hogDevices = (share, match = "none") => ({
+  items: [device("d-a", Math.round(2 * 1024 ** 3 * share), share, match)],
+  other_bytes_at_most: 0,
+});
+const hog = m.lensHeaviestDevice(summary({ totals: BIG, devices: hogDevices(0.62) }));
+check(
+  "60% or more is flagged and said in words",
+  hog.flagged === true &&
+    /most of everything/.test(hog.detail) &&
+    /Not a guest login/.test(hog.detail),
 );
 check(
-  "half or more is flagged and said in words",
-  hog.flagged === true && /half or more/.test(hog.detail) && /Not a guest login/.test(hog.detail),
+  "exactly 60% is flagged",
+  m.lensHeaviestDevice(summary({ totals: BIG, devices: hogDevices(0.6) })).flagged,
 );
 check(
-  "exactly half is flagged",
+  "55% is not: the old 50% line is gone",
+  m.lensHeaviestDevice(summary({ totals: BIG, devices: hogDevices(0.55) })).flagged === false,
+);
+eq(
+  "the three numbers are the server's",
+  [m.LENS_HEAVY_DEVICE_SHARE, m.LENS_HEAVY_MIN_PERIOD_BYTES, m.LENS_HEAVY_MIN_DEVICES],
+  [0.6, 1073741824, 5],
+);
+check(
+  "under 1 GiB in the period: 62% is not flagged",
   m.lensHeaviestDevice(
-    summary({ devices: { items: [device("d-a", 500, 0.5)], other_bytes_at_most: 0 } }),
-  ).flagged,
+    summary({ totals: { ...BIG, bytes_down: 1024 ** 3 - 1 }, devices: hogDevices(0.62) }),
+  ).flagged === false,
 );
-eq("the threshold is one constant", m.LENS_HEAVY_DEVICE_SHARE, 0.5);
+check(
+  "fewer than 5 devices online: 62% is not flagged",
+  m.lensHeaviestDevice(summary({ totals: { ...BIG, devices_peak: 4 }, devices: hogDevices(0.62) }))
+    .flagged === false,
+);
+check(
+  "the server's finding decides when it is to hand: flagged at 44%",
+  m.lensHeaviestDevice(summary(), "flagged").flagged === true,
+);
+check(
+  "and clear at 62%",
+  m.lensHeaviestDevice(summary({ totals: BIG, devices: hogDevices(0.62) }), "clear").flagged ===
+    false,
+);
+check(
+  "a server 'could not check' is not a flag",
+  m.lensHeaviestDevice(summary({ totals: BIG, devices: hogDevices(0.62) }), "could_not_check")
+    .flagged === false,
+);
 
 const devTie = m.lensHeaviestDevice(
   summary({
@@ -449,7 +486,7 @@ check(
 
 // ---------------------------------------------------------------------------
 console.log("\n5. worth a look: three checks");
-const checks = m.lensChecks(summary());
+const checks = m.lensChecks(summary({ totals: BIG }));
 eq(
   "always the same three, in order",
   checks.map((c) => c.id),
@@ -469,7 +506,7 @@ const line = m.lensChecksSummary(checks);
 check(
   "nothing flagged lists what was looked for and never says all is well",
   /^Nothing flagged\. Looked for: /.test(line) &&
-    /half or more/.test(line) &&
+    /60% or more/.test(line) &&
     !/all good|fine|healthy|normal|safe/i.test(line),
   line,
 );
@@ -493,7 +530,7 @@ eq(
 
 const flagged = m.lensChecks(
   summary({
-    totals: { ...summary().totals, bytes_up: 700_000_000, bytes_down: 300_000_000 },
+    totals: { ...BIG, bytes_up: 1_400_000_000, bytes_down: 600_000_000 },
     devices: { items: [device("d-a", 620, 0.62)], other_bytes_at_most: 0 },
   }),
 );
@@ -504,7 +541,7 @@ eq(
 );
 check(
   "the upload flag gives both figures with units and a neutral next step",
-  /Upload \(700 MB\) was higher than download \(300 MB\)/.test(flagged[1].text) &&
+  /Upload \(1\.4 GB\) was higher than download \(600 MB\)/.test(flagged[1].text) &&
     /may be/.test(flagged[1].text),
   flagged[1].text,
 );
@@ -526,7 +563,23 @@ check(
   unnamed.text,
 );
 eq("that threshold is one constant", m.LENS_UNNAMED_PORT_SHARE, 0.25);
-const partialChecks = m.lensChecks(summary({ services_measured: false }));
+const partialChecks = m.lensChecks(summary({ services_measured: false, totals: BIG }));
+{
+  const small = m.lensChecks(summary())[0];
+  check(
+    "a period too small to judge is 'could not be checked', never clear",
+    small.state === "unchecked" && /at least 1 GB and at least 5 devices/.test(small.text),
+    small.text,
+  );
+  eq(
+    "the server's finding is passed through to the check",
+    [
+      m.lensChecks(summary(), "flagged")[0].state,
+      m.lensChecks(summary({ totals: BIG }), "could_not_check")[0].state,
+    ],
+    ["flagged", "unchecked"],
+  );
+}
 eq(
   "no service detail: that check alone is unchecked",
   partialChecks.map((c) => c.state),
@@ -857,9 +910,9 @@ check(
   [
     "lensTopService(s, phrase)",
     "lensPeak(s, now)",
-    "lensHeaviestDevice(s)",
+    "lensHeaviestDevice(s, serverDevice)",
     "lensVolume(s, phrase)",
-    "lensChecks(s)",
+    "lensChecks(s, serverDevice)",
     "lensComposition(s, LENS_SERIES_COLORS)",
   ].every((call) => overview.includes(call)),
 );

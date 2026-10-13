@@ -736,9 +736,16 @@ console.log("\n7. Wiring");
   );
   check("the customer page shows the block", overview.includes("<TrafficLensFindings"));
   check(
-    "a failed load falls back to the page's own checks, not to nothing flagged",
-    /fallback=\{<WorthALook checks=\{checks\} \/>\}/.test(overview),
+    "a failed load falls back to the page's own checks, through the same block",
+    overview.includes("fallbackChecks={checks}") && !overview.includes("function WorthALook"),
   );
+  check(
+    "the server's verdict on the heavy device decides the answer tile too",
+    overview.includes('serverFindingState(findings.data, "dominant_device")') &&
+      overview.includes("lensHeaviestDevice(s, serverDevice)") &&
+      overview.includes("lensChecks(s, serverDevice)"),
+  );
+  check("one renderer for both sources", component.includes("browserChecksView(fallbackChecks)"));
   check("the Master venue view shows the block", master.includes("<TrafficLensFindings"));
   check(
     "Master asks only once a venue is known",
@@ -768,6 +775,74 @@ console.log("\n7. Wiring");
       `"${word}" is in no customer-facing word`,
       !lib.toLowerCase().includes(word) && !component.toLowerCase().includes(word),
     );
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n8. The page's own checks go through the same block");
+// ---------------------------------------------------------------------------
+{
+  const chk = (id, state, name) => ({ id, state, name, text: `${name}: the measurement.` });
+  const three = [
+    chk("heavy_device", "flagged", "One device using most of the traffic"),
+    chk("upload_heavy", "clear", "More upload than download"),
+    chk("unnamed_ports", "unchecked", "A quarter or more on ports with no standard name"),
+  ];
+  const view = m.browserChecksView(three);
+  eq("fallback: heading", view.heading, "1 of 3 checks flagged for this period");
+  eq(
+    "fallback: a flag is look, never act",
+    view.flagged.map((c) => c.tone),
+    ["look"],
+  );
+  eq(
+    "fallback: unchecked is could not be checked",
+    view.unchecked.map((c) => c.state),
+    ["could_not_check"],
+  );
+  has("fallback: clear ones are one line", view.clearLine, "more upload than download");
+  check(
+    "fallback: the unchecked one is not in the clear line",
+    !view.clearLine.includes("quarter"),
+  );
+  has("fallback: says it is the shorter set", view.basis, "could not be loaded");
+  eq("fallback: no list was used, so no credit", view.credit, null);
+  const quietView = m.browserChecksView(
+    three.map((c) => ({ ...c, state: c.state === "flagged" ? "clear" : c.state })),
+  );
+  check(
+    "fallback, nothing flagged: the line names what could not be checked",
+    /Could not check: a quarter or more/.test(quietView.clearLine),
+    quietView.clearLine,
+  );
+  eq("fallback, nothing flagged: not listed twice", quietView.unchecked, []);
+  const noneRun = m.browserChecksView(three.map((c) => ({ ...c, state: "unchecked" })));
+  eq(
+    "fallback, nothing run: says so",
+    noneRun.clearLine,
+    "Nothing could be checked for this period.",
+  );
+
+  const data = response([device(), cannot("upload_heavy", "nothing", "not_measured")]);
+  eq("server verdict: flagged", m.serverFindingState(data, "dominant_device"), "flagged");
+  eq(
+    "server verdict: could not check",
+    m.serverFindingState(data, "upload_heavy"),
+    "could_not_check",
+  );
+  eq(
+    "server verdict: a rule that is not there",
+    m.serverFindingState(data, "unusual_service"),
+    null,
+  );
+  eq("server verdict: not loaded yet", m.serverFindingState(undefined, "dominant_device"), null);
+  eq(
+    "server verdict: a state it does not know",
+    m.serverFindingState(
+      response([base("dominant_device", "device", { state: "odd" })]),
+      "dominant_device",
+    ),
+    null,
+  );
 }
 
 console.log(

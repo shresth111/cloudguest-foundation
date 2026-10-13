@@ -1546,11 +1546,11 @@ jobs:
       # table as placeholders. This suite pins that a placeholder is a dash
       # whatever the row object holds, is never sortable, and that the quick
       # filter box narrows loaded rows without a request.
-      # Floor 160, observed green at 160 (was 123).
+      # Floor 168, observed green at 168 (was 123).
       - name: traffic lens answers are computed and honest
         run: |
           ./scripts/ci-gated-test.sh \
-            "traffic lens insights" 160 \
+            "traffic lens insights" 168 \
             "all traffic lens insight checks passed" \
             bun run test:traffic-lens-insights
 
@@ -1565,11 +1565,11 @@ jobs:
       # the alarm colour; flagged first, clear checks in one line; the
       # list's name, date and credit are shown whenever the list was used.
       # A failed request falls back to the page's own three checks, never
-      # to "nothing flagged". Floor 179, observed green at 179.
+      # to "nothing flagged". Floor 196, observed green at 196.
       - name: traffic lens findings name one thing and never fake a clear
         run: |
           ./scripts/ci-gated-test.sh \
-            "traffic lens findings" 179 \
+            "traffic lens findings" 196 \
             "all traffic lens findings checks passed" \
             bun run test:traffic-lens-findings
 

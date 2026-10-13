@@ -1,6 +1,12 @@
 import { useState, type ReactNode } from "react";
 import { Check, ChevronDown, Flag, Info, Minus, ShieldAlert } from "lucide-react";
-import { findingsView, type FindingCard, type FindingsView } from "@/lib/traffic-lens-findings";
+import {
+  browserChecksView,
+  findingsView,
+  type FindingCard,
+  type FindingsView,
+} from "@/lib/traffic-lens-findings";
+import type { LensCheck } from "@/lib/traffic-lens-insights";
 import type { FindingsResponse } from "@/types/traffic-lens-findings";
 
 /**
@@ -43,21 +49,23 @@ export function TrafficLensFindings({
   isError,
   now,
   surface,
-  fallback,
+  fallbackChecks,
 }: {
   data: FindingsResponse | undefined;
   isLoading: boolean;
   isError: boolean;
   now: number;
   surface: keyof typeof SURFACE;
-  /** Shown when the findings could not be loaded. Without one the block
-   * says so; it never shows a failed request as "nothing flagged". */
-  fallback?: ReactNode;
+  /** The page's own checks, shown through this same block when the server's
+   * findings could not be loaded. Without them the block says so; it never
+   * shows a failed request as "nothing flagged". */
+  fallbackChecks?: LensCheck[];
 }) {
   if (isLoading)
     return <div className="h-40 animate-pulse rounded-2xl bg-muted" aria-label="Loading checks" />;
   if (isError || !data) {
-    if (fallback) return <>{fallback}</>;
+    if (fallbackChecks)
+      return <FindingsBody view={browserChecksView(fallbackChecks)} surface={surface} />;
     return (
       <Shell surface={surface} sub="The checks could not be loaded">
         <p className="mt-2 text-sm text-muted-foreground">

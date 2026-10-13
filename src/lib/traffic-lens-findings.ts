@@ -18,6 +18,7 @@
  */
 import { clockLabel, flowBytes, isNum, serviceLabel, shareLabel } from "@/lib/traffic-lens-shared";
 import { lensDeviceLabel } from "@/lib/traffic-lens-customer";
+import { lensChecksSummary, type LensCheck } from "@/lib/traffic-lens-insights";
 import type {
   Finding,
   FindingSeverity,
@@ -394,5 +395,53 @@ export function findingsView(data: FindingsResponse, now: number): FindingsView 
       withheld !== null && withheld > 0 && isNum(data.min_devices)
         ? `The address check left out ${plural(withheld, "five-minute period", "five-minute periods")} with fewer than ${data.min_devices} devices connected.`
         : null,
+  };
+}
+
+/** The server's verdict on one rule, for the places on the page that state
+ * the same fact in their own words (the "Heaviest device" answer). null
+ * while the findings are not to hand. */
+export function serverFindingState(
+  data: FindingsResponse | null | undefined,
+  id: string,
+): FindingState | null {
+  const state = (data?.findings ?? []).find((f) => f.id === id)?.state;
+  return state === "flagged" || state === "clear" || state === "could_not_check" ? state : null;
+}
+
+/** The page's own checks (worked out from the summary), as the same view the
+ * server's findings use: one block, one renderer. Used only when the
+ * server's findings could not be loaded, and the block says so. */
+export function browserChecksView(checks: LensCheck[]): FindingsView {
+  const card = (c: LensCheck): FindingCard => ({
+    id: c.id,
+    state: c.state === "unchecked" ? "could_not_check" : c.state,
+    tone: c.state === "flagged" ? "look" : null,
+    name: c.name,
+    text: c.text,
+    next: null,
+    rows: [],
+  });
+  const flagged = checks.filter((c) => c.state === "flagged").map(card);
+  const line = lensChecksSummary(checks);
+  const clear = checks.filter((c) => c.state === "clear");
+  return {
+    heading:
+      flagged.length > 0
+        ? `${flagged.length} of ${plural(checks.length, "check", "checks")} flagged for this period`
+        : `${plural(checks.length, "check", "checks")}, run on this period's figures`,
+    flagged,
+    // With a flag on screen the unchecked ones are listed; with none, the
+    // one line already names them ("Could not check: ...").
+    unchecked: flagged.length > 0 ? checks.filter((c) => c.state === "unchecked").map(card) : [],
+    clearLine:
+      line ??
+      (clear.length > 0
+        ? `Also looked for, and not flagged: ${clear.map((c) => lower(c.name)).join("; ")}.`
+        : null),
+    credit: null,
+    basis:
+      "The fuller set of checks could not be loaded, so these are the ones this page can work out from the period's own figures.",
+    withheldNote: null,
   };
 }
