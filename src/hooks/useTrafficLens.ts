@@ -6,7 +6,7 @@ import {
   lensSummaryParams,
   trafficLensService,
 } from "@/services/traffic-lens.service";
-import type { LensRange } from "@/lib/traffic-lens-customer";
+import { lensRangeBounds, type LensRange } from "@/lib/traffic-lens-customer";
 
 /** The organisation is in the key as well as the venue, so a session that
  * switches organisation can never be served the previous tenant's rows. */
@@ -18,6 +18,8 @@ export const trafficLensKeys = {
     ["traffic-lens", org, locationId, "summary", range, at] as const,
   geo: (org: string | null, locationId: string, range: LensRange, at: number) =>
     ["traffic-lens", org, locationId, "geo", range, at] as const,
+  findings: (org: string | null, locationId: string, range: LensRange, at: number) =>
+    ["traffic-lens", org, locationId, "findings", range, at] as const,
 };
 
 /** A refusal (add-on off, not this caller's venue) is an answer, not a
@@ -63,6 +65,26 @@ export function useTrafficLensGeo(
   return useQuery({
     queryKey: trafficLensKeys.geo(resolveActiveOrganizationId(), locationId, range, at),
     queryFn: () => trafficLensService.geo(locationId, lensGeoParams(range, at)),
+    enabled: enabled && !!locationId,
+    retry: retryUnlessRefused,
+  });
+}
+
+/** The same `range` and `at` as the summary, so the checks and the figures
+ * above them describe one period. A refusal or a failure is not retried
+ * more than once: the block then falls back, it never reads as "clear". */
+export function useTrafficLensFindings(
+  locationId: string,
+  range: LensRange,
+  at: number,
+  enabled: boolean,
+) {
+  return useQuery({
+    queryKey: trafficLensKeys.findings(resolveActiveOrganizationId(), locationId, range, at),
+    queryFn: () => {
+      const { since, until } = lensRangeBounds(range, at);
+      return trafficLensService.findings(locationId, { since, until });
+    },
     enabled: enabled && !!locationId,
     retry: retryUnlessRefused,
   });

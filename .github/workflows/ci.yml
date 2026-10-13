@@ -1601,6 +1601,24 @@ jobs:
             "traffic lens flow records" 92 \
             "all traffic lens flow record checks passed" \
             bun run test:traffic-lens-flow-records
+      # --- Traffic Lens findings: "Worth a look" from the server ----------
+      #
+      # The block is fed by the server's five venue-level findings. What
+      # must hold on the screen: a card names a device OR a destination,
+      # never both (and a response that carried both is shown without its
+      # detail); "could not be checked" has its own words per reason and is
+      # never folded into the "nothing flagged" line; a flag is not an
+      # accusation (a service is "unusual for this venue"); only `act` uses
+      # the alarm colour; flagged first, clear checks in one line; the
+      # list's name, date and credit are shown whenever the list was used.
+      # A failed request falls back to the page's own three checks, never
+      # to "nothing flagged". Floor 196, observed green at 196.
+      - name: traffic lens findings name one thing and never fake a clear
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "traffic lens findings" 196 \
+            "all traffic lens findings checks passed" \
+            bun run test:traffic-lens-findings
 
       # --- A venue's floors are the venue's, not a constant ---------------
       #

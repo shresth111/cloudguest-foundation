@@ -14,7 +14,8 @@ import { CHART_BODY_H } from "@/components/master/chart-layout";
 import { TrafficFlowGeoBlock } from "@/components/master/TrafficFlowGeoBlock";
 import { TrafficFlowRangeControl } from "@/components/master/TrafficFlowRangeControl";
 import { TrafficFlowServiceDestinations } from "@/components/master/TrafficFlowServiceDestinations";
-import { useFlowGeo, useFlowSummary } from "@/hooks/useTrafficFlow";
+import { TrafficLensFindings } from "@/components/traffic-lens/TrafficLensFindings";
+import { useFlowFindings, useFlowGeo, useFlowSummary } from "@/hooks/useTrafficFlow";
 import { requestErrorOf } from "@/services/api";
 import { flowRange, flowRangeMs } from "@/services/traffic-flow.service";
 import { serviceFromKey } from "@/lib/traffic-flow-destinations";
@@ -92,6 +93,7 @@ export function TrafficFlowVenueView({
   /** The service row whose destinations are open, as its "<protocol>/<port>" key. */
   const [opened, setOpened] = useState<{ key: string; label: string } | null>(null);
   const q = useFlowSummary(scope, at);
+  const findings = useFlowFindings(scope, at);
   const s = q.data;
   // By country: its own request for the same pinned range, and only once
   // the summary says the range was measured at all.
@@ -274,6 +276,23 @@ export function TrafficFlowVenueView({
                 {totals.unclassified ? ` · unclassified ${totals.unclassified}` : ""}. Internal
                 traffic is excluded from destinations.
               </p>
+
+              {scope.locationId && (
+                <div className="space-y-1">
+                  <TrafficLensFindings
+                    data={findings.data}
+                    isLoading={findings.isLoading}
+                    isError={findings.isError}
+                    now={now}
+                    surface="master"
+                  />
+                  {scope.routerId && (
+                    <p className="text-[11px] text-muted-foreground">
+                      These checks are for the whole venue, not only the router picked above.
+                    </p>
+                  )}
+                </div>
+              )}
 
               <Block
                 title="Services"
