@@ -977,7 +977,7 @@ check(
   "the column chooser never fetches: it only changes what is shown",
   /onCheckedChange=\{\(\) => setVisible\(\(v\) => toggleRecordColumn\(v, c\.id\)\)\}/.test(
     records,
-  ) && (strip2(records).match(/setParams\(/g) ?? []).length === 2,
+  ) && !/setVisible[\s\S]{0,60}setApplied/.test(strip2(records)),
 );
 eq(
   "country and network are listed as not on a record, with where to find them",
@@ -1050,8 +1050,8 @@ check(
     const form = records.slice(records.indexOf("<form"), records.indexOf("</form>"));
     return (
       /retrievedLine\(r\)/.test(form) &&
-      /chips\.map/.test(form) &&
-      /dropFilter\(chip\.field\)/.test(form) &&
+      /<FilterChips chips=\{chips\} onRemove=\{dropFilter\}/.test(form) &&
+      /<FiltersButton/.test(form) &&
       /placeholder="Filter…"/.test(form)
     );
   })(),

@@ -53,8 +53,30 @@ export function lensRecordsMode(entitled: boolean | null, refused = false): Lens
 /** The one line under the venue-level table when the add-on is not held. */
 export const LENS_RECORDS_LOCKED_LINE = `Source address, source port and address translation for each connection are part of a separate add-on, "${LENS_RECORDS_ADDON_NAME}", which is not enabled for your organisation. Without it this table is for the venue as a whole.`;
 
+/** The one sentence above the venue-level table, and the rest behind
+ * "About these records". */
+export const LENS_VENUE_RECORDS_INTRO =
+  "Every outside address and service this venue exchanged traffic with, five minutes at a time.";
+export const LENS_VENUE_RECORDS_ABOUT: string[] = [
+  "A record is for the venue as a whole: no record says which device or guest, and none is kept that could.",
+  "Periods in which fewer than five devices were connected are left out and counted, because with so few online the venue's records would in effect be one person's.",
+  "Records load when this view opens and when the period changes. Use Filters to narrow what is asked for, or the Filter box to narrow what is already loaded.",
+];
+
+/** The one sentence above the table. */
 export const LENS_CONNECTIONS_INTRO =
-  "One row is one connection record, in one direction: which device address reached which outside address, on which ports, and how much. A long connection appears again each minute, and its two directions are separate rows. Addresses and ports only: nothing here looks inside traffic or names a site.";
+  "Which device address reached which outside address, on which ports, and how much.";
+
+/** The rest, behind "About these records". */
+export const LENS_CONNECTIONS_ABOUT: string[] = [
+  "One row is one connection record, in one direction. A long connection appears again each minute, and its two directions are separate rows.",
+  "Addresses and ports only: nothing here looks inside traffic or names a site.",
+  "Records load when this view opens and when the period changes. Use Filters to narrow what is asked for, or the Filter box to narrow what is already loaded.",
+];
+
+/** The filters a venue owner would use: an address, a port, a protocol. The
+ * records route has no direction filter, so none is offered here. */
+export const LENS_FLOW_FILTER_FIELDS = ["address", "port", "protocol"] as const;
 
 export type LensFlowColumnId = Exclude<FlowBaseColumnId, "router">;
 

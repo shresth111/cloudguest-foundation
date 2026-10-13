@@ -196,16 +196,12 @@ export function TrafficLensView({
       {/* One Records view, two tables: which one is decided from what the
           backend reports about the second add-on, never worked out here. */}
       {view === "destinations" && recordsMode === "connections" && (
-        <TrafficLensFlowRecords
-          locationId={locationId}
-          rangeAt={(moment) => lensRangeBounds(range, moment)}
-          timeZone={timeZone}
-        />
+        <TrafficLensFlowRecords locationId={locationId} bounds={bounds} timeZone={timeZone} />
       )}
       {view === "destinations" && recordsMode !== "connections" && (
         <TrafficLensDestinations
           locationId={locationId}
-          rangeAt={(moment) => lensRangeBounds(range, moment)}
+          bounds={bounds}
           timeZone={timeZone}
           locked={recordsMode === "venue_locked"}
         />

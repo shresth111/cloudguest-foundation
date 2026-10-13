@@ -1105,9 +1105,38 @@ eq(
 );
 check("nothing is searched from an effect on the customer screen", !/useEffect/.test(lensTabCode));
 check(
-  "a customer search starts only from the form's submit or a sort click",
-  (lensTabCode.match(/setParams\(/g) ?? []).length === 2 && /onSubmit=\{submit\}/.test(lensTabCode),
-  String((lensTabCode.match(/setParams\(/g) ?? []).length),
+  "the records load by themselves: the request is derived, never kept in state",
+  /const params = built\.ok \? built\.params : null;/.test(lensTabCode) &&
+    /destinationSearchParams\(scope, bounds, applied, sort\)/.test(lensTabCode) &&
+    !/setParams|useState<Record<string, string> \| null>/.test(lensTabCode) &&
+    /useLensDestinationSearch\(locationId, params\)/.test(lensTabCode),
+);
+check(
+  "one load per open, period, applied filter or sort: no effect, timer, interval or focus refetch",
+  !/useEffect|setInterval|setTimeout|refetchInterval|refetch\(|visibilitychange|addEventListener/.test(
+    lensTabCode,
+  ),
+);
+check(
+  "typing in a filter field asks for nothing until Search or Enter applies it",
+  /const \[applied, setApplied\]/.test(lensTabCode) &&
+    /onSubmit=\{submit\}/.test(lensTabCode) &&
+    (lensTabCode.match(/setApplied\(/g) ?? []).length === 2 &&
+    /setApplied\(form\)/.test(lensTabCode),
+  String((lensTabCode.match(/setApplied\(/g) ?? []).length),
+);
+check(
+  "the per-field filters are behind Filters, closed by default; the Filter box is always there",
+  /const \[filtersOpen, setFiltersOpen\] = useState\(false\)/.test(lensTabCode) &&
+    /\{filtersOpen && \(/.test(lensTabCode) &&
+    /<FiltersButton/.test(lensTabCode) &&
+    /active=\{chips\.length\}/.test(lensTabCode) &&
+    /<FilterChips chips=\{chips\} onRemove=\{dropFilter\}/.test(lensTabCode) &&
+    lensTabCode.indexOf('placeholder="Filter…"') < lensTabCode.indexOf("{filtersOpen && ("),
+);
+check(
+  "the long explanation is behind About these records, and 'Not searched yet' is gone",
+  /<AboutRecords>/.test(lensTabCode) && !/Not searched yet/.test(lensTabCode),
 );
 check(
   "the customer form has four filters and none is a device",
@@ -1142,7 +1171,10 @@ check(
 );
 check(
   "the customer screens say in words that no device or guest is shown",
-  /no\s+record\s+says\s+which\s+device\s+or\s+guest/.test(lensTab) &&
+  /no\s+record\s+says\s+which\s+device\s+or\s+guest/.test(
+    read("src/lib/traffic-lens-flow-records.ts"),
+  ) &&
+    /LENS_VENUE_RECORDS_ABOUT\.map/.test(lensTab) &&
     /does\s+not\s+say\s+which\s+device\s+or\s+guest/.test(lensTab),
 );
 check(
@@ -1186,9 +1218,11 @@ check(
 );
 check(
   "the Destinations view reads the page's one range control",
-  /view === "destinations" && recordsMode !== "connections" && \(\s*<TrafficLensDestinations\s+locationId=\{locationId\}\s+rangeAt=\{\(moment\) => lensRangeBounds\(range, moment\)\}/.test(
+  /view === "destinations" && recordsMode !== "connections" && \(\s*<TrafficLensDestinations\s+locationId=\{locationId\}\s+bounds=\{bounds\}/.test(
     lensPage,
-  ) && (lensPage.match(/<LensRangeControl/g) ?? []).length === 1,
+  ) &&
+    /const bounds = lensRangeBounds\(range, at\);/.test(lensPage) &&
+    (lensPage.match(/<LensRangeControl/g) ?? []).length === 1,
 );
 check(
   "the range control offers Custom and refuses through customRangeFromInputs",

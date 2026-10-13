@@ -888,11 +888,50 @@ check(
 );
 check("nothing is searched from an effect", !/useEffect/.test(tabCode));
 check(
-  "a search starts only from Search, a chip's removal (both through one function) or a sort click",
-  (tabCode.match(/setParams\(/g) ?? []).length === 3 &&
+  "the records load by themselves: the request is derived, never kept in state",
+  /const params = built\.ok \? built\.params : null;/.test(tabCode) &&
+    /flowRecordParams\(scope, bounds, applied, sort\)/.test(tabCode) &&
+    !/setParams|useState<Record<string, string> \| null>/.test(tabCode) &&
+    /useFlowRecordSearch\(params\)/.test(tabCode),
+);
+check(
+  "one load per open, period, applied filter or sort: no effect, timer, interval or focus refetch",
+  !/useEffect|setInterval|setTimeout|refetchInterval|refetch\(|visibilitychange|addEventListener/.test(
+    tabCode,
+  ),
+);
+check(
+  "typing in a filter field asks for nothing until Search or Enter applies it",
+  /const \[applied, setApplied\]/.test(tabCode) &&
     /onSubmit=\{submit\}/.test(tabCode) &&
-    /const pickScope[\s\S]{0,120}setParams\(null\)/.test(tabCode),
-  String((tabCode.match(/setParams\(/g) ?? []).length),
+    (tabCode.match(/setApplied\(/g) ?? []).length === 2 &&
+    /setApplied\(form\)/.test(tabCode),
+  String((tabCode.match(/setApplied\(/g) ?? []).length),
+);
+check(
+  "the per-field filters are behind Filters, closed by default; the Filter box is always there",
+  /const \[filtersOpen, setFiltersOpen\] = useState\(false\)/.test(tabCode) &&
+    /\{filtersOpen && \(/.test(tabCode) &&
+    /<FiltersButton/.test(tabCode) &&
+    /active=\{chips\.length\}/.test(tabCode) &&
+    /<FilterChips chips=\{chips\} onRemove=\{dropFilter\}/.test(tabCode) &&
+    tabCode.indexOf('placeholder="Filter…"') < tabCode.indexOf("{filtersOpen && ("),
+);
+check(
+  "the long explanation is behind About these records, and 'Not searched yet' is gone",
+  /<AboutRecords>/.test(tabCode) && !/Not searched yet/.test(tabCode),
+);
+check(
+  "no venue and no router: no request, and the screen says to pick one",
+  /\{!scoped \? \(\s*<Notice title="Pick a venue\."/.test(tab) &&
+    !m.flowRecordParams({ locationId: "", routerId: "" }, RANGE, FORM, SORT).ok,
+);
+check(
+  "the page pins the moment the range ends at: it moves on Refresh and on a new venue or range only",
+  /bounds=\{flowRange\(scope, flowsAt\)\}/.test(page) &&
+    (page.match(/setFlowsAt\(/g) ?? []).length === 2 &&
+    !/useEffect|setInterval|refetchInterval/.test(code(page)),
+  String((page.match(/setFlowsAt\(/g) ?? []).length),
 );
 check(
   "the filter box only narrows what is loaded, and Enter in it asks for nothing",
@@ -925,7 +964,7 @@ check(
 check("the screen says searches are audited", /FLOW_RECORDS_AUDIT_NOTE\}/.test(tab));
 check(
   "the range is the page's own control, minute precision included",
-  /<TrafficFlowRangeControl/.test(tab) && /rangeAt=\{\(at\) => flowRange\(scope, at\)\}/.test(page),
+  /<TrafficFlowRangeControl/.test(tab) && /bounds=\{flowRange\(scope, flowsAt\)\}/.test(page),
 );
 check(
   "the page has the Flows tab, after Destinations",

@@ -1512,7 +1512,7 @@ jobs:
       - name: traffic flow destinations are venue-level and audited
         run: |
           ./scripts/ci-gated-test.sh \
-            "traffic flow destinations" 215 \
+            "traffic flow destinations" 219 \
             "all traffic flow destination checks passed" \
             bun run test:traffic-flow-destinations
 
@@ -1574,7 +1574,7 @@ jobs:
       - name: traffic flow records are Master-only and honest
         run: |
           ./scripts/ci-gated-test.sh \
-            "traffic flow records" 131 \
+            "traffic flow records" 137 \
             "all traffic flow record checks passed" \
             bun run test:traffic-flow-records
 
@@ -1595,10 +1595,18 @@ jobs:
       # retention come from the API; nothing is fetched unasked; and no
       # customer file carries platform equipment or imports a Master
       # flow-record file. Floor 92, observed green at 92.
+      #
+      # Since the records load by themselves (owner request, 2026-10-13):
+      # the three records suites (destinations 219, flow records 137, lens
+      # flow records 99) pin that the request is DERIVED from the pinned
+      # period, the applied filters and the sort, so there is one load per
+      # open and per change and nothing else: no effect, timer, interval or
+      # focus refetch. Each such load is audited on the server like a search
+      # made by hand, which is why "never more than asked for" is a test.
       - name: traffic lens connection records follow the entitlement
         run: |
           ./scripts/ci-gated-test.sh \
-            "traffic lens flow records" 92 \
+            "traffic lens flow records" 99 \
             "all traffic lens flow record checks passed" \
             bun run test:traffic-lens-flow-records
       # --- Traffic Lens findings: "Worth a look" from the server ----------

@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { AboutRecords, FilterChips, FiltersButton } from "@/components/traffic-lens/RecordsChrome";
 import { RecordsTable } from "@/components/traffic-lens/RecordsTable";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -62,7 +63,11 @@ import {
   type LensRecordColumnId,
   type RecordFilterChip,
 } from "@/lib/traffic-lens-insights";
-import { LENS_RECORDS_LOCKED_LINE } from "@/lib/traffic-lens-flow-records";
+import {
+  LENS_RECORDS_LOCKED_LINE,
+  LENS_VENUE_RECORDS_ABOUT,
+  LENS_VENUE_RECORDS_INTRO,
+} from "@/lib/traffic-lens-flow-records";
 import type {
   DestinationFilterForm,
   DestinationRecord,
@@ -101,26 +106,35 @@ const SELECT_CLASS =
  */
 export function TrafficLensDestinations({
   locationId,
-  rangeAt,
+  bounds,
   timeZone,
   locked = false,
 }: {
   locationId: string;
-  /** The period the page's one range control means at a given moment. */
-  rangeAt: (now: number) => { since: string; until: string };
+  /** The period on screen, pinned by the page: it changes only when the
+   * period is changed or Refresh is pressed, and each change is one load. */
+  bounds: { since: string; until: string };
   /** The venue's time zone, for Start and End. The browser's when absent. */
   timeZone?: string | null;
   /** The backend says the organisation does not hold the second add-on:
    * say, in one line, that the per-connection columns are part of it. */
   locked?: boolean;
 }) {
+  /** What is typed in the Filters panel, and what was last applied. */
   const [form, setForm] = useState<DestinationFilterForm>(EMPTY_DESTINATION_FILTERS);
+  const [applied, setApplied] = useState<DestinationFilterForm>(EMPTY_DESTINATION_FILTERS);
   const [sort, setSort] = useState<DestinationSort>(DEFAULT_DESTINATION_SORT);
-  const [params, setParams] = useState<Record<string, string> | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [visible, setVisible] = useState<LensRecordColumnId[]>(LENS_RECORD_DEFAULT_COLUMNS);
   /** The quick box: narrows the loaded rows in the browser. Never a request. */
   const [quick, setQuick] = useState("");
+  // The request is DERIVED from the period, the applied filters and the
+  // sort. Opening the view is therefore a search, and so is each change of
+  // one of the three; nothing else is (no timer, no focus, no remount).
+  const scope = { locationId, routerId: "" };
+  const built = destinationSearchParams(scope, bounds, applied, sort);
+  const params = built.ok ? built.params : null;
   const q = useLensDestinationSearch(locationId, params);
   const download = useLensDestinationExport(locationId);
   const now = Date.now();
@@ -132,37 +146,31 @@ export function TrafficLensDestinations({
     setForm((f) => ({ ...f, ...patch }));
   };
 
-  const build = (filters: DestinationFilterForm = form) =>
-    destinationSearchParams({ locationId, routerId: "" }, rangeAt(Date.now()), filters, sort);
-
-  const search = (filters: DestinationFilterForm) => {
-    const built = build(filters);
-    if (!built.ok) {
-      setFormError(built.message);
+  /** Search, or Enter in a field: apply what is typed. Refused before any
+   * request when it could not succeed. */
+  const submit = (e?: FormEvent) => {
+    e?.preventDefault();
+    const check = destinationSearchParams(scope, bounds, form, sort);
+    if (!check.ok) {
+      setFormError(check.message);
+      setFiltersOpen(true);
       return;
     }
     setFormError(null);
-    setParams(built.params);
+    setApplied(form);
   };
 
-  const submit = (e?: FormEvent) => {
-    e?.preventDefault();
-    search(form);
-  };
-
-  /** Removing a chip is asking for the search again without that filter. */
+  /** Removing a chip is asking for the records again without that filter. */
   const dropFilter = (name: RecordFilterChip["field"]) => {
-    const next = { ...form, [name]: name === "direction" ? "any" : "" } as DestinationFilterForm;
+    const next = {
+      ...applied,
+      [name]: name === "direction" ? "any" : "",
+    } as DestinationFilterForm;
     setForm(next);
-    search(next);
+    setApplied(next);
   };
 
-  const sortBy = (key: DestinationSortKey) => {
-    const next = nextSort(sort, key);
-    setSort(next);
-    // Re-ask for the SAME search in the new order: same period, same filters.
-    if (params) setParams({ ...params, sort: next.key, order: next.order });
-  };
+  const sortBy = (key: DestinationSortKey) => setSort(nextSort(sort, key));
 
   const fetchFile = (request: Record<string, string>) =>
     download.mutate(request, {
@@ -180,19 +188,16 @@ export function TrafficLensDestinations({
       onError: (err) => toast.error(requestErrorMessage(err, "The download did not complete.")),
     });
 
+  /** The records on screen as a file: the same period, filters and order. */
   const save = () => {
-    // The search on screen if there is one, otherwise what the form says.
-    if (params) return fetchFile(params);
-    const built = build();
-    if (!built.ok) return setFormError(built.message);
-    fetchFile(built.params);
+    if (params) fetchFile(params);
   };
 
   /** The Export column: this one record as a file, asked for by its own
    * period, address, protocol and port. */
   const saveRecord = (row: DestinationRecord) => {
     const built = destinationSearchParams(
-      { locationId, routerId: "" },
+      scope,
       { since: row.window_start, until: row.window_end },
       {
         address: row.address,
@@ -224,18 +229,20 @@ export function TrafficLensDestinations({
     <section aria-label="Records" className="premium-card overflow-hidden rounded-2xl">
       <form
         onSubmit={submit}
-        aria-label="Search destination records"
+        aria-label="Destination records"
         className="space-y-4 border-b border-border p-5 sm:p-6"
       >
-        <div>
+        <div className="space-y-1.5">
           <h3 className="font-display text-xl font-semibold tracking-tight">Records</h3>
-          <p className="mt-1 max-w-3xl text-xs text-muted-foreground">
-            Every outside address and service this venue exchanged traffic with, five minutes at a
-            time, in one table. It is for the venue as a whole: no record says which device or
-            guest, and none is kept that could. {AUDIT_NOTE}
-          </p>
+          <p className="max-w-3xl text-sm text-muted-foreground">{LENS_VENUE_RECORDS_INTRO}</p>
+          <AboutRecords>
+            {LENS_VENUE_RECORDS_ABOUT.map((line) => (
+              <p key={line}>{line}</p>
+            ))}
+            <p>{AUDIT_NOTE} Opening this view and changing the period count as searches.</p>
+          </AboutRecords>
           {locked && (
-            <p className="mt-2 flex max-w-3xl items-start gap-2 text-xs text-muted-foreground">
+            <p className="flex max-w-3xl items-start gap-2 text-xs text-muted-foreground">
               <Lock aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <span>{LENS_RECORDS_LOCKED_LINE}</span>
             </p>
@@ -244,103 +251,35 @@ export function TrafficLensDestinations({
 
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted/50 px-4 py-3">
           <p className="font-display text-lg font-semibold tabular-nums" aria-live="polite">
-            {r && !stateMessage ? retrievedLine(r) : "Not searched yet"}
+            {q.isLoading ? "Loading records…" : r && !stateMessage ? retrievedLine(r) : "Records"}
             {searched && (
               <span className="ml-2 font-sans text-xs font-normal text-muted-foreground">
                 {searched}
               </span>
             )}
           </p>
-          <Button type="submit" disabled={q.isFetching}>
-            <Search className="h-4 w-4" /> {q.isFetching ? "Searching…" : "Search"}
-          </Button>
         </div>
-
-        <div className="flex flex-wrap items-end gap-3">
-          <Labelled label="Dst addr or prefix" className="w-full sm:w-64">
-            <Input
-              className="font-mono"
-              placeholder="Any address"
-              maxLength={64}
-              autoComplete="off"
-              spellCheck={false}
-              value={form.address}
-              onChange={(e) => field({ address: e.target.value })}
-            />
-          </Labelled>
-          <Labelled label="Protocol" className="w-36">
-            <select
-              className={SELECT_CLASS}
-              value={form.protocol}
-              onChange={(e) => field({ protocol: e.target.value })}
-            >
-              {DESTINATION_PROTOCOL_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </Labelled>
-          <Labelled label="D.port" className="w-24">
-            <Input
-              className="tabular-nums"
-              placeholder="Any"
-              inputMode="numeric"
-              maxLength={5}
-              value={form.port}
-              onChange={(e) => field({ port: e.target.value.replace(/[^0-9]/g, "") })}
-            />
-          </Labelled>
-          <div>
-            <span className="mb-1.5 block text-xs font-medium text-muted-foreground">
-              Direction
-            </span>
-            <Tabs
-              value={form.direction}
-              onValueChange={(v) => {
-                const option = DESTINATION_DIRECTION_OPTIONS.find((o) => o.value === v);
-                if (option) field({ direction: option.value });
-              }}
-            >
-              <TabsList aria-label="Direction">
-                {DESTINATION_DIRECTION_OPTIONS.map((o) => (
-                  <TabsTrigger key={o.value} value={o.value}>
-                    {o.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-          </div>
-        </div>
-
-        {chips.length > 0 && (
-          <ul aria-label="Filters in force" className="flex flex-wrap gap-2">
-            {chips.map((chip) => (
-              <li key={chip.field}>
-                <button
-                  type="button"
-                  onClick={() => dropFilter(chip.field)}
-                  aria-label={`Remove filter: ${chip.label}`}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 py-1 pl-3 pr-2 text-xs font-medium text-foreground hover:bg-primary/20"
-                >
-                  {chip.label}
-                  <X aria-hidden className="h-3.5 w-3.5" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {formError && (
-          <p role="alert" className="text-xs text-destructive">
-            {formError}
-          </p>
-        )}
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" variant="outline" disabled={download.isPending} onClick={save}>
-            <Download className="h-4 w-4" /> {download.isPending ? "Preparing…" : "Download CSV"}
-          </Button>
+          <label className="block w-full sm:w-72">
+            <span className="sr-only">Filter the loaded records</span>
+            <Input
+              type="search"
+              placeholder="Filter…"
+              value={quick}
+              onChange={(e) => setQuick(e.target.value)}
+              onKeyDown={(e) => {
+                // Narrowing what is loaded is not a search: Enter asks for nothing.
+                if (e.key === "Enter") e.preventDefault();
+              }}
+            />
+          </label>
+          <FiltersButton
+            open={filtersOpen}
+            active={chips.length}
+            onToggle={() => setFiltersOpen((o) => !o)}
+            controls="lens-records-filters"
+          />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button type="button" variant="outline">
@@ -378,32 +317,98 @@ export function TrafficLensDestinations({
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          <label className="ml-auto block w-full sm:w-64">
-            <span className="sr-only">Filter the loaded records</span>
-            <Input
-              type="search"
-              placeholder="Filter…"
-              value={quick}
-              disabled={loaded.length === 0}
-              onChange={(e) => setQuick(e.target.value)}
-              onKeyDown={(e) => {
-                // Narrowing what is loaded is not a search: Enter asks for nothing.
-                if (e.key === "Enter") e.preventDefault();
-              }}
-            />
-          </label>
+          <Button
+            type="button"
+            variant="outline"
+            className="sm:ml-auto"
+            disabled={download.isPending || !params}
+            onClick={save}
+          >
+            <Download className="h-4 w-4" /> {download.isPending ? "Preparing…" : "Download CSV"}
+          </Button>
         </div>
+
+        <FilterChips chips={chips} onRemove={dropFilter} />
+
+        {filtersOpen && (
+          <div
+            id="lens-records-filters"
+            className="flex flex-wrap items-end gap-3 rounded-xl border border-border p-4"
+          >
+            <Labelled label="Dst addr or prefix" className="w-full sm:w-64">
+              <Input
+                className="font-mono"
+                placeholder="Any address"
+                maxLength={64}
+                autoComplete="off"
+                spellCheck={false}
+                value={form.address}
+                onChange={(e) => field({ address: e.target.value })}
+              />
+            </Labelled>
+            <Labelled label="Protocol" className="w-36">
+              <select
+                className={SELECT_CLASS}
+                value={form.protocol}
+                onChange={(e) => field({ protocol: e.target.value })}
+              >
+                {DESTINATION_PROTOCOL_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </Labelled>
+            <Labelled label="D.port" className="w-24">
+              <Input
+                className="tabular-nums"
+                placeholder="Any"
+                inputMode="numeric"
+                maxLength={5}
+                value={form.port}
+                onChange={(e) => field({ port: e.target.value.replace(/[^0-9]/g, "") })}
+              />
+            </Labelled>
+            <div>
+              <span className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                Direction
+              </span>
+              <Tabs
+                value={form.direction}
+                onValueChange={(v) => {
+                  const option = DESTINATION_DIRECTION_OPTIONS.find((o) => o.value === v);
+                  if (option) field({ direction: option.value });
+                }}
+              >
+                <TabsList aria-label="Direction">
+                  {DESTINATION_DIRECTION_OPTIONS.map((o) => (
+                    <TabsTrigger key={o.value} value={o.value}>
+                      {o.label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+            </div>
+            <Button type="submit" disabled={q.isFetching}>
+              <Search className="h-4 w-4" /> {q.isFetching ? "Searching…" : "Search"}
+            </Button>
+          </div>
+        )}
+
+        {formError && (
+          <p role="alert" className="text-xs text-destructive">
+            {formError}
+          </p>
+        )}
       </form>
 
       <div className="p-5 sm:p-6">
-        {params === null ? (
-          <Plain title="Not searched yet.">
-            Choose a period above and any filters, then press Search. Leave the filters empty to see
-            every record in the period. Download CSV saves the same records as a file, up to{" "}
-            {DESTINATION_CSV_MAX_ROWS.toLocaleString()} records.
-          </Plain>
-        ) : q.isLoading ? (
-          <div className="h-40 animate-pulse rounded-xl bg-muted" />
+        {q.isLoading ? (
+          <div
+            role="status"
+            aria-label="Loading records"
+            className="h-40 animate-pulse rounded-xl bg-muted"
+          />
         ) : q.isError || !r ? (
           <Plain title="The search did not complete." tone="error">
             {requestErrorMessage(q.error, "The server did not answer.")} No record is shown, because
