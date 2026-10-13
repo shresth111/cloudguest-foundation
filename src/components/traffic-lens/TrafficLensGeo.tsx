@@ -1,15 +1,6 @@
-import { Fragment, useState, type ReactNode } from "react";
+import { useState } from "react";
 import { ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { useTrafficLensGeo } from "@/hooks/useTrafficLens";
 import { requestErrorMessage } from "@/services/api";
 import {
@@ -17,10 +8,12 @@ import {
   GEO_BLOCK_TITLE,
   GEO_ESTIMATE_NOTE,
   GEO_NETWORK_HEADING,
+  GEO_WITHHELD_WHY,
   geoAttribution,
   geoCountryRows,
   geoCoverageNote,
   geoDataDateNote,
+  geoLead,
   geoMeasuredEmpty,
   geoNetworksWithheldSentence,
   geoStaleNote,
@@ -30,11 +23,17 @@ import {
   type GeoCountryRow,
 } from "@/lib/traffic-flow-geo";
 import type { LensRange } from "@/lib/traffic-lens-customer";
+import { Panel, RankBar } from "@/components/traffic-lens/TrafficLensLayout";
 import type { FlowGeoSummary } from "@/types/traffic-flow-geo";
 
 /**
  * Traffic Lens -> Countries (customer dashboard): where this venue's traffic
  * goes, by country, and inside a country by network.
+ *
+ * Laid out like the Overview: one sentence first (`geoLead`, a pure tested
+ * function), then the ranked list, then what the list leaves out. A country
+ * is an estimate from the address, and the view says so beside the sentence,
+ * not in a footnote.
  *
  * For the venue as a whole. Nothing here names an address or says which
  * guest; a network is whoever announces the address on the internet and is
@@ -42,6 +41,10 @@ import type { FlowGeoSummary } from "@/types/traffic-flow-geo";
  * named only for periods in which at least five devices were connected: the
  * server withholds the rest, and the screen says how much that was instead
  * of showing a shorter list.
+ *
+ * The country data's licence requires a link back to its publisher on any
+ * page that shows results from it, so the attribution line is rendered for
+ * every answer, including the empty ones.
  *
  * Read-only, and asked for only while this view is open.
  */
@@ -95,6 +98,7 @@ export function TrafficLensGeoTable({
     });
 
   const state = geoState(geo, "customer");
+  const lead = geoLead(geo);
   const rows = geoCountryRows(geo);
   const tail = geoTailRows(geo);
   const coverage = geoCoverageNote(geo);
@@ -105,219 +109,221 @@ export function TrafficLensGeoTable({
   const withheldSentence = geoNetworksWithheldSentence(geo?.networks_min_devices);
 
   return (
-    <Card>
-      <CardContent className="space-y-3 p-5">
-        <div>
-          <h3 className="text-sm font-semibold">{GEO_BLOCK_TITLE}</h3>
-          <p className="mt-0.5 max-w-3xl text-xs text-muted-foreground">{GEO_BLOCK_NOTE}</p>
-        </div>
-
-        {loading ? (
-          <div className="h-32 animate-pulse rounded-xl bg-muted" />
-        ) : error !== null ? (
-          <div className="flex flex-wrap items-start justify-between gap-4 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
-            <div>
-              <p className="text-sm font-medium">Couldn't load countries for this period.</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {error} Nothing is shown, because an error is not an empty list.
-              </p>
-            </div>
-            {onRetry && (
-              <Button variant="outline" size="sm" onClick={onRetry}>
-                <RefreshCw className="h-4 w-4" /> Try again
-              </Button>
-            )}
+    <Panel title={GEO_BLOCK_TITLE} note={GEO_BLOCK_NOTE}>
+      {loading ? (
+        <div className="h-48 animate-pulse rounded-2xl bg-muted" />
+      ) : error !== null ? (
+        <div className="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-destructive/30 bg-destructive/5 p-5">
+          <div>
+            <p className="text-sm font-semibold">Couldn't load countries for this period.</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {error} Nothing is shown, because an error is not an empty list.
+            </p>
           </div>
-        ) : state.kind !== "ok" ? (
-          <GeoNotice title={state.title}>{state.body}</GeoNotice>
-        ) : (
-          <>
-            {stale && (
-              <p className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs text-amber-800 dark:text-amber-300">
-                {stale}
-              </p>
-            )}
-            {geoMeasuredEmpty(geo) ? (
-              <GeoNotice title="No traffic to outside addresses in this period." />
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Country</TableHead>
-                      <TableHead>Share</TableHead>
-                      <TableHead>Total</TableHead>
-                      <TableHead>Download</TableHead>
-                      <TableHead>Upload</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {rows.map((row) => (
-                      <Fragment key={row.key}>
-                        <TableRow>
-                          <TableCell className="text-sm">
-                            {row.expandable ? (
-                              <button
-                                type="button"
-                                aria-expanded={open.has(row.key)}
-                                aria-controls={`lens-geo-networks-${row.key}`}
-                                onClick={() => toggle(row.key)}
-                                className="flex items-center gap-1.5 rounded text-left font-medium outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
-                              >
-                                {open.has(row.key) ? (
-                                  <ChevronDown aria-hidden className="h-4 w-4 shrink-0" />
-                                ) : (
-                                  <ChevronRight aria-hidden className="h-4 w-4 shrink-0" />
-                                )}
-                                <span>{row.name}</span>
-                                <span className="font-mono text-xs font-normal text-muted-foreground">
-                                  {row.code}
-                                </span>
-                              </button>
-                            ) : (
-                              <span className="pl-5 font-medium">{row.name}</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <GeoShareBar width={row.barWidth} label={row.share} />
-                          </TableCell>
-                          <TableCell className="text-sm tabular-nums">{row.bytes}</TableCell>
-                          <TableCell className="text-sm tabular-nums">{row.down}</TableCell>
-                          <TableCell className="text-sm tabular-nums">{row.up}</TableCell>
-                        </TableRow>
-                        {row.expandable && open.has(row.key) && (
-                          <NetworkRows row={row} withheldSentence={withheldSentence} />
-                        )}
-                      </Fragment>
-                    ))}
-                    {tail.map((row) => (
-                      <TableRow key={row.key}>
-                        <TableCell className="text-sm">
-                          <span className="block pl-5 font-medium text-muted-foreground">
-                            {row.label}
-                          </span>
-                          <span className="block pl-5 text-xs text-muted-foreground">
-                            {row.hint}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <GeoShareBar width={row.barWidth} label={row.share} muted />
-                        </TableCell>
-                        <TableCell className="text-sm tabular-nums">{row.bytes}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">—</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">—</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+          {onRetry && (
+            <Button variant="outline" size="sm" onClick={onRetry}>
+              <RefreshCw className="h-4 w-4" /> Try again
+            </Button>
+          )}
+        </div>
+      ) : state.kind !== "ok" ? (
+        <BigNotice title={state.title} body={state.body} />
+      ) : (
+        <div className="space-y-6">
+          {stale && (
+            <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
+              {stale}
+            </p>
+          )}
+          {geoMeasuredEmpty(geo) ? (
+            <BigNotice title="No traffic to outside addresses in this period." />
+          ) : (
+            <>
+              <div className="grid gap-5 lg:grid-cols-5">
+                {lead && (
+                  <div className="lg:col-span-3">
+                    {lead.figure && (
+                      <p className="font-display text-6xl font-bold leading-none tracking-tighter tabular-nums sm:text-7xl">
+                        {lead.figure}
+                      </p>
+                    )}
+                    <p className="mt-3 max-w-xl font-display text-xl font-semibold leading-snug tracking-tight sm:text-2xl">
+                      {lead.headline}
+                    </p>
+                    {lead.detail && (
+                      <p className="mt-2 text-sm text-muted-foreground">{lead.detail}</p>
+                    )}
+                  </div>
+                )}
+                <div className="rounded-xl border border-border bg-muted/40 p-4 lg:col-span-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                    Read this as an estimate
+                  </p>
+                  <p className="mt-1.5 text-sm leading-relaxed">{GEO_ESTIMATE_NOTE}</p>
+                </div>
               </div>
-            )}
-            <div className="space-y-1 text-xs text-muted-foreground">
-              {withheld && <p className="text-amber-700 dark:text-amber-400">{withheld}</p>}
-              {coverage && <p className="text-amber-700 dark:text-amber-400">{coverage}</p>}
-              <p>{GEO_ESTIMATE_NOTE}</p>
-            </div>
-          </>
-        )}
 
-        {/* The condition the country data is published under: a link back,
-            wherever results are shown. Rendered for every answer. */}
-        {!loading && error === null && (
-          <p className="text-xs text-muted-foreground" data-testid="lens-geo-attribution">
-            <a
-              href={attribution.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline underline-offset-2 hover:text-foreground"
-            >
-              {attribution.text}
-            </a>
-            {dataDate ? ` · ${dataDate}` : ""}
-          </p>
-        )}
-      </CardContent>
-    </Card>
+              <ol className="divide-y divide-border border-t border-border">
+                {rows.map((row, i) => (
+                  <li key={row.key} className="py-4">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                      <span className="w-6 shrink-0 font-display text-lg font-semibold tabular-nums text-muted-foreground">
+                        {i + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        {row.expandable ? (
+                          <button
+                            type="button"
+                            aria-expanded={open.has(row.key)}
+                            aria-controls={`lens-geo-networks-${row.key}`}
+                            onClick={() => toggle(row.key)}
+                            className="flex items-center gap-1.5 rounded text-left text-base font-semibold outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            <span>{row.name}</span>
+                            <span className="font-mono text-xs font-normal text-muted-foreground">
+                              {row.code}
+                            </span>
+                            {open.has(row.key) ? (
+                              <ChevronDown aria-hidden className="h-4 w-4 shrink-0" />
+                            ) : (
+                              <ChevronRight aria-hidden className="h-4 w-4 shrink-0" />
+                            )}
+                            <span className="hidden text-xs font-normal text-muted-foreground sm:inline">
+                              {open.has(row.key) ? "Hide networks" : "Show networks"}
+                            </span>
+                          </button>
+                        ) : (
+                          <p className="text-base font-semibold">{row.name}</p>
+                        )}
+                        <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
+                          {row.bytes} · download {row.down} · upload {row.up}
+                        </p>
+                      </div>
+                      <span className="font-display text-2xl font-semibold tabular-nums">
+                        {row.share}
+                      </span>
+                    </div>
+                    <div className="mt-3 pl-10">
+                      <RankBar width={row.barWidth} color="var(--chart-1)" />
+                    </div>
+                    {row.expandable && open.has(row.key) && (
+                      <Networks row={row} withheldSentence={withheldSentence} />
+                    )}
+                  </li>
+                ))}
+                {tail.map((row) => (
+                  <li key={row.key} className="py-4">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                      <span className="w-6 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-base font-semibold text-muted-foreground">{row.label}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {row.bytes} · {row.hint}
+                        </p>
+                      </div>
+                      <span className="font-display text-2xl font-semibold tabular-nums text-muted-foreground">
+                        {row.share}
+                      </span>
+                    </div>
+                    <div className="mt-3 pl-10">
+                      <RankBar width={row.barWidth} color="var(--muted-foreground)" />
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </>
+          )}
+          {(withheld || coverage) && (
+            <div className="space-y-2 rounded-xl border border-dashed border-border p-4 text-sm">
+              {withheld && (
+                <div>
+                  <p className="font-medium">{withheld}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{GEO_WITHHELD_WHY}</p>
+                </div>
+              )}
+              {coverage && <p className="text-xs text-muted-foreground">{coverage}</p>}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* The condition the country data is published under: a link back,
+          wherever results are shown. Rendered for every answer. */}
+      {!loading && error === null && (
+        <p
+          className="mt-5 border-t border-border pt-4 text-xs text-muted-foreground"
+          data-testid="lens-geo-attribution"
+        >
+          <a
+            href={attribution.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:text-foreground"
+          >
+            {attribution.text}
+          </a>
+          {dataDate ? ` · ${dataDate}` : ""}
+        </p>
+      )}
+    </Panel>
   );
 }
 
-/** The networks inside one country, as indented rows of the same table. The
- * share here is of the country, and says so. */
-function NetworkRows({ row, withheldSentence }: { row: GeoCountryRow; withheldSentence: string }) {
+/** The networks inside one country. The share here is of the country, and
+ * says so. */
+function Networks({ row, withheldSentence }: { row: GeoCountryRow; withheldSentence: string }) {
   const rest = [
     row.networksOther ? `Other networks: ${row.networksOther}` : null,
     row.networksUnknown ? `Network not known: ${row.networksUnknown}` : null,
   ].filter(Boolean);
   return (
-    <>
+    <div
+      id={`lens-geo-networks-${row.key}`}
+      className="ml-10 mt-4 space-y-3 rounded-xl bg-muted/40 p-4"
+    >
       {row.networks.length > 0 && (
-        <TableRow className="bg-muted/30 hover:bg-muted/30">
-          <TableCell className="pb-1 pl-11 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            <span id={`lens-geo-networks-${row.key}`}>{GEO_NETWORK_HEADING}</span>
-          </TableCell>
-          <TableCell
-            colSpan={4}
-            className="pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
-          >
-            Share of {row.name}
-          </TableCell>
-        </TableRow>
+        <p className="flex justify-between text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          <span>{GEO_NETWORK_HEADING}</span>
+          <span>Share of {row.name}</span>
+        </p>
       )}
       {row.networks.map((n) => (
-        <TableRow key={n.key} className="bg-muted/30 hover:bg-muted/30">
-          <TableCell className="py-2 pl-11 text-sm">
-            <span>{n.name}</span>
+        <div key={n.key}>
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span className="text-sm font-medium">{n.name}</span>
             {n.asn !== n.name && (
-              <span className="ml-1.5 font-mono text-xs text-muted-foreground">{n.asn}</span>
+              <span className="font-mono text-xs text-muted-foreground">{n.asn}</span>
             )}
-          </TableCell>
-          <TableCell className="py-2">
-            <GeoShareBar width={n.barWidth} label={n.share} muted />
-          </TableCell>
-          <TableCell className="py-2 text-sm tabular-nums">{n.bytes}</TableCell>
-          <TableCell className="py-2 text-sm tabular-nums">{n.down}</TableCell>
-          <TableCell className="py-2 text-sm tabular-nums">{n.up}</TableCell>
-        </TableRow>
+            <span className="ml-auto font-display text-base font-semibold tabular-nums">
+              {n.share}
+            </span>
+          </div>
+          <div className="mt-1.5">
+            <RankBar width={n.barWidth} color="var(--muted-foreground)" />
+          </div>
+          <p className="mt-1 text-xs tabular-nums text-muted-foreground">
+            {n.bytes} · download {n.down} · upload {n.up}
+          </p>
+        </div>
       ))}
-      {rest.length > 0 && (
-        <TableRow className="bg-muted/30 hover:bg-muted/30">
-          <TableCell colSpan={5} className="py-2 pl-11 text-xs text-muted-foreground">
-            {rest.join(" · ")}
-          </TableCell>
-        </TableRow>
-      )}
+      {rest.length > 0 && <p className="text-xs text-muted-foreground">{rest.join(" · ")}</p>}
       {row.networksWithheld && (
-        <TableRow className="bg-muted/30 hover:bg-muted/30">
-          <TableCell colSpan={5} className="py-2 pl-11 text-xs text-muted-foreground">
-            {withheldSentence}: {row.networksWithheld} of {row.name}'s traffic is in its total and
-            under no network.
-          </TableCell>
-        </TableRow>
+        <p className="text-xs text-muted-foreground">
+          {withheldSentence}: {row.networksWithheld} of {row.name}'s traffic is in its total and
+          under no network.
+        </p>
       )}
-    </>
-  );
-}
-
-function GeoNotice({ title, children }: { title: string; children?: ReactNode }) {
-  return (
-    <div className="rounded-xl border border-dashed border-border p-5">
-      <p className="text-sm font-semibold">{title}</p>
-      {children && <p className="mt-1 text-sm text-muted-foreground">{children}</p>}
     </div>
   );
 }
 
-/** A share as a thin bar with its value beside it in ink, so the number
- * never depends on reading the bar. */
-function GeoShareBar({ width, label, muted }: { width: number; label: string; muted?: boolean }) {
+/** A state with nothing to list: one large plain sentence on a dashed
+ * outline, as on the rest of the page. Never a row of zeros. */
+function BigNotice({ title, body }: { title: string; body?: string }) {
   return (
-    <div className="flex items-center gap-2">
-      <div className="h-1.5 w-24 shrink-0 overflow-hidden rounded-full bg-muted">
-        <div
-          className={`h-full rounded-full ${muted ? "bg-muted-foreground/50" : "bg-primary"}`}
-          style={{ width: `${width}%` }}
-        />
-      </div>
-      <span className="whitespace-nowrap text-xs tabular-nums">{label}</span>
+    <div className="rounded-2xl border-2 border-dashed border-border px-6 py-10">
+      <p className="font-display text-2xl font-semibold leading-tight tracking-tight">{title}</p>
+      {body && <p className="mt-3 max-w-2xl text-sm text-muted-foreground">{body}</p>}
     </div>
   );
 }

@@ -1483,10 +1483,16 @@ jobs:
       # word about how the data is gathered or imports an operator module,
       # the page has no control, and destinations withheld under the
       # small-venue rule are announced. Floor 287, observed green at 287.
+      #
+      # Since the 2026-10-13 customer redesign the page is three files
+      # (shell, Overview, parts), the "Open Guest Connection Records" link
+      # is gone and stays gone, and the new files are held to the same
+      # customer-surface rules. Floor 296, observed green at 296 (294
+      # before the layout parts became their own file).
       - name: traffic flow page is operator-only and honest
         run: |
           ./scripts/ci-gated-test.sh \
-            "traffic flow" 287 "all traffic flow checks passed" \
+            "traffic flow" 296 "all traffic flow checks passed" \
             bun run test:traffic-flow
 
       # --- Traffic Lens Destinations: venue-level, audited, honest ---------
@@ -1506,9 +1512,47 @@ jobs:
       - name: traffic flow destinations are venue-level and audited
         run: |
           ./scripts/ci-gated-test.sh \
-            "traffic flow destinations" 211 \
+            "traffic flow destinations" 215 \
             "all traffic flow destination checks passed" \
             bun run test:traffic-flow-destinations
+
+      # --- Traffic Lens (customer): the answers at the top are computed ----
+      #
+      # The customer page opens on sentences computed from the summary: the
+      # busiest service and its share, the busiest time, the heaviest
+      # device, the total, and three fixed "worth a look" checks. A sentence
+      # is a claim, so each is a pure function and this suite pins the cases
+      # where a claim would be false: no data (never a zero), one reading
+      # only (never a "busiest time"), a tie (never an arbitrary winner),
+      # lower-bound inputs (always "at least"; a check that did not trigger
+      # never says the venue is fine), and a check without data ("could not
+      # be checked", never passed).
+      #
+      # Also the Records table: its columns are fields of a destination
+      # record, none is a device, what is not recorded (source address and
+      # port, NAT, packets) is listed as not recorded, and the column
+      # chooser never causes a request. And that no fixture data lives in
+      # any Traffic Lens file under src/: the static preview's sample data
+      # is kept outside the repository.
+      #
+      # With the Countries view: country and network are listed in the
+      # Columns menu as "not on a record" (the records endpoint returns
+      # neither, and nothing is joined on in the browser), the answer block
+      # uses no country data, and the attribution link the country data's
+      # licence requires sits outside every state branch of that view.
+      #
+      # With the connection-log shape (owner request, 2026-10-13): Src addr,
+      # S.port, S.NAT, D.NAT and Packets keep their place in the Records
+      # table as placeholders. This suite pins that a placeholder is a dash
+      # whatever the row object holds, is never sortable, and that the quick
+      # filter box narrows loaded rows without a request.
+      # Floor 168, observed green at 168 (was 123).
+      - name: traffic lens answers are computed and honest
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "traffic lens insights" 168 \
+            "all traffic lens insight checks passed" \
+            bun run test:traffic-lens-insights
 
       # --- A venue's floors are the venue's, not a constant ---------------
       #
@@ -1545,7 +1589,7 @@ jobs:
       - name: traffic lens geo block is attributed and honest
         run: |
           ./scripts/ci-gated-test.sh \
-            "traffic flow geo" 190 "all traffic flow geo checks passed" \
+            "traffic flow geo" 204 "all traffic flow geo checks passed" \
             bun run test:traffic-flow-geo
 
       # --- Campaign results ----------------------------------------------

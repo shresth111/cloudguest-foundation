@@ -252,6 +252,66 @@ export function geoMeasuredEmpty(geo: FlowGeoSummary | null | undefined): boolea
   return geoState(geo).kind === "ok" && geo?.totals?.bytes === 0;
 }
 
+export type GeoLeadKind = "none" | "tie" | "top";
+
+export interface GeoLead {
+  kind: GeoLeadKind;
+  /** One sentence, complete on its own. Says "placed in": a country is an
+   * estimate from the address, so the sentence never says "went to India". */
+  headline: string;
+  /** "80%"; null when no single share is being stated. */
+  figure: string | null;
+  /** Amounts with units, and how much of the range was looked up. */
+  detail: string | null;
+}
+
+/** The sentence the customer Countries view opens on: the country most of
+ * the traffic was placed in. null unless there is a looked-up result with
+ * traffic, so nothing is ever said from an unmeasured period. A tie names
+ * both countries and gives neither the top. */
+export function geoLead(geo: FlowGeoSummary | null | undefined): GeoLead | null {
+  if (geoState(geo).kind !== "ok" || !geo || geoMeasuredEmpty(geo)) return null;
+  const partial =
+    geo.exact !== true && isNum(geo.windows) && isNum(geo.windows_measured)
+      ? ` Of the ${geo.windows_measured} of ${geo.windows} five-minute periods that were looked up.`
+      : "";
+  const items = (geo.countries?.items ?? []).filter((c) => isNum(c.bytes) && c.bytes > 0);
+  if (items.length === 0)
+    return {
+      kind: "none",
+      headline: "No country could be named for this period's traffic.",
+      detail: `${flowBytes(geo.totals?.bytes)} was measured; none of it is under a listed country.${partial}`,
+      figure: null,
+    };
+  const top = items.reduce((a, b) => (b.bytes > a.bytes ? b : a));
+  const level = items.filter((c) => c.bytes === top.bytes);
+  const total = flowBytes(geo.totals?.bytes);
+  if (level.length > 1) {
+    const names = level.map((c) => countryName(c.country_code));
+    const list =
+      names.length === 2
+        ? `${names[0]} and ${names[1]}`
+        : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+    return {
+      kind: "tie",
+      headline: `${list} are level: about ${shareLabel(top.share)} of the traffic was placed in each.`,
+      detail: `${flowBytes(top.bytes)} each, of ${total}.${partial}`,
+      figure: null,
+    };
+  }
+  return {
+    kind: "top",
+    headline: `About ${shareLabel(top.share)} of the traffic went to addresses placed in ${countryName(top.country_code)}.`,
+    detail: `${flowBytes(top.bytes)} of ${total}, download and upload together.${partial}`,
+    figure: shareLabel(top.share),
+  };
+}
+
+/** Why networks are withheld at a quiet venue, for a venue owner. Said with
+ * the count from `geoWithheldNote`, never in place of it. */
+export const GEO_WITHHELD_WHY =
+  "With only a few devices online, naming a network could point at one person, so it is left out. Nothing is missing from the country totals.";
+
 /** Said when only part of the range was looked up; null when all of it was. */
 export function geoCoverageNote(geo: FlowGeoSummary | null | undefined): string | null {
   if (geoState(geo).kind !== "ok" || !geo || geo.exact === true) return null;

@@ -1055,7 +1055,13 @@ for (const f of CUSTOMER_DESTINATION_FILES) {
 const lensService = read("src/services/traffic-lens-destinations.service.ts");
 const lensHook = read("src/hooks/useLensDestinations.ts");
 const lensTab = read("src/components/traffic-lens/TrafficLensDestinations.tsx");
-const lensPage = read("src/components/traffic-lens/TrafficLensView.tsx");
+// The shell and the Overview (where a service row opens its destinations).
+const lensPage =
+  read("src/components/traffic-lens/TrafficLensView.tsx") +
+  read("src/components/traffic-lens/TrafficLensOverview.tsx");
+const lensColumns = read("src/lib/traffic-lens-insights.ts").match(
+  /export const LENS_RECORD_COLUMNS[\s\S]*?\n\];/,
+)[0];
 const lensTabCode = code(lensTab);
 check("the customer service only reads", !/api\.(post|put|patch|delete)/.test(lensService));
 check(
@@ -1107,10 +1113,29 @@ check(
       new RegExp(`field\\(\\{ ${f}`).test(lensTabCode),
     ),
 );
+// Since the 2026-10-13 owner request the table has the SHAPE of a full
+// connection log: Src addr, S.port, S.NAT, D.NAT and Packets keep their place
+// as placeholders. What must stay true is that a placeholder has no data
+// behind it: no field, no sort, no filter, and a dash in every cell.
+const lensPlaceholders = lensColumns.match(/placeholder\("[^"]+", "[^"]+"/g) ?? [];
 check(
-  "the customer table has the seven venue-level columns",
-  (lensTabCode.match(/\{ key: "/g) ?? []).length === 7 &&
-    !/Device|MAC|Guest|Source/.test(lensTabCode.match(/const COLUMNS[\s\S]*?\];/)[0]),
+  "the customer table has eleven live columns and five placeholders",
+  /const COLUMNS = LENS_RECORD_COLUMNS;/.test(lensTabCode) &&
+    (lensColumns.match(/\blive\("/g) ?? []).length === 11 &&
+    lensPlaceholders.length === 5,
+  `${(lensColumns.match(/\blive\("/g) ?? []).length} live, ${lensPlaceholders.length} placeholders`,
+);
+check(
+  "every device, translation and packet column is a placeholder, never a live one",
+  !(lensColumns.match(/\blive\("[^"]+", "[^"]+"/g) ?? []).some((c) =>
+    /src|source|device|mac|guest|nat|packet|client|session/i.test(c),
+  ),
+);
+check(
+  "a placeholder cell is a literal dash, whatever the row holds",
+  ["src_addr", "src_port", "src_nat", "dst_nat", "packets"].every((id) =>
+    new RegExp(`\\b${id}: DASH,`).test(read("src/lib/traffic-lens-insights.ts")),
+  ),
 );
 check(
   "the customer screens say in words that no device or guest is shown",
@@ -1126,7 +1151,7 @@ check(
   /rangeStateMessage\(rangeState\(r, now\)\)/.test(lensTabCode) &&
     /serviceDestinationsView\(/.test(lensTabCode) &&
     /searchNotes\(r\)/.test(lensTabCode) &&
-    /resultLine\(r\)/.test(lensTabCode),
+    /retrievedLine\(r\)/.test(lensTabCode),
 );
 check(
   "customer failures are not empty results",
@@ -1139,8 +1164,22 @@ check(
 );
 check("no customer screen says Application", !/application/i.test(lensTabCode));
 check(
-  "the customer records column is headed Service (port)",
-  /label: "Service \(port\)"/.test(lensTab),
+  "the customer records columns are headed Service, D.port and Protocol",
+  ['"service", "Service"', '"port", "D.port"', '"protocol", "Protocol"'].every((l) =>
+    lensColumns.includes(l),
+  ),
+);
+check(
+  "the quick filter box and a chip's removal never set request params themselves",
+  /onChange=\{\(e\) => setQuick\(e\.target\.value\)\}/.test(lensTabCode) &&
+    !/setQuick[\s\S]{0,80}setParams/.test(lensTabCode) &&
+    /if \(e\.key === "Enter"\) e\.preventDefault\(\)/.test(lensTabCode),
+);
+check(
+  "no request parameter is built from a placeholder column",
+  !/src_addr|src_port|src_nat|dst_nat|packets/.test(
+    code(read("src/lib/traffic-flow-destinations.ts")),
+  ) && !/params\.(src|source|nat|packets)/.test(lensTabCode),
 );
 check(
   "the Destinations view reads the page's one range control",

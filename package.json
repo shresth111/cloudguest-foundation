@@ -50,6 +50,7 @@
     "test:traffic-flow": "node scripts/test-traffic-flow.mjs",
     "test:traffic-flow-geo": "node scripts/test-traffic-flow-geo.mjs",
     "test:traffic-flow-destinations": "node scripts/test-traffic-flow-destinations.mjs",
+    "test:traffic-lens-insights": "node scripts/test-traffic-lens-insights.mjs",
     "test:router-action-gating": "node scripts/test-router-action-gating.mjs",
     "test:liveness-badge": "node scripts/test-router-liveness-badge.mjs",
     "test:device-floors": "node scripts/test-device-floors.mjs",

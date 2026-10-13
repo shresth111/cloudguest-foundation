@@ -701,6 +701,69 @@ eq(
 );
 eq("the view's label", m.LENS_VIEWS.find((v) => v.id === "geo").label, "Countries");
 
+console.log("\ncustomer dashboard: the sentence Countries opens on");
+{
+  const lead = m.geoLead(lensGeo());
+  eq("lead: kind", lead.kind, "top");
+  eq(
+    "lead: says 'about' and 'placed in', never that traffic went to a country",
+    lead.headline,
+    "About 80% of the traffic went to addresses placed in India.",
+  );
+  eq("lead: the figure is that share", lead.figure, "80%");
+  check("lead: amounts carry units", /^\d.* MB of \d.* MB/.test(lead.detail), lead.detail);
+  eq("lead: nothing from no response", m.geoLead(undefined), null);
+  eq("lead: nothing from an unmeasured period", m.geoLead(lensGeo({ measured: false })), null);
+  eq("lead: nothing when no country data exists", m.geoLead(GEO_UNAVAILABLE), null);
+  eq("lead: nothing when country was not recorded", m.geoLead(NOT_RECORDED), null);
+  eq("lead: nothing from a measured zero", m.geoLead(lensGeo(MEASURED_ZERO)), null);
+  const [india, usa] = geo().countries.items;
+  const level = m.geoLead(
+    lensGeo({
+      countries: {
+        items: [
+          { ...india, bytes: 500, share: 0.4 },
+          { ...usa, bytes: 500, share: 0.4 },
+        ],
+        other_bytes: 250,
+        other_share: 0.2,
+      },
+    }),
+  );
+  check(
+    "lead: a tie names both and gives neither the top",
+    level.kind === "tie" &&
+      level.figure === null &&
+      /^India and United States are level: about 40% of the traffic was placed in each\.$/.test(
+        level.headline,
+      ),
+    level.headline,
+  );
+  const unnamed = m.geoLead(lensGeo({ countries: { items: [], other_bytes: 0, other_share: 0 } }));
+  check(
+    "lead: traffic with no listed country names none",
+    unnamed.kind === "none" && unnamed.figure === null && !/India/.test(unnamed.headline),
+  );
+  const part = m.geoLead(lensGeo({ exact: false, windows_measured: 9 }));
+  check(
+    "lead: a partly looked-up range says how much was",
+    /Of the 9 of 12 five-minute periods that were looked up\./.test(part.detail),
+    part.detail,
+  );
+  check(
+    "lead: the reason for withheld networks blames no one and promises whole totals",
+    /could point at one person/.test(m.GEO_WITHHELD_WHY) &&
+      /Nothing is missing from the country totals/.test(m.GEO_WITHHELD_WHY),
+  );
+  const text = textOf(renderLens({ geo: LENS_WITHHELD }));
+  check(
+    "lead: the view prints the sentence, 'estimate', and the reason beside the count",
+    /About 80% of the traffic went to addresses placed in India\./.test(text) &&
+      /Read this as an estimate/.test(text) &&
+      /could point at one person/.test(text),
+  );
+}
+
 console.log("\ncustomer dashboard: networks at a small venue");
 eq("nothing withheld: no note", m.geoWithheldNote(lensGeo()), null);
 eq("Master response: no note", m.geoWithheldNote(geo()), null);
