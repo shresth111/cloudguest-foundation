@@ -11,7 +11,7 @@ import type { FindingsResponse } from "@/types/traffic-lens-findings";
  *
  * Presentation only. Every word and row comes from `findingsView`
  * (src/lib/traffic-lens-findings.ts); nothing here decides what a number
- * means. Amber is "look"; the destructive colour is used for "act" alone.
+ * means. Amber is "look"; the alarm colour is used for "act" alone.
  */
 
 const SURFACE = {
