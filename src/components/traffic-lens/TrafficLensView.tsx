@@ -23,6 +23,7 @@ import {
   type LensRange,
 } from "@/lib/traffic-lens-customer";
 import { TrafficLensDestinations } from "@/components/traffic-lens/TrafficLensDestinations";
+import { TrafficLensFlowRecords } from "@/components/traffic-lens/TrafficLensFlowRecords";
 import { TrafficLensGeo } from "@/components/traffic-lens/TrafficLensGeo";
 import { TrafficLensOverview } from "@/components/traffic-lens/TrafficLensOverview";
 import { AskWyfy, NoticeCard } from "@/components/traffic-lens/TrafficLensParts";
@@ -32,7 +33,9 @@ import {
   rangeLabel,
   toLocalInput,
 } from "@/lib/traffic-flow-destinations";
-import { TRAFFIC_LENS_FEATURE_KEY } from "@/types/traffic-lens";
+import { retentionNote } from "@/lib/flow-records";
+import { lensRecordsMode } from "@/lib/traffic-lens-flow-records";
+import { TRAFFIC_LENS_FEATURE_KEY, TRAFFIC_LENS_RECORDS_FEATURE_KEY } from "@/types/traffic-lens";
 
 type LensViewId = (typeof LENS_VIEWS)[number]["id"];
 
@@ -69,6 +72,8 @@ export function TrafficLensView({
 }) {
   const demo = useIsDemo();
   const entitled = useFeatureEntitled(TRAFFIC_LENS_FEATURE_KEY);
+  // The second add-on (connection records), as `/me/entitlements` reports it.
+  const recordsMode = lensRecordsMode(useFeatureEntitled(TRAFFIC_LENS_RECORDS_FEATURE_KEY));
   const [range, setRange] = useState<LensRange>(LENS_DEFAULT_RANGE);
   const [view, setView] = useState<LensViewId>(LENS_VIEWS[0].id);
   const [at, setAt] = useState(() => Date.now());
@@ -139,7 +144,14 @@ export function TrafficLensView({
             }}
           />
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* How far back anything exists, beside the period control, so
+              nobody searches beyond it. From the API, not a constant. */}
+          {retentionNote(status.data?.retention_days) && (
+            <span className="rounded-full bg-muted px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+              {retentionNote(status.data?.retention_days)}
+            </span>
+          )}
           <span className="text-xs text-muted-foreground">{lensFreshness(latest, now)}</span>
           <Button
             variant="outline"
@@ -169,11 +181,21 @@ export function TrafficLensView({
           onOpenCountries={() => setView("geo")}
         />
       )}
-      {view === "destinations" && (
+      {/* One Records view, two tables: which one is decided from what the
+          backend reports about the second add-on, never worked out here. */}
+      {view === "destinations" && recordsMode === "connections" && (
+        <TrafficLensFlowRecords
+          locationId={locationId}
+          rangeAt={(moment) => lensRangeBounds(range, moment)}
+          timeZone={timeZone}
+        />
+      )}
+      {view === "destinations" && recordsMode !== "connections" && (
         <TrafficLensDestinations
           locationId={locationId}
           rangeAt={(moment) => lensRangeBounds(range, moment)}
           timeZone={timeZone}
+          locked={recordsMode === "venue_locked"}
         />
       )}
       {view === "geo" && (

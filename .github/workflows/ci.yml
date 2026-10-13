@@ -1569,13 +1569,37 @@ jobs:
       # matched are different sentences; nothing is fetched unasked (every
       # search and download is audited); and both consoles draw ONE table
       # component, which says nothing about how records are gathered.
-      # Floor 109, observed green at 109.
+      # Floor 112, observed green at 112.
       - name: traffic flow records are Master-only and honest
         run: |
           ./scripts/ci-gated-test.sh \
-            "traffic flow records" 109 \
+            "traffic flow records" 112 \
             "all traffic flow record checks passed" \
             bun run test:traffic-flow-records
+
+      # --- Traffic Lens connection records on the customer dashboard ------
+      #
+      # A customer who holds the SECOND add-on (`traffic_flow_records`) gets
+      # the connection-record table: the one place on the customer dashboard
+      # where a device's address sits beside the address it reached. This
+      # suite pins that the browser never decides that: the table is chosen
+      # from /me/entitlements for the second key, a 402 from the route wins,
+      # "unknown" is never "held", and the first add-on never implies the
+      # second. Without the add-on nothing changes (the venue-level table,
+      # its five placeholders, one locked line) and the records route is not
+      # called.
+      #
+      # Also: null is "not recorded" with its reason and "not applicable"
+      # only where a value cannot exist; the incomplete notice and the
+      # retention come from the API; nothing is fetched unasked; and no
+      # customer file carries platform equipment or imports a Master
+      # flow-record file. Floor 90, observed green at 90.
+      - name: traffic lens connection records follow the entitlement
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "traffic lens flow records" 90 \
+            "all traffic lens flow record checks passed" \
+            bun run test:traffic-lens-flow-records
 
       # --- A venue's floors are the venue's, not a constant ---------------
       #

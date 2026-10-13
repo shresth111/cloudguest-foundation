@@ -34,6 +34,8 @@ export interface RecordsRow<Id extends string = string> {
   cells: Record<Id, string>;
   /** Column ids whose value this row does not have. Drawn greyed. */
   missing?: readonly Id[];
+  /** Why, per missing cell: given on hover. */
+  reasons?: Partial<Record<Id, string>>;
 }
 
 /** "2026-10-12 19:35:00": an instant to the second, in the venue's time

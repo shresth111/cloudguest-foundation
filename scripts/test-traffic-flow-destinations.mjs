@@ -1120,7 +1120,7 @@ check(
 // connection log: Src addr, S.port, S.NAT, D.NAT and Packets keep their place
 // as placeholders. What must stay true is that a placeholder has no data
 // behind it: no field, no sort, no filter, and a dash in every cell.
-const lensPlaceholders = lensColumns.match(/placeholder\("[^"]+", "[^"]+"/g) ?? [];
+const lensPlaceholders = lensColumns.match(/placeholder\(\s*"[^"]+",\s*"[^"]+"/g) ?? [];
 check(
   "the customer table has eleven live columns and five placeholders",
   /const COLUMNS = LENS_RECORD_COLUMNS;/.test(lensTabCode) &&
@@ -1186,7 +1186,7 @@ check(
 );
 check(
   "the Destinations view reads the page's one range control",
-  /view === "destinations" && \(\s*<TrafficLensDestinations\s+locationId=\{locationId\}\s+rangeAt=\{\(moment\) => lensRangeBounds\(range, moment\)\}/.test(
+  /view === "destinations" && recordsMode !== "connections" && \(\s*<TrafficLensDestinations\s+locationId=\{locationId\}\s+rangeAt=\{\(moment\) => lensRangeBounds\(range, moment\)\}/.test(
     lensPage,
   ) && (lensPage.match(/<LensRangeControl/g) ?? []).length === 1,
 );

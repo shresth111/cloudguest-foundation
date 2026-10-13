@@ -21,6 +21,12 @@ import type {
 /** The add-on's key in `GET /me/entitlements` and in the 402 body. */
 export const TRAFFIC_LENS_FEATURE_KEY = "traffic_flow";
 
+/** The SECOND add-on: individual connection records, where a device's
+ * address sits beside the address it reached (API.md, F-1c). Off for every
+ * customer until unlocked in the Master console; it is not implied by the
+ * first. `/me/entitlements` reports it and the backend enforces it. */
+export const TRAFFIC_LENS_RECORDS_FEATURE_KEY = "traffic_flow_records";
+
 /** The only thing the customer is told about the venue's equipment. */
 export type LensCollection = "collecting" | "not_collecting_yet" | "not_available";
 

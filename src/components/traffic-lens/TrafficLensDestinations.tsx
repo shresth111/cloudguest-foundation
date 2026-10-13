@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { ArrowDown, ArrowUp, Columns3, Download, Search, X } from "lucide-react";
+import { Columns3, Download, Lock, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -62,6 +62,7 @@ import {
   type LensRecordColumnId,
   type RecordFilterChip,
 } from "@/lib/traffic-lens-insights";
+import { LENS_RECORDS_LOCKED_LINE } from "@/lib/traffic-lens-flow-records";
 import type {
   DestinationFilterForm,
   DestinationRecord,
@@ -102,12 +103,16 @@ export function TrafficLensDestinations({
   locationId,
   rangeAt,
   timeZone,
+  locked = false,
 }: {
   locationId: string;
   /** The period the page's one range control means at a given moment. */
   rangeAt: (now: number) => { since: string; until: string };
   /** The venue's time zone, for Start and End. The browser's when absent. */
   timeZone?: string | null;
+  /** The backend says the organisation does not hold the second add-on:
+   * say, in one line, that the per-connection columns are part of it. */
+  locked?: boolean;
 }) {
   const [form, setForm] = useState<DestinationFilterForm>(EMPTY_DESTINATION_FILTERS);
   const [sort, setSort] = useState<DestinationSort>(DEFAULT_DESTINATION_SORT);
@@ -229,6 +234,12 @@ export function TrafficLensDestinations({
             time, in one table. It is for the venue as a whole: no record says which device or
             guest, and none is kept that could. {AUDIT_NOTE}
           </p>
+          {locked && (
+            <p className="mt-2 flex max-w-3xl items-start gap-2 text-xs text-muted-foreground">
+              <Lock aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>{LENS_RECORDS_LOCKED_LINE}</span>
+            </p>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted/50 px-4 py-3">
@@ -358,7 +369,7 @@ export function TrafficLensDestinations({
                 </DropdownMenuItem>
               ))}
               <DropdownMenuSeparator />
-              <DropdownMenuLabel>Not recorded for any venue</DropdownMenuLabel>
+              <DropdownMenuLabel>Not in venue-level records</DropdownMenuLabel>
               {LENS_RECORD_NOT_RECORDED.map((c) => (
                 <DropdownMenuItem key={c.label} disabled className="flex-col items-start gap-0">
                   <span>{c.label}</span>
@@ -448,7 +459,7 @@ export function TrafficLensDestinations({
             <Notes
               notes={[
                 ...searchNotes(r),
-                `Start and End are the five-minute period a record covers, in ${recordTimeBasis(timeZone)}. Greyed columns are not recorded for any venue and always show a dash; hover or tap a greyed heading for why. Service is the port's standard name with its protocol and port; it does not say which app or site was used. Sorting asks again for the same search.`,
+                `Start and End are the five-minute period a record covers, in ${recordTimeBasis(timeZone)}. Greyed columns are not part of venue-level records and always show a dash; hover or tap a greyed heading for why. Service is the port's standard name with its protocol and port; it does not say which app or site was used. Sorting asks again for the same search.`,
                 `More columns (download, upload, direction, flows) can be switched on in Columns. A download always holds every recorded column, up to ${DESTINATION_CSV_MAX_ROWS.toLocaleString()} records.`,
               ]}
             />

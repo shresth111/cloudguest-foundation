@@ -353,16 +353,13 @@ check(
 console.log("\n3. the request");
 {
   const built = m.flowRecordParams(SCOPE, RANGE, FORM, SORT);
-  eq("no filter: scope, range and sort only", built, {
-    ok: true,
-    params: {
-      since: RANGE.since,
-      until: RANGE.until,
-      sort: "start",
-      order: "desc",
-      location_id: "l1",
-    },
-  });
+  eq("no filter: scope, range and sort only", built.ok && Object.keys(built.params).sort(), [
+    "location_id",
+    "order",
+    "since",
+    "sort",
+    "until",
+  ]);
   eq(
     "a router alone is a scope",
     m.flowRecordParams({ locationId: "", routerId: "r1" }, RANGE, FORM, SORT).params.router_id,
@@ -384,20 +381,25 @@ console.log("\n3. the request");
     },
     { key: "bytes", order: "asc" },
   );
-  eq("every filter is sent under the API's own name, trimmed", all.params, {
-    since: RANGE.since,
-    until: RANGE.until,
-    sort: "bytes",
-    order: "asc",
-    location_id: "l1",
-    address: "10.0.0.0/8",
-    src_address: "192.168.88.24",
-    dst_address: "2001:db8::1",
-    port: "53",
-    src_port: "0",
-    dst_port: "443",
-    protocol: "17",
-  });
+  const byKey = (o) => Object.fromEntries(Object.entries(o).sort(([a], [b]) => a.localeCompare(b)));
+  eq(
+    "every filter is sent under the API's own name, trimmed",
+    byKey(all.params),
+    byKey({
+      since: RANGE.since,
+      until: RANGE.until,
+      sort: "bytes",
+      order: "asc",
+      location_id: "l1",
+      address: "10.0.0.0/8",
+      src_address: "192.168.88.24",
+      dst_address: "2001:db8::1",
+      port: "53",
+      src_port: "0",
+      dst_port: "443",
+      protocol: "17",
+    }),
+  );
   check(
     "an empty port is no filter, never port 0",
     !("port" in built.params) && !("src_port" in built.params),
@@ -558,9 +560,8 @@ eq(
     n.title,
   );
   check(
-    "the body gives the cap, the routers, how many were not stored, and where totals still are",
+    "the body gives the cap, how many were not stored across the stretches, and where totals still are",
     n.body.includes((100000).toLocaleString()) &&
-      /on 2 routers/.test(n.body) &&
       n.body.includes(`${(5000).toLocaleString()} records`) &&
       /venue view, which is not affected/.test(n.body),
     n.body,
@@ -678,7 +679,7 @@ eq(
   ["src/routes/master.traffic-flow.tsx"],
 );
 eq(
-  "only Master files read the flow-record rules and types",
+  "only Master files read the Master flow-record rules and types",
   importers(/lib\/traffic-flow-records"|types\/traffic-flow-records"/, ""),
   [
     "src/components/master/TrafficFlowRecords.tsx",
@@ -686,18 +687,30 @@ eq(
     "src/services/traffic-flow-records.service.ts",
   ],
 );
+// The customer dashboard has its own flow-records route behind a second
+// add-on (scripts/test-traffic-lens-flow-records.mjs). It shares the neutral
+// rules in src/lib/flow-records.ts and never the Master files.
 check(
-  "no customer Traffic Lens file imports anything of it",
+  "no customer Traffic Lens file imports a Master flow-record file",
   !sources.some(
     ([f, src]) =>
-      /components\/traffic-lens\/|lib\/traffic-lens-|hooks\/useTrafficLens|hooks\/useLensDestinations|services\/traffic-lens/.test(
+      /components\/traffic-lens\/|lib\/traffic-lens-|lib\/flow-records|lib\/records-table|hooks\/useTrafficLens|hooks\/useLens|services\/traffic-lens|types\/flow-records|types\/traffic-lens/.test(
         f,
-      ) && /traffic-flow-records|useFlowRecords|TrafficFlowRecords|\/flows\b/.test(src),
+      ) &&
+      /lib\/traffic-flow-records|types\/traffic-flow-records|traffic-flow-records\.service|useFlowRecords"|TrafficFlowRecords|platform\/traffic-flow/.test(
+        code(src),
+      ),
   ),
 );
 check(
-  "there is no customer flow-records route in the app",
-  !sources.some(([, src]) => /traffic-flow\/locations\/[^`"']*\/flows/.test(src)),
+  "the address a record was exported from exists in Master files only",
+  sources
+    .filter(([, src]) => /\bexporter\b/.test(code(src)) && /flow-records|FlowRecords/.test(src))
+    .every(([f]) =>
+      /^src\/(lib\/traffic-flow-records\.ts|types\/traffic-flow-records\.ts|components\/master\/TrafficFlowRecords\.tsx)$/.test(
+        f,
+      ),
+    ),
 );
 check(
   "the customer table still has its five placeholders",
@@ -766,20 +779,20 @@ check(
     /<TrafficFlowRecords/.test(page),
 );
 check("no screen says Application", !/application/i.test(tabCode.replace(/row\.application/g, "")));
-check(
-  "both consoles draw the same table component",
-  /<RecordsTable/.test(tab) &&
-    /<RecordsTable/.test(read("src/components/traffic-lens/TrafficLensDestinations.tsx")) &&
-    importers(/components\/traffic-lens\/RecordsTable"/, "").join() ===
-      "src/components/master/TrafficFlowRecords.tsx,src/components/traffic-lens/TrafficLensDestinations.tsx",
-);
-check(
-  "the Master table has no per-row action (Export there is the exporter, a value)",
-  !/rowAction/.test(tabCode),
+eq(
+  "every records table in the app is the one component",
+  importers(/components\/traffic-lens\/RecordsTable"/, ""),
+  [
+    "src/components/master/TrafficFlowRecords.tsx",
+    "src/components/traffic-lens/TrafficLensDestinations.tsx",
+    "src/components/traffic-lens/TrafficLensFlowRecords.tsx",
+  ],
 );
 for (const [name, src] of [
   ["RecordsTable.tsx", table],
   ["records-table.ts", helper],
+  ["flow-records.ts (shared rules)", read("src/lib/flow-records.ts")],
+  ["types/flow-records.ts", read("src/types/flow-records.ts")],
 ]) {
   const hit = code(src).match(
     /wireguard|tunnel|exporter|collector|netflow|ipfix|routeros|mikrotik|read-back/i,

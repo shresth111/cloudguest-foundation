@@ -696,8 +696,10 @@ const placeholder = (
   initial: true,
 });
 
-const NO_DEVICE = "Not recorded: a record is for the venue as a whole and never says which device.";
-const NO_NAT = "Not recorded: address translation is not kept.";
+const NO_DEVICE =
+  "Not recorded: a venue-level record never says which device. Per-connection records are a separate add-on.";
+const NO_NAT =
+  "Not recorded: venue-level records keep no address translation. Per-connection records are a separate add-on.";
 
 /** The Records table, in order. The last column of the asked-for shape,
  * Export, is the row's download button and is drawn by the table itself. */
@@ -712,7 +714,11 @@ export const LENS_RECORD_COLUMNS: LensRecordColumn[] = [
   placeholder("src_nat", "S.NAT", NO_NAT),
   placeholder("dst_nat", "D.NAT", NO_NAT),
   live("total", "Bytes", "bytes", { numeric: true }),
-  placeholder("packets", "Packets", "Not recorded: flows are counted, packets are not."),
+  placeholder(
+    "packets",
+    "Packets",
+    "Not recorded: venue-level records count flows, not packets. Per-connection records are a separate add-on.",
+  ),
   live("service", "Service", null),
   // Not in the asked-for shape, but real: off until switched on in Columns.
   live("down", "Download", "bytes_down", { numeric: true, initial: false }),

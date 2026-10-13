@@ -21,8 +21,9 @@ import type { RecordsColumn, RecordsRow } from "@/lib/records-table";
  *  - A column marked `notRecorded` keeps its place. Its heading is greyed,
  *    is never a sort button, and gives the reason on hover (title) and on
  *    tap (a line above the table). Its cells are drawn greyed, as given.
- *  - A cell listed in a row's `missing` is drawn greyed too, so a value that
- *    one row lacks does not read as a value.
+ *  - A cell listed in a row's `missing` is drawn greyed too, with the row's
+ *    own reason on hover, so a value that one row lacks does not read as a
+ *    value.
  *  - Sorting is the caller's: a header click reports the sort key and draws
  *    the arrow the caller's state says. The table never reorders rows.
  *  - The optional last column is an action on the row (a download), never a
@@ -112,7 +113,7 @@ export function RecordsTable<Id extends string, Sort extends string>({
                   return (
                     <TableCell
                       key={c.id}
-                      title={c.notRecorded ?? undefined}
+                      title={c.notRecorded ?? row.reasons?.[c.id]}
                       className={`whitespace-nowrap tabular-nums ${c.numeric ? "text-right" : ""} ${
                         mono.includes(c.id) ? "font-mono text-xs" : ""
                       } ${absent ? "text-muted-foreground/50" : ""}`}
