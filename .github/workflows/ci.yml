@@ -1554,6 +1554,29 @@ jobs:
             "all traffic lens insight checks passed" \
             bun run test:traffic-lens-insights
 
+      # --- Traffic Lens Flows: the Master flow table --------------------
+      #
+      # One row is one flow record: a device's address beside the address
+      # it reached. It is on the Master console only, and this suite fails
+      # if any customer file imports the service, the hook, the component
+      # or the rules, if a customer flow-records route appears in the app,
+      # or if the customer table's device columns stop being placeholders.
+      #
+      # Also pinned: null is "not recorded" (never zero, blank or a dash)
+      # and a field null in every row greys its column in place; the
+      # "records incomplete since" notice shows whenever the API sets the
+      # flag and never otherwise; switched off, nothing held and nothing
+      # matched are different sentences; nothing is fetched unasked (every
+      # search and download is audited); and both consoles draw ONE table
+      # component, which says nothing about how records are gathered.
+      # Floor 109, observed green at 109.
+      - name: traffic flow records are Master-only and honest
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "traffic flow records" 109 \
+            "all traffic flow record checks passed" \
+            bun run test:traffic-flow-records
+
       # --- A venue's floors are the venue's, not a constant ---------------
       #
       # `FLOORS = ["5F".."GF"]` was shown to every venue as its floor list,

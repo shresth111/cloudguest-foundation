@@ -838,9 +838,12 @@ const overview = read("src/components/traffic-lens/TrafficLensOverview.tsx");
 const parts = read("src/components/traffic-lens/TrafficLensParts.tsx");
 const records = read("src/components/traffic-lens/TrafficLensDestinations.tsx");
 const insights = read("src/lib/traffic-lens-insights.ts");
+// The table itself is one component both consoles draw.
+const table = read("src/components/traffic-lens/RecordsTable.tsx");
 const customer = read("src/lib/traffic-lens-customer.ts");
 const pageCode = strip2(
-  shell +
+  table +
+    shell +
     overview +
     parts +
     records +
@@ -956,13 +959,15 @@ check(
 );
 check(
   "placeholders are drawn greyed with their reason on hover and on tap",
-  /title=\{c\.notRecorded\}/.test(records) &&
-    /onClick=\{\(\) => setExplained\(explained === c\.id \? null : c\.id\)\}/.test(records) &&
-    /\{why\.notRecorded\}/.test(records),
+  /title=\{c\.notRecorded\}/.test(table) &&
+    /onClick=\{\(\) => setExplained\(explained === c\.id \? null : c\.id\)\}/.test(table) &&
+    /\{why\.notRecorded\}/.test(table) &&
+    /<RecordsTable\s+columns=\{shown\}/.test(records),
 );
 check(
   "the last column is the row's own download, not an address",
-  /saveRecord\(row\)/.test(records) &&
+  /saveRecord\(hit\.row\)/.test(records) &&
+    /heading: "Export"/.test(records) &&
     /since: row\.window_start, until: row\.window_end/.test(records) &&
     !/exporter/i.test(records),
 );
@@ -980,7 +985,7 @@ check(
 );
 check(
   "rows are filled by recordCells, one cell per shown column",
-  /recordCells\(row, timeZone\)/.test(records) && /\{cells\[c\.id\]\}/.test(records),
+  /recordCells\(row, timeZone\)/.test(records) && /\{row\.cells\[c\.id\]\}/.test(table),
 );
 check(
   "the lock screen shows no chart and no figure",

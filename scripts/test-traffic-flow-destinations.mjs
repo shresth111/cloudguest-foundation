@@ -897,11 +897,14 @@ eq(
   ["src/hooks/useFlowDestinations.ts"],
 );
 eq(
-  "only the two Master components import the hook",
+  "only the two Master components use the hooks (the flow-records hook borrows `sameSearch`)",
   importers(/hooks\/useFlowDestinations/, "src/hooks/useFlowDestinations.ts"),
   [
     "src/components/master/TrafficFlowDestinations.tsx",
     "src/components/master/TrafficFlowServiceDestinations.tsx",
+    // Imports the pure `sameSearch` only, and is itself Master-only:
+    // scripts/test-traffic-flow-records.mjs pins who may import it.
+    "src/hooks/useFlowRecords.ts",
   ],
 );
 eq(

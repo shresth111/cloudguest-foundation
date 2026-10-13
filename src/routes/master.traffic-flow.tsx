@@ -15,6 +15,7 @@ import {
   M_INPUT,
 } from "@/components/master/MasterKit";
 import { TrafficFlowDestinations } from "@/components/master/TrafficFlowDestinations";
+import { TrafficFlowRecords } from "@/components/master/TrafficFlowRecords";
 import { TrafficFlowRouterDrawer } from "@/components/master/TrafficFlowRouterDrawer";
 import { TrafficFlowVenueView } from "@/components/master/TrafficFlowVenueView";
 import { useTrafficFlowStatus } from "@/hooks/useTrafficFlow";
@@ -39,7 +40,7 @@ export const Route = createFileRoute("/master/traffic-flow")({
   component: TrafficFlowScreen,
 });
 
-type Tab = "fleet" | "venue" | "destinations";
+type Tab = "fleet" | "venue" | "destinations" | "flows";
 
 const EMPTY_FILTERS: FleetFilters = { organizationId: "", locationId: "", state: "", q: "" };
 const EMPTY_SCOPE: FlowScope = { window: "1h", locationId: "", routerId: "" };
@@ -57,11 +58,14 @@ const BANNER_CLASS: Record<FlowBanner["tone"], string> = {
  * Both are pinned to GLOBAL on the backend. Operator-only: guest traffic
  * metadata never reaches a customer surface (~/wyfy-ops/netflow/DESIGN.md §7).
  *
- * Three tabs. Fleet (M1) is the current state of every router, from GET
+ * Four tabs. Fleet (M1) is the current state of every router, from GET
  * /status; it has no time range. Venue view (M2) is one venue or router over
  * a range, from GET /summary. Destinations is a search over one venue's
- * destination records, venue-level and audited. The venue and the range are
- * shared by the last two. The setup drawer (M3) opens from the first two.
+ * destination records, venue-level and audited. Flows is a search over
+ * individual flow records (GET /flows): the one table with a device's
+ * address beside the address it reached, on this console only and audited.
+ * The venue and the range are shared by the last three. The setup drawer
+ * (M3) opens from the first two.
  *
  * Honest states, never a zero that reads as "all quiet": the feature off,
  * a router not set up, set up but never heard from, silent, an unsupported
@@ -113,6 +117,7 @@ function TrafficFlowScreen() {
                   { value: "fleet", label: "Fleet" },
                   { value: "venue", label: "Venue view" },
                   { value: "destinations", label: "Destinations" },
+                  { value: "flows", label: "Flows" },
                 ]}
                 value={tab}
                 onChange={setTab}
@@ -314,8 +319,15 @@ function TrafficFlowScreen() {
             onScope={setScope}
             onSetup={setOpenRouter}
           />
-        ) : (
+        ) : tab === "destinations" ? (
           <TrafficFlowDestinations
+            routers={routers}
+            scope={scope}
+            onScope={setScope}
+            rangeAt={(at) => flowRange(scope, at)}
+          />
+        ) : (
+          <TrafficFlowRecords
             routers={routers}
             scope={scope}
             onScope={setScope}

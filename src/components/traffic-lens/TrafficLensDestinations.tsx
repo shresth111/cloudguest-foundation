@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { RecordsTable } from "@/components/traffic-lens/RecordsTable";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -115,8 +116,6 @@ export function TrafficLensDestinations({
   const [visible, setVisible] = useState<LensRecordColumnId[]>(LENS_RECORD_DEFAULT_COLUMNS);
   /** The quick box: narrows the loaded rows in the browser. Never a request. */
   const [quick, setQuick] = useState("");
-  /** The placeholder column whose reason is spelled out above the table. */
-  const [explained, setExplained] = useState<LensRecordColumnId | null>(null);
   const q = useLensDestinationSearch(locationId, params);
   const download = useLensDestinationExport(locationId);
   const now = Date.now();
@@ -215,7 +214,6 @@ export function TrafficLensDestinations({
     ).map((cells) => cells.key),
   );
   const rows = loaded.filter((x) => kept.has(x.cells.key));
-  const why = COLUMNS.find((c) => c.id === explained && c.notRecorded !== null);
 
   return (
     <section aria-label="Records" className="premium-card overflow-hidden rounded-2xl">
@@ -421,85 +419,24 @@ export function TrafficLensDestinations({
                     </p>
                   )}
                 </div>
-                {why && (
-                  <p
-                    role="status"
-                    className="rounded-lg border border-dashed border-border px-3 py-2 text-xs"
-                  >
-                    <span className="font-semibold">{why.label}</span>: {why.notRecorded}
-                  </p>
-                )}
-                <div className="overflow-x-auto rounded-xl border border-border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-muted/50">
-                        {shown.map((c) => (
-                          <TableHead
-                            key={c.id}
-                            aria-sort={c.sort ? ariaSort(sort, c.sort) : undefined}
-                            className={`whitespace-nowrap text-[11px] font-semibold uppercase tracking-wider ${c.numeric ? "text-right" : ""}`}
-                          >
-                            {c.notRecorded !== null ? (
-                              <button
-                                type="button"
-                                title={c.notRecorded}
-                                aria-label={`${c.label}. ${c.notRecorded}`}
-                                onClick={() => setExplained(explained === c.id ? null : c.id)}
-                                className="cursor-help uppercase tracking-wider text-muted-foreground/60 underline decoration-dotted underline-offset-4"
-                              >
-                                {c.label}
-                              </button>
-                            ) : c.sort ? (
-                              <SortButton
-                                label={c.label}
-                                state={ariaSort(sort, c.sort)}
-                                onClick={() => sortBy(c.sort as DestinationSortKey)}
-                              />
-                            ) : (
-                              c.label
-                            )}
-                          </TableHead>
-                        ))}
-                        <TableHead className="whitespace-nowrap text-right text-[11px] font-semibold uppercase tracking-wider">
-                          Export
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {rows.map(({ row, cells }) => (
-                        <TableRow key={cells.key}>
-                          {shown.map((c) => (
-                            <TableCell
-                              key={c.id}
-                              title={c.notRecorded ?? undefined}
-                              className={`whitespace-nowrap ${
-                                c.numeric ? "text-right tabular-nums" : ""
-                              } ${c.id === "address" ? "font-mono text-xs" : ""} ${
-                                c.id === "start" || c.id === "end" ? "tabular-nums" : ""
-                              } ${c.notRecorded !== null ? "text-muted-foreground/50" : ""}`}
-                            >
-                              {cells[c.id]}
-                            </TableCell>
-                          ))}
-                          <TableCell className="text-right">
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7"
-                              disabled={download.isPending}
-                              aria-label={`Download this record as CSV: ${cells.address}, ${cells.start}`}
-                              title="Download this record as CSV"
-                              onClick={() => saveRecord(row)}
-                            >
-                              <Download className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                <RecordsTable
+                  columns={shown}
+                  rows={rows.map((x) => ({ key: x.cells.key, cells: x.cells }))}
+                  sort={sort}
+                  onSort={sortBy}
+                  mono={["address"]}
+                  rowAction={{
+                    heading: "Export",
+                    title: "Download this record as CSV",
+                    label: (row) =>
+                      `Download this record as CSV: ${row.cells.address}, ${row.cells.start}`,
+                    disabled: download.isPending,
+                    onClick: (row) => {
+                      const hit = rows.find((x) => x.cells.key === row.key);
+                      if (hit) saveRecord(hit.row);
+                    },
+                  }}
+                />
                 {rows.length === 0 && (
                   <Plain title="No loaded record matches the filter box.">
                     The box only narrows what is already loaded. Clear it to see them again, or use
@@ -627,29 +564,6 @@ export function TrafficLensServiceDestinations({
         </>
       )}
     </section>
-  );
-}
-
-function SortButton({
-  label,
-  state,
-  onClick,
-}: {
-  label: string;
-  state: "ascending" | "descending" | "none";
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={state === "none" ? `Sort by ${label}` : `Sorted ${state}; click to reverse`}
-      className={`inline-flex items-center gap-1 uppercase tracking-wider hover:text-foreground ${state === "none" ? "" : "text-foreground"}`}
-    >
-      {label}
-      {state === "ascending" && <ArrowUp aria-hidden className="h-3 w-3" />}
-      {state === "descending" && <ArrowDown aria-hidden className="h-3 w-3" />}
-    </button>
   );
 }
 
