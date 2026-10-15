@@ -20,7 +20,7 @@ import {
   loadPersistedHotspotSubmit,
   persistHotspotSubmit,
 } from "@/context/PortalRuntimeContext";
-import { buildSessionUrl } from "@/lib/portal-session-url";
+import { buildReviewUrl, buildSessionUrl } from "@/lib/portal-session-url";
 import { nasAuthorizedFromSearch } from "@/lib/portal-nas-state";
 import {
   hotspotGateAlreadyOpen,
@@ -30,7 +30,7 @@ import {
 import { PORTAL_SLOW_NOTICE_DELAY_MS } from "@/lib/portal-post-connect";
 import { usePortalLinkSearch } from "@/components/portal-runtime/usePortalLinkSearch";
 import { isCaptiveNetworkAssistant } from "@/lib/portal-cna";
-import { resolvePostLoginDestination } from "@/lib/portal-post-login";
+import { resolvePostLoginDestination, reviewPageEligible } from "@/lib/portal-post-login";
 import { buildPortalAuthorizeBody, normalizeOmadaText } from "@/lib/portal-authorize-body";
 import {
   buildPortalRadiusAuthorizeBody,
@@ -259,10 +259,33 @@ function SuccessPage() {
   // the honest resting place there too -- this page never points any
   // client at captive.apple.com (see the `dst` comment on the POST
   // branch).
+  // The "Rate us on Google" page (SPEC google-review §5.2). When the server
+  // says it is due for this guest at this location, it is the destination
+  // at EVERY gate below -- MikroTik `dst`, Omada's assign, Aruba's `url`,
+  // already-authorized and no-login-URL -- in a captive sheet and in a real
+  // browser, and in default, redirect and html mode alike. Its Continue
+  // then goes where the guest would have gone anyway. Otherwise every
+  // destination below is exactly what it was.
+  //
+  // The page is served from the portal host (already walled-garden), so it
+  // loads even if a controller's gate lags a second; only the Google tap
+  // needs the open internet, and the page checks that before following it.
+  const reviewDue = reviewPageEligible(config, session);
+  const reviewTarget = () =>
+    buildReviewUrl(
+      organizationId,
+      locationId,
+      routerId,
+      language,
+      deviceMac,
+      session?.sessionId ?? "",
+    );
   const directTarget = () =>
-    !isCaptiveNetworkAssistant() && destination.mode === "redirect" && destination.url
-      ? destination.url
-      : sessionTarget();
+    reviewDue
+      ? reviewTarget()
+      : !isCaptiveNetworkAssistant() && destination.mode === "redirect" && destination.url
+        ? destination.url
+        : sessionTarget();
   // captive-portal-v7-design-spec.md §1.1 (L1). This route is NOT in the
   // spec's own L1 route list, and that list is wrong: the slow/stuck
   // notice below renders past SLOW_NOTICE_DELAY_MS as plain text directly
@@ -541,7 +564,11 @@ function SuccessPage() {
     hotspotLoginSubmitted.current = true;
     // Same destination rule as the RouterOS POST below: the CNA websheet
     // lands on the session page, everyone else on the venue's decision.
-    const arubaDst = isCaptiveNetworkAssistant() ? sessionTarget() : directTarget();
+    const arubaDst = reviewDue
+      ? reviewTarget()
+      : isCaptiveNetworkAssistant()
+        ? sessionTarget()
+        : directTarget();
     // Same flick-flash cooldown as RouterOS: a remount moments after a real
     // submit goes to the destination on a real document load. If the AP's
     // gate is still shut, the AP intercepts that load and redirects back
@@ -748,11 +775,13 @@ function SuccessPage() {
     //
     // Reachable ONLY for a client the NAS has NOT already authorized --
     // the guard at the top of this function returned for the other case.
-    const dst = isCaptiveNetworkAssistant()
-      ? sessionTarget()
-      : destination.mode === "redirect" && destination.url
-        ? destination.url
-        : sessionTarget();
+    const dst = reviewDue
+      ? reviewTarget()
+      : isCaptiveNetworkAssistant()
+        ? sessionTarget()
+        : destination.mode === "redirect" && destination.url
+          ? destination.url
+          : sessionTarget();
 
     // Real incident, live captive-portal "flick flick" flash: a remount
     // landing back here within HOTSPOT_RESUBMIT_COOLDOWN_MS of this exact

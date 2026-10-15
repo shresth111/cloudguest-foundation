@@ -183,6 +183,9 @@ interface BackendGuestLoginResponse {
    * `RuntimeSession.hasProfile` / `.hasOpenedReviewLink`. */
   has_profile?: boolean;
   has_opened_review_link?: boolean;
+  /** See `RuntimeSession.reviewPromptDue` / `.reviewShownThisSession`. */
+  review_prompt_due?: boolean;
+  review_shown_this_session?: boolean;
   /** §5.8 of the marketing spec; absent on a backend that predates it. */
   marketing_consent_offer?: { text: string; text_version: string } | null;
   /** Name required at sign-in -- see `RuntimeSession.nameRequired`. Absent
@@ -385,6 +388,8 @@ function toRuntimeSession(data: BackendGuestLoginResponse): RuntimeSession {
     // landing ahead of the backend changes nothing for anyone.
     hasProfile: data.has_profile ?? false,
     hasOpenedReviewLink: data.has_opened_review_link ?? false,
+    reviewPromptDue: data.review_prompt_due ?? false,
+    reviewShownThisSession: data.review_shown_this_session ?? false,
     nameRequired: data.name_required ?? false,
     marketingConsentOffer: data.marketing_consent_offer
       ? {
@@ -700,6 +705,16 @@ export const portalRuntimeService = {
    * "opened your review link" -- see `PortalPage`'s own card. */
   async recordReviewLinkOpened(params: { guestId: string; sessionId: string }): Promise<void> {
     await guestPortalApi.post("/guest/review-link-opened", {
+      guest_id: params.guestId,
+      session_id: params.sessionId,
+    });
+  },
+
+  /** `/portal/review` was shown -- `POST /guest/review-prompt-shown`.
+   * Starts the server's 30-day per-location cooldown. Fire-and-forget at
+   * the call site: it changes nothing about the guest's connection. */
+  async recordReviewPromptShown(params: { guestId: string; sessionId: string }): Promise<void> {
+    await guestPortalApi.post("/guest/review-prompt-shown", {
       guest_id: params.guestId,
       session_id: params.sessionId,
     });

@@ -33,7 +33,8 @@ import {
   campaignHasRenderableContent,
 } from "@/components/portal-runtime/CampaignOverlay";
 import { campaignService } from "@/services/campaign.service";
-import { DEFAULT_FEEDBACK_DWELL_MINUTES } from "@/lib/portal-post-connect";
+import { DEFAULT_FEEDBACK_DWELL_MINUTES, isSafeGoogleReviewUrl } from "@/lib/portal-post-connect";
+import { GoogleReviewPage } from "@/components/portal-runtime/GoogleReviewPage";
 import type { RuntimePortalConfig } from "@/types/portal-runtime";
 
 /**
@@ -131,6 +132,10 @@ const searchSchema = z.object({
    * to the default rather than throw this route's search validation and
    * blank the page mid-demo. */
   walkthrough: z.boolean().optional().catch(undefined),
+  /** `review` shows the "Rate us on Google" page (`/portal/review`) as
+   * guests see it, from the Portal page's "Google reviews" card. Any other
+   * value falls back to the normal preview rather than throwing. */
+  step: z.enum(["review"]).optional().catch(undefined),
 });
 
 export const Route = createFileRoute("/preview/portal/$locationId")({
@@ -270,11 +275,14 @@ function PreviewBroadcastIllustration() {
 
 function PortalPreviewPage() {
   const { locationId } = Route.useParams();
-  const { organizationId, walkthrough: walkthroughParam } = Route.useSearch();
+  const { organizationId, walkthrough: walkthroughParam, step } = Route.useSearch();
   const navigate = Route.useNavigate();
   // Absent = on. Only an explicit `?walkthrough=false` opts out -- see the
   // search schema's own note for why this default was inverted.
-  const walkthrough = walkthroughParam !== false;
+  // The review page preview is a static view of one page, never part of
+  // the walkthrough.
+  const reviewStep = step === "review";
+  const walkthrough = !reviewStep && walkthroughParam !== false;
   // Bumped by "Restart" -- keyed into the PortalRuntimeProvider below so a
   // restart genuinely rebuilds the whole runtime (language, selected method,
   // OTP phase, the fake session) rather than only resetting whichever pieces
@@ -285,7 +293,7 @@ function PortalPreviewPage() {
     // `replace` so toggling the demo on and off a few times in front of a
     // prospect does not bury the page they came from under history entries.
     navigate({
-      search: (prev) => ({ ...prev, walkthrough: on ? undefined : false }),
+      search: (prev) => ({ ...prev, step: undefined, walkthrough: on ? undefined : false }),
       replace: true,
     });
   };
@@ -670,7 +678,16 @@ function PortalPreviewPage() {
                   presetConfig={mergedConfig}
                   presetConfigLoading={false}
                 >
-                  {walkthrough ? (
+                  {reviewStep && isSafeGoogleReviewUrl(mergedConfig?.reviewUrl) ? (
+                    // The real guest page component, in preview mode: the
+                    // CTA and Continue do nothing and nothing is recorded.
+                    <GoogleReviewPage
+                      constrained
+                      reviewUrl={mergedConfig!.reviewUrl!}
+                      onOpenReview={async () => true}
+                      onContinue={() => undefined}
+                    />
+                  ) : walkthrough ? (
                     // The shared simulated-journey engine, fed THIS venue's
                     // own real material: its resolved config (already in the
                     // provider above, so branding/login methods/content step

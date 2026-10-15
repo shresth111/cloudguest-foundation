@@ -36,9 +36,8 @@ await build({
   alias: { "@": SRC },
 });
 
-const { resolvePostLoginDestination, isSafeRedirectTarget, isCaptiveProbeUrl } = await import(
-  join(work, "bundle.mjs")
-);
+const { resolvePostLoginDestination, isSafeRedirectTarget, isCaptiveProbeUrl, reviewPageEligible } =
+  await import(join(work, "bundle.mjs"));
 
 let failures = 0;
 function check(name, condition, detail = "") {
@@ -222,6 +221,57 @@ console.log("post-login destination");
     /destination\.mode === "redirect" && destination\.url/.test(success) &&
       /destination\.url/.test(success.split("const dst")[1] ?? ""),
     "the NAS must send redirect-mode guests straight to the URL, no portal page",
+  );
+}
+
+// --- The "Rate us on Google" page (SPEC google-review §5.2) -------------
+console.log("review page as post-login destination");
+{
+  const ON = { reviewCardEnabled: true, reviewUrl: "https://g.page/r/abc/review" };
+  const DUE = { reviewPromptDue: true };
+  check("eligible: switch on + safe link + server says due", reviewPageEligible(ON, DUE) === true);
+  check(
+    "not eligible when the server says not due",
+    reviewPageEligible(ON, { reviewPromptDue: false }) === false,
+  );
+  check("not eligible on an older backend (bit absent)", reviewPageEligible(ON, {}) === false);
+  check("not eligible with no session", reviewPageEligible(ON, null) === false);
+  check(
+    "not eligible with the switch off",
+    reviewPageEligible({ ...ON, reviewCardEnabled: false }, DUE) === false,
+  );
+  check("not eligible with no link", reviewPageEligible({ ...ON, reviewUrl: null }, DUE) === false);
+  check(
+    "not eligible with an unsafe link (google.evil.com)",
+    reviewPageEligible({ ...ON, reviewUrl: "https://google.evil.com/x" }, DUE) === false,
+  );
+  check(
+    "a pre-gate rating in the same visit skips the page",
+    reviewPageEligible(ON, DUE, true) === false,
+  );
+
+  const success = readFileSync(join(SRC, "routes/portal.success.tsx"), "utf8");
+  check(
+    "success computes reviewDue once, from reviewPageEligible",
+    /const reviewDue = reviewPageEligible\(config, session\)/.test(success),
+  );
+  check(
+    "directTarget (Omada x2, already-authorized, no-login-URL) prefers the review page",
+    /const directTarget = \(\) =>\s*reviewDue\s*\?\s*reviewTarget\(\)/.test(success),
+  );
+  check(
+    "MikroTik dst prefers the review page, in a captive sheet too",
+    /const dst = reviewDue\s*\?\s*reviewTarget\(\)/.test(success),
+  );
+  check(
+    "Aruba url prefers the review page, in a captive sheet too",
+    /const arubaDst = reviewDue\s*\?\s*reviewTarget\(\)/.test(success),
+  );
+  const assigns = success.match(/window\.location\.assign\(([^)]*)\)/g) ?? [];
+  check(
+    "every gate navigation goes through directTarget / dst / arubaDst",
+    assigns.every((a) => /directTarget\(\)|\(dst\)|\(arubaDst\)/.test(a)),
+    assigns.join(", "),
   );
 }
 

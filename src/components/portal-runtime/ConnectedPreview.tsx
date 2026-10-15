@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { Laptop } from "lucide-react";
 import { PortalShell, PortalCard, PortalTextPlate } from "@/components/portal-runtime/PortalShell";
 import { GuestProfileNudge } from "@/components/portal-runtime/GuestProfileNudge";
-import { GoogleReviewNudge } from "@/components/portal-runtime/GoogleReviewNudge";
 import { GuestFeedbackNudge } from "@/components/portal-runtime/GuestFeedbackNudge";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { DEFAULT_FEEDBACK_DWELL_MINUTES, resolvePostConnectAsk } from "@/lib/portal-post-connect";
@@ -47,7 +46,7 @@ import type { RuntimeSession } from "@/types/portal-runtime";
 export type ConnectedPreviewScenario = "first_visit" | "returning" | "dwell";
 
 /** A believable but obviously synthetic session. Every id is a literal
- * placeholder, and both `GuestProfileNudge` and `GoogleReviewNudge` refuse
+ * placeholder, and `GuestProfileNudge` refuses
  * to write anything or persist a session while `previewMode` is set -- see
  * their `isSimulated` guards. */
 function buildPreviewSession(scenario: ConnectedPreviewScenario): RuntimeSession {
@@ -79,10 +78,9 @@ function buildPreviewSession(scenario: ConnectedPreviewScenario): RuntimeSession
     deviceMacAddress: null,
     deviceName: "This device",
     hasPassword: false,
-    // A returning guest has already answered the profile ask -- which is
-    // exactly why the Google card is what they see instead, and why the
-    // operator can watch the priority order work rather than being told
-    // about it.
+    // A returning guest has already answered the profile ask. (The Google
+    // review ask is its own page now, previewed from the "Google reviews"
+    // card's own "Preview page" link, not here.)
     hasProfile: scenario !== "first_visit",
     hasOpenedReviewLink: false,
   };
@@ -141,7 +139,7 @@ export function ConnectedPreview({ scenario }: { scenario: ConnectedPreviewScena
         config,
         session,
         now: Date.now(),
-        reviewCardShownThisSession: false,
+        reviewShownThisVisit: false,
         // Only the "30 minutes in" guest has a campaign to answer, which is
         // the whole point of that scenario: the star prompt is not an
         // arrival card any more.
@@ -163,12 +161,6 @@ export function ConnectedPreview({ scenario }: { scenario: ConnectedPreviewScena
 
         {ask === "profile" && (
           <GuestProfileNudge
-            session={session}
-            onResolved={() => setSettled((s) => ({ ...s, arrival: true }))}
-          />
-        )}
-        {ask === "review" && (
-          <GoogleReviewNudge
             session={session}
             onResolved={() => setSettled((s) => ({ ...s, arrival: true }))}
           />

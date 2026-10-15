@@ -667,6 +667,17 @@ export interface RuntimeSession {
    * leak review authorship. Nothing anywhere may report this as a count of
    * reviews; the only truthful label is "opened your review link". */
   hasOpenedReviewLink: boolean;
+  /** The "Rate us on Google" page (`/portal/review`) should be shown now.
+   * Decided server-side (`GuestService.review_prompt_due`): the venue has
+   * the page switched on with a valid link, and this guest has neither
+   * opened the link at this location nor been shown the page there in the
+   * last 30 days. The portal's ONLY source of truth for the page -- it never
+   * decides frequency itself. Absent (an older backend) reads as false: no
+   * page, today's flow. */
+  reviewPromptDue?: boolean;
+  /** The review page was shown in this session (server-side stamp). The
+   * star-feedback card must not render in a visit where this is true. */
+  reviewShownThisSession?: boolean;
   /** Name required at sign-in, for THIS session: the venue requires a name,
    * this is an OTP login, and the guest has none on file. The session
    * exists, but every step that opens the network refuses it (backend code

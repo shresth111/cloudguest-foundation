@@ -69,6 +69,7 @@ import { Route as PortalRedirectRouteImport } from './routes/portal.redirect'
 import { Route as PortalOfflineRouteImport } from './routes/portal.offline'
 import { Route as PortalNotListedRouteImport } from './routes/portal.not-listed'
 import { Route as PortalFailureRouteImport } from './routes/portal.failure'
+import { Route as PortalReviewRouteImport } from './routes/portal.review'
 import { Route as PortalExpiredRouteImport } from './routes/portal.expired'
 import { Route as PortalClosedRouteImport } from './routes/portal.closed'
 import { Route as PortalAuthRouteImport } from './routes/portal.auth'
@@ -499,6 +500,11 @@ const PortalNotListedRoute = PortalNotListedRouteImport.update({
 const PortalFailureRoute = PortalFailureRouteImport.update({
   id: '/failure',
   path: '/failure',
+  getParentRoute: () => PortalRoute,
+} as any)
+const PortalReviewRoute = PortalReviewRouteImport.update({
+  id: '/review',
+  path: '/review',
   getParentRoute: () => PortalRoute,
 } as any)
 const PortalExpiredRoute = PortalExpiredRouteImport.update({
@@ -1324,6 +1330,7 @@ export interface FileRoutesByFullPath {
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
   '/portal/auth': typeof PortalAuthRouteWithChildren
   '/portal/closed': typeof PortalClosedRoute
+  '/portal/review': typeof PortalReviewRoute
   '/portal/expired': typeof PortalExpiredRoute
   '/portal/failure': typeof PortalFailureRoute
   '/portal/not-listed': typeof PortalNotListedRoute
@@ -1512,6 +1519,7 @@ export interface FileRoutesByTo {
   '/master/tickets': typeof MasterTicketsRoute
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
   '/portal/closed': typeof PortalClosedRoute
+  '/portal/review': typeof PortalReviewRoute
   '/portal/expired': typeof PortalExpiredRoute
   '/portal/failure': typeof PortalFailureRoute
   '/portal/not-listed': typeof PortalNotListedRoute
@@ -1706,6 +1714,7 @@ export interface FileRoutesById {
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
   '/portal/auth': typeof PortalAuthRouteWithChildren
   '/portal/closed': typeof PortalClosedRoute
+  '/portal/review': typeof PortalReviewRoute
   '/portal/expired': typeof PortalExpiredRoute
   '/portal/failure': typeof PortalFailureRoute
   '/portal/not-listed': typeof PortalNotListedRoute
@@ -1901,6 +1910,7 @@ export interface FileRouteTypes {
     | '/master/traffic-flow'
     | '/portal/auth'
     | '/portal/closed'
+    | '/portal/review'
     | '/portal/expired'
     | '/portal/failure'
     | '/portal/not-listed'
@@ -2089,6 +2099,7 @@ export interface FileRouteTypes {
     | '/master/tickets'
     | '/master/traffic-flow'
     | '/portal/closed'
+    | '/portal/review'
     | '/portal/expired'
     | '/portal/failure'
     | '/portal/not-listed'
@@ -2282,6 +2293,7 @@ export interface FileRouteTypes {
     | '/master/traffic-flow'
     | '/portal/auth'
     | '/portal/closed'
+    | '/portal/review'
     | '/portal/expired'
     | '/portal/failure'
     | '/portal/not-listed'
@@ -2878,6 +2890,13 @@ declare module '@tanstack/react-router' {
       path: '/failure'
       fullPath: '/portal/failure'
       preLoaderRoute: typeof PortalFailureRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/portal/review': {
+      id: '/portal/review'
+      path: '/review'
+      fullPath: '/portal/review'
+      preLoaderRoute: typeof PortalReviewRouteImport
       parentRoute: typeof PortalRoute
     }
     '/portal/expired': {
@@ -4147,6 +4166,7 @@ const PortalAuthRouteWithChildren = PortalAuthRoute._addFileChildren(
 interface PortalRouteChildren {
   PortalAuthRoute: typeof PortalAuthRouteWithChildren
   PortalClosedRoute: typeof PortalClosedRoute
+  PortalReviewRoute: typeof PortalReviewRoute
   PortalExpiredRoute: typeof PortalExpiredRoute
   PortalFailureRoute: typeof PortalFailureRoute
   PortalNotListedRoute: typeof PortalNotListedRoute
@@ -4165,6 +4185,7 @@ interface PortalRouteChildren {
 const PortalRouteChildren: PortalRouteChildren = {
   PortalAuthRoute: PortalAuthRouteWithChildren,
   PortalClosedRoute: PortalClosedRoute,
+  PortalReviewRoute: PortalReviewRoute,
   PortalExpiredRoute: PortalExpiredRoute,
   PortalFailureRoute: PortalFailureRoute,
   PortalNotListedRoute: PortalNotListedRoute,

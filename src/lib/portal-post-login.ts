@@ -37,6 +37,7 @@
 
 import type { RuntimePortalConfig } from "@/types/portal-runtime";
 import { hasPostLoginHtml } from "@/lib/post-login-html";
+import { isSafeGoogleReviewUrl } from "@/lib/portal-post-connect";
 
 export type PostLoginMode = "html" | "redirect" | "default";
 
@@ -130,4 +131,34 @@ export function resolvePostLoginDestination(
   const url = raw && isSafeRedirectTarget(raw) ? raw : undefined;
   const mode: PostLoginMode = html ? "html" : url ? "redirect" : "default";
   return { mode, html, url };
+}
+
+/**
+ * Whether this guest's post-login destination is the "Rate us on Google"
+ * page (`/portal/review`) instead of the usual one.
+ *
+ * The server decides frequency (`reviewPromptDue`: once per guest per
+ * location per 30 days, never again after a tap); this adds only the
+ * venue's switch and the link guard, so a stale session bit can never send
+ * a guest to a page with nothing on it. Applies in every post-login mode
+ * (default, redirect, html) and for every vendor: portal.success.tsx uses
+ * it at each gate destination, and the review page's Continue then goes
+ * where the guest would have gone anyway.
+ *
+ * `preGateRatingShown` is the hook for a pre-gate survey that asked for a
+ * rating in this same visit (staging's pre-gate phase): if it did, the
+ * review page is skipped, because a review ask and a rating prompt never
+ * share a visit.
+ */
+export function reviewPageEligible(
+  config: Pick<RuntimePortalConfig, "reviewCardEnabled" | "reviewUrl"> | null | undefined,
+  session: { reviewPromptDue?: boolean } | null | undefined,
+  preGateRatingShown = false,
+): boolean {
+  if (preGateRatingShown) return false;
+  return (
+    !!session?.reviewPromptDue &&
+    !!config?.reviewCardEnabled &&
+    isSafeGoogleReviewUrl(config?.reviewUrl)
+  );
 }

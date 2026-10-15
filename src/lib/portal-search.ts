@@ -469,6 +469,15 @@ const portalSearchShape = {
   // `window.location` but missing here would be dropped at the first
   // `<Link>`, exactly as `mac` was.
   hspage: z.string().optional(),
+  // The "Rate us on Google" page (`/portal/review`). `sid` is the session
+  // id the page was built for, put there by `buildReviewUrl`; the page
+  // continues straight on when it is not the guest's live session.
+  // `review` is the same id on the page's Continue link to
+  // `/portal/session`, which then keeps the star-feedback card out of this
+  // visit. Both are ids compared against the live session, never a
+  // destination: there is deliberately no "next"/"continue" URL param.
+  sid: z.string().optional(),
+  review: z.string().optional(),
 } as const;
 
 export const portalSearchSchema = z.object(portalSearchShape);
