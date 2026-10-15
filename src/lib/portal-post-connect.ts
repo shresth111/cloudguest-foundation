@@ -1,7 +1,11 @@
 /**
  * The decision layer behind everything `/portal/session` asks a guest for
- * AFTER the RADIUS session is already authorised: the profile card, the
- * Google review card, and the private star-feedback card.
+ * AFTER the RADIUS session is already authorised: the profile card and the
+ * private star-feedback card. The Google review ask is no longer a card
+ * here -- it is its own page, `/portal/review`, shown BEFORE this one (see
+ * `src/routes/portal.review.tsx`). What this module still owns about it is
+ * the link guard (`isSafeGoogleReviewUrl`) and the rule that a visit which
+ * showed the review page never shows the star card (`reviewShownThisVisit`).
  *
  * It lives in its own dependency-free module for three reasons.
  *
@@ -95,38 +99,77 @@ export function dwellMinutes(startedAt: string | null | undefined, now: number):
 }
 
 /**
- * A venue pastes its own review link (Business Profile → Read reviews →
- * Get more reviews), and it is stored and used verbatim -- never
- * synthesised from a place id, because neither `g.page/r/…` nor
- * `search.google.com/local/writereview?placeid=` is a documented stable
- * contract.
+ * The hosts a review link may live on -- an EXACT copy of the backend's
+ * `REVIEW_URL_ALLOWED_HOST_SUFFIXES` (captive_portal/constants.py). Matched
+ * as the host itself or a suffix after a dot, so `maps.google.co.in`
+ * passes via `google.co.in` and `google.evil.com` / `notgoogle.com` do not.
+ * It used to be a regex (`google\.[a-z.]{2,}$`) that accepted
+ * `google.evil.com`; the backend refused to store that, but the last guard
+ * before an `href` must not be weaker than the one before the database.
+ */
+export const REVIEW_URL_ALLOWED_HOST_SUFFIXES = [
+  "google.com",
+  "g.page",
+  "goo.gl",
+  "maps.app.goo.gl",
+  "google.co.in",
+  "google.co.uk",
+] as const;
+
+/** A bare Google Place ID -- the backend's `REVIEW_PLACE_ID_PATTERN`: no
+ * scheme, no dot, no slash. */
+const PLACE_ID_PATTERN = /^[A-Za-z0-9_-]{20,255}$/;
+
+export function isGooglePlaceId(raw: string | null | undefined): boolean {
+  return !!raw && PLACE_ID_PATTERN.test(raw.trim());
+}
+
+/**
+ * What the backend will store for what an operator typed: a bare Place ID
+ * becomes a `writereview?placeid=` link, anything else is kept verbatim.
+ * Used by the dashboard's "Test link" button so it opens what guests will
+ * open. The server does the same conversion on save; this is a preview of
+ * it, never a substitute.
+ */
+export function normalizeReviewInput(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (PLACE_ID_PATTERN.test(trimmed)) {
+    return `https://search.google.com/local/writereview?placeid=${encodeURIComponent(trimmed)}`;
+  }
+  return trimmed;
+}
+
+/**
+ * A venue pastes its own review link (Business Profile → Ask for reviews),
+ * and it is stored and used verbatim -- never synthesised from a venue
+ * name or a Maps search.
  *
  * This check is a safety guard on a value that reaches a navigation sink,
  * exactly like `CampaignOverlay.openBanner`'s scheme check on an
  * operator-authored `clickUrl`: `https` only (so a `javascript:` or
- * `data:` value can never execute), and a Google-owned host (so a
- * mis-pasted link cannot quietly turn the venue's review card into a
- * redirect to somewhere else). It is not a validity check -- the backend
- * validates on write; this is the last line before `href`.
+ * `data:` value can never execute), no userinfo, no backslash (WHATWG and
+ * other parsers disagree on it), no non-default port, and a host on
+ * `REVIEW_URL_ALLOWED_HOST_SUFFIXES`. The backend validates on write; this
+ * is the last line before `href`.
  */
 export function isSafeGoogleReviewUrl(raw: string | null | undefined): boolean {
   if (!raw) return false;
+  const candidate = raw.trim();
+  if (!candidate || candidate.includes("\\")) return false;
   let url: URL;
   try {
-    url = new URL(raw.trim());
+    url = new URL(candidate);
   } catch {
     return false;
   }
   if (url.protocol !== "https:") return false;
+  if (url.username || url.password) return false;
+  if (url.port && url.port !== "443") return false;
   const host = url.hostname.toLowerCase();
-  return (
-    host === "g.page" ||
-    host === "goo.gl" ||
-    host === "maps.app.goo.gl" ||
-    host === "google.com" ||
-    host.endsWith(".google.com") ||
-    /(^|\.)google\.[a-z.]{2,}$/.test(host)
-  );
+  if (!host) return false;
+  return REVIEW_URL_ALLOWED_HOST_SUFFIXES.some((s) => host === s || host.endsWith(`.${s}`));
 }
 
 /** The subset of the resolved venue config these rules read. Narrow on
@@ -227,46 +270,6 @@ export function marketingConsentEligible(session: PostConnectSessionInput): bool
   return !!offer && typeof offer.text === "string" && offer.text.trim().length > 0;
 }
 
-/**
- * The Google review card renders for a venue that has BOTH switched the
- * card on and pasted a usable link, to a guest who has not already opened
- * it.
- *
- * **Both, not either.** This used to read the URL alone and treat its
- * presence as the on switch, which quietly made "pause the ask" and
- * "delete the link" the same gesture -- a venue pausing for a
- * refurbishment had to throw away a link they would then have to find
- * again in Business Profile, and a venue that cleared the switch would
- * have kept being asked about anyway. `review_card_enabled` is the
- * venue's intent; `review_url` is the material. Neither implies the
- * other, and the editor shows them together for that reason.
- *
- * There is deliberately no condition beyond those two and the tap. It is
- * identical for every guest, it is never a precondition for anything, and
- * -- the point of the ordering -- it is decided before the product holds
- * any sentiment signal about this guest whatsoever.
- *
- * ⚠ The 90-day / three-times-ever frequency rule is NOT implemented here,
- * and must not be faked client-side. It needs a per-guest impression
- * ledger (`shown_count`, `last_shown_at`, `tapped_at` -- the shape
- * `CampaignImpression` already models) which is server-side work. Until
- * that lands the honest client-side rule is the one below: show it, and
- * stop permanently once tapped. Frequency is a product constant, never a
- * venue setting -- a venue that could set it to "every login" would be
- * building the unusual-volume fingerprint that gets its own Business
- * Profile actioned.
- */
-export function reviewCardEligible(
-  config: PostConnectConfigInput,
-  session: PostConnectSessionInput,
-): boolean {
-  return (
-    config.reviewCardEnabled &&
-    isSafeGoogleReviewUrl(config.reviewUrl) &&
-    !session.hasOpenedReviewLink
-  );
-}
-
 /** Minimal campaign shape -- matches `NextCampaign` structurally without
  * importing it, so this module keeps its zero-import property. */
 export interface StarFeedbackCampaignInput {
@@ -293,7 +296,7 @@ export function isStarFeedbackCampaign(campaign: StarFeedbackCampaignInput): boo
   );
 }
 
-export type PostConnectAsk = "profile" | "review" | "feedback" | null;
+export type PostConnectAsk = "profile" | "feedback" | null;
 
 export interface PostConnectAskInput {
   config: PostConnectConfigInput;
@@ -301,10 +304,12 @@ export interface PostConnectAskInput {
   /** `Date.now()`, passed in so the rule is a pure function of its
    * arguments and the dwell gate can be tested without faking a clock. */
   now: number;
-  /** Component state on the session page -- never persisted. If it is lost
-   * to a reload, the dwell gate and the arrival-only rule still keep the
-   * two apart on their own. Belt and braces, no storage. */
-  reviewCardShownThisSession: boolean;
+  /** The Google review page (`/portal/review`) was shown in this visit --
+   * from the server (`RuntimeSession.reviewShownThisSession`) or from the
+   * `review=<sid>` marker the review page puts on its Continue link. When
+   * true, the star-feedback card must not render this visit: a review ask
+   * and a rating prompt never share a visit. Never persisted in storage. */
+  reviewShownThisVisit: boolean;
   /** Whether a `rating_5` campaign is eligible *server-side* right now.
    * The venue's own `display_rule` still decides frequency; this gate only
    * decides the moment within a session. */
@@ -330,18 +335,17 @@ export interface PostConnectAskInput {
  *
  * Arrival (dwell below the threshold):
  *   1. profile  -- asked once ever, so it must not be crowded out
- *   2. review   -- asked rarely, and before any sentiment exists
- *   3. nothing
- *
- * Later (dwell past the threshold):
- *   1. feedback -- but never in a session where the review card has shown
  *   2. nothing
  *
- * The mutual exclusion between the review card and the star card is the
- * load-bearing invariant: **they must never share a screen, and never
- * share a visit.** The reverse suppression is unnecessary -- the dwell
- * gate means the feedback card cannot appear on an arrival view, and the
- * review card only ever appears on an arrival view.
+ * Later (dwell past the threshold):
+ *   1. feedback -- but never in a visit where the review page was shown
+ *   2. nothing
+ *
+ * The mutual exclusion between the Google review ask and the star card is
+ * the load-bearing invariant: **they must never share a screen, and never
+ * share a visit.** The review ask is a separate page that runs BEFORE this
+ * one, before any sentiment exists; this function's only part in it is to
+ * keep the star card out of that visit.
  */
 export function resolvePostConnectAsk(input: PostConnectAskInput): PostConnectAsk {
   const { config, session, now } = input;
@@ -350,7 +354,7 @@ export function resolvePostConnectAsk(input: PostConnectAskInput): PostConnectAs
 
   if (dwell >= threshold) {
     // The profile ask outranks the star card here for the same reason it
-    // outranks the review card on arrival: it is asked ONCE EVER, so it
+    // wins the arrival slot: it is asked ONCE EVER, so it
     // must not be crowded out. It also stops a card being swapped out from
     // under a guest who is still typing their name when the dwell
     // threshold happens to pass.
@@ -358,19 +362,13 @@ export function resolvePostConnectAsk(input: PostConnectAskInput): PostConnectAs
     const feedbackOk =
       config.guestFeedbackEnabled &&
       input.starCampaignAvailable &&
-      !input.reviewCardShownThisSession &&
+      !input.reviewShownThisVisit &&
       !input.feedbackSettled;
     return feedbackOk ? "feedback" : null;
   }
 
   if (input.arrivalAskSettled) return null;
   if (profileCardEligible(config, session)) return "profile";
-  // NOTE the asymmetry, and that it is deliberate: the review card is
-  // reachable ONLY from this arrival branch. That is what makes "the Google
-  // card only ever appears on an arrival view" true by construction, which
-  // in turn is why the reverse suppression (star card suppressing the
-  // Google card) is unnecessary rather than merely omitted.
-  if (reviewCardEligible(config, session)) return "review";
   return null;
 }
 

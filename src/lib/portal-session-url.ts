@@ -52,6 +52,32 @@ export function buildSessionUrl(
   return url.toString();
 }
 
+/**
+ * `/portal/review` -- the "Rate us on Google" page -- carrying the same
+ * params as `buildSessionUrl`, plus `sid`: the session the page was meant
+ * for. The page continues straight on when `sid` is not the guest's live
+ * session, so a stale or forwarded link can never strand anybody.
+ *
+ * There is deliberately NO "next" parameter. Where Continue goes is
+ * derived on the page from the venue's own config, never from the URL --
+ * a URL-supplied destination would be an open redirect on the portal host.
+ */
+export function buildReviewUrl(
+  organizationId: string,
+  locationId: string,
+  routerId: string,
+  language: string | undefined,
+  deviceMac: string | undefined,
+  sessionId: string,
+): string {
+  const url = new URL(
+    buildSessionUrl(organizationId, locationId, routerId, language, deviceMac),
+  );
+  url.pathname = "/portal/review";
+  url.searchParams.set("sid", sessionId);
+  return url.toString();
+}
+
 /* WHY `lang` IS ON THIS URL AND NOT IN STORAGE.
  *
  * A guest who switches the portal to Tamil and then signs in crosses a real

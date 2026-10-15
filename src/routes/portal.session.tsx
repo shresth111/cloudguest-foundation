@@ -15,7 +15,6 @@ import {
   campaignHasRenderableContent,
 } from "@/components/portal-runtime/CampaignOverlay";
 import { GuestProfileNudge } from "@/components/portal-runtime/GuestProfileNudge";
-import { GoogleReviewNudge } from "@/components/portal-runtime/GoogleReviewNudge";
 import { GuestFeedbackNudge } from "@/components/portal-runtime/GuestFeedbackNudge";
 import { isStarFeedbackCampaign, resolvePostConnectAsk } from "@/lib/portal-post-connect";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
@@ -343,8 +342,8 @@ function SessionPage() {
 
   // ===== THE POST-CONNECT ASK SLOT =====
   //
-  // At most ONE of { profile card, Google review card, star feedback card }
-  // ever renders, and which one is decided by `resolvePostConnectAsk`
+  // At most ONE of { profile card, star feedback card } ever renders, and
+  // which one is decided by `resolvePostConnectAsk`
   // (src/lib/portal-post-connect.ts) rather than by three components each
   // checking their own conditions. That matters beyond tidiness: the rule
   // "a rating prompt and a review link never share a screen, and never
@@ -358,7 +357,20 @@ function SessionPage() {
   // apart on their own. Belt and braces, no storage.
   const [arrivalAskSettled, setArrivalAskSettled] = useState(false);
   const [feedbackSettled, setFeedbackSettled] = useState(false);
-  const [reviewCardShownThisSession, setReviewCardShownThisSession] = useState(false);
+  // The Google review ask is its own page now (`/portal/review`), shown
+  // before this one. If it ran in this visit -- the server says so, or the
+  // review page's Continue link carries this session's id as `review` --
+  // the star-feedback card must not render: a review ask and a rating
+  // prompt never share a visit. Read straight off `window.location`: this
+  // page lands as a brand-new document, and the id is compared, never
+  // followed.
+  const reviewMarker =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("review")
+      : null;
+  const reviewShownThisVisit =
+    !!session?.reviewShownThisSession ||
+    (!!reviewMarker && !!session?.sessionId && reviewMarker === session.sessionId);
 
   // Same eligibility rule portal.success.tsx used to gate its own
   // set-password nudge with -- relocated here, not re-derived. Now asked
@@ -586,9 +598,16 @@ function SessionPage() {
   // with zero questions / a BANNER with no asset" guard `CampaignOverlay`
   // itself relies on, checked here too so this never mounts that component
   // for genuinely empty content.
+  // A takeover survey that asks for a rating is still a rating prompt: in a
+  // visit that showed the Google review page it waits for another visit,
+  // for the same reason the star card does.
+  const campaignAsksForRating =
+    !!nextCampaign &&
+    nextCampaign.questions.some((q) => q.answerType === "rating_5");
   if (
     nextCampaign &&
     !starCampaign &&
+    !(reviewShownThisVisit && campaignAsksForRating) &&
     campaignHasRenderableContent(nextCampaign) &&
     !campaignDismissed
   ) {
@@ -608,29 +627,16 @@ function SessionPage() {
         config,
         session,
         now,
-        reviewCardShownThisSession,
+        reviewShownThisVisit,
         starCampaignAvailable: !!starCampaign,
         arrivalAskSettled,
         feedbackSettled,
       })
     : null;
 
-  // Suppress the star card for the WHOLE session once the Google card has
-  // been on screen, even across re-landings on this page. The reverse
-  // suppression is unnecessary: the dwell gate means the star card cannot
-  // appear on an arrival view, and the Google card only ever appears on
-  // one.
-  if (ask === "review" && !reviewCardShownThisSession) {
-    // Safe during render: React bails out of the re-render when the value
-    // is unchanged, and the guard above makes this run at most once.
-    setReviewCardShownThisSession(true);
-  }
-
   const askSlot =
     ask === "profile" ? (
       <GuestProfileNudge session={session} onResolved={() => setArrivalAskSettled(true)} />
-    ) : ask === "review" ? (
-      <GoogleReviewNudge session={session} onResolved={() => setArrivalAskSettled(true)} />
     ) : ask === "feedback" && starCampaign ? (
       <GuestFeedbackNudge
         campaign={starCampaign}
