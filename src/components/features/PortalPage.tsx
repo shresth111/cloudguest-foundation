@@ -22,6 +22,7 @@ import {
   Info,
   Loader2,
   MessageSquareText,
+  Star,
   Trash2,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -59,6 +60,7 @@ import {
   MAX_POST_CONNECT_ASKS,
   countPostConnectAsks,
   isSafeGoogleReviewUrl,
+  normalizeReviewInput,
 } from "@/lib/portal-post-connect";
 import { DEMO_PORTAL_PREVIEW_STORAGE_KEY } from "@/lib/portal-preview-storage";
 import { BRAND_ASSET_ACCEPT_ATTR, brandAssetRejectionReason } from "@/lib/brand-asset-limits";
@@ -408,6 +410,13 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   const [loadState, setLoadState] = useState<"loading" | "ready" | "failed">("loading");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [portalId, setPortalId] = useState<string | null>(null);
+  // True when this screen is for a location but the row it loaded is the
+  // organisation's shared default (`Portal.locationId === ""`). Saving
+  // then edits every location that shares it -- said on screen, see the
+  // banner above the "Google reviews" card.
+  const [portalIsOrgDefault, setPortalIsOrgDefault] = useState(false);
+  const [reviewStats, setReviewStats] = useState<{ shown: number; opened: number } | null>(null);
+  const [reviewUrlError, setReviewUrlError] = useState<string | null>(null);
   const [orgId, setOrgId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -490,9 +499,11 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       null;
     if (!p) {
       setPortalId(null);
+      setPortalIsOrgDefault(false);
       return;
     }
     setPortalId(p.id);
+    setPortalIsOrgDefault(!!locationId && p.locationId === "");
     setHeadline(p.seo.pageTitle || "");
     setMsg(p.seo.metaDescription || "Welcome! Connect to enjoy free WiFi");
     setSavedSplash({
@@ -640,6 +651,30 @@ export function PortalPage({ locationId }: { locationId?: string }) {
       "noopener,noreferrer",
     );
   };
+
+  // The review page as guests see it, on the saved settings.
+  const openReviewPreview = () => {
+    if (demo || !orgId || !locationId) return;
+    window.open(
+      `/preview/portal/${locationId}?organizationId=${encodeURIComponent(orgId)}&step=review`,
+      "_blank",
+      "noopener,noreferrer",
+    );
+  };
+
+  // "Last 30 days: N saw the page, M opened your review link." Per
+  // location -- the endpoint refuses to aggregate across locations.
+  useEffect(() => {
+    if (demo || !orgId || !locationId) return;
+    let alive = true;
+    portalService
+      .getReviewStats(locationId, 30, orgId)
+      .then((stats) => alive && setReviewStats({ shown: stats.shown, opened: stats.opened }))
+      .catch(() => alive && setReviewStats(null));
+    return () => {
+      alive = false;
+    };
+  }, [demo, orgId, locationId]);
 
   const handleRefresh = async () => {
     if (demo) {
@@ -1071,7 +1106,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
     // The switch AND a link, because that pair is what a guest actually
     // meets. Counting the switch alone would tell a venue they are making
     // three asks when the third one cannot render.
-    reviewCardEnabled: reviewCardEnabled && !!reviewUrl.trim(),
+    reviewCardEnabled: reviewCardEnabled && isSafeGoogleReviewUrl(normalizeReviewInput(reviewUrl)),
     guestFeedbackEnabled,
     dishRatingsEnabled: false,
   });
@@ -1080,8 +1115,13 @@ export function PortalPage({ locationId }: { locationId?: string }) {
   // The same guard the guest card applies before this URL ever reaches an
   // `href` -- surfaced here so a venue finds out at authoring time rather
   // than by wondering why no guest ever saw the card.
+  // A bare Place ID is accepted too: the backend turns it into a
+  // `writereview?placeid=` link on save, and `normalizeReviewInput` is the
+  // same conversion, so this check and "Test link" judge what guests get.
+  const normalizedReviewUrl = normalizeReviewInput(reviewUrl);
   const reviewUrlInvalid =
-    reviewCardEnabled && !!reviewUrl.trim() && !isSafeGoogleReviewUrl(reviewUrl);
+    reviewCardEnabled && !!reviewUrl.trim() && !isSafeGoogleReviewUrl(normalizedReviewUrl);
+  const reviewLinkTestable = isSafeGoogleReviewUrl(normalizedReviewUrl);
 
   const saveConfig = async () => {
     // The Save button is disabled while blocked; this guard just keeps the
@@ -1196,6 +1236,9 @@ export function PortalPage({ locationId }: { locationId?: string }) {
         setPortalId(saved.id);
       }
       setSavedSplash({ headline, msg });
+      setReviewUrlError(null);
+      // Show what was stored: a pasted Place ID comes back as a link.
+      setReviewUrl(saved.postConnect.reviewUrl);
       toast.success("Portal configuration saved");
 
       // Repaint the terms textarea from what came back, for the same reason
@@ -1237,6 +1280,10 @@ export function PortalPage({ locationId }: { locationId?: string }) {
         }
       }
     } catch (err) {
+      // The backend's own review-link refusal, shown on the field as well
+      // as in the toast -- it names what is wrong with the link.
+      const saveMessage = requestErrorMessage(err, "");
+      setReviewUrlError(saveMessage.includes("Google review link") ? saveMessage : null);
       // The disabled Save above makes the over-limit 400 unreachable from
       // THIS tab, but an older tab (predating the limits) can still race a
       // save through -- surface the backend's own max_length/actual_length
@@ -1953,64 +2000,9 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                 </p>
               </PostConnectRow>
 
-              <p className="pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Reviews
-              </p>
-
-              <PostConnectRow
-                title="Invite guests to review you on Google"
-                description="One dismissible card, identical for every guest, shown before you have asked them anything else. Never next to a rating question."
-                checked={reviewCardEnabled}
-                onCheckedChange={setReviewCardEnabled}
-              >
-                {reviewCardEnabled && (
-                  <div className="space-y-1.5">
-                    <Label htmlFor="review-url" className="text-xs">
-                      Your Google review link
-                    </Label>
-                    <Input
-                      id="review-url"
-                      value={reviewUrl}
-                      onChange={(e) => setReviewUrl(e.target.value)}
-                      placeholder="https://g.page/r/..."
-                      inputMode="url"
-                      aria-invalid={reviewUrlInvalid || undefined}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Business Profile → Read reviews → Get more reviews. Paste it exactly as Google
-                      gives it to you.
-                    </p>
-                    {/* The switch and the link are two separate stored
-                      values, so say what switching off does. Without this
-                      line an owner has no way to know whether pausing
-                      costs them the URL, and the safe assumption -- that it
-                      does -- is the one that stops them pausing at all. */}
-                    <p className="text-xs text-muted-foreground">
-                      Switching this off pauses the card and keeps your link.
-                    </p>
-                    {reviewUrlInvalid && (
-                      <p className="text-xs text-destructive" role="alert">
-                        That does not look like an https Google link — guests will not see the card
-                        until it is one.
-                      </p>
-                    )}
-                  </div>
-                )}
-                <NoDataYet />
-                {/* Said on the card, where a venue owner will read it, rather
-                  than in a help article: this product cannot see Google's
-                  side, so any number labelled "reviews" would be invented.
-                  "Opened your review link" is the only true measure. */}
-                <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                  <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  We can only count guests who opened your review link. Whether a review was
-                  actually posted is not something Google tells us.
-                </p>
-              </PostConnectRow>
-
               <PostConnectRow
                 title="Ask for private feedback"
-                description={`A 1–5 star rating only you can see. Asked at least ${DEFAULT_FEEDBACK_DWELL_MINUTES} minutes into a visit, never in the same visit as the Google ask.`}
+                description={`A 1–5 star rating only you can see. Asked at least ${DEFAULT_FEEDBACK_DWELL_MINUTES} minutes into a visit, never in the same visit as the Google reviews page.`}
                 checked={guestFeedbackEnabled}
                 onCheckedChange={setGuestFeedbackEnabled}
               >
@@ -2037,6 +2029,128 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                   Menus are not built yet — there is nothing for a guest to rate.
                 </p>
               </div>
+
+              <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-end">
+                <Button onClick={saveConfig} disabled={saveBlocked}>
+                  Save changes
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* ═══ GOOGLE REVIEWS ═══
+              The "Rate us on Google" page guests see right after signing in
+              (/portal/review). Its own card so it is findable: as row five
+              of "After they connect" almost no venue switched it on. */}
+          {portalIsOrgDefault && (
+            <div
+              className="flex items-start gap-2 rounded-xl border border-amber-300/60 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
+              role="note"
+            >
+              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>
+                This location uses your organisation&apos;s shared portal settings. Changes here
+                apply to all locations that share them.
+              </span>
+            </div>
+          )}
+          <Card className="shadow-sm border-0" onFocusCapture={() => setPreviewArea("connected")}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2.5 text-sm">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#f59e0b] to-[#fbbf24]">
+                  <Star className="h-3.5 w-3.5 text-white" />
+                </div>
+                Google reviews
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Guests can skip it with one tap, and their WiFi works either way.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <PostConnectRow
+                title="Show a 'Rate us on Google' page after guests sign in"
+                description="A page with your review link and an equally big 'Continue to internet' button. Shown at most once a month to each guest at this location, and never again once they open your link."
+                checked={reviewCardEnabled}
+                onCheckedChange={setReviewCardEnabled}
+              >
+                {reviewCardEnabled && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="review-url" className="text-xs">
+                      Google review link or Place ID
+                    </Label>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Input
+                        id="review-url"
+                        value={reviewUrl}
+                        onChange={(e) => {
+                          setReviewUrl(e.target.value);
+                          setReviewUrlError(null);
+                        }}
+                        placeholder="https://g.page/r/... or ChIJ..."
+                        inputMode="url"
+                        aria-invalid={reviewUrlInvalid || !!reviewUrlError || undefined}
+                        aria-describedby="review-url-help"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={!reviewLinkTestable}
+                        onClick={() => {
+                          if (normalizedReviewUrl && reviewLinkTestable) {
+                            window.open(normalizedReviewUrl, "_blank", "noopener");
+                          }
+                        }}
+                      >
+                        <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                        Test link
+                      </Button>
+                    </div>
+                    <p id="review-url-help" className="text-xs text-muted-foreground">
+                      Google Business Profile → Ask for reviews → copy link. Or paste your Place ID.
+                    </p>
+                    {/* The switch and the link are two separate stored
+                      values, so say what switching off does. */}
+                    <p className="text-xs text-muted-foreground">
+                      Switching this off pauses the page and keeps your link.
+                    </p>
+                    {reviewUrlError ? (
+                      <p className="text-xs text-destructive" role="alert">
+                        {reviewUrlError}
+                      </p>
+                    ) : (
+                      reviewUrlInvalid && (
+                        <p className="text-xs text-destructive" role="alert">
+                          That does not look like an https Google link or a Place ID — guests will
+                          not see the page until it is one.
+                        </p>
+                      )
+                    )}
+                  </div>
+                )}
+                {/* Link opens, never "reviews": this product cannot see
+                  Google's side, so any number labelled reviews would be
+                  invented. */}
+                <p className="text-xs text-muted-foreground" data-testid="review-stats">
+                  {reviewStats && (reviewStats.shown > 0 || reviewStats.opened > 0)
+                    ? `Last 30 days: ${reviewStats.shown} guests saw the page, ${reviewStats.opened} opened your review link.`
+                    : "No guests yet"}
+                </p>
+                <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                  <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  Guests who sign in from the phone&apos;s pop-up window may not see this page,
+                  because the phone closes the pop-up once they are online.
+                </p>
+                {!demo && locationId && (
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="h-auto p-0 text-xs"
+                    onClick={openReviewPreview}
+                  >
+                    Preview page
+                  </Button>
+                )}
+              </PostConnectRow>
 
               <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-end">
                 <Button onClick={saveConfig} disabled={saveBlocked}>

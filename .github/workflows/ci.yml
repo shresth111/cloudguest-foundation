@@ -340,8 +340,28 @@ jobs:
       - name: portal post-login destination
         run: |
           ./scripts/ci-gated-test.sh \
-            "portal-post-login" 20 "all checks passed" \
+            "portal-post-login" 43 "all checks passed" \
             bun run test:portal-post-login
+
+      # The "Rate us on Google" page (/portal/review). A stale or forwarded
+      # link must continue straight on, Continue must never come from a URL
+      # parameter (an open redirect on the portal host), preview/demo must
+      # send nothing, and nothing on it may touch Web Storage (Apple's CNA
+      # throws). Its other half -- that every gate destination in
+      # portal.success.tsx prefers the page when due -- is in the step above.
+      - name: portal review page
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "portal-review-page" 35 "all checks passed" \
+            bun run test:portal-review-page
+
+      # The post-connect ask rules, including the one that keeps a rating
+      # prompt out of any visit that showed the review page.
+      - name: portal post-connect asks
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "portal-post-connect" 33 "all checks passed" \
+            bun run test:post-connect
 
       # "Error 501" after a correct OTP: a hotspot-login POST from a device
       # that already holds a bypass binding is answered by the router's

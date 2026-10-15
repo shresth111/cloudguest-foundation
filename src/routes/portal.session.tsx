@@ -602,8 +602,7 @@ function SessionPage() {
   // visit that showed the Google review page it waits for another visit,
   // for the same reason the star card does.
   const campaignAsksForRating =
-    !!nextCampaign &&
-    nextCampaign.questions.some((q) => q.answerType === "rating_5");
+    !!nextCampaign && nextCampaign.questions.some((q) => q.answerType === "rating_5");
   if (
     nextCampaign &&
     !starCampaign &&

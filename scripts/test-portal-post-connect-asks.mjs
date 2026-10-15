@@ -105,7 +105,7 @@ const ask = (over) =>
     config: OFF_CONFIG,
     session: session(),
     now: NOW,
-    reviewCardShownThisSession: false,
+    reviewShownThisVisit: false,
     starCampaignAvailable: false,
     arrivalAskSettled: false,
     feedbackSettled: false,
@@ -190,39 +190,18 @@ check("isNewGuest is NOT consulted -- a returning guest at a newly-enabled venue
   assert(!/\bisNewGuest\b\s*[:.]/.test(src), "the resolver must not read isNewGuest");
 });
 
-// --------------------------------------------------------- the review card
-check("review card needs a review URL -- no URL, no card, no placeholder", () => {
-  eq(
-    ask({ config: config({ reviewCardEnabled: true, reviewUrl: null }) }),
-    null,
-    "the switch alone must render nothing -- there is no link to send anyone to",
-  );
+// ------------------------------------------- the review ask is a page now
+check("the session page never asks for a Google review itself", () => {
+  // The ask moved to /portal/review, which runs BEFORE this page. Whatever
+  // the venue's settings, the resolver never returns a review card.
+  for (const over of [{}, { session: session({ hasOpenedReviewLink: true }) }]) {
+    const out = ask({ config: config(REVIEW_ON), ...over });
+    assert(out !== "review", "the resolver must not return a review card");
+    eq(out, null, "a review-only venue shows no card on the session page");
+  }
 });
 
-check("review card needs the venue's switch, not just a stored link", () => {
-  eq(
-    ask({ config: config({ reviewCardEnabled: false, reviewUrl: REVIEW_ON.reviewUrl }) }),
-    null,
-    "a paused venue keeps its link and must NOT keep being asked about",
-  );
-});
-
-check("review card shows for a guest with nothing left to be asked", () => {
-  eq(ask({ config: config(REVIEW_ON) }), "review", "should offer the review");
-});
-
-check("a guest who has tapped the review link is never asked again", () => {
-  eq(
-    ask({
-      config: config(REVIEW_ON),
-      session: session({ hasOpenedReviewLink: true }),
-    }),
-    null,
-    "a tap is final",
-  );
-});
-
-check("profile wins the arrival slot over the review card", () => {
+check("profile still owns the arrival slot when reviews are on", () => {
   eq(
     ask({ config: config({ collectGuestName: true, ...REVIEW_ON }) }),
     "profile",
@@ -248,12 +227,22 @@ check("only https Google hosts reach an href", () => {
     "https://search.google.com/local/writereview?placeid=x",
     "https://maps.app.goo.gl/abc",
     "https://www.google.co.in/maps/place/x",
+    "https://maps.google.co.uk/x",
+    "https://goo.gl/maps/abc",
   ];
   const bad = [
     "http://g.page/r/abc",
     "javascript:alert(1)",
     "data:text/html,<script>1</script>",
     "https://g.page.evil.com/r/abc",
+    "https://google.evil.com/",
+    "https://google.evil.com/x",
+    "https://notgoogle.com/",
+    "https://evil.com\\@google.com/",
+    "https://user@google.com/",
+    "https://user:pw@google.com/",
+    "https://google.com:8443/x",
+    "https://google.de/x",
     "https://example.com/review",
     "",
     null,
@@ -319,52 +308,44 @@ check("the dwell threshold has a floor -- a venue cannot set it back to arrival"
 
 // ================= THE INVARIANT THIS FILE MOSTLY EXISTS FOR ==============
 
-check("the Google card and the star card never appear in the same visit", () => {
-  const both = config({
-    ...REVIEW_ON,
-    guestFeedbackEnabled: true,
-  });
-  // Arrival: the Google card shows, and the page records that it did.
-  eq(
-    ask({ config: both, starCampaignAvailable: true }),
-    "review",
-    "the Google ask comes first, before any sentiment exists",
-  );
-  // Later in the SAME visit, past the dwell gate: still no star prompt.
+check("the review page and the star card never appear in the same visit", () => {
+  const both = config({ ...REVIEW_ON, guestFeedbackEnabled: true });
+  // Later in a visit that showed /portal/review: no star prompt.
   eq(
     ask({
       config: both,
       starCampaignAvailable: true,
-      reviewCardShownThisSession: true,
+      reviewShownThisVisit: true,
       session: session({ startedAt: startedMinutesAgo(45) }),
     }),
     null,
-    "a guest shown the review link must not then be asked for a rating",
+    "a guest shown the review page must not then be asked for a rating",
   );
-  // A different visit, where the Google card did not show: the star card is
-  // free to appear.
+  // A different visit, where the review page did not show: the star card
+  // is free to appear.
   eq(
     ask({
       config: both,
       starCampaignAvailable: true,
-      reviewCardShownThisSession: false,
-      session: session({ startedAt: startedMinutesAgo(45), hasOpenedReviewLink: true }),
+      reviewShownThisVisit: false,
+      session: session({ startedAt: startedMinutesAgo(45) }),
     }),
     "feedback",
     "the two are separated by visit, not banned outright",
   );
 });
 
-check("the review card is reachable only on an arrival view", () => {
-  // The asymmetry that makes the exclusion true by construction rather than
-  // by a second rule that could be edited away.
-  eq(
-    ask({
-      config: config(REVIEW_ON),
-      session: session({ startedAt: startedMinutesAgo(45) }),
-    }),
-    null,
-    "a guest 45 minutes in must never be shown the review card",
+check("the session page reads the visit marker and the server bit, not storage", () => {
+  const src = readFileSync(join(SRC, "routes/portal.session.tsx"), "utf8");
+  assert(/reviewShownThisSession/.test(src), "must read the server's reviewShownThisSession");
+  assert(/get\("review"\)/.test(src), "must read the review=<sid> marker");
+  assert(
+    /reviewMarker === session\.sessionId/.test(src),
+    "the marker counts only when it names THIS session",
+  );
+  assert(
+    /reviewShownThisVisit && campaignAsksForRating/.test(src),
+    "a takeover survey with a rating must also wait for another visit",
   );
 });
 
@@ -509,7 +490,9 @@ check("no Web Storage anywhere on the post-connect path", () => {
   const files = [
     "lib/portal-post-connect.ts",
     "components/portal-runtime/GuestProfileNudge.tsx",
-    "components/portal-runtime/GoogleReviewNudge.tsx",
+    "components/portal-runtime/GoogleReviewPage.tsx",
+    "lib/portal-review-page.ts",
+    "routes/portal.review.tsx",
     "components/portal-runtime/GuestFeedbackNudge.tsx",
   ];
   for (const f of files) {
@@ -542,12 +525,13 @@ check("the review CTA carries no adjective and no incentive", () => {
   // live clause; free WiFi is itself a "free good and/or service" under the
   // incentive clause.
   const i18n = readFileSync(join(SRC, "lib/portal-i18n.ts"), "utf8");
-  const cta = i18n.match(/reviewCardCta: "([^"]*)"/)?.[1] ?? "";
+  const cta = i18n.match(/reviewPageCta: "([^"]*)"/)?.[1] ?? "";
   assert(cta.length > 0, "the review CTA must exist");
   for (const banned of ["great", "honest", "kind", "5-star", "five star", "positive", "best"]) {
     assert(!cta.toLowerCase().includes(banned), `the CTA must not say "${banned}"`);
   }
-  const subtitle = i18n.match(/reviewCardSubtitle: "([^"]*)"/)?.[1] ?? "";
+  const subtitle = i18n.match(/reviewPageBody:\s+"([^"]*)"/)?.[1] ?? "";
+  assert(subtitle.length > 0, "the review body must exist");
   for (const banned of ["free", "discount", "offer", "coffee", "faster", "wifi"]) {
     assert(!subtitle.toLowerCase().includes(banned), `the subtitle must not offer "${banned}"`);
   }
@@ -570,9 +554,13 @@ check("every new guest-facing key exists in all ten dictionaries", () => {
     "profileSavedTemplate",
     "profileSaved",
     "dismissCardLabel",
-    "reviewCardTitle",
-    "reviewCardSubtitle",
-    "reviewCardCta",
+    "reviewPageTitle",
+    "reviewPageBody",
+    "reviewPageCta",
+    "reviewPageContinue",
+    "reviewPageNote",
+    "reviewPageStillConnecting",
+    "reviewPageVenueFallback",
     "feedbackCardTitle",
     "feedbackCardSubtitle",
     "feedbackThanksTemplate",

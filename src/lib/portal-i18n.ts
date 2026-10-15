@@ -646,7 +646,8 @@ const HI: Dict = {
   profileSaved: "सेव हो गया।",
   dismissCardLabel: "बंद करें",
   reviewPageTitle: "{venue} पसंद आया?",
-  reviewPageBody: "Google पर एक छोटी-सी समीक्षा से {venue} को बहुत मदद मिलती है। इसमें एक मिनट से भी कम लगता है।",
+  reviewPageBody:
+    "Google पर एक छोटी-सी समीक्षा से {venue} को बहुत मदद मिलती है। इसमें एक मिनट से भी कम लगता है।",
   reviewPageCta: "Google पर हमें रेट करें",
   reviewPageContinue: "इंटरनेट पर जाएँ",
   reviewPageNote: "आपका WiFi दोनों तरह से चलेगा।",
@@ -1315,7 +1316,8 @@ const MR: Dict = {
   profileSaved: "Save झालं.",
   dismissCardLabel: "बंद करा",
   reviewPageTitle: "{venue} आवडलं का?",
-  reviewPageBody: "Google वरचा एक छोटासा review {venue} साठी खूप उपयोगी ठरतो. याला एक मिनिटही लागत नाही.",
+  reviewPageBody:
+    "Google वरचा एक छोटासा review {venue} साठी खूप उपयोगी ठरतो. याला एक मिनिटही लागत नाही.",
   reviewPageCta: "Google वर आम्हाला रेट करा",
   reviewPageContinue: "इंटरनेटवर पुढे जा",
   reviewPageNote: "तुमचं WiFi दोन्ही प्रकारे चालेल.",
@@ -1955,7 +1957,8 @@ const TA: Dict = {
   profileSaved: "சேமிக்கப்பட்டது.",
   dismissCardLabel: "மூடு",
   reviewPageTitle: "{venue} பிடித்திருந்ததா?",
-  reviewPageBody: "Google-இல் ஒரு சிறிய விமர்சனம் {venue}-க்கு மிகவும் உதவும். ஒரு நிமிடம் கூட ஆகாது.",
+  reviewPageBody:
+    "Google-இல் ஒரு சிறிய விமர்சனம் {venue}-க்கு மிகவும் உதவும். ஒரு நிமிடம் கூட ஆகாது.",
   reviewPageCta: "Google-இல் எங்களை மதிப்பிடுங்கள்",
   reviewPageContinue: "இணையத்திற்குத் தொடரவும்",
   reviewPageNote: "எப்படியிருந்தாலும் உங்கள் WiFi வேலை செய்யும்.",
@@ -2588,7 +2591,8 @@ const KN: Dict = {
   profileSaved: "ಉಳಿಸಲಾಗಿದೆ.",
   dismissCardLabel: "ಮುಚ್ಚಿ",
   reviewPageTitle: "{venue} ಇಷ್ಟವಾಯಿತೇ?",
-  reviewPageBody: "Google ನಲ್ಲಿ ಒಂದು ಚಿಕ್ಕ ವಿಮರ್ಶೆ {venue}ಗೆ ತುಂಬಾ ಸಹಾಯ ಮಾಡುತ್ತದೆ. ಒಂದು ನಿಮಿಷವೂ ಬೇಕಾಗುವುದಿಲ್ಲ.",
+  reviewPageBody:
+    "Google ನಲ್ಲಿ ಒಂದು ಚಿಕ್ಕ ವಿಮರ್ಶೆ {venue}ಗೆ ತುಂಬಾ ಸಹಾಯ ಮಾಡುತ್ತದೆ. ಒಂದು ನಿಮಿಷವೂ ಬೇಕಾಗುವುದಿಲ್ಲ.",
   reviewPageCta: "Google ನಲ್ಲಿ ನಮಗೆ ರೇಟಿಂಗ್ ನೀಡಿ",
   reviewPageContinue: "ಇಂಟರ್ನೆಟ್‌ಗೆ ಮುಂದುವರಿಯಿರಿ",
   reviewPageNote: "ಯಾವುದೇ ರೀತಿಯಲ್ಲೂ ನಿಮ್ಮ WiFi ಕೆಲಸ ಮಾಡುತ್ತದೆ.",
@@ -2908,7 +2912,8 @@ const ML: Dict = {
   profileSaved: "സേവ് ചെയ്തു.",
   dismissCardLabel: "അടയ്ക്കുക",
   reviewPageTitle: "{venue} ഇഷ്ടപ്പെട്ടോ?",
-  reviewPageBody: "Google-ൽ ഒരു ചെറിയ റിവ്യൂ {venue}-ന് വലിയ സഹായമാണ്. ഒരു മിനിറ്റ് പോലും എടുക്കില്ല.",
+  reviewPageBody:
+    "Google-ൽ ഒരു ചെറിയ റിവ്യൂ {venue}-ന് വലിയ സഹായമാണ്. ഒരു മിനിറ്റ് പോലും എടുക്കില്ല.",
   reviewPageCta: "Google-ൽ ഞങ്ങളെ റേറ്റ് ചെയ്യൂ",
   reviewPageContinue: "ഇന്റർനെറ്റിലേക്ക് തുടരുക",
   reviewPageNote: "ഏതായാലും നിങ്ങളുടെ WiFi പ്രവർത്തിക്കും.",
@@ -3226,7 +3231,8 @@ const PA: Dict = {
   profileSaved: "ਸੇਵ ਹੋ ਗਿਆ।",
   dismissCardLabel: "ਬੰਦ ਕਰੋ",
   reviewPageTitle: "ਕੀ {venue} ਪਸੰਦ ਆਇਆ?",
-  reviewPageBody: "Google 'ਤੇ ਇੱਕ ਛੋਟਾ ਜਿਹਾ ਰਿਵਿਊ {venue} ਦੀ ਬਹੁਤ ਮਦਦ ਕਰਦਾ ਹੈ। ਇੱਕ ਮਿੰਟ ਵੀ ਨਹੀਂ ਲੱਗਦਾ।",
+  reviewPageBody:
+    "Google 'ਤੇ ਇੱਕ ਛੋਟਾ ਜਿਹਾ ਰਿਵਿਊ {venue} ਦੀ ਬਹੁਤ ਮਦਦ ਕਰਦਾ ਹੈ। ਇੱਕ ਮਿੰਟ ਵੀ ਨਹੀਂ ਲੱਗਦਾ।",
   reviewPageCta: "Google 'ਤੇ ਸਾਨੂੰ ਰੇਟ ਕਰੋ",
   reviewPageContinue: "ਇੰਟਰਨੈੱਟ 'ਤੇ ਜਾਰੀ ਰੱਖੋ",
   reviewPageNote: "ਹਰ ਹਾਲ ਵਿੱਚ ਤੁਹਾਡਾ WiFi ਚੱਲੇਗਾ।",

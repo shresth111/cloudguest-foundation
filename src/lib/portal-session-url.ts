@@ -70,9 +70,7 @@ export function buildReviewUrl(
   deviceMac: string | undefined,
   sessionId: string,
 ): string {
-  const url = new URL(
-    buildSessionUrl(organizationId, locationId, routerId, language, deviceMac),
-  );
+  const url = new URL(buildSessionUrl(organizationId, locationId, routerId, language, deviceMac));
   url.pathname = "/portal/review";
   url.searchParams.set("sid", sessionId);
   return url.toString();

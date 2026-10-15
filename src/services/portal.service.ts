@@ -851,6 +851,25 @@ export const portalService = {
   /** No backend equivalent for cloning a config -- fetches the real source
    * and creates a real copy via the same create() path above (a real,
    * persisted duplicate, not a mocked one). */
+  /** One location's "Rate us on Google" numbers --
+   * `GET /captive-portal/review-stats`. `opened` counts guests who opened
+   * the review link, never reviews: Google tells us nothing about whether a
+   * review was posted. */
+  async getReviewStats(
+    locationId: string,
+    days = 30,
+    organizationId?: string,
+  ): Promise<{ shown: number; opened: number; days: number }> {
+    const { data } = await api.get<{ shown: number; opened: number; days: number }>(
+      "/captive-portal/review-stats",
+      {
+        params: { location_id: locationId, days },
+        headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+      },
+    );
+    return { shown: data.shown ?? 0, opened: data.opened ?? 0, days: data.days ?? days };
+  },
+
   async duplicate(id: string): Promise<Portal> {
     const src = await fetchOnePortal(id);
     return portalService.create({ ...src, name: `${src.name} (Copy)` });

@@ -89,8 +89,16 @@ export const GOOGLE_REACHABILITY_TIMEOUT_MS = 2_000;
  *
  * `makeImage` is injectable so the rule is testable without a DOM.
  */
+/** The slice of `HTMLImageElement` the probe uses -- structural, so a test
+ * can pass a plain object. */
+export interface ProbeImage {
+  onload: ((ev: Event) => unknown) | null;
+  onerror: ((ev: Event | string) => unknown) | null;
+  src: string;
+}
+
 export function probeGoogleReachable(
-  makeImage: () => { onload: (() => void) | null; onerror: (() => void) | null; src: string },
+  makeImage: () => ProbeImage,
   timeoutMs = GOOGLE_REACHABILITY_TIMEOUT_MS,
   now: () => number = Date.now,
 ): Promise<boolean> {

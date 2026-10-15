@@ -23,6 +23,7 @@
     "test:portal-auth-methods": "node scripts/test-portal-auth-methods.mjs",
     "test:demo-login-host": "node scripts/test-demo-login-host.mjs",
     "test:portal-post-login": "node scripts/test-portal-post-login.mjs",
+    "test:portal-review-page": "node scripts/test-portal-review-page.mjs",
     "test:portal-gate-probe": "node scripts/test-portal-gate-probe.mjs",
     "test:post-connect": "node scripts/test-portal-post-connect-asks.mjs",
     "test:signin-fields": "node scripts/test-portal-signin-fields.mjs",
