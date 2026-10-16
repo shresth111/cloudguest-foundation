@@ -763,15 +763,17 @@ export const PHASES: Phase[] = [
 :if ([:len [/log find where message~"login failure for user cloudguest-api"]] > 0) do={ :put "RESULT: MISMATCH -- Generate dobara dabaya gaya tha, niche wala reset chalao" } else={ :put "RESULT: OK -- secret mismatch nahi hai" }`,
       },
       {
-        label: "Sirf secrets ka reset (router ka baaki config bacha rehta hai)",
+        label:
+          'Sirf secrets ka reset (router ka baaki config bacha rehta hai) — iske baad Generate se pehle "Rotate the WireGuard tunnel" aur "Rotate the RouterOS API password" tick karo',
         script: `/radius remove [find]
 /interface wireguard remove [find name="wg-cloudguard"]
 /interface wireguard remove [find name="wg-cloudguest"]
 /user remove [find name="cloudguest-api"]
-:put "purane secrets hata diye -- ab Master console me EK BAAR Generate karo aur naye WireGuard + RADIUS + API chunks paste karo"`,
+:put "purane secrets hata diye -- ab Master console > Setup Script me 'Rotate the WireGuard tunnel' aur 'Rotate the RouterOS API password' TICK karke EK BAAR Generate karo, phir naye WireGuard + RADIUS + API chunks paste karo. Rotate ke bina script me tunnel ki key nahi aayegi aur WireGuard chunk ruk jayega."`,
       },
       {
-        label: "Poora factory reset (jab kuch samajh na aaye)",
+        label:
+          'Poora factory reset (jab kuch samajh na aaye) — reset ke baad Setup Script me "Rotate the WireGuard tunnel" tick karke Generate karo',
         script: `/system reset-configuration skip-backup=yes`,
       },
     ],
