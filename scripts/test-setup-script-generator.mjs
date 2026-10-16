@@ -10383,6 +10383,53 @@ console.log("\n-- 17. keyless reused peer on a fresh device; Guided chunk labels
 
 // =====================================================================
 
+// =====================================================================
+// 21. A LEFTOVER FACTORY LAN IS REPORTED EVEN WHEN NOTHING IS NAMED defconf.
+// =====================================================================
+//
+// 2026-10-16, HKM "A-44 SECTOR 72": no dhcp-server named `defconf`, so the
+// cleanup chunk said "Good" while 192.168.88.1/24 and a 192.168.88.0/24
+// dhcp network sat on the hotspot bridge and guests got 192.168.88.x.
+// The check must look at the addresses, must only report (the technician
+// may hold a .88 lease), and must stay silent when the venue's own LAN is
+// 192.168.88.x.
+console.log("\n-- 21. leftover factory LAN detected by address, reported not removed --");
+{
+  const cleanup = (lanIp) =>
+    buildRouterSetupScriptChunks({ ...BASE, lanIp, wans: [DHCP_WAN], portalUrl: PORTAL }).find(
+      (c) => c.label === "Stale Factory-Default DHCP Client Cleanup",
+    )?.script ?? "";
+  const normal = cleanup("10.5.50.1");
+  check(
+    "factory LAN: the address is looked for, not just the defconf name",
+    normal.includes('/ip address find where address="192.168.88.1/24"') &&
+      normal.includes('/ip dhcp-server network find where address="192.168.88.0/24"'),
+  );
+  const outsidePut = normal.replace(/:put "[^"]*"/g, '""');
+  check(
+    "factory LAN: nothing is removed by the script itself",
+    !/\/ip address remove|\/ip dhcp-server network remove/.test(outsidePut),
+    "removing the address a technician's laptop is leased from, mid-paste, strands the install",
+  );
+  check(
+    "factory LAN: the warning names the remove commands for the operator",
+    normal.includes("/ip address remove [find where address=192.168.88.1/24]") &&
+      normal.includes("/ip dhcp-server network remove [find where address=192.168.88.0/24]"),
+  );
+  check(
+    "factory LAN: one statement per do={}",
+    normal
+      .split("\n")
+      .filter((l) => l.includes("stale88"))
+      .every((l) => !/do=\{[^}]*;[^}]*\}/.test(l.replace(/"[^"]*"/g, '""'))),
+  );
+  check(
+    "factory LAN: skipped when the venue's own LAN is 192.168.88.x",
+    !cleanup("192.168.88.1").includes("stale88"),
+    "there the address and network are the platform's own, and the warning would be a lie",
+  );
+}
+
 console.log("");
 if (failures.length) {
   console.error(`\n${failures.length} failure(s):\n  - ${failures.join("\n  - ")}`);

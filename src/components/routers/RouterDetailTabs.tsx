@@ -5396,6 +5396,28 @@ export function buildRouterSetupScriptChunks(opts: {
         `:if ($defconfDhcpN = 0) do={ :put "  Factory-default DHCP servers (name defconf): 0 found. Good: no default configuration left over." }`,
       ].join("; "),
     ];
+    // THE NAME IS NOT THE ONLY TELL. HKM "A-44 SECTOR 72" (2026-10-16) had
+    // no server named `defconf`, so the check above printed "Good" -- while
+    // the factory LAN address 192.168.88.1/24 and its 192.168.88.0/24
+    // dhcp-server network were still on the hotspot bridge, uncommented,
+    // and guests were leased 192.168.88.x. Look for the addresses too.
+    // Same rule as above: report, never remove -- the technician's laptop
+    // may be holding a 192.168.88.x lease right now. Skipped when this
+    // venue's own LAN really is 192.168.88.x, where both are ours.
+    if (!lanIp.trim().startsWith("192.168.88.")) {
+      lines.push(
+        [
+          `:local stale88A [:len [/ip address find where address="192.168.88.1/24"]]`,
+          `:local stale88N [:len [/ip dhcp-server network find where address="192.168.88.0/24"]]`,
+          `:if ($stale88A > 0 || $stale88N > 0) do={ :put ("  WARNING: factory LAN still present -- 192.168.88.1/24 address: " . [:tostr $stale88A] . ", 192.168.88.0/24 dhcp network: " . [:tostr $stale88N] . ". Nothing was removed.") }`,
+          `:if ($stale88A > 0 || $stale88N > 0) do={ :put "  Guests can be handed 192.168.88.x instead of the hotspot pool. From Winbox over the tunnel (NOT from a 192.168.88.x laptop) run:" }`,
+          `:if ($stale88A > 0) do={ :put "    /ip address remove [find where address=192.168.88.1/24]" }`,
+          `:if ($stale88N > 0) do={ :put "    /ip dhcp-server network remove [find where address=192.168.88.0/24]" }`,
+          `:if ($stale88A > 0 || $stale88N > 0) do={ :log warning "cloudguest: factory LAN 192.168.88.x still present (address or dhcp network) -- router was not reset bare" }`,
+          `:if ($stale88A = 0 && $stale88N = 0) do={ :put "  Factory LAN 192.168.88.1/24 and its dhcp network: 0 found. Good." }`,
+        ].join("; "),
+      );
+    }
     chunks.push({ label: "Stale Factory-Default DHCP Client Cleanup", script: lines.join("\n") });
   }
 
