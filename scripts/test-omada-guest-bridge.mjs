@@ -487,6 +487,14 @@ check(
   "only an Omada arrival ever writes the mirror",
   /if \(!urlNetProvider\) return;/.test(portalRouteSrc),
 );
+check(
+  "a RouterOS arrival never reads the mirror",
+  /useState\(\(\) =>\s*linkLoginOnly \? undefined : loadPersistedOmadaContext\(\)/.test(
+    portalRouteSrc,
+  ),
+  "the mirror is origin-wide for 12 hours; a phone that saw an Omada venue earlier takes the " +
+    "Omada gate at a MikroTik venue and is never logged in to the hotspot (HKM 2026-10-16)",
+);
 
 /* The operator half. Without it nobody can complete setup at all: unlike
  * MikroTik, this platform does not write the equivalent page onto the
