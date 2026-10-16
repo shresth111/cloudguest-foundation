@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
 import {
   motion,
   AnimatePresence,
@@ -42,7 +41,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
-import { useCustomerLocations, customerKeys } from "@/hooks/useCustomerDashboard";
+import { useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import type { CustomerLocationSummary } from "@/services/customer.service";
 import { DEVICE_TYPES, deriveCpu, type DeviceType } from "@/stores/deviceStore";
 import { describeLiveness, hardwareLivenessIsMeasured } from "@/lib/device-liveness";
@@ -59,7 +58,6 @@ import { toast } from "sonner";
 import { requireCustomerSession } from "@/lib/authGuards";
 import { customerFeatureHref } from "@/lib/customerNav";
 import { IspProviderIcon } from "@/components/icons/isp";
-import { LocationWizard } from "@/components/locations/LocationWizard";
 import { AddDeviceDialog } from "@/components/customer/AddDeviceDialog";
 
 export const Route = createFileRoute("/switch-location")({
@@ -373,13 +371,11 @@ function LiveUpdateTracker({ onRefetch }: { onRefetch: () => void }) {
 
 function CustomerHomePage() {
   const navigate = useNavigate();
-  const { user, logout, organizations } = useAuth();
+  const { user, logout } = useAuth();
   const { setActiveLocation } = useCustomerStore();
   const { data: locations, isLoading, refetch } = useCustomerLocations();
   const { devices: allDevices, refetch: refetchDevices } = useMonitoredHardware();
-  const qc = useQueryClient();
   const [search, setSearch] = useState("");
-  const [addLocationOpen, setAddLocationOpen] = useState(false);
   const [favorites, setFavorites] = useState<string[]>(() => {
     try {
       return JSON.parse(localStorage.getItem("cg-favs") ?? "[]");
@@ -438,7 +434,6 @@ function CustomerHomePage() {
   // never typed a search either. `locations` (pre-filter) is the real
   // signal for the former.
   const hasNoLocationsAtAll = !isLoading && (locations ?? []).length === 0;
-  const myOrg = organizations[0];
   const toggleFav = (id: string) => {
     setFavorites((p) => {
       const n = p.includes(id) ? p.filter((f) => f !== id) : [...p, id];
@@ -706,13 +701,6 @@ function CustomerHomePage() {
                     </kbd>
                   )}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setAddLocationOpen(true)}
-                  className="inline-flex h-11 shrink-0 items-center gap-2 rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6] px-4 text-sm font-medium text-white shadow-lg shadow-indigo-500/20 transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-                >
-                  <Plus className="h-4 w-4" /> Add location
-                </button>
               </div>
 
               {!isLoading && (
@@ -812,16 +800,11 @@ function CustomerHomePage() {
               <div className="col-span-full flex flex-col items-center justify-center py-20 text-center">
                 <MapPin className="mb-4 h-12 w-12 text-white/30" />
                 <p className="text-base font-semibold text-white">No locations yet</p>
+                {/* Venues are provisioned by the Wyfy team from the Master
+                 * console, never by the customer -- so no "Add location" here. */}
                 <p className="mt-1.5 max-w-sm text-sm text-white/40">
-                  Add your first location to start managing guest WiFi.
+                  Your venues will appear here once the Wyfy Guest team has set them up.
                 </p>
-                <button
-                  type="button"
-                  onClick={() => setAddLocationOpen(true)}
-                  className="mt-5 inline-flex items-center gap-2 rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6] px-4 py-2 text-sm font-medium text-white shadow-sm shadow-indigo-500/20 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-                >
-                  <Plus className="h-4 w-4" aria-hidden="true" /> Add location
-                </button>
               </div>
             ) : filtered.length === 0 ? (
               <div
@@ -1026,22 +1009,6 @@ function CustomerHomePage() {
                   </motion.div>
                 );
               })
-            )}
-            {!hasNoLocationsAtAll && filtered.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setAddLocationOpen(true)}
-                className="group flex min-h-[180px] w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-5 text-center transition-colors hover:border-[#8B5CF6]/50 hover:bg-white/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-              >
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/60 transition-colors group-hover:border-[#8B5CF6]/40 group-hover:text-white">
-                  <Plus className="h-4 w-4" aria-hidden="true" />
-                </span>
-
-                <span className="text-sm font-medium text-white/80">Add a location</span>
-                <span className="max-w-[16rem] text-xs text-white/40">
-                  Provision a new venue and bring its network online.
-                </span>
-              </button>
             )}
           </div>
         )}
@@ -1573,19 +1540,6 @@ function CustomerHomePage() {
         locationId={effectiveDeviceLocationId}
         locationName={(locations ?? []).find((l) => l.id === effectiveDeviceLocationId)?.name}
         onAdded={() => refetchDevices()}
-      />
-
-      <LocationWizard
-        open={addLocationOpen}
-        onOpenChange={setAddLocationOpen}
-        lockedOrganizationId={myOrg?.organizationId}
-        lockedOrganizationName={myOrg?.organizationName}
-        onCreated={() => {
-          // Real create, not demo -- refetch the customer's location list so
-          // the newly-created venue shows up on this page immediately
-          // instead of waiting out useCustomerLocations()'s 30s staleTime.
-          qc.invalidateQueries({ queryKey: customerKeys.locations });
-        }}
       />
     </div>
   );
