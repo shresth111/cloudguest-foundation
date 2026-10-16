@@ -60,9 +60,9 @@ export const RADIUS_MODE_PREREQUISITES: readonly { key: string; title: string; d
     },
     {
       key: "controller_config",
-      title: "Nothing on the controller changes when you switch",
+      title: "Nothing on the controller changes until Configure controller runs",
       detail:
-        "This records the contract and changes the portal link's parameters. The controller still needs its RADIUS profile (the hub's address, the shared secret, PAP) and a portal with RADIUS authentication and External Web Portal set by hand. Apply to controller cannot do this -- it only writes External Portal Server.",
+        "This records the contract and changes the portal link's parameters. The controller is changed only when you then run Configure controller: after the controller is registered with RADIUS below, Apply to controller writes its RADIUS profile (the hub's address, the registered shared secret, PAP, accounting off) and switches the guest SSID's portal to RADIUS authentication with External Web Portal.",
     },
   ];
 
@@ -75,19 +75,21 @@ export function portalModeSwitchBlock(portalMode: IntegrationPortalMode | null):
 }
 
 /**
- * Why `Preview changes` / `Apply to controller` must not run for this mode.
+ * Why `Preview changes` / `Apply to controller` must not run for this mode,
+ * or `null` when they may.
  *
- * `configure-controller` has no RADIUS branch: it always writes an External
- * Portal Server (authType 4) portal onto the SSID. Run against a RADIUS-mode
- * venue it would put the controller back on the other contract while the row
- * still says RADIUS -- the controller and this platform disagreeing about who
- * authorises guests, with nothing on either screen saying so.
+ * Both contracts are supported now (cloud-guest: Configure controller on the
+ * RADIUS contract): on RADIUS it writes the controller's RADIUS profile from
+ * the registered NAS client and an External RADIUS portal, and refuses with
+ * `RADIUS_NAS_NOT_REGISTERED` until the controller is registered. Only a
+ * backend that did not report a mode is still refused, because then nobody
+ * knows which contract a run would write.
  */
 export function configureControllerPortalModeBlock(
   portalMode: IntegrationPortalMode | null,
 ): string | null {
-  if (portalMode === "radius") {
-    return "This venue is on RADIUS mode. Automatic setup only writes an External Portal Server portal and would move the controller off RADIUS. Configure the RADIUS portal on the controller by hand, or switch the venue back first.";
+  if (portalMode === null) {
+    return "This backend did not report the venue's portal contract, so automatic setup cannot tell which one to write.";
   }
   return null;
 }

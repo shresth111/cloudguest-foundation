@@ -356,13 +356,17 @@ console.log("\n4. what may be offered, and when");
 check("a backend with no portal mode cannot be switched", portalModeSwitchBlock(null) !== null);
 check("a known mode can be", portalModeSwitchBlock("external_portal") === null);
 check(
-  "automatic controller setup is refused in RADIUS mode",
-  /External Portal Server/.test(configureControllerPortalModeBlock("radius") ?? ""),
-  "configure-controller always writes authType 4 and would move the controller off RADIUS",
+  "automatic controller setup runs on the RADIUS contract",
+  configureControllerPortalModeBlock("radius") === null,
+  "configure-controller writes the RADIUS profile and an External RADIUS portal",
 );
 check(
-  "and allowed on the contract it was written for",
+  "and on External Portal Server",
   configureControllerPortalModeBlock("external_portal") === null,
+);
+check(
+  "but not when the backend reported no contract at all",
+  configureControllerPortalModeBlock(null) !== null,
 );
 
 check(
