@@ -430,10 +430,10 @@
           "label": "क्या secret mismatch है? (पहले ये check करो)"
         },
         "1": {
-          "label": "सिर्फ़ secrets का reset (router का बाकी config बचा रहता है)"
+          "label": "सिर्फ़ secrets का reset (router का बाकी config बचा रहता है) — इसके बाद Generate से पहले \"Rotate the WireGuard tunnel\" और \"Rotate the RouterOS API password\" tick करो"
         },
         "2": {
-          "label": "पूरा factory reset (जब कुछ समझ न आए)"
+          "label": "पूरा factory reset (जब कुछ समझ न आए) — reset के बाद Setup Script में \"Rotate the WireGuard tunnel\" tick करके Generate करो"
         }
       },
       "checks": {

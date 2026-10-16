@@ -430,10 +430,10 @@
           "label": "Is there a secret mismatch? (check this first)"
         },
         "1": {
-          "label": "Reset the secrets only (the rest of the router's config survives)"
+          "label": "Reset the secrets only (the rest of the router's config survives) — then tick \"Rotate the WireGuard tunnel\" and \"Rotate the RouterOS API password\" before you press Generate"
         },
         "2": {
-          "label": "Full factory reset (when nothing else makes sense)"
+          "label": "Full factory reset (when nothing else makes sense) — after the reset, tick \"Rotate the WireGuard tunnel\" in Setup Script before you press Generate"
         }
       },
       "checks": {

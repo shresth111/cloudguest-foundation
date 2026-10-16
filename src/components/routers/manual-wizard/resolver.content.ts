@@ -1038,7 +1038,7 @@ export const RESOLVER: ResolverEntry[] = [
           {
             tell: "rejects",
             means:
-              "The server is reachable and refusing. This is the secret, not the tunnel. Recovery means removing this platform's own secrets from the router, pressing Generate exactly once, and pasting the fresh blocks in the same sitting.",
+              "The server is reachable and refusing. This is the secret, not the tunnel. Recovery means removing this platform's own secrets from the router, pressing Generate exactly once with both Rotate boxes ticked, and pasting the fresh blocks in the same sitting.",
             thenStepIndex: -1,
             fix: [
               {
@@ -1054,7 +1054,7 @@ export const RESOLVER: ResolverEntry[] = [
 :put ("radius-remaining=" . [:tostr [:len [/radius find]]])
 :put ("tunnel-remaining=" . [:tostr [:len [/interface wireguard find where name="wg-cloudguard"]]])
 :put ("api-user-remaining=" . [:tostr [:len [/user find where name="cloudguest-api"]]])`,
-                note: "Removes only this platform's own tunnel, login server entry and account. The guest network, the hotspot and the internet connection are all untouched. Immediately afterwards, press Generate in Master console EXACTLY ONCE and paste the fresh tunnel, login server and account blocks. Do not press Generate again after that, whatever happens.",
+                note: 'Removes only this platform\'s own tunnel, login server entry and account. The guest network, the hotspot and the internet connection are all untouched. Immediately afterwards, in Master console Setup Script tick "Rotate the WireGuard tunnel" and "Rotate the RouterOS API password", press Generate EXACTLY ONCE, and paste the fresh tunnel, login server and account blocks. Without Rotate the platform reuses the old tunnel, the script carries no tunnel key, and the WireGuard block stops. Do not press Generate again after that, whatever happens.',
                 destructive: true,
                 confirmPrompt:
                   "This removes the tunnel, the login server entry and the management account from this router. Guests already connected keep working, but no new guest can log in until the fresh blocks are pasted. You must have Master console open and ready before continuing. Continue?",
@@ -1287,7 +1287,7 @@ export const TEMPTING_AND_WRONG: {
   },
   {
     instead:
-      "Remove this platform's three secrets, press Generate once, and paste the fresh blocks.",
+      'Remove this platform\'s three secrets, tick "Rotate the WireGuard tunnel" and "Rotate the RouterOS API password", press Generate once, and paste the fresh blocks.',
     dontDo: "(pressing Generate again in Master console)",
     why: "Every press replaces the secrets on the server while the router keeps the old ones, and the blocks that install them only add what is missing. Pressing it again is the cause, not the cure.",
     confidence: "field",
