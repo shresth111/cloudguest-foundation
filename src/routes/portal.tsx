@@ -327,7 +327,19 @@ function PortalRuntimeLayout() {
   // Read once, at mount, exactly as `persistedIds` is: a value that changed
   // mid-render would make the merged object below unstable and re-render
   // every portal screen through the provider's `useMemo`.
-  const [persistedOmada] = useState(() => loadPersistedOmadaContext());
+  //
+  // NEVER ON A RouterOS ARRIVAL. The mirror is one origin-wide key with a
+  // 12-hour cookie, and a MikroTik URL never carries `netProvider` -- so
+  // "the URL wins, the mirror fills a gap" let a phone that had visited an
+  // Omada venue earlier that day take the Omada gate at a MikroTik one:
+  // `/network-integrations/portal/radius-authorize` refused it (403, device
+  // mismatch) and the hotspot was never logged in (HKM, 2026-10-16, two
+  // POCO phones with active sessions and no internet). `link-login-only`
+  // is stamped by RouterOS's own login page and never by a controller, so
+  // its presence is the one fact that rules the mirror out.
+  const [persistedOmada] = useState(() =>
+    linkLoginOnly ? undefined : loadPersistedOmadaContext(),
+  );
 
   const organizationId = urlOrganizationId ?? persistedIds?.organizationId;
   const locationId = urlLocationId ?? persistedIds?.locationId;
