@@ -951,7 +951,12 @@ export type ControllerSetupGap =
   | "LOCATION_NOT_MAPPED"
   | "SITE_NOT_SELECTED"
   | "FLEET_DEVICE_MISSING"
-  | "GUEST_SSID_MISSING";
+  | "GUEST_SSID_MISSING"
+  | "HUB_RADIUS_ADDRESS_MISSING"
+  | "RADIUS_NAS_NOT_REGISTERED"
+  /** Not a gap but a pre-write refusal the same panel renders: the guest SSID
+   * is bound to a portal this integration did not create. */
+  | "NETWORK_INTEGRATION_PORTAL_CONFLICT";
 
 export const CONTROLLER_SETUP_GAP_ORDER: readonly ControllerSetupGap[] = [
   "INTEGRATION_DISABLED",
@@ -962,6 +967,9 @@ export const CONTROLLER_SETUP_GAP_ORDER: readonly ControllerSetupGap[] = [
   "SITE_NOT_SELECTED",
   "FLEET_DEVICE_MISSING",
   "GUEST_SSID_MISSING",
+  "HUB_RADIUS_ADDRESS_MISSING",
+  "RADIUS_NAS_NOT_REGISTERED",
+  "NETWORK_INTEGRATION_PORTAL_CONFLICT",
 ];
 
 /**
@@ -1012,6 +1020,18 @@ export const CONTROLLER_SETUP_GAP_COPY: Record<ControllerSetupGap, { title: stri
       title: "No guest network has been chosen",
       fix: "Pick the SSID guests connect to, in the site and guest-network mapping below.",
     },
+    HUB_RADIUS_ADDRESS_MISSING: {
+      title: "The RADIUS hub's public address is not configured",
+      fix: "This platform does not know which address to give the controller's RADIUS profile. Set CLOUDGUEST_HUB_RADIUS_PUBLIC_ADDRESS on the server, then run the preview again.",
+    },
+    RADIUS_NAS_NOT_REGISTERED: {
+      title: "The controller is not registered with RADIUS yet",
+      fix: "Use Register controller with RADIUS in the guest portal contract section below. Its shared secret is what automatic setup writes into the controller's RADIUS profile, so nobody has to type it.",
+    },
+    NETWORK_INTEGRATION_PORTAL_CONFLICT: {
+      title: "The guest SSID already belongs to another portal",
+      fix: "Tick Take over the SSID's existing portal, then run the preview again. It removes only this SSID from that portal -- or deletes the portal if this SSID is all it applies to.",
+    },
   };
 
 /** `true` only for a gap this build recognises -- an unknown one is shown
@@ -1036,7 +1056,8 @@ export type ControllerConfigureStepOutcome =
   | "failed";
 
 export interface ControllerConfigureStep {
-  /** One of `ssid_takeover`, `portal`, `pre_auth_access`, `hotspot_operator`.
+  /** One of `ssid_takeover`, `radius_profile`, `portal`, `pre_auth_access`,
+   * `hotspot_operator`.
    * Typed as a string because an unrecognised step must still render. */
   step: string;
   outcome: ControllerConfigureStepOutcome;
@@ -1052,6 +1073,7 @@ export interface ControllerConfigureStep {
  * when take-over actually released the SSID from another portal. */
 export const CONTROLLER_CONFIGURE_STEP_LABEL: Record<string, string> = {
   ssid_takeover: "Released the SSID from its previous portal",
+  radius_profile: "RADIUS profile (hub address and shared secret)",
   portal: "Guest portal on the SSID",
   pre_auth_access: "Pre-authentication access rule",
   hotspot_operator: "Hotspot operator account",
