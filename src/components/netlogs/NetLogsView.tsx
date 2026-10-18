@@ -35,10 +35,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EmptyState } from "@/components/common/EmptyState";
+import { IpdrConnections } from "@/components/netlogs/IpdrConnections";
 import { useAuth } from "@/context/AuthContext";
 import { useCustomerLocations, useMyPermissions } from "@/hooks/useCustomerDashboard";
 import { useNetLogsList, useNetLogsSummary } from "@/hooks/useNetLogs";
 import { navItemAllowed } from "@/lib/customerNavPermissions";
+import { IPDR_EXPORT, IPDR_READ, hasIpdrPermission } from "@/lib/ipdr";
 import { resolveMarketingScope } from "@/lib/marketing-scope";
 import {
   NETLOGS_CATEGORIES,
@@ -154,6 +156,30 @@ export function NetLogsView({ locationId }: { locationId: string }) {
   const error = logs.error ?? summary.error;
   const friendly = error ? netLogsErrorMessage(requestErrorOf(error)) : null;
 
+  // Connections (IPDR): its own keys, failing CLOSED (see lib/ipdr.ts).
+  const ipdrRead = hasIpdrPermission(permissions, IPDR_READ);
+  const ipdrExport = hasIpdrPermission(permissions, IPDR_EXPORT);
+  const view = rawSearch?.view === "ipdr" && ipdrRead ? "ipdr" : "logs";
+  const showView = (next: "logs" | "ipdr") => {
+    setAt(Date.now());
+    void navigate({
+      to: "/netlogs",
+      search:
+        next === "ipdr"
+          ? { ...searchFromFilters(filters), view: "ipdr" }
+          : searchFromFilters(filters),
+      replace: true,
+    });
+  };
+  const applyIpdr = (patch: Partial<NetLogsFilters>) => {
+    const next = { ...filters, ...patch };
+    void navigate({
+      to: "/netlogs",
+      search: { ...searchFromFilters(next), view: "ipdr" },
+      replace: true,
+    });
+  };
+
   if (!permitted) {
     return (
       <EmptyState
@@ -164,8 +190,56 @@ export function NetLogsView({ locationId }: { locationId: string }) {
     );
   }
 
+  const tabs = ipdrRead ? (
+    <div
+      role="tablist"
+      aria-label="NetLogs view"
+      className="inline-flex rounded-md border bg-background p-0.5"
+    >
+      {(
+        [
+          ["logs", "Log lines"],
+          ["ipdr", "Connections (IPDR)"],
+        ] as const
+      ).map(([key, label]) => (
+        <button
+          key={key}
+          type="button"
+          role="tab"
+          aria-selected={view === key}
+          onClick={() => showView(key)}
+          className={cn(
+            "rounded px-3 py-1 text-sm font-medium transition-colors",
+            view === key
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-accent hover:text-foreground",
+          )}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  ) : null;
+
+  if (view === "ipdr") {
+    return (
+      <div className="space-y-5">
+        {tabs}
+        <IpdrConnections
+          filters={filters}
+          apply={applyIpdr}
+          activeLocationId={locationId}
+          orgWide={orgWide}
+          org={org}
+          canExport={ipdrExport}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
+      {tabs}
       <p className="max-w-3xl text-sm text-muted-foreground">
         What your routers and guest sign-ins recorded: addresses handed out, sign-ins accepted or
         refused, traffic the firewall stopped, and router events. Phone numbers and e-mail addresses
