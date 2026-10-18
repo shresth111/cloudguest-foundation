@@ -248,6 +248,11 @@ const CAP_PERMISSIONS: Record<string, string[]> = {
    * (wyfy-specs/guest-marketing-campaigns.md §5.9); without this cap the
    * panel still renders read-only, since `billing.read` is enough to GET. */
   addons: ["billing.manage"],
+  /** Customers drawer -> "Login messaging": connect, verify or disconnect a
+   * customer's own WhatsApp/SMS API for guest login codes, on their behalf.
+   * The platform routes are `organizations.update` pinned to GLOBAL; read is
+   * `organizations.read`, so without this cap the section is read-only. */
+  "login-messaging": ["organizations.update"],
   /** `/master/marketing-pricing` -- read with billing.read; the edit form is
    * gated separately on the `addons` cap (billing.manage), and the backend
    * pins both to GLOBAL scope (§13.7). */

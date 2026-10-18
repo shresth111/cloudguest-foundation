@@ -28,6 +28,8 @@ import {
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
+import { LoginMessagingCard } from "@/components/login-messaging/LoginMessagingCard";
+import { useHasPermission } from "@/components/marketing/marketing-helpers";
 import { portalService } from "@/services/portal.service";
 import { resolveOrgId } from "@/services/customer.service";
 import { brandAssetService } from "@/services/brand-asset.service";
@@ -246,6 +248,7 @@ function NoDataYet() {
 
 export function PortalPage({ locationId }: { locationId?: string }) {
   const demo = useIsDemo();
+  const hasPermission = useHasPermission();
   const [primary, setPrimary] = useState("#1B57F5");
   // The actual big heading a guest sees on the sign-in screen (e.g.
   // "Welcome to Haldwani") -- backed by `seo.pageTitle` / `splash_headline`.
@@ -2329,6 +2332,17 @@ export function PortalPage({ locationId }: { locationId?: string }) {
           </div>
         </div>
       </div>
+
+      {/* Which account sends the WhatsApp/SMS sign-in codes. Organization-
+          wide (not per venue), so it sits below the per-venue editor and
+          outside its fieldset: the portal's Save never touches it. Wyfy
+          Guest's own account is the default; a role without the
+          marketing_providers grant does not see the card at all. */}
+      <LoginMessagingCard
+        target={{ kind: "own" }}
+        enabled={!demo}
+        canManage={!demo && hasPermission("marketing_providers.manage")}
+      />
     </div>
   );
 }
