@@ -244,6 +244,15 @@ jobs:
             "portal-cna-storage-safety" 51 "all checks passed" \
             bun run test:portal-cna
 
+      # Login messaging (own WhatsApp/SMS API for guest login codes): secrets
+      # stay write-only, the form is the backend registry's, and the customer
+      # card and the Master section never call each other's routes.
+      - name: login messaging
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "login-messaging" 20 "all login-messaging checks passed" \
+            bun run test:login-messaging
+
       # The Master Console and the customer app are two products on two
       # hostnames, and neither may render on the other's. #288/#289 enforced
       # it for the master routes and the bare root; the top-level customer
