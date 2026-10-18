@@ -171,6 +171,11 @@ export const NAV_PERMISSION_KEYS: Record<string, readonly string[]> = {
   tickets: ["support_tickets.read"],
   "admin-logs": ["audit_logs.read"],
   "network-activity": ["guest_sessions.read"],
+  // NetLogs (cloud-guest#420): every route is
+  // `RequirePermission("network_logs.read", scope=LOCATION)`, and READ is the
+  // NETWORK_LOGS module's only action. Deliberately not `device_logs.read`:
+  // that is the Master viewer's GLOBAL-only key and no customer role holds it.
+  netlogs: ["network_logs.read"],
   // `how-it-works` is deliberately absent: a static reference page with no
   // backend domain behind it, so there is nothing to check and no reason
   // to ever hide it.

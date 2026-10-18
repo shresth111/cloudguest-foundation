@@ -202,6 +202,8 @@ const EVERY_KEY_IMAGINABLE = [
   // The Traffic Lens add-on's row (wyfy-specs/flow-visibility/API.md,
   // "Customer API"): the VENUE_TRAFFIC module's one action.
   "venue_traffic.read",
+  // NetLogs (cloud-guest#420): the NETWORK_LOGS module's one action.
+  "network_logs.read",
   // Keys for screens this nav does not have at all.
   "system_settings.manage",
   "device_console.execute",

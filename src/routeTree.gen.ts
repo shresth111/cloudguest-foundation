@@ -28,6 +28,7 @@ import { Route as PortalRouteImport } from './routes/portal'
 import { Route as PortForwardingRouteImport } from './routes/port-forwarding'
 import { Route as PoliciesRouteImport } from './routes/policies'
 import { Route as NetworkActivityRouteImport } from './routes/network-activity'
+import { Route as NetlogsRouteImport } from './routes/netlogs'
 import { Route as MasterLoginRouteImport } from './routes/master-login'
 import { Route as MasterRouteImport } from './routes/master'
 import { Route as MarketingRouteImport } from './routes/marketing'
@@ -65,11 +66,11 @@ import { Route as PortalTeamRouteImport } from './routes/portal.team'
 import { Route as PortalSuccessRouteImport } from './routes/portal.success'
 import { Route as PortalSetPasswordRouteImport } from './routes/portal.set-password'
 import { Route as PortalSessionRouteImport } from './routes/portal.session'
+import { Route as PortalReviewRouteImport } from './routes/portal.review'
 import { Route as PortalRedirectRouteImport } from './routes/portal.redirect'
 import { Route as PortalOfflineRouteImport } from './routes/portal.offline'
 import { Route as PortalNotListedRouteImport } from './routes/portal.not-listed'
 import { Route as PortalFailureRouteImport } from './routes/portal.failure'
-import { Route as PortalReviewRouteImport } from './routes/portal.review'
 import { Route as PortalExpiredRouteImport } from './routes/portal.expired'
 import { Route as PortalClosedRouteImport } from './routes/portal.closed'
 import { Route as PortalAuthRouteImport } from './routes/portal.auth'
@@ -298,6 +299,11 @@ const NetworkActivityRoute = NetworkActivityRouteImport.update({
   path: '/network-activity',
   getParentRoute: () => rootRouteImport,
 } as any)
+const NetlogsRoute = NetlogsRouteImport.update({
+  id: '/netlogs',
+  path: '/netlogs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MasterLoginRoute = MasterLoginRouteImport.update({
   id: '/master-login',
   path: '/master-login',
@@ -482,6 +488,11 @@ const PortalSessionRoute = PortalSessionRouteImport.update({
   path: '/session',
   getParentRoute: () => PortalRoute,
 } as any)
+const PortalReviewRoute = PortalReviewRouteImport.update({
+  id: '/review',
+  path: '/review',
+  getParentRoute: () => PortalRoute,
+} as any)
 const PortalRedirectRoute = PortalRedirectRouteImport.update({
   id: '/redirect',
   path: '/redirect',
@@ -500,11 +511,6 @@ const PortalNotListedRoute = PortalNotListedRouteImport.update({
 const PortalFailureRoute = PortalFailureRouteImport.update({
   id: '/failure',
   path: '/failure',
-  getParentRoute: () => PortalRoute,
-} as any)
-const PortalReviewRoute = PortalReviewRouteImport.update({
-  id: '/review',
-  path: '/review',
   getParentRoute: () => PortalRoute,
 } as any)
 const PortalExpiredRoute = PortalExpiredRouteImport.update({
@@ -1276,6 +1282,7 @@ export interface FileRoutesByFullPath {
   '/marketing': typeof MarketingRoute
   '/master': typeof MasterRouteWithChildren
   '/master-login': typeof MasterLoginRoute
+  '/netlogs': typeof NetlogsRoute
   '/network-activity': typeof NetworkActivityRoute
   '/policies': typeof PoliciesRoute
   '/port-forwarding': typeof PortForwardingRoute
@@ -1330,12 +1337,12 @@ export interface FileRoutesByFullPath {
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
   '/portal/auth': typeof PortalAuthRouteWithChildren
   '/portal/closed': typeof PortalClosedRoute
-  '/portal/review': typeof PortalReviewRoute
   '/portal/expired': typeof PortalExpiredRoute
   '/portal/failure': typeof PortalFailureRoute
   '/portal/not-listed': typeof PortalNotListedRoute
   '/portal/offline': typeof PortalOfflineRoute
   '/portal/redirect': typeof PortalRedirectRoute
+  '/portal/review': typeof PortalReviewRoute
   '/portal/session': typeof PortalSessionRoute
   '/portal/set-password': typeof PortalSetPasswordRoute
   '/portal/success': typeof PortalSuccessRoute
@@ -1468,6 +1475,7 @@ export interface FileRoutesByTo {
   '/mac-auth': typeof MacAuthRoute
   '/marketing': typeof MarketingRoute
   '/master-login': typeof MasterLoginRoute
+  '/netlogs': typeof NetlogsRoute
   '/network-activity': typeof NetworkActivityRoute
   '/policies': typeof PoliciesRoute
   '/port-forwarding': typeof PortForwardingRoute
@@ -1519,12 +1527,12 @@ export interface FileRoutesByTo {
   '/master/tickets': typeof MasterTicketsRoute
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
   '/portal/closed': typeof PortalClosedRoute
-  '/portal/review': typeof PortalReviewRoute
   '/portal/expired': typeof PortalExpiredRoute
   '/portal/failure': typeof PortalFailureRoute
   '/portal/not-listed': typeof PortalNotListedRoute
   '/portal/offline': typeof PortalOfflineRoute
   '/portal/redirect': typeof PortalRedirectRoute
+  '/portal/review': typeof PortalReviewRoute
   '/portal/session': typeof PortalSessionRoute
   '/portal/set-password': typeof PortalSetPasswordRoute
   '/portal/success': typeof PortalSuccessRoute
@@ -1660,6 +1668,7 @@ export interface FileRoutesById {
   '/marketing': typeof MarketingRoute
   '/master': typeof MasterRouteWithChildren
   '/master-login': typeof MasterLoginRoute
+  '/netlogs': typeof NetlogsRoute
   '/network-activity': typeof NetworkActivityRoute
   '/policies': typeof PoliciesRoute
   '/port-forwarding': typeof PortForwardingRoute
@@ -1714,12 +1723,12 @@ export interface FileRoutesById {
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
   '/portal/auth': typeof PortalAuthRouteWithChildren
   '/portal/closed': typeof PortalClosedRoute
-  '/portal/review': typeof PortalReviewRoute
   '/portal/expired': typeof PortalExpiredRoute
   '/portal/failure': typeof PortalFailureRoute
   '/portal/not-listed': typeof PortalNotListedRoute
   '/portal/offline': typeof PortalOfflineRoute
   '/portal/redirect': typeof PortalRedirectRoute
+  '/portal/review': typeof PortalReviewRoute
   '/portal/session': typeof PortalSessionRoute
   '/portal/set-password': typeof PortalSetPasswordRoute
   '/portal/success': typeof PortalSuccessRoute
@@ -1856,6 +1865,7 @@ export interface FileRouteTypes {
     | '/marketing'
     | '/master'
     | '/master-login'
+    | '/netlogs'
     | '/network-activity'
     | '/policies'
     | '/port-forwarding'
@@ -1910,12 +1920,12 @@ export interface FileRouteTypes {
     | '/master/traffic-flow'
     | '/portal/auth'
     | '/portal/closed'
-    | '/portal/review'
     | '/portal/expired'
     | '/portal/failure'
     | '/portal/not-listed'
     | '/portal/offline'
     | '/portal/redirect'
+    | '/portal/review'
     | '/portal/session'
     | '/portal/set-password'
     | '/portal/success'
@@ -2048,6 +2058,7 @@ export interface FileRouteTypes {
     | '/mac-auth'
     | '/marketing'
     | '/master-login'
+    | '/netlogs'
     | '/network-activity'
     | '/policies'
     | '/port-forwarding'
@@ -2099,12 +2110,12 @@ export interface FileRouteTypes {
     | '/master/tickets'
     | '/master/traffic-flow'
     | '/portal/closed'
-    | '/portal/review'
     | '/portal/expired'
     | '/portal/failure'
     | '/portal/not-listed'
     | '/portal/offline'
     | '/portal/redirect'
+    | '/portal/review'
     | '/portal/session'
     | '/portal/set-password'
     | '/portal/success'
@@ -2239,6 +2250,7 @@ export interface FileRouteTypes {
     | '/marketing'
     | '/master'
     | '/master-login'
+    | '/netlogs'
     | '/network-activity'
     | '/policies'
     | '/port-forwarding'
@@ -2293,12 +2305,12 @@ export interface FileRouteTypes {
     | '/master/traffic-flow'
     | '/portal/auth'
     | '/portal/closed'
-    | '/portal/review'
     | '/portal/expired'
     | '/portal/failure'
     | '/portal/not-listed'
     | '/portal/offline'
     | '/portal/redirect'
+    | '/portal/review'
     | '/portal/session'
     | '/portal/set-password'
     | '/portal/success'
@@ -2435,6 +2447,7 @@ export interface RootRouteChildren {
   MarketingRoute: typeof MarketingRoute
   MasterRoute: typeof MasterRouteWithChildren
   MasterLoginRoute: typeof MasterLoginRoute
+  NetlogsRoute: typeof NetlogsRoute
   NetworkActivityRoute: typeof NetworkActivityRoute
   PoliciesRoute: typeof PoliciesRoute
   PortForwardingRoute: typeof PortForwardingRoute
@@ -2603,6 +2616,13 @@ declare module '@tanstack/react-router' {
       path: '/network-activity'
       fullPath: '/network-activity'
       preLoaderRoute: typeof NetworkActivityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/netlogs': {
+      id: '/netlogs'
+      path: '/netlogs'
+      fullPath: '/netlogs'
+      preLoaderRoute: typeof NetlogsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/master-login': {
@@ -2864,6 +2884,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PortalSessionRouteImport
       parentRoute: typeof PortalRoute
     }
+    '/portal/review': {
+      id: '/portal/review'
+      path: '/review'
+      fullPath: '/portal/review'
+      preLoaderRoute: typeof PortalReviewRouteImport
+      parentRoute: typeof PortalRoute
+    }
     '/portal/redirect': {
       id: '/portal/redirect'
       path: '/redirect'
@@ -2890,13 +2917,6 @@ declare module '@tanstack/react-router' {
       path: '/failure'
       fullPath: '/portal/failure'
       preLoaderRoute: typeof PortalFailureRouteImport
-      parentRoute: typeof PortalRoute
-    }
-    '/portal/review': {
-      id: '/portal/review'
-      path: '/review'
-      fullPath: '/portal/review'
-      preLoaderRoute: typeof PortalReviewRouteImport
       parentRoute: typeof PortalRoute
     }
     '/portal/expired': {
@@ -4166,12 +4186,12 @@ const PortalAuthRouteWithChildren = PortalAuthRoute._addFileChildren(
 interface PortalRouteChildren {
   PortalAuthRoute: typeof PortalAuthRouteWithChildren
   PortalClosedRoute: typeof PortalClosedRoute
-  PortalReviewRoute: typeof PortalReviewRoute
   PortalExpiredRoute: typeof PortalExpiredRoute
   PortalFailureRoute: typeof PortalFailureRoute
   PortalNotListedRoute: typeof PortalNotListedRoute
   PortalOfflineRoute: typeof PortalOfflineRoute
   PortalRedirectRoute: typeof PortalRedirectRoute
+  PortalReviewRoute: typeof PortalReviewRoute
   PortalSessionRoute: typeof PortalSessionRoute
   PortalSetPasswordRoute: typeof PortalSetPasswordRoute
   PortalSuccessRoute: typeof PortalSuccessRoute
@@ -4185,12 +4205,12 @@ interface PortalRouteChildren {
 const PortalRouteChildren: PortalRouteChildren = {
   PortalAuthRoute: PortalAuthRouteWithChildren,
   PortalClosedRoute: PortalClosedRoute,
-  PortalReviewRoute: PortalReviewRoute,
   PortalExpiredRoute: PortalExpiredRoute,
   PortalFailureRoute: PortalFailureRoute,
   PortalNotListedRoute: PortalNotListedRoute,
   PortalOfflineRoute: PortalOfflineRoute,
   PortalRedirectRoute: PortalRedirectRoute,
+  PortalReviewRoute: PortalReviewRoute,
   PortalSessionRoute: PortalSessionRoute,
   PortalSetPasswordRoute: PortalSetPasswordRoute,
   PortalSuccessRoute: PortalSuccessRoute,
@@ -4229,6 +4249,7 @@ const rootRouteChildren: RootRouteChildren = {
   MarketingRoute: MarketingRoute,
   MasterRoute: MasterRouteWithChildren,
   MasterLoginRoute: MasterLoginRoute,
+  NetlogsRoute: NetlogsRoute,
   NetworkActivityRoute: NetworkActivityRoute,
   PoliciesRoute: PoliciesRoute,
   PortForwardingRoute: PortForwardingRoute,
