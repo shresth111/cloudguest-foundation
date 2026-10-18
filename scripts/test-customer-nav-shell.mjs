@@ -118,7 +118,7 @@ const {
 // 1. The menu is the 26 again.
 // ---------------------------------------------------------------------------
 
-console.log("\nthe customer menu is 29 features in nine groups");
+console.log("\nthe customer menu is 30 features in nine groups");
 
 // Nine since the Marketing add-on arrived as its own group, directly after
 // Engagement (wyfy-specs/guest-marketing-campaigns.md §3.5): outbound guest
@@ -152,7 +152,10 @@ check("there are nine groups", CUSTOMER_NAV_GROUPS.length === 9, `${CUSTOMER_NAV
 // Then Network -> Traffic Lens (29): the paid add-on's own row, owner-only
 // (wyfy-specs/flow-visibility/PRODUCT.md C1). scripts/test-traffic-flow.mjs
 // pins where it sits and what gates it.
-check("there are 29 features", CUSTOMER_NAVS.length === 29, `${CUSTOMER_NAVS.length}`);
+// Then Support & Logs -> NetLogs (30): the customer's own router + sign-in
+// log lines (cloud-guest#420), gated on `network_logs.read`.
+// scripts/test-netlogs.mjs pins where it sits and what gates it.
+check("there are 30 features", CUSTOMER_NAVS.length === 30, `${CUSTOMER_NAVS.length}`);
 check(
   "the nine groups are the canonical ones",
   CUSTOMER_NAV_GROUPS.map((g) => g.id).join(",") ===

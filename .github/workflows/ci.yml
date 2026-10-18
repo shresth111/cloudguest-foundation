@@ -1985,6 +1985,16 @@ jobs:
             "device-logs" 39 "all checks passed" \
             bun run test:device-logs
 
+      # NetLogs (customer dashboard): filters round-trip through the URL, the
+      # status colours, an unknown never read as a value, the window and its
+      # 730-day clamp, one sentence per backend error code, no tunnel
+      # internals in the page, and the nav row gated on network_logs.read.
+      - name: netlogs
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "netlogs" 122 "all netlogs checks passed" \
+            bun run test:netlogs
+
       # Guest Connection Records -> "Device events" drawer. Locks the honest
       # states (a router that doesn't send logs never reads as "no events"),
       # the held-back count, the request shape (session id in the path, org

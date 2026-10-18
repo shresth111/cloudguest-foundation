@@ -100,6 +100,9 @@ const TrafficLensView = lazyView(
   () => import("@/components/traffic-lens/TrafficLensView"),
   "TrafficLensView",
 );
+// NetLogs. Its own lazily fetched module, like Traffic Lens; its charts are a
+// further lazy chunk inside it, so recharts is not fetched until one draws.
+const NetLogsView = lazyView(() => import("@/components/netlogs/NetLogsView"), "NetLogsView");
 /** Not part of the OperationsFeatures barrel -- its own module, so opening
  * "Network Integrations" fetches only the Omada connect wizard and its
  * service layer rather than the whole 446 kB ops chunk. Lazy for the same
@@ -256,11 +259,16 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
             <CustomerPageScope
               featureId={feature}
               locationName={
-                feature === "marketing" &&
-                resolveMarketingScope(roles, resolveActiveOrganizationId(), activeLocationId)
-                  .kind === "organization"
-                  ? "All venues"
-                  : activeLocation?.name
+                // NetLogs names its scope in its own Location filter (which
+                // can read "All locations"), so the line does not repeat a
+                // venue the filter may have moved away from.
+                feature === "netlogs"
+                  ? undefined
+                  : feature === "marketing" &&
+                      resolveMarketingScope(roles, resolveActiveOrganizationId(), activeLocationId)
+                        .kind === "organization"
+                    ? "All venues"
+                    : activeLocation?.name
               }
             />
             {/* Every branch below can be a lazily-loaded view, so the whole
@@ -336,6 +344,7 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                   Master console (FE-0 step 3, not done here). */}
               {feature === "admin-logs" && <AdminLogsView locationId={locationId} />}
               {feature === "network-activity" && <NetworkActivityLog masked={masked} />}
+              {feature === "netlogs" && <NetLogsView locationId={locationId} />}
               {feature === "mac-auth" && !controllerGated && (
                 <MacAuthView locationId={locationId} />
               )}

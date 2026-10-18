@@ -29,6 +29,7 @@ import {
   ShieldAlert,
   Send,
   Waypoints,
+  Logs,
 } from "lucide-react";
 
 export type CustomerLoginRole = "owner" | "agent";
@@ -233,6 +234,14 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
       // NetworkActivityLog.tsx's own render-time guard for the matching
       // three-layer defense-in-depth.
       { id: "network-activity", label: "Guest Connection Records", icon: Radar, roles: ["owner"] },
+      // NetLogs: this account's router + sign-in log lines (cloud-guest#420,
+      // `GET /device-logs`). Both roles: the backend seeds
+      // `network_logs.read` at LOCATION scope for the site-level staff roles
+      // too, and that key -- not this list -- decides who sees the row (see
+      // customerNavPermissions.ts). Not the Master "Device Logs" viewer: that
+      // one is GLOBAL-only and shows tunnel internals; this one never does.
+      // `Logs`: unused elsewhere, so the collapsed rail stays unambiguous.
+      { id: "netlogs", label: "NetLogs", icon: Logs, roles: ["owner", "agent"] },
       // A static reference page, not a data-backed feature -- lives here
       // (rather than getting its own top-level nav group) because "Help" is
       // exactly where a customer already looks for it, right alongside
