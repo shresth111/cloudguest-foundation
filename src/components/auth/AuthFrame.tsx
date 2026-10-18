@@ -25,7 +25,7 @@ const LoginSceneIllustration = lazy(() => import("./LoginSceneIllustration"));
  *  #b3a9ff..#c9c2ff is >= 7.9:1; white on #0e0b30..#1a164d is >= 15:1.
  *  `band` is the colour the band scene's own sky starts at (its --wg-sky1,
  *  night --wg-shade composited over it), the band's backdrop while it loads. */
-export const AUTH_SKY: Record<
+const AUTH_SKY: Record<
   LoginSceneTime,
   { stops: string; band: string; tone: "ink" | "white" }
 > = {
@@ -33,12 +33,12 @@ export const AUTH_SKY: Record<
   night: { stops: "#0e0b30 0%, #1a164d 45%, #2b2266 100%", band: "#1a164d", tone: "white" },
 };
 
-export const AUTH_SKY_TEXT = { ink: "#1e1b4b", white: "#ffffff" } as const;
+const AUTH_SKY_TEXT = { ink: "#1e1b4b", white: "#ffffff" } as const;
 
 /** Daylight from 06:00 to 17:59 in the visitor's own timezone. The sign-in
  *  page is pinned to the light palette whatever the OS theme, so the scene
  *  follows the clock rather than dark mode. */
-export function authSceneTimeFor(hour: number): LoginSceneTime {
+function authSceneTimeFor(hour: number): LoginSceneTime {
   return hour >= 6 && hour < 18 ? "day" : "night";
 }
 
