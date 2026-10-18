@@ -16,7 +16,7 @@
 // motivated vendoring this, and `customerNavPermissions.ts` for the
 // consumer.
 //
-// 299 keys.
+// 301 keys.
 export const BACKEND_PERMISSION_KEYS: readonly string[] = [
   "ai_assistant.execute",
   "ai_assistant.manage",
@@ -141,6 +141,8 @@ export const BACKEND_PERMISSION_KEYS: readonly string[] = [
   "invoices.manage",
   "invoices.read",
   "invoices.update",
+  "ipdr.export",
+  "ipdr.read",
   "isp.create",
   "isp.delete",
   "isp.execute",

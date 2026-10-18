@@ -1995,6 +1995,16 @@ jobs:
             "netlogs" 122 "all netlogs checks passed" \
             bun run test:netlogs
 
+      # NetLogs -> Connections (IPDR): the 18 columns in the backend's order,
+      # ipdr.read / ipdr.export failing closed and seeded by the backend, no
+      # phone/MAC/IP search in the URL, one sentence per backend error code,
+      # and the tab/route/service/export button wired. Floor 37, observed 37.
+      - name: ipdr
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "ipdr" 37 "all ipdr checks passed" \
+            bun run test:ipdr
+
       # Guest Connection Records -> "Device events" drawer. Locks the honest
       # states (a router that doesn't send logs never reads as "no events"),
       # the held-back count, the request shape (session id in the path, org

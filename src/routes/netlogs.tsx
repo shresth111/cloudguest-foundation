@@ -8,7 +8,7 @@ import { CustomerFeaturePage } from "@/components/customer/CustomerFeaturePage";
  * Support & Logs -> NetLogs (`components/netlogs/NetLogsView.tsx`).
  *
  * Every filter is a search param (see `lib/netlogs.ts` for the mapping):
- * `range`, `from`, `to`, `loc`, `router`, `sev`, `cat`, `st`, `q`. Each is a
+ * `range`, `from`, `to`, `loc`, `router`, `sev`, `cat`, `st`, `q`, `view`. Each is a
  * plain optional string here and is validated by `filtersFromSearch`, which
  * drops anything it does not understand -- so a mistyped or stale link still
  * opens the page instead of failing the route.
@@ -27,6 +27,8 @@ export const Route = createFileRoute("/netlogs")({
     cat: optional,
     st: optional,
     q: optional,
+    // "ipdr" opens the Connections (IPDR) tab (only for `ipdr.read`).
+    view: optional,
   }),
   beforeLoad: ({ context, location }) => {
     requireCustomerSession(context.auth, location);
