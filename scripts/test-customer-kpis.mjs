@@ -395,7 +395,8 @@ console.log("\nno two nav items share an icon");
   // 28: Web Filtering folded into Security -> Block Websites as its
   //     Categories section, deliberately removed as a row.
   // 29: Traffic Lens (the venue traffic add-on), deliberately added.
-  check("the nav still has every item", icons.length === 29, `found ${icons.length}`);
+  // 30: NetLogs (router + sign-in log lines, cloud-guest#420), deliberately added.
+  check("the nav still has every item", icons.length === 30, `found ${icons.length}`);
 }
 
 console.log(
