@@ -131,6 +131,26 @@ eq(
     ip: "192.0.2.5",
   },
 );
+eq(
+  "guests only goes to the backend as guests_only=true",
+  m.ipdrParams(win, null, "", m.EMPTY_IPDR_SEARCH, true),
+  {
+    since: "2026-10-17T00:00:00.000Z",
+    until: "2026-10-18T00:00:00.000Z",
+    guests_only: "true",
+  },
+);
+eq("the table defaults to guests only", m.DEFAULT_IPDR_AUDIENCE, "guests");
+eq("audience labels", m.IPDR_AUDIENCE_LABEL, { guests: "Guests only", all: "All devices" });
+eq(
+  "the export keeps every row by default, whatever the table shows",
+  m.ipdrExportParams({ since: "a", guests_only: "true" }, false),
+  { since: "a" },
+);
+eq("the export can be guests only", m.ipdrExportParams({ since: "a" }, true), {
+  since: "a",
+  guests_only: "true",
+});
 eq("cursor and page size", m.ipdrListParams({ since: "a" }, "c1"), {
   since: "a",
   limit: "100",
@@ -178,6 +198,22 @@ check(
 check("unknown source reads not known", /Not known/.test(m.translatedSourceLabel(undefined)));
 
 // ---------------------------------------------------------------------------
+console.log("\nwho and provenance");
+eq("a device row", m.whoLabel({ user_class: "device", device_kind: "router" }).label, "Device");
+check(
+  "a device says why",
+  /router itself/.test(m.whoLabel({ user_class: "device", device_kind: "router" }).detail),
+);
+eq("an older backend: user_known decides", m.whoLabel({ user_known: true }).label, "Guest");
+eq("an older backend: unmatched is unknown", m.whoLabel({ user_known: false }).label, "Unknown");
+eq("dhcp source", m.valueSourceLabel("dhcp"), "From the router's DHCP log");
+eq("no source, no label", m.valueSourceLabel(null), null);
+check(
+  "the Who flag is not one of the 18 CSV columns",
+  !m.IPDR_TABLE_COLUMNS.some((c) => c.label === "Who" || c.key === "user_class"),
+);
+
+// ---------------------------------------------------------------------------
 console.log("\nwiring");
 const view = src("src/components/netlogs/NetLogsView.tsx");
 const tab = src("src/components/netlogs/IpdrConnections.tsx");
@@ -193,6 +229,12 @@ check(
 check("the route accepts view", /view: optional/.test(route));
 check("the export button is labelled", tab.includes("IPDR Export (CERT-In format)"));
 check("the export is only rendered with canExport", /\{canExport && \(/.test(tab));
+check("the audience switch is rendered", tab.includes("IPDR_AUDIENCE_LABEL[a]"));
+check(
+  "the export uses its own guests-only choice",
+  tab.includes("ipdrExportParams(params, exportGuestsOnly)"),
+);
+check("the Who column is rendered", tab.includes("<WhoCell"));
 check("list path", service.includes('"/ipdr/connections"'));
 check("export path", service.includes('"/ipdr/export.csv"'));
 check("no location header (ORGANIZATION-scoped)", !service.includes('X-Location-Id"'));

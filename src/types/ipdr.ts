@@ -9,6 +9,17 @@
 /** Where Translated IP / Port came from. */
 export type IpdrTranslatedSource = "nat_event" | "derived" | "ambiguous" | "none";
 
+/** Who a row belongs to (table only, never one of the 18 CSV columns):
+ * a matched guest session, known infrastructure (`user_id` = `device`), or
+ * nothing known (`unknown`). cloud-guest#424. */
+export type IpdrUserClass = "guest" | "device" | "unknown";
+
+/** Why a row is `device`. */
+export type IpdrDeviceKind = "router" | "monitored_hardware" | "authorized_mac";
+
+/** Where the MAC / the allocation start-end came from. */
+export type IpdrValueSource = "session" | "dhcp" | "inventory";
+
 export interface IpdrItem {
   time_stamp_ist: string;
   name: string;
@@ -36,6 +47,13 @@ export interface IpdrItem {
   ts_source: "flow" | "window" | string | null;
   user_known: boolean;
   ports_merged: boolean;
+  /** cloud-guest#424; absent from an older backend. */
+  user_class?: IpdrUserClass | string;
+  device_kind?: IpdrDeviceKind | string | null;
+  mac_source?: IpdrValueSource | string | null;
+  allocation_source?: IpdrValueSource | string | null;
+  /** Only NAT events, no traffic record (e.g. a fast-tracked connection). */
+  nat_event_only?: boolean;
 }
 
 export interface IpdrCoverageDay {
