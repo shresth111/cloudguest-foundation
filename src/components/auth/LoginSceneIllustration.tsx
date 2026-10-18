@@ -19,7 +19,7 @@ import type { CSSProperties } from "react";
  * waves, pins, the OTP bubble) is drawn on top so it can glow after dark.
  *
  * Purely decorative (aria-hidden): the panel around it carries the copy.
- * Loaded lazily by AuthScenePanel so it never lands in an eager chunk.
+ * Loaded lazily by AuthFrame so it never lands in an eager chunk.
  */
 
 export type LoginSceneTime = "day" | "night";
@@ -230,10 +230,31 @@ const STARS = [
   [150, 108],
 ];
 
-function Sky({ g }: { g: string }) {
+function Sky({ g, wide }: { g: string; wide: boolean }) {
   return (
     <>
-      <rect width={800} height={320} fill={`url(#${g})`} />
+      {/* Wide mode has no sky of its own: the page behind it is the sky. */}
+      {!wide && <rect width={800} height={320} fill={`url(#${g})`} />}
+      {wide && (
+        <>
+          <g fill={C.white} style={op("stars")}>
+            {STARS.map(([x, y], k) => (
+              <circle
+                key={k}
+                cx={x - 800}
+                cy={y + 10}
+                r={k % 3 ? 1.2 : 1.9}
+                className="wg-tw"
+                style={{ animationDelay: `${((k * 0.9) % 3.4).toFixed(1)}s` }}
+              />
+            ))}
+          </g>
+          <g className="wg-drift" fill={v("cloud")} style={op("cloudop")}>
+            <Cloud x={-700} y={92} s={0.9} />
+            <Cloud x={-260} y={70} s={0.7} />
+          </g>
+        </>
+      )}
       <g fill={C.white} style={op("stars")}>
         {STARS.map(([x, y], k) => (
           <circle
@@ -639,23 +660,131 @@ function Guest({ g }: { g: string }) {
   );
 }
 
+// ---------- wide mode: a small park continuing the street to the left ----------
+
+function Park() {
+  return (
+    <>
+      <g transform="translate(1 0) scale(-1 1)">
+        <Land />
+      </g>
+      <Tree x={-778} s={1.1} c={C.leafL} d={C.leaf} />
+      <Tree x={-640} s={0.95} />
+      <Cypress x={-528} s={0.9} />
+      <Tree x={-300} s={1.25} c={C.leafL} d={C.leaf} />
+      <Tree x={-66} s={1.05} />
+      <g fill={C.leafD}>
+        {[-716, -384, -128].map((x) => (
+          <path key={x} d={`M${x - 22} 262c0-10 12-14 20-10 6-8 18-6 22 2 8-6 20-2 22 8z`} />
+        ))}
+      </g>
+      <g fill={C.fuchsia}>
+        {[-708, -690, -372, -356, -118, -100].map((x) => (
+          <circle key={x} cx={x} cy={255} r={2.4} />
+        ))}
+      </g>
+      {/* Park bench */}
+      <path d="M-472 262v-14M-412 262v-14" stroke={C.woodD} strokeWidth={3} strokeLinecap="round" />
+      <rect x={-476} y={228} width={68} height={5} rx={2} fill={C.wood} />
+      <path d="M-470 233v13M-414 233v13" stroke={C.woodD} strokeWidth={2.5} />
+      {/* Lamp posts; the right one carries an outdoor access point */}
+      {[-570, -196].map((x) => (
+        <path
+          key={x}
+          d={`M${x} 262V170M${x - 6} 262h12`}
+          stroke={C.plum}
+          strokeWidth={3}
+          strokeLinecap="round"
+        />
+      ))}
+      <rect
+        x={-192}
+        y={188}
+        width={14}
+        height={8}
+        rx={2}
+        fill={C.wall}
+        stroke={C.plum}
+        strokeWidth={1.5}
+      />
+    </>
+  );
+}
+
+function ParkLight({ glow }: { glow: string }) {
+  return (
+    <>
+      {[-570, -196].map((x) => (
+        <g key={x}>
+          <circle cx={x} cy={168} r={30} fill={`url(#${glow})`} style={op("halo")} />
+          <path d={`M${x - 6} 160h12l-2 12h-8z`} fill="#fff4cf" stroke={C.plum} strokeWidth={1.5} />
+          <path d={`M${x - 8} 160h16`} stroke={C.violet} strokeWidth={3} strokeLinecap="round" />
+        </g>
+      ))}
+      <circle cx={-182} cy={192} r={1.4} fill={C.cyan} className="wg-tw" />
+      <Waves x={-185} y={184} r={[5, 10, 15]} w={2.2} />
+      {/* A guest on the bench, laptop on their knees */}
+      <Bust x={-452} y={246} s={0.9} top={C.cyanD} hair={C.plum} skin={C.skin2} />
+      <rect x={-476} y={244} width={68} height={5} rx={2} fill={C.wood} />
+      <path d="M-446 243l3-13h18l-3 13z" fill={C.screen} />
+      <circle cx={-435} cy={236.5} r={1.5} fill={C.violet} />
+      <path d="M-450 243h26" stroke={C.plum} strokeWidth={2} strokeLinecap="round" />
+      <Waves x={-434} y={224} r={[4, 8]} w={1.8} />
+    </>
+  );
+}
+
 const Shade = () => <rect width={800} height={320} fill={v("shade")} style={op("shadeop")} />;
+
+/** Night tint for wide mode, as a filter instead of a full-bleed <Shade/>
+ *  rect: wide mode has a transparent sky (the page is the sky), so a rect
+ *  would paint a visible box over it. Same maths as the rect --
+ *  out = colour * (1 - a) + shade * a -- applied only to what is drawn. */
+function shadeMatrix(t: LoginSceneTime): string | null {
+  const p = PALETTE[t].split(" ");
+  const a = Number(p[KEYS.indexOf("shadeop")]);
+  if (!a) return null;
+  const hex = p[KEYS.indexOf("shade")];
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const k = (1 - a).toFixed(3);
+  const o = (c: number) => (a * c).toFixed(3);
+  return `${k} 0 0 0 ${o(r)} 0 ${k} 0 0 ${o(g)} 0 0 ${k} 0 ${o(b)} 0 0 0 1 0`;
+}
 
 export default function LoginSceneIllustration({
   timeOfDay = "day",
+  wide = false,
   className = "h-auto w-full",
 }: {
   timeOfDay?: LoginSceneTime;
+  /** 1600x320 panorama (a park continues the street to the left) with a
+   *  transparent sky, for drawing along the bottom of a full page. */
+  wide?: boolean;
   className?: string;
 }) {
   const raw = useId().replace(/[^a-zA-Z0-9]/g, "");
   const g = `wg${raw}`;
   const vals = PALETTE[timeOfDay].split(" ");
   const style = Object.fromEntries(KEYS.map((k, i) => [`--wg-${k}`, vals[i]])) as CSSProperties;
+  const matrix = wide ? shadeMatrix(timeOfDay) : null;
+  const daylight = (
+    <>
+      {wide && <Park />}
+      <Land />
+      <Tree x={14} s={0.95} />
+      <Coworking />
+      <Pot x={204} s={0.8} />
+      <Cafe />
+      <Terrace />
+      <Hotel />
+      <Tree x={738} s={1.15} c={C.leafL} d={C.leaf} />
+      <Cypress x={784} s={0.85} />
+    </>
+  );
   return (
     <svg
-      viewBox="0 0 800 320"
-      preserveAspectRatio="xMidYMax slice"
+      viewBox={wide ? "-800 0 1600 320" : "0 0 800 320"}
+      preserveAspectRatio={wide ? "xMaxYMax slice" : "xMidYMax slice"}
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
@@ -674,18 +803,35 @@ export default function LoginSceneIllustration({
           <stop offset="0" stopColor={C.indigo} />
           <stop offset="1" stopColor={C.purple} />
         </linearGradient>
+        <radialGradient id={`${g}glow`}>
+          <stop offset="0" stopColor="#fff4cf" stopOpacity={0.9} />
+          <stop offset="1" stopColor="#fff4cf" stopOpacity={0} />
+        </radialGradient>
+        {matrix && (
+          <filter
+            id={`${g}shade`}
+            filterUnits="userSpaceOnUse"
+            x={-800}
+            y={0}
+            width={1600}
+            height={320}
+            colorInterpolationFilters="sRGB"
+          >
+            <feColorMatrix type="matrix" values={matrix} />
+          </filter>
+        )}
       </defs>
-      <Sky g={`${g}sky`} />
-      <Land />
-      <Tree x={14} s={0.95} />
-      <Coworking />
-      <Pot x={204} s={0.8} />
-      <Cafe />
-      <Terrace />
-      <Hotel />
-      <Tree x={738} s={1.15} c={C.leafL} d={C.leaf} />
-      <Cypress x={784} s={0.85} />
-      <Shade />
+      <Sky g={`${g}sky`} wide={wide} />
+      {wide ? (
+        <g filter={matrix ? `url(#${g}shade)` : undefined}>{daylight}</g>
+      ) : (
+        <>
+          {daylight}
+          <Shade />
+        </>
+      )}
+      {wide && <ParkLight glow={`${g}glow`} />}
+      {wide && <Pin x={-372} g={`${g}mark`} delay={1.3} />}
       <CoworkingLight />
       <CafeLight />
       <TerraceLight />

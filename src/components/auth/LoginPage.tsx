@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import type { AppError } from "@/services/api";
 import { ForgotPasswordPage } from "@/components/auth/ForgotPasswordPage";
-import { AuthScenePanel, AUTH_SKY_TEXT } from "@/components/auth/AuthScenePanel";
+import { AuthFrame } from "@/components/auth/AuthFrame";
 
 // Moved out of `src/routes/login.tsx` -- same bug class already fixed once in
 // PR #91 (`CustomerDashboardPage`, see
@@ -206,10 +206,11 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
 
   return (
     <>
-      {/* Layout follows the EkamOS sign-in page: the form column on the left,
-       * an illustrated sky panel on the right (copy on the sky, the Wyfy
-       * street scene at its foot; see AuthScenePanel.tsx). Below lg the
-       * panel is replaced by a compact band of the same scene above the form.
+      {/* One illustrated canvas, in the style of the EkamOS website and
+       * sign-in art (see AuthFrame.tsx): on desktop the page is the sky, the
+       * Wyfy street runs along the bottom edge, the form floats in a white
+       * card on the left and the copy sits on the sky on the right. Below lg
+       * a band of the scene sits above the card.
        *
        * The whole page is pinned to the light palette via inline
        * custom-property overrides, regardless of the visitor's OS/browser
@@ -225,8 +226,7 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
        * height is the axis that varies; same inline arbitrary-variant form
        * PortalShell.tsx uses (`@custom-variant` cannot express it on
        * Tailwind 4.2.4). */}
-      <div
-        className="min-h-screen bg-white text-slate-900 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]"
+      <AuthFrame
         style={
           {
             "--background": "oklch(0.984 0.005 220)",
@@ -250,23 +250,52 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
             "--ring": "#6366f1",
           } as React.CSSProperties
         }
-      >
-        <div className="relative flex min-h-screen flex-col">
-          {/* Small screens only: decorative, fixed height so nothing moves
-           * when the lazy scene chunk lands. */}
-          <div aria-hidden="true" className="lg:hidden">
-            <AuthScenePanel variant="band" className="aspect-[5/2] max-h-[360px] w-full" />
-          </div>
-
-          <motion.header
-            className="flex items-center gap-3 px-6 pt-6 sm:px-10 lg:px-12 lg:pt-10 lg:[@media(max-height:800px)]:pt-4"
-            initial={{ opacity: 0, y: -12 }}
+        aside={() => (
+          <motion.div
+            className="flex max-w-xl flex-col gap-5 px-10 pt-20 xl:px-14 [@media(max-height:800px)]:gap-3 [@media(max-height:800px)]:pt-10"
+            initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: "easeOut" }}
+            transition={{ duration: 0.6, delay: 0.15, ease: "easeOut" }}
           >
-            {/* The real, original brand mark file (the same asset used
-             * everywhere else this mark appears). The online-status dot is a
-             * separate overlay, not part of the mark itself. */}
+            <h2 className="text-balance text-4xl font-bold leading-tight tracking-tight xl:text-[2.6rem] [@media(max-height:800px)]:text-3xl">
+              Your network across every location. One dashboard. Zero blind spots.
+            </h2>
+            <p className="text-base leading-relaxed opacity-85 [@media(max-height:800px)]:text-sm">
+              Provision networks, onboard guests, track analytics, and monitor every location in
+              real-time — with role-based access built for global teams.
+            </p>
+            <div className="flex gap-8 pt-2 [@media(max-height:800px)]:pt-0">
+              {STATS.map((s, i) => (
+                <motion.div
+                  key={s.l}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.35 + i * 0.1, ease: "easeOut" }}
+                >
+                  <p className="text-2xl font-bold tabular-nums">
+                    {"divide" in s ? (
+                      <CountUp target={s.v / s.divide} />
+                    ) : (
+                      <CountUp target={s.v} decimals={s.v % 1 !== 0 ? 1 : 0} />
+                    )}
+                    {s.suffix}
+                  </p>
+                  <p className="text-xs opacity-75">{s.l}</p>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      >
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+        >
+          {/* The real, original brand mark file (the same asset used
+           * everywhere else this mark appears). The online-status dot is
+           * a separate overlay, not part of the mark itself. */}
+          <div className="mb-7 flex items-center gap-3 [@media(max-height:800px)]:mb-3">
             <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-primary shadow-md shadow-primary/25">
               <img src="/brand/mark-compact-white.svg" alt="" className="h-6 w-6" />
               <span className="absolute -right-0.5 -top-0.5 flex h-2.5 w-2.5">
@@ -280,237 +309,214 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
                 Effortless guest WiFi, at scale.
               </p>
             </div>
-          </motion.header>
+          </div>
+          <div className="mb-6 [@media(max-height:800px)]:mb-4">
+            <h1 className="text-2xl font-bold tracking-tight">Sign in</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Access your network dashboard.</p>
+          </div>
 
-          <main className="flex flex-1 items-start justify-center px-6 pt-8 pb-10 sm:px-10 lg:items-center lg:px-12 lg:py-8 lg:[@media(max-height:800px)]:py-2">
-            <motion.div
-              className="w-full max-w-sm"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
-            >
-              <div className="mb-8 [@media(max-height:800px)]:mb-5">
-                <h1 className="text-2xl font-bold tracking-tight">Sign in</h1>
-                <p className="mt-1 text-sm text-muted-foreground">Access your network dashboard.</p>
-              </div>
-
-              {/* Role Selector -- exposed as a real radiogroup so keyboard and
+          {/* Role Selector -- exposed as a real radiogroup so keyboard and
               screen-reader users get "Owner, selected, 1 of 2" instead of two
               unrelated buttons. */}
-              <div className="mb-6 [@media(max-height:800px)]:mb-4">
-                <p id="role-label" className="text-sm font-medium mb-3">
-                  I'm signing in as
-                </p>
-                <div
-                  role="radiogroup"
-                  aria-labelledby="role-label"
-                  className="grid grid-cols-2 gap-3"
-                >
-                  {(
-                    [
-                      {
-                        key: "owner",
-                        Icon: ShieldCheck,
-                        title: "Owner",
-                        hint: "Full workspace access",
-                      },
-                      {
-                        key: "agent",
-                        Icon: UserRound,
-                        title: "Staff",
-                        hint: "Assigned features only",
-                      },
-                    ] as const
-                  ).map(({ key, Icon, title, hint }) => {
-                    const active = role === key;
-                    return (
-                      <motion.button
-                        key={key}
-                        type="button"
-                        role="radio"
-                        aria-checked={active}
-                        tabIndex={active ? 0 : -1}
-                        onClick={() => selectRole(key)}
-                        whileHover={{ y: -2 }}
-                        whileTap={{ scale: 0.97 }}
-                        className={cn(
-                          "relative overflow-hidden flex flex-col items-start gap-1 rounded-xl border p-4 text-left transition-all focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/15",
-                          active
-                            ? "border-primary/70 bg-primary/[0.06] shadow-sm shadow-primary/10"
-                            : "border-border hover:border-primary/40 hover:bg-muted/40",
-                        )}
-                      >
-                        {active && (
-                          <motion.span
-                            layoutId="role-active"
-                            className="absolute inset-0 -z-10 bg-primary/5"
-                            transition={{ type: "spring", bounce: 0.25, duration: 0.4 }}
-                          />
-                        )}
-                        <Icon
-                          className={cn(
-                            "h-5 w-5",
-                            active ? "text-primary" : "text-muted-foreground",
-                          )}
-                        />
-                        <span className="text-sm font-semibold">{title}</span>
-                        <span className="text-xs text-muted-foreground">{hint}</span>
-                      </motion.button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <form
-                onSubmit={handleSubmit}
-                noValidate
-                className="space-y-5 [@media(max-height:800px)]:space-y-4"
-              >
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email address</Label>
-                  <Input
-                    ref={emailInputRef}
-                    id="email"
-                    name="email"
-                    type="email"
-                    inputMode="email"
-                    autoComplete="email"
-                    placeholder="you@company.com"
-                    value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      if (errors.email) setErrors((p) => ({ ...p, email: undefined }));
-                    }}
-                    aria-invalid={!!errors.email}
-                    aria-describedby={errors.email ? "email-error" : undefined}
+          <div className="mb-6 [@media(max-height:800px)]:mb-4">
+            <p id="role-label" className="text-sm font-medium mb-3">
+              I'm signing in as
+            </p>
+            <div role="radiogroup" aria-labelledby="role-label" className="grid grid-cols-2 gap-3">
+              {(
+                [
+                  {
+                    key: "owner",
+                    Icon: ShieldCheck,
+                    title: "Owner",
+                    hint: "Full workspace access",
+                  },
+                  {
+                    key: "agent",
+                    Icon: UserRound,
+                    title: "Staff",
+                    hint: "Assigned features only",
+                  },
+                ] as const
+              ).map(({ key, Icon, title, hint }) => {
+                const active = role === key;
+                return (
+                  <motion.button
+                    key={key}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    tabIndex={active ? 0 : -1}
+                    onClick={() => selectRole(key)}
+                    whileHover={{ y: -2 }}
+                    whileTap={{ scale: 0.97 }}
                     className={cn(
-                      "h-11 transition-shadow focus-visible:ring-4 focus-visible:ring-primary/10",
-                      errors.email && "border-destructive focus-visible:ring-destructive/15",
+                      "relative overflow-hidden flex flex-col items-start gap-1 rounded-xl border p-4 text-left transition-all focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/15",
+                      active
+                        ? "border-primary/70 bg-primary/[0.06] shadow-sm shadow-primary/10"
+                        : "border-border hover:border-primary/40 hover:bg-muted/40",
                     )}
-                    autoFocus
-                  />
-                  {errors.email && (
-                    <p id="email-error" className="text-xs font-medium text-destructive">
-                      {errors.email}
-                    </p>
-                  )}
-                </div>
-                {/* order-2/order-1 below keep the visual layout identical
+                  >
+                    {active && (
+                      <motion.span
+                        layoutId="role-active"
+                        className="absolute inset-0 -z-10 bg-primary/5"
+                        transition={{ type: "spring", bounce: 0.25, duration: 0.4 }}
+                      />
+                    )}
+                    <Icon
+                      className={cn("h-5 w-5", active ? "text-primary" : "text-muted-foreground")}
+                    />
+                    <span className="text-sm font-semibold">{title}</span>
+                    <span className="text-xs text-muted-foreground">{hint}</span>
+                  </motion.button>
+                );
+              })}
+            </div>
+          </div>
+
+          <form
+            onSubmit={handleSubmit}
+            noValidate
+            className="space-y-5 [@media(max-height:800px)]:space-y-4"
+          >
+            <div className="space-y-2">
+              <Label htmlFor="email">Email address</Label>
+              <Input
+                ref={emailInputRef}
+                id="email"
+                name="email"
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                placeholder="you@company.com"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (errors.email) setErrors((p) => ({ ...p, email: undefined }));
+                }}
+                aria-invalid={!!errors.email}
+                aria-describedby={errors.email ? "email-error" : undefined}
+                className={cn(
+                  "h-11 transition-shadow focus-visible:ring-4 focus-visible:ring-primary/10",
+                  errors.email && "border-destructive focus-visible:ring-destructive/15",
+                )}
+                autoFocus
+              />
+              {errors.email && (
+                <p id="email-error" className="text-xs font-medium text-destructive">
+                  {errors.email}
+                </p>
+              )}
+            </div>
+            {/* order-2/order-1 below keep the visual layout identical
                 (label+"Forgot password?" row on top, field below) while
                 fixing DOM/tab order -- as plain source order this put the
                 "Forgot password?" button between the email and password
                 fields, so Tab from Email address skipped straight past
                 Password to it instead. */}
-                <div className="flex flex-col">
-                  {/* space-y-2's sibling margin follows DOM order, which no
+            <div className="flex flex-col">
+              {/* space-y-2's sibling margin follows DOM order, which no
                   longer matches visual order here -- an explicit mb-2 on
                   the row that's visually first keeps the same gap. */}
-                  <div className="order-2 space-y-2">
-                    <div className="relative">
-                      <Input
-                        ref={passwordInputRef}
-                        id="password"
-                        name="password"
-                        type={show ? "text" : "password"}
-                        autoComplete="current-password"
-                        placeholder="Enter your password"
-                        value={password}
-                        onChange={(e) => {
-                          setPassword(e.target.value);
-                          if (errors.password) setErrors((p) => ({ ...p, password: undefined }));
-                        }}
-                        onKeyUp={(e) => setCapsLock(e.getModifierState?.("CapsLock") ?? false)}
-                        onBlur={() => setCapsLock(false)}
-                        aria-invalid={!!errors.password}
-                        aria-describedby={
-                          cn(
-                            errors.password ? "password-error" : "",
-                            capsLock ? "caps-hint" : "",
-                          ).trim() || undefined
-                        }
-                        className={cn(
-                          "h-11 pr-11 transition-shadow focus-visible:ring-4 focus-visible:ring-primary/10",
-                          errors.password && "border-destructive focus-visible:ring-destructive/15",
-                        )}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShow(!show)}
-                        aria-label={show ? "Hide password" : "Show password"}
-                        aria-pressed={show}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-                      >
-                        {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
-                    {errors.password && (
-                      <p id="password-error" className="text-xs font-medium text-destructive">
-                        {errors.password}
-                      </p>
+              <div className="order-2 space-y-2">
+                <div className="relative">
+                  <Input
+                    ref={passwordInputRef}
+                    id="password"
+                    name="password"
+                    type={show ? "text" : "password"}
+                    autoComplete="current-password"
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      if (errors.password) setErrors((p) => ({ ...p, password: undefined }));
+                    }}
+                    onKeyUp={(e) => setCapsLock(e.getModifierState?.("CapsLock") ?? false)}
+                    onBlur={() => setCapsLock(false)}
+                    aria-invalid={!!errors.password}
+                    aria-describedby={
+                      cn(
+                        errors.password ? "password-error" : "",
+                        capsLock ? "caps-hint" : "",
+                      ).trim() || undefined
+                    }
+                    className={cn(
+                      "h-11 pr-11 transition-shadow focus-visible:ring-4 focus-visible:ring-primary/10",
+                      errors.password && "border-destructive focus-visible:ring-destructive/15",
                     )}
-                    {/* Caps Lock is the single most common cause of a "wrong
-                    password" that isn't -- warn before the failed attempt. */}
-                    {capsLock && !errors.password && (
-                      <p id="caps-hint" className="text-xs font-medium text-amber-600">
-                        Caps Lock is on.
-                      </p>
-                    )}
-                  </div>
-                  <div className="order-1 mb-2 flex items-center justify-between">
-                    <Label htmlFor="password">Password</Label>
-                    <button
-                      type="button"
-                      onClick={() => setView("forgot-password")}
-                      className="rounded text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-                    >
-                      Forgot password?
-                    </button>
-                  </div>
-                </div>
-                <motion.div
-                  whileHover={{ scale: loading ? 1 : 1.01 }}
-                  whileTap={{ scale: loading ? 1 : 0.98 }}
-                >
-                  <Button
-                    type="submit"
-                    className="w-full h-11 text-sm font-semibold shadow-md shadow-primary/20"
-                    disabled={loading}
-                    aria-busy={loading}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShow(!show)}
+                    aria-label={show ? "Hide password" : "Show password"}
+                    aria-pressed={show}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                   >
-                    {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    {loading
-                      ? "Signing in…"
-                      : "Sign in as " + (role === "owner" ? "Owner" : "Staff")}
-                  </Button>
-                </motion.div>
-              </form>
+                    {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                {errors.password && (
+                  <p id="password-error" className="text-xs font-medium text-destructive">
+                    {errors.password}
+                  </p>
+                )}
+                {/* Caps Lock is the single most common cause of a "wrong
+                    password" that isn't -- warn before the failed attempt. */}
+                {capsLock && !errors.password && (
+                  <p id="caps-hint" className="text-xs font-medium text-amber-600">
+                    Caps Lock is on.
+                  </p>
+                )}
+              </div>
+              <div className="order-1 mb-2 flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                <button
+                  type="button"
+                  onClick={() => setView("forgot-password")}
+                  className="rounded text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                >
+                  Forgot password?
+                </button>
+              </div>
+            </div>
+            <motion.div
+              whileHover={{ scale: loading ? 1 : 1.01 }}
+              whileTap={{ scale: loading ? 1 : 0.98 }}
+            >
+              <Button
+                type="submit"
+                className="w-full h-11 text-sm font-semibold shadow-md shadow-primary/20"
+                disabled={loading}
+                aria-busy={loading}
+              >
+                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {loading ? "Signing in…" : "Sign in as " + (role === "owner" ? "Owner" : "Staff")}
+              </Button>
+            </motion.div>
+          </form>
 
-              {/* Real infrastructure trust strip -- this deployment genuinely
+          {/* Real infrastructure trust strip -- this deployment genuinely
               runs on Azure (the app VM) and AWS (S3-compatible storage for
               uploads/backups), not a decorative claim. */}
-              <motion.div
-                className="mt-8 [@media(max-height:800px)]:mt-6 flex items-center justify-center gap-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.6, delay: 0.5 }}
-              >
-                <span>Powered by</span>
-                <img src="/brand/cloud/azure.svg" alt="Microsoft Azure" className="h-4 w-4" />
-                <span className="normal-case text-foreground/70">Azure</span>
-                <span className="text-border">&middot;</span>
-                <img src="/brand/cloud/aws.svg" alt="AWS" className="h-3.5 w-auto" />
-              </motion.div>
-            </motion.div>
-          </main>
-
-          <motion.footer
-            className="flex flex-wrap items-center justify-between gap-3 px-6 pb-6 sm:px-10 lg:px-12 lg:pb-8 lg:[@media(max-height:800px)]:pb-3"
+          <motion.div
+            className="mt-6 [@media(max-height:800px)]:mt-4 flex items-center justify-center gap-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.6 }}
+            transition={{ duration: 0.6, delay: 0.5 }}
           >
-            <p className="text-xs text-muted-foreground">© 2026 Wyfy Guest. All rights reserved.</p>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-muted/40 px-3 py-1 text-[11px] font-medium text-foreground/70">
+            <span>Powered by</span>
+            <img src="/brand/cloud/azure.svg" alt="Microsoft Azure" className="h-4 w-4" />
+            <span className="normal-case text-foreground/70">Azure</span>
+            <span className="text-border">&middot;</span>
+            <img src="/brand/cloud/aws.svg" alt="AWS" className="h-3.5 w-auto" />
+          </motion.div>
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-4 sm:flex-nowrap [@media(max-height:800px)]:mt-3 [@media(max-height:800px)]:pt-3">
+            <p className="whitespace-nowrap text-[11px] text-muted-foreground">
+              © 2026 Wyfy Guest. All rights reserved.
+            </p>
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border/70 bg-muted/40 px-2 py-1 text-[11px] font-medium text-foreground/70">
               <span
                 aria-hidden
                 className="flex h-2.5 w-3.5 flex-col overflow-hidden rounded-[1px] ring-1 ring-black/5"
@@ -521,51 +527,9 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
               </span>
               Made in India, for the world
             </span>
-          </motion.footer>
-        </div>
-
-        <aside aria-label="About Wyfy Guest" className="hidden p-3 lg:block">
-          <AuthScenePanel variant="panel" className="h-full min-h-[calc(100vh-1.5rem)] rounded-2xl">
-            {(tone) => (
-              <motion.div
-                className="flex max-w-lg flex-col gap-5 p-10 xl:p-12 [@media(max-height:800px)]:gap-3 [@media(max-height:800px)]:px-8 [@media(max-height:800px)]:py-7"
-                style={{ color: AUTH_SKY_TEXT[tone] }}
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.15, ease: "easeOut" }}
-              >
-                <h2 className="text-balance text-4xl font-bold leading-tight tracking-tight xl:text-[2.6rem] [@media(max-height:800px)]:text-3xl">
-                  Your network across every location. One dashboard. Zero blind spots.
-                </h2>
-                <p className="text-base leading-relaxed opacity-85 [@media(max-height:800px)]:text-sm">
-                  Provision networks, onboard guests, track analytics, and monitor every location in
-                  real-time — with role-based access built for global teams.
-                </p>
-                <div className="flex gap-8 pt-2 [@media(max-height:800px)]:pt-0">
-                  {STATS.map((s, i) => (
-                    <motion.div
-                      key={s.l}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.5, delay: 0.35 + i * 0.1, ease: "easeOut" }}
-                    >
-                      <p className="text-2xl font-bold tabular-nums">
-                        {"divide" in s ? (
-                          <CountUp target={s.v / s.divide} />
-                        ) : (
-                          <CountUp target={s.v} decimals={s.v % 1 !== 0 ? 1 : 0} />
-                        )}
-                        {s.suffix}
-                      </p>
-                      <p className="text-xs opacity-75">{s.l}</p>
-                    </motion.div>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </AuthScenePanel>
-        </aside>
-      </div>
+          </div>
+        </motion.div>
+      </AuthFrame>
 
       <Dialog open={mustChangePasswordOpen} onOpenChange={setMustChangePasswordOpen}>
         <DialogContent
