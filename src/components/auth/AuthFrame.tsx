@@ -25,10 +25,7 @@ const LoginSceneIllustration = lazy(() => import("./LoginSceneIllustration"));
  *  #b3a9ff..#c9c2ff is >= 7.9:1; white on #0e0b30..#1a164d is >= 15:1.
  *  `band` is the colour the band scene's own sky starts at (its --wg-sky1,
  *  night --wg-shade composited over it), the band's backdrop while it loads. */
-const AUTH_SKY: Record<
-  LoginSceneTime,
-  { stops: string; band: string; tone: "ink" | "white" }
-> = {
+const AUTH_SKY: Record<LoginSceneTime, { stops: string; band: string; tone: "ink" | "white" }> = {
   day: { stops: "#b3a9ff 0%, #c9c2ff 45%, #f6f3ff 100%", band: "#c9c2ff", tone: "ink" },
   night: { stops: "#0e0b30 0%, #1a164d 45%, #2b2266 100%", band: "#1a164d", tone: "white" },
 };
