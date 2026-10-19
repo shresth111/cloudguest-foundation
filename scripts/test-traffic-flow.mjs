@@ -792,7 +792,6 @@ const c = m.customer;
 
 console.log("\ncustomer: which screen");
 const base = {
-  demo: false,
   entitled: true,
   statusLoading: false,
   statusRefusal: null,
@@ -851,7 +850,10 @@ eq(
   kind({ status: { collection: "weird", latest_data: null } }),
   "failed",
 );
-eq("the demo account shows no data", kind({ demo: true }), "demo");
+check(
+  "the demo account has no screen of its own (its services answer from fixtures)",
+  !("demo" in c.LENS_NOTICES) && kind({ entitled: null }) === "data",
+);
 eq("402 feature_not_entitled", c.lensRefusalFrom(402, "feature_not_entitled"), "locked");
 eq("402 with no code still reads as the lock", c.lensRefusalFrom(402, undefined), "locked");
 eq("402 license_not_active", c.lensRefusalFrom(402, "license_not_active"), "licence");
@@ -861,7 +863,7 @@ eq("500 is a failure, not a refusal", c.lensRefusalFrom(500, null), null);
 eq("a network error is a failure", c.lensRefusalFrom(null, null), null);
 
 console.log("\ncustomer: words");
-for (const k of ["demo", "licence", "forbidden", "failed", "not_available", "not_switched_on"]) {
+for (const k of ["licence", "forbidden", "failed", "not_available", "not_switched_on"]) {
   check(
     `${k} has a title and a body`,
     c.LENS_NOTICES[k].title.length > 10 && c.LENS_NOTICES[k].body.length > 20,
@@ -882,7 +884,6 @@ check(
     c.LENS_NOTICES.not_available.ask === false,
 );
 check("failed is not an empty venue", /not an empty venue/.test(c.LENS_NOTICES.failed.body));
-check("the demo shows no sample figures", /No sample figures/.test(c.LENS_NOTICES.demo.body));
 const cnm = c.lensNotMeasured("2026-10-12T09:40:00+00:00", NOW);
 check(
   "no data in the period: Not measured, with where data starts",

@@ -1509,10 +1509,14 @@ jobs:
       # is gone and stays gone, and the new files are held to the same
       # customer-surface rules. Floor 296, observed green at 296 (294
       # before the layout parts became their own file).
+      #
+      # 2026-10-19: the demo account now gets fixtures (test-netlogs-demo)
+      # instead of a "not part of the demo" screen, so that notice and its
+      # two checks are gone. Floor 294, observed green at 294.
       - name: traffic flow page is operator-only and honest
         run: |
           ./scripts/ci-gated-test.sh \
-            "traffic flow" 296 "all traffic flow checks passed" \
+            "traffic flow" 294 "all traffic flow checks passed" \
             bun run test:traffic-flow
 
       # --- Traffic Lens Destinations: venue-level, audited, honest ---------
@@ -2004,6 +2008,18 @@ jobs:
           ./scripts/ci-gated-test.sh \
             "ipdr" 37 "all ipdr checks passed" \
             bun run test:ipdr
+
+      # NetLogs, Connections (IPDR) and Traffic Lens in the DEMO workspace:
+      # every call answered from fixtures with zero network requests, the
+      # same calls hitting the network off the demo host, filters / Load
+      # more / guests-only that really narrow, a summary that agrees with
+      # the list, masked phones in the table and full fake ones only in the
+      # CSV, no tunnel detail. Floor 74, observed 74.
+      - name: netlogs-demo
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "netlogs-demo" 74 "netlogs/traffic-lens demo checks passed" \
+            bun run test:netlogs-demo
 
       # Guest Connection Records -> "Device events" drawer. Locks the honest
       # states (a router that doesn't send logs never reads as "no events"),

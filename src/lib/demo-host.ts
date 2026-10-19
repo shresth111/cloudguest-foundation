@@ -62,3 +62,19 @@ export function isDemoLogin(creds: { email: string; password: string }): boolean
 export function isHonouredDemoToken(token: string | null | undefined): boolean {
   return token === DEMO_ACCESS_TOKEN && isDemoLoginEnabled();
 }
+
+/** Where the session's access token is stored (`TOKEN_STORAGE_KEY` in
+ *  services/api.ts, repeated here because this module imports nothing). */
+const DEMO_TOKEN_STORAGE_KEY = "cloudguest_token";
+
+/** A demo session on a host that serves the demo -- the same answer as
+ *  `isDemo()` in customer.service.ts, for services that must not import that
+ *  module (its import graph is the whole customer dashboard). */
+export function isDemoSession(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return isHonouredDemoToken(window.localStorage?.getItem(DEMO_TOKEN_STORAGE_KEY));
+  } catch {
+    return false;
+  }
+}

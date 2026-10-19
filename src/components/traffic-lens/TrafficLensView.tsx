@@ -4,7 +4,7 @@ import { Check, Lock, RefreshCw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useFeatureEntitled, useIsDemo } from "@/hooks/useCustomerDashboard";
+import { useFeatureEntitled } from "@/hooks/useCustomerDashboard";
 import {
   useTrafficLensFindings,
   useTrafficLensStatus,
@@ -74,7 +74,6 @@ export function TrafficLensView({
   /** The venue's time zone, for the Records table's Start and End. */
   timeZone?: string | null;
 }) {
-  const demo = useIsDemo();
   const entitled = useFeatureEntitled(TRAFFIC_LENS_FEATURE_KEY);
   // The second add-on (connection records), as `/me/entitlements` reports it.
   const recordsMode = lensRecordsMode(useFeatureEntitled(TRAFFIC_LENS_RECORDS_FEATURE_KEY));
@@ -82,9 +81,10 @@ export function TrafficLensView({
   const [view, setView] = useState<LensViewId>(LENS_VIEWS[0].id);
   const [at, setAt] = useState(() => Date.now());
   // `/me/entitlements` saying "off" spares a request that will only 402.
-  const status = useTrafficLensStatus(locationId, !demo && entitled !== false);
+  // The demo session has no entitlements (`null`) and its status call is
+  // answered from fixtures, so it lands on the data screen.
+  const status = useTrafficLensStatus(locationId, entitled !== false);
   const screen = lensScreen({
-    demo,
     entitled,
     statusLoading: status.isLoading,
     statusRefusal: lensRefusal(status.error),

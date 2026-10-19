@@ -10,8 +10,18 @@
  * this caller's to see).
  *
  * Nothing here may call the Master routes (`/platform/traffic-flow`).
+ *
+ * On the demo host every call is answered from `lib/traffic-lens-demo.ts`
+ * fixtures; nothing reaches the backend.
  */
 import { api, requestErrorOf } from "./api";
+import { isDemoSession } from "@/lib/demo-host";
+import {
+  demoLensFindings,
+  demoLensGeo,
+  demoLensStatus,
+  demoLensSummary,
+} from "@/lib/traffic-lens-demo";
 import {
   lensRangeBounds,
   lensRefusalFrom,
@@ -56,17 +66,20 @@ export function lensRefusal(err: unknown): LensRefusal {
 
 export const trafficLensService = {
   async status(locationId: string): Promise<LensStatus> {
+    if (isDemoSession()) return demoLensStatus(locationId);
     const { data } = await api.get<LensStatus>(`${base(locationId)}/status`);
     return data;
   },
 
   async summary(locationId: string, params: Record<string, string>): Promise<LensSummary> {
+    if (isDemoSession()) return demoLensSummary(locationId, params);
     const { data } = await api.get<LensSummary>(`${base(locationId)}/summary`, { params });
     return data;
   },
 
   /** By country and network, for the venue as a whole. */
   async geo(locationId: string, params: Record<string, string>): Promise<FlowGeoSummary> {
+    if (isDemoSession()) return demoLensGeo(locationId, params);
     const { data } = await api.get<FlowGeoSummary>(`${base(locationId)}/geo`, { params });
     return data;
   },
@@ -77,6 +90,7 @@ export const trafficLensService = {
     locationId: string,
     period: { since: string; until: string },
   ): Promise<FindingsResponse> {
+    if (isDemoSession()) return demoLensFindings(locationId, period);
     const { data } = await api.get<FindingsResponse>(`${base(locationId)}/findings`, {
       params: period,
     });

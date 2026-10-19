@@ -37,10 +37,11 @@ import {
 import { EmptyState } from "@/components/common/EmptyState";
 import { IpdrConnections } from "@/components/netlogs/IpdrConnections";
 import { useAuth } from "@/context/AuthContext";
-import { useCustomerLocations, useMyPermissions } from "@/hooks/useCustomerDashboard";
+import { useCustomerLocations, useIsDemo, useMyPermissions } from "@/hooks/useCustomerDashboard";
 import { useNetLogsList, useNetLogsSummary } from "@/hooks/useNetLogs";
 import { navItemAllowed } from "@/lib/customerNavPermissions";
 import { IPDR_EXPORT, IPDR_READ, hasIpdrPermission } from "@/lib/ipdr";
+import { DEMO_NETLOGS_LOCATIONS, demoNetLogsRoutersFor } from "@/lib/netlogs-demo";
 import { resolveMarketingScope } from "@/lib/marketing-scope";
 import {
   NETLOGS_CATEGORIES,
@@ -157,8 +158,11 @@ export function NetLogsView({ locationId }: { locationId: string }) {
   const friendly = error ? netLogsErrorMessage(requestErrorOf(error)) : null;
 
   // Connections (IPDR): its own keys, failing CLOSED (see lib/ipdr.ts).
-  const ipdrRead = hasIpdrPermission(permissions, IPDR_READ);
-  const ipdrExport = hasIpdrPermission(permissions, IPDR_EXPORT);
+  // The demo session has no grant list (no backend), but is a Super Admin
+  // whose IPDR calls are answered from fixtures, so it gets both.
+  const demo = useIsDemo();
+  const ipdrRead = demo || hasIpdrPermission(permissions, IPDR_READ);
+  const ipdrExport = demo || hasIpdrPermission(permissions, IPDR_EXPORT);
   const view = rawSearch?.view === "ipdr" && ipdrRead ? "ipdr" : "logs";
   const showView = (next: "logs" | "ipdr") => {
     setAt(Date.now());
@@ -332,19 +336,25 @@ function Filters({
   locationHeader: string | null;
   exportDisabled: boolean;
 }) {
+  const demo = useIsDemo();
   const locations = useCustomerLocations();
   const locationOptions = useMemo(
     () =>
-      (locations.data ?? [])
-        .filter((l) => !org || !l.organizationId || l.organizationId === org)
-        .map((l) => ({ id: l.id, name: l.name }))
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    [locations.data, org],
+      demo
+        ? [...DEMO_NETLOGS_LOCATIONS]
+        : (locations.data ?? [])
+            .filter((l) => !org || !l.organizationId || l.organizationId === org)
+            .map((l) => ({ id: l.id, name: l.name }))
+            .sort((a, b) => a.name.localeCompare(b.name)),
+    [demo, locations.data, org],
   );
   const routers = useQuery({
-    queryKey: ["netlogs", "routers", org, effLocation],
-    queryFn: () => routerService.listForLocation(effLocation as string, org as string),
-    enabled: !!effLocation && !!org,
+    queryKey: ["netlogs", "routers", org, effLocation, demo],
+    queryFn: async () =>
+      demo
+        ? demoNetLogsRoutersFor(effLocation)
+        : routerService.listForLocation(effLocation as string, org as string),
+    enabled: !!effLocation && (demo || !!org),
     staleTime: 60_000,
     retry: false,
   });

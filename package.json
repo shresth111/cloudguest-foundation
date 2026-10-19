@@ -46,6 +46,7 @@
     "test:device-logs": "node scripts/test-device-logs-presentation.mjs",
     "test:netlogs": "node scripts/test-netlogs.mjs",
     "test:ipdr": "node scripts/test-ipdr.mjs",
+    "test:netlogs-demo": "node scripts/test-netlogs-demo.mjs",
     "test:guest-device-events": "node scripts/test-guest-device-events.mjs",
     "test:device-health": "node scripts/test-device-health.mjs",
     "test:router-snmp": "node scripts/test-router-snmp.mjs",

@@ -14,8 +14,17 @@
  *
  * For the venue as a whole: no request parameter and no response field
  * names a device.
+ *
+ * On the demo host every call is answered from `lib/traffic-lens-demo.ts`
+ * fixtures; nothing reaches the backend (and no audit row is written).
  */
 import { api } from "./api";
+import { isDemoSession } from "@/lib/demo-host";
+import {
+  demoLensDestinationCsv,
+  demoLensDestinationSearch,
+  demoLensServiceDestinations,
+} from "@/lib/traffic-lens-demo";
 import type {
   DestinationExport,
   DestinationSearchResult,
@@ -41,6 +50,7 @@ export const trafficLensDestinationsService = {
     locationId: string,
     params: Record<string, string>,
   ): Promise<DestinationSearchResult> {
+    if (isDemoSession()) return demoLensDestinationSearch(locationId, withoutVenue(params));
     const { data } = await api.get<DestinationSearchResult>(`${base(locationId)}/destinations`, {
       params: withoutVenue(params),
     });
@@ -51,6 +61,16 @@ export const trafficLensDestinationsService = {
    * which a browser can read only on the page's own origin: each is `null`
    * otherwise, and the caller then says it does not know. */
   async exportCsv(locationId: string, params: Record<string, string>): Promise<DestinationExport> {
+    if (isDemoSession()) {
+      const { csv, total, rows } = demoLensDestinationCsv(withoutVenue(params));
+      return {
+        blob: new Blob([csv], { type: "text/csv;charset=utf-8" }),
+        filename: "traffic-lens-destinations-demo.csv",
+        total,
+        rows,
+        truncated: false,
+      };
+    }
     const res = await api.get<Blob>(`${base(locationId)}/destinations/export`, {
       params: withoutVenue(params),
       responseType: "blob",
@@ -78,6 +98,7 @@ export const trafficLensDestinationsService = {
     locationId: string,
     params: Record<string, string>,
   ): Promise<ServiceDestinationsResult> {
+    if (isDemoSession()) return demoLensServiceDestinations(locationId, withoutVenue(params));
     const { data } = await api.get<ServiceDestinationsResult>(
       `${base(locationId)}/services/destinations`,
       { params: withoutVenue(params) },

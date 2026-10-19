@@ -107,9 +107,10 @@ export function lensRefusalFrom(
 }
 
 /**
- * The page's screens, most-blocking first.
+ * The page's screens, most-blocking first. The demo account has no screen
+ * of its own: its services answer from fixtures (`traffic-lens-demo.ts`),
+ * so it reaches `data` like a venue that is collecting.
  *
- *  - demo           the demo account: no data exists and none is invented
  *  - locked         add-on not enabled for this customer
  *  - licence        the organisation's licence is not active
  *  - forbidden      this sign-in may not see this venue's traffic
@@ -122,7 +123,6 @@ export function lensRefusalFrom(
  *                   chosen period holds nothing)
  */
 export type LensScreen =
-  | { kind: "demo" }
   | { kind: "locked" }
   | { kind: "licence" }
   | { kind: "forbidden" }
@@ -133,7 +133,6 @@ export type LensScreen =
   | { kind: "data"; stopped: boolean };
 
 export function lensScreen(input: {
-  demo: boolean;
   /** `/me/entitlements`: true / false, or null while unknown. */
   entitled: boolean | null;
   statusLoading: boolean;
@@ -141,7 +140,6 @@ export function lensScreen(input: {
   statusFailed: boolean;
   status: Pick<LensStatus, "collection" | "latest_data"> | null | undefined;
 }): LensScreen {
-  if (input.demo) return { kind: "demo" };
   // The backend's refusal is the truth. `/me/entitlements` saying "off" only
   // lets the lock screen show without waiting for a request that will 402;
   // it is never what unlocks the page.
@@ -168,14 +166,9 @@ export interface LensNotice {
 
 /** Words for every screen that is not the data view. */
 export const LENS_NOTICES: Record<
-  "demo" | "licence" | "forbidden" | "failed" | "not_available" | "not_switched_on",
+  "licence" | "forbidden" | "failed" | "not_available" | "not_switched_on",
   LensNotice
 > = {
-  demo: {
-    title: `${TRAFFIC_LENS_NAME} is not part of the demo account.`,
-    body: "It shows a real venue's traffic, and the demo has none. No sample figures are shown in its place.",
-    ask: false,
-  },
   licence: {
     title: "Your licence is not active.",
     body: `${TRAFFIC_LENS_NAME} is unavailable until the licence is renewed. Nothing has been deleted.`,

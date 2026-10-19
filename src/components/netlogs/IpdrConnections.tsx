@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EmptyState } from "@/components/common/EmptyState";
-import { useCustomerLocations } from "@/hooks/useCustomerDashboard";
+import { useCustomerLocations, useIsDemo } from "@/hooks/useCustomerDashboard";
 import { useIpdrConnections } from "@/hooks/useIpdr";
 import {
   DEFAULT_IPDR_AUDIENCE,
@@ -38,6 +38,7 @@ import {
   netLogsWindow,
   type NetLogsFilters,
 } from "@/lib/netlogs";
+import { DEMO_NETLOGS_LOCATIONS, demoNetLogsRoutersFor } from "@/lib/netlogs-demo";
 import { ipdrService } from "@/services/ipdr.service";
 import { requestErrorOf } from "@/services/api";
 import { routerService } from "@/services/router.service";
@@ -91,19 +92,25 @@ export function IpdrConnections({
   );
   const rows = useIpdrConnections(org, params, true);
 
+  const demo = useIsDemo();
   const locations = useCustomerLocations();
   const locationOptions = useMemo(
     () =>
-      (locations.data ?? [])
-        .filter((l) => !org || !l.organizationId || l.organizationId === org)
-        .map((l) => ({ id: l.id, name: l.name }))
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    [locations.data, org],
+      demo
+        ? [...DEMO_NETLOGS_LOCATIONS]
+        : (locations.data ?? [])
+            .filter((l) => !org || !l.organizationId || l.organizationId === org)
+            .map((l) => ({ id: l.id, name: l.name }))
+            .sort((a, b) => a.name.localeCompare(b.name)),
+    [demo, locations.data, org],
   );
   const routers = useQuery({
-    queryKey: ["netlogs", "routers", org, effLocation],
-    queryFn: () => routerService.listForLocation(effLocation as string, org as string),
-    enabled: !!effLocation && !!org,
+    queryKey: ["netlogs", "routers", org, effLocation, demo],
+    queryFn: async () =>
+      demo
+        ? demoNetLogsRoutersFor(effLocation)
+        : routerService.listForLocation(effLocation as string, org as string),
+    enabled: !!effLocation && (demo || !!org),
     staleTime: 60_000,
     retry: false,
   });
