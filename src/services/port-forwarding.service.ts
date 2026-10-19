@@ -1,5 +1,12 @@
 import { api } from "@/services/api";
 import { isDemo } from "@/services/customer.service";
+import {
+  demoPortForwardingCreate,
+  demoPortForwardingList,
+  demoPortForwardingPush,
+  demoPortForwardingRemove,
+  demoPortForwardingUpdate,
+} from "@/lib/firewall-demo";
 import type {
   CreatePortForwardingPayload,
   PortForwardingListQuery,
@@ -78,14 +85,10 @@ function toRule(r: BackendPortForwardingRule): PortForwardingRule {
 export const portForwardingService = {
   async list(q: PortForwardingListQuery): Promise<PortForwardingListResult> {
     // The demo account's token isn't a real backend session -- every call
-    // here 401'd on a plain page load (spamming the console the moment
-    // Port Forwarding is opened in the demo). No curated demo fixture
-    // exists for this domain, so this honestly reports zero rather than
-    // inventing fake rules, same convention as dhcp.service.ts/
-    // vlan.service.ts's own demo guards.
-    if (isDemo()) {
-      return { rows: [], total: 0, totalPages: 1, hasNext: false, hasPrevious: false };
-    }
+    // here 401'd on a plain page load. Demo host: the demo venue's rules
+    // (lib/firewall-demo.ts), no request; every method below short-circuits
+    // the same way and the writes change only that module's in-memory copy.
+    if (isDemo()) return demoPortForwardingList(q);
     const { data } = await api.get<BackendPortForwardingListResponse>("/port-forwarding/rules", {
       params: { router_id: q.routerId, page: q.page, page_size: q.pageSize },
     });
@@ -111,6 +114,7 @@ export const portForwardingService = {
   // and page_size is capped at 100.
 
   async create(payload: CreatePortForwardingPayload): Promise<PortForwardingRule> {
+    if (isDemo()) return demoPortForwardingCreate(payload);
     const { data } = await api.post<BackendPortForwardingRule>("/port-forwarding/rules", {
       router_id: payload.routerId,
       name: payload.name,
@@ -127,6 +131,7 @@ export const portForwardingService = {
   },
 
   async update(id: string, payload: UpdatePortForwardingPayload): Promise<PortForwardingRule> {
+    if (isDemo()) return demoPortForwardingUpdate(id, payload);
     const { data } = await api.put<BackendPortForwardingRule>(`/port-forwarding/rules/${id}`, {
       name: payload.name,
       protocol: payload.protocol,
@@ -142,6 +147,7 @@ export const portForwardingService = {
   },
 
   async remove(id: string): Promise<void> {
+    if (isDemo()) return demoPortForwardingRemove(id);
     await api.delete(`/port-forwarding/rules/${id}`);
   },
 
@@ -171,6 +177,7 @@ export const portForwardingService = {
    * reach this method as a success.
    */
   async push(id: string): Promise<PortForwardingRule> {
+    if (isDemo()) return demoPortForwardingPush(id);
     const { data } = await api.post<BackendPortForwardingRule>(`/port-forwarding/rules/${id}/push`);
     return toRule(data);
   },

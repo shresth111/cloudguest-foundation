@@ -11,7 +11,6 @@ import {
   Pencil,
   Plus,
   Router as RouterIcon,
-  ShieldAlert,
   Trash2,
   UploadCloud,
 } from "lucide-react";
@@ -160,17 +159,19 @@ import type { RouterDevice } from "@/types/router";
 export function FirewallView({ locationId }: { locationId?: string }) {
   const { t } = useTranslation("nav", { i18n });
   const activeLocation = useCustomerStore((s) => s.activeLocation);
-  const demo = isDemo();
   const controllerGated =
     locationIsControllerManaged(activeLocation?.liveness) &&
     !featureAppliesToControllerVenue("firewall");
 
+  // On the demo host this is the demo venue's routers and every request
+  // below is answered by the services from lib/firewall-demo.ts -- the
+  // screen itself has no demo branch.
   const routersQuery = useQuery({
     queryKey: ["firewall", "venue-routers", locationId],
-    enabled: !!locationId && !demo && !controllerGated,
+    enabled: !!locationId && !controllerGated,
     queryFn: async () => {
-      const orgId = activeLocation?.organizationId || (await resolveOrgId());
-      return routerService.listForLocation(locationId as string, orgId);
+      const orgId = activeLocation?.organizationId || (isDemo() ? "" : await resolveOrgId());
+      return routerService.listVenueRouters(locationId as string, orgId);
     },
   });
 
@@ -196,22 +197,6 @@ export function FirewallView({ locationId }: { locationId?: string }) {
         venueName={activeLocation?.name ?? null}
         vendor={locationControllerVendor(activeLocation?.liveness)}
       />
-    );
-  }
-
-  if (demo) {
-    return (
-      <div className="space-y-5">
-        {intro}
-        <EmptyState
-          icon={ShieldAlert}
-          title={t("firewallPage.demoTitle", "Not part of the demo account")}
-          description={t(
-            "firewallPage.demoBody",
-            "Firewall rules are written to a real router, and the demo account has none.",
-          )}
-        />
-      </div>
     );
   }
 

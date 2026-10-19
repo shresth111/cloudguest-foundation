@@ -1,6 +1,7 @@
 import { api, type AppError } from "@/services/api";
 import { isControllerState } from "@/lib/router-vendors";
 import { isDemo } from "@/services/customer.service";
+import { demoVenueRouters } from "@/lib/firewall-demo";
 import { getAllItems } from "@/services/list-all-pages";
 import type {
   CreateRouterPayload,
@@ -510,6 +511,20 @@ export const routerService = {
       headers: { "X-Organization-Id": organizationId },
     });
     return items.map((r) => toRouter(r, "", ""));
+  },
+
+  /**
+   * `listForLocation` for the Security screens (Firewall, Block Websites,
+   * the Advanced rule list) and Port Forwarding. Off the demo host it IS
+   * `listForLocation`. On the demo host it returns the demo venue's routers
+   * from `lib/firewall-demo.ts`, whose rules, switches and blocks those
+   * screens' services serve -- `listForLocation`'s own demo rows belong to
+   * other demo venues and are left alone, so no other screen starts listing
+   * routers it has no fixtures for.
+   */
+  async listVenueRouters(locationId: string, organizationId: string): Promise<RouterDevice[]> {
+    if (isDemo()) return demoVenueRouters(locationId);
+    return routerService.listForLocation(locationId, organizationId);
   },
 
   /**

@@ -1,5 +1,15 @@
 import { api } from "@/services/api";
 import { isDemo } from "@/services/customer.service";
+import {
+  demoBlockApp,
+  demoContentFilterApps,
+  demoContentFilterCreate,
+  demoContentFilterList,
+  demoContentFilterPush,
+  demoContentFilterRemove,
+  demoContentFilterUpdate,
+  demoUnblockApp,
+} from "@/lib/firewall-demo";
 import { listAllPages } from "@/services/list-all-pages";
 import type {
   ContentFilterApp,
@@ -125,12 +135,10 @@ function toRule(r: BackendContentFilterRule): ContentFilterRule {
 // org-owner session holds).
 export const contentFilterService = {
   async list(q: ContentFilterListQuery): Promise<ContentFilterListResult> {
-    // No curated demo fixture exists for this domain yet -- honestly
-    // reports zero rather than inventing fake blocked sites, same
-    // convention as qos.service.ts's own demo guard.
-    if (isDemo()) {
-      return { rows: [], total: 0, totalPages: 1, hasNext: false, hasPrevious: false };
-    }
+    // Demo host: the demo venue's blocks (lib/firewall-demo.ts), no
+    // request. Every method below short-circuits the same way, and the
+    // writes change only that module's in-memory copy.
+    if (isDemo()) return demoContentFilterList(q);
     const { data } = await api.get<BackendContentFilterListResponse>("/content-filter-rules", {
       params: {
         router_id: q.routerId,
@@ -162,6 +170,7 @@ export const contentFilterService = {
   },
 
   async create(payload: CreateContentFilterRulePayload): Promise<ContentFilterRule> {
+    if (isDemo()) return demoContentFilterCreate(payload);
     const { data } = await api.post<BackendContentFilterRule>("/content-filter-rules", {
       router_id: payload.routerId,
       name: payload.name,
@@ -175,6 +184,7 @@ export const contentFilterService = {
   },
 
   async update(id: string, payload: UpdateContentFilterRulePayload): Promise<ContentFilterRule> {
+    if (isDemo()) return demoContentFilterUpdate(id, payload);
     const { data } = await api.put<BackendContentFilterRule>(`/content-filter-rules/${id}`, {
       name: payload.name,
       value_type: payload.valueType,
@@ -187,6 +197,7 @@ export const contentFilterService = {
   },
 
   async remove(id: string): Promise<void> {
+    if (isDemo()) return demoContentFilterRemove(id);
     await api.delete(`/content-filter-rules/${id}`);
   },
 
@@ -212,12 +223,14 @@ export const contentFilterService = {
    * reach this method as a success.
    */
   async push(id: string): Promise<ContentFilterRule> {
+    if (isDemo()) return demoContentFilterPush(id);
     const { data } = await api.post<BackendContentFilterRule>(`/content-filter-rules/${id}/push`);
     return toRule(data);
   },
 
   /** Every catalogue app and how much of it is blocked on this router. */
   async listApps(routerId: string): Promise<ContentFilterAppList> {
+    if (isDemo()) return demoContentFilterApps(routerId);
     const { data } = await api.get<BackendContentFilterAppList>(
       `/content-filter-rules/routers/${routerId}/apps`,
     );
@@ -235,6 +248,7 @@ export const contentFilterService = {
    * not reach the router; re-reading the list shows which.
    */
   async blockApp(routerId: string, appKey: string): Promise<ContentFilterApp> {
+    if (isDemo()) return demoBlockApp(routerId, appKey);
     const { data } = await api.put<BackendContentFilterApp>(
       `/content-filter-rules/routers/${routerId}/apps/${appKey}`,
     );
@@ -243,6 +257,7 @@ export const contentFilterService = {
 
   /** Switch an app back on: removes only the blocks its toggle created. */
   async unblockApp(routerId: string, appKey: string): Promise<ContentFilterApp> {
+    if (isDemo()) return demoUnblockApp(routerId, appKey);
     const { data } = await api.delete<BackendContentFilterApp>(
       `/content-filter-rules/routers/${routerId}/apps/${appKey}`,
     );

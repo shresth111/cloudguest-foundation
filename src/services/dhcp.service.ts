@@ -1,5 +1,6 @@
 import { api } from "@/services/api";
 import { isDemo, resolveOrgId } from "@/services/customer.service";
+import { demoDhcpLeases, demoKeepLeaseAddress } from "@/lib/firewall-demo";
 import type {
   CreateDhcpPoolPayload,
   DhcpLease,
@@ -192,6 +193,9 @@ export const dhcpService = {
    * fixed address and which may move. Throws on an unreadable router --
    * the caller treats that as "unknown", never as "no leases". */
   async listLeases(routerId: string, organizationId?: string): Promise<DhcpLease[]> {
+    // Demo host: the leases behind the Firewall rule dialog's device picker
+    // (lib/firewall-demo.ts); no request.
+    if (isDemo()) return demoDhcpLeases(routerId);
     const orgId = organizationId || (await resolveOrgId());
     const { data } = await api.get<{ router_id: string; items: BackendDhcpLease[] }>(
       `/dhcp-pools/routers/${routerId}/leases`,
@@ -209,6 +213,7 @@ export const dhcpService = {
     ipAddress: string,
     organizationId?: string,
   ): Promise<{ changed: boolean; lease: DhcpLease }> {
+    if (isDemo()) return demoKeepLeaseAddress(routerId, macAddress, ipAddress);
     const orgId = organizationId || (await resolveOrgId());
     const { data } = await api.post<{ changed: boolean; lease: BackendDhcpLease }>(
       `/dhcp-pools/routers/${routerId}/leases/keep-address`,

@@ -202,7 +202,7 @@ export function PortForwardingManagement({ locationId }: { locationId?: string }
         // it -- resolveOrgId() itself has no demo guard and would still
         // fire a real (401ing) request even though its result goes unused.
         const orgId = isDemo() ? "" : await resolveOrgId();
-        const rows = await routerService.listForLocation(locationId, orgId);
+        const rows = await routerService.listVenueRouters(locationId, orgId);
         return { rows, total: rows.length };
       }
       return routerService.listAll();
