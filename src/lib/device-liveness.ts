@@ -59,6 +59,8 @@
  * `routerLivenessIsMeasured` applies one screen over, for the same reason.
  */
 
+import { describeHealth, type DeviceHealth } from "@/lib/hardware-health";
+
 /**
  * Why a device that is not up has no trustworthy observation behind it --
  * the backend's `observation_issue` (`app.domains.monitored_hardware
@@ -140,6 +142,13 @@ export interface DeviceLiveness {
   /** Why a non-up status has no trustworthy observation, or null/absent
    * (an older backend, or the demo store, sends none). */
   observationIssue?: ObservationIssue | string | null;
+  /** The liveness sweep's verdict with its reason (BE `health`). When
+   * present it decides the words -- "Up since 14:05", "Down since 07:09 ·
+   * port ether3 link down" -- and `connectedAt` is no longer shown: that
+   * was time since a flip the sweep happened to record, not uptime. Absent
+   * (demo store, older backend, never probed) keeps every pre-existing
+   * branch below byte-identical. See `@/lib/hardware-health`. */
+  health?: DeviceHealth | null;
 }
 
 /** Mirrors the backend's `monitored_hardware.constants.StatusSource`. */
@@ -210,7 +219,7 @@ export interface LivenessDescription {
    * `"unmeasured"` is not a measurement at all -- it is the row saying that
    * no measurement of it exists, which a caller should style as neutral
    * (never as a failure: nothing failed). */
-  detailKind: "uptime" | "connected" | "lastSeen" | "unmeasured" | null;
+  detailKind: "uptime" | "connected" | "lastSeen" | "unmeasured" | "health" | null;
   /** True when `detail` is an uptime whose reading has gone stale. */
   stale: boolean;
   /**
@@ -258,6 +267,12 @@ export function describeLiveness(
     };
   }
 
+  // A current health verdict outranks every derivation below: it is a
+  // measurement from this sweep, with its reason. A stale one ("unknown")
+  // yields to a router-unreadable explanation, which says more.
+  const health = device.health ?? null;
+  if (health != null && health.state !== "unknown") return fromHealth(health, now);
+
   const issue = device.status === "up" ? null : (device.observationIssue ?? null);
   const issueDetail =
     issue != null && issue in ISSUE_DETAIL ? ISSUE_DETAIL[issue as ObservationIssue] : null;
@@ -277,6 +292,8 @@ export function describeLiveness(
       explanation: null,
     };
   }
+
+  if (health != null) return fromHealth(health, now);
 
   const state =
     device.status === "up"
@@ -372,5 +389,17 @@ export function uptimeCoverage(devices: DeviceLiveness[]): {
   return {
     measured: devices.filter((d) => d.uptimeSeconds != null).length,
     total: devices.length,
+  };
+}
+
+function fromHealth(health: DeviceHealth, now: number): LivenessDescription {
+  const h = describeHealth(health, now);
+  return {
+    state: h.state,
+    detail: h.detail,
+    detailKind: "health",
+    stale: health.state === "unknown",
+    explanation: h.explanation,
+    tone: h.tone,
   };
 }

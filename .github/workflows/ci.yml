@@ -1434,6 +1434,16 @@ jobs:
       - name: device liveness labels match their data
         run: bun run test:device-liveness
 
+      # --- Hardware health says why, and never calls a flip "uptime" ------
+      #
+      # HKM 2026-10-19: the AP's port ether3 was link-down since 07:09 and the
+      # row said only "Down"; and "connected 16d 22h" was time since a
+      # recorded flip, not uptime. Pins that a DOWN names its reason (port,
+      # cable, power), one missed check is amber not red, a stale verdict is
+      # not shown as current, and rows without `health` are unchanged.
+      - name: hardware health words match the sweep's verdict
+        run: bun run test:hardware-health
+
       # --- A router is only offered actions it can actually accept --------
       #
       # `RouterTable.tsx` chose Suspend vs Reinstate from "does this router

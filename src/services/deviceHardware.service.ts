@@ -48,6 +48,7 @@ import type {
   HardwareStatusSource,
   ObservationIssue,
 } from "@/lib/device-liveness";
+import { toDeviceHealth, type DeviceHealth, type RawDeviceHealth } from "@/lib/hardware-health";
 import type { DeviceType } from "@/stores/deviceStore";
 
 export interface MonitoredDeviceRow {
@@ -94,6 +95,19 @@ export interface MonitoredDeviceRow {
    * router rejects the platform's login, which must not be shown as
    * "Never observed". `null` for up rows, and from an older backend. */
   observationIssue?: ObservationIssue | null;
+  /** The liveness sweep's verdict with its evidence (BE `health`): state,
+   * reason, "since", port, latency, clients, traffic, 24h events. `null`
+   * before the first probe, from an older backend, and for the demo store --
+   * every caller then falls back to `describeLiveness` unchanged. See
+   * `@/lib/hardware-health`. */
+  health?: DeviceHealth | null;
+  /** Other locations in this organization registered with the same MAC
+   * (BE `duplicate_locations`). Only the one whose router sees it can
+   * report its status. */
+  duplicateLocations?: string[];
+  /** Another organization registered this MAC too (BE
+   * `registered_elsewhere`); sent only for a row never observed here. */
+  registeredElsewhere?: boolean;
 }
 
 interface RawMonitoredHardware {
@@ -111,6 +125,9 @@ interface RawMonitoredHardware {
   status_source?: HardwareStatusSource | null;
   status_reason?: HardwareStatusReason | null;
   observation_issue?: ObservationIssue | null;
+  health?: RawDeviceHealth | null;
+  duplicate_locations?: string[];
+  registered_elsewhere?: boolean;
 }
 
 function toRow(r: RawMonitoredHardware): MonitoredDeviceRow {
@@ -136,6 +153,9 @@ function toRow(r: RawMonitoredHardware): MonitoredDeviceRow {
     statusSource: r.status_source ?? "measured",
     statusReason: r.status_reason ?? "liveness_probe",
     observationIssue: r.observation_issue ?? null,
+    health: toDeviceHealth(r.health),
+    duplicateLocations: r.duplicate_locations ?? [],
+    registeredElsewhere: r.registered_elsewhere ?? false,
   };
 }
 
