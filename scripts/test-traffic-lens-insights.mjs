@@ -1085,13 +1085,21 @@ check(
 
 // No fixture data under src/: a past incident replaced a real dashboard with
 // fixture arrays. The preview's sample data lives outside the repo.
+//
+// One exception, on the owner's request (2026-10-19): the DEMO workspace's
+// fixtures, in exactly one file. It may only be imported by the Traffic Lens
+// services, and every use there must sit behind the demo-host check, so a
+// real session can never be served from it.
+const DEMO_FIXTURE_FILE = "src/lib/traffic-lens-demo.ts";
 function walk(dir) {
   return readdirSync(dir).flatMap((name) => {
     const full = join(dir, name);
     return statSync(full).isDirectory() ? walk(full) : [full];
   });
 }
-const lensFiles = walk(join(ROOT, "src")).filter((f) => /traffic-lens/i.test(relative(ROOT, f)));
+const lensFiles = walk(join(ROOT, "src")).filter(
+  (f) => /traffic-lens/i.test(relative(ROOT, f)) && relative(ROOT, f) !== DEMO_FIXTURE_FILE,
+);
 check("found the Traffic Lens files", lensFiles.length >= 10, String(lensFiles.length));
 const fixture = lensFiles.filter((f) =>
   /192\.168\.|10\.20\.0\.|142\.250\.|203\.0\.113\.|198\.51\.100\.|sample-data|SAMPLE DATA|sampleSummary/.test(
@@ -1103,6 +1111,30 @@ eq(
   fixture.map((f) => relative(ROOT, f)),
   [],
 );
+{
+  const importers = walk(join(ROOT, "src"))
+    .filter((f) => /\.(ts|tsx)$/.test(f))
+    .filter((f) => /from\s*["']@\/lib\/traffic-lens-demo["']/.test(readFileSync(f, "utf8")))
+    .map((f) => relative(ROOT, f))
+    .sort();
+  eq("the demo fixtures are imported by the Traffic Lens services only", importers, [
+    "src/services/traffic-lens-destinations.service.ts",
+    "src/services/traffic-lens.service.ts",
+  ]);
+  for (const rel of importers) {
+    const text = readFileSync(join(ROOT, rel), "utf8");
+    const calls = text.match(/\bdemoLens\w+\(/g) ?? [];
+    const guarded =
+      text.match(
+        /if \(isDemoSession\(\)\)\s*(\{[^}]*?)?(return )?(\{\s*)?(const [^=]+= )?demoLens\w+\(/g,
+      ) ?? [];
+    check(
+      `${rel}: every demo fixture call sits behind isDemoSession()`,
+      calls.length > 0 && calls.length === guarded.length,
+      `${guarded.length} of ${calls.length}`,
+    );
+  }
+}
 check(
   "nothing under src/ imports the preview",
   !walk(join(ROOT, "src")).some(

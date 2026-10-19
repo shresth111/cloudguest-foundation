@@ -1,4 +1,11 @@
 import api from "@/services/api";
+import { isDemoSession } from "@/lib/demo-host";
+import {
+  demoCsvFilename,
+  demoNetLogsCsv,
+  demoNetLogsPage,
+  demoNetLogsSummary,
+} from "@/lib/netlogs-demo";
 import type { NetLogPage, NetLogSummary } from "@/types/netlogs";
 
 /**
@@ -13,6 +20,9 @@ import type { NetLogPage, NetLogSummary } from "@/types/netlogs";
  * Not to be confused with `deviceLogs.service.ts`, the Master viewer on
  * `/platform/device-logs`, which is GLOBAL-only and carries tunnel details
  * this surface must never show.
+ *
+ * On the demo host every call is answered from `lib/netlogs-demo.ts`
+ * fixtures, filtered client-side; nothing reaches the backend.
  */
 
 function scoped(locationHeader: string | null | undefined): Record<string, string> | undefined {
@@ -26,6 +36,7 @@ export interface NetLogsExport {
 
 export const netLogsService = {
   async list(params: Record<string, string>, locationHeader: string | null): Promise<NetLogPage> {
+    if (isDemoSession()) return demoNetLogsPage(params);
     const { data } = await api.get<NetLogPage>("/device-logs", {
       params,
       headers: scoped(locationHeader),
@@ -37,6 +48,7 @@ export const netLogsService = {
     params: Record<string, string>,
     locationHeader: string | null,
   ): Promise<NetLogSummary> {
+    if (isDemoSession()) return demoNetLogsSummary(params);
     const { data } = await api.get<NetLogSummary>("/device-logs/summary", {
       params,
       headers: scoped(locationHeader),
@@ -52,6 +64,12 @@ export const netLogsService = {
     params: Record<string, string>,
     locationHeader: string | null,
   ): Promise<NetLogsExport> {
+    if (isDemoSession()) {
+      return {
+        blob: new Blob([demoNetLogsCsv(params)], { type: "text/csv;charset=utf-8" }),
+        filename: demoCsvFilename("netlogs"),
+      };
+    }
     const res = await api.get<Blob>("/device-logs/export.csv", {
       params,
       headers: scoped(locationHeader),
