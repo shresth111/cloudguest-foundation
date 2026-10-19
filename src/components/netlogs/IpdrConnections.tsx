@@ -16,13 +16,19 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import { useIpdrConnections } from "@/hooks/useIpdr";
 import {
+  DEFAULT_IPDR_AUDIENCE,
   EMPTY_IPDR_SEARCH,
+  IPDR_AUDIENCE_LABEL,
   IPDR_EXPORT_MAX_ROWS,
   IPDR_TABLE_COLUMNS,
   coverageNote,
   ipdrErrorMessage,
+  ipdrExportParams,
   ipdrParams,
   translatedSourceLabel,
+  valueSourceLabel,
+  whoLabel,
+  type IpdrAudience,
   type IpdrSearch,
 } from "@/lib/ipdr";
 import {
@@ -52,6 +58,10 @@ const SELECT_CLASS =
  *   `a***@example.com`); full values exist only in the CSV.
  * - `ipdr.read` shows the tab (checked by the parent), `ipdr.export` the
  *   download. Every page and every download is audited server-side.
+ * - "Guests only" (default) / "All devices": the table hides rows with no
+ *   guest session (venue equipment = `device`, nothing known = `unknown`).
+ *   The CSV keeps every row unless "Guests only" is ticked for the download.
+ *   A "Who" flag column follows the 18 IPDR columns (table only).
  */
 export function IpdrConnections({
   filters,
@@ -71,11 +81,13 @@ export function IpdrConnections({
   const [at, setAt] = useState(() => Date.now());
   const [draft, setDraft] = useState<IpdrSearch>(EMPTY_IPDR_SEARCH);
   const [search, setSearch] = useState<IpdrSearch>(EMPTY_IPDR_SEARCH);
+  const [audience, setAudience] = useState<IpdrAudience>(DEFAULT_IPDR_AUDIENCE);
+  const [exportGuestsOnly, setExportGuestsOnly] = useState(false);
   const effLocation = effectiveLocationId(filters, activeLocationId, orgWide);
   const win = useMemo(() => netLogsWindow(filters, at), [filters, at]);
   const params = useMemo(
-    () => ipdrParams(win, effLocation, filters.router, search),
-    [win, effLocation, filters.router, search],
+    () => ipdrParams(win, effLocation, filters.router, search, audience === "guests"),
+    [win, effLocation, filters.router, search, audience],
   );
   const rows = useIpdrConnections(org, params, true);
 
@@ -100,7 +112,7 @@ export function IpdrConnections({
   const runExport = async () => {
     setExporting(true);
     try {
-      const file = await ipdrService.exportCsv(params);
+      const file = await ipdrService.exportCsv(ipdrExportParams(params, exportGuestsOnly));
       const url = URL.createObjectURL(file.blob);
       const a = document.createElement("a");
       a.href = url;
@@ -130,9 +142,9 @@ export function IpdrConnections({
   return (
     <div className="space-y-4">
       <p className="max-w-3xl text-sm text-muted-foreground">
-        One row per guest connection, in the CERT-In IPDR column order. Phone numbers and e-mail
-        addresses are masked here and appear in full only in the export. Translated IP and port are
-        derived unless your router reports them; hover a row to see which.
+        One row per connection, in the CERT-In IPDR column order. Phone numbers and e-mail addresses
+        are masked here and appear in full only in the export. Translated IP and port are derived
+        unless your router reports them; hover a row to see which.
       </p>
 
       <div className="space-y-3 rounded-xl border bg-card p-3 shadow-sm">
@@ -220,7 +232,44 @@ export function IpdrConnections({
             ))}
           </select>
 
+          <div
+            role="group"
+            aria-label="Show"
+            className="inline-flex rounded-md border bg-background p-0.5"
+          >
+            {(["guests", "all"] as const).map((a) => (
+              <button
+                key={a}
+                type="button"
+                aria-pressed={audience === a}
+                onClick={() => setAudience(a)}
+                className={cn(
+                  "rounded px-2.5 py-1 text-xs font-medium transition-colors",
+                  audience === a
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                )}
+              >
+                {IPDR_AUDIENCE_LABEL[a]}
+              </button>
+            ))}
+          </div>
+
           <div className="ml-auto flex items-center gap-2">
+            {canExport && (
+              <label
+                className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                title="By default the export has every row, guests and devices. Tick to download guest rows only."
+              >
+                <input
+                  type="checkbox"
+                  className="h-3.5 w-3.5"
+                  checked={exportGuestsOnly}
+                  onChange={(e) => setExportGuestsOnly(e.target.checked)}
+                />
+                Export guests only
+              </label>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -312,7 +361,9 @@ export function IpdrConnections({
           description={
             searching
               ? "Nothing matched that search in this range. Try a longer range or clear the search."
-              : "Nothing was recorded for this range. Connection records need Traffic Lens flow records switched on for the venue's router."
+              : audience === "guests"
+                ? 'No guest connections in this range. Choose "All devices" to include the venue\'s own equipment and unmatched addresses.'
+                : "Nothing was recorded for this range. Connection records need Traffic Lens flow records switched on for the venue's router."
           }
         />
       ) : (
@@ -349,6 +400,7 @@ function IpdrTable({
                   {c.label}
                 </TableHead>
               ))}
+              <TableHead className="whitespace-nowrap text-xs">Who</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -362,9 +414,18 @@ function IpdrTable({
                   const derived =
                     (c.key === "translated_ip" || c.key === "translated_port") &&
                     item.translated_source !== "nat_event";
+                  const source =
+                    c.key === "mac"
+                      ? valueSourceLabel(item.mac_source)
+                      : c.key === "allocation_start_ist" ||
+                          c.key === "allocation_end_ist" ||
+                          c.key === "total_online_time"
+                        ? valueSourceLabel(item.allocation_source)
+                        : null;
                   return (
                     <TableCell
                       key={c.key}
+                      title={value && source ? source : undefined}
                       className={cn(
                         "whitespace-nowrap font-mono text-xs",
                         derived && value && "italic text-muted-foreground",
@@ -377,6 +438,7 @@ function IpdrTable({
                     </TableCell>
                   );
                 })}
+                <WhoCell item={item} />
               </TableRow>
             ))}
           </TableBody>
@@ -384,7 +446,9 @@ function IpdrTable({
       </div>
       <p className="text-[11px] text-muted-foreground">
         Translated IP/port in italics are derived (router's public IP and the same port); amber
-        means another device may have used the same port at that time.
+        means another device may have used the same port at that time. A blank source port means the
+        router's records for that row were summarised. Hover a MAC or allocation time to see where
+        it came from.
       </p>
       {hasMore && (
         <div className="flex justify-center">
@@ -395,5 +459,29 @@ function IpdrTable({
         </div>
       )}
     </div>
+  );
+}
+
+function WhoCell({ item }: { item: IpdrItem }) {
+  const who = whoLabel(item);
+  const cls = item.user_class ?? (item.user_known ? "guest" : "unknown");
+  return (
+    <TableCell className="whitespace-nowrap text-xs">
+      <span
+        title={
+          item.nat_event_only
+            ? `${who.detail}. Seen only in the router's NAT log, not in its traffic records.`
+            : who.detail
+        }
+        className={cn(
+          "rounded px-1.5 py-0.5 font-medium",
+          cls === "guest" && "bg-primary/10 text-primary",
+          cls === "device" && "bg-muted text-muted-foreground",
+          cls === "unknown" && "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
+        )}
+      >
+        {who.label}
+      </span>
+    </TableCell>
   );
 }

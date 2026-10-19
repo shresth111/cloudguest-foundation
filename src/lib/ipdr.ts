@@ -1,4 +1,4 @@
-import type { IpdrCoverageDay, IpdrItem } from "@/types/ipdr";
+import type { IpdrCoverageDay, IpdrItem, IpdrUserClass } from "@/types/ipdr";
 
 /**
  * NetLogs -> "Connections (IPDR)": pure helpers. See
@@ -55,16 +55,28 @@ export function hasIpdrPermission(permissions: unknown, key: string): boolean {
   return Array.isArray(permissions) && permissions.includes(key);
 }
 
+/** The table's audience switch. "guests" (the default) shows only rows
+ * matched to a guest session; "all" adds infrastructure (`device`) and
+ * unmatched (`unknown`) rows. */
+export type IpdrAudience = "guests" | "all";
+export const DEFAULT_IPDR_AUDIENCE: IpdrAudience = "guests";
+export const IPDR_AUDIENCE_LABEL: Record<IpdrAudience, string> = {
+  guests: "Guests only",
+  all: "All devices",
+};
+
 export function ipdrParams(
   window: { since: Date; until: Date },
   locationId: string | null,
   routerId: string,
   search: IpdrSearch,
+  guestsOnly = false,
 ): Record<string, string> {
   const params: Record<string, string> = {
     since: window.since.toISOString(),
     until: window.until.toISOString(),
   };
+  if (guestsOnly) params.guests_only = "true";
   if (locationId) params.location_id = locationId;
   if (routerId) params.router_id = routerId;
   const phone = search.phone.trim();
@@ -75,6 +87,18 @@ export function ipdrParams(
   if (userId) params.user_id = userId.slice(0, 255);
   if (mac) params.mac = mac.slice(0, 32);
   if (ip) params.ip = ip.slice(0, 64);
+  return params;
+}
+
+/** The CSV keeps every row unless "guests only" is ticked for the download,
+ * whatever the table shows. */
+export function ipdrExportParams(
+  base: Record<string, string>,
+  guestsOnly: boolean,
+): Record<string, string> {
+  const params = { ...base };
+  delete params.guests_only;
+  if (guestsOnly) params.guests_only = "true";
   return params;
 }
 
@@ -96,6 +120,45 @@ export const TRANSLATED_SOURCE_LABEL: Record<string, string> = {
 
 export function translatedSourceLabel(source: string | null | undefined): string {
   return TRANSLATED_SOURCE_LABEL[source ?? "none"] ?? TRANSLATED_SOURCE_LABEL.none;
+}
+
+export const USER_CLASS_LABEL: Record<IpdrUserClass, string> = {
+  guest: "Guest",
+  device: "Device",
+  unknown: "Unknown",
+};
+
+const DEVICE_KIND_LABEL: Record<string, string> = {
+  router: "the router itself",
+  monitored_hardware: "registered network hardware",
+  authorized_mac: "an always-allowed device",
+};
+
+/** The table's "Who" flag: a class plus, for a device, why. */
+export function whoLabel(item: Pick<IpdrItem, "user_class" | "device_kind" | "user_known">): {
+  label: string;
+  detail: string;
+} {
+  const cls = (item.user_class ?? (item.user_known ? "guest" : "unknown")) as IpdrUserClass;
+  const label = USER_CLASS_LABEL[cls] ?? USER_CLASS_LABEL.unknown;
+  if (cls === "guest") return { label, detail: "Matched to a guest's WiFi session" };
+  if (cls === "device") {
+    const why = DEVICE_KIND_LABEL[item.device_kind ?? ""] ?? "known venue equipment";
+    return { label, detail: `Not a guest: ${why}` };
+  }
+  return { label, detail: "No guest session and no known device held this address" };
+}
+
+const VALUE_SOURCE_LABEL: Record<string, string> = {
+  session: "the guest's session",
+  dhcp: "the router's DHCP log",
+  inventory: "the router's device list",
+};
+
+/** "From the router's DHCP log", or null when nothing is shown. */
+export function valueSourceLabel(source: string | null | undefined): string | null {
+  const label = source ? VALUE_SOURCE_LABEL[source] : undefined;
+  return label ? `From ${label}` : null;
 }
 
 /** One sentence about gaps in the days the page has looked at, or null. */
