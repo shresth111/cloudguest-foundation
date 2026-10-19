@@ -1,5 +1,12 @@
 import { api, requestErrorOf } from "@/services/api";
-import { resolveOrgId } from "@/services/customer.service";
+import { isDemo, resolveOrgId } from "@/services/customer.service";
+import {
+  demoSetWebFilterLocationPolicy,
+  demoWebCategories,
+  demoWebFilterLocationPolicy,
+  demoWebFilterRouterAction,
+  demoWebFilterRouterStatus,
+} from "@/lib/firewall-demo";
 import type {
   WebCategory,
   WebCategoryCatalogue,
@@ -14,6 +21,9 @@ import type {
  * its own scope from the path id (location or router), so the tenant header
  * is only the usual organization one -- the same pattern as
  * `firewall.service.ts`.
+ *
+ * On the demo host every method answers from `lib/firewall-demo.ts` and
+ * makes no request; the writes change only that module's in-memory copy.
  */
 
 interface BackendCategory {
@@ -122,6 +132,7 @@ export const dnsFilteringService = {
    * the venue owner did or can retry. Anything else rejects.
    */
   async categories(locationId: string): Promise<WebCategoryCatalogue> {
+    if (isDemo()) return demoWebCategories();
     try {
       const { data } = await api.get<BackendCategoryList>("/dns-filtering/categories", {
         params: { location_id: locationId },
@@ -136,6 +147,7 @@ export const dnsFilteringService = {
   },
 
   async locationPolicy(locationId: string): Promise<WebFilterLocationPolicy> {
+    if (isDemo()) return demoWebFilterLocationPolicy(locationId);
     const { data } = await api.get<BackendLocationPolicy>(
       `/dns-filtering/locations/${locationId}/policy`,
       await orgHeaders(),
@@ -150,6 +162,7 @@ export const dnsFilteringService = {
     locationId: string,
     categoryIds: number[],
   ): Promise<WebFilterLocationPolicy> {
+    if (isDemo()) return demoSetWebFilterLocationPolicy(locationId, categoryIds);
     const { data } = await api.put<BackendLocationPolicy>(
       `/dns-filtering/locations/${locationId}/policy`,
       { category_ids: categoryIds },
@@ -159,6 +172,7 @@ export const dnsFilteringService = {
   },
 
   async routerStatus(routerId: string): Promise<WebFilterRouterStatus> {
+    if (isDemo()) return demoWebFilterRouterStatus(routerId);
     const { data } = await api.get<BackendRouterStatus>(
       `/dns-filtering/routers/${routerId}`,
       await orgHeaders(),
@@ -169,6 +183,7 @@ export const dnsFilteringService = {
   /** Switches the router's lookups to Cloudflare, checks them, and switches
    * back by itself if the check fails (the 502 then says `rolled_back`). */
   async enable(routerId: string): Promise<WebFilterRouterStatus> {
+    if (isDemo()) return demoWebFilterRouterAction(routerId, { kind: "enable" });
     const { data } = await api.post<BackendRouterStatus>(
       `/dns-filtering/routers/${routerId}/enable`,
       undefined,
@@ -180,6 +195,7 @@ export const dnsFilteringService = {
   /** Puts the router's own lookup settings back first, then releases
    * Cloudflare. */
   async disable(routerId: string): Promise<WebFilterRouterStatus> {
+    if (isDemo()) return demoWebFilterRouterAction(routerId, { kind: "disable" });
     const { data } = await api.post<BackendRouterStatus>(
       `/dns-filtering/routers/${routerId}/disable`,
       undefined,
@@ -189,6 +205,7 @@ export const dnsFilteringService = {
   },
 
   async setBypassHardening(routerId: string, enabled: boolean): Promise<WebFilterRouterStatus> {
+    if (isDemo()) return demoWebFilterRouterAction(routerId, { kind: "bypass", enabled });
     const { data } = await api.put<BackendRouterStatus>(
       `/dns-filtering/routers/${routerId}/bypass-hardening`,
       { enabled },

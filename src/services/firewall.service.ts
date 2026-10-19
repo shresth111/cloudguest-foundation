@@ -1,5 +1,17 @@
 import { api, requestErrorOf } from "@/services/api";
 import { isDemo, resolveOrgId } from "@/services/customer.service";
+import {
+  demoFirewallBand,
+  demoFirewallCreate,
+  demoFirewallList,
+  demoFirewallPush,
+  demoFirewallRemove,
+  demoFirewallUpdate,
+  demoFloodLimit,
+  demoGuestIsolation,
+  demoSetFloodLimit,
+  demoSetGuestIsolation,
+} from "@/lib/firewall-demo";
 import type {
   CreateFirewallRulePayload,
   FirewallAction,
@@ -195,12 +207,10 @@ export const firewallService = {
   // back to a GLOBAL-scope check an ordinary org-owner session never
   // holds, so every call here 403'd for a real customer (confirmed live).
   async list(q: FirewallRuleListQuery): Promise<FirewallRuleListResult> {
-    // The demo account has no firewall rules and no router to push to. Zero,
-    // honestly, rather than invented rules -- the same convention as
-    // contentFilter.service.ts's own demo guard.
-    if (isDemo()) {
-      return { rows: [], total: 0, totalPages: 1, hasNext: false, hasPrevious: false };
-    }
+    // Demo host: the demo venue's rules (lib/firewall-demo.ts), no request.
+    // Every method below short-circuits the same way, and the writes change
+    // only that module's in-memory copy.
+    if (isDemo()) return demoFirewallList(q);
     const orgId = await resolveOrgId();
     const { data } = await api.get<BackendFirewallRuleListResponse>("/firewall-rules", {
       params: { router_id: q.routerId, page: q.page, page_size: q.pageSize },
@@ -216,6 +226,7 @@ export const firewallService = {
   },
 
   async create(payload: CreateFirewallRulePayload): Promise<FirewallRule> {
+    if (isDemo()) return demoFirewallCreate(payload);
     const orgId = await resolveOrgId();
     const { data } = await api.post<BackendFirewallRule>(
       "/firewall-rules",
@@ -240,6 +251,7 @@ export const firewallService = {
   },
 
   async update(id: string, payload: UpdateFirewallRulePayload): Promise<FirewallRule> {
+    if (isDemo()) return demoFirewallUpdate(id, payload);
     const orgId = await resolveOrgId();
     const { data } = await api.put<BackendFirewallRule>(
       `/firewall-rules/${id}`,
@@ -263,6 +275,7 @@ export const firewallService = {
   },
 
   async remove(id: string): Promise<void> {
+    if (isDemo()) return demoFirewallRemove(id);
     const orgId = await resolveOrgId();
     await api.delete(`/firewall-rules/${id}`, { headers: { "X-Organization-Id": orgId } });
   },
@@ -278,6 +291,7 @@ export const firewallService = {
    * `firewallPushErrorSentence`) -- never a 200 with a failure inside it.
    */
   async push(routerId: string): Promise<FirewallPushResult> {
+    if (isDemo()) return demoFirewallPush(routerId);
     const orgId = await resolveOrgId();
     const { data } = await api.post<BackendFirewallPushResponse>(
       `/firewall-rules/routers/${routerId}/push`,
@@ -305,7 +319,7 @@ export const firewallService = {
    * that answer is rendered in full.
    */
   async getBand(routerId: string, organizationId?: string): Promise<FirewallBandStatus | null> {
-    if (isDemo()) return null;
+    if (isDemo()) return demoFirewallBand(routerId);
     const orgId = organizationId ?? (await resolveOrgId());
     try {
       const { data } = await api.get<BackendFirewallBandStatus>(
@@ -335,7 +349,7 @@ export const firewallService = {
    * renders nothing rather than a switch that would 404.
    */
   async getFloodLimit(routerId: string, organizationId?: string): Promise<FloodLimitState | null> {
-    if (isDemo()) return null;
+    if (isDemo()) return demoFloodLimit(routerId);
     const orgId = organizationId ?? (await resolveOrgId());
     try {
       const { data } = await api.get<BackendFloodLimit>(
@@ -358,6 +372,7 @@ export const firewallService = {
     preset: FloodLimitPreset,
     organizationId?: string,
   ): Promise<FloodLimitState> {
+    if (isDemo()) return demoSetFloodLimit(routerId, preset);
     const orgId = organizationId ?? (await resolveOrgId());
     const { data } = await api.put<BackendFloodLimit>(
       `/firewall-rules/routers/${routerId}/flood-limit`,
@@ -377,7 +392,7 @@ export const firewallService = {
     routerId: string,
     organizationId?: string,
   ): Promise<GuestIsolationState | null> {
-    if (isDemo()) return null;
+    if (isDemo()) return demoGuestIsolation(routerId);
     const orgId = organizationId ?? (await resolveOrgId());
     try {
       const { data } = await api.get<BackendGuestIsolation>(
@@ -399,6 +414,7 @@ export const firewallService = {
     enabled: boolean,
     organizationId?: string,
   ): Promise<GuestIsolationState> {
+    if (isDemo()) return demoSetGuestIsolation(routerId, enabled);
     const orgId = organizationId ?? (await resolveOrgId());
     const { data } = await api.put<BackendGuestIsolation>(
       `/firewall-rules/routers/${routerId}/guest-isolation`,
@@ -416,6 +432,7 @@ export const firewallService = {
    * platform grant is the only thing that passes it.
    */
   async installBand(routerId: string): Promise<FirewallBandPlacement> {
+    if (isDemo()) return { routerId, created: false };
     const { data } = await api.post<BackendFirewallBandResponse>(
       `/firewall-rules/routers/${routerId}/band`,
     );

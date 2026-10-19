@@ -2021,6 +2021,19 @@ jobs:
             "netlogs-demo" 74 "netlogs/traffic-lens demo checks passed" \
             bun run test:netlogs-demo
 
+      # Security in the DEMO workspace (Firewall, Block Websites, Security
+      # Score, Port Forwarding): every read and write answered from
+      # lib/firewall-demo.ts with zero network requests, the same calls
+      # hitting the network off the demo host, writes that change the next
+      # read, the fixture imported only by services and only behind the demo
+      # check, no 10.20.x / tunnel wording / phone numbers. Floor 80,
+      # observed 80.
+      - name: firewall-demo
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "firewall-demo" 80 "firewall demo checks passed" \
+            bun run test:firewall-demo
+
       # Guest Connection Records -> "Device events" drawer. Locks the honest
       # states (a router that doesn't send logs never reads as "no events"),
       # the held-back count, the request shape (session id in the path, org

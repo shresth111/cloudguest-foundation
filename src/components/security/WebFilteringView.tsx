@@ -118,11 +118,12 @@ import type { RouterDevice } from "@/types/router";
 export function WebFilteringView({ locationId }: { locationId?: string }) {
   const { t } = useTranslation("nav", { i18n });
   const activeLocation = useCustomerStore((s) => s.activeLocation);
-  const demo = isDemo();
   const controllerGated =
     locationIsControllerManaged(activeLocation?.liveness) &&
     !featureAppliesToControllerVenue("website-blocking");
-  const live = !!locationId && !demo && !controllerGated;
+  // On the demo host the services answer from lib/firewall-demo.ts; this
+  // screen has no demo branch of its own.
+  const live = !!locationId && !controllerGated;
 
   const categories = useWebCategories(locationId, live);
   // "Use the closest set" from any refusal fills the picker; `seq` makes a
@@ -147,22 +148,6 @@ export function WebFilteringView({ locationId }: { locationId?: string }) {
         venueName={activeLocation?.name ?? null}
         vendor={locationControllerVendor(activeLocation?.liveness)}
       />
-    );
-  }
-
-  if (demo) {
-    return (
-      <div className="space-y-5">
-        {intro}
-        <EmptyState
-          icon={Filter}
-          title={t("webFilteringPage.demoTitle", "Not part of the demo account")}
-          description={t(
-            "webFilteringPage.demoBody",
-            "Web filtering changes a real router, and the demo account has none.",
-          )}
-        />
-      </div>
     );
   }
 
@@ -351,8 +336,8 @@ function HarmfulSitesSwitch({
   const routersQuery = useQuery({
     queryKey: ["dns-filtering", "venue-routers", locationId],
     queryFn: async () => {
-      const orgId = organizationId || (await resolveOrgId());
-      return routerService.listForLocation(locationId, orgId);
+      const orgId = organizationId || (isDemo() ? "" : await resolveOrgId());
+      return routerService.listVenueRouters(locationId, orgId);
     },
   });
 
@@ -827,8 +812,8 @@ function VenueRouters({
   const routersQuery = useQuery({
     queryKey: ["dns-filtering", "venue-routers", locationId],
     queryFn: async () => {
-      const orgId = organizationId || (await resolveOrgId());
-      return routerService.listForLocation(locationId, orgId);
+      const orgId = organizationId || (isDemo() ? "" : await resolveOrgId());
+      return routerService.listVenueRouters(locationId, orgId);
     },
   });
   const rows = routersQuery.data ?? [];

@@ -1,5 +1,7 @@
 import { api } from "@/services/api";
 import { resolveOrgId } from "@/services/customer.service";
+import { isDemoSession } from "@/lib/demo-host";
+import { demoConnectedDevices } from "@/lib/firewall-demo";
 import type {
   ConnectedDevice,
   ConnectedDeviceListResult,
@@ -87,6 +89,9 @@ function toSyncRun(r: BackendDeviceSyncRun): DeviceSyncRun {
 // once added.
 export const connectedDeviceService = {
   async list(routerId: string, page = 1, pageSize = 50): Promise<ConnectedDeviceListResult> {
+    // Demo host: the demo venue's devices (the Firewall rule dialog's
+    // picker), none for any other router; no request.
+    if (isDemoSession()) return demoConnectedDevices(routerId, page, pageSize);
     const orgId = await resolveOrgId();
     const { data } = await api.get<BackendConnectedDeviceListResponse>("/connected-devices", {
       params: { router_id: routerId, page, page_size: pageSize },

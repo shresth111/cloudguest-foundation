@@ -1,4 +1,6 @@
 import { api } from "@/services/api";
+import { isDemoSession } from "@/lib/demo-host";
+import { demoSecurityCapabilities, demoSecurityOverview } from "@/lib/firewall-demo";
 import type {
   SecurityAvailability,
   SecurityCounter,
@@ -114,6 +116,9 @@ function locationHeaders(locationId?: string | null): Record<string, string> | u
 
 export const securityService = {
   async overview(locationId?: string | null): Promise<SecurityOverview> {
+    // Demo host: computed from the same demo venue the Firewall and Block
+    // Websites screens show (lib/firewall-demo.ts), no request.
+    if (isDemoSession()) return demoSecurityOverview(locationId);
     const { data } = await api.get<BackendOverview>("/security/overview", {
       headers: locationHeaders(locationId),
     });
@@ -140,6 +145,7 @@ export const securityService = {
    * what this platform can enforce is a property of the platform, not of the
    * venue looking at it. */
   async capabilities(): Promise<SecurityFeature[]> {
+    if (isDemoSession()) return demoSecurityCapabilities();
     const { data } = await api.get<{ features: BackendFeature[] }>("/security/capabilities");
     return data.features.map((f) => ({
       key: f.key,

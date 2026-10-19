@@ -297,31 +297,18 @@ function PerRouter({
 }) {
   const { t } = useTranslation("nav", { i18n });
   const activeLocation = useCustomerStore((s) => s.activeLocation);
-  const demo = isDemo();
 
   // Same key and request as WebFilteringView's own router list just below,
-  // so the page fetches the venue's routers once.
+  // so the page fetches the venue's routers once. On the demo host the
+  // services answer from lib/firewall-demo.ts; no demo branch here.
   const routersQuery = useQuery({
     queryKey: ["dns-filtering", "venue-routers", locationId],
-    enabled: !!locationId && !demo,
+    enabled: !!locationId,
     queryFn: async () => {
-      const orgId = activeLocation?.organizationId || (await resolveOrgId());
-      return routerService.listForLocation(locationId as string, orgId);
+      const orgId = activeLocation?.organizationId || (isDemo() ? "" : await resolveOrgId());
+      return routerService.listVenueRouters(locationId as string, orgId);
     },
   });
-
-  if (demo) {
-    return (
-      <EmptyState
-        icon={Globe2}
-        title={t("blockWebsites.demoTitle", "Not part of the demo account")}
-        description={t(
-          "blockWebsites.demoBody",
-          "Blocking a website changes a real router, and the demo account has none.",
-        )}
-      />
-    );
-  }
 
   if (!locationId) {
     return <EmptyState icon={Globe2} title={t("blockWebsites.noVenue", "Choose a venue first")} />;

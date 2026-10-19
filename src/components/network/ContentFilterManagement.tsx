@@ -237,7 +237,7 @@ export function ContentFilterManagement({ locationId }: { locationId?: string } 
     queryFn: async () => {
       if (locationId) {
         const orgId = isDemo() ? "" : await resolveOrgId();
-        const rows = await routerService.listForLocation(locationId, orgId);
+        const rows = await routerService.listVenueRouters(locationId, orgId);
         return { rows, total: rows.length };
       }
       return routerService.listAll();
