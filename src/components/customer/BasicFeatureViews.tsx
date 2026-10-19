@@ -61,6 +61,7 @@ import { describeLiveness, hardwareLivenessIsMeasured } from "@/lib/device-liven
 import { floorSuggestions, normalizeFloor } from "@/lib/device-floors";
 import { DEVICE_TYPE_META, normalizeMac } from "@/lib/device-presentation";
 import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
+import { HardwareHealthDetails } from "@/components/customer/HardwareHealthDetails";
 import { useControllerDevices } from "@/hooks/useControllerDevices";
 import { maskEmail, maskMac, maskPhone } from "@/components/features/HeaderControls";
 import { requestErrorMessage } from "@/services/api";
@@ -493,8 +494,27 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
     setMacError(null);
     setSubmitting(true);
     try {
-      await addDevice(locationId, form.name.trim(), normalizedMac, form.type, form.floor);
+      const created = await addDevice(
+        locationId,
+        form.name.trim(),
+        normalizedMac,
+        form.type,
+        form.floor,
+      );
       toast.success(`${form.type} added on ${form.floor}`);
+      // Registration succeeds either way; this only says up front why the
+      // row may stay "Never observed" (prod had one AP added at 3 venues).
+      if (created?.duplicateLocations?.length) {
+        toast.warning(
+          `This MAC is also added at ${created.duplicateLocations.join(", ")}. ` +
+            "Only the location whose router it is plugged into can show its status.",
+        );
+      } else if (created?.registeredElsewhere) {
+        toast.warning(
+          "This MAC is also registered at another venue. If this location never sees it, " +
+            "check the MAC address.",
+        );
+      }
       setForm(emptyHardwareForm);
       setOpen(false);
     } catch (err) {
@@ -672,6 +692,17 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
                             </span>
                           );
                         })()}
+                        {/* Port, latency, devices on the port, traffic, link
+                         * drops, a 24h strip, and why a duplicate-MAC row can
+                         * never be seen here. Nothing for a row without
+                         * `health` (demo, older backend). */}
+                        {hardwareLivenessIsMeasured(d) && (
+                          <HardwareHealthDetails
+                            health={d.health}
+                            duplicateLocations={d.duplicateLocations}
+                            registeredElsewhere={d.registeredElsewhere}
+                          />
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <button

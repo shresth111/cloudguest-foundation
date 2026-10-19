@@ -88,10 +88,12 @@ export function useMonitoredHardware(locationId?: string) {
     async (locId: string, name: string, mac: string, type: DeviceType, floor: string) => {
       if (demo) {
         demoStore.addDevice(locId, name, mac, type, floor);
-        return;
+        return null;
       }
-      await deviceHardwareService.register(locId, name, mac, type, floor);
+      // Returned so the caller can warn about a MAC registered elsewhere.
+      const created = await deviceHardwareService.register(locId, name, mac, type, floor);
       await refetch();
+      return created;
     },
     [demo, demoStore, refetch],
   );
