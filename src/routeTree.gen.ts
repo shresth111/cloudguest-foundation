@@ -81,6 +81,7 @@ import { Route as PartnerSettingsRouteImport } from './routes/partner.settings'
 import { Route as PartnerReportsRouteImport } from './routes/partner.reports'
 import { Route as PartnerLogsRouteImport } from './routes/partner.logs'
 import { Route as PartnerLoginRouteImport } from './routes/partner.login'
+import { Route as PartnerBillingRouteImport } from './routes/partner.billing'
 import { Route as MasterTrafficFlowRouteImport } from './routes/master.traffic-flow'
 import { Route as MasterTicketsRouteImport } from './routes/master.tickets'
 import { Route as MasterRoutersRouteImport } from './routes/master.routers'
@@ -575,6 +576,11 @@ const PartnerLogsRoute = PartnerLogsRouteImport.update({
 const PartnerLoginRoute = PartnerLoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => PartnerRoute,
+} as any)
+const PartnerBillingRoute = PartnerBillingRouteImport.update({
+  id: '/billing',
+  path: '/billing',
   getParentRoute: () => PartnerRoute,
 } as any)
 const MasterTrafficFlowRoute = MasterTrafficFlowRouteImport.update({
@@ -1423,6 +1429,7 @@ export interface FileRoutesByFullPath {
   '/master/routers': typeof MasterRoutersRouteWithChildren
   '/master/tickets': typeof MasterTicketsRoute
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
+  '/partner/billing': typeof PartnerBillingRoute
   '/partner/login': typeof PartnerLoginRoute
   '/partner/logs': typeof PartnerLogsRoute
   '/partner/reports': typeof PartnerReportsRoute
@@ -1627,6 +1634,7 @@ export interface FileRoutesByTo {
   '/master/routers': typeof MasterRoutersRouteWithChildren
   '/master/tickets': typeof MasterTicketsRoute
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
+  '/partner/billing': typeof PartnerBillingRoute
   '/partner/login': typeof PartnerLoginRoute
   '/partner/logs': typeof PartnerLogsRoute
   '/partner/reports': typeof PartnerReportsRoute
@@ -1836,6 +1844,7 @@ export interface FileRoutesById {
   '/master/routers': typeof MasterRoutersRouteWithChildren
   '/master/tickets': typeof MasterTicketsRoute
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
+  '/partner/billing': typeof PartnerBillingRoute
   '/partner/login': typeof PartnerLoginRoute
   '/partner/logs': typeof PartnerLogsRoute
   '/partner/reports': typeof PartnerReportsRoute
@@ -2047,6 +2056,7 @@ export interface FileRouteTypes {
     | '/master/routers'
     | '/master/tickets'
     | '/master/traffic-flow'
+    | '/partner/billing'
     | '/partner/login'
     | '/partner/logs'
     | '/partner/reports'
@@ -2251,6 +2261,7 @@ export interface FileRouteTypes {
     | '/master/routers'
     | '/master/tickets'
     | '/master/traffic-flow'
+    | '/partner/billing'
     | '/partner/login'
     | '/partner/logs'
     | '/partner/reports'
@@ -2459,6 +2470,7 @@ export interface FileRouteTypes {
     | '/master/routers'
     | '/master/tickets'
     | '/master/traffic-flow'
+    | '/partner/billing'
     | '/partner/login'
     | '/partner/logs'
     | '/partner/reports'
@@ -3157,6 +3169,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/partner/login'
       preLoaderRoute: typeof PartnerLoginRouteImport
+      parentRoute: typeof PartnerRoute
+    }
+    '/partner/billing': {
+      id: '/partner/billing'
+      path: '/billing'
+      fullPath: '/partner/billing'
+      preLoaderRoute: typeof PartnerBillingRouteImport
       parentRoute: typeof PartnerRoute
     }
     '/master/traffic-flow': {
@@ -4438,6 +4457,7 @@ const MasterRouteWithChildren =
   MasterRoute._addFileChildren(MasterRouteChildren)
 
 interface PartnerRouteChildren {
+  PartnerBillingRoute: typeof PartnerBillingRoute
   PartnerLoginRoute: typeof PartnerLoginRoute
   PartnerLogsRoute: typeof PartnerLogsRoute
   PartnerReportsRoute: typeof PartnerReportsRoute
@@ -4454,6 +4474,7 @@ interface PartnerRouteChildren {
 }
 
 const PartnerRouteChildren: PartnerRouteChildren = {
+  PartnerBillingRoute: PartnerBillingRoute,
   PartnerLoginRoute: PartnerLoginRoute,
   PartnerLogsRoute: PartnerLogsRoute,
   PartnerReportsRoute: PartnerReportsRoute,

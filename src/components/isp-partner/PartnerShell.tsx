@@ -17,6 +17,7 @@ import {
   ScrollText,
   Settings,
   Users,
+  Wallet,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -45,6 +46,7 @@ const PARTNER_NAV: NavItem[] = [
     icon: ScrollText,
     anyOf: ["isp_logs.read", "isp_ipdr.read"],
   },
+  { to: "/partner/billing", label: "Billing", icon: Wallet, anyOf: ["isp_billing.read"] },
   { to: "/partner/reports", label: "Reports", icon: FileBarChart, anyOf: ["isp_partner.read"] },
   { to: "/partner/users", label: "Staff users", icon: Users, anyOf: ["isp_partner.assign"] },
   { to: "/partner/settings", label: "Settings", icon: Settings },

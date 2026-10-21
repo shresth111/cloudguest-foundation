@@ -91,6 +91,7 @@ export const ROLE_LABEL: Record<string, string> = {
   "isp-noc": "NOC Operator",
   "isp-technician": "Technician",
   "isp-viewer": "Viewer",
+  "isp-billing": "Billing / Accounts",
 };
 
 export function roleLabel(slug: string | null | undefined): string {

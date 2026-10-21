@@ -19,7 +19,8 @@ import {
 } from "@/components/master/MasterKit";
 import { Card, ErrorBlock, LoadingBlock } from "@/components/isp-partner/kit";
 import { CustomerFormDrawer } from "@/components/isp-partner/customers/CustomerFormDrawer";
-import { SuspendCustomerDialog } from "@/components/isp-partner/customers/SuspendCustomerDialog";
+import { ServiceCard } from "@/components/isp-partner/customers/ServiceCard";
+import { CustomerBillingTab } from "@/components/isp-partner/billing/CustomerBillingTab";
 import { LocationFormDrawer } from "@/components/isp-partner/locations/LocationFormDrawer";
 import { RoutersTable } from "@/components/isp-partner/routers/RoutersTable";
 import { PortalEditor } from "@/components/isp-partner/portal/PortalEditor";
@@ -45,7 +46,8 @@ export type CustomerTab =
   | "guests"
   | "logs"
   | "tr069"
-  | "reports";
+  | "reports"
+  | "billing";
 
 const CUSTOMER_TABS: readonly CustomerTab[] = [
   "overview",
@@ -56,6 +58,7 @@ const CUSTOMER_TABS: readonly CustomerTab[] = [
   "logs",
   "tr069",
   "reports",
+  "billing",
 ];
 
 const TAB_LABEL: Record<CustomerTab, string> = {
@@ -67,6 +70,7 @@ const TAB_LABEL: Record<CustomerTab, string> = {
   logs: "Logs",
   tr069: "TR-069 devices",
   reports: "Reports",
+  billing: "Billing",
 };
 
 function Field({ k, v }: { k: string; v: string | null | undefined }) {
@@ -81,6 +85,7 @@ function Field({ k, v }: { k: string; v: string | null | undefined }) {
 function OverviewTab({ c }: { c: IspCustomer }) {
   return (
     <div className="space-y-4">
+      <ServiceCard customerId={c.id} customerName={c.name} locationCount={c.counts.locations} />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <MStat label="Locations" value={c.counts.locations} />
         <MStat
@@ -251,7 +256,6 @@ export function CustomerDetailPage({
   const { can } = usePartner();
   const q = useIspCustomer(customerId);
   const [editing, setEditing] = useState(false);
-  const [suspending, setSuspending] = useState(false);
 
   if (q.isLoading) return <LoadingBlock />;
   if (q.error || !q.data)
@@ -261,6 +265,7 @@ export function CustomerDetailPage({
   const visible = CUSTOMER_TABS.filter((t) => {
     if (t === "logs") return can("isp_logs.read") || can("isp_ipdr.read");
     if (t === "tr069") return can("tr069.read");
+    if (t === "billing") return can("isp_billing.read");
     return true;
   });
   const active = visible.includes(tab) ? tab : "overview";
@@ -282,11 +287,6 @@ export function CustomerDetailPage({
             {can("isp_partner.update") && (
               <MButton variant="outline" onClick={() => setEditing(true)}>
                 <Pencil /> Edit
-              </MButton>
-            )}
-            {can("isp_partner.manage") && (
-              <MButton variant="outline" onClick={() => setSuspending(true)}>
-                {c.status === "suspended" ? "Reactivate" : "Suspend"}
               </MButton>
             )}
           </>
@@ -328,9 +328,9 @@ export function CustomerDetailPage({
         <CustomerTr069Tab customerId={customerId} suspended={c.status === "suspended"} />
       )}
       {active === "reports" && <ReportsView fixedCustomerId={customerId} />}
+      {active === "billing" && <CustomerBillingTab customerId={customerId} customerName={c.name} />}
 
       <CustomerFormDrawer open={editing} onClose={() => setEditing(false)} customer={c} />
-      <SuspendCustomerDialog customer={c} open={suspending} onClose={() => setSuspending(false)} />
     </>
   );
 }
