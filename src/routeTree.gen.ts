@@ -118,6 +118,7 @@ import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticate
 import { Route as PortalAuthIndexRouteImport } from './routes/portal.auth.index'
 import { Route as PartnerTr069IndexRouteImport } from './routes/partner.tr069.index'
 import { Route as PartnerRoutersIndexRouteImport } from './routes/partner.routers.index'
+import { Route as PartnerPlansIndexRouteImport } from './routes/partner.plans.index'
 import { Route as PartnerCustomersIndexRouteImport } from './routes/partner.customers.index'
 import { Route as AuthenticatedWorkspaceIndexRouteImport } from './routes/_authenticated/workspace.index'
 import { Route as AuthenticatedVouchersIndexRouteImport } from './routes/_authenticated/vouchers.index'
@@ -214,6 +215,7 @@ import { Route as AuthenticatedAnalyticsExecutiveRouteImport } from './routes/_a
 import { Route as AuthenticatedAnalyticsDeviceRouteImport } from './routes/_authenticated/analytics.device'
 import { Route as AuthenticatedAdministrationBusinessUnitsRouteImport } from './routes/_authenticated/administration.business-units'
 import { Route as AuthenticatedLocationsLocationIdIndexRouteImport } from './routes/_authenticated/locations.$locationId.index'
+import { Route as PartnerPlansCouponsCouponBatchIdRouteImport } from './routes/partner.plans.coupons.$couponBatchId'
 import { Route as MasterRoutersSetupRouterIdRouteImport } from './routes/master.routers.setup.$routerId'
 import { Route as MasterRoutersGuidedRouterIdRouteImport } from './routes/master.routers.guided.$routerId'
 import { Route as AuthenticatedWorkspaceLocationsLocationIdRouteImport } from './routes/_authenticated/workspace.locations.$locationId'
@@ -764,6 +766,11 @@ const PartnerTr069IndexRoute = PartnerTr069IndexRouteImport.update({
 const PartnerRoutersIndexRoute = PartnerRoutersIndexRouteImport.update({
   id: '/routers/',
   path: '/routers/',
+  getParentRoute: () => PartnerRoute,
+} as any)
+const PartnerPlansIndexRoute = PartnerPlansIndexRouteImport.update({
+  id: '/plans/',
+  path: '/plans/',
   getParentRoute: () => PartnerRoute,
 } as any)
 const PartnerCustomersIndexRoute = PartnerCustomersIndexRouteImport.update({
@@ -1326,6 +1333,12 @@ const AuthenticatedLocationsLocationIdIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedLocationsLocationIdRoute,
   } as any)
+const PartnerPlansCouponsCouponBatchIdRoute =
+  PartnerPlansCouponsCouponBatchIdRouteImport.update({
+    id: '/plans/coupons/$couponBatchId',
+    path: '/plans/coupons/$couponBatchId',
+    getParentRoute: () => PartnerRoute,
+  } as any)
 const MasterRoutersSetupRouterIdRoute =
   MasterRoutersSetupRouterIdRouteImport.update({
     id: '/setup/$routerId',
@@ -1552,12 +1565,14 @@ export interface FileRoutesByFullPath {
   '/vouchers/': typeof AuthenticatedVouchersIndexRoute
   '/workspace/': typeof AuthenticatedWorkspaceIndexRoute
   '/partner/customers/': typeof PartnerCustomersIndexRoute
+  '/partner/plans/': typeof PartnerPlansIndexRoute
   '/partner/routers/': typeof PartnerRoutersIndexRoute
   '/partner/tr069/': typeof PartnerTr069IndexRoute
   '/portal/auth/': typeof PortalAuthIndexRoute
   '/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
   '/master/routers/guided/$routerId': typeof MasterRoutersGuidedRouterIdRoute
   '/master/routers/setup/$routerId': typeof MasterRoutersSetupRouterIdRoute
+  '/partner/plans/coupons/$couponBatchId': typeof PartnerPlansCouponsCouponBatchIdRoute
   '/locations/$locationId/': typeof AuthenticatedLocationsLocationIdIndexRoute
   '/locations/$locationId/nas/$nasId': typeof AuthenticatedLocationsLocationIdNasNasIdRoute
 }
@@ -1755,12 +1770,14 @@ export interface FileRoutesByTo {
   '/vouchers': typeof AuthenticatedVouchersIndexRoute
   '/workspace': typeof AuthenticatedWorkspaceIndexRoute
   '/partner/customers': typeof PartnerCustomersIndexRoute
+  '/partner/plans': typeof PartnerPlansIndexRoute
   '/partner/routers': typeof PartnerRoutersIndexRoute
   '/partner/tr069': typeof PartnerTr069IndexRoute
   '/portal/auth': typeof PortalAuthIndexRoute
   '/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
   '/master/routers/guided/$routerId': typeof MasterRoutersGuidedRouterIdRoute
   '/master/routers/setup/$routerId': typeof MasterRoutersSetupRouterIdRoute
+  '/partner/plans/coupons/$couponBatchId': typeof PartnerPlansCouponsCouponBatchIdRoute
   '/locations/$locationId': typeof AuthenticatedLocationsLocationIdIndexRoute
   '/locations/$locationId/nas/$nasId': typeof AuthenticatedLocationsLocationIdNasNasIdRoute
 }
@@ -1967,12 +1984,14 @@ export interface FileRoutesById {
   '/_authenticated/vouchers/': typeof AuthenticatedVouchersIndexRoute
   '/_authenticated/workspace/': typeof AuthenticatedWorkspaceIndexRoute
   '/partner/customers/': typeof PartnerCustomersIndexRoute
+  '/partner/plans/': typeof PartnerPlansIndexRoute
   '/partner/routers/': typeof PartnerRoutersIndexRoute
   '/partner/tr069/': typeof PartnerTr069IndexRoute
   '/portal/auth/': typeof PortalAuthIndexRoute
   '/_authenticated/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
   '/master/routers/guided/$routerId': typeof MasterRoutersGuidedRouterIdRoute
   '/master/routers/setup/$routerId': typeof MasterRoutersSetupRouterIdRoute
+  '/partner/plans/coupons/$couponBatchId': typeof PartnerPlansCouponsCouponBatchIdRoute
   '/_authenticated/locations/$locationId/': typeof AuthenticatedLocationsLocationIdIndexRoute
   '/_authenticated/locations/$locationId/nas/$nasId': typeof AuthenticatedLocationsLocationIdNasNasIdRoute
 }
@@ -2179,12 +2198,14 @@ export interface FileRouteTypes {
     | '/vouchers/'
     | '/workspace/'
     | '/partner/customers/'
+    | '/partner/plans/'
     | '/partner/routers/'
     | '/partner/tr069/'
     | '/portal/auth/'
     | '/workspace/locations/$locationId'
     | '/master/routers/guided/$routerId'
     | '/master/routers/setup/$routerId'
+    | '/partner/plans/coupons/$couponBatchId'
     | '/locations/$locationId/'
     | '/locations/$locationId/nas/$nasId'
   fileRoutesByTo: FileRoutesByTo
@@ -2382,12 +2403,14 @@ export interface FileRouteTypes {
     | '/vouchers'
     | '/workspace'
     | '/partner/customers'
+    | '/partner/plans'
     | '/partner/routers'
     | '/partner/tr069'
     | '/portal/auth'
     | '/workspace/locations/$locationId'
     | '/master/routers/guided/$routerId'
     | '/master/routers/setup/$routerId'
+    | '/partner/plans/coupons/$couponBatchId'
     | '/locations/$locationId'
     | '/locations/$locationId/nas/$nasId'
   id:
@@ -2593,12 +2616,14 @@ export interface FileRouteTypes {
     | '/_authenticated/vouchers/'
     | '/_authenticated/workspace/'
     | '/partner/customers/'
+    | '/partner/plans/'
     | '/partner/routers/'
     | '/partner/tr069/'
     | '/portal/auth/'
     | '/_authenticated/workspace/locations/$locationId'
     | '/master/routers/guided/$routerId'
     | '/master/routers/setup/$routerId'
+    | '/partner/plans/coupons/$couponBatchId'
     | '/_authenticated/locations/$locationId/'
     | '/_authenticated/locations/$locationId/nas/$nasId'
   fileRoutesById: FileRoutesById
@@ -3430,6 +3455,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PartnerRoutersIndexRouteImport
       parentRoute: typeof PartnerRoute
     }
+    '/partner/plans/': {
+      id: '/partner/plans/'
+      path: '/plans'
+      fullPath: '/partner/plans/'
+      preLoaderRoute: typeof PartnerPlansIndexRouteImport
+      parentRoute: typeof PartnerRoute
+    }
     '/partner/customers/': {
       id: '/partner/customers/'
       path: '/customers'
@@ -4102,6 +4134,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedLocationsLocationIdIndexRouteImport
       parentRoute: typeof AuthenticatedLocationsLocationIdRoute
     }
+    '/partner/plans/coupons/$couponBatchId': {
+      id: '/partner/plans/coupons/$couponBatchId'
+      path: '/plans/coupons/$couponBatchId'
+      fullPath: '/partner/plans/coupons/$couponBatchId'
+      preLoaderRoute: typeof PartnerPlansCouponsCouponBatchIdRouteImport
+      parentRoute: typeof PartnerRoute
+    }
     '/master/routers/setup/$routerId': {
       id: '/master/routers/setup/$routerId'
       path: '/setup/$routerId'
@@ -4469,8 +4508,10 @@ interface PartnerRouteChildren {
   PartnerRoutersIspRouterIdRoute: typeof PartnerRoutersIspRouterIdRoute
   PartnerTr069CpeIdRoute: typeof PartnerTr069CpeIdRoute
   PartnerCustomersIndexRoute: typeof PartnerCustomersIndexRoute
+  PartnerPlansIndexRoute: typeof PartnerPlansIndexRoute
   PartnerRoutersIndexRoute: typeof PartnerRoutersIndexRoute
   PartnerTr069IndexRoute: typeof PartnerTr069IndexRoute
+  PartnerPlansCouponsCouponBatchIdRoute: typeof PartnerPlansCouponsCouponBatchIdRoute
 }
 
 const PartnerRouteChildren: PartnerRouteChildren = {
@@ -4486,8 +4527,10 @@ const PartnerRouteChildren: PartnerRouteChildren = {
   PartnerRoutersIspRouterIdRoute: PartnerRoutersIspRouterIdRoute,
   PartnerTr069CpeIdRoute: PartnerTr069CpeIdRoute,
   PartnerCustomersIndexRoute: PartnerCustomersIndexRoute,
+  PartnerPlansIndexRoute: PartnerPlansIndexRoute,
   PartnerRoutersIndexRoute: PartnerRoutersIndexRoute,
   PartnerTr069IndexRoute: PartnerTr069IndexRoute,
+  PartnerPlansCouponsCouponBatchIdRoute: PartnerPlansCouponsCouponBatchIdRoute,
 }
 
 const PartnerRouteWithChildren =
