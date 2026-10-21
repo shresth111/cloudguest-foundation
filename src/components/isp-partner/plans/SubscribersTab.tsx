@@ -7,7 +7,7 @@
  */
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Users } from "lucide-react";
+import { Plus, Users, Wallet } from "lucide-react";
 import {
   MButton,
   MDialog,
@@ -29,6 +29,8 @@ import {
   TextField,
 } from "@/components/isp-partner/kit";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
+import { RechargeDialog } from "@/components/isp-partner/plans/RechargeDialog";
+import { useZones } from "@/hooks/isp-partner/useInvoices";
 import {
   usePackages,
   usePlansMutation,
@@ -165,6 +167,11 @@ function SubscriberDrawer({ id, onClose }: { id: string | null; onClose: () => v
   const toggle = usePlansMutation((v: { id: string; enabled: boolean }) =>
     plansService.setSubscriberEnabled(v.id, v.enabled),
   );
+  const setZone = usePlansMutation((v: { id: string; zone_id: string | null }) =>
+    plansService.updateSubscriber(v.id, { zone_id: v.zone_id }),
+  );
+  const zones = useZones(can("isp_zones.read"));
+  const [recharging, setRecharging] = useState(false);
   useEffect(() => {
     setExtendTo(q.data?.valid_until ? q.data.valid_until.slice(0, 10) : "");
     setError(null);
@@ -197,7 +204,44 @@ function SubscriberDrawer({ id, onClose }: { id: string | null; onClose: () => v
             <dd>{s.status}</dd>
             <dt className="text-muted-foreground">Source</dt>
             <dd>{s.source === "coupon" ? "Coupon" : "Assigned by hand"}</dd>
+            <dt className="text-muted-foreground">Circuit id</dt>
+            <dd>{s.circuit_id ?? "–"}</dd>
+            <dt className="text-muted-foreground">Zone</dt>
+            <dd>
+              {can("isp_subscribers.update") && can("isp_zones.read") ? (
+                <select
+                  className={`${M_INPUT} py-1`}
+                  value={s.zone?.id ?? ""}
+                  disabled={setZone.isPending}
+                  aria-label="Zone"
+                  onChange={async (e) => {
+                    setError(null);
+                    try {
+                      await setZone.mutateAsync({ id: s.id, zone_id: e.target.value || null });
+                      toast.success("Zone saved.");
+                    } catch (err) {
+                      setError(ispErrorMessage(err));
+                    }
+                  }}
+                >
+                  <option value="">No zone</option>
+                  {(zones.data ?? []).map((z) => (
+                    <option key={z.id} value={z.id}>
+                      {z.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                (s.zone?.name ?? "–")
+              )}
+            </dd>
           </dl>
+          {can("isp_invoices.create") && s.status !== "disabled" && (
+            <MButton onClick={() => setRecharging(true)}>
+              <Wallet /> Recharge
+            </MButton>
+          )}
+          {recharging && <RechargeDialog subscriber={s} onClose={() => setRecharging(false)} />}
           {can("isp_subscribers.update") && (
             <div className="space-y-2 rounded-lg border border-border p-3">
               <p className="text-xs font-semibold">Extend validity</p>
@@ -383,6 +427,7 @@ export function SubscribersTab({ groupFilter }: { groupFilter?: string }) {
             head={
               <>
                 <MTh>Subscriber</MTh>
+                <MTh className="text-right">Circuit</MTh>
                 <MTh>Customer</MTh>
                 <MTh>Package</MTh>
                 <MTh>Valid until</MTh>
@@ -399,6 +444,7 @@ export function SubscribersTab({ groupFilter }: { groupFilter?: string }) {
                     <p className="text-[11px] text-muted-foreground">{s.display_name}</p>
                   )}
                 </MTd>
+                <MTd className="text-right text-xs tabular-nums">{s.circuit_id ?? "–"}</MTd>
                 <MTd className="text-xs">{s.customer_name ?? "–"}</MTd>
                 <MTd className="text-xs">
                   {s.package?.name ?? "–"}

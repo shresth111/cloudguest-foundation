@@ -118,6 +118,8 @@ export interface IspCustomer {
   notes: string | null;
   counts: { locations: number; routers_total: number; routers_online: number; cpes: number };
   tr069_enabled: boolean;
+  /** ADDENDUM_03 §4. */
+  zone?: { id: string; name: string } | null;
   created_at: string;
   updated_at: string;
 }
@@ -141,7 +143,10 @@ export interface IspCustomerCreate {
 }
 
 /** PATCH body: everything optional, and `slug` is immutable. */
-export type IspCustomerUpdate = Partial<Omit<IspCustomerCreate, "slug">>;
+export type IspCustomerUpdate = Partial<Omit<IspCustomerCreate, "slug">> & {
+  /** ADDENDUM_03 §4: edit only. */
+  zone_id?: string | null;
+};
 
 export interface IspCustomerListQuery {
   page?: number;

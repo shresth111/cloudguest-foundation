@@ -61,3 +61,13 @@ export const LAYOUT_LABEL: Record<CouponLayout, string> = {
   "a4-40": "A4, 40 per sheet",
   "thermal-58mm": "58 mm thermal roll",
 };
+
+/** The new valid-until the backend will set (§7), for the preview only. */
+export function rechargePreview(
+  validUntil: string | null,
+  validityDays: number,
+  now = Date.now(),
+): Date {
+  const base = Math.max(now, validUntil ? new Date(validUntil).getTime() : 0);
+  return new Date(base + validityDays * 86_400_000);
+}

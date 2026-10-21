@@ -56,6 +56,22 @@ eq(
 );
 eq("default validity is 30 (founder Q12)", m.DEFAULT_VALIDITY_DAYS, 30);
 eq("ladder has 17 speeds", m.DEFAULT_LADDER_SPEEDS.length, 17);
+const t0 = Date.UTC(2026, 9, 22);
+eq(
+  "recharge extends from valid_until when still valid",
+  m.rechargePreview(new Date(t0 + 5 * 86400000).toISOString(), 30, t0).getTime(),
+  t0 + 35 * 86400000,
+);
+eq(
+  "recharge starts from now when expired",
+  m.rechargePreview(new Date(t0 - 5 * 86400000).toISOString(), 30, t0).getTime(),
+  t0 + 30 * 86400000,
+);
+eq(
+  "recharge from now when never valid",
+  m.rechargePreview(null, 90, t0).getTime(),
+  t0 + 90 * 86400000,
+);
 
 if (failures) {
   console.error(`\nFAIL: ${failures} of ${checks} checks failed`);

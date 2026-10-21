@@ -174,6 +174,8 @@ export interface SubscriberCreate {
 }
 
 export interface SubscriberPatch {
+  /** ADDENDUM_03 §12. */
+  zone_id?: string | null;
   package_id?: string;
   valid_until?: string;
   display_name?: string | null;
