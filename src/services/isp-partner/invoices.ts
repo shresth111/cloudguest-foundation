@@ -125,7 +125,7 @@ export const zonesService = {
   /** Accepts a page or a bare list; the contract does not pin it. */
   async list(): Promise<Zone[]> {
     const { data } = await api.get<Zone[] | { items: Zone[] }>("/isp/zones", {
-      params: { page_size: 200 },
+      params: { page_size: 100 },
     });
     return Array.isArray(data) ? data : (data?.items ?? []);
   },
