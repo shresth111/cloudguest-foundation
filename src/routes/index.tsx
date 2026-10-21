@@ -7,6 +7,8 @@ import { MasterLoginPage } from "@/components/auth/MasterLoginPage";
 import { CustomerDashboardPage } from "@/components/customer/CustomerDashboardPage";
 import { captivePortalRedirect } from "@/lib/captive-portal-redirect";
 import { isImpersonationSessionActive } from "@/lib/impersonation-host";
+import { isNetworkHost } from "@/lib/isp-partner/network-host";
+import { PartnerLoginPage } from "@/components/isp-partner/PartnerLoginPage";
 
 export const Route = createFileRoute("/")({
   // A captive-portal redirect that landed one path segment short of
@@ -92,9 +94,14 @@ function IndexRedirect() {
     isImpersonationSessionActive() &&
     !roles.some((r) => r.scopeType === "global");
   const isMaster = hostname === "master.wyfyguest.com" && !isImpersonating;
+  const isNetwork = hostname !== null && isNetworkHost(hostname);
 
   useEffect(() => {
     if (!isReady || !isAuthenticated || !user) return;
+    if (isNetwork) {
+      navigate({ to: "/partner", replace: true });
+      return;
+    }
     if (isMaster) {
       // homeRoute() is documented "All authenticated users land on the
       // customer dashboard" and returns "/" -- correct for the branch
@@ -113,7 +120,7 @@ function IndexRedirect() {
     if (!activeLocationId) {
       navigate({ to: "/switch-location", replace: true });
     }
-  }, [isReady, isAuthenticated, user, isMaster, activeLocationId, navigate]);
+  }, [isReady, isAuthenticated, user, isMaster, isNetwork, activeLocationId, navigate]);
 
   if (!isReady || hostname === null) {
     return (
@@ -124,7 +131,7 @@ function IndexRedirect() {
   }
 
   if (isAuthenticated && user) {
-    if (!isMaster && activeLocationId) {
+    if (!isMaster && !isNetwork && activeLocationId) {
       return <CustomerDashboardPage />;
     }
     // Master (navigating away) or no active location yet (navigating to
@@ -136,5 +143,6 @@ function IndexRedirect() {
     );
   }
 
+  if (isNetwork) return <PartnerLoginPage />;
   return isMaster ? <MasterLoginPage /> : <LoginPage />;
 }
