@@ -79,7 +79,8 @@ export function CustomerTr069Tab({
             </p>
             {suspended && (
               <p className="text-xs text-muted-foreground">
-                The customer is suspended, so TR-069 actions are refused until it is reactivated.
+                The customer is suspended. Its devices stay manageable: refresh works, reboot is
+                refused until service is resumed.
               </p>
             )}
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">

@@ -16,7 +16,13 @@ export interface IspPage<T> {
   pages: number;
 }
 
-export type IspRoleSlug = "isp-owner" | "isp-admin" | "isp-noc" | "isp-technician" | "isp-viewer";
+export type IspRoleSlug =
+  | "isp-owner"
+  | "isp-admin"
+  | "isp-noc"
+  | "isp-technician"
+  | "isp-viewer"
+  | "isp-billing";
 
 export const ISP_ROLE_SLUGS: readonly IspRoleSlug[] = [
   "isp-owner",
@@ -24,6 +30,7 @@ export const ISP_ROLE_SLUGS: readonly IspRoleSlug[] = [
   "isp-noc",
   "isp-technician",
   "isp-viewer",
+  "isp-billing",
 ];
 
 // ---------------------------------------------------------------------------
@@ -49,7 +56,11 @@ export interface IspMe {
 // §4.2 Overview
 // ---------------------------------------------------------------------------
 
-export type IspAttentionKind = "router_offline" | "router_pending" | "cpe_silent";
+export type IspAttentionKind =
+  | "router_offline"
+  | "router_pending"
+  | "cpe_silent"
+  | "customer_suspend_pending";
 
 export interface IspAttentionItem {
   kind: IspAttentionKind | string;

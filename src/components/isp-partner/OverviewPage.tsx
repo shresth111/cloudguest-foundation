@@ -21,6 +21,7 @@ const ATTENTION_LABEL: Record<string, string> = {
   router_offline: "Router offline",
   router_pending: "Router never finished setup",
   cpe_silent: "CPE stopped checking in",
+  customer_suspend_pending: "Suspension still reaching routers",
 };
 
 function AttentionLink({ item }: { item: IspAttentionItem }) {

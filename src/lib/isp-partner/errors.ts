@@ -40,6 +40,18 @@ const MESSAGES: Record<string, string> = {
   ISP_VENDOR_NOT_SUPPORTED: "Only MikroTik routers are supported for now.",
   ISP_FORCE_NOT_ALLOWED: "Forcing a new cloud link is not allowed from the partner console.",
   ISP_SCOPE_HEADERS_NOT_ALLOWED: "The request carried a header this console must not send.",
+  ISP_CUSTOMER_SUSPENDED:
+    "This customer is suspended. Resume its service first (refresh still works; reboot does not).",
+  ISP_SERVICE_TRANSITION_IN_PROGRESS:
+    "Another suspend or resume for this customer is running. Wait a moment and try again.",
+  ISP_SUSPEND_REASON_INVALID: "Pick one of the listed reasons.",
+  ISP_INVOICE_VOID: "That invoice is void.",
+  ISP_INVOICE_PAID: "That invoice is already paid.",
+  ISP_PAYMENT_MODE_INVALID: "Pick cash, UPI or bank transfer.",
+  ISP_PAYMENT_REFERENCE_REQUIRED: "UPI and bank transfers need the UTR / transaction reference.",
+  ISP_INVOICE_NOT_FOUND: "That invoice does not exist, or you do not have access to it.",
+  ISP_PAYMENT_NOT_FOUND: "That payment does not exist, or you do not have access to it.",
+  ISP_BILLING_NOT_CONFIGURED: "Billing is not set up yet. Fill in Billing → Settings first.",
   TR069_NOT_ENABLED: "TR-069 is not switched on for this platform yet.",
   TR069_DEVICE_NOT_FOUND: "That device does not exist, or you do not have access to it.",
   TR069_DISABLED_FOR_CUSTOMER:

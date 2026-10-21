@@ -46,19 +46,20 @@ import { ispErrorMessage, ispFieldErrors } from "@/lib/isp-partner/errors";
 import { ROLE_LABEL, formatAgo, roleLabel } from "@/lib/isp-partner/format";
 import type { IspRoleSlug, IspUser } from "@/services/isp-partner/types";
 
-const CONFINABLE: IspRoleSlug[] = ["isp-noc", "isp-technician", "isp-viewer"];
+const CONFINABLE: IspRoleSlug[] = ["isp-noc", "isp-technician", "isp-viewer", "isp-billing"];
 const ROLE_HELP: Record<IspRoleSlug, string> = {
   "isp-owner": "Runs the ISP. Everything, including staff.",
   "isp-admin": "Everything except managing Owners.",
   "isp-noc": "Watches routers and devices, reads logs, reboots devices.",
   "isp-technician": "Adds locations and routers, runs setup scripts, places devices.",
   "isp-viewer": "Read-only: overview, reports.",
+  "isp-billing": "Invoices, payments and dues; can suspend a customer for dues.",
 };
 
 function grantableRoles(callerRole: string): IspRoleSlug[] {
   return callerRole === "isp-owner"
-    ? ["isp-owner", "isp-admin", "isp-noc", "isp-technician", "isp-viewer"]
-    : ["isp-noc", "isp-technician", "isp-viewer"];
+    ? ["isp-owner", "isp-admin", "isp-noc", "isp-technician", "isp-viewer", "isp-billing"]
+    : ["isp-noc", "isp-technician", "isp-viewer", "isp-billing"];
 }
 
 function CustomerPicker({

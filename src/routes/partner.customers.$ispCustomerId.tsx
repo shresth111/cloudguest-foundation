@@ -10,6 +10,7 @@ const TABS = [
   "logs",
   "tr069",
   "reports",
+  "billing",
 ] as const;
 type Tab = (typeof TABS)[number];
 
