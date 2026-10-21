@@ -27,6 +27,7 @@ import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as PortalRouteImport } from './routes/portal'
 import { Route as PortForwardingRouteImport } from './routes/port-forwarding'
 import { Route as PoliciesRouteImport } from './routes/policies'
+import { Route as PartnerRouteImport } from './routes/partner'
 import { Route as NetworkActivityRouteImport } from './routes/network-activity'
 import { Route as NetlogsRouteImport } from './routes/netlogs'
 import { Route as MasterLoginRouteImport } from './routes/master-login'
@@ -54,6 +55,7 @@ import { Route as AdminLogsRouteImport } from './routes/admin-logs'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PortalIndexRouteImport } from './routes/portal.index'
+import { Route as PartnerIndexRouteImport } from './routes/partner.index'
 import { Route as MasterIndexRouteImport } from './routes/master.index'
 import { Route as CustomerIndexRouteImport } from './routes/customer.index'
 import { Route as CIndexRouteImport } from './routes/c.index'
@@ -74,6 +76,11 @@ import { Route as PortalFailureRouteImport } from './routes/portal.failure'
 import { Route as PortalExpiredRouteImport } from './routes/portal.expired'
 import { Route as PortalClosedRouteImport } from './routes/portal.closed'
 import { Route as PortalAuthRouteImport } from './routes/portal.auth'
+import { Route as PartnerUsersRouteImport } from './routes/partner.users'
+import { Route as PartnerSettingsRouteImport } from './routes/partner.settings'
+import { Route as PartnerReportsRouteImport } from './routes/partner.reports'
+import { Route as PartnerLogsRouteImport } from './routes/partner.logs'
+import { Route as PartnerLoginRouteImport } from './routes/partner.login'
 import { Route as MasterTrafficFlowRouteImport } from './routes/master.traffic-flow'
 import { Route as MasterTicketsRouteImport } from './routes/master.tickets'
 import { Route as MasterRoutersRouteImport } from './routes/master.routers'
@@ -108,6 +115,9 @@ import { Route as AuthenticatedError401RouteImport } from './routes/_authenticat
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
 import { Route as PortalAuthIndexRouteImport } from './routes/portal.auth.index'
+import { Route as PartnerTr069IndexRouteImport } from './routes/partner.tr069.index'
+import { Route as PartnerRoutersIndexRouteImport } from './routes/partner.routers.index'
+import { Route as PartnerCustomersIndexRouteImport } from './routes/partner.customers.index'
 import { Route as AuthenticatedWorkspaceIndexRouteImport } from './routes/_authenticated/workspace.index'
 import { Route as AuthenticatedVouchersIndexRouteImport } from './routes/_authenticated/vouchers.index'
 import { Route as AuthenticatedTopologyIndexRouteImport } from './routes/_authenticated/topology.index'
@@ -145,6 +155,10 @@ import { Route as AuthenticatedAnalyticsIndexRouteImport } from './routes/_authe
 import { Route as PreviewPortalDemoRouteImport } from './routes/preview.portal.demo'
 import { Route as PreviewPortalLocationIdRouteImport } from './routes/preview.portal.$locationId'
 import { Route as PortalAuthMethodRouteImport } from './routes/portal.auth.$method'
+import { Route as PartnerTr069CpeIdRouteImport } from './routes/partner.tr069.$cpeId'
+import { Route as PartnerRoutersIspRouterIdRouteImport } from './routes/partner.routers.$ispRouterId'
+import { Route as PartnerLocationsIspLocationIdRouteImport } from './routes/partner.locations.$ispLocationId'
+import { Route as PartnerCustomersIspCustomerIdRouteImport } from './routes/partner.customers.$ispCustomerId'
 import { Route as MasterRoutersRouterIdRouteImport } from './routes/master.routers.$routerId'
 import { Route as CustomerLocationIdUsersRouteImport } from './routes/customer.$locationId.users'
 import { Route as CustomerLocationIdDashboardRouteImport } from './routes/customer.$locationId.dashboard'
@@ -294,6 +308,11 @@ const PoliciesRoute = PoliciesRouteImport.update({
   path: '/policies',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PartnerRoute = PartnerRouteImport.update({
+  id: '/partner',
+  path: '/partner',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const NetworkActivityRoute = NetworkActivityRouteImport.update({
   id: '/network-activity',
   path: '/network-activity',
@@ -428,6 +447,11 @@ const PortalIndexRoute = PortalIndexRouteImport.update({
   path: '/',
   getParentRoute: () => PortalRoute,
 } as any)
+const PartnerIndexRoute = PartnerIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => PartnerRoute,
+} as any)
 const MasterIndexRoute = MasterIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -527,6 +551,31 @@ const PortalAuthRoute = PortalAuthRouteImport.update({
   id: '/auth',
   path: '/auth',
   getParentRoute: () => PortalRoute,
+} as any)
+const PartnerUsersRoute = PartnerUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => PartnerRoute,
+} as any)
+const PartnerSettingsRoute = PartnerSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => PartnerRoute,
+} as any)
+const PartnerReportsRoute = PartnerReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => PartnerRoute,
+} as any)
+const PartnerLogsRoute = PartnerLogsRouteImport.update({
+  id: '/logs',
+  path: '/logs',
+  getParentRoute: () => PartnerRoute,
+} as any)
+const PartnerLoginRoute = PartnerLoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => PartnerRoute,
 } as any)
 const MasterTrafficFlowRoute = MasterTrafficFlowRouteImport.update({
   id: '/traffic-flow',
@@ -700,6 +749,21 @@ const PortalAuthIndexRoute = PortalAuthIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => PortalAuthRoute,
+} as any)
+const PartnerTr069IndexRoute = PartnerTr069IndexRouteImport.update({
+  id: '/tr069/',
+  path: '/tr069/',
+  getParentRoute: () => PartnerRoute,
+} as any)
+const PartnerRoutersIndexRoute = PartnerRoutersIndexRouteImport.update({
+  id: '/routers/',
+  path: '/routers/',
+  getParentRoute: () => PartnerRoute,
+} as any)
+const PartnerCustomersIndexRoute = PartnerCustomersIndexRouteImport.update({
+  id: '/customers/',
+  path: '/customers/',
+  getParentRoute: () => PartnerRoute,
 } as any)
 const AuthenticatedWorkspaceIndexRoute =
   AuthenticatedWorkspaceIndexRouteImport.update({
@@ -915,6 +979,29 @@ const PortalAuthMethodRoute = PortalAuthMethodRouteImport.update({
   path: '/$method',
   getParentRoute: () => PortalAuthRoute,
 } as any)
+const PartnerTr069CpeIdRoute = PartnerTr069CpeIdRouteImport.update({
+  id: '/tr069/$cpeId',
+  path: '/tr069/$cpeId',
+  getParentRoute: () => PartnerRoute,
+} as any)
+const PartnerRoutersIspRouterIdRoute =
+  PartnerRoutersIspRouterIdRouteImport.update({
+    id: '/routers/$ispRouterId',
+    path: '/routers/$ispRouterId',
+    getParentRoute: () => PartnerRoute,
+  } as any)
+const PartnerLocationsIspLocationIdRoute =
+  PartnerLocationsIspLocationIdRouteImport.update({
+    id: '/locations/$ispLocationId',
+    path: '/locations/$ispLocationId',
+    getParentRoute: () => PartnerRoute,
+  } as any)
+const PartnerCustomersIspCustomerIdRoute =
+  PartnerCustomersIspCustomerIdRouteImport.update({
+    id: '/customers/$ispCustomerId',
+    path: '/customers/$ispCustomerId',
+    getParentRoute: () => PartnerRoute,
+  } as any)
 const MasterRoutersRouterIdRoute = MasterRoutersRouterIdRouteImport.update({
   id: '/$routerId',
   path: '/$routerId',
@@ -1284,6 +1371,7 @@ export interface FileRoutesByFullPath {
   '/master-login': typeof MasterLoginRoute
   '/netlogs': typeof NetlogsRoute
   '/network-activity': typeof NetworkActivityRoute
+  '/partner': typeof PartnerRouteWithChildren
   '/policies': typeof PoliciesRoute
   '/port-forwarding': typeof PortForwardingRoute
   '/portal': typeof PortalRouteWithChildren
@@ -1335,6 +1423,11 @@ export interface FileRoutesByFullPath {
   '/master/routers': typeof MasterRoutersRouteWithChildren
   '/master/tickets': typeof MasterTicketsRoute
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
+  '/partner/login': typeof PartnerLoginRoute
+  '/partner/logs': typeof PartnerLogsRoute
+  '/partner/reports': typeof PartnerReportsRoute
+  '/partner/settings': typeof PartnerSettingsRoute
+  '/partner/users': typeof PartnerUsersRoute
   '/portal/auth': typeof PortalAuthRouteWithChildren
   '/portal/closed': typeof PortalClosedRoute
   '/portal/expired': typeof PortalExpiredRoute
@@ -1355,6 +1448,7 @@ export interface FileRoutesByFullPath {
   '/c/': typeof CIndexRoute
   '/customer/': typeof CustomerIndexRoute
   '/master/': typeof MasterIndexRoute
+  '/partner/': typeof PartnerIndexRoute
   '/portal/': typeof PortalIndexRoute
   '/administration/business-units': typeof AuthenticatedAdministrationBusinessUnitsRoute
   '/analytics/device': typeof AuthenticatedAnalyticsDeviceRoute
@@ -1409,6 +1503,10 @@ export interface FileRoutesByFullPath {
   '/customer/$locationId/dashboard': typeof CustomerLocationIdDashboardRoute
   '/customer/$locationId/users': typeof CustomerLocationIdUsersRoute
   '/master/routers/$routerId': typeof MasterRoutersRouterIdRoute
+  '/partner/customers/$ispCustomerId': typeof PartnerCustomersIspCustomerIdRoute
+  '/partner/locations/$ispLocationId': typeof PartnerLocationsIspLocationIdRoute
+  '/partner/routers/$ispRouterId': typeof PartnerRoutersIspRouterIdRoute
+  '/partner/tr069/$cpeId': typeof PartnerTr069CpeIdRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/preview/portal/$locationId': typeof PreviewPortalLocationIdRoute
   '/preview/portal/demo': typeof PreviewPortalDemoRoute
@@ -1446,6 +1544,9 @@ export interface FileRoutesByFullPath {
   '/topology/': typeof AuthenticatedTopologyIndexRoute
   '/vouchers/': typeof AuthenticatedVouchersIndexRoute
   '/workspace/': typeof AuthenticatedWorkspaceIndexRoute
+  '/partner/customers/': typeof PartnerCustomersIndexRoute
+  '/partner/routers/': typeof PartnerRoutersIndexRoute
+  '/partner/tr069/': typeof PartnerTr069IndexRoute
   '/portal/auth/': typeof PortalAuthIndexRoute
   '/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
   '/master/routers/guided/$routerId': typeof MasterRoutersGuidedRouterIdRoute
@@ -1526,6 +1627,11 @@ export interface FileRoutesByTo {
   '/master/routers': typeof MasterRoutersRouteWithChildren
   '/master/tickets': typeof MasterTicketsRoute
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
+  '/partner/login': typeof PartnerLoginRoute
+  '/partner/logs': typeof PartnerLogsRoute
+  '/partner/reports': typeof PartnerReportsRoute
+  '/partner/settings': typeof PartnerSettingsRoute
+  '/partner/users': typeof PartnerUsersRoute
   '/portal/closed': typeof PortalClosedRoute
   '/portal/expired': typeof PortalExpiredRoute
   '/portal/failure': typeof PortalFailureRoute
@@ -1545,6 +1651,7 @@ export interface FileRoutesByTo {
   '/c': typeof CIndexRoute
   '/customer': typeof CustomerIndexRoute
   '/master': typeof MasterIndexRoute
+  '/partner': typeof PartnerIndexRoute
   '/portal': typeof PortalIndexRoute
   '/administration/business-units': typeof AuthenticatedAdministrationBusinessUnitsRoute
   '/analytics/device': typeof AuthenticatedAnalyticsDeviceRoute
@@ -1598,6 +1705,10 @@ export interface FileRoutesByTo {
   '/customer/$locationId/dashboard': typeof CustomerLocationIdDashboardRoute
   '/customer/$locationId/users': typeof CustomerLocationIdUsersRoute
   '/master/routers/$routerId': typeof MasterRoutersRouterIdRoute
+  '/partner/customers/$ispCustomerId': typeof PartnerCustomersIspCustomerIdRoute
+  '/partner/locations/$ispLocationId': typeof PartnerLocationsIspLocationIdRoute
+  '/partner/routers/$ispRouterId': typeof PartnerRoutersIspRouterIdRoute
+  '/partner/tr069/$cpeId': typeof PartnerTr069CpeIdRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/preview/portal/$locationId': typeof PreviewPortalLocationIdRoute
   '/preview/portal/demo': typeof PreviewPortalDemoRoute
@@ -1635,6 +1746,9 @@ export interface FileRoutesByTo {
   '/topology': typeof AuthenticatedTopologyIndexRoute
   '/vouchers': typeof AuthenticatedVouchersIndexRoute
   '/workspace': typeof AuthenticatedWorkspaceIndexRoute
+  '/partner/customers': typeof PartnerCustomersIndexRoute
+  '/partner/routers': typeof PartnerRoutersIndexRoute
+  '/partner/tr069': typeof PartnerTr069IndexRoute
   '/portal/auth': typeof PortalAuthIndexRoute
   '/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
   '/master/routers/guided/$routerId': typeof MasterRoutersGuidedRouterIdRoute
@@ -1670,6 +1784,7 @@ export interface FileRoutesById {
   '/master-login': typeof MasterLoginRoute
   '/netlogs': typeof NetlogsRoute
   '/network-activity': typeof NetworkActivityRoute
+  '/partner': typeof PartnerRouteWithChildren
   '/policies': typeof PoliciesRoute
   '/port-forwarding': typeof PortForwardingRoute
   '/portal': typeof PortalRouteWithChildren
@@ -1721,6 +1836,11 @@ export interface FileRoutesById {
   '/master/routers': typeof MasterRoutersRouteWithChildren
   '/master/tickets': typeof MasterTicketsRoute
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
+  '/partner/login': typeof PartnerLoginRoute
+  '/partner/logs': typeof PartnerLogsRoute
+  '/partner/reports': typeof PartnerReportsRoute
+  '/partner/settings': typeof PartnerSettingsRoute
+  '/partner/users': typeof PartnerUsersRoute
   '/portal/auth': typeof PortalAuthRouteWithChildren
   '/portal/closed': typeof PortalClosedRoute
   '/portal/expired': typeof PortalExpiredRoute
@@ -1741,6 +1861,7 @@ export interface FileRoutesById {
   '/c/': typeof CIndexRoute
   '/customer/': typeof CustomerIndexRoute
   '/master/': typeof MasterIndexRoute
+  '/partner/': typeof PartnerIndexRoute
   '/portal/': typeof PortalIndexRoute
   '/_authenticated/administration/business-units': typeof AuthenticatedAdministrationBusinessUnitsRoute
   '/_authenticated/analytics/device': typeof AuthenticatedAnalyticsDeviceRoute
@@ -1795,6 +1916,10 @@ export interface FileRoutesById {
   '/customer/$locationId/dashboard': typeof CustomerLocationIdDashboardRoute
   '/customer/$locationId/users': typeof CustomerLocationIdUsersRoute
   '/master/routers/$routerId': typeof MasterRoutersRouterIdRoute
+  '/partner/customers/$ispCustomerId': typeof PartnerCustomersIspCustomerIdRoute
+  '/partner/locations/$ispLocationId': typeof PartnerLocationsIspLocationIdRoute
+  '/partner/routers/$ispRouterId': typeof PartnerRoutersIspRouterIdRoute
+  '/partner/tr069/$cpeId': typeof PartnerTr069CpeIdRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/preview/portal/$locationId': typeof PreviewPortalLocationIdRoute
   '/preview/portal/demo': typeof PreviewPortalDemoRoute
@@ -1832,6 +1957,9 @@ export interface FileRoutesById {
   '/_authenticated/topology/': typeof AuthenticatedTopologyIndexRoute
   '/_authenticated/vouchers/': typeof AuthenticatedVouchersIndexRoute
   '/_authenticated/workspace/': typeof AuthenticatedWorkspaceIndexRoute
+  '/partner/customers/': typeof PartnerCustomersIndexRoute
+  '/partner/routers/': typeof PartnerRoutersIndexRoute
+  '/partner/tr069/': typeof PartnerTr069IndexRoute
   '/portal/auth/': typeof PortalAuthIndexRoute
   '/_authenticated/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
   '/master/routers/guided/$routerId': typeof MasterRoutersGuidedRouterIdRoute
@@ -1867,6 +1995,7 @@ export interface FileRouteTypes {
     | '/master-login'
     | '/netlogs'
     | '/network-activity'
+    | '/partner'
     | '/policies'
     | '/port-forwarding'
     | '/portal'
@@ -1918,6 +2047,11 @@ export interface FileRouteTypes {
     | '/master/routers'
     | '/master/tickets'
     | '/master/traffic-flow'
+    | '/partner/login'
+    | '/partner/logs'
+    | '/partner/reports'
+    | '/partner/settings'
+    | '/partner/users'
     | '/portal/auth'
     | '/portal/closed'
     | '/portal/expired'
@@ -1938,6 +2072,7 @@ export interface FileRouteTypes {
     | '/c/'
     | '/customer/'
     | '/master/'
+    | '/partner/'
     | '/portal/'
     | '/administration/business-units'
     | '/analytics/device'
@@ -1992,6 +2127,10 @@ export interface FileRouteTypes {
     | '/customer/$locationId/dashboard'
     | '/customer/$locationId/users'
     | '/master/routers/$routerId'
+    | '/partner/customers/$ispCustomerId'
+    | '/partner/locations/$ispLocationId'
+    | '/partner/routers/$ispRouterId'
+    | '/partner/tr069/$cpeId'
     | '/portal/auth/$method'
     | '/preview/portal/$locationId'
     | '/preview/portal/demo'
@@ -2029,6 +2168,9 @@ export interface FileRouteTypes {
     | '/topology/'
     | '/vouchers/'
     | '/workspace/'
+    | '/partner/customers/'
+    | '/partner/routers/'
+    | '/partner/tr069/'
     | '/portal/auth/'
     | '/workspace/locations/$locationId'
     | '/master/routers/guided/$routerId'
@@ -2109,6 +2251,11 @@ export interface FileRouteTypes {
     | '/master/routers'
     | '/master/tickets'
     | '/master/traffic-flow'
+    | '/partner/login'
+    | '/partner/logs'
+    | '/partner/reports'
+    | '/partner/settings'
+    | '/partner/users'
     | '/portal/closed'
     | '/portal/expired'
     | '/portal/failure'
@@ -2128,6 +2275,7 @@ export interface FileRouteTypes {
     | '/c'
     | '/customer'
     | '/master'
+    | '/partner'
     | '/portal'
     | '/administration/business-units'
     | '/analytics/device'
@@ -2181,6 +2329,10 @@ export interface FileRouteTypes {
     | '/customer/$locationId/dashboard'
     | '/customer/$locationId/users'
     | '/master/routers/$routerId'
+    | '/partner/customers/$ispCustomerId'
+    | '/partner/locations/$ispLocationId'
+    | '/partner/routers/$ispRouterId'
+    | '/partner/tr069/$cpeId'
     | '/portal/auth/$method'
     | '/preview/portal/$locationId'
     | '/preview/portal/demo'
@@ -2218,6 +2370,9 @@ export interface FileRouteTypes {
     | '/topology'
     | '/vouchers'
     | '/workspace'
+    | '/partner/customers'
+    | '/partner/routers'
+    | '/partner/tr069'
     | '/portal/auth'
     | '/workspace/locations/$locationId'
     | '/master/routers/guided/$routerId'
@@ -2252,6 +2407,7 @@ export interface FileRouteTypes {
     | '/master-login'
     | '/netlogs'
     | '/network-activity'
+    | '/partner'
     | '/policies'
     | '/port-forwarding'
     | '/portal'
@@ -2303,6 +2459,11 @@ export interface FileRouteTypes {
     | '/master/routers'
     | '/master/tickets'
     | '/master/traffic-flow'
+    | '/partner/login'
+    | '/partner/logs'
+    | '/partner/reports'
+    | '/partner/settings'
+    | '/partner/users'
     | '/portal/auth'
     | '/portal/closed'
     | '/portal/expired'
@@ -2323,6 +2484,7 @@ export interface FileRouteTypes {
     | '/c/'
     | '/customer/'
     | '/master/'
+    | '/partner/'
     | '/portal/'
     | '/_authenticated/administration/business-units'
     | '/_authenticated/analytics/device'
@@ -2377,6 +2539,10 @@ export interface FileRouteTypes {
     | '/customer/$locationId/dashboard'
     | '/customer/$locationId/users'
     | '/master/routers/$routerId'
+    | '/partner/customers/$ispCustomerId'
+    | '/partner/locations/$ispLocationId'
+    | '/partner/routers/$ispRouterId'
+    | '/partner/tr069/$cpeId'
     | '/portal/auth/$method'
     | '/preview/portal/$locationId'
     | '/preview/portal/demo'
@@ -2414,6 +2580,9 @@ export interface FileRouteTypes {
     | '/_authenticated/topology/'
     | '/_authenticated/vouchers/'
     | '/_authenticated/workspace/'
+    | '/partner/customers/'
+    | '/partner/routers/'
+    | '/partner/tr069/'
     | '/portal/auth/'
     | '/_authenticated/workspace/locations/$locationId'
     | '/master/routers/guided/$routerId'
@@ -2449,6 +2618,7 @@ export interface RootRouteChildren {
   MasterLoginRoute: typeof MasterLoginRoute
   NetlogsRoute: typeof NetlogsRoute
   NetworkActivityRoute: typeof NetworkActivityRoute
+  PartnerRoute: typeof PartnerRouteWithChildren
   PoliciesRoute: typeof PoliciesRoute
   PortForwardingRoute: typeof PortForwardingRoute
   PortalRoute: typeof PortalRouteWithChildren
@@ -2609,6 +2779,13 @@ declare module '@tanstack/react-router' {
       path: '/policies'
       fullPath: '/policies'
       preLoaderRoute: typeof PoliciesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/partner': {
+      id: '/partner'
+      path: '/partner'
+      fullPath: '/partner'
+      preLoaderRoute: typeof PartnerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/network-activity': {
@@ -2800,6 +2977,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PortalIndexRouteImport
       parentRoute: typeof PortalRoute
     }
+    '/partner/': {
+      id: '/partner/'
+      path: '/'
+      fullPath: '/partner/'
+      preLoaderRoute: typeof PartnerIndexRouteImport
+      parentRoute: typeof PartnerRoute
+    }
     '/master/': {
       id: '/master/'
       path: '/'
@@ -2939,6 +3123,41 @@ declare module '@tanstack/react-router' {
       fullPath: '/portal/auth'
       preLoaderRoute: typeof PortalAuthRouteImport
       parentRoute: typeof PortalRoute
+    }
+    '/partner/users': {
+      id: '/partner/users'
+      path: '/users'
+      fullPath: '/partner/users'
+      preLoaderRoute: typeof PartnerUsersRouteImport
+      parentRoute: typeof PartnerRoute
+    }
+    '/partner/settings': {
+      id: '/partner/settings'
+      path: '/settings'
+      fullPath: '/partner/settings'
+      preLoaderRoute: typeof PartnerSettingsRouteImport
+      parentRoute: typeof PartnerRoute
+    }
+    '/partner/reports': {
+      id: '/partner/reports'
+      path: '/reports'
+      fullPath: '/partner/reports'
+      preLoaderRoute: typeof PartnerReportsRouteImport
+      parentRoute: typeof PartnerRoute
+    }
+    '/partner/logs': {
+      id: '/partner/logs'
+      path: '/logs'
+      fullPath: '/partner/logs'
+      preLoaderRoute: typeof PartnerLogsRouteImport
+      parentRoute: typeof PartnerRoute
+    }
+    '/partner/login': {
+      id: '/partner/login'
+      path: '/login'
+      fullPath: '/partner/login'
+      preLoaderRoute: typeof PartnerLoginRouteImport
+      parentRoute: typeof PartnerRoute
     }
     '/master/traffic-flow': {
       id: '/master/traffic-flow'
@@ -3177,6 +3396,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/portal/auth/'
       preLoaderRoute: typeof PortalAuthIndexRouteImport
       parentRoute: typeof PortalAuthRoute
+    }
+    '/partner/tr069/': {
+      id: '/partner/tr069/'
+      path: '/tr069'
+      fullPath: '/partner/tr069/'
+      preLoaderRoute: typeof PartnerTr069IndexRouteImport
+      parentRoute: typeof PartnerRoute
+    }
+    '/partner/routers/': {
+      id: '/partner/routers/'
+      path: '/routers'
+      fullPath: '/partner/routers/'
+      preLoaderRoute: typeof PartnerRoutersIndexRouteImport
+      parentRoute: typeof PartnerRoute
+    }
+    '/partner/customers/': {
+      id: '/partner/customers/'
+      path: '/customers'
+      fullPath: '/partner/customers/'
+      preLoaderRoute: typeof PartnerCustomersIndexRouteImport
+      parentRoute: typeof PartnerRoute
     }
     '/_authenticated/workspace/': {
       id: '/_authenticated/workspace/'
@@ -3436,6 +3676,34 @@ declare module '@tanstack/react-router' {
       fullPath: '/portal/auth/$method'
       preLoaderRoute: typeof PortalAuthMethodRouteImport
       parentRoute: typeof PortalAuthRoute
+    }
+    '/partner/tr069/$cpeId': {
+      id: '/partner/tr069/$cpeId'
+      path: '/tr069/$cpeId'
+      fullPath: '/partner/tr069/$cpeId'
+      preLoaderRoute: typeof PartnerTr069CpeIdRouteImport
+      parentRoute: typeof PartnerRoute
+    }
+    '/partner/routers/$ispRouterId': {
+      id: '/partner/routers/$ispRouterId'
+      path: '/routers/$ispRouterId'
+      fullPath: '/partner/routers/$ispRouterId'
+      preLoaderRoute: typeof PartnerRoutersIspRouterIdRouteImport
+      parentRoute: typeof PartnerRoute
+    }
+    '/partner/locations/$ispLocationId': {
+      id: '/partner/locations/$ispLocationId'
+      path: '/locations/$ispLocationId'
+      fullPath: '/partner/locations/$ispLocationId'
+      preLoaderRoute: typeof PartnerLocationsIspLocationIdRouteImport
+      parentRoute: typeof PartnerRoute
+    }
+    '/partner/customers/$ispCustomerId': {
+      id: '/partner/customers/$ispCustomerId'
+      path: '/customers/$ispCustomerId'
+      fullPath: '/partner/customers/$ispCustomerId'
+      preLoaderRoute: typeof PartnerCustomersIspCustomerIdRouteImport
+      parentRoute: typeof PartnerRoute
     }
     '/master/routers/$routerId': {
       id: '/master/routers/$routerId'
@@ -4169,6 +4437,41 @@ const MasterRouteChildren: MasterRouteChildren = {
 const MasterRouteWithChildren =
   MasterRoute._addFileChildren(MasterRouteChildren)
 
+interface PartnerRouteChildren {
+  PartnerLoginRoute: typeof PartnerLoginRoute
+  PartnerLogsRoute: typeof PartnerLogsRoute
+  PartnerReportsRoute: typeof PartnerReportsRoute
+  PartnerSettingsRoute: typeof PartnerSettingsRoute
+  PartnerUsersRoute: typeof PartnerUsersRoute
+  PartnerIndexRoute: typeof PartnerIndexRoute
+  PartnerCustomersIspCustomerIdRoute: typeof PartnerCustomersIspCustomerIdRoute
+  PartnerLocationsIspLocationIdRoute: typeof PartnerLocationsIspLocationIdRoute
+  PartnerRoutersIspRouterIdRoute: typeof PartnerRoutersIspRouterIdRoute
+  PartnerTr069CpeIdRoute: typeof PartnerTr069CpeIdRoute
+  PartnerCustomersIndexRoute: typeof PartnerCustomersIndexRoute
+  PartnerRoutersIndexRoute: typeof PartnerRoutersIndexRoute
+  PartnerTr069IndexRoute: typeof PartnerTr069IndexRoute
+}
+
+const PartnerRouteChildren: PartnerRouteChildren = {
+  PartnerLoginRoute: PartnerLoginRoute,
+  PartnerLogsRoute: PartnerLogsRoute,
+  PartnerReportsRoute: PartnerReportsRoute,
+  PartnerSettingsRoute: PartnerSettingsRoute,
+  PartnerUsersRoute: PartnerUsersRoute,
+  PartnerIndexRoute: PartnerIndexRoute,
+  PartnerCustomersIspCustomerIdRoute: PartnerCustomersIspCustomerIdRoute,
+  PartnerLocationsIspLocationIdRoute: PartnerLocationsIspLocationIdRoute,
+  PartnerRoutersIspRouterIdRoute: PartnerRoutersIspRouterIdRoute,
+  PartnerTr069CpeIdRoute: PartnerTr069CpeIdRoute,
+  PartnerCustomersIndexRoute: PartnerCustomersIndexRoute,
+  PartnerRoutersIndexRoute: PartnerRoutersIndexRoute,
+  PartnerTr069IndexRoute: PartnerTr069IndexRoute,
+}
+
+const PartnerRouteWithChildren =
+  PartnerRoute._addFileChildren(PartnerRouteChildren)
+
 interface PortalAuthRouteChildren {
   PortalAuthMethodRoute: typeof PortalAuthMethodRoute
   PortalAuthIndexRoute: typeof PortalAuthIndexRoute
@@ -4251,6 +4554,7 @@ const rootRouteChildren: RootRouteChildren = {
   MasterLoginRoute: MasterLoginRoute,
   NetlogsRoute: NetlogsRoute,
   NetworkActivityRoute: NetworkActivityRoute,
+  PartnerRoute: PartnerRouteWithChildren,
   PoliciesRoute: PoliciesRoute,
   PortForwardingRoute: PortForwardingRoute,
   PortalRoute: PortalRouteWithChildren,
@@ -4289,11 +4593,15 @@ export const routeTree = rootRouteImport
   ._addFileTypes<FileRouteTypes>()
 
 import type { getRouter } from './router.tsx'
+
 import type { startInstance } from './start.ts'
+
 declare module '@tanstack/react-start' {
   interface Register {
     ssr: true
+
     router: Awaited<ReturnType<typeof getRouter>>
+
     config: Awaited<ReturnType<typeof startInstance.getOptions>>
   }
 }

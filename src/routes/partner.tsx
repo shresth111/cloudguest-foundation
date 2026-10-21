@@ -36,7 +36,8 @@ export const Route = createFileRoute("/partner")({
       }
       throw notFound();
     }
-    const isLogin = location.pathname === "/partner/login" || location.pathname === "/partner/login/";
+    const isLogin =
+      location.pathname === "/partner/login" || location.pathname === "/partner/login/";
     if (!isLogin && context.auth?.status === "anonymous") {
       throw redirect({ to: "/partner/login", replace: true });
     }

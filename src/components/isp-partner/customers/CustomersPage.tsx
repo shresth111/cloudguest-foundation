@@ -112,7 +112,10 @@ export function CustomersPage() {
               <MTr
                 key={c.id}
                 onClick={() =>
-                  navigate({ to: "/partner/customers/$ispCustomerId", params: { ispCustomerId: c.id } })
+                  navigate({
+                    to: "/partner/customers/$ispCustomerId",
+                    params: { ispCustomerId: c.id },
+                  })
                 }
               >
                 <MTd>
@@ -135,12 +138,17 @@ export function CustomersPage() {
                 </MTd>
                 <MTd className="text-right tabular-nums">{c.counts.cpes}</MTd>
                 <MTd>
-                  <MTag label={c.tr069_enabled ? "On" : "Off"} tone={c.tr069_enabled ? "active" : "normal"} />
+                  <MTag
+                    label={c.tr069_enabled ? "On" : "Off"}
+                    tone={c.tr069_enabled ? "active" : "normal"}
+                  />
                 </MTd>
               </MTr>
             ))}
           </MTable>
-          {data && <Pager page={data.page} pages={data.pages} total={data.total} onPage={setPage} />}
+          {data && (
+            <Pager page={data.page} pages={data.pages} total={data.total} onPage={setPage} />
+          )}
         </>
       )}
 

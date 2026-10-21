@@ -34,7 +34,7 @@ interface NavItem {
   anyOf?: string[];
 }
 
-export const PARTNER_NAV: NavItem[] = [
+const PARTNER_NAV: NavItem[] = [
   { to: "/partner", label: "Overview", icon: LayoutGrid, anyOf: ["isp_partner.read"] },
   { to: "/partner/customers", label: "Customers", icon: Building2, anyOf: ["isp_partner.read"] },
   { to: "/partner/routers", label: "Routers", icon: Router, anyOf: ["isp_partner.read"] },
@@ -61,7 +61,9 @@ export function PartnerShell({ children }: { children: ReactNode }) {
 
   const nav = PARTNER_NAV.filter((n) => !n.anyOf || n.anyOf.some((p) => can(p)));
   const isActive = (to: string) =>
-    to === "/partner" ? pathname === "/partner" || pathname === "/partner/" : pathname.startsWith(to);
+    to === "/partner"
+      ? pathname === "/partner" || pathname === "/partner/"
+      : pathname.startsWith(to);
 
   const signOut = async () => {
     await logout();
@@ -72,7 +74,10 @@ export function PartnerShell({ children }: { children: ReactNode }) {
     <div className={cn("master-theme", theme?.theme === "dark" && "dark")}>
       <div className="flex min-h-screen bg-background text-foreground">
         {mobile && (
-          <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobile(false)} />
+          <div
+            className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+            onClick={() => setMobile(false)}
+          />
         )}
         <aside
           className={cn(
@@ -88,7 +93,11 @@ export function PartnerShell({ children }: { children: ReactNode }) {
               <p className="truncate text-sm font-semibold tracking-tight">{me.isp.name}</p>
               <p className="text-[11px] font-medium text-white/45">Wyfy Guest Network</p>
             </div>
-            <button className="ml-auto lg:hidden" onClick={() => setMobile(false)} aria-label="Close menu">
+            <button
+              className="ml-auto lg:hidden"
+              onClick={() => setMobile(false)}
+              aria-label="Close menu"
+            >
               <X className="h-5 w-5" />
             </button>
           </div>

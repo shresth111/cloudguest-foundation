@@ -30,7 +30,9 @@ function SetupScript({ routerId }: { routerId: string }) {
   const device = useIspRouterAsDevice(routerId);
   if (device.isLoading) return <LoadingBlock label="Loading the router for setup…" />;
   if (device.error || !device.data)
-    return <ErrorBlock error={device.error} onRetry={() => device.refetch()} what="the setup script" />;
+    return (
+      <ErrorBlock error={device.error} onRetry={() => device.refetch()} what="the setup script" />
+    );
   return (
     <div className="space-y-3">
       <div className="flex gap-2 rounded-xl border border-sky-500/30 bg-sky-500/5 p-3 text-xs text-foreground">
@@ -91,13 +93,18 @@ export function RouterDetailPage({ routerId }: { routerId: string }) {
           <dl className="grid grid-cols-2 gap-y-2 text-sm">
             <dt className="text-muted-foreground">Status</dt>
             <dd>
-              <MTag label={ROUTER_STATUS_LABEL[r.status] ?? r.status} tone={routerStatusTone(r.status)} />
+              <MTag
+                label={ROUTER_STATUS_LABEL[r.status] ?? r.status}
+                tone={routerStatusTone(r.status)}
+              />
             </dd>
             <dt className="text-muted-foreground">Cloud link</dt>
             <dd>
               <MTag
                 label={CLOUD_LINK_LABEL[r.cloud_link] ?? r.cloud_link}
-                tone={r.cloud_link === "up" ? "online" : r.cloud_link === "down" ? "offline" : "normal"}
+                tone={
+                  r.cloud_link === "up" ? "online" : r.cloud_link === "down" ? "offline" : "normal"
+                }
               />
             </dd>
             <dt className="text-muted-foreground">Last seen</dt>
@@ -161,7 +168,9 @@ export function RouterDetailPage({ routerId }: { routerId: string }) {
         </Card>
       )}
 
-      {can("tr069.manage") && <Tr069ScriptPanel routerId={routerId} locationName={r.location_name} />}
+      {can("tr069.manage") && (
+        <Tr069ScriptPanel routerId={routerId} locationName={r.location_name} />
+      )}
 
       <RouterFormDrawer
         open={editing}

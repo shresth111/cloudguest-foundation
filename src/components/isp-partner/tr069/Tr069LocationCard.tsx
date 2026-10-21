@@ -7,7 +7,13 @@ import { Card, ErrorBlock, FormError, Spinner } from "@/components/isp-partner/k
 import { useSetTr069Location, useTr069Location } from "@/hooks/isp-partner/useTr069";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
 
-export function Tr069LocationCard({ locationId, canManage }: { locationId: string; canManage: boolean }) {
+export function Tr069LocationCard({
+  locationId,
+  canManage,
+}: {
+  locationId: string;
+  canManage: boolean;
+}) {
   const q = useTr069Location(locationId);
   const save = useSetTr069Location(locationId);
   const [enabled, setEnabled] = useState(false);
@@ -21,7 +27,8 @@ export function Tr069LocationCard({ locationId, canManage }: { locationId: strin
     }
   }, [q.data]);
 
-  if (q.error) return <ErrorBlock error={q.error} onRetry={() => q.refetch()} what="TR-069 settings" />;
+  if (q.error)
+    return <ErrorBlock error={q.error} onRetry={() => q.refetch()} what="TR-069 settings" />;
 
   const onSave = async () => {
     const n = Number(interval);
@@ -56,7 +63,9 @@ export function Tr069LocationCard({ locationId, canManage }: { locationId: strin
             Manage this location&apos;s routers over TR-069
           </label>
           <label className="block max-w-xs space-y-1.5">
-            <span className="text-xs font-medium text-muted-foreground">Check-in interval (seconds)</span>
+            <span className="text-xs font-medium text-muted-foreground">
+              Check-in interval (seconds)
+            </span>
             <input
               className={M_INPUT}
               inputMode="numeric"

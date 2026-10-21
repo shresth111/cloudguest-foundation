@@ -12,7 +12,14 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Globe } from "lucide-react";
 import { MButton, MEmptyState, MTag, M_INPUT } from "@/components/master/MasterKit";
-import { Card, ErrorBlock, FormError, LoadingBlock, Spinner, TextField } from "@/components/isp-partner/kit";
+import {
+  Card,
+  ErrorBlock,
+  FormError,
+  LoadingBlock,
+  Spinner,
+  TextField,
+} from "@/components/isp-partner/kit";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import {
   useActivateIspPortalConfig,
@@ -118,7 +125,10 @@ function Editor({ locationId, config }: { locationId: string; config: CaptivePor
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <span className="font-medium text-foreground">{config.name}</span>
-        <MTag label={config.is_active ? "Active" : "Inactive"} tone={config.is_active ? "active" : "normal"} />
+        <MTag
+          label={config.is_active ? "Active" : "Inactive"}
+          tone={config.is_active ? "active" : "normal"}
+        />
         {!config.is_active && editable && (
           <MButton
             variant="outline"
@@ -146,7 +156,11 @@ function Editor({ locationId, config }: { locationId: string; config: CaptivePor
               onChange={setText("splash_headline")}
               disabled={!editable}
               hint={`${headlineLen}/${HEADLINE_BUDGET} characters. Longer headlines are refused so they fit a phone screen.`}
-              error={headlineLen > HEADLINE_BUDGET ? `${headlineLen}/${HEADLINE_BUDGET}: too long for the portal.` : undefined}
+              error={
+                headlineLen > HEADLINE_BUDGET
+                  ? `${headlineLen}/${HEADLINE_BUDGET}: too long for the portal.`
+                  : undefined
+              }
             />
             <label className="block space-y-1.5">
               <span className="text-xs font-medium text-muted-foreground">Welcome message</span>
@@ -158,7 +172,12 @@ function Editor({ locationId, config }: { locationId: string; config: CaptivePor
                 onChange={(e) => setText("splash_welcome_message")(e.target.value)}
               />
             </label>
-            <TextField label="Logo URL" value={draft.logo_url} onChange={setText("logo_url")} disabled={!editable} />
+            <TextField
+              label="Logo URL"
+              value={draft.logo_url}
+              onChange={setText("logo_url")}
+              disabled={!editable}
+            />
             <TextField
               label="Background image URL"
               value={draft.background_image_url}
@@ -249,7 +268,9 @@ function Editor({ locationId, config }: { locationId: string; config: CaptivePor
         <Card title="Terms">
           <div className="space-y-3">
             <label className="block space-y-1.5">
-              <span className="text-xs font-medium text-muted-foreground">Terms and conditions</span>
+              <span className="text-xs font-medium text-muted-foreground">
+                Terms and conditions
+              </span>
               <textarea
                 className={M_INPUT}
                 rows={4}
@@ -277,7 +298,11 @@ function Editor({ locationId, config }: { locationId: string; config: CaptivePor
       <FormError message={error} />
       {editable && (
         <div className="flex justify-end gap-2">
-          <MButton variant="outline" disabled={!dirty || save.isPending} onClick={() => setDraft(toDraft(config))}>
+          <MButton
+            variant="outline"
+            disabled={!dirty || save.isPending}
+            onClick={() => setDraft(toDraft(config))}
+          >
             Discard changes
           </MButton>
           <MButton disabled={!dirty || save.isPending} onClick={onSave}>

@@ -7,13 +7,9 @@ import { useState } from "react";
 import { Download, FileCode2 } from "lucide-react";
 import { MButton } from "@/components/master/MasterKit";
 import { Card, CopyField, ErrorBlock, Spinner } from "@/components/isp-partner/kit";
-import { saveBlob } from "@/components/isp-partner/kit";
+import { saveBlob, tr069ScriptFilename } from "@/lib/isp-partner/download";
 import { useTr069RouterScript } from "@/hooks/isp-partner/useTr069";
 import { rscSlug } from "@/lib/rsc-filename";
-
-export function tr069ScriptFilename(locationName: string | null | undefined, routerId: string) {
-  return `tr069-${rscSlug(locationName ?? "") || routerId}.rsc`;
-}
 
 export function Tr069ScriptPanel({
   routerId,
@@ -40,7 +36,7 @@ export function Tr069ScriptPanel({
               onClick={() =>
                 saveBlob(
                   new Blob([q.data], { type: "text/plain;charset=utf-8" }),
-                  tr069ScriptFilename(locationName, routerId),
+                  tr069ScriptFilename(locationName, routerId, rscSlug),
                 )
               }
             >
@@ -52,16 +48,15 @@ export function Tr069ScriptPanel({
     >
       <div className="space-y-2 text-xs text-muted-foreground">
         <p>
-          Paste this on the router after the main setup script. It points the router&apos;s
-          TR-069 client at the Wyfy Guest device manager, using this customer&apos;s credential
-          (or your ISP credential if the customer has none), and checks that the client is
-          running.
+          Paste this on the router after the main setup script. It points the router&apos;s TR-069
+          client at the Wyfy Guest device manager, using this customer&apos;s credential (or your
+          ISP credential if the customer has none), and checks that the client is running.
         </p>
         <p>
           It needs RouterOS&apos;s <code>tr069-client</code> extra package. If the package is
-          missing the script stops and says so; install the package for the router&apos;s
-          RouterOS version and architecture, reboot, and paste it again. If TR-069 is off for
-          this location, the same script turns the client off.
+          missing the script stops and says so; install the package for the router&apos;s RouterOS
+          version and architecture, reboot, and paste it again. If TR-069 is off for this location,
+          the same script turns the client off.
         </p>
       </div>
       {requested && (

@@ -571,7 +571,12 @@ export interface IspReportSummary {
   };
 }
 
-export type IspReportSection = "portfolio" | "guest_activity" | "usage_by_customer" | "tr069" | "all";
+export type IspReportSection =
+  | "portfolio"
+  | "guest_activity"
+  | "usage_by_customer"
+  | "tr069"
+  | "all";
 
 export interface IspReportQuery {
   since: string;

@@ -162,8 +162,8 @@ export function PartnerLoginPage() {
               <div>
                 <p className="text-sm font-semibold">Set a new password</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  You signed in with a temporary password. Choose your own to continue (at least
-                  12 characters).
+                  You signed in with a temporary password. Choose your own to continue (at least 12
+                  characters).
                 </p>
               </div>
               <label className="block space-y-1.5">

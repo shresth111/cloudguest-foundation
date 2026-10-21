@@ -122,9 +122,7 @@ export function getShimIspOrganization(): string | null {
   return ispOrgId;
 }
 
-function shim(
-  config: InternalAxiosRequestConfig,
-): InternalAxiosRequestConfig | Promise<never> {
+function shim(config: InternalAxiosRequestConfig): InternalAxiosRequestConfig | Promise<never> {
   const url = config.url ?? "";
   const method = (config.method ?? "get").toLowerCase();
   let rewritten: string | null;

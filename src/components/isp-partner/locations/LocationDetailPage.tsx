@@ -6,7 +6,10 @@ import { toast } from "sonner";
 import { Pencil, Plus } from "lucide-react";
 import { MButton, MDialog, MSectionHeader, MSeg, MTag } from "@/components/master/MasterKit";
 import { Card, ErrorBlock, FormError, LoadingBlock, Spinner } from "@/components/isp-partner/kit";
-import { LocationFormDrawer, PROPERTY_TYPES } from "@/components/isp-partner/locations/LocationFormDrawer";
+import {
+  LocationFormDrawer,
+  PROPERTY_TYPES,
+} from "@/components/isp-partner/locations/LocationFormDrawer";
 import { RouterFormDrawer } from "@/components/isp-partner/routers/RouterFormDrawer";
 import { RoutersTable } from "@/components/isp-partner/routers/RoutersTable";
 import { PortalEditor } from "@/components/isp-partner/portal/PortalEditor";
@@ -99,7 +102,9 @@ export function LocationDetailPage({ locationId }: { locationId: string }) {
         </Card>
       )}
       {tab === "portal" && <PortalEditor locationId={locationId} />}
-      {tab === "tr069" && <Tr069LocationCard locationId={locationId} canManage={can("tr069.manage")} />}
+      {tab === "tr069" && (
+        <Tr069LocationCard locationId={locationId} canManage={can("tr069.manage")} />
+      )}
 
       <LocationFormDrawer
         open={editing}
@@ -112,7 +117,9 @@ export function LocationDetailPage({ locationId }: { locationId: string }) {
         onClose={() => setAddingRouter(false)}
         locationId={locationId}
         router={null}
-        onSaved={(r) => navigate({ to: "/partner/routers/$ispRouterId", params: { ispRouterId: r.id } })}
+        onSaved={(r) =>
+          navigate({ to: "/partner/routers/$ispRouterId", params: { ispRouterId: r.id } })
+        }
       />
       <MDialog
         open={confirm}

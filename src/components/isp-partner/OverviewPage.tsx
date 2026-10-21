@@ -73,7 +73,9 @@ export function OverviewPage() {
               icon={Building2}
               loading={loading}
               value={o?.customers.total ?? 0}
-              delta={o ? `${o.customers.active} active · ${o.customers.suspended} suspended` : undefined}
+              delta={
+                o ? `${o.customers.active} active · ${o.customers.suspended} suspended` : undefined
+              }
             />
             <MStat
               label="Locations"
@@ -88,7 +90,9 @@ export function OverviewPage() {
               tone={o && o.routers.offline > 0 ? "warning" : "success"}
               loading={loading}
               value={o ? `${o.routers.online} / ${o.routers.total}` : "–"}
-              delta={o ? `${o.routers.offline} offline · ${o.routers.pending} awaiting setup` : undefined}
+              delta={
+                o ? `${o.routers.offline} offline · ${o.routers.pending} awaiting setup` : undefined
+              }
             />
             <MStat
               label="Guests today"

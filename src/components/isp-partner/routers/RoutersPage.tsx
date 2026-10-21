@@ -35,7 +35,11 @@ export function RoutersPage() {
           ))}
         </select>
       </div>
-      <RoutersTable key={`${customerId}-${status}`} customerId={customerId || undefined} status={status} />
+      <RoutersTable
+        key={`${customerId}-${status}`}
+        customerId={customerId || undefined}
+        status={status}
+      />
     </>
   );
 }

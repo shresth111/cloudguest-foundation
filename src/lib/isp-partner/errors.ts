@@ -27,8 +27,7 @@ const MESSAGES: Record<string, string> = {
   ISP_ROUTER_NOT_FOUND: "That router does not exist, or you do not have access to it.",
   ISP_PORTAL_CONFIG_NOT_FOUND: "That portal does not exist, or you do not have access to it.",
   ISP_USER_NOT_FOUND: "That user does not exist in your ISP.",
-  ISP_CUSTOMER_LIMIT:
-    "Your ISP has reached its customer limit. Contact Wyfy Guest to raise it.",
+  ISP_CUSTOMER_LIMIT: "Your ISP has reached its customer limit. Contact Wyfy Guest to raise it.",
   ISP_CUSTOMER_SLUG_TAKEN: "That slug is already used by another customer. Pick another one.",
   ISP_EXTERNAL_REF_TAKEN: "Another customer already uses that account number.",
   ISP_LAST_OWNER: "This is the last active ISP Owner. Add another owner first.",

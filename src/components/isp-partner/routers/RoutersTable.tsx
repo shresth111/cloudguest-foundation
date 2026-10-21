@@ -34,7 +34,8 @@ export function RoutersTable({
   });
   const data = q.data;
 
-  if (q.error && !data) return <ErrorBlock error={q.error} onRetry={() => q.refetch()} what="routers" />;
+  if (q.error && !data)
+    return <ErrorBlock error={q.error} onRetry={() => q.refetch()} what="routers" />;
   if (data && data.items.length === 0) {
     return (
       <MEmptyState
@@ -63,7 +64,9 @@ export function RoutersTable({
         {data?.items.map((r) => (
           <MTr
             key={r.id}
-            onClick={() => navigate({ to: "/partner/routers/$ispRouterId", params: { ispRouterId: r.id } })}
+            onClick={() =>
+              navigate({ to: "/partner/routers/$ispRouterId", params: { ispRouterId: r.id } })
+            }
           >
             <MTd>
               <Link
@@ -80,12 +83,17 @@ export function RoutersTable({
             {!customerId && <MTd className="text-xs">{r.customer_name}</MTd>}
             {!locationId && <MTd className="text-xs">{r.location_name}</MTd>}
             <MTd>
-              <MTag label={ROUTER_STATUS_LABEL[r.status] ?? r.status} tone={routerStatusTone(r.status)} />
+              <MTag
+                label={ROUTER_STATUS_LABEL[r.status] ?? r.status}
+                tone={routerStatusTone(r.status)}
+              />
             </MTd>
             <MTd>
               <MTag
                 label={CLOUD_LINK_LABEL[r.cloud_link] ?? r.cloud_link}
-                tone={r.cloud_link === "up" ? "online" : r.cloud_link === "down" ? "offline" : "normal"}
+                tone={
+                  r.cloud_link === "up" ? "online" : r.cloud_link === "down" ? "offline" : "normal"
+                }
               />
             </MTd>
             <MTd className="text-xs text-muted-foreground">{formatAgo(r.last_seen_at)}</MTd>

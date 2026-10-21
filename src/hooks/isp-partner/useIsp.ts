@@ -125,11 +125,12 @@ export function useSetIspCustomerSuspended(id: string) {
 
 // --------------------------------------------------------------- locations
 
-export function useIspCustomerLocations(customerId: string) {
+export function useIspCustomerLocations(customerId: string, enabled = true) {
   return useQuery({
     queryKey: ispKeys.customerLocations(customerId),
     queryFn: () => ispService.listCustomerLocations(customerId),
     retry: retryUnless4xx,
+    enabled: enabled && !!customerId,
   });
 }
 

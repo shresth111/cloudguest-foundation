@@ -144,7 +144,13 @@ export function CustomerFormDrawer({
       }
     >
       <div className="space-y-3">
-        <TextField label="Name" required value={form.name} onChange={set("name")} error={fieldErrors.name} />
+        <TextField
+          label="Name"
+          required
+          value={form.name}
+          onChange={set("name")}
+          error={fieldErrors.name}
+        />
         {!customer && (
           <TextField
             label="Slug"
@@ -154,9 +160,19 @@ export function CustomerFormDrawer({
             hint="Optional. Leave empty to have one made from the name. It cannot be changed later."
           />
         )}
-        <TextField label="Legal name" value={form.legal_name} onChange={set("legal_name")} error={fieldErrors.legal_name} />
+        <TextField
+          label="Legal name"
+          value={form.legal_name}
+          onChange={set("legal_name")}
+          error={fieldErrors.legal_name}
+        />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <TextField label="GSTIN" value={form.gstin} onChange={set("gstin")} error={fieldErrors.gstin} />
+          <TextField
+            label="GSTIN"
+            value={form.gstin}
+            onChange={set("gstin")}
+            error={fieldErrors.gstin}
+          />
           <TextField
             label="Your account no."
             value={form.external_ref}
@@ -165,8 +181,15 @@ export function CustomerFormDrawer({
             hint="Your own reference for this customer."
           />
         </div>
-        <p className="pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Contact</p>
-        <TextField label="Contact person" value={form.contact_name} onChange={set("contact_name")} error={fieldErrors.contact_name} />
+        <p className="pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Contact
+        </p>
+        <TextField
+          label="Contact person"
+          value={form.contact_name}
+          onChange={set("contact_name")}
+          error={fieldErrors.contact_name}
+        />
         <TextField
           label="Contact email"
           required
@@ -176,15 +199,47 @@ export function CustomerFormDrawer({
           error={fieldErrors.contact_email}
           hint="For your records only. No account is created and nothing is emailed."
         />
-        <TextField label="Contact phone" value={form.contact_phone} onChange={set("contact_phone")} error={fieldErrors.contact_phone} />
-        <p className="pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Address</p>
-        <TextField label="Address" value={form.address_line1} onChange={set("address_line1")} error={fieldErrors.address_line1} />
+        <TextField
+          label="Contact phone"
+          value={form.contact_phone}
+          onChange={set("contact_phone")}
+          error={fieldErrors.contact_phone}
+        />
+        <p className="pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Address
+        </p>
+        <TextField
+          label="Address"
+          value={form.address_line1}
+          onChange={set("address_line1")}
+          error={fieldErrors.address_line1}
+        />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <TextField label="City" value={form.city} onChange={set("city")} error={fieldErrors.city} />
-          <TextField label="State" value={form.state_province} onChange={set("state_province")} error={fieldErrors.state_province} />
-          <TextField label="PIN code" value={form.postal_code} onChange={set("postal_code")} error={fieldErrors.postal_code} />
+          <TextField
+            label="City"
+            value={form.city}
+            onChange={set("city")}
+            error={fieldErrors.city}
+          />
+          <TextField
+            label="State"
+            value={form.state_province}
+            onChange={set("state_province")}
+            error={fieldErrors.state_province}
+          />
+          <TextField
+            label="PIN code"
+            value={form.postal_code}
+            onChange={set("postal_code")}
+            error={fieldErrors.postal_code}
+          />
         </div>
-        <TextField label="Timezone" value={form.timezone} onChange={set("timezone")} error={fieldErrors.timezone} />
+        <TextField
+          label="Timezone"
+          value={form.timezone}
+          onChange={set("timezone")}
+          error={fieldErrors.timezone}
+        />
         <label className="block space-y-1.5">
           <span className="text-xs font-medium text-muted-foreground">Notes</span>
           <textarea

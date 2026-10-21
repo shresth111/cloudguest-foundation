@@ -154,10 +154,7 @@ export const ispService = {
     return data;
   },
   async createLocation(ispCustomerId: string, body: IspLocationCreate): Promise<IspLocation> {
-    const { data } = await api.post<IspLocation>(
-      `/isp/customers/${ispCustomerId}/locations`,
-      body,
-    );
+    const { data } = await api.post<IspLocation>(`/isp/customers/${ispCustomerId}/locations`, body);
     return data;
   },
   async updateLocation(ispLocationId: string, body: IspLocationUpdate): Promise<IspLocation> {
@@ -272,7 +269,9 @@ export const ispService = {
   exportIpdr(params: Record<string, string>): Promise<FileDownload> {
     return downloadFile("/isp/logs/ipdr/export.csv", params, "isp-ipdr.csv");
   },
-  async authLogs(scope: IspLogScope & { page?: number; page_size?: number }): Promise<IspAuthLogPage> {
+  async authLogs(
+    scope: IspLogScope & { page?: number; page_size?: number },
+  ): Promise<IspAuthLogPage> {
     const { data } = await api.get<IspAuthLogPage>("/isp/logs/auth", {
       params: cleanParams(scope),
     });

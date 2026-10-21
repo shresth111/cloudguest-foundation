@@ -99,7 +99,9 @@ export function PartnerLayout() {
             {suspended ? <Ban className="h-6 w-6" /> : <ShieldAlert className="h-6 w-6" />}
           </span>
           <h1 className="mt-3 text-base font-semibold">
-            {suspended ? "This ISP account is suspended" : "This account is not an ISP partner account"}
+            {suspended
+              ? "This ISP account is suspended"
+              : "This account is not an ISP partner account"}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {suspended
@@ -108,11 +110,17 @@ export function PartnerLayout() {
           </p>
           {suspended && (
             <p className="mt-2 text-xs text-muted-foreground">
-              Support: <a className="text-primary underline" href="mailto:support@wyfyguest.com">support@wyfyguest.com</a>
+              Support:{" "}
+              <a className="text-primary underline" href="mailto:support@wyfyguest.com">
+                support@wyfyguest.com
+              </a>
             </p>
           )}
           <p className="mt-2 text-xs text-muted-foreground">You have been signed out.</p>
-          <MButton className="mt-4" onClick={() => navigate({ to: "/partner/login", replace: true })}>
+          <MButton
+            className="mt-4"
+            onClick={() => navigate({ to: "/partner/login", replace: true })}
+          >
             Back to sign in
           </MButton>
         </div>

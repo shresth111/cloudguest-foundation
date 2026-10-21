@@ -66,7 +66,9 @@ export function RouterFormDrawer({
             model: model.trim(),
             vendor: "mikrotik",
           });
-      toast.success(router ? "Router saved." : `${saved.name} added. Next: generate its setup script.`);
+      toast.success(
+        router ? "Router saved." : `${saved.name} added. Next: generate its setup script.`,
+      );
       onSaved?.(saved);
       onClose();
     } catch (err) {
@@ -93,12 +95,37 @@ export function RouterFormDrawer({
       }
     >
       <div className="space-y-3">
-        <TextField label="Name" required value={name} onChange={setName} error={fieldErrors.name} hint="e.g. hEX Cafe X" />
-        <TextField label="Model" required value={model} onChange={setModel} error={fieldErrors.model} />
+        <TextField
+          label="Name"
+          required
+          value={name}
+          onChange={setName}
+          error={fieldErrors.name}
+          hint="e.g. hEX Cafe X"
+        />
+        <TextField
+          label="Model"
+          required
+          value={model}
+          onChange={setModel}
+          error={fieldErrors.model}
+        />
         {!router && (
           <>
-            <TextField label="Serial number" required value={serial} onChange={setSerial} error={fieldErrors.serial_number} />
-            <TextField label="MAC address" required value={mac} onChange={setMac} error={fieldErrors.mac_address} />
+            <TextField
+              label="Serial number"
+              required
+              value={serial}
+              onChange={setSerial}
+              error={fieldErrors.serial_number}
+            />
+            <TextField
+              label="MAC address"
+              required
+              value={mac}
+              onChange={setMac}
+              error={fieldErrors.mac_address}
+            />
           </>
         )}
         <FormError message={error} />

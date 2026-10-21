@@ -157,10 +157,20 @@ export function LocationFormDrawer({
       }
     >
       <div className="space-y-3">
-        <TextField label="Name" required value={form.name} onChange={set("name")} error={fieldErrors.name} />
+        <TextField
+          label="Name"
+          required
+          value={form.name}
+          onChange={set("name")}
+          error={fieldErrors.name}
+        />
         <label className="block space-y-1.5">
           <span className="text-xs font-medium text-muted-foreground">Property type</span>
-          <select className={M_INPUT} value={form.property_type} onChange={(e) => set("property_type")(e.target.value)}>
+          <select
+            className={M_INPUT}
+            value={form.property_type}
+            onChange={(e) => set("property_type")(e.target.value)}
+          >
             {PROPERTY_TYPES.map((p) => (
               <option key={p.value} value={p.value}>
                 {p.label}
@@ -168,19 +178,59 @@ export function LocationFormDrawer({
             ))}
           </select>
         </label>
-        <TextField label="Address" value={form.address_line1} onChange={set("address_line1")} error={fieldErrors.address_line1} />
+        <TextField
+          label="Address"
+          value={form.address_line1}
+          onChange={set("address_line1")}
+          error={fieldErrors.address_line1}
+        />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <TextField label="City" value={form.city} onChange={set("city")} error={fieldErrors.city} />
-          <TextField label="State" value={form.state_province} onChange={set("state_province")} error={fieldErrors.state_province} />
-          <TextField label="PIN code" value={form.postal_code} onChange={set("postal_code")} error={fieldErrors.postal_code} />
+          <TextField
+            label="City"
+            value={form.city}
+            onChange={set("city")}
+            error={fieldErrors.city}
+          />
+          <TextField
+            label="State"
+            value={form.state_province}
+            onChange={set("state_province")}
+            error={fieldErrors.state_province}
+          />
+          <TextField
+            label="PIN code"
+            value={form.postal_code}
+            onChange={set("postal_code")}
+            error={fieldErrors.postal_code}
+          />
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <TextField label="Country (2 letters)" value={form.country} onChange={set("country")} error={fieldErrors.country} />
-          <TextField label="Timezone" value={form.timezone} onChange={set("timezone")} error={fieldErrors.timezone} />
+          <TextField
+            label="Country (2 letters)"
+            value={form.country}
+            onChange={set("country")}
+            error={fieldErrors.country}
+          />
+          <TextField
+            label="Timezone"
+            value={form.timezone}
+            onChange={set("timezone")}
+            error={fieldErrors.timezone}
+          />
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <TextField label="Latitude" value={form.latitude} onChange={set("latitude")} error={fieldErrors.latitude} />
-          <TextField label="Longitude" value={form.longitude} onChange={set("longitude")} error={fieldErrors.longitude} />
+          <TextField
+            label="Latitude"
+            value={form.latitude}
+            onChange={set("latitude")}
+            error={fieldErrors.latitude}
+          />
+          <TextField
+            label="Longitude"
+            value={form.longitude}
+            onChange={set("longitude")}
+            error={fieldErrors.longitude}
+          />
         </div>
         {!location && (
           <>
