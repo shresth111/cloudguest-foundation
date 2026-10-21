@@ -24,8 +24,8 @@ import { LocationFormDrawer } from "@/components/isp-partner/locations/LocationF
 import { RoutersTable } from "@/components/isp-partner/routers/RoutersTable";
 import { PortalEditor } from "@/components/isp-partner/portal/PortalEditor";
 import { GuestsSessionsTab } from "@/components/isp-partner/guests/GuestsSessionsTab";
-import { LogsView } from "@/components/isp-partner/logs/LogsView";
-import { DEFAULT_LOG_FILTERS, type LogFilters } from "@/components/isp-partner/logs/logFilters";
+import { LogsView } from "@/components/isp-partner/log-views/LogsView";
+import { DEFAULT_LOG_FILTERS, type LogFilters } from "@/components/isp-partner/log-views/logFilters";
 import { CustomerTr069Tab } from "@/components/isp-partner/tr069/CustomerTr069Tab";
 import { ReportsView } from "@/components/isp-partner/reports/ReportsView";
 import { usePartner } from "@/components/isp-partner/PartnerContext";

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { LogsPage } from "@/components/isp-partner/logs/LogsPage";
-import type { LogSearch } from "@/components/isp-partner/logs/logFilters";
+import { LogsPage } from "@/components/isp-partner/log-views/LogsPage";
+import type { LogSearch } from "@/components/isp-partner/log-views/logFilters";
 
 /** `/partner/logs`: NetLogs, IPDR and guest sign-ins across customers. The
  * filters live in the URL (TASKS FE-8). */
