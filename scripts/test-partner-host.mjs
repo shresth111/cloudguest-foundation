@@ -16,6 +16,8 @@
  *   2. routes/index.tsx (F1): the bare root decides by isNetworkHost(),
  *      sends a signed-in visitor to /partner, renders PartnerLoginPage for an
  *      anonymous one, and never renders the customer dashboard on that host.
+ *   2b. routes/session-expired.tsx: a /partner session that expires goes back
+ *      to /partner/login (CONTRACT_CHANGES #14).
  *   3. routes/partner.tsx: not-found while the flag is unset; bounces any
  *      non-network host (app./master.) to the network host.
  *   4. The request shim is installed only behind isNetworkHost(), and maps
@@ -123,6 +125,20 @@ console.log("routes/index.tsx (F1)");
   check(
     "master.wyfyguest.com branch still present",
     /hostname\s*===\s*"master\.wyfyguest\.com"/.test(code),
+  );
+}
+
+// ---------------------------------------------------------------- 2b
+console.log("routes/session-expired.tsx (CONTRACT_CHANGES #14)");
+{
+  const code = stripComments(read("src/routes/session-expired.tsx") ?? "");
+  check(
+    "an expired /partner session returns to /partner/login, not the customer /login",
+    /redirect\?\.startsWith\("\/partner"\)\s*\?\s*"\/partner\/login"/.test(code),
+  );
+  check(
+    "master and customer targets unchanged",
+    /redirect\?\.startsWith\("\/master"\)\s*\?\s*"\/master-login"\s*:\s*"\/login"/.test(code),
   );
 }
 
