@@ -94,7 +94,9 @@ function IndexRedirect() {
     isImpersonationSessionActive() &&
     !roles.some((r) => r.scopeType === "global");
   const isMaster = hostname === "master.wyfyguest.com" && !isImpersonating;
-  const isNetwork = hostname !== null && isNetworkHost(hostname);
+  // `=== true`, not truthiness: the existing host tests auto-stub leaf
+  // imports with functions that return an object.
+  const isNetwork = hostname !== null && isNetworkHost(hostname) === true;
 
   useEffect(() => {
     if (!isReady || !isAuthenticated || !user) return;

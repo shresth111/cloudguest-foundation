@@ -105,7 +105,9 @@ console.log("routes/index.tsx (F1)");
   );
   check(
     "decides isNetwork from the hostname",
-    /const isNetwork\s*=\s*hostname\s*!==\s*null\s*&&\s*isNetworkHost\(hostname\)/.test(code),
+    /const isNetwork\s*=\s*hostname\s*!==\s*null\s*&&\s*isNetworkHost\(hostname\)\s*===\s*true/.test(
+      code,
+    ),
   );
   check(
     "signed-in visitor on the network host goes to /partner",
