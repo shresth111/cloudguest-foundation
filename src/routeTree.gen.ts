@@ -90,6 +90,7 @@ import { Route as MasterNotificationChannelsRouteImport } from './routes/master.
 import { Route as MasterNasRouteImport } from './routes/master.nas'
 import { Route as MasterMarketingPricingRouteImport } from './routes/master.marketing-pricing'
 import { Route as MasterLocationsRouteImport } from './routes/master.locations'
+import { Route as MasterIspPartnersRouteImport } from './routes/master.isp-partners'
 import { Route as MasterIntegrationsRouteImport } from './routes/master.integrations'
 import { Route as MasterHealthRouteImport } from './routes/master.health'
 import { Route as MasterDeviceLogsRouteImport } from './routes/master.device-logs'
@@ -621,6 +622,11 @@ const MasterMarketingPricingRoute = MasterMarketingPricingRouteImport.update({
 const MasterLocationsRoute = MasterLocationsRouteImport.update({
   id: '/locations',
   path: '/locations',
+  getParentRoute: () => MasterRoute,
+} as any)
+const MasterIspPartnersRoute = MasterIspPartnersRouteImport.update({
+  id: '/isp-partners',
+  path: '/isp-partners',
   getParentRoute: () => MasterRoute,
 } as any)
 const MasterIntegrationsRoute = MasterIntegrationsRouteImport.update({
@@ -1414,6 +1420,7 @@ export interface FileRoutesByFullPath {
   '/master/device-logs': typeof MasterDeviceLogsRoute
   '/master/health': typeof MasterHealthRoute
   '/master/integrations': typeof MasterIntegrationsRoute
+  '/master/isp-partners': typeof MasterIspPartnersRoute
   '/master/locations': typeof MasterLocationsRoute
   '/master/marketing-pricing': typeof MasterMarketingPricingRoute
   '/master/nas': typeof MasterNasRoute
@@ -1618,6 +1625,7 @@ export interface FileRoutesByTo {
   '/master/device-logs': typeof MasterDeviceLogsRoute
   '/master/health': typeof MasterHealthRoute
   '/master/integrations': typeof MasterIntegrationsRoute
+  '/master/isp-partners': typeof MasterIspPartnersRoute
   '/master/locations': typeof MasterLocationsRoute
   '/master/marketing-pricing': typeof MasterMarketingPricingRoute
   '/master/nas': typeof MasterNasRoute
@@ -1827,6 +1835,7 @@ export interface FileRoutesById {
   '/master/device-logs': typeof MasterDeviceLogsRoute
   '/master/health': typeof MasterHealthRoute
   '/master/integrations': typeof MasterIntegrationsRoute
+  '/master/isp-partners': typeof MasterIspPartnersRoute
   '/master/locations': typeof MasterLocationsRoute
   '/master/marketing-pricing': typeof MasterMarketingPricingRoute
   '/master/nas': typeof MasterNasRoute
@@ -2038,6 +2047,7 @@ export interface FileRouteTypes {
     | '/master/device-logs'
     | '/master/health'
     | '/master/integrations'
+    | '/master/isp-partners'
     | '/master/locations'
     | '/master/marketing-pricing'
     | '/master/nas'
@@ -2242,6 +2252,7 @@ export interface FileRouteTypes {
     | '/master/device-logs'
     | '/master/health'
     | '/master/integrations'
+    | '/master/isp-partners'
     | '/master/locations'
     | '/master/marketing-pricing'
     | '/master/nas'
@@ -2450,6 +2461,7 @@ export interface FileRouteTypes {
     | '/master/device-logs'
     | '/master/health'
     | '/master/integrations'
+    | '/master/isp-partners'
     | '/master/locations'
     | '/master/marketing-pricing'
     | '/master/nas'
@@ -3220,6 +3232,13 @@ declare module '@tanstack/react-router' {
       path: '/locations'
       fullPath: '/master/locations'
       preLoaderRoute: typeof MasterLocationsRouteImport
+      parentRoute: typeof MasterRoute
+    }
+    '/master/isp-partners': {
+      id: '/master/isp-partners'
+      path: '/isp-partners'
+      fullPath: '/master/isp-partners'
+      preLoaderRoute: typeof MasterIspPartnersRouteImport
       parentRoute: typeof MasterRoute
     }
     '/master/integrations': {
@@ -4399,6 +4418,7 @@ interface MasterRouteChildren {
   MasterDeviceLogsRoute: typeof MasterDeviceLogsRoute
   MasterHealthRoute: typeof MasterHealthRoute
   MasterIntegrationsRoute: typeof MasterIntegrationsRoute
+  MasterIspPartnersRoute: typeof MasterIspPartnersRoute
   MasterLocationsRoute: typeof MasterLocationsRoute
   MasterMarketingPricingRoute: typeof MasterMarketingPricingRoute
   MasterNasRoute: typeof MasterNasRoute
@@ -4422,6 +4442,7 @@ const MasterRouteChildren: MasterRouteChildren = {
   MasterDeviceLogsRoute: MasterDeviceLogsRoute,
   MasterHealthRoute: MasterHealthRoute,
   MasterIntegrationsRoute: MasterIntegrationsRoute,
+  MasterIspPartnersRoute: MasterIspPartnersRoute,
   MasterLocationsRoute: MasterLocationsRoute,
   MasterMarketingPricingRoute: MasterMarketingPricingRoute,
   MasterNasRoute: MasterNasRoute,
