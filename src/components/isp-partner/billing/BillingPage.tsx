@@ -4,6 +4,7 @@
  * Phase 1c and not offered here.
  */
 import { useEffect, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Download, FilePlus2, RefreshCw, Wallet } from "lucide-react";
 import { MButton, MEmptyState, MSectionHeader, MSeg, M_INPUT } from "@/components/master/MasterKit";
@@ -153,8 +154,13 @@ function InvoicesPanel({ overdueOnly }: { overdueOnly: boolean }) {
       </div>
       {overdueOnly && (
         <p className="text-xs text-muted-foreground">
-          Invoices past their due date plus the grace days, with money still owed. Open a customer
-          to record a payment or suspend for dues.
+          Customer invoices past their due date plus the grace days, with money still owed. Open a
+          customer to record a payment or suspend for dues. Every invoice, including subscriber
+          invoices and credit notes, is under{" "}
+          <Link to="/partner/invoices" className="text-primary hover:underline">
+            Invoices
+          </Link>
+          .
         </p>
       )}
       {q.error && !data ? (
@@ -493,7 +499,6 @@ export function BillingPage({ tab, onTab }: { tab: BillingTab; onTab: (t: Billin
   const { can } = usePartner();
   const tabs: { value: BillingTab; label: string }[] = [
     { value: "dues", label: "Dues" },
-    { value: "invoices", label: "Invoices" },
     { value: "payments", label: "Payments" },
     { value: "settings", label: "Settings" },
   ];
@@ -510,7 +515,6 @@ export function BillingPage({ tab, onTab }: { tab: BillingTab; onTab: (t: Billin
       />
       <MSeg<BillingTab> value={active} onChange={onTab} options={visible} />
       {active === "dues" && <InvoicesPanel key="dues" overdueOnly />}
-      {active === "invoices" && <InvoicesPanel key="invoices" overdueOnly={false} />}
       {active === "payments" && <PaymentsPanel />}
       {active === "settings" && <SettingsPanel />}
     </>
