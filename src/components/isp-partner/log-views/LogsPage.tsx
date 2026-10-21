@@ -2,7 +2,10 @@
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { MSectionHeader } from "@/components/master/MasterKit";
 import { LogsView } from "@/components/isp-partner/log-views/LogsView";
-import { filtersFromSearch, searchFromFilters } from "@/components/isp-partner/log-views/logFilters";
+import {
+  filtersFromSearch,
+  searchFromFilters,
+} from "@/components/isp-partner/log-views/logFilters";
 
 export function LogsPage() {
   const search = useSearch({ strict: false }) as Record<string, unknown>;

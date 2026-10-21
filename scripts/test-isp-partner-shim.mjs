@@ -82,7 +82,13 @@ const { api, installIspApiShim, setShimIspOrganization, rewriteIspPath, ISP_SHIM
 const sent = [];
 api.defaults.adapter = async (config) => {
   sent.push(config);
-  return { data: { success: true, data: { ok: true } }, status: 200, statusText: "OK", headers: {}, config };
+  return {
+    data: { success: true, data: { ok: true } },
+    status: 200,
+    statusText: "OK",
+    headers: {},
+    config,
+  };
 };
 installIspApiShim(api);
 installIspApiShim(api); // idempotent
@@ -91,8 +97,16 @@ setShimIspOrganization("11111111-1111-1111-1111-111111111111");
 const R = "0f8c2a3e-1b2c-4d5e-8f90-123456789abc";
 const cases = [
   ["post", `/routers/${R}/provisioning-token`, `/isp/routers/${R}/provisioning-token`],
-  ["post", `/routers/${R}/agent-credential/regenerate`, `/isp/routers/${R}/agent-credential/regenerate`],
-  ["post", `/routers/${R}/wireguard-peer/allocate-external`, `/isp/routers/${R}/wireguard-peer/allocate-external`],
+  [
+    "post",
+    `/routers/${R}/agent-credential/regenerate`,
+    `/isp/routers/${R}/agent-credential/regenerate`,
+  ],
+  [
+    "post",
+    `/routers/${R}/wireguard-peer/allocate-external`,
+    `/isp/routers/${R}/wireguard-peer/allocate-external`,
+  ],
   [
     "post",
     `/routers/${R}/wireguard-peer/allocate-external?rotate=true`,
@@ -103,7 +117,11 @@ const cases = [
   ["get", `/routers/${R}`, `/isp/routers/${R}/as-router-device`],
 ];
 console.log("rewrites");
-check("exactly six rewrite rules", ISP_SHIM_REWRITES.length === 6, String(ISP_SHIM_REWRITES.length));
+check(
+  "exactly six rewrite rules",
+  ISP_SHIM_REWRITES.length === 6,
+  String(ISP_SHIM_REWRITES.length),
+);
 for (const [method, url, want] of cases) {
   sent.length = 0;
   await api.request({ method, url, data: method === "get" ? undefined : {} });
@@ -124,7 +142,10 @@ for (const [method, url] of [
   ["get", "/isp/me"],
   ["get", "/locations"],
 ]) {
-  check(`${method.toUpperCase()} ${url.replace(R, "{id}")} untouched`, rewriteIspPath(method, url) === null);
+  check(
+    `${method.toUpperCase()} ${url.replace(R, "{id}")} untouched`,
+    rewriteIspPath(method, url) === null,
+  );
 }
 
 console.log("force=true");
@@ -136,7 +157,11 @@ try {
   rejected = err;
 }
 check("never sent", sent.length === 0, `${sent.length} sent`);
-check("rejects with data.code ISP_FORCE_NOT_ALLOWED", rejected?.data?.code === "ISP_FORCE_NOT_ALLOWED", JSON.stringify(rejected));
+check(
+  "rejects with data.code ISP_FORCE_NOT_ALLOWED",
+  rejected?.data?.code === "ISP_FORCE_NOT_ALLOWED",
+  JSON.stringify(rejected),
+);
 check("status 422", rejected?.status === 422, String(rejected?.status));
 
 console.log("authorization untouched");
@@ -145,13 +170,20 @@ await api.get("/isp/me", { headers: { Authorization: "Bearer keep-me" } });
 check("Authorization kept as given", sent[0]?.headers?.get?.("Authorization") === "Bearer keep-me");
 
 console.log("setup component call list");
-const src = readFileSync(join(ROOT, "src/components/routers/RouterSetupScriptAdvanced.tsx"), "utf8");
+const src = readFileSync(
+  join(ROOT, "src/components/routers/RouterSetupScriptAdvanced.tsx"),
+  "utf8",
+);
 const routerSvc = readFileSync(join(ROOT, "src/services/router.service.ts"), "utf8");
-const provisioningToken = /async generateProvisioningToken[\s\S]*?api\.post[^`]*`([^`]+)`/.exec(routerSvc)?.[1];
-const literal = [...src.matchAll(/api\.(get|post|put|patch|delete)<[\s\S]*?>\(\s*[`"]([^`"]+)[`"]/g)].map(
+const provisioningToken = /async generateProvisioningToken[\s\S]*?api\.post[^`]*`([^`]+)`/.exec(
+  routerSvc,
+)?.[1];
+const literal = [
+  ...src.matchAll(/api\.(get|post|put|patch|delete)<[\s\S]*?>\(\s*[`"]([^`"]+)[`"]/g),
+].map((m) => [m[1], m[2]]);
+const plain = [...src.matchAll(/api\.(get|post|put|patch|delete)\(\s*[`"]([^`"]+)[`"]/g)].map(
   (m) => [m[1], m[2]],
 );
-const plain = [...src.matchAll(/api\.(get|post|put|patch|delete)\(\s*[`"]([^`"]+)[`"]/g)].map((m) => [m[1], m[2]]);
 const calls = [...literal, ...plain];
 if (provisioningToken) calls.push(["post", provisioningToken]);
 check("found the component's calls", calls.length >= 6, String(calls.length));
