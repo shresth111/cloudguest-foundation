@@ -13,6 +13,7 @@
 import { useEffect, type ReactNode } from "react";
 
 import { setShimVenue } from "@/lib/isp-partner/api-shim";
+import { isNetworkHost } from "@/lib/isp-partner/network-host";
 import { VenueContext } from "@/lib/venue";
 
 export interface VenueScopeProps {
@@ -31,6 +32,10 @@ export function VenueScope({
   children,
 }: VenueScopeProps) {
   useEffect(() => {
+    // Same guard every shim-touching component carries: the shim is only ever
+    // installed on the network host, so pinning a venue anywhere else would be
+    // arming behaviour that cannot fire. Keep the two in step.
+    if (typeof window === "undefined" || !isNetworkHost(window.location.hostname)) return;
     setShimVenue(customerId, locationId);
     return () => setShimVenue(null, null);
   }, [customerId, locationId]);
