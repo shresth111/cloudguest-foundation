@@ -24,6 +24,7 @@
 import { api } from "@/services/api";
 import type { DhcpPool, DhcpPoolListResult } from "@/types/dhcp";
 import type { PortForwardingListResult, PortForwardingRule } from "@/types/port-forwarding";
+import type { QosListResult, QosTrafficRule } from "@/types/qos";
 import type { Vlan, VlanListResult } from "@/types/vlan";
 
 interface BackendVlan {
@@ -254,5 +255,75 @@ export const venuePortForwardingService = {
       `/isp/venue/port-forwarding/rules/${id}/push`,
     );
     return toPortForwardingRule(data);
+  },
+};
+
+interface BackendQosRule {
+  id: string;
+  router_id: string;
+  organization_id: string;
+  location_id: string;
+  name: string;
+  protocol: string | null;
+  port_range_start: number | null;
+  port_range_end: number | null;
+  dscp_value: number | null;
+  priority: number;
+  is_enabled: boolean;
+  device_queue_id: string | null;
+  device_push_status: "pending" | "active" | "failed";
+  device_push_error: string | null;
+  device_pushed_at: string | null;
+  created_at: string;
+}
+
+interface BackendQosListResponse {
+  items: BackendQosRule[];
+  page: number;
+  page_size: number;
+  total_items: number;
+  total_pages: number;
+  has_next: boolean;
+  has_previous: boolean;
+}
+
+function toQosRule(r: BackendQosRule): QosTrafficRule {
+  return {
+    id: r.id,
+    routerId: r.router_id,
+    organizationId: r.organization_id,
+    locationId: r.location_id,
+    name: r.name,
+    protocol: r.protocol,
+    portRangeStart: r.port_range_start,
+    portRangeEnd: r.port_range_end,
+    dscpValue: r.dscp_value,
+    priority: r.priority,
+    isEnabled: r.is_enabled,
+    deviceQueueId: r.device_queue_id,
+    devicePushStatus: r.device_push_status,
+    devicePushError: r.device_push_error,
+    devicePushedAt: r.device_pushed_at,
+    createdAt: r.created_at,
+  };
+}
+
+export const venueQosService = {
+  async list(q: VenueVlanQuery): Promise<QosListResult> {
+    const { data } = await api.get<BackendQosListResponse>("/isp/venue/qos-rules", {
+      params: { isp_router_id: q.routerId, page: q.page, page_size: q.pageSize },
+    });
+    return {
+      rows: data.items.map(toQosRule),
+      total: data.total_items,
+      totalPages: data.total_pages,
+      hasNext: data.has_next,
+      hasPrevious: data.has_previous,
+    };
+  },
+
+  async push(id: string): Promise<QosTrafficRule> {
+    const { data } = await api.post<BackendQosRule>(`/isp/venue/qos-rules/${id}/push`);
+    return toQosRule(data);
   },
 };

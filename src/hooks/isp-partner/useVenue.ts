@@ -14,6 +14,7 @@ import { ispKeys } from "@/hooks/isp-partner/keys";
 import {
   venueDhcpService,
   venuePortForwardingService,
+  venueQosService,
   venueVlanService,
 } from "@/services/isp-partner/venue";
 
@@ -80,6 +81,26 @@ export function usePushVenuePortForward(routerId: string | null) {
     onSuccess: () => {
       if (routerId)
         qc.invalidateQueries({ queryKey: ["isp", "venue", "port-forwarding", routerId] });
+    },
+  });
+}
+
+export function useVenueQosRules(routerId: string | null, page = 1, pageSize = DEFAULT_PAGE_SIZE) {
+  return useQuery({
+    queryKey: ispKeys.venueQosRules(routerId ?? "", { page, pageSize }),
+    queryFn: () => venueQosService.list({ routerId: routerId!, page, pageSize }),
+    enabled: Boolean(routerId),
+    retry: retryUnless4xx,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function usePushVenueQosRule(routerId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ruleId: string) => venueQosService.push(ruleId),
+    onSuccess: () => {
+      if (routerId) qc.invalidateQueries({ queryKey: ["isp", "venue", "qos-rules", routerId] });
     },
   });
 }
