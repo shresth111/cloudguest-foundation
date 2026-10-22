@@ -17,6 +17,8 @@ FROM deps AS builder
 # proxies that path to a real backend).
 ARG VITE_API_BASE_URL
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
+ARG VITE_ISP_PARTNER_ENABLED
+ENV VITE_ISP_PARTNER_ENABLED=${VITE_ISP_PARTNER_ENABLED}
 ENV NODE_ENV=production
 
 # @lovable.dev/vite-tanstack-config defaults nitro's build preset to
