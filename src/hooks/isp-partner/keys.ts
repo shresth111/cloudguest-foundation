@@ -22,6 +22,8 @@ export const ispKeys = {
   venueVlans: (routerId: string, q: object) => ["isp", "venue", "vlans", routerId, q] as const,
   venueDhcpPools: (routerId: string, q: object) =>
     ["isp", "venue", "dhcp-pools", routerId, q] as const,
+  venuePortForwards: (routerId: string, q: object) =>
+    ["isp", "venue", "port-forwarding", routerId, q] as const,
   guests: (customerId: string, q: object) => ["isp", "guests", customerId, q] as const,
   sessions: (customerId: string, q: object) => ["isp", "sessions", customerId, q] as const,
   netLogs: (params: object) => ["isp", "logs", "netlogs", params] as const,

@@ -11,7 +11,11 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 
 import { retryUnless4xx } from "@/hooks/isp-partner/useIsp";
 import { ispKeys } from "@/hooks/isp-partner/keys";
-import { venueDhcpService, venueVlanService } from "@/services/isp-partner/venue";
+import {
+  venueDhcpService,
+  venuePortForwardingService,
+  venueVlanService,
+} from "@/services/isp-partner/venue";
 
 const DEFAULT_PAGE_SIZE = 25;
 
@@ -51,6 +55,31 @@ export function usePushVenueDhcpPool(routerId: string | null) {
     mutationFn: (poolId: string) => venueDhcpService.push(poolId),
     onSuccess: () => {
       if (routerId) qc.invalidateQueries({ queryKey: ["isp", "venue", "dhcp-pools", routerId] });
+    },
+  });
+}
+
+export function useVenuePortForwards(
+  routerId: string | null,
+  page = 1,
+  pageSize = DEFAULT_PAGE_SIZE,
+) {
+  return useQuery({
+    queryKey: ispKeys.venuePortForwards(routerId ?? "", { page, pageSize }),
+    queryFn: () => venuePortForwardingService.list({ routerId: routerId!, page, pageSize }),
+    enabled: Boolean(routerId),
+    retry: retryUnless4xx,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function usePushVenuePortForward(routerId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ruleId: string) => venuePortForwardingService.push(ruleId),
+    onSuccess: () => {
+      if (routerId)
+        qc.invalidateQueries({ queryKey: ["isp", "venue", "port-forwarding", routerId] });
     },
   });
 }

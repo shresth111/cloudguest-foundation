@@ -23,6 +23,7 @@
  */
 import { api } from "@/services/api";
 import type { DhcpPool, DhcpPoolListResult } from "@/types/dhcp";
+import type { PortForwardingListResult, PortForwardingRule } from "@/types/port-forwarding";
 import type { Vlan, VlanListResult } from "@/types/vlan";
 
 interface BackendVlan {
@@ -178,5 +179,80 @@ export const venueDhcpService = {
   async push(id: string): Promise<DhcpPool> {
     const { data } = await api.post<BackendDhcpPool>(`/isp/venue/dhcp-pools/${id}/push`);
     return toDhcpPool(data);
+  },
+};
+
+interface BackendPortForwardingRule {
+  id: string;
+  router_id: string;
+  organization_id: string;
+  location_id: string;
+  name: string;
+  protocol: string;
+  source_address: string | null;
+  destination_address: string | null;
+  destination_port: number;
+  internal_address: string;
+  internal_port: number;
+  description: string | null;
+  is_enabled: boolean;
+  device_push_status: "pending" | "active" | "failed";
+  device_push_error: string | null;
+  device_pushed_at: string | null;
+  created_at: string;
+}
+
+interface BackendPortForwardingListResponse {
+  items: BackendPortForwardingRule[];
+  page: number;
+  page_size: number;
+  total_items: number;
+  total_pages: number;
+  has_next: boolean;
+  has_previous: boolean;
+}
+
+function toPortForwardingRule(r: BackendPortForwardingRule): PortForwardingRule {
+  return {
+    id: r.id,
+    routerId: r.router_id,
+    organizationId: r.organization_id,
+    locationId: r.location_id,
+    name: r.name,
+    protocol: r.protocol,
+    sourceAddress: r.source_address,
+    destinationAddress: r.destination_address,
+    destinationPort: r.destination_port,
+    internalAddress: r.internal_address,
+    internalPort: r.internal_port,
+    description: r.description,
+    isEnabled: r.is_enabled,
+    devicePushStatus: r.device_push_status,
+    devicePushError: r.device_push_error,
+    devicePushedAt: r.device_pushed_at,
+    createdAt: r.created_at,
+  };
+}
+
+export const venuePortForwardingService = {
+  async list(q: VenueVlanQuery): Promise<PortForwardingListResult> {
+    const { data } = await api.get<BackendPortForwardingListResponse>(
+      "/isp/venue/port-forwarding/rules",
+      { params: { isp_router_id: q.routerId, page: q.page, page_size: q.pageSize } },
+    );
+    return {
+      rows: data.items.map(toPortForwardingRule),
+      total: data.total_items,
+      totalPages: data.total_pages,
+      hasNext: data.has_next,
+      hasPrevious: data.has_previous,
+    };
+  },
+
+  async push(id: string): Promise<PortForwardingRule> {
+    const { data } = await api.post<BackendPortForwardingRule>(
+      `/isp/venue/port-forwarding/rules/${id}/push`,
+    );
+    return toPortForwardingRule(data);
   },
 };

@@ -17,13 +17,15 @@ import { MSeg } from "@/components/master/MasterKit";
 import { Card } from "@/components/isp-partner/kit";
 import { DhcpPoolsPanel } from "@/components/isp-partner/workspace/DhcpPoolsPanel";
 import { NetworkZonesPanel } from "@/components/isp-partner/workspace/NetworkZonesPanel";
+import { PortForwardingPanel } from "@/components/isp-partner/workspace/PortForwardingPanel";
 import { RouterSelect } from "@/components/isp-partner/workspace/RouterSelect";
 
-type View = "zones" | "addresses";
+type View = "zones" | "addresses" | "forwarding";
 
 const VIEWS: { value: View; label: string }[] = [
   { value: "zones", label: "Network Zones" },
   { value: "addresses", label: "IP Addresses" },
+  { value: "forwarding", label: "Port Forwarding" },
 ];
 
 export function NetworkPanel({ locationId }: { locationId: string }) {
@@ -52,6 +54,7 @@ export function NetworkPanel({ locationId }: { locationId: string }) {
       </div>
       {view === "zones" && <NetworkZonesPanel routerId={routerId} />}
       {view === "addresses" && <DhcpPoolsPanel routerId={routerId} />}
+      {view === "forwarding" && <PortForwardingPanel routerId={routerId} />}
     </div>
   );
 }
