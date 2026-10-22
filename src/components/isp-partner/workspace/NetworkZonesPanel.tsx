@@ -7,7 +7,9 @@
  * Building it here keeps the picker, the scope and the permissions under the
  * partner console's control.
  *
- * The router is a required input, not a default: see `RouterSelect`.
+ * `routerId` comes from the parent: the Network tab owns one picker for Zones,
+ * IP addresses and the rest, so switching between them does not silently change
+ * which router is being configured.
  */
 import { useState } from "react";
 import { toast } from "sonner";
@@ -22,15 +24,13 @@ import {
   Spinner,
 } from "@/components/isp-partner/kit";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
-import { RouterSelect } from "@/components/isp-partner/workspace/RouterSelect";
 import { usePushVenueVlan, useVenueVlans } from "@/hooks/isp-partner/useVenue";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
 
 const PAGE_SIZE = 25;
 
-export function NetworkZonesPanel({ locationId }: { locationId: string }) {
+export function NetworkZonesPanel({ routerId }: { routerId: string }) {
   const { can } = usePartner();
-  const [routerId, setRouterId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,34 +38,8 @@ export function NetworkZonesPanel({ locationId }: { locationId: string }) {
   const pushM = usePushVenueVlan(routerId);
   const canPush = can("isp_network.execute");
 
-  if (!routerId) {
-    return (
-      <Card
-        title="Network Zones"
-        actions={<RouterSelect locationId={locationId} value={null} onChange={setRouterId} />}
-      >
-        <p className="text-sm text-muted-foreground">
-          Pick this venue's router. VLANs and IP addresses live on a router, so each MikroTik at
-          this location has its own set.
-        </p>
-      </Card>
-    );
-  }
-
   return (
-    <Card
-      title="Network Zones"
-      actions={
-        <RouterSelect
-          locationId={locationId}
-          value={routerId}
-          onChange={(id) => {
-            setRouterId(id);
-            setPage(1);
-          }}
-        />
-      }
-    >
+    <Card title="Network Zones">
       <FormError message={error} />
       {q.isLoading && <LoadingBlock />}
       {q.isError ? (
