@@ -108,8 +108,14 @@ export function makeCollector(root) {
     );
     const m = re.exec(text);
     if (!m) return null;
-    const close = text.indexOf(")", m.index + m[0].length - 1);
-    let i = text.indexOf("{\n", close === -1 ? m.index : close);
+    let i;
+    if (m[0].endsWith("{")) {
+      // the method-shorthand alternative already matched through its "{"
+      i = m.index + m[0].length - 1;
+    } else {
+      const close = text.indexOf(")", m.index + m[0].length - 1);
+      i = text.indexOf("{\n", close === -1 ? m.index : close);
+    }
     if (i === -1) return null;
     let depth = 0;
     for (let j = i; j < text.length; j += 1) {
@@ -256,6 +262,9 @@ export function makeCollector(root) {
       }
       follow(file, text, scope);
     }
+    // Files whose code this collection read (for the permission gates the
+    // page checks with can("...") before making a call).
+    calls.visited = [...new Set([...seen].map((k) => k.split("#")[0]))];
     return calls;
   }
 
