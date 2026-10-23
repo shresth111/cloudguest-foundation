@@ -252,6 +252,18 @@ jobs:
       # hostname. This pins both directions at every door.
       - name: consoles never mix hostnames
         run: bun run test:consoles-never-mix
+      - name: Partner host guard test
+        run: bun run test:partner-host
+      - name: ISP partner shim test
+        run: bun run test:isp-partner-shim
+      # money and plans land with FE #460/#461 (stacked on #459); each step
+      # starts running the moment its script exists on the branch.
+      - name: ISP partner money test
+        if: hashFiles('scripts/test-isp-partner-money.mjs') != ''
+        run: bun run test:isp-partner-money
+      - name: ISP partner plans test
+        if: hashFiles('scripts/test-isp-partner-plans.mjs') != ''
+        run: bun run test:isp-partner-plans
       # The one exception to the rule above: an operator's "View as this
       # customer" session can only live on master.wyfyguest.com (its token is
       # in that origin's localStorage). Every customer guard bounced it to
