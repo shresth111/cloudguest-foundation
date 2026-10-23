@@ -32,13 +32,45 @@ import { WithRouter } from "@/components/isp-partner/customer-shell/parts";
 import { RouterSelect } from "@/components/isp-partner/workspace/RouterSelect";
 import { Devices as RoutersAndCpes } from "@/components/isp-partner/customer-shell/builtins";
 import type { PartnerSlotProps } from "@/components/isp-partner/customer-shell/slots";
-import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { isForbidden, ispErrorMessage } from "@/lib/isp-partner/errors";
 import { formatDate } from "@/lib/isp-partner/format";
 import {
   venueSecurityService as svc,
   type ContentFilterRuleCreate,
   type FirewallRuleCreate,
 } from "@/services/isp-partner/venue-security";
+
+// QA-013: router-level refusals are correct but were shown raw -- a router
+// UUID and internal credential wording. Say it in ISP terms instead.
+const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+
+function friendlyB4Message(error: unknown): string {
+  const raw = ispErrorMessage(error);
+  if (/connection credentials|management or public IP|API username|API secret/i.test(raw)) {
+    return "This router is not ready for remote changes yet: it has not finished its setup (run its setup script and wait for it to check in), then try again.";
+  }
+  if (/category filtering is not configured|Cloudflare/i.test(raw)) {
+    return "Website categories are not available on this platform yet. Blocking single websites and addresses above still works.";
+  }
+  return raw.replace(UUID_RE, "this router");
+}
+
+function B4Error({ error, onRetry, what }: { error: unknown; onRetry?: () => void; what: string }) {
+  if (isForbidden(error)) return <ErrorBlock error={error} onRetry={onRetry} what={what} />;
+  return (
+    <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center">
+      <p className="text-sm font-semibold text-foreground">Couldn&apos;t load {what}</p>
+      <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
+        {friendlyB4Message(error)}
+      </p>
+      {onRetry && (
+        <MButton variant="outline" className="mt-3" onClick={onRetry}>
+          Try again
+        </MButton>
+      )}
+    </div>
+  );
+}
 
 const k = (...parts: (string | null | undefined)[]) => ["isp-venue-b4", ...parts];
 
@@ -58,7 +90,7 @@ export function SecurityScorePage({ locationId }: PartnerSlotProps) {
   });
   if (q.isLoading) return <LoadingBlock />;
   if (q.error || !q.data)
-    return <ErrorBlock error={q.error} onRetry={() => q.refetch()} what="the security score" />;
+    return <B4Error error={q.error} onRetry={() => q.refetch()} what="the security score" />;
   const { score, counters, fleet } = q.data;
   return (
     <div className="space-y-4">
@@ -153,7 +185,7 @@ function ContentRules({ routerId }: { routerId: string }) {
       setForm({ value: "", type: form.type });
       invalidate("content", routerId);
     },
-    onError: (e) => setError(ispErrorMessage(e)),
+    onError: (e) => setError(friendlyB4Message(e)),
   });
   const act = useMutation({
     mutationFn: async ({ id, op }: { id: string; op: "push" | "delete" }) =>
@@ -162,7 +194,7 @@ function ContentRules({ routerId }: { routerId: string }) {
       toast.success(v.op === "push" ? "Pushed to the router." : "Rule removed.");
       invalidate("content", routerId);
     },
-    onError: (e) => toast.error(ispErrorMessage(e)),
+    onError: (e) => toast.error(friendlyB4Message(e)),
   });
 
   return (
@@ -207,7 +239,7 @@ function ContentRules({ routerId }: { routerId: string }) {
       )}
       <FormError message={error} />
       {q.error && !q.data ? (
-        <ErrorBlock error={q.error} onRetry={() => q.refetch()} what="blocked websites" />
+        <B4Error error={q.error} onRetry={() => q.refetch()} what="blocked websites" />
       ) : q.data && q.data.items.length === 0 ? (
         <MEmptyState icon={ShieldAlert} title="Nothing blocked on this router" />
       ) : (
@@ -285,18 +317,18 @@ function DnsCategories({ routerId, locationId }: { routerId: string; locationId:
       invalidate("dns-policy", locationId);
       invalidate("dns-router", routerId);
     },
-    onError: (e) => toast.error(ispErrorMessage(e)),
+    onError: (e) => toast.error(friendlyB4Message(e)),
   });
   const toggle = useMutation({
     mutationFn: (enabled: boolean) => svc.setRouterDns(routerId, enabled),
     onSuccess: () => invalidate("dns-router", routerId),
-    onError: (e) => toast.error(ispErrorMessage(e)),
+    onError: (e) => toast.error(friendlyB4Message(e)),
   });
 
   if (cats.isLoading || policy.isLoading) return <LoadingBlock />;
   if (cats.error || policy.error)
     return (
-      <ErrorBlock
+      <B4Error
         error={cats.error ?? policy.error}
         onRetry={() => {
           cats.refetch();
@@ -418,12 +450,12 @@ function FirewallRules({ routerId }: { routerId: string }) {
       setRule(EMPTY_RULE);
       invalidate("fw", routerId);
     },
-    onError: (e) => setError(ispErrorMessage(e)),
+    onError: (e) => setError(friendlyB4Message(e)),
   });
   const remove = useMutation({
     mutationFn: (id: string) => svc.deleteFirewallRule(id),
     onSuccess: () => invalidate("fw", routerId),
-    onError: (e) => toast.error(ispErrorMessage(e)),
+    onError: (e) => toast.error(friendlyB4Message(e)),
   });
   const push = useMutation({
     mutationFn: () => svc.pushFirewall(routerId),
@@ -431,7 +463,7 @@ function FirewallRules({ routerId }: { routerId: string }) {
       toast.success(`Pushed: ${r.added} added, ${r.removed} removed, ${r.unchanged} unchanged.`);
       invalidate("fw", routerId);
     },
-    onError: (e) => toast.error(ispErrorMessage(e)),
+    onError: (e) => toast.error(friendlyB4Message(e)),
   });
   const set = (patch: Partial<typeof rule>) => setRule({ ...rule, ...patch });
 
@@ -542,7 +574,7 @@ function FirewallRules({ routerId }: { routerId: string }) {
         </form>
       )}
       {q.error && !q.data ? (
-        <ErrorBlock error={q.error} onRetry={() => q.refetch()} what="firewall rules" />
+        <B4Error error={q.error} onRetry={() => q.refetch()} what="firewall rules" />
       ) : q.data && q.data.items.length === 0 ? (
         <MEmptyState icon={ShieldAlert} title="No firewall rules on this router" />
       ) : (
@@ -618,12 +650,12 @@ function RouterProtections({ routerId }: { routerId: string }) {
       toast.success("Flood limit applied on the router.");
       invalidate("flood", routerId);
     },
-    onError: (e) => toast.error(ispErrorMessage(e)),
+    onError: (e) => toast.error(friendlyB4Message(e)),
   });
   const setIso = useMutation({
     mutationFn: (enabled: boolean) => svc.setGuestIsolation(routerId, enabled),
     onSuccess: () => invalidate("iso", routerId),
-    onError: (e) => toast.error(ispErrorMessage(e)),
+    onError: (e) => toast.error(friendlyB4Message(e)),
   });
   const exec = can("isp_security.execute");
   return (
@@ -632,7 +664,7 @@ function RouterProtections({ routerId }: { routerId: string }) {
         {flood.isLoading ? (
           <LoadingBlock />
         ) : flood.error || !flood.data ? (
-          <ErrorBlock error={flood.error} onRetry={() => flood.refetch()} what="the flood limit" />
+          <B4Error error={flood.error} onRetry={() => flood.refetch()} what="the flood limit" />
         ) : (
           <div className="space-y-2">
             <select
@@ -663,7 +695,7 @@ function RouterProtections({ routerId }: { routerId: string }) {
         {iso.isLoading ? (
           <LoadingBlock />
         ) : iso.error || !iso.data ? (
-          <ErrorBlock error={iso.error} onRetry={() => iso.refetch()} what="guest isolation" />
+          <B4Error error={iso.error} onRetry={() => iso.refetch()} what="guest isolation" />
         ) : (
           <div className="space-y-2 text-sm">
             <p>{iso.data.summary}</p>
@@ -709,7 +741,7 @@ function Diagnostics({ routerId }: { routerId: string }) {
   const run = useMutation({
     mutationFn: () => svc.runDiagnostic(routerId, kind, target.trim()),
     onSuccess: () => invalidate("runs", routerId),
-    onError: (e) => toast.error(ispErrorMessage(e)),
+    onError: (e) => toast.error(friendlyB4Message(e)),
   });
   const last = run.data;
   return (
@@ -756,7 +788,7 @@ function Diagnostics({ routerId }: { routerId: string }) {
       </Card>
       <Card title="Recent runs">
         {runs.error && !runs.data ? (
-          <ErrorBlock error={runs.error} onRetry={() => runs.refetch()} what="recent runs" />
+          <B4Error error={runs.error} onRetry={() => runs.refetch()} what="recent runs" />
         ) : runs.data && runs.data.items.length === 0 ? (
           <p className="text-sm text-muted-foreground">No tests run on this router yet.</p>
         ) : (
@@ -809,12 +841,12 @@ function Clients({ locationId }: { locationId: string }) {
   const sync = useMutation({
     mutationFn: () => svc.syncClients(routerId as string),
     onSuccess: () => invalidate("clients", locationId),
-    onError: (e) => toast.error(ispErrorMessage(e)),
+    onError: (e) => toast.error(friendlyB4Message(e)),
   });
   const disconnect = useMutation({
     mutationFn: (id: string) => svc.disconnectClient(id),
     onSuccess: () => invalidate("clients", locationId),
-    onError: (e) => toast.error(ispErrorMessage(e)),
+    onError: (e) => toast.error(friendlyB4Message(e)),
   });
   const update = can("isp_monitor.update");
   return (
@@ -832,7 +864,7 @@ function Clients({ locationId }: { locationId: string }) {
       }
     >
       {q.error && !q.data ? (
-        <ErrorBlock error={q.error} onRetry={() => q.refetch()} what="connected devices" />
+        <B4Error error={q.error} onRetry={() => q.refetch()} what="connected devices" />
       ) : q.data && q.data.items.length === 0 ? (
         <MEmptyState icon={Monitor} title="No devices seen at this venue" />
       ) : (
@@ -887,12 +919,12 @@ function Hardware({ locationId }: { locationId: string }) {
       setForm({ name: "", mac_address: "", device_type: form.device_type });
       invalidate("hardware", locationId);
     },
-    onError: (e) => setError(ispErrorMessage(e)),
+    onError: (e) => setError(friendlyB4Message(e)),
   });
   const remove = useMutation({
     mutationFn: (id: string) => svc.deleteHardware(id),
     onSuccess: () => invalidate("hardware", locationId),
-    onError: (e) => toast.error(ispErrorMessage(e)),
+    onError: (e) => toast.error(friendlyB4Message(e)),
   });
   const update = can("isp_monitor.update");
   return (
@@ -939,7 +971,7 @@ function Hardware({ locationId }: { locationId: string }) {
       )}
       <FormError message={error} />
       {q.error && !q.data ? (
-        <ErrorBlock error={q.error} onRetry={() => q.refetch()} what="monitored hardware" />
+        <B4Error error={q.error} onRetry={() => q.refetch()} what="monitored hardware" />
       ) : q.data && q.data.items.length === 0 ? (
         <p className="text-sm text-muted-foreground">No access points or switches added yet.</p>
       ) : (
