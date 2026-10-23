@@ -10,9 +10,10 @@
  * reaches its original endpoint and fails closed rather than being rewritten
  * into a twin that cannot resolve a target.
  */
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { setShimVenue } from "@/lib/isp-partner/api-shim";
+import { resetSessionScopeCaches } from "@/lib/session-scope-cache";
 import { isNetworkHost } from "@/lib/isp-partner/network-host";
 import { VenueContext } from "@/lib/venue";
 
@@ -31,18 +32,37 @@ export function VenueScope({
   organizationId = null,
   children,
 }: VenueScopeProps) {
+  // Children render only once THIS venue is pinned. React runs a child's
+  // effects before its parent's, so without the gate a mounted customer page
+  // (PortalPage) fires its first fetches before the shim knows the venue --
+  // they would go out unrewritten and 403.
+  const key = `${customerId}:${locationId}`;
+  const [pinned, setPinned] = useState<string | null>(null);
+
   useEffect(() => {
     // Same guard every shim-touching component carries: the shim is only ever
     // installed on the network host, so pinning a venue anywhere else would be
     // arming behaviour that cannot fire. Keep the two in step.
-    if (typeof window === "undefined" || !isNetworkHost(window.location.hostname)) return;
+    if (typeof window === "undefined" || !isNetworkHost(window.location.hostname)) {
+      setPinned(key);
+      return;
+    }
     setShimVenue(customerId, locationId);
-    return () => setShimVenue(null, null);
-  }, [customerId, locationId]);
+    // Customer pages resolve "my organization" once and cache it
+    // (services/organization-id.ts). Drop that cache on every pin and unpin so
+    // the page re-asks -- through the venue twin -- and gets THIS customer,
+    // never the ISP or the previously open customer.
+    resetSessionScopeCaches();
+    setPinned(key);
+    return () => {
+      setShimVenue(null, null);
+      resetSessionScopeCaches();
+    };
+  }, [customerId, locationId, key]);
 
   return (
     <VenueContext.Provider value={{ locationId, locationName, organizationId }}>
-      {children}
+      {pinned === key ? children : null}
     </VenueContext.Provider>
   );
 }

@@ -12,9 +12,9 @@ import {
 } from "@/components/isp-partner/locations/LocationFormDrawer";
 import { RouterFormDrawer } from "@/components/isp-partner/routers/RouterFormDrawer";
 import { RoutersTable } from "@/components/isp-partner/routers/RoutersTable";
-import { PortalEditor } from "@/components/isp-partner/portal/PortalEditor";
 import { Tr069LocationCard } from "@/components/isp-partner/tr069/Tr069LocationCard";
 import { NetworkPanel } from "@/components/isp-partner/workspace/NetworkPanel";
+import { VenuePortal } from "@/components/isp-partner/workspace/VenuePortal";
 import { VenueScope } from "@/components/isp-partner/workspace/VenueScope";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { useIspLocation, useSetIspLocationSuspended } from "@/hooks/isp-partner/useIsp";
@@ -112,7 +112,9 @@ export function LocationDetailPage({ locationId }: { locationId: string }) {
           <NetworkPanel locationId={locationId} />
         </VenueScope>
       )}
-      {tab === "portal" && <PortalEditor locationId={locationId} />}
+      {tab === "portal" && (
+        <VenuePortal customerId={l.isp_customer_id} locationId={locationId} locationName={l.name} />
+      )}
       {tab === "tr069" && (
         <Tr069LocationCard locationId={locationId} canManage={can("tr069.manage")} />
       )}
