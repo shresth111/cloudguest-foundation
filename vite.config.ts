@@ -7,6 +7,7 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
+  plugins: [(await import("./vite-plugins/isp-portal-host")).ispPortalHost()], // ISP partner test-portal override (src/lib/isp-partner/portal-host.ts)
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this

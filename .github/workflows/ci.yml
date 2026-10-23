@@ -282,6 +282,10 @@ jobs:
       # endpoint (not a GLOBAL network-integrations route).
       - name: controller devices read
         run: bun run test:controller-devices
+      # ISP partner test-portal override: auth-isp only on network-staging with
+      # the flag on; every other host gets a byte-identical setup script.
+      - name: ISP portal host override test
+        run: bun run test:isp-portal-host
       # And the screen that renders it. A monitored-hardware row's up/down is
       # derived from `connected_devices`, whose only two writers reach a venue
       # over RouterOS -- so at an Omada venue nothing ever probes a registered
