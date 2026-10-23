@@ -192,7 +192,51 @@ const VENUE_QUERY_RENAMES: Record<string, string> = {
   router_id: "isp_router_id",
   location_id: "isp_location_id",
   customer_id: "isp_customer_id",
+  // QA-011: Open Hours sends organization_id as a query param. On /isp it is
+  // a scope alias too (the RBAC check would move onto the customer org and
+  // answer "not an active member"); the twin takes the customer from the
+  // header, so the key only has to stop being an alias.
+  organization_id: "isp_customer_id",
 };
+
+/**
+ * QA-010: the customer pages pass ids in axios `config.params`, not only in
+ * the URL. Rename those keys too, for a plain object or URLSearchParams.
+ */
+export function renameVenueParams(params: unknown): unknown {
+  if (!params) return params;
+  if (params instanceof URLSearchParams) {
+    const out = new URLSearchParams();
+    for (const [k, v] of params) out.append(VENUE_QUERY_RENAMES[k] ?? k, v);
+    return out;
+  }
+  if (typeof params === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(params as Record<string, unknown>)) {
+      out[VENUE_QUERY_RENAMES[k] ?? k] = v;
+    }
+    return out;
+  }
+  return params;
+}
+
+/**
+ * QA-012: several customer pages take "the current organization" from the
+ * session scope, which in the partner console is the ISP. While a venue is
+ * pinned, `/organizations/<the ISP org>/...` means the pinned customer.
+ */
+export function venueOrganizationPath(
+  url: string,
+  ispOrg: string | null,
+  customer: string | null,
+): string {
+  if (!ispOrg || !customer) return url;
+  const prefix = `/organizations/${ispOrg}`;
+  if (url === prefix || url.startsWith(`${prefix}/`) || url.startsWith(`${prefix}?`)) {
+    return `/organizations/${customer}${url.slice(prefix.length)}`;
+  }
+  return url;
+}
 
 function renameVenueQuery(query: string): string {
   if (!query) return "";
@@ -251,10 +295,12 @@ function shim(config: InternalAxiosRequestConfig): InternalAxiosRequestConfig | 
   const url = config.url ?? "";
   const method = (config.method ?? "get").toLowerCase();
   let rewritten: string | null;
+  let venueRewrite = false;
   try {
     rewritten = rewriteIspPath(method, url);
     if (!rewritten && venueCustomerId) {
-      rewritten = rewriteVenuePath(url);
+      rewritten = rewriteVenuePath(venueOrganizationPath(url, ispOrgId, venueCustomerId));
+      venueRewrite = rewritten !== null;
     }
   } catch (err) {
     if (err instanceof IspForceNotAllowed) return Promise.reject(forceNotAllowedRejection(config));
@@ -262,6 +308,7 @@ function shim(config: InternalAxiosRequestConfig): InternalAxiosRequestConfig | 
   }
   if (rewritten) {
     config.url = rewritten;
+    if (venueRewrite && config.params) config.params = renameVenueParams(config.params);
   } else if (!passesThrough(url)) {
     // Not ours and not twinned: it goes out as is and will most likely 403.
     // Say so where QA will see it. The status check keeps axios's default.
