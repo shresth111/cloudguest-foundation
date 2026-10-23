@@ -2739,6 +2739,7 @@ jobs:
           node scripts/test-isp-partner-b4.mjs
           node scripts/test-isp-partner-b5.mjs
           node scripts/test-isp-partner-b6.mjs
+          if [ -f scripts/test-isp-partner-f13.mjs ]; then node scripts/test-isp-partner-f13.mjs; fi
       - name: ISP partner NetLogs per second
         if: hashFiles('scripts/test-isp-partner-netlogs-seconds.mjs') != ''
         run: node scripts/test-isp-partner-netlogs-seconds.mjs

@@ -25,13 +25,24 @@ function check(name, ok, extra = "") {
 }
 const read = (p) => readFileSync(resolve(ROOT, p), "utf8");
 const shim = read("src/lib/isp-partner/api-shim.ts");
-const line = shim.split("\n").find((l) => l.includes("traffic-flow")) ?? "";
-const re = new RegExp(line.trim().replace(/^\//, "").replace(/\/,$/, ""));
+const regs = shim
+  .split("\n")
+  .filter((l) => l.trim().startsWith("/^\\/traffic-flow"))
+  .map((l) => new RegExp(l.trim().replace(/^\//, "").replace(/\/,$/, "")));
+const re = { test: (p) => regs.some((r) => r.test(p)) };
 const id = "11111111-2222-3333-4444-555555555555";
-for (const v of ["status", "summary", "destinations", "services/destinations", "geo", "findings"]) {
+for (const v of [
+  "status",
+  "summary",
+  "destinations",
+  "services/destinations",
+  "geo",
+  "findings",
+  "flows",
+]) {
   check(`shim rewrites ${v}`, re.test(`/traffic-flow/locations/${id}/${v}`));
 }
-for (const v of ["flows", "flows/export", "destinations/export"]) {
+for (const v of ["flows/export", "destinations/export"]) {
   check(`shim leaves ${v} failing closed`, !re.test(`/traffic-flow/locations/${id}/${v}`));
 }
 const page = read("src/components/isp-partner/addons/TrafficLensPage.tsx");
@@ -41,7 +52,10 @@ check(
 );
 const slots = read("src/components/isp-partner/customer-shell/slots/b6-addons.tsx");
 check("traffic-lens slot registered", /id: "traffic-lens", priority: 10/.test(slots));
-check("no Guest Messaging page before F1/F3", !/id: "marketing"/.test(slots));
+check(
+  "Guest Messaging slot registered (F1/F3 defaults)",
+  /id: "marketing", priority: 10/.test(slots),
+);
 const nav = read("src/components/isp-partner/customer-shell/nav.ts");
 check(
   "traffic-lens row is gated as an add-on",

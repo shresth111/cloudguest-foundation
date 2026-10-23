@@ -79,6 +79,7 @@ import { Route as PortalAuthRouteImport } from './routes/portal.auth'
 import { Route as PartnerUsersRouteImport } from './routes/partner.users'
 import { Route as PartnerSettingsRouteImport } from './routes/partner.settings'
 import { Route as PartnerReportsRouteImport } from './routes/partner.reports'
+import { Route as PartnerMessagingRouteImport } from './routes/partner.messaging'
 import { Route as PartnerLogsRouteImport } from './routes/partner.logs'
 import { Route as PartnerLoginRouteImport } from './routes/partner.login'
 import { Route as PartnerBillingRouteImport } from './routes/partner.billing'
@@ -572,6 +573,11 @@ const PartnerSettingsRoute = PartnerSettingsRouteImport.update({
 const PartnerReportsRoute = PartnerReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
+  getParentRoute: () => PartnerRoute,
+} as any)
+const PartnerMessagingRoute = PartnerMessagingRouteImport.update({
+  id: '/messaging',
+  path: '/messaging',
   getParentRoute: () => PartnerRoute,
 } as any)
 const PartnerLogsRoute = PartnerLogsRouteImport.update({
@@ -1472,6 +1478,7 @@ export interface FileRoutesByFullPath {
   '/partner/billing': typeof PartnerBillingRoute
   '/partner/login': typeof PartnerLoginRoute
   '/partner/logs': typeof PartnerLogsRoute
+  '/partner/messaging': typeof PartnerMessagingRoute
   '/partner/reports': typeof PartnerReportsRoute
   '/partner/settings': typeof PartnerSettingsRoute
   '/partner/users': typeof PartnerUsersRoute
@@ -1683,6 +1690,7 @@ export interface FileRoutesByTo {
   '/partner/billing': typeof PartnerBillingRoute
   '/partner/login': typeof PartnerLoginRoute
   '/partner/logs': typeof PartnerLogsRoute
+  '/partner/messaging': typeof PartnerMessagingRoute
   '/partner/reports': typeof PartnerReportsRoute
   '/partner/settings': typeof PartnerSettingsRoute
   '/partner/users': typeof PartnerUsersRoute
@@ -1899,6 +1907,7 @@ export interface FileRoutesById {
   '/partner/billing': typeof PartnerBillingRoute
   '/partner/login': typeof PartnerLoginRoute
   '/partner/logs': typeof PartnerLogsRoute
+  '/partner/messaging': typeof PartnerMessagingRoute
   '/partner/reports': typeof PartnerReportsRoute
   '/partner/settings': typeof PartnerSettingsRoute
   '/partner/users': typeof PartnerUsersRoute
@@ -2117,6 +2126,7 @@ export interface FileRouteTypes {
     | '/partner/billing'
     | '/partner/login'
     | '/partner/logs'
+    | '/partner/messaging'
     | '/partner/reports'
     | '/partner/settings'
     | '/partner/users'
@@ -2328,6 +2338,7 @@ export interface FileRouteTypes {
     | '/partner/billing'
     | '/partner/login'
     | '/partner/logs'
+    | '/partner/messaging'
     | '/partner/reports'
     | '/partner/settings'
     | '/partner/users'
@@ -2543,6 +2554,7 @@ export interface FileRouteTypes {
     | '/partner/billing'
     | '/partner/login'
     | '/partner/logs'
+    | '/partner/messaging'
     | '/partner/reports'
     | '/partner/settings'
     | '/partner/users'
@@ -3230,6 +3242,13 @@ declare module '@tanstack/react-router' {
       path: '/reports'
       fullPath: '/partner/reports'
       preLoaderRoute: typeof PartnerReportsRouteImport
+      parentRoute: typeof PartnerRoute
+    }
+    '/partner/messaging': {
+      id: '/partner/messaging'
+      path: '/messaging'
+      fullPath: '/partner/messaging'
+      preLoaderRoute: typeof PartnerMessagingRouteImport
       parentRoute: typeof PartnerRoute
     }
     '/partner/logs': {
@@ -4579,6 +4598,7 @@ interface PartnerRouteChildren {
   PartnerBillingRoute: typeof PartnerBillingRoute
   PartnerLoginRoute: typeof PartnerLoginRoute
   PartnerLogsRoute: typeof PartnerLogsRoute
+  PartnerMessagingRoute: typeof PartnerMessagingRoute
   PartnerReportsRoute: typeof PartnerReportsRoute
   PartnerSettingsRoute: typeof PartnerSettingsRoute
   PartnerUsersRoute: typeof PartnerUsersRoute
@@ -4601,6 +4621,7 @@ const PartnerRouteChildren: PartnerRouteChildren = {
   PartnerBillingRoute: PartnerBillingRoute,
   PartnerLoginRoute: PartnerLoginRoute,
   PartnerLogsRoute: PartnerLogsRoute,
+  PartnerMessagingRoute: PartnerMessagingRoute,
   PartnerReportsRoute: PartnerReportsRoute,
   PartnerSettingsRoute: PartnerSettingsRoute,
   PartnerUsersRoute: PartnerUsersRoute,
