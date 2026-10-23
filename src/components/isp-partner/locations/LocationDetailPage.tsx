@@ -14,12 +14,14 @@ import { RouterFormDrawer } from "@/components/isp-partner/routers/RouterFormDra
 import { RoutersTable } from "@/components/isp-partner/routers/RoutersTable";
 import { PortalEditor } from "@/components/isp-partner/portal/PortalEditor";
 import { Tr069LocationCard } from "@/components/isp-partner/tr069/Tr069LocationCard";
+import { NetworkPanel } from "@/components/isp-partner/workspace/NetworkPanel";
+import { VenueScope } from "@/components/isp-partner/workspace/VenueScope";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { useIspLocation, useSetIspLocationSuspended } from "@/hooks/isp-partner/useIsp";
 import { formatDate } from "@/lib/isp-partner/format";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
 
-type Tab = "routers" | "portal" | "tr069";
+type Tab = "routers" | "network" | "portal" | "tr069";
 
 export function LocationDetailPage({ locationId }: { locationId: string }) {
   const { can } = usePartner();
@@ -41,6 +43,7 @@ export function LocationDetailPage({ locationId }: { locationId: string }) {
     { value: "routers", label: "Routers" },
     { value: "portal", label: "Captive portal" },
   ];
+  if (can("isp_network.read")) tabs.splice(1, 0, { value: "network", label: "Network" });
   if (can("tr069.read")) tabs.push({ value: "tr069", label: "TR-069" });
 
   return (
@@ -100,6 +103,14 @@ export function LocationDetailPage({ locationId }: { locationId: string }) {
             emptyHint="Add this venue's MikroTik, then generate its setup script."
           />
         </Card>
+      )}
+      {tab === "network" && (
+        // VenueScope pins this customer+location for the twin: the network
+        // twins resolve their target from the X-Isp-* headers, so without it
+        // every call here would be a 422 for a missing header.
+        <VenueScope customerId={l.isp_customer_id} locationId={locationId} locationName={l.name}>
+          <NetworkPanel locationId={locationId} />
+        </VenueScope>
       )}
       {tab === "portal" && <PortalEditor locationId={locationId} />}
       {tab === "tr069" && (

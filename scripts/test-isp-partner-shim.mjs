@@ -77,7 +77,17 @@ await build({
 });
 
 const mod = await import(outfile);
-const { api, installIspApiShim, setShimIspOrganization, rewriteIspPath, ISP_SHIM_REWRITES } = mod;
+const {
+  api,
+  installIspApiShim,
+  setShimIspOrganization,
+  setShimVenue,
+  rewriteIspPath,
+  rewriteVenuePath,
+  HEADER_ISP_CUSTOMER,
+  HEADER_ISP_LOCATION,
+  ISP_SHIM_REWRITES,
+} = mod;
 
 const sent = [];
 api.defaults.adapter = async (config) => {
@@ -168,6 +178,76 @@ console.log("authorization untouched");
 sent.length = 0;
 await api.get("/isp/me", { headers: { Authorization: "Bearer keep-me" } });
 check("Authorization kept as given", sent[0]?.headers?.get?.("Authorization") === "Bearer keep-me");
+
+console.log("venue surfaces (API_CONTRACT §10)");
+const LOC = "22222222-2222-2222-2222-222222222222";
+const CUST = "33333333-3333-3333-3333-333333333333";
+
+// `rewriteVenuePath` is a pure allowlist function: whether a venue is pinned is
+// decided by `shim()`, one layer up, because only the interceptor knows whether
+// a workspace is mounted. So the "no venue" case must be asserted over the wire,
+// not against the pure function.
+setShimVenue(null, null);
+sent.length = 0;
+await api.get("/vlans?router_id=abc");
+check(
+  "no venue pinned -> the customer path is NOT rewritten",
+  sent[0]?.url === "/vlans?router_id=abc",
+  String(sent[0]?.url),
+);
+check(
+  "no venue pinned -> no customer header",
+  sent[0]?.headers?.get?.(HEADER_ISP_CUSTOMER) == null,
+  String(sent[0]?.headers?.get?.(HEADER_ISP_CUSTOMER)),
+);
+
+setShimVenue(CUST, LOC);
+check(
+  "allowlisted path rewritten with the query key renamed",
+  rewriteVenuePath("/vlans?router_id=abc&page=2") === "/isp/venue/vlans?isp_router_id=abc&page=2",
+  String(rewriteVenuePath("/vlans?router_id=abc&page=2")),
+);
+check(
+  "an already-renamed key is left alone",
+  rewriteVenuePath("/dhcp-pools?isp_router_id=abc") === "/isp/venue/dhcp-pools?isp_router_id=abc",
+);
+check(
+  "path parameters need no rename",
+  rewriteVenuePath(`/dhcp-pools/routers/${R}/leases`) ===
+    `/isp/venue/dhcp-pools/routers/${R}/leases`,
+);
+check(
+  "nested path preserved",
+  rewriteVenuePath(`/policies/${R}/assignments`) === `/isp/venue/policies/${R}/assignments`,
+);
+check("a non-allowlisted customer path is not rewritten", rewriteVenuePath("/cameras") === null);
+check("substring is not a prefix match", rewriteVenuePath("/vlansx") === null);
+check(
+  "the six setup rules still win",
+  rewriteIspPath("get", `/routers/${R}`) === `/isp/routers/${R}/as-router-device`,
+);
+
+sent.length = 0;
+await api.get("/vlans?router_id=abc");
+check(
+  "over the wire: the venue URL is used",
+  sent[0]?.url === "/isp/venue/vlans?isp_router_id=abc",
+  String(sent[0]?.url),
+);
+check(
+  "over the wire: the customer header is pinned",
+  sent[0]?.headers?.get?.(HEADER_ISP_CUSTOMER) === CUST,
+  String(sent[0]?.headers?.get?.(HEADER_ISP_CUSTOMER)),
+);
+check(
+  "over the wire: the location header is pinned",
+  sent[0]?.headers?.get?.(HEADER_ISP_LOCATION) === LOC,
+  String(sent[0]?.headers?.get?.(HEADER_ISP_LOCATION)),
+);
+check(
+  "over the wire: the ISP org header is still the ISP's own",
+  sent[0]?.headers?.get?.("X-Organization-Id") === "11111111-1111-1111-1111-111111111111",
+);
 
 console.log("setup component call list");
 const src = readFileSync(
