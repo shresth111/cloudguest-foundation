@@ -5,5 +5,8 @@ import { PartnerLoginPage } from "@/components/isp-partner/PartnerLoginPage";
  * bare, without the console chrome. */
 export const Route = createFileRoute("/partner/login")({
   ssr: false,
+  // `?reset=done` after a finished password reset (PartnerLoginPage note).
+  validateSearch: (search: Record<string, unknown>): { reset?: string } =>
+    typeof search.reset === "string" ? { reset: search.reset } : {},
   component: PartnerLoginPage,
 });

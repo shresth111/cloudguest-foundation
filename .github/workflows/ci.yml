@@ -2723,6 +2723,9 @@ jobs:
       - name: ISP partner TR-069 location credentials
         if: hashFiles('scripts/test-isp-partner-tr069-location.mjs') != ''
         run: node scripts/test-isp-partner-tr069-location.mjs
+      - name: ISP partner forgot / reset password
+        if: hashFiles('scripts/test-isp-partner-password-reset.mjs') != ''
+        run: node scripts/test-isp-partner-password-reset.mjs
 
   # ---------------------------------------------------------------------------
   # Slack
