@@ -2752,6 +2752,9 @@ jobs:
       - name: ISP partner sign-out gate (QA-019/020)
         if: hashFiles('scripts/test-isp-partner-sign-out.mjs') != ''
         run: node scripts/test-isp-partner-sign-out.mjs
+      - name: ISP partner wording (no tunnel internals on router setup)
+        if: hashFiles('scripts/test-isp-partner-wording.mjs') != ''
+        run: node scripts/test-isp-partner-wording.mjs
 
   # ---------------------------------------------------------------------------
   # Slack
