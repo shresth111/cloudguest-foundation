@@ -31,7 +31,6 @@ import {
   Notice,
   PasswordInput,
 } from "@/components/isp-partner/auth/PartnerAuthKit";
-import { masterLoginUrl } from "@/lib/isp-partner/access";
 import { RESET_DONE } from "@/lib/isp-partner/password-reset";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -55,12 +54,6 @@ export function PartnerLoginPage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const emailRef = useRef<HTMLInputElement>(null);
-  const [masterUrl, setMasterUrl] = useState("https://master.wyfyguest.com/master-login");
-
-  useEffect(() => {
-    setMasterUrl(masterLoginUrl(window.location.hostname));
-  }, []);
-
   useEffect(() => {
     if (isReady && isAuthenticated) navigate({ to: "/partner", replace: true });
   }, [isReady, isAuthenticated, navigate]);
@@ -169,14 +162,6 @@ export function PartnerLoginPage() {
     <PartnerAuthFrame
       title="Sign in to ISP Partner Console"
       subtitle="Manage your customers, venues, plans and billing."
-      footer={
-        <span className="text-xs">
-          Wyfy Guest platform staff?{" "}
-          <a href={masterUrl} className="font-medium text-primary hover:underline">
-            Use the Master console
-          </a>
-        </span>
-      }
     >
       {justReset && (
         <Notice tone="success" className="mb-4">

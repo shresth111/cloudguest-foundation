@@ -24,7 +24,7 @@ import { retryUnless4xx } from "@/hooks/isp-partner/useIsp";
 import { installIspApiShim, setShimIspOrganization } from "@/lib/isp-partner/api-shim";
 import { isNetworkHost } from "@/lib/isp-partner/network-host";
 import { ispErrorCode, ispErrorMessage } from "@/lib/isp-partner/errors";
-import { accessFromMeError, accessFromRoles, masterLoginUrl } from "@/lib/isp-partner/access";
+import { accessFromMeError, accessFromRoles } from "@/lib/isp-partner/access";
 import { buildPartnerContext, PartnerContext } from "@/components/isp-partner/PartnerContext";
 import { PartnerShell } from "@/components/isp-partner/PartnerShell";
 import { MButton } from "@/components/master/MasterKit";
@@ -120,19 +120,9 @@ export function PartnerLayout() {
             {suspended
               ? "Wyfy Guest has suspended access to the partner console for your ISP. Your customers' guest WiFi is not affected. Contact Wyfy Guest support to restore access."
               : platformAccount
-                ? "This is a Wyfy Guest platform account. The partner console is only for ISP partner staff; platform accounts use the Master console."
+                ? "The partner console is only for ISP partner staff."
                 : "network.wyfyguest.com is only for ISP partner staff. If you manage a venue, sign in at app.wyfyguest.com instead."}
           </p>
-          {platformAccount && !suspended && (
-            <p className="mt-2 text-sm">
-              <a
-                className="text-primary underline"
-                href={masterLoginUrl(typeof window === "undefined" ? "" : window.location.hostname)}
-              >
-                Open the Master console
-              </a>
-            </p>
-          )}
           {suspended && (
             <p className="mt-2 text-xs text-muted-foreground">
               Support:{" "}
