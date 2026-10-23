@@ -2714,6 +2714,9 @@ jobs:
       - name: ISP partner controller-venue gate
         if: hashFiles('scripts/test-isp-partner-controller-gate.mjs') != ''
         run: node scripts/test-isp-partner-controller-gate.mjs
+      - name: ISP partner access (who may open the console)
+        if: hashFiles('scripts/test-isp-partner-access.mjs') != ''
+        run: node scripts/test-isp-partner-access.mjs
 
   # ---------------------------------------------------------------------------
   # Slack
