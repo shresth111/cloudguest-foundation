@@ -15,7 +15,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
 
-import { MButton, MTag } from "@/components/master/MasterKit";
+import { MButton, MDialog, MTag } from "@/components/master/MasterKit";
 import {
   Card,
   ErrorBlock,
@@ -26,7 +26,7 @@ import {
 } from "@/components/isp-partner/kit";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { VlanFormDrawer } from "@/components/isp-partner/workspace/VlanFormDrawer";
-import { usePushVenueVlan, useVenueVlans } from "@/hooks/isp-partner/useVenue";
+import { useDeleteVenueVlan, usePushVenueVlan, useVenueVlans } from "@/hooks/isp-partner/useVenue";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
 
 const PAGE_SIZE = 25;
@@ -36,9 +36,11 @@ export function NetworkZonesPanel({ routerId }: { routerId: string }) {
   const [page, setPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [deleting, setDeleting] = useState<{ id: string; name: string } | null>(null);
 
   const q = useVenueVlans(routerId, page, PAGE_SIZE);
   const pushM = usePushVenueVlan(routerId);
+  const deleteM = useDeleteVenueVlan(routerId);
   const canPush = can("isp_network.execute");
 
   return (
@@ -110,6 +112,14 @@ export function NetworkZonesPanel({ routerId }: { routerId: string }) {
                           {pushM.isPending && <Spinner />} Push
                         </MButton>
                       )}
+                      {can("isp_network.delete") && (
+                        <MButton
+                          variant="outline"
+                          onClick={() => setDeleting({ id: v.id, name: v.name })}
+                        >
+                          Delete
+                        </MButton>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -127,6 +137,40 @@ export function NetworkZonesPanel({ routerId }: { routerId: string }) {
         routerId={routerId}
         onCreated={() => setPage(1)}
       />
+      <MDialog
+        open={deleting !== null}
+        onClose={() => setDeleting(null)}
+        title={deleting ? `Delete ${deleting.name}?` : "Delete VLAN?"}
+        footer={
+          <>
+            <MButton variant="outline" onClick={() => setDeleting(null)}>
+              Cancel
+            </MButton>
+            <MButton
+              disabled={deleteM.isPending}
+              onClick={async () => {
+                if (!deleting) return;
+                setError(null);
+                try {
+                  await deleteM.mutateAsync(deleting.id);
+                  toast.success(`${deleting.name} deleted.`);
+                  setDeleting(null);
+                } catch (err) {
+                  setError(ispErrorMessage(err));
+                  setDeleting(null);
+                }
+              }}
+            >
+              {deleteM.isPending && <Spinner />} Delete
+            </MButton>
+          </>
+        }
+      >
+        <p className="text-sm text-muted-foreground">
+          This removes the VLAN's row only. If it was already pushed to the router, remove it there
+          too, or the router keeps serving it.
+        </p>
+      </MDialog>
     </>
   );
 }
