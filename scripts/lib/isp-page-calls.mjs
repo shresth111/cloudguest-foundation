@@ -129,6 +129,14 @@ export function makeCollector(root) {
     return rel === "src/services/api.ts" || rel.startsWith("src/components/ui/");
   }
 
+  /** A one-statement const (`const X = lazy(() => import("..."));`). */
+  function statementOf(text, name) {
+    const m = new RegExp(`(?:^|\\n)(?:export\\s+)?const\\s+${name}\\s*[:=][\\s\\S]*?;\\s*\\n`).exec(
+      text,
+    );
+    return m ? m[0] : null;
+  }
+
   const KEYWORDS = new Set(["if", "for", "while", "switch", "catch", "return", "function"]);
 
   /** The export's body plus every same-file declaration it references. */
@@ -149,7 +157,10 @@ export function makeCollector(root) {
       for (const d of decls) {
         if (!local.has(d) && new RegExp(`\\b${d}\\b`).test(b)) {
           local.add(d);
-          const db = bodyOf(text, d);
+          // A one-line `const X = lazy(() => import("..."));` has no block of
+          // its own; bodyOf would grab the NEXT block in the file instead.
+          const stmt = statementOf(text, d);
+          const db = stmt && !stmt.includes("{\n") ? stmt : (bodyOf(text, d) ?? stmt);
           if (db) queue.push(db);
         }
       }
@@ -179,6 +190,30 @@ export function makeCollector(root) {
     const queue = []; // [file, exportName|null, isService]
 
     function follow(rel, text, scope) {
+      // Lazy pages: `lazy(() => import("@/x").then((m) => ({ default: m.Y })))`
+      // and `const ops = () => import("@/x")` + `ops().then((m) => ({ default:
+      // m.Y }))`. Follow the module, sliced to the named export when known.
+      const dynamic = [...text.matchAll(/import\(\s*["']([^"']+)["']\s*\)/g)]
+        .map((m) => resolveImport(rel, m[1]))
+        .filter(Boolean);
+      if (dynamic.length) {
+        const named = [...scope.matchAll(/default:\s*\w+\.(\w+)/g)].map((m) => m[1]);
+        for (const mod of new Set(dynamic)) {
+          if (skip(mod)) continue;
+          const modText = read(mod);
+          const here = named.filter((n) => bodyOf(modText, n));
+          if (here.length) for (const n of here) queue.push([mod, n, false]);
+          else if (
+            new RegExp(
+              `import\\(\\s*["'][^"']*${mod
+                .split("/")
+                .pop()
+                .replace(/\.tsx?$/, "")}["']`,
+            ).test(scope)
+          )
+            queue.push([mod, null, false]);
+        }
+      }
       const imports = importsOf(rel, text);
       for (const [local, imp] of imports) {
         if (skip(imp.file)) continue;
