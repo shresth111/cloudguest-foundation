@@ -24,6 +24,7 @@ import { retryUnless4xx } from "@/hooks/isp-partner/useIsp";
 import { installIspApiShim, setShimIspOrganization } from "@/lib/isp-partner/api-shim";
 import { isNetworkHost } from "@/lib/isp-partner/network-host";
 import { ispErrorCode, ispErrorMessage } from "@/lib/isp-partner/errors";
+import { accessFromMeError, accessFromRoles, masterLoginUrl } from "@/lib/isp-partner/access";
 import { buildPartnerContext, PartnerContext } from "@/components/isp-partner/PartnerContext";
 import { PartnerShell } from "@/components/isp-partner/PartnerShell";
 import { MButton } from "@/components/master/MasterKit";
@@ -52,7 +53,11 @@ export function PartnerLayout() {
   ensureShim();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isLogin = pathname === "/partner/login" || pathname === "/partner/login/";
-  const { isReady, isAuthenticated, logout } = useAuth();
+  const { isReady, isAuthenticated, logout, roles } = useAuth();
+  // Decided from the session before /isp/me (a GLOBAL Super Admin must not
+  // reach it: the pinned call has no ISP org to name and answers with the
+  // platform's "which organization?" error).
+  const roleAccess = accessFromRoles(roles);
   const navigate = useNavigate();
 
   const me = useQuery({
@@ -63,7 +68,7 @@ export function PartnerLayout() {
       setShimIspOrganization(data.isp.id);
       return data;
     },
-    enabled: !isLogin && isReady && isAuthenticated,
+    enabled: !isLogin && isReady && isAuthenticated && roleAccess === "unknown",
     retry: retryUnless4xx,
     staleTime: 5 * 60_000,
   });
@@ -73,7 +78,13 @@ export function PartnerLayout() {
   }, [isLogin, isReady, isAuthenticated, navigate]);
 
   const code = me.error ? ispErrorCode(me.error) : null;
-  const notPartner = code !== null && NOT_PARTNER_CODES.has(code);
+  const meAccess = me.error ? accessFromMeError(me.error) : "unknown";
+  const platformAccount = roleAccess === "platform-account" || meAccess === "platform-account";
+  const notPartner =
+    platformAccount ||
+    roleAccess === "not-partner" ||
+    meAccess === "not-partner" ||
+    (code !== null && NOT_PARTNER_CODES.has(code));
   const suspended = code === "ISP_PARTNER_SUSPENDED";
 
   // An account that is not an ISP account (or whose ISP is suspended) holds a
@@ -106,8 +117,20 @@ export function PartnerLayout() {
           <p className="mt-1 text-sm text-muted-foreground">
             {suspended
               ? "Wyfy Guest has suspended access to the partner console for your ISP. Your customers' guest WiFi is not affected. Contact Wyfy Guest support to restore access."
-              : "network.wyfyguest.com is only for ISP partner staff. If you manage a venue, sign in at app.wyfyguest.com instead."}
+              : platformAccount
+                ? "This is a Wyfy Guest platform account. The partner console is only for ISP partner staff; platform accounts use the Master console."
+                : "network.wyfyguest.com is only for ISP partner staff. If you manage a venue, sign in at app.wyfyguest.com instead."}
           </p>
+          {platformAccount && !suspended && (
+            <p className="mt-2 text-sm">
+              <a
+                className="text-primary underline"
+                href={masterLoginUrl(typeof window === "undefined" ? "" : window.location.hostname)}
+              >
+                Open the Master console
+              </a>
+            </p>
+          )}
           {suspended && (
             <p className="mt-2 text-xs text-muted-foreground">
               Support:{" "}
