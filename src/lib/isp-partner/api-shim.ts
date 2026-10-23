@@ -165,6 +165,10 @@ const VENUE_PREFIXES: readonly RegExp[] = [
   /^\/isp-routing(\/|$)/,
   // B3 (VouchersPage's redemption log).
   /^\/voucher-redemptions$/,
+  // B6 Traffic Lens (the customer's TrafficLensView, mounted unchanged). Exact
+  // views only: per-connection flow records and the CSV export have no twin
+  // (founder F2) and keep failing closed.
+  /^\/traffic-flow\/locations\/[0-9a-fA-F-]{36}\/(status|summary|destinations|services\/destinations|geo|findings)$/,
 ];
 
 /**
