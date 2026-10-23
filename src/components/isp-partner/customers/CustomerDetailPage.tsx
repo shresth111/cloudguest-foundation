@@ -23,7 +23,7 @@ import { ServiceCard } from "@/components/isp-partner/customers/ServiceCard";
 import { CustomerBillingTab } from "@/components/isp-partner/billing/CustomerBillingTab";
 import { LocationFormDrawer } from "@/components/isp-partner/locations/LocationFormDrawer";
 import { RoutersTable } from "@/components/isp-partner/routers/RoutersTable";
-import { PortalEditor } from "@/components/isp-partner/portal/PortalEditor";
+import { VenuePortal } from "@/components/isp-partner/workspace/VenuePortal";
 import { GuestsSessionsTab } from "@/components/isp-partner/guests/GuestsSessionsTab";
 import { LogsView } from "@/components/isp-partner/log-views/LogsView";
 import {
@@ -231,7 +231,7 @@ function PortalTab({ customerId }: { customerId: string }) {
           ))}
         </select>
       )}
-      <PortalEditor key={locationId} locationId={locationId} />
+      <VenuePortal customerId={customerId} locationId={locationId} />
     </div>
   );
 }

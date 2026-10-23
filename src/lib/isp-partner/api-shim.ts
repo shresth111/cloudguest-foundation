@@ -146,6 +146,17 @@ const VENUE_PREFIXES: readonly RegExp[] = [
   /^\/campaigns(\/|$)/,
   /^\/analytics\/voucher-redemptions(\/|$)/,
   /^\/otp\/requests(\/|$)/,
+  // The customer Portal page (PortalPage.tsx), mounted unchanged. Exact
+  // shapes, not prefixes: the public, unauthenticated variants
+  // (`/branding/{org}/logo/public`, `.../content-image/public`) and deleting
+  // a whole config have no twin and must keep failing closed.
+  /^\/branding(\/(logo|background-image)(\/raw)?)?$/,
+  /^\/captive-portal-configs(\/[0-9a-fA-F-]{36}(\/(activate|deactivate|content-image))?)?$/,
+  /^\/captive-portal\/review-stats$/,
+  /^\/organizations\/[0-9a-fA-F-]{36}(\/locations)?$/,
+  // "Which organization am I in?" -- answered with the pinned customer
+  // (backend venue_session.py), so the page filters to that customer.
+  /^\/me\/organizations$/,
 ];
 
 /**
