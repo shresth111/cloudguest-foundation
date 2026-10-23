@@ -117,7 +117,7 @@ const twins = new Set(
 );
 check("twin list loaded", twins.size > 50, String(twins.size));
 
-const { collect } = makeCollector(ROOT);
+const { collect, paramShapes } = makeCollector(ROOT);
 const { api, sent, setShimIspOrganization, setShimVenue } = await loadShim(ROOT);
 const ISP = "11111111-1111-1111-1111-111111111111";
 const CUST = "22222222-2222-2222-2222-222222222222";
@@ -161,6 +161,59 @@ for (const [nav, entries] of Object.entries(PAGES)) {
       `not a mounted twin (${twin}) <- ${from}`,
     );
   }
+}
+
+// QA-010 / QA-011 / QA-012: the REAL param shapes. Every call is sent again
+// with the query-param keys its caller passes in axios `params` (collected
+// from the source), with scope-alias values filled in; no scope-alias name may
+// reach the twin (it would move the RBAC check onto the customer org -> 403),
+// and a page's "current organization" (the ISP) must become the customer.
+{
+  const ALIASES = ["location_id", "router_id", "organization_id", "customer_id"];
+  const VALUE = { location_id: LOC, router_id: UUID, organization_id: ISP, customer_id: CUST };
+  let shapes = 0;
+  for (const [key, keys] of paramShapes) {
+    const [verb, path] = key.split(" ");
+    if (!path.startsWith("/") || NOT_FROM_THESE_PAGES.has(key) || keys.size === 0) continue;
+    const params = Object.fromEntries([...keys].map((k) => [k, VALUE[k] ?? "1"]));
+    sent.length = 0;
+    await api.request({ method: verb, url: path, params, data: verb === "get" ? undefined : {} });
+    const cfg = sent[0];
+    if (!cfg?.url?.startsWith("/isp/venue/")) continue; // not a venue call (checked above)
+    shapes += 1;
+    const sentKeys = Object.keys(cfg.params ?? {});
+    const leaked = sentKeys.filter((k) => ALIASES.includes(k));
+    check(
+      `params ${key.replaceAll(UUID, "{id}")} {${[...keys].join(",")}} -> no scope alias`,
+      leaked.length === 0,
+      `leaked ${leaked.join(",")}`,
+    );
+  }
+  check("param shapes were found in the pages", shapes >= 10, String(shapes));
+  for (const sub of ["", "/locations"]) {
+    sent.length = 0;
+    await api.request({
+      method: "get",
+      url: `/organizations/${ISP}${sub}`,
+      params: { page_size: 50 },
+    });
+    check(
+      `/organizations/<ISP org>${sub} means the pinned customer`,
+      sent[0]?.url === `/isp/venue/organizations/${CUST}${sub}`,
+      sent[0]?.url,
+    );
+  }
+  sent.length = 0;
+  await api.request({
+    method: "get",
+    url: "/captive-portal/resolve",
+    params: { organization_id: CUST, location_id: LOC },
+  });
+  check(
+    "Open Hours resolve sends no organization_id/location_id",
+    !Object.keys(sent[0]?.params ?? {}).some((k) => ALIASES.includes(k)),
+    JSON.stringify(sent[0]?.params),
+  );
 }
 
 // The dispatcher must not name a report id this test does not cover.
