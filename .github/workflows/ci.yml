@@ -2742,6 +2742,9 @@ jobs:
       - name: ISP partner NetLogs per second
         if: hashFiles('scripts/test-isp-partner-netlogs-seconds.mjs') != ''
         run: node scripts/test-isp-partner-netlogs-seconds.mjs
+      - name: ISP partner TR-069 location credentials
+        if: hashFiles('scripts/test-isp-partner-tr069-location.mjs') != ''
+        run: node scripts/test-isp-partner-tr069-location.mjs
 
   # ---------------------------------------------------------------------------
   # Slack

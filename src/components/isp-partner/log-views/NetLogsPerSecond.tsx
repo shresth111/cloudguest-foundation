@@ -94,7 +94,12 @@ export function NetLogsPerSecond({ scope }: { scope: Record<string, string> }) {
       {q.isError && (
         <ErrorBlock error={q.error} onRetry={() => q.refetch()} what="events per second" />
       )}
-      {d && geo && (
+      {d && !d.feature_enabled && (
+        <p className="text-sm text-muted-foreground">
+          Network logging is switched off on the platform, so there is nothing to count.
+        </p>
+      )}
+      {d && d.feature_enabled && geo && (
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <MStat label="Events in window" value={formatNumber(d.total)} />
