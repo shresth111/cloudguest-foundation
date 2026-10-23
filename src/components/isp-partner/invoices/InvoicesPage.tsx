@@ -243,7 +243,7 @@ export function InvoicesPage({
       <MSectionHeader
         eyebrow="Invoices"
         title="Invoices"
-        description="Tax invoices and credit notes to your customers and subscribers, numbered per financial year."
+        description="Tax invoices and credit notes to your customers and subscribers, numbered per financial year. Coupon sign-ins show up as invoices within about a minute."
         actions={
           can("isp_invoices.create") && (
             <>

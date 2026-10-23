@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { MButton, MEmptyState, M_INPUT } from "@/components/master/MasterKit";
 import { copyToClipboard, cn } from "@/lib/utils";
 import { isForbidden, ispErrorMessage } from "@/lib/isp-partner/errors";
+import { customerLabels, type CustomerLabelInput } from "@/lib/isp-partner/customer-label";
 
 export function Spinner({ className }: { className?: string }) {
   return <Loader2 className={cn("h-4 w-4 animate-spin", className)} />;
@@ -237,10 +238,11 @@ export function CustomerSelect({
 }: {
   value: string;
   onChange: (id: string) => void;
-  customers: { id: string; name: string }[] | undefined;
+  customers: CustomerLabelInput[] | undefined;
   allLabel?: string | null;
   disabled?: boolean;
 }) {
+  const labels = customerLabels(customers ?? []);
   return (
     <select
       className={M_INPUT}
@@ -253,7 +255,7 @@ export function CustomerSelect({
       {allLabel === null && <option value="">Pick a customer…</option>}
       {(customers ?? []).map((c) => (
         <option key={c.id} value={c.id}>
-          {c.name}
+          {labels.get(c.id) ?? c.name}
         </option>
       ))}
     </select>
