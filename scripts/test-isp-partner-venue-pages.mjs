@@ -40,6 +40,9 @@ const PAGES = {
   "business-hours": [{ file: OPS, exportName: "OpenHoursView" }],
   "mac-auth": [{ file: OPS, exportName: "MacAuthView" }],
   "isp-details": [{ file: OPS, exportName: "IspDetailsView" }],
+  campaigns: [{ file: "src/components/features/CampaignsPage.tsx" }],
+  vouchers: [{ file: "src/components/features/VouchersPage.tsx" }],
+  reports: [{ file: "src/components/features/UserReports.tsx" }],
 };
 
 /** Reached by the static walk, not by these pages at runtime. Keep reasons. */

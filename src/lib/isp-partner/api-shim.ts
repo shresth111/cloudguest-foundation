@@ -163,6 +163,8 @@ const VENUE_PREFIXES: readonly RegExp[] = [
   /^\/locations\/[0-9a-fA-F-]{36}(\/routers)?$/,
   /^\/isp\/routers\/[0-9a-fA-F-]{36}\/(failover|failback|wan-routing-mode)$/,
   /^\/isp-routing(\/|$)/,
+  // B3 (VouchersPage's redemption log).
+  /^\/voucher-redemptions$/,
 ];
 
 /**

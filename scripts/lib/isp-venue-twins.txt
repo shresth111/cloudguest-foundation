@@ -2,6 +2,9 @@
 # Regenerate when a batch adds twins (see scripts/test-isp-partner-venue-pages.mjs).
 DELETE /isp/venue/branding/background-image
 DELETE /isp/venue/branding/logo
+DELETE /isp/venue/campaigns/assets/{id}
+DELETE /isp/venue/campaigns/questions/{id}
+DELETE /isp/venue/campaigns/{id}
 DELETE /isp/venue/captive-portal-configs/{id}/content-image
 DELETE /isp/venue/dhcp-pools/routers/{id}/captive-portal-option
 DELETE /isp/venue/dhcp-pools/{id}
@@ -20,6 +23,9 @@ GET /isp/venue/branding
 GET /isp/venue/branding/background-image/raw
 GET /isp/venue/branding/logo/raw
 GET /isp/venue/campaigns
+GET /isp/venue/campaigns/{id}
+GET /isp/venue/campaigns/{id}/assets
+GET /isp/venue/campaigns/{id}/questions
 GET /isp/venue/campaigns/{id}/results
 GET /isp/venue/captive-portal-configs
 GET /isp/venue/captive-portal-configs/{id}
@@ -47,6 +53,7 @@ GET /isp/venue/isp/links/{id}
 GET /isp/venue/isp/links/{id}/health-checks
 GET /isp/venue/isp/links/{id}/health-checks/summary
 GET /isp/venue/locations/{id}
+GET /isp/venue/locations/{id}/overview
 GET /isp/venue/locations/{id}/routers
 GET /isp/venue/mac-authorization/entries
 GET /isp/venue/mac-authorization/entries/{id}
@@ -66,9 +73,21 @@ GET /isp/venue/qos-rules/{id}
 GET /isp/venue/vlans
 GET /isp/venue/vlans/{id}
 GET /isp/venue/voucher-batches
+GET /isp/venue/voucher-batches/{id}
+GET /isp/venue/voucher-batches/{id}/download
+GET /isp/venue/voucher-batches/{id}/export
 GET /isp/venue/voucher-batches/{id}/stats
+GET /isp/venue/voucher-batches/{id}/vouchers
+GET /isp/venue/voucher-redemptions
 POST /isp/venue/branding/background-image
 POST /isp/venue/branding/logo
+POST /isp/venue/campaigns
+POST /isp/venue/campaigns/{id}/assets
+POST /isp/venue/campaigns/{id}/end
+POST /isp/venue/campaigns/{id}/pause
+POST /isp/venue/campaigns/{id}/questions
+POST /isp/venue/campaigns/{id}/resume
+POST /isp/venue/campaigns/{id}/schedule
 POST /isp/venue/captive-portal-configs
 POST /isp/venue/captive-portal-configs/{id}/activate
 POST /isp/venue/captive-portal-configs/{id}/content-image
@@ -103,7 +122,13 @@ POST /isp/venue/qos-rules
 POST /isp/venue/qos-rules/{id}/push
 POST /isp/venue/vlans
 POST /isp/venue/vlans/{id}/push
+POST /isp/venue/voucher-batches
+POST /isp/venue/voucher-batches/{id}/email
+POST /isp/venue/voucher-batches/{id}/revoke
 PUT /isp/venue/branding
+PUT /isp/venue/campaigns/assets/{id}
+PUT /isp/venue/campaigns/questions/{id}
+PUT /isp/venue/campaigns/{id}
 PUT /isp/venue/captive-portal-configs/{id}
 PUT /isp/venue/dhcp-pools/routers/{id}/captive-portal-option
 PUT /isp/venue/dhcp-pools/{id}
