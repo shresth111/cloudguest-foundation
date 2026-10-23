@@ -2717,6 +2717,9 @@ jobs:
       - name: ISP partner access (who may open the console)
         if: hashFiles('scripts/test-isp-partner-access.mjs') != ''
         run: node scripts/test-isp-partner-access.mjs
+      - name: ISP partner NetLogs per second
+        if: hashFiles('scripts/test-isp-partner-netlogs-seconds.mjs') != ''
+        run: node scripts/test-isp-partner-netlogs-seconds.mjs
 
   # ---------------------------------------------------------------------------
   # Slack
