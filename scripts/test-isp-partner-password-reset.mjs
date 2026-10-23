@@ -90,7 +90,16 @@ check(
 
 const layout = src("src/components/isp-partner/PartnerLayout.tsx");
 const route = src("src/routes/partner.tsx");
-check("layout renders public pages bare", /isLogin = isPartnerPublicPath\(pathname\)/.test(layout));
+check(
+  "layout decides 'public page' from the rendered leaf match, not the location",
+  /isLogin = isPartnerPublicPath\(leafRouteId\)/.test(layout) &&
+    /s\.matches\[s\.matches\.length - 1\]\?\.routeId/.test(layout),
+);
+check(
+  "layout latches the not-ISP screen across logout",
+  /setEnded\(\{ suspended, platform: platformAccount \}\)/.test(layout) &&
+    /if \(ended \|\| notPartner \|\| suspended\)/.test(layout),
+);
 check(
   "route guard lets public pages through",
   /isLogin = isPartnerPublicPath\(location\.pathname\)/.test(route),

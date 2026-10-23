@@ -12,7 +12,7 @@
  * A non-ISP account is told so and signed out; a suspended ISP sees the
  * suspension message. Neither ever sees the console.
  */
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Ban, ShieldAlert } from "lucide-react";
@@ -30,6 +30,7 @@ import { PartnerShell } from "@/components/isp-partner/PartnerShell";
 import { MButton } from "@/components/master/MasterKit";
 import { Spinner } from "@/components/isp-partner/kit";
 import { isPartnerPublicPath } from "@/lib/isp-partner/password-reset";
+import { clearPartnerSessionEnded, markPartnerSessionEnded } from "@/lib/isp-partner/session-ended";
 
 function ensureShim() {
   if (typeof window !== "undefined" && isNetworkHost(window.location.hostname)) {
@@ -52,9 +53,15 @@ const NOT_PARTNER_CODES = new Set(["ISP_PARTNER_REQUIRED", "ISP_ROLE_REQUIRED"])
 export function PartnerLayout() {
   // Idempotent; runs during render so it precedes every child's first request.
   ensureShim();
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
   // Sign in, forgot password and reset password: bare, no session needed.
-  const isLogin = isPartnerPublicPath(pathname);
+  // Decided from the RENDERED leaf match, not the location: mid-navigation the
+  // location is already /partner/login while the outlet still holds the
+  // previous match, and a location-based check rendered that match (the
+  // Overview, measured on the test box 2026-10-23) past every gate below.
+  const leafRouteId = useRouterState({
+    select: (s) => s.matches[s.matches.length - 1]?.routeId ?? "",
+  });
+  const isLogin = isPartnerPublicPath(leafRouteId);
   const { isReady, isAuthenticated, logout, roles } = useAuth();
   // Decided from the session before /isp/me (a GLOBAL Super Admin must not
   // reach it: the pinned call has no ISP org to name and answers with the
@@ -75,8 +82,16 @@ export function PartnerLayout() {
     staleTime: 5 * 60_000,
   });
 
+  // Set when this layout itself ended the session (not an ISP account, or a
+  // suspended ISP). Latched, because logout() empties `roles`/`me` and would
+  // otherwise drop the explanation and bounce straight back to sign-in.
+  const [ended, setEnded] = useState<null | { suspended: boolean; platform: boolean }>(null);
+  const signedOut = useRef(false);
+
   useEffect(() => {
-    if (!isLogin && isReady && !isAuthenticated) navigate({ to: "/partner/login", replace: true });
+    if (!isLogin && isReady && !isAuthenticated && !signedOut.current) {
+      navigate({ to: "/partner/login", replace: true });
+    }
   }, [isLogin, isReady, isAuthenticated, navigate]);
 
   const code = me.error ? ispErrorCode(me.error) : null;
@@ -91,39 +106,51 @@ export function PartnerLayout() {
 
   // An account that is not an ISP account (or whose ISP is suspended) holds a
   // session this console cannot use: end it, once, and say why.
-  const signedOut = useRef(false);
   useEffect(() => {
     if ((notPartner || suspended) && !signedOut.current) {
       signedOut.current = true;
+      markPartnerSessionEnded();
+      setEnded({ suspended, platform: platformAccount });
       setShimIspOrganization(null);
       void logout();
     }
-  }, [notPartner, suspended, logout]);
+  }, [notPartner, suspended, platformAccount, logout]);
+
+  // Back on a public page: the next sign-in starts clean.
+  useEffect(() => {
+    if (isLogin && signedOut.current) {
+      signedOut.current = false;
+      clearPartnerSessionEnded();
+      setEnded(null);
+    }
+  }, [isLogin]);
 
   const ctx = useMemo(() => (me.data ? buildPartnerContext(me.data) : null), [me.data]);
 
   if (isLogin) return <Outlet />;
 
-  if (notPartner || suspended) {
+  if (ended || notPartner || suspended) {
+    const isSuspended = ended ? ended.suspended : suspended;
+    const isPlatform = ended ? ended.platform : platformAccount;
     return (
       <FullScreen>
         <div className="w-full max-w-md rounded-2xl premium-card p-6 text-center">
           <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-            {suspended ? <Ban className="h-6 w-6" /> : <ShieldAlert className="h-6 w-6" />}
+            {isSuspended ? <Ban className="h-6 w-6" /> : <ShieldAlert className="h-6 w-6" />}
           </span>
           <h1 className="mt-3 text-base font-semibold">
-            {suspended
+            {isSuspended
               ? "This ISP account is suspended"
               : "This account is not an ISP partner account"}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {suspended
+            {isSuspended
               ? "Wyfy Guest has suspended access to the partner console for your ISP. Your customers' guest WiFi is not affected. Contact Wyfy Guest support to restore access."
-              : platformAccount
+              : isPlatform
                 ? "The partner console is only for ISP partner staff."
                 : "network.wyfyguest.com is only for ISP partner staff. If you manage a venue, sign in at app.wyfyguest.com instead."}
           </p>
-          {suspended && (
+          {isSuspended && (
             <p className="mt-2 text-xs text-muted-foreground">
               Support:{" "}
               <a className="text-primary underline" href="mailto:support@wyfyguest.com">
