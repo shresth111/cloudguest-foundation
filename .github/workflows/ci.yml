@@ -295,6 +295,10 @@ jobs:
       # reset mail simply never comes and looks like a mail problem.
       - name: auth forms submit trimmed emails
         run: bun run test:auth-email-trimmed
+      # ISP partner invoices (ADDENDUM_03): Indian FY numbering, date presets,
+      # back-dating rule, WhatsApp share link.
+      - name: ISP partner invoices test
+        run: bun run test:isp-partner-invoices
 
       # The demo login (admin@example.com / test) mints a Super Admin session
       # in the browser with no backend. #284 turned it off in production; it

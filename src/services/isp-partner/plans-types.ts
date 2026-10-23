@@ -139,6 +139,13 @@ export interface Subscriber {
   status: "active" | "expired" | "disabled" | string;
   source: "coupon" | "manual" | string;
   last_seen_at?: string | null;
+  /** ADDENDUM_03 §5: immutable, unique per ISP. */
+  circuit_id?: number | null;
+  zone?: { id: string; name: string } | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  phone?: string | null;
+  email?: string | null;
 }
 
 export interface SubscriberDetail extends Subscriber {
@@ -167,6 +174,8 @@ export interface SubscriberCreate {
 }
 
 export interface SubscriberPatch {
+  /** ADDENDUM_03 §12. */
+  zone_id?: string | null;
   package_id?: string;
   valid_until?: string;
   display_name?: string | null;

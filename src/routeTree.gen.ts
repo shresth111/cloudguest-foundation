@@ -119,6 +119,7 @@ import { Route as PortalAuthIndexRouteImport } from './routes/portal.auth.index'
 import { Route as PartnerTr069IndexRouteImport } from './routes/partner.tr069.index'
 import { Route as PartnerRoutersIndexRouteImport } from './routes/partner.routers.index'
 import { Route as PartnerPlansIndexRouteImport } from './routes/partner.plans.index'
+import { Route as PartnerInvoicesIndexRouteImport } from './routes/partner.invoices.index'
 import { Route as PartnerCustomersIndexRouteImport } from './routes/partner.customers.index'
 import { Route as AuthenticatedWorkspaceIndexRouteImport } from './routes/_authenticated/workspace.index'
 import { Route as AuthenticatedVouchersIndexRouteImport } from './routes/_authenticated/vouchers.index'
@@ -160,6 +161,7 @@ import { Route as PortalAuthMethodRouteImport } from './routes/portal.auth.$meth
 import { Route as PartnerTr069CpeIdRouteImport } from './routes/partner.tr069.$cpeId'
 import { Route as PartnerRoutersIspRouterIdRouteImport } from './routes/partner.routers.$ispRouterId'
 import { Route as PartnerLocationsIspLocationIdRouteImport } from './routes/partner.locations.$ispLocationId'
+import { Route as PartnerInvoicesInvoiceIdRouteImport } from './routes/partner.invoices.$invoiceId'
 import { Route as PartnerCustomersIspCustomerIdRouteImport } from './routes/partner.customers.$ispCustomerId'
 import { Route as MasterRoutersRouterIdRouteImport } from './routes/master.routers.$routerId'
 import { Route as CustomerLocationIdUsersRouteImport } from './routes/customer.$locationId.users'
@@ -773,6 +775,11 @@ const PartnerPlansIndexRoute = PartnerPlansIndexRouteImport.update({
   path: '/plans/',
   getParentRoute: () => PartnerRoute,
 } as any)
+const PartnerInvoicesIndexRoute = PartnerInvoicesIndexRouteImport.update({
+  id: '/invoices/',
+  path: '/invoices/',
+  getParentRoute: () => PartnerRoute,
+} as any)
 const PartnerCustomersIndexRoute = PartnerCustomersIndexRouteImport.update({
   id: '/customers/',
   path: '/customers/',
@@ -1007,6 +1014,12 @@ const PartnerLocationsIspLocationIdRoute =
   PartnerLocationsIspLocationIdRouteImport.update({
     id: '/locations/$ispLocationId',
     path: '/locations/$ispLocationId',
+    getParentRoute: () => PartnerRoute,
+  } as any)
+const PartnerInvoicesInvoiceIdRoute =
+  PartnerInvoicesInvoiceIdRouteImport.update({
+    id: '/invoices/$invoiceId',
+    path: '/invoices/$invoiceId',
     getParentRoute: () => PartnerRoute,
   } as any)
 const PartnerCustomersIspCustomerIdRoute =
@@ -1524,6 +1537,7 @@ export interface FileRoutesByFullPath {
   '/customer/$locationId/users': typeof CustomerLocationIdUsersRoute
   '/master/routers/$routerId': typeof MasterRoutersRouterIdRoute
   '/partner/customers/$ispCustomerId': typeof PartnerCustomersIspCustomerIdRoute
+  '/partner/invoices/$invoiceId': typeof PartnerInvoicesInvoiceIdRoute
   '/partner/locations/$ispLocationId': typeof PartnerLocationsIspLocationIdRoute
   '/partner/routers/$ispRouterId': typeof PartnerRoutersIspRouterIdRoute
   '/partner/tr069/$cpeId': typeof PartnerTr069CpeIdRoute
@@ -1565,6 +1579,7 @@ export interface FileRoutesByFullPath {
   '/vouchers/': typeof AuthenticatedVouchersIndexRoute
   '/workspace/': typeof AuthenticatedWorkspaceIndexRoute
   '/partner/customers/': typeof PartnerCustomersIndexRoute
+  '/partner/invoices/': typeof PartnerInvoicesIndexRoute
   '/partner/plans/': typeof PartnerPlansIndexRoute
   '/partner/routers/': typeof PartnerRoutersIndexRoute
   '/partner/tr069/': typeof PartnerTr069IndexRoute
@@ -1729,6 +1744,7 @@ export interface FileRoutesByTo {
   '/customer/$locationId/users': typeof CustomerLocationIdUsersRoute
   '/master/routers/$routerId': typeof MasterRoutersRouterIdRoute
   '/partner/customers/$ispCustomerId': typeof PartnerCustomersIspCustomerIdRoute
+  '/partner/invoices/$invoiceId': typeof PartnerInvoicesInvoiceIdRoute
   '/partner/locations/$ispLocationId': typeof PartnerLocationsIspLocationIdRoute
   '/partner/routers/$ispRouterId': typeof PartnerRoutersIspRouterIdRoute
   '/partner/tr069/$cpeId': typeof PartnerTr069CpeIdRoute
@@ -1770,6 +1786,7 @@ export interface FileRoutesByTo {
   '/vouchers': typeof AuthenticatedVouchersIndexRoute
   '/workspace': typeof AuthenticatedWorkspaceIndexRoute
   '/partner/customers': typeof PartnerCustomersIndexRoute
+  '/partner/invoices': typeof PartnerInvoicesIndexRoute
   '/partner/plans': typeof PartnerPlansIndexRoute
   '/partner/routers': typeof PartnerRoutersIndexRoute
   '/partner/tr069': typeof PartnerTr069IndexRoute
@@ -1943,6 +1960,7 @@ export interface FileRoutesById {
   '/customer/$locationId/users': typeof CustomerLocationIdUsersRoute
   '/master/routers/$routerId': typeof MasterRoutersRouterIdRoute
   '/partner/customers/$ispCustomerId': typeof PartnerCustomersIspCustomerIdRoute
+  '/partner/invoices/$invoiceId': typeof PartnerInvoicesInvoiceIdRoute
   '/partner/locations/$ispLocationId': typeof PartnerLocationsIspLocationIdRoute
   '/partner/routers/$ispRouterId': typeof PartnerRoutersIspRouterIdRoute
   '/partner/tr069/$cpeId': typeof PartnerTr069CpeIdRoute
@@ -1984,6 +2002,7 @@ export interface FileRoutesById {
   '/_authenticated/vouchers/': typeof AuthenticatedVouchersIndexRoute
   '/_authenticated/workspace/': typeof AuthenticatedWorkspaceIndexRoute
   '/partner/customers/': typeof PartnerCustomersIndexRoute
+  '/partner/invoices/': typeof PartnerInvoicesIndexRoute
   '/partner/plans/': typeof PartnerPlansIndexRoute
   '/partner/routers/': typeof PartnerRoutersIndexRoute
   '/partner/tr069/': typeof PartnerTr069IndexRoute
@@ -2157,6 +2176,7 @@ export interface FileRouteTypes {
     | '/customer/$locationId/users'
     | '/master/routers/$routerId'
     | '/partner/customers/$ispCustomerId'
+    | '/partner/invoices/$invoiceId'
     | '/partner/locations/$ispLocationId'
     | '/partner/routers/$ispRouterId'
     | '/partner/tr069/$cpeId'
@@ -2198,6 +2218,7 @@ export interface FileRouteTypes {
     | '/vouchers/'
     | '/workspace/'
     | '/partner/customers/'
+    | '/partner/invoices/'
     | '/partner/plans/'
     | '/partner/routers/'
     | '/partner/tr069/'
@@ -2362,6 +2383,7 @@ export interface FileRouteTypes {
     | '/customer/$locationId/users'
     | '/master/routers/$routerId'
     | '/partner/customers/$ispCustomerId'
+    | '/partner/invoices/$invoiceId'
     | '/partner/locations/$ispLocationId'
     | '/partner/routers/$ispRouterId'
     | '/partner/tr069/$cpeId'
@@ -2403,6 +2425,7 @@ export interface FileRouteTypes {
     | '/vouchers'
     | '/workspace'
     | '/partner/customers'
+    | '/partner/invoices'
     | '/partner/plans'
     | '/partner/routers'
     | '/partner/tr069'
@@ -2575,6 +2598,7 @@ export interface FileRouteTypes {
     | '/customer/$locationId/users'
     | '/master/routers/$routerId'
     | '/partner/customers/$ispCustomerId'
+    | '/partner/invoices/$invoiceId'
     | '/partner/locations/$ispLocationId'
     | '/partner/routers/$ispRouterId'
     | '/partner/tr069/$cpeId'
@@ -2616,6 +2640,7 @@ export interface FileRouteTypes {
     | '/_authenticated/vouchers/'
     | '/_authenticated/workspace/'
     | '/partner/customers/'
+    | '/partner/invoices/'
     | '/partner/plans/'
     | '/partner/routers/'
     | '/partner/tr069/'
@@ -3462,6 +3487,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PartnerPlansIndexRouteImport
       parentRoute: typeof PartnerRoute
     }
+    '/partner/invoices/': {
+      id: '/partner/invoices/'
+      path: '/invoices'
+      fullPath: '/partner/invoices/'
+      preLoaderRoute: typeof PartnerInvoicesIndexRouteImport
+      parentRoute: typeof PartnerRoute
+    }
     '/partner/customers/': {
       id: '/partner/customers/'
       path: '/customers'
@@ -3747,6 +3779,13 @@ declare module '@tanstack/react-router' {
       path: '/locations/$ispLocationId'
       fullPath: '/partner/locations/$ispLocationId'
       preLoaderRoute: typeof PartnerLocationsIspLocationIdRouteImport
+      parentRoute: typeof PartnerRoute
+    }
+    '/partner/invoices/$invoiceId': {
+      id: '/partner/invoices/$invoiceId'
+      path: '/invoices/$invoiceId'
+      fullPath: '/partner/invoices/$invoiceId'
+      preLoaderRoute: typeof PartnerInvoicesInvoiceIdRouteImport
       parentRoute: typeof PartnerRoute
     }
     '/partner/customers/$ispCustomerId': {
@@ -4504,10 +4543,12 @@ interface PartnerRouteChildren {
   PartnerUsersRoute: typeof PartnerUsersRoute
   PartnerIndexRoute: typeof PartnerIndexRoute
   PartnerCustomersIspCustomerIdRoute: typeof PartnerCustomersIspCustomerIdRoute
+  PartnerInvoicesInvoiceIdRoute: typeof PartnerInvoicesInvoiceIdRoute
   PartnerLocationsIspLocationIdRoute: typeof PartnerLocationsIspLocationIdRoute
   PartnerRoutersIspRouterIdRoute: typeof PartnerRoutersIspRouterIdRoute
   PartnerTr069CpeIdRoute: typeof PartnerTr069CpeIdRoute
   PartnerCustomersIndexRoute: typeof PartnerCustomersIndexRoute
+  PartnerInvoicesIndexRoute: typeof PartnerInvoicesIndexRoute
   PartnerPlansIndexRoute: typeof PartnerPlansIndexRoute
   PartnerRoutersIndexRoute: typeof PartnerRoutersIndexRoute
   PartnerTr069IndexRoute: typeof PartnerTr069IndexRoute
@@ -4523,10 +4564,12 @@ const PartnerRouteChildren: PartnerRouteChildren = {
   PartnerUsersRoute: PartnerUsersRoute,
   PartnerIndexRoute: PartnerIndexRoute,
   PartnerCustomersIspCustomerIdRoute: PartnerCustomersIspCustomerIdRoute,
+  PartnerInvoicesInvoiceIdRoute: PartnerInvoicesInvoiceIdRoute,
   PartnerLocationsIspLocationIdRoute: PartnerLocationsIspLocationIdRoute,
   PartnerRoutersIspRouterIdRoute: PartnerRoutersIspRouterIdRoute,
   PartnerTr069CpeIdRoute: PartnerTr069CpeIdRoute,
   PartnerCustomersIndexRoute: PartnerCustomersIndexRoute,
+  PartnerInvoicesIndexRoute: PartnerInvoicesIndexRoute,
   PartnerPlansIndexRoute: PartnerPlansIndexRoute,
   PartnerRoutersIndexRoute: PartnerRoutersIndexRoute,
   PartnerTr069IndexRoute: PartnerTr069IndexRoute,

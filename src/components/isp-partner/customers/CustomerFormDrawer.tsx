@@ -10,6 +10,7 @@ import { FormError, Spinner, TextField } from "@/components/isp-partner/kit";
 import { useCreateIspCustomer, useUpdateIspCustomer } from "@/hooks/isp-partner/useIsp";
 import { ispErrorCode, ispErrorMessage, ispFieldErrors } from "@/lib/isp-partner/errors";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
+import { useZones } from "@/hooks/isp-partner/useInvoices";
 import type { IspCustomer, IspCustomerCreate } from "@/services/isp-partner/types";
 
 type Form = Record<
@@ -63,7 +64,9 @@ export function CustomerFormDrawer({
   customer: IspCustomer | null;
   onSaved?: (c: IspCustomer) => void;
 }) {
-  const { me } = usePartner();
+  const { me, can } = usePartner();
+  const zones = useZones(open && !!customer && can("isp_zones.read"));
+  const [zoneId, setZoneId] = useState(customer?.zone?.id ?? "");
   const [form, setForm] = useState<Form>(() => initial(customer, me.isp.timezone));
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -74,6 +77,7 @@ export function CustomerFormDrawer({
   useEffect(() => {
     if (open) {
       setForm(initial(customer, me.isp.timezone));
+      setZoneId(customer?.zone?.id ?? "");
       setError(null);
       setFieldErrors({});
     }
@@ -107,7 +111,8 @@ export function CustomerFormDrawer({
     try {
       let saved: IspCustomer;
       if (customer) {
-        saved = await update.mutateAsync(body);
+        const zoneChanged = can("isp_zones.read") && zoneId !== (customer.zone?.id ?? "");
+        saved = await update.mutateAsync(zoneChanged ? { ...body, zone_id: zoneId || null } : body);
         toast.success("Customer saved.");
       } else {
         const slug = orNull(form.slug);
@@ -240,6 +245,26 @@ export function CustomerFormDrawer({
           onChange={set("timezone")}
           error={fieldErrors.timezone}
         />
+        {customer && can("isp_zones.read") && (
+          <label className="block space-y-1.5">
+            <span className="text-xs font-medium text-muted-foreground">Zone</span>
+            <select
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+              value={zoneId}
+              onChange={(e) => setZoneId(e.target.value)}
+            >
+              <option value="">No zone</option>
+              {(zones.data ?? []).map((z) => (
+                <option key={z.id} value={z.id}>
+                  {z.name}
+                </option>
+              ))}
+            </select>
+            <span className="block text-[11px] text-muted-foreground">
+              For filters and reports; also the default GST place of supply.
+            </span>
+          </label>
+        )}
         <label className="block space-y-1.5">
           <span className="text-xs font-medium text-muted-foreground">Notes</span>
           <textarea

@@ -31,6 +31,7 @@ export const PAYMENT_MODE_LABEL: Record<string, string> = {
   upi: "UPI",
   bank_transfer: "Bank transfer",
   online: "Online",
+  prepaid_coupon: "Prepaid coupon",
 };
 
 export const INVOICE_STATUS_LABEL: Record<string, string> = {

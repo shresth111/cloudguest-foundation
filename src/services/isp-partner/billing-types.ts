@@ -147,7 +147,9 @@ export interface InvoiceCreate {
 }
 
 export interface PaymentCreate {
-  isp_customer_id: string;
+  /** One of the two (ADDENDUM_03 §8 adds subscriber payments). */
+  isp_customer_id?: string;
+  subscriber_id?: string;
   invoice_id?: string | null;
   amount_paise: number;
   mode: PaymentMode;

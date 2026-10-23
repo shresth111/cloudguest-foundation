@@ -11,6 +11,8 @@ import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { useRotateTr069Acs, useTr069Acs } from "@/hooks/isp-partner/useTr069";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
 import { roleLabel } from "@/lib/isp-partner/format";
+import { InvoiceSettingsCard } from "@/components/isp-partner/settings/InvoiceSettingsCard";
+import { ZonesCard } from "@/components/isp-partner/settings/ZonesCard";
 
 function AcsCard() {
   const q = useTr069Acs();
@@ -128,6 +130,8 @@ export function SettingsPage() {
         </dl>
       </Card>
       {can("tr069.manage") && <AcsCard />}
+      {can("isp_invoices.read") && <InvoiceSettingsCard />}
+      {can("isp_zones.read") && <ZonesCard />}
     </>
   );
 }
