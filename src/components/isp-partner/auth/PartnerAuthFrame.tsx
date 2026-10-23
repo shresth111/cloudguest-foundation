@@ -181,17 +181,16 @@ export function PartnerAuthFrame({
         </aside>
 
         {/* Small screens: brand band */}
-        <header className="relative overflow-hidden bg-gradient-to-br from-[#241f5c] via-[#1e1b4b] to-[#0f0d2a] px-4 pb-10 pt-5 text-white lg:hidden">
+        <header className="relative overflow-hidden bg-gradient-to-br from-[#241f5c] via-[#1e1b4b] to-[#0f0d2a] px-4 pb-11 pt-5 text-white lg:hidden">
           <NetworkArt className="pointer-events-none absolute -right-10 -top-6 h-44 w-auto opacity-40" />
           <div className="relative flex items-center justify-between">
             <BrandLine compact />
             <ThemeToggle className="text-white hover:bg-white/10 hover:text-white" />
           </div>
-          <p className="relative mt-4 text-sm font-medium text-white/80">ISP Partner Console</p>
         </header>
 
         {/* The form */}
-        <main className="relative flex w-full flex-1 justify-center px-4 lg:w-1/2 lg:items-center lg:px-12 lg:py-12">
+        <main className="relative flex w-full flex-1 items-start justify-center px-4 lg:w-1/2 lg:items-center lg:px-12 lg:py-12">
           <div className="absolute right-4 top-4 hidden lg:block">
             <ThemeToggle />
           </div>
