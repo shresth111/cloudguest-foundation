@@ -14,6 +14,7 @@ import { Info, Pencil } from "lucide-react";
 import { MButton, MSectionHeader, MTag } from "@/components/master/MasterKit";
 import { RouterSetupDrilldown } from "@/components/routers/RouterSetupScriptAdvanced";
 import { Card, ErrorBlock, LoadingBlock } from "@/components/isp-partner/kit";
+import { PartnerWordingScope } from "@/components/isp-partner/routers/PartnerWordingScope";
 import { RouterFormDrawer } from "@/components/isp-partner/routers/RouterFormDrawer";
 import { Tr069ScriptPanel } from "@/components/isp-partner/tr069/Tr069ScriptPanel";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
@@ -51,15 +52,20 @@ function SetupScript({ routerId }: { routerId: string }) {
           </p>
         </div>
       </div>
-      <RouterSetupDrilldown
-        router={device.data}
-        demo={false}
-        vendorSaving={false}
-        onVendorChange={(v) => {
-          if (v !== "mikrotik")
-            toast.error("Only MikroTik routers are supported in the partner console for now.");
-        }}
-      />
+      {/* QA-023 / D11: no tunnel-technology wording or tunnel address in the partner
+          UI. The management IP is the router's tunnel address, so the
+          header falls back to the public IP. The script is unchanged. */}
+      <PartnerWordingScope>
+        <RouterSetupDrilldown
+          router={{ ...device.data, managementIpAddress: null }}
+          demo={false}
+          vendorSaving={false}
+          onVendorChange={(v) => {
+            if (v !== "mikrotik")
+              toast.error("Only MikroTik routers are supported in the partner console for now.");
+          }}
+        />
+      </PartnerWordingScope>
     </div>
   );
 }

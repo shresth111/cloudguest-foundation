@@ -2726,6 +2726,9 @@ jobs:
       - name: ISP partner forgot / reset password
         if: hashFiles('scripts/test-isp-partner-password-reset.mjs') != ''
         run: node scripts/test-isp-partner-password-reset.mjs
+      - name: ISP partner wording (no tunnel internals on router setup)
+        if: hashFiles('scripts/test-isp-partner-wording.mjs') != ''
+        run: node scripts/test-isp-partner-wording.mjs
 
   # ---------------------------------------------------------------------------
   # Slack
