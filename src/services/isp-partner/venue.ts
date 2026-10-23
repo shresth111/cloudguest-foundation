@@ -345,6 +345,91 @@ function toQosRule(r: BackendQosRule): QosTrafficRule {
   };
 }
 
+/**
+ * Report rows. Typed to the WIRE shape (the twin answers the original
+ * handler's body), not to the customer app's camelCase view models: the
+ * Reports screen will map them, and mirroring the wire here means a backend
+ * field change shows up as a compile error rather than a silent blank column.
+ */
+export interface VenueGuestSessionRow {
+  id: string;
+  guest_id: string;
+  guest_identifier?: string | null;
+  device_id: string | null;
+  device_mac?: string | null;
+  router_id: string;
+  router_name?: string | null;
+  location_id: string;
+  organization_id: string;
+  auth_method: string;
+  voucher_id: string | null;
+  status: string;
+  device_online?: boolean | null;
+  is_online?: boolean;
+  started_at: string;
+  ended_at: string | null;
+  last_activity_at: string;
+  ip_address: string | null;
+  bytes_uploaded: number;
+  bytes_downloaded: number;
+  data_limit_mb: number | null;
+  session_timeout_minutes: number | null;
+  disconnect_reason: string | null;
+  user_agent: string | null;
+  created_at: string;
+}
+
+export interface VenuePage<T> {
+  rows: T[];
+  total: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
+}
+
+interface BackendPage<T> {
+  items: T[];
+  total_items: number;
+  total_pages: number;
+  has_next: boolean;
+  has_previous: boolean;
+}
+
+function toPage<T>(p: BackendPage<T>): VenuePage<T> {
+  return {
+    rows: p.items,
+    total: p.total_items,
+    totalPages: p.total_pages,
+    hasNext: p.has_next,
+    hasPrevious: p.has_previous,
+  };
+}
+
+export interface VenueReportQuery {
+  routerId?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  page?: number;
+  pageSize?: number;
+}
+
+export const venueReportService = {
+  /** Guest Activity / Bandwidth reports. The window is a real server-side
+   *  [start, end) filter on the original handler, not a client-side trim. */
+  async guestSessions(q: VenueReportQuery): Promise<VenuePage<VenueGuestSessionRow>> {
+    const { data } = await api.get<BackendPage<VenueGuestSessionRow>>("/isp/venue/guest-sessions", {
+      params: {
+        isp_router_id: q.routerId ?? undefined,
+        start_date: q.startDate ?? undefined,
+        end_date: q.endDate ?? undefined,
+        page: q.page,
+        page_size: q.pageSize,
+      },
+    });
+    return toPage(data);
+  },
+};
+
 export const venueQosService = {
   async list(q: VenueVlanQuery): Promise<QosListResult> {
     const { data } = await api.get<BackendQosListResponse>("/isp/venue/qos-rules", {
