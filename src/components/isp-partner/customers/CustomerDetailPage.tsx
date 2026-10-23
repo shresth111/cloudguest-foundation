@@ -284,6 +284,12 @@ export function CustomerDetailPage({
         actions={
           <>
             <MTag label={c.status} />
+            <Link
+              to="/partner/customers/$ispCustomerId/$feature"
+              params={{ ispCustomerId: customerId, feature: "dashboard" }}
+            >
+              <MButton>Open workspace</MButton>
+            </Link>
             {can("isp_partner.update") && (
               <MButton variant="outline" onClick={() => setEditing(true)}>
                 <Pencil /> Edit
