@@ -676,6 +676,12 @@ export interface Tr069CustomerState extends Tr069AcsCredential {
 export interface Tr069LocationSettings {
   enabled: boolean;
   periodic_inform_interval_s: number;
+  /** cloud-guest #444: the location's own ACS credential, present while
+   * TR-069 is on here. `password` only for roles that manage TR-069. */
+  acs_url?: string | null;
+  username?: string | null;
+  password?: string | null;
+  notes?: string | null;
 }
 
 export interface Tr069Device {
@@ -697,7 +703,11 @@ export interface Tr069Device {
   last_inform_at: string | null;
   first_seen_at: string;
   management_enabled: boolean;
+  /** cloud-guest #444: why tasks are refused, when they are. */
+  management_blocked_reason?: Tr069BlockedReason | null;
 }
+
+export type Tr069BlockedReason = "isp_off" | "customer_off" | "location_off";
 
 export interface Tr069DeviceDetail extends Tr069Device {
   params: {

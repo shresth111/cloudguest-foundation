@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { MButton, M_INPUT } from "@/components/master/MasterKit";
-import { Card, ErrorBlock, FormError, Spinner } from "@/components/isp-partner/kit";
+import { Card, CopyField, ErrorBlock, FormError, Spinner } from "@/components/isp-partner/kit";
 import { useSetTr069Location, useTr069Location } from "@/hooks/isp-partner/useTr069";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
 
@@ -39,7 +39,9 @@ export function Tr069LocationCard({
     setError(null);
     try {
       await save.mutateAsync({ enabled, periodic_inform_interval_s: n });
-      toast.success("Saved. Paste the router's TR-069 script again for it to take effect.");
+      toast.success(
+        "Saved. Turning TR-069 off here refuses this location's devices at the ACS on their next check-in. Routers set up before this change: paste the TR-069 script again so they use the location credential.",
+      );
     } catch (err) {
       setError(ispErrorMessage(err));
     }
@@ -78,6 +80,25 @@ export function Tr069LocationCard({
             Queued tasks (refresh, reboot) run at the device&apos;s next check-in, so a shorter
             interval means faster actions.
           </p>
+          {q.data.enabled && q.data.acs_url && (
+            <div className="space-y-2 rounded-lg border border-border p-3">
+              <p className="text-xs font-medium">This location&apos;s ACS credential</p>
+              <CopyField label="ACS URL" value={q.data.acs_url} />
+              {q.data.username && <CopyField label="Username" value={q.data.username} />}
+              {q.data.password ? (
+                <CopyField label="Password" value={q.data.password} secret />
+              ) : (
+                <p className="text-[11px] text-muted-foreground">
+                  The password is shown only to roles that manage TR-069.
+                </p>
+              )}
+              <p className="text-[11px] text-muted-foreground">
+                {q.data.notes ?? "Devices using this credential are assigned to this location."}{" "}
+                Configure non-MikroTik CPEs at this location with it; MikroTik routers get it from
+                their TR-069 script.
+              </p>
+            </div>
+          )}
           <FormError message={error} />
           {canManage && (
             <MButton onClick={onSave} disabled={save.isPending}>

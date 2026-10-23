@@ -3,6 +3,14 @@ import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Cpu } from "lucide-react";
 import { MEmptyState, MTable, MTag, MTd, MTh, MTr } from "@/components/master/MasterKit";
+import type { Tr069BlockedReason } from "@/services/isp-partner/types";
+
+/** cloud-guest #444: why the ACS refuses this device's tasks. */
+const BLOCKED_LABEL: Record<Tr069BlockedReason, string> = {
+  isp_off: "TR-069 off for the ISP",
+  customer_off: "TR-069 off for this customer",
+  location_off: "TR-069 off at this location",
+};
 import { ErrorBlock, Pager } from "@/components/isp-partner/kit";
 import { useTr069Devices } from "@/hooks/isp-partner/useTr069";
 import { formatAgo, formatDateTime } from "@/lib/isp-partner/format";
@@ -78,8 +86,17 @@ export function Tr069DevicesTable({
                 label={d.online ? "Online" : "Offline"}
                 tone={d.online ? "online" : "offline"}
               />
-              {!d.management_enabled && (
-                <p className="mt-0.5 text-[11px] text-muted-foreground">Management off</p>
+              {d.management_blocked_reason ? (
+                <p className="mt-0.5">
+                  <MTag
+                    label={BLOCKED_LABEL[d.management_blocked_reason] ?? "Management off"}
+                    tone="warning"
+                  />
+                </p>
+              ) : (
+                !d.management_enabled && (
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">Management off</p>
+                )
               )}
             </MTd>
             <MTd className="text-xs text-muted-foreground">
