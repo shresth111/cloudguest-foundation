@@ -2717,6 +2717,12 @@ jobs:
       - name: ISP partner access (who may open the console)
         if: hashFiles('scripts/test-isp-partner-access.mjs') != ''
         run: node scripts/test-isp-partner-access.mjs
+      - name: ISP partner B4-B6 pages (security/ops, monitor/support, add-ons)
+        if: hashFiles('scripts/test-isp-partner-b6.mjs') != ''
+        run: |
+          node scripts/test-isp-partner-b4.mjs
+          node scripts/test-isp-partner-b5.mjs
+          node scripts/test-isp-partner-b6.mjs
 
   # ---------------------------------------------------------------------------
   # Slack

@@ -31,6 +31,8 @@ import {
 } from "@/components/isp-partner/customer-shell/nav";
 import { partnerSlots } from "@/components/isp-partner/customer-shell/slots";
 import { useAddonOpen } from "@/components/isp-partner/customer-shell/addons";
+import { useControllerGate } from "@/components/isp-partner/customer-shell/controller-gate";
+import { ControllerManagedFeatureNotice } from "@/components/customer/ControllerManagedFeatureNotice";
 import { AddonLocked, ComingSoon } from "@/components/isp-partner/customer-shell/parts";
 
 export interface CustomerWorkspaceProps {
@@ -142,6 +144,14 @@ function FeatureBody({
   children: React.ReactNode;
 }) {
   const open = useAddonOpen(customerId, item.addon);
+  // The customer host's controller-venue rule, for every venue row: a screen
+  // that writes RouterOS is not mounted where every router is controller-
+  // managed (Omada / Aruba). "blocking" is gated under the customer id the
+  // rule uses for it, "website-blocking".
+  const gate = useControllerGate(
+    item.id === "blocking" ? "website-blocking" : item.id,
+    item.scope === "location" ? (location?.id ?? null) : null,
+  );
   if (open === null) return <LoadingBlock />;
   if (!open && item.addon)
     return <AddonLocked label={item.label} customerId={customerId} addon={item.addon} />;
@@ -154,6 +164,17 @@ function FeatureBody({
           description={`${item.label} is set per venue. Choose one of this customer's locations at the top.`}
         />
       </Card>
+    );
+  }
+  if (gate.loading) return <LoadingBlock />;
+  if (gate.gated) {
+    return (
+      <ControllerManagedFeatureNotice
+        featureId={item.id === "blocking" ? "website-blocking" : item.id}
+        featureLabel={item.label}
+        venueName={location?.name ?? null}
+        vendor={gate.vendor}
+      />
     );
   }
   return <>{children}</>;
