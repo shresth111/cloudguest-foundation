@@ -51,7 +51,7 @@ writeFileSync(
   entry,
   `export { CUSTOMER_NAV_GROUPS } from "${p("src/lib/customerNav.ts")}";
    export * from "${p("src/components/isp-partner/customer-shell/nav.ts")}";
-   export { useAddonOpen } from "${p("src/components/isp-partner/customer-shell/addons.ts")}";`,
+   export { addonOpenFrom } from "${p("src/components/isp-partner/customer-shell/addons.ts")}";`,
 );
 const outfile = join(outdir, "bundle.mjs");
 await build({
@@ -62,7 +62,7 @@ await build({
   outfile,
   logLevel: "silent",
   nodePaths: [join(ROOT, "node_modules")],
-  external: ["lucide-react"],
+  external: ["lucide-react", "axios", "@tanstack/react-query", "react", "sonner"],
   plugins: [
     {
       name: "at-alias",
@@ -148,10 +148,16 @@ check("Guest Messaging is the guest_marketing add-on", by.marketing.addon === "g
 check("Traffic Lens is the traffic_flow add-on", by["traffic-lens"].addon === "traffic_flow");
 check("only those two rows are add-ons", PARTNER_CUSTOMER_NAV.filter((i) => i.addon).length === 2);
 check(
-  "default allowance none: add-ons stay closed",
-  !mod.useAddonOpen("c", "guest_marketing") && !mod.useAddonOpen("c", "traffic_flow"),
+  "no add-on list (none allowed / not loaded): add-ons stay closed",
+  !mod.addonOpenFrom(undefined, "guest_marketing") && !mod.addonOpenFrom([], "traffic_flow"),
 );
-check("a non-add-on row is open", mod.useAddonOpen("c", undefined));
+check(
+  "an add-on opens only when ON for the customer",
+  mod.addonOpenFrom([{ key: "traffic_flow", enabled: true }], "traffic_flow") &&
+    !mod.addonOpenFrom([{ key: "traffic_flow", enabled: false }], "traffic_flow") &&
+    !mod.addonOpenFrom([{ key: "traffic_flow", enabled: true }], "guest_marketing"),
+);
+check("a non-add-on row is open", mod.addonOpenFrom(undefined, undefined));
 
 // 4. Slot contract.
 const slotsSrc = readFileSync(join(SHELL, "slots.ts"), "utf8");
