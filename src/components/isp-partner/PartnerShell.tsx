@@ -24,7 +24,9 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
+import { endPartnerSession } from "@/lib/isp-partner/sign-out";
 import { useTheme } from "@/context/ThemeContext";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
@@ -78,8 +80,11 @@ export function PartnerShell({ children }: { children: ReactNode }) {
       ? pathname === "/partner" || pathname === "/partner/"
       : pathname.startsWith(to);
 
+  const queryClient = useQueryClient();
+  // QA-020: cancel + drain partner calls before the token goes, so a poll
+  // that lands afterwards cannot 401 the user onto "session expired".
   const signOut = async () => {
-    await logout();
+    await endPartnerSession({ queryClient, logout });
     navigate({ to: "/partner/login", replace: true });
   };
 
