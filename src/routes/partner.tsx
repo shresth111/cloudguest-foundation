@@ -3,6 +3,7 @@ import { isIspPartnerFeEnabled, isNetworkHost } from "@/lib/isp-partner/network-
 import { PartnerLayout } from "@/components/isp-partner/PartnerLayout";
 import { isPartnerPublicPath } from "@/lib/isp-partner/password-reset";
 import { clearPartnerSessionEnded, partnerSessionEnded } from "@/lib/isp-partner/session-ended";
+import { openSignOutGate } from "@/lib/isp-partner/sign-out";
 
 /**
  * ISP partner console layout (network.wyfyguest.com, path prefix `/partner`;
@@ -40,7 +41,10 @@ export const Route = createFileRoute("/partner")({
     }
     // Sign in, forgot password and reset password render without a session.
     const isLogin = isPartnerPublicPath(location.pathname);
-    if (isLogin) clearPartnerSessionEnded();
+    if (isLogin) {
+      clearPartnerSessionEnded();
+      openSignOutGate();
+    }
     // Not while the layout is showing why it just signed this account out.
     if (!isLogin && context.auth?.status === "anonymous" && !partnerSessionEnded()) {
       throw redirect({ to: "/partner/login", replace: true });

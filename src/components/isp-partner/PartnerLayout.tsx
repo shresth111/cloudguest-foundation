@@ -14,7 +14,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ban, ShieldAlert } from "lucide-react";
 import api, { setOrganizationScope } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
@@ -31,10 +31,12 @@ import { MButton } from "@/components/master/MasterKit";
 import { Spinner } from "@/components/isp-partner/kit";
 import { isPartnerPublicPath } from "@/lib/isp-partner/password-reset";
 import { clearPartnerSessionEnded, markPartnerSessionEnded } from "@/lib/isp-partner/session-ended";
+import { endPartnerSession, installSignOutGate, openSignOutGate } from "@/lib/isp-partner/sign-out";
 
 function ensureShim() {
   if (typeof window !== "undefined" && isNetworkHost(window.location.hostname)) {
     installIspApiShim(api);
+    installSignOutGate(api);
   }
 }
 
@@ -68,6 +70,7 @@ export function PartnerLayout() {
   // platform's "which organization?" error).
   const roleAccess = accessFromRoles(roles);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const me = useQuery({
     queryKey: ispKeys.me,
@@ -112,12 +115,14 @@ export function PartnerLayout() {
       markPartnerSessionEnded();
       setEnded({ suspended, platform: platformAccount });
       setShimIspOrganization(null);
-      void logout();
+      // Cancel + drain in-flight partner calls first (QA-019 B).
+      void endPartnerSession({ queryClient, logout });
     }
-  }, [notPartner, suspended, platformAccount, logout]);
+  }, [notPartner, suspended, platformAccount, logout, queryClient]);
 
   // Back on a public page: the next sign-in starts clean.
   useEffect(() => {
+    if (isLogin) openSignOutGate();
     if (isLogin && signedOut.current) {
       signedOut.current = false;
       clearPartnerSessionEnded();
@@ -181,7 +186,7 @@ export function PartnerLayout() {
             <MButton
               variant="outline"
               onClick={async () => {
-                await logout();
+                await endPartnerSession({ queryClient, logout });
                 navigate({ to: "/partner/login", replace: true });
               }}
             >

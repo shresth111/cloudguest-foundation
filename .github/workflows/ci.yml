@@ -2726,6 +2726,9 @@ jobs:
       - name: ISP partner forgot / reset password
         if: hashFiles('scripts/test-isp-partner-password-reset.mjs') != ''
         run: node scripts/test-isp-partner-password-reset.mjs
+      - name: ISP partner sign-out gate (QA-019/020)
+        if: hashFiles('scripts/test-isp-partner-sign-out.mjs') != ''
+        run: node scripts/test-isp-partner-sign-out.mjs
 
   # ---------------------------------------------------------------------------
   # Slack
