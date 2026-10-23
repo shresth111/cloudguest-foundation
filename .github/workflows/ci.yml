@@ -2739,6 +2739,9 @@ jobs:
           node scripts/test-isp-partner-b4.mjs
           node scripts/test-isp-partner-b5.mjs
           node scripts/test-isp-partner-b6.mjs
+      - name: ISP partner NetLogs per second
+        if: hashFiles('scripts/test-isp-partner-netlogs-seconds.mjs') != ''
+        run: node scripts/test-isp-partner-netlogs-seconds.mjs
 
   # ---------------------------------------------------------------------------
   # Slack

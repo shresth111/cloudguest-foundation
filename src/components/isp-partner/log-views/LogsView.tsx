@@ -35,6 +35,9 @@ import { ispKeys } from "@/hooks/isp-partner/keys";
 import { ispService } from "@/services/isp-partner/isp";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
 import { formatDateTime, formatNumber } from "@/lib/isp-partner/format";
+import { formatDateTimeSeconds } from "@/lib/isp-partner/time-seconds";
+import { ExactRange, type ExactWindow } from "@/components/isp-partner/log-views/ExactRange";
+import { NetLogsPerSecond } from "@/components/isp-partner/log-views/NetLogsPerSecond";
 import {
   NETLOGS_CATEGORIES,
   NETLOGS_SEVERITIES,
@@ -121,7 +124,11 @@ function NetLogsPanel({
   now: number;
   canExport: boolean;
 }) {
-  const win = useMemo(() => rangeWindow(filters.range, now), [filters.range, now]);
+  // Per second (founder 2026-10-23): an exact from/to, down to the second,
+  // overrides the preset range for NetLogs.
+  const [exact, setExact] = useState<ExactWindow | null>(null);
+  const [newestFirst, setNewestFirst] = useState(true);
+  const win = useMemo(() => exact ?? rangeWindow(filters.range, now), [exact, filters.range, now]);
   const params = useMemo(() => netLogParams(filters, win), [filters, win]);
   const summary = useIspNetLogsSummary(params);
   const list = useInfiniteQuery({
@@ -137,11 +144,20 @@ function NetLogsPanel({
     retry: false,
   });
   const exp = useExport();
-  const items = list.data?.pages.flatMap((p) => p.items) ?? [];
+  const loaded = list.data?.pages.flatMap((p) => p.items) ?? [];
+  // The API pages newest first; "oldest first" re-orders what is loaded, by
+  // the full-precision timestamp, never by the formatted text.
+  const items = newestFirst
+    ? loaded
+    : [...loaded].sort(
+        (a, b) => new Date(a.received_at).getTime() - new Date(b.received_at).getTime(),
+      );
   const featureOff = list.data?.pages[0]?.feature_enabled === false;
 
   return (
     <div className="space-y-3">
+      <NetLogsPerSecond scope={params} />
+      <ExactRange value={exact} onChange={setExact} />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
           {summary.data
@@ -186,7 +202,16 @@ function NetLogsPanel({
             loading={list.isLoading}
             head={
               <>
-                <MTh>Time</MTh>
+                <MTh>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 hover:underline"
+                    onClick={() => setNewestFirst((v) => !v)}
+                    aria-label={newestFirst ? "Time, newest first" : "Time, oldest first"}
+                  >
+                    Time {newestFirst ? "↓" : "↑"}
+                  </button>
+                </MTh>
                 <MTh>Customer</MTh>
                 <MTh>Router</MTh>
                 <MTh>Severity</MTh>
@@ -199,7 +224,9 @@ function NetLogsPanel({
               const tone = severityTone(e.severity);
               return (
                 <MTr key={e.id}>
-                  <MTd className="whitespace-nowrap text-xs">{formatDateTime(e.received_at)}</MTd>
+                  <MTd className="whitespace-nowrap text-xs tabular-nums">
+                    {formatDateTimeSeconds(e.received_at)}
+                  </MTd>
                   <MTd className="text-xs">{e.customer_name}</MTd>
                   <MTd className="text-xs">
                     {e.router_name ?? e.hostname ?? "–"}
