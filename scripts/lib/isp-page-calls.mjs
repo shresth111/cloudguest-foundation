@@ -44,16 +44,29 @@ export function makeCollector(root) {
     return null;
   }
 
+  /** The keys of the first `params: { ... }` object literal right after a
+   * call (the axios config the page sends), e.g. ["location_id", "page"]. */
+  function paramKeysAfter(text, index) {
+    const window = text.slice(index, index + 600);
+    const m = /params\s*:\s*\{([^{}]*)\}/.exec(window);
+    if (!m) return [];
+    return [...m[1].matchAll(/(?:^|[,{\s])([a-z_][a-z0-9_]*)\s*(?::|,|$)/gi)]
+      .map((x) => x[1])
+      .filter((k) => !["true", "false", "null", "undefined"].includes(k));
+  }
+
   function pathsIn(text) {
     const out = [];
-    for (const m of text.matchAll(API_CALL)) out.push([m[1], m[2]]);
-    for (const m of text.matchAll(ALL_ITEMS)) out.push(["get", m[1]]);
-    return out.map(([method, lit]) => [
+    for (const m of text.matchAll(API_CALL)) out.push([m[1], m[2], paramKeysAfter(text, m.index)]);
+    for (const m of text.matchAll(ALL_ITEMS))
+      out.push(["get", m[1], paramKeysAfter(text, m.index)]);
+    return out.map(([method, lit, keys]) => [
       method,
       lit
         .slice(1, -1)
         .replace(/\$\{[^}]*\?[^}]*"activate"[^}]*\}/g, "activate")
         .replace(/\$\{[^}]*\}/g, UUID),
+      keys,
     ]);
   }
 
@@ -95,8 +108,14 @@ export function makeCollector(root) {
     );
     const m = re.exec(text);
     if (!m) return null;
-    const close = text.indexOf(")", m.index + m[0].length - 1);
-    let i = text.indexOf("{\n", close === -1 ? m.index : close);
+    let i;
+    if (m[0].endsWith("{")) {
+      // the method-shorthand alternative already matched through its "{"
+      i = m.index + m[0].length - 1;
+    } else {
+      const close = text.indexOf(")", m.index + m[0].length - 1);
+      i = text.indexOf("{\n", close === -1 ? m.index : close);
+    }
     if (i === -1) return null;
     let depth = 0;
     for (let j = i; j < text.length; j += 1) {
@@ -114,6 +133,14 @@ export function makeCollector(root) {
   }
   function skip(rel) {
     return rel === "src/services/api.ts" || rel.startsWith("src/components/ui/");
+  }
+
+  /** A one-statement const (`const X = lazy(() => import("..."));`). */
+  function statementOf(text, name) {
+    const m = new RegExp(`(?:^|\\n)(?:export\\s+)?const\\s+${name}\\s*[:=][\\s\\S]*?;\\s*\\n`).exec(
+      text,
+    );
+    return m ? m[0] : null;
   }
 
   const KEYWORDS = new Set(["if", "for", "while", "switch", "catch", "return", "function"]);
@@ -136,7 +163,10 @@ export function makeCollector(root) {
       for (const d of decls) {
         if (!local.has(d) && new RegExp(`\\b${d}\\b`).test(b)) {
           local.add(d);
-          const db = bodyOf(text, d);
+          // A one-line `const X = lazy(() => import("..."));` has no block of
+          // its own; bodyOf would grab the NEXT block in the file instead.
+          const stmt = statementOf(text, d);
+          const db = stmt && !stmt.includes("{\n") ? stmt : (bodyOf(text, d) ?? stmt);
           if (db) queue.push(db);
         }
       }
@@ -148,15 +178,48 @@ export function makeCollector(root) {
    * @param entries Array<{ file: string, exportName?: string }>
    * @returns Map<"verb path", fromFile>
    */
+  /** "verb path" -> the query-param keys any caller sends with it. */
+  const paramShapes = new Map();
+
   function collect(entries) {
     const calls = new Map();
     const record = (pairs, from) => {
-      for (const [verb, path] of pairs) calls.set(`${verb} ${path}`, from);
+      for (const [verb, path, keys] of pairs) {
+        calls.set(`${verb} ${path}`, from);
+        const k = `${verb} ${path}`;
+        const prev = paramShapes.get(k) ?? new Set();
+        for (const key of keys ?? []) prev.add(key);
+        paramShapes.set(k, prev);
+      }
     };
     const seen = new Set();
     const queue = []; // [file, exportName|null, isService]
 
     function follow(rel, text, scope) {
+      // Lazy pages: `lazy(() => import("@/x").then((m) => ({ default: m.Y })))`
+      // and `const ops = () => import("@/x")` + `ops().then((m) => ({ default:
+      // m.Y }))`. Follow the module, sliced to the named export when known.
+      const dynamic = [...text.matchAll(/import\(\s*["']([^"']+)["']\s*\)/g)]
+        .map((m) => resolveImport(rel, m[1]))
+        .filter(Boolean);
+      if (dynamic.length) {
+        const named = [...scope.matchAll(/default:\s*\w+\.(\w+)/g)].map((m) => m[1]);
+        for (const mod of new Set(dynamic)) {
+          if (skip(mod)) continue;
+          const modText = read(mod);
+          const here = named.filter((n) => bodyOf(modText, n));
+          if (here.length) for (const n of here) queue.push([mod, n, false]);
+          else if (
+            new RegExp(
+              `import\\(\\s*["'][^"']*${mod
+                .split("/")
+                .pop()
+                .replace(/\.tsx?$/, "")}["']`,
+            ).test(scope)
+          )
+            queue.push([mod, null, false]);
+        }
+      }
       const imports = importsOf(rel, text);
       for (const [local, imp] of imports) {
         if (skip(imp.file)) continue;
@@ -199,8 +262,11 @@ export function makeCollector(root) {
       }
       follow(file, text, scope);
     }
+    // Files whose code this collection read (for the permission gates the
+    // page checks with can("...") before making a call).
+    calls.visited = [...new Set([...seen].map((k) => k.split("#")[0]))];
     return calls;
   }
 
-  return { collect, read };
+  return { collect, read, paramShapes };
 }

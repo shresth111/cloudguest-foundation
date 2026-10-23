@@ -17,6 +17,7 @@ import {
   Vouchers as IspCoupons,
 } from "@/components/isp-partner/customer-shell/builtins";
 import { LocationOverview } from "@/components/isp-partner/customer-shell/pages/LocationOverview";
+import { usePartner } from "@/components/isp-partner/PartnerContext";
 import type { PartnerSlotProps } from "@/components/isp-partner/customer-shell/slots";
 
 const CampaignsPage = lazy(() =>
@@ -65,10 +66,15 @@ export function VenueVouchersPage(props: PartnerSlotProps) {
 type ReportView = "customer" | "venue";
 
 export function ReportsWithVenuePage(props: PartnerSlotProps) {
-  const [view, setView] = useState<ReportView>(props.locationId ? "venue" : "customer");
+  const { can } = usePartner();
+  // The venue catalogue reads guests, sessions, vouchers, campaigns and OTP
+  // requests through isp_access.read twins. A role without it (isp-billing)
+  // keeps the ISP's own reports only, instead of a page of 403s (QA P4).
+  const venueAllowed = Boolean(props.locationId) && can("isp_access.read");
+  const [view, setView] = useState<ReportView>(venueAllowed ? "venue" : "customer");
   return (
     <div className="space-y-4">
-      {props.locationId && (
+      {venueAllowed && (
         <MSeg<ReportView>
           value={view}
           onChange={setView}
@@ -78,7 +84,7 @@ export function ReportsWithVenuePage(props: PartnerSlotProps) {
           ]}
         />
       )}
-      {view === "venue" && props.locationId ? (
+      {view === "venue" && venueAllowed ? (
         <Suspense fallback={<LoadingBlock />}>
           {/* F2: masked (the default) -- ISP staff never unmask in this phase. */}
           <UserReports masked />
