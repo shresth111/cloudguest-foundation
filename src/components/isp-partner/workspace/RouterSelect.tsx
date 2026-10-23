@@ -11,7 +11,7 @@
  * The list is the location's own routers (`GET /isp/routers`, already live),
  * so it can never offer a router the twin would then refuse.
  */
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 
 import { M_INPUT } from "@/components/master/MasterKit";
 import { useIspRouters } from "@/hooks/isp-partner/useIsp";
@@ -30,7 +30,7 @@ export function RouterSelect({
   label?: string;
 }) {
   const q = useIspRouters({ isp_location_id: locationId, page_size: 100 });
-  const routers = q.data?.items ?? [];
+  const routers = useMemo(() => q.data?.items ?? [], [q.data]);
 
   // A venue with exactly one MikroTik is the common case, and there it must not
   // need a manual choice. Without this the <select> DISPLAYS the single option
