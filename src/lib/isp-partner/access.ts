@@ -52,11 +52,3 @@ export function accessFromMeError(err: unknown): PartnerAccess {
   if (code === "organization_required") return "platform-account";
   return code !== null && NOT_PARTNER_CODES.has(code) ? "not-partner" : "unknown";
 }
-
-/** Where a Wyfy platform (Master) account should sign in instead. */
-export function masterLoginUrl(hostname: string): string {
-  if (hostname === "network-staging.wyfyguest.com") {
-    return "https://staging-isp.wyfyguest.com/master-login";
-  }
-  return "https://master.wyfyguest.com/master-login";
-}

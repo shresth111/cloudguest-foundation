@@ -84,15 +84,6 @@ check(
   "network error -> unknown (Try again stays)",
   m.accessFromMeError({ status: 0 }) === "unknown",
 );
-check(
-  "staging Master link",
-  m.masterLoginUrl("network-staging.wyfyguest.com") ===
-    "https://staging-isp.wyfyguest.com/master-login",
-);
-check(
-  "prod Master link",
-  m.masterLoginUrl("network.wyfyguest.com") === "https://master.wyfyguest.com/master-login",
-);
 
 const layout = readFileSync(join(ROOT, "src/components/isp-partner/PartnerLayout.tsx"), "utf8");
 check("layout skips /isp/me unless roles leave it open", /roleAccess === "unknown"/.test(layout));
@@ -100,7 +91,10 @@ check(
   "layout maps /isp/me errors through accessFromMeError",
   /accessFromMeError\(me\.error\)/.test(layout),
 );
-check("layout links platform accounts to the Master console", /masterLoginUrl\(/.test(layout));
+check(
+  "layout does not advertise the Master console (founder 2026-10-23)",
+  !/masterLoginUrl|Master console|master-login/.test(layout),
+);
 
 console.log(
   failures

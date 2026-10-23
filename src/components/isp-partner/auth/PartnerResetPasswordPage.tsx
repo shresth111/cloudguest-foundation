@@ -1,14 +1,14 @@
 /**
  * `/partner/reset-password?token=...`: the link from the partner reset email
  * (cloud-guest #449). The token is spent by the existing, unchanged
- * `POST /auth/reset-password`: single use, one-hour expiry, the platform
+ * `POST /auth/reset-password` (via `resetPartnerPassword`, which bypasses the
+ * shared client's session-expiry redirect): single use, one-hour expiry, the platform
  * password policy, and every existing session of the account is signed out.
  * Success lands on `/partner/login?reset=done`.
  */
 import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { AlertCircle, ArrowLeft, Check, KeyRound } from "lucide-react";
-import { authService } from "@/services/auth.service";
 import { requestErrorOf } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -21,7 +21,7 @@ import {
   PASSWORD_RULES,
   strongPasswordSchema,
 } from "@/lib/password-policy";
-import { RESET_DONE } from "@/lib/isp-partner/password-reset";
+import { RESET_DONE, resetPartnerPassword } from "@/lib/isp-partner/password-reset";
 import { cn } from "@/lib/utils";
 
 const backToSignIn = (
@@ -55,7 +55,7 @@ export function PartnerResetPasswordPage({ token }: { token: string }) {
     setError(null);
     setBusy(true);
     try {
-      await authService.resetPassword(token, password);
+      await resetPartnerPassword(token, password);
       navigate({ to: "/partner/login", search: { reset: RESET_DONE }, replace: true });
     } catch (err) {
       const e2 = requestErrorOf(err);

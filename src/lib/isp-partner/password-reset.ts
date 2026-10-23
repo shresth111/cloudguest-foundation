@@ -8,7 +8,8 @@
  * - Reset: the existing, unchanged `POST /auth/reset-password`
  *   (`authService.resetPassword`). Single-use token, one-hour expiry.
  */
-import { api } from "@/services/api";
+import axios, { type AxiosError } from "axios";
+import { api, toAppError, type BackendEnvelope } from "@/services/api";
 
 /** Pages under `/partner` that render without a session. */
 export const PARTNER_PUBLIC_PATHS = [
@@ -24,6 +25,27 @@ export function isPartnerPublicPath(pathname: string): boolean {
 
 export async function requestPartnerPasswordReset(email: string): Promise<void> {
   await api.post("/isp/auth/forgot-password", { email: email.trim() });
+}
+
+/**
+ * `POST /auth/reset-password` (unchanged endpoint), sent with the bare axios
+ * rather than the shared `api` instance. Measured on the test box 2026-10-23:
+ * a spent link answers 401, and the shared instance treats every non-login
+ * 401 as an expired session (clearSession + /session-expired), so the visitor
+ * never saw "this link can't be used". Nothing here is session-bound, so there
+ * is nothing for that interceptor to refresh or tear down.
+ */
+export async function resetPartnerPassword(token: string, newPassword: string): Promise<void> {
+  try {
+    await axios.post(
+      `${api.defaults.baseURL ?? ""}/auth/reset-password`,
+      { token, new_password: newPassword },
+      { headers: { "Content-Type": "application/json" } },
+    );
+  } catch (err) {
+    if (axios.isAxiosError(err)) throw toAppError(err as AxiosError<BackendEnvelope<unknown>>);
+    throw err;
+  }
 }
 
 /** `?reset=done` on `/partner/login` shows the "password updated" note. */

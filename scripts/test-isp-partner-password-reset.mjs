@@ -25,9 +25,14 @@ await build({
       name: "stub-api",
       setup(b) {
         b.onResolve({ filter: /^@\/services\/api$/ }, () => ({ path: "api", namespace: "stub" }));
+        b.onResolve({ filter: /^axios$/ }, () => ({ path: "axios", namespace: "stubaxios" }));
+        b.onLoad({ filter: /.*/, namespace: "stubaxios" }, () => ({
+          contents:
+            "const isAxiosError = (e) => Boolean(e && e.isAxiosError); export default { isAxiosError, post: async (url, body) => { (globalThis.__bare ??= []).push([url, body]); if (globalThis.__bareFail) { const e = new Error('x'); e.isAxiosError = true; e.response = { status: globalThis.__bareFail }; throw e; } return { data: {} }; } };",
+        }));
         b.onLoad({ filter: /.*/, namespace: "stub" }, () => ({
           contents:
-            "export const api = { post: async (url, body) => { (globalThis.__calls ??= []).push([url, body]); return { data: {} }; } };",
+            'export const toAppError = (e) => ({ status: e.response?.status }); export const api = { defaults: { baseURL: "/api/v1" }, post: async (url, body) => { (globalThis.__calls ??= []).push([url, body]); return { data: {} }; } };',
         }));
       },
     },
@@ -55,6 +60,34 @@ const [url, body] = globalThis.__calls?.[0] ?? [];
 check("request goes to the ISP wrapper", url === "/isp/auth/forgot-password", String(url));
 check("request trims the email", body?.email === "owner@isp.example.com", JSON.stringify(body));
 
+await m.resetPartnerPassword("tok-1", "Pw-123456789aA!");
+const [rurl, rbody] = globalThis.__bare?.[0] ?? [];
+check(
+  "reset posts to /api/v1/auth/reset-password",
+  rurl === "/api/v1/auth/reset-password",
+  String(rurl),
+);
+check(
+  "reset body is {token, new_password}",
+  rbody?.token === "tok-1" && rbody?.new_password === "Pw-123456789aA!",
+);
+check(
+  "reset never goes through the shared api instance",
+  !(globalThis.__calls ?? []).some(([u]) => u.includes("reset-password")),
+);
+globalThis.__bareFail = 401;
+let thrown = null;
+try {
+  await m.resetPartnerPassword("spent", "Pw-123456789aA!");
+} catch (e) {
+  thrown = e;
+}
+check(
+  "a spent link surfaces as status 401 to the page",
+  thrown?.status === 401,
+  JSON.stringify(thrown),
+);
+
 const layout = src("src/components/isp-partner/PartnerLayout.tsx");
 const route = src("src/routes/partner.tsx");
 check("layout renders public pages bare", /isLogin = isPartnerPublicPath\(pathname\)/.test(layout));
@@ -67,8 +100,8 @@ check("reset route reads ?token=", /search\.token/.test(reset));
 check("reset route sends no Referer (token in URL)", /no-referrer/.test(reset));
 const resetPage = src("src/components/isp-partner/auth/PartnerResetPasswordPage.tsx");
 check(
-  "reset uses the unchanged /auth/reset-password",
-  /authService\.resetPassword\(/.test(resetPage),
+  "reset page uses resetPartnerPassword (bare client), not authService",
+  /resetPartnerPassword\(/.test(resetPage) && !/authService/.test(resetPage),
 );
 check(
   "reset lands on /partner/login?reset=done",
@@ -85,6 +118,17 @@ check("login links to forgot password", /to="\/partner\/forgot-password"/.test(l
 check("login keeps the ask-your-admin path", /<AskYourAdmin/.test(login));
 check("login shows the reset success note", /justReset &&/.test(login));
 check("login is branded ISP Partner", /ISP Partner Console/.test(login));
+for (const [name, text] of [
+  ["login", login],
+  ["forgot", forgot],
+  ["reset", resetPage],
+  ["frame", src("src/components/isp-partner/auth/PartnerAuthFrame.tsx")],
+]) {
+  check(
+    `${name} page does not advertise the Master console`,
+    !/Master console|master-login|masterLoginUrl/i.test(text),
+  );
+}
 const tree = src("src/routeTree.gen.ts");
 check(
   "route tree has both new routes",
