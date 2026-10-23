@@ -3,16 +3,15 @@
  * `slots/00-existing.tsx`). Every one is an existing partner component called
  * with the ids the shell resolved; none reads the customer dashboard's store.
  */
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Bot, Ticket } from "lucide-react";
 import { MButton, MEmptyState, MStat } from "@/components/master/MasterKit";
-import { Card } from "@/components/isp-partner/kit";
+import { Card, LoadingBlock } from "@/components/isp-partner/kit";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { ServiceCard } from "@/components/isp-partner/customers/ServiceCard";
 import { GuestsSessionsTab } from "@/components/isp-partner/guests/GuestsSessionsTab";
 import { ReportsView } from "@/components/isp-partner/reports/ReportsView";
-import { PortalEditor } from "@/components/isp-partner/portal/PortalEditor";
 import { RoutersTable } from "@/components/isp-partner/routers/RoutersTable";
 import { Tr069DevicesTable } from "@/components/isp-partner/tr069/Tr069DevicesTable";
 import { LogsView } from "@/components/isp-partner/log-views/LogsView";
@@ -136,8 +135,20 @@ export function ReportsPage({ customerId }: PartnerSlotProps) {
   return <ReportsView fixedCustomerId={customerId} />;
 }
 
+// The customer dashboard's OWN Portal page, unchanged (founder 2026-10-23):
+// file uploads, colours, content picture, login methods, phone preview. The
+// shell has already wrapped this in VenueScope, so the shim rewrites its calls
+// to the /isp/venue twins (scripts/test-isp-partner-portal-shim.mjs).
+const CustomerPortalPage = lazy(() =>
+  import("@/components/features/PortalPage").then((m) => ({ default: m.PortalPage })),
+);
+
 export function PortalPage({ locationId }: PartnerSlotProps) {
-  return <PortalEditor locationId={locationId as string} />;
+  return (
+    <Suspense fallback={<LoadingBlock />}>
+      <CustomerPortalPage locationId={locationId ?? undefined} />
+    </Suspense>
+  );
 }
 
 export function GuestConnectionRecordsPage({ customerId, locationId }: PartnerSlotProps) {
