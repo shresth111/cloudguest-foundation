@@ -43,6 +43,35 @@ const PAGES = {
   campaigns: [{ file: "src/components/features/CampaignsPage.tsx" }],
   vouchers: [{ file: "src/components/features/VouchersPage.tsx" }],
   reports: [{ file: "src/components/features/UserReports.tsx" }],
+  // Every real report type of UserReports, one by one (ReportPanel's run():
+  // report id -> real* function), plus the Business Unit list. A report type
+  // that grows an untwinned call fails here by name.
+  ...Object.fromEntries(
+    [
+      ["user-data", "realUserData"],
+      ["user-sessions", "realUserSessions"],
+      ["user-presence", "realUserPresence"],
+      ["top-users", "realTopUsers"],
+      ["daywise-data", "realDaywiseData"],
+      ["daywise-unique", "realDaywiseUnique"],
+      ["guest-session-log", "realGuestSessionLog"],
+      ["login-access-log", "realLoginAccessLog"],
+      ["voucher-usage", "realVoucherRedemptionLog"],
+      ["voucher-batch", "realVoucherBatchRate"],
+      ["top-vouchers", "realTopRedeemedVouchers"],
+      ["campaign-performance", "realCampaignPerformance"],
+      ["top-campaigns", "realTopCampaigns"],
+      ["data-consumption", "realDataConsumption"],
+      ["data-by-location", "realDataByLocation"],
+      ["otp-delivery", "realOtpRequests"],
+    ].map(([id, fn]) => [
+      `reports:${id}`,
+      [{ file: "src/components/features/UserReports.tsx", exportName: fn }],
+    ]),
+  ),
+  "reports:business-unit-list": [
+    { file: "src/hooks/useCustomerDashboard.ts", exportName: "useCustomerLocations" },
+  ],
 };
 
 /** Reached by the static walk, not by these pages at runtime. Keep reasons. */
@@ -132,6 +161,34 @@ for (const [nav, entries] of Object.entries(PAGES)) {
       `not a mounted twin (${twin}) <- ${from}`,
     );
   }
+}
+
+// The dispatcher must not name a report id this test does not cover.
+{
+  const src = readFileSync(join(ROOT, "src/components/features/UserReports.tsx"), "utf8");
+  const dispatched = [...src.matchAll(/reportType === "([a-z-]+)"\)/g)].map((m) => m[1]);
+  const covered = new Set(
+    Object.keys(PAGES)
+      .filter((k) => k.startsWith("reports:"))
+      .map((k) => k.slice(8)),
+  );
+  check("the dispatcher names report types", dispatched.length >= 15, String(dispatched.length));
+  for (const id of new Set(dispatched)) {
+    check(`report type ${id} is covered by its own entry`, covered.has(id), "add it to PAGES");
+  }
+}
+
+// The Business Unit's location reaches the twin under its isp_ name.
+{
+  const BU = "44444444-4444-4444-4444-444444444444";
+  sent.length = 0;
+  await api.request({ method: "get", url: `/guest-sessions?location_id=${BU}&page=1` });
+  const url = sent[0]?.url ?? "";
+  check(
+    "Business Unit location_id is sent as isp_location_id",
+    url.includes(`isp_location_id=${BU}`) && !/[?&]location_id=/.test(url),
+    url,
+  );
 }
 
 console.log(
