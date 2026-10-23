@@ -2699,6 +2699,18 @@ jobs:
           ./scripts/ci-gated-test.sh \
             "preview-then-apply" 90 "all checks passed" \
             node scripts/test-preview-then-apply.mjs
+      # ISP partner console (ADDENDUM_04 parity lane). Registration only; each
+      # step runs once its script exists on the branch. The customer pages the
+      # partner console mounts unchanged must reach only twinned calls.
+      - name: ISP partner portal shim
+        if: hashFiles('scripts/test-isp-partner-portal-shim.mjs') != ''
+        run: node scripts/test-isp-partner-portal-shim.mjs
+      - name: ISP partner venue pages
+        if: hashFiles('scripts/test-isp-partner-venue-pages.mjs') != ''
+        run: node scripts/test-isp-partner-venue-pages.mjs
+      - name: ISP partner customer shell
+        if: hashFiles('scripts/test-isp-partner-customer-shell.mjs') != ''
+        run: node scripts/test-isp-partner-customer-shell.mjs
 
   # ---------------------------------------------------------------------------
   # Slack
