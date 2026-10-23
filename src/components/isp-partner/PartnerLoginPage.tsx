@@ -1,5 +1,5 @@
 /**
- * Sign-in for network.wyfyguest.com, the ISP partner console.
+ * Sign-in for network.wyfyguest.com, the ISP Partner console.
  *
  * Uses the existing `POST /auth/login` through `useAuth().login`, unchanged,
  * including its must-change-password retry shape: a temporary password
@@ -8,17 +8,30 @@
  * Whether the account is actually an ISP account is decided afterwards by
  * `GET /isp/me` in the partner layout, not here.
  *
+ * Forgot password (founder 2026-10-23): self-service by email at
+ * `/partner/forgot-password`, or the ISP Owner/Admin resets it from Staff
+ * users. A finished reset lands back here with `?reset=done`.
+ *
  * Named export: `routes/index.tsx` (FULLSTACK, F1) renders it at the bare
  * root of the network host.
  */
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
-import { Eye, EyeOff, Network } from "lucide-react";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { ArrowRight, KeyRound } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { requestErrorOf } from "@/services/api";
-import { MButton, M_INPUT } from "@/components/master/MasterKit";
-import { FormError, Spinner } from "@/components/isp-partner/kit";
-import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/isp-partner/kit";
+import { PartnerAuthFrame } from "@/components/isp-partner/auth/PartnerAuthFrame";
+import {
+  AskYourAdmin,
+  FIELD_CLASS,
+  Notice,
+  PasswordInput,
+} from "@/components/isp-partner/auth/PartnerAuthKit";
+import { RESET_DONE } from "@/lib/isp-partner/password-reset";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -30,16 +43,17 @@ function isPasswordChangeRequired(err: unknown): boolean {
 export function PartnerLoginPage() {
   const { login, isAuthenticated, isReady } = useAuth();
   const navigate = useNavigate();
+  const justReset = useRouterState({
+    select: (s) => (s.location.search as Record<string, unknown>)?.reset === RESET_DONE,
+  });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [needsNewPassword, setNeedsNewPassword] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const emailRef = useRef<HTMLInputElement>(null);
-
   useEffect(() => {
     if (isReady && isAuthenticated) navigate({ to: "/partner", replace: true });
   }, [isReady, isAuthenticated, navigate]);
@@ -99,111 +113,116 @@ export function PartnerLoginPage() {
     }
   };
 
-  return (
-    <div className="master-theme">
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-[#1e1b4b] to-[#181530] px-4 py-10">
-        <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-card p-6 text-foreground shadow-2xl sm:p-8">
-          <div className="mb-6 flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]">
-              <img src="/brand/mark-compact-white.svg" alt="" className="h-5 w-5" />
-            </span>
-            <div className="leading-tight">
-              <p className="text-base font-semibold tracking-tight">Wyfy Guest Network</p>
-              <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Network className="h-3 w-3" /> Partner console for ISPs
-              </p>
-            </div>
+  if (needsNewPassword) {
+    return (
+      <PartnerAuthFrame
+        title="Set a new password"
+        subtitle="You signed in with a temporary password. Choose your own to continue (at least 12 characters)."
+      >
+        <form className="space-y-4" onSubmit={onSetPassword} noValidate>
+          <div className="space-y-1.5">
+            <Label htmlFor="partner-new-password">New password</Label>
+            <PasswordInput
+              id="partner-new-password"
+              autoComplete="new-password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              autoFocus
+            />
           </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="partner-confirm-password">Repeat it</Label>
+            <PasswordInput
+              id="partner-confirm-password"
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+            />
+          </div>
+          {error && <Notice tone="error">{error}</Notice>}
+          <Button type="submit" className="h-11 w-full font-semibold" disabled={busy}>
+            {busy ? <Spinner /> : <KeyRound className="mr-2 h-4 w-4" />} Set password and sign in
+          </Button>
+          <button
+            type="button"
+            className="w-full text-center text-sm text-muted-foreground hover:text-foreground"
+            onClick={() => {
+              setNeedsNewPassword(false);
+              setError(null);
+            }}
+          >
+            Back
+          </button>
+        </form>
+      </PartnerAuthFrame>
+    );
+  }
 
-          {!needsNewPassword ? (
-            <form className="space-y-4" onSubmit={onSubmit} noValidate>
-              <label className="block space-y-1.5">
-                <span className="text-xs font-medium text-muted-foreground">Email</span>
-                <input
-                  ref={emailRef}
-                  className={M_INPUT}
-                  type="email"
-                  autoComplete="username"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </label>
-              <label className="block space-y-1.5">
-                <span className="text-xs font-medium text-muted-foreground">Password</span>
-                <div className="relative">
-                  <input
-                    className={cn(M_INPUT, "pr-10")}
-                    type={show ? "text" : "password"}
-                    autoComplete="current-password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                  <button
-                    type="button"
-                    className="absolute inset-y-0 right-2 flex items-center text-muted-foreground"
-                    onClick={() => setShow((s) => !s)}
-                    aria-label={show ? "Hide password" : "Show password"}
-                  >
-                    {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-              </label>
-              <FormError message={error} />
-              <MButton type="submit" className="w-full justify-center py-2.5" disabled={busy}>
-                {busy && <Spinner />} Sign in
-              </MButton>
-              <p className="text-center text-[11px] text-muted-foreground">
-                Accounts are created by your ISP&apos;s Owner, or by Wyfy Guest. Forgot your
-                password? Ask your ISP Owner or Admin to reset it.
-              </p>
-            </form>
-          ) : (
-            <form className="space-y-4" onSubmit={onSetPassword} noValidate>
-              <div>
-                <p className="text-sm font-semibold">Set a new password</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  You signed in with a temporary password. Choose your own to continue (at least 12
-                  characters).
-                </p>
-              </div>
-              <label className="block space-y-1.5">
-                <span className="text-xs font-medium text-muted-foreground">New password</span>
-                <input
-                  className={M_INPUT}
-                  type="password"
-                  autoComplete="new-password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                />
-              </label>
-              <label className="block space-y-1.5">
-                <span className="text-xs font-medium text-muted-foreground">Repeat it</span>
-                <input
-                  className={M_INPUT}
-                  type="password"
-                  autoComplete="new-password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                />
-              </label>
-              <FormError message={error} />
-              <MButton type="submit" className="w-full justify-center py-2.5" disabled={busy}>
-                {busy && <Spinner />} Set password and sign in
-              </MButton>
-              <button
-                type="button"
-                className="w-full text-center text-xs text-muted-foreground hover:text-foreground"
-                onClick={() => {
-                  setNeedsNewPassword(false);
-                  setError(null);
-                }}
-              >
-                Back
-              </button>
-            </form>
-          )}
+  return (
+    <PartnerAuthFrame
+      title="Sign in to ISP Partner Console"
+      subtitle="Manage your customers, venues, plans and billing."
+    >
+      {justReset && (
+        <Notice tone="success" className="mb-4">
+          Password updated. Sign in with your new password.
+        </Notice>
+      )}
+      <form className="space-y-4" onSubmit={onSubmit} noValidate>
+        <div className="space-y-1.5">
+          <Label htmlFor="partner-email">Work email</Label>
+          <Input
+            id="partner-email"
+            ref={emailRef}
+            className={FIELD_CLASS}
+            type="email"
+            inputMode="email"
+            autoComplete="username"
+            placeholder="you@your-isp.in"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            aria-invalid={error === "Enter a valid email address." || undefined}
+          />
         </div>
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="partner-password">Password</Label>
+            <Link
+              to="/partner/forgot-password"
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              Forgot password?
+            </Link>
+          </div>
+          <PasswordInput
+            id="partner-password"
+            autoComplete="current-password"
+            placeholder="Your password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </div>
+        {error && <Notice tone="error">{error}</Notice>}
+        <Button
+          type="submit"
+          className="h-11 w-full font-semibold shadow-md shadow-primary/20"
+          disabled={busy}
+        >
+          {busy ? <Spinner /> : null}
+          {busy ? "Signing in…" : "Sign in"}
+          {!busy && <ArrowRight className="ml-2 h-4 w-4" />}
+        </Button>
+      </form>
+      <div className="mt-6 space-y-2 border-t border-border pt-4">
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          Accounts are created by your ISP&apos;s Owner, or by Wyfy Guest. Forgot your password?{" "}
+          <Link to="/partner/forgot-password" className="font-medium text-primary hover:underline">
+            Reset it by email
+          </Link>
+          .
+        </p>
+        <AskYourAdmin />
       </div>
-    </div>
+    </PartnerAuthFrame>
   );
 }

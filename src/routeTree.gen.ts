@@ -78,9 +78,11 @@ import { Route as PortalClosedRouteImport } from './routes/portal.closed'
 import { Route as PortalAuthRouteImport } from './routes/portal.auth'
 import { Route as PartnerUsersRouteImport } from './routes/partner.users'
 import { Route as PartnerSettingsRouteImport } from './routes/partner.settings'
+import { Route as PartnerResetPasswordRouteImport } from './routes/partner.reset-password'
 import { Route as PartnerReportsRouteImport } from './routes/partner.reports'
 import { Route as PartnerLogsRouteImport } from './routes/partner.logs'
 import { Route as PartnerLoginRouteImport } from './routes/partner.login'
+import { Route as PartnerForgotPasswordRouteImport } from './routes/partner.forgot-password'
 import { Route as PartnerBillingRouteImport } from './routes/partner.billing'
 import { Route as MasterTrafficFlowRouteImport } from './routes/master.traffic-flow'
 import { Route as MasterTicketsRouteImport } from './routes/master.tickets'
@@ -568,6 +570,11 @@ const PartnerSettingsRoute = PartnerSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => PartnerRoute,
 } as any)
+const PartnerResetPasswordRoute = PartnerResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => PartnerRoute,
+} as any)
 const PartnerReportsRoute = PartnerReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
@@ -581,6 +588,11 @@ const PartnerLogsRoute = PartnerLogsRouteImport.update({
 const PartnerLoginRoute = PartnerLoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => PartnerRoute,
+} as any)
+const PartnerForgotPasswordRoute = PartnerForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
   getParentRoute: () => PartnerRoute,
 } as any)
 const PartnerBillingRoute = PartnerBillingRouteImport.update({
@@ -1463,9 +1475,11 @@ export interface FileRoutesByFullPath {
   '/master/tickets': typeof MasterTicketsRoute
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
   '/partner/billing': typeof PartnerBillingRoute
+  '/partner/forgot-password': typeof PartnerForgotPasswordRoute
   '/partner/login': typeof PartnerLoginRoute
   '/partner/logs': typeof PartnerLogsRoute
   '/partner/reports': typeof PartnerReportsRoute
+  '/partner/reset-password': typeof PartnerResetPasswordRoute
   '/partner/settings': typeof PartnerSettingsRoute
   '/partner/users': typeof PartnerUsersRoute
   '/portal/auth': typeof PortalAuthRouteWithChildren
@@ -1673,9 +1687,11 @@ export interface FileRoutesByTo {
   '/master/tickets': typeof MasterTicketsRoute
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
   '/partner/billing': typeof PartnerBillingRoute
+  '/partner/forgot-password': typeof PartnerForgotPasswordRoute
   '/partner/login': typeof PartnerLoginRoute
   '/partner/logs': typeof PartnerLogsRoute
   '/partner/reports': typeof PartnerReportsRoute
+  '/partner/reset-password': typeof PartnerResetPasswordRoute
   '/partner/settings': typeof PartnerSettingsRoute
   '/partner/users': typeof PartnerUsersRoute
   '/portal/closed': typeof PortalClosedRoute
@@ -1888,9 +1904,11 @@ export interface FileRoutesById {
   '/master/tickets': typeof MasterTicketsRoute
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
   '/partner/billing': typeof PartnerBillingRoute
+  '/partner/forgot-password': typeof PartnerForgotPasswordRoute
   '/partner/login': typeof PartnerLoginRoute
   '/partner/logs': typeof PartnerLogsRoute
   '/partner/reports': typeof PartnerReportsRoute
+  '/partner/reset-password': typeof PartnerResetPasswordRoute
   '/partner/settings': typeof PartnerSettingsRoute
   '/partner/users': typeof PartnerUsersRoute
   '/portal/auth': typeof PortalAuthRouteWithChildren
@@ -2105,9 +2123,11 @@ export interface FileRouteTypes {
     | '/master/tickets'
     | '/master/traffic-flow'
     | '/partner/billing'
+    | '/partner/forgot-password'
     | '/partner/login'
     | '/partner/logs'
     | '/partner/reports'
+    | '/partner/reset-password'
     | '/partner/settings'
     | '/partner/users'
     | '/portal/auth'
@@ -2315,9 +2335,11 @@ export interface FileRouteTypes {
     | '/master/tickets'
     | '/master/traffic-flow'
     | '/partner/billing'
+    | '/partner/forgot-password'
     | '/partner/login'
     | '/partner/logs'
     | '/partner/reports'
+    | '/partner/reset-password'
     | '/partner/settings'
     | '/partner/users'
     | '/portal/closed'
@@ -2529,9 +2551,11 @@ export interface FileRouteTypes {
     | '/master/tickets'
     | '/master/traffic-flow'
     | '/partner/billing'
+    | '/partner/forgot-password'
     | '/partner/login'
     | '/partner/logs'
     | '/partner/reports'
+    | '/partner/reset-password'
     | '/partner/settings'
     | '/partner/users'
     | '/portal/auth'
@@ -3213,6 +3237,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PartnerSettingsRouteImport
       parentRoute: typeof PartnerRoute
     }
+    '/partner/reset-password': {
+      id: '/partner/reset-password'
+      path: '/reset-password'
+      fullPath: '/partner/reset-password'
+      preLoaderRoute: typeof PartnerResetPasswordRouteImport
+      parentRoute: typeof PartnerRoute
+    }
     '/partner/reports': {
       id: '/partner/reports'
       path: '/reports'
@@ -3232,6 +3263,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/partner/login'
       preLoaderRoute: typeof PartnerLoginRouteImport
+      parentRoute: typeof PartnerRoute
+    }
+    '/partner/forgot-password': {
+      id: '/partner/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/partner/forgot-password'
+      preLoaderRoute: typeof PartnerForgotPasswordRouteImport
       parentRoute: typeof PartnerRoute
     }
     '/partner/billing': {
@@ -4556,9 +4594,11 @@ const MasterRouteWithChildren =
 
 interface PartnerRouteChildren {
   PartnerBillingRoute: typeof PartnerBillingRoute
+  PartnerForgotPasswordRoute: typeof PartnerForgotPasswordRoute
   PartnerLoginRoute: typeof PartnerLoginRoute
   PartnerLogsRoute: typeof PartnerLogsRoute
   PartnerReportsRoute: typeof PartnerReportsRoute
+  PartnerResetPasswordRoute: typeof PartnerResetPasswordRoute
   PartnerSettingsRoute: typeof PartnerSettingsRoute
   PartnerUsersRoute: typeof PartnerUsersRoute
   PartnerIndexRoute: typeof PartnerIndexRoute
@@ -4578,9 +4618,11 @@ interface PartnerRouteChildren {
 
 const PartnerRouteChildren: PartnerRouteChildren = {
   PartnerBillingRoute: PartnerBillingRoute,
+  PartnerForgotPasswordRoute: PartnerForgotPasswordRoute,
   PartnerLoginRoute: PartnerLoginRoute,
   PartnerLogsRoute: PartnerLogsRoute,
   PartnerReportsRoute: PartnerReportsRoute,
+  PartnerResetPasswordRoute: PartnerResetPasswordRoute,
   PartnerSettingsRoute: PartnerSettingsRoute,
   PartnerUsersRoute: PartnerUsersRoute,
   PartnerIndexRoute: PartnerIndexRoute,
