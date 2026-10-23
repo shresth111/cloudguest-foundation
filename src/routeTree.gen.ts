@@ -218,6 +218,7 @@ import { Route as AuthenticatedAnalyticsDeviceRouteImport } from './routes/_auth
 import { Route as AuthenticatedAdministrationBusinessUnitsRouteImport } from './routes/_authenticated/administration.business-units'
 import { Route as AuthenticatedLocationsLocationIdIndexRouteImport } from './routes/_authenticated/locations.$locationId.index'
 import { Route as PartnerPlansCouponsCouponBatchIdRouteImport } from './routes/partner.plans.coupons.$couponBatchId'
+import { Route as PartnerCustomersIspCustomerIdFeatureRouteImport } from './routes/partner.customers.$ispCustomerId_.$feature'
 import { Route as MasterRoutersSetupRouterIdRouteImport } from './routes/master.routers.setup.$routerId'
 import { Route as MasterRoutersGuidedRouterIdRouteImport } from './routes/master.routers.guided.$routerId'
 import { Route as AuthenticatedWorkspaceLocationsLocationIdRouteImport } from './routes/_authenticated/workspace.locations.$locationId'
@@ -1352,6 +1353,12 @@ const PartnerPlansCouponsCouponBatchIdRoute =
     path: '/plans/coupons/$couponBatchId',
     getParentRoute: () => PartnerRoute,
   } as any)
+const PartnerCustomersIspCustomerIdFeatureRoute =
+  PartnerCustomersIspCustomerIdFeatureRouteImport.update({
+    id: '/customers/$ispCustomerId_/$feature',
+    path: '/customers/$ispCustomerId/$feature',
+    getParentRoute: () => PartnerRoute,
+  } as any)
 const MasterRoutersSetupRouterIdRoute =
   MasterRoutersSetupRouterIdRouteImport.update({
     id: '/setup/$routerId',
@@ -1587,6 +1594,7 @@ export interface FileRoutesByFullPath {
   '/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
   '/master/routers/guided/$routerId': typeof MasterRoutersGuidedRouterIdRoute
   '/master/routers/setup/$routerId': typeof MasterRoutersSetupRouterIdRoute
+  '/partner/customers/$ispCustomerId/$feature': typeof PartnerCustomersIspCustomerIdFeatureRoute
   '/partner/plans/coupons/$couponBatchId': typeof PartnerPlansCouponsCouponBatchIdRoute
   '/locations/$locationId/': typeof AuthenticatedLocationsLocationIdIndexRoute
   '/locations/$locationId/nas/$nasId': typeof AuthenticatedLocationsLocationIdNasNasIdRoute
@@ -1794,6 +1802,7 @@ export interface FileRoutesByTo {
   '/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
   '/master/routers/guided/$routerId': typeof MasterRoutersGuidedRouterIdRoute
   '/master/routers/setup/$routerId': typeof MasterRoutersSetupRouterIdRoute
+  '/partner/customers/$ispCustomerId/$feature': typeof PartnerCustomersIspCustomerIdFeatureRoute
   '/partner/plans/coupons/$couponBatchId': typeof PartnerPlansCouponsCouponBatchIdRoute
   '/locations/$locationId': typeof AuthenticatedLocationsLocationIdIndexRoute
   '/locations/$locationId/nas/$nasId': typeof AuthenticatedLocationsLocationIdNasNasIdRoute
@@ -2010,6 +2019,7 @@ export interface FileRoutesById {
   '/_authenticated/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
   '/master/routers/guided/$routerId': typeof MasterRoutersGuidedRouterIdRoute
   '/master/routers/setup/$routerId': typeof MasterRoutersSetupRouterIdRoute
+  '/partner/customers/$ispCustomerId_/$feature': typeof PartnerCustomersIspCustomerIdFeatureRoute
   '/partner/plans/coupons/$couponBatchId': typeof PartnerPlansCouponsCouponBatchIdRoute
   '/_authenticated/locations/$locationId/': typeof AuthenticatedLocationsLocationIdIndexRoute
   '/_authenticated/locations/$locationId/nas/$nasId': typeof AuthenticatedLocationsLocationIdNasNasIdRoute
@@ -2226,6 +2236,7 @@ export interface FileRouteTypes {
     | '/workspace/locations/$locationId'
     | '/master/routers/guided/$routerId'
     | '/master/routers/setup/$routerId'
+    | '/partner/customers/$ispCustomerId/$feature'
     | '/partner/plans/coupons/$couponBatchId'
     | '/locations/$locationId/'
     | '/locations/$locationId/nas/$nasId'
@@ -2433,6 +2444,7 @@ export interface FileRouteTypes {
     | '/workspace/locations/$locationId'
     | '/master/routers/guided/$routerId'
     | '/master/routers/setup/$routerId'
+    | '/partner/customers/$ispCustomerId/$feature'
     | '/partner/plans/coupons/$couponBatchId'
     | '/locations/$locationId'
     | '/locations/$locationId/nas/$nasId'
@@ -2648,6 +2660,7 @@ export interface FileRouteTypes {
     | '/_authenticated/workspace/locations/$locationId'
     | '/master/routers/guided/$routerId'
     | '/master/routers/setup/$routerId'
+    | '/partner/customers/$ispCustomerId_/$feature'
     | '/partner/plans/coupons/$couponBatchId'
     | '/_authenticated/locations/$locationId/'
     | '/_authenticated/locations/$locationId/nas/$nasId'
@@ -4180,6 +4193,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PartnerPlansCouponsCouponBatchIdRouteImport
       parentRoute: typeof PartnerRoute
     }
+    '/partner/customers/$ispCustomerId_/$feature': {
+      id: '/partner/customers/$ispCustomerId_/$feature'
+      path: '/customers/$ispCustomerId/$feature'
+      fullPath: '/partner/customers/$ispCustomerId/$feature'
+      preLoaderRoute: typeof PartnerCustomersIspCustomerIdFeatureRouteImport
+      parentRoute: typeof PartnerRoute
+    }
     '/master/routers/setup/$routerId': {
       id: '/master/routers/setup/$routerId'
       path: '/setup/$routerId'
@@ -4552,6 +4572,7 @@ interface PartnerRouteChildren {
   PartnerPlansIndexRoute: typeof PartnerPlansIndexRoute
   PartnerRoutersIndexRoute: typeof PartnerRoutersIndexRoute
   PartnerTr069IndexRoute: typeof PartnerTr069IndexRoute
+  PartnerCustomersIspCustomerIdFeatureRoute: typeof PartnerCustomersIspCustomerIdFeatureRoute
   PartnerPlansCouponsCouponBatchIdRoute: typeof PartnerPlansCouponsCouponBatchIdRoute
 }
 
@@ -4573,6 +4594,8 @@ const PartnerRouteChildren: PartnerRouteChildren = {
   PartnerPlansIndexRoute: PartnerPlansIndexRoute,
   PartnerRoutersIndexRoute: PartnerRoutersIndexRoute,
   PartnerTr069IndexRoute: PartnerTr069IndexRoute,
+  PartnerCustomersIspCustomerIdFeatureRoute:
+    PartnerCustomersIspCustomerIdFeatureRoute,
   PartnerPlansCouponsCouponBatchIdRoute: PartnerPlansCouponsCouponBatchIdRoute,
 }
 
