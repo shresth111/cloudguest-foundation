@@ -142,7 +142,9 @@ function FeatureBody({
   children: React.ReactNode;
 }) {
   const open = useAddonOpen(customerId, item.addon);
-  if (!open) return <AddonLocked label={item.label} />;
+  if (open === null) return <LoadingBlock />;
+  if (!open && item.addon)
+    return <AddonLocked label={item.label} customerId={customerId} addon={item.addon} />;
   if (item.scope === "location" && !location) {
     return (
       <Card title={item.label}>
