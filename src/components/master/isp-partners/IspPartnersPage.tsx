@@ -33,6 +33,9 @@ type Filter = "all" | IspPartnerStatus;
  * Smart Provisioning wizard are untouched. Every number comes from
  * `/platform/isp-partners` (no fixtures).
  */
+const PAGE_SIZE = 100;
+const MAX_PAGES = 20;
+
 export function IspPartnersPage() {
   const { can } = useAuth();
   // Backend pins every route to GLOBAL scope; these only hide buttons.
@@ -46,6 +49,7 @@ export function IspPartnersPage() {
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<IspPartner[]>([]);
   const [total, setTotal] = useState(0);
+  const shownAll = items.length >= total;
   const [error, setError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -59,14 +63,24 @@ export function IspPartnersPage() {
     setLoading(true);
     setError(null);
     try {
-      const page = await ispPartnerPlatformService.list({
-        page: 1,
-        pageSize: 100,
-        status: filter === "all" ? undefined : filter,
-        search: query,
-      });
-      setItems(page.items);
-      setTotal(page.total);
+      // Every page, not just the first 100: past that, new ISPs (the list is
+      // sorted by name) silently fell off the page with no pager (QA 2026-10-24,
+      // e2e step 1b). Capped at MAX_PAGES so a runaway total cannot loop.
+      const all: IspPartner[] = [];
+      let pageTotal = 0;
+      for (let page = 1; page <= MAX_PAGES; page += 1) {
+        const res = await ispPartnerPlatformService.list({
+          page,
+          pageSize: PAGE_SIZE,
+          status: filter === "all" ? undefined : filter,
+          search: query,
+        });
+        all.push(...res.items);
+        pageTotal = res.total;
+        if (all.length >= res.total || res.items.length < PAGE_SIZE) break;
+      }
+      setItems(all);
+      setTotal(pageTotal);
     } catch (err) {
       const msg = requestErrorOf(err)?.message ?? "Could not load ISP partners.";
       setError(msg);
@@ -165,6 +179,11 @@ export function IspPartnersPage() {
             </>
           }
         >
+          {!shownAll && (
+            <p className="mb-2 text-xs text-muted-foreground">
+              Showing {items.length} of {total}. Search to narrow the list.
+            </p>
+          )}
           {items.length === 0 ? (
             <tr>
               <td colSpan={8} className="px-4 py-10 text-center text-sm text-muted-foreground">
