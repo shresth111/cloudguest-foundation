@@ -4,6 +4,7 @@ import { Loader2, Pause, Play, Save, UserPlus, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 import { MButton, MDrawer, MField, MTag, M_INPUT } from "@/components/master/MasterKit";
 import { TemporaryPasswordPanel } from "@/components/master/isp-partners/TemporaryPasswordPanel";
+import { IspParityPanel } from "@/components/master/isp-partners/IspParityPanel";
 import { requestErrorOf } from "@/services/api";
 import {
   ispPartnerPlatformService,
@@ -255,6 +256,8 @@ export function IspPartnerDetailDrawer({
               }
             />
           </section>
+
+          <IspParityPanel partnerId={partner.id} canUpdate={canUpdate} />
 
           {canUpdate && (
             <section className="space-y-3">
