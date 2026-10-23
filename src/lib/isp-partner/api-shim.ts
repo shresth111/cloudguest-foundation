@@ -138,6 +138,14 @@ const VENUE_PREFIXES: readonly RegExp[] = [
   /^\/policies(\/|$)/,
   /^\/isp\/links(\/|$)/,
   /^\/captive-portal\/resolve$/,
+  // The report catalogue (UserReports / ReportPanel). Each of these has a
+  // /isp/venue twin; without them the panel's every call would 403.
+  /^\/guest-sessions(\/|$)/,
+  /^\/guests(\/|$)/,
+  /^\/voucher-batches(\/|$)/,
+  /^\/campaigns(\/|$)/,
+  /^\/analytics\/voucher-redemptions(\/|$)/,
+  /^\/otp\/requests(\/|$)/,
 ];
 
 /**
