@@ -1,6 +1,7 @@
 import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
 import { isIspPartnerFeEnabled, isNetworkHost } from "@/lib/isp-partner/network-host";
 import { PartnerLayout } from "@/components/isp-partner/PartnerLayout";
+import { isPartnerPublicPath } from "@/lib/isp-partner/password-reset";
 
 /**
  * ISP partner console layout (network.wyfyguest.com, path prefix `/partner`;
@@ -36,8 +37,8 @@ export const Route = createFileRoute("/partner")({
       }
       throw notFound();
     }
-    const isLogin =
-      location.pathname === "/partner/login" || location.pathname === "/partner/login/";
+    // Sign in, forgot password and reset password render without a session.
+    const isLogin = isPartnerPublicPath(location.pathname);
     if (!isLogin && context.auth?.status === "anonymous") {
       throw redirect({ to: "/partner/login", replace: true });
     }

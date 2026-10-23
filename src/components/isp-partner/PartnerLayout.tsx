@@ -29,6 +29,7 @@ import { buildPartnerContext, PartnerContext } from "@/components/isp-partner/Pa
 import { PartnerShell } from "@/components/isp-partner/PartnerShell";
 import { MButton } from "@/components/master/MasterKit";
 import { Spinner } from "@/components/isp-partner/kit";
+import { isPartnerPublicPath } from "@/lib/isp-partner/password-reset";
 
 function ensureShim() {
   if (typeof window !== "undefined" && isNetworkHost(window.location.hostname)) {
@@ -52,7 +53,8 @@ export function PartnerLayout() {
   // Idempotent; runs during render so it precedes every child's first request.
   ensureShim();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const isLogin = pathname === "/partner/login" || pathname === "/partner/login/";
+  // Sign in, forgot password and reset password: bare, no session needed.
+  const isLogin = isPartnerPublicPath(pathname);
   const { isReady, isAuthenticated, logout, roles } = useAuth();
   // Decided from the session before /isp/me (a GLOBAL Super Admin must not
   // reach it: the pinned call has no ISP org to name and answers with the
