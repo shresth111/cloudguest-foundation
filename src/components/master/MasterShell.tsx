@@ -421,12 +421,16 @@ export function MasterShell({ title, children }: { title: string; children: Reac
 
         {/* Main */}
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/90 px-4 backdrop-blur sm:px-6">
+          {/* Below `sm` the row wraps: the platform-scope controls (~285 px)
+              move under the title instead of pushing the page 30-50 px wider
+              than a phone (QA-024). From `sm` up it is the original single
+              64 px row, unchanged. */}
+          <header className="sticky top-0 z-30 flex min-h-16 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-background/90 px-4 py-2 backdrop-blur sm:h-16 sm:flex-nowrap sm:gap-3 sm:px-6 sm:py-0">
             <button className="lg:hidden" onClick={() => setMobile(true)}>
               <Menu className="h-5 w-5" />
             </button>
-            <h1 className="text-base font-semibold tracking-tight">{title}</h1>
-            <div className="ml-auto flex items-center gap-1.5">
+            <h1 className="min-w-0 truncate text-base font-semibold tracking-tight">{title}</h1>
+            <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-1.5 sm:flex-nowrap">
               {/* Which organizations this console is reading. Sits with the
                   other two platform-scope controls, and is the first thing on
                   the row for a reason: every number on every page below it is
