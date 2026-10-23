@@ -17,6 +17,7 @@ import {
   venueQosService,
   venueVlanService,
 } from "@/services/isp-partner/venue";
+import type { VenueVlanCreate } from "@/services/isp-partner/venue";
 
 const DEFAULT_PAGE_SIZE = 25;
 
@@ -27,6 +28,26 @@ export function useVenueVlans(routerId: string | null, page = 1, pageSize = DEFA
     enabled: Boolean(routerId),
     retry: retryUnless4xx,
     placeholderData: keepPreviousData,
+  });
+}
+
+export function useCreateVenueVlan(routerId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: VenueVlanCreate) => venueVlanService.create(payload),
+    onSuccess: () => {
+      if (routerId) qc.invalidateQueries({ queryKey: ["isp", "venue", "vlans", routerId] });
+    },
+  });
+}
+
+export function useDeleteVenueVlan(routerId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vlanId: string) => venueVlanService.remove(vlanId),
+    onSuccess: () => {
+      if (routerId) qc.invalidateQueries({ queryKey: ["isp", "venue", "vlans", routerId] });
+    },
   });
 }
 

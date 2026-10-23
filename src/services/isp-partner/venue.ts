@@ -87,7 +87,44 @@ export interface VenueVlanQuery {
   pageSize?: number;
 }
 
+export interface VenueVlanCreate {
+  routerId: string;
+  vlanId: number;
+  name: string;
+  gatewayIpAddress?: string | null;
+  cidr?: string | null;
+  interface?: string | null;
+  portMode?: "trunk" | "access";
+  confirmTakesPort?: boolean;
+  enableHotspot?: boolean;
+  natEnabled?: boolean;
+  description?: string | null;
+  isEnabled?: boolean;
+}
+
 export const venueVlanService = {
+  async create(payload: VenueVlanCreate): Promise<Vlan> {
+    const { data } = await api.post<BackendVlan>("/isp/venue/vlans", {
+      router_id: payload.routerId,
+      vlan_id: payload.vlanId,
+      name: payload.name,
+      gateway_ip_address: payload.gatewayIpAddress ?? null,
+      cidr: payload.cidr ?? null,
+      interface: payload.interface ?? null,
+      port_mode: payload.portMode ?? "trunk",
+      confirm_takes_port: payload.confirmTakesPort ?? false,
+      enable_hotspot: payload.enableHotspot ?? false,
+      nat_enabled: payload.natEnabled ?? true,
+      description: payload.description ?? null,
+      is_enabled: payload.isEnabled ?? true,
+    });
+    return toVlan(data);
+  },
+
+  async remove(id: string): Promise<void> {
+    await api.delete(`/isp/venue/vlans/${id}`);
+  },
+
   async list(q: VenueVlanQuery): Promise<VlanListResult> {
     const { data } = await api.get<BackendVlanListResponse>("/isp/venue/vlans", {
       params: {

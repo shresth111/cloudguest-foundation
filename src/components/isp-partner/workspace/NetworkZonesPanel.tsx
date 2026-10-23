@@ -13,6 +13,7 @@
  */
 import { useState } from "react";
 import { toast } from "sonner";
+import { Plus } from "lucide-react";
 
 import { MButton, MTag } from "@/components/master/MasterKit";
 import {
@@ -24,6 +25,7 @@ import {
   Spinner,
 } from "@/components/isp-partner/kit";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
+import { VlanFormDrawer } from "@/components/isp-partner/workspace/VlanFormDrawer";
 import { usePushVenueVlan, useVenueVlans } from "@/hooks/isp-partner/useVenue";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
 
@@ -33,80 +35,98 @@ export function NetworkZonesPanel({ routerId }: { routerId: string }) {
   const { can } = usePartner();
   const [page, setPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
 
   const q = useVenueVlans(routerId, page, PAGE_SIZE);
   const pushM = usePushVenueVlan(routerId);
   const canPush = can("isp_network.execute");
 
   return (
-    <Card title="Network Zones">
-      <FormError message={error} />
-      {q.isLoading && <LoadingBlock />}
-      {q.isError ? (
-        <ErrorBlock error={q.error} onRetry={() => q.refetch()} what="this router's VLANs" />
-      ) : null}
-      {q.data && q.data.rows.length === 0 && (
-        <p className="text-sm text-muted-foreground">
-          No VLANs on this router yet. The venue runs on its default network.
-        </p>
-      )}
-      {q.data && q.data.rows.length > 0 && (
-        // Scrolls in its own region rather than growing the page: an ISP with
-        // many venues and many VLANs per router must not push the whole page
-        // (founder, 2026-10-22: "saari cheejo ka scroll down").
-        <div className="max-h-[60vh] overflow-auto">
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-background">
-              <tr className="border-b border-border text-left text-muted-foreground">
-                <th className="py-2 pr-3 font-medium">VLAN</th>
-                <th className="py-2 pr-3 font-medium">Name</th>
-                <th className="py-2 pr-3 font-medium">Gateway / CIDR</th>
-                <th className="py-2 pr-3 font-medium">Port</th>
-                <th className="py-2 pr-3 font-medium">State</th>
-                <th className="py-2 font-medium" />
-              </tr>
-            </thead>
-            <tbody>
-              {q.data.rows.map((v) => (
-                <tr key={v.id} className="border-b border-border/60">
-                  <td className="py-2 pr-3 font-medium">{v.vlanId}</td>
-                  <td className="py-2 pr-3">{v.name}</td>
-                  <td className="py-2 pr-3 text-muted-foreground">
-                    {[v.gatewayIpAddress, v.cidr].filter(Boolean).join(" / ") || "–"}
-                  </td>
-                  <td className="py-2 pr-3 text-muted-foreground">{v.portMode}</td>
-                  <td className="py-2 pr-3">
-                    <MTag label={v.isEnabled ? "enabled" : "disabled"} />
-                    <MTag label={v.devicePushStatus} />
-                  </td>
-                  <td className="py-2 text-right">
-                    {canPush && (
-                      <MButton
-                        variant="outline"
-                        disabled={pushM.isPending}
-                        onClick={async () => {
-                          setError(null);
-                          try {
-                            await pushM.mutateAsync(v.id);
-                            toast.success(`${v.name} pushed to the router.`);
-                          } catch (err) {
-                            setError(ispErrorMessage(err));
-                          }
-                        }}
-                      >
-                        {pushM.isPending && <Spinner />} Push
-                      </MButton>
-                    )}
-                  </td>
+    <>
+      <Card
+        title="Network Zones"
+        actions={
+          can("isp_network.create") ? (
+            <MButton onClick={() => setAdding(true)}>
+              <Plus /> Add VLAN
+            </MButton>
+          ) : undefined
+        }
+      >
+        <FormError message={error} />
+        {q.isLoading && <LoadingBlock />}
+        {q.isError ? (
+          <ErrorBlock error={q.error} onRetry={() => q.refetch()} what="this router's VLANs" />
+        ) : null}
+        {q.data && q.data.rows.length === 0 && (
+          <p className="text-sm text-muted-foreground">
+            No VLANs on this router yet. The venue runs on its default network.
+          </p>
+        )}
+        {q.data && q.data.rows.length > 0 && (
+          // Scrolls in its own region rather than growing the page: an ISP with
+          // many venues and many VLANs per router must not push the whole page
+          // (founder, 2026-10-22: "saari cheejo ka scroll down").
+          <div className="max-h-[60vh] overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-background">
+                <tr className="border-b border-border text-left text-muted-foreground">
+                  <th className="py-2 pr-3 font-medium">VLAN</th>
+                  <th className="py-2 pr-3 font-medium">Name</th>
+                  <th className="py-2 pr-3 font-medium">Gateway / CIDR</th>
+                  <th className="py-2 pr-3 font-medium">Port</th>
+                  <th className="py-2 pr-3 font-medium">State</th>
+                  <th className="py-2 font-medium" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      {q.data && q.data.totalPages > 1 && (
-        <Pager page={page} pages={q.data.totalPages} total={q.data.total} onPage={setPage} />
-      )}
-    </Card>
+              </thead>
+              <tbody>
+                {q.data.rows.map((v) => (
+                  <tr key={v.id} className="border-b border-border/60">
+                    <td className="py-2 pr-3 font-medium">{v.vlanId}</td>
+                    <td className="py-2 pr-3">{v.name}</td>
+                    <td className="py-2 pr-3 text-muted-foreground">
+                      {[v.gatewayIpAddress, v.cidr].filter(Boolean).join(" / ") || "–"}
+                    </td>
+                    <td className="py-2 pr-3 text-muted-foreground">{v.portMode}</td>
+                    <td className="py-2 pr-3">
+                      <MTag label={v.isEnabled ? "enabled" : "disabled"} />
+                      <MTag label={v.devicePushStatus} />
+                    </td>
+                    <td className="py-2 text-right">
+                      {canPush && (
+                        <MButton
+                          variant="outline"
+                          disabled={pushM.isPending}
+                          onClick={async () => {
+                            setError(null);
+                            try {
+                              await pushM.mutateAsync(v.id);
+                              toast.success(`${v.name} pushed to the router.`);
+                            } catch (err) {
+                              setError(ispErrorMessage(err));
+                            }
+                          }}
+                        >
+                          {pushM.isPending && <Spinner />} Push
+                        </MButton>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {q.data && q.data.totalPages > 1 && (
+          <Pager page={page} pages={q.data.totalPages} total={q.data.total} onPage={setPage} />
+        )}
+      </Card>
+      <VlanFormDrawer
+        open={adding}
+        onClose={() => setAdding(false)}
+        routerId={routerId}
+        onCreated={() => setPage(1)}
+      />
+    </>
   );
 }
