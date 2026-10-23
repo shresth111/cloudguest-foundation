@@ -157,6 +157,12 @@ const VENUE_PREFIXES: readonly RegExp[] = [
   // "Which organization am I in?" -- answered with the pinned customer
   // (backend venue_session.py), so the page filters to that customer.
   /^\/me\/organizations$/,
+  // B2 (Access & Policy pages, Internet Connection), mounted unchanged.
+  /^\/guest-teams(\/|$)/,
+  /^\/guest-login-history$/,
+  /^\/locations\/[0-9a-fA-F-]{36}(\/routers)?$/,
+  /^\/isp\/routers\/[0-9a-fA-F-]{36}\/(failover|failback|wan-routing-mode)$/,
+  /^\/isp-routing(\/|$)/,
 ];
 
 /**
