@@ -102,7 +102,14 @@ const KEEP = new Set([
   "isp_customer_id",
   "isp_location_id",
   "isp_router_id",
+  "start_date",
+  "end_date",
+  "since",
+  "until",
+  "voucher_ids",
 ]);
+const now = new Date();
+const weekAgo = new Date(now.getTime() - 7 * 86400000);
 const VALUE = {
   location_id: LOC,
   isp_location_id: LOC,
@@ -115,6 +122,11 @@ const VALUE = {
   page_size: 25,
   days: 30,
   limit: 25,
+  start_date: weekAgo.toISOString(),
+  end_date: now.toISOString(),
+  since: weekAgo.toISOString(),
+  until: now.toISOString(),
+  voucher_ids: UUID,
 };
 
 const items = [];
@@ -127,10 +139,19 @@ for (const item of NAV) {
     anyOf: [...item.anyOf],
     addon: item.addon ?? null,
     slot: slot ? `${slot.file}#${slot.exportName}` : null,
+    gated: [],
     calls: [],
   };
   if (slot) {
     const calls = collect([{ file: slot.file, exportName: slot.exportName }]);
+    // Permission keys the page (or a component it mounts) checks with can():
+    // a call behind such a check is never made for a role without the key.
+    const gated = new Set();
+    for (const f of calls.visited ?? []) {
+      if (f.startsWith("src/services/")) continue;
+      for (const m of read(f).matchAll(/can\(\s*"([a-z0-9_]+\.[a-z0-9_]+)"\s*\)/g)) gated.add(m[1]);
+    }
+    out.gated = [...gated].sort();
     for (const [key, from] of calls) {
       const [verb, path] = key.split(" ");
       if (verb !== "get" || !path.startsWith("/")) continue;
