@@ -169,6 +169,16 @@ const VENUE_PREFIXES: readonly RegExp[] = [
   // views only: per-connection flow records and the CSV export have no twin
   // (founder F2) and keep failing closed.
   /^\/traffic-flow\/locations\/[0-9a-fA-F-]{36}\/(status|summary|destinations|services\/destinations|geo|findings)$/,
+  // F2: per-connection flow records. The twin answers only when Master
+  // enabled unmasking for this ISP and the caller is its owner/admin
+  // (otherwise 403 ISP_PII_MASKED). The CSV export still has no twin.
+  /^\/traffic-flow\/locations\/[0-9a-fA-F-]{36}\/flows$/,
+  // F1/F3: the customer's own Marketing page (MarketingView), mounted
+  // unchanged; every /marketing/* call is a twin gated by GUEST_MARKETING
+  // (+ _BYO on providers) and funded from the ISP wallet.
+  /^\/marketing(\/|$)/,
+  // The pinned customer's own entitlements (unlocks add-on screens).
+  /^\/me\/entitlements$/,
 ];
 
 /**

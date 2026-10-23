@@ -2723,6 +2723,7 @@ jobs:
           node scripts/test-isp-partner-b4.mjs
           node scripts/test-isp-partner-b5.mjs
           node scripts/test-isp-partner-b6.mjs
+          if [ -f scripts/test-isp-partner-f13.mjs ]; then node scripts/test-isp-partner-f13.mjs; fi
 
   # ---------------------------------------------------------------------------
   # Slack
