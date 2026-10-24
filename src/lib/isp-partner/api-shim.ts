@@ -256,6 +256,41 @@ export function rewriteVenuePath(url: string): string | null {
   return `/isp/venue${path}${renameVenueQuery(query)}`;
 }
 
+/**
+ * QA-026: customer services send their own X-Location-Id / X-Router-Id on
+ * location-scoped reads (e.g. listLocations' per-location routers and
+ * sessions). /isp refuses both (400 ISP_SCOPE_HEADERS_NOT_ALLOWED). On a venue
+ * rewrite they are removed; a location the page named that way travels as
+ * `isp_location_id` (the twins' Business Unit parameter, pinned to the same
+ * customer by the backend) unless the call already names one.
+ */
+const SCOPE_HEADERS = ["X-Location-Id", "X-Router-Id"] as const;
+
+function moveScopeHeaders(config: InternalAxiosRequestConfig): void {
+  const headers = config.headers as unknown as {
+    get?: (k: string) => unknown;
+    delete?: (k: string) => void;
+    [k: string]: unknown;
+  };
+  if (!headers) return;
+  const read = (k: string) =>
+    (typeof headers.get === "function" ? headers.get(k) : headers[k]) as string | undefined;
+  const location = read("X-Location-Id");
+  for (const k of SCOPE_HEADERS) {
+    if (typeof headers.delete === "function") headers.delete(k);
+    else delete headers[k];
+  }
+  if (!location) return;
+  const params = (config.params ?? {}) as Record<string, unknown>;
+  const already =
+    params instanceof URLSearchParams
+      ? params.has("isp_location_id")
+      : "isp_location_id" in params || /[?&]isp_location_id=/.test(config.url ?? "");
+  if (already) return;
+  if (params instanceof URLSearchParams) params.set("isp_location_id", String(location));
+  else config.params = { ...params, isp_location_id: String(location) };
+}
+
 /** The header names the backend twin resolves its target from. Kept in step
  * with `app/domains/isp_partner/twin_headers.py`. */
 export const HEADER_ISP_CUSTOMER = "X-Isp-Customer-Id";
@@ -341,6 +376,7 @@ function shim(config: InternalAxiosRequestConfig): InternalAxiosRequestConfig | 
   if (rewritten) {
     config.url = rewritten;
     if (venueRewrite && config.params) config.params = renameVenueParams(config.params);
+    if (venueRewrite) moveScopeHeaders(config);
   } else if (!passesThrough(url)) {
     // Not ours and not twinned: it goes out as is and will most likely 403.
     // Say so where QA will see it. The status check keeps axios's default.
