@@ -2729,6 +2729,9 @@ jobs:
       - name: ISP partner wording (no tunnel internals on router setup)
         if: hashFiles('scripts/test-isp-partner-wording.mjs') != ''
         run: node scripts/test-isp-partner-wording.mjs
+      - name: ISP portal footer support line (flag off = byte-identical)
+        if: hashFiles('scripts/test-isp-portal-support.mjs') != ''
+        run: node scripts/test-isp-portal-support.mjs
 
   # ---------------------------------------------------------------------------
   # Slack
