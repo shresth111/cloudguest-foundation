@@ -29,6 +29,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { roleLabel } from "@/lib/isp-partner/format";
+import { MEmptyState } from "@/components/master/MasterKit";
 
 interface NavItem {
   to: string;
@@ -73,6 +74,16 @@ export function PartnerShell({ children }: { children: ReactNode }) {
   const [menu, setMenu] = useState(false);
 
   const nav = PARTNER_NAV.filter((n) => !n.anyOf || n.anyOf.some((p) => can(p)));
+  // QA-017: a page whose nav item this role cannot see is not mounted on a
+  // direct URL either, so it never fires a request that can only 403 (and
+  // land in Staff Activity as permission_denied).
+  const denied = PARTNER_NAV.find(
+    (n) =>
+      n.to !== "/partner" &&
+      n.anyOf &&
+      (pathname === n.to || pathname.startsWith(`${n.to}/`)) &&
+      !n.anyOf.some((p) => can(p)),
+  );
   const isActive = (to: string) =>
     to === "/partner"
       ? pathname === "/partner" || pathname === "/partner/"
@@ -187,7 +198,17 @@ export function PartnerShell({ children }: { children: ReactNode }) {
             </div>
           </header>
           <main className="flex-1 overflow-x-hidden p-4 sm:p-6 lg:p-8">
-            <div className="mx-auto w-full max-w-[1400px] space-y-6">{children}</div>
+            <div className="mx-auto w-full max-w-[1400px] space-y-6">
+              {denied ? (
+                <MEmptyState
+                  icon={denied.icon}
+                  title={`Your role does not include ${denied.label.toLowerCase()}`}
+                  description="Ask your ISP Owner or Admin if you need it."
+                />
+              ) : (
+                children
+              )}
+            </div>
           </main>
         </div>
       </div>

@@ -45,6 +45,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { ispErrorMessage, ispFieldErrors } from "@/lib/isp-partner/errors";
 import { ROLE_LABEL, formatAgo, roleLabel } from "@/lib/isp-partner/format";
 import type { IspRoleSlug, IspUser } from "@/services/isp-partner/types";
+import { customerLabels } from "@/lib/isp-partner/customer-label";
 
 const CONFINABLE: IspRoleSlug[] = ["isp-noc", "isp-technician", "isp-viewer", "isp-billing"];
 const ROLE_HELP: Record<IspRoleSlug, string> = {
@@ -71,6 +72,7 @@ function CustomerPicker({
   onChange: (v: string[] | null) => void;
 }) {
   const customers = useIspCustomerOptions();
+  const labels = customerLabels(customers.data ?? []);
   const all = value === null;
   return (
     <div className="space-y-2">
@@ -94,7 +96,7 @@ function CustomerPicker({
                   onChange(e.target.checked ? [...value, c.id] : value.filter((id) => id !== c.id))
                 }
               />
-              {c.name}
+              {labels.get(c.id) ?? c.name}
             </label>
           ))}
           {customers.data?.length === 0 && (

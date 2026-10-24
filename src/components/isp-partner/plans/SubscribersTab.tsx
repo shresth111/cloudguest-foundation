@@ -356,6 +356,12 @@ export function SubscribersTab({ groupFilter }: { groupFilter?: string }) {
 
   return (
     <div className="space-y-3">
+      {/* QA-015: coupon logins become subscribers (and coupon invoices) on a
+          sync that runs at most once a minute per ISP; say so, so a fresh
+          redemption that is not listed yet does not read as a failure. */}
+      <p className="text-xs text-muted-foreground">
+        Guests who sign in with a coupon appear here within about a minute.
+      </p>
       <div className="flex flex-wrap items-center gap-2">
         <div className="w-full max-w-[220px]">
           <CustomerSelect

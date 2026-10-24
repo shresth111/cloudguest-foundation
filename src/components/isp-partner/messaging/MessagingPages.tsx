@@ -12,13 +12,15 @@
  * prefilled, never echoed; a blank secret keeps the stored one. SMS DLT
  * registration stays the ISP's responsibility, and the page says so.
  */
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { M_INPUT, MButton, MStat, MTag } from "@/components/master/MasterKit";
 import { Card, ErrorBlock, FormError, LoadingBlock, Spinner } from "@/components/isp-partner/kit";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import type { PartnerSlotProps } from "@/components/isp-partner/customer-shell/slots";
+import { setShimLocallyDenied } from "@/lib/isp-partner/api-shim";
+import { isNetworkHost } from "@/lib/isp-partner/network-host";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
 import {
   buildProviderPut,
@@ -354,6 +356,20 @@ function CustomerSenderCard({ customerId }: { customerId: string }) {
 }
 
 export function GuestMessagingPage({ customerId, locationId }: PartnerSlotProps) {
+  const { can } = usePartner();
+  const mayReadSessions = can("isp_access.read");
+  // The mounted customer page's venue picker asks /guest-sessions for online
+  // counts. A role without isp_access.read (isp-billing) would 403 on it, and
+  // every 403 is audited; refuse it in the shim instead (the picker already
+  // degrades to "counts unavailable").
+  useEffect(() => {
+    if (mayReadSessions) return;
+    // Same guard every shim-touching component carries: the shim exists
+    // only on the network host.
+    if (typeof window === "undefined" || !isNetworkHost(window.location.hostname)) return;
+    setShimLocallyDenied([/^\/guest-sessions(\/|$)/]);
+    return () => setShimLocallyDenied([]);
+  }, [mayReadSessions]);
   return (
     <div className="space-y-3">
       <CustomerSenderCard customerId={customerId} />
