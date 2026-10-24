@@ -20,6 +20,7 @@ import { Card, ErrorBlock, FormError, LoadingBlock, Spinner } from "@/components
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import type { PartnerSlotProps } from "@/components/isp-partner/customer-shell/slots";
 import { setShimLocallyDenied } from "@/lib/isp-partner/api-shim";
+import { isNetworkHost } from "@/lib/isp-partner/network-host";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
 import {
   buildProviderPut,
@@ -363,6 +364,9 @@ export function GuestMessagingPage({ customerId, locationId }: PartnerSlotProps)
   // degrades to "counts unavailable").
   useEffect(() => {
     if (mayReadSessions) return;
+    // Same guard every shim-touching component carries: the shim exists
+    // only on the network host.
+    if (typeof window === "undefined" || !isNetworkHost(window.location.hostname)) return;
     setShimLocallyDenied([/^\/guest-sessions(\/|$)/]);
     return () => setShimLocallyDenied([]);
   }, [mayReadSessions]);
