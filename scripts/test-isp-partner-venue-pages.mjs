@@ -216,6 +216,54 @@ for (const [nav, entries] of Object.entries(PAGES)) {
   );
 }
 
+// QA-026: a customer service's own X-Location-Id / X-Router-Id never reaches
+// /isp (400 ISP_SCOPE_HEADERS_NOT_ALLOWED); the location travels as the
+// Business Unit parameter instead.
+{
+  const OTHER = "55555555-5555-5555-5555-555555555555";
+  sent.length = 0;
+  await api.request({
+    method: "get",
+    url: "/guest-sessions",
+    params: { page: 1 },
+    headers: { "X-Organization-Id": CUST, "X-Location-Id": OTHER, "X-Router-Id": UUID },
+  });
+  const cfg = sent[0];
+  const h = cfg?.headers;
+  const hv = (n) => (typeof h?.get === "function" ? h.get(n) : h?.[n]);
+  check("X-Location-Id is not sent to a venue twin", !hv("X-Location-Id"));
+  check("X-Router-Id is not sent to a venue twin", !hv("X-Router-Id"));
+  check(
+    "the page's location travels as isp_location_id",
+    cfg?.params?.isp_location_id === OTHER,
+    JSON.stringify(cfg?.params),
+  );
+  sent.length = 0;
+  await api.request({
+    method: "get",
+    url: `/locations/${OTHER}/routers`,
+    headers: { "X-Location-Id": OTHER },
+  });
+  const h2 = sent[0]?.headers;
+  const hv2 = (n) => (typeof h2?.get === "function" ? h2.get(n) : h2?.[n]);
+  check(
+    "another location of the customer by path keeps its path",
+    sent[0]?.url === `/isp/venue/locations/${OTHER}/routers` && !hv2("X-Location-Id"),
+    sent[0]?.url,
+  );
+  sent.length = 0;
+  await api.request({
+    method: "get",
+    url: "/guest-sessions",
+    params: { location_id: LOC },
+    headers: { "X-Location-Id": OTHER },
+  });
+  check(
+    "an explicit location param wins over the header",
+    sent[0]?.params?.isp_location_id === LOC,
+  );
+}
+
 // The dispatcher must not name a report id this test does not cover.
 {
   const src = readFileSync(join(ROOT, "src/components/features/UserReports.tsx"), "utf8");
