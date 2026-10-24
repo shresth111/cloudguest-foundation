@@ -10,6 +10,7 @@ export default defineConfig({
   plugins: [
     (await import("./vite-plugins/isp-portal-host")).ispPortalHost(), // ISP partner test-portal override (src/lib/isp-partner/portal-host.ts)
     (await import("./vite-plugins/isp-portal-support")).ispPortalSupport(), // ISP portal footer support line, flag-gated (src/lib/isp-partner/portal-support.ts)
+    (await import("./vite-plugins/isp-setup-extra-chunks")).ispSetupExtraChunks(), // partner setup script: TR-069 step at the end, flag-gated (src/lib/isp-partner/setup-extra-chunks.ts)
   ],
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).

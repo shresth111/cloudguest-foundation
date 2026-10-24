@@ -2759,6 +2759,9 @@ jobs:
       - name: ISP portal footer support line (flag off = byte-identical)
         if: hashFiles('scripts/test-isp-portal-support.mjs') != ''
         run: node scripts/test-isp-portal-support.mjs
+      - name: ISP partner setup script TR-069 step (off = byte-identical)
+        if: hashFiles('scripts/test-isp-setup-extra-chunks.mjs') != ''
+        run: node scripts/test-isp-setup-extra-chunks.mjs
 
   # ---------------------------------------------------------------------------
   # Slack

@@ -48,15 +48,17 @@ export function Tr069ScriptPanel({
     >
       <div className="space-y-2 text-xs text-muted-foreground">
         <p>
-          Paste this on the router after the main setup script. It points the router&apos;s TR-069
-          client at the Wyfy Guest device manager, using this customer&apos;s credential (or your
-          ISP credential if the customer has none), and checks that the client is running.
+          For a router that is already set up. A new router gets this step at the end of its main
+          setup script when TR-069 is on for its location. It points the router&apos;s TR-069 client
+          at the Wyfy Guest device manager with this location&apos;s credential (or the
+          customer&apos;s, or your ISP&apos;s), and checks that the client is running.
         </p>
         <p>
-          It needs RouterOS&apos;s <code>tr069-client</code> extra package. If the package is
-          missing the script stops and says so; install the package for the router&apos;s RouterOS
-          version and architecture, reboot, and paste it again. If TR-069 is off for this location,
-          the same script turns the client off.
+          If RouterOS&apos;s <code>tr069-client</code> package is missing, the script downloads it
+          for the router&apos;s RouterOS version (6.x or 7.x) and architecture, and the router{" "}
+          <strong>reboots at the end</strong>. The TR-069 settings apply by themselves once it is
+          back. Without internet, or on an unsupported version, it says so and does not reboot. Safe
+          to paste twice. If TR-069 is off for this location, the same script turns the client off.
         </p>
       </div>
       {requested && (
