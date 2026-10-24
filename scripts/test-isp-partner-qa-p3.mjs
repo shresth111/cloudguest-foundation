@@ -74,6 +74,21 @@ check("UUIDs replaced", /replace\(UUID_RE, "this router"\)/.test(b4));
 check("category platform config explained", /Website categories are not available/.test(b4));
 check("B4 pages render the friendly error", (b4.match(/<B4Error/g) || []).length >= 8);
 
+// Billing on Guest Messaging: /guest-sessions refused locally, not audited.
+const shimSrc = read("src/lib/isp-partner/api-shim.ts");
+const msg = read("src/components/isp-partner/messaging/MessagingPages.tsx");
+check("shim can refuse a venue path locally", /export function setShimLocallyDenied/.test(shimSrc));
+check(
+  "local refusal is a 403, not data",
+  /status: 403/.test(shimSrc) && /ISP_ROLE_NOT_GRANTED/.test(shimSrc),
+);
+check(
+  "Guest Messaging denies /guest-sessions without isp_access.read",
+  /can\("isp_access\.read"\)/.test(msg) &&
+    /setShimLocallyDenied\(\[\/\^\\\/guest-sessions/.test(msg),
+);
+check("and clears it on unmount", /return \(\) => setShimLocallyDenied\(\[\]\)/.test(msg));
+
 if (failures > 0) {
   console.error(`\nFAIL: ${failures} of ${checks} checks failed`);
   process.exit(1);

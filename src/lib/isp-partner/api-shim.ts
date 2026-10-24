@@ -291,6 +291,33 @@ export function getShimVenue(): { customerId: string | null; locationId: string 
   return { customerId: venueCustomerId, locationId: venueLocationId };
 }
 
+/**
+ * Venue paths the signed-in ISP role is known not to hold the key for. A page
+ * that mounts a customer component which also asks for something outside the
+ * role (Guest Messaging's venue picker asks /guest-sessions for online counts)
+ * sets this, so the request is refused HERE as the 403 it would get, instead
+ * of reaching the backend and landing in Staff Activity as permission_denied
+ * (QA-017 class). Nothing is faked: the caller gets an error, not data.
+ */
+let locallyDenied: readonly RegExp[] = [];
+
+export function setShimLocallyDenied(patterns: readonly RegExp[]): void {
+  locallyDenied = patterns;
+}
+
+function locallyDeniedRejection(config: InternalAxiosRequestConfig) {
+  const message = "Your role does not include this.";
+  return {
+    isIspShimRejection: true,
+    message,
+    config,
+    response: {
+      status: 403,
+      data: { success: false, message, data: { code: "ISP_ROLE_NOT_GRANTED" } },
+    },
+  };
+}
+
 function shim(config: InternalAxiosRequestConfig): InternalAxiosRequestConfig | Promise<never> {
   const url = config.url ?? "";
   const method = (config.method ?? "get").toLowerCase();
@@ -305,6 +332,11 @@ function shim(config: InternalAxiosRequestConfig): InternalAxiosRequestConfig | 
   } catch (err) {
     if (err instanceof IspForceNotAllowed) return Promise.reject(forceNotAllowedRejection(config));
     throw err;
+  }
+  if (rewritten && locallyDenied.length > 0) {
+    const path = url.split("?")[0];
+    if (locallyDenied.some((re) => re.test(path)))
+      return Promise.reject(locallyDeniedRejection(config));
   }
   if (rewritten) {
     config.url = rewritten;
