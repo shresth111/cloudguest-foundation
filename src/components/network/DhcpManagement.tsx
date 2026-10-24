@@ -70,6 +70,8 @@ import {
 import { routerService } from "@/services/router.service";
 import { isDemo, resolveOrgId } from "@/services/customer.service";
 import { partialCountHint } from "@/components/network/list-kpis";
+import { CurrentRouterPools } from "@/components/network/CurrentRouterPools";
+import { isControllerManagedRow, isNasOnlyVendor } from "@/lib/router-vendors";
 import type { AppError } from "@/services/api";
 import type { DhcpPool, DhcpDevicePushStatus } from "@/types/dhcp";
 
@@ -318,6 +320,13 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
   // screen, which is what "Enabled" used to do while "Total Pools" counted
   // all of them. See components/network/list-kpis.ts for the hint.
   const enabledCount = filteredRows.filter((p) => p.isEnabled).length;
+  // Routers whose live pools to read for "Current on router": every
+  // configurable router at this venue, or -- on the platform-wide view --
+  // only the one picked in the filter, never a fan-out over the fleet.
+  const livePoolRouters = routers.rows
+    .filter((r) => !isControllerManagedRow(r) && !isNasOnlyVendor(r.vendor))
+    .filter((r) => (locationId ? true : routerFilter !== "all" && r.id === routerFilter))
+    .map((r) => ({ id: r.id, name: r.name }));
   const statHint = partialCountHint(data?.rows.length ?? 0, data?.total ?? 0);
   const totalHint = locationId ? statHint : undefined;
 
@@ -362,6 +371,8 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
           tone="warning"
         />
       </div>
+
+      <CurrentRouterPools routers={livePoolRouters} />
 
       <Card className="border-0 shadow-sm">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">

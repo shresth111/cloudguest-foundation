@@ -70,3 +70,15 @@ export function useKeepLeaseAddress(routerId: string, organizationId?: string) {
     onSettled: () => qc.invalidateQueries({ queryKey: ["dhcp", "leases", routerId] }),
   });
 }
+
+/** The router's own address pools, live -- the IP Addresses page's
+ * "Current on router". One try: an unreachable router shows "couldn't
+ * read" at once rather than after three timeouts. */
+export const useRouterLivePools = (routerId: string, options?: { enabled?: boolean }) =>
+  useQuery({
+    queryKey: ["dhcp", "live-pools", routerId] as const,
+    queryFn: () => dhcpService.listLivePools(routerId),
+    enabled: !!routerId && (options?.enabled ?? true),
+    retry: false,
+    staleTime: 60_000,
+  });

@@ -4,6 +4,7 @@ import { demoDhcpLeases, demoKeepLeaseAddress } from "@/lib/firewall-demo";
 import type {
   CreateDhcpPoolPayload,
   DhcpLease,
+  DhcpLivePool,
   DhcpPool,
   DhcpPoolListQuery,
   DhcpPoolListResult,
@@ -94,6 +95,47 @@ function toDhcpLease(l: BackendDhcpLease): DhcpLease {
     disabled: l.disabled,
   };
 }
+
+interface BackendDhcpLivePool {
+  pool_name: string;
+  ranges: string[];
+  server: string | null;
+  interface: string | null;
+  lease_time: string | null;
+  server_disabled: boolean;
+  network: string | null;
+  gateway: string | null;
+  dns_servers: string[];
+}
+
+function toDhcpLivePool(p: BackendDhcpLivePool): DhcpLivePool {
+  return {
+    poolName: p.pool_name,
+    ranges: p.ranges,
+    server: p.server,
+    interface: p.interface,
+    leaseTime: p.lease_time,
+    serverDisabled: p.server_disabled,
+    network: p.network,
+    gateway: p.gateway,
+    dnsServers: p.dns_servers,
+  };
+}
+
+/** Demo host: the guest pool a setup-script router carries; no request. */
+const DEMO_LIVE_POOLS: DhcpLivePool[] = [
+  {
+    poolName: "guest-pool",
+    ranges: ["10.5.50.10-10.5.50.254"],
+    server: "guest-dhcp",
+    interface: "bridge-guest",
+    leaseTime: "1h",
+    serverDisabled: false,
+    network: "10.5.50.0/24",
+    gateway: "10.5.50.1",
+    dnsServers: ["10.5.50.1"],
+  },
+];
 
 export const dhcpService = {
   // `create_pool`/`list_pools`/`update_pool`/`delete_pool` all resolve their
@@ -202,6 +244,20 @@ export const dhcpService = {
       { headers: { "X-Organization-Id": orgId } },
     );
     return data.items.map(toDhcpLease);
+  },
+
+  /** Every address pool on the router, read live (cloud-guest dhcp
+   * `GET /dhcp-pools/routers/{id}/live-pools`) -- the range guests are
+   * actually getting, whether or not it was created in Wyfy. Throws on an
+   * unreadable router; the caller says "couldn't read", never "no pool". */
+  async listLivePools(routerId: string, organizationId?: string): Promise<DhcpLivePool[]> {
+    if (isDemo()) return DEMO_LIVE_POOLS;
+    const orgId = organizationId || (await resolveOrgId());
+    const { data } = await api.get<{ router_id: string; items: BackendDhcpLivePool[] }>(
+      `/dhcp-pools/routers/${routerId}/live-pools`,
+      orgId ? { headers: { "X-Organization-Id": orgId } } : undefined,
+    );
+    return data.items.map(toDhcpLivePool);
   },
 
   /** Keep one device on its current address: its lease is made static on
