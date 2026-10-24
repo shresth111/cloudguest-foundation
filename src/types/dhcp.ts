@@ -75,3 +75,19 @@ export interface DhcpLease {
   server: string | null;
   disabled: boolean;
 }
+
+/** One address pool as the router reports it right now -- including the
+ * pool the setup script made, which has no row in Wyfy. `server` is null
+ * when no DHCP server hands this pool out. `leaseTime` is RouterOS's own
+ * duration string (`30m`, `1d`). */
+export interface DhcpLivePool {
+  poolName: string;
+  ranges: string[];
+  server: string | null;
+  interface: string | null;
+  leaseTime: string | null;
+  serverDisabled: boolean;
+  network: string | null;
+  gateway: string | null;
+  dnsServers: string[];
+}
