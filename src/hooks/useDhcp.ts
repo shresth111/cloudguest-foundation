@@ -82,3 +82,20 @@ export const useRouterLivePools = (routerId: string, options?: { enabled?: boole
     retry: false,
     staleTime: 60_000,
   });
+
+export function useUpdateRouterLivePool(routerId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      poolName,
+      ...payload
+    }: {
+      poolName: string;
+      rangeStart: string;
+      rangeEnd: string;
+      leaseTimeSeconds?: number;
+      dnsServers?: string[];
+    }) => dhcpService.updateLivePool(routerId, poolName, payload),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["dhcp", "live-pools", routerId] }),
+  });
+}
