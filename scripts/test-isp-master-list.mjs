@@ -7,7 +7,10 @@ import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "..");
-const src = readFileSync(join(ROOT, "src/components/master/isp-partners/IspPartnersPage.tsx"), "utf8");
+const src = readFileSync(
+  join(ROOT, "src/components/master/isp-partners/IspPartnersPage.tsx"),
+  "utf8",
+);
 let failures = 0;
 const check = (name, ok) => {
   if (!ok) failures += 1;
