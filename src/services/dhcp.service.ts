@@ -260,6 +260,42 @@ export const dhcpService = {
     return data.items.map(toDhcpLivePool);
   },
 
+  /** Edit the router's current pool in place (cloud-guest dhcp
+   * `PUT /dhcp-pools/routers/{id}/live-pools/{name}`): range, lease time,
+   * DNS -- never the router's own address. Returns the pool as read back
+   * off the router. A refused range is a 422 whose message says why. */
+  async updateLivePool(
+    routerId: string,
+    poolName: string,
+    payload: {
+      rangeStart: string;
+      rangeEnd: string;
+      leaseTimeSeconds?: number;
+      dnsServers?: string[];
+    },
+  ): Promise<DhcpLivePool> {
+    if (isDemo()) {
+      const base = DEMO_LIVE_POOLS.find((p) => p.poolName === poolName) ?? DEMO_LIVE_POOLS[0];
+      return {
+        ...base,
+        ranges: [`${payload.rangeStart}-${payload.rangeEnd}`],
+        dnsServers: payload.dnsServers ?? base.dnsServers,
+      };
+    }
+    const orgId = await resolveOrgId();
+    const { data } = await api.put<BackendDhcpLivePool>(
+      `/dhcp-pools/routers/${routerId}/live-pools/${encodeURIComponent(poolName)}`,
+      {
+        range_start: payload.rangeStart,
+        range_end: payload.rangeEnd,
+        lease_time_seconds: payload.leaseTimeSeconds,
+        dns_servers: payload.dnsServers,
+      },
+      orgId ? { headers: { "X-Organization-Id": orgId } } : undefined,
+    );
+    return toDhcpLivePool(data);
+  },
+
   /** Keep one device on its current address: its lease is made static on
    * the router and read back. Idempotent; a 409 carries a `code` --
    * `keepAddressErrorSentence` in lib/firewall-rules says what each means. */
