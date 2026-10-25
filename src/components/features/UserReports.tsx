@@ -50,6 +50,12 @@ import { campaignService } from "@/services/campaign.service";
 import type { CampaignType } from "@/types/campaign";
 import { routerService } from "@/services/router.service";
 import { GuestSessionDeviceEventsDrawer } from "@/components/features/GuestSessionDeviceEventsDrawer";
+import { SmsDeliveryChart } from "@/components/features/SmsDeliveryChart";
+import {
+  demoSmsDeliveryReport,
+  smsDaywiseRows,
+  type SmsDeliveryReport,
+} from "@/lib/sms-delivery-report";
 
 const CATEGORIES = [
   "Guest Activity Report",
@@ -206,7 +212,7 @@ const SMS_REPORT_TYPES: ReportType[] = [
   {
     id: "sms-daywise",
     label: "Daily SMS Delivery Rate",
-    desc: "Daily sent/delivered/failed totals across the period.",
+    desc: "Daily sent/delivered/failed SMS from the real per-message send log.",
   },
 ];
 
@@ -395,11 +401,11 @@ const COLUMNS: Record<string, ColumnDef[]> = {
 
   // Real per-request rows from GET /otp/requests (identifier, channel,
   // created_at, verified_at/is_consumed). Deliberately NOT the old
-  // "Status: Delivered/Failed" + "Latency (ms)" columns: this platform's
-  // OTP path has no gateway delivery-status and no latency measurement (the
-  // SMS provider only logs, it persists neither), so those would be
-  // fabricated. "Verified" is is_consumed -- a real, recorded outcome. See
-  // realOtpRequests below.
+  // "Status: Delivered/Failed" + "Latency (ms)" columns: an OTP request row
+  // carries no delivery status and no latency (per-SMS outcomes live in the
+  // separate SMS delivery log -- the "Daily SMS Delivery Rate" report), so
+  // those would be fabricated here. "Verified" is is_consumed -- a real,
+  // recorded outcome. See realOtpRequests below.
   "otp-delivery": [
     { key: "rank", label: "#", sortType: "number" },
     // "identifier" (not "mobile") because an OTP identifier can be an email
@@ -411,10 +417,18 @@ const COLUMNS: Record<string, ColumnDef[]> = {
     { key: "requestedAt", label: "Requested At", sortType: "date" },
     { key: "verified", label: "Verified", sortType: "string" },
   ],
+  // One row per day from GET /sms-delivery/report (backend
+  // app/domains/sms_delivery: one row per real SMS send attempt). Delivered /
+  // Undelivered / "No report yet" come only from the provider's delivery
+  // report; with delivery reports off they are null ("—"), never derived
+  // from Sent. See lib/sms-delivery-report.ts.
   "sms-daywise": [
     { key: "date", label: "Date", sortType: "date" },
-    { key: "sent", label: "Sent", sortType: "number" },
+    { key: "attempted", label: "Attempted", sortType: "number" },
+    { key: "sent", label: "Sent (accepted)", sortType: "number" },
     { key: "delivered", label: "Delivered", sortType: "number" },
+    { key: "undelivered", label: "Undelivered", sortType: "number" },
+    { key: "awaiting", label: "No report yet", sortType: "number" },
     { key: "failed", label: "Failed", sortType: "number" },
     { key: "rate", label: "Delivery Rate", sortType: "string" },
   ],
@@ -702,16 +716,8 @@ function mockRow(
       r.requestedAt = new Date(Date.now() - Math.random() * 86400000 * 3).toISOString();
       r.verified = Math.random() > 0.2 ? "Yes" : "No";
       break;
-    case "sms-daywise": {
-      const sent = Math.floor(Math.random() * 1200) + 200;
-      const failed = Math.floor(sent * Math.random() * 0.06);
-      r.date = new Date(Date.now() - (count - i) * 86400000).toISOString().slice(0, 10);
-      r.sent = sent;
-      r.delivered = sent - failed;
-      r.failed = failed;
-      r.rate = `${(((sent - failed) / sent) * 100).toFixed(1)}%`;
-      break;
-    }
+    // "sms-daywise" demo rows come from demoSmsDeliveryReport (same shape as
+    // the real response, chart included) -- see handleRun.
 
     case "guest-session-log": {
       r.name = NAMES[i % NAMES.length];
@@ -884,6 +890,9 @@ const REAL_REPORT_TYPES = new Set([
   "top-campaigns",
   // Real per-request OTP rows via GET /otp/requests -- see realOtpRequests below.
   "otp-delivery",
+  // Real day-wise SMS outcomes via GET /sms-delivery/report -- see
+  // realSmsDaywise below.
+  "sms-daywise",
 ]);
 
 const UNAVAILABLE_REASON: Record<string, string> = {
@@ -900,8 +909,6 @@ const UNAVAILABLE_REASON: Record<string, string> = {
     "This venue's guest teams are real and listed above, but per-team usage totals aren't computed for a date range in the backend yet -- only a live snapshot (GET /guest-teams/{id}: member_count, active_session_count, total_bandwidth_bytes now). This report's Sessions/Data columns read as totals over the picked period; wiring the live snapshot into them would misrepresent it, and no session row links to a team member, so the range figures can't be derived. Stays unavailable until the columns and a real per-period team aggregate agree.",
   "campaign-daywise":
     "Per-day campaign engagement isn't available: GET /campaigns/{id}/results returns lifetime totals only, with no daily breakdown, so a day-by-day trend can't be built without fabricating the buckets. The lifetime per-campaign view is the 'Campaign Engagement By Type' report above.",
-  "sms-daywise":
-    "Per-message SMS delivery status isn't logged anywhere in the real backend: OTP SMS goes through a logging-only provider that persists no send/delivery row, and nothing enqueues SMS to the notification-delivery table. A day-wise sent/delivered/failed rate would fabricate delivery stages that don't exist. The honest OTP view is the 'OTP Requests & Verification' report above.",
 };
 
 // Same real /guest-sessions row shape as customer.service.ts's own
@@ -1774,10 +1781,9 @@ interface RealOtpRequest {
  * interceptor; `location_id` narrows to the picked venue.
  *
  * "Verified" is the real `is_consumed` outcome. There is deliberately no
- * delivery-status or latency column: this platform's OTP SMS goes through a
- * logging-only provider that persists no gateway delivery row, so those
- * would be fabricated (see UNAVAILABLE_REASON's old otp-delivery note and
- * this feature's PR). */
+ * delivery-status or latency column: an OTP request row records neither.
+ * Per-SMS send/delivery outcomes are the separate SMS delivery log, shown
+ * day-wise by realSmsDaywise below. */
 async function realOtpRequests(locationId: string, from: string, to: string): Promise<Row[]> {
   const fromMs = new Date(from).getTime();
   const toMs = new Date(to).getTime() + 86400000; // inclusive end-of-day
@@ -1809,6 +1815,21 @@ async function realOtpRequests(locationId: string, from: string, to: string): Pr
     if (pagedPastWindow || !data?.has_next) break;
   }
   return rows;
+}
+
+/** "Daily SMS Delivery Rate" -- GET /sms-delivery/report for one venue.
+ * Org scope comes from the request interceptor; the backend refuses an
+ * all-organizations read and confines location-scoped staff to their sites.
+ * Returns the raw report too, for the chart and the delivery-reports notice. */
+async function realSmsDaywise(
+  locationId: string,
+  from: string,
+  to: string,
+): Promise<{ report: SmsDeliveryReport; rows: Row[] }> {
+  const { data } = await api.get<SmsDeliveryReport>("/sms-delivery/report", {
+    params: { location_id: locationId, start_date: from, end_date: to },
+  });
+  return { report: data, rows: smsDaywiseRows(data) };
 }
 
 // ── one reusable panel: business unit + report-type picker + date range + results table ──
@@ -1867,6 +1888,8 @@ export function ReportPanel({
   const [running, setRunning] = useState(false);
   const [rows, setRows] = useState<Row[] | null>(null);
   const [unavailable, setUnavailable] = useState<string | null>(null);
+  // Daily SMS Delivery only: the full report behind the rows (chart + notice).
+  const [smsReport, setSmsReport] = useState<SmsDeliveryReport | null>(null);
   const [searchTxt, setSearchTxt] = useState("");
   const [sortKey, setSortKey] = useState<string>("rank");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -1891,6 +1914,7 @@ export function ReportPanel({
     setErrs({});
     setRows(null);
     setUnavailable(null);
+    setSmsReport(null);
     setSearchTxt("");
     setPage(0);
   }, [reportTypes]);
@@ -2111,8 +2135,12 @@ export function ReportPanel({
     const rate = ratePerGb ? parseFloat(ratePerGb) : undefined;
     let data: Row[] = [];
     let reason: string | null = null;
+    let sms: SmsDeliveryReport | null = null;
     try {
-      if (demo) {
+      if (demo && reportType === "sms-daywise") {
+        sms = demoSmsDeliveryReport(from, to);
+        data = smsDaywiseRows(sms);
+      } else if (demo) {
         data = await mockRun(reportType, campaignType, rate);
       } else if (REAL_REPORT_TYPES.has(reportType)) {
         const orgId = await resolveOrgId();
@@ -2147,6 +2175,12 @@ export function ReportPanel({
           data = loc ? await realTopCampaigns(loc.id, campaignType) : [];
         } else if (reportType === "otp-delivery") {
           data = loc ? await realOtpRequests(loc.id, from, to) : [];
+        } else if (reportType === "sms-daywise") {
+          if (loc) {
+            const result = await realSmsDaywise(loc.id, from, to);
+            sms = result.report;
+            data = result.rows;
+          }
         } else {
           data = await realDataByLocation(orgId, customerLocations ?? [], from, to, rate);
         }
@@ -2159,6 +2193,7 @@ export function ReportPanel({
     }
     if (mark !== runCount.current) return;
     setRows(data);
+    setSmsReport(sms);
     setUnavailable(reason);
     setRunning(false);
     setPage(0);
@@ -2680,6 +2715,7 @@ export function ReportPanel({
                   <span>{GUEST_NAME_NOT_COLLECTED_NOTICE}</span>
                 </p>
               )}
+              {reportType === "sms-daywise" && smsReport && <SmsDeliveryChart report={smsReport} />}
               <div className="hidden print:block mb-4">
                 <h3 className="text-base font-semibold tracking-tight">{rt?.label}</h3>
                 <p className="text-xs text-muted-foreground">
