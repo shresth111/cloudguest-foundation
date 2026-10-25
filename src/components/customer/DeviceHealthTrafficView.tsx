@@ -36,10 +36,12 @@ import {
   Activity,
   ArrowDownRight,
   ArrowUpRight,
+  ChevronDown,
   Cpu,
   Gauge,
   Router as RouterIcon,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { TOOLTIP_STYLE } from "@/components/analytics/chart-theme";
 import { Badge } from "@/components/ui/badge";
@@ -61,6 +63,8 @@ import {
   toInterfaceSeries,
 } from "@/lib/device-health";
 import type { DeviceHealthReading } from "@/types/deviceHealth";
+import type { InterfaceSeries } from "@/lib/device-health";
+import { cn } from "@/lib/utils";
 import {
   controllerDeviceMetricsReason,
   isControllerManaged,
@@ -111,9 +115,123 @@ function healthTone(status: string | null): string {
   return "bg-muted-foreground/40";
 }
 
+/**
+ * Recharts' default `minTickGap` is 5px, so with `preserveStartEnd` a chart
+ * of ~30 readings printed ~30 clock labels on top of each other. 48px keeps
+ * roughly one label per ~50px of width: a handful on a phone, more on a
+ * desktop, and the first and last always.
+ */
+const X_TICK_GAP = 48;
+
+/** True when a port earns a full chart: it is up, or it carried traffic. */
+function portIsActive(s: InterfaceSeries): boolean {
+  return s.up === true || s.totalInOctets + s.totalOutOctets > 0;
+}
+
+/** One port's throughput chart. Same series, same honesty rules as before. */
+function PortTrafficPanel({ series: s }: { series: InterfaceSeries }) {
+  return (
+    <div className="min-w-0 rounded-lg border bg-card p-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">{s.ifName}</span>
+          {s.up != null && (
+            <Badge
+              variant="outline"
+              className={cn(
+                "font-normal",
+                s.up
+                  ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                  : "border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400",
+              )}
+            >
+              {s.up ? "Up" : "Down"}
+            </Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <ArrowDownRight className="h-3.5 w-3.5 text-teal-500" />
+            {formatOctets(s.totalInOctets)} in
+          </span>
+          <span className="flex items-center gap-1">
+            <ArrowUpRight className="h-3.5 w-3.5 text-violet-500" />
+            {formatOctets(s.totalOutOctets)} out
+          </span>
+        </div>
+      </div>
+
+      <div className="h-36">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart
+            data={s.points.map((p) => ({
+              label: timeLabel(p.at),
+              down: p.downMbps,
+              up: p.upMbps,
+            }))}
+            margin={{ top: 4, right: 8, left: -8, bottom: 0 }}
+          >
+            <defs>
+              <linearGradient id={`iface-down-${s.ifIndex}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#14b8a6" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="#14b8a6" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id={`iface-up-${s.ifIndex}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" vertical={false} />
+            <XAxis
+              dataKey="label"
+              tick={{ fontSize: 10 }}
+              interval="preserveStartEnd"
+              minTickGap={X_TICK_GAP}
+              tickLine={false}
+            />
+            <YAxis tick={{ fontSize: 10 }} width={38} domain={[0, "auto"]} tickLine={false} />
+            <Tooltip
+              contentStyle={TOOLTIP_STYLE}
+              formatter={(value: unknown, name: unknown) => [
+                typeof value === "number" ? formatMbps(value) : "No reading",
+                name === "down" ? "In" : "Out",
+              ]}
+            />
+            {/* connectNulls={false} is load-bearing: a null point means the
+                rate could not be measured (counter reset, missing reading,
+                or too long a gap). Bridging it would draw a line through
+                data that does not exist. */}
+            <Area
+              type="monotone"
+              dataKey="down"
+              name="down"
+              stroke="#14b8a6"
+              fill={`url(#iface-down-${s.ifIndex})`}
+              strokeWidth={2}
+              connectNulls={false}
+              isAnimationActive={false}
+            />
+            <Area
+              type="monotone"
+              dataKey="up"
+              name="up"
+              stroke="#8b5cf6"
+              fill={`url(#iface-up-${s.ifIndex})`}
+              strokeWidth={2}
+              connectNulls={false}
+              isAnimationActive={false}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
 export function DeviceHealthTrafficView({ locationId }: { locationId?: string }) {
   const devices = useLocationDevices(locationId);
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
+  const [showAllPorts, setShowAllPorts] = useState(false);
 
   const deviceList = useMemo(() => devices.data ?? [], [devices.data]);
   const activeId = selectedId ?? deviceList[0]?.id;
@@ -169,6 +287,20 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
   );
   const hasRateData = series.some((s) => s.points.some((p) => p.downMbps != null));
 
+  // Same set of ports the old per-port list charted (any measurable point),
+  // split by whether they are worth a chart of their own.
+  const { activePorts, quietPorts } = useMemo(() => {
+    const chartable = series.filter((s) =>
+      s.points.some((p) => p.downMbps != null || p.upMbps != null),
+    );
+    return {
+      activePorts: chartable.filter(portIsActive),
+      quietPorts: chartable.filter((s) => !portIsActive(s)),
+    };
+  }, [series]);
+  const portsReportingLink = series.filter((s) => s.up != null).length;
+  const portsUp = series.filter((s) => s.up === true).length;
+
   const healthChart = useMemo(
     () =>
       readings.map((r) => ({
@@ -222,9 +354,9 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
           </div>
 
           {deviceList.length > 0 && (
-            <div className="flex items-center gap-2">
+            <div className="flex w-full items-center gap-2 sm:w-auto">
               <Select value={activeId} onValueChange={setSelectedId}>
-                <SelectTrigger className="w-[220px]" aria-label="Choose a device">
+                <SelectTrigger className="w-full sm:w-[220px]" aria-label="Choose a device">
                   <SelectValue placeholder="Choose a device" />
                 </SelectTrigger>
                 <SelectContent>
@@ -325,20 +457,56 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
         ) : (
           <>
             {/* ── Peak callout: the "when did my uplink saturate" answer ── */}
-            {busiest && (
-              <div className="rounded-lg border bg-muted/40 px-4 py-3">
-                <p className="text-xs text-muted-foreground">Busiest port</p>
-                <p className="mt-0.5 text-sm">
-                  <span className="font-medium">{busiest.name}</span> peaked at{" "}
-                  <span className="font-medium">{formatMbps(busiest.mbps)}</span> incoming around{" "}
-                  <span className="font-medium">{whenLabel(busiest.at)}</span>.
-                </p>
+            {(busiest || portsReportingLink > 0) && (
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+                {busiest && (
+                  <div className="rounded-lg border bg-muted/40 px-4 py-3">
+                    <p className="text-xs text-muted-foreground">Busiest port</p>
+                    <p className="mt-0.5 text-sm">
+                      <span className="font-medium">{busiest.name}</span> peaked at{" "}
+                      <span className="font-medium">{formatMbps(busiest.mbps)}</span> incoming
+                      around <span className="font-medium">{whenLabel(busiest.at)}</span>.
+                    </p>
+                  </div>
+                )}
+                {/* Counted only over ports that reported a link state; a port
+                    with no `up` reading is neither up nor down. */}
+                {portsReportingLink > 0 && (
+                  <div className="rounded-lg border bg-muted/40 px-4 py-3">
+                    <p className="text-xs text-muted-foreground">Ports up</p>
+                    <p className="mt-0.5 text-sm">
+                      <span className="font-medium tabular-nums">{portsUp}</span>
+                      <span className="text-muted-foreground"> of {portsReportingLink}</span>
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
-            {/* ── Per-interface traffic ── */}
+            {/* ── Per-interface traffic ──
+                Active ports get a chart each; idle and down ports collapse
+                into one row of chips. Before, every port printed its own
+                full chart -- on a 12-port router that was a dozen
+                near-identical flat "Down · 0 B" panels to scroll past to
+                find the two ports carrying traffic. Nothing is hidden: the
+                chips still carry each port's status and totals, and
+                "Show all ports" brings their charts back. */}
             <section className="space-y-4">
-              <h3 className="text-sm font-medium">Traffic by port</h3>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-medium">Traffic by port</h3>
+                {hasRateData && (
+                  <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                    <span className="flex items-center gap-1.5">
+                      <span aria-hidden="true" className="h-2 w-2 rounded-full bg-teal-500" />
+                      In
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span aria-hidden="true" className="h-2 w-2 rounded-full bg-violet-500" />
+                      Out
+                    </span>
+                  </div>
+                )}
+              </div>
 
               {!hasRateData ? (
                 hasCounters ? (
@@ -354,107 +522,78 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
                   </EmptyNote>
                 )
               ) : (
-                series
-                  .filter((s) => s.points.some((p) => p.downMbps != null || p.upMbps != null))
-                  .map((s) => (
-                    <div key={`${s.ifIndex}-${s.ifName}`} className="rounded-lg border p-3">
-                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium">{s.ifName}</span>
-                          {s.up != null && (
-                            <Badge variant={s.up ? "secondary" : "outline"} className="font-normal">
-                              {s.up ? "Up" : "Down"}
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <ArrowDownRight className="h-3.5 w-3.5 text-teal-500" />
-                            {formatOctets(s.totalInOctets)} in
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <ArrowUpRight className="h-3.5 w-3.5 text-violet-500" />
-                            {formatOctets(s.totalOutOctets)} out
-                          </span>
-                        </div>
-                      </div>
+                <>
+                  {activePorts.length > 0 ? (
+                    <div className="grid gap-3 lg:grid-cols-2">
+                      {activePorts.map((s) => (
+                        <PortTrafficPanel key={`${s.ifIndex}-${s.ifName}`} series={s} />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      No port reported as up or carried traffic in this window.
+                    </p>
+                  )}
 
-                      <div className="h-40">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart
-                            data={s.points.map((p) => ({
-                              label: timeLabel(p.at),
-                              down: p.downMbps,
-                              up: p.upMbps,
-                            }))}
-                            margin={{ top: 4, right: 8, left: -8, bottom: 0 }}
+                  {quietPorts.length > 0 && (
+                    <div className="space-y-3 rounded-lg border border-dashed p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-xs text-muted-foreground">
+                          {quietPorts.length} other port{quietPorts.length === 1 ? "" : "s"} carried
+                          no traffic in this window
+                        </p>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 gap-1 px-2 text-xs"
+                          aria-expanded={showAllPorts}
+                          aria-controls="quiet-port-charts"
+                          onClick={() => setShowAllPorts((v) => !v)}
+                        >
+                          <ChevronDown
+                            className={cn(
+                              "h-3.5 w-3.5 transition-transform",
+                              showAllPorts && "rotate-180",
+                            )}
+                          />
+                          {showAllPorts ? "Hide their charts" : "Show all ports"}
+                        </Button>
+                      </div>
+                      <ul className="flex flex-wrap gap-1.5" aria-label="Other ports">
+                        {quietPorts.map((s) => (
+                          <li
+                            key={`${s.ifIndex}-${s.ifName}`}
+                            className="inline-flex items-center gap-1.5 rounded-full border bg-muted/40 px-2.5 py-1 text-[11px]"
                           >
-                            <defs>
-                              <linearGradient
-                                id={`iface-down-${s.ifIndex}`}
-                                x1="0"
-                                y1="0"
-                                x2="0"
-                                y2="1"
-                              >
-                                <stop offset="0%" stopColor="#14b8a6" stopOpacity={0.35} />
-                                <stop offset="100%" stopColor="#14b8a6" stopOpacity={0} />
-                              </linearGradient>
-                              <linearGradient
-                                id={`iface-up-${s.ifIndex}`}
-                                x1="0"
-                                y1="0"
-                                x2="0"
-                                y2="1"
-                              >
-                                <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.3} />
-                                <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0} />
-                              </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                            <XAxis
-                              dataKey="label"
-                              tick={{ fontSize: 10 }}
-                              interval="preserveStartEnd"
+                            <span
+                              aria-hidden="true"
+                              className={cn(
+                                "h-1.5 w-1.5 rounded-full",
+                                s.up === false ? "bg-rose-500" : "bg-muted-foreground/40",
+                              )}
                             />
-                            <YAxis tick={{ fontSize: 10 }} width={38} domain={[0, "auto"]} />
-                            <Tooltip
-                              contentStyle={TOOLTIP_STYLE}
-                              formatter={(value: unknown, name: unknown) => [
-                                typeof value === "number" ? formatMbps(value) : "No reading",
-                                name === "down" ? "In" : "Out",
-                              ]}
-                            />
-                            {/* connectNulls={false} is load-bearing: a null
-                                point means the rate could not be measured
-                                (counter reset, missing reading, or too long
-                                a gap). Bridging it would draw a line
-                                through data that does not exist. */}
-                            <Area
-                              type="monotone"
-                              dataKey="down"
-                              name="down"
-                              stroke="#14b8a6"
-                              fill={`url(#iface-down-${s.ifIndex})`}
-                              strokeWidth={2}
-                              connectNulls={false}
-                              isAnimationActive={false}
-                            />
-                            <Area
-                              type="monotone"
-                              dataKey="up"
-                              name="up"
-                              stroke="#8b5cf6"
-                              fill={`url(#iface-up-${s.ifIndex})`}
-                              strokeWidth={2}
-                              connectNulls={false}
-                              isAnimationActive={false}
-                            />
-                          </AreaChart>
-                        </ResponsiveContainer>
+                            <span className="font-medium">{s.ifName}</span>
+                            {s.up != null && (
+                              <span className="text-muted-foreground">{s.up ? "Up" : "Down"}</span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                      {/* Always in the DOM so `aria-controls` points at
+                          something; the charts mount only when asked for. */}
+                      <div
+                        id="quiet-port-charts"
+                        className={cn("grid gap-3 lg:grid-cols-2", !showAllPorts && "hidden")}
+                      >
+                        {showAllPorts &&
+                          quietPorts.map((s) => (
+                            <PortTrafficPanel key={`${s.ifIndex}-${s.ifName}`} series={s} />
+                          ))}
                       </div>
                     </div>
-                  ))
+                  )}
+                </>
               )}
             </section>
 
@@ -467,7 +606,13 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={healthChart} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                    <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+                    <XAxis
+                      dataKey="label"
+                      tick={{ fontSize: 10 }}
+                      interval="preserveStartEnd"
+                      minTickGap={X_TICK_GAP}
+                      tickLine={false}
+                    />
                     <YAxis tick={{ fontSize: 10 }} width={34} domain={[0, 100]} unit="%" />
                     <Tooltip
                       contentStyle={TOOLTIP_STYLE}
