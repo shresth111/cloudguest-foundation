@@ -50,6 +50,7 @@
     "test:firewall-demo": "node scripts/test-firewall-demo.mjs",
     "test:guest-device-events": "node scripts/test-guest-device-events.mjs",
     "test:device-health": "node scripts/test-device-health.mjs",
+    "test:bandwidth-display": "node scripts/test-bandwidth-display.mjs",
     "test:router-snmp": "node scripts/test-router-snmp.mjs",
     "test:device-liveness": "node scripts/test-device-liveness.mjs",
     "test:hardware-health": "node scripts/test-hardware-health.mjs",
