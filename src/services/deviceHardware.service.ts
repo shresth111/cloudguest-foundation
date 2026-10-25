@@ -108,6 +108,23 @@ export interface MonitoredDeviceRow {
   /** Another organization registered this MAC too (BE
    * `registered_elsewhere`); sent only for a row never observed here. */
   registeredElsewhere?: boolean;
+  /** Register response only (BE `address_binding`): whether the device's
+   * current DHCP lease was made static on the router, binding its IP to
+   * this MAC. Words live in `@/lib/hardware-address-binding`. */
+  addressBinding?: AddressBinding | null;
+}
+
+export type AddressBindingStatus =
+  | "pinned"
+  | "already_static"
+  | "no_lease"
+  | "conflict"
+  | "failed"
+  | "unsupported";
+
+export interface AddressBinding {
+  status: AddressBindingStatus;
+  ipAddress: string | null;
 }
 
 interface RawMonitoredHardware {
@@ -128,6 +145,7 @@ interface RawMonitoredHardware {
   health?: RawDeviceHealth | null;
   duplicate_locations?: string[];
   registered_elsewhere?: boolean;
+  address_binding?: { status: AddressBindingStatus; ip_address: string | null } | null;
 }
 
 function toRow(r: RawMonitoredHardware): MonitoredDeviceRow {
@@ -156,6 +174,9 @@ function toRow(r: RawMonitoredHardware): MonitoredDeviceRow {
     health: toDeviceHealth(r.health),
     duplicateLocations: r.duplicate_locations ?? [],
     registeredElsewhere: r.registered_elsewhere ?? false,
+    addressBinding: r.address_binding
+      ? { status: r.address_binding.status, ipAddress: r.address_binding.ip_address ?? null }
+      : null,
   };
 }
 

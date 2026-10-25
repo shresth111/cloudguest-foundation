@@ -1145,6 +1145,17 @@ jobs:
             "device-health" 40 "all checks passed" \
             bun run test:device-health
 
+      # Bandwidth Utilization card. A real sub-1-Mbps reading must never
+      # render as "0 Mbps / 0% of plan" on a plan-pinned axis -- that reads
+      # as "not measuring" (Library Hall, 2026-10-25).
+      #
+      # Floor 20, observed green at 20.
+      - name: bandwidth utilization display
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "bandwidth-display" 20 "all checks passed" \
+            bun run test:bandwidth-display
+
       # --- Master console SNMP panel ---------------------------------------
       #
       # Never "Working" without a successful poll (and never for a vendor the

@@ -25,6 +25,7 @@ import { DEVICE_TYPES, type DeviceType } from "@/stores/deviceStore";
 import { floorSuggestions, normalizeFloor } from "@/lib/device-floors";
 import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
 import { requestErrorMessage } from "@/services/api";
+import { describeAddressBinding } from "@/lib/hardware-address-binding";
 
 const STRICT_MAC_RE = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
 
@@ -95,8 +96,10 @@ export function AddDeviceDialog({
     setMacError(null);
     setSubmitting(true);
     try {
-      await addDevice(locationId, form.name.trim(), mac, form.type, form.floor);
+      const created = await addDevice(locationId, form.name.trim(), mac, form.type, form.floor);
       toast.success(`${form.type} added on ${form.floor}`);
+      const binding = describeAddressBinding(created?.addressBinding);
+      if (binding) toast[binding.tone](binding.message);
       setForm(emptyForm);
       onOpenChange(false);
       onAdded?.();
