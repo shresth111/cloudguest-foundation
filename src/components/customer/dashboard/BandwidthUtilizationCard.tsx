@@ -17,6 +17,7 @@ import { BlurFade } from "@/components/magicui/blur-fade";
 import { ChartEmptyState } from "./ChartEmptyState";
 import { WAN_HEALTH_STYLE } from "./dashboard.types";
 import { useBandwidthSeries } from "./useBandwidthSeries";
+import { anchorAxisToPlan, formatMbps, utilizationLabel } from "./bandwidth-display";
 
 /**
  * Bandwidth Utilization -- a live, rolling graph of this location's active
@@ -45,10 +46,13 @@ export function BandwidthUtilizationCard({
       ? bw.checks.find((c) => c.downloadMbps != null || c.uploadMbps != null)
       : undefined;
   const capacityDownload = bw.status === "ready" ? bw.link.downloadBandwidthMbps : null;
-  const utilizationPct =
-    capacityDownload != null && capacityDownload > 0 && latest?.downloadMbps != null
-      ? Math.round((latest.downloadMbps / capacityDownload) * 100)
-      : null;
+  const utilization = utilizationLabel(latest?.downloadMbps, capacityDownload);
+  const utilizationPct = utilization?.pct ?? null;
+  const dataMax = ordered.reduce<number | null>((m, c) => {
+    const v = Math.max(c.downloadMbps ?? -Infinity, c.uploadMbps ?? -Infinity);
+    return Number.isFinite(v) ? Math.max(m ?? 0, v) : m;
+  }, null);
+  const showPlanOnAxis = anchorAxisToPlan(dataMax, capacityDownload);
 
   const capacitySamples =
     capacityDownload != null && capacityDownload > 0
@@ -88,18 +92,18 @@ export function BandwidthUtilizationCard({
                 <span className="flex items-center gap-1">
                   <span className="h-1.5 w-1.5 rounded-full bg-teal-500" />
                   <span className="font-semibold tabular-nums text-foreground">
-                    {latest.downloadMbps.toFixed(0)}
+                    {formatMbps(latest.downloadMbps)}
                   </span>
-                  <span className="text-muted-foreground">Mbps ↓</span>
+                  <span className="text-muted-foreground">↓</span>
                 </span>
               )}
               {latest.uploadMbps != null && (
                 <span className="flex items-center gap-1">
                   <span className="h-1.5 w-1.5 rounded-full bg-violet-500" />
                   <span className="font-semibold tabular-nums text-foreground">
-                    {latest.uploadMbps.toFixed(0)}
+                    {formatMbps(latest.uploadMbps)}
                   </span>
-                  <span className="text-muted-foreground">Mbps ↑</span>
+                  <span className="text-muted-foreground">↑</span>
                 </span>
               )}
               {utilizationPct != null && (
@@ -112,9 +116,9 @@ export function BandwidthUtilizationCard({
                         ? "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400"
                         : "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400",
                   )}
-                  title={`${latest?.downloadMbps?.toFixed(1)} of ${capacityDownload} Mbps plan (as advertised by your ISP, not independently measured)`}
+                  title={`${formatMbps(latest?.downloadMbps ?? null)} of ${capacityDownload} Mbps plan (as advertised by your ISP, not independently measured)`}
                 >
-                  {utilizationPct}% of plan
+                  {utilization?.label} of plan
                 </span>
               )}
             </span>
@@ -148,7 +152,7 @@ export function BandwidthUtilizationCard({
                 <span className={cn("font-medium", style.text)}>{style.label}</span>
                 {l.currentDownloadMbps != null && (
                   <span className="text-muted-foreground tabular-nums">
-                    {l.currentDownloadMbps.toFixed(0)} Mbps↓
+                    {formatMbps(l.currentDownloadMbps)}↓
                   </span>
                 )}
               </span>
@@ -224,8 +228,8 @@ export function BandwidthUtilizationCard({
                     tick={{ fontSize: 10 }}
                     width={32}
                     domain={
-                      capacityDownload != null
-                        ? [0, (dataMax: number) => Math.max(dataMax, capacityDownload) * 1.1]
+                      showPlanOnAxis && capacityDownload != null
+                        ? [0, (max: number) => Math.max(max, capacityDownload) * 1.1]
                         : [0, "auto"]
                     }
                   />
@@ -239,7 +243,7 @@ export function BandwidthUtilizationCard({
                       value: number | string | Array<number | string> | undefined,
                       name: string | number,
                     ) => [
-                      typeof value !== "number" ? "No reading" : `${value.toFixed(1)} Mbps`,
+                      typeof value !== "number" ? "No reading" : formatMbps(value),
                       name === "download" ? "Download" : "Upload",
                     ]}
                   />
@@ -263,7 +267,7 @@ export function BandwidthUtilizationCard({
                     connectNulls={false}
                     isAnimationActive={false}
                   />
-                  {capacityDownload != null && (
+                  {showPlanOnAxis && capacityDownload != null && (
                     <ReferenceLine
                       y={capacityDownload}
                       stroke="#14b8a6"
