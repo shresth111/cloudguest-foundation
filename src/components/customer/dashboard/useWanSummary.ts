@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { isDemo } from "@/services/customer.service";
 import { ispService } from "@/services/isp.service";
+import type { IspHealthCheck } from "@/types/isp";
 import type { WanSummaryState } from "./dashboard.types";
 import { DEMO_WAN_LINK, DEMO_WAN_BACKUP_LINK, DEMO_WAN_CHECKS } from "./dashboard.types";
 
@@ -13,7 +14,14 @@ export function useWanSummary(locationId: string): WanSummaryState {
       setState({
         status: "ready",
         links: [DEMO_WAN_LINK, DEMO_WAN_BACKUP_LINK],
-        checks: DEMO_WAN_CHECKS,
+        checks: {
+          [DEMO_WAN_LINK.id]: DEMO_WAN_CHECKS,
+          [DEMO_WAN_BACKUP_LINK.id]: DEMO_WAN_CHECKS.map((c) => ({
+            ...c,
+            id: `${c.id}-backup`,
+            ispLinkId: DEMO_WAN_BACKUP_LINK.id,
+          })),
+        },
       });
       return;
     }
@@ -33,10 +41,20 @@ export function useWanSummary(locationId: string): WanSummaryState {
           setState({ status: "empty" });
           return;
         }
-        const checks = await ispService
-          .listHealthChecks(links[0].id, { page: 1, pageSize: 12, locationId })
-          .then((r) => r.rows)
-          .catch(() => []);
+        // One history read per uplink (at most two), so each ISP gets its
+        // own timeline. A failed read only blanks that link's ticks.
+        const histories = await Promise.all(
+          links.map((l) =>
+            ispService
+              .listHealthChecks(l.id, { page: 1, pageSize: 12, locationId })
+              .then((r) => r.rows)
+              .catch(() => [] as IspHealthCheck[]),
+          ),
+        );
+        const checks: Record<string, IspHealthCheck[]> = {};
+        links.forEach((l, i) => {
+          checks[l.id] = histories[i];
+        });
         if (!alive) return;
         setState({ status: "ready", links, checks });
       } catch {
