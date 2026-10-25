@@ -58,7 +58,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DEVICE_TYPES, type DeviceType } from "@/stores/deviceStore";
 import { describeLiveness, hardwareLivenessIsMeasured } from "@/lib/device-liveness";
-import { floorSuggestions, normalizeFloor } from "@/lib/device-floors";
+import { floorSuggestions, floorsInUse, normalizeFloor, unplacedCount } from "@/lib/device-floors";
 import { DEVICE_TYPE_META, normalizeMac } from "@/lib/device-presentation";
 import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
 import { HardwareHealthDetails } from "@/components/customer/HardwareHealthDetails";
@@ -450,6 +450,224 @@ function HardwareEmptyState({
   );
 }
 
+type HardwareRow = ReturnType<typeof useMonitoredHardware>["devices"][number];
+
+/**
+ * Which summary bucket a row counts toward. Read straight off
+ * `describeLiveness`'s tone so the summary and each row's chip can never
+ * disagree: "up" and "down" are confirmed readings; "warning" is a reading
+ * that is not a clean verdict (can't reach router, unstable, status stale);
+ * "neutral" is "not seen yet"; and a row nothing probes is "Not measured",
+ * never folded into Unknown -- Unknown says we looked.
+ */
+type SummaryBucket = "up" | "down" | "unconfirmed" | "unknown" | "unmeasured";
+
+function summaryBucket(d: HardwareRow): SummaryBucket {
+  if (!hardwareLivenessIsMeasured(d)) return "unmeasured";
+  const tone = describeLiveness(d).tone;
+  if (tone === "up") return "up";
+  if (tone === "down") return "down";
+  if (tone === "warning") return "unconfirmed";
+  return "unknown";
+}
+
+const BUCKET_META: Record<
+  SummaryBucket,
+  { label: string; dot: string; text: string; always: boolean; hint: string }
+> = {
+  up: {
+    label: "Up",
+    dot: "bg-emerald-500",
+    text: "text-emerald-600 dark:text-emerald-400",
+    always: true,
+    hint: "Answering on the network at the last check.",
+  },
+  down: {
+    label: "Down",
+    dot: "bg-rose-500",
+    text: "text-rose-600 dark:text-rose-400",
+    always: true,
+    hint: "Confirmed not answering at the last check.",
+  },
+  unconfirmed: {
+    label: "Unconfirmed",
+    dot: "bg-amber-500",
+    text: "text-amber-700 dark:text-amber-400",
+    always: false,
+    hint: "A reading that is not a clean up or down: the router can't be read, the link is unstable, or the status is stale. Each row says which.",
+  },
+  unknown: {
+    label: "Unknown",
+    dot: "bg-muted-foreground/50",
+    text: "text-foreground",
+    always: true,
+    hint: "Not seen on the network yet, so there is no status to show.",
+  },
+  unmeasured: {
+    label: "Not measured",
+    dot: "",
+    text: "text-muted-foreground",
+    always: false,
+    hint: "Nothing on this platform checks these devices at this venue.",
+  },
+};
+
+const BUCKET_ORDER: SummaryBucket[] = ["up", "down", "unconfirmed", "unknown", "unmeasured"];
+
+function countBuckets(rows: readonly HardwareRow[]): Record<SummaryBucket, number> {
+  const counts: Record<SummaryBucket, number> = {
+    up: 0,
+    down: 0,
+    unconfirmed: 0,
+    unknown: 0,
+    unmeasured: 0,
+  };
+  for (const d of rows) counts[summaryBucket(d)] += 1;
+  return counts;
+}
+
+/** Floors in building order, then the rows with no floor recorded. A
+ * heading is shown only when there is more than one group to tell apart. */
+function groupHardwareByFloor(rows: readonly HardwareRow[]) {
+  const floors = floorsInUse(rows);
+  const groups: { floor: string | null; devices: HardwareRow[] }[] = floors.map((f) => ({
+    floor: f,
+    devices: rows.filter((d) => d.floor.trim() === f),
+  }));
+  const unplaced = rows.filter((d) => d.floor.trim() === "");
+  if (unplaced.length > 0) groups.push({ floor: null, devices: unplaced });
+  const showHeading = groups.length > 1 || floors.length > 0;
+  return groups.map((g) => ({ ...g, showHeading }));
+}
+
+/**
+ * The at-a-glance strip: one tile per status bucket, then a per-floor line.
+ * Up, Down and Unknown always show (a 0 is an answer); Unconfirmed and Not
+ * measured only when some row is in them.
+ */
+function HardwareSummary({ devices }: { devices: readonly HardwareRow[] }) {
+  const counts = countBuckets(devices);
+  const buckets = BUCKET_ORDER.filter((b) => BUCKET_META[b].always || counts[b] > 0);
+  const floors = floorsInUse(devices);
+  const unplaced = unplacedCount(devices);
+  const perFloor = [
+    ...floors.map((f) => ({
+      label: f,
+      counts: countBuckets(devices.filter((d) => d.floor.trim() === f)),
+    })),
+    ...(unplaced > 0 && floors.length > 0
+      ? [{ label: "No floor", counts: countBuckets(devices.filter((d) => d.floor.trim() === "")) }]
+      : []),
+  ];
+
+  return (
+    <div className="space-y-3">
+      <dl
+        className={cn(
+          "grid gap-2",
+          buckets.length <= 3 ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5",
+        )}
+      >
+        {buckets.map((b) => {
+          const meta = BUCKET_META[b];
+          return (
+            <div key={b} title={meta.hint} className="rounded-xl border bg-muted/30 px-3 py-2.5">
+              <dt className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+                {meta.dot ? (
+                  <span aria-hidden="true" className={cn("h-1.5 w-1.5 rounded-full", meta.dot)} />
+                ) : (
+                  <span
+                    aria-hidden="true"
+                    className="h-1.5 w-1.5 rounded-full border border-dashed border-muted-foreground/60"
+                  />
+                )}
+                {meta.label}
+              </dt>
+              <dd
+                className={cn(
+                  "mt-0.5 text-xl font-semibold tabular-nums",
+                  counts[b] > 0 ? meta.text : "text-muted-foreground",
+                )}
+              >
+                {counts[b]}
+              </dd>
+            </div>
+          );
+        })}
+      </dl>
+      {perFloor.length > 1 && (
+        <ul className="flex flex-wrap gap-1.5" aria-label="Status by floor">
+          {perFloor.map((f) => (
+            <li
+              key={f.label}
+              className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px]"
+            >
+              <span className="font-semibold">{f.label}</span>
+              {BUCKET_ORDER.filter((b) => f.counts[b] > 0).map((b) => (
+                <span key={b} className={cn("tabular-nums", BUCKET_META[b].text)}>
+                  {f.counts[b]} {BUCKET_META[b].label.toLowerCase()}
+                </span>
+              ))}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * A row's status chip. The colour and words both come from describeLiveness:
+ * "unknown" (not seen yet) stays neutral, a confirmed "Down" is red, and a
+ * device behind a router we cannot read is amber and says so -- never "Never
+ * observed" for a working AP. A row NOTHING measures -- a controller-managed
+ * venue has no RouterOS session for the liveness sweep to probe through --
+ * says so rather than borrowing any of those. See useMonitoredHardware's own
+ * honesty note.
+ */
+function HardwareStatusChip({ device }: { device: HardwareRow }) {
+  const live = describeLiveness(device);
+  const measured = hardwareLivenessIsMeasured(device);
+  return (
+    <span
+      title={live.explanation ?? undefined}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+        !measured
+          ? "border-dashed border-border bg-transparent text-muted-foreground"
+          : live.tone === "up"
+            ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+            : live.tone === "down"
+              ? "border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400"
+              : live.tone === "warning"
+                ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                : "border-border bg-muted text-muted-foreground",
+      )}
+    >
+      {/* No status dot for an unmeasured row: a dot is a reading, and there
+       * is none. */}
+      {measured && (
+        <span
+          aria-hidden="true"
+          className={cn(
+            "h-1.5 w-1.5 rounded-full",
+            live.tone === "up"
+              ? "bg-emerald-500"
+              : live.tone === "down"
+                ? "bg-rose-500"
+                : live.tone === "warning"
+                  ? "bg-amber-500"
+                  : "bg-muted-foreground/50",
+          )}
+        />
+      )}
+      {/* Was "Up · 4m", where 4m was the age of last_seen_at, not an uptime.
+       * Each duration now names its own measurement. */}
+      {live.detail ? `${live.state} · ${live.detail}` : live.state}
+    </span>
+  );
+}
+
 export function NetworkHardwareView({ locationId }: { locationId?: string }) {
   const { devices, loading, addDevice, removeDevice } = useMonitoredHardware(locationId);
   // Owned here, not inside `ControllerDevicesCard`, because both cards need
@@ -597,127 +815,88 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
           ) : devices.length === 0 ? (
             <HardwareEmptyState controllerManaged={controllerManaged} nasOnly={nasOnlyVenue} />
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Device</TableHead>
-                  <TableHead>MAC</TableHead>
-                  <TableHead>Floor</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {devices.map((d) => {
-                  const meta = DEVICE_TYPE_META[d.type];
-                  const Icon = meta.icon;
-                  return (
-                    <TableRow key={d.id}>
-                      <TableCell>
-                        <span className="inline-flex items-center gap-2 text-sm font-medium">
-                          {/* `title` moved onto this span -- lucide-react icon
-                          components don't accept a `title` prop (it was
-                          silently dropped here before, so hovering the icon
-                          showed nothing despite the code's apparent intent;
-                          confirmed via `tsc`'s TS2322 on the old `<Icon
-                          title=.../>`). A real DOM element can carry it. */}
-                          <span
-                            title={d.type}
-                            className={cn(
-                              "flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gradient-to-br text-white",
-                              meta.gradient,
-                            )}
-                          >
-                            <Icon className="h-3.5 w-3.5" />
-                          </span>
-                          {d.name}
-                          <span className="font-normal text-xs text-muted-foreground">
-                            ({d.type})
-                          </span>
-                        </span>
-                      </TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">
-                        {d.mac}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{d.floor}</TableCell>
-                      <TableCell>
-                        {/* The badge colour and words both come from
-                        describeLiveness: "unknown" (not seen yet) stays
-                        neutral, a confirmed "Down" is red, and a device
-                        behind a router we cannot read is amber and says so
-                        -- never "Never observed" for a working AP. A row
-                        NOTHING measures -- a controller-managed venue has no
-                        RouterOS session for the liveness sweep to probe
-                        through -- says so rather than borrowing any of
-                        those. See useMonitoredHardware's own honesty note. */}
-                        {(() => {
-                          const live = describeLiveness(d);
-                          const measured = hardwareLivenessIsMeasured(d);
-                          return (
+            <div className="space-y-5 px-4 pb-5 sm:px-6">
+              <HardwareSummary devices={devices} />
+              {groupHardwareByFloor(devices).map((group) => (
+                <section
+                  key={group.floor ?? "__no-floor"}
+                  aria-label={group.floor ? `Floor ${group.floor}` : "No floor recorded"}
+                  className="space-y-2"
+                >
+                  {group.showHeading && (
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        {group.floor ?? "No floor"}
+                      </h3>
+                      <span className="text-[11px] tabular-nums text-muted-foreground">
+                        {group.devices.length}
+                      </span>
+                      <span aria-hidden="true" className="h-px flex-1 bg-border" />
+                    </div>
+                  )}
+                  <ul className="divide-y overflow-hidden rounded-xl border">
+                    {group.devices.map((d) => {
+                      const meta = DEVICE_TYPE_META[d.type];
+                      const Icon = meta.icon;
+                      return (
+                        <li
+                          key={d.id}
+                          className="flex flex-col gap-2 p-3 sm:flex-row sm:items-start sm:gap-4 sm:px-4"
+                        >
+                          <div className="flex min-w-0 flex-1 items-start gap-3">
+                            {/* `title` sits on this span, not the icon: lucide-react
+                             * icon components don't accept a `title` prop. */}
                             <span
-                              title={live.explanation ?? undefined}
+                              title={d.type}
                               className={cn(
-                                "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                                !measured
-                                  ? "border-dashed border-border bg-transparent text-muted-foreground"
-                                  : live.tone === "up"
-                                    ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                                    : live.tone === "down"
-                                      ? "border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400"
-                                      : live.tone === "warning"
-                                        ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400"
-                                        : "border-border bg-muted text-muted-foreground",
+                                "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br text-white",
+                                meta.gradient,
                               )}
                             >
-                              {/* No status dot for an unmeasured row: a dot
-                               * is a reading, and there is none. */}
-                              {measured && (
-                                <span
-                                  className={cn(
-                                    "h-1.5 w-1.5 rounded-full",
-                                    live.tone === "up"
-                                      ? "bg-emerald-500"
-                                      : live.tone === "down"
-                                        ? "bg-rose-500"
-                                        : live.tone === "warning"
-                                          ? "bg-amber-500"
-                                          : "bg-muted-foreground/50",
-                                  )}
+                              <Icon className="h-4 w-4" />
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                <span className="truncate text-sm font-medium">{d.name}</span>
+                                <HardwareStatusChip device={d} />
+                              </div>
+                              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                                {d.type}
+                                <span aria-hidden="true"> · </span>
+                                <span className="font-mono">{d.mac}</span>
+                              </p>
+                              {/* Port, latency, devices on the port, traffic, link
+                               * drops, a 24h strip, and why a duplicate-MAC row can
+                               * never be seen here. Nothing for a row without
+                               * `health` (demo, older backend). */}
+                              {hardwareLivenessIsMeasured(d) && (
+                                <HardwareHealthDetails
+                                  health={d.health}
+                                  duplicateLocations={d.duplicateLocations}
+                                  registeredElsewhere={d.registeredElsewhere}
                                 />
                               )}
-                              {/* Was "Up · 4m", where 4m was the age of
-                               * last_seen_at, not an uptime. Each duration now
-                               * names its own measurement. */}
-                              {live.detail ? `${live.state} · ${live.detail}` : live.state}
-                            </span>
-                          );
-                        })()}
-                        {/* Port, latency, devices on the port, traffic, link
-                         * drops, a 24h strip, and why a duplicate-MAC row can
-                         * never be seen here. Nothing for a row without
-                         * `health` (demo, older backend). */}
-                        {hardwareLivenessIsMeasured(d) && (
-                          <HardwareHealthDetails
-                            health={d.health}
-                            duplicateLocations={d.duplicateLocations}
-                            registeredElsewhere={d.registeredElsewhere}
-                          />
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <button
-                          onClick={() => handleRemove(d.id, d.name)}
-                          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-500/10"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                          Remove
-                        </button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                            </div>
+                          </div>
+                          <div className="flex justify-end sm:shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleRemove(d.id, d.name)}
+                              aria-label={`Remove ${d.name}`}
+                              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-rose-600 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-rose-400 dark:hover:bg-rose-500/10"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                              Remove
+                            </button>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              ))}
+            </div>
           )}
         </CardContent>
 
