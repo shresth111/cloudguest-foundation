@@ -1145,6 +1145,26 @@ jobs:
             "device-health" 40 "all checks passed" \
             bun run test:device-health
 
+      # Daily SMS Delivery report (Reports > OTP & SMS). "Delivered" may only
+      # come from a provider delivery report: with delivery reports off, the
+      # Delivered / Undelivered / rate cells must be blank and the notice must
+      # say "Delivery reports not enabled" -- never sent minus failed. Also
+      # pins the chart's validated stack order and the demo fixture's
+      # arithmetic. The second suite pins which Reports types are real and
+      # which stay honestly unavailable.
+      #
+      # Floors 22 and 34, observed green at 22 and 34.
+      - name: sms delivery report
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "sms-delivery-report" 22 "all sms-delivery-report checks passed" \
+            bun run test:sms-delivery-report
+      - name: user reports real types
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "user-reports-real-types" 34 "all user-reports real-type checks passed" \
+            bun run test:user-reports-real-types
+
       # Bandwidth Utilization card. A real sub-1-Mbps reading must never
       # render as "0 Mbps / 0% of plan" on a plan-pinned axis -- that reads
       # as "not measuring" (Library Hall, 2026-10-25).

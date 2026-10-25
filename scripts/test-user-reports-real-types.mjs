@@ -12,8 +12,12 @@
  *       "Delivered/Failed" status and "Latency (ms)" columns (this platform
  *       persists no gateway delivery status and no latency) must be GONE.
  *
+ *     - sms-daywise — real day-wise outcomes from GET /sms-delivery/report
+ *       (backend sms_delivery_logs: one row per real SMS send attempt).
+ *       Delivered/Undelivered only from provider delivery reports; see
+ *       scripts/test-sms-delivery-report.mjs for the no-DLR honesty rules.
+ *
  *   DELIBERATELY LEFT UNAVAILABLE (would need fabricated fields):
- *     - sms-daywise      — no per-message SMS delivery record exists at all.
  *     - team-report      — guest teams carry only a live snapshot, no
  *                          per-period aggregate; no session links to a member.
  *     - campaign-daywise — results are lifetime totals, no daily buckets.
@@ -55,7 +59,7 @@ const otpCols = block('"otp-delivery": [', "],");
 const needsRange = block("const NEEDS_RANGE = new Set([", "]);");
 
 console.log("\nthe three buildable types are wired as REAL, not unavailable");
-for (const t of ["campaign-performance", "top-campaigns", "otp-delivery"]) {
+for (const t of ["campaign-performance", "top-campaigns", "otp-delivery", "sms-daywise"]) {
   check(`${t} is in REAL_REPORT_TYPES`, realSet.includes(`"${t}"`));
   check(`${t} is NOT in UNAVAILABLE_REASON`, !unavailable.includes(`"${t}"`));
 }
@@ -70,6 +74,17 @@ check(
 );
 check("top-campaigns dispatches to realTopCampaigns", /realTopCampaigns\(/.test(src));
 check("otp-delivery dispatches to realOtpRequests", /realOtpRequests\(/.test(src));
+check("realSmsDaywise is defined", /async function realSmsDaywise\(/.test(src));
+check("sms-daywise dispatches to realSmsDaywise", /await realSmsDaywise\(/.test(src));
+check("sms helper reads GET /sms-delivery/report", /["'`]\/sms-delivery\/report["'`]/.test(src));
+check(
+  "sms-daywise renders the chart from the real report",
+  /<SmsDeliveryChart report=\{smsReport\}/.test(src),
+);
+check(
+  "the old fabricated sms-daywise demo generator is gone",
+  !/r\.delivered = sent - failed/.test(src),
+);
 
 console.log("\nthe real helpers call the real endpoints/services");
 check(
@@ -117,7 +132,7 @@ check(
 );
 
 console.log("\nthe honestly-unavailable types stay unavailable with a real reason");
-for (const t of ["sms-daywise", "team-report", "campaign-daywise"]) {
+for (const t of ["team-report", "campaign-daywise"]) {
   check(`${t} is still in UNAVAILABLE_REASON`, unavailable.includes(`"${t}"`));
   check(`${t} is NOT wired as real`, !realSet.includes(`"${t}"`));
 }
