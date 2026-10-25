@@ -1,21 +1,16 @@
-import { useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Globe, Gauge } from "lucide-react";
-import { toast } from "sonner";
+import { Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { isDemo } from "@/services/customer.service";
-import { ispService } from "@/services/isp.service";
-import type { AppError } from "@/services/api";
 import type { IspLink, IspHealthCheck } from "@/types/isp";
 import { IspProviderIcon } from "@/components/icons/isp";
 import {
   WAN_HEALTH_STYLE,
   WAN_CONNECTION_MODE_LABEL,
   formatDownDuration,
-  type SpeedTestState,
+  integratedWanHealth,
 } from "./dashboard.types";
 import { useWanSummary } from "./useWanSummary";
 
@@ -104,89 +99,87 @@ export function WanSetupIllustration() {
   );
 }
 
-/** One uplink row plus its own on-demand "Run Speed Test" action */
-export function UplinkRow({ link }: { link: IspLink }) {
-  const [state, setState] = useState<SpeedTestState>({ status: "idle" });
+function fmt(value: number | null, digits: number, unit: string) {
+  return value != null ? `${value.toFixed(digits)} ${unit}` : "—";
+}
 
-  const runSpeedTest = async () => {
-    if (isDemo()) {
-      toast.info("Speed tests run against real router hardware — not available in demo mode.");
-      return;
-    }
-    setState({ status: "running" });
-    try {
-      const result = await ispService.runSpeedTest(link.id);
-      setState({ status: "done", result });
-    } catch (err) {
-      const message = (err as AppError).message || "Speed test failed.";
-      setState({ status: "error", message });
-      toast.error(message);
-    }
-  };
-
+/** One ISP's own health: status, latency/loss, live rate and its own
+ * recent-check timeline. Shown for every uplink, so a venue on two ISPs
+ * sees each line separately, not only the one flagged active. */
+export function UplinkHealthRow({ link, checks }: { link: IspLink; checks: IspHealthCheck[] }) {
+  const style = WAN_HEALTH_STYLE[link.healthStatus] ?? WAN_HEALTH_STYLE.unknown;
   return (
-    <div className="space-y-1">
-      {/* Fixed columns (name | role | state | action), not a free-flowing
-       * row: with a flowing row "Primary"/"Backup" started wherever the
-       * provider name happened to end and the Active/Standby badges were
-       * different widths, so no two uplinks lined up. */}
-      <div className="grid grid-cols-[minmax(0,1fr)_3.5rem_3.75rem_auto] items-center gap-2 text-xs">
-        <span className="flex min-w-0 items-center gap-1.5">
+    <div className="space-y-1.5 rounded-lg border border-border/60 px-3 py-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <span className="flex min-w-0 items-center gap-1.5 text-xs">
           <IspProviderIcon providerName={link.providerName} className="h-4 w-4 shrink-0" />
           <span className="truncate font-medium text-foreground">{link.providerName}</span>
-        </span>
-        <span className="text-muted-foreground">
-          {link.role === "primary" ? "Primary" : "Backup"}
-        </span>
-        <Badge
-          variant={link.isActiveUplink ? "default" : "secondary"}
-          className="h-5 w-full justify-center px-1.5 text-[10px]"
-        >
-          {link.isActiveUplink ? "Active" : "Standby"}
-        </Badge>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-5 gap-1 px-1.5 text-[10px] font-medium text-primary hover:text-primary"
-          disabled={state.status === "running"}
-          onClick={runSpeedTest}
-          title="Run a real speed test against this link's router"
-        >
-          <Gauge className={cn("h-3 w-3", state.status === "running" && "animate-spin")} />
-          {state.status === "running" ? "Testing…" : "Speed Test"}
-        </Button>
-      </div>
-      {state.status === "running" && (
-        <div className="flex items-center gap-1.5 pl-[22px] text-[10px] text-muted-foreground">
-          <span className="relative flex h-1.5 w-1.5 shrink-0">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/60" />
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
+          <span className="text-muted-foreground">
+            · {link.role === "primary" ? "Primary" : "Backup"}
+            {link.interface ? ` · ${link.interface}` : ""}
           </span>
-          Measuring real download speed — real traffic, can take up to a minute…
-        </div>
-      )}
-      {state.status === "done" && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 pl-[22px] text-[10px]">
-          <span className="font-semibold text-foreground">
-            {state.result.downloadMbps.toFixed(1)} Mbps{" "}
-            <span className="font-normal text-muted-foreground">↓</span>
-          </span>
-          {state.result.latencyMs != null && (
-            <span className="text-muted-foreground">
-              {state.result.latencyMs.toFixed(0)}ms latency
-            </span>
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className={cn("h-2 w-2 rounded-full", style.dot)} />
+          <span className={cn("text-xs font-semibold", style.text)}>{style.label}</span>
+          {link.healthStatusSource === "manual" && (
+            <Badge
+              variant="outline"
+              className="h-4 px-1 text-[9px] font-normal text-muted-foreground"
+              title="Manually set by an admin, not the automated health-check sweep"
+            >
+              Manual
+            </Badge>
           )}
-          <span className="text-muted-foreground/70">upload not measurable on this hardware</span>
-        </div>
+        </span>
+      </div>
+      {link.healthStatus === "unhealthy" && link.unhealthySince && (
+        <p className="text-[11px] font-medium text-rose-600 dark:text-rose-400">
+          Down for {formatDownDuration(link.unhealthySince)}
+        </p>
       )}
+      <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground sm:grid-cols-4">
+        <span>
+          ↓{" "}
+          <span className="tabular-nums text-foreground">
+            {fmt(link.currentDownloadMbps, 0, "Mbps")}
+          </span>
+        </span>
+        <span>
+          ↑{" "}
+          <span className="tabular-nums text-foreground">
+            {fmt(link.currentUploadMbps, 0, "Mbps")}
+          </span>
+        </span>
+        <span>
+          Latency{" "}
+          <span className="tabular-nums text-foreground">{fmt(link.latencyMs, 0, "ms")}</span>
+        </span>
+        <span>
+          Loss{" "}
+          <span className="tabular-nums text-foreground">
+            {fmt(link.packetLossPercentage, 1, "%")}
+          </span>
+        </span>
+      </div>
+      <WanRecentChecks checks={checks} />
     </div>
   );
 }
 
+const INTEGRATED_STYLE_KEY = {
+  healthy: "healthy",
+  degraded: "degraded",
+  unhealthy: "unhealthy",
+  unknown: "unknown",
+} as const;
+
 /**
- * The dashboard's own WAN/Internet Connection status widget: real up/down
- * state + a real recent-history timeline for this location's primary
- * uplink, or an honest setup prompt when no `IspLink` is configured yet.
+ * The dashboard's own WAN/Internet Connection status widget. One uplink:
+ * that link's real status, history and live bandwidth. Two or more: an
+ * integrated reading first (how many ISPs are up, combined live rate),
+ * then every ISP's own health row underneath. An honest setup prompt
+ * when no `IspLink` is configured yet.
  */
 export function WanStatusCard({
   locationId,
@@ -234,121 +227,174 @@ export function WanStatusCard({
             </Button>
           </div>
         )}
-        {wan.status === "ready" &&
-          (() => {
-            const active = wan.links.find((l) => l.isActiveUplink) ?? wan.links[0];
-            const backup = wan.links.find((l) => l.id !== active.id);
-            const primary = wan.links.find((l) => l.role === "primary") ?? active;
-            const style = WAN_HEALTH_STYLE[active.healthStatus] ?? WAN_HEALTH_STYLE.unknown;
-            const hasBandwidth =
-              active.currentDownloadMbps != null || active.currentUploadMbps != null;
-            return (
-              <div className="space-y-4">
-                {/* Connection status */}
-                <div>
-                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className={cn("h-2 w-2 rounded-full", style.dot)} />
-                      <span className={cn("text-base font-semibold leading-none", style.text)}>
-                        {style.label}
-                      </span>
-                      {active.healthStatusSource === "manual" && (
-                        <Badge
-                          variant="outline"
-                          className="h-4 px-1 text-[9px] font-normal text-muted-foreground"
-                          title="Manually set by an admin, not the automated health-check sweep"
-                        >
-                          Manual
-                        </Badge>
-                      )}
-                    </div>
-                    <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-                      <IspProviderIcon providerName={active.providerName} className="h-4 w-4" />
-                      <span className="truncate">
-                        {active.providerName} ·{" "}
-                        {WAN_CONNECTION_MODE_LABEL[active.connectionMode] ?? active.connectionMode}
-                      </span>
-                    </span>
-                  </div>
-                  {active.healthStatus === "unhealthy" && active.unhealthySince && (
-                    <p className="mt-1 text-xs font-medium text-rose-600 dark:text-rose-400">
-                      Down for {formatDownDuration(active.unhealthySince)}
-                    </p>
-                  )}
-                  <div className="mt-2">
-                    <WanRecentChecks checks={wan.checks} />
-                  </div>
-                </div>
-
-                {/* Bandwidth */}
-                {hasBandwidth && (
-                  <div className="rounded-lg bg-muted/40 px-3 py-2">
-                    <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                      Bandwidth · live
-                    </p>
-                    {/* One equal-width cell per figure, value over label, so
-                     * the four numbers sit on one baseline and one grid
-                     * instead of wrapping at whatever width the card has. */}
-                    <div className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
-                      {[
-                        {
-                          label: "Download",
-                          value: active.currentDownloadMbps,
-                          unit: "Mbps",
-                          digits: 0,
-                        },
-                        {
-                          label: "Upload",
-                          value: active.currentUploadMbps,
-                          unit: "Mbps",
-                          digits: 0,
-                        },
-                        { label: "Latency", value: active.latencyMs, unit: "ms", digits: 0 },
-                        {
-                          label: "Loss",
-                          value: active.packetLossPercentage,
-                          unit: "%",
-                          digits: 1,
-                        },
-                      ].map((m) => (
-                        <div key={m.label} className="min-w-0">
-                          <p className="text-lg font-semibold leading-tight tabular-nums text-foreground">
-                            {m.value != null ? m.value.toFixed(m.digits) : "—"}
-                            {m.value != null && (
-                              <span className="ml-0.5 text-xs font-normal text-muted-foreground">
-                                {m.unit}
-                              </span>
-                            )}
-                          </p>
-                          <p className="text-[11px] text-muted-foreground">{m.label}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Uplinks */}
-                <div className="space-y-2.5 border-t border-border/60 pt-3">
-                  <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                    Uplinks
-                  </p>
-                  {wan.links.map((l) => (
-                    <UplinkRow key={l.id} link={l} />
-                  ))}
-                  {backup && (
-                    <p className="pt-0.5 text-[11px] text-muted-foreground">
-                      Automatic failover armed — switches to Backup if Primary fails repeated health
-                      checks
-                      {primary.autoFailback
-                        ? ", and returns automatically once Primary recovers."
-                        : "; a manual failback is required once Primary recovers."}
-                    </p>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
+        {wan.status === "ready" && wan.links.length === 1 && (
+          <SingleWanView link={wan.links[0]} checks={wan.checks[wan.links[0].id] ?? []} />
+        )}
+        {wan.status === "ready" && wan.links.length > 1 && (
+          <MultiWanView links={wan.links} checks={wan.checks} />
+        )}
       </CardContent>
     </Card>
+  );
+}
+
+function SingleWanView({ link, checks }: { link: IspLink; checks: IspHealthCheck[] }) {
+  const style = WAN_HEALTH_STYLE[link.healthStatus] ?? WAN_HEALTH_STYLE.unknown;
+  const hasBandwidth = link.currentDownloadMbps != null || link.currentUploadMbps != null;
+  return (
+    <div className="space-y-4">
+      <div>
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+          <div className="flex items-center gap-2">
+            <span className={cn("h-2 w-2 rounded-full", style.dot)} />
+            <span className={cn("text-base font-semibold leading-none", style.text)}>
+              {style.label}
+            </span>
+            {link.healthStatusSource === "manual" && (
+              <Badge
+                variant="outline"
+                className="h-4 px-1 text-[9px] font-normal text-muted-foreground"
+                title="Manually set by an admin, not the automated health-check sweep"
+              >
+                Manual
+              </Badge>
+            )}
+          </div>
+          <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+            <IspProviderIcon providerName={link.providerName} className="h-4 w-4" />
+            <span className="truncate">
+              {link.providerName} ·{" "}
+              {WAN_CONNECTION_MODE_LABEL[link.connectionMode] ?? link.connectionMode}
+            </span>
+          </span>
+        </div>
+        {link.healthStatus === "unhealthy" && link.unhealthySince && (
+          <p className="mt-1 text-xs font-medium text-rose-600 dark:text-rose-400">
+            Down for {formatDownDuration(link.unhealthySince)}
+          </p>
+        )}
+        <div className="mt-2">
+          <WanRecentChecks checks={checks} />
+        </div>
+      </div>
+      {hasBandwidth && (
+        <BandwidthFigures
+          title="Bandwidth · live"
+          download={link.currentDownloadMbps}
+          upload={link.currentUploadMbps}
+          latency={link.latencyMs}
+          loss={link.packetLossPercentage}
+        />
+      )}
+    </div>
+  );
+}
+
+function MultiWanView({
+  links,
+  checks,
+}: {
+  links: IspLink[];
+  checks: Record<string, IspHealthCheck[]>;
+}) {
+  const health = integratedWanHealth(links);
+  const style = WAN_HEALTH_STYLE[INTEGRATED_STYLE_KEY[health.status]];
+  const working = links.filter((l) => l.isEnabled && l.healthStatus !== "unhealthy");
+  let headline: string;
+  if (health.status === "unknown") headline = "Not checked yet";
+  else if (health.status === "unhealthy") headline = "All ISPs down";
+  else if (health.status === "healthy") headline = `All ${health.total} ISPs online`;
+  else if (health.down > 0) headline = `${health.down} of ${health.total} ISPs down`;
+  else headline = `${health.degraded} of ${health.total} ISPs degraded`;
+  return (
+    <div className="space-y-4">
+      {/* Integrated reading */}
+      <div>
+        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          Integrated · {health.total} ISPs
+        </p>
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <span className={cn("h-2 w-2 rounded-full", style.dot)} />
+          <span className={cn("text-base font-semibold leading-none", style.text)}>{headline}</span>
+        </div>
+        {health.down > 0 && health.status !== "unhealthy" && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            Guests are running on {working.map((l) => l.providerName).join(" + ")} only
+            {health.planDownloadMbps != null && " — reduced capacity"}.
+          </p>
+        )}
+      </div>
+
+      {(health.liveDownloadMbps != null || health.liveUploadMbps != null) && (
+        <BandwidthFigures
+          title={
+            health.planDownloadMbps != null
+              ? `Combined bandwidth · live · plan ${health.planDownloadMbps} Mbps`
+              : "Combined bandwidth · live"
+          }
+          download={health.liveDownloadMbps}
+          upload={health.liveUploadMbps}
+        />
+      )}
+
+      {/* Each ISP on its own */}
+      <div className="space-y-2 border-t border-border/60 pt-3">
+        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          Each ISP
+        </p>
+        {links.map((l) => (
+          <UplinkHealthRow key={l.id} link={l} checks={checks[l.id] ?? []} />
+        ))}
+        <p className="pt-0.5 text-[11px] text-muted-foreground">
+          If one ISP fails its health checks, traffic moves to the remaining ISP automatically.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function BandwidthFigures({
+  title,
+  download,
+  upload,
+  latency,
+  loss,
+}: {
+  title: string;
+  download: number | null;
+  upload: number | null;
+  latency?: number | null;
+  loss?: number | null;
+}) {
+  const figures = [
+    { label: "Download", value: download, unit: "Mbps", digits: 0 },
+    { label: "Upload", value: upload, unit: "Mbps", digits: 0 },
+    ...(latency !== undefined ? [{ label: "Latency", value: latency, unit: "ms", digits: 0 }] : []),
+    ...(loss !== undefined ? [{ label: "Loss", value: loss, unit: "%", digits: 1 }] : []),
+  ];
+  return (
+    <div className="rounded-lg bg-muted/40 px-3 py-2">
+      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        {title}
+      </p>
+      <div
+        className={cn(
+          "mt-1.5 grid grid-cols-2 gap-x-4 gap-y-2",
+          figures.length === 4 && "sm:grid-cols-4",
+        )}
+      >
+        {figures.map((m) => (
+          <div key={m.label} className="min-w-0">
+            <p className="text-lg font-semibold leading-tight tabular-nums text-foreground">
+              {m.value != null ? m.value.toFixed(m.digits) : "—"}
+              {m.value != null && (
+                <span className="ml-0.5 text-xs font-normal text-muted-foreground">{m.unit}</span>
+              )}
+            </p>
+            <p className="text-[11px] text-muted-foreground">{m.label}</p>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

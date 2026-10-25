@@ -1,4 +1,4 @@
-import type { IspLink, IspHealthCheck, IspSpeedTestResult } from "@/types/isp";
+import type { IspLink, IspHealthCheck } from "@/types/isp";
 
 export const WAN_HEALTH_STYLE: Record<
   string,
@@ -160,15 +160,62 @@ export const BANDWIDTH_POLL_INTERVAL_MS = 20_000;
 export type WanSummaryState =
   | { status: "loading" }
   | { status: "empty" }
-  | { status: "ready"; links: IspLink[]; checks: IspHealthCheck[] };
+  /** `checks` is keyed by link id, so every uplink gets its own real
+   * recent-history timeline, not only the first one. */
+  | { status: "ready"; links: IspLink[]; checks: Record<string, IspHealthCheck[]> };
 
 export type BandwidthSeriesState =
   | { status: "loading" }
   | { status: "empty" }
   | { status: "ready"; link: IspLink; checks: IspHealthCheck[]; otherLinks: IspLink[] };
 
-export type SpeedTestState =
-  | { status: "idle" }
-  | { status: "running" }
-  | { status: "done"; result: IspSpeedTestResult }
-  | { status: "error"; message: string };
+/** Combined reading across every enabled uplink of one location -- what a
+ * venue running two ISPs (load balanced or failover) actually wants to
+ * know first: is the internet up, and on how many lines. Derived only
+ * from each link's own real `healthStatus`; "unknown" links are neither
+ * counted as up nor as down. */
+export interface IntegratedWanHealth {
+  total: number;
+  up: number;
+  down: number;
+  degraded: number;
+  /** "healthy" when every known link is up, "degraded" when at least one
+   * link is up but another is down or degraded, "unhealthy" when no link
+   * is up, "unknown" before any link has been checked. */
+  status: "healthy" | "degraded" | "unhealthy" | "unknown";
+  downLinks: IspLink[];
+  /** Sums over links that report a live rate; null when none do. */
+  liveDownloadMbps: number | null;
+  liveUploadMbps: number | null;
+  /** Sum of provisioned plan capacity; null unless every link has one. */
+  planDownloadMbps: number | null;
+}
+
+export function integratedWanHealth(links: IspLink[]): IntegratedWanHealth {
+  const enabled = links.filter((l) => l.isEnabled);
+  const up = enabled.filter((l) => l.healthStatus === "healthy").length;
+  const degraded = enabled.filter((l) => l.healthStatus === "degraded").length;
+  const downLinks = enabled.filter((l) => l.healthStatus === "unhealthy");
+  const known = up + degraded + downLinks.length;
+  const sum = (vals: (number | null)[]) => {
+    const real = vals.filter((v): v is number => v != null);
+    return real.length ? real.reduce((a, b) => a + b, 0) : null;
+  };
+  let status: IntegratedWanHealth["status"];
+  if (known === 0) status = "unknown";
+  else if (up + degraded === 0) status = "unhealthy";
+  else if (up === known) status = "healthy";
+  else status = "degraded";
+  const plans = enabled.map((l) => l.downloadBandwidthMbps);
+  return {
+    total: enabled.length,
+    up,
+    down: downLinks.length,
+    degraded,
+    status,
+    downLinks,
+    liveDownloadMbps: sum(enabled.map((l) => l.currentDownloadMbps)),
+    liveUploadMbps: sum(enabled.map((l) => l.currentUploadMbps)),
+    planDownloadMbps: plans.every((v) => v != null) ? sum(plans) : null,
+  };
+}
