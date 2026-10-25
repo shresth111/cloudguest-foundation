@@ -6,7 +6,8 @@ import { requireActiveLocationId } from "@/lib/customerLocationGuard";
  * Moved, kept as a redirect.
  *
  * Web filtering (Cloudflare categories) used to be its own Security row. It is
- * now the "Categories" section of Security -> Block Websites, under the box
+ * now the "Categories" section of Block Websites (itself a tab of Security ->
+ * Firewall), under the box
  * that blocks one website by name, so a venue owner finds website blocking in
  * one place (see `lib/blocking.ts`). Same component, same requests; only the
  * address moved.
@@ -21,6 +22,10 @@ export const Route = createFileRoute("/web-filtering")({
   beforeLoad: ({ context, location }) => {
     requireCustomerSession(context.auth, location);
     requireActiveLocationId();
-    throw redirect({ to: "/blocking", search: { tab: "websites" }, hash: "categories" });
+    throw redirect({
+      to: "/firewall",
+      search: { section: "blocking", tab: "websites" },
+      hash: "categories",
+    });
   },
 });

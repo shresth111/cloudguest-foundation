@@ -297,6 +297,29 @@ export function featureAppliesToControllerVenue(
 }
 
 /**
+ * Nav rows whose page is several tabs that each apply the controller rule
+ * themselves, so the row as a whole is NOT muted at a controller venue and the
+ * shell does not swap the whole page for the controller notice.
+ *
+ * `firewall` is Security -> Firewall: its rules tab writes RouterOS (so
+ * `featureAppliesToControllerVenue("firewall")` stays false, and that tab --
+ * `FirewallView` -- shows the notice), but its Security Check and Block
+ * Websites' Guests tab work at any venue. Muting the row would hide working
+ * screens, which is exactly why Block Websites was never muted either.
+ */
+export const NAV_ROWS_GATED_PER_TAB: readonly string[] = ["firewall"];
+
+/**
+ * Whether a nav row / page as a WHOLE is unavailable at a controller-managed
+ * venue: `featureAppliesToControllerVenue`, except for the rows in
+ * `NAV_ROWS_GATED_PER_TAB`, which gate tab by tab.
+ */
+export function navRowAppliesToControllerVenue(featureId: string, vendor?: string | null): boolean {
+  if (NAV_ROWS_GATED_PER_TAB.includes(featureId)) return true;
+  return featureAppliesToControllerVenue(featureId, vendor);
+}
+
+/**
  * The one sentence a venue owner is owed in place of one of those screens.
  *
  * Written once, here, because it is said in two places that must not drift:

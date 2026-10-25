@@ -116,8 +116,6 @@
     "voip": "Call Priority",
     "isp-details": "Internet Connection",
     "traffic-lens": "Traffic Lens",
-    "security": "Security Score",
-    "blocking": "Block Websites",
     "firewall": "Firewall",
     "debugging": "Fix a Problem",
     "tickets": "Support Tickets",
@@ -128,6 +126,22 @@
   },
   "customerItemBadge": {
     "addon": "Add-on"
+  },
+  "firewallSection": {
+    "rules": "Firewall rules",
+    "blocking": "Block websites",
+    "security": "Security check"
+  },
+  "firewallAddon": {
+    "title": "Firewall is an add-on",
+    "body": "It is not enabled for your organisation.",
+    "ask": "Ask Wyfy to enable it",
+    "point": {
+      "rules": "Firewall rules for your guest network, applied to your router",
+      "websites": "Block websites by name, by app or by category, and block internet addresses",
+      "protection": "Limit connection floods and keep guests from seeing each other",
+      "free": "Your Security Check and blocked guests stay available without it"
+    }
   },
   "blockingTab": {
     "websites": "Websites",

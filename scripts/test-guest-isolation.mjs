@@ -138,8 +138,8 @@ check(
 
 const ov = readFileSync(join(ROOT, "src/components/security/SecurityOverviewView.tsx"), "utf8");
 check(
-  "Security Score links the capability to the firewall screen",
-  /guest_client_isolation: \{\s*to: "\/firewall"/.test(ov),
+  "Security Score links the capability to the firewall rules tab",
+  /guest_client_isolation: \{\s*to: "rules"/.test(ov),
 );
 check(
   "device blocking no longer says isolation is not offered",

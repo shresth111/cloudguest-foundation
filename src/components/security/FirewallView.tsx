@@ -135,8 +135,9 @@ import type { RouterDevice } from "@/types/router";
  * `lib/firewall-rules.ts`, and the Apply action from cloud-guest#304.
  *
  * Addresses and ports only. Blocking a website by name briefly lived here as
- * a "Block a website" box; it moved to Security -> Block Websites so that a
- * venue owner finds websites in one place, and the intro links there.
+ * a "Block a website" box; it moved to Block Websites so that a venue owner
+ * finds websites in one place, and the intro links there. Both are tabs of
+ * Security -> Firewall now (`FirewallSectionView`), with the Security Check.
  *
  * ## Saved is not applied
  *
@@ -149,10 +150,12 @@ import type { RouterDevice } from "@/types/router";
  *
  * ## Controller-managed venues
  *
- * The rules screen is never mounted there: `CustomerFeaturePage` renders
- * the existing `ControllerManagedFeatureNotice` instead ("firewall" is in
- * `CONTROLLER_UNSUPPORTED_FEATURE_IDS`), and this component applies the same
- * gate itself for the staff `/agent` shell, which has no gate of its own. At a
+ * The rules screen is never mounted there: this component renders the
+ * existing `ControllerManagedFeatureNotice` instead ("firewall" is in
+ * `CONTROLLER_UNSUPPORTED_FEATURE_IDS`). It is the only gate: the page around
+ * it (`FirewallSectionView`) has tabs that work at a controller venue, so the
+ * owner shell no longer gates the page, and the staff `/agent` shell never
+ * had a gate of its own. At a
  * MIXED venue it lists only the MikroTik(s), and `ControllerRoutersNote`
  * names the controller it left out.
  */
@@ -182,8 +185,12 @@ export function FirewallView({ locationId }: { locationId?: string }) {
         "Decide which devices on your network may reach which internet addresses. Rules are checked top first, and nothing changes on your router until you apply them.",
       )}{" "}
       {t("blockWebsites.firewallWebsitesPrefix", "To block a website by its name, use")}{" "}
-      <Link to="/blocking" className="font-medium text-primary underline-offset-4 hover:underline">
-        {t("customerItem.blocking", "Block Websites")}
+      <Link
+        to="/firewall"
+        search={{ section: "blocking" }}
+        className="font-medium text-primary underline-offset-4 hover:underline"
+      >
+        {t("firewallSection.blocking", "Block websites")}
       </Link>
       .
     </p>

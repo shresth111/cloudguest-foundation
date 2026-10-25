@@ -20,13 +20,11 @@ import {
   Server,
   Signal,
   Wifi,
-  Ban,
   BrickWall,
   LifeBuoy,
   Share2,
   HelpCircle,
   Radar,
-  ShieldAlert,
   Send,
   Waypoints,
   Logs,
@@ -135,11 +133,11 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
       { id: "vlans", label: "Network Zones", icon: Network, roles: ["owner"] },
       { id: "port-forwarding", label: "Port Forwarding", icon: Share2, roles: ["owner"] },
       { id: "voip", label: "Call Priority", icon: Signal, roles: ["owner"] },
-      // "Website Blocking" used to sit here. It is now the "Websites & IPs"
-      // tab of Security -> Blocking, next to blocked guests, so everything a
-      // venue can block is in one place. Same screen, same rules, same
-      // requests; `/website-blocking` redirects to that tab. See
-      // lib/blocking.ts.
+      // "Website Blocking" used to sit here. It is now the "Websites" tab of
+      // Block Websites, itself a tab of Security -> Firewall, next to
+      // blocked guests, so everything a venue can block is in one place.
+      // Same screen, same rules, same requests; `/website-blocking`
+      // redirects to that tab. See lib/blocking.ts.
       { id: "isp-details", label: "Internet Connection", icon: Globe, roles: ["owner"] },
       // Traffic Lens (paid add-on; wyfy-specs/flow-visibility/PRODUCT.md C1):
       // what the venue's traffic is made of. Read-only, and owner-only like
@@ -156,38 +154,25 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
   {
     id: "security",
     label: "Security",
-    // Three rows, and each opens a screen that does something. The posture
-    // page is the only security surface whose numbers this platform can
-    // actually produce (see SecurityOverviewView's own note), and Block
-    // Websites is the one place to stop a website (by name or by category),
-    // an address or a guest -- built entirely from screens that already
-    // worked elsewhere (lib/blocking.ts). "Web filtering" was a fourth row;
-    // its categories are a section of Block Websites now and /web-filtering
-    // redirects there, because two rows for "block a website" sent owners
-    // looking in the wrong one.
-    // Firewall joined them once rules could actually reach the router
-    // (cloud-guest#304's push): a rules screen with no way to apply them
-    // would have been the placeholder this group refuses to ship. Zone
-    // isolation joins when it is real; listing it now would put a row in the
-    // sidebar that opens a placeholder.
+    // One row. Firewall is the whole section now: firewall rules, Block
+    // Websites and the Security Check are its three tabs
+    // (lib/firewall-section.ts, components/security/FirewallSectionView.tsx).
+    // "Security Score" (/security) and "Block Websites" (/blocking) were rows
+    // of their own beside it; both addresses redirect to their tab, with the
+    // same screens, requests and permissions behind them.
     //
-    // The first label is "Security Score", not "Security": the group header
-    // already says Security, and a row repeating its own group is the same
-    // duplicated heading this dashboard has been pulled up on elsewhere. It
-    // was "Overview", which collided with the Overview group above it.
+    // Firewall is a paid add-on (`firewall` in /me/entitlements). Like
+    // Marketing and Traffic Lens the row stays visible when it is locked and
+    // carries the sidebar's lock badge; inside, only the paid tabs show the
+    // add-on screen -- the Security Check and blocked guests stay free.
     //
-    // Blocking takes `Ban`, which moved with it from the retired Network
-    // row -- no other row uses it, so the collapsed rail stays unambiguous.
-    // Owner-only, like Access Rules that "Blocked Guests" came from.
-    items: [
-      { id: "security", label: "Security Score", icon: ShieldAlert, roles: ["owner"] },
-      { id: "blocking", label: "Block Websites", icon: Ban, roles: ["owner"] },
-      // Owner-only, like every other screen that writes the venue's router.
-      // `BrickWall`: unused elsewhere, and it is what the word means. At a
-      // controller-only venue the row is muted and the page shows the
-      // controller notice ("firewall" is in CONTROLLER_UNSUPPORTED_FEATURE_IDS).
-      { id: "firewall", label: "Firewall", icon: BrickWall, roles: ["owner"] },
-    ],
+    // Owner-only, like every other screen that writes the venue's router.
+    // `BrickWall`: unused elsewhere, and it is what the word means. Not muted
+    // at a controller-only venue even though "firewall" is in
+    // CONTROLLER_UNSUPPORTED_FEATURE_IDS: its Security Check and blocked
+    // guests work there, and each tab applies the controller notice itself
+    // (see `NAV_ROWS_GATED_PER_TAB` in lib/router-vendors.ts).
+    items: [{ id: "firewall", label: "Firewall", icon: BrickWall, roles: ["owner"] }],
   },
   {
     id: "operations",

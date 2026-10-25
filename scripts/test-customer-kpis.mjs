@@ -396,7 +396,9 @@ console.log("\nno two nav items share an icon");
   //     Categories section, deliberately removed as a row.
   // 29: Traffic Lens (the venue traffic add-on), deliberately added.
   // 30: NetLogs (router + sign-in log lines, cloud-guest#420), deliberately added.
-  check("the nav still has every item", icons.length === 30, `found ${icons.length}`);
+  // 28: Security Score and Block Websites folded into Security -> Firewall as
+  //     tabs (the Firewall add-on), deliberately removed as rows.
+  check("the nav still has every item", icons.length === 28, `found ${icons.length}`);
 }
 
 console.log(

@@ -17,10 +17,7 @@ import { filterNavGroupsByPermissions } from "@/lib/customerNavPermissions";
 import { useMyPermissions } from "@/hooks/useCustomerDashboard";
 import { useCustomerStore } from "@/stores/customerStore";
 import { locationControllerVendor, locationIsControllerManaged } from "@/lib/location-liveness";
-import {
-  controllerVenueFeatureReason,
-  featureAppliesToControllerVenue,
-} from "@/lib/router-vendors";
+import { controllerVenueFeatureReason, navRowAppliesToControllerVenue } from "@/lib/router-vendors";
 import { cn } from "@/lib/utils";
 
 /**
@@ -206,7 +203,7 @@ export function HowItWorksView() {
                     // when opened; this page's job is to stop an owner planning
                     // around a feature their venue configures elsewhere.
                     const viaController = controllerManaged
-                      ? !featureAppliesToControllerVenue(item.id, controllerVendor)
+                      ? !navRowAppliesToControllerVenue(item.id, controllerVendor)
                       : false;
                     return (
                       <button
@@ -247,7 +244,7 @@ export function HowItWorksView() {
                     they did not understand the sidebar. */}
                 {controllerManaged &&
                   group.items.some(
-                    (item) => !featureAppliesToControllerVenue(item.id, controllerVendor),
+                    (item) => !navRowAppliesToControllerVenue(item.id, controllerVendor),
                   ) && (
                     <p className="px-1 pb-3 text-xs leading-snug text-muted-foreground">
                       {controllerReason}

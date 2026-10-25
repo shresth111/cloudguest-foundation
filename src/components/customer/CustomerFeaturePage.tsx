@@ -25,7 +25,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { CustomerHeader } from "@/components/customer/CustomerHeader";
 import { CUSTOMER_NAVS, customerFeatureHref } from "@/lib/customerNav";
 import { locationControllerVendor, locationIsControllerManaged } from "@/lib/location-liveness";
-import { featureAppliesToControllerVenue } from "@/lib/router-vendors";
+import { navRowAppliesToControllerVenue } from "@/lib/router-vendors";
 import { ControllerManagedFeatureNotice } from "@/components/customer/ControllerManagedFeatureNotice";
 import { AgentsPage } from "@/components/features/AgentsPage";
 import { CampaignsPage } from "@/components/features/CampaignsPage";
@@ -78,23 +78,23 @@ const VoipView = lazyView(OPS, "VoipView");
 const DebuggingView = lazyView(OPS, "DebuggingView");
 const HotspotView = lazyView(OPS, "HotspotView");
 const GenericFeatureView = lazyView(OPS, "GenericFeatureView");
-// Its own module rather than a member of the OperationsFeatures barrel -- this
-// page reads nothing from that chunk, and the barrel is the single largest
-// thing in the build (see the note above), so adding to it for a page that
-// needs none of it would make opening Security fetch it.
-const SECURITY = () => import("@/components/security/SecurityOverviewView");
-const SecurityOverviewView = lazyView(SECURITY, "SecurityOverviewView");
-// Same reasoning: its own module, and it mounts the Website Blocking screen
-// straight from components/network rather than through the ops barrel.
-const BlockingView = lazyView(() => import("@/components/security/BlockingView"), "BlockingView");
+// Security -> Firewall: its own module rather than a member of the
+// OperationsFeatures barrel -- this page reads nothing from that chunk, and
+// the barrel is the single largest thing in the build (see the note above).
+// Its three tabs (firewall rules, Block Websites, Security Check) are each a
+// further lazy chunk inside it, so opening Firewall fetches only the tab on
+// screen.
+const FirewallSectionView = lazyView(
+  () => import("@/components/security/FirewallSectionView"),
+  "FirewallSectionView",
+);
 // The Marketing add-on. Its own module, lazily fetched, for the same reason
-// as Security and Blocking above: nothing on the way to first paint needs
-// it (wyfy-specs/guest-marketing-campaigns.md §8.1).
+// as Firewall above: nothing on the way to first paint needs it
+// (wyfy-specs/guest-marketing-campaigns.md §8.1).
 const MarketingView = lazyView(
   () => import("@/components/marketing/MarketingView"),
   "MarketingView",
 );
-const FirewallView = lazyView(() => import("@/components/security/FirewallView"), "FirewallView");
 // Traffic Lens (paid add-on). Its own lazily fetched module, like Marketing.
 const TrafficLensView = lazyView(
   () => import("@/components/traffic-lens/TrafficLensView"),
@@ -174,7 +174,7 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
   // boolean; the vendor only decides whether the copy can name a brand.
   const controllerGated =
     locationIsControllerManaged(activeLocation?.liveness) &&
-    !featureAppliesToControllerVenue(feature, locationControllerVendor(activeLocation?.liveness));
+    !navRowAppliesToControllerVenue(feature, locationControllerVendor(activeLocation?.liveness));
   const controllerVendor = locationControllerVendor(activeLocation?.liveness);
 
   const handleLogout = async () => {
@@ -369,21 +369,24 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                   {feature === "dhcp" && <DhcpView locationId={locationId} />}
                   {feature === "vlans" && <VlansView locationId={locationId} />}
                   {feature === "voip" && <VoipView locationId={locationId} />}
-                  {/* Security -> Firewall writes the venue's MikroTik, so it
-                      sits behind the same gate as the Network screens. */}
-                  {feature === "firewall" && <FirewallView locationId={locationId} />}
-                  {/* No "website-blocking" or "web-filtering" branch: both
-                      are the "Websites" tab of Security -> Block Websites
-                      now, which applies this same controller gate to that
-                      one tab (see BlockingView), and both old addresses
-                      redirect there. */}
+                  {/* No "firewall" branch here: Security -> Firewall is
+                      three tabs and only some of them write the MikroTik, so
+                      each tab applies this same controller gate itself
+                      (FirewallView, and BlockingView's Websites tab) and the
+                      page is mounted outside it, below. Nor any
+                      "website-blocking" / "web-filtering" branch: both
+                      addresses redirect into that page. */}
                 </>
               )}
               {/* `masked` matters here now: this page looks a guest up by
                   phone number, so it renders an identifier the account
                   holder's own masking preference applies to. */}
-              {feature === "security" && <SecurityOverviewView />}
-              {feature === "blocking" && <BlockingView locationId={locationId} syncWithUrl />}
+              {/* Security -> Firewall: firewall rules, Block Websites and the
+                  Security Check. Not behind the controller gate above (see
+                  that block's note), and its lock screen has to show at any
+                  venue. "security" and "blocking" have no branch: /security
+                  and /blocking redirect to their tab of this page. */}
+              {feature === "firewall" && <FirewallSectionView locationId={locationId} />}
               {feature === "marketing" && <MarketingView locationId={locationId} syncWithUrl />}
               {/* Not behind the controller gate above: the view shows its own
                   "not available at this venue" from the backend's answer, and

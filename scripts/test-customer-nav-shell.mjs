@@ -118,7 +118,7 @@ const {
 // 1. The menu is the 26 again.
 // ---------------------------------------------------------------------------
 
-console.log("\nthe customer menu is 30 features in nine groups");
+console.log("\nthe customer menu is 28 features in nine groups");
 
 // Nine since the Marketing add-on arrived as its own group, directly after
 // Engagement (wyfy-specs/guest-marketing-campaigns.md §3.5): outbound guest
@@ -155,7 +155,11 @@ check("there are nine groups", CUSTOMER_NAV_GROUPS.length === 9, `${CUSTOMER_NAV
 // Then Support & Logs -> NetLogs (30): the customer's own router + sign-in
 // log lines (cloud-guest#420), gated on `network_logs.read`.
 // scripts/test-netlogs.mjs pins where it sits and what gates it.
-check("there are 30 features", CUSTOMER_NAVS.length === 30, `${CUSTOMER_NAVS.length}`);
+// Then back to 28: Security Score and Block Websites stopped being rows and
+// became tabs of Security -> Firewall (lib/firewall-section.ts), beside the
+// firewall rules -- the same screens, now one section, which is what makes
+// Firewall one add-on. Section 10 pins the move.
+check("there are 28 features", CUSTOMER_NAVS.length === 28, `${CUSTOMER_NAVS.length}`);
 check(
   "the nine groups are the canonical ones",
   CUSTOMER_NAV_GROUPS.map((g) => g.id).join(",") ===
@@ -331,19 +335,19 @@ check("Alerts still carries Bell", alerts && alerts.icon.name === "Bell");
 // 10. Security -> Blocking is one home, not a second copy.
 // ---------------------------------------------------------------------------
 
-console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
+console.log("\nSecurity -> Firewall holds Block Websites and the Security Check as tabs");
 
 {
   const security = CUSTOMER_NAV_GROUPS.find((g) => g.id === "security");
   check(
-    "the Security group is Security Score, Block Websites, then Firewall",
-    security && security.items.map((i) => i.id).join(",") === "security,blocking,firewall",
+    "the Security group is one row, Firewall",
+    security && security.items.map((i) => i.id).join(",") === "firewall",
     security ? security.items.map((i) => i.id).join(",") : "missing",
   );
-  const score = CUSTOMER_NAVS.find((n) => n.id === "security");
   check(
-    "the Security group's first row is Security Score, not a second Overview",
-    score && score.label === "Security Score",
+    "Security Score and Block Websites are not rows any more",
+    !CUSTOMER_NAVS.some((n) => n.id === "security" || n.id === "blocking"),
+    "the same screen reachable as a row and as a tab is two homes for one setting",
   );
   check(
     "the Overview group's own rows are untouched",
@@ -351,13 +355,20 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
       .map((i) => `${i.id}:${i.label}`)
       .join(",") === "dashboard:Dashboard,users:Guests,reports:Reports,alerts:Alerts",
   );
-  const blocking = CUSTOMER_NAVS.find((n) => n.id === "blocking");
-  check("Blocking is labelled for the job", blocking && blocking.label === "Block Websites");
-  check(
-    "Blocking is owner-only, like Access Rules its guests tab came from",
-    blocking && blocking.roles.join(",") === "owner",
+  const section = strip(
+    readFileSync(join(ROOT, "src/components/security/FirewallSectionView.tsx"), "utf8"),
   );
-  check("Blocking lives at /blocking", customerFeatureHref("blocking") === "/blocking");
+  const sectionLib = strip(readFileSync(join(ROOT, "src/lib/firewall-section.ts"), "utf8"));
+  check(
+    "Firewall's tabs are firewall rules, Block websites, then the Security check",
+    /id: "rules"[\s\S]*id: "blocking"[\s\S]*id: "security"/.test(sectionLib),
+  );
+  check(
+    "each tab mounts the screen that was its own page, not a fork",
+    /<FirewallView locationId=\{locationId\} \/>/.test(section) &&
+      /<BlockingView\b[^>]*syncWithUrl/.test(section) &&
+      /<SecurityOverviewView \/>/.test(section),
+  );
   check(
     "Website Blocking is not a row anywhere any more",
     !CUSTOMER_NAVS.some((n) => n.id === "website-blocking"),
@@ -369,12 +380,14 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
       .map((i) => i.id)
       .join(",") === "dhcp,vlans,port-forwarding,voip,isp-details,traffic-lens",
   );
-  // Old links must keep working: a bookmark to the old address is a
+  // Old links must keep working: a bookmark to an old address is a
   // redirect to the tab it became, behind the same session guards.
   const redirectSrc = strip(readFileSync(join(ROOT, "src/routes/website-blocking.tsx"), "utf8"));
   check(
-    "/website-blocking redirects to the Websites tab",
-    /redirect\(\{\s*to:\s*"\/blocking",\s*search:\s*\{\s*tab:\s*"websites"\s*\}/.test(redirectSrc),
+    "/website-blocking redirects to the Websites tab of Block websites",
+    /redirect\(\{\s*to:\s*"\/firewall",\s*search:\s*\{\s*section:\s*"blocking",\s*tab:\s*"websites"\s*\}/.test(
+      redirectSrc,
+    ),
   );
   check(
     "and still checks the session before it redirects",
@@ -382,13 +395,27 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
       redirectSrc.indexOf("requireCustomerSession") < redirectSrc.indexOf("redirect({"),
   );
   check("and no longer mounts a page of its own", !/CustomerFeaturePage/.test(redirectSrc));
-  const routeSrc = strip(readFileSync(join(ROOT, "src/routes/blocking.tsx"), "utf8"));
-  check(
-    "/blocking mounts the shared shell with the blocking id",
-    /<CustomerFeaturePage feature="blocking" \/>/.test(routeSrc) &&
-      /requireCustomerSession/.test(routeSrc) &&
-      /requireActiveLocationId/.test(routeSrc),
-  );
+  for (const [file, pattern, what] of [
+    [
+      "src/routes/blocking.tsx",
+      /redirect\(\{\s*to:\s*"\/firewall",\s*search:\s*\{\s*section:\s*"blocking",\s*tab:\s*search\.tab\s*\},\s*hash:/,
+      "/blocking redirects to the Block websites tab, keeping ?tab= and the #section",
+    ],
+    [
+      "src/routes/security.tsx",
+      /redirect\(\{\s*to:\s*"\/firewall",\s*search:\s*\{\s*section:\s*"security"\s*\}/,
+      "/security redirects to the Security check tab",
+    ],
+  ]) {
+    const src = strip(readFileSync(join(ROOT, file), "utf8"));
+    check(
+      what,
+      pattern.test(src) &&
+        src.indexOf("requireCustomerSession") > -1 &&
+        src.indexOf("requireCustomerSession") < src.indexOf("redirect({") &&
+        !/CustomerFeaturePage/.test(src),
+    );
+  }
   // The page is built from the screens that already worked, not forks of
   // them -- and those screens left their old homes.
   const view = strip(readFileSync(join(ROOT, "src/components/security/BlockingView.tsx"), "utf8"));
@@ -421,8 +448,9 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
     readFileSync(join(ROOT, "src/components/security/FirewallView.tsx"), "utf8"),
   );
   check(
-    "Firewall no longer blocks websites, and points owners at Block Websites",
-    !/WebsiteBlockBox/.test(firewallView) && /<Link to="\/blocking"/.test(firewallView),
+    "Firewall rules no longer block websites, and point owners at the Block websites tab",
+    !/WebsiteBlockBox/.test(firewallView) &&
+      /to="\/firewall"\s*search=\{\{ section: "blocking" \}\}/.test(firewallView),
   );
   check("the Guests tab is the existing Blocked Guests screen", /<BlockUsers\b/.test(view));
   check(
@@ -437,7 +465,7 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
   );
   check(
     "and points owners at where it went",
-    /to="\/blocking"/.test(hub) && /tab:\s*"guests"/.test(hub),
+    /to="\/firewall"/.test(hub) && /section:\s*"blocking",\s*tab:\s*"guests"/.test(hub),
   );
   // The overview links each enforced capability that has a control to it --
   // and only those.
@@ -450,7 +478,8 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
     [...managed.matchAll(/^\s*([a-z_]+):\s*\{\s*to:\s*"([^"]+)"/gm)]
       .filter((mm) => mm[2] === dest)
       .map((mm) => mm[1]);
-  const linkedKeys = linkedTo("/blocking");
+  // Destinations are tabs of the Firewall page the check itself is a tab of.
+  const linkedKeys = linkedTo("blocking");
   check(
     "the Security Score links website, app, harmful-site, category, address and device blocking to it",
     linkedKeys.sort().join(",") ===
@@ -458,14 +487,15 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
     linkedKeys.join(","),
   );
   check(
-    "and links zone-to-zone firewalling, the flood limit and guest isolation to Security -> Firewall, and nothing else there",
-    linkedTo("/firewall").sort().join(",") ===
+    "and links zone-to-zone firewalling, the flood limit and guest isolation to the firewall rules tab, and nothing else there",
+    linkedTo("rules").sort().join(",") ===
       "connection_flood_protection,guest_client_isolation,zone_to_zone_firewall",
-    linkedTo("/firewall").join(","),
+    linkedTo("rules").join(","),
   );
   check(
-    "and links nothing to the retired /web-filtering address",
-    linkedTo("/web-filtering").length === 0 && !/to="\/web-filtering"/.test(overview),
+    "and links nothing to the retired /web-filtering, /blocking or /security addresses",
+    linkedTo("/web-filtering").length === 0 &&
+      !/to="\/(web-filtering|blocking|security)"/.test(overview),
   );
   check(
     "and never renders the not-supported group to a customer",
@@ -526,10 +556,23 @@ console.log("\nSecurity -> Firewall is a real screen, owner-only, gated at contr
   const shellSrc = strip(
     readFileSync(join(ROOT, "src/components/customer/CustomerFeaturePage.tsx"), "utf8"),
   );
-  const gatedBlock = shellSrc.split("controllerGated ?")[1] ?? "";
+  // The page is three tabs and only the rules tab writes RouterOS, so the
+  // shell mounts the section OUTSIDE its page-level controller gate and each
+  // tab gates itself (FirewallView above; Block websites' Websites tab).
+  const gatedBlock = (shellSrc.split("controllerGated ?")[1] ?? "").split(
+    "<FirewallSectionView",
+  )[0];
   check(
-    "the owner shell mounts it inside the controller gate",
-    /feature === "firewall" && <FirewallView\b/.test(gatedBlock),
+    "the owner shell mounts the section outside the page-level controller gate",
+    /feature === "firewall" && <FirewallSectionView\b/.test(shellSrc) &&
+      !/<FirewallView\b/.test(shellSrc) &&
+      !/<FirewallView\b|<FirewallSectionView\b/.test(gatedBlock),
+  );
+  check(
+    "and the nav row is not muted as a whole at a controller venue",
+    /NAV_ROWS_GATED_PER_TAB: readonly string\[\] = \["firewall"\]/.test(
+      readFileSync(join(ROOT, "src/lib/router-vendors.ts"), "utf8"),
+    ),
   );
   // The operator screen is untouched and still where it was.
   const operatorRoute = readFileSync(
@@ -559,7 +602,7 @@ console.log(
   const routeSrc = strip(readFileSync(join(ROOT, "src/routes/web-filtering.tsx"), "utf8"));
   check(
     "/web-filtering redirects to the Categories section of the Websites tab",
-    /redirect\(\{\s*to:\s*"\/blocking",\s*search:\s*\{\s*tab:\s*"websites"\s*\},\s*hash:\s*"categories"/.test(
+    /redirect\(\{\s*to:\s*"\/firewall",\s*search:\s*\{\s*section:\s*"blocking",\s*tab:\s*"websites"\s*\},\s*hash:\s*"categories"/.test(
       routeSrc,
     ),
   );

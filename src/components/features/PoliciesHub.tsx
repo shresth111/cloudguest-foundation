@@ -275,12 +275,12 @@ export default function PoliciesHub({ locationId }: { locationId?: string } = {}
       <p className="text-sm text-muted-foreground">
         {t("blockedMovedPrefix", "Looking for blocked guests? They are now under")}{" "}
         <Link
-          to="/blocking"
-          search={{ tab: "guests" }}
+          to="/firewall"
+          search={{ section: "blocking", tab: "guests" }}
           className="font-medium text-primary underline-offset-4 hover:underline"
         >
-          {t("nav:customerGroup.security", "Security")} &rarr;{" "}
-          {t("nav:customerItem.blocking", "Blocking")}
+          {t("nav:customerItem.firewall", "Firewall")} &rarr;{" "}
+          {t("nav:firewallSection.blocking", "Block websites")}
         </Link>
         {t("blockedMovedSuffix", ", together with blocked websites.")}
       </p>

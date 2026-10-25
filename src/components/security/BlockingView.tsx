@@ -14,6 +14,7 @@ import BlockUsers from "@/components/features/BlockUsers";
 import { ControllerManagedFeatureNotice } from "@/components/customer/ControllerManagedFeatureNotice";
 import { WebsiteBlockBox } from "@/components/security/WebsiteBlockBox";
 import { AppBlockBox, AppBlockLimits } from "@/components/security/AppBlockBox";
+import { FirewallAddonLocked } from "@/components/security/FirewallAddonLocked";
 import { WebFilteringView } from "@/components/security/WebFilteringView";
 import { useMyPermissions } from "@/hooks/useCustomerDashboard";
 import { useCustomerStore } from "@/stores/customerStore";
@@ -93,17 +94,29 @@ export const BLOCK_WEBSITES_SECTION_IDS = {
  * ## The URL carries the tab
  *
  * With `syncWithUrl`, `?tab=websites|guests` picks the tab and switching tabs
- * rewrites it. That is what lets the Security Score and old
+ * rewrites it. That is what lets the Security Score and old `/blocking`,
  * `/website-blocking` and `/web-filtering` bookmarks land on the right tab.
- * The `/agent` shell has one URL for every feature, so it leaves this off and
- * keeps the tab local.
+ * This page is the "Block websites" tab of Security -> Firewall now
+ * (`FirewallSectionView`), so the URL it writes is
+ * `/firewall?section=blocking&tab=...`. The `/agent` shell has one URL for
+ * every feature, so it leaves this off and keeps the tab local.
+ *
+ * ## The Firewall add-on
+ *
+ * With `websitesLocked` (the add-on is off for this organisation, see
+ * `lib/firewall-section.ts`) the Websites tab shows the add-on screen and
+ * mounts none of its sections -- every one of their requests would answer
+ * 402. The Guests tab is not part of the add-on and keeps working, so, as at
+ * a controller venue, the page opens on it unless a link asked for Websites.
  */
 export function BlockingView({
   locationId,
   syncWithUrl = false,
+  websitesLocked = false,
 }: {
   locationId?: string;
   syncWithUrl?: boolean;
+  websitesLocked?: boolean;
 }) {
   const { t } = useTranslation("nav", { i18n });
   const navigate = useNavigate();
@@ -112,11 +125,14 @@ export function BlockingView({
   const { data: permissions } = useMyPermissions();
 
   const controllerManaged = locationIsControllerManaged(activeLocation?.liveness);
+  // Either reason the Websites tab cannot do anything here opens the page on
+  // the tab that can.
+  const preferWorkingTab = controllerManaged || websitesLocked;
   const controllerVendor = locationControllerVendor(activeLocation?.liveness);
   const offered = blockingTabsFor(permissions);
 
   const [localTab, setLocalTab] = useState<BlockingTabId>(() =>
-    initialBlockingTab(syncWithUrl ? search.tab : undefined, offered, controllerManaged),
+    initialBlockingTab(syncWithUrl ? search.tab : undefined, offered, preferWorkingTab),
   );
   // From the URL when it carries a tab we offer; otherwise the local choice.
   // Recomputed each render, so the browser's back button moves the tab too.
@@ -125,13 +141,17 @@ export function BlockingView({
       ? search.tab
       : offered.some((o) => o.id === localTab)
         ? localTab
-        : initialBlockingTab(undefined, offered, controllerManaged);
+        : initialBlockingTab(undefined, offered, preferWorkingTab);
 
   const selectTab = (next: string) => {
     if (!isBlockingTabId(next)) return;
     setLocalTab(next);
     if (syncWithUrl) {
-      void navigate({ to: "/blocking", search: { tab: next }, replace: true });
+      void navigate({
+        to: "/firewall",
+        search: { section: "blocking", tab: next },
+        replace: true,
+      });
     }
   };
 
@@ -182,7 +202,11 @@ export function BlockingView({
                   vendor={controllerVendor}
                 />
               ) : o.id === "websites" ? (
-                <WebsitesTab locationId={locationId} />
+                websitesLocked ? (
+                  <FirewallAddonLocked />
+                ) : (
+                  <WebsitesTab locationId={locationId} />
+                )
               ) : (
                 <BlockUsers locationId={locationId} />
               )}

@@ -164,9 +164,17 @@ check(
   !/feature === "website-blocking"/.test(customerShell) &&
     !/<WebsiteBlockingView\b/.test(customerShell),
 );
+// Block Websites is a tab of Security -> Firewall now: the shell mounts the
+// section, and the section mounts Blocking -- once.
+const firewallSection = readCode("src/components/security/FirewallSectionView.tsx");
 check(
-  "the customer shell mounts Blocking",
-  /feature === "blocking" && <BlockingView\b/.test(customerShell),
+  "the customer shell mounts the Firewall section",
+  /feature === "firewall" && <FirewallSectionView\b/.test(customerShell),
+);
+check(
+  "which mounts Blocking once, and the shell does not mount it again",
+  (firewallSection.match(/<BlockingView\b/g) ?? []).length === 1 &&
+    !/<BlockingView\b/.test(customerShell),
 );
 check(
   "the staff shell mounts the same Blocking page",
@@ -188,8 +196,9 @@ check(
 // have two screens for one set of rules speaking two vocabularies.
 console.log("\nFirewall rules");
 check(
-  "the customer shell mounts Firewall once",
-  (customerShell.match(/<FirewallView\b/g) ?? []).length === 1,
+  "the customer shell mounts Firewall once (through its section)",
+  (firewallSection.match(/<FirewallView\b/g) ?? []).length === 1 &&
+    !/<FirewallView\b/.test(customerShell),
 );
 check(
   "the staff shell mounts the same Firewall page",
